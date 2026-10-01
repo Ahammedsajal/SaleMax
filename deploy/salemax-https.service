@@ -1,0 +1,8 @@
+[Unit]
+Description=Activate Salemax HTTPS after DNS is configured
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/salemax/current/deploy/activate-https.sh

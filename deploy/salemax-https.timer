@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Salemax DNS and activate HTTPS
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+Persistent=true
+Unit=salemax-https.service
+
+[Install]
+WantedBy=timers.target
