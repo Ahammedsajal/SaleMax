@@ -780,8 +780,8 @@ async function deleteStage(uid, stageKey, targetStage) {
   });
 }
 
-async function createManualLead({ uid, actorType, actorId, agentId, role, input }) {
-  return inTransaction(async (connection) => {
+async function createManualLead({ uid, actorType, actorId, agentId, role, input, connection:existingConnection, pool:sourcePool }) {
+  const work=async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const title = text(input.title, 180);
     if (!title) { const error = new Error("Lead title is required."); error.status = 400; throw error; }
@@ -835,12 +835,13 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input 
     const amount = input.expectedValue === "" || input.expectedValue === null || input.expectedValue === undefined ? null : Number(input.expectedValue);
     if (amount !== null && (!Number.isFinite(amount) || amount < 0)) { const error = new Error("Expected value must be zero or greater."); error.status = 400; throw error; }
     const currency = /^[A-Z]{3}$/.test(String(input.currency || "QAR")) ? String(input.currency || "QAR") : "QAR";
+    const sourceType=input.sourceType==='public_form'?'public_form':'manual';
     await connection.query(
       `INSERT INTO pipeline_leads
         (id, uid_hash, uid, contact_id, identity_key, title, contact_name, learner_name, mobile, primary_origin, source_type,
          stage_key, stage_entered_at, owner_agent_id, expected_value, currency, next_follow_up_at, last_activity_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'manual', ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
-      [id, uidHash, uid, contactId, identityKey, title, contactName, learnerName, phone, stageKey, now, owner, amount, currency,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
+      [id, uidHash, uid, contactId, identityKey, title, contactName, learnerName, phone, sourceType, stageKey, now, owner, amount, currency,
         input.nextFollowUpAt ? dbDate(input.nextFollowUpAt) : null, now],
     );
     await addActivity(connection, uidHash, id, "lead_created", "Opportunity added manually", { title, contactId }, actorType, actorId);
@@ -849,7 +850,9 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input 
       await addActivity(connection, uidHash, id, "lead_assigned", `Assigned to ${assignedAgent[0]?.name || "agent"}`, { toAgentId: owner, toAgentName: assignedAgent[0]?.name || null, initialAssignment: true }, actorType, actorId);
     }
     return { id, contactId };
-  });
+  };
+  if(existingConnection)return work(existingConnection);
+  return inTransaction(work,sourcePool);
 }
 
 async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
