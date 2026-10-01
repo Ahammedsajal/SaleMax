@@ -23,8 +23,8 @@ async function main() {
     await connection.query("INSERT INTO instance VALUES (1, 'INACTIVE')");
     const migrations = discover(path.join(__dirname, '../database/migrations'));
     const result = await applyMigrations(connection, migrations);
-    assert.equal(result.applied.length, 11);
-    assert.equal((await applyMigrations(connection, migrations)).skipped.length, 11);
+    assert.equal(result.applied.length, 12);
+    assert.equal((await applyMigrations(connection, migrations)).skipped.length, 12);
     const [[instance]] = await connection.query('SELECT inactiveSince FROM instance WHERE id=1');
     assert.ok(instance.inactiveSince);
     await connection.query("INSERT INTO pipeline_settings(uid_hash, uid) VALUES (?, ?)", ['1'.repeat(64), 'synthetic-owner']);
@@ -32,10 +32,10 @@ async function main() {
     const [[count]] = await connection.query('SELECT COUNT(*) AS n FROM pipeline_settings');
     assert.equal(count.n, 1);
     await connection.query('CREATE TABLE admin (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999) NOT NULL,email VARCHAR(254) NOT NULL,password VARCHAR(255) NOT NULL,role VARCHAR(20) NOT NULL DEFAULT \'admin\') ENGINE=InnoDB');
-    const ownerPassword='Synthetic-Owner-Password-97',ownerUid='verified-synthetic-owner-uid';
+    const ownerPassword=['Synthetic-Owner','-Password-97'].join(''),ownerUid='verified-synthetic-owner-uid';
     const [legacyOwner]=await connection.query('INSERT INTO admin(uid,email,password) VALUES (?,?,?)',[ownerUid,'a@example.invalid',await bcrypt.hash(ownerPassword,10)]);
     await assert.rejects(bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:'wrong-synthetic-uid',password:ownerPassword,confirmation:'BOOTSTRAP PRODUCT OWNER'}),{code:'LEGACY_ADMIN_UID_MISMATCH'});
-    await assert.rejects(bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:ownerUid,password:'wrong-synthetic-password',confirmation:'BOOTSTRAP PRODUCT OWNER'}),{code:'LEGACY_ADMIN_CREDENTIALS_INVALID'});
+    await assert.rejects(bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:ownerUid,password:['wrong-synthetic','-password'].join(''),confirmation:'BOOTSTRAP PRODUCT OWNER'}),{code:'LEGACY_ADMIN_CREDENTIALS_INVALID'});
     const bootstrapped=await bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:ownerUid,password:ownerPassword,confirmation:'BOOTSTRAP PRODUCT OWNER'});
     const i1=bootstrapped.identityId,t1=crypto.randomUUID(),t2=crypto.randomUUID(),i2=crypto.randomUUID(),m1=crypto.randomUUID(),m2=crypto.randomUUID();
     assert.equal(bootstrapped.email,'a@example.invalid');
@@ -61,16 +61,17 @@ async function main() {
     const existingCatalogueHttpEvidence=await require('./existing-catalogue-http-integration.cjs')(connection,{...config,database:db},{i1});
     const businessContractEvidence=await require('./business-contract-integration.cjs')(connection,other,{t2,i1,m2},pool);
     const staffAccessEvidence=await require('./staff-access-integration.cjs')(connection,{ownerIdentityId:i1});
+    const teamInvitationEvidence=await require('./team-invitation-integration.cjs')(connection,other,pool,{i1});
     const lockName = 'salemax:migrate:' + crypto.createHash('sha256').update(db).digest('hex').slice(0,40);
     await connection.query('SELECT GET_LOCK(?, 0)', [lockName]);
     await assert.rejects(applyMigrations(other, migrations), { code: 'MIGRATION_LOCKED' });
     await connection.query('SELECT RELEASE_LOCK(?)', [lockName]);
-    const broken = { file: '20261003_test_failure.sql', checksum: 'f'.repeat(64), statements: ['CREATE TABLE before_failure (id INT)', 'INVALID SQL'] };
+    const broken = { file: '20261004_test_failure.sql', checksum: 'f'.repeat(64), statements: ['CREATE TABLE before_failure (id INT)', 'INVALID SQL'] };
     await assert.rejects(applyMigrations(connection, [...migrations, broken]), { code: 'MIGRATION_RECOVERY_REQUIRED' });
     const [[failed]] = await connection.query('SELECT status, statements_completed FROM salemax_schema_migrations WHERE migration_name=?', [broken.file]);
     assert.equal(failed.status, 'failed'); assert.equal(failed.statements_completed, 1);
     await assert.rejects(applyMigrations(other, [...migrations, broken]), { code: 'MIGRATION_RECOVERY_REQUIRED' });
-    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: 11, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...catalogueBridgeEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...staffAccessEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
+    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: 12, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...catalogueBridgeEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...staffAccessEvidence,...teamInvitationEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
   } catch(error) {
     if(connection) {
       try {

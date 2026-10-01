@@ -790,3 +790,11 @@ The slice includes the additive `20261002_platform_staff_invites.sql` migration,
 | Full training-center launch | Not release-ready | Finance, courses, portal, scheduled notifications, wider role journeys, migration/adoption, provider evidence, load/restore, staging and owner production approval remain outstanding. |
 
 This progress note records one implementation increment only. It does not mark TC03/TC04 complete, close TC00/TC35/TC40, or authorize production deployment.
+
+## 27 Implementation progress — agent invitation API slice
+
+The next increment extends the existing `/user` and `/agent` API surfaces, using the existing legacy agent login and tenant membership model. Migration `20261003_team_invitation_activation.sql` adds hashed, one-time activation data to the existing invitation reservation table. Owner actions verify the reviewed business-owner link, active training-center tenant, plan entitlement and agent seat limit; acceptance rechecks tenant, plan and seat capacity transactionally, then creates the compatible existing `agents` login plus canonical membership and ownership mapping. Accountant and manager roles remain unavailable because the existing business APIs do not yet enforce their distinct permissions.
+
+The existing `/user` shell now exposes a bilingual Team Invitations screen adjacent to Agent Login, and a fragment link opens one-time activation over the same SaleMaX login shell. Local unit tests pass 47/47. The 12-migration synthetic MariaDB run now exercises hashed tokens, rotation invalidation, one-time agent activation, reissue after expiry, owner/tenant linking and seat-limit rejection. Browser snapshots confirm the invitation management and activation forms render in the existing shell; authenticated owner acceptance in both languages and mobile/tablet review remain open. Delivery is copy-link only; email/WhatsApp dispatch is not implemented. Git push and release gates remain open. Do not deploy this increment until those checks and the release gates are complete.
+
+\n
