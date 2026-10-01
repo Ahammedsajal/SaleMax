@@ -30,6 +30,7 @@ const {
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
+const {issueForVerifiedLegacyAccount} = require("../modules/platform/legacy-session-bridge");
 const Stripe = require("stripe");
 const {
   checkPlan,
@@ -287,6 +288,7 @@ router.post("/login", async (req, res) => {
     if (!compare) {
       return res.json({ msg: "Invalid credentials" });
     } else {
+      const businessSession = await issueForVerifiedLegacyAccount({kind:'user',legacyId:Number(userFind[0].id),legacyUid:userFind[0].uid,legacyEmail:userFind[0].email,password,address:req.socket.remoteAddress,origin:req.get('Origin')});
       const token = sign(
         {
           uid: userFind[0].uid,
@@ -297,14 +299,16 @@ router.post("/login", async (req, res) => {
         process.env.JWTKEY,
         {},
       );
+      if(businessSession)res.cookie(businessSession.cookieName,businessSession.token,{...businessSession.cookie,maxAge:businessSession.maxAgeSeconds*1000});
       res.json({
         success: true,
         token,
+        ...(businessSession?{businessSession:{context:businessSession.context,csrfToken:businessSession.csrfToken}}:{}),
       });
     }
   } catch (err) {
-    res.json({ success: false, msg: "something went wrong", err });
-    console.log(err);
+    console.error('Business login failed:',err?.code||err?.name||'unknown');
+    res.status(err?.code==='AUTH_INVALID'?401:err?.code==='AUTH_RATE_LIMITED'?429:503).json({ success: false, msg: "Sign-in could not be completed. Please retry." });
   }
 });
 

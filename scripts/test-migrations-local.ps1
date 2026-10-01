@@ -27,7 +27,7 @@ try {
     $ready = $false
     for ($i=0; $i -lt 30; $i++) { if (Test-TestPort) { $ready=$true; break }; if ($instance.HasExited) { throw 'Disposable database exited during startup' }; Start-Sleep -Milliseconds 500 }
     if (-not $ready) { throw 'Disposable database did not become ready' }
-    $env:LOCAL_ONLY_MODE='true'; $env:DBHOST='127.0.0.1'; $env:DBPORT="$Port"; $env:DBUSER='root'; $env:DBPASS='__EMPTY__'
+    $env:LOCAL_ONLY_MODE='true'; $env:DBHOST='127.0.0.1'; $env:DBPORT="$Port"; $env:DBUSER='root'; $env:DBPASS=''
     Push-Location $project
     try { & node.exe 'tests/migrations.integration.js'; if ($LASTEXITCODE -ne 0) { throw 'Migration integration assertions failed' } }
     finally { Pop-Location }

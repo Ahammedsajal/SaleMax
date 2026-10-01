@@ -38,6 +38,7 @@ const ffmpegStatic = require("ffmpeg-static");
 const fs = require("fs");
 const legacyAgentSeats = require("../modules/platform/legacy-agent-seats");
 const legacyAgentAccess = require("../modules/platform/legacy-agent-access");
+const {issueForVerifiedLegacyAccount} = require("../modules/platform/legacy-session-bridge");
 
 // adding agent
 router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
@@ -425,6 +426,10 @@ router.post("/login", async (req, res) => {
       return res.json({ msg: "Invalid credentials" });
     }
 
+    if(Number(agentFind[0].is_active)!==1)return res.status(403).json({success:false,msg:"This agent account is inactive."});
+
+    const businessSession = await issueForVerifiedLegacyAccount({kind:'agent',legacyId:Number(agentFind[0].id),legacyUid:agentFind[0].uid,legacyEmail:agentFind[0].email,password,address:req.socket.remoteAddress,origin:req.get('Origin')});
+
     // Generate token
     const token = sign(
       {
@@ -470,14 +475,16 @@ router.post("/login", async (req, res) => {
       agentFind[0].uid,
     ]);
 
+    if(businessSession)res.cookie(businessSession.cookieName,businessSession.token,{...businessSession.cookie,maxAge:businessSession.maxAgeSeconds*1000});
     res.json({
       success: true,
       token,
+      ...(businessSession?{businessSession:{context:businessSession.context,csrfToken:businessSession.csrfToken}}:{}),
       todayStats: existingLogs.dateTracking[currentDate], // Optional: Return today's stats
     });
   } catch (err) {
-    console.error(err);
-    res.json({ success: false, msg: "Something went wrong", err });
+    console.error('Agent login failed:',err?.code||err?.name||'unknown');
+    res.status(err?.code==='AUTH_INVALID'?401:err?.code==='AUTH_RATE_LIMITED'?429:503).json({ success: false, msg: "Sign-in could not be completed. Please retry." });
   }
 });
 

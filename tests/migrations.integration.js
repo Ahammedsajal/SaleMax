@@ -16,6 +16,9 @@ async function main() {
   try {
     await admin.query(`CREATE DATABASE \`${db}\``);
     created = true;
+    // Ensure modules that use the legacy mysql pool bind to this disposable DB,
+    // never the application name retained in the local .env file.
+    process.env.DBNAME=db;
     connection = await mysql.createConnection({ ...config, database: db });
     other = await mysql.createConnection({ ...config, database: db });
     pool = mysql.createPool({ ...config, database: db, connectionLimit: 5 });
@@ -61,7 +64,7 @@ async function main() {
     const existingCatalogueHttpEvidence=await require('./existing-catalogue-http-integration.cjs')(connection,{...config,database:db},{i1});
     const businessContractEvidence=await require('./business-contract-integration.cjs')(connection,other,{t2,i1,m2},pool);
     const staffAccessEvidence=await require('./staff-access-integration.cjs')(connection,{ownerIdentityId:i1});
-    const businessProvisioningEvidence=await require('./business-provisioning-integration.cjs')(connection,other,{i1});
+    const businessProvisioningEvidence=await require('./business-provisioning-integration.cjs')(connection,other,{i1},pool);
     const teamInvitationEvidence=await require('./team-invitation-integration.cjs')(connection,other,pool,{i1});
     const lockName = 'salemax:migrate:' + crypto.createHash('sha256').update(db).digest('hex').slice(0,40);
     await connection.query('SELECT GET_LOCK(?, 0)', [lockName]);
@@ -85,6 +88,8 @@ async function main() {
     if (other) await other.end();
     if (pool) await pool.end();
     if (connection) await connection.end();
+    const legacyPoolPath=require.resolve('../database/config');
+    if(require.cache[legacyPoolPath])await require(legacyPoolPath).end();
     try { if (created) await admin.query(`DROP DATABASE IF EXISTS \`${db}\``); }
     finally { await admin.end(); }
   }

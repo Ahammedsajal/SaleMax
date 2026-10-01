@@ -156,8 +156,8 @@ async function stageExists(connection, uidHash, stageKey) {
 async function addActivity(connection, uidHash, leadId, type, summary, details = null, actorType = "system", actorId = null) {
   await connection.query(
     `INSERT INTO pipeline_activity
-      (uid_hash, lead_id, actor_type, actor_id, activity_type, summary, details)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (uid_hash, lead_id, actor_type, actor_id, activity_type, summary, details, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
     [uidHash, leadId, actorType, actorId, type, text(summary, 500), details ? JSON.stringify(details) : null],
   );
 }
@@ -350,8 +350,8 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
         `INSERT INTO pipeline_leads
           (id, uid_hash, uid, identity_key, title, contact_name, mobile, chat_id, primary_origin,
            source_type, source_id, source_url, source_headline, stage_key, stage_entered_at,
-           status, priority, first_inbound_at, last_activity_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', 'normal', ?, ?)`,
+           status, priority, first_inbound_at, last_activity_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', 'normal', ?, ?, UTC_TIMESTAMP(3))`,
         [id, uidHash, uidValue, identityKey, name ? `${name} · WhatsApp inquiry` : "WhatsApp inquiry", name || null, phone, safeChatId, origin,
           sourceType, adReferral ? text(referral.source_id, 191) || text(referral.ctwa_clid, 191) : null,
           adReferral ? text(referral.source_url, 2000) || null : null,
@@ -771,8 +771,8 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input 
     await connection.query(
       `INSERT INTO pipeline_leads
         (id, uid_hash, uid, identity_key, title, contact_name, mobile, primary_origin, source_type,
-         stage_key, stage_entered_at, owner_agent_id, expected_value, currency, next_follow_up_at, last_activity_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', 'manual', ?, ?, ?, ?, ?, ?, ?)`,
+         stage_key, stage_entered_at, owner_agent_id, expected_value, currency, next_follow_up_at, last_activity_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', 'manual', ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
       [id, uidHash, uid, identityKey, title, contactName, phone, stageKey, now, owner, amount, currency,
         input.nextFollowUpAt ? dbDate(input.nextFollowUpAt) : null, now],
     );

@@ -808,3 +808,9 @@ The existing `/user` shell now exposes a bilingual Team Invitations screen adjac
 The existing pipeline Reports view now exports the visible activity page to CSV with bilingual headings, UTF-8 BOM, quoted cells and spreadsheet-formula prefix neutralization. The export respects the already-filtered report response and does not silently fetch or expose other pages. The user manual and API documentation describe the exact page scope. `npm test` passes 50/50 and the report-screen source test passes 2/2. Authenticated browser download acceptance is still open. This remains one local improvement within TC24; scheduled delivery, finance data and all release gates remain incomplete.
 
 \n
+
+## Implementation increment record (1 October 2026)
+
+This increment extends the current `/user/login` and agent login after their existing credential validation: only explicitly reviewed ownership mappings receive a canonical tenant session, with a fresh canonical password hash derived from the submitted password. The existing `/admin/platform-auth` path is platform-only; `/api/user/business-auth` is tenant-only and remains disabled by the platform feature flag. Existing legacy responses and routes remain for compatibility during phased migration. This is not a replacement login or a complete shared-identity migration. The current user-facing login has no workspace selector yet. Do not enable or deploy the bridge in production until mapping coverage, compatibility, security and all planned release gates pass.
+
+Disposable MariaDB tests cover audience separation, tenant-owner session creation, password rehash behavior, origin rejection and hashed-only session persistence. Pipeline lead/activity writes explicitly use UTC timestamps to keep report cutoffs independent of database server timezone. The full training-center system remains incomplete; this slice advances TC03 only.

@@ -131,3 +131,9 @@ Review the business display name and role account limits. The owner limit is fix
 Choose **Create business and assign plan** only after reviewing the preview. SaleMaX creates the Qatar workspace (QAR, Qatar and Asia/Qatar defaults), owner membership, reviewed link and canonical/legacy plan assignment in one transaction. The existing `/user/login` remains the sign-in route; the canonical identity does not copy or replace the user's legacy password. Users therefore continue using the existing business login. The operation is idempotent if the same confirmation is retried after a lost response. This step creates the workspace and plan link only; it does not create staff logins, invitations, courses, invoices or send messages. Production adoption still requires the reviewed migrations, administrator link and release gates.
 
 \n
+
+## Login compatibility during the phased upgrade
+
+Continue to use the existing `/user/login` or agent login. For an account already linked to a reviewed training-center workspace, a successful legacy password check also starts its business session; no separate login page is introduced. Accounts without a reviewed link keep their current behavior. The business screen does not include a SaleMaX administration switch; platform administrators continue through `/admin/login`.
+
+The canonical tenant-session API is disabled in normal configurations until the platform feature flag and deployment keys/origin are set. The first-login bridge creates a fresh canonical password hash from the password just entered after the existing legacy check. It does not copy stored legacy password hashes. This compatibility phase still returns the legacy API session for older screens and does not mean all APIs have moved to canonical authorization. Staff and customers should continue using current login flows until the release notes announce the full migration.

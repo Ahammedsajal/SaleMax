@@ -1,10 +1,11 @@
 'use strict';
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
+const bcrypt=require('bcrypt');
 const express=require('express');
 const http=require('node:http');
 const provisioning=require('../modules/platform/business-provisioning');
-module.exports=async(db,other,{i1})=>{
+module.exports=async(db,other,{i1},pool)=>{
   const [[emailColumn]]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='email'");
   if(!emailColumn)await db.query('ALTER TABLE user ADD COLUMN email VARCHAR(999) NULL');
   const [[contract]]=await db.query("SELECT c.legacy_plan_id,c.commercial_snapshot,v.id AS version_id,v.role_limits FROM sx_legacy_plan_contracts c JOIN sx_plan_versions v ON v.id=c.version_id WHERE v.status='published' AND v.category_key='training_center' ORDER BY v.published_at DESC LIMIT 1");
@@ -37,12 +38,31 @@ module.exports=async(db,other,{i1})=>{
   assert.equal(result.replayed,false);assert.equal(result.status,Number(commercial.is_trial)===1?'trial':'active');
   const replay=(await request(`${user.insertId}/provision`,{planVersionId:contract.version_id,roleLimits,businessName,requestId,expectedState:reviewed.expectedState})).body.data;assert.equal(replay.replayed,true);assert.equal(replay.tenantId,result.tenantId);
   const [[tenant]]=await db.query('SELECT name,category_key,category_version,country_code,currency,timezone,status FROM sx_tenants WHERE id=?',[result.tenantId]);assert.equal(tenant.name,businessName);assert.equal(tenant.category_key,'training_center');assert.equal(Number(tenant.category_version),1);assert.equal(tenant.country_code,'QA');assert.equal(tenant.currency,'QAR');assert.equal(tenant.timezone,'Asia/Qatar');assert.equal(tenant.status,'active');
-  const [[identity]]=await db.query("SELECT i.email_normalized,i.password_hash,i.status,m.role FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id JOIN sx_identities i ON i.id=m.identity_id WHERE o.source_table='user' AND o.source_id=?",[String(user.insertId)]);assert.equal(identity.email_normalized,email);assert.equal(identity.password_hash,null);assert.equal(identity.status,'active');assert.equal(identity.role,'owner');
+  const [[identity]]=await db.query("SELECT i.id AS identity_id,i.email_normalized,i.password_hash,i.status,m.role FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id JOIN sx_identities i ON i.id=m.identity_id WHERE o.source_table='user' AND o.source_id=?",[String(user.insertId)]);assert.equal(identity.email_normalized,email);assert.equal(identity.password_hash,null);assert.equal(identity.status,'active');assert.equal(identity.role,'owner');
   const [[assignment]]=await db.query('SELECT id,tenant_id,plan_version_id,role_limits,status FROM sx_plan_assignments WHERE id=?',[result.assignmentId]);assert.equal(assignment.tenant_id,result.tenantId);assert.equal(assignment.plan_version_id,contract.version_id);
   const [[ownerMap]]=await db.query("SELECT legacy_uid_hash FROM sx_legacy_ownership WHERE source_table='user' AND source_id=? AND tenant_id=?",[String(user.insertId),result.tenantId]);assert.equal(ownerMap.legacy_uid_hash,crypto.createHash('sha256').update(uid).digest('hex'));
   await assert.rejects(provisioning.options(db,actor,user.insertId),{code:'BUSINESS_ALREADY_PROVISIONED'});
   const denied={...actor,mfaVerified:false};await assert.rejects(provisioning.options(db,denied,user.insertId),{code:'PERMISSION_DENIED'});
   const [[audit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE tenant_id=? AND action='business.tenant-provisioned'",[result.tenantId]);assert.equal(Number(audit.n),1);
-  return {existingBusinessProvisionHttpWorkflow:true,existingUserProvisionedInPlace:true,trainingCategoryAndQatarDefaults:true,publishedPlanAssignedAtomically:true,provisionPreviewStalenessEnforced:true,provisionIdempotency:true,reviewedLegacyOwnerLinkCreated:true,provisioningAudited:true,unauthorizedProvisionDenied:true};
+  const legacyPassword='Synthetic-Legacy-Password-61',legacyHash=await bcrypt.hash(legacyPassword,10);
+  const [[passwordColumn]]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='password'");if(!passwordColumn)await db.query('ALTER TABLE user ADD COLUMN password VARCHAR(255) NULL');
+  await db.query('UPDATE user SET password=? WHERE id=?',[legacyHash,user.insertId]);
+  const bridge=require('../modules/platform/legacy-session-bridge'),saved={enabled:process.env.SALEMAX_PLATFORM_ENABLED,key:process.env.SALEMAX_PLATFORM_KEY_BASE64,origin:process.env.SALEMAX_PLATFORM_ORIGIN};
+  process.env.SALEMAX_PLATFORM_ENABLED='true';
+  const sessionKey=crypto.randomBytes(32),businessOrigin='http://127.0.0.1:3010';
+  try{
+    assert.equal(await bcrypt.compare(legacyPassword,legacyHash),true);
+    const session=await bridge.issueForVerifiedLegacyAccount({kind:'user',legacyId:Number(user.insertId),legacyUid:uid,legacyEmail:email,password:legacyPassword,address:'127.0.0.1',origin:businessOrigin,expectedOrigin:businessOrigin,pool,key:sessionKey,local:true});
+    assert.equal(session.context.audience,'tenant');assert.equal(session.context.tenant.id,result.tenantId);assert.equal(session.context.membership.role,'owner');assert.equal(session.cookieName,'salemax_dev_session');
+    const [[credential]]=await db.query('SELECT password_hash,credential_version FROM sx_identities WHERE id=?',[identity.identity_id]);
+    assert.equal(await bcrypt.compare(legacyPassword,credential.password_hash),true);assert.ok(Number(credential.credential_version)>1);
+    const version=Number(credential.credential_version),again=await bridge.issueForVerifiedLegacyAccount({kind:'user',legacyId:Number(user.insertId),legacyUid:uid,legacyEmail:email,password:legacyPassword,address:'127.0.0.1',origin:businessOrigin,expectedOrigin:businessOrigin,pool,key:sessionKey,local:true});
+    assert.equal(again.context.tenant.id,result.tenantId);
+    const [[unchanged]]=await db.query('SELECT credential_version FROM sx_identities WHERE id=?',[identity.identity_id]);assert.equal(Number(unchanged.credential_version),version);
+    assert.equal(await bridge.issueForVerifiedLegacyAccount({kind:'user',legacyId:Number(user.insertId),legacyUid:uid,legacyEmail:email,password:legacyPassword,address:'127.0.0.1',origin:'https://attacker.example',expectedOrigin:businessOrigin,pool,key:sessionKey,local:true}),null);
+    const [[storedSession]]=await db.query('SELECT token_hash FROM sx_sessions WHERE id=?',[session.context.sessionId]);
+    assert.equal(storedSession.token_hash,crypto.createHash('sha256').update(session.token).digest('hex'));
+  }finally{for(const [key,value]of Object.entries(saved)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
+  return {existingBusinessProvisionHttpWorkflow:true,existingUserProvisionedInPlace:true,trainingCategoryAndQatarDefaults:true,publishedPlanAssignedAtomically:true,provisionPreviewStalenessEnforced:true,provisionIdempotency:true,reviewedLegacyOwnerLinkCreated:true,provisioningAudited:true,legacyOwnerLoginCreatesTenantSession:true,legacyPasswordRehashedNotCopied:true,canonicalSessionRetryDoesNotRehash:true,foreignOriginDoesNotCreateTenantSession:true,canonicalSessionTokenOnlyStoredAsHash:true,unauthorizedProvisionDenied:true};
   } finally {await new Promise(resolve=>server.close(resolve));}
 };
