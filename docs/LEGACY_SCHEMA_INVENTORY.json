@@ -1,0 +1,6704 @@
+{
+  "scope": "Local structural metadata only; excludes rows, defaults, credentials and environment settings.",
+  "tables": [
+    "admin",
+    "agents",
+    "agent_chats",
+    "agent_task",
+    "auth",
+    "beta_api_logs",
+    "beta_campaign",
+    "beta_campaign_logs",
+    "beta_chatbot",
+    "beta_chats",
+    "beta_conversation",
+    "beta_flows",
+    "broadcast",
+    "broadcast_log",
+    "chatbot",
+    "chats",
+    "chat_tags",
+    "chat_widget",
+    "contact",
+    "contact_form",
+    "faq",
+    "fcm_tokens",
+    "flow",
+    "flow_data",
+    "flow_session",
+    "flow_templates",
+    "gent_chats",
+    "gen_links",
+    "g_auth",
+    "instance",
+    "meta_api",
+    "meta_templet_media",
+    "mobile_app",
+    "orders",
+    "page",
+    "partners",
+    "phonebook",
+    "pipeline_activity",
+    "pipeline_attributions",
+    "pipeline_conversations",
+    "pipeline_events",
+    "pipeline_identity_locks",
+    "pipeline_leads",
+    "pipeline_phonebook_map",
+    "pipeline_phonebook_memberships",
+    "pipeline_settings",
+    "pipeline_stages",
+    "plan",
+    "quick_reply",
+    "rooms",
+    "smtp",
+    "telegram_session",
+    "templets",
+    "testimonial",
+    "undefined",
+    "user",
+    "warmers",
+    "warmer_script",
+    "wa_call_bot",
+    "wa_call_broadcasts",
+    "wa_call_flows",
+    "wa_call_logs",
+    "webhooks",
+    "webhook_logs",
+    "web_private",
+    "web_public"
+  ],
+  "columns": [
+    {
+      "tableName": "admin",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "admin",
+      "columnName": "email",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "admin",
+      "columnName": "password",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "admin",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "admin",
+      "columnName": "role",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "admin",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "agents",
+      "columnName": "owner_uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "role",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "email",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "password",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "mobile",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "comments",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "is_active",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "logs",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "mask_number",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "allow_send_new_qr",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "allow_save_contact",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agents",
+      "columnName": "fcm_data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_chats",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "agent_chats",
+      "columnName": "owner_uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_chats",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_chats",
+      "columnName": "chat_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_chats",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_task",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "agent_task",
+      "columnName": "owner_uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_task",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_task",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_task",
+      "columnName": "description",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_task",
+      "columnName": "agent_comments",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_task",
+      "columnName": "status",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "agent_task",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "auth",
+      "columnName": "session",
+      "columnType": "varchar(50)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "auth",
+      "columnName": "id",
+      "columnType": "varchar(80)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "auth",
+      "columnName": "value",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_api_logs",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "beta_api_logs",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_api_logs",
+      "columnName": "msg_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_api_logs",
+      "columnName": "request",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_api_logs",
+      "columnName": "err",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_api_logs",
+      "columnName": "response",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_api_logs",
+      "columnName": "status",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_api_logs",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "campaign_id",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "template_name",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "template_language",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "phonebook_id",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "phonebook_name",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "status",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "total_contacts",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "sent_count",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "delivered_count",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "read_count",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "failed_count",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "body_variables",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "header_variable",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "button_variables",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "schedule",
+      "columnType": "datetime",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "timezone",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "campaign_id",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "contact_name",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "contact_mobile",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "meta_msg_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "status",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "delivery_status",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "delivery_time",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "error_message",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chatbot",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chatbot",
+      "columnName": "source",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chatbot",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chatbot",
+      "columnName": "flow_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chatbot",
+      "columnName": "active",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chatbot",
+      "columnName": "origin",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chatbot",
+      "columnName": "origin_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chatbot",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "old_chat_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "profile",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "origin_instance_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "chat_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "last_message",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "chat_label",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "chat_note",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "sender_name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "sender_mobile",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "unread_count",
+      "columnType": "bigint(20)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "origin",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "assigned_agent",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_chats",
+      "columnName": "updatedAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": "on update current_timestamp()"
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "type",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "chat_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "status",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "metaChatId",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "msgContext",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "reaction",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "timestamp",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "senderName",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "senderMobile",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "star",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "route",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "context",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "origin",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "sentBy",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_conversation",
+      "columnName": "err",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_flows",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "beta_flows",
+      "columnName": "is_active",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_flows",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_flows",
+      "columnName": "flow_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_flows",
+      "columnName": "source",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_flows",
+      "columnName": "name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_flows",
+      "columnName": "data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "beta_flows",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "broadcast_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "templet",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "phonebook",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "status",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "schedule",
+      "columnType": "datetime",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "timezone",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "broadcast_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "templet_name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "is_read",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "meta_msg_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "sender_mobile",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "send_to",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "delivery_status",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "delivery_time",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "err",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "example",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "contact",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "broadcast_log",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "for_all",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "chats",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "flow",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "flow_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "active",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chatbot",
+      "columnName": "origin",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "chats",
+      "columnName": "chat_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "last_message_came",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "chat_note",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "chat_tags",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "sender_name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "sender_mobile",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "chat_status",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "is_opened",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "last_message",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "origin",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "profile",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chats",
+      "columnName": "other",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_tags",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "chat_tags",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_tags",
+      "columnName": "hex",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_tags",
+      "columnName": "title",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_tags",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_widget",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "chat_widget",
+      "columnName": "unique_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_widget",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_widget",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_widget",
+      "columnName": "whatsapp_number",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_widget",
+      "columnName": "logo",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_widget",
+      "columnName": "place",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_widget",
+      "columnName": "size",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "chat_widget",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "contact",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "phonebook_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "phonebook_name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "mobile",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "var1",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "var2",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "var3",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "var4",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "var5",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact",
+      "columnName": "var6",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact_form",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "contact_form",
+      "columnName": "email",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact_form",
+      "columnName": "name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact_form",
+      "columnName": "mobile",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact_form",
+      "columnName": "content",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "contact_form",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "faq",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "faq",
+      "columnName": "question",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "faq",
+      "columnName": "answer",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "faq",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "fcm_tokens",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "fcm_tokens",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "fcm_tokens",
+      "columnName": "token",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "fcm_tokens",
+      "columnName": "other",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "fcm_tokens",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "fcm_tokens",
+      "columnName": "updatedAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": "on update current_timestamp()"
+    },
+    {
+      "tableName": "flow",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "flow",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow",
+      "columnName": "flow_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow",
+      "columnName": "prevent_list",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow",
+      "columnName": "ai_list",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_data",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "flow_data",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_data",
+      "columnName": "uniqueId",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_data",
+      "columnName": "inputs",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_data",
+      "columnName": "other",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_data",
+      "columnName": "meta_data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_data",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_session",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "flow_session",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_session",
+      "columnName": "origin",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_session",
+      "columnName": "origin_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_session",
+      "columnName": "flow_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_session",
+      "columnName": "sender_mobile",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_session",
+      "columnName": "data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_session",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_templates",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "flow_templates",
+      "columnName": "title",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "UNI",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_templates",
+      "columnName": "source",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "UNI",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_templates",
+      "columnName": "description",
+      "columnType": "text",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_templates",
+      "columnName": "data",
+      "columnType": "longtext",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_templates",
+      "columnName": "created_at",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "flow_templates",
+      "columnName": "updated_at",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": "on update current_timestamp()"
+    },
+    {
+      "tableName": "gent_chats",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "gent_chats",
+      "columnName": "owner_uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "gent_chats",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "gent_chats",
+      "columnName": "chat_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "gent_chats",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "gen_links",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "gen_links",
+      "columnName": "wa_mobile",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "gen_links",
+      "columnName": "email",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "gen_links",
+      "columnName": "msg",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "gen_links",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "g_auth",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "g_auth",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "g_auth",
+      "columnName": "label",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "g_auth",
+      "columnName": "url",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "g_auth",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "instance",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "number",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "uniqueId",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "qr",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "other",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "status",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "instance",
+      "columnName": "inactiveSince",
+      "columnType": "datetime",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "waba_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "business_account_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "access_token",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "business_phone_number_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "app_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "embed_data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "login_type",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "is_coexistence",
+      "columnType": "tinyint(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_api",
+      "columnName": "platform_type",
+      "columnType": "varchar(50)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_templet_media",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "meta_templet_media",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_templet_media",
+      "columnName": "templet_name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_templet_media",
+      "columnName": "meta_hash",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_templet_media",
+      "columnName": "file_name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "meta_templet_media",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "mobile_app",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "mobile_app",
+      "columnName": "fcmJson",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "mobile_app",
+      "columnName": "appTheme",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "mobile_app",
+      "columnName": "other",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "mobile_app",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "orders",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "orders",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "orders",
+      "columnName": "payment_mode",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "orders",
+      "columnName": "amount",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "orders",
+      "columnName": "data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "orders",
+      "columnName": "s_token",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "orders",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "page",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "page",
+      "columnName": "slug",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "page",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "page",
+      "columnName": "image",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "page",
+      "columnName": "content",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "page",
+      "columnName": "permanent",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "page",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "partners",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "partners",
+      "columnName": "filename",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "partners",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "phonebook",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "phonebook",
+      "columnName": "name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "phonebook",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "phonebook",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_activity",
+      "columnName": "id",
+      "columnType": "bigint(20) unsigned",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "pipeline_activity",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_activity",
+      "columnName": "lead_id",
+      "columnType": "char(36)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_activity",
+      "columnName": "actor_type",
+      "columnType": "enum('user','agent','system')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_activity",
+      "columnName": "actor_id",
+      "columnType": "varchar(191)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_activity",
+      "columnName": "activity_type",
+      "columnType": "varchar(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_activity",
+      "columnName": "summary",
+      "columnType": "varchar(500)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_activity",
+      "columnName": "details",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_activity",
+      "columnName": "created_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "id",
+      "columnType": "bigint(20) unsigned",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "lead_id",
+      "columnType": "char(36)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "conversation_key",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "event_key",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "provider_message_id",
+      "columnType": "varchar(191)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "source_type",
+      "columnType": "varchar(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "source_id",
+      "columnType": "varchar(191)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "source_url",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "headline",
+      "columnType": "varchar(500)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "body",
+      "columnType": "varchar(1000)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "media_type",
+      "columnType": "varchar(64)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "ctwa_clid",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "is_verified_ad",
+      "columnType": "tinyint(1)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "event_at",
+      "columnType": "datetime(3)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "columnName": "received_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "columnName": "id",
+      "columnType": "bigint(20) unsigned",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "columnName": "lead_id",
+      "columnType": "char(36)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "columnName": "conversation_key",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "columnName": "chat_id",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "columnName": "origin",
+      "columnType": "enum('qr','meta')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "columnName": "first_inbound_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "columnName": "last_inbound_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "columnName": "created_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "id",
+      "columnType": "bigint(20) unsigned",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "event_key",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "origin",
+      "columnType": "enum('qr','meta')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "lead_id",
+      "columnType": "char(36)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "conversation_key",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "chat_id",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "provider_message_id",
+      "columnType": "varchar(191)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "sender_mobile",
+      "columnType": "varchar(64)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "sender_name",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "referral_source_type",
+      "columnType": "varchar(64)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "referral_source_id",
+      "columnType": "varchar(191)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "referral_source_url",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "referral_headline",
+      "columnType": "varchar(500)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "referral_body",
+      "columnType": "varchar(1000)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "referral_media_type",
+      "columnType": "varchar(64)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "referral_ctwa_clid",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "verified_ad",
+      "columnType": "tinyint(1)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "event_at",
+      "columnType": "datetime(3)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "status",
+      "columnType": "enum('pending','processed','ignored','dead')",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "attempts",
+      "columnType": "tinyint(3) unsigned",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "retry_after",
+      "columnType": "datetime(3)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "last_error_code",
+      "columnType": "varchar(64)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "received_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_events",
+      "columnName": "processed_at",
+      "columnType": "datetime(3)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_identity_locks",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_identity_locks",
+      "columnName": "identity_key",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_identity_locks",
+      "columnName": "current_lead_id",
+      "columnType": "char(36)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_identity_locks",
+      "columnName": "updated_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": "on update current_timestamp(3)"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "id",
+      "columnType": "char(36)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "identity_key",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "title",
+      "columnType": "varchar(180)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "contact_name",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "mobile",
+      "columnType": "varchar(64)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "chat_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "primary_origin",
+      "columnType": "enum('qr','meta','manual')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "source_type",
+      "columnType": "varchar(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "source_id",
+      "columnType": "varchar(191)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "source_url",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "source_headline",
+      "columnType": "varchar(500)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "stage_key",
+      "columnType": "varchar(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "stage_entered_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "owner_agent_id",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "status",
+      "columnType": "enum('open','won','lost')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "priority",
+      "columnType": "enum('low','normal','high','urgent')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "expected_value",
+      "columnType": "decimal(14,2)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "currency",
+      "columnType": "char(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "next_follow_up_at",
+      "columnType": "datetime(3)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "first_inbound_at",
+      "columnType": "datetime(3)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "last_activity_at",
+      "columnType": "datetime(3)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "closed_at",
+      "columnType": "datetime(3)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "close_reason",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "automation_paused",
+      "columnType": "tinyint(1)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "created_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_leads",
+      "columnName": "updated_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": "on update current_timestamp(3)"
+    },
+    {
+      "tableName": "pipeline_phonebook_map",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_phonebook_map",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_phonebook_map",
+      "columnName": "book_kind",
+      "columnType": "enum('whatsapp','meta_ads')",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_phonebook_map",
+      "columnName": "phonebook_id",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_phonebook_map",
+      "columnName": "created_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "columnName": "phonebook_id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "columnName": "identity_key",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "columnName": "contact_id",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "columnName": "created_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "enabled",
+      "columnType": "tinyint(1)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "auto_capture_qr",
+      "columnType": "tinyint(1)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "auto_capture_meta",
+      "columnType": "tinyint(1)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "qr_entry_stage",
+      "columnType": "varchar(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "meta_entry_stage",
+      "columnType": "varchar(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "interested_stage",
+      "columnType": "varchar(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "interest_keywords",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "updated_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": "on update current_timestamp(3)"
+    },
+    {
+      "tableName": "pipeline_settings",
+      "columnName": "created_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "id",
+      "columnType": "bigint(20) unsigned",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "uid_hash",
+      "columnType": "char(64)",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "stage_key",
+      "columnType": "varchar(64)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "title",
+      "columnType": "varchar(100)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "position",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "color",
+      "columnType": "varchar(16)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "stage_type",
+      "columnType": "enum('open','won','lost')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "probability",
+      "columnType": "tinyint(3) unsigned",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "is_system",
+      "columnType": "tinyint(1)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "created_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "pipeline_stages",
+      "columnName": "updated_at",
+      "columnType": "datetime(3)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": "on update current_timestamp(3)"
+    },
+    {
+      "tableName": "plan",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "plan",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "short_description",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "allow_tag",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "allow_note",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "allow_chatbot",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "contact_limit",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "allow_api",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "is_trial",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "price",
+      "columnType": "bigint(20)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "price_strike",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "plan_duration_in_days",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "qr_account",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "wa_warmer",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "plan",
+      "columnName": "rest_api_qr",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "quick_reply",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "quick_reply",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "quick_reply",
+      "columnName": "msg",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "quick_reply",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "rooms",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "rooms",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "rooms",
+      "columnName": "socket_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "rooms",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "smtp",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "smtp",
+      "columnName": "email",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "smtp",
+      "columnName": "host",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "smtp",
+      "columnName": "port",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "smtp",
+      "columnName": "password",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "smtp",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "smtp",
+      "columnName": "username",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "uid",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "status",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "session_id",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "UNI",
+      "extra": ""
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "title",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "api_id",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "api_hash",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "session",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "telegram_session",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "templets",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "templets",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "templets",
+      "columnName": "content",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "templets",
+      "columnName": "type",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "templets",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "templets",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "testimonial",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "testimonial",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "testimonial",
+      "columnName": "description",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "testimonial",
+      "columnName": "reviewer_name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "testimonial",
+      "columnName": "reviewer_position",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "testimonial",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "undefined",
+      "columnName": "session",
+      "columnType": "varchar(50)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "undefined",
+      "columnName": "id",
+      "columnType": "varchar(80)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": ""
+    },
+    {
+      "tableName": "undefined",
+      "columnName": "value",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "user",
+      "columnName": "role",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "email",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "password",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "mobile_with_country_code",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "timezone",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "plan",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "plan_expire",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "trial",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "api_key",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "fcm_data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "user",
+      "columnName": "fcm_inbox",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "warmers",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "warmers",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "warmers",
+      "columnName": "instances",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "warmers",
+      "columnName": "is_active",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "warmers",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "warmer_script",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "warmer_script",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "warmer_script",
+      "columnName": "message",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "warmer_script",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_bot",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "wa_call_bot",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_bot",
+      "columnName": "title",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_bot",
+      "columnName": "flow_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_bot",
+      "columnName": "data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_bot",
+      "columnName": "active",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_bot",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "uid",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "campaign_id",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "UNI",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "title",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "flow_id",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "status",
+      "columnType": "enum('draft','requesting_permissions','ready','running','paused','completed','failed')",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "contacts",
+      "columnType": "longtext",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "call_delay",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "max_concurrent_calls",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "retry_failed",
+      "columnType": "tinyint(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "retry_count",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "total_contacts",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "permission_requested",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "permission_granted",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "permission_denied",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "calls_initiated",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "calls_completed",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "calls_failed",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "logs",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "meta_data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "created_at",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "started_at",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "completed_at",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "columnName": "updated_at",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": "on update current_timestamp()"
+    },
+    {
+      "tableName": "wa_call_flows",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "wa_call_flows",
+      "columnName": "is_active",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_flows",
+      "columnName": "uid",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_flows",
+      "columnName": "flow_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_flows",
+      "columnName": "source",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_flows",
+      "columnName": "name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_flows",
+      "columnName": "data",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_flows",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "uid",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "call_id",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "flow_id",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "status",
+      "columnType": "enum('connected','ended','failed')",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "transcription_json",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "recording_user",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "recording_assistant",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "recording_stereo",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "error_message",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "meta_data",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "created_at",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "MUL",
+      "extra": ""
+    },
+    {
+      "tableName": "wa_call_logs",
+      "columnName": "ended_at",
+      "columnType": "timestamp",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "uid",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "name",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "description",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "method",
+      "columnType": "enum('GET','POST','PUT','DELETE')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "secret",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "webhook_id",
+      "columnType": "varchar(36)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "is_active",
+      "columnType": "tinyint(1)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "created_at",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhooks",
+      "columnName": "updated_at",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": "on update current_timestamp()"
+    },
+    {
+      "tableName": "webhook_logs",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "webhook_logs",
+      "columnName": "uid",
+      "columnType": "varchar(255)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhook_logs",
+      "columnName": "webhook_id",
+      "columnType": "varchar(36)",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhook_logs",
+      "columnName": "method",
+      "columnType": "enum('GET','POST','PUT','DELETE')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhook_logs",
+      "columnName": "event_type",
+      "columnType": "varchar(255)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhook_logs",
+      "columnName": "payload",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhook_logs",
+      "columnName": "status",
+      "columnType": "enum('RECEIVED','FAILED')",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhook_logs",
+      "columnName": "error",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "webhook_logs",
+      "columnName": "created_at",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_offline_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_offline_key",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "offline_active",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_stripe_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_stripe_key",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "stripe_active",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "createdAt",
+      "columnType": "timestamp",
+      "nullable": "NO",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_paypal_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_paypal_key",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "paypal_active",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "rz_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "rz_key",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "rz_active",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_paystack_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_paystack_key",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "paystack_active",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "qr_storage",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "mongodb_string",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "embed_app_sec",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "embed_app_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "embed_app_config",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "mercadopago_active",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_mercadopago_access_token",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "pay_mercadopago_public_key",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "teleAppId",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "teleHash",
+      "columnType": "text",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_apiKey",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_authDomain",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_projectId",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_storageBucket",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_messagingSenderId",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_appId",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_vapidKey",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_measurementId",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_clientEmail",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_private",
+      "columnName": "fcm_privateKey",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "id",
+      "columnType": "int(11)",
+      "nullable": "NO",
+      "columnKey": "PRI",
+      "extra": "auto_increment"
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "currency_code",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "logo",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "app_name",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "custom_home",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "is_custom_home",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "meta_description",
+      "columnType": "longtext",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "currency_symbol",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "chatbot_screen_tutorial",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "broadcast_screen_tutorial",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "home_page_tutorial",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "login_header_footer",
+      "columnType": "int(1)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "exchange_rate",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "google_client_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "google_login_active",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "rtl",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "fb_login_app_id",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "fb_login_active",
+      "columnType": "int(11)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    },
+    {
+      "tableName": "web_public",
+      "columnName": "fb_login_app_sec",
+      "columnType": "varchar(999)",
+      "nullable": "YES",
+      "columnKey": "",
+      "extra": ""
+    }
+  ],
+  "indexes": [
+    {
+      "tableName": "admin",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "agents",
+      "indexName": "idx_id",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "agents",
+      "indexName": "idx_owner_active",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "owner_uid"
+    },
+    {
+      "tableName": "agents",
+      "indexName": "idx_owner_active",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "is_active"
+    },
+    {
+      "tableName": "agents",
+      "indexName": "idx_owner_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "owner_uid"
+    },
+    {
+      "tableName": "agents",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "agents",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "agent_chats",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "agent_task",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "auth",
+      "indexName": "idxid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "auth",
+      "indexName": "idxsession",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "session"
+    },
+    {
+      "tableName": "auth",
+      "indexName": "idxunique",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "session"
+    },
+    {
+      "tableName": "auth",
+      "indexName": "idxunique",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "id"
+    },
+    {
+      "tableName": "beta_api_logs",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "beta_campaign",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "beta_campaign_logs",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "idx_uid_active",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "idx_uid_active",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "active"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "idx_uid_flow",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "idx_uid_flow",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "flow_id"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "idx_uid_origin",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "idx_uid_origin",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "origin_id"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "idx_uid_source_active",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "idx_uid_source_active",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "source"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "idx_uid_source_active",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "active"
+    },
+    {
+      "tableName": "beta_chatbot",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_sender_mobile",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "sender_mobile"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_uid_chatid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_uid_chatid",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "chat_id"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_uid_origin",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_uid_origin",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "origin"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_uid_origin_updated",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_uid_origin_updated",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "origin"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_uid_unread",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_uid_unread",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "unread_count"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "idx_uid_updated",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_chats",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_chat_timestamp",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "chat_id"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_chat_type_route",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "chat_id"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_chat_type_route",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "type"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_chat_type_route",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "route"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_uid_chat_route",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_uid_chat_route",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "chat_id"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_uid_chat_route",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "route"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_uid_chat_timestamp",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_uid_chat_timestamp",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "chat_id"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_uid_metachatid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "idx_uid_metachatid",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "metaChatId"
+    },
+    {
+      "tableName": "beta_conversation",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "beta_flows",
+      "indexName": "idx_uid_active_source",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_flows",
+      "indexName": "idx_uid_active_source",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "is_active"
+    },
+    {
+      "tableName": "beta_flows",
+      "indexName": "idx_uid_active_source",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "source"
+    },
+    {
+      "tableName": "beta_flows",
+      "indexName": "idx_uid_flow",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "beta_flows",
+      "indexName": "idx_uid_flow",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "flow_id"
+    },
+    {
+      "tableName": "beta_flows",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "broadcast",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "broadcast_log",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "chatbot",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "chats",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "chat_tags",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "chat_tags",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "chat_widget",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "contact",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "contact",
+      "indexName": "idx_uid_mobile",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "contact",
+      "indexName": "idx_uid_mobile",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "mobile"
+    },
+    {
+      "tableName": "contact",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "contact_form",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "faq",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "fcm_tokens",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "flow",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "flow_data",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "flow_session",
+      "indexName": "idx_uid_flow",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "flow_session",
+      "indexName": "idx_uid_flow",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "flow_id"
+    },
+    {
+      "tableName": "flow_session",
+      "indexName": "idx_uid_flow_sender",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "flow_session",
+      "indexName": "idx_uid_flow_sender",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "flow_id"
+    },
+    {
+      "tableName": "flow_session",
+      "indexName": "idx_uid_flow_sender",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "sender_mobile"
+    },
+    {
+      "tableName": "flow_session",
+      "indexName": "idx_uid_origin_flow",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "flow_session",
+      "indexName": "idx_uid_origin_flow",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "origin"
+    },
+    {
+      "tableName": "flow_session",
+      "indexName": "idx_uid_origin_flow",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "flow_id"
+    },
+    {
+      "tableName": "flow_session",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "flow_templates",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "flow_templates",
+      "indexName": "source",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "source"
+    },
+    {
+      "tableName": "flow_templates",
+      "indexName": "title",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "title"
+    },
+    {
+      "tableName": "gent_chats",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "gen_links",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "g_auth",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "instance",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "instance",
+      "indexName": "idx_uid_status",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "instance",
+      "indexName": "idx_uid_status",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "status"
+    },
+    {
+      "tableName": "instance",
+      "indexName": "idx_uniqueid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uniqueId"
+    },
+    {
+      "tableName": "instance",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "meta_api",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "meta_api",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "meta_templet_media",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "mobile_app",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "orders",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "page",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "partners",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "phonebook",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "phonebook",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "pipeline_activity",
+      "indexName": "idx_pipeline_activity_lead",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_activity",
+      "indexName": "idx_pipeline_activity_lead",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "lead_id"
+    },
+    {
+      "tableName": "pipeline_activity",
+      "indexName": "idx_pipeline_activity_lead",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "created_at"
+    },
+    {
+      "tableName": "pipeline_activity",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "indexName": "idx_pipeline_attribution_lead",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "indexName": "idx_pipeline_attribution_lead",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "lead_id"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "indexName": "idx_pipeline_attribution_lead",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "received_at"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "indexName": "idx_pipeline_verified_ads",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "indexName": "idx_pipeline_verified_ads",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "is_verified_ad"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "indexName": "idx_pipeline_verified_ads",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "received_at"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "indexName": "uq_pipeline_attribution_event",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_attributions",
+      "indexName": "uq_pipeline_attribution_event",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "event_key"
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "indexName": "idx_pipeline_conversation_lead",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "indexName": "idx_pipeline_conversation_lead",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "lead_id"
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "indexName": "uq_pipeline_conversation",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_conversations",
+      "indexName": "uq_pipeline_conversation",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "conversation_key"
+    },
+    {
+      "tableName": "pipeline_events",
+      "indexName": "idx_pipeline_events_lead",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_events",
+      "indexName": "idx_pipeline_events_lead",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "lead_id"
+    },
+    {
+      "tableName": "pipeline_events",
+      "indexName": "idx_pipeline_events_lead",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "received_at"
+    },
+    {
+      "tableName": "pipeline_events",
+      "indexName": "idx_pipeline_event_retry",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "status"
+    },
+    {
+      "tableName": "pipeline_events",
+      "indexName": "idx_pipeline_event_retry",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "retry_after"
+    },
+    {
+      "tableName": "pipeline_events",
+      "indexName": "idx_pipeline_event_retry",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "received_at"
+    },
+    {
+      "tableName": "pipeline_events",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "pipeline_events",
+      "indexName": "uq_pipeline_event",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_events",
+      "indexName": "uq_pipeline_event",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "event_key"
+    },
+    {
+      "tableName": "pipeline_identity_locks",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_identity_locks",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "identity_key"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_board",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_board",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "status"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_board",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "stage_key"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_board",
+      "nonUnique": 1,
+      "position": 4,
+      "columnName": "updated_at"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_followup",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_followup",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "next_follow_up_at"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_followup",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "status"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_identity",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_identity",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "identity_key"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_identity",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "status"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_identity",
+      "nonUnique": 1,
+      "position": 4,
+      "columnName": "updated_at"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_owner",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_owner",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "owner_agent_id"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_owner",
+      "nonUnique": 1,
+      "position": 3,
+      "columnName": "status"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "idx_pipeline_owner",
+      "nonUnique": 1,
+      "position": 4,
+      "columnName": "last_activity_at"
+    },
+    {
+      "tableName": "pipeline_leads",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "pipeline_phonebook_map",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_phonebook_map",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "book_kind"
+    },
+    {
+      "tableName": "pipeline_phonebook_map",
+      "indexName": "uq_pipeline_phonebook_id",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_phonebook_map",
+      "indexName": "uq_pipeline_phonebook_id",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "phonebook_id"
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "indexName": "idx_pipeline_membership_contact",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "indexName": "idx_pipeline_membership_contact",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "contact_id"
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "phonebook_id"
+    },
+    {
+      "tableName": "pipeline_phonebook_memberships",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 3,
+      "columnName": "identity_key"
+    },
+    {
+      "tableName": "pipeline_settings",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_stages",
+      "indexName": "idx_pipeline_stage_order",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_stages",
+      "indexName": "idx_pipeline_stage_order",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "position"
+    },
+    {
+      "tableName": "pipeline_stages",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "pipeline_stages",
+      "indexName": "uq_pipeline_stage_key",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "uid_hash"
+    },
+    {
+      "tableName": "pipeline_stages",
+      "indexName": "uq_pipeline_stage_key",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "stage_key"
+    },
+    {
+      "tableName": "plan",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "quick_reply",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "quick_reply",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "rooms",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "smtp",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "telegram_session",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "telegram_session",
+      "indexName": "session_id",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "session_id"
+    },
+    {
+      "tableName": "telegram_session",
+      "indexName": "session_id_2",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "session_id"
+    },
+    {
+      "tableName": "telegram_session",
+      "indexName": "session_id_3",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "session_id"
+    },
+    {
+      "tableName": "telegram_session",
+      "indexName": "session_id_4",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "session_id"
+    },
+    {
+      "tableName": "telegram_session",
+      "indexName": "session_id_5",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "session_id"
+    },
+    {
+      "tableName": "telegram_session",
+      "indexName": "session_id_6",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "session_id"
+    },
+    {
+      "tableName": "telegram_session",
+      "indexName": "session_id_7",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "session_id"
+    },
+    {
+      "tableName": "templets",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "testimonial",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "undefined",
+      "indexName": "idxid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "undefined",
+      "indexName": "idxsession",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "session"
+    },
+    {
+      "tableName": "undefined",
+      "indexName": "idxunique",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "session"
+    },
+    {
+      "tableName": "undefined",
+      "indexName": "idxunique",
+      "nonUnique": 0,
+      "position": 2,
+      "columnName": "id"
+    },
+    {
+      "tableName": "user",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "user",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "warmers",
+      "indexName": "idx_uid_active",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "warmers",
+      "indexName": "idx_uid_active",
+      "nonUnique": 1,
+      "position": 2,
+      "columnName": "is_active"
+    },
+    {
+      "tableName": "warmers",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "warmer_script",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "warmer_script",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "wa_call_bot",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "indexName": "campaign_id",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "campaign_id"
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "indexName": "idx_campaign_id",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "campaign_id"
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "indexName": "idx_status",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "status"
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "wa_call_broadcasts",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "wa_call_flows",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "wa_call_logs",
+      "indexName": "idx_call_id",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "call_id"
+    },
+    {
+      "tableName": "wa_call_logs",
+      "indexName": "idx_created_at",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "created_at"
+    },
+    {
+      "tableName": "wa_call_logs",
+      "indexName": "idx_flow_id",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "flow_id"
+    },
+    {
+      "tableName": "wa_call_logs",
+      "indexName": "idx_status",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "status"
+    },
+    {
+      "tableName": "wa_call_logs",
+      "indexName": "idx_uid",
+      "nonUnique": 1,
+      "position": 1,
+      "columnName": "uid"
+    },
+    {
+      "tableName": "wa_call_logs",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "webhooks",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "webhook_logs",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "web_private",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    },
+    {
+      "tableName": "web_public",
+      "indexName": "PRIMARY",
+      "nonUnique": 0,
+      "position": 1,
+      "columnName": "id"
+    }
+  ]
+}
