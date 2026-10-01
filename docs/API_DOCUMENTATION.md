@@ -27,3 +27,5 @@ These endpoints exist only in `scripts/preview-workspace.cjs` on loopback port 3
 Preview responses are `Cache-Control:no-store` with a self-only CSP and no embedding/form submission. The browser only sends fixture selectors and navigation keys.
 
 Canonical session/policy/ownership interfaces and incomplete production prerequisites are documented in [PLATFORM_FOUNDATION_CONTRACT.md](PLATFORM_FOUNDATION_CONTRACT.md). No `/api/v1` authentication, training or finance endpoints are claimed implemented by this increment.
+
+Plan publication/assignment and seat-reservation transaction interfaces, storage, errors and required future HTTP mappings are documented in [PLAN_AND_SEAT_CONTRACT.md](PLAN_AND_SEAT_CONTRACT.md). They are backend services only; the staff and team routes will be documented here after authenticated handlers and screens are implemented.
