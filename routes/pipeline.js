@@ -76,6 +76,17 @@ router.get("/settings", async (req, res) => {
   } catch (error) { fail(res, error); }
 });
 
+router.get("/contacts/matches", async (req, res) => {
+  try {
+    const data = await pipeline.findContactMatches({
+      uid: req.pipelineActor.uid, role: req.pipelineActor.role, agentId: req.pipelineActor.agentId,
+      phone: req.query.phone, email: req.query.email,
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ success: true, data });
+  } catch (error) { fail(res, error); }
+});
+
 router.get("/reports/activity", async (req,res)=>{
   try{
     const data=await pipelineReports.getActivityReport({

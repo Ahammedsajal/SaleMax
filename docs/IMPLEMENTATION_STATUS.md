@@ -50,7 +50,7 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC07 | Implementing | TC03 TC06 | Existing agent creation, activation and deletion now honor linked-business role seats; invite delivery, acceptance, onboarding and all-role enforcement remain open |
 | TC08 | Planned | TC01 TC05 | Existing feature wrappers and provider state labels; all requested legacy entries remain usable by permitted roles |
 | TC09 | Implementing | TC05 TC40 | Existing `/user` shell now has owner course/offer/batch setup, bilingual learning outcomes/prerequisites/level, and tenant-scoped versioned QAR APIs; learner sales, role read journeys, enrollment capacity and invoice snapshots remain open |
-| TC10 | Planned | TC02 TC09 TC35 | Contact/opportunity model, timeline and dedupe; multiple learners sharing a phone remain distinguishable |
+| TC10 | Implementing | TC02 TC09 TC35 | Existing pipeline now has tenant-bound contact records, many opportunities per contact, distinct family learners sharing a phone, and a match-review API; historical backfill, editable contact profile, full timeline relationships and browser acceptance remain open |
 | TC11 | Implementing | TC07 TC10 | Existing lead board/detail enforce exact agent assignment and the detail form now records structured outcomes with required follow-up dates; authenticated bilingual acceptance, accountable task queue and assignment history remain open |
 | TC12 | Planned | TC09 TC10 TC11 | Form editor, versioning and public capture; tampered tenant/course/agent fields cannot cross scope |
 | TC13 | Planned | TC12 | Mobile/tablet staff/kiosk form and accessibility; phone, tablet and keyboard flows pass with clean reset |
@@ -234,3 +234,9 @@ Unit and synthetic MariaDB acceptance verifies create/read/update persistence, A
 ## Planning-file version reconciliation (1 October 2026)
 
 The user-designated source at `A:\Salemax - Training center\GCCBOT-Node\docs\SALEMAX_TRAINING_CENTER_IMPLEMENTATION_PLAN.md` currently identifies itself as version 1.2. The versioned copy inside this SaleMaX checkout identifies itself as 1.3 and contains later implementation-history additions. They are not byte-identical at the current checkpoint. Work follows the user-designated version 1.2 requirements, while preserving the checkout's append-only progress record; no plan content was overwritten to make the hashes appear synchronized.
+
+## TC10 increment — contacts and opportunities (1 October 2026)
+
+The existing pipeline's Add lead form now records a course opportunity against a tenant-owned contact. Staff can review exact phone/email matches and link an existing contact for another course, or create a separate contact/learner when family members share a phone. A tenant-composite foreign key protects opportunity/contact links, and match results are scoped to the authenticated business. Existing lead APIs and embedded pipeline screen remain in use; the additive migration is `20261007_pipeline_contacts.sql`.
+
+Disposable MariaDB integration verifies one contact with multiple opportunities, two distinct learners with a shared phone, case-normalized email matching, linked learner details, agent-assignment-scoped suggestions and cross-tenant match denial. Contact search and opportunity creation have not yet had authenticated English/Arabic browser acceptance. Existing historical leads are deliberately not auto-merged or backfilled; matching is review-only. TC10 remains Implementing, with contact editing/history integration and reconciliation still open.

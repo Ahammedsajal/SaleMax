@@ -24,6 +24,40 @@ function normalizePhone(value) {
   return digits.length >= 7 && digits.length <= 15 ? `+${digits}` : null;
 }
 
+function normalizeEmail(value) {
+  const email = String(value || "").trim().normalize("NFKC").toLocaleLowerCase("en-US");
+  if (!email) return null;
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const error = new Error("Enter a valid email address."); error.status = 400; throw error;
+  }
+  return email;
+}
+
+async function findContactMatches({ uid, phone, email, role = "owner", agentId, pool: sourcePool }) {
+  const uidHash = sha(uid);
+  const normalizedPhone = phone ? normalizePhone(phone) : null;
+  const normalizedEmail = email ? normalizeEmail(email) : null;
+  if (phone && !normalizedPhone) { const error = new Error("Enter a valid international phone number."); error.status = 400; throw error; }
+  if (!normalizedPhone && !normalizedEmail) return [];
+  const clauses = [], values = [uidHash];
+  if (normalizedPhone) { clauses.push("normalized_phone = ?"); values.push(normalizedPhone); }
+  if (normalizedEmail) { clauses.push("normalized_email = ?"); values.push(normalizedEmail); }
+  let visibility = "";
+  if (role === "agent") {
+    visibility = ` AND EXISTS (SELECT 1 FROM pipeline_leads l
+      WHERE l.uid_hash = pipeline_contacts.uid_hash AND l.contact_id = pipeline_contacts.id AND l.owner_agent_id = ?)`;
+    values.push(Number(agentId));
+  } else if (role !== "owner") {
+    const error = new Error("You do not have access to contact suggestions."); error.status = 403; throw error;
+  }
+  const [rows] = await getPromisePool(sourcePool).query(
+    `SELECT id, display_name AS name, normalized_phone AS phone, normalized_email AS email, created_at
+     FROM pipeline_contacts WHERE uid_hash = ? AND (${clauses.join(" OR ")})${visibility}
+     ORDER BY updated_at DESC, id DESC LIMIT 10`, values,
+  );
+  return rows;
+}
+
 function parseDate(value) {
   if (value === null || value === undefined || value === "") return new Date();
   const numeric = Number(value);
@@ -345,14 +379,20 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
     let created = false;
     if (!lead) {
       const id = crypto.randomUUID();
+      const contactId = crypto.randomUUID();
       const sourceType = isMetaAds ? "meta_ads_whatsapp" : origin === "meta" ? "meta_whatsapp" : "qr_whatsapp";
       await connection.query(
+        `INSERT INTO pipeline_contacts (id, uid_hash, uid, display_name, normalized_phone)
+         VALUES (?, ?, ?, ?, ?)`,
+        [contactId, uidHash, uidValue, name || phone, phone],
+      );
+      await connection.query(
         `INSERT INTO pipeline_leads
-          (id, uid_hash, uid, identity_key, title, contact_name, mobile, chat_id, primary_origin,
+          (id, uid_hash, uid, contact_id, identity_key, title, contact_name, learner_name, mobile, chat_id, primary_origin,
            source_type, source_id, source_url, source_headline, stage_key, stage_entered_at,
            status, priority, first_inbound_at, last_activity_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', 'normal', ?, ?, UTC_TIMESTAMP(3))`,
-        [id, uidHash, uidValue, identityKey, name ? `${name} · WhatsApp inquiry` : "WhatsApp inquiry", name || null, phone, safeChatId, origin,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', 'normal', ?, ?, UTC_TIMESTAMP(3))`,
+        [id, uidHash, uidValue, contactId, identityKey, name ? `${name} · WhatsApp inquiry` : "WhatsApp inquiry", name || null, name || null, phone, safeChatId, origin,
           sourceType, adReferral ? text(referral.source_id, 191) || text(referral.ctwa_clid, 191) : null,
           adReferral ? text(referral.source_url, 2000) || null : null,
           adReferral ? text(referral.headline, 500) || null : null,
@@ -362,10 +402,20 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
         "UPDATE pipeline_identity_locks SET current_lead_id = ? WHERE uid_hash = ? AND identity_key = ?",
         [id, uidHash, identityKey],
       );
-      lead = { id, stage_key: initialStage, automation_paused: 0 };
+      lead = { id, contact_id: contactId, stage_key: initialStage, automation_paused: 0 };
       created = true;
       await addActivity(connection, uidHash, id, "lead_created", "Lead created from inbound WhatsApp conversation", { origin, sourceType, receivedAt: now });
-    } else if (lead.status !== "open") {
+    } else if (!lead.contact_id) {
+      const contactId = crypto.randomUUID();
+      await connection.query(
+        `INSERT INTO pipeline_contacts (id, uid_hash, uid, display_name, normalized_phone)
+         VALUES (?, ?, ?, ?, ?)`,
+        [contactId, uidHash, uidValue, name || lead.contact_name || phone, phone],
+      );
+      await connection.query("UPDATE pipeline_leads SET contact_id = ?, learner_name = COALESCE(learner_name, contact_name) WHERE uid_hash = ? AND id = ?", [contactId, uidHash, lead.id]);
+      lead.contact_id = contactId;
+    }
+    if (lead && !created && lead.status !== "open") {
       await connection.query(
         `UPDATE pipeline_leads SET status = 'open', closed_at = NULL, stage_key = ?, stage_entered_at = ?,
           last_activity_at = ?, chat_id = COALESCE(chat_id, ?), contact_name = COALESCE(NULLIF(contact_name, ''), ?)
@@ -735,8 +785,11 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input 
     const stageKey = text(input.stageKey, 64) || "new";
     if (!await stageExists(connection, uidHash, stageKey)) { const error = new Error("Choose an existing pipeline stage."); error.status = 400; throw error; }
     const contactName = text(input.contactName, 255) || null;
+    const learnerName = text(input.learnerName, 255) || contactName;
     const phone = normalizePhone(input.mobile);
-    const identityKey = sha(phone ? `phone:${phone}` : `manual:${crypto.randomUUID()}`);
+    if (input.mobile && !phone) { const error = new Error("Enter a valid international phone number."); error.status = 400; throw error; }
+    const email = normalizeEmail(input.email);
+    const identityKey = sha(`opportunity:${crypto.randomUUID()}`);
     let owner = null;
     if (role === "agent") owner = agentId;
     else if (input.ownerAgentId !== undefined && input.ownerAgentId !== null && input.ownerAgentId !== "") {
@@ -744,24 +797,35 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input 
       if (!agents.length) { const error = new Error("Choose an active agent in this workspace."); error.status = 400; throw error; }
       owner = Number(agents[0].id);
     }
-    await connection.query(
-      "INSERT IGNORE INTO pipeline_identity_locks (uid_hash, identity_key, current_lead_id) VALUES (?, ?, NULL)",
-      [uidHash, identityKey],
-    );
-    const [identityRows] = await connection.query(
-      "SELECT current_lead_id FROM pipeline_identity_locks WHERE uid_hash = ? AND identity_key = ? FOR UPDATE",
-      [uidHash, identityKey],
-    );
-    if (phone && identityRows[0]?.current_lead_id) {
-      const [existing] = await connection.query(
-        "SELECT id, status FROM pipeline_leads WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE",
-        [uidHash, identityRows[0].current_lead_id],
+    let contactId = text(input.contactId, 36);
+    if (contactId) {
+      const assignedContactClause = role === "agent" ? ` AND EXISTS (
+        SELECT 1 FROM pipeline_leads l WHERE l.uid_hash = c.uid_hash AND l.contact_id = c.id AND l.owner_agent_id = ?)` : "";
+      const contactParams = role === "agent" ? [uidHash, contactId, agentId] : [uidHash, contactId];
+      const [contacts] = await connection.query(
+        `SELECT c.id, c.display_name, c.normalized_phone, c.normalized_email
+         FROM pipeline_contacts c WHERE c.uid_hash = ? AND c.id = ?${assignedContactClause} LIMIT 1 FOR UPDATE`,
+        contactParams,
       );
-      if (existing[0]?.status === "open") {
-        const error = new Error("An open lead already exists for this WhatsApp number.");
-        error.status = 409;
-        throw error;
+      if (!contacts.length) { const error = new Error("Choose a contact in this workspace."); error.status = 404; throw error; }
+      if ((phone && contacts[0].normalized_phone && phone !== contacts[0].normalized_phone) ||
+          (email && contacts[0].normalized_email && email !== contacts[0].normalized_email)) {
+        const error = new Error("The selected contact has different contact details. Choose a matching contact or create a separate learner."); error.status = 409; throw error;
       }
+      if (phone || email) {
+        await connection.query(
+          `UPDATE pipeline_contacts SET normalized_phone = COALESCE(normalized_phone, ?),
+             normalized_email = COALESCE(normalized_email, ?), updated_at = UTC_TIMESTAMP(3)
+           WHERE uid_hash = ? AND id = ?`, [phone, email, uidHash, contactId],
+        );
+      }
+    } else {
+      contactId = crypto.randomUUID();
+      await connection.query(
+        `INSERT INTO pipeline_contacts (id, uid_hash, uid, display_name, normalized_phone, normalized_email)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [contactId, uidHash, uid, contactName || learnerName || phone || email || "Unnamed contact", phone, email],
+      );
     }
     const id = crypto.randomUUID();
     const now = dbDate(new Date());
@@ -770,15 +834,14 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input 
     const currency = /^[A-Z]{3}$/.test(String(input.currency || "QAR")) ? String(input.currency || "QAR") : "QAR";
     await connection.query(
       `INSERT INTO pipeline_leads
-        (id, uid_hash, uid, identity_key, title, contact_name, mobile, primary_origin, source_type,
+        (id, uid_hash, uid, contact_id, identity_key, title, contact_name, learner_name, mobile, primary_origin, source_type,
          stage_key, stage_entered_at, owner_agent_id, expected_value, currency, next_follow_up_at, last_activity_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', 'manual', ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
-      [id, uidHash, uid, identityKey, title, contactName, phone, stageKey, now, owner, amount, currency,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', 'manual', ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
+      [id, uidHash, uid, contactId, identityKey, title, contactName, learnerName, phone, stageKey, now, owner, amount, currency,
         input.nextFollowUpAt ? dbDate(input.nextFollowUpAt) : null, now],
     );
-    await connection.query("UPDATE pipeline_identity_locks SET current_lead_id = ? WHERE uid_hash = ? AND identity_key = ?", [id, uidHash, identityKey]);
-    await addActivity(connection, uidHash, id, "lead_created", "Lead added manually", { title }, actorType, actorId);
-    return { id };
+    await addActivity(connection, uidHash, id, "lead_created", "Opportunity added manually", { title, contactId }, actorType, actorId);
+    return { id, contactId };
   });
 }
 
@@ -787,9 +850,12 @@ async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
   return inTransaction(async(connection)=>{
     const scoped=role==='agent'?' AND l.owner_agent_id=?':'';
     const [leads] = await connection.query(
-      `SELECT l.*, a.name AS owner_name FROM pipeline_leads l
+      `SELECT l.*, a.name AS owner_name, c.display_name AS relationship_name,
+         c.normalized_email AS contact_email, c.preferred_language AS contact_language
+       FROM pipeline_leads l
        LEFT JOIN agents a ON a.id = l.owner_agent_id
          AND a.owner_uid COLLATE utf8mb4_general_ci = l.uid COLLATE utf8mb4_general_ci
+       LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
        WHERE l.uid_hash = ? AND l.id = ?${scoped} LIMIT 1 FOR UPDATE`,
       role==='agent'?[uidHash,id,agentId]:[uidHash,id],
     );
@@ -942,6 +1008,8 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
 module.exports = {
   DEFAULT_STAGES,
   normalizePhone,
+  normalizeEmail,
+  findContactMatches,
   verifiedAdReferral,
   normalizeMetaAdsOpeningMessage,
   matchMetaAdsOpeningMessage,
