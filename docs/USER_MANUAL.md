@@ -51,3 +51,9 @@ In the existing admin panel, open Manage Plans. Choose Add New Plan for a new ca
 Back to plans returns to the catalogue. If you have changed the form, choose Keep editing to retain the draft or Discard changes to return without saving. Arabic language selection displays the new controls in Arabic and gives the editor RTL direction. No new admin login or separate plans application is required.
 
 This verifies the existing catalogue editor on desktop. Training-center category, role limits, immutable version publication and assignment impact review are still being connected, and phone/tablet acceptance remains pending.
+
+## User plan assignment upgrade in progress
+
+The existing Manage Users plan action remains the destination. Its upgraded backend records the previous plan and expiry when assigning a new server-loaded catalogue plan, and rejects missing users or invalid plan duration. Assignment history is recorded from activation onward; earlier changes are not reconstructed automatically. The history migration is required before activating this backend.
+
+Assignment preview, history display and category/role limits are still being integrated into the existing screen. The original control does not yet provide the new retry/stale-state tokens. Do not treat this backend increment as the completed account-management workflow.

@@ -220,28 +220,11 @@ router.post("/update_user", adminValidator, async (req, res) => {
   }
 });
 
-// update plan
-router.post("/update_plan", adminValidator, async (req, res) => {
-  try {
-    const { plan, uid } = req.body;
-
-    if (!plan || !uid) {
-      return res.json({ success: false, msg: "Invalid input provided" });
-    }
-
-    const getPlan = await query(`SELECT * FROM plan WHERE id = ?`, [plan?.id]);
-    if (getPlan.length < 1) {
-      return res.json({ success: false, msg: "Invalid plan found" });
-    }
-
-    await updateUserPlan(getPlan[0], uid);
-
-    res.json({ success: true, msg: "User plan was updated" });
-  } catch (err) {
-    res.json({ success: false, msg: "something went wrong" });
-    console.log(err);
-  }
-});
+// Preserve the existing assignment endpoint and its administrator middleware.
+const legacyAssignmentHandler = require("../modules/platform/legacy-plan-assignment.js")
+  .createHandler(require("../database/config.js").promise(), syncOrQueueNodeUser,
+    error => console.error("Plan assignment failed:", error.code));
+router.post("/update_plan", adminValidator, legacyAssignmentHandler);
 
 // get payment gateway admin
 router.get("/get_payment_gateway_admin", adminValidator, async (req, res) => {
