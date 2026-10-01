@@ -209,3 +209,9 @@ Verification adds three unit cases for scoped grants, inactive/malformed links a
 ## Public settings secret removal (1 October 2026)
 
 Both public web-settings responses now omit the Meta Facebook app secret while preserving the public app ID and other existing fields. The social-login settings endpoint now requires administrator authentication and selects only social-login fields; the shared staff boundary denies this owner-level legacy settings route. The original-panel lab smoke verifies the projection and authenticated settings access against the real legacy routers using synthetic data.
+
+## Agent seat visibility and reservation race coverage (1 October 2026)
+
+The existing bilingual Team Invitations screen now shows active agents, unexpired pending invitations, the assigned agent limit and remaining seats. The authenticated list API returns `seatUsage.agent`; invite creation and seat display share the same server-side usage calculation. The screen keeps invitation creation disabled until that summary loads and when the contract has no available seats. Accountant/manager onboarding and automatic email/WhatsApp delivery remain disabled and clearly disclosed.
+
+Verification: `npm test` passes 55/55. The disposable MariaDB suite passes all 13 migrations and now verifies active/pending/available seat values plus two concurrent invitations competing for the final seat (exactly one succeeds). The smoke confirms `customerDataTouched=false` and `externalWrites=false`. Existing-panel authenticated UI review, bilingual responsive acceptance, and all production/release gates remain open.

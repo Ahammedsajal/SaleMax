@@ -20,6 +20,7 @@ module.exports=async(db,other,pool,{i1})=>{
   await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(user.insertId),tenantId,membershipId,crypto.createHash('sha256').update(ownerUid).digest('hex')]);
   const first=await team.create(pool,ownerUid,{email:`agent-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()});
   assert.equal(first.delivery,'copy-link');assert.equal(first.status,'pending');assert.equal(first.token.length,43);
+  const reservedSummary=await team.list(pool,ownerUid);assert.deepEqual(reservedSummary.seatUsage.agent,{active:0,pending:1,limit:limits.agent,available:limits.agent-1});
   const [[stored]]=await db.query('SELECT token_hash,status FROM sx_team_invites WHERE id=?',[first.id]);assert.equal(stored.token_hash,crypto.createHash('sha256').update(first.token).digest('hex'));assert.notEqual(stored.token_hash,first.token);
   const rotated=await team.rotate(pool,ownerUid,first.id);assert.notEqual(rotated.token,first.token);
   await assert.rejects(team.accept(pool,{token:first.token,displayName:'Expired Agent',mobile:'+97450123456',password:['Synthetic-Agent','-Password-91'].join('')}),{code:'INVITE_INVALID'});
@@ -28,13 +29,21 @@ module.exports=async(db,other,pool,{i1})=>{
   await assert.rejects(team.accept(pool,{token:rotated.token,displayName:'Replay Agent',mobile:'+97450123457',password:['Synthetic-Agent','-Password-92'].join('')}),{code:'INVITE_INVALID'});
   const [[agent]]=await db.query('SELECT owner_uid,uid,email,password,is_active FROM agents WHERE uid=?',[accepted.agentUid]);assert.equal(agent.owner_uid,ownerUid);assert.equal(agent.is_active,1);assert.equal(await bcrypt.compare(['Synthetic-Agent','-Password-91'].join(''),agent.password),true);
   const [[membership]]=await db.query("SELECT m.role,m.status,o.tenant_id FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id WHERE o.source_table='agents' AND o.source_id=(SELECT CAST(id AS CHAR) FROM agents WHERE uid=?)",[accepted.agentUid]);assert.equal(membership.role,'agent');assert.equal(membership.status,'active');assert.equal(membership.tenant_id,tenantId);
+  const activeSummary=await team.list(pool,ownerUid);assert.deepEqual(activeSummary.seatUsage.agent,{active:1,pending:0,limit:limits.agent,available:limits.agent-1});
   const second=await team.create(pool,ownerUid,{email:`expired-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()});
   await db.query("UPDATE sx_team_invites SET status='expired',expires_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 DAY) WHERE id=?",[second.id]);
   const reissued=await team.rotate(pool,ownerUid,second.id);assert.equal(reissued.status,'pending');assert.notEqual(reissued.token,second.token);
   await team.cancel(pool,ownerUid,second.id);
-  for(let n=0;n<6;n++){const id=crypto.randomUUID();await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,'Seat fixture','active')",[id,`seat-${n}-${crypto.randomUUID()}@example.invalid`]);await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'agent','active')",[crypto.randomUUID(),tenantId,id]);}
+  const reserved=[];for(let n=0;n<limits.agent-2;n++)reserved.push(await team.create(pool,ownerUid,{email:`reserved-${n}-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()}));
+  const beforeRace=await team.list(pool,ownerUid);assert.deepEqual(beforeRace.seatUsage.agent,{active:1,pending:limits.agent-2,limit:limits.agent,available:1});
+  const racing=await Promise.allSettled([0,1].map(n=>team.create(pool,ownerUid,{email:`race-${n}-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()})));
+  assert.equal(racing.filter(item=>item.status==='fulfilled').length,1,'only one invitation may reserve the final agent seat');
+  const loser=racing.find(item=>item.status==='rejected');assert.equal(loser.reason.code,'SEAT_LIMIT_EXCEEDED');
+  const afterRace=await team.list(pool,ownerUid);assert.deepEqual(afterRace.seatUsage.agent,{active:1,pending:limits.agent-1,limit:limits.agent,available:0});
+  const reservedIds=[...reserved.map(item=>item.id),racing.find(item=>item.status==='fulfilled').value.id];for(const id of reservedIds)await team.cancel(pool,ownerUid,id);
+  for(let n=0;n<limits.agent-1;n++){const id=crypto.randomUUID();await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,'Seat fixture','active')",[id,`seat-${n}-${crypto.randomUUID()}@example.invalid`]);await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'agent','active')",[crypto.randomUUID(),tenantId,id]);}
   await assert.rejects(team.create(pool,ownerUid,{email:`full-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()}),{code:'SEAT_LIMIT_EXCEEDED'});
   const deniedOwner='unmapped-'+crypto.randomUUID();await db.query('INSERT INTO user(uid,name,email) VALUES (?,?,?)',[deniedOwner,'Unmapped',`unmapped-${crypto.randomUUID()}@example.invalid`]);
   await assert.rejects(team.list(pool,deniedOwner),{code:'VERIFIED_BUSINESS_OWNER_REQUIRED'});
-  return {teamInvitationTokenHashOnly:true,rotatedTokenInvalidatesPriorLink:true,oneTimeAgentActivation:true,legacyAndCanonicalAgentIdentityLinked:true,expiredInviteReissueRechecksCapacity:true,ownerAndTenantScopeRequired:true,seatLimitCheckedBeforeInvite:true};
+  return {teamInvitationTokenHashOnly:true,rotatedTokenInvalidatesPriorLink:true,oneTimeAgentActivation:true,legacyAndCanonicalAgentIdentityLinked:true,expiredInviteReissueRechecksCapacity:true,ownerAndTenantScopeRequired:true,seatLimitCheckedBeforeInvite:true,agentSeatSummarySeparatesActiveAndPending:true,concurrentFinalAgentSeatReservationIsAtomic:true};
 };

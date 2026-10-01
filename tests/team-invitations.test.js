@@ -27,4 +27,6 @@ test('agent invitation UI is integrated into the existing single SaleMaX app she
   assert.match(js,/\/api\/agent\/invitations\/accept/);
   assert.match(js,/Team invitations/);assert.match(js,/دعوات الفريق/);
   assert.match(js,/Copy link/);assert.match(js,/Rotate|Create new link/);
+  assert.match(js,/Agent seats/);assert.match(js,/مقاعد الوكلاء/);assert.match(js,/Pending invites/);assert.match(js,/دعوات معلقة/);assert.match(js,/available<1/);
+  assert.match(html,/team-invitations\.js\?v=20261001-seat-usage/);
 });

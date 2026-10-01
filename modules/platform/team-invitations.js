@@ -61,10 +61,12 @@ async function create(pool,ownerUid,input){
 }
 async function list(pool,ownerUid){
   const db=await pool.getConnection();try{return await tx(db,async()=>{await storage(db);const scope=await ownerScope(db,ownerUid,{requireTeam:false});
-    await db.query("UPDATE sx_team_invites SET status='expired' WHERE tenant_id=? AND status='pending' AND expires_at<=UTC_TIMESTAMP(3)",[scope.tenantId]);
+    const used=await seats.activeAgentCounts(db,ownerUid,scope.tenantId);
+    const [[pending]]=await db.query("SELECT COUNT(*) AS n FROM sx_team_invites WHERE tenant_id=? AND role='agent' AND status='pending' AND expires_at>UTC_TIMESTAMP(3)",[scope.tenantId]);
+    const pendingCount=Number(pending.n),limit=scope.entitlement?.roleLimits.agent??null,active=Math.max(0,used.agent-pendingCount);
     const [rows]=await db.query(`SELECT id,email_normalized AS email,role,status,DATE_FORMAT(expires_at,'%Y-%m-%dT%H:%i:%s.%fZ') AS expiresAt
       FROM sx_team_invites WHERE tenant_id=? AND token_hash IS NOT NULL ORDER BY created_at DESC,id LIMIT 200`,[scope.tenantId]);
-    return {invitations:rows,availableRoles:['agent'],unsupportedRoles:['accountant','manager']};
+    return {invitations:rows,availableRoles:['agent'],unsupportedRoles:['accountant','manager'],seatUsage:{agent:{active,pending:pendingCount,limit,available:limit===null?0:Math.max(0,limit-used.agent)}}};
   });}finally{db.release();}
 }
 async function rotate(pool,ownerUid,id){

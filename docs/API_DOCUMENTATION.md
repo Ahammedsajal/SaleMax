@@ -157,13 +157,15 @@ These routes extend the existing authenticated business and agent APIs and are c
 
 | Method and path | Purpose |
 | --- | --- |
-| GET `/api/user/team-invitations/` | List up to 200 invitation records and supported role choices. |
+| GET `/api/user/team-invitations/` | List up to 200 invitation records and supported role choices, plus `seatUsage.agent: { active, pending, limit, available }`. Active excludes valid pending invitations; available subtracts both active members and valid reservations from the assigned plan limit. |
 | POST `/api/user/team-invitations/` | Create one agent invitation. Body: `{ "email": "agent@example.qa", "role": "agent", "requestKey": "<uuid>" }`. Returns one-time token and `delivery: "copy-link"`; store/copy the link immediately. |
 | POST `/api/user/team-invitations/:id/rotate` | Replace a pending invite token and expiry; the old link stops working. |
 | POST `/api/user/team-invitations/:id/cancel` | Cancel a pending invite. |
 | POST `/api/agent/invitations/accept` | Public same-origin activation. Body: `{ "token": "<43-char-token>", "displayName": "...", "mobile": "+974...", "password": "..." }`. On success creates the existing compatible agent login and one-use tenant membership. |
 
 Invitation tokens are generated from 256 bits of randomness and only SHA-256 digests are stored. Links expire after seven days; passwords require at least 12 Unicode code points and are capped at 72 UTF-8 bytes for bcrypt compatibility. Responses use bounded error codes including `INVITE_INVALID`, `SEAT_LIMIT_EXCEEDED`, `TEAM_FEATURE_UNAVAILABLE`, and `ROLE_ONBOARDING_UNAVAILABLE`. Email/WhatsApp dispatch is not implemented. Accountant and manager onboarding remains disabled until every existing business API enforces those roles. These APIs are not production-ready evidence by themselves.
+
+The existing Team Invitations screen displays active agents, pending reservations, the assigned plan limit and seats available. Concurrent final-seat reservations are serialized by tenant locking and covered by the MariaDB integration smoke; only one invitation can reserve the final seat.
 
 ### Existing Manage Users business provisioning
 
