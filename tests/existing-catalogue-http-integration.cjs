@@ -9,7 +9,7 @@ const {createAdminValidator}=require('../middlewares/admin');
 const {totp}=require('../modules/platform/mfa');
 module.exports=async(db,config,{i1})=>{
   const actor=crypto.randomUUID(),uid=crypto.randomUUID(),password=crypto.randomBytes(20).toString('base64url'),passwordHash=await bcrypt.hash(password,12),key=crypto.randomBytes(32),jwtKey=crypto.randomBytes(32).toString('hex');
-  const grants=['plans.read','plans.draft','plans.publish'];
+  const grants=['plans.read','plans.draft','plans.assign','plans.publish'];
   await db.query('CREATE TABLE admin (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),email VARCHAR(254),password VARCHAR(255),role VARCHAR(20)) ENGINE=InnoDB');
   const [inserted]=await db.query("INSERT INTO admin(uid,email,password,role) VALUES (?,?,?,'admin')",[uid,'mapped@example.invalid',passwordHash]);
   await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,'Mapped staff',?,'active')",[actor,'mapped@example.invalid',passwordHash]);
@@ -20,7 +20,7 @@ module.exports=async(db,config,{i1})=>{
   const legacyGuard=createAdminValidator(async(sql,args)=>{const [rows]=await pool.query(sql,args);return rows;},jwtKey);
   mountExistingUpgrade(app,{pool,key,origin,insecureLoopback:true,legacyGuard});
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const base='http://127.0.0.1:'+server.address().port;
-  const authPath='/api/admin/platform-auth',contracts='/api/admin/plan-contracts';
+  const authPath='/api/admin/platform-auth',contracts='/api/admin/plan-contracts',business='/api/admin/business-contracts';
   let cookie='',csrf='';
   async function request(path,{body,headers={},method}={}){return fetch(base+path,{method:method||(body?'POST':'GET'),headers:{Authorization:'Bearer '+legacyToken,...(cookie?{Cookie:cookie}:{}),...(body?{Origin:origin,'Content-Type':'application/json','X-CSRF-Token':csrf}:{}),...headers},body:body?JSON.stringify(body):undefined});}
   try{
@@ -40,12 +40,25 @@ module.exports=async(db,config,{i1})=>{
     assert.equal((await request(contracts+'/'+plan.id+'/drafts',{body:input,headers:{'X-CSRF-Token':'invalid'}})).status,403);
     const published=await request(contracts+'/'+plan.id+'/publish',{body:{versionId:version.id,revision:1}});assert.equal(published.status,200);
     const versions=await request(contracts+'/'+plan.id+'/versions');assert.equal(versions.status,200);assert.ok((await versions.json()).items.some(v=>v.id===version.id&&v.status==='published'));
+    const tenantId=crypto.randomUUID(),ownerId=crypto.randomUUID(),membershipId=crypto.randomUUID(),legacyUid='http-linked-'+crypto.randomUUID();
+    await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,?,'Synthetic HTTP Center','training_center',1,'active')",[tenantId,'http-'+crypto.randomUUID()]);
+    await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,'Synthetic center owner','active')",[ownerId,crypto.randomUUID()+'@example.invalid']);
+    await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES (?,?,?,'owner')",[membershipId,tenantId,ownerId]);
+    const [legacyUser]=await db.query('INSERT INTO user(uid,name,plan,plan_expire) VALUES (?,?,?,?)',[legacyUid,'Synthetic HTTP business','{}',String(Date.now())]);
+    await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(legacyUser.insertId),tenantId,membershipId,crypto.createHash('sha256').update(legacyUid).digest('hex')]);
+    const businessContext=await request(business+'/'+legacyUser.insertId+'/context');assert.equal(businessContext.status,200);
+    const contractRequest={planVersionId:version.id,roleLimits:{owner:1,accountant:1,manager:1,agent:7}};
+    const businessPreview=await request(business+'/'+legacyUser.insertId+'/preview',{body:contractRequest});assert.equal(businessPreview.status,200);const reviewed=(await businessPreview.json()).data;assert.equal(reviewed.canAssign,true);
+    const assignmentBody={...contractRequest,expectedState:reviewed.expectedState,requestId:crypto.randomUUID()};
+    const businessAssignment=await request(business+'/'+legacyUser.insertId+'/assign',{body:assignmentBody});assert.equal(businessAssignment.status,200);
+    const businessReplay=await request(business+'/'+legacyUser.insertId+'/assign',{body:assignmentBody});assert.equal(businessReplay.status,200);assert.equal((await businessReplay.json()).data.replayed,true);
+    assert.equal((await request(business+'/1e2/context')).status,400);
     await db.query('UPDATE sx_platform_memberships SET delegated_permissions=? WHERE identity_id=?',[JSON.stringify(['plans.read']),actor]);
     assert.equal((await request(contracts+'/'+plan.id+'/drafts',{body:{...input,requestId:crypto.randomUUID()}})).status,403);
     await db.query("UPDATE sx_legacy_admin_identities SET status='inactive' WHERE identity_id=?",[actor]);
     assert.equal((await request(contracts+'/context')).status,403);
     const absent=await request(contracts+'/context',{headers:{Authorization:''}});assert.equal((await absent.json()).logout,true);
     const [[audit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE actor_identity_id=? AND action='catalogue.request-rejected'",[actor]);assert.ok(audit.n>=1);
-    return {existingAdminCatalogueHttpWorkflow:true,verifiedLegacyCanonicalLinkRequired:true,catalogueMfaRequired:true,catalogueCsrfRequired:true,catalogueStaffGrantRevocation:true,catalogueDeniedMutationAudited:true};
+    return {existingAdminCatalogueHttpWorkflow:true,existingManageUsersBusinessContractHttpWorkflow:true,businessContractPreviewAndConfirmation:true,businessContractHttpIdempotency:true,verifiedLegacyCanonicalLinkRequired:true,catalogueMfaRequired:true,catalogueCsrfRequired:true,catalogueStaffGrantRevocation:true,catalogueDeniedMutationAudited:true};
   }finally{await new Promise(resolve=>server.close(resolve));await pool.end();}
 };

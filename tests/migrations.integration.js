@@ -20,8 +20,8 @@ async function main() {
     await connection.query("INSERT INTO instance VALUES (1, 'INACTIVE')");
     const migrations = discover(path.join(__dirname, '../database/migrations'));
     const result = await applyMigrations(connection, migrations);
-    assert.equal(result.applied.length, 9);
-    assert.equal((await applyMigrations(connection, migrations)).skipped.length, 9);
+    assert.equal(result.applied.length, 10);
+    assert.equal((await applyMigrations(connection, migrations)).skipped.length, 10);
     const [[instance]] = await connection.query('SELECT inactiveSince FROM instance WHERE id=1');
     assert.ok(instance.inactiveSince);
     await connection.query("INSERT INTO pipeline_settings(uid_hash, uid) VALUES (?, ?)", ['1'.repeat(64), 'synthetic-owner']);
@@ -47,6 +47,7 @@ async function main() {
     const catalogueBridgeEvidence=await require('./catalogue-bridge-integration.cjs')(connection,other,{i1});
     const legacyAssignmentEvidence=await require('./legacy-assignment-integration.cjs')(connection,other);
     const existingCatalogueHttpEvidence=await require('./existing-catalogue-http-integration.cjs')(connection,{...config,database:db},{i1});
+    const businessContractEvidence=await require('./business-contract-integration.cjs')(connection,other,{t2,i1,m2});
     const lockName = 'salemax:migrate:' + crypto.createHash('sha256').update(db).digest('hex').slice(0,40);
     await connection.query('SELECT GET_LOCK(?, 0)', [lockName]);
     await assert.rejects(applyMigrations(other, migrations), { code: 'MIGRATION_LOCKED' });
@@ -56,7 +57,7 @@ async function main() {
     const [[failed]] = await connection.query('SELECT status, statements_completed FROM salemax_schema_migrations WHERE migration_name=?', [broken.file]);
     assert.equal(failed.status, 'failed'); assert.equal(failed.statements_completed, 1);
     await assert.rejects(applyMigrations(other, [...migrations, broken]), { code: 'MIGRATION_RECOVERY_REQUIRED' });
-    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: 9, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...catalogueBridgeEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
+    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: 10, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...catalogueBridgeEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
   } catch(error) {
     if(connection) {
       try {

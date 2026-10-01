@@ -108,6 +108,8 @@ async function assign(db,ctx,input){
   const status=input.status||'active';if(!['active','trial'].includes(status))fail('INVALID_ASSIGNMENT_STATUS');
   return transaction(db,async()=>{
     const tenant=await lockTenant(db,input.tenantId);
+    const [[mapped]]=await db.query("SELECT source_id FROM sx_legacy_ownership WHERE source_table='user' AND tenant_id=? LIMIT 1",[tenant.id]);
+    if(mapped)fail('MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT');
     const [[plan]]=await db.query('SELECT * FROM sx_plan_versions WHERE id=?',[input.planVersionId]);
     if(!plan||plan.status!=='published')fail('PUBLISHED_PLAN_REQUIRED');
     if(plan.category_key!==tenant.category_key||plan.category_version!==tenant.category_version)fail('CATEGORY_UNAVAILABLE');
@@ -159,4 +161,4 @@ async function reserveInvite(db,ctx,input){
     return {id,status:'pending',repeated:false,deliveryQueued:false};
   });
 }
-module.exports={definition,limits,createDraft,updateDraft,publish,previewAssignment,assign,loadEntitlements,reserveInvite};
+module.exports={definition,limits,createDraft,updateDraft,publish,previewAssignment,assign,loadEntitlements,reserveInvite,readUsage,audit};

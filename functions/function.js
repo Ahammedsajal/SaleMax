@@ -2097,14 +2097,12 @@ function addDaysToCurrentTimestamp(days) {
 
 // update user plan
 async function updateUserPlan(plan, uid) {
-  console.log({ plan });
   const planDays = parseInt(plan?.plan_duration_in_days || 0);
   const timeStamp = addDaysToCurrentTimestamp(planDays);
-  await query(`UPDATE user SET plan = ?, plan_expire = ? WHERE uid = ?`, [
-    JSON.stringify(plan),
-    timeStamp,
-    uid,
-  ]);
+  const db = await require('../database/config').promise().getConnection();
+  try {
+    await require('../modules/platform/legacy-ownership-guard').writeUnmapped(db, {uid, plan, expiresAt: timeStamp});
+  } finally { db.release(); }
   await syncOrQueueNodeUser(uid);
 }
 

@@ -5,6 +5,7 @@ const ar=()=>[...document.querySelectorAll('h5')].some(node=>node.textContent.tr
 const t=(en,arabic)=>ar()?arabic:en;
 const css=document.createElement('style');css.textContent='.sx-contracts [hidden]{display:none!important}.sx-contracts article{padding:14px 0;border-bottom:1px solid #e3e7ed}.sx-contracts button{font:600 14px Roboto,Arial,sans-serif;min-height:44px;padding:10px 16px;border:1px solid #cbd3dd;border-radius:8px;background:#fff;cursor:pointer}.sx-contracts button:disabled{opacity:.6;cursor:wait}';document.head.appendChild(css);
 const drafts=new WeakMap();
+let protectedCsrf='';
 async function mount(host,plan){
   drafts.set(host,false);
   if(!plan.id)return;
@@ -56,5 +57,15 @@ async function mount(host,plan){
   }
   await load();
 }
-window.salemaxPlanContracts={mount,isDirty:host=>drafts.get(host)===true,clearDirty:host=>drafts.set(host,false)};
+async function protectedRequest(path,body){
+  const token=localStorage.getItem('wacrm_admin');if(!token)throw Object.assign(new Error(),{code:'AUTH_REQUIRED'});
+  let response,data;
+  try{response=await fetch('/api/admin/platform-auth/me',{headers:{Authorization:'Bearer '+token}});data=await response.json();}catch(_){throw Object.assign(new Error(),{code:'CONNECTION_FAILED'});}
+  if(!response.ok)throw Object.assign(new Error(),{code:data.code||'AUTH_REQUIRED'});
+  if(data.context?.audience!=='platform'||data.mfaRequired)throw Object.assign(new Error(),{code:'MFA_REQUIRED'});
+  protectedCsrf=data.csrfToken;
+  try{response=await fetch('/api/admin/business-contracts/'+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json','X-CSRF-Token':protectedCsrf}:{})},body:body?JSON.stringify(body):undefined});data=await response.json();}catch(_){throw Object.assign(new Error(),{code:'CONNECTION_FAILED'});}
+  if(!response.ok||data.success===false)throw Object.assign(new Error(),{code:data.code||'ASSIGNMENT_UNAVAILABLE'});return data;
+}
+window.salemaxPlanContracts={mount,isDirty:host=>drafts.get(host)===true,clearDirty:host=>drafts.set(host,false),protectedRequest};
 })();

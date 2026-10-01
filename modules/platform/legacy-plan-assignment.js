@@ -32,6 +32,7 @@ async function assign(db,actorUid,body) {
       if(previous.owner_uid!==data.uid || previous.actor_uid!==data.actorUid || Number(previous.plan_id)!==data.planId)fail('IDEMPOTENCY_CONFLICT');
       await db.commit();return {assignmentId:previous.id,expiresAt:Number(previous.assigned_expiry),replayed:true};
     }
+    await require('./legacy-ownership-guard').requireUnmapped(db,user.id);
     if(data.expectedState && data.expectedState!==state(user))fail('STALE_ASSIGNMENT');
     const [[plan]]=await db.query('SELECT * FROM plan WHERE id=? FOR UPDATE',[data.planId]);
     if(!plan)fail('PLAN_NOT_FOUND');

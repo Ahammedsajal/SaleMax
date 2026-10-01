@@ -34,13 +34,26 @@ async function main() {
       await db.query(`CREATE TABLE \`${table}\` (${columns.map(column=>`\`${column.columnName}\` ${column.columnType} ${column.nullable==='NO'?'NOT NULL':''} ${column.columnKey==='PRI'?'PRIMARY KEY':''} ${column.extra==='auto_increment'?'AUTO_INCREMENT':''} ${column.columnName==='createdAt'?'DEFAULT CURRENT_TIMESTAMP':''}`).join(',')})`);
     }
     await require('../database/migration-runner').applyMigrations(db,require('../database/migration-runner').discover(path.join(root,'database/migrations')));
-    await db.query("INSERT INTO user(role,uid,name,email,timezone) VALUES ('user','synthetic-business','Synthetic Training Centre','business@example.invalid','Asia/Qatar')");
+    const [businessUser]=await db.query("INSERT INTO user(role,uid,name,email,timezone) VALUES ('user','synthetic-business','Synthetic Training Centre','business@example.invalid','Asia/Qatar')");
     const password=crypto.randomBytes(18).toString('base64url');
     const passwordHash=await bcrypt.hash(password,12),legacyUid=crypto.randomUUID(),identityId=crypto.randomUUID();
     const [legacyAdmin]=await db.query("INSERT INTO admin(email,password,uid,role) VALUES (?,?,?,'admin')",['panel@example.invalid',passwordHash,legacyUid]);
     await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,'Synthetic owner',?,'active')",[identityId,'panel@example.invalid',passwordHash]);
     await db.query("INSERT INTO sx_platform_memberships(identity_id,role) VALUES (?,'super_admin')",[identityId]);
     await db.query('INSERT INTO sx_legacy_admin_identities(legacy_admin_id,legacy_uid,legacy_uid_hash,identity_id,verified_by,verified_at) VALUES (?,?,?,?,?,UTC_TIMESTAMP(3))',[legacyAdmin.insertId,legacyUid,crypto.createHash('sha256').update(legacyUid).digest('hex'),identityId,identityId]);
+    const legacyPlans=require('../modules/platform/legacy-plan-editor'),planHandlers=legacyPlans.createHandlers(async(sql,args)=>{const [rows]=await db.query(sql,args);return rows;});
+    let savedPlan;await planHandlers.add({body:{title:'Synthetic Training plan',short_description:'Browser test only',price:'250',plan_duration_in_days:'30',contact_limit:'100',qr_account:'2',is_trial:'0',allow_tag:'1',allow_note:'1',allow_chatbot:'1',allow_api:'0',wa_warmer:'0',rest_api_qr:'0'}},{json:result=>{savedPlan=result;}});
+    if(!savedPlan?.success)throw new Error('SYNTHETIC_PLAN_FIXTURE_FAILED');
+    const [[legacyPlan]]=await db.query('SELECT * FROM plan LIMIT 1');
+    const tenantId=crypto.randomUUID(),membershipId=crypto.randomUUID();
+    await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,?,'Synthetic Training Centre','training_center',1,'active')",[tenantId,'panel-'+crypto.randomUUID()]);
+    await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES (?,?,?,'owner')",[membershipId,tenantId,identityId]);
+    const expires=Date.now()+30*86400000,snapshot=JSON.stringify(legacyPlan);
+    await db.query('UPDATE user SET plan=?,plan_expire=? WHERE id=?',[snapshot,expires,businessUser.insertId]);
+    await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(businessUser.insertId),tenantId,membershipId,crypto.createHash('sha256').update('synthetic-business').digest('hex')]);
+    const bridge=require('../modules/platform/catalogue-bridge'),platform={audience:'platform',identity:{id:identityId},membership:{role:'super_admin',status:'active'},mfaVerified:true,recentlyAuthenticated:true};
+    const draft=await bridge.createDraft(db,platform,{legacyPlanId:legacyPlan.id,requestId:crypto.randomUUID(),categoryKey:'training_center',categoryVersion:1,capabilities:['messaging.inbox','team.members','training.courses'],roleLimits:{owner:1,accountant:1,manager:1,agent:7}});
+    await bridge.publish(db,platform,{legacyPlanId:legacyPlan.id,versionId:draft.id,revision:draft.revision});
     await db.query("INSERT INTO web_public(app_name,logo,currency_code,currency_symbol,rtl,login_header_footer,google_login_active,fb_login_active,is_custom_home) VALUES ('SaleMaX · Synthetic test','salemax-logo.png','QAR','QAR',0,0,0,0,0)");
     await db.query('INSERT INTO web_private(id) VALUES (1)');
     fs.mkdirSync(runtime,{recursive:true});
@@ -65,7 +78,8 @@ function serve() {
     const key=req.method+' /api'+req.path;
     const apiPath='/api'+req.path;
     const contractRoute=/^\/api\/admin\/plan-contracts\/[1-9][0-9]*\/(versions|drafts|publish)$/.test(apiPath);
-    const protectedAction=(req.method==='GET' && (apiPath==='/api/admin/plan-contracts/context'||apiPath==='/api/admin/platform-auth/me'||(contractRoute&&apiPath.endsWith('/versions')))) || (req.method==='POST' && (['/api/admin/platform-auth/login','/api/admin/platform-auth/logout','/api/admin/platform-auth/mfa/enroll','/api/admin/platform-auth/mfa/verify'].includes(apiPath)||(contractRoute&&!apiPath.endsWith('/versions'))));
+    const businessRoute=/^\/api\/admin\/business-contracts\/[1-9][0-9]*\/(context|preview|assign)$/.test(apiPath);
+    const protectedAction=(req.method==='GET' && (apiPath==='/api/admin/plan-contracts/context'||apiPath==='/api/admin/platform-auth/me'||(contractRoute&&apiPath.endsWith('/versions'))||(businessRoute&&apiPath.endsWith('/context')))) || (req.method==='POST' && (['/api/admin/platform-auth/login','/api/admin/platform-auth/logout','/api/admin/platform-auth/mfa/enroll','/api/admin/platform-auth/mfa/verify'].includes(apiPath)||(contractRoute&&!apiPath.endsWith('/versions'))||(businessRoute&&!apiPath.endsWith('/context'))));
     if(!allowed.has(key)&&!protectedAction) {console.log('Synthetic panel denied: '+key);return res.status(403).json({success:false,msg:'This action is outside the synthetic plan test.',syntheticData:true});}
     next();
   });
