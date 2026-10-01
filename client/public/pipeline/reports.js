@@ -13,6 +13,7 @@
       failed:'We could not load this report. Your data is unchanged.', retry:'Try again', created:'Leads created', touched:'Leads touched', outcomes:'Contact outcomes', notes:'Notes added',
       followUpsRequired:'Follow-ups requested', followUpsDue:'Follow-ups due in period', overdue:'Open follow-ups overdue now', outcomeBreakdown:'Outcome breakdown',
       occurred:'Time', lead:'Lead / contact', attended:'Handled by', activity:'Activity', details:'Outcome or note', followUp:'Next follow-up',
+      exportPage:'Export this page (CSV)', exportReady:'Report page downloaded as CSV.',
       note:'Internal note', contactOutcome:'Contact outcome', followUpRequired:'Follow-up required', noFollowUp:'No follow-up required', previous:'Previous', next:'Next', page:'Page', of:'of',
       outcomesMap:{no_answer:'No answer',connected:'Connected',interested:'Interested',not_interested:'Not interested',follow_up_scheduled:'Follow-up scheduled',wrong_number:'Wrong number',requested_call:'Call requested',sale_requested:'Sale requested'}
     },
@@ -23,6 +24,7 @@
       failed:'تعذر تحميل التقرير. لم تتغير بياناتك.', retry:'إعادة المحاولة', created:'عملاء جدد', touched:'عملاء تمت متابعتهم', outcomes:'نتائج التواصل', notes:'ملاحظات مضافة',
       followUpsRequired:'متابعات مطلوبة', followUpsDue:'متابعات مستحقة خلال الفترة', overdue:'متابعات مفتوحة متأخرة الآن', outcomeBreakdown:'تفصيل النتائج',
       occurred:'الوقت', lead:'العميل / جهة الاتصال', attended:'تمت المتابعة بواسطة', activity:'النشاط', details:'النتيجة أو الملاحظة', followUp:'المتابعة التالية',
+      exportPage:'تصدير هذه الصفحة (CSV)', exportReady:'تم تنزيل صفحة التقرير بصيغة CSV.',
       note:'ملاحظة داخلية', contactOutcome:'نتيجة التواصل', followUpRequired:'المتابعة مطلوبة', noFollowUp:'لا توجد متابعة مطلوبة', previous:'السابق', next:'التالي', page:'صفحة', of:'من',
       outcomesMap:{no_answer:'لا يوجد رد',connected:'تم التواصل',interested:'مهتم',not_interested:'غير مهتم',follow_up_scheduled:'تم تحديد متابعة',wrong_number:'رقم خاطئ',requested_call:'طلب اتصال',sale_requested:'طلب الشراء'}
     }
@@ -59,7 +61,7 @@
   }
   function shell(content) {
     const scope=agentSession()?t('agentScope'):t('ownerScope');
-    return `<div class="report-head"><div><h2>${t('title')}</h2><p>${t('subtitle')}</p><span class="report-scope">${scope}</span></div></div>
+    return `<div class="report-head"><div><h2>${t('title')}</h2><p>${t('subtitle')}</p><span class="report-scope">${scope}</span></div>${state.report?.items?.length?`<button class="report-export" type="button" id="reportExport">${t('exportPage')}</button>`:''}</div>
       <form class="report-filters" id="reportFilters"><label>${t('period')}<select name="period"><option value="daily" ${state.period==='daily'?'selected':''}>${t('daily')}</option><option value="weekly" ${state.period==='weekly'?'selected':''}>${t('weekly')}</option><option value="monthly" ${state.period==='monthly'?'selected':''}>${t('monthly')}</option></select></label><label>${t('date')}<input name="at" type="date" value="${escape(state.at)}" required></label><button class="primary" type="submit">${t('apply')}</button></form>${content}`;
   }
   function loading() { host.innerHTML=shell(`<div class="report-state" role="status">${t('loading')}</div>`);bindFilters(); }
@@ -87,9 +89,29 @@
       <nav class="report-pagination" aria-label="Report pages"><button type="button" id="reportPrevious" ${report.page<=1?'disabled':''}>${t('previous')}</button><span>${t('page')} ${escape(report.page)} · ${report.total} ${t('of')} ${Math.max(1,Math.ceil(report.total/report.limit))}</span><button type="button" id="reportNext" ${report.hasMore?'':'disabled'}>${t('next')}</button></nav>`:`<div class="report-state">${t('empty')}</div>`;
     host.innerHTML=shell(`<p class="report-period">${escape(periodText)} · ${escape(report.timezone||'Asia/Qatar')}</p><div class="report-kpis">${metrics.map(([key,value])=>metric(t(key),Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA'))).join('')}</div>${outcomeHtml}${listHtml}`);
     bindFilters();
+    $('#reportExport')?.addEventListener('click',()=>exportCurrentPage(report));
     $('#reportPrevious')?.addEventListener('click',()=>{state.page=Math.max(1,state.page-1);load();});
     $('#reportNext')?.addEventListener('click',()=>{state.page++;load();});
     $$('.report-lead-link',host).forEach(button=>button.addEventListener('click',()=>window.salemaxPipelineOpenLead?.(button.dataset.lead)));
+  }
+  function exportCurrentPage(report) {
+    const headers=[t('occurred'),t('lead'),t('attended'),t('activity'),t('details'),t('followUp')];
+    const rows=(report.items||[]).map(item=>[
+      formatDate(item.occurredAt),item.contactName||item.leadTitle||t('lead'),item.attendedBy||'',
+      item.activityType==='note_added'?t('note'):t('contactOutcome'),
+      item.activityType==='note_added'?item.summary:[outcomeLabel(item.details?.outcome),item.details?.followUpRequired===true?t('followUpRequired'):item.details?.followUpRequired===false?t('noFollowUp'):''].filter(Boolean).join(' · '),
+      formatDate(item.details?.nextFollowUpAt||item.nextFollowUpAt)
+    ]);
+    const cell=value=>{
+      let text=String(value??'').replace(/[\r\n]+/g,' ').trim();
+      if(/^(?:[=+@]|-|\t)/.test(text))text="'"+text;
+      return `"${text.replace(/"/g,'""')}"`;
+    };
+    const csv='\uFEFF'+[headers,...rows].map(row=>row.map(cell).join(',')).join('\r\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;link.download=`salemax-activity-${state.period}-${state.at}-page-${report.page}.csv`;link.hidden=true;
+    document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    const toast=$('#toast');if(toast){toast.textContent=t('exportReady');toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2500);}
   }
   async function load() {
     const request=++state.sequence;

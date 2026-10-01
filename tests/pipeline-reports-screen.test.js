@@ -24,6 +24,11 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /reportPrevious/);
   assert.match(reports, /reportNext/);
   assert.match(reports, /report-lead-link/);
+  assert.match(reports, /exportPage:'Export this page \(CSV\)'/);
+  assert.match(reports, /exportPage:'تصدير هذه الصفحة \(CSV\)'/);
+  assert.match(reports, /function exportCurrentPage\(report\)/);
+  assert.ok(reports.includes("if(/^(?:[=+@]|-|\\t)/.test(text))"));
+  assert.ok(reports.includes("join('\\r\\n')"));
   assert.match(pipeline, /window\.salemaxPipelineOpenLead=openLead/);
 });
 

@@ -803,4 +803,8 @@ The next increment extends the existing `/user` and `/agent` API surfaces, using
 
 The existing `/user` shell now exposes a bilingual Team Invitations screen adjacent to Agent Login, and a fragment link opens one-time activation over the same SaleMaX login shell. Local unit tests pass 47/47. The 12-migration synthetic MariaDB run now exercises hashed tokens, rotation invalidation, one-time agent activation, reissue after expiry, owner/tenant linking and seat-limit rejection. Browser snapshots confirm the invitation management and activation forms render in the existing shell; authenticated owner acceptance in both languages and mobile/tablet review remain open. Delivery is copy-link only; email/WhatsApp dispatch is not implemented. Git push and release gates remain open. Do not deploy this increment until those checks and the release gates are complete.
 
+## 29 Implementation progress — Reports page CSV export
+
+The existing pipeline Reports view now exports the visible activity page to CSV with bilingual headings, UTF-8 BOM, quoted cells and spreadsheet-formula prefix neutralization. The export respects the already-filtered report response and does not silently fetch or expose other pages. The user manual and API documentation describe the exact page scope. `npm test` passes 50/50 and the report-screen source test passes 2/2. Authenticated browser download acceptance is still open. This remains one local improvement within TC24; scheduled delivery, finance data and all release gates remain incomplete.
+
 \n
