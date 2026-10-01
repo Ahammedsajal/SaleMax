@@ -38,6 +38,8 @@ Remaining immediate work: full TC35 domain/API/event contracts, TC00 legacy runt
 
 TC14 sale-review increment (2 October 2026): The existing pipeline drawer now lets an assigned agent or owner submit a Qatar QAR sale request against an active course offer and batch, capture discount/fee and an exact 1–12 installment schedule, and view its immutable commercial snapshot and decision history. The owner can approve or reject with a recorded reason; repeated submissions and decisions are idempotent, and stale lead/offer/batch data is rejected. Existing Won-stage guards remain in place. Automated tests and the disposable MariaDB migration/integration suite pass. Conversion is deliberately blocked with `FINANCE_POLICY_UNCONFIGURED`: approval does not yet create enrollment, invoice, receivable, or payment, and authenticated browser acceptance, policy configuration and TC15 posting remain open.
 
+TC39 finance-contract increment (2 October 2026): Added executable integer-minor-unit invariants for invoice balances, payment/refund/chargeback availability, exact installment totals, single-currency balanced journals, and revenue-recognition caps. A pure readiness gate requires a complete Qatar/QAR legal-entity, numbering, tax, revenue and approver profile with accountant approval; it never chooses tax or revenue policy from country alone. The contract and synthetic arithmetic are documented in `docs/FINANCE_CONTRACT.md`. This does not yet persist a policy, provide a settings screen, or post financial records; database concurrency/recovery, accountant review and owner screen acceptance remain open.
+
 ## Ticket ledger
 
 Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 must pass before gateway checkout. All other plan requirements remain open until their acceptance evidence exists.
@@ -83,7 +85,7 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC36 | Planned | TC06 TC07 TC21 | Subscription lifecycle, renewal and continuity rules; expiry/suspension never deletes evidence or loses verified settlements |
 | TC37 | Planned | TC02 TC08 TC21 | Worker leases, QR session ownership and multi-node Socket.IO routing; two processes cannot send/process the same business action concurrently |
 | TC38 | Planned | TC16 TC19 TC21 | Secure customer invoice/receipt access without a learner portal; scoped expiring links cannot expose other documents or internal notes |
-| TC39 | Planned | TC09 TC14 TC35 | Finance transition/reconciliation contract, recognition policy and approval evidence; synthetic edge cases reconcile before posting modules are enabled |
+| TC39 | Implementing | TC09 TC14 TC35 | Integer QAR balance/schedule/journal/revenue invariants and fail-closed accountant-approved posting profile contract are implemented and unit tested; persisted policy/settings UI, accountant authority, MariaDB transactional reconciliation and policy evidence remain open |
 | TC40 | Planned | TC02 TC03 TC05 TC07 TC08 TC35 | Foundation gate for source/build/auth/tenant compatibility; legacy regression, direct-URL denials and feature readiness matrix pass |
 | TC41 | Planned | TC00 TC37 | Release topology, capacity budget, private storage and isolation from other hosted products; measured failover/backpressure plan and clean release package |
 
