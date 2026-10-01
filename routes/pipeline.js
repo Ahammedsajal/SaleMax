@@ -4,6 +4,14 @@ const { query } = require("../database/dbpromise.js");
 const pipeline = require("../helper/pipeline/leadPipeline.js");
 const pipelineAccess = require("../helper/pipeline/access.js");
 const pipelineReports = require("../helper/pipeline/reports.js");
+const trainingCourses = require('../modules/platform/training-courses');
+const saleReviews = require('../modules/platform/training-sale-reviews');
+
+async function saleContext(actor) {
+  const ctx=await trainingCourses.legacyOwnerContext(require('../database/config.js').promise(),actor.uid);
+  ctx.membership={...ctx.membership,role:actor.role,id:actor.role==='agent'?`legacy-agent-${actor.agentId}`:ctx.membership.id,delegatedPermissions:[]};
+  return ctx;
+}
 
 function fail(res, error) {
   const status = Number(error?.status) || 500;
@@ -99,6 +107,11 @@ router.get("/contacts/matches", async (req, res) => {
   } catch (error) { fail(res, error); }
 });
 
+router.get('/sale-options',async(req,res)=>{
+  try{const ctx=await saleContext(req.pipelineActor);res.setHeader('Cache-Control','no-store');res.json({success:true,data:await saleReviews.listOptions(require('../database/config.js').promise(),ctx)});}
+  catch(error){fail(res,error);}
+});
+
 router.get("/reports/activity", async (req,res)=>{
   try{
     const data=await pipelineReports.getActivityReport({
@@ -187,6 +200,21 @@ router.get("/leads/:id", authorizeLead, (req, res) => {
 
 router.get("/leads/:id/activity", authorizeLead, (req, res) => {
   res.json({ success: true, data: req.pipelineLead.activities || [] });
+});
+
+router.get('/leads/:id/sale-reviews',authorizeLead,async(req,res)=>{
+  try{const ctx=await saleContext(req.pipelineActor);res.setHeader('Cache-Control','no-store');res.json({success:true,data:await saleReviews.listForLead(require('../database/config.js').promise(),ctx,{leadId:req.params.id,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId})});}
+  catch(error){fail(res,error);}
+});
+
+router.post('/leads/:id/sale-reviews',authorizeLead,async(req,res)=>{
+  try{const ctx=await saleContext(req.pipelineActor);const data=await saleReviews.create(require('../database/config.js').promise(),ctx,{uid:req.pipelineActor.uid,leadId:req.params.id,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,actorType:req.pipelineActor.actorType,actorId:req.pipelineActor.actorId,input:req.body||{}});res.status(data.repeated?200:201).json({success:true,data});}
+  catch(error){fail(res,error);}
+});
+
+router.post('/leads/:id/sale-reviews/:reviewId/decision',authorizeLead,async(req,res)=>{
+  try{const ctx=await saleContext(req.pipelineActor);const data=await saleReviews.decide(require('../database/config.js').promise(),ctx,{uid:req.pipelineActor.uid,leadId:req.params.id,reviewId:req.params.reviewId,actorType:req.pipelineActor.actorType,actorId:req.pipelineActor.actorId,expectedRevision:req.body?.expectedRevision,decision:req.body?.decision,reason:req.body?.reason});res.json({success:true,data});}
+  catch(error){fail(res,error);}
 });
 
 router.patch("/leads/:id", authorizeLead, async (req, res) => {
