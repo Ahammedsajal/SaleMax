@@ -74,7 +74,13 @@
         const businessButton=document.createElement('button');businessButton.type='button';businessButton.className='sx-user-plan-action';businessButton.textContent=t('Training-center contract','عقد مركز التدريب');businessButton.style.marginTop='12px';businessButton.onclick=()=>openBusiness(userId,active,()=>load());active.querySelector('h2').after(businessButton);
         active.querySelector('h2').focus();
         const form=active.querySelector('form'),select=form.elements.planId,reviewBox=form.querySelector('[data-review]'),notice=form.querySelector('[role=alert]');
-        const error=err=>{notice.hidden=false;notice.textContent=ar()?(err.code==='STALE_ASSIGNMENT'||err.code==='STALE_PLAN'?t('Details changed. Reload the account and review again.','تغيرت البيانات. أعد تحميل الحساب وراجع التعيين مجددًا.'):t('Could not complete this action. Check your selection and try again.','تعذر إكمال الإجراء. تحقق من اختيارك وحاول مجددًا.')):err.message;};
+        const error=err=>{
+          notice.hidden=false;
+          notice.querySelector('[data-canonical-action]')?.remove();
+          const canonicalRequired=['CANONICAL_ASSIGNMENT_REQUIRED','MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT'].includes(err.code);
+          notice.textContent=canonicalRequired?t('This business uses a reviewed training-center contract. Continue in the business-contract flow below.','يستخدم هذا النشاط عقدًا معتمدًا لمركز تدريب. تابع عبر مسار عقد النشاط أدناه.'):ar()?(err.code==='STALE_ASSIGNMENT'||err.code==='STALE_PLAN'?t('Details changed. Reload the account and review again.','تغيرت البيانات. أعد تحميل الحساب وراجع التعيين مجددًا.'):t('Could not complete this action. Check your selection and try again.','تعذر إكمال الإجراء. تحقق من اختيارك وحاول مجددًا.')):err.message;
+          if(canonicalRequired){const action=document.createElement('button');action.type='button';action.dataset.canonicalAction='';action.className='sx-user-plan-action';action.textContent=t('Open training-center contract','فتح عقد مركز التدريب');action.onclick=()=>openBusiness(userId,active,()=>load());notice.append(' ',action);}
+        };
         const busy=value=>{saving=value;select.disabled=value;form.querySelectorAll('button').forEach(button=>{button.disabled=value;});};
         form.querySelector('[data-back]').onclick=()=>{if(!saving)close();};form.querySelector('[data-refresh]').onclick=()=>{if(!saving)load();};
         select.onchange=()=>{review=null;requestId=null;reviewBox.innerHTML='';notice.hidden=true;};

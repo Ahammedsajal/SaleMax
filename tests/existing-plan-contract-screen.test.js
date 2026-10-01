@@ -9,6 +9,7 @@ const root = path.resolve(__dirname, '..');
 const shell = fs.readFileSync(path.join(root, 'client/public/index.html'), 'utf8');
 const editor = fs.readFileSync(path.join(root, 'client/public/admin-plan-editor.js'), 'utf8');
 const contracts = fs.readFileSync(path.join(root, 'client/public/admin-plan-contracts.js'), 'utf8');
+const userPlans = fs.readFileSync(path.join(root, 'client/public/admin-user-plans.js'), 'utf8');
 
 test('contract draft editing is mounted inside the original Manage Plans screen', () => {
   assert.match(shell, /src="\/admin-plan-contracts\.js/);
@@ -25,4 +26,13 @@ test('contract draft editing is mounted inside the original Manage Plans screen'
   assert.match(contracts, /Cancel editing/);
   assert.match(contracts, /احفظ تغييرات المسودة أو تجاهلها قبل مراجعة النشر/);
   assert.match(contracts, /تحديث تغييرات المسودة|حفظ تغييرات المسودة/);
+});
+
+test('legacy Manage Users assignment denial offers the reviewed contract flow', () => {
+  assert.match(shell, /admin-user-plans\.js\?v=20261001b/);
+  assert.match(userPlans, /CANONICAL_ASSIGNMENT_REQUIRED/);
+  assert.match(userPlans, /MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT/);
+  assert.match(userPlans, /Open training-center contract/);
+  assert.match(userPlans, /فتح عقد مركز التدريب/);
+  assert.match(userPlans, /openBusiness\(userId,active/);
 });
