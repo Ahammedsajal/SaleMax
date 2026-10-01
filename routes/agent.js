@@ -36,6 +36,7 @@ const moment = require("moment");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegStatic = require("ffmpeg-static");
 const fs = require("fs");
+const legacyAgentSeats = require("../modules/platform/legacy-agent-seats");
 
 // adding agent
 router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
@@ -52,20 +53,37 @@ router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
       return res.json({ msg: "Please enter a valid email" });
     }
 
-    // check if already
-    const getUser = await query(`SELECT * FROM agents WHERE email = ?`, [
-      email?.toLowerCase(),
-    ]);
+    const hashPass = await bcrypt.hash(password, 10);
 
+    const uid = randomstring.generate();
+
+    const mapped = await legacyAgentSeats.createIfMapped(
+      require("../database/config.js").promise(),
+      req.decode.uid,
+      {
+        uid,
+        email: email.toLowerCase(),
+        password: hashPass,
+        name,
+        mobile,
+        comments,
+      }
+    );
+    if (mapped) {
+      return res.json({
+        msg: "Agent account was created",
+        success: true,
+        seat: { used: mapped.used, limit: mapped.limit },
+      });
+    }
+
+    // Preserve the legacy path for business accounts that have not yet been reviewed and linked.
+    const getUser = await query(`SELECT * FROM agents WHERE email = ?`, [email.toLowerCase()]);
     if (getUser.length > 0) {
       return res.json({
         msg: "This email is already used by you or someone else on the platform, Please choose another email",
       });
     }
-
-    const hashPass = await bcrypt.hash(password, 10);
-
-    const uid = randomstring.generate();
 
     await query(
       `INSERT INTO agents (owner_uid, uid, email, password, name, mobile, comments) VALUES (
@@ -87,6 +105,10 @@ router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
       success: true,
     });
   } catch (err) {
+    if (legacyAgentSeats.messages[err.code]) {
+      const status = err.code === "AGENT_SEAT_LIMIT" ? 409 : err.code === "SEAT_STORAGE_NOT_READY" ? 503 : 400;
+      return res.status(status).json({ success: false, code: err.code, msg: legacyAgentSeats.messages[err.code] });
+    }
     res.json({ success: false, msg: "something went wrong", err });
     console.log(err);
   }
@@ -151,9 +173,22 @@ router.post("/change_agent_activeness", validateUser, async (req, res) => {
   try {
     const { agentUid, activeness } = req.body;
 
-    await query(`UPDATE agents SET is_active = ? WHERE uid = ?`, [
-      activeness ? 1 : 0,
+    if (!agentUid || ![true, false, 0, 1, "0", "1"].includes(activeness)) {
+      return res.status(400).json({ success: false, msg: "Choose a valid agent status" });
+    }
+
+    const mapped = await legacyAgentSeats.updateIfMapped(
+      require("../database/config.js").promise(),
+      req.decode.uid,
       agentUid,
+      activeness === true || activeness === 1 || activeness === "1"
+    );
+    if (mapped) return res.json({ success: true, msg: "Success" });
+
+    await query(`UPDATE agents SET is_active = ? WHERE uid = ? AND owner_uid = ?`, [
+      activeness === true || activeness === 1 || activeness === "1" ? 1 : 0,
+      agentUid,
+      req.decode.uid,
     ]);
 
     res.json({
@@ -161,6 +196,10 @@ router.post("/change_agent_activeness", validateUser, async (req, res) => {
       msg: "Success",
     });
   } catch (err) {
+    if (legacyAgentSeats.messages[err.code]) {
+      const status = err.code === "AGENT_SEAT_LIMIT" ? 409 : err.code === "SEAT_STORAGE_NOT_READY" ? 503 : 400;
+      return res.status(status).json({ success: false, code: err.code, msg: legacyAgentSeats.messages[err.code] });
+    }
     res.json({ success: false, msg: "something went wrong", err });
     console.log(err);
   }
@@ -170,6 +209,13 @@ router.post("/change_agent_activeness", validateUser, async (req, res) => {
 router.post("/del_agent", validateUser, async (req, res) => {
   try {
     const { uid } = req.body;
+    const mapped = await legacyAgentSeats.deleteIfMapped(
+      require("../database/config.js").promise(),
+      req.decode.uid,
+      uid
+    );
+    if (mapped) return res.json({ success: true, msg: "Agent was deleted" });
+
     await query(`DELETE FROM agents WHERE uid = ? AND owner_uid = ?`, [
       uid,
       req.decode.uid,
@@ -180,6 +226,10 @@ router.post("/del_agent", validateUser, async (req, res) => {
       msg: "Agent was deleted",
     });
   } catch (err) {
+    if (legacyAgentSeats.messages[err.code]) {
+      const status = err.code === "AGENT_SEAT_LIMIT" ? 409 : err.code === "SEAT_STORAGE_NOT_READY" ? 503 : 400;
+      return res.status(status).json({ success: false, code: err.code, msg: legacyAgentSeats.messages[err.code] });
+    }
     res.json({ success: false, msg: "something went wrong", err });
     console.log(err);
   }

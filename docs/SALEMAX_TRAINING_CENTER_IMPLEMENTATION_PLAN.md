@@ -8,7 +8,7 @@ Version 1.2 | Existing-project scope confirmed 1 October 2026 | Product owner an
 
 The customer promise is simple: **Know who is handling every lead, what needs to happen next, and what money is still due.** The main user should run their center from the existing business panel; an agent should start the day with a clear work queue; an accountant should reconcile collections without chasing spreadsheets. Upgrade the existing admin panel for owner and delegated staff operations, with Super Admin authority available only to the platform owner.
 
-This plan is the build specification. The Markdown and Word editions contain the same substantive plan, section summaries, implementation tickets, and acceptance criteria. Application development follows after this planning deliverable; the phase gates below define when implementation can be considered complete.
+This plan is the build specification for the active upgrade. The Markdown and Word editions contain the same substantive plan, section summaries, implementation tickets, and acceptance criteria. Implementation proceeds in dependency order; the phase gates below define when each ticket and the complete release can be considered finished.
 
 **Readiness verdict:** Ready to begin the gated implementation program, starting with the source and foundation work. It is not permission to skip frontend recovery, schema/API contract validation, accounting configuration or runtime acceptance. Sections 21–25 tighten the end-to-end contracts following the design audit. A plan can establish a scalable design; only implementation evidence can establish a reliable released system. New audit tickets TC35–TC41 are launch requirements except where explicitly conditional.
 

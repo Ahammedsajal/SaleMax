@@ -105,3 +105,16 @@ The existing Manage Users inline action **Training-center contract** uses these 
 Expiry starts at confirmation using one database UTC clock. The request cannot exceed the published version's category or role ceilings, reduce an in-use seat, or select an unpublished version. A missing/unverified account link fails closed; no ownership is inferred from email. After a reviewed link exists, legacy plan writers are denied for that account and the generic canonical assignment service refuses the mapped tenant so all changes must pass through this adapter. `STALE_ASSIGNMENT`, `SEATS_IN_USE`, `PLAN_LIMIT_EXCEEDED`, `PERMISSION_DENIED`, `VERIFIED_BUSINESS_LINK_REQUIRED` and `IDEMPOTENCY_CONFLICT` are safe error codes; unexpected/storage failures return 503. The tenth forward migration stores request-to-history relationships. It does not adopt, alter, or backfill customer accounts.
 
 The static legacy inventory remains 371 declarations; these protected handlers are dynamically mounted and explicitly documented here rather than being inferred by that limited scanner. Production activation, verified legacy-account adoption and the remaining TC06/TC40 gates are still open.
+
+### Existing agent-account seat enforcement
+
+The existing team endpoints remain under `/api/agent` and keep their current user authentication:
+
+| Method / route | Behavior for a reviewed linked training center |
+| --- | --- |
+| POST `/api/agent/add_agent` | Creates an active account only when the current plan enables `team.members` and an agent seat remains. The response adds `seat:{used,limit}`. The eighth active account under a seven-agent assignment returns HTTP 409 `{success:false,code:"AGENT_SEAT_LIMIT",msg}`. |
+| POST `/api/agent/change_agent_activeness` | Owner-scopes the target; activation checks capacity and returns the same 409 when full. Deactivation releases the seat. `activeness` must be boolean or 0/1. |
+| POST `/api/agent/del_agent` | Owner-scopes deletion and deactivates any explicitly linked canonical agent membership in the same transaction. |
+| GET `/api/agent/get_my_agents` | Existing list response is preserved. |
+
+Legacy accounts without an explicit reviewed `user` ownership link retain the existing creation/status/deletion behavior. During gradual rollout, absence of the ownership migration also falls back to that route. A partial or invalid ownership schema, inconsistent mapping, inactive business, missing team capability or exhausted contract does not bypass enforcement for a linked account; it returns a bounded error. Existing plan-specific seat counts combine active canonical members, pending reservations and active unlinked legacy agent rows. Seat-changing transactions lock the same tenant row as canonical invite reservation, preventing a concurrent legacy account and canonical invite from consuming the same final seat. These endpoints do not yet implement staff invitation delivery or onboarding; that is tracked in TC07.

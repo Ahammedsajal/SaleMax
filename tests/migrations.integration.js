@@ -10,12 +10,13 @@ async function main() {
   const db = 'salemax_migration_test_' + crypto.randomBytes(6).toString('hex');
   const config = { host: process.env.DBHOST, port: Number(process.env.DBPORT), user: process.env.DBUSER, password: process.env.DBPASS };
   const admin = await mysql.createConnection(config);
-  let connection, other, created = false;
+  let connection, other, pool, created = false;
   try {
     await admin.query(`CREATE DATABASE \`${db}\``);
     created = true;
     connection = await mysql.createConnection({ ...config, database: db });
     other = await mysql.createConnection({ ...config, database: db });
+    pool = mysql.createPool({ ...config, database: db, connectionLimit: 5 });
     await connection.query('CREATE TABLE instance (id INT PRIMARY KEY, status VARCHAR(20))');
     await connection.query("INSERT INTO instance VALUES (1, 'INACTIVE')");
     const migrations = discover(path.join(__dirname, '../database/migrations'));
@@ -47,7 +48,7 @@ async function main() {
     const catalogueBridgeEvidence=await require('./catalogue-bridge-integration.cjs')(connection,other,{i1});
     const legacyAssignmentEvidence=await require('./legacy-assignment-integration.cjs')(connection,other);
     const existingCatalogueHttpEvidence=await require('./existing-catalogue-http-integration.cjs')(connection,{...config,database:db},{i1});
-    const businessContractEvidence=await require('./business-contract-integration.cjs')(connection,other,{t2,i1,m2});
+    const businessContractEvidence=await require('./business-contract-integration.cjs')(connection,other,{t2,i1,m2},pool);
     const lockName = 'salemax:migrate:' + crypto.createHash('sha256').update(db).digest('hex').slice(0,40);
     await connection.query('SELECT GET_LOCK(?, 0)', [lockName]);
     await assert.rejects(applyMigrations(other, migrations), { code: 'MIGRATION_LOCKED' });
@@ -68,6 +69,7 @@ async function main() {
     throw error;
   } finally {
     if (other) await other.end();
+    if (pool) await pool.end();
     if (connection) await connection.end();
     try { if (created) await admin.query(`DROP DATABASE IF EXISTS \`${db}\``); }
     finally { await admin.end(); }

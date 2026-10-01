@@ -85,3 +85,9 @@ Select a published training-center contract. Review the frozen catalogue price i
 Arabic controls use RTL layout. The form preserves the existing Manage Users page, account actions and return-to-table refresh. Assignment requires the tenth additive migration and the existing protected platform-administration activation. Production customer data is not automatically adopted by this migration.
 
 The separate synthetic existing-panel lab can use port 3018 by setting SALEMAX_TEST_PANEL_PORT=3018 before running scripts/existing-panel-lab.cjs, with the disposable database engine already on loopback 3309. Its private access file is database/local-runtime/existing-panel-lab-3018/access.json. This lab runs the original shell and protected handlers.
+
+### Agent seats for linked training centers
+
+After an account has an explicit reviewed business link and an active training-center contract, the existing agent creation screen enforces the assigned agent limit. Under the initial seven-agent contract, the owner can create up to seven active agent accounts. When no seats remain, the existing screen reports the limit and points the owner to SaleMaX staff to review the assigned plan. Deactivating an agent frees a seat; deleting an agent removes its legacy login and deactivates any linked canonical membership. Reactivating an agent checks capacity again. Accounts without reviewed ownership linking keep their existing legacy behavior during phased adoption.
+
+This increment enforces seats in the existing API, including concurrent creates, but does not yet add invitation email delivery, invite acceptance or role onboarding. It requires the existing ownership and contract migrations for linked accounts. Staff setup and all role-specific journeys remain in progress.

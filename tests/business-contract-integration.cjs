@@ -5,7 +5,7 @@ const contract=require('../modules/platform/business-contract-assignment');
 const {trainingCenter}=require('../modules/platform/categories');
 const plans=require('../modules/platform/plans');
 const guard=require('../modules/platform/legacy-ownership-guard');
-module.exports=async(db,other,{t2,i1,m2})=>{
+module.exports=async(db,other,{t2,i1,m2},pool)=>{
   const actor={audience:'platform',identity:{id:i1},membership:{role:'super_admin',status:'active'},mfaVerified:true,recentlyAuthenticated:true};
   const [[legacyPlan]]=await db.query('SELECT * FROM plan LIMIT 1');
   const [[version]]=await db.query("SELECT v.id,v.role_limits FROM sx_plan_versions v JOIN sx_legacy_plan_contracts c ON c.version_id=v.id WHERE v.status='published' ORDER BY v.published_at DESC LIMIT 1");
@@ -28,5 +28,40 @@ module.exports=async(db,other,{t2,i1,m2})=>{
   const [[ledger]]=await db.query('SELECT COUNT(*) n FROM sx_legacy_contract_assignments WHERE request_id=?',[request.requestId]);assert.equal(ledger.n,1);
   const [[audit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE tenant_id=? AND action='legacy-business.contract-assigned'",[t2]);assert.equal(audit.n,1);
   await assert.rejects(plans.assign(db,actor,{tenantId:t2,planVersionId:version.id,roleLimits,durationDays:30}),{code:'MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT'});
-  return {businessLegacyCanonicalAssignmentAtomic:true,businessAssignmentIdempotent:true,businessAssignmentStateChecked:true,legacyWriteBlockedAfterReviewedMapping:true,mappedCanonicalAssignmentAdapterRequired:true};
+  await db.query(`CREATE TABLE agents (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    owner_uid VARCHAR(999) NOT NULL, uid VARCHAR(999) NOT NULL,
+    email VARCHAR(999) NOT NULL, password VARCHAR(999) NOT NULL,
+    name VARCHAR(999) NOT NULL, mobile VARCHAR(999) NOT NULL,
+    comments TEXT NULL, role VARCHAR(32) NULL, is_active TINYINT NULL,
+    UNIQUE KEY uq_synthetic_agent_uid(uid), KEY ix_synthetic_agent_owner(owner_uid)
+  ) ENGINE=InnoDB`);
+  const seats=require('../modules/platform/legacy-agent-seats');
+  const legacyAgents=[];
+  for(let n=0;n<6;n++){
+    const agent={uid:`synthetic-old-agent-${n}-${crypto.randomUUID()}`,email:`old-${n}-${crypto.randomUUID()}@example.invalid`};
+    const [inserted]=await db.query('INSERT INTO agents(owner_uid,uid,email,password,name,mobile,is_active) VALUES (?,?,?,?,?,?,1)',[uid,agent.uid,agent.email,'synthetic-hash','Synthetic Agent','00000000']);
+    legacyAgents.push({id:inserted.insertId,uid:agent.uid});
+  }
+  const newAgent=()=>({uid:crypto.randomUUID(),email:`new-${crypto.randomUUID()}@example.invalid`,password:'synthetic-hash',name:'Synthetic New Agent',mobile:'00000000',comments:''});
+  const [raceA,raceB]=[newAgent(),newAgent()];
+  const race=await Promise.allSettled([
+    seats.createIfMapped(pool,uid,raceA),
+    seats.createIfMapped(pool,uid,raceB),
+  ]);
+  assert.equal(race.filter(result=>result.status==='fulfilled').length,1,`one connection consumes the final agent seat: ${race.map(result=>result.status==='rejected'?result.reason.code||result.reason.message:'fulfilled').join(',')}`);
+  assert.equal(race.filter(result=>result.status==='rejected'&&result.reason.code==='AGENT_SEAT_LIMIT').length,1,'the concurrent eighth agent is rejected');
+  const successful=race.find(result=>result.status==='fulfilled').value;
+  assert.equal(successful.used,7);assert.equal(successful.limit,7);
+  await assert.rejects(seats.createIfMapped(pool,uid,newAgent()),{code:'AGENT_SEAT_LIMIT'});
+  const unlinkedUid=`unlinked-${crypto.randomUUID()}`;
+  await db.query('INSERT INTO user(uid,name,plan,plan_expire) VALUES (?,?,?,?)',[unlinkedUid,'Unlinked synthetic center',JSON.stringify(legacyPlan),String(Date.now()+1000)]);
+  assert.deepEqual(await seats.createIfMapped(pool,unlinkedUid,newAgent()),null,'unlinked legacy accounts preserve their existing creation route');
+  await seats.updateIfMapped(pool,uid,legacyAgents[0].uid,false);
+  const afterRelease=await seats.createIfMapped(pool,uid,newAgent());assert.equal(afterRelease.used,7);
+  await assert.rejects(seats.updateIfMapped(pool,uid,legacyAgents[0].uid,true),{code:'AGENT_SEAT_LIMIT'});
+  await seats.deleteIfMapped(pool,uid,legacyAgents[1].uid);
+  await seats.updateIfMapped(pool,uid,legacyAgents[0].uid,true);
+  const [[remaining]]=await db.query('SELECT COUNT(*) n FROM agents WHERE owner_uid=? AND (is_active IS NULL OR is_active<>0)',[uid]);assert.equal(Number(remaining.n),7);
+  return {businessLegacyCanonicalAssignmentAtomic:true,businessAssignmentIdempotent:true,businessAssignmentStateChecked:true,legacyWriteBlockedAfterReviewedMapping:true,mappedCanonicalAssignmentAdapterRequired:true,existingAgentCreationUsesCanonicalSevenSeatLimit:true,concurrentEighthAgentRejected:true,agentDeactivationReleasesSeat:true,agentDeletionKeepsSeatAccountingCorrect:true,unlinkedLegacyAgentCreationPreserved:true};
 };
