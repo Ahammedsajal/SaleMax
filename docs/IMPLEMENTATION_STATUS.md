@@ -49,7 +49,7 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC06 | Implementing | TC04 TC05 | Plan drafts/versions, assignments and impact preview; existing Manage Users now provisions an eligible legacy account in place as a Qatar training-center tenant and assigns its published contract atomically; authenticated browser acceptance and wider adoption/full assignment acceptance remain open |
 | TC07 | Implementing | TC03 TC06 | Existing agent creation, activation and deletion now honor linked-business role seats; invite delivery, acceptance, onboarding and all-role enforcement remain open |
 | TC08 | Planned | TC01 TC05 | Existing feature wrappers and provider state labels; all requested legacy entries remain usable by permitted roles |
-| TC09 | Implementing | TC05 TC40 | Existing `/user` shell now has owner course/offer/batch setup and tenant-scoped versioned QAR price APIs; learner sales, role read journeys, enrollment capacity and invoice snapshots remain open |
+| TC09 | Implementing | TC05 TC40 | Existing `/user` shell now has owner course/offer/batch setup, bilingual learning outcomes/prerequisites/level, and tenant-scoped versioned QAR APIs; learner sales, role read journeys, enrollment capacity and invoice snapshots remain open |
 | TC10 | Planned | TC02 TC09 TC35 | Contact/opportunity model, timeline and dedupe; multiple learners sharing a phone remain distinguishable |
 | TC11 | Implementing | TC07 TC10 | Existing lead board/detail enforce exact agent assignment and the detail form now records structured outcomes with required follow-up dates; authenticated bilingual acceptance, accountable task queue and assignment history remain open |
 | TC12 | Planned | TC09 TC10 TC11 | Form editor, versioning and public capture; tampered tenant/course/agent fields cannot cross scope |
@@ -222,3 +222,15 @@ Follow-up screen verification fixed the explicit submit-button selector and stop
 ## TC09 — course catalogue foundation (1 October 2026)
 
 Implemented as an incremental extension of the existing `/user` workspace: bilingual course details, draft/publish/retire, QAR offer version history, scheduled batches, tenant-scoped migration and authenticated API. Existing-panel synthetic browser evidence covers business login, sidebar visibility, empty state, course create and displayed QAR price. Unit tests pass 58/58 and the 14-migration disposable MariaDB suite passes with customer data untouched and no external writes. Arabic visual acceptance remains open after handling the existing `Lang-Arabic` language key. TC09 remains Implementing; enrollment, sales/invoice integration, public forms, finance and release gates remain incomplete.
+
+
+## TC09 follow-on — bilingual learning metadata (1 October 2026)
+
+The existing Courses create/edit forms now capture course level, learning outcomes in English and Arabic, and prerequisites in both languages. These fields persist as tenant-scoped catalogue metadata and remain separate from immutable offer versions. The API validates the level enumeration and limits each text field to 5,000 characters. Migration `20261006_training_course_learning_info.sql` adds backward-compatible columns with a general-level default; no existing course rows or customer records require conversion.
+
+Unit and synthetic MariaDB acceptance verifies create/read/update persistence, Arabic text, level changes, malformed levels and oversized/wrong-type fields. The original shell integration remains the delivery path. Enrollment, sales/invoice snapshots, brochure storage, branch/trainer records, tax profiles, non-owner read permissions and bilingual/responsive browser acceptance remain open; TC09 remains Implementing.
+
+
+## Planning-file version reconciliation (1 October 2026)
+
+The user-designated source at `A:\Salemax - Training center\GCCBOT-Node\docs\SALEMAX_TRAINING_CENTER_IMPLEMENTATION_PLAN.md` currently identifies itself as version 1.2. The versioned copy inside this SaleMaX checkout identifies itself as 1.3 and contains later implementation-history additions. They are not byte-identical at the current checkpoint. Work follows the user-designated version 1.2 requirements, while preserving the checkout's append-only progress record; no plan content was overwritten to make the hashes appear synchronized.

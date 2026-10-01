@@ -153,13 +153,13 @@ The current business pipeline is mounted under `/api/pipeline` and uses its exis
 
 ### Training-center course catalogue (initial implementation)
 
-These routes extend the current business user's `/user` panel and use the existing bearer token, plus a verified legacy-owner-to-tenant mapping and an active training-center contract. `training.courses` is required; only the owner can currently create/edit courses, offers, batches or publish a course. Read access for accountant, manager and agent sessions is not yet adopted. Routes require `SALEMAX_PLATFORM_ENABLED=true` and migration `20261005_training_catalogue.sql`; mutations require same-origin requests and return `Cache-Control: no-store`.
+These routes extend the current business user's `/user` panel and use the existing bearer token, plus a verified legacy-owner-to-tenant mapping and an active training-center contract. `training.courses` is required; only the owner can currently create/edit courses, offers, batches or publish a course. Read access for accountant, manager and agent sessions is not yet adopted. Routes require `SALEMAX_PLATFORM_ENABLED=true` and migrations `20261005_training_catalogue.sql` and `20261006_training_course_learning_info.sql`; mutations require same-origin requests and return `Cache-Control: no-store`.
 
 | Method and path | Purpose |
 | --- | --- |
 | GET `/api/user/training/courses?page=1&limit=20&search=&status=` | Tenant-scoped catalogue with latest QAR price, offer version count and scheduled batch count. Page size is 1–100. |
-| POST `/api/user/training/courses/` | Create a draft with bilingual names/descriptions, duration, delivery mode and the first QAR price offer. Money uses integer dirhams (`priceMinor`, `registrationFeeMinor`). |
-| PUT `/api/user/training/courses/:id` | Update draft/active course details with `expectedRevision`; a stale revision returns 409. Existing price versions are not edited. |
+| POST `/api/user/training/courses/` | Create a draft with bilingual names/descriptions, course level, bilingual learning outcomes and prerequisites, duration, delivery mode and the first QAR price offer. Text fields are capped at 5,000 characters. Money uses integer dirhams (`priceMinor`, `registrationFeeMinor`). |
+| PUT `/api/user/training/courses/:id` | Update bilingual course details, level, outcomes and prerequisites with `expectedRevision`; a stale revision returns 409. Existing price versions are not edited. |
 | GET `/api/user/training/courses/:id/offers` | Read the tenant course's immutable price history. |
 | POST `/api/user/training/courses/:id/offers` | Append a QAR offer version with optional validity dates and inclusions. |
 | GET `/api/user/training/courses/:id/batches` | List scheduled tenant batches. |
@@ -168,7 +168,7 @@ These routes extend the current business user's `/user` panel and use the existi
 | POST `/api/user/training/courses/:id/publish` | Publish a draft using `expectedRevision`; requires an active offer. |
 | POST `/api/user/training/courses/:id/retire` | Retire a course using `expectedRevision`; history remains readable and mutation forms become read-only. |
 
-Offer and batch IDs are tenant-bound by composite foreign keys. Course and offer history is retained; retire/archive, seat reservations and invoice snapshots will be connected in later sales/finance tickets. An active scheduled batch is optional so centers can record enquiry-only courses. This increment is not a complete enrollment or sales workflow.
+Course level accepts `all_levels`, `beginner`, `intermediate`, `advanced` or `custom`. Offer and batch IDs are tenant-bound by composite foreign keys. Course and offer history is retained; retire/archive, seat reservations and invoice snapshots will be connected in later sales/finance tickets. An active scheduled batch is optional so centers can record enquiry-only courses. Tax profile, course brochure uploads, branch/trainer references and full enrollment remain future work; this increment is not a complete enrollment or sales workflow.
 
 ### Training-center agent invitations (in progress)
 
