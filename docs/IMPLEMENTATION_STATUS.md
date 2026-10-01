@@ -46,7 +46,7 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC03 | Planned | TC02 | Shared login/memberships, owner-only Super Admin and MFA; tenant invite cannot create platform owner |
 | TC04 | Planned | TC03 | Staff delegation and tenant console; staff can onboard/manage approved scope, denied elevation is audited |
 | TC05 | Planned | TC02 | Versioned category/capability engine; dummy category has different menu and rejects training operations |
-| TC06 | Implementing | TC04 TC05 | Plan drafts/versions, assignments and impact preview; edits preserve existing plan contracts |
+| TC06 | Implementing | TC04 TC05 | Plan drafts/versions, assignments and impact preview; edits preserve existing plan contracts; revision-checked edit controls are now integrated in the original Manage Plans screen, while onboarding/adoption and full assignment acceptance remain open |
 | TC07 | Implementing | TC03 TC06 | Existing agent creation, activation and deletion now honor linked-business role seats; invite delivery, acceptance, onboarding and all-role enforcement remain open |
 | TC08 | Planned | TC01 TC05 | Existing feature wrappers and provider state labels; all requested legacy entries remain usable by permitted roles |
 | TC09 | Planned | TC05 TC40 | Course/offer/batch CRUD with history and capacity; price edits cannot change issued invoice snapshots |
@@ -154,6 +154,12 @@ Verification: 28 automated tests pass. Ten forward migrations plus synthetic Mar
 The existing agent settings routes now update only agents owned by the authenticated business. Chat assignment rejects an active agent UID belonging to another owner, and assigned-agent lookup is owner-scoped. The team list and assigned-agent response now project only fields required by the existing UI; agent password hashes and raw owner identifiers are withheld. The compiled React bundle has no recovered source for screen-level regression, so the local database/service tests prove data isolation and response shape, not visible UI acceptance.
 
 The disposable MariaDB suite verifies cross-owner settings changes reject without changing the foreign row, foreign-agent lookup/assignment returns no record, active owned-agent lookup works, and listed agent records do not contain password or owner fields. The 28 automated tests and ten-migration synthetic MariaDB suite pass. TC02 remains Implementing until every tenant-owned endpoint, export, file, event and background job is audited and tested; no imported customer or production records were changed.
+
+## Existing Manage Plans draft editing — 1 October 2026
+
+The existing Manage Plans contract editor now lets authorized staff reopen a draft, edit its role limits and capabilities, and save against the version's expected revision. Commercial terms remain the captured legacy catalogue snapshot; published versions are immutable. The control is bilingual, shows when a draft is being edited, offers a cancel path, and blocks publication while unsaved edits remain. The new protected `PUT /api/admin/plan-contracts/:legacyPlanId/drafts/:versionId` route checks the plan/version association, MFA, current permission grant, CSRF and stale revision before updating; rejected mutations remain audited.
+
+Static integration tests verify the control is loaded by the original admin shell and attached to the existing plan editor. Automated tests pass. The ten-forward-migration disposable MariaDB suite passed draft update, stale revision denial, publication, published-version edit denial, and the downstream Manage Users assignment, seat and pipeline scenarios. No customer data or external providers were touched. Authenticated browser acceptance for this specific edit flow and phone/tablet/dark-mode verification remain open; TC06 and the complete product/release objective remain in progress.
 
 ## Existing lead pipeline agent-scope correction — 1 October 2026
 

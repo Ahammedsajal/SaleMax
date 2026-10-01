@@ -8,7 +8,7 @@ const { discover, applyMigrations } = require('../database/migration-runner');
 async function main() {
   if (process.env.LOCAL_ONLY_MODE !== 'true' || !['127.0.0.1', 'localhost', '::1'].includes(process.env.DBHOST)) throw new Error('LOCAL_DATABASE_ONLY');
   const db = 'salemax_migration_test_' + crypto.randomBytes(6).toString('hex');
-  const config = { host: process.env.DBHOST, port: Number(process.env.DBPORT), user: process.env.DBUSER, password: process.env.DBPASS };
+  const config = { host: process.env.DBHOST, port: Number(process.env.DBPORT), user: process.env.DBUSER, password: process.env.DBPASS === '__EMPTY__' ? '' : process.env.DBPASS };
   const admin = await mysql.createConnection(config);
   let connection, other, pool, created = false;
   try {
@@ -75,4 +75,4 @@ async function main() {
     finally { await admin.end(); }
   }
 }
-main().catch(error => { console.error('Migration integration failed:', error.code || error.message); process.exitCode=1; });
+main().catch(error => { console.error('Migration integration failed:', error.code || 'ERROR', error.stack || error.message); process.exitCode=1; });

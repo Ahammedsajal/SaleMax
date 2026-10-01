@@ -22,6 +22,7 @@ function createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard}){
   }));
   router.get('/:legacyPlanId/versions',wrap(async(req,res)=>res.json({items:await use(db=>bridge.list(db,req.businessContext,legacyId(req)))})));
   router.post('/:legacyPlanId/drafts',wrap(async(req,res)=>res.status(201).json(await use(db=>bridge.createDraft(db,req.businessContext,{...req.body,legacyPlanId:legacyId(req)})))));
+  router.put('/:legacyPlanId/drafts/:versionId',wrap(async(req,res)=>res.json(await use(db=>bridge.updateDraft(db,req.businessContext,{...req.body,versionId:req.params.versionId,legacyPlanId:legacyId(req)})))));
   router.post('/:legacyPlanId/publish',wrap(async(req,res)=>res.json(await use(db=>bridge.publish(db,req.businessContext,{...req.body,legacyPlanId:legacyId(req)})))));
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);

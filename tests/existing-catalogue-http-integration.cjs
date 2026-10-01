@@ -37,8 +37,12 @@ module.exports=async(db,config,{i1})=>{
     const [[plan]]=await db.query('SELECT id FROM plan LIMIT 1');
     const input={requestId:crypto.randomUUID(),categoryKey:'training_center',categoryVersion:1,capabilities:['messaging.inbox','team.members'],roleLimits:{owner:1,accountant:1,manager:1,agent:7}};
     const draft=await request(contracts+'/'+plan.id+'/drafts',{body:input});assert.equal(draft.status,201);const version=await draft.json();
+    const revisedDefinition={categoryKey:'training_center',categoryVersion:1,capabilities:['messaging.inbox','team.members'],roleLimits:{owner:1,accountant:1,manager:2,agent:7},revision:version.revision};
+    const updatedDraft=await request(contracts+'/'+plan.id+'/drafts/'+version.id,{method:'PUT',body:revisedDefinition});assert.equal(updatedDraft.status,200);assert.equal((await updatedDraft.json()).revision,2);
+    assert.equal((await request(contracts+'/'+plan.id+'/drafts/'+version.id,{method:'PUT',body:{...revisedDefinition,revision:1}})).status,409);
     assert.equal((await request(contracts+'/'+plan.id+'/drafts',{body:input,headers:{'X-CSRF-Token':'invalid'}})).status,403);
-    const published=await request(contracts+'/'+plan.id+'/publish',{body:{versionId:version.id,revision:1}});assert.equal(published.status,200);
+    const published=await request(contracts+'/'+plan.id+'/publish',{body:{versionId:version.id,revision:2}});assert.equal(published.status,200);
+    assert.equal((await request(contracts+'/'+plan.id+'/drafts/'+version.id,{method:'PUT',body:{...revisedDefinition,revision:2}})).status,409);
     const versions=await request(contracts+'/'+plan.id+'/versions');assert.equal(versions.status,200);assert.ok((await versions.json()).items.some(v=>v.id===version.id&&v.status==='published'));
     const tenantId=crypto.randomUUID(),ownerId=crypto.randomUUID(),membershipId=crypto.randomUUID(),legacyUid='http-linked-'+crypto.randomUUID();
     await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,?,'Synthetic HTTP Center','training_center',1,'active')",[tenantId,'http-'+crypto.randomUUID()]);
@@ -47,7 +51,7 @@ module.exports=async(db,config,{i1})=>{
     const [legacyUser]=await db.query('INSERT INTO user(uid,name,plan,plan_expire) VALUES (?,?,?,?)',[legacyUid,'Synthetic HTTP business','{}',String(Date.now())]);
     await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(legacyUser.insertId),tenantId,membershipId,crypto.createHash('sha256').update(legacyUid).digest('hex')]);
     const businessContext=await request(business+'/'+legacyUser.insertId+'/context');assert.equal(businessContext.status,200);
-    const contractRequest={planVersionId:version.id,roleLimits:{owner:1,accountant:1,manager:1,agent:7}};
+    const contractRequest={planVersionId:version.id,roleLimits:{owner:1,accountant:1,manager:2,agent:7}};
     const businessPreview=await request(business+'/'+legacyUser.insertId+'/preview',{body:contractRequest});assert.equal(businessPreview.status,200);const reviewed=(await businessPreview.json()).data;assert.equal(reviewed.canAssign,true);
     const assignmentBody={...contractRequest,expectedState:reviewed.expectedState,requestId:crypto.randomUUID()};
     const businessAssignment=await request(business+'/'+legacyUser.insertId+'/assign',{body:assignmentBody});assert.equal(businessAssignment.status,200);
@@ -59,6 +63,6 @@ module.exports=async(db,config,{i1})=>{
     assert.equal((await request(contracts+'/context')).status,403);
     const absent=await request(contracts+'/context',{headers:{Authorization:''}});assert.equal((await absent.json()).logout,true);
     const [[audit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE actor_identity_id=? AND action='catalogue.request-rejected'",[actor]);assert.ok(audit.n>=1);
-    return {existingAdminCatalogueHttpWorkflow:true,existingManageUsersBusinessContractHttpWorkflow:true,businessContractPreviewAndConfirmation:true,businessContractHttpIdempotency:true,verifiedLegacyCanonicalLinkRequired:true,catalogueMfaRequired:true,catalogueCsrfRequired:true,catalogueStaffGrantRevocation:true,catalogueDeniedMutationAudited:true};
+    return {existingAdminCatalogueHttpWorkflow:true,editableDraftRevisionAndPublishedImmutability:true,existingManageUsersBusinessContractHttpWorkflow:true,businessContractPreviewAndConfirmation:true,businessContractHttpIdempotency:true,verifiedLegacyCanonicalLinkRequired:true,catalogueMfaRequired:true,catalogueCsrfRequired:true,catalogueStaffGrantRevocation:true,catalogueDeniedMutationAudited:true};
   }finally{await new Promise(resolve=>server.close(resolve));await pool.end();}
 };

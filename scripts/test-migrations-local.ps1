@@ -1,7 +1,7 @@
 param([string]$MariaDbBin = 'C:\devstack\mariadb\mariadb-11.4.8-winx64\bin', [int]$Port = 3308)
 $ErrorActionPreference = 'Stop'
 $project = Split-Path $PSScriptRoot -Parent
-$runtime = Join-Path $project 'database\local-runtime\migration-tests'
+$runtime = Join-Path $project "database\local-runtime\migration-tests-$Port"
 $initializer = Join-Path $MariaDbBin 'mariadb-install-db.exe'
 $server = Join-Path $MariaDbBin 'mysqld.exe'
 foreach ($binary in @($initializer, $server)) { if (-not (Test-Path -LiteralPath $binary)) { throw 'MariaDB test binaries unavailable' } }
@@ -27,7 +27,7 @@ try {
     $ready = $false
     for ($i=0; $i -lt 30; $i++) { if (Test-TestPort) { $ready=$true; break }; if ($instance.HasExited) { throw 'Disposable database exited during startup' }; Start-Sleep -Milliseconds 500 }
     if (-not $ready) { throw 'Disposable database did not become ready' }
-    $env:LOCAL_ONLY_MODE='true'; $env:DBHOST='127.0.0.1'; $env:DBPORT="$Port"; $env:DBUSER='root'; $env:DBPASS=''
+    $env:LOCAL_ONLY_MODE='true'; $env:DBHOST='127.0.0.1'; $env:DBPORT="$Port"; $env:DBUSER='root'; $env:DBPASS='__EMPTY__'
     Push-Location $project
     try { & node.exe 'tests/migrations.integration.js'; if ($LASTEXITCODE -ne 0) { throw 'Migration integration assertions failed' } }
     finally { Pop-Location }

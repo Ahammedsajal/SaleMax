@@ -14,7 +14,7 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   const [created]=await db.query('INSERT INTO user(uid,name,plan,plan_expire) VALUES (?,?,?,?)',[uid,'Synthetic linked center',JSON.stringify(legacyPlan),oldExpiry]);
   await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(created.insertId),t2,m2,crypto.createHash('sha256').update(uid).digest('hex')]);
   await assert.rejects(guard.writeUnmapped(db,{uid,plan:legacyPlan,expiresAt:Date.now()+10000}),{code:'CANONICAL_ASSIGNMENT_REQUIRED'});
-  const roleLimits={owner:1,accountant:1,manager:1,agent:7};
+  const roleLimits=typeof version.role_limits==='string'?JSON.parse(version.role_limits):version.role_limits;
   const review=await contract.preview(db,actor,{userId:created.insertId,planVersionId:version.id,roleLimits});
   assert.equal(review.readOnly,true);assert.equal(review.canAssign,true);assert.equal(review.durationDays,30);
   const request={userId:created.insertId,planVersionId:version.id,roleLimits,expectedState:review.expectedState,requestId:crypto.randomUUID()};
