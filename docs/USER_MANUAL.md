@@ -25,6 +25,12 @@ Super Admin and staff administration; business onboarding and plan assignment; t
 
 The first conversion screen is an owner-issued flow. Although Finance policy can designate an accountant as issuer, the canonical accountant sale-conversion screen is still pending, so that setting cannot yet complete this journey. Batch reservation expiry is also pending a product policy decision.
 
+## Issued invoices
+
+Open **Finance settings** in the existing business workspace. The **Issued invoices** register lists recently issued invoices and lets an owner or accountant search by invoice number, learner, payer or invoice email, filter by status, and move through result pages. Select **View details** to see the legal seller and tax snapshot, course line, discounts, installment due dates, enrollment details and the balanced invoice journal entry. The register works in English and Arabic and keeps invoice amounts in QAR.
+
+This view is read-only. It does not create a PDF, accept or verify payments, calculate a paid balance, issue a receipt, or notify the customer. Until payment posting is implemented, the displayed amount due equals the invoice total; the detail view calls this out explicitly.
+
 ## Initial Super Admin setup (operations only)
 
 The initial canonical Super Admin must be created from a controlled terminal after the platform identity, security and verified-admin-link migrations have been applied. First verify which existing `/admin` account belongs to the product owner. Run `npm run bootstrap:super-admin -- --legacy-admin-id <id>`, type the requested confirmation phrase, enter the exact UID from that verified account's session, and enter its existing password at the hidden prompt. The command checks all three against the same legacy administrator row, creates the canonical owner and reviewed link in one transaction, and can succeed only once. It is not a routine deploy command. Do not use an employee account, guess by email, put credentials in shell arguments, or run it against the imported/production database before the release and owner-approval gates are satisfied.

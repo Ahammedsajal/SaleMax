@@ -198,6 +198,17 @@ Policy setup extends the existing `/user` workspace and is available only to an 
 
 The last approved policy stays effective while a newer draft or pending version is reviewed. Tax, legal invoice identity and revenue treatment are stored as tenant decisions; no Qatar rate or legal rule is assumed by the application. `policyReady` reports accountant-approved profile completeness. Invoice issuance and its initial journal entry are implemented for the conversion flow above; full finance posting readiness remains false because payment verification/allocation, receipts, corrections, revenue recognition and customer documents are incomplete.
 
+### Training invoice register and detail (TC16 read screen)
+
+| Method and path | Purpose |
+| --- | --- |
+| GET `/api/user/training/finance-policies/invoices?page=1&limit=20&status=issued&q=` | Existing business-owner bearer session; returns a tenant-scoped, newest-first invoice page. `limit` is 1–50, `page` is 1–10000 and status is `issued`, `void` or `all`. Search matches invoice number, learner, payer, invoice email and bilingual line description. |
+| GET `/api/user/training/finance-policies/invoices/:id` | Existing business-owner bearer session; returns one immutable invoice snapshot with learner/payer, lines, installment schedule and initial journal. |
+| GET `/api/user/training/finance-policies/accountant/invoices?page=1&limit=20&status=issued&q=` | Canonical tenant session for an owner or accountant; same bounded tenant register. |
+| GET `/api/user/training/finance-policies/accountant/invoices/:id` | Canonical tenant session for an owner or accountant; same scoped invoice detail. |
+
+The existing `/user` Finance screen now includes an English/Arabic invoice register, search/status filters, pagination and invoice detail. Each row displays the issued total and scheduled amount due. Until payment posting is implemented, `amountDueMinor` equals the invoice total; the detail screen explicitly says customer payments have not been deducted and receipts are unavailable. These read routes do not generate a PDF, post payment, or send customer data externally. Manager summary access is not yet implemented.
+
 `GET /api/pipeline/reports/activity?period=daily|weekly|monthly&at=YYYY-MM-DD&page=1&limit=50` returns a read-only, paginated lead activity report. `at` is optional and defaults to the current date in the authenticated business timezone. Weekly periods start Monday. The response includes the resolved UTC `from`/`to` bounds and timezone, lead-created/touched totals, outcome and note counts, follow-ups required/due/overdue, outcome breakdown, and activity items with the attending user/agent and linked lead details. `limit` is 1–100. Owners see business-wide activity; agents see only their currently assigned leads. Other legacy roles are denied. The endpoint is connected to a Reports view in the existing embedded pipeline panel, with Qatar-local period/date filters, summary metrics, paginated activity and links into existing lead details. The screen's **Export this page (CSV)** action downloads only the currently displayed rows and labels the columns in the selected language; it does not issue another API request. The endpoint does not send scheduled reports and does not include invoices, payments or finance reconciliation.
 
 ### Training-center course catalogue (initial implementation)

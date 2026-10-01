@@ -2,6 +2,7 @@
 const express=require('express');
 const courses=require('./training-courses');
 const policies=require('./training-finance-policies');
+const invoices=require('./training-invoices');
 function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   const router=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
@@ -13,12 +14,16 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.get('/history',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.history)(req.financeContext)})));
   router.get('/accountant/current',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.get)(req.businessContext)})));
   router.get('/accountant/history',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.history)(req.businessContext)})));
+  router.get('/invoices',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.list)(req.financeContext,req.query)})));
+  router.get('/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.detail)(req.financeContext,req.params.id)})));
+  router.get('/accountant/invoices',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.list)(req.businessContext,req.query)})));
+  router.get('/accountant/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.detail)(req.businessContext,req.params.id)})));
   router.put('/draft',userGuard,ownerContext,wrap(async(req,res)=>res.status(200).json({success:true,data:await withConnection(policies.saveDraft)(req.financeContext,req.body)})));
   router.post('/:id/submit',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.submit)(req.financeContext,{id:req.params.id,expectedRevision:req.body?.expectedRevision})})));
   router.post('/:id/decision',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.decide)(req.businessContext,{id:req.params.id,expectedRevision:req.body?.expectedRevision,decision:req.body?.decision,reason:req.body?.reason})})));
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);const code=error.code||'FINANCE_POLICY_UNAVAILABLE';
-    const status=code==='ACCOUNTANT_REQUIRED'||code==='PERMISSION_DENIED'?403:['FINANCE_POLICY_NOT_FOUND','VERIFIED_BUSINESS_OWNER_REQUIRED'].includes(code)?404:['STALE_FINANCE_POLICY','FINANCE_POLICY_REVIEW_PENDING','FINANCE_POLICY_NOT_DRAFT','FINANCE_POLICY_NOT_PENDING','BUSINESS_LINK_INVALID'].includes(code)?409:['AUTH_REQUIRED','IDENTITY_REQUIRED'].includes(code)?401:code.startsWith('INVALID_')||['TAX_RATE_REQUIRED','TAX_RATE_NOT_APPLICABLE','TAX_MODE_REQUIRED','FINANCE_POLICY_INCOMPLETE','FINANCE_POLICY_REJECTION_REASON_REQUIRED'].includes(code)?400:['ACCOUNT_INACTIVE','BUSINESS_INACTIVE','CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:503;
+    const status=code==='ACCOUNTANT_REQUIRED'||code==='PERMISSION_DENIED'?403:['FINANCE_POLICY_NOT_FOUND','VERIFIED_BUSINESS_OWNER_REQUIRED','INVOICE_NOT_FOUND'].includes(code)?404:['STALE_FINANCE_POLICY','FINANCE_POLICY_REVIEW_PENDING','FINANCE_POLICY_NOT_DRAFT','FINANCE_POLICY_NOT_PENDING','BUSINESS_LINK_INVALID'].includes(code)?409:['AUTH_REQUIRED','IDENTITY_REQUIRED'].includes(code)?401:code.startsWith('INVALID_')||['TAX_RATE_REQUIRED','TAX_RATE_NOT_APPLICABLE','TAX_MODE_REQUIRED','FINANCE_POLICY_INCOMPLETE','FINANCE_POLICY_REJECTION_REASON_REQUIRED'].includes(code)?400:['ACCOUNT_INACTIVE','BUSINESS_INACTIVE','CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:503;
     res.status(status).json({success:false,code:status===503?'FINANCE_POLICY_UNAVAILABLE':code,...(error.details?{details:error.details}:{})});
   });
   return router;
