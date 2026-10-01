@@ -87,7 +87,7 @@ async function applyMigrations(connection, migrations) {
         await connection.query('UPDATE salemax_schema_migrations SET status = ?, completed_at = CURRENT_TIMESTAMP(3), error_code = NULL WHERE migration_name = ?', ['applied', migration.file]);
         applied.push(migration.file);
       } catch (error) {
-        const code = /^[A-Z0-9_]{1,100}$/.test(error.code || '') ? error.code : 'MIGRATION_STATEMENT_FAILED';
+        const code = /^[A-Z0-9_]{1,100}$/.test(error.code || '') ? error.code : Number.isInteger(error.errno) ? 'DB_ERRNO_' + error.errno : 'MIGRATION_STATEMENT_FAILED';
         // MariaDB DDL may commit before its checkpoint. Failed/running blocks
         // automated retry until an operator reconciles actual schema state.
         try { await connection.query('UPDATE salemax_schema_migrations SET status = ?, error_code = ? WHERE migration_name = ?', ['failed', code, migration.file]); } catch (_) {}

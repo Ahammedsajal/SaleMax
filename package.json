@@ -6,6 +6,8 @@
   "scripts": {
     "test": "node scripts/run-tests.cjs",
     "test:baseline": "node scripts/baseline-smoke.cjs",
+    "build:workspace": "node scripts/build-workspace.cjs",
+    "preview:workspace": "node scripts/preview-workspace.cjs",
     "test:migrations:integration": "node tests/migrations.integration.js",
     "migrate:plan": "node database/migrate-pipeline.js --plan",
     "migrate:apply": "node database/migrate-pipeline.js --apply",

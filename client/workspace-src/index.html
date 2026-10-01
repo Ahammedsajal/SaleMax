@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SaleMaX — workspace design</title><link rel="stylesheet" href="/workspace.css"><script type="module" src="/workspace.js"></script></head>
+<body>
+  <a class="skip" href="#content">Skip to workspace</a>
+  <div class="preview-banner" id="preview-banner"></div>
+  <div class="app-layout">
+    <aside id="sidebar" aria-label="Main navigation"><button id="menu-close" class="mobile-menu" aria-label="Close navigation">×</button><div class="brand"><img src="/brand.png" alt="SaleMaX"></div><div class="business-name" id="business-name"></div><nav id="navigation"></nav><div class="sidebar-note" id="sidebar-note"></div></aside>
+    <div class="workspace"><header class="topbar"><button class="mobile-menu" id="menu-toggle" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation">☰</button><div class="breadcrumb" id="breadcrumb"></div><div class="controls"><label id="role-label" for="role-select"></label><select id="role-select"><option value="super_admin">Super Admin</option><option value="staff">SaleMaX Staff</option><option value="owner" selected>Business Owner</option><option value="accountant">Accountant</option><option value="manager">Manager</option><option value="agent">Agent</option></select><button id="language" class="outline">العربية</button></div></header>
+    <main id="content" tabindex="-1"><div id="loading" role="status"></div><div id="error" role="alert" hidden></div><div id="view"></div></main>
+    <footer id="footer"></footer></div>
+  </div>
+  <dialog id="access-dialog" aria-labelledby="access-title"><div class="dialog-top"><h2 id="access-title"></h2><button id="close-dialog" class="outline" aria-label="Close">×</button></div><div id="access-body"></div></dialog>
+</body></html>

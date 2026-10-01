@@ -16,3 +16,5 @@ client/public/recordings
 client/public/telegram
 tests
 docs
+client/.preview-build
+client/public/upgrade-preview

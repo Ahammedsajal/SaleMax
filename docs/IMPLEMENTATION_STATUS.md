@@ -10,7 +10,9 @@ Planned -> Implementing -> Locally verified -> Staging verified -> Provider veri
 
 TC00/TC01 started. Git initialized against the requested empty repository with private/runtime exclusions. Forward migration safety and ledger implemented. Ten automated tests passed; real MariaDB synthetic-database tests passed including repeat runs, two-connection locking and interrupted-DDL recovery gating. Baseline localhost health/branding/theme/homepage passed. Embedded legacy Meta app secret removed before publication. Static AST inventory now records 20 mounted families and 369 declared routes; requested feature preservation is mapped with runtime acceptance still pending. Fresh GitHub clone npm ci, ten tests, native dependencies, MariaDB synthetic checks and controlled localhost startup passed. Structural inventory captures 66 tables/651 columns without customer rows. Production has not been upgraded by this increment.
 
-Remaining immediate work: editable frontend recovery/recreation, fresh-checkout install/build verification, runtime preservation acceptance and TC35 schema/API/permission contract pack. No training finance screen or new platform workflow is marked implemented. API documentation and user manual are started and explicitly describe their current limits.
+Added an editable standalone TC01 preview with six role fixtures, EN/AR layout, category-filtered navigation, scoped sample lead search/details and mobile keyboard controls. Its output is outside the production public directory and excluded from Docker. It is a synthetic prototype, not completed business screens. Added canonical identity/tenant/session/legacy-ownership DDL, permission primitives and a session loader; real disposable MariaDB tests verify cross-tenant/wrong-identity denial, owner constraints, live permission reload, revocation, disablement, credential-version invalidation, expiry, MFA age and reauthentication. Browser checks exercised all six roles, agent search/details, accountant projection, category switch, Arabic, phone menu/Escape and tablet layout. Current foundation contract and preview instructions are documented.
+
+Remaining immediate work: full TC35 domain/API/event contracts, TC00 legacy runtime preservation acceptance, actual authenticated onboarding and source-built business journeys. No training finance screen or new platform workflow is marked implemented. The original compiled application remains the active local/production UI; no new schema or prototype has been deployed to production.
 
 ## Ticket ledger
 
@@ -53,7 +55,7 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC32 | Planned | TC23 TC25 TC31 | Pilot with 2–3 consenting centers, training and defect triage; end-to-end invoice/payment/report evidence accepted |
 | TC33 | Planned | TC32 | Approved packaging, onboarding, support/runbooks and production rollout; explicit go/no-go record |
 | TC34 | Planned | TC33 | Next-category contract proof and extension roadmap; core identity/billing stable and training regression passes |
-| TC35 | Planned | TC00 TC01 | Schema/API/event contracts and legacy ownership mapping; reviewed DDL, payloads, permissions and synthetic fixtures exist before dependent modules |
+| TC35 | Implementing | TC00 TC01 | Canonical identity/ownership DDL and session/policy primitives locally verified; full domain/API/event contracts and reviewed legacy backfill still required |
 | TC36 | Planned | TC06 TC07 TC21 | Subscription lifecycle, renewal and continuity rules; expiry/suspension never deletes evidence or loses verified settlements |
 | TC37 | Planned | TC02 TC08 TC21 | Worker leases, QR session ownership and multi-node Socket.IO routing; two processes cannot send/process the same business action concurrently |
 | TC38 | Planned | TC16 TC19 TC21 | Secure customer invoice/receipt access without a learner portal; scoped expiring links cannot expose other documents or internal notes |

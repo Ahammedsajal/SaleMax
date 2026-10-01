@@ -33,3 +33,5 @@ middlewares/license.json
 *.bak
 *.bak-*
 *.old
+client/.preview-build/
+client/public/upgrade-preview/
