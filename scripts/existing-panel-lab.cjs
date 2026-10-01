@@ -28,9 +28,11 @@ async function main() {
     db=await mysql.createConnection({...config,database:name});
     const inventory=require('../docs/LEGACY_SCHEMA_INVENTORY.json');
     for(const table of ['admin','plan','web_public','web_private','user','orders','contact_form','beta_chats','beta_conversation','agents','agent_task','instance','beta_flows']) {
-      const columns=inventory.columns.filter(column=>column.tableName===table);
+      const columns=inventory.columns.filter(column=>column.tableName===table && !(table==='instance' && column.columnName==='inactiveSince'));
       await db.query(`CREATE TABLE \`${table}\` (${columns.map(column=>`\`${column.columnName}\` ${column.columnType} ${column.nullable==='NO'?'NOT NULL':''} ${column.columnKey==='PRI'?'PRIMARY KEY':''} ${column.extra==='auto_increment'?'AUTO_INCREMENT':''} ${column.columnName==='createdAt'?'DEFAULT CURRENT_TIMESTAMP':''}`).join(',')})`);
     }
+    await require('../database/migration-runner').applyMigrations(db,require('../database/migration-runner').discover(path.join(root,'database/migrations')));
+    await db.query("INSERT INTO user(role,uid,name,email,timezone) VALUES ('user','synthetic-business','Synthetic Training Centre','business@example.invalid','Asia/Qatar')");
     const password=crypto.randomBytes(18).toString('base64url');
     await db.query("INSERT INTO admin(email,password,uid,role) VALUES (?,?,?,'admin')",['panel@example.invalid',await bcrypt.hash(password,12),crypto.randomUUID()]);
     await db.query("INSERT INTO web_public(app_name,logo,currency_code,currency_symbol,rtl,login_header_footer,google_login_active,fb_login_active,is_custom_home) VALUES ('SaleMaX · Synthetic test','salemax-logo.png','QAR','QAR',0,0,0,0,0)");
@@ -52,7 +54,7 @@ function serve() {
   if(process.env.DBPORT!=='3309' || !/^salemax_panel_lab_[a-f0-9]{12}$/.test(process.env.DBNAME||'') || process.env.LOCAL_ONLY_MODE!=='true')throw new Error('SYNTHETIC_PANEL_ONLY');
   require('dotenv').config=()=>({parsed:{}});
   const express=require('express'),app=express();app.disable('x-powered-by');app.use(express.json({limit:'24kb'}));
-  const allowed=new Set(['POST /api/admin/login','POST /api/admin/add_plan','POST /api/admin/edit_plan','GET /api/admin/get_plans','GET /api/admin/get_admin','GET /api/web/get_web_public','GET /api/admin/get_web_public','GET /api/web/get-one-translation','GET /api/web/get_all_lang','GET /api/web/get-all-translation-name','GET /api/web/get_theme','GET /api/admin/get_dashboard_for_user','GET /api/theme/get-theme-config']);
+  const allowed=new Set(['POST /api/admin/login','POST /api/admin/add_plan','POST /api/admin/edit_plan','POST /api/admin/update_plan','POST /api/admin/preview_user_plan','GET /api/admin/user_plan_context','GET /api/admin/get_users','GET /api/admin/get_plans','GET /api/admin/get_admin','GET /api/web/get_web_public','GET /api/admin/get_web_public','GET /api/web/get-one-translation','GET /api/web/get_all_lang','GET /api/web/get-all-translation-name','GET /api/web/get_theme','GET /api/admin/get_dashboard_for_user','GET /api/theme/get-theme-config']);
   app.use('/api',(req,res,next)=>{
     const key=req.method+' /api'+req.path;
     if(!allowed.has(key)) {console.log('Synthetic panel denied: '+key);return res.status(403).json({success:false,msg:'This action is outside the synthetic plan test.',syntheticData:true});}

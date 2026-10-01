@@ -57,3 +57,12 @@ This verifies the existing catalogue editor on desktop. Training-center category
 The existing Manage Users plan action remains the destination. Its upgraded backend records the previous plan and expiry when assigning a new server-loaded catalogue plan, and rejects missing users or invalid plan duration. Assignment history is recorded from activation onward; earlier changes are not reconstructed automatically. The history migration is required before activating this backend.
 
 Assignment preview, history display and category/role limits are still being integrated into the existing screen. The original control does not yet provide the new retry/stale-state tokens. Do not treat this backend increment as the completed account-management workflow.
+
+
+## Assigning a plan from the existing user table
+
+Open the existing admin panel → Manage Users. In the user's Plan column, choose **Manage plan**. The inline form shows the account, current plan and expiry, and the latest 20 recorded assignments. Choose a catalogue plan, then **Review assignment** to compare duration, price, contact/QR limits and messaging features. Review makes no change. **Confirm plan assignment** assigns that catalogue snapshot and records history. The duration begins at confirmation; this action does not collect payment. **Back to users** returns to and refreshes the original table after a successful change.
+
+If another administrator changes the account or catalogue during review, the confirmation is rejected. Choose **Reload account**, select the plan and review again. Connection/save errors preserve the selection; retrying the same confirmation cannot duplicate its recorded assignment. If the existing snapshot is malformed, the screen warns you and retains that exact prior snapshot in history on assignment. Earlier history is not reconstructed automatically. With no catalogue plans, create one in Manage Plans first.
+
+Arabic controls include **إدارة الخطة**, **مراجعة التعيين**, **تأكيد تعيين الخطة** and **إعادة تحميل الحساب**. The inline form has RTL direction and Qatar-local dates. English/Arabic desktop review, confirmation, history and return-to-table have been verified with synthetic data. Phone/tablet and dark-mode acceptance remain open. Category, versioned entitlements, role limits and staff grants are still being connected; this increment does not complete account management.

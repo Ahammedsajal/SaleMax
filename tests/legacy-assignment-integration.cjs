@@ -1,14 +1,20 @@
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
-const {assign,state}=require('../modules/platform/legacy-plan-assignment');
+const {assign,state,context,preview}=require('../modules/platform/legacy-plan-assignment');
 module.exports=async(db,other)=>{
-  await db.query('CREATE TABLE user (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),plan LONGTEXT,plan_expire VARCHAR(999)) ENGINE=InnoDB');
+  await db.query('CREATE TABLE user (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),name VARCHAR(999),plan LONGTEXT,plan_expire VARCHAR(999)) ENGINE=InnoDB');
   await db.query('INSERT INTO user(uid,plan,plan_expire) VALUES (?,?,?)',['synthetic-business','historical malformed snapshot','123']);
   const [[plan]]=await db.query('SELECT id FROM plan LIMIT 1');
   const [[user]]=await db.query('SELECT * FROM user WHERE uid=?',['synthetic-business']);
   const request={uid:user.uid,plan:{id:plan.id},requestId:crypto.randomUUID(),expectedState:state(user)};
+  const details=await context(db,user.id);assert.equal(details.current.valid,false);assert.equal(details.history.length,0);
+  const review=await preview(db,'synthetic-admin',request);assert.equal(review.readOnly,true);assert.equal(review.state,request.expectedState);
+  const [[countBefore]]=await db.query('SELECT COUNT(*) n FROM sx_legacy_plan_assignments');assert.equal(countBefore.n,0);
+  await assert.rejects(assign(db,'synthetic-admin',{...request,expectedPlanState:'0'.repeat(64)}),{code:'STALE_PLAN'});
+  request.expectedPlanState=review.planState;
   const first=await assign(db,'synthetic-admin',request);
   const replay=await assign(other,'synthetic-admin',request);assert.equal(replay.replayed,true);assert.equal(replay.assignmentId,first.assignmentId);assert.equal(replay.expiresAt,first.expiresAt);
+  const savedContext=await context(db,user.id);assert.equal(savedContext.history.length,1);assert.equal(savedContext.current.valid,true);
   const [[history]]=await db.query('SELECT * FROM sx_legacy_plan_assignments WHERE id=?',[first.assignmentId]);
   assert.equal(history.previous_snapshot,user.plan);assert.equal(history.previous_expiry,'123');assert.equal(JSON.parse(history.assigned_snapshot).id,plan.id);
   await assert.rejects(assign(db,'synthetic-admin',{...request,requestId:crypto.randomUUID()}),{code:'STALE_ASSIGNMENT'});
@@ -26,6 +32,8 @@ module.exports=async(db,other)=>{
   const [[afterFailure]]=await db.query('SELECT * FROM user WHERE uid=?',[user.uid]);assert.equal(state(afterFailure),state(beforeFailure));
   const [[afterCount]]=await db.query('SELECT COUNT(*) n FROM sx_legacy_plan_assignments');assert.equal(afterCount.n,2);
   await db.query('INSERT INTO user(uid) VALUES (?)',[user.uid]);
+  await assert.rejects(context(db,user.id),{code:'AMBIGUOUS_USER'});
+  await assert.rejects(preview(db,'synthetic-admin',shared),{code:'AMBIGUOUS_USER'});
   await assert.rejects(assign(db,'synthetic-admin',{...shared,requestId:crypto.randomUUID()}),{code:'AMBIGUOUS_USER'});
-  return {legacyAssignmentSnapshotHistory:true,legacyAssignmentIdempotency:true,legacyConcurrentAssignmentStaleDenied:true,legacyAssignmentRollbackAtomic:true,legacyMissingDuplicateUserDenied:true};
+  return {legacyAssignmentReadOnlyPreview:true,legacyCatalogueChangedAfterPreviewDenied:true,legacyAssignmentSnapshotHistory:true,legacyAssignmentIdempotency:true,legacyConcurrentAssignmentStaleDenied:true,legacyAssignmentRollbackAtomic:true,legacyMissingDuplicateUserDenied:true};
 };

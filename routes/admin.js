@@ -105,7 +105,12 @@ router.post("/del_plan", adminValidator, async (req, res) => {
 // get all users
 router.get("/get_users", adminValidator, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM user`, []);
+    const data = await query(`SELECT id,role,uid,name,email,mobile_with_country_code,timezone,plan,plan_expire,trial,createdAt FROM user`, []);
+    for (const row of data) {
+      const parsed = require("../modules/platform/legacy-plan-assignment.js").summary(row.plan);
+      row.plan_snapshot_valid = parsed.valid;
+      if (!parsed.valid) row.plan = "{}";
+    }
     res.json({ data, success: true });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong" });
@@ -225,6 +230,9 @@ const legacyAssignmentHandler = require("../modules/platform/legacy-plan-assignm
   .createHandler(require("../database/config.js").promise(), syncOrQueueNodeUser,
     error => console.error("Plan assignment failed:", error.code));
 router.post("/update_plan", adminValidator, legacyAssignmentHandler);
+const legacyAssignmentReads = require("../modules/platform/legacy-plan-assignment.js");
+router.get("/user_plan_context", adminValidator, legacyAssignmentReads.createReadHandler(require("../database/config.js").promise(), "context"));
+router.post("/preview_user_plan", adminValidator, legacyAssignmentReads.createReadHandler(require("../database/config.js").promise(), "preview"));
 
 // get payment gateway admin
 router.get("/get_payment_gateway_admin", adminValidator, async (req, res) => {

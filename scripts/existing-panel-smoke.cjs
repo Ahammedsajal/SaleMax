@@ -27,9 +27,23 @@ async function main() {
     const [[unchanged]]=await db.query('SELECT qr_account FROM plan WHERE id=?',[created.id]);assert.equal(unchanged.qr_account,2);
     assert.equal((await request('/api/admin/edit_plan',{...body,id:created.id,is_trial:'1'},token)).data.success,true);
     const [[trial]]=await db.query('SELECT id,price,is_trial FROM plan WHERE id=?',[created.id]);assert.equal(trial.id,created.id);assert.equal(Number(trial.price),0);assert.equal(trial.is_trial,1);
-    const denied=await request('/api/admin/update_plan',{plan:{id:created.id},uid:'unrelated'},token);assert.equal(denied.status,403);
+    const accounts=await request('/api/admin/get_users',undefined,token);assert.equal(accounts.data.success,true);
+    const account=accounts.data.data.find(row=>row.uid==='synthetic-business');assert.ok(account);
+    for(const row of accounts.data.data)for(const key of ['password','api_key','fcm_data','fcm_inbox'])assert.ok(!(key in row));
+    assert.equal((await request('/api/admin/user_plan_context?userId='+account.id)).data.logout,true);
+    const context=(await request('/api/admin/user_plan_context?userId='+account.id,undefined,token)).data.data;
+    const [[historyBefore]]=await db.query('SELECT COUNT(*) n FROM sx_legacy_plan_assignments');
+    const preview=(await request('/api/admin/preview_user_plan',{uid:account.uid,plan:{id:created.id},expectedState:context.state},token)).data.data;assert.equal(preview.readOnly,true);
+    const [[historyAfter]]=await db.query('SELECT COUNT(*) n FROM sx_legacy_plan_assignments');assert.equal(historyAfter.n,historyBefore.n);
+    const assignment={uid:account.uid,plan:{id:created.id},expectedState:preview.state,expectedPlanState:preview.planState,requestId:crypto.randomUUID()};
+    assert.equal((await request('/api/admin/update_plan',assignment)).data.logout,true);
+    assert.equal((await request('/api/admin/update_plan',{...assignment,expectedPlanState:'0'.repeat(64)},token)).data.code,'STALE_PLAN');
+    const assigned=(await request('/api/admin/update_plan',assignment,token)).data;assert.equal(assigned.success,true);
+    const replay=(await request('/api/admin/update_plan',assignment,token)).data;assert.equal(replay.replayed,true);assert.equal(replay.assignmentId,assigned.assignmentId);
+    const savedContext=(await request('/api/admin/user_plan_context?userId='+account.id,undefined,token)).data.data;assert.ok(savedContext.history.some(row=>row.id===assigned.assignmentId));
+    const denied=await request('/api/admin/update-admin',{email:'disallowed@example.invalid'},token);assert.equal(denied.status,403);
     const html=await (await fetch(origin+'/admin?page=manage-plans')).text();assert.ok(html.includes('/static/js/main.73648acf.js'));assert.ok(html.includes('/admin-plan-editor.js'));
-    console.log(JSON.stringify({originalCompiledShell:true,actualLegacyRouters:true,unauthenticatedWritesDenied:true,invalidTokenWritesDenied:true,authenticatedCreateEdit:true,fieldErrorsPreserveRow:true,trialZeroPrice:true,syntheticLabScopeEnforced:true,customerDataTouched:false,providerActions:false}));
+    console.log(JSON.stringify({originalCompiledShell:true,actualLegacyRouters:true,unauthenticatedWritesDenied:true,invalidTokenWritesDenied:true,authenticatedCreateEdit:true,fieldErrorsPreserveRow:true,trialZeroPrice:true,userListSecretsExcluded:true,actualAssignmentContextPreviewConfirm:true,actualAssignmentReplay:true,syntheticLabScopeEnforced:true,customerDataTouched:false,providerActions:false}));
   } finally {await db.end();}
 }
 main().catch(error=>{console.error(error.code||'EXISTING_PANEL_SMOKE_FAILED');process.exitCode=1;});
