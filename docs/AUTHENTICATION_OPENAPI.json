@@ -1,0 +1,74 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SaleMaX canonical authentication — isolated handler contract",
+    "version": "0.1.0",
+    "description": "Implemented and tested with synthetic MariaDB/HTTP. NOT mounted in server.js or deployed. Server prefix below is the intended activation target. Main application still uses legacy login. See AUTHENTICATION_CONTRACT.md for activation and compatibility gates."
+  },
+  "servers": [{"url": "/api/v1/auth", "description": "Target prefix; currently unavailable in the main application"}],
+  "x-production-enabled": false,
+  "paths": {
+    "/login": {
+      "post": {
+        "operationId": "canonicalPasswordLogin",
+        "parameters": [{"$ref": "#/components/parameters/Origin"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Login"}}}},
+        "responses": {
+          "200": {"description": "Session cookie set. Platform audience requires MFA before domain access.", "headers": {"Set-Cookie": {"schema": {"type": "string"}, "description": "__Host-salemax_session; Path=/; Secure; HttpOnly; SameSite=Strict. Loopback test uses a separate cookie name."}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionResponse"}}}},
+          "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "403": {"$ref": "#/components/responses/Error"}, "413": {"$ref": "#/components/responses/Error"}, "429": {"$ref": "#/components/responses/Error"}, "500": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "canonicalCurrentSession", "security": [{"SessionCookie": []}],
+        "responses": {"200": {"description": "Current server-derived context; no bearer/password hashes", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionResponse"}}}}, "401": {"$ref": "#/components/responses/Error"}, "500": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/logout": {
+      "post": {
+        "operationId": "canonicalLogout", "security": [{"SessionCookie": []}],
+        "parameters": [{"$ref": "#/components/parameters/Origin"}, {"$ref": "#/components/parameters/Csrf"}],
+        "responses": {"204": {"description": "Session revoked and cookie cleared"}, "400": {"$ref": "#/components/responses/Error"}, "413": {"$ref": "#/components/responses/Error"}, "403": {"$ref": "#/components/responses/Error"}, "500": {"$ref": "#/components/responses/Error"}}
+      }
+    },
+    "/mfa/enroll": {
+      "post": {
+        "operationId": "beginPlatformMfaEnrollment", "security": [{"SessionCookie": []}],
+        "description": "Requires a platform password session authenticated within five minutes. Rejects replacement of an enrolled factor. Seed/URI must never be logged or saved in screenshots.",
+        "parameters": [{"$ref": "#/components/parameters/Origin"}, {"$ref": "#/components/parameters/Csrf"}],
+        "responses": {
+          "200": {"description": "Pending authenticator setup; does not grant MFA", "content": {"application/json": {"schema": {"type": "object", "required": ["secret", "uri", "enrolled"], "properties": {"secret": {"type": "string", "pattern": "^[A-Z2-7]{32}$"}, "uri": {"type": "string", "pattern": "^otpauth://totp/"}, "enrolled": {"const": false}}}}}},
+          "400": {"$ref": "#/components/responses/Error"}, "413": {"$ref": "#/components/responses/Error"}, "403": {"$ref": "#/components/responses/Error"}, "409": {"$ref": "#/components/responses/Error"}, "500": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/mfa/verify": {
+      "post": {
+        "operationId": "verifyPlatformMfa", "security": [{"SessionCookie": []}],
+        "parameters": [{"$ref": "#/components/parameters/Origin"}, {"$ref": "#/components/parameters/Csrf"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "anyOf": [{"required": ["code"]}, {"required": ["recoveryCode"]}], "properties": {"code": {"type": "string", "pattern": "^[0-9]{6}$"}, "recoveryCode": {"type": "string", "pattern": "^[A-Za-z0-9_-]{22}$"}}}}}},
+        "responses": {
+          "200": {"description": "MFA verified; initial enrollment returns ten recovery codes ONCE; cookie extended to eight hours", "content": {"application/json": {"schema": {"type": "object", "required": ["verified"], "properties": {"verified": {"const": true}, "recoveryCodes": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"type": "string", "pattern": "^[A-Za-z0-9_-]{22}$"}}}}}}},
+          "400": {"$ref": "#/components/responses/Error"}, "403": {"$ref": "#/components/responses/Error"}, "413": {"$ref": "#/components/responses/Error"}, "429": {"$ref": "#/components/responses/Error"}, "500": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"SessionCookie": {"type": "apiKey", "in": "cookie", "name": "__Host-salemax_session"}},
+    "parameters": {
+      "Origin": {"name": "Origin", "in": "header", "required": true, "schema": {"type": "string"}, "description": "Exact configured HTTPS origin; no path/trailing slash"},
+      "Csrf": {"name": "X-CSRF-Token", "in": "header", "required": true, "schema": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "description": "Session-bound token obtained from login or me"}
+    },
+    "responses": {"Error": {"description": "Bounded error code; never SQL/stack/token/password details. Authentication contract maps each status/code.", "content": {"application/json": {"schema": {"type": "object", "required": ["code"], "properties": {"code": {"type": "string", "enum": ["AUTH_INVALID", "AUTH_REQUIRED", "AUTH_RATE_LIMITED", "ORIGIN_DENIED", "CSRF_DENIED", "AUTH_UNAVAILABLE", "INVALID_JSON", "BODY_TOO_LARGE", "MFA_REQUIRED", "MFA_INVALID", "MFA_NOT_ENROLLED", "MFA_ALREADY_ENROLLED", "MFA_RATE_LIMITED", "REAUTH_REQUIRED"]}}}}}}},
+    "schemas": {
+      "Login": {"type": "object", "required": ["email", "password", "audience"], "properties": {"email": {"type": "string", "maxLength": 254}, "password": {"type": "string", "minLength": 1, "maxLength": 72, "writeOnly": true, "description": "Actual limit is 72 UTF-8 bytes, not characters"}, "audience": {"enum": ["tenant", "platform"]}, "tenantId": {"type": "string", "format": "uuid"}}, "allOf": [{"if": {"properties": {"audience": {"const": "tenant"}}}, "then": {"required": ["tenantId"]}, "else": {"not": {"required": ["tenantId"]}}}]},
+      "Identity": {"type": "object", "required": ["id", "displayName"], "properties": {"id": {"type": "string", "format": "uuid"}, "displayName": {"type": "string"}}},
+      "Membership": {"type": "object", "required": ["identityId", "role", "status", "permissionVersion", "delegatedPermissions"], "properties": {"id": {"type": "string", "format": "uuid"}, "tenantId": {"type": "string", "format": "uuid"}, "identityId": {"type": "string", "format": "uuid"}, "role": {"enum": ["owner", "accountant", "manager", "agent", "super_admin", "staff"]}, "status": {"const": "active"}, "permissionVersion": {"type": "integer"}, "delegatedPermissions": {"type": "array", "items": {"type": "string"}}}},
+      "Tenant": {"type": "object", "required": ["id", "name", "status", "categoryKey", "categoryVersion", "revision", "currency", "timezone"], "properties": {"id": {"type": "string", "format": "uuid"}, "name": {"type": "string"}, "status": {"const": "active"}, "categoryKey": {"type": "string"}, "categoryVersion": {"type": "integer"}, "revision": {"type": "integer"}, "currency": {"type": "string"}, "timezone": {"type": "string"}}},
+      "Context": {"type": "object", "required": ["audience", "sessionId", "identity", "membership"], "properties": {"audience": {"enum": ["tenant", "platform"]}, "sessionId": {"type": "string", "format": "uuid"}, "identity": {"$ref": "#/components/schemas/Identity"}, "membership": {"$ref": "#/components/schemas/Membership"}, "tenant": {"$ref": "#/components/schemas/Tenant"}, "mfaVerified": {"type": "boolean"}, "recentlyAuthenticated": {"type": "boolean"}}, "allOf": [{"if": {"properties": {"audience": {"const": "tenant"}}}, "then": {"required": ["tenant"]}, "else": {"required": ["mfaVerified", "recentlyAuthenticated"]}}]},
+      "SessionResponse": {"type": "object", "required": ["context", "csrfToken", "mfaRequired"], "properties": {"context": {"$ref": "#/components/schemas/Context"}, "csrfToken": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "mfaRequired": {"type": "boolean"}}}
+    }
+  }
+}

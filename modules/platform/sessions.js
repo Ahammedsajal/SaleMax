@@ -7,7 +7,7 @@ function parseGrants(value) {
   try {const grants=typeof value==='string'?JSON.parse(value):value;return Array.isArray(grants)&&grants.every(g=>typeof g==='string')?grants:null;}
   catch{return null;}
 }
-async function loadSession(connection, token) {
+async function loadSession(connection, token, {forUpdate=false}={}) {
   const hash=tokenHash(token);if(!hash)return null;
   const [rows]=await connection.query(`SELECT s.id AS sessionId,s.audience,s.identity_id AS identityId,
     i.display_name AS displayName,s.tenant_id AS tenantId,s.membership_id AS membershipId,
@@ -21,7 +21,7 @@ async function loadSession(connection, token) {
     LEFT JOIN sx_tenants t ON t.id=s.tenant_id
     LEFT JOIN sx_platform_memberships p ON p.identity_id=s.identity_id
     WHERE s.token_hash=? AND s.revoked_at IS NULL AND s.expires_at>UTC_TIMESTAMP(3)
-    AND i.status='active' AND i.credential_version=s.credential_version LIMIT 1`,[hash]);
+    AND i.status='active' AND i.credential_version=s.credential_version LIMIT 1${forUpdate?' FOR UPDATE':''}`,[hash]);
   const row=rows[0];if(!row)return null;
   const base={audience:row.audience,sessionId:row.sessionId,identity:{id:row.identityId,displayName:row.displayName}};
   if(row.audience==='platform') {
