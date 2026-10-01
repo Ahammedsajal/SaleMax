@@ -28,5 +28,6 @@ test('agent invitation UI is integrated into the existing single SaleMaX app she
   assert.match(js,/Team invitations/);assert.match(js,/دعوات الفريق/);
   assert.match(js,/Copy link/);assert.match(js,/Rotate|Create new link/);
   assert.match(js,/Agent seats/);assert.match(js,/مقاعد الوكلاء/);assert.match(js,/Pending invites/);assert.match(js,/دعوات معلقة/);assert.match(js,/available<1/);
-  assert.match(html,/team-invitations\.js\?v=20261001-seat-usage/);
+  assert.match(js,/<button type="submit" class="primary" disabled>/);assert.match(js,/button\[type="submit"\]/);assert.doesNotMatch(js,/finally\{b\.disabled=false;\}/);
+  assert.match(html,/team-invitations\.js\?v=20261001-seat-usage2/);
 });
