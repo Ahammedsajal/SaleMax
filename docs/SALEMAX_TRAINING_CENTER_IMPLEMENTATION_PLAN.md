@@ -820,3 +820,7 @@ Disposable MariaDB tests cover audience separation, tenant-owner session creatio
 TC04 now has an additional safety layer in the existing admin middleware: linked staff must hold the explicit permission for supported legacy read/preview operations, and all other protected legacy actions are denied. Protected contract/onboarding APIs remain the route for mutations and check canonical identity, MFA, CSRF and granular permission. The old administrator-profile API returns only the signed-in row. Owner and unmapped-administrator compatibility is preserved. This does not classify routes that bypass the admin middleware and is not completion of TC04 or TC40.
 
 The automated suite includes focused authorization cases; the disposable MariaDB HTTP test exercises the existing legacy route boundary. Full screen/role browser acceptance and unguarded-route classification remain open.
+
+## Increment record: public settings secret boundary (1 October 2026)
+
+TC00/TC03 route-preservation work now removes the Meta app secret from both existing public web-settings responses while retaining the public app ID required by existing login screens. The existing social-login settings route requires administrator authentication and is denied to delegated staff by default. The original-panel synthetic HTTP smoke covers the behavior. Other unguarded legacy route declarations still require classification; this does not close TC03 or TC40.

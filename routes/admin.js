@@ -5,6 +5,7 @@ const randomstring = require("randomstring");
 const bcrypt = require("bcrypt");
 const { sign } = require("jsonwebtoken");
 const adminValidator = require("../middlewares/admin.js");
+const {publicWebSettings}=require("../modules/platform/public-web-settings");
 const {
   updateUserPlan,
   getFileExtension,
@@ -82,7 +83,7 @@ router.get("/get_plans", async (req, res) => {
 router.get("/get_web_public", async (req, res) => {
   try {
     const data = await query(`SELECT * FROM web_public`, []);
-    res.json({ data: data[0], success: true });
+    res.json({ data: publicWebSettings(data[0]), success: true });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong" });
     console.log(err);
@@ -1258,9 +1259,9 @@ router.post("/de_wa_den_link", adminValidator, async (req, res) => {
 });
 
 // get social login
-router.get("/get_social_login", async (req, res) => {
+router.get("/get_social_login", adminValidator, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM web_public`, []);
+    const data = await query(`SELECT google_client_id,google_login_active,fb_login_app_id,fb_login_app_sec,fb_login_active FROM web_public`, []);
     res.json({ data: data[0], success: true });
   } catch (err) {
     console.log(err);

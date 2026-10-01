@@ -22,6 +22,10 @@ async function main() {
     const [[after]]=await db.query('SELECT COUNT(*) n FROM plan');assert.equal(after.n,before.n);
     const login=await request('/api/admin/login',{email:access.email,password:access.password});assert.equal(login.data.success,true);
     const token=login.data.token;
+    const publicWeb=await request('/api/web/get_web_public');assert.equal(publicWeb.data.success,true);assert.ok(!Object.hasOwn(publicWeb.data.data,'fb_login_app_sec'));
+    const adminWeb=await request('/api/admin/get_web_public');assert.equal(adminWeb.data.success,true);assert.ok(!Object.hasOwn(adminWeb.data.data,'fb_login_app_sec'));
+    assert.equal((await request('/api/admin/get_social_login')).data.logout,true);
+    const socialSettings=await request('/api/admin/get_social_login',undefined,token);assert.equal(socialSettings.data.success,true);assert.ok(Object.hasOwn(socialSettings.data.data,'fb_login_app_sec'));
     const candidateId=Number(access.provisioningUserId);assert.ok(Number.isSafeInteger(candidateId)&&candidateId>0);
     assert.equal((await request(`/api/admin/business-contracts/${candidateId}/provision-options`)).data.logout,true);
     assert.equal((await request(`/api/admin/business-contracts/${candidateId}/provision-options`,undefined,'invalid')).data.logout,true);
@@ -43,7 +47,7 @@ async function main() {
     const [[historyAfter]]=await db.query('SELECT COUNT(*) n FROM sx_legacy_plan_assignments');assert.equal(historyAfter.n,historyBefore.n);
     const denied=await request('/api/admin/update-admin',{email:'disallowed@example.invalid'},token);assert.equal(denied.status,403);
     const html=await (await fetch(origin+'/admin?page=manage-plans')).text();assert.ok(html.includes('/static/js/main.73648acf.js'));assert.ok(html.includes('/admin-plan-editor.js'));
-    console.log(JSON.stringify({originalCompiledShell:true,actualLegacyRouters:true,unauthenticatedWritesDenied:true,invalidTokenWritesDenied:true,provisionOptionsRequireLegacyAndPlatformSessions:true,authenticatedCreateEdit:true,fieldErrorsPreserveRow:true,trialZeroPrice:true,userListSecretsExcluded:true,actualAssignmentContextRead:true,mappedBusinessLegacyWritersDenied:true,legacyAssignmentHistoryUnchanged:true,syntheticLabScopeEnforced:true,customerDataTouched:false,providerActions:false}));
+    console.log(JSON.stringify({originalCompiledShell:true,actualLegacyRouters:true,unauthenticatedWritesDenied:true,invalidTokenWritesDenied:true,publicWebSettingsExcludeMetaSecret:true,adminSocialSettingsRequireAdministrator:true,authorizedAdminCanReadSocialSettings:true,provisionOptionsRequireLegacyAndPlatformSessions:true,authenticatedCreateEdit:true,fieldErrorsPreserveRow:true,trialZeroPrice:true,userListSecretsExcluded:true,actualAssignmentContextRead:true,mappedBusinessLegacyWritersDenied:true,legacyAssignmentHistoryUnchanged:true,syntheticLabScopeEnforced:true,customerDataTouched:false,providerActions:false}));
   } finally {await db.end();}
 }
 main().catch(error=>{console.error(process.env.SALEMAX_TEST_VERBOSE==='true'?error.stack||error.message:error.code||'EXISTING_PANEL_SMOKE_FAILED');process.exitCode=1;});

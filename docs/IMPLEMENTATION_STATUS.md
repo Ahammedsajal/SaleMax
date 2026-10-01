@@ -205,3 +205,7 @@ Verification: `npm test` (51/51); `scripts/test-migrations-local.ps1` against di
 Linked platform staff are now checked by the existing administrator-token middleware. The existing Manage Users listing requires `tenants.read`; plan context and read-only preview require their respective grants. Other middleware-protected legacy admin operations reject staff, while the new contract/onboarding APIs continue enforcing MFA, CSRF, audience and route-specific grants. The legacy profile endpoint now returns only the current administrator row. Unmapped legacy admins and active Super Admin retain compatibility.
 
 Verification adds three unit cases for scoped grants, inactive/malformed links and legacy/owner compatibility, plus a disposable-MariaDB HTTP check that a granted Manage Users read succeeds and a legacy mutation is denied. Unauthenticated legacy route declarations still require a separate classification and are not covered by this boundary.
+
+## Public settings secret removal (1 October 2026)
+
+Both public web-settings responses now omit the Meta Facebook app secret while preserving the public app ID and other existing fields. The social-login settings endpoint now requires administrator authentication and selects only social-login fields; the shared staff boundary denies this owner-level legacy settings route. The original-panel lab smoke verifies the projection and authenticated settings access against the real legacy routers using synthetic data.

@@ -74,7 +74,7 @@ function serve() {
   if(process.env.DBPORT!=='3309' || !/^salemax_panel_lab_[a-f0-9]{12}$/.test(process.env.DBNAME||'') || process.env.LOCAL_ONLY_MODE!=='true')throw new Error('SYNTHETIC_PANEL_ONLY');
   require('dotenv').config=()=>({parsed:{}});
   const express=require('express'),app=express();app.disable('x-powered-by');
-  const allowed=new Set(['POST /api/admin/login','POST /api/admin/add_plan','POST /api/admin/edit_plan','POST /api/admin/update_plan','POST /api/admin/preview_user_plan','GET /api/admin/user_plan_context','GET /api/admin/get_users','GET /api/admin/get_plans','GET /api/admin/get_admin','GET /api/web/get_web_public','GET /api/admin/get_web_public','GET /api/web/get-one-translation','GET /api/web/get_all_lang','GET /api/web/get-all-translation-name','GET /api/web/get_theme','GET /api/admin/get_dashboard_for_user','GET /api/theme/get-theme-config']);
+  const allowed=new Set(['POST /api/admin/login','POST /api/admin/add_plan','POST /api/admin/edit_plan','POST /api/admin/update_plan','POST /api/admin/preview_user_plan','GET /api/admin/user_plan_context','GET /api/admin/get_users','GET /api/admin/get_plans','GET /api/admin/get_admin','GET /api/admin/get_social_login','GET /api/web/get_web_public','GET /api/admin/get_web_public','GET /api/web/get-one-translation','GET /api/web/get_all_lang','GET /api/web/get-all-translation-name','GET /api/web/get_theme','GET /api/admin/get_dashboard_for_user','GET /api/theme/get-theme-config']);
   app.use('/api',(req,res,next)=>{
     const key=req.method+' /api'+req.path;
     const apiPath='/api'+req.path;

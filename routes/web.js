@@ -1,4 +1,5 @@
 const router = require("express").Router();
+const {publicWebSettings}=require("../modules/platform/public-web-settings");
 const { query } = require("../database/dbpromise.js");
 const {
   validateEmail,
@@ -529,7 +530,7 @@ router.get("/get_web_public", async (req, res) => {
   try {
     const data = await query(`SELECT * FROM web_public`, []);
     const finalAddon = returnAddons();
-    res.json({ data: data[0], addon: finalAddon || [], success: true });
+    res.json({ data: publicWebSettings(data[0]), addon: finalAddon || [], success: true });
   } catch (err) {
     res.json({ success: false, error: err, msg: "Server error", err });
     console.log(err);
