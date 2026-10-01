@@ -78,8 +78,9 @@ function serve() {
     const key=req.method+' /api'+req.path;
     const apiPath='/api'+req.path;
     const contractRoute=/^\/api\/admin\/plan-contracts\/[1-9][0-9]*\/(versions|drafts|publish)$/.test(apiPath);
+    const draftUpdateRoute=req.method==='PUT'&&/^\/api\/admin\/plan-contracts\/[1-9][0-9]*\/drafts\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(apiPath);
     const businessRoute=/^\/api\/admin\/business-contracts\/[1-9][0-9]*\/(context|preview|assign)$/.test(apiPath);
-    const protectedAction=(req.method==='GET' && (apiPath==='/api/admin/plan-contracts/context'||apiPath==='/api/admin/platform-auth/me'||(contractRoute&&apiPath.endsWith('/versions'))||(businessRoute&&apiPath.endsWith('/context')))) || (req.method==='POST' && (['/api/admin/platform-auth/login','/api/admin/platform-auth/logout','/api/admin/platform-auth/mfa/enroll','/api/admin/platform-auth/mfa/verify'].includes(apiPath)||(contractRoute&&!apiPath.endsWith('/versions'))||(businessRoute&&!apiPath.endsWith('/context'))));
+    const protectedAction=(req.method==='GET' && (apiPath==='/api/admin/plan-contracts/context'||apiPath==='/api/admin/platform-auth/me'||(contractRoute&&apiPath.endsWith('/versions'))||(businessRoute&&apiPath.endsWith('/context')))) || (req.method==='POST' && (['/api/admin/platform-auth/login','/api/admin/platform-auth/logout','/api/admin/platform-auth/mfa/enroll','/api/admin/platform-auth/mfa/verify'].includes(apiPath)||(contractRoute&&!apiPath.endsWith('/versions'))||(businessRoute&&!apiPath.endsWith('/context')))) || draftUpdateRoute;
     if(!allowed.has(key)&&!protectedAction) {console.log('Synthetic panel denied: '+key);return res.status(403).json({success:false,msg:'This action is outside the synthetic plan test.',syntheticData:true});}
     next();
   });

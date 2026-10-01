@@ -20,6 +20,8 @@ test('contract draft editing is mounted inside the original Manage Plans screen'
   assert.match(contracts, /'PUT'/);
   assert.match(contracts, /STALE_REVISION/);
   assert.match(contracts, /UNSAVED_DRAFT/);
+  assert.match(contracts, /UNSAVED_DRAFT_LANGUAGE/);
+  assert.match(contracts, /stopImmediatePropagation/);
   assert.match(contracts, /Cancel editing/);
   assert.match(contracts, /احفظ تغييرات المسودة أو تجاهلها قبل مراجعة النشر/);
   assert.match(contracts, /تحديث تغييرات المسودة|حفظ تغييرات المسودة/);
