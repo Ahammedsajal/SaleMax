@@ -1,5 +1,7 @@
 # SaleMaX API documentation
 
+Integration requirement: extend the current SaleMaX project and existing admin/user modules. Existing plan operations are /api/admin/add_plan, edit_plan, get_plans and update_plan. Versioned services must be connected through compatible, authenticated adapters with reviewed legacy-ID/ownership mappings, preserving the current Manage Plans and Manage Users workflows. A test-only /api/v1 handler is not a replacement module or evidence that the existing screen is upgraded. No new frontend project, separate CRM or parallel login is authorized.
+
 Status: implementation in progress. This document and the future OpenAPI contract expand with each verified ticket; the planned API list is not presented as implemented functionality.
 
 ## Verified baseline

@@ -2,6 +2,10 @@
 
 TC35 contract increment; prerequisites for TC06/TC07. SQL and transaction services are locally verified. No staff plan screen, public login/invite acceptance, provider send, billing checkout or production API is enabled by this increment.
 
+## Existing module is the delivery destination
+
+Upgrade the current Manage Plans screen at /admin?page=manage-plans and current Manage Users plan assignment at /admin?page=manage-users. Preserve /api/admin/add_plan, edit_plan, get_plans and update_plan compatibility through reviewed adapters and map existing plan IDs/fields and assigned-user history to the versioned contract. Do not ship a second plan catalogue or standalone administration panel at /admin/plans. Owner/staff access belongs to the existing /admin panel; tenant additions belong to the existing /user panel. Test-only plan handlers and screens are not evidence of this integration.
+
 ## Storage
 
 Migration `20261001_platform_plans.sql` adds `sx_plans`, `sx_plan_versions`, `sx_plan_assignments` and `sx_team_invites`.

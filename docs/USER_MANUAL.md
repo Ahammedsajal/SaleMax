@@ -2,6 +2,12 @@
 
 Status: the upgrade is being implemented. This manual will document verified screens and real user journeys as they become available, including English/Arabic behavior. It is not a claim that planned features already work.
 
+## Existing application remains the product
+
+The upgrade extends the current SaleMaX admin and business panels. The intended plan destination is the existing Manage Plans screen at /admin?page=manage-plans; business/account assignment remains in Manage Users at /admin?page=manage-users. Preserve the existing /admin/login and /user/login entry points. Missing Courses, Finance, Reports and Forms functionality is added inside the current business panel. There is no new application or replacement shell.
+
+The lab and preview instructions below describe isolated development verification, not the released user experience. In particular, the separate test plan page is superseded as a product destination. Backend functions must be connected to the existing screens before this manual can mark them available.
+
 ## Local verification environment
 
 From the SaleMaX application directory, run `start-local.ps1` in PowerShell. Open http://127.0.0.1:3010/. The database binds to 127.0.0.1:3307. Run `stop-local.ps1` to stop this local environment. The imported training data is private and excluded from Git. Provider operations remain disconnected in local-only mode.
@@ -14,9 +20,11 @@ Super Admin and staff administration; business onboarding and plan assignment; t
 
 Run `npm run build:workspace`, then `./scripts/start-auth-lab.ps1` in PowerShell from the application folder. Open http://127.0.0.1:3016/. The script starts a separate database on loopback port 3309 and creates a synthetic-only database. It refuses an occupied port. Temporary test credentials are in the private, Git-ignored `database/local-runtime/auth-lab/access.json`; they are not production credentials. Each fresh lab start creates new test identities and removes its own synthetic database on a clean shutdown. No imported database or provider is used.
 
-Choose **Business account**, enter the test workspace name, email and password, then **Sign in**. An incorrect password/workspace produces a helpful account error; the password show/hide control is available. Successful sign-in displays the canonical identity, role and business name returned by SQL. **Sign out** revokes that session. This screen proves authentication, not completed dashboard administration.
+Open **/user** or **/user/login**, enter the test workspace name, email and password, then **Sign in**. The root URL redirects to /user. This page contains only business login: there is no SaleMaX administration tab or link. An incorrect password/workspace produces a helpful account error; the password show/hide control is available. Successful sign-in displays the canonical identity, role and business name returned by SQL. **Sign out** revokes that session. This screen proves authentication, not completed dashboard administration.
 
-Choose **SaleMaX administration** for the platform test identity. On first sign-in, scan the authenticator QR or enter its setup key, then enter the six-digit code. QR generation is local and the seed is not placed in a URL. Save the ten recovery codes using **Download recovery codes**, confirm **I saved my recovery codes**, then continue. Returning platform users see the authenticator challenge and can choose **Use a recovery code**. Each recovery code works once. The UI does not offer owner/MFA reset or silently replace an enrolled factor; those flows remain pending.
+Open **/admin** or **/admin/login** for the platform test identity. This separate page is for the SaleMaX Super Admin and staff and has no business-workspace field. On first sign-in, scan the authenticator QR or enter its setup key, then enter the six-digit code. QR generation is local and the seed is not placed in a URL. Save the ten recovery codes using **Download recovery codes**, confirm **I saved my recovery codes**, then continue. Returning platform users see the authenticator challenge and can choose **Use a recovery code**. Each recovery code works once. The UI does not offer owner/MFA reset or silently replace an enrolled factor; those flows remain pending.
+
+The routes preserve the existing product's /user and /admin separation. A session from the other audience does not display its identity or enter its MFA setup on the wrong login page. API authorization still checks the canonical audience, membership and MFA; hiding navigation is not the access boundary. These updated screens currently run in the isolated lab, and the production legacy routes remain preserved until the replacement release gates pass.
 
 Use **العربية / English** for Arabic RTL or English. Requests show a waiting state and prevent concurrent clicks; errors distinguish invalid credentials, invalid/reused MFA codes, expiry and attempt limits. The local browser verified workspace login, platform enrollment, returning-user challenge/recovery option, required recovery acknowledgement, logout and Arabic layout at the available narrow 480 px viewport. Actual 360 px verification and production migration/legacy compatibility remain open.
 

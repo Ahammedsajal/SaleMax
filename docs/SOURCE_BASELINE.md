@@ -16,6 +16,6 @@ Authoritative source: `A:\Salemax - Training center\Salemax-Node`. The requested
 
 ## Still required for TC00
 
-Recover original editable frontend or maintainably recreate the same shell and route contracts with full EN/AR preservation. Verify isolated fresh checkout install/build/start with sanitized schema/bootstrap; runtime license metadata must be intentionally provisioned outside Git. Inventory legacy routes/guards/workflows. Review schema/adoption contracts under TC35. Record increment evidence before production cutover.
+Upgrade this existing project and its current admin/user panels. Recover relevant frontend inputs where available, or extend existing source-controlled modules/hooks such as admin-actions and pipeline integration without replacing the shell or patching minified application logic. No recreated frontend project, duplicate plan catalogue or parallel login is authorized. Existing Manage Plans and Manage Users remain the plan/account integration points. Verify fresh checkout startup and each extended existing journey; runtime license metadata stays outside Git. Review legacy guards and schema/adoption contracts, and record evidence before production cutover.
 
 All 42 tickets remain tracked, including conditional TC27 gateway enablement and post-training-launch TC34 expansion. Full screens/functions, API documentation, user manual, financial correctness, provider evidence, load/restore and production release remain required. This increment does not close TC00 or the goal.

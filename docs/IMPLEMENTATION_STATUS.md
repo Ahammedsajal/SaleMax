@@ -6,6 +6,14 @@ Full objective: implement the audited upgrade, preserve and improve the existing
 
 Planned -> Implementing -> Locally verified -> Staging verified -> Provider verified where applicable -> Release approved. A passing foundation test does not mark an entire ticket or the product complete.
 
+## Existing-project scope correction on 1 October 2026
+
+The owner explicitly requires additions and improvements to the existing SaleMaX project, with no replacement project, recreated shell, duplicate plans module or parallel login. Plan version 1.2 removes the frontend-recreation fallback and maps requirements to the existing panels and modules. Manage Plans at /admin?page=manage-plans and Manage Users at /admin?page=manage-users are the required plan/account destinations. Preserve /admin/login, /user/login and current route families.
+
+Earlier standalone UI prototypes and the auth-lab plan page are test work, not the product implementation or integrated acceptance. The versioned plan, seat and auth services can be reused behind the existing module. Current working-tree HTTP/MariaDB checks additionally prove plan handlers, staff grant reload, paging/filtering and read-only assignment preview. The existing plan screen has not yet been connected to those services. Resume with that integration and legacy ownership/adoption; do not continue building another panel. No production upgrade has been deployed.
+
+The version 1.2 Markdown and Word plan contents were synchronized, including the existing-module mapping, route policy and removal of shell-recreation instructions. Both copies in the application and original planning folder match by SHA-256. The packaged DOCX renderer failed because LibreOffice is unavailable on this host; Word text/structure checks pass, but visual layout verification remains pending and is not claimed complete.
+
 ## 1 October 2026 increment
 
 TC00/TC01 started. Git initialized against the requested empty repository with private/runtime exclusions. Forward migration safety and ledger implemented. Ten automated tests passed; real MariaDB synthetic-database tests passed including repeat runs, two-connection locking and interrupted-DDL recovery gating. Baseline localhost health/branding/theme/homepage passed. Embedded legacy Meta app secret removed before publication. Static AST inventory now records 20 mounted families and 369 declared routes; requested feature preservation is mapped with runtime acceptance still pending. Fresh GitHub clone npm ci, ten tests, native dependencies, MariaDB synthetic checks and controlled localhost startup passed. Structural inventory captures 66 tables/651 columns without customer rows. Production has not been upgraded by this increment.

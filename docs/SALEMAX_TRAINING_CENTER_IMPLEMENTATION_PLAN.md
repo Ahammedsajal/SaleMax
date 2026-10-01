@@ -1,18 +1,43 @@
 # SaleMaX SaaS Upgrade and Training Center Implementation Plan
 
-Version 1.1 | Audited 1 October 2026 | Product owner and implementation team
+Version 1.2 | Existing-project scope confirmed 1 October 2026 | Product owner and implementation team
 
 ## 1 Executive decision and product promise
 
-**Build SaleMaX into a category-based business SaaS, launching with a complete training-center sales and collections workspace.** Keep the existing messaging and agent experience, strengthen the shared platform, and connect every enquiry to an accountable agent, a course, an enrollment, an invoice, an installment schedule, and verified receipts.
+**Upgrade the existing SaleMaX application into a category-based business SaaS, launching with a complete training-center sales and collections workspace.** Reuse its working modules, admin and user panels, messaging and agent experience. Add the missing requirements to this project and connect every enquiry to an accountable agent, a course, an enrollment, an invoice, an installment schedule, and verified receipts.
 
-The customer promise is simple: **Know who is handling every lead, what needs to happen next, and what money is still due.** The main user should run their center from one dashboard; an agent should start the day with a clear work queue; an accountant should reconcile collections without chasing spreadsheets. SaleMaX staff should onboard and support businesses from a separate management workspace, while only the platform owner enters Super Admin.
+The customer promise is simple: **Know who is handling every lead, what needs to happen next, and what money is still due.** The main user should run their center from the existing business panel; an agent should start the day with a clear work queue; an accountant should reconcile collections without chasing spreadsheets. Upgrade the existing admin panel for owner and delegated staff operations, with Super Admin authority available only to the platform owner.
 
 This plan is the build specification. The Markdown and Word editions contain the same substantive plan, section summaries, implementation tickets, and acceptance criteria. Application development follows after this planning deliverable; the phase gates below define when implementation can be considered complete.
 
 **Readiness verdict:** Ready to begin the gated implementation program, starting with the source and foundation work. It is not permission to skip frontend recovery, schema/API contract validation, accounting configuration or runtime acceptance. Sections 21–25 tighten the end-to-end contracts following the design audit. A plan can establish a scalable design; only implementation evidence can establish a reliable released system. New audit tickets TC35–TC41 are launch requirements except where explicitly conditional.
 
-### What we will deliver
+### Mandatory existing-project implementation scope
+
+The owner confirmed that this is an upgrade of the supplied SaleMaX project. No new project, replacement application, recreated shell, separate CRM, duplicate plan catalogue, or parallel login is authorized. Preserve the existing backend, admin panel, user panel, working modules, navigation, branding and English/Arabic behavior. Improve existing screens in place; add screens only for requirements the application does not already provide, inside the appropriate existing panel.
+
+Preserve the /admin and /admin/login entry points for platform administration, and /user and /user/login for business users. Business login must not offer an administration switch. Owner and staff permissions change what the existing admin panel permits; they do not require another application shell. Existing agent entry points remain compatible with the shared identity upgrade.
+
+Start the plan work in the existing Manage Plans screen at /admin?page=manage-plans. Upgrade its current list, create/edit actions and assignment flow with categories, features, versioned contracts and role limits. Preserve existing commercial fields, plan IDs and assigned-user history through an explicit mapping. Do not implement a second catalogue at /admin/plans or make customers maintain two plan modules. Upgrade Manage Users and its current plan assignment at /admin?page=manage-users for category assignment and per-business limits.
+
+| Requirement | Existing module to extend | Missing work to add there |
+| --- | --- | --- |
+| Super Admin and delegated staff | Existing /admin panel and administration routes | Owner-only authority, staff grants, audit, system health and bounded support access |
+| Plans and role-seat limits | Existing Manage Plans and plan create/edit APIs | Category/features, account limits, draft/version/publication rules, impact review and preserved assignments |
+| Business accounts and plan assignment | Existing Manage Users and update_plan flow | Business category, canonical ownership, role accounts and explicit assigned limits |
+| Messaging and marketing | Existing inbox, QR, Meta, flows, chatbot, templates and campaigns | Scoped permissions, category/plan access and verified provider compatibility |
+| Leads and sales | Existing Lead Pipeline, Phonebook, Agent Login and Agent Task | Required lead fields, course interest, outcomes, notes, follow-up and controlled sale conversion |
+| Course catalogue | Add a Courses section to the existing /user panel | Course details, prices, offers, duration and enrollment links |
+| Finance | Add a Finance section to the existing /user panel | Invoice, receivable, installment, payment verification, receipt and correction workflows |
+| Reports | Add Reports to the existing /user panel and dashboards | Agent accountability, daily/weekly/monthly reports, schedules and delivery evidence |
+| Lead forms | Extend existing contact/public-form integration where suitable | Configurable tenant-bound mobile/tablet forms linked to the existing pipeline |
+| Later business categories | Existing category/feature layer and same panels | Category-specific menus and workflows without another SaaS project |
+
+Use the isolated databases and API tests to verify behavior. Earlier standalone workspace/login/plan screens are test artifacts only and are not the final product or acceptance evidence for integration. Reuse their validated backend services where useful; refactor useful UI controls into the existing module rather than deploying those separate shells.
+
+Missing original frontend source does not authorize rebuilding the whole UI. Recover relevant inputs where available, or extend the existing source-controlled screen hooks and modules without replacing the current shell or manually patching minified application logic. Record module-specific source limitations and continue useful backend and existing-module work. A ticket is complete only when its added behavior works through the corresponding existing screen with old functionality preserved.
+
+### Delivery areas
 
 | Area | Result |
 | --- | --- |
@@ -46,7 +71,7 @@ The owner confirmed the application source as `A:\Salemax - Training center\Sale
 | `routes/pipeline.js` and `helper/pipeline/leadPipeline.js` | Existing owner-scoped pipeline, inbound deduplication, activity and transaction helper | Extend this pipeline rather than build a parallel CRM; adapt stage conversion to finance invariants |
 | Pipeline agent query | Allows unassigned or own leads in the board query | Define an explicit unassigned-claim permission; assignment must be atomic and audited |
 | `database/migrate-pipeline.js` | Selects all date-prefixed SQL files including a matching rollback script containing DROP TABLE statements | Separate forward/rollback paths and introduce a migration ledger before executing migrations |
-| `client/public` | Built JavaScript/CSS shell plus a separately editable pipeline UI; no JSX/TSX/source maps found in inspected client tree | Recover the editable frontend source/build pipeline before broad UI work; do not rely on patching minified bundles |
+| `client/public` | Built JavaScript/CSS shell plus editable admin-actions and pipeline integration scripts; no JSX/TSX/source maps found in inspected client tree | Preserve the existing shell and extend source-controlled modules/hooks; recover relevant frontend inputs where available, without rebuilding the application or patching minified logic |
 | Package scripts and folder | Generic test script intentionally fails; SSO scripts reference a tests directory not found in the inspected root | Establish real regression/integration commands and verify any missing test assets |
 | Source directory | No `.git` metadata or AGENTS.md found in the inspected tree | Establish a scoped repository/history before implementation commits; exclude backups, sessions, data and secrets |
 
@@ -54,7 +79,7 @@ Existing route mounts include user, web, admin, phonebook, chat flow, inbox, tem
 
 Authentication currently uses email/password-related JWT claims and some error responses echo token data. Replace these with stable user/session identifiers, limited claims and sanitized error responses during the identity upgrade. This observation is a design prerequisite, not a completed security audit. Revalidate tenant ownership on every existing mutation as well as new routes.
 
-Do not substitute another SaleMaX/GCCBOT checkout for this product. Do not read or copy credentials or personal backup data into the plan. Preserve the existing source as a baseline and treat the frontend-source recovery as an explicit P0 dependency. If the original editable shell cannot be recovered, approve a maintained recreation of that same shell and route behavior; retain the backend and existing product workflows and revise the estimate before starting that work.
+Do not substitute another SaleMaX/GCCBOT checkout for this product. Do not read or copy credentials or personal backup data into the plan. Preserve the existing project and its panels. Recover relevant frontend source where available; otherwise extend the existing maintained modules/hooks and document the affected component limitation. Recreating the shell or starting another frontend project is outside this upgrade's scope. Continue backend and existing-module work that does not depend on missing inputs.
 
 ### Recommended defaults
 
@@ -110,7 +135,7 @@ These are original product recommendations informed by the workflow; they are no
 
 ### Super Admin for the platform owner
 
-Route family `/super-admin`. Only the owner identity has this role; no public registration, tenant invitation, staff promotion or ordinary profile editor can grant it. Require MFA, sensitive-action reauthentication, recovery codes, session revocation and owner-role transfer through a dedicated audited recovery procedure.
+Use the existing `/admin` panel and `/admin/login` entry point, with owner-only Super Admin permissions and owner-specific screens inside that panel. Only the owner identity has this role; no public registration, tenant invitation, staff promotion or ordinary profile editor can grant it. Require MFA, sensitive-action reauthentication, recovery codes, session revocation and owner-role transfer through a dedicated audited recovery procedure.
 
 Super Admin sees platform health, tenant/account directories, categories, plans and plan versions, entitlement overrides, staff permissions, subscription status, provider health, queue failures, usage/cost trends, audit events, security sessions, export jobs and release controls. Tenant detail includes category, owner, seats by role, contacts, channel status, subscription, feature overrides and recent incidents.
 
@@ -120,7 +145,7 @@ Full control does not require storing plaintext passwords or routinely exposing 
 
 ### SaleMaX Staff Admin
 
-Route family `/staff-admin`. Staff manage tenant onboarding, users, account recovery assistance, draft plans, approved plan assignments, seats within delegation, account status and support tickets. The owner grants granular permissions rather than a single unrestricted staff role.
+Use the existing `/admin` panel and administration login with a delegated staff role and a permission-scoped menu. Staff manage tenant onboarding through Manage Users, plans through Manage Plans, account recovery assistance, approved plan assignments, seats within delegation, account status and support tickets. The owner grants granular permissions rather than a single unrestricted staff role. Staff cannot access owner-only Super Admin operations.
 
 Recommended staff profiles: Account Operations can create tenants and assign published plans; Plan Operations can draft/version plans and publish only when delegated by the owner; Support can inspect connection metadata and request limited support access. A staff member may hold multiple profiles. Staff cannot grant Super Admin, modify owner recovery, view secrets, erase audit history, bypass a limit ceiling or change unapproved billing rules.
 
@@ -184,7 +209,7 @@ These names and bundles are proposals, not published offers or approved prices. 
 
 **Summary:** Retain every requested existing feature, introduce training and finance screens, and make each role's first screen immediately useful.
 
-Use one familiar shell with tenant branding, role badge, language toggle, notification center and global search restricted to accessible records. New features use proper routes and detail screens. Group the sidebar for readability while keeping the requested labels recognizable.
+Extend the existing admin and user shells with tenant branding, role badge, language toggle, notification center and global search restricted to accessible records. Upgrade existing screen components and actions first. Missing features use proper routes and detail screens within those panels, preserving the current query-page navigation where applicable. Group the sidebar for readability while keeping existing entries and requested labels recognizable. New styling must fit the current UI; do not deploy the separate test workspace as its replacement.
 
 | Group | Screens | Main behavior |
 | --- | --- | --- |
@@ -450,11 +475,11 @@ Deploy through separate development, staging and production environments. Use mi
 
 Estimated effort assumes an experienced small team and source availability: approximately 12–18 elapsed weeks with overlapping design, backend, frontend and QA work. This is a planning range, not a fixed quote. Existing architecture debt, provider approval and jurisdiction review can extend it. P0 replaces estimates with a source-backed work breakdown; provider waits should run alongside credential-free implementation.
 
-Version 1.1 adds seven foundation/operational tickets. Treat the earlier window as provisional: TC00 and TC35 must re-estimate it against frontend recovery, legacy route coverage and the additional contracts before committing a delivery date. An unrecoverable frontend is a material schedule change, not a small rebranding task.
+Version 1.1 added seven foundation/operational tickets; version 1.2 confirms the existing-project integration requirement. Treat the earlier window as provisional: TC00 and TC35 must re-estimate the required module extensions, legacy route coverage and additional contracts before committing a delivery date. Prioritize reuse and avoid spending the schedule rebuilding panels or features already present. Record any source limitation against the affected module, not as permission for a replacement project.
 
 | Phase | Approximate window | What we will do | Exit gate |
 | --- | --- | --- | --- |
-| P0 Baseline | First 1–2 weeks | Verify source, recover editable frontend, repair migration process and establish baseline; design approval | Reproducible baseline and preservation map |
+| P0 Baseline | First 1–2 weeks | Verify existing source/modules, recover relevant inputs where available, repair migrations and establish baseline | Reproducible baseline and existing-module extension map |
 | P1 Shared platform | Weeks 2–4 | Tenant identity, owner/staff control, category manifests, plans and seats | Isolation, role and limit tests pass |
 | P2 Training sales | Weeks 4–7 | Courses, batches, forms, assignment, timeline and follow-ups | Enquiry-to-approved-sale flow passes |
 | P3 Finance | Weeks 7–10 | Conversion transaction, invoices, installments, payments and receipts | Reconciliation and concurrency tests pass |
@@ -468,13 +493,13 @@ Each ticket requires an implementation summary, migrations, meaningful tests, sc
 
 | ID | Owner and effort | Dependencies | Deliverable and acceptance |
 | --- | --- | --- | --- |
-| TC00 | Lead engineer L | None | Source/runtime audit, editable frontend recovery, safe migration runner and scoped Git baseline; startup is reproducible, real tests exist and preservation status is recorded |
-| TC01 | FE and PO M | TC00 | Owner/staff/tenant prototypes and EN/AR route map; requested features trace to screens and role landing pages |
+| TC00 | Lead engineer L | None | Audit the existing source/runtime and module extension points, safe migrations and scoped Git; recover relevant inputs without replacing the shell; startup and preservation evidence recorded |
+| TC01 | FE and PO M | TC00 | Map requirements to existing admin/user screens and EN/AR navigation; retain panels and add only missing screens; prototypes are optional test aids, never the product destination |
 | TC02 | BE L | TC00 TC35 | Tenant identity and resource constraints; another tenant's IDs fail across API/files/jobs/export/live updates |
 | TC03 | BE M | TC02 | Shared login/memberships, owner-only Super Admin and MFA; tenant invite cannot create platform owner |
 | TC04 | BE and FE L | TC03 | Staff delegation and tenant console; staff can onboard/manage approved scope, denied elevation is audited |
 | TC05 | BE M | TC02 | Versioned category/capability engine; dummy category has different menu and rejects training operations |
-| TC06 | BE and FE L | TC04 TC05 | Plan drafts/versions, assignments and impact preview; edits preserve existing plan contracts |
+| TC06 | BE and FE L | TC04 TC05 | Upgrade existing Manage Plans and Manage Users assignment with categories, features, role limits, versions and impact preview; preserve existing IDs, commercial fields and assigned contracts |
 | TC07 | BE and FE M | TC03 TC06 | Team invites and per-role limits; concurrent eighth agent fails under seven-seat entitlement |
 | TC08 | BE and FE M | TC01 TC05 | Existing feature wrappers and provider state labels; all requested legacy entries remain usable by permitted roles |
 | TC09 | BE and FE L | TC05 TC40 | Course/offer/batch CRUD with history and capacity; price edits cannot change issued invoice snapshots |
@@ -571,7 +596,7 @@ Learner self-service can show registrations, balances and receipt downloads with
 
 Use the following instruction with an implementation agent or engineering team:
 
-> Work on the verified source repository for this specific SaleMaX product. Read repository instructions and this plan first. Start with TC00 and record the actual stack, routes, schema, providers, existing features and reproducible baseline. Extend the existing shell and identity where possible. Implement the earliest unblocked ticket in dependency order. Enforce tenant, category, role and plan constraints in the backend. Keep finance posting transactional and idempotent. Add relevant tests and bilingual UI verification, document evidence and commit only intended files. Do not expose secrets or claim real-provider verification from simulated tests. Continue credential-free work while provider or owner decisions are pending. Record unresolved gates without shrinking the objective. Stop implementation only at a genuine dependency requiring owner input; complete the release only after the full paid-launch gate passes.
+> Upgrade the verified source repository for this specific existing SaleMaX product. Read repository instructions and this plan first. Reuse the current admin/user panels and working modules; do not create a replacement project, shell, login, CRM or duplicate catalogue. Start plan work in existing Manage Plans and account assignment in existing Manage Users. Add only missing screens inside those panels. Record actual integration points and preserve old routes, IDs, fields, records and working journeys. Implement unblocked tickets in dependency order, using tested backend services behind the corresponding existing screens. Enforce tenant, category, role and plan constraints in the backend. Keep finance posting transactional and idempotent. Verify old and added functionality in English/Arabic, document evidence, and commit intended files. Test-only standalone screens do not count as integrated delivery. Do not expose secrets or claim provider verification from simulated tests. Continue useful work while external gates remain open, preserve the full scope, and release only after the paid-launch gate passes.
 
 After source audit, create a live implementation status ledger with all TC IDs marked Planned, Implementing, Locally Verified, Staging Verified, Provider Verified where relevant, and Release Approved. Include blockers and exact evidence. Refine route/file locations and estimates; retain requirement traceability if a ticket is split. Plan refinement must not silently remove requested features.
 
@@ -615,13 +640,13 @@ After source audit, create a live implementation status ledger with all TC IDs m
 
 ### Gate A before foundation implementation
 
-TC00 establishes a reproducible backend startup, safe forward-only migration selection, scoped Git history and an editable frontend/build path. Recover the original frontend source and lockfile where possible. If recovery fails, record a maintained recreation of the existing shell, route contracts, feature controls and EN/AR behavior as explicit work; a new frontend must pass the same preservation tests before replacing the compiled shell. It must not create a second CRM, second tenant system or disconnected login. Inspect source/licensing rights before distributing or selling modified software. No license-rights conclusion is implied by a package metadata field.
+TC00 establishes reproducible startup, safe migrations, scoped Git history and maintained extension points in the existing application. Recover relevant frontend source and lockfiles where available. If an input is missing, record the affected module limitation and use existing source-controlled integration scripts/components where suitable; do not recreate or replace the application shell. Existing admin/user panels, login routes, APIs and working features remain the integration baseline. No second CRM, tenant system, plan catalogue or disconnected login is allowed. Inspect source/licensing rights before distributing or selling modified software. No license-rights conclusion is implied by package metadata.
 
 TC35 produces a version-controlled contract pack: proposed DDL and indexes, an entity relationship map, legacy ownership mapping, OpenAPI schemas, role/capability/record permissions, event schemas, state transitions and synthetic acceptance fixtures. An implementer should be able to derive request validation and tests from this pack without inventing the financial or tenancy behavior. These are outputs of the foundation stage, not artifacts falsely claimed to exist already.
 
 ### Gate B before each module implementation
 
-Every ticket is Ready only when its dependencies, screen behavior, API request/response/error schemas, storage migration, permissions, empty/error states, side effects, rollback/recovery procedure and acceptance tests are recorded. For finance tickets, include invariant equations and rounding examples. For providers, include adapter capability, verification method, sandbox/live separation and known failure outcomes. A screen prototype alone does not make its backend Ready.
+Every ticket is Ready only when its dependencies, exact existing-module integration point, screen behavior, API request/response/error schemas, storage migration, permissions, empty/error states, side effects, recovery procedure and acceptance tests are recorded. Identify whether the work extends an existing screen or adds a missing screen inside an existing panel, and list the old behavior to preserve. For finance, include invariant equations and rounding examples. For providers, include capability, verification method, sandbox/live separation and known failure outcomes. A prototype or isolated API check does not prove delivery through the existing module.
 
 Use a ticket record containing ID, requirement links, owner, dependencies, decisions, migration IDs, contract paths, test fixtures, expected evidence and outstanding gates. Source filenames proposed in section 13 must become exact after TC00. Preserve the complete requirement list as tickets split or estimates change.
 
@@ -734,7 +759,7 @@ Record accepted throughput per workload and resource use, not just a total user 
 
 | Finding | Priority | Required treatment and ticket |
 | --- | --- | --- |
-| Compiled frontend without editable build inputs | Blocks broad UI implementation | Recover or maintainably recreate the same shell; TC00 and TC40 |
+| Compiled frontend without all original build inputs | Limits affected component edits | Recover relevant inputs or extend maintained existing modules/hooks; preserve the shell and forbid replacement-project work; TC00 and TC40 |
 | Forward migration runner can select DROP TABLE rollback file | Blocks migration execution | Safe discovery, checksum ledger and rehearsal; TC00 TC29 TC35 |
 | Tenant mapping and legacy authentication lack a complete contract pack | High | Canonical tenant/membership mapping and all-route compatibility; TC02 TC03 TC35 TC40 |
 | Process-local campaign/QR/socket state prevents assumed replica safety | High | Exclusive connector ownership, worker leases, inter-node socket adapter; TC37 TC41 |

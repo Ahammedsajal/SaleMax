@@ -24,4 +24,12 @@ Twenty mounted families contain 369 statically declared router routes, plus four
 
 ## Frontend preservation
 
-The compiled shell mounts /admin, /user and /agent routes and related login/public routes. Internal panels depend on the compiled application rather than separate editable screen modules. Original frontend recovery remains open; if unavailable, maintainably recreate this same shell and migrate panels only when source-controlled replacement journeys pass. Do not introduce a disconnected CRM/login or replace this app with the separate newer GCCBOT product.
+The existing shell mounts /admin, /user and /agent routes and their login/public routes. These panels are the product to upgrade. Recover relevant frontend inputs where available and extend maintained modules/hooks without replacing the shell or manually patching minified application logic. A missing source file does not authorize a new frontend project, rebuilt shell, disconnected CRM/login, duplicate catalogue or substitution with the separate newer GCCBOT product.
+
+## Required existing-module integration
+
+Upgrade Manage Plans at /admin?page=manage-plans, including its current create/edit actions and commercial fields. Reuse /api/admin/add_plan, edit_plan and get_plans boundaries through compatible adapters to the versioned services. Connect category/capability and role-limit changes to the existing module and preserve plan IDs and assigned contracts through reviewed mapping.
+
+Upgrade Manage Users at /admin?page=manage-users and its current /api/admin/update_plan assignment flow for business categories, owners and assigned limits. Preserve the admin/user login separation. New Courses, Finance, Reports and Forms screens belong inside the current business panel. Existing messaging, pipeline, contacts and agents are extended rather than recreated.
+
+The isolated workspace/login/plan pages are development test artifacts only. Backend tests remain useful, but no ticket is integrated or complete until its functions work through the corresponding existing screen with regression evidence.
