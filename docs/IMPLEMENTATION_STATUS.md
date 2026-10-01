@@ -78,3 +78,11 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC41 | Planned | TC00 TC37 | Release topology, capacity budget, private storage and isolation from other hosted products; measured failover/backpressure plan and clean release package |
 
 
+
+## Existing catalogue integration increment — 1 October 2026
+
+The existing `/api/admin/add_plan` and `/api/admin/edit_plan` now share a source-managed compatibility handler with field-level validation. It preserves routes, administrator middleware, IDs and commercial/feature fields. Fractional limits and malformed flags are rejected instead of truncated/coerced. The schema inventory identifies legacy `price` as BIGINT, so fractional catalogue prices explicitly fail before a write; decimal-money migration remains open. Assigned snapshots and canonical version contracts are not changed by these handlers.
+
+26 automated tests pass. A disposable MariaDB run using the inventoried legacy plan structure additionally verifies actual create/edit, preserved IDs, disabled flags, trial price and no write for a fractional price. Six forward migrations and existing identity/plan/auth tests pass in the current worktree with customerDataTouched=false and externalWrites=false. Earlier unpublished platform-router tests remain working-tree evidence rather than published-release proof.
+
+An inline editor is under development inside existing Manage Plans using maintained public hooks, without editing compiled React logic. Its authenticated existing-screen English/Arabic, responsive and navigation acceptance is not yet verified, so frontend changes remain unpublished. Category/seat/version adoption, Manage Users integration and the full remaining ticket ledger remain open. No production upgrade has been deployed.

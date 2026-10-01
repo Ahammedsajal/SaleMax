@@ -60,98 +60,12 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// add new plan
-router.post("/add_plan", adminValidator, async (req, res) => {
-  try {
-    const {
-      title,
-      short_description,
-      allow_tag,
-      allow_note,
-      allow_chatbot,
-      contact_limit,
-      allow_api,
-      is_trial,
-      price,
-      price_strike,
-      plan_duration_in_days,
-      qr_account,
-      wa_warmer,
-      rest_api_qr,
-    } = req.body;
-
-    if (!title || !short_description || !plan_duration_in_days) {
-      return res.json({ success: false, msg: " Please fill details" });
-    }
-
-    await query(
-      `INSERT INTO plan (title, short_description, allow_tag, allow_note, allow_chatbot, 
-            contact_limit, allow_api, is_trial, price, price_strike, plan_duration_in_days, qr_account, wa_warmer, rest_api_qr) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        title,
-        short_description,
-        allow_tag ? 1 : 0,
-        allow_note ? 1 : 0,
-        allow_chatbot ? 1 : 0,
-        parseInt(contact_limit || 0),
-        allow_api ? 1 : 0,
-        is_trial ? 1 : 0,
-        is_trial ? 0 : price,
-        price_strike,
-        parseInt(plan_duration_in_days || 1),
-        parseInt(qr_account) > 0 ? parseInt(qr_account) : 0,
-        wa_warmer ? 1 : 0,
-        rest_api_qr ? 1 : 0,
-      ],
-    );
-
-    res.json({ success: true, msg: "Plan has been updated" });
-  } catch (err) {
-    res.json({ success: false, msg: "something went wrong" });
-    console.log(err);
-  }
-});
-
-
-// edit an existing subscription plan
-router.post("/edit_plan", adminValidator, async (req, res) => {
-  try {
-    const {
-      id, title, short_description, allow_tag, allow_note, allow_chatbot,
-      contact_limit, allow_api, is_trial, price, price_strike,
-      plan_duration_in_days, qr_account, wa_warmer, rest_api_qr,
-    } = req.body;
-    const numericId = Number(id);
-    const duration = Number(plan_duration_in_days);
-    const contacts = Number(contact_limit || 0);
-    const qrAccounts = Number(qr_account || 0);
-    const planPrice = Number(price || 0);
-    const strikePrice = price_strike === "" || price_strike == null ? null : Number(price_strike);
-    if (!Number.isInteger(numericId) || numericId < 1 || !String(title || "").trim() ||
-        !String(short_description || "").trim() || !Number.isFinite(duration) || duration < 1 ||
-        !Number.isFinite(contacts) || contacts < 0 || !Number.isFinite(qrAccounts) || qrAccounts < 0 ||
-        !Number.isFinite(planPrice) || planPrice < 0 ||
-        (strikePrice !== null && (!Number.isFinite(strikePrice) || strikePrice < 0))) {
-      return res.json({ success: false, msg: "Please enter valid plan details" });
-    }
-    const existingPlan = await query("SELECT id FROM plan WHERE id = ?", [numericId]);
-    if (!existingPlan.length) return res.json({ success: false, msg: "Plan not found" });
-    await query(
-      `UPDATE plan SET title = ?, short_description = ?, allow_tag = ?, allow_note = ?,
-        allow_chatbot = ?, contact_limit = ?, allow_api = ?, is_trial = ?, price = ?,
-        price_strike = ?, plan_duration_in_days = ?, qr_account = ?, wa_warmer = ?,
-        rest_api_qr = ? WHERE id = ?`,
-      [String(title).trim(), String(short_description).trim(), allow_tag ? 1 : 0,
-       allow_note ? 1 : 0, allow_chatbot ? 1 : 0, Math.trunc(contacts), allow_api ? 1 : 0,
-       is_trial ? 1 : 0, is_trial ? 0 : planPrice, strikePrice, Math.trunc(duration),
-       Math.trunc(qrAccounts), wa_warmer ? 1 : 0, rest_api_qr ? 1 : 0, numericId],
-    );
-    return res.json({ success: true, msg: "Plan updated successfully" });
-  } catch (err) {
-    console.log(err);
-    return res.json({ success: false, msg: "Something went wrong" });
-  }
-});
+// Preserve the existing routes and administrator middleware while sharing
+// catalogue validation between create and edit.
+const legacyPlanHandlers = require("../modules/platform/legacy-plan-editor.js")
+  .createHandlers(query, error => console.error("Plan save failed:", error.code || "DATABASE_ERROR"));
+router.post("/add_plan", adminValidator, legacyPlanHandlers.add);
+router.post("/edit_plan", adminValidator, legacyPlanHandlers.edit);
 
 // get plans
 router.get("/get_plans", async (req, res) => {

@@ -959,39 +959,41 @@
       "method": "POST",
       "path": "/api/admin/add_plan",
       "source": "routes/admin.js",
-      "line": 64,
+      "line": 67,
       "declaredGuards": [
-        "adminValidator"
+        "adminValidator",
+        "legacyPlanHandlers.add"
       ]
     },
     {
       "method": "POST",
       "path": "/api/admin/edit_plan",
       "source": "routes/admin.js",
-      "line": 117,
+      "line": 68,
       "declaredGuards": [
-        "adminValidator"
+        "adminValidator",
+        "legacyPlanHandlers.edit"
       ]
     },
     {
       "method": "GET",
       "path": "/api/admin/get_plans",
       "source": "routes/admin.js",
-      "line": 157,
+      "line": 71,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/admin/get_web_public",
       "source": "routes/admin.js",
-      "line": 168,
+      "line": 82,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_plan",
       "source": "routes/admin.js",
-      "line": 179,
+      "line": 93,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1000,7 +1002,7 @@
       "method": "GET",
       "path": "/api/admin/get_users",
       "source": "routes/admin.js",
-      "line": 192,
+      "line": 106,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1009,7 +1011,7 @@
       "method": "POST",
       "path": "/api/admin/add_user",
       "source": "routes/admin.js",
-      "line": 203,
+      "line": 117,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1018,7 +1020,7 @@
       "method": "POST",
       "path": "/api/admin/update_user",
       "source": "routes/admin.js",
-      "line": 248,
+      "line": 162,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1027,7 +1029,7 @@
       "method": "POST",
       "path": "/api/admin/update_plan",
       "source": "routes/admin.js",
-      "line": 310,
+      "line": 224,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1036,7 +1038,7 @@
       "method": "GET",
       "path": "/api/admin/get_payment_gateway_admin",
       "source": "routes/admin.js",
-      "line": 333,
+      "line": 247,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1045,7 +1047,7 @@
       "method": "POST",
       "path": "/api/admin/update_pay_gateway",
       "source": "routes/admin.js",
-      "line": 347,
+      "line": 261,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1054,7 +1056,7 @@
       "method": "POST",
       "path": "/api/admin/add_brand_image",
       "source": "routes/admin.js",
-      "line": 423,
+      "line": 337,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1063,14 +1065,14 @@
       "method": "GET",
       "path": "/api/admin/get_brands",
       "source": "routes/admin.js",
-      "line": 451,
+      "line": 365,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_brand_logo",
       "source": "routes/admin.js",
-      "line": 462,
+      "line": 376,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1079,7 +1081,7 @@
       "method": "POST",
       "path": "/api/admin/add_faq",
       "source": "routes/admin.js",
-      "line": 475,
+      "line": 389,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1088,14 +1090,14 @@
       "method": "GET",
       "path": "/api/admin/get_faq",
       "source": "routes/admin.js",
-      "line": 499,
+      "line": 413,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_faq",
       "source": "routes/admin.js",
-      "line": 510,
+      "line": 424,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1104,7 +1106,7 @@
       "method": "POST",
       "path": "/api/admin/add_page",
       "source": "routes/admin.js",
-      "line": 522,
+      "line": 436,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1113,14 +1115,14 @@
       "method": "GET",
       "path": "/api/admin/get_pages",
       "source": "routes/admin.js",
-      "line": 581,
+      "line": 495,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_page",
       "source": "routes/admin.js",
-      "line": 592,
+      "line": 506,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1129,7 +1131,7 @@
       "method": "POST",
       "path": "/api/admin/auto_login",
       "source": "routes/admin.js",
-      "line": 605,
+      "line": 519,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1138,7 +1140,7 @@
       "method": "POST",
       "path": "/api/admin/add_testimonial",
       "source": "routes/admin.js",
-      "line": 636,
+      "line": 550,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1147,14 +1149,14 @@
       "method": "GET",
       "path": "/api/admin/get_testi",
       "source": "routes/admin.js",
-      "line": 657,
+      "line": 571,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_testi",
       "source": "routes/admin.js",
-      "line": 668,
+      "line": 582,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1163,7 +1165,7 @@
       "method": "GET",
       "path": "/api/admin/get_orders",
       "source": "routes/admin.js",
-      "line": 681,
+      "line": 595,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1172,7 +1174,7 @@
       "method": "POST",
       "path": "/api/admin/del_order",
       "source": "routes/admin.js",
-      "line": 717,
+      "line": 631,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1181,7 +1183,7 @@
       "method": "GET",
       "path": "/api/admin/get_contact_leads",
       "source": "routes/admin.js",
-      "line": 732,
+      "line": 646,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1190,7 +1192,7 @@
       "method": "POST",
       "path": "/api/admin/del_cotact_entry",
       "source": "routes/admin.js",
-      "line": 743,
+      "line": 657,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1199,14 +1201,14 @@
       "method": "POST",
       "path": "/api/admin/get_page_slug",
       "source": "routes/admin.js",
-      "line": 755,
+      "line": 669,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/update_terms",
       "source": "routes/admin.js",
-      "line": 771,
+      "line": 685,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1215,7 +1217,7 @@
       "method": "POST",
       "path": "/api/admin/update_privacy_policy",
       "source": "routes/admin.js",
-      "line": 801,
+      "line": 715,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1224,7 +1226,7 @@
       "method": "GET",
       "path": "/api/admin/get_smtp",
       "source": "routes/admin.js",
-      "line": 831,
+      "line": 745,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1233,7 +1235,7 @@
       "method": "POST",
       "path": "/api/admin/update_smtp",
       "source": "routes/admin.js",
-      "line": 846,
+      "line": 760,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1242,7 +1244,7 @@
       "method": "POST",
       "path": "/api/admin/send_test_email",
       "source": "routes/admin.js",
-      "line": 875,
+      "line": 789,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1251,7 +1253,7 @@
       "method": "GET",
       "path": "/api/admin/get_dashboard_for_user",
       "source": "routes/admin.js",
-      "line": 907,
+      "line": 821,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1260,7 +1262,7 @@
       "method": "GET",
       "path": "/api/admin/get_admin",
       "source": "routes/admin.js",
-      "line": 1180,
+      "line": 1094,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1269,7 +1271,7 @@
       "method": "POST",
       "path": "/api/admin/update-admin",
       "source": "routes/admin.js",
-      "line": 1191,
+      "line": 1105,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1278,14 +1280,14 @@
       "method": "POST",
       "path": "/api/admin/send_resovery",
       "source": "routes/admin.js",
-      "line": 1215,
+      "line": 1129,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/admin/modify_password",
       "source": "routes/admin.js",
-      "line": 1290,
+      "line": 1204,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1294,7 +1296,7 @@
       "method": "POST",
       "path": "/api/admin/del_user",
       "source": "routes/admin.js",
-      "line": 1321,
+      "line": 1235,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1303,7 +1305,7 @@
       "method": "GET",
       "path": "/api/admin/get_wa_gen",
       "source": "routes/admin.js",
-      "line": 1333,
+      "line": 1247,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1312,7 +1314,7 @@
       "method": "POST",
       "path": "/api/admin/de_wa_den_link",
       "source": "routes/admin.js",
-      "line": 1344,
+      "line": 1258,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1321,14 +1323,14 @@
       "method": "GET",
       "path": "/api/admin/get_social_login",
       "source": "routes/admin.js",
-      "line": 1356,
+      "line": 1270,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/update_social_login",
       "source": "routes/admin.js",
-      "line": 1367,
+      "line": 1281,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1337,7 +1339,7 @@
       "method": "POST",
       "path": "/api/admin/update_rtl",
       "source": "routes/admin.js",
-      "line": 1396,
+      "line": 1310,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1346,7 +1348,7 @@
       "method": "GET",
       "path": "/api/admin/get_qr_set",
       "source": "routes/admin.js",
-      "line": 1410,
+      "line": 1324,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1355,7 +1357,7 @@
       "method": "POST",
       "path": "/api/admin/update_qr_set",
       "source": "routes/admin.js",
-      "line": 1423,
+      "line": 1337,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1364,7 +1366,7 @@
       "method": "GET",
       "path": "/api/admin/get_mobile_app_dt",
       "source": "routes/admin.js",
-      "line": 1454,
+      "line": 1368,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1373,7 +1375,7 @@
       "method": "POST",
       "path": "/api/admin/update_mb",
       "source": "routes/admin.js",
-      "line": 1465,
+      "line": 1379,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1382,7 +1384,7 @@
       "method": "POST",
       "path": "/api/admin/update_embed_config",
       "source": "routes/admin.js",
-      "line": 1489,
+      "line": 1403,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1391,7 +1393,7 @@
       "method": "GET",
       "path": "/api/admin/get_tele_config",
       "source": "routes/admin.js",
-      "line": 1504,
+      "line": 1418,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1400,7 +1402,7 @@
       "method": "POST",
       "path": "/api/admin/update_tele_config",
       "source": "routes/admin.js",
-      "line": 1518,
+      "line": 1432,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1409,7 +1411,7 @@
       "method": "POST",
       "path": "/api/admin/add_flow_template",
       "source": "routes/admin.js",
-      "line": 1591,
+      "line": 1505,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1418,14 +1420,14 @@
       "method": "GET",
       "path": "/api/admin/get_flow_templates",
       "source": "routes/admin.js",
-      "line": 1637,
+      "line": 1551,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/delete_flow_template",
       "source": "routes/admin.js",
-      "line": 1648,
+      "line": 1562,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1434,7 +1436,7 @@
       "method": "GET",
       "path": "/api/admin/get_fcm_data",
       "source": "routes/admin.js",
-      "line": 1666,
+      "line": 1580,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1443,7 +1445,7 @@
       "method": "POST",
       "path": "/api/admin/update_fcm_data",
       "source": "routes/admin.js",
-      "line": 1688,
+      "line": 1602,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1452,7 +1454,7 @@
       "method": "GET",
       "path": "/api/admin/get_fcm_subs",
       "source": "routes/admin.js",
-      "line": 1737,
+      "line": 1651,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1461,7 +1463,7 @@
       "method": "POST",
       "path": "/api/admin/send_fcm_manul",
       "source": "routes/admin.js",
-      "line": 1788,
+      "line": 1702,
       "declaredGuards": [
         "adminValidator"
       ]
