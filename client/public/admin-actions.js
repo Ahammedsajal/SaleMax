@@ -3,11 +3,11 @@
   window.__gbotAdminActionsLoaded = true;
 
   const css = `
-    .salemax-admin-action{font:600 14px/1.2 Arial,sans-serif;border:0;border-radius:9px;padding:10px 16px;background:#08a884;color:#fff;cursor:pointer;box-shadow:0 2px 8px #08a88425}
-    .salemax-admin-action:hover{background:#078f72}.salemax-admin-edit-plan{width:100%;margin:0 0 8px;background:#eefaf6;color:#078f72;border:1px solid #b8e8d9;box-shadow:none}
-    .salemax-admin-edit-plan:hover{background:#dff5ed}.salemax-admin-overlay{position:fixed;inset:0;z-index:2147483000;background:#10182880;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
+    .salemax-admin-action{font:600 14px/1.2 Arial,sans-serif;border:0;border-radius:9px;padding:10px 16px;background:#a8003b;color:#fff;cursor:pointer;box-shadow:0 2px 8px #a8003b25}
+    .salemax-admin-action:hover{background:#860030}.salemax-admin-edit-plan{width:100%;margin:0 0 8px;background:#fff2f6;color:#860030;border:1px solid #edbfd0;box-shadow:none}
+    .salemax-admin-edit-plan:hover{background:#ffe5ee}.salemax-admin-overlay{position:fixed;inset:0;z-index:2147483000;background:#10182880;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
     .salemax-admin-modal{width:min(680px,100%);max-height:92vh;overflow:auto;background:#fff;color:#17212f;border-radius:16px;padding:24px;box-shadow:0 18px 70px #10182845;font:14px/1.45 Arial,sans-serif}
-    .salemax-admin-modal h2{margin:0 0 5px;font-size:22px}.salemax-admin-modal p{margin:0 0 18px;color:#667085}.salemax-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.salemax-admin-field{display:flex;flex-direction:column;gap:6px}.salemax-admin-field.full{grid-column:1/-1}.salemax-admin-field label,.salemax-admin-checks label{font-weight:600;color:#344054}.salemax-admin-field input,.salemax-admin-field textarea,.salemax-admin-field select{box-sizing:border-box;width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:10px 11px;font:14px Arial,sans-serif;color:#17212f;background:#fff}.salemax-admin-field textarea{min-height:74px;resize:vertical}.salemax-admin-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 0}.salemax-admin-checks label{display:flex;gap:8px;align-items:center;font-weight:500}.salemax-admin-checks input{accent-color:#08a884}.salemax-admin-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.salemax-admin-secondary{border:1px solid #d0d5dd;border-radius:8px;padding:10px 16px;background:#fff;color:#344054;cursor:pointer}.salemax-admin-error{display:none;margin-top:12px;padding:10px;border-radius:8px;background:#fff1f0;color:#b42318}
+    .salemax-admin-modal h2{margin:0 0 5px;font-size:22px}.salemax-admin-modal p{margin:0 0 18px;color:#667085}.salemax-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.salemax-admin-field{display:flex;flex-direction:column;gap:6px}.salemax-admin-field.full{grid-column:1/-1}.salemax-admin-field label,.salemax-admin-checks label{font-weight:600;color:#344054}.salemax-admin-field input,.salemax-admin-field textarea,.salemax-admin-field select{box-sizing:border-box;width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:10px 11px;font:14px Arial,sans-serif;color:#17212f;background:#fff}.salemax-admin-field textarea{min-height:74px;resize:vertical}.salemax-admin-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 0}.salemax-admin-checks label{display:flex;gap:8px;align-items:center;font-weight:500}.salemax-admin-checks input{accent-color:#a8003b}.salemax-admin-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.salemax-admin-secondary{border:1px solid #d0d5dd;border-radius:8px;padding:10px 16px;background:#fff;color:#344054;cursor:pointer}.salemax-admin-error{display:none;margin-top:12px;padding:10px;border-radius:8px;background:#fff1f0;color:#b42318}
     @media(max-width:620px){.salemax-admin-modal{padding:18px}.salemax-admin-grid,.salemax-admin-checks{grid-template-columns:1fr}.salemax-admin-field.full{grid-column:auto}}
   `;
   const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
@@ -29,19 +29,7 @@
     overlay.querySelector('form').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,submit=form.querySelector('[type=submit]'),err=form.querySelector('.salemax-admin-error');submit.disabled=true;submit.textContent='Saving…';err.style.display='none';try{await onSave(new FormData(form));close();window.location.reload()}catch(ex){err.textContent=ex.message;err.style.display='block';submit.disabled=false;submit.textContent=saveLabel}});
     document.body.appendChild(overlay); overlay.querySelector('input,textarea,select')?.focus();
   };
-  const openPlan = async title => {
-    try {
-      const plans=(await api('/api/admin/get_plans')).data;
-      const plan=plans.find(p=>String(p.title)===String(title));
-      if(!plan) throw new Error('Could not find this plan. Refresh the page and try again.');
-      const html=[field('title','Plan title',plan.title,'text',true,true),field('short_description','Description',plan.short_description,'text',true,true),field('price','Price',plan.price,'number'),field('price_strike','Strike-through price',plan.price_strike,'number'),field('plan_duration_in_days','Duration (days)',plan.plan_duration_in_days,'number'),field('contact_limit','Contact limit',plan.contact_limit,'number'),field('qr_account','Allowed QR accounts',plan.qr_account,'number'),`<div class="salemax-admin-field"><label>Plan type</label><select name="is_trial"><option value="0" ${Number(plan.is_trial)?'':'selected'}>Paid</option><option value="1" ${Number(plan.is_trial)?'selected':''}>Trial</option></select></div>`].join('')+`<div class="salemax-admin-field full"><div class="salemax-admin-checks">${check('allow_tag','Allow chat tags',plan.allow_tag)}${check('allow_note','Allow chat notes',plan.allow_note)}${check('allow_chatbot','Allow WhatsApp chatbot',plan.allow_chatbot)}${check('allow_api','Allow Cloud API',plan.allow_api)}${check('wa_warmer','WhatsApp Warmer',plan.wa_warmer)}${check('rest_api_qr','QR REST API',plan.rest_api_qr)}</div></div>`;
-      openModal('Edit Plan',`Update settings for ${title}. Changes apply to the plan shown in the catalog.`,html,async f=>{
-        const body={id:plan.id,title:f.get('title'),short_description:f.get('short_description'),price:f.get('price')||0,price_strike:f.get('price_strike')||null,plan_duration_in_days:f.get('plan_duration_in_days'),contact_limit:f.get('contact_limit')||0,qr_account:f.get('qr_account')||0,is_trial:f.get('is_trial')==='1'};
-        for(const k of ['allow_tag','allow_note','allow_chatbot','allow_api','wa_warmer','rest_api_qr']) body[k]=f.has(k);
-        await api('/api/admin/edit_plan',body);
-      },'Save Plan');
-    }catch(e){alert(e.message)}
-  };
+  const openPlan = title => window.salemaxPlanEditor?.open(title);
   const openUser = async () => {
     try {
       const plans=(await api('/api/admin/get_plans')).data;
@@ -58,9 +46,12 @@
       document.querySelectorAll('.MuiCard-root').forEach(card=>{
         const title=card.querySelector('h6')?.textContent?.trim();
         const actions=card.querySelector('.MuiCardContent-root')?.lastElementChild;
-        if(!title||!actions||actions.querySelector('.salemax-admin-edit-plan')) return;
+        if(!title||!actions) return;
+        const label = [...document.querySelectorAll('h5')].some(node => node.textContent.trim() === 'إدارة الخطط') ? 'تعديل الخطة' : 'Edit Plan';
+        const existingButton = actions.querySelector('.salemax-admin-edit-plan');
+        if(existingButton) {if(existingButton.textContent !== label) existingButton.textContent = label;return;}
         actions.style.display='grid';actions.style.gap='0';
-        actions.insertBefore(actionButton('Edit Plan','salemax-admin-edit-plan',()=>openPlan(title)),actions.firstChild);
+        actions.insertBefore(actionButton(label,'salemax-admin-edit-plan',()=>openPlan(title)),actions.firstChild);
       });
     }
     if(page==='manage-users'){

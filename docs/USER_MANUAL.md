@@ -43,3 +43,11 @@ Use **العربية / English** to switch language and layout direction. On a p
 Use the existing admin panel → Manage Plans. Catalogue settings require a title, description and whole-number duration. Contact and QR limits must also be whole numbers; invalid values are rejected without saving. Trial plans have a zero price. The current catalogue supports whole-unit prices; decimal pricing is pending its database upgrade. Editing a catalogue row preserves its ID and does not rewrite previously assigned user-plan snapshots.
 
 An inline bilingual editor is being integrated into this existing screen. Its browser acceptance, category/role-limit controls, canonical version publication and assignment impact review are still pending; this increment is not the completed training-center plan workflow.
+
+## Using the upgraded existing plan editor
+
+In the existing admin panel, open Manage Plans. Choose Add New Plan for a new catalogue entry or Edit Plan on a current card. The form opens within the current page, preserving the sidebar and header. Enter the title, description, duration, contact/QR limits and prices, then choose messaging features. Trial plans disable the price field and save a zero price. Save plan refreshes the original catalogue. A failed save keeps entered values and identifies invalid fields; correct them and retry.
+
+Back to plans returns to the catalogue. If you have changed the form, choose Keep editing to retain the draft or Discard changes to return without saving. Arabic language selection displays the new controls in Arabic and gives the editor RTL direction. No new admin login or separate plans application is required.
+
+This verifies the existing catalogue editor on desktop. Training-center category, role limits, immutable version publication and assignment impact review are still being connected, and phone/tablet acceptance remains pending.

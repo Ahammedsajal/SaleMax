@@ -40,7 +40,7 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC03 | Planned | TC02 | Shared login/memberships, owner-only Super Admin and MFA; tenant invite cannot create platform owner |
 | TC04 | Planned | TC03 | Staff delegation and tenant console; staff can onboard/manage approved scope, denied elevation is audited |
 | TC05 | Planned | TC02 | Versioned category/capability engine; dummy category has different menu and rejects training operations |
-| TC06 | Planned | TC04 TC05 | Plan drafts/versions, assignments and impact preview; edits preserve existing plan contracts |
+| TC06 | Implementing | TC04 TC05 | Plan drafts/versions, assignments and impact preview; edits preserve existing plan contracts |
 | TC07 | Planned | TC03 TC06 | Team invites and per-role limits; concurrent eighth agent fails under seven-seat entitlement |
 | TC08 | Planned | TC01 TC05 | Existing feature wrappers and provider state labels; all requested legacy entries remain usable by permitted roles |
 | TC09 | Planned | TC05 TC40 | Course/offer/batch CRUD with history and capacity; price edits cannot change issued invoice snapshots |
@@ -86,3 +86,11 @@ The existing `/api/admin/add_plan` and `/api/admin/edit_plan` now share a source
 26 automated tests pass. A disposable MariaDB run using the inventoried legacy plan structure additionally verifies actual create/edit, preserved IDs, disabled flags, trial price and no write for a fractional price. Six forward migrations and existing identity/plan/auth tests pass in the current worktree with customerDataTouched=false and externalWrites=false. Earlier unpublished platform-router tests remain working-tree evidence rather than published-release proof.
 
 An inline editor is under development inside existing Manage Plans using maintained public hooks, without editing compiled React logic. Its authenticated existing-screen English/Arabic, responsive and navigation acceptance is not yet verified, so frontend changes remain unpublished. Category/seat/version adoption, Manage Users integration and the full remaining ticket ledger remain open. No production upgrade has been deployed.
+
+## Existing Manage Plans screen increment — 1 October 2026
+
+The existing compiled admin shell now loads a maintained inline plan editor at `/admin?page=manage-plans`. Its current Add New Plan and Edit Plan actions use the original `add_plan`/`edit_plan` endpoints. The existing sidebar, header, card catalogue and login remain in place; no minified React logic was edited and no second catalogue was added. The editor preserves IDs, commercial fields and feature flags, shows loading/save errors, focuses invalid fields, prevents duplicate submission, disables trial pricing and offers inline Keep editing/Discard changes choices.
+
+Browser verification through the original shell and actual legacy routers/middleware on loopback 3017 proved an initially empty catalogue, authenticated creation, original-card rendering, edit-value reload, server validation with retained form values, changed title, trial zero price, disabled feature persistence, Arabic editor/labels, and both unsaved-change choices. English/Arabic desktop checks pass using disposable synthetic data. Phone/tablet verification remains pending: viewport set/reset calls timed out and observed width remained the normal desktop width. Do not claim 360 px acceptance from these checks. Dark-mode and subsequent category/role-limit/version controls remain open.
+
+`node scripts/existing-panel-smoke.cjs` also passes against that synthetic runtime: real administrator login, missing/invalid-token write denial, create/edit, invalid-field no-write, preserved ID, trial zero price, original compiled asset/editor references and lab scope rejection. 26 automated tests pass. Fixture credentials and screenshots remain ignored/private. Canonical ownership/plan adoption and Manage Users upgrade are the next integration work; TC06 remains incomplete. Production is unchanged.
