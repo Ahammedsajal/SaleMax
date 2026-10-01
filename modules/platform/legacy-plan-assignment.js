@@ -51,7 +51,7 @@ async function assign(db,actorUid,body) {
     await db.commit();return {assignmentId,expiresAt,replayed:false};
   } catch(error) {await db.rollback();if(error.code==='ER_DUP_ENTRY')fail('IDEMPOTENCY_CONFLICT');throw error;}
 }
-const messages={INVALID_ASSIGNMENT:'Choose a valid user and plan.',ADMIN_REQUIRED:'Administrator sign-in is required.',INVALID_REQUEST_ID:'Invalid assignment request. Reload and try again.',INVALID_EXPECTED_STATE:'Invalid assignment state. Reload and try again.',USER_NOT_FOUND:'User not found. Refresh the user list.',AMBIGUOUS_USER:'This user identifier is duplicated. Resolve it before assigning a plan.',PLAN_NOT_FOUND:'Plan not found. Refresh the catalogue.',INVALID_PLAN_DURATION:'This plan has an invalid duration. Correct the plan first.',STALE_ASSIGNMENT:'This user’s plan changed. Refresh before assigning.',STALE_PLAN:'This catalogue plan changed. Review it again before assigning.',IDEMPOTENCY_CONFLICT:'This request was already used for a different assignment.',ASSIGNMENT_STORAGE_NOT_READY:'Plan assignment storage is not ready. Contact the administrator.'};
+const messages={INVALID_ASSIGNMENT:'Choose a valid user and plan.',ADMIN_REQUIRED:'Administrator sign-in is required.',INVALID_REQUEST_ID:'Invalid assignment request. Reload and try again.',INVALID_EXPECTED_STATE:'Invalid assignment state. Reload and try again.',USER_NOT_FOUND:'User not found. Refresh the user list.',AMBIGUOUS_USER:'This user identifier is duplicated. Resolve it before assigning a plan.',PLAN_NOT_FOUND:'Plan not found. Refresh the catalogue.',INVALID_PLAN_DURATION:'This plan has an invalid duration. Correct the plan first.',STALE_ASSIGNMENT:'This user’s plan changed. Refresh before assigning.',STALE_PLAN:'This catalogue plan changed. Review it again before assigning.',IDEMPOTENCY_CONFLICT:'This request was already used for a different assignment.',ASSIGNMENT_STORAGE_NOT_READY:'Plan assignment storage is not ready. Contact the administrator.',CANONICAL_ASSIGNMENT_REQUIRED:'This business must be assigned through its reviewed training-center contract.'};
 function createHandler(pool,afterCommit=async()=>{},reportError=()=>{}) {
   return async(req,res)=>{
     let db;
@@ -98,7 +98,7 @@ async function preview(db,actorUid,body) {
   try {
     const [users]=await db.query('SELECT id,uid,plan,plan_expire FROM user WHERE uid=?',[data.uid]);
     if(!users.length || users[0].uid!==data.uid)fail('USER_NOT_FOUND');if(users.length!==1)fail('AMBIGUOUS_USER');
-    const user=users[0];if(data.expectedState && data.expectedState!==state(user))fail('STALE_ASSIGNMENT');
+    const user=users[0];await require('./legacy-ownership-guard').requireUnmapped(db,user.id);if(data.expectedState && data.expectedState!==state(user))fail('STALE_ASSIGNMENT');
     const [[plan]]=await db.query('SELECT * FROM plan WHERE id=?',[data.planId]);if(!plan)fail('PLAN_NOT_FOUND');
     const days=Number(plan.plan_duration_in_days);if(!/^\d+$/.test(String(plan.plan_duration_in_days)) || !Number.isSafeInteger(days) || days<1 || days>365000)fail('INVALID_PLAN_DURATION');
     const result={state:state(user),planState:hash(JSON.stringify(plan)),current:summary(user.plan),selected:summary(plan).plan,currentExpiresAt:user.plan_expire,durationDays:days,expiryStartsAt:'confirmation',readOnly:true};

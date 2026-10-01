@@ -56,6 +56,8 @@ Training-center category, role limits and immutable version publication are avai
 
 The existing Manage Users plan action remains the destination. Its upgraded backend records the previous plan and expiry when assigning a new server-loaded catalogue plan, and rejects missing users or invalid plan duration. Assignment history is recorded from activation onward; earlier changes are not reconstructed automatically. The history migration is required before activating this backend.
 
+If the account is already linked to a reviewed training-center business, the legacy catalogue preview and assignment are blocked to keep its business contract and account limits synchronized. Choose **Open training-center contract** in the message and continue with the reviewed contract preview. The preview does not change the account; confirm only after checking the category, role limits and current team usage.
+
 The existing legacy assignment path shows a read-only catalogue comparison, recent assignment history and uses retry/stale-state tokens. It remains for accounts without a reviewed category link. Linked training centers use the versioned-contract action described below.
 
 
