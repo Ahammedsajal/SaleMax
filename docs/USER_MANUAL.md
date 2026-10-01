@@ -95,3 +95,5 @@ This increment enforces seats in the existing API, including concurrent creates,
 ### Agent access to the existing lead pipeline
 
 Agents now see and open only leads specifically assigned to their own agent account. Unassigned leads and another agent's leads are denied by the existing pipeline API even if an agent knows the record ID. Owners continue to work across their business leads. The API records a structured contact outcome, note and follow-up date together; follow-up-required outcomes need a due date. The current compiled screen has not yet been connected to those structured outcome fields. An accountable follow-up task queue and assignment history are still being implemented.
+
+The daily/weekly/monthly activity-report endpoint is implemented but has not yet been released or connected to the Reports screen. Scheduled WhatsApp/email delivery, manager/accountant role views and finance totals are not yet available in the business panel.

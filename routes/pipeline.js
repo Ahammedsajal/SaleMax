@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const { query } = require("../database/dbpromise.js");
 const pipeline = require("../helper/pipeline/leadPipeline.js");
 const pipelineAccess = require("../helper/pipeline/access.js");
+const pipelineReports = require("../helper/pipeline/reports.js");
 
 function fail(res, error) {
   const status = Number(error?.status) || 500;
@@ -73,6 +74,18 @@ router.get("/settings", async (req, res) => {
     const data = await pipeline.getSettings(req.pipelineActor.uid);
     res.json({ success: true, data: { ...data, timezone: req.pipelineActor.timezone, role: req.pipelineActor.role } });
   } catch (error) { fail(res, error); }
+});
+
+router.get("/reports/activity", async (req,res)=>{
+  try{
+    const data=await pipelineReports.getActivityReport({
+      pool:require("../database/config.js").promise(),uid:req.pipelineActor.uid,
+      role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,
+      period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,
+      page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit),
+    });
+    res.setHeader('Cache-Control','no-store');res.json({success:true,data});
+  }catch(error){fail(res,error);}
 });
 
 router.put("/settings", async (req, res) => {

@@ -1,0 +1,18 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {periodWindow,getActivityReport}=require('../helper/pipeline/reports');
+
+test('pipeline reports define Qatar-local daily, Monday-weekly and monthly periods',()=>{
+  assert.deepEqual(periodWindow({period:'daily',at:'2026-10-01',timezone:'Asia/Qatar'}),{period:'daily',timezone:'Asia/Qatar',start:'2026-09-30 21:00:00.000',end:'2026-10-01 21:00:00.000'});
+  assert.equal(periodWindow({period:'weekly',at:'2026-10-01',timezone:'Asia/Qatar'}).start,'2026-09-27 21:00:00.000');
+  assert.equal(periodWindow({period:'monthly',at:'2026-10-01',timezone:'Asia/Qatar'}).end,'2026-10-31 21:00:00.000');
+});
+
+test('pipeline reports reject unsupported periods, invalid dates, roles and paging before database access',async()=>{
+  assert.throws(()=>periodWindow({period:'quarterly',timezone:'Asia/Qatar'}),{status:400});
+  assert.throws(()=>periodWindow({period:'daily',at:'2026-13-40',timezone:'Asia/Qatar'}),{status:400});
+  assert.throws(()=>periodWindow({period:'daily',timezone:'Mars/Doha'}),{status:400});
+  const pool={getConnection(){throw new Error('must not connect')}};
+  await assert.rejects(getActivityReport({pool,uid:'synthetic',role:'accountant'}),{status:403});
+  await assert.rejects(getActivityReport({pool,uid:'synthetic',role:'owner',page:0}),{status:400});
+});
