@@ -42,7 +42,7 @@ Use **العربية / English** to switch language and layout direction. On a p
 
 Use the existing admin panel → Manage Plans. Catalogue settings require a title, description and whole-number duration. Contact and QR limits must also be whole numbers; invalid values are rejected without saving. Trial plans have a zero price. The current catalogue supports whole-unit prices; decimal pricing is pending its database upgrade. Editing a catalogue row preserves its ID and does not rewrite previously assigned user-plan snapshots.
 
-An inline bilingual editor is being integrated into this existing screen. Its browser acceptance, category/role-limit controls, canonical version publication and assignment impact review are still pending; this increment is not the completed training-center plan workflow.
+The bilingual inline editor preserves the existing catalogue actions. Versioned training-center contracts, role ceilings and publication are available to an explicitly linked administrator. Desktop EN/AR acceptance is recorded below; phone/tablet and dark-mode checks remain open.
 
 ## Using the upgraded existing plan editor
 
@@ -50,13 +50,13 @@ In the existing admin panel, open Manage Plans. Choose Add New Plan for a new ca
 
 Back to plans returns to the catalogue. If you have changed the form, choose Keep editing to retain the draft or Discard changes to return without saving. Arabic language selection displays the new controls in Arabic and gives the editor RTL direction. No new admin login or separate plans application is required.
 
-This verifies the existing catalogue editor on desktop. Training-center category, role limits, immutable version publication and assignment impact review are still being connected, and phone/tablet acceptance remains pending.
+Training-center category, role limits and immutable version publication are available in the same editor. Business assignment is described below. Phone/tablet and dark-mode acceptance remain pending.
 
 ## User plan assignment upgrade in progress
 
 The existing Manage Users plan action remains the destination. Its upgraded backend records the previous plan and expiry when assigning a new server-loaded catalogue plan, and rejects missing users or invalid plan duration. Assignment history is recorded from activation onward; earlier changes are not reconstructed automatically. The history migration is required before activating this backend.
 
-Assignment preview, history display and category/role limits are still being integrated into the existing screen. The original control does not yet provide the new retry/stale-state tokens. Do not treat this backend increment as the completed account-management workflow.
+The existing legacy assignment path shows a read-only catalogue comparison, recent assignment history and uses retry/stale-state tokens. It remains for accounts without a reviewed category link. Linked training centers use the versioned-contract action described below.
 
 
 ## Assigning a plan from the existing user table
@@ -65,7 +65,7 @@ Open the existing admin panel → Manage Users. In the user's Plan column, choos
 
 If another administrator changes the account or catalogue during review, the confirmation is rejected. Choose **Reload account**, select the plan and review again. Connection/save errors preserve the selection; retrying the same confirmation cannot duplicate its recorded assignment. If the existing snapshot is malformed, the screen warns you and retains that exact prior snapshot in history on assignment. Earlier history is not reconstructed automatically. With no catalogue plans, create one in Manage Plans first.
 
-Arabic controls include **إدارة الخطة**, **مراجعة التعيين**, **تأكيد تعيين الخطة** and **إعادة تحميل الحساب**. The inline form has RTL direction and Qatar-local dates. English/Arabic desktop review, confirmation, history and return-to-table have been verified with synthetic data. Phone/tablet and dark-mode acceptance remain open. Category, versioned entitlements, role limits and staff grants are still being connected; this increment does not complete account management.
+Arabic controls include **إدارة الخطة**, **مراجعة التعيين**, **تأكيد تعيين الخطة** and **إعادة تحميل الحساب**. The inline form has RTL direction and Qatar-local dates. English/Arabic desktop review, confirmation, history and return-to-table have been verified with synthetic data. Phone/tablet and dark-mode acceptance remain open. Use the versioned-contract flow below for linked training centers.
 
 
 ## Category features and account limits in Manage Plans
@@ -74,7 +74,7 @@ In the existing Manage Plans screen, edit a saved catalogue plan. Save any price
 
 Choose Training center, select features and enter the allowed owner/accountant/manager/agent counts. Owner stays one; the first draft proposes one accountant, one manager and seven agents. **Create contract draft** captures the saved catalogue details and those limits. New drafts start from the latest linked version. Unfinished changes trigger Keep editing/Discard changes when leaving or reloading. Review publication shows the frozen commercial terms, roles and features. **Publish reviewed version** freezes it; older versions remain visible. Publication requires fresh verification within five minutes and the publish grant, so use **Verify access again** if the action is unavailable.
 
-Drafting/publication does not reassign businesses, create staff accounts, charge customers, enable unfinished modules or send provider messages. Business assignment and enforcement are being connected next. Arabic controls include **إنشاء مسودة عقد**, **مراجعة النشر** and **نشر الإصدار المراجع**. English/Arabic desktop drafting, publication, preserved versions and unsaved-change protection have been verified with synthetic data; phone/tablet and dark-mode acceptance remain pending.
+Drafting/publication does not reassign businesses, create staff accounts, charge customers, enable unfinished modules or send provider messages. Assign a reviewed business separately using the flow below. Arabic controls include **إنشاء مسودة عقد**, **مراجعة النشر** and **نشر الإصدار المراجع**. English/Arabic desktop drafting, publication, preserved versions and unsaved-change protection have been verified with synthetic data; phone/tablet and dark-mode acceptance remain pending.
 
 ## Assign a published training-center contract to a reviewed business
 
