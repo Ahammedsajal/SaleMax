@@ -5,7 +5,7 @@ const root=path.resolve(__dirname,'..');
 const source=path.join(root,'client/workspace-src');
 const target=path.join(root,'client/.preview-build');
 fs.mkdirSync(target,{recursive:true});
-const files=['index.html','workspace.js','workspace.css'];
+const files=['index.html','workspace.js','workspace.css','signin.html','signin.js','signin.css'];
 const manifest={mode:'TC01 synthetic design preview; not production workflows',files:{}};
 for(const file of files){const bytes=fs.readFileSync(path.join(source,file));fs.writeFileSync(path.join(target,file),bytes);manifest.files[file]=crypto.createHash('sha256').update(bytes).digest('hex');}
 fs.copyFileSync(path.join(root,'client/public/media/salemax-logo.png'),path.join(target,'brand.png'));

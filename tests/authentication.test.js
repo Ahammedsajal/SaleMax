@@ -10,6 +10,8 @@ test('canonical authentication validates audiences, password byte length and CSR
   assert.equal(auth.validCsrf(a,auth.csrf(a)),true);assert.equal(auth.validCsrf(b,auth.csrf(a)),false);assert.equal(auth.validCsrf(a,'broken'),false);
   const good={email:' PERSON@example.invalid ',password:'synthetic',audience:'tenant',tenantId:crypto.randomUUID()};
   assert.equal(credentials(good).email,'person@example.invalid');
+  assert.equal(credentials({email:good.email,password:good.password,audience:'tenant',tenantSlug:'training-lab'}).tenantSlug,'training-lab');
+  assert.throws(()=>credentials({...good,tenantSlug:'training-lab'}),{code:'AUTH_INVALID'});
   for(const input of [null,{...good,password:'界'.repeat(25)},{...good,audience:'super_admin'},{...good,audience:'platform'},{...good,tenantId:null}])assert.throws(()=>credentials(input),{code:'AUTH_INVALID'});
   for(const options of [{origin:'http://crm.salemax.qa',insecureLoopback:true},{origin:'http://crm.salemax.qa'},{origin:'https://crm.salemax.qa/path'}])assert.throws(()=>createAuthRouter({pool:{},key:crypto.randomBytes(32),...options}),/AUTH_ORIGIN_INVALID/);
 });

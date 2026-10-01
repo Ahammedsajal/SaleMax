@@ -16,6 +16,8 @@ TC35 now also includes real SQL/service primitives for plan catalog versions, pu
 
 Canonical auth router/services now pass real HTTP/MariaDB checks for password login, hashed opaque sessions, HttpOnly cookies, Origin/session-bound CSRF, logout revocation, shared login throttling, encrypted TOTP enrollment, MFA-required platform gates, replay protection and concurrent single-use recovery. 23 automated tests and six forward migrations pass; RFC TOTP vectors independently verify the algorithm. `AUTHENTICATION_CONTRACT.md` records exact routes and remaining activation requirements. The router is unmounted; this does not mark shared login UI, legacy compatibility or TC03 complete.
 
+Maintained bilingual login/MFA screens now work against those real APIs and MariaDB in the synthetic auth lab (HTTP 3016, DB 3309). Browser evidence proves workspace-slug sign-in, meaningful invalid-login feedback, platform MFA enrollment, recovery-code acknowledgement, returning challenge/recovery option, logout, canonical identity display and Arabic narrow layout at actual 480 px. Setup secrets/recovery codes are omitted from evidence screenshots. Screens/handlers remain outside the production shell. User manual and OpenAPI reflect the verified login contract; actual 360 px, legacy replacement and subsequent business screens remain open.
+
 Remaining immediate work: full TC35 domain/API/event contracts, TC00 legacy runtime preservation acceptance, actual authenticated onboarding and source-built business journeys. No training finance screen or new platform workflow is marked implemented. The original compiled application remains the active local/production UI; no new schema or prototype has been deployed to production.
 
 ## Ticket ledger

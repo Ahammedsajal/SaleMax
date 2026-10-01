@@ -8,9 +8,13 @@ function credentials(input){
   const password=input?.password;
   if(!email||email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||typeof password!=='string'||!password.length||Buffer.byteLength(password,'utf8')>72)fail('AUTH_INVALID');
   if(!['tenant','platform'].includes(input.audience))fail('AUTH_INVALID');
-  if(input.audience==='tenant'&&(typeof input.tenantId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.tenantId)))fail('AUTH_INVALID');
-  if(input.audience==='platform'&&Object.hasOwn(input,'tenantId'))fail('AUTH_INVALID');
-  return {email,password,audience:input.audience,tenantId:input.tenantId};
+  if(input.audience==='tenant'){
+    if(Object.hasOwn(input,'tenantId')===Object.hasOwn(input,'tenantSlug'))fail('AUTH_INVALID');
+    if(Object.hasOwn(input,'tenantId')&&(typeof input.tenantId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.tenantId)))fail('AUTH_INVALID');
+    if(Object.hasOwn(input,'tenantSlug')&&(typeof input.tenantSlug!=='string'||!/^[a-z0-9][a-z0-9-]{0,79}$/.test(input.tenantSlug)))fail('AUTH_INVALID');
+  }
+  if(input.audience==='platform'&&(Object.hasOwn(input,'tenantId')||Object.hasOwn(input,'tenantSlug')))fail('AUTH_INVALID');
+  return {email,password,audience:input.audience,tenantId:input.tenantId,tenantSlug:input.tenantSlug};
 }
 function createAuthentication({key}){
   if(!Buffer.isBuffer(key)||key.length<32)fail('AUTH_KEY_REQUIRED');
@@ -51,9 +55,9 @@ function createAuthentication({key}){
       if(current.status!=='active'||current.password_hash!==hash||current.credential_version!==identity.credential_version)fail('AUTH_INVALID');
       let membershipId=null,tenantId=null;
       if(data.audience==='tenant'){
-        const [[member]]=await db.query(`SELECT m.id FROM sx_memberships m JOIN sx_tenants t ON t.id=m.tenant_id AND t.status='active'
-          WHERE m.tenant_id=? AND m.identity_id=? AND m.status='active'`,[data.tenantId,identity.id]);
-        if(!member)fail('AUTH_INVALID');membershipId=member.id;tenantId=data.tenantId;
+        const [[member]]=await db.query(`SELECT m.id,m.tenant_id FROM sx_memberships m JOIN sx_tenants t ON t.id=m.tenant_id AND t.status='active'
+          WHERE ${data.tenantSlug?'t.slug':'m.tenant_id'}=? AND m.identity_id=? AND m.status='active'`,[data.tenantSlug||data.tenantId,identity.id]);
+        if(!member)fail('AUTH_INVALID');membershipId=member.id;tenantId=member.tenant_id;
       }else{
         const [[platform]]=await db.query("SELECT identity_id FROM sx_platform_memberships WHERE identity_id=? AND status='active'",[identity.id]);
         if(!platform)fail('AUTH_INVALID');

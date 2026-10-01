@@ -25,6 +25,8 @@ module.exports=async function verifyAuth(db,config,{t1,i1}){
     assert.equal((await request('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)})).status,403);
     const wrong=await login({...input,password:'wrong-synthetic'});assert.equal(wrong.status,401);assert.deepEqual(await wrong.json(),{code:'AUTH_INVALID'});
     const foreign=await login({...input,tenantId:crypto.randomUUID()});assert.equal(foreign.status,401);
+    const [[business]]=await db.query('SELECT slug FROM sx_tenants WHERE id=?',[t1]);
+    const slugLogin=await login({email:input.email,password,audience:'tenant',tenantSlug:business.slug});assert.equal(slugLogin.status,200);assert.equal((await slugLogin.json()).context.tenant.id,t1);
     const logged=await login(input);assert.equal(logged.status,200);
     const payload=await logged.json(),setCookie=logged.headers.get('set-cookie'),cookie=setCookie.split(';')[0],raw=cookie.slice(cookie.indexOf('=')+1);
     assert.match(setCookie,/HttpOnly/i);assert.match(setCookie,/SameSite=Strict/i);assert.ok(!('token' in payload));assert.ok(!JSON.stringify(payload).includes(password));

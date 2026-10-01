@@ -18,10 +18,10 @@ Paths below are relative to the unmounted router. They are tested handler contra
 
 | Method/path | Request | Response and behavior |
 | --- | --- | --- |
-| POST /login | JSON email/password/audience; tenant audience additionally requires canonical tenantId; exact Origin | 200 sets cookie, returns canonical context/csrfToken/mfaRequired; 401 AUTH_INVALID for credentials, inactive identity or invalid membership; 429 AUTH_RATE_LIMITED |
+| POST /login | JSON email/password/audience; tenant audience requires exactly one of canonical tenantId or workspace tenantSlug; exact Origin | 200 sets cookie, returns canonical context/csrfToken/mfaRequired; 401 AUTH_INVALID for credentials, inactive identity or invalid membership; 429 AUTH_RATE_LIMITED |
 | GET /me | Session cookie | 200 context/csrfToken/mfaRequired; 401 AUTH_REQUIRED |
 | POST /logout | Cookie, Origin, X-CSRF-Token | 204 revokes session and clears cookie; 403 CSRF_DENIED or ORIGIN_DENIED |
-| POST /mfa/enroll | Recently password-authenticated platform session, cookie, Origin, CSRF; no body fields required | 200 one pending secret/otpauth URI/enrolled:false; 409 MFA_ALREADY_ENROLLED prevents silent factor replacement |
+| POST /mfa/enroll | Recently password-authenticated platform session, cookie, Origin, CSRF; no body fields required | 200 one pending secret/otpauth URI/local qrDataUrl/enrolled:false; 409 MFA_ALREADY_ENROLLED prevents silent factor replacement |
 | POST /mfa/verify | Same recent session plus JSON code or recoveryCode, Origin and CSRF | 200 verified:true; initial enrollment additionally returns ten recoveryCodes once and refreshes cookie to eight hours; 403 MFA_INVALID/MFA_NOT_ENROLLED/REAUTH_REQUIRED; 429 MFA_RATE_LIMITED |
 
 All mutations reject an absent/foreign Origin. Cookie mutations also compare a session-bound HMAC CSRF token in constant time. Login has no prior cookie requirement but requires the exact Origin. JSON bodies are limited to 8 KiB; malformed JSON returns 400 INVALID_JSON, oversized JSON 413 BODY_TOO_LARGE. Unexpected errors are bounded 500 AUTH_UNAVAILABLE; SQL/password/stack details are not returned. `/me` supplies only canonical identity/membership/tenant fields, never password or token hashes.
@@ -42,7 +42,7 @@ Algorithm/reference verification: [RFC 6238](https://www.rfc-editor.org/rfc/rfc6
 
 ## Required screen and compatibility work
 
-Shared login must resolve a business from its workspace address or present verified membership choices, not require users to type UUIDs. Canonical tenantId input is a backend contract, not the intended screen field. Build bilingual password/show-password, accessible validation, rate-limit recovery, remembered workspace, MFA setup/challenge and recovery-code download with explicit save instructions. Reauthentication must return users to the intended safe action. Do not enable a recovery bypass or reset another user's MFA through an ordinary profile screen.
+Maintained `signin.html/js/css` now implements bilingual workspace-slug/password sign-in, show/hide, error/waiting states, authenticator QR/setup/challenge, recovery option, code download with acknowledgement, signed-in identity and logout. The screen calls the actual canonical APIs in an isolated synthetic lab. QR uses an inline locally generated data image; secrets are not submitted through a GET URL or external QR provider. This does not complete legacy replacement or business navigation after login. Workspace-address resolution, verified multi-membership choices, full 360 px acceptance and reauthentication return journeys remain open. Do not enable a recovery bypass or reset another user's MFA through an ordinary profile screen.
 
 TC03 remains open for identity/bootstrap adoption, MFA device replacement and audited owner recovery/transfer, password reset/change, all-session revocation, MFA/login UI, verified email/invite identity binding, and legacy user/admin/agent route/socket compatibility. Canonical middleware never creates a Super Admin membership from a login/invite request. The existing compiled login and password-claim JWT routes remain isolated legacy behavior pending the replacement gate; they are not claimed fixed by this unmounted router.
 

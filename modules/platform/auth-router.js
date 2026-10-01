@@ -4,6 +4,7 @@ const {createAuthentication}=require('./authentication');
 const {loadEntitlements}=require('./plans');
 const {trainingCenter}=require('./categories');
 const {createMfa}=require('./mfa');
+const qrcode=require('qrcode');
 function createAuthRouter({pool,key,origin,insecureLoopback=false}){
   const url=new URL(origin);
   if(url.origin!==origin||(!insecureLoopback&&url.protocol!=='https:')||(insecureLoopback&&!['127.0.0.1','localhost','[::1]'].includes(url.hostname)))throw new Error('AUTH_ORIGIN_INVALID');
@@ -35,7 +36,8 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false}){
   }));
   router.post('/mfa/enroll',wrap(async(req,res)=>{
     const raw=token(req);if(!auth.validCsrf(raw,req.get('X-CSRF-Token')))return res.status(403).json({code:'CSRF_DENIED'});
-    res.json(await connection(db=>mfa.begin(db,raw)));
+    const result=await connection(db=>mfa.begin(db,raw));
+    res.json({...result,qrDataUrl:await qrcode.toDataURL(result.uri)});
   }));
   router.post('/mfa/verify',wrap(async(req,res)=>{
     const raw=token(req);if(!auth.validCsrf(raw,req.get('X-CSRF-Token')))return res.status(403).json({code:'CSRF_DENIED'});
