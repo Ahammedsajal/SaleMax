@@ -49,7 +49,7 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC06 | Implementing | TC04 TC05 | Plan drafts/versions, assignments and impact preview; existing Manage Users now provisions an eligible legacy account in place as a Qatar training-center tenant and assigns its published contract atomically; authenticated browser acceptance and wider adoption/full assignment acceptance remain open |
 | TC07 | Implementing | TC03 TC06 | Existing agent creation, activation and deletion now honor linked-business role seats; invite delivery, acceptance, onboarding and all-role enforcement remain open |
 | TC08 | Planned | TC01 TC05 | Existing feature wrappers and provider state labels; all requested legacy entries remain usable by permitted roles |
-| TC09 | Planned | TC05 TC40 | Course/offer/batch CRUD with history and capacity; price edits cannot change issued invoice snapshots |
+| TC09 | Implementing | TC05 TC40 | Existing `/user` shell now has owner course/offer/batch setup and tenant-scoped versioned QAR price APIs; learner sales, role read journeys, enrollment capacity and invoice snapshots remain open |
 | TC10 | Planned | TC02 TC09 TC35 | Contact/opportunity model, timeline and dedupe; multiple learners sharing a phone remain distinguishable |
 | TC11 | Implementing | TC07 TC10 | Existing lead board/detail enforce exact agent assignment and the detail form now records structured outcomes with required follow-up dates; authenticated bilingual acceptance, accountable task queue and assignment history remain open |
 | TC12 | Planned | TC09 TC10 TC11 | Form editor, versioning and public capture; tampered tenant/course/agent fields cannot cross scope |
@@ -217,3 +217,8 @@ The existing bilingual Team Invitations screen now shows active agents, unexpire
 Verification: `npm test` passes 55/55. The disposable MariaDB suite passes all 13 migrations and now verifies active/pending/available seat values plus two concurrent invitations competing for the final seat (exactly one succeeds). The smoke confirms `customerDataTouched=false` and `externalWrites=false`. Existing-panel authenticated UI review, bilingual responsive acceptance, and all production/release gates remain open.
 
 Follow-up screen verification fixed the explicit submit-button selector and stopped post-submit cleanup from re-enabling the invitation action after the final seat is reserved. The current bundle cache key and a source-level regression check now cover that behavior. `npm test` remains 55/55; interactive authenticated browser acceptance is still required.
+
+
+## TC09 — course catalogue foundation (1 October 2026)
+
+Implemented as an incremental extension of the existing `/user` workspace: bilingual course details, draft/publish/retire, QAR offer version history, scheduled batches, tenant-scoped migration and authenticated API. Existing-panel synthetic browser evidence covers business login, sidebar visibility, empty state, course create and displayed QAR price. Unit tests pass 58/58 and the 14-migration disposable MariaDB suite passes with customer data untouched and no external writes. Arabic visual acceptance remains open after handling the existing `Lang-Arabic` language key. TC09 remains Implementing; enrollment, sales/invoice integration, public forms, finance and release gates remain incomplete.

@@ -3,6 +3,7 @@ const {createExistingCatalogueRouter}=require('./existing-catalogue-router');
 const {createExistingBusinessRouter}=require('./existing-business-router');
 const {createExistingPlatformAccessRouters}=require('./existing-platform-access-router');
 const {createTeamInvitationRouters}=require('./team-invitation-router');
+const {createTrainingCourseRouter}=require('./training-course-router');
 function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacyGuard,userGuard=require('../../middlewares/user')}){
   const boundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'platform'});
   const businessBoundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'tenant'});
@@ -19,10 +20,11 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   const team=createTeamInvitationRouters({pool,origin,userGuard});
   app.use('/api/user/team-invitations',team.owner);
   app.use('/api/agent/invitations',team.accept);
+  app.use('/api/user/training/courses',createTrainingCourseRouter({pool,origin,userGuard}));
   return boundary;
 }
 function mountConfiguredUpgrade(app){
-  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/staff-invitations','/api/user/business-auth','/api/user/team-invitations','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
+  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/staff-invitations','/api/user/business-auth','/api/user/team-invitations','/api/user/training/courses','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
   const secret=process.env.SALEMAX_PLATFORM_KEY_BASE64;
   if(typeof secret!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(secret))throw new Error('PLATFORM_KEY_REQUIRED');
   const key=Buffer.from(secret,'base64');if(key.length!==32||key.toString('base64')!==secret)throw new Error('PLATFORM_KEY_INVALID');

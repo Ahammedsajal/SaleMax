@@ -151,6 +151,25 @@ The current business pipeline is mounted under `/api/pipeline` and uses its exis
 
 `GET /api/pipeline/reports/activity?period=daily|weekly|monthly&at=YYYY-MM-DD&page=1&limit=50` returns a read-only, paginated lead activity report. `at` is optional and defaults to the current date in the authenticated business timezone. Weekly periods start Monday. The response includes the resolved UTC `from`/`to` bounds and timezone, lead-created/touched totals, outcome and note counts, follow-ups required/due/overdue, outcome breakdown, and activity items with the attending user/agent and linked lead details. `limit` is 1–100. Owners see business-wide activity; agents see only their currently assigned leads. Other legacy roles are denied. The endpoint is connected to a Reports view in the existing embedded pipeline panel, with Qatar-local period/date filters, summary metrics, paginated activity and links into existing lead details. The screen's **Export this page (CSV)** action downloads only the currently displayed rows and labels the columns in the selected language; it does not issue another API request. The endpoint does not send scheduled reports and does not include invoices, payments or finance reconciliation.
 
+### Training-center course catalogue (initial implementation)
+
+These routes extend the current business user's `/user` panel and use the existing bearer token, plus a verified legacy-owner-to-tenant mapping and an active training-center contract. `training.courses` is required; only the owner can currently create/edit courses, offers, batches or publish a course. Read access for accountant, manager and agent sessions is not yet adopted. Routes require `SALEMAX_PLATFORM_ENABLED=true` and migration `20261005_training_catalogue.sql`; mutations require same-origin requests and return `Cache-Control: no-store`.
+
+| Method and path | Purpose |
+| --- | --- |
+| GET `/api/user/training/courses?page=1&limit=20&search=&status=` | Tenant-scoped catalogue with latest QAR price, offer version count and scheduled batch count. Page size is 1–100. |
+| POST `/api/user/training/courses/` | Create a draft with bilingual names/descriptions, duration, delivery mode and the first QAR price offer. Money uses integer dirhams (`priceMinor`, `registrationFeeMinor`). |
+| PUT `/api/user/training/courses/:id` | Update draft/active course details with `expectedRevision`; a stale revision returns 409. Existing price versions are not edited. |
+| GET `/api/user/training/courses/:id/offers` | Read the tenant course's immutable price history. |
+| POST `/api/user/training/courses/:id/offers` | Append a QAR offer version with optional validity dates and inclusions. |
+| GET `/api/user/training/courses/:id/batches` | List scheduled tenant batches. |
+| POST `/api/user/training/courses/:id/batches` | Add a scheduled batch with date range, language and capacity. |
+| PUT `/api/user/training/courses/:id/batches/:batchId` | Edit a tenant batch's dates, language, capacity and supported status. Capacity cannot fall below reserved seats; a batch with reservations cannot be cancelled. |
+| POST `/api/user/training/courses/:id/publish` | Publish a draft using `expectedRevision`; requires an active offer. |
+| POST `/api/user/training/courses/:id/retire` | Retire a course using `expectedRevision`; history remains readable and mutation forms become read-only. |
+
+Offer and batch IDs are tenant-bound by composite foreign keys. Course and offer history is retained; retire/archive, seat reservations and invoice snapshots will be connected in later sales/finance tickets. An active scheduled batch is optional so centers can record enquiry-only courses. This increment is not a complete enrollment or sales workflow.
+
 ### Training-center agent invitations (in progress)
 
 These routes extend the existing authenticated business and agent APIs and are connected to the existing bilingual Team Invitations view in the `/user` shell beside Agent Login. They are mounted only when `SALEMAX_PLATFORM_ENABLED=true` and require the `20261003_team_invitation_activation.sql` migration. Owner routes use the existing business-user JWT, then verify the active training-center owner-to-tenant ownership link and `team.members` entitlement on every request. Mutations require the exact configured same-origin `Origin` and JSON body. Responses are `Cache-Control: no-store`.

@@ -2,8 +2,11 @@
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const bcrypt=require('bcrypt');
+const express=require('express');
 const plans=require('../modules/platform/plans');
 const team=require('../modules/platform/team-invitations');
+const courses=require('../modules/platform/training-courses');
+const {createTrainingCourseRouter}=require('../modules/platform/training-course-router');
 module.exports=async(db,other,pool,{i1})=>{
   const [[column]]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='email'");
   if(!column)await db.query('ALTER TABLE user ADD COLUMN email VARCHAR(999) NULL');
@@ -11,13 +14,44 @@ module.exports=async(db,other,pool,{i1})=>{
   await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,?,?,'training_center',1,'active')",[tenantId,'team-'+crypto.randomUUID(),'Team invitation fixture']);
   await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,'Team owner','active')",[identityId,`owner-${crypto.randomUUID()}@example.invalid`]);
   await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active')",[membershipId,tenantId,identityId]);
-  const [[version]]=await db.query("SELECT id,role_limits FROM sx_plan_versions WHERE status='published' AND category_key='training_center' ORDER BY published_at DESC LIMIT 1");
-  assert.ok(version,'published training-center plan version fixture');
+  const [planVersions]=await db.query("SELECT id,role_limits,capabilities FROM sx_plan_versions WHERE status='published' AND category_key='training_center' ORDER BY published_at DESC");
+  const version=planVersions.find(row=>{const caps=typeof row.capabilities==='string'?JSON.parse(row.capabilities):row.capabilities;return caps.includes('team.members')&&caps.includes('training.courses');});
+  assert.ok(version,'published training-center plan version with team and courses fixture');
   const limits=typeof version.role_limits==='string'?JSON.parse(version.role_limits):version.role_limits;
   const actor={audience:'platform',identity:{id:i1},membership:{role:'super_admin',status:'active'},mfaVerified:true,recentlyAuthenticated:true};
   await plans.assign(db,actor,{tenantId,planVersionId:version.id,roleLimits:limits,durationDays:30});
   const [user]=await db.query('INSERT INTO user(uid,name,email) VALUES (?,?,?)',[ownerUid,'Synthetic team owner',`owner-user-${crypto.randomUUID()}@example.invalid`]);
   await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(user.insertId),tenantId,membershipId,crypto.createHash('sha256').update(ownerUid).digest('hex')]);
+  const courseContext=await courses.legacyOwnerContext(pool,ownerUid);
+  const course=await courses.create(db,courseContext,{code:'QAT-101',nameEn:'Synthetic customer care',nameAr:'خدمة العملاء التجريبية',descriptionEn:'Course fixture',descriptionAr:'وصف تجريبي',durationValue:4,durationUnit:'weeks',deliveryMode:'hybrid',offer:{priceMinor:125000,registrationFeeMinor:5000}});
+  assert.equal(course.revision,1);assert.equal(course.offerVersion,1);
+  const listed=await courses.list(db,courseContext,{page:1,limit:20,search:'QAT-101'});assert.equal(listed.total,1);assert.equal(listed.items[0].priceMinor,125000);
+  const updated=await courses.update(db,courseContext,course.id,1,{...{code:'QAT-101',nameEn:'Synthetic customer care updated',nameAr:'خدمة العملاء التجريبية المعدلة',descriptionEn:'Updated',descriptionAr:'محدث',durationValue:5,durationUnit:'weeks',deliveryMode:'hybrid'}});assert.equal(updated.revision,2);
+  await assert.rejects(courses.update(db,courseContext,course.id,1,{code:'QAT-101',nameEn:'Stale',nameAr:'قديم',durationValue:5,durationUnit:'weeks',deliveryMode:'hybrid'}),{code:'STALE_REVISION'});
+  const offer2=await courses.addOffer(db,courseContext,course.id,{priceMinor:150000,registrationFeeMinor:7500,inclusions:['Materials']});assert.equal(offer2.version,2);
+  const versions=await courses.offers(db,courseContext,course.id);assert.deepEqual(versions.map(o=>o.priceMinor),[150000,125000]);
+  const batch=await courses.addBatch(db,courseContext,course.id,{code:'QAT-101-OCT',startsOn:'2026-10-10',endsOn:'2026-11-10',language:'en',capacity:12});assert.equal(batch.status,'scheduled');
+  await db.query('UPDATE sx_training_batches SET reserved_seats=2 WHERE tenant_id=? AND id=?',[tenantId,batch.id]);
+  await assert.rejects(courses.updateBatch(db,courseContext,course.id,batch.id,{code:'QAT-101-OCT',startsOn:'2026-10-10',endsOn:'2026-11-10',language:'en',capacity:1,status:'open'}),{code:'CAPACITY_BELOW_RESERVED'});
+  await assert.rejects(courses.updateBatch(db,courseContext,course.id,batch.id,{code:'QAT-101-OCT',startsOn:'2026-10-10',endsOn:'2026-11-10',language:'en',capacity:12,status:'cancelled'}),{code:'BATCH_HAS_RESERVATIONS'});
+  await db.query('UPDATE sx_training_batches SET reserved_seats=0 WHERE tenant_id=? AND id=?',[tenantId,batch.id]);
+  const batchEdit=await courses.updateBatch(db,courseContext,course.id,batch.id,{code:'QAT-101-OCT',startsOn:'2026-10-10',endsOn:'2026-11-10',language:'en',capacity:15,status:'open'});assert.equal(batchEdit.status,'open');
+  const schedule=await courses.batches(db,courseContext,course.id);assert.equal(schedule.length,1);assert.equal(schedule[0].capacity,15);assert.equal(schedule[0].status,'open');
+  const published=await courses.publish(db,courseContext,course.id,2);assert.equal(published.status,'active');assert.equal(published.revision,3);
+  const retired=await courses.retire(db,courseContext,course.id,3);assert.equal(retired.status,'retired');assert.equal(retired.revision,4);
+  assert.equal((await courses.retire(db,courseContext,course.id,1)).repeated,true);
+  assert.equal((await courses.offers(db,courseContext,course.id)).length,2);
+  await assert.rejects(courses.offers(db,courseContext,crypto.randomUUID()),{code:'COURSE_NOT_FOUND'});
+  const httpApp=express(),origin='http://127.0.0.1';httpApp.use('/api/user/training/courses',createTrainingCourseRouter({pool,origin,userGuard:(req,res,next)=>{const owner=req.get('X-Synthetic-Owner');if(!owner)return res.status(401).json({success:false,code:'AUTH_REQUIRED'});req.decode={uid:owner};next();}}));
+  const httpServer=httpApp.listen(0,'127.0.0.1');await new Promise(resolve=>httpServer.once('listening',resolve));try{
+  const httpBase=`http://127.0.0.1:${httpServer.address().port}/api/user/training/courses`;
+  const call=async(path,method='GET',body,owner=ownerUid,requestOrigin=origin)=>{const response=await fetch(httpBase+path,{method,headers:{'X-Synthetic-Owner':owner,...(method==='GET'?{}:{Origin:requestOrigin,'Content-Type':'application/json'})},body:body?JSON.stringify(body):undefined});return {status:response.status,data:await response.json()};};
+  const unauth=await call('', 'GET',undefined,'');assert.equal(unauth.status,401);
+  const foreign=await call('/'+course.id+'/offers','GET',undefined,'foreign-'+crypto.randomUUID());assert.equal(foreign.status,404);
+  const deniedOrigin=await call('', 'POST',{code:'HTTP-101',nameEn:'HTTP course',nameAr:'دورة اختبار',durationValue:1,durationUnit:'days',deliveryMode:'online',offer:{priceMinor:10000}},ownerUid,'http://evil.example');assert.equal(deniedOrigin.status,403);
+  const createdHttp=await call('', 'POST',{code:'HTTP-101',nameEn:'HTTP course',nameAr:'دورة اختبار',durationValue:1,durationUnit:'days',deliveryMode:'online',offer:{priceMinor:10000}});assert.equal(createdHttp.status,201);assert.equal(createdHttp.data.data.offerVersion,1);
+  const listedHttp=await call('?page=1&limit=20&search=HTTP-101');assert.equal(listedHttp.status,200);assert.equal(listedHttp.data.data.total,1);
+  }finally{await new Promise(resolve=>httpServer.close(resolve));}
   const first=await team.create(pool,ownerUid,{email:`agent-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()});
   assert.equal(first.delivery,'copy-link');assert.equal(first.status,'pending');assert.equal(first.token.length,43);
   const reservedSummary=await team.list(pool,ownerUid);assert.deepEqual(reservedSummary.seatUsage.agent,{active:0,pending:1,limit:limits.agent,available:limits.agent-1});
@@ -45,5 +79,5 @@ module.exports=async(db,other,pool,{i1})=>{
   await assert.rejects(team.create(pool,ownerUid,{email:`full-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()}),{code:'SEAT_LIMIT_EXCEEDED'});
   const deniedOwner='unmapped-'+crypto.randomUUID();await db.query('INSERT INTO user(uid,name,email) VALUES (?,?,?)',[deniedOwner,'Unmapped',`unmapped-${crypto.randomUUID()}@example.invalid`]);
   await assert.rejects(team.list(pool,deniedOwner),{code:'VERIFIED_BUSINESS_OWNER_REQUIRED'});
-  return {teamInvitationTokenHashOnly:true,rotatedTokenInvalidatesPriorLink:true,oneTimeAgentActivation:true,legacyAndCanonicalAgentIdentityLinked:true,expiredInviteReissueRechecksCapacity:true,ownerAndTenantScopeRequired:true,seatLimitCheckedBeforeInvite:true,agentSeatSummarySeparatesActiveAndPending:true,concurrentFinalAgentSeatReservationIsAtomic:true};
+  return {trainingCourseCrudIsTenantScoped:true,trainingCourseHttpRoutesAndOriginGuard:true,courseOfferPriceHistoryImmutable:true,courseBatchCapacityAndScheduleScoped:true,staleCourseRevisionRejected:true,courseMustHaveOfferBeforePublish:true,teamInvitationTokenHashOnly:true,rotatedTokenInvalidatesPriorLink:true,oneTimeAgentActivation:true,legacyAndCanonicalAgentIdentityLinked:true,expiredInviteReissueRechecksCapacity:true,ownerAndTenantScopeRequired:true,seatLimitCheckedBeforeInvite:true,agentSeatSummarySeparatesActiveAndPending:true,concurrentFinalAgentSeatReservationIsAtomic:true};
 };
