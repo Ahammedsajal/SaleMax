@@ -1,0 +1,180 @@
+-- Enrollment, issued-invoice and subledger primitives for TC15/TC16.
+ALTER TABLE sx_training_sale_reviews
+  ADD COLUMN decided_by_role ENUM('owner','manager','accountant') NULL AFTER decided_by_type;
+
+CREATE TABLE sx_training_number_sequences (
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  prefix VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  period_year SMALLINT UNSIGNED NOT NULL,
+  last_value BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (tenant_id,prefix,period_year),
+  CONSTRAINT fk_training_number_sequence_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_training_enrollments (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  sale_review_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  legacy_uid_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  legacy_uid VARCHAR(999) NOT NULL,
+  lead_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  course_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  offer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  offer_version INT UNSIGNED NOT NULL,
+  batch_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  status ENUM('reserved','requested','confirmed','cancelled','completed') NOT NULL,
+  learner_name VARCHAR(255) NOT NULL,
+  payer_name VARCHAR(255) NOT NULL,
+  payer_email VARCHAR(254) NULL,
+  payer_phone VARCHAR(40) NULL,
+  created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_training_enrollment_tenant_id (tenant_id,id),
+  UNIQUE KEY uq_training_enrollment_sale_review (tenant_id,sale_review_id),
+  KEY idx_training_enrollment_lead (tenant_id,lead_id,status,created_at),
+  CONSTRAINT fk_training_enrollment_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_training_enrollment_sale FOREIGN KEY (tenant_id,sale_review_id) REFERENCES sx_training_sale_reviews(tenant_id,id),
+  CONSTRAINT fk_training_enrollment_course FOREIGN KEY (tenant_id,course_id) REFERENCES sx_training_courses(tenant_id,id),
+  CONSTRAINT fk_training_enrollment_offer FOREIGN KEY (tenant_id,offer_id) REFERENCES sx_training_offers(tenant_id,id),
+  CONSTRAINT fk_training_enrollment_batch FOREIGN KEY (tenant_id,batch_id) REFERENCES sx_training_batches(tenant_id,id),
+  CONSTRAINT fk_training_enrollment_creator FOREIGN KEY (created_by_identity_id) REFERENCES sx_identities(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_training_invoices (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  enrollment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  sale_review_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  conversion_key CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  invoice_number VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  status ENUM('issued','void') NOT NULL DEFAULT 'issued',
+  currency CHAR(3) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  legal_name_snapshot VARCHAR(200) NOT NULL,
+  legal_registration_snapshot VARCHAR(100) NULL,
+  legal_address_snapshot VARCHAR(1000) NULL,
+  finance_policy_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  finance_policy_version INT UNSIGNED NOT NULL,
+  finance_policy_approved_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  invoice_prefix_snapshot VARCHAR(16) NOT NULL,
+  tax_mode_snapshot ENUM('no_tax','exclusive','inclusive') NOT NULL,
+  tax_rate_bps_snapshot SMALLINT UNSIGNED NULL,
+  revenue_method_snapshot ENUM('deferred_until_delivery','over_time') NOT NULL,
+  issued_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  issued_at DATETIME(3) NOT NULL,
+  subtotal_minor BIGINT UNSIGNED NOT NULL,
+  tax_minor BIGINT UNSIGNED NOT NULL,
+  total_minor BIGINT UNSIGNED NOT NULL,
+  invoice_email VARCHAR(254) NOT NULL,
+  terms_snapshot VARCHAR(2000) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_training_invoice_tenant_id (tenant_id,id),
+  UNIQUE KEY uq_training_invoice_sale_review (tenant_id,sale_review_id),
+  UNIQUE KEY uq_training_invoice_conversion_key (tenant_id,conversion_key),
+  UNIQUE KEY uq_training_invoice_number (tenant_id,invoice_number),
+  KEY idx_training_invoice_enrollment (tenant_id,enrollment_id),
+  KEY idx_training_invoice_issued (tenant_id,status,issued_at),
+  CONSTRAINT fk_training_invoice_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_training_invoice_enrollment FOREIGN KEY (tenant_id,enrollment_id) REFERENCES sx_training_enrollments(tenant_id,id),
+  CONSTRAINT fk_training_invoice_sale FOREIGN KEY (tenant_id,sale_review_id) REFERENCES sx_training_sale_reviews(tenant_id,id),
+  CONSTRAINT fk_training_invoice_finance_policy FOREIGN KEY (tenant_id,finance_policy_id) REFERENCES sx_training_finance_policies(tenant_id,id),
+  CONSTRAINT fk_training_invoice_policy_approver FOREIGN KEY (finance_policy_approved_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT fk_training_invoice_issuer FOREIGN KEY (issued_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT ck_training_invoice_amounts CHECK (total_minor=subtotal_minor+tax_minor),
+  CONSTRAINT ck_training_invoice_tax CHECK (tax_rate_bps_snapshot IS NULL OR tax_rate_bps_snapshot<=10000)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_training_invoice_lines (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  invoice_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  line_number SMALLINT UNSIGNED NOT NULL,
+  description_en VARCHAR(500) NOT NULL,
+  description_ar VARCHAR(500) NOT NULL,
+  course_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  offer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  offer_version INT UNSIGNED NOT NULL,
+  quantity SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  unit_amount_minor BIGINT UNSIGNED NOT NULL,
+  discount_minor BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  contract_amount_minor BIGINT UNSIGNED NOT NULL,
+  taxable_base_minor BIGINT UNSIGNED NOT NULL,
+  tax_minor BIGINT UNSIGNED NOT NULL,
+  total_minor BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_training_invoice_line_number (tenant_id,invoice_id,line_number),
+  KEY idx_training_invoice_line_invoice (tenant_id,invoice_id),
+  CONSTRAINT fk_training_invoice_line_invoice FOREIGN KEY (tenant_id,invoice_id) REFERENCES sx_training_invoices(tenant_id,id),
+  CONSTRAINT ck_training_invoice_line_amounts CHECK (total_minor=taxable_base_minor+tax_minor AND contract_amount_minor=unit_amount_minor-discount_minor)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_training_installments (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  invoice_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  sequence_number SMALLINT UNSIGNED NOT NULL,
+  due_date DATE NOT NULL,
+  amount_minor BIGINT UNSIGNED NOT NULL,
+  status ENUM('pending','due','partial','paid','overdue','cancelled') NOT NULL DEFAULT 'pending',
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_training_installment_sequence (tenant_id,invoice_id,sequence_number),
+  UNIQUE KEY uq_training_installment_tenant_id (tenant_id,id),
+  KEY idx_training_installment_due (tenant_id,status,due_date),
+  CONSTRAINT fk_training_installment_invoice FOREIGN KEY (tenant_id,invoice_id) REFERENCES sx_training_invoices(tenant_id,id),
+  CONSTRAINT ck_training_installment_amount CHECK (amount_minor>0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_training_journal_entries (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  source_type VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  source_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  entry_type ENUM('invoice_issued','payment_posted','revenue_recognized','credit_issued','refund_posted') NOT NULL,
+  currency CHAR(3) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  occurred_at DATETIME(3) NOT NULL,
+  created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_training_journal_source (tenant_id,source_type,source_id,entry_type),
+  UNIQUE KEY uq_training_journal_tenant_id (tenant_id,id),
+  KEY idx_training_journal_date (tenant_id,occurred_at,entry_type),
+  CONSTRAINT fk_training_journal_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_training_journal_actor FOREIGN KEY (created_by_identity_id) REFERENCES sx_identities(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_training_journal_lines (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  entry_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  line_number SMALLINT UNSIGNED NOT NULL,
+  account_code VARCHAR(60) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  debit_minor BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  credit_minor BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_training_journal_line (tenant_id,entry_id,line_number),
+  CONSTRAINT fk_training_journal_line_entry FOREIGN KEY (tenant_id,entry_id) REFERENCES sx_training_journal_entries(tenant_id,id),
+  CONSTRAINT ck_training_journal_line CHECK ((debit_minor>0 AND credit_minor=0) OR (credit_minor>0 AND debit_minor=0))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_training_sale_conversions (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  sale_review_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  request_key CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  enrollment_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  invoice_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  confirmed_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_training_conversion_sale (tenant_id,sale_review_id),
+  UNIQUE KEY uq_training_conversion_request (tenant_id,request_key),
+  CONSTRAINT fk_training_conversion_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_training_conversion_sale FOREIGN KEY (tenant_id,sale_review_id) REFERENCES sx_training_sale_reviews(tenant_id,id),
+  CONSTRAINT fk_training_conversion_enrollment FOREIGN KEY (tenant_id,enrollment_id) REFERENCES sx_training_enrollments(tenant_id,id),
+  CONSTRAINT fk_training_conversion_invoice FOREIGN KEY (tenant_id,invoice_id) REFERENCES sx_training_invoices(tenant_id,id),
+  CONSTRAINT fk_training_conversion_actor FOREIGN KEY (confirmed_by_identity_id) REFERENCES sx_identities(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

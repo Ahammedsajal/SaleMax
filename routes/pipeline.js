@@ -213,7 +213,12 @@ router.post('/leads/:id/sale-reviews',authorizeLead,async(req,res)=>{
 });
 
 router.post('/leads/:id/sale-reviews/:reviewId/decision',authorizeLead,async(req,res)=>{
-  try{const ctx=await saleContext(req.pipelineActor);const data=await saleReviews.decide(require('../database/config.js').promise(),ctx,{uid:req.pipelineActor.uid,leadId:req.params.id,reviewId:req.params.reviewId,actorType:req.pipelineActor.actorType,actorId:req.pipelineActor.actorId,expectedRevision:req.body?.expectedRevision,decision:req.body?.decision,reason:req.body?.reason});res.json({success:true,data});}
+  try{const ctx=await saleContext(req.pipelineActor);const data=await saleReviews.decide(require('../database/config.js').promise(),ctx,{uid:req.pipelineActor.uid,leadId:req.params.id,reviewId:req.params.reviewId,actorType:req.pipelineActor.actorType,actorRole:req.pipelineActor.role,actorId:req.pipelineActor.actorId,expectedRevision:req.body?.expectedRevision,decision:req.body?.decision,reason:req.body?.reason});res.json({success:true,data});}
+  catch(error){fail(res,error);}
+});
+
+router.post('/leads/:id/sale-reviews/:reviewId/convert',authorizeLead,async(req,res)=>{
+  try{if(req.pipelineActor.role!=='owner')return res.status(403).json({success:false,code:'PERMISSION_DENIED'});const ctx=await saleContext(req.pipelineActor);const conversion=require('../modules/platform/training-sale-conversion'),db=await require('../database/config.js').promise().getConnection();let data;try{data=await conversion.convert(db,ctx,{uid:req.pipelineActor.uid,leadId:req.params.id,saleReviewId:req.params.reviewId,requestKey:req.body?.requestKey,actorRole:req.pipelineActor.role});}finally{db.release();}res.status(data.repeated?200:201).json({success:true,data});}
   catch(error){fail(res,error);}
 });
 

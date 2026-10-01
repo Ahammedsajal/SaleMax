@@ -16,6 +16,15 @@ From the SaleMaX application directory, run `start-local.ps1` in PowerShell. Ope
 
 Super Admin and staff administration; business onboarding and plan assignment; team roles and seat limits; course/offer/batch setup; public and staff lead capture; assignments and follow-ups; sale approval; invoice and installment schedules; payment verification; receipt delivery; credits/refunds; reports; channel setup and delivery issues. Each journey requires tested screens, field guidance and recoverable error states before it is marked available.
 
+## Confirming an approved training sale (owner)
+
+1. Open the existing business panel's Lead Pipeline and select the lead. Review the learner, payer, invoice email, course offer, discount, terms and installment schedule in Sale Review.
+2. After the owner approves the review and the accountant has approved the business Finance profile, select **Confirm sale and issue invoice**. If the action is unavailable, read the readiness message; common causes are an unapproved finance profile, an issuer-role mismatch, a changed offer, or installments that do not equal the invoice total.
+3. On success, the panel shows the invoice number and total. The lead moves to Won and the enrollment, invoice, receivable schedule and initial journal posting are committed together. A selected batch reserves one seat.
+4. Repeating the same request does not create a second invoice. The current screen does not yet provide invoice PDF/download, payment posting, receipt, refund, or customer email/WhatsApp delivery. The notification event is queued internally only; it is not sent.
+
+The first conversion screen is an owner-issued flow. Although Finance policy can designate an accountant as issuer, the canonical accountant sale-conversion screen is still pending, so that setting cannot yet complete this journey. Batch reservation expiry is also pending a product policy decision.
+
 ## Initial Super Admin setup (operations only)
 
 The initial canonical Super Admin must be created from a controlled terminal after the platform identity, security and verified-admin-link migrations have been applied. First verify which existing `/admin` account belongs to the product owner. Run `npm run bootstrap:super-admin -- --legacy-admin-id <id>`, type the requested confirmation phrase, enter the exact UID from that verified account's session, and enter its existing password at the hidden prompt. The command checks all three against the same legacy administrator row, creates the canonical owner and reviewed link in one transaction, and can succeed only once. It is not a routine deploy command. Do not use an employee account, guess by email, put credentials in shell arguments, or run it against the imported/production database before the release and owner-approval gates are satisfied.
