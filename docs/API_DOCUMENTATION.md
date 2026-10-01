@@ -164,6 +164,12 @@ Responses retain bilingual course names, offer/version and QAR integer-minor-uni
 
 Finance contract arithmetic is implemented as internal validators documented in [`FINANCE_CONTRACT.md`](FINANCE_CONTRACT.md); it is not an HTTP API. `/api/user/finance` invoice, payment, receipt and journal routes are not mounted yet. Do not build clients against planned route names until their authenticated contracts and database posting behavior are implemented.
 
+### Durable training notification outbox (TC21 foundation)
+
+The internal `modules/platform/training-outbox.js` service provides tenant-scoped durable event storage for finance workflow events. It is not an HTTP route and has no email, WhatsApp, payment or other provider adapter. Enqueue accepts only `{idempotencyKey,eventType,resourceType,resourceId,revision,correlationId}`; full customer content is loaded later from tenant-owned business records rather than copied into the event payload. A repeated tenant/key with matching content returns the original event; changed content returns `OUTBOX_IDEMPOTENCY_CONFLICT`.
+
+Internal worker calls claim at most 50 tenant events with `FOR UPDATE SKIP LOCKED`, a 10–300 second lease and a stable worker ID. Acknowledgement requires the current unexpired lease owner. Failed attempts use bounded exponential backoff and stop at eight attempts; expired leases are recorded and eventually dead-lettered. Attempt outcomes are retained in `sx_training_outbox_attempts`. Results explicitly include `externalDispatch:false`. Migration `20261011_training_outbox.sql` is required. This foundation is not a configured notification worker or dispatch acceptance; provider adapters, consent checks at send-time, dead-letter staff UI, alerting and actual email/WhatsApp delivery remain open.
+
 ### Training-center finance policy setup (TC39 in progress)
 
 Policy setup extends the existing `/user` workspace and is available only to an active training-center tenant with `tenant.settings` and `finance.invoices` entitlements. The existing owner business-token session may read/save drafts and submit a draft for accountant review. Accountant reads and decisions require the canonical tenant session, tenant membership role `accountant`, the finance entitlement, same-origin request and session-bound CSRF token. No caller-supplied tenant ID, role or approval identity is accepted.

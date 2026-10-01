@@ -1,0 +1,24 @@
+'use strict';
+const assert=require('node:assert/strict');
+const crypto=require('node:crypto');
+const outbox=require('../modules/platform/training-outbox');
+module.exports=async function(connection,other,{t1,m1}){
+  const ctx={audience:'tenant',identity:{id:'synthetic-owner'},tenant:{id:t1,status:'active'},membership:{id:m1,tenantId:t1,role:'owner',status:'active'},subscription:{capabilities:['finance.invoices']}};
+  const correlationId=crypto.randomUUID(),resourceId=crypto.randomUUID();
+  const input={idempotencyKey:'invoice-issued-'+crypto.randomUUID(),eventType:'finance.invoice.issued',resourceType:'invoice',resourceId,revision:1,correlationId};
+  const created=await outbox.enqueue(connection,ctx,input),repeated=await outbox.enqueue(connection,ctx,input);
+  assert.equal(created.id,repeated.id);assert.equal(repeated.repeated,true);assert.equal(created.externalDispatch,false);
+  await assert.rejects(outbox.enqueue(connection,ctx,{...input,eventType:'finance.payment.posted'}),{code:'OUTBOX_IDEMPOTENCY_CONFLICT'});
+  const foreignTenant='ffffffff-ffff-4fff-8fff-ffffffffffff';
+  const limited=await outbox.claim(connection,{...ctx,tenant:{id:foreignTenant,status:'active'},membership:{...ctx.membership,tenantId:foreignTenant}},{workerId:'worker-alpha',limit:1,leaseSeconds:60});
+  assert.equal(limited.items.length,0);
+  const [a,b]=await Promise.all([outbox.claim(connection,ctx,{workerId:'worker-alpha',limit:1,leaseSeconds:60}),outbox.claim(other,ctx,{workerId:'worker-beta',limit:1,leaseSeconds:60})]);
+  const claimed=[...a.items,...b.items].filter(item=>item.id===created.id);assert.equal(claimed.length,1);const lease=claimed[0];
+  await assert.rejects(outbox.finish(connection,ctx,{eventId:created.id,workerId:'wrong-worker',outcome:'delivered'}),{code:'OUTBOX_LEASE_REQUIRED'});
+  const result=await outbox.finish(connection,ctx,{eventId:created.id,workerId:lease===a.items[0]?'worker-alpha':'worker-beta',outcome:'delivered'});
+  assert.equal(result.status,'delivered');
+  const [eventAttempts]=await connection.query('SELECT outcome FROM sx_training_outbox_attempts WHERE tenant_id=? AND event_id=?',[t1,created.id]);
+  assert.deepEqual(eventAttempts.map(row=>row.outcome),['delivered']);
+  await assert.rejects(outbox.claim(connection,{...ctx,membership:{...ctx.membership,role:'agent'}},{workerId:'worker-agent',limit:1,leaseSeconds:60}),{code:'PERMISSION_DENIED'});
+  return {outboxInsertIdempotent:true,outboxIdempotencyConflictDenied:true,outboxConcurrentClaimSingleLease:true,outboxLeaseOwnerRequired:true,outboxCompletionAudited:true,outboxExternalDispatchDisabled:true,outboxAgentClaimDenied:true};
+};
