@@ -13,6 +13,14 @@ const { initTele, cleanupTele } = require("./helper/addon/telegram/tele.js");
 const app = express();
 const currentDir = process.cwd();
 
+// The protected plan and account-assignment APIs live behind the existing
+// /admin bearer-token guard, followed by canonical platform MFA and staff
+// permissions. Mount them before the global body parser so their stricter,
+// route-specific JSON limits remain effective. The feature flag keeps these
+// routes fail-closed until the reviewed identity links and production keys are
+// ready; no second admin shell or login is introduced.
+require("./modules/platform/mount-existing-upgrade").mountConfiguredUpgrade(app);
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));

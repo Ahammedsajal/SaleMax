@@ -42,7 +42,7 @@ Use **العربية / English** to switch language and layout direction. On a p
 
 Use the existing admin panel → Manage Plans. Catalogue settings require a title, description and whole-number duration. Contact and QR limits must also be whole numbers; invalid values are rejected without saving. Trial plans have a zero price. The current catalogue supports whole-unit prices; decimal pricing is pending its database upgrade. Editing a catalogue row preserves its ID and does not rewrite previously assigned user-plan snapshots.
 
-The bilingual inline editor preserves the existing catalogue actions. Versioned training-center contracts, role ceilings and publication are available to an explicitly linked administrator. Desktop EN/AR acceptance is recorded below; phone/tablet and dark-mode checks remain open.
+The bilingual inline editor preserves the existing catalogue actions. Versioned training-center contracts, role ceilings and publication are available to an explicitly linked administrator after the protected platform API is enabled and the administrator completes platform verification and MFA. Those routes are mounted in the existing application but remain disabled by default until account adoption and deployment prerequisites are complete. Desktop EN/AR acceptance is recorded below; phone/tablet and dark-mode checks remain open.
 
 ## Using the upgraded existing plan editor
 

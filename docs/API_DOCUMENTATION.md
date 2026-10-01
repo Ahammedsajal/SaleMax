@@ -72,12 +72,12 @@ Both endpoints use the existing administrator validator and return HTTP-200 `{su
 The route inventory now contains 371 declarations: the previous 369 plus these two authenticated reads. Local actual-router smoke and real-database checks cover the new contracts; production activation remains gated.
 
 
-The existing-catalogue version bridge service contract, including frozen commercial snapshots and canonical MFA/permission requirements, is documented in PLAN_AND_SEAT_CONTRACT.md. It is not yet mounted as HTTP operations or available in the production panel. Do not call an unmounted service a usable category/seat assignment workflow.
+The existing-catalogue version bridge service contract, including frozen commercial snapshots and canonical MFA/permission requirements, is documented in PLAN_AND_SEAT_CONTRACT.md. The existing application now mounts its HTTP handlers into the current `/api/admin` route family; the feature flag remains off by default, and verified administrator adoption plus deployment prerequisites are still required before the panel can use them. This wiring does not by itself complete plan/category rollout.
 
 
 ## Protected contracts inside the existing administration module
 
-The existing host conditionally mounts the following handlers when `SALEMAX_PLATFORM_ENABLED=true`. Activation requires ten forward migrations, reviewed legacy administrator identity links and a shared private 32-byte base64 key plus an exact HTTPS origin. It is disabled by default; either family returns 503 PLATFORM_UPGRADE_NOT_ENABLED while disabled. The key is never generated at production startup. Loopback HTTP is permitted only in explicit local-only mode. No new login page or catalogue shell is mounted.
+The existing `app.js` mounts these handlers before the global JSON parser. When `SALEMAX_PLATFORM_ENABLED=true`, activation requires ten forward migrations, reviewed legacy administrator identity links and a shared private 32-byte base64 key plus an exact HTTPS origin. It is disabled by default; each route family returns 503 `PLATFORM_UPGRADE_NOT_ENABLED` while disabled. The key is never generated at production startup. Loopback HTTP is permitted only in explicit local-only mode. No new login page or catalogue shell is mounted. A regression test exercises the disabled route behavior; the disposable HTTP integration test covers enabled authentication, draft, publication and assignment behavior through the existing route handlers.
 
 `/api/admin/platform-auth` exposes POST login/logout/mfa/enroll/mfa/verify and GET me using the canonical authentication contracts. All also require the existing legacy administrator bearer token. Cookie, Origin and CSRF requirements remain as documented in AUTHENTICATION_CONTRACT.md. The session cookie is HttpOnly; only its CSRF token is returned to the inline controls. Authentication is mounted before global body parsing so its 8 KiB limit remains effective.
 
@@ -104,7 +104,7 @@ The existing Manage Users inline action **Training-center contract** uses these 
 
 Expiry starts at confirmation using one database UTC clock. The request cannot exceed the published version's category or role ceilings, reduce an in-use seat, or select an unpublished version. A missing/unverified account link fails closed; no ownership is inferred from email. After a reviewed link exists, legacy plan writers are denied for that account and the generic canonical assignment service refuses the mapped tenant so all changes must pass through this adapter. `STALE_ASSIGNMENT`, `SEATS_IN_USE`, `PLAN_LIMIT_EXCEEDED`, `PERMISSION_DENIED`, `VERIFIED_BUSINESS_LINK_REQUIRED` and `IDEMPOTENCY_CONFLICT` are safe error codes; unexpected/storage failures return 503. The tenth forward migration stores request-to-history relationships. It does not adopt, alter, or backfill customer accounts.
 
-The static legacy inventory remains 371 declarations; these protected handlers are dynamically mounted and explicitly documented here rather than being inferred by that limited scanner. Production activation, verified legacy-account adoption and the remaining TC06/TC40 gates are still open.
+The static legacy inventory remains 371 declarations; these protected handlers are dynamically mounted and explicitly documented here rather than being inferred by that limited scanner. The application mounting is locally wired and fail-closed, but production activation, verified legacy-account adoption and the remaining TC06/TC40 gates are still open.
 
 ### Existing agent-account seat enforcement
 
