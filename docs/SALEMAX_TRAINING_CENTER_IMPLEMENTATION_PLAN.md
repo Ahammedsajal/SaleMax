@@ -1,6 +1,6 @@
 # SaleMaX SaaS Upgrade and Training Center Implementation Plan
 
-Version 1.2 | Existing-project scope confirmed 1 October 2026 | Product owner and implementation team
+Version 1.3 | Existing-project scope confirmed 1 October 2026 | Product owner and implementation team
 
 ## 1 Executive decision and product promise
 
@@ -775,3 +775,18 @@ The original plan covers the requested product scope and is a useful implementat
 
 The revised plan is ready to guide an end-to-end implementation through explicit gates. It is not yet a complete approved schema/API pack, a recovered frontend, a tested migration or a production-ready application. Those outputs have named owners, dependencies and acceptance criteria. Scalability and ease of use must be demonstrated through measured load, isolation, bilingual user journeys and the pilot; a document cannot guarantee perfection.
 
+
+## 26 Implementation progress — existing platform staff slice
+
+The first implementation slice extends the current `/admin?page=manage-users` screen with owner-managed platform staff invitations and access controls. It uses the existing `/admin/login` acceptance entry point, canonical platform identities, the reviewed legacy administrator mapping and the existing platform MFA boundary. It does not create another application, admin shell, login route, or customer/staff tenant account flow.
+
+The slice includes the additive `20261002_platform_staff_invites.sql` migration, bounded and audited staff APIs, one-time SHA-256-hashed invitation tokens, 72-hour expiry/rotation/cancellation, safe reissue after cancellation, permission-scoped staff activation/deactivation and session revocation. The bilingual controls expose loading/error/empty/success states and disclose that link delivery is copy-only. API and user instructions are maintained in `docs/API_DOCUMENTATION.md` and `docs/USER_MANUAL.md`.
+
+| Ticket | Current state | Evidence and remaining gate |
+| --- | --- | --- |
+| TC03 owner-only Super Admin/MFA | Implemented earlier; regression-covered | Synthetic bootstrap, audience/MFA/reauth checks and staff-denial tests pass. Existing imported-account adoption and release activation remain open. |
+| TC04 platform staff delegation | Locally implemented; acceptance in progress | Backend and mounted routes, owner-only grant checks, transactional acceptance, audit/session revocation and existing Manage Users panel are implemented. `npm test` passes 44/44; all 11 isolated MariaDB migrations and the staff lifecycle pass. The existing `/admin/login` invite overlay is browser-verified in English and Arabic; authenticated staff-management screen acceptance and phone/tablet review remain required. Provider delivery is explicitly not implemented. |
+| TC06 Manage Plans/Manage Users end-to-end | In progress | Plan editing/assignment and this staff panel are partial increments. Full category/feature/seat and original-screen acceptance remain open. |
+| Full training-center launch | Not release-ready | Finance, courses, portal, scheduled notifications, wider role journeys, migration/adoption, provider evidence, load/restore, staging and owner production approval remain outstanding. |
+
+This progress note records one implementation increment only. It does not mark TC03/TC04 complete, close TC00/TC35/TC40, or authorize production deployment.

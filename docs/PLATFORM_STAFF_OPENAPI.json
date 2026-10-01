@@ -1,0 +1,159 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SaleMaX Existing Admin Platform Staff API",
+    "version": "1.0.0",
+    "description": "Additive staff-invitation endpoints mounted into the existing /admin API. Platform activation is disabled by default. Management calls require the existing admin bearer session and the canonical MFA platform session. Invitation acceptance uses the existing /admin/login route and a same-origin, one-time link."
+  },
+  "paths": {
+    "/api/admin/platform-access/staff": {
+      "get": {
+        "operationId": "listPlatformStaff",
+        "summary": "List platform staff, current grants, and pending invitations",
+        "security": [{"LegacyAdminBearer": [], "PlatformSessionCookie": []}],
+        "responses": {
+          "200": {"description": "Bounded staff and invitation lists", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StaffListResponse"}}}},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/api/admin/platform-access/staff/invitations": {
+      "post": {
+        "operationId": "createPlatformStaffInvitation",
+        "summary": "Create a 72-hour one-time platform staff invitation",
+        "security": [{"LegacyAdminBearer": [], "PlatformSessionCookie": [], "CsrfToken": []}],
+        "parameters": [{"$ref": "#/components/parameters/Origin"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateInvitation"}}}},
+        "responses": {
+          "201": {"description": "The raw token is returned only in this response; delivery is copy-link only", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InvitationCreatedResponse"}}}},
+          "400": {"$ref": "#/components/responses/Invalid"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/api/admin/platform-access/staff/invitations/{id}/resend": {
+      "post": {
+        "operationId": "rotatePlatformStaffInvitation",
+        "summary": "Rotate a pending invitation token and reset its 72-hour expiry",
+        "security": [{"LegacyAdminBearer": [], "PlatformSessionCookie": [], "CsrfToken": []}],
+        "parameters": [{"$ref": "#/components/parameters/Origin"}, {"$ref": "#/components/parameters/InvitationId"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "maxProperties": 0}}}},
+        "responses": {"200": {"description": "Replacement token returned once", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InvitationCreatedResponse"}}}}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+      }
+    },
+    "/api/admin/platform-access/staff/invitations/{id}/cancel": {
+      "post": {
+        "operationId": "cancelPlatformStaffInvitation",
+        "summary": "Cancel a pending invitation and disable its not-yet-accepted identity",
+        "security": [{"LegacyAdminBearer": [], "PlatformSessionCookie": [], "CsrfToken": []}],
+        "parameters": [{"$ref": "#/components/parameters/Origin"}, {"$ref": "#/components/parameters/InvitationId"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "maxProperties": 0}}}},
+        "responses": {"200": {"description": "Invitation cancelled", "content": {"application/json": {"schema": {"type": "object", "required": ["id", "status"], "properties": {"id": {"type": "string", "format": "uuid"}, "status": {"const": "cancelled"}}}}}}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+      }
+    },
+    "/api/admin/platform-access/staff/{identityId}": {
+      "patch": {
+        "operationId": "updatePlatformStaff",
+        "summary": "Change one staff member's allowed grants or access state",
+        "security": [{"LegacyAdminBearer": [], "PlatformSessionCookie": [], "CsrfToken": []}],
+        "parameters": [{"$ref": "#/components/parameters/Origin"}, {"$ref": "#/components/parameters/IdentityId"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UpdateStaff"}}}},
+        "responses": {
+          "200": {
+            "description": "Grants updated and active platform sessions revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"const": true},
+                    "data": {
+                      "type": "object",
+                      "required": ["identityId", "status", "permissions"],
+                      "properties": {
+                        "identityId": {"type": "string", "format": "uuid"},
+                        "status": {"enum": ["active", "inactive"]},
+                        "permissions": {"$ref": "#/components/schemas/PermissionList"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/Invalid"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        }
+      }
+    },
+    "/api/admin/staff-invitations/accept": {
+      "post": {
+        "operationId": "acceptPlatformStaffInvitation",
+        "summary": "Accept a one-time invitation from the existing /admin/login screen",
+        "parameters": [{"$ref": "#/components/parameters/Origin"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AcceptInvitation"}}}},
+        "responses": {
+          "201": {
+            "description": "Canonical staff identity and matching legacy admin login activated atomically",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"const": true},
+                    "data": {
+                      "type": "object",
+                      "required": ["status", "email"],
+                      "properties": {
+                        "status": {"const": "accepted"},
+                        "email": {"type": "string", "format": "email"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/Invalid"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "410": {"description": "Token is invalid, expired, cancelled or already used", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "LegacyAdminBearer": {"type": "http", "scheme": "bearer", "description": "Existing SaleMaX administrator session token."},
+      "PlatformSessionCookie": {"type": "apiKey", "in": "cookie", "name": "sx_platform_session", "description": "HttpOnly canonical platform session established by /api/admin/platform-auth."},
+      "CsrfToken": {"type": "apiKey", "in": "header", "name": "X-CSRF-Token", "description": "Current CSRF value returned by GET /api/admin/platform-auth/me."}
+    },
+    "parameters": {
+      "Origin": {"name": "Origin", "in": "header", "required": true, "schema": {"type": "string", "format": "uri"}, "description": "Must exactly match SALEMAX_PLATFORM_ORIGIN for mutations and acceptance."},
+      "InvitationId": {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "IdentityId": {"name": "identityId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+    },
+    "schemas": {
+      "PermissionList": {"type": "array", "maxItems": 9, "uniqueItems": true, "items": {"type": "string", "enum": ["tenants.read", "tenants.create", "tenants.manage", "plans.read", "plans.draft", "plans.assign", "plans.publish", "support.request", "incidents.read"]}},
+      "CreateInvitation": {"type": "object", "additionalProperties": false, "required": ["email", "permissions"], "properties": {"email": {"type": "string", "format": "email", "maxLength": 254}, "permissions": {"$ref": "#/components/schemas/PermissionList"}}},
+      "UpdateStaff": {"type": "object", "additionalProperties": false, "required": ["active", "permissions"], "properties": {"active": {"type": "boolean"}, "permissions": {"$ref": "#/components/schemas/PermissionList"}}},
+      "AcceptInvitation": {"type": "object", "additionalProperties": false, "required": ["token", "displayName", "password"], "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "displayName": {"type": "string", "minLength": 1, "maxLength": 200}, "password": {"type": "string", "minLength": 12, "maxLength": 72, "description": "The server also enforces a maximum of 72 UTF-8 bytes."}}},
+      "InvitationCreatedResponse": {"type": "object", "required": ["success", "data"], "properties": {"success": {"const": true}, "data": {"type": "object", "required": ["id", "email", "token", "expiresInHours", "status", "delivery"], "properties": {"id": {"type": "string", "format": "uuid"}, "email": {"type": "string", "format": "email"}, "token": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "expiresInHours": {"const": 72}, "status": {"const": "pending"}, "delivery": {"const": "copy-link"}}}}},
+      "StaffListResponse": {"type": "object", "required": ["success", "data"], "properties": {"success": {"const": true}, "data": {"type": "object", "required": ["staff", "invitations", "availablePermissions"], "properties": {"staff": {"type": "array", "maxItems": 200}, "invitations": {"type": "array", "maxItems": 200}, "availablePermissions": {"$ref": "#/components/schemas/PermissionList"}}}}},
+      "Error": {"type": "object", "required": ["code"], "properties": {"code": {"type": "string"}}}
+    },
+    "responses": {
+      "Invalid": {"description": "Invalid or oversized request", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "Forbidden": {"description": "Wrong audience, missing platform grant, failed MFA/reauthentication, unverified legacy identity link or Origin check", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "NotFound": {"description": "Staff identity or invitation does not exist", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "Conflict": {"description": "Invitation is not pending, identity already exists, or staff state cannot be changed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "Unavailable": {"description": "Storage or audit service unavailable; private database details are withheld", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+    }
+  }
+}

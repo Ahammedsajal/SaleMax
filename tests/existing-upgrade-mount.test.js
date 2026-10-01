@@ -5,7 +5,7 @@ const express = require('express');
 const test = require('node:test');
 const { mountConfiguredUpgrade } = require('../modules/platform/mount-existing-upgrade');
 
-test('existing plan and business contract routes fail closed while the upgrade is disabled', async t => {
+test('existing plan, contract and staff routes fail closed while the upgrade is disabled', async t => {
   const previous = process.env.SALEMAX_PLATFORM_ENABLED;
   process.env.SALEMAX_PLATFORM_ENABLED = 'false';
   t.after(() => {
@@ -24,6 +24,8 @@ test('existing plan and business contract routes fail closed while the upgrade i
     '/api/admin/platform-auth/me',
     '/api/admin/plan-contracts/context',
     '/api/admin/business-contracts/1/context',
+    '/api/admin/platform-access/staff',
+    '/api/admin/staff-invitations/accept',
   ]) {
     const response = await fetch(origin + route);
     assert.equal(response.status, 503, route);

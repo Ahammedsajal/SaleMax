@@ -111,6 +111,23 @@ Expiry starts at confirmation using one database UTC clock. The request cannot e
 
 The static legacy inventory remains 371 declarations; these protected handlers are dynamically mounted and explicitly documented here rather than being inferred by that limited scanner. The application mounting is locally wired and fail-closed, but production activation, verified legacy-account adoption and the remaining TC06/TC40 gates are still open.
 
+### Existing Manage Users platform-staff controls and invitation API
+
+The **Platform staff** action is injected into the existing `/admin?page=manage-users` screen. No second admin shell or login route is introduced. Every management call still requires the existing administrator bearer token, canonical platform session, an exact reviewed legacy administrator mapping, MFA and a recently authenticated `super_admin` identity with `staff.manage`. Mutations require the configured exact `Origin` and `X-CSRF-Token`; obtain the current CSRF token from `GET /api/admin/platform-auth/me`. Staff cannot receive `staff.manage`, owner recovery/transfer, or other owner-only grants. Changes revoke platform sessions immediately.
+
+| Method and route | Request | Success |
+| --- | --- | --- |
+| `GET /api/admin/platform-access/staff` | No body | `{success:true,data:{staff:[{id,email,displayName,identityStatus,accessStatus,permissions,permissionVersion}],invitations:[{id,email,permissions,status,expiresAt,invitedBy}],availablePermissions:[...]}}`; lists are bounded to 200 entries. |
+| `POST /api/admin/platform-access/staff/invitations` | `{email,permissions:[...]}` | HTTP 201 with `{success:true,data:{id,email,token,expiresInHours:72,status:"pending",delivery:"copy-link"}}`. The raw 256-bit token is returned once; only its SHA-256 digest is stored. |
+| `POST /api/admin/platform-access/staff/invitations/:id/resend` | Empty JSON object | Rotates the one-time token and resets expiry to 72 hours, including an expired but still-pending invite. The previous token becomes invalid. The replacement token is returned once. |
+| `POST /api/admin/platform-access/staff/invitations/:id/cancel` | Empty JSON object | Cancels a still-pending invitation and disables its unaccepted identity. A later invitation to that same address safely reuses the cancelled pending identity and invalidates the earlier token. |
+| `PATCH /api/admin/platform-access/staff/:identityId` | `{active:boolean,permissions:[...]}` | Updates grants/status and revokes all current platform sessions for that identity. Inactive accounts must be re-enabled by the owner; existing sessions are not restored. |
+| `POST /api/admin/staff-invitations/accept` | Same-origin JSON `{token,displayName,password}` | HTTP 201 `{success:true,data:{status:"accepted",email}}`; atomically activates the canonical staff identity and its matching existing admin login, creates the reviewed ID/UID link and audit record. The link is one-use and expires after 72 hours. |
+
+Management responses use HTTP 400 for malformed input, 403 for forbidden audience/permission/link, 404 for absent staff/invite, 409 for conflicting state or existing identities, and 503 for unavailable storage/audit. Invitation acceptance uses 400 for invalid name/password, 403 for a wrong/missing Origin, 410 for invalid/expired/cancelled/used tokens, 413 for oversized bodies, and 503 for unavailable storage. Responses contain bounded error codes only; they do not disclose SQL errors, passwords or token digests. `Cache-Control: no-store` is set. The accept endpoint accepts at most 8 KiB; management endpoints accept at most 16 KiB.
+
+The screen creates a URL under the existing `/admin/login#staff-invite=...` entry point and presents a copy-link control. **It does not send email or WhatsApp.** An owner must share the link using an approved channel; automated delivery and provider evidence remain TC21/TC22 work. Its invite form, staff list, grant editor, renewal/cancel actions and acceptance overlay have English/Arabic labels and keyboard focus states. The machine-readable route/request/response contract is [PLATFORM_STAFF_OPENAPI.json](PLATFORM_STAFF_OPENAPI.json); this table records its permission and operational behavior in prose.
+
 ### Existing agent-account seat enforcement
 
 The existing team endpoints remain under `/api/agent` and keep their current user authentication:

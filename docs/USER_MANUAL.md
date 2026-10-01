@@ -94,6 +94,18 @@ Arabic controls use RTL layout. The form preserves the existing Manage Users pag
 
 The separate synthetic existing-panel lab can use port 3018 by setting SALEMAX_TEST_PANEL_PORT=3018 before running scripts/existing-panel-lab.cjs, with the disposable database engine already on loopback 3309. Its private access file is database/local-runtime/existing-panel-lab-3018/access.json. This lab runs the original shell and protected handlers.
 
+### Platform staff invitations in the existing Manage Users screen
+
+The SaleMaX owner can manage platform staff from the existing admin panel. Sign in at `/admin/login`, open **Manage Users**, and choose **Platform staff**. This button appears only after the existing administrator login; the protected API additionally requires the owner’s canonical platform identity, MFA and a recent verification. If prompted, complete the platform sign-in and authenticator check. Staff accounts cannot manage other platform staff or receive owner-only permissions.
+
+To invite someone, enter their work email, select only the platform permissions they need, and choose **Create staff invitation**. Use **Copy setup link** and share it with that person through a channel you control. SaleMaX does not send the link by email or WhatsApp yet. The link works once and expires after 72 hours. It is shown only when first created; use **Create new link** from the invitation list to invalidate the old link and copy a replacement. Expired pending invitations can also be renewed. Cancelled invitations cannot be used; if you invite the same email again, SaleMaX safely reissues the cancelled pending account.
+
+The recipient opens the link, enters their display name and a password of at least 12 characters, and activates access. This setup appears as an overlay on the existing `/admin/login` route. They then sign in through the existing administrator login and configure MFA before using platform functions. Do not send the one-time link in a public channel. If it is exposed, cancel the invitation or create a replacement link immediately.
+
+The **Current staff** list lets the owner change an employee’s allowed permissions or disable platform access. Saving changes revokes all active platform sessions, so the staff member must authenticate again. Re-enabling access does not restore any revoked session. Use **Reload staff** to refresh the list. In Arabic, the same controls use RTL layout and translated labels. This screen only manages SaleMaX platform staff; it does not create a training-center tenant employee or agent account.
+
+Invitation delivery is copy-link only in this release slice. Automatic email/WhatsApp delivery, tenant staff onboarding, full mobile/tablet review and production activation are still open implementation/release work.
+
 ### Agent seats for linked training centers
 
 After an account has an explicit reviewed business link and an active training-center contract, the existing agent endpoints enforce the assigned agent limit. Under the initial seven-agent contract, the owner can create up to seven active agent accounts. When no seats remain, the API returns a clear limit message and directs the owner to SaleMaX staff to review the assigned plan. Deactivating an agent frees a seat; deleting an agent removes its legacy login and deactivates any linked canonical membership. Reactivating an agent checks capacity again. Accounts without reviewed ownership linking keep their existing legacy behavior during phased adoption.

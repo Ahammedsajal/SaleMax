@@ -1,0 +1,53 @@
+'use strict';
+const assert=require('node:assert/strict');
+const crypto=require('node:crypto');
+const bcrypt=require('bcrypt');
+const {createAuthentication}=require('../modules/platform/authentication');
+const {loadSession}=require('../modules/platform/sessions');
+const staff=require('../modules/platform/staff-access');
+module.exports=async(db,{ownerIdentityId})=>{
+  const owner={audience:'platform',identity:{id:ownerIdentityId},membership:{role:'super_admin',status:'active'},mfaVerified:true,recentlyAuthenticated:true};
+  const before=await staff.list(db,owner);assert.equal(before.staff.some(item=>item.email==='invited.staff@example.invalid'),false);
+  const created=await staff.createInvite(db,owner,{email:'  invited.staff@example.invalid ',permissions:['plans.read','tenants.read']});
+  assert.equal(created.status,'pending');assert.equal(created.delivery,'copy-link');assert.match(created.token,/^[A-Za-z0-9_-]{43}$/);
+  const [[pending]]=await db.query(`SELECT v.token_hash,v.status,i.status AS identity_status,p.role,p.status AS access_status
+    FROM sx_platform_staff_invites v JOIN sx_identities i ON i.id=v.identity_id JOIN sx_platform_memberships p ON p.identity_id=i.id WHERE v.id=?`,[created.id]);
+  assert.equal(pending.token_hash,crypto.createHash('sha256').update(created.token).digest('hex'));
+  assert.equal(pending.status,'pending');assert.equal(pending.identity_status,'pending');assert.equal(pending.role,'staff');assert.equal(pending.access_status,'inactive');
+  await assert.rejects(staff.acceptInvite(db,{token:'A'.repeat(43),displayName:'Invited Staff',password:'Synthetic-Staff-Password-97'}),{code:'INVITE_INVALID'});
+  const rotated=await staff.rotateInvite(db,owner,created.id);assert.notEqual(rotated.token,created.token);
+  await assert.rejects(staff.acceptInvite(db,{token:created.token,displayName:'Invited Staff',password:'Synthetic-Staff-Password-97'}),{code:'INVITE_INVALID'});
+  const password='Synthetic-Staff-Password-97';
+  const accepted=await staff.acceptInvite(db,{token:rotated.token,displayName:'Invited Staff',password});
+  assert.deepEqual(accepted,{status:'accepted',email:'invited.staff@example.invalid'});
+  await assert.rejects(staff.acceptInvite(db,{token:rotated.token,displayName:'Invited Staff',password}),{code:'INVITE_INVALID'});
+  const [[mapping]]=await db.query(`SELECT i.id,i.password_hash,i.status,i.display_name,p.role,p.status AS access_status,p.delegated_permissions,
+    a.id AS legacy_admin_id,a.uid,a.password AS legacy_password,l.identity_id AS linked_identity,l.verified_by,l.legacy_uid_hash
+    FROM sx_identities i JOIN sx_platform_memberships p ON p.identity_id=i.id JOIN admin a ON a.email=i.email_normalized
+    JOIN sx_legacy_admin_identities l ON l.identity_id=i.id WHERE i.email_normalized=?`,['invited.staff@example.invalid']);
+  assert.ok(mapping);assert.equal(mapping.status,'active');assert.equal(mapping.display_name,'Invited Staff');assert.equal(mapping.role,'staff');assert.equal(mapping.access_status,'active');
+  assert.deepEqual(JSON.parse(mapping.delegated_permissions),['plans.read','tenants.read']);assert.equal(mapping.password_hash,mapping.legacy_password);
+  assert.equal(mapping.linked_identity,mapping.id);assert.equal(mapping.verified_by,ownerIdentityId);assert.equal(mapping.legacy_uid_hash,crypto.createHash('sha256').update(mapping.uid).digest('hex'));
+  assert.equal(await bcrypt.compare(password,mapping.password_hash),true);
+  const auth=createAuthentication({key:crypto.randomBytes(32)}),login=await auth.login(db,{email:'invited.staff@example.invalid',password,audience:'platform'},'127.0.0.1');
+  assert.equal(login.mfaRequired,true);assert.equal(login.context.membership.role,'staff');
+  await assert.rejects(staff.list(db,login.context),{code:'PERMISSION_DENIED'});
+  await assert.rejects(staff.updateStaff(db,owner,mapping.id,{active:true,permissions:['staff.manage']}),{code:'INVALID_STAFF_PERMISSIONS'});
+  const disabled=await staff.updateStaff(db,owner,mapping.id,{active:false,permissions:['plans.read']});assert.equal(disabled.status,'inactive');
+  assert.equal(await loadSession(db,login.token),null);
+  await staff.updateStaff(db,owner,mapping.id,{active:true,permissions:['tenants.read']});
+  assert.equal(await loadSession(db,login.token),null);
+  const list=await staff.list(db,owner),managed=list.staff.find(item=>item.id===mapping.id);assert.ok(managed);assert.equal(managed.accessStatus,'active');assert.deepEqual(managed.permissions,['tenants.read']);
+  const pendingAgain=await staff.createInvite(db,owner,{email:'cancel.staff@example.invalid',permissions:[]});
+  await staff.cancelInvite(db,owner,pendingAgain.id);
+  await assert.rejects(staff.acceptInvite(db,{token:pendingAgain.token,displayName:'Cancelled Staff',password}),{code:'INVITE_INVALID'});
+  const reissued=await staff.createInvite(db,owner,{email:'cancel.staff@example.invalid',permissions:['incidents.read']});
+  assert.equal(reissued.id,pendingAgain.id);assert.notEqual(reissued.token,pendingAgain.token);
+  await db.query('UPDATE sx_platform_staff_invites SET expires_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 SECOND) WHERE id=?',[reissued.id]);
+  const refreshed=await staff.rotateInvite(db,owner,reissued.id);assert.notEqual(refreshed.token,reissued.token);
+  await staff.acceptInvite(db,{token:refreshed.token,displayName:'Reinvited Staff',password});
+  await assert.rejects(staff.acceptInvite(db,{token:pendingAgain.token,displayName:'Reinvited Staff',password}),{code:'INVITE_INVALID'});
+  const [[audit]]=await db.query("SELECT COUNT(*) AS n FROM sx_audit_events WHERE action IN ('platform.staff-invited','platform.staff-invite-rotated','platform.staff-invite-accepted','platform.staff-updated','platform.staff-invite-cancelled')");
+  assert.ok(Number(audit.n)>=6);
+  return {ownerGatedStaffInvites:true,hashedOneTimeLink:true,staffIdentityAndLegacyAdminLinkedOnAcceptance:true,platformStaffCannotManageStaff:true,superAdminGrantCannotBeDelegated:true,staffSessionRevocationImmediate:true,staffInviteCancelAudited:true,cancelledInviteCanBeSafelyReissued:true,expiredInviteCanBeRotated:true,inviteDeliveryIsCopyLinkOnly:true};
+};

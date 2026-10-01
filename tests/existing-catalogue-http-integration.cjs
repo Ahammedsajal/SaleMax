@@ -20,7 +20,7 @@ module.exports=async(db,config,{i1})=>{
   const legacyGuard=createAdminValidator(async(sql,args)=>{const [rows]=await pool.query(sql,args);return rows;},jwtKey);
   mountExistingUpgrade(app,{pool,key,origin,insecureLoopback:true,legacyGuard});
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const base='http://127.0.0.1:'+server.address().port;
-  const authPath='/api/admin/platform-auth',contracts='/api/admin/plan-contracts',business='/api/admin/business-contracts';
+  const authPath='/api/admin/platform-auth',contracts='/api/admin/plan-contracts',business='/api/admin/business-contracts',access='/api/admin/platform-access';
   let cookie='',csrf='';
   async function request(path,{body,headers={},method}={}){return fetch(base+path,{method:method||(body?'POST':'GET'),headers:{Authorization:'Bearer '+legacyToken,...(cookie?{Cookie:cookie}:{}),...(body?{Origin:origin,'Content-Type':'application/json','X-CSRF-Token':csrf}:{}),...headers},body:body?JSON.stringify(body):undefined});}
   try{
@@ -30,6 +30,8 @@ module.exports=async(db,config,{i1})=>{
     const enrolled=await request(authPath+'/mfa/enroll',{body:{}});assert.equal(enrolled.status,200);const seed=await enrolled.json();
     let acc=0,bits=0,bytes=[];for(const letter of seed.secret){acc=(acc<<5)|'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(letter);bits+=5;if(bits>=8){bits-=8;bytes.push((acc>>>bits)&255);}acc&=(1<<bits)-1;}
     const verify=await request(authPath+'/mfa/verify',{body:{code:totp(Buffer.from(bytes),Math.floor(Date.now()/30000))}});assert.equal(verify.status,200);
+    const staffList=await request(access+'/staff');assert.equal(staffList.status,403);assert.deepEqual(await staffList.json(),{code:'PERMISSION_DENIED'});
+    const staffGrant=await request(access+'/staff/invitations',{body:{email:'forbidden@example.invalid',permissions:['plans.read']}});assert.equal(staffGrant.status,403);assert.deepEqual(await staffGrant.json(),{code:'PERMISSION_DENIED'});
     assert.equal((await request(authPath+'/login',{body:{email:'mapped@example.invalid',password:'x'.repeat(9000),audience:'platform'}})).status,413);
     assert.equal((await request(contracts+'/1/drafts',{body:{padding:'x'.repeat(25000)}})).status,413);
     assert.equal((await request(contracts+'/1e2/versions')).status,400);
@@ -63,6 +65,7 @@ module.exports=async(db,config,{i1})=>{
     assert.equal((await request(contracts+'/context')).status,403);
     const absent=await request(contracts+'/context',{headers:{Authorization:''}});assert.equal((await absent.json()).logout,true);
     const [[audit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE actor_identity_id=? AND action='catalogue.request-rejected'",[actor]);assert.ok(audit.n>=1);
-    return {existingAdminCatalogueHttpWorkflow:true,editableDraftRevisionAndPublishedImmutability:true,existingManageUsersBusinessContractHttpWorkflow:true,businessContractPreviewAndConfirmation:true,businessContractHttpIdempotency:true,verifiedLegacyCanonicalLinkRequired:true,catalogueMfaRequired:true,catalogueCsrfRequired:true,catalogueStaffGrantRevocation:true,catalogueDeniedMutationAudited:true};
+    const [[staffRejectAudit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE actor_identity_id=? AND action='platform.staff.request-rejected'",[actor]);assert.ok(staffRejectAudit.n>=1);
+    return {existingAdminCatalogueHttpWorkflow:true,editableDraftRevisionAndPublishedImmutability:true,existingManageUsersBusinessContractHttpWorkflow:true,businessContractPreviewAndConfirmation:true,businessContractHttpIdempotency:true,verifiedLegacyCanonicalLinkRequired:true,catalogueMfaRequired:true,catalogueCsrfRequired:true,catalogueStaffGrantRevocation:true,catalogueDeniedMutationAudited:true,existingAdminStaffRoutesRequireOwnerGrant:true,unauthorizedStaffInviteIsDeniedAndAudited:true};
   }finally{await new Promise(resolve=>server.close(resolve));await pool.end();}
 };
