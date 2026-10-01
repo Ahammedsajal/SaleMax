@@ -102,6 +102,18 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   assert.equal(activityReport.summary.outcomes,1,JSON.stringify(activityReport.summary));assert.equal(activityReport.summary.notes,1);assert.equal(activityReport.summary.leadsTouched,1);assert.equal(activityReport.summary.followUpsRequired,1);
   assert.equal(activityReport.items.length,2);assert.ok(activityReport.items.every(item=>item.attendedBy==='Synthetic Agent'));
   await assert.rejects(reportService.getActivityReport({pool,uid,role:'accountant'}),{status:403});
+  const followUps=await leadPipeline.getFollowUps({uid,role:'agent',agentId:Number(legacyAgents[0].id),pool});
+  assert.equal(followUps.total,1);assert.equal(followUps.items[0].lead_id,assignedLead);assert.equal(followUps.summary.total,1);
+  await assert.rejects(leadPipeline.resolveFollowUp({...agentLeadActor,id:foreignAssignedLead,action:'complete',expectedDueAt:'2026-10-01 08:00:00.000000',pool}),{status:403});
+  const oldDueRevision=followUps.items[0].due_revision;
+  await leadPipeline.resolveFollowUp({...agentLeadActor,id:assignedLead,action:'reschedule',at:'2026-10-03T09:00:00Z',expectedDueAt:oldDueRevision,pool});
+  const rescheduled=await leadPipeline.getFollowUps({uid,role:'agent',agentId:Number(legacyAgents[0].id),period:'upcoming',pool});
+  const [[rescheduledDb]]=await db.query('SELECT DATE_FORMAT(next_follow_up_at,\'%Y-%m-%d %H:%i:%s\') AS due FROM pipeline_leads WHERE uid_hash=? AND id=?',[pipelineUidHash,assignedLead]);
+  assert.equal(rescheduled.total,1);assert.equal(rescheduledDb.due,'2026-10-03 09:00:00');
+  await assert.rejects(leadPipeline.resolveFollowUp({...agentLeadActor,id:assignedLead,action:'complete',expectedDueAt:oldDueRevision,pool}),{status:409});
+  await leadPipeline.resolveFollowUp({...agentLeadActor,id:assignedLead,action:'complete',expectedDueAt:rescheduled.items[0].due_revision,pool});
+  await assert.rejects(leadPipeline.resolveFollowUp({...agentLeadActor,id:assignedLead,action:'complete',expectedDueAt:rescheduled.items[0].due_revision,pool}),{status:409});
+  assert.equal((await leadPipeline.getFollowUps({uid,role:'agent',agentId:Number(legacyAgents[0].id),pool})).total,0);
   await db.query(`CREATE TABLE phonebook(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(255) NOT NULL,uid VARCHAR(999) NOT NULL) ENGINE=InnoDB`);
   await db.query(`CREATE TABLE contact(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999) NOT NULL,phonebook_id INT NOT NULL,phonebook_name VARCHAR(255) NOT NULL,name VARCHAR(255) NOT NULL,mobile VARCHAR(64) NOT NULL,var1 TEXT NULL,var2 TEXT NULL,var3 TEXT NULL,var4 TEXT NULL,var5 TEXT NULL,createdAt DATETIME NULL) ENGINE=InnoDB`);
   const inboundPhone='+97450000123';

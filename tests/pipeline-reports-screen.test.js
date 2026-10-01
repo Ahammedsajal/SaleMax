@@ -13,7 +13,9 @@ const pipeline = fs.readFileSync(path.join(root, 'client/public/pipeline/pipelin
 test('reports is integrated as a bilingual view in the existing pipeline screen', () => {
   assert.match(html, /id="reportsMode"/);
   assert.match(html, /id="reports" class="reports hidden"/);
-  assert.match(html, /src="\/pipeline\/reports\.js\?v=1"/);
+  assert.match(html, /src="\/pipeline\/reports\.js\?v=2"/);
+  assert.match(html, /id="followupsMode"/);
+  assert.match(html, /id="followups" class="reports hidden"/);
   assert.match(reports, /\/api\/pipeline\/reports\/activity/);
   assert.match(reports, /ownerScope:'All workspace activity'/);
   assert.match(reports, /agentScope:'Only leads currently assigned to you'/);
@@ -26,6 +28,8 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /report-lead-link/);
   assert.match(reports, /exportPage:'Export this page \(CSV\)'/);
   assert.match(reports, /exportPage:'تصدير هذه الصفحة \(CSV\)'/);
+  assert.match(reports, /follow-up queue|follow-ups/i);
+  assert.match(reports, /متابعات/);
   assert.match(reports, /function exportCurrentPage\(report\)/);
   assert.ok(reports.includes("if(/^(?:[=+@]|-|\\t)/.test(text))"));
   assert.ok(reports.includes("join('\\r\\n')"));

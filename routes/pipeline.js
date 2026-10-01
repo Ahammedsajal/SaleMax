@@ -69,6 +69,18 @@ router.get("/board", async (req, res) => {
   } catch (error) { fail(res, error); }
 });
 
+router.get("/follow-ups", async (req, res) => {
+  try {
+    const data = await pipeline.getFollowUps({
+      uid: req.pipelineActor.uid, role: req.pipelineActor.role, agentId: req.pipelineActor.agentId,
+      period: req.query.period || "all", page: req.query.page === undefined ? 1 : Number(req.query.page),
+      limit: req.query.limit === undefined ? 20 : Number(req.query.limit),
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ success: true, data: { ...data, timezone: req.pipelineActor.timezone } });
+  } catch (error) { fail(res, error); }
+});
+
 router.get("/settings", async (req, res) => {
   try {
     const data = await pipeline.getSettings(req.pipelineActor.uid);
@@ -156,6 +168,18 @@ async function authorizeLead(req, res, next) {
     return next();
   } catch (error) { return fail(res, error); }
 }
+
+router.post("/leads/:id/follow-up/:action", authorizeLead, async (req, res) => {
+  try {
+    const data = await pipeline.resolveFollowUp({
+      uid: req.pipelineActor.uid, id: req.params.id, action: req.params.action,
+      at: req.body?.nextFollowUpAt, expectedDueAt: req.body?.expectedDueAt,
+      actorType: req.pipelineActor.actorType, actorId: req.pipelineActor.actorId,
+      role: req.pipelineActor.role, agentId: req.pipelineActor.agentId,
+    });
+    res.json({ success: true, data });
+  } catch (error) { fail(res, error); }
+});
 
 router.get("/leads/:id", authorizeLead, (req, res) => {
   res.json({ success: true, data: req.pipelineLead });

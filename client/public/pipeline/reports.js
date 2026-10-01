@@ -15,7 +15,8 @@
       occurred:'Time', lead:'Lead / contact', attended:'Handled by', activity:'Activity', details:'Outcome or note', followUp:'Next follow-up',
       exportPage:'Export this page (CSV)', exportReady:'Report page downloaded as CSV.',
       note:'Internal note', contactOutcome:'Contact outcome', followUpRequired:'Follow-up required', noFollowUp:'No follow-up required', previous:'Previous', next:'Next', page:'Page', of:'of',
-      outcomesMap:{no_answer:'No answer',connected:'Connected',interested:'Interested',not_interested:'Not interested',follow_up_scheduled:'Follow-up scheduled',wrong_number:'Wrong number',requested_call:'Call requested',sale_requested:'Sale requested'}
+      outcomesMap:{no_answer:'No answer',connected:'Connected',interested:'Interested',not_interested:'Not interested',follow_up_scheduled:'Follow-up scheduled',wrong_number:'Wrong number',requested_call:'Call requested',sale_requested:'Sale requested'},
+      tasksTitle:'Follow-up queue',tasksSubtitle:'Every due action stays visible across pipeline stages.',allTasks:'All open follow-ups',overdueTasks:'Overdue',upcomingTasks:'Upcoming',tasksLoading:'Loading your follow-ups…',tasksEmpty:'No follow-ups match this view.',tasksFailed:'We could not load follow-ups. Your data is unchanged.',completeTask:'Complete',rescheduleTask:'Reschedule',saveTask:'Save date',dueAt:'Due',stage:'Stage',assignedTo:'Assigned to',learner:'Learner',openLead:'Open opportunity',taskTotal:'Open follow-ups',taskOverdue:'Overdue',taskUpcoming:'Upcoming',previousPage:'Previous',nextPage:'Next',taskCompleted:'Follow-up completed.',taskRescheduled:'Follow-up rescheduled.',dateRequired:'Choose the next date and time.'
     },
     ar: {
       title:'تقارير النشاط', subtitle:'سجل واضح لمسؤولية العملاء والنتائج والمتابعة التالية.',
@@ -26,7 +27,8 @@
       occurred:'الوقت', lead:'العميل / جهة الاتصال', attended:'تمت المتابعة بواسطة', activity:'النشاط', details:'النتيجة أو الملاحظة', followUp:'المتابعة التالية',
       exportPage:'تصدير هذه الصفحة (CSV)', exportReady:'تم تنزيل صفحة التقرير بصيغة CSV.',
       note:'ملاحظة داخلية', contactOutcome:'نتيجة التواصل', followUpRequired:'المتابعة مطلوبة', noFollowUp:'لا توجد متابعة مطلوبة', previous:'السابق', next:'التالي', page:'صفحة', of:'من',
-      outcomesMap:{no_answer:'لا يوجد رد',connected:'تم التواصل',interested:'مهتم',not_interested:'غير مهتم',follow_up_scheduled:'تم تحديد متابعة',wrong_number:'رقم خاطئ',requested_call:'طلب اتصال',sale_requested:'طلب الشراء'}
+      outcomesMap:{no_answer:'لا يوجد رد',connected:'تم التواصل',interested:'مهتم',not_interested:'غير مهتم',follow_up_scheduled:'تم تحديد متابعة',wrong_number:'رقم خاطئ',requested_call:'طلب اتصال',sale_requested:'طلب الشراء'},
+      tasksTitle:'قائمة المتابعات',tasksSubtitle:'تظهر كل المتابعات المستحقة مهما كانت مرحلة الفرصة.',allTasks:'كل المتابعات المفتوحة',overdueTasks:'متأخرة',upcomingTasks:'قادمة',tasksLoading:'جارٍ تحميل المتابعات…',tasksEmpty:'لا توجد متابعات في هذا العرض.',tasksFailed:'تعذر تحميل المتابعات. لم تتغير بياناتك.',completeTask:'إكمال',rescheduleTask:'تأجيل',saveTask:'حفظ الموعد',dueAt:'موعد المتابعة',stage:'المرحلة',assignedTo:'المسؤول',learner:'المتعلم',openLead:'فتح الفرصة',taskTotal:'المتابعات المفتوحة',taskOverdue:'متأخرة',taskUpcoming:'قادمة',previousPage:'السابق',nextPage:'التالي',taskCompleted:'تم إكمال المتابعة.',taskRescheduled:'تم تأجيل المتابعة.',dateRequired:'اختر تاريخ ووقت المتابعة التاليين.'
     }
   };
   const t = key => (arabic()?copy.ar:copy.en)[key] || key;
@@ -43,21 +45,23 @@
   };
   const formatWindowDate = (value,end=false) => value ? new Intl.DateTimeFormat(arabic()?'ar-QA':'en-QA',{dateStyle:'medium',timeZone:'Asia/Qatar'}).format(new Date(Date.parse(value.replace(' ','T')+'Z')-(end?1:0))) : '—';
   const token = () => localStorage.getItem('wacrm_user') || localStorage.getItem('wacrm_agent');
-  const state = {page:1,report:null,sequence:0,period:'daily',at:qatarToday()};
-  const host = $('#reports'), toolbar = $('.toolbar');
+  const state = {page:1,report:null,sequence:0,period:'daily',at:qatarToday(),taskPage:1,taskPeriod:'all',taskSequence:0,tasks:null};
+  const host = $('#reports'), taskHost = $('#followups'), toolbar = $('.toolbar');
   if (!host || !$('#reportsMode')) return;
 
   function setView(view) {
-    const reports = view === 'reports';
-    $('#summary').classList.toggle('hidden',reports);
+    const reports = view === 'reports', followups = view === 'followups', summary = !reports && !followups;
+    $('#summary').classList.toggle('hidden',!summary);
     $('#board').classList.toggle('hidden',reports || view !== 'board');
     $('#list').classList.toggle('hidden',reports || view !== 'list');
     host.classList.toggle('hidden',!reports);
-    toolbar.classList.toggle('report-mode',reports);
-    for (const [id,active] of [['boardMode',view==='board'],['listMode',view==='list'],['reportsMode',reports]]) {
+    taskHost.classList.toggle('hidden',!followups);
+    toolbar.classList.toggle('report-mode',reports || followups);
+    for (const [id,active] of [['boardMode',view==='board'],['listMode',view==='list'],['reportsMode',reports],['followupsMode',followups]]) {
       const button=$('#'+id);button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
     }
     if(reports && !state.report) load();
+    if(followups) loadFollowUps();
   }
   function shell(content) {
     const scope=agentSession()?t('agentScope'):t('ownerScope');
@@ -136,5 +140,20 @@
   $('#boardMode').addEventListener('click',()=>setView('board'));
   $('#listMode').addEventListener('click',()=>setView('list'));
   $('#refresh').addEventListener('click',()=>{if(!host.classList.contains('hidden'))load();});
-  window.salemaxPipelineReports={load,setView};
+  const followupButton=$('#followupsMode');
+  followupButton.textContent=arabic()?'المتابعات':'Follow-ups';
+  followupButton.setAttribute('aria-label',followupButton.textContent);
+  followupButton.onclick=()=>setView('followups');
+  window.salemaxPipelineReports={load,setView,loadFollowUps};
+
+  function fmtTaskDate(value){return value?new Intl.DateTimeFormat(arabic()?'ar-QA':'en-QA',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Qatar'}).format(new Date(Date.parse(String(value).replace(' ','T')+'Z'))):'—';}
+  function taskInputDate(value){if(!value)return '';const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Qatar',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(Date.parse(String(value).replace(' ','T')+'Z')));const o=Object.fromEntries(parts.map(x=>[x.type,x.value]));return `${o.year}-${o.month}-${o.day}T${o.hour}:${o.minute}`;}
+  function taskShell(content){const d=state.tasks?.summary||{total:0,overdue:0,upcoming:0};const scope=agentSession()?t('agentScope'):t('ownerScope');return `<div class="report-head"><div><h2>${t('tasksTitle')}</h2><p>${t('tasksSubtitle')}</p><span class="report-scope">${scope}</span></div></div><div class="report-kpis"><div class="report-kpi"><small>${t('taskTotal')}</small><b>${d.total}</b></div><div class="report-kpi"><small>${t('taskOverdue')}</small><b>${d.overdue}</b></div><div class="report-kpi"><small>${t('taskUpcoming')}</small><b>${d.upcoming}</b></div></div><form class="report-filters" id="taskFilters"><label>${t('period')}<select name="period"><option value="all">${t('allTasks')}</option><option value="overdue">${t('overdueTasks')}</option><option value="upcoming">${t('upcomingTasks')}</option></select></label><button class="primary" type="submit">${t('apply')}</button></form>${content}`;}
+  function taskError(){taskHost.innerHTML=taskShell(`<div class="report-state" role="alert">${t('tasksFailed')}<p><button class="report-retry" id="taskRetry" type="button">${t('retry')}</button></p></div>`);$('#taskFilters').elements.period.value=state.taskPeriod;$('#taskFilters').onsubmit=taskFilter;$('#taskRetry').onclick=loadFollowUps;}
+  async function loadFollowUps(){const request=++state.taskSequence;taskHost.innerHTML=taskShell(`<div class="report-state" role="status">${t('tasksLoading')}</div>`);try{const query=new URLSearchParams({period:state.taskPeriod,page:String(state.taskPage),limit:'20'});const response=await fetch(`/api/pipeline/follow-ups?${query}`,{headers:{Authorization:`Bearer ${token()}`}});const body=await response.json().catch(()=>({}));if(request!==state.taskSequence)return;if(!response.ok||!body.success)throw new Error('follow-ups');state.tasks=body.data;renderTasks();}catch(_){if(request===state.taskSequence)taskError();}}
+  function taskFilter(event){event.preventDefault();state.taskPeriod=event.currentTarget.elements.period.value;state.taskPage=1;loadFollowUps();}
+  function renderTasks(){const data=state.tasks, rows=data.items||[];const content=rows.length?`<div class="followup-list">${rows.map(item=>`<article class="followup-card"><div class="followup-main"><div><h3>${escape(item.learner_name||item.contact_name||item.title)}</h3><p>${escape(item.title)}${item.mobile?` · ${escape(item.mobile)}`:''}</p></div><span class="badge ${Number(item.overdue)?'followup-overdue':''}">${Number(item.overdue)?t('overdueTasks'):t('upcomingTasks')}</span></div><div class="followup-meta"><span><b>${t('dueAt')}:</b> ${escape(fmtTaskDate(item.next_follow_up_at))}</span><span><b>${t('stage')}:</b> ${escape(item.stage_title||item.stage_key)}</span><span><b>${t('assignedTo')}:</b> ${escape(item.owner_name||'—')}</span></div><div class="followup-actions"><button class="report-retry" type="button" data-open-lead="${escape(item.lead_id)}">${t('openLead')}</button><button class="report-retry" type="button" data-complete="${escape(item.lead_id)}" data-due="${escape(item.due_revision)}">${t('completeTask')}</button><details><summary>${t('rescheduleTask')}</summary><form class="followup-reschedule" data-reschedule="${escape(item.lead_id)}" data-due="${escape(item.due_revision)}"><input type="datetime-local" name="at" value="${escape(taskInputDate(item.next_follow_up_at))}" required><button class="report-retry" type="submit">${t('saveTask')}</button></form></details></div></article>`).join('')}</div><div class="report-pagination"><button id="taskPrevious" type="button" ${data.page<=1?'disabled':''}>${t('previousPage')}</button><span>${t('page')} ${data.page} ${t('of')} ${Math.max(1,data.pages)}</span><button id="taskNext" type="button" ${data.page>=data.pages?'disabled':''}>${t('nextPage')}</button></div>`:`<div class="report-state">${t('tasksEmpty')}</div>`;taskHost.innerHTML=taskShell(content);$('#taskFilters').elements.period.value=state.taskPeriod;$('#taskFilters').onsubmit=taskFilter;$('#taskPrevious')?.addEventListener('click',()=>{state.taskPage=Math.max(1,state.taskPage-1);loadFollowUps();});$('#taskNext')?.addEventListener('click',()=>{state.taskPage+=1;loadFollowUps();});taskHost.querySelectorAll('[data-open-lead]').forEach(button=>button.addEventListener('click',()=>{setView('board');window.salemaxPipelineOpenLead?.(button.dataset.openLead);}));taskHost.querySelectorAll('[data-complete]').forEach(button=>button.addEventListener('click',()=>resolveTask(button.dataset.complete,'complete',undefined,button.dataset.due)));taskHost.querySelectorAll('[data-reschedule]').forEach(form=>form.addEventListener('submit',event=>{event.preventDefault();resolveTask(form.dataset.reschedule,'reschedule',form.elements.at.value,form.dataset.due);}));}
+  async function resolveTask(id,action,value,expectedDueAt){try{const nextFollowUpAt=value?new Date(`${value}:00+03:00`).toISOString():undefined;const payload={expectedDueAt,...(nextFollowUpAt?{nextFollowUpAt}:{})};const response=await fetch(`/api/pipeline/leads/${encodeURIComponent(id)}/follow-up/${action}`,{method:'POST',headers:{Authorization:`Bearer ${token()}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});const body=await response.json().catch(()=>({}));if(!response.ok||!body.success)throw new Error(body.message||'Could not update follow-up.');window.salemaxPipelineToast?.(action==='complete'?t('taskCompleted'):t('taskRescheduled'));await loadFollowUps();}catch(error){window.salemaxPipelineToast?.(error.message||'Could not update follow-up.');}}
+  $('#boardMode').addEventListener('click',()=>setView('board'));
+  $('#listMode').addEventListener('click',()=>setView('list'));
 })();

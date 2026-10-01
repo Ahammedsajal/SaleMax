@@ -879,6 +879,68 @@ async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
   },sourcePool);
 }
 
+async function getFollowUps({ uid, role, agentId, period = "all", page = 1, limit = 20, pool: sourcePool }) {
+  if (!['owner', 'agent'].includes(role)) { const error = new Error("You do not have access to pipeline follow-ups."); error.status = 403; throw error; }
+  const pageNumber = Number(page), pageSize = Number(limit);
+  if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > 10000 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+    const error = new Error("Choose a valid follow-up page and page size."); error.status = 400; throw error;
+  }
+  if (!['all', 'overdue', 'upcoming'].includes(period)) { const error = new Error("Choose all, overdue, or upcoming follow-ups."); error.status = 400; throw error; }
+  const uidHash = sha(uid), conditions = ["l.uid_hash = ?", "l.status = 'open'", "l.next_follow_up_at IS NOT NULL"], values = [uidHash];
+  if (role === 'agent') { conditions.push("l.owner_agent_id = ?"); values.push(agentId); }
+  if (period === 'overdue') conditions.push("l.next_follow_up_at < UTC_TIMESTAMP(3)");
+  if (period === 'upcoming') conditions.push("l.next_follow_up_at >= UTC_TIMESTAMP(3)");
+  const where = conditions.join(' AND '), pool = getPromisePool(sourcePool);
+  const [[count]] = await pool.query(`SELECT COUNT(*) AS total FROM pipeline_leads l WHERE ${where}`, values);
+  const summaryConditions = ["l.uid_hash = ?", "l.status = 'open'", "l.next_follow_up_at IS NOT NULL"];
+  const summaryValues = [uidHash];
+  if (role === 'agent') { summaryConditions.push("l.owner_agent_id = ?"); summaryValues.push(agentId); }
+  const [[summary]] = await pool.query(
+    `SELECT COUNT(*) AS total,
+       SUM(l.next_follow_up_at < UTC_TIMESTAMP(3)) AS overdue,
+       SUM(l.next_follow_up_at >= UTC_TIMESTAMP(3)) AS upcoming
+     FROM pipeline_leads l WHERE ${summaryConditions.join(' AND ')}`, summaryValues,
+  );
+  const [items] = await pool.query(
+    `SELECT l.id AS lead_id, l.title, l.contact_name, l.learner_name, l.mobile,
+       l.stage_key, l.next_follow_up_at,
+       DATE_FORMAT(l.next_follow_up_at, '%Y-%m-%d %H:%i:%s.%f') AS due_revision,
+       l.owner_agent_id, a.name AS owner_name,
+       s.title AS stage_title, (l.next_follow_up_at < UTC_TIMESTAMP(3)) AS overdue
+     FROM pipeline_leads l
+     LEFT JOIN agents a ON a.id = l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci = l.uid COLLATE utf8mb4_general_ci
+     LEFT JOIN pipeline_stages s ON s.uid_hash = l.uid_hash AND s.stage_key = l.stage_key
+     WHERE ${where} ORDER BY l.next_follow_up_at ASC, l.id ASC LIMIT ? OFFSET ?`,
+    [...values, pageSize, (pageNumber - 1) * pageSize],
+  );
+  return { items, page: pageNumber, limit: pageSize, total: Number(count.total), pages: Math.ceil(Number(count.total) / pageSize),
+    summary: { total: Number(summary.total || 0), overdue: Number(summary.overdue || 0), upcoming: Number(summary.upcoming || 0) }, period, role };
+}
+
+async function resolveFollowUp({ uid, id, action, at, expectedDueAt, actorType, actorId, role, agentId, pool: sourcePool }) {
+  if (!['complete', 'reschedule'].includes(action)) { const error = new Error("Choose complete or reschedule."); error.status = 400; throw error; }
+  if (typeof expectedDueAt !== 'string' || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$/.test(expectedDueAt)) {
+    const error = new Error("Refresh this follow-up and try again."); error.status = 400; throw error;
+  }
+  const nextAt = action === 'reschedule' ? inputDbDate(at) : null;
+  if (action === 'reschedule' && !nextAt) { const error = new Error("Choose the next follow-up date and time."); error.status = 400; throw error; }
+  return inTransaction(async (connection) => {
+    const { uidHash } = await ensureWorkspace(connection, uid);
+    const [rows] = await connection.query(
+      `SELECT l.*, DATE_FORMAT(l.next_follow_up_at, '%Y-%m-%d %H:%i:%s.%f') AS due_revision
+       FROM pipeline_leads l WHERE l.uid_hash = ? AND l.id = ? LIMIT 1 FOR UPDATE`, [uidHash, id],
+    );
+    if (!rows.length) { const error = new Error("Lead not found."); error.status = 404; throw error; }
+    const lead = rows[0]; assertAssignedAgent(role, agentId, lead);
+    if (lead.status !== 'open' || !lead.next_follow_up_at) { const error = new Error("This follow-up is already completed or no longer active."); error.status = 409; throw error; }
+    if (lead.due_revision !== expectedDueAt) { const error = new Error("This follow-up changed after you opened it. Refresh before updating."); error.status = 409; throw error; }
+    const now = dbDate(new Date());
+    await connection.query("UPDATE pipeline_leads SET next_follow_up_at = ?, last_activity_at = ? WHERE uid_hash = ? AND id = ?", [nextAt, now, uidHash, id]);
+    await addActivity(connection, uidHash, id, action === 'complete' ? 'follow_up_completed' : 'follow_up_rescheduled', action === 'complete' ? 'Follow-up completed' : 'Follow-up rescheduled', { previousDueAt: lead.next_follow_up_at, nextDueAt: nextAt }, actorType, actorId);
+    return { leadId: id, action, nextFollowUpAt: nextAt };
+  }, sourcePool);
+}
+
 function assertAssignedAgent(role,agentId,lead){
   if(role==='agent'&&!require('./access').canAgentAccessLead(agentId,lead.owner_agent_id)){
     const error=new Error('This lead is not assigned to this agent.');error.status=403;throw error;
@@ -1025,6 +1087,8 @@ module.exports = {
   deleteStage,
   createManualLead,
   getLead,
+  getFollowUps,
+  resolveFollowUp,
   moveLead,
   updateLead,
 };

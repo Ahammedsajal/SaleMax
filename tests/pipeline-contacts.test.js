@@ -37,3 +37,17 @@ test('existing pipeline add-opportunity screen offers contact reuse and separate
   assert.match(screen, /إنشاء جهة اتصال \/ متعلم مستقل/);
   assert.match(html, /pipeline\.js\?v=11/);
 });
+
+test('follow-up query and action inputs fail closed before touching the database', async () => {
+  const pool = { query: async () => { throw new Error('unexpected database access'); } };
+  await assert.rejects(contacts.getFollowUps({ uid: 'workspace', role: 'accountant', pool }), { status: 403 });
+  await assert.rejects(contacts.getFollowUps({ uid: 'workspace', role: 'owner', period: 'all-ish', pool }), { status: 400 });
+  await assert.rejects(contacts.getFollowUps({ uid: 'workspace', role: 'owner', page: 0, pool }), { status: 400 });
+  await assert.rejects(contacts.getFollowUps({ uid: 'workspace', role: 'owner', limit: 101, pool }), { status: 400 });
+  await assert.rejects(contacts.resolveFollowUp({ uid: 'workspace', id: 'lead', action: 'delete', pool }), { status: 400 });
+  await assert.rejects(contacts.resolveFollowUp({ uid: 'workspace', id: 'lead', action: 'reschedule', at: 'not-a-date', pool }), { status: 400 });
+  const reports = fs.readFileSync(path.join(__dirname, '../client/public/pipeline/reports.js'), 'utf8');
+  assert.match(reports, /\/api\/pipeline\/follow-ups\?/);
+  assert.match(reports, /expectedDueAt/);
+  assert.match(reports, /متابعات/);
+});
