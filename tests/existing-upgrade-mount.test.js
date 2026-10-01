@@ -24,6 +24,9 @@ test('existing plan, contract and staff routes fail closed while the upgrade is 
     '/api/admin/platform-auth/me',
     '/api/admin/plan-contracts/context',
     '/api/admin/business-contracts/1/context',
+    '/api/admin/business-contracts/1/provision-options',
+    '/api/admin/business-contracts/1/provision-preview',
+    '/api/admin/business-contracts/1/provision',
     '/api/admin/platform-access/staff',
     '/api/admin/staff-invitations/accept',
   ]) {

@@ -499,7 +499,7 @@ Each ticket requires an implementation summary, migrations, meaningful tests, sc
 | TC03 | BE M | TC02 | Shared login/memberships, owner-only Super Admin and MFA; tenant invite cannot create platform owner |
 | TC04 | BE and FE L | TC03 | Staff delegation and tenant console; staff can onboard/manage approved scope, denied elevation is audited |
 | TC05 | BE M | TC02 | Versioned category/capability engine; dummy category has different menu and rejects training operations |
-| TC06 | BE and FE L | TC04 TC05 | Upgrade existing Manage Plans and Manage Users assignment with categories, features, role limits, versions and impact preview; preserve existing IDs, commercial fields and assigned contracts |
+| TC06 | BE and FE L | TC04 TC05 | Upgrade existing Manage Plans and Manage Users assignment with categories, features, role limits, versions and impact preview; preserve existing IDs, commercial fields and assigned contracts. Existing-account training-center provisioning is now one locally verified increment; complete browser acceptance, remaining adoption and assignment scenarios |
 | TC07 | BE and FE M | TC03 TC06 | Team invites and per-role limits; concurrent eighth agent fails under seven-seat entitlement |
 | TC08 | BE and FE M | TC01 TC05 | Existing feature wrappers and provider state labels; all requested legacy entries remain usable by permitted roles |
 | TC09 | BE and FE L | TC05 TC40 | Course/offer/batch CRUD with history and capacity; price edits cannot change issued invoice snapshots |
@@ -790,6 +790,12 @@ The slice includes the additive `20261002_platform_staff_invites.sql` migration,
 | Full training-center launch | Not release-ready | Finance, courses, portal, scheduled notifications, wider role journeys, migration/adoption, provider evidence, load/restore, staging and owner production approval remain outstanding. |
 
 This progress note records one implementation increment only. It does not mark TC03/TC04 complete, close TC00/TC35/TC40, or authorize production deployment.
+
+## 28 Implementation progress — existing-user business provisioning
+
+The existing Manage Users contract action now includes an in-place onboarding path for an eligible unlinked legacy account. An administrator with the required canonical MFA identity, reviewed legacy link and staff grants can review the account's existing assigned catalogue plan, select training-center owner/accountant/manager/agent limits, inspect a read-only preview and explicitly confirm. The existing account remains the sign-in; a new tenant and owner mapping are created without copying its legacy password. The operation atomically applies the published training-center contract to both canonical and legacy plan state and records history, audit and an idempotency receipt. Qatar defaults are QA, QAR and Asia/Qatar.
+
+Verification is limited to 50 passing automated tests and the 13-migration disposable MariaDB integration, which checks atomic assignment, Qatar defaults, stale preview denial, idempotency, ownership mapping, audit, no password claim and unauthorized denial. The authenticated browser journey is still pending. This is a local implementation increment, not staging/production verification or deployment approval. Finance, courses, public forms, scheduled delivery, accountant/manager login lifecycle, broader category rollout, data backfill, remaining TC00–TC41 acceptance and release gates remain open.
 
 ## 27 Implementation progress — agent invitation API slice
 

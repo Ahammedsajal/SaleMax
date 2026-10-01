@@ -165,4 +165,16 @@ These routes extend the existing authenticated business and agent APIs and are c
 
 Invitation tokens are generated from 256 bits of randomness and only SHA-256 digests are stored. Links expire after seven days; passwords require at least 12 Unicode code points and are capped at 72 UTF-8 bytes for bcrypt compatibility. Responses use bounded error codes including `INVITE_INVALID`, `SEAT_LIMIT_EXCEEDED`, `TEAM_FEATURE_UNAVAILABLE`, and `ROLE_ONBOARDING_UNAVAILABLE`. Email/WhatsApp dispatch is not implemented. Accountant and manager onboarding remains disabled until every existing business API enforces those roles. These APIs are not production-ready evidence by themselves.
 
+### Existing Manage Users business provisioning
+
+The existing `/api/admin/business-contracts` router now supports onboarding an existing legacy account into the first supported category, training center. The routes require the existing administrator bearer token, canonical platform session, MFA, reviewed administrator identity link and current `tenants.create`, `plans.read` and `plans.assign` grants. Mutations additionally require the configured exact Origin and `X-CSRF-Token`. The platform feature flag remains off by default.
+
+| Method / suffix | Permission | Input / result |
+| --- | --- | --- |
+| GET `/:userId/provision-options` | `tenants.create`, `plans.read`, `plans.assign` | Safe projection of the existing user and the published training-center contract mapped to that user's current legacy catalogue plan. Read-only. |
+| POST `/:userId/provision-preview` | Same | `{businessName, planVersionId, roleLimits, requestId}`. Returns current user, Qatar category, frozen QAR terms, capabilities, proposed limits, blockers, `canProvision`, `readOnly:true` and a 64-character `expectedState`. |
+| POST `/:userId/provision` | Same | Confirmation repeats preview fields and adds `expectedState`. One InnoDB transaction creates the Qatar tenant, owner identity/membership, reviewed legacy ownership link, canonical and legacy plan assignment, histories, audit and idempotency record. Matching retries return the original result. |
+
+The account must be unique, have a valid email and an assigned legacy plan with a published training-center contract. Owner limit is exactly one; other limits cannot exceed the published ceiling. Confirmation rechecks the account and contract while locked. Tenant defaults are `QA`, `QAR` and `Asia/Qatar`. The canonical owner identity has a null password hash; no legacy password is copied, and business users continue through `/user/login`. Provisioning creates no additional logins, staff invitations, course, invoice, payment or provider messages. Bounded conflicts include `BUSINESS_ALREADY_PROVISIONED`, `BUSINESS_IDENTITY_EXISTS`, `CONTRACT_NOT_FOR_CURRENT_PLAN`, `STALE_PROVISION` and `PLAN_LIMIT_EXCEEDED`. Migration `20261004_business_provisioning.sql` is required. Imported and production databases are not migrated by this implementation increment.
+
 \n

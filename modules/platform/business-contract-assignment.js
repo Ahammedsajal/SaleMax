@@ -75,8 +75,11 @@ async function preview(db,ctx,body){
   });
 }
 async function assign(db,ctx,body){
-  const data=input(ctx,body,true),payloadHash=hash(JSON.stringify({userId:data.userId,planVersionId:data.planVersionId,roleLimits:data.roleLimits,expectedState:data.expectedState}));
-  return transaction(db,async()=>{
+  input(ctx,body,true);
+  return transaction(db,()=>assignInTransaction(db,ctx,body));
+}
+async function assignInTransaction(db,ctx,body){
+    const data=input(ctx,body,true),payloadHash=hash(JSON.stringify({userId:data.userId,planVersionId:data.planVersionId,roleLimits:data.roleLimits,expectedState:data.expectedState}));
     const user=await userRow(db,data.userId,true);
     const [[prior]]=await db.query('SELECT r.*,a.plan_version_id,a.role_limits,a.status,h.assigned_expiry FROM sx_legacy_contract_assignments r JOIN sx_plan_assignments a ON a.id=r.assignment_id JOIN sx_legacy_plan_assignments h ON h.id=r.legacy_assignment_id WHERE r.request_id=? FOR UPDATE',[data.requestId]);
     if(prior){
@@ -98,6 +101,9 @@ async function assign(db,ctx,body){
     await db.query('INSERT INTO sx_legacy_contract_assignments(request_id,legacy_user_id,tenant_id,actor_identity_id,payload_hash,assignment_id,legacy_assignment_id) VALUES (?,?,?,?,?,?,?)',[data.requestId,user.id,loaded.tenant.id,ctx.identity.id,payloadHash,id,historyId]);
     await plans.audit(db,ctx,'legacy-business.contract-assigned',id,{userId:user.id,planVersionId:data.planVersionId,legacyPlanId:loaded.version.legacy_plan_id,roleLimits:data.roleLimits,status,durationDays:loaded.days,legacyAssignmentId:historyId},loaded.tenant.id);
     return {id,legacyAssignmentId:historyId,tenantId:loaded.tenant.id,planVersionId:data.planVersionId,roleLimits:data.roleLimits,status,expiresAt:Number(clock.epoch),replayed:false};
-  });
 }
-module.exports={input,preview,assign};
+async function inspect(db,ctx,body,{locked=false}={}){
+  const data=input(ctx,body,false),user=await userRow(db,data.userId,locked);
+  return {data,...await load(db,user,data,locked)};
+}
+module.exports={input,preview,assign,assignInTransaction,inspect,transaction,userRow,load};

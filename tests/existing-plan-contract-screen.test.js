@@ -35,4 +35,10 @@ test('legacy Manage Users assignment denial offers the reviewed contract flow', 
   assert.match(userPlans, /Open training-center contract/);
   assert.match(userPlans, /فتح عقد مركز التدريب/);
   assert.match(userPlans, /openBusiness\(userId,active/);
+  assert.match(userPlans, /Set up training-center account/);
+  assert.match(userPlans, /مركز التدريب/);
+  assert.match(userPlans, /provision-options/);
+  assert.match(userPlans, /provision-preview/);
+  assert.match(userPlans, /Create business and assign plan/);
+  assert.match(userPlans, /إنشاء النشاط وتعيين الخطة/);
 });
