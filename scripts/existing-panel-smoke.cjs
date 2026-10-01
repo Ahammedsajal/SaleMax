@@ -22,6 +22,10 @@ async function main() {
     const [[after]]=await db.query('SELECT COUNT(*) n FROM plan');assert.equal(after.n,before.n);
     const login=await request('/api/admin/login',{email:access.email,password:access.password});assert.equal(login.data.success,true);
     const token=login.data.token;
+    const candidateId=Number(access.provisioningUserId);assert.ok(Number.isSafeInteger(candidateId)&&candidateId>0);
+    assert.equal((await request(`/api/admin/business-contracts/${candidateId}/provision-options`)).data.logout,true);
+    assert.equal((await request(`/api/admin/business-contracts/${candidateId}/provision-options`,undefined,'invalid')).data.logout,true);
+    const platformGate=await request(`/api/admin/business-contracts/${candidateId}/provision-options`,undefined,token);assert.equal(platformGate.status,401);assert.equal(platformGate.data.code,'AUTH_REQUIRED');
     assert.equal((await request('/api/admin/add_plan',body,token)).data.success,true);
     const [[created]]=await db.query('SELECT * FROM plan WHERE title=?',[body.title]);assert.equal(created.allow_tag,0);assert.equal(created.allow_note,1);
     const invalid=await request('/api/admin/edit_plan',{...body,id:created.id,qr_account:'2.5'},token);assert.equal(invalid.data.code,'INVALID_PLAN');assert.ok(invalid.data.errors.qr_account);
@@ -34,17 +38,12 @@ async function main() {
     assert.equal((await request('/api/admin/user_plan_context?userId='+account.id)).data.logout,true);
     const context=(await request('/api/admin/user_plan_context?userId='+account.id,undefined,token)).data.data;
     const [[historyBefore]]=await db.query('SELECT COUNT(*) n FROM sx_legacy_plan_assignments');
-    const preview=(await request('/api/admin/preview_user_plan',{uid:account.uid,plan:{id:created.id},expectedState:context.state},token)).data.data;assert.equal(preview.readOnly,true);
+    const legacyPreview=await request('/api/admin/preview_user_plan',{uid:account.uid,plan:{id:created.id},expectedState:context.state},token);assert.equal(legacyPreview.data.code,'CANONICAL_ASSIGNMENT_REQUIRED',JSON.stringify({status:legacyPreview.status,body:legacyPreview.data}));
+    const legacyConfirm=await request('/api/admin/update_plan',{uid:account.uid,plan:{id:created.id},requestId:crypto.randomUUID()},token);assert.equal(legacyConfirm.data.code,'CANONICAL_ASSIGNMENT_REQUIRED');
     const [[historyAfter]]=await db.query('SELECT COUNT(*) n FROM sx_legacy_plan_assignments');assert.equal(historyAfter.n,historyBefore.n);
-    const assignment={uid:account.uid,plan:{id:created.id},expectedState:preview.state,expectedPlanState:preview.planState,requestId:crypto.randomUUID()};
-    assert.equal((await request('/api/admin/update_plan',assignment)).data.logout,true);
-    assert.equal((await request('/api/admin/update_plan',{...assignment,expectedPlanState:'0'.repeat(64)},token)).data.code,'STALE_PLAN');
-    const assigned=(await request('/api/admin/update_plan',assignment,token)).data;assert.equal(assigned.success,true);
-    const replay=(await request('/api/admin/update_plan',assignment,token)).data;assert.equal(replay.replayed,true);assert.equal(replay.assignmentId,assigned.assignmentId);
-    const savedContext=(await request('/api/admin/user_plan_context?userId='+account.id,undefined,token)).data.data;assert.ok(savedContext.history.some(row=>row.id===assigned.assignmentId));
     const denied=await request('/api/admin/update-admin',{email:'disallowed@example.invalid'},token);assert.equal(denied.status,403);
     const html=await (await fetch(origin+'/admin?page=manage-plans')).text();assert.ok(html.includes('/static/js/main.73648acf.js'));assert.ok(html.includes('/admin-plan-editor.js'));
-    console.log(JSON.stringify({originalCompiledShell:true,actualLegacyRouters:true,unauthenticatedWritesDenied:true,invalidTokenWritesDenied:true,authenticatedCreateEdit:true,fieldErrorsPreserveRow:true,trialZeroPrice:true,userListSecretsExcluded:true,actualAssignmentContextPreviewConfirm:true,actualAssignmentReplay:true,syntheticLabScopeEnforced:true,customerDataTouched:false,providerActions:false}));
+    console.log(JSON.stringify({originalCompiledShell:true,actualLegacyRouters:true,unauthenticatedWritesDenied:true,invalidTokenWritesDenied:true,provisionOptionsRequireLegacyAndPlatformSessions:true,authenticatedCreateEdit:true,fieldErrorsPreserveRow:true,trialZeroPrice:true,userListSecretsExcluded:true,actualAssignmentContextRead:true,mappedBusinessLegacyWritersDenied:true,legacyAssignmentHistoryUnchanged:true,syntheticLabScopeEnforced:true,customerDataTouched:false,providerActions:false}));
   } finally {await db.end();}
 }
-main().catch(error=>{console.error(error.code||'EXISTING_PANEL_SMOKE_FAILED');process.exitCode=1;});
+main().catch(error=>{console.error(process.env.SALEMAX_TEST_VERBOSE==='true'?error.stack||error.message:error.code||'EXISTING_PANEL_SMOKE_FAILED');process.exitCode=1;});

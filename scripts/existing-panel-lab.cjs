@@ -54,10 +54,11 @@ async function main() {
     const bridge=require('../modules/platform/catalogue-bridge'),platform={audience:'platform',identity:{id:identityId},membership:{role:'super_admin',status:'active'},mfaVerified:true,recentlyAuthenticated:true};
     const draft=await bridge.createDraft(db,platform,{legacyPlanId:legacyPlan.id,requestId:crypto.randomUUID(),categoryKey:'training_center',categoryVersion:1,capabilities:['messaging.inbox','team.members','training.courses'],roleLimits:{owner:1,accountant:1,manager:1,agent:7}});
     await bridge.publish(db,platform,{legacyPlanId:legacyPlan.id,versionId:draft.id,revision:draft.revision});
+    const [unlinkedUser]=await db.query("INSERT INTO user(role,uid,name,email,timezone,plan,plan_expire) VALUES ('user',?,?,?,?,?,?)",['synthetic-unlinked-'+crypto.randomUUID(),'Synthetic Provisioning Candidate','provisioning-candidate@example.invalid','Asia/Qatar',snapshot,expires]);
     await db.query("INSERT INTO web_public(app_name,logo,currency_code,currency_symbol,rtl,login_header_footer,google_login_active,fb_login_active,is_custom_home) VALUES ('SaleMaX · Synthetic test','salemax-logo.png','QAR','QAR',0,0,0,0,0)");
     await db.query('INSERT INTO web_private(id) VALUES (1)');
     fs.mkdirSync(runtime,{recursive:true});
-    fs.writeFileSync(path.join(runtime,'access.json'),JSON.stringify({syntheticData:true,url:`http://127.0.0.1:${labPort}/admin/login`,email:'panel@example.invalid',password,database:name},null,2));
+    fs.writeFileSync(path.join(runtime,'access.json'),JSON.stringify({syntheticData:true,url:`http://127.0.0.1:${labPort}/admin/login`,email:'panel@example.invalid',password,database:name,provisioningUserId:unlinkedUser.insertId},null,2));
     // Use a minimal environment so production/local imported secrets cannot
     // flow into any imported legacy module. Only synthetic credentials exist.
     const env={SystemRoot:process.env.SystemRoot,PATH:process.env.PATH,TEMP:process.env.TEMP,TMP:process.env.TMP,
@@ -65,7 +66,7 @@ async function main() {
       JWTKEY:crypto.randomBytes(32).toString('hex'),HOST:'127.0.0.1',PORT:String(labPort),SALEMAX_TEST_PANEL_PORT:String(labPort),SALEMAX_PLATFORM_ENABLED:'true',SALEMAX_PLATFORM_ORIGIN:`http://127.0.0.1:${labPort}`,SALEMAX_PLATFORM_KEY_BASE64:crypto.randomBytes(32).toString('base64')};
     child=spawn(process.execPath,[__filename,'--serve'],{cwd:root,env,stdio:['ignore','pipe','pipe'],windowsHide:true});
     child.stdout.on('data',data=>process.stdout.write(data));child.stderr.on('data',data=>process.stderr.write(data));
-    child.once('exit',()=>{if(!stopping)stop().then(()=>{process.exitCode=1;});});
+    child.once('exit',code=>{if(!stopping)stop().then(()=>{if(code!==0)process.exitCode=1;});});
     process.once('SIGINT',()=>stop().then(()=>process.exit(0)));process.once('SIGTERM',()=>stop().then(()=>process.exit(0)));
   } catch(error) {await stop();throw error;}
 }
@@ -79,8 +80,8 @@ function serve() {
     const apiPath='/api'+req.path;
     const contractRoute=/^\/api\/admin\/plan-contracts\/[1-9][0-9]*\/(versions|drafts|publish)$/.test(apiPath);
     const draftUpdateRoute=req.method==='PUT'&&/^\/api\/admin\/plan-contracts\/[1-9][0-9]*\/drafts\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(apiPath);
-    const businessRoute=/^\/api\/admin\/business-contracts\/[1-9][0-9]*\/(context|preview|assign)$/.test(apiPath);
-    const protectedAction=(req.method==='GET' && (apiPath==='/api/admin/plan-contracts/context'||apiPath==='/api/admin/platform-auth/me'||(contractRoute&&apiPath.endsWith('/versions'))||(businessRoute&&apiPath.endsWith('/context')))) || (req.method==='POST' && (['/api/admin/platform-auth/login','/api/admin/platform-auth/logout','/api/admin/platform-auth/mfa/enroll','/api/admin/platform-auth/mfa/verify'].includes(apiPath)||(contractRoute&&!apiPath.endsWith('/versions'))||(businessRoute&&!apiPath.endsWith('/context')))) || draftUpdateRoute;
+    const businessRoute=/^\/api\/admin\/business-contracts\/[1-9][0-9]*\/(context|preview|assign|provision-options|provision-preview|provision)$/.test(apiPath);
+    const protectedAction=(req.method==='GET' && (apiPath==='/api/admin/plan-contracts/context'||apiPath==='/api/admin/platform-auth/me'||(contractRoute&&apiPath.endsWith('/versions'))||(businessRoute&&(apiPath.endsWith('/context')||apiPath.endsWith('/provision-options'))))) || (req.method==='POST' && (['/api/admin/platform-auth/login','/api/admin/platform-auth/logout','/api/admin/platform-auth/mfa/enroll','/api/admin/platform-auth/mfa/verify'].includes(apiPath)||(contractRoute&&!apiPath.endsWith('/versions'))||(businessRoute&&!apiPath.endsWith('/context')&&!apiPath.endsWith('/provision-options')))) || draftUpdateRoute;
     if(!allowed.has(key)&&!protectedAction) {console.log('Synthetic panel denied: '+key);return res.status(403).json({success:false,msg:'This action is outside the synthetic plan test.',syntheticData:true});}
     next();
   });
@@ -90,8 +91,9 @@ function serve() {
   app.use('/api/web',require('../routes/web'));
   app.use('/api/theme',require('../routes/theme'));
   app.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
+  app.post('/__test/shutdown',(req,res)=>{res.json({stopping:true,syntheticData:true});const server=req.app.locals.syntheticServer;server.close(()=>process.exit(0));});
   app.use(express.static(path.join(root,'client/public')));
   app.get('*',(req,res)=>res.sendFile(path.join(root,'client/public/index.html')));
-  app.listen(labPort,'127.0.0.1',()=>console.log(JSON.stringify({url:`http://127.0.0.1:${labPort}/admin/login`,originalShell:true,actualLegacyRouters:true,syntheticData:true,providerActions:false,accessFile:path.relative(root,path.join(runtime,'access.json'))})));
+  app.locals.syntheticServer=app.listen(labPort,'127.0.0.1',()=>console.log(JSON.stringify({url:`http://127.0.0.1:${labPort}/admin/login`,originalShell:true,actualLegacyRouters:true,syntheticData:true,providerActions:false,accessFile:path.relative(root,path.join(runtime,'access.json'))})));
 }
 if(process.argv.includes('--serve'))serve();else main().catch(error=>{console.error(error.code||'PANEL_LAB_FAILED');process.exitCode=1;});

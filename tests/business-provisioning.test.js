@@ -19,7 +19,9 @@ test('onboarding controls extend the original Manage Users contract screen',()=>
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-user-plans.js'),'utf8');
   const router=fs.readFileSync(path.join(__dirname,'../modules/platform/existing-business-router.js'),'utf8');
   const manual=fs.readFileSync(path.join(__dirname,'../docs/USER_MANUAL.md'),'utf8');
+  const lab=fs.readFileSync(path.join(__dirname,'../scripts/existing-panel-lab.cjs'),'utf8');
   assert.match(router,/provision-options/);assert.match(router,/provision-preview/);assert.match(router,/provisioning\.provision/);
   assert.match(ui,/existing Manage Users account/);assert.match(ui,/Training center/);assert.match(ui,/Preview only/);
   assert.match(manual,/Set up training-center business/);
+  assert.match(lab,/provisioning-candidate@example\.invalid/);assert.match(lab,/provision-options\|provision-preview\|provision/);assert.match(lab,/SYNTHETIC_PANEL_ONLY/);
 });
