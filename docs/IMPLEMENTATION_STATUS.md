@@ -36,6 +36,8 @@ Maintained bilingual login/MFA screens now work against those real APIs and Mari
 
 Remaining immediate work: full TC35 domain/API/event contracts, TC00 legacy runtime preservation acceptance, actual authenticated onboarding and source-built business journeys. No training finance screen or new platform workflow is marked implemented. The original compiled application remains the active local/production UI; no new schema or prototype has been deployed to production.
 
+TC14 safety increment (2 October 2026): Existing pipeline writes fail closed before an opportunity can enter a Won stage from drag/drop, manual creation or deleting a stage into Won. A completed Won opportunity cannot be moved to another stage, and a later inbound WhatsApp message does not reopen it. Synthetic MariaDB coverage verifies these transitions; error codes are returned to clients with bilingual guidance. The full sale review request, approval screen, policy configuration and approved conversion flow are still outstanding; no invoice or sale is created by this guard.
+
 ## Ticket ledger
 
 Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 must pass before gateway checkout. All other plan requirements remain open until their acceptance evidence exists.
@@ -55,8 +57,8 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC10 | Implementing | TC02 TC09 TC35 | Existing pipeline now has tenant-bound contact records, many opportunities per contact, distinct family learners sharing a phone, match review and owner-only shared name/email editing; phone reassignment, historical backfill, authenticated browser acceptance and remaining relationship history remain open |
 | TC11 | Implementing | TC07 TC10 | Existing lead board/detail enforce exact agent assignment, structured outcomes and follow-up dates; the Reports view now has an actionable paginated cross-stage follow-up queue with complete/reschedule actions and assignment checks; authenticated browser review, assignment history and due-action policy remain open |
 | TC12 | Implementing | TC09 TC10 TC11 | Existing `/user` Lead Forms editor, immutable bilingual versions and public mobile form now create a contact/opportunity atomically with consent, idempotency and abuse limits; CAPTCHA, authenticated EN/AR browser/accessibility acceptance and delivery acknowledgments remain open |
-| TC13 | Planned | TC12 | Mobile/tablet staff/kiosk form and accessibility; phone, tablet and keyboard flows pass with clean reset |
-| TC14 | Planned | TC09 TC10 | Sale review/approval contract; incomplete billing data or unapproved discount blocks conversion |
+| TC13 | Implementing | TC12 | Public-form language switching, focus announcements and visible keyboard focus added; actual mobile/tablet/keyboard acceptance remains open |
+| TC14 | Implementing | TC09 TC10 | Pipeline paths can no longer mark a lead Won through a stage move, manual creation or stage deletion, and inbound messages no longer reopen a Won opportunity; complete sale review/approval screen and API remain open |
 | TC15 | Planned | TC14 TC21 TC39 | Transactional enrollment/invoice conversion; concurrent and repeated confirmation produces one intended invoice |
 | TC16 | Planned | TC15 TC39 | Invoice subledger, numbering and PDFs; balanced events, unique numbers and immutable issued snapshots |
 | TC17 | Planned | TC16 | Installment schedules/rescheduling; exact totals, preserved paid items and no stale future reminders |

@@ -415,7 +415,7 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
       await connection.query("UPDATE pipeline_leads SET contact_id = ?, learner_name = COALESCE(learner_name, contact_name) WHERE uid_hash = ? AND id = ?", [contactId, uidHash, lead.id]);
       lead.contact_id = contactId;
     }
-    if (lead && !created && lead.status !== "open") {
+    if (lead && !created && lead.status === "lost") {
       await connection.query(
         `UPDATE pipeline_leads SET status = 'open', closed_at = NULL, stage_key = ?, stage_entered_at = ?,
           last_activity_at = ?, chat_id = COALESCE(chat_id, ?), contact_name = COALESCE(NULLIF(contact_name, ''), ?)
@@ -761,6 +761,7 @@ async function deleteStage(uid, stageKey, targetStage) {
     if (!targetStage || targetStage === stageKey) { const error = new Error("Choose a different stage for its leads."); error.status = 400; throw error; }
     const target = await stageExists(connection, uidHash, targetStage);
     if (!target) { const error = new Error("Target stage not found."); error.status = 404; throw error; }
+    if (target.stage_type === 'won') { const error = new Error("An approved sale is required before moving opportunities to Won."); error.status = 409; error.code = 'SALE_CONFIRMATION_REQUIRED'; throw error; }
     const [affected] = await connection.query("SELECT id FROM pipeline_leads WHERE uid_hash = ? AND stage_key = ? FOR UPDATE", [uidHash, stageKey]);
     const now = dbDate(new Date());
     const status = target.stage_type === "won" ? "won" : target.stage_type === "lost" ? "lost" : "open";
@@ -786,7 +787,9 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input,
     const title = text(input.title, 180);
     if (!title) { const error = new Error("Lead title is required."); error.status = 400; throw error; }
     const stageKey = text(input.stageKey, 64) || "new";
-    if (!await stageExists(connection, uidHash, stageKey)) { const error = new Error("Choose an existing pipeline stage."); error.status = 400; throw error; }
+    const targetStage=await stageExists(connection, uidHash, stageKey);
+    if (!targetStage) { const error = new Error("Choose an existing pipeline stage."); error.status = 400; throw error; }
+    if (targetStage.stage_type === 'won') { const error = new Error("An approved sale is required before creating an opportunity in Won."); error.status = 409; error.code = 'SALE_CONFIRMATION_REQUIRED'; throw error; }
     const contactName = text(input.contactName, 255) || null;
     const learnerName = text(input.learnerName, 255) || contactName;
     const phone = normalizePhone(input.mobile);
@@ -973,6 +976,8 @@ async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, 
     if (!target) { const error = new Error("Choose an existing stage."); error.status = 400; throw error; }
     const lead = leads[0];
     if (lead.stage_key === stageKey) return { id, stageKey: lead.stage_key, status: lead.status, unchanged: true };
+    if (lead.status === 'won') { const error = new Error("A converted sale cannot be reopened or changed from Won through the pipeline."); error.status = 409; error.code = 'CONVERTED_SALE_IMMUTABLE'; throw error; }
+    if (target.stage_type === 'won') { const error = new Error("Confirm an approved sale through the sale review workflow before moving this opportunity to Won."); error.status = 409; error.code = 'SALE_CONFIRMATION_REQUIRED'; throw error; }
     const now = dbDate(new Date());
     const status = target.stage_type === "won" ? "won" : target.stage_type === "lost" ? "lost" : "open";
     await connection.query(

@@ -8,7 +8,7 @@ const pipelineReports = require("../helper/pipeline/reports.js");
 function fail(res, error) {
   const status = Number(error?.status) || 500;
   if (status >= 500) console.error("Pipeline request failed:", error?.code || error?.name || "unknown");
-  return res.status(status).json({ success: false, message: status >= 500 ? "Pipeline request failed." : error.message });
+  return res.status(status).json({ success: false, ...(error.code ? { code: error.code } : {}), message: status >= 500 ? "Pipeline request failed." : error.message });
 }
 
 async function pipelineAuth(req, res, next) {
