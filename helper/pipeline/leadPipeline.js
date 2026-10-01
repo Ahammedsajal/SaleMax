@@ -844,6 +844,10 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input 
         input.nextFollowUpAt ? dbDate(input.nextFollowUpAt) : null, now],
     );
     await addActivity(connection, uidHash, id, "lead_created", "Opportunity added manually", { title, contactId }, actorType, actorId);
+    if (owner !== null) {
+      const [assignedAgent] = await connection.query("SELECT name FROM agents WHERE id = ? AND owner_uid COLLATE utf8mb4_general_ci = ? COLLATE utf8mb4_general_ci LIMIT 1", [owner, uid]);
+      await addActivity(connection, uidHash, id, "lead_assigned", `Assigned to ${assignedAgent[0]?.name || "agent"}`, { toAgentId: owner, toAgentName: assignedAgent[0]?.name || null, initialAssignment: true }, actorType, actorId);
+    }
     return { id, contactId };
   });
 }
@@ -867,6 +871,11 @@ async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
       "SELECT id, actor_type, actor_id, activity_type, summary, details, created_at FROM pipeline_activity WHERE uid_hash = ? AND lead_id = ? ORDER BY created_at DESC, id DESC LIMIT 100",
       [uidHash, id],
     );
+    for (const activity of activities) {
+      if (typeof activity.details === "string") {
+        try { activity.details = JSON.parse(activity.details); } catch { activity.details = null; }
+      }
+    }
     const [conversations] = await connection.query(
       `SELECT pc.chat_id, pc.origin, pc.first_inbound_at, pc.last_inbound_at,
          EXISTS (SELECT 1 FROM pipeline_attributions pa WHERE pa.uid_hash = pc.uid_hash AND pa.conversation_key = pc.conversation_key AND pa.is_verified_ad = 1) AS has_verified_ad_attribution
@@ -1065,6 +1074,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
       if (!/^[A-Z]{3}$/.test(currency)) { const error = new Error("Currency must be a three-letter code."); error.status = 400; throw error; }
       add("currency", currency);
     }
+    let assignmentChange = null;
     if (input.ownerAgentId !== undefined && role !== "agent") {
       let owner = null;
       if (input.ownerAgentId !== null && input.ownerAgentId !== "") {
@@ -1072,12 +1082,20 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
         if (!agents.length) { const error = new Error("Choose an active agent in this workspace."); error.status = 400; throw error; }
         owner = Number(agents[0].id);
       }
-      add("owner_agent_id", owner);
+      if ((lead.owner_agent_id == null ? null : Number(lead.owner_agent_id)) !== owner) {
+        const [previousAgents] = lead.owner_agent_id == null ? [[]] : await connection.query("SELECT name FROM agents WHERE id = ? AND owner_uid COLLATE utf8mb4_general_ci = ? COLLATE utf8mb4_general_ci LIMIT 1", [lead.owner_agent_id, uid]);
+        const [nextAgents] = owner == null ? [[]] : await connection.query("SELECT name FROM agents WHERE id = ? AND owner_uid COLLATE utf8mb4_general_ci = ? COLLATE utf8mb4_general_ci LIMIT 1", [owner, uid]);
+        assignmentChange = { fromAgentId: lead.owner_agent_id == null ? null : Number(lead.owner_agent_id), fromAgentName: previousAgents[0]?.name || null, toAgentId: owner, toAgentName: nextAgents[0]?.name || null };
+        add("owner_agent_id", owner);
+      }
     }
     if (changes.length) {
       values.push(activityAt, uidHash, id);
       await connection.query(`UPDATE pipeline_leads SET ${changes.join(", ")}, last_activity_at = ? WHERE uid_hash = ? AND id = ?`, values);
       await addActivity(connection, uidHash, id, "lead_updated", "Lead details updated", { fields: changes.map((value) => value.split(" ")[0]) }, actorType, actorId);
+    }
+    if (assignmentChange) {
+      await addActivity(connection, uidHash, id, "lead_reassigned", assignmentChange.toAgentName ? `Reassigned to ${assignmentChange.toAgentName}` : "Lead unassigned", assignmentChange, actorType, actorId);
     }
     if(contactOutcome){
       await addActivity(connection,uidHash,id,'contact_outcome',`Contact outcome: ${contactOutcome}`,{outcome:contactOutcome,followUpRequired,nextFollowUpAt:providedFollowUp||null},actorType,actorId);
