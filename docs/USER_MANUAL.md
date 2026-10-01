@@ -16,6 +16,12 @@ From the SaleMaX application directory, run `start-local.ps1` in PowerShell. Ope
 
 Super Admin and staff administration; business onboarding and plan assignment; team roles and seat limits; course/offer/batch setup; public and staff lead capture; assignments and follow-ups; sale approval; invoice and installment schedules; payment verification; receipt delivery; credits/refunds; reports; channel setup and delivery issues. Each journey requires tested screens, field guidance and recoverable error states before it is marked available.
 
+## Initial Super Admin setup (operations only)
+
+The initial canonical Super Admin must be created from a controlled terminal after the platform identity, security and verified-admin-link migrations have been applied. First verify which existing `/admin` account belongs to the product owner. Run `npm run bootstrap:super-admin -- --legacy-admin-id <id>`, type the requested confirmation phrase, enter the exact UID from that verified account's session, and enter its existing password at the hidden prompt. The command checks all three against the same legacy administrator row, creates the canonical owner and reviewed link in one transaction, and can succeed only once. It is not a routine deploy command. Do not use an employee account, guess by email, put credentials in shell arguments, or run it against the imported/production database before the release and owner-approval gates are satisfied.
+
+After bootstrap, use the existing `/admin` login and the integrated Manage Plans **Verify access** flow to sign in as the canonical owner and enroll MFA. Save recovery codes outside the server and confirm their acknowledgement. Owner transfer/recovery and platform staff onboarding screens are not implemented yet; do not treat this bootstrap command as completing those workflows.
+
 ## Working login and MFA screens in the local lab
 
 Run `npm run build:workspace`, then `./scripts/start-auth-lab.ps1` in PowerShell from the application folder. Open http://127.0.0.1:3016/. The script starts a separate database on loopback port 3309 and creates a synthetic-only database. It refuses an occupied port. Temporary test credentials are in the private, Git-ignored `database/local-runtime/auth-lab/access.json`; they are not production credentials. Each fresh lab start creates new test identities and removes its own synthetic database on a clean shutdown. No imported database or provider is used.

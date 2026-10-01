@@ -10,7 +10,7 @@ const {totp}=require('../modules/platform/mfa');
 module.exports=async(db,config,{i1})=>{
   const actor=crypto.randomUUID(),uid=crypto.randomUUID(),password=crypto.randomBytes(20).toString('base64url'),passwordHash=await bcrypt.hash(password,12),key=crypto.randomBytes(32),jwtKey=crypto.randomBytes(32).toString('hex');
   const grants=['plans.read','plans.draft','plans.assign','plans.publish'];
-  await db.query('CREATE TABLE admin (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),email VARCHAR(254),password VARCHAR(255),role VARCHAR(20)) ENGINE=InnoDB');
+  await db.query('CREATE TABLE IF NOT EXISTS admin (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),email VARCHAR(254),password VARCHAR(255),role VARCHAR(20)) ENGINE=InnoDB');
   const [inserted]=await db.query("INSERT INTO admin(uid,email,password,role) VALUES (?,?,?,'admin')",[uid,'mapped@example.invalid',passwordHash]);
   await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,'Mapped staff',?,'active')",[actor,'mapped@example.invalid',passwordHash]);
   await db.query("INSERT INTO sx_platform_memberships(identity_id,role,delegated_permissions) VALUES (?,'staff',?)",[actor,JSON.stringify(grants)]);

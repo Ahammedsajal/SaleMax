@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const mysql = require('mysql2/promise');
+const bcrypt = require('bcrypt');
+const { bootstrap: bootstrapSuperAdmin } = require('../modules/platform/bootstrap-super-admin');
 const { discover, applyMigrations } = require('../database/migration-runner');
 async function main() {
   if (process.env.LOCAL_ONLY_MODE !== 'true' || !['127.0.0.1', 'localhost', '::1'].includes(process.env.DBHOST)) throw new Error('LOCAL_DATABASE_ONLY');
@@ -29,9 +31,19 @@ async function main() {
     await applyMigrations(connection, migrations);
     const [[count]] = await connection.query('SELECT COUNT(*) AS n FROM pipeline_settings');
     assert.equal(count.n, 1);
-    const t1=crypto.randomUUID(), t2=crypto.randomUUID(), i1=crypto.randomUUID(), i2=crypto.randomUUID(), m1=crypto.randomUUID(), m2=crypto.randomUUID();
+    await connection.query('CREATE TABLE admin (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999) NOT NULL,email VARCHAR(254) NOT NULL,password VARCHAR(255) NOT NULL,role VARCHAR(20) NOT NULL DEFAULT \'admin\') ENGINE=InnoDB');
+    const ownerPassword='Synthetic-Owner-Password-97',ownerUid='verified-synthetic-owner-uid';
+    const [legacyOwner]=await connection.query('INSERT INTO admin(uid,email,password) VALUES (?,?,?)',[ownerUid,'a@example.invalid',await bcrypt.hash(ownerPassword,10)]);
+    await assert.rejects(bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:'wrong-synthetic-uid',password:ownerPassword,confirmation:'BOOTSTRAP PRODUCT OWNER'}),{code:'LEGACY_ADMIN_UID_MISMATCH'});
+    await assert.rejects(bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:ownerUid,password:'wrong-synthetic-password',confirmation:'BOOTSTRAP PRODUCT OWNER'}),{code:'LEGACY_ADMIN_CREDENTIALS_INVALID'});
+    const bootstrapped=await bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:ownerUid,password:ownerPassword,confirmation:'BOOTSTRAP PRODUCT OWNER'});
+    const i1=bootstrapped.identityId,t1=crypto.randomUUID(),t2=crypto.randomUUID(),i2=crypto.randomUUID(),m1=crypto.randomUUID(),m2=crypto.randomUUID();
+    assert.equal(bootstrapped.email,'a@example.invalid');
+    const [[ownerLink]]=await connection.query('SELECT legacy_uid,legacy_uid_hash,identity_id,status FROM sx_legacy_admin_identities WHERE legacy_admin_id=?',[legacyOwner.insertId]);
+    assert.equal(ownerLink.legacy_uid,ownerUid);assert.equal(ownerLink.legacy_uid_hash,crypto.createHash('sha256').update(ownerUid).digest('hex'));assert.equal(ownerLink.identity_id,i1);assert.equal(ownerLink.status,'active');
+    await assert.rejects(bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:ownerUid,password:ownerPassword,confirmation:'BOOTSTRAP PRODUCT OWNER'}),{code:'PLATFORM_ALREADY_PROVISIONED'});
     for (const [id,slug] of [[t1,'synthetic-a'],[t2,'synthetic-b']]) await connection.query('INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,?,?,?,?,?)',[id,slug,slug,'training_center',1,'active']);
-    for (const [id,email] of [[i1,'a@example.invalid'],[i2,'b@example.invalid']]) await connection.query('INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,?,?)',[id,email,'Synthetic','active']);
+    await connection.query('INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,?,?)',[i2,'b@example.invalid','Synthetic','active']);
     for (const [id,tenant,identity] of [[m1,t1,i1],[m2,t2,i2]]) await connection.query('INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES (?,?,?,?)',[id,tenant,identity,'owner']);
     await assert.rejects(connection.query('INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES (?,?,?,?)',[crypto.randomUUID(),t1,i2,'owner']), {code:'ER_DUP_ENTRY'});
     const sessionSql='INSERT INTO sx_sessions(id,token_hash,identity_id,audience,tenant_id,membership_id,credential_version,authenticated_at,expires_at) VALUES (?,?,?,?,?,?,1,NOW(),DATE_ADD(NOW(),INTERVAL 1 DAY))';
@@ -39,7 +51,6 @@ async function main() {
     await assert.rejects(connection.query(sessionSql,[crypto.randomUUID(),'b'.repeat(64),i2,'tenant',t1,m2]), {code:'ER_NO_REFERENCED_ROW_2'});
     await assert.rejects(connection.query(sessionSql,[crypto.randomUUID(),'c'.repeat(64),i2,'tenant',t1,m1]), {code:'ER_NO_REFERENCED_ROW_2'});
     await assert.rejects(connection.query('INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,verified_at) VALUES (?,?,?,?,NOW())',['agents','1',t1,m2]), {code:'ER_NO_REFERENCED_ROW_2'});
-    await connection.query('INSERT INTO sx_platform_memberships(identity_id,role) VALUES (?,?)',[i1,'super_admin']);
     await assert.rejects(connection.query('INSERT INTO sx_platform_memberships(identity_id,role) VALUES (?,?)',[i2,'super_admin']), {code:'ER_DUP_ENTRY'});
     const sessionEvidence=await require('./session-integration.cjs')(connection,{t1,i1,m1});
     const planEvidence=await require('./plan-integration.cjs')(connection,other,{t1,i1,m1});
@@ -58,7 +69,7 @@ async function main() {
     const [[failed]] = await connection.query('SELECT status, statements_completed FROM salemax_schema_migrations WHERE migration_name=?', [broken.file]);
     assert.equal(failed.status, 'failed'); assert.equal(failed.statements_completed, 1);
     await assert.rejects(applyMigrations(other, [...migrations, broken]), { code: 'MIGRATION_RECOVERY_REQUIRED' });
-    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: 10, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...catalogueBridgeEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
+    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: 10, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...catalogueBridgeEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
   } catch(error) {
     if(connection) {
       try {

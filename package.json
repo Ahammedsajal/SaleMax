@@ -9,6 +9,7 @@
     "build:workspace": "node scripts/build-workspace.cjs",
     "preview:workspace": "node scripts/preview-workspace.cjs",
     "test:migrations:integration": "node tests/migrations.integration.js",
+    "bootstrap:super-admin": "node scripts/bootstrap-super-admin.cjs",
     "migrate:plan": "node database/migrate-pipeline.js --plan",
     "migrate:apply": "node database/migrate-pipeline.js --apply",
     "start": "node server.js"
