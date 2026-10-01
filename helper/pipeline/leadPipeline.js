@@ -580,8 +580,8 @@ async function getBoard({ uid, role, agentId, filters = {}, pool:sourcePool }) {
     if (filters.owner && role !== "agent") { conditions.push("l.owner_agent_id = ?"); values.push(Number(filters.owner)); }
     if (filters.search) {
       const like = `%${text(filters.search, 100).replace(/[\\%_]/g, "\\$&")}%`;
-      conditions.push("(l.title LIKE ? OR l.contact_name LIKE ? OR l.mobile LIKE ? OR l.source_headline LIKE ?)");
-      values.push(like, like, like, like);
+      conditions.push("(l.title LIKE ? OR l.contact_name LIKE ? OR l.mobile LIKE ? OR l.source_headline LIKE ? OR c.display_name LIKE ? OR c.normalized_email LIKE ?)");
+      values.push(like, like, like, like, like, like);
     }
     const page = Math.max(1, Number(filters.page) || 1);
     const limit = Math.min(500, Math.max(20, Number(filters.limit) || 300));
@@ -591,7 +591,7 @@ async function getBoard({ uid, role, agentId, filters = {}, pool:sourcePool }) {
       [uidHash],
     );
     const [leads] = await connection.query(
-      `SELECT l.id, l.title, l.contact_name, l.mobile, l.chat_id, l.primary_origin, l.source_type,
+      `SELECT l.id, l.title, l.contact_name, l.mobile, c.display_name AS relationship_name, l.chat_id, l.primary_origin, l.source_type,
         l.source_id, l.source_url, l.source_headline, l.stage_key, l.stage_entered_at,
         l.owner_agent_id, a.name AS owner_name, l.status, l.priority, l.expected_value,
         l.currency, l.next_follow_up_at, l.first_inbound_at, l.last_activity_at, l.created_at, l.updated_at,
@@ -600,12 +600,15 @@ async function getBoard({ uid, role, agentId, filters = {}, pool:sourcePool }) {
         EXISTS (SELECT 1 FROM pipeline_attributions pa WHERE pa.uid_hash = l.uid_hash AND pa.lead_id = l.id AND pa.is_verified_ad = 1) AS has_verified_ad_attribution
        FROM pipeline_leads l LEFT JOIN agents a ON a.id = l.owner_agent_id
         AND a.owner_uid COLLATE utf8mb4_general_ci = l.uid COLLATE utf8mb4_general_ci
+       LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
        WHERE ${conditions.join(" AND ")}
        ORDER BY l.last_activity_at DESC, l.created_at DESC LIMIT ? OFFSET ?`,
       [...values, limit, offset],
     );
     const [countRows] = await connection.query(
-      `SELECT COUNT(*) AS total FROM pipeline_leads l WHERE ${conditions.join(" AND ")}`,
+      `SELECT COUNT(*) AS total FROM pipeline_leads l
+       LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
+       WHERE ${conditions.join(" AND ")}`,
       values,
     );
     const [agents] = await connection.query(
@@ -902,13 +905,14 @@ async function getFollowUps({ uid, role, agentId, period = "all", page = 1, limi
      FROM pipeline_leads l WHERE ${summaryConditions.join(' AND ')}`, summaryValues,
   );
   const [items] = await pool.query(
-    `SELECT l.id AS lead_id, l.title, l.contact_name, l.learner_name, l.mobile,
+    `SELECT l.id AS lead_id, l.title, l.contact_name, c.display_name AS relationship_name, l.learner_name, l.mobile,
        l.stage_key, l.next_follow_up_at,
        DATE_FORMAT(l.next_follow_up_at, '%Y-%m-%d %H:%i:%s.%f') AS due_revision,
        l.owner_agent_id, a.name AS owner_name,
        s.title AS stage_title, (l.next_follow_up_at < UTC_TIMESTAMP(3)) AS overdue
      FROM pipeline_leads l
      LEFT JOIN agents a ON a.id = l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci = l.uid COLLATE utf8mb4_general_ci
+     LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
      LEFT JOIN pipeline_stages s ON s.uid_hash = l.uid_hash AND s.stage_key = l.stage_key
      WHERE ${where} ORDER BY l.next_follow_up_at ASC, l.id ASC LIMIT ? OFFSET ?`,
     [...values, pageSize, (pageNumber - 1) * pageSize],
@@ -981,11 +985,22 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
     assertAssignedAgent(role,agentId,lead);
     const changes = [];
     const values = [];
+    const contactProfile = {};
     const add = (column, value) => { changes.push(`${column} = ?`); values.push(value); };
     const activityAt=dbDate(new Date());
     if (input.title !== undefined) { const value = text(input.title, 180); if (!value) { const error = new Error("Lead title is required."); error.status = 400; throw error; } add("title", value); }
-    if (input.contactName !== undefined) add("contact_name", text(input.contactName, 255) || null);
+    if (input.contactName !== undefined) {
+      const value = text(input.contactName, 255);
+      if (!value) { const error = new Error("Contact name cannot be blank."); error.status = 400; throw error; }
+      if (lead.contact_id) contactProfile.display_name = value;
+      else add("contact_name", value);
+    }
+    if (input.contactEmail !== undefined) {
+      if (!lead.contact_id) { const error = new Error("This older lead has no linked contact profile yet."); error.status = 409; throw error; }
+      contactProfile.normalized_email = normalizeEmail(input.contactEmail);
+    }
     if (input.mobile !== undefined) {
+      if (lead.contact_id) { const error = new Error("Phone changes are locked until WhatsApp conversation links can be safely reassigned."); error.status = 409; throw error; }
       const normalized = normalizePhone(input.mobile);
       if (input.mobile && !normalized) { const error = new Error("Enter a valid international phone number."); error.status = 400; throw error; }
       add("mobile", normalized);
@@ -1006,6 +1021,19 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
         await connection.query("UPDATE pipeline_identity_locks SET current_lead_id = NULL WHERE uid_hash = ? AND identity_key = ? AND current_lead_id = ?", [uidHash, lead.identity_key, id]);
       }
       await connection.query("UPDATE pipeline_identity_locks SET current_lead_id = ? WHERE uid_hash = ? AND identity_key = ?", [id, uidHash, identityKey]);
+    }
+    if (Object.keys(contactProfile).length) {
+      if (role !== 'owner') { const error = new Error("Only the workspace owner can update shared contact details."); error.status = 403; throw error; }
+      const [profileRows] = await connection.query("SELECT display_name, normalized_email FROM pipeline_contacts WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE", [uidHash, lead.contact_id]);
+      if (!profileRows.length) { const error = new Error("The linked contact could not be found."); error.status = 409; throw error; }
+      const actual = {};
+      for (const [field, value] of Object.entries(contactProfile)) if (value !== profileRows[0][field]) actual[field] = value;
+      if (Object.keys(actual).length) {
+        const fields = Object.keys(actual);
+        await connection.query(`UPDATE pipeline_contacts SET ${fields.map(field => `${field} = ?`).join(', ')}, updated_at = UTC_TIMESTAMP(3) WHERE uid_hash = ? AND id = ?`, [...fields.map(field => actual[field]), uidHash, lead.contact_id]);
+        const [linkedLeads] = await connection.query("SELECT id FROM pipeline_leads WHERE uid_hash = ? AND contact_id = ?", [uidHash, lead.contact_id]);
+        for (const linked of linkedLeads) await addActivity(connection, uidHash, linked.id, "contact_profile_updated", "Shared contact profile updated", { fields }, actorType, actorId);
+      }
     }
     if (input.priority !== undefined) {
       if (!["low", "normal", "high", "urgent"].includes(input.priority)) { const error = new Error("Invalid lead priority."); error.status = 400; throw error; }
