@@ -70,3 +70,6 @@ Both endpoints use the existing administrator validator and return HTTP-200 `{su
 `GET /api/admin/get_users` now projects only legacy screen fields: id, role, uid, name, email, mobile_with_country_code, timezone, plan, plan_expire, trial and createdAt, plus `plan_snapshot_valid`. Password, API key and notification credential columns are excluded. Invalid plan JSON is returned as `{}` for compatibility with the existing table; the stored raw value is retained. This is legacy administrator authorization, not proof of completed canonical staff grants or tenant adoption.
 
 The route inventory now contains 371 declarations: the previous 369 plus these two authenticated reads. Local actual-router smoke and real-database checks cover the new contracts; production activation remains gated.
+
+
+The existing-catalogue version bridge service contract, including frozen commercial snapshots and canonical MFA/permission requirements, is documented in PLAN_AND_SEAT_CONTRACT.md. It is not yet mounted as HTTP operations or available in the production panel. Do not call an unmounted service a usable category/seat assignment workflow.

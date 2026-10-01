@@ -35,6 +35,8 @@ async function createDraft(db,ctx,input){
     if(!input.planId)await db.query('INSERT INTO sx_plans(id,name) VALUES (?,?)',[planId,name]);
     const [[plan]]=await db.query('SELECT next_version FROM sx_plans WHERE id=? FOR UPDATE',[planId]);
     if(!plan)fail('PLAN_NOT_FOUND');
+    const [[legacyLink]]=await db.query('SELECT legacy_plan_id FROM sx_legacy_plan_catalogue WHERE plan_id=?',[planId]);
+    if(legacyLink)fail('MAPPED_PLAN_REQUIRES_CATALOGUE_DRAFT');
     await db.query(`INSERT INTO sx_plan_versions(id,plan_id,version,category_key,category_version,capabilities,role_limits) VALUES (?,?,?,?,?,?,?)`,[id,planId,plan.next_version,data.categoryKey,data.categoryVersion,JSON.stringify(data.capabilities),JSON.stringify(data.roleLimits)]);
     await db.query('UPDATE sx_plans SET next_version=next_version+1 WHERE id=?',[planId]);
     await audit(db,ctx,'plan.draft-created',id,{planId,version:plan.next_version});
@@ -53,6 +55,9 @@ async function updateDraft(db,ctx,id,revision,input){
 }
 async function publish(db,ctx,id,revision){
   authorize(ctx,'plans.publish');uuid(id);
+  if(!Number.isSafeInteger(revision)||revision<1)fail('INVALID_REVISION');
+  const [[legacyLink]]=await db.query('SELECT legacy_plan_id FROM sx_legacy_plan_contracts WHERE version_id=?',[id]);
+  if(legacyLink)return require('./catalogue-bridge').publish(db,ctx,{legacyPlanId:legacyLink.legacy_plan_id,versionId:id,revision});
   return transaction(db,async()=>{
     const [[row]]=await db.query('SELECT * FROM sx_plan_versions WHERE id=? FOR UPDATE',[id]);
     if(!row)fail('PLAN_NOT_FOUND');if(row.status!=='draft')fail('PUBLISHED_PLAN_IMMUTABLE');if(Number(row.revision)!==revision)fail('STALE_REVISION');
