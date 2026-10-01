@@ -184,3 +184,9 @@ The account must be unique, have a valid email and an assigned legacy plan with 
 The current `/user/login` and agent login remain the entry points. After their existing password check succeeds, accounts with an explicit reviewed ownership mapping can also receive a tenant-scoped HttpOnly canonical session cookie. On first mapped login, the just-entered password is newly hashed for the canonical identity; a prior legacy hash is never copied. Unmapped users retain the legacy sign-in response. The business-only canonical auth API is disabled unless `SALEMAX_PLATFORM_ENABLED` is explicitly enabled and cannot create a platform session.
 
 This is an integration bridge, not the completed login experience: there is no workspace selector on the existing login screen yet; legacy JWT responses/routes remain for compatibility; full migration, API/socket adoption, account recovery and production cutover are still pending. The disposable database verifies the mapped owner path and cross-audience rejection. Production activation is not part of this change.
+
+## Delegated staff legacy-route boundary
+
+After staff access is accepted, the existing administrator session is permission-scoped at the shared legacy admin middleware. Staff can read Manage Users only with `tenants.read`; plan context and read-only assignment preview require `plans.read` and `plans.assign`. The `/get_admin` profile endpoint returns only the signed-in account. Legacy mutation endpoints are rejected for linked staff; use the newer plan-contract and business-onboarding actions, which check MFA, CSRF and current delegated permission. Super Admin and unmapped pre-adoption administrator compatibility is preserved.
+
+The route inventory still includes legacy endpoints that do not use administrator middleware; their data/actions must be classified separately before staff access or production release is considered complete.

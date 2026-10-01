@@ -9,7 +9,7 @@ const {createAdminValidator}=require('../middlewares/admin');
 const {totp}=require('../modules/platform/mfa');
 module.exports=async(db,config,{i1})=>{
   const actor=crypto.randomUUID(),uid=crypto.randomUUID(),password=crypto.randomBytes(20).toString('base64url'),passwordHash=await bcrypt.hash(password,12),key=crypto.randomBytes(32),jwtKey=crypto.randomBytes(32).toString('hex');
-  const grants=['plans.read','plans.draft','plans.assign','plans.publish'];
+  const grants=['tenants.read','plans.read','plans.draft','plans.assign','plans.publish'];
   await db.query('CREATE TABLE IF NOT EXISTS admin (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),email VARCHAR(254),password VARCHAR(255),role VARCHAR(20)) ENGINE=InnoDB');
   const [inserted]=await db.query("INSERT INTO admin(uid,email,password,role) VALUES (?,?,?,'admin')",[uid,'mapped@example.invalid',passwordHash]);
   await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,'Mapped staff',?,'active')",[actor,'mapped@example.invalid',passwordHash]);
@@ -19,6 +19,8 @@ module.exports=async(db,config,{i1})=>{
   const pool=mysql.createPool({...config,connectionLimit:3}),app=express(),origin='http://127.0.0.1:3017';
   const legacyGuard=createAdminValidator(async(sql,args)=>{const [rows]=await pool.query(sql,args);return rows;},jwtKey);
   mountExistingUpgrade(app,{pool,key,origin,insecureLoopback:true,legacyGuard});
+  app.get('/api/admin/get_users',legacyGuard,(req,res)=>res.json({success:true,data:[]}));
+  app.post('/api/admin/update-admin',legacyGuard,(req,res)=>res.json({success:true}));
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const base='http://127.0.0.1:'+server.address().port;
   const authPath='/api/admin/platform-auth',contracts='/api/admin/plan-contracts',business='/api/admin/business-contracts',access='/api/admin/platform-access';
   let cookie='',csrf='';
@@ -26,6 +28,8 @@ module.exports=async(db,config,{i1})=>{
   try{
     assert.equal((await request(contracts+'/context')).status,401);
     const login=await request(authPath+'/login',{body:{email:'mapped@example.invalid',password,audience:'platform'}});assert.equal(login.status,200);cookie=login.headers.get('set-cookie').split(';')[0];csrf=(await login.json()).csrfToken;
+    assert.equal((await request('/api/admin/get_users')).status,200,'delegated tenant readers can use the existing Manage Users read route');
+    const legacyStaffMutation=await request('/api/admin/update-admin',{body:{email:'takeover@example.invalid'}});assert.equal(legacyStaffMutation.status,403);assert.equal((await legacyStaffMutation.json()).code,'STAFF_PERMISSION_DENIED');
     assert.equal((await request(contracts+'/context')).status,403);
     const enrolled=await request(authPath+'/mfa/enroll',{body:{}});assert.equal(enrolled.status,200);const seed=await enrolled.json();
     let acc=0,bits=0,bytes=[];for(const letter of seed.secret){acc=(acc<<5)|'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(letter);bits+=5;if(bits>=8){bits-=8;bytes.push((acc>>>bits)&255);}acc&=(1<<bits)-1;}

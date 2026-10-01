@@ -1084,8 +1084,8 @@ function getAgentPerformance(agents, tasks) {
 // get admin
 router.get("/get_admin", adminValidator, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM admin`, []);
-    res.json({ data: data[0], success: true });
+    const data = await query(`SELECT id,email,uid,role FROM admin WHERE uid=? LIMIT 1`, [req.decode.uid]);
+    res.json({ data: data[0]||null, success: true });
   } catch (err) {
     console.log(err);
     res.json({ msg: "server error", err });
