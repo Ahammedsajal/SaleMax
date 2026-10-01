@@ -1,5 +1,9 @@
 const crypto = require("crypto");
-const pool = require("../../database/config");
+let defaultPool;
+function getPromisePool(source) {
+  const value=source||(defaultPool||(defaultPool=require("../../database/config")));
+  return typeof value.promise==="function"?value.promise():value;
+}
 
 const DEFAULT_STAGES = [
   { key: "new", title: "New", position: 10, color: "#168c78", type: "open", probability: 5 },
@@ -31,6 +35,14 @@ function parseDate(value) {
 
 function dbDate(value) {
   return parseDate(value).toISOString().slice(0, 23).replace("T", " ");
+}
+
+function inputDbDate(value){
+  if(value===null||value===undefined||value==='')return null;
+  const numeric=typeof value==='number'||(typeof value==='string'&&/^\d+(?:\.\d+)?$/.test(value))?Number(value):NaN;
+  const date=Number.isFinite(numeric)&&numeric>0?new Date(numeric<100000000000?numeric*1000:numeric):new Date(value);
+  if(Number.isNaN(date.getTime())){const error=new Error('Enter a valid follow-up date and time.');error.status=400;throw error;}
+  return dbDate(date);
 }
 
 function bodyText(message, normalized) {
@@ -97,8 +109,8 @@ function verifiedAdReferral(referral) {
   return sourceType === "ad" && Boolean(text(referral?.source_id, 191) || text(referral?.ctwa_clid, 255));
 }
 
-async function inTransaction(work) {
-  const connection = await pool.promise().getConnection();
+async function inTransaction(work, sourcePool) {
+  const connection = await getPromisePool(sourcePool).getConnection();
   try {
     await connection.beginTransaction();
     const result = await work(connection);
@@ -440,7 +452,7 @@ async function captureMetaWebhook({ uid, body }) {
   for (const value of valueRecords) {
     const phoneNumberId = text(value?.metadata?.phone_number_id, 191);
     if (!phoneNumberId) continue;
-    const [accounts] = await pool.promise().query(
+    const [accounts] = await getPromisePool().query(
       "SELECT id FROM meta_api WHERE uid = ? AND business_phone_number_id = ? LIMIT 1",
       [uid, phoneNumberId],
     );
@@ -492,13 +504,13 @@ async function captureQrMessage({ uid, chatId, message, normalizedMessage }) {
   throw lastError;
 }
 
-async function getBoard({ uid, role, agentId, filters = {} }) {
+async function getBoard({ uid, role, agentId, filters = {}, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const conditions = ["l.uid_hash = ?"];
     const values = [uidHash];
     if (role === "agent") {
-      conditions.push("(l.owner_agent_id IS NULL OR l.owner_agent_id = ?)");
+      conditions.push("l.owner_agent_id = ?");
       values.push(agentId);
     }
     if (filters.stage) { conditions.push("l.stage_key = ?"); values.push(text(filters.stage, 64)); }
@@ -552,7 +564,7 @@ async function getBoard({ uid, role, agentId, filters = {} }) {
     );
     const grouped = stages.map((stage) => ({ ...stage, leads: leads.filter((lead) => lead.stage_key === stage.stage_key) }));
     return { stages: grouped, leads, agents, total: Number(countRows[0]?.total || 0), page, limit };
-  });
+  },sourcePool);
 }
 
 async function getSettings(uid) {
@@ -770,39 +782,49 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input 
   });
 }
 
-async function getLead(uid, id) {
+async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
   const uidHash = sha(uid);
-  const [leads] = await pool.promise().query(
-    `SELECT l.*, a.name AS owner_name FROM pipeline_leads l
-     LEFT JOIN agents a ON a.id = l.owner_agent_id
-       AND a.owner_uid COLLATE utf8mb4_general_ci = l.uid COLLATE utf8mb4_general_ci
-     WHERE l.uid_hash = ? AND l.id = ? LIMIT 1`,
-    [uidHash, id],
-  );
-  if (!leads.length) return null;
-  const [activities] = await pool.promise().query(
-    "SELECT id, actor_type, actor_id, activity_type, summary, details, created_at FROM pipeline_activity WHERE uid_hash = ? AND lead_id = ? ORDER BY created_at DESC, id DESC LIMIT 100",
-    [uidHash, id],
-  );
-  const [conversations] = await pool.promise().query(
-    `SELECT pc.chat_id, pc.origin, pc.first_inbound_at, pc.last_inbound_at,
-       EXISTS (SELECT 1 FROM pipeline_attributions pa WHERE pa.uid_hash = pc.uid_hash AND pa.conversation_key = pc.conversation_key AND pa.is_verified_ad = 1) AS has_verified_ad_attribution
-     FROM pipeline_conversations pc WHERE pc.uid_hash = ? AND pc.lead_id = ? ORDER BY pc.last_inbound_at DESC`,
-    [uidHash, id],
-  );
-  const [attributions] = await pool.promise().query(
-    `SELECT source_type, source_id, source_url, headline, body, media_type, ctwa_clid, is_verified_ad, event_at, received_at
-     FROM pipeline_attributions WHERE uid_hash = ? AND lead_id = ? ORDER BY received_at DESC LIMIT 50`,
-    [uidHash, id],
-  );
-  return { ...leads[0], activities, conversations, attributions };
+  return inTransaction(async(connection)=>{
+    const scoped=role==='agent'?' AND l.owner_agent_id=?':'';
+    const [leads] = await connection.query(
+      `SELECT l.*, a.name AS owner_name FROM pipeline_leads l
+       LEFT JOIN agents a ON a.id = l.owner_agent_id
+         AND a.owner_uid COLLATE utf8mb4_general_ci = l.uid COLLATE utf8mb4_general_ci
+       WHERE l.uid_hash = ? AND l.id = ?${scoped} LIMIT 1 FOR UPDATE`,
+      role==='agent'?[uidHash,id,agentId]:[uidHash,id],
+    );
+    if (!leads.length) return null;
+    const [activities] = await connection.query(
+      "SELECT id, actor_type, actor_id, activity_type, summary, details, created_at FROM pipeline_activity WHERE uid_hash = ? AND lead_id = ? ORDER BY created_at DESC, id DESC LIMIT 100",
+      [uidHash, id],
+    );
+    const [conversations] = await connection.query(
+      `SELECT pc.chat_id, pc.origin, pc.first_inbound_at, pc.last_inbound_at,
+         EXISTS (SELECT 1 FROM pipeline_attributions pa WHERE pa.uid_hash = pc.uid_hash AND pa.conversation_key = pc.conversation_key AND pa.is_verified_ad = 1) AS has_verified_ad_attribution
+       FROM pipeline_conversations pc WHERE pc.uid_hash = ? AND pc.lead_id = ? ORDER BY pc.last_inbound_at DESC`,
+      [uidHash, id],
+    );
+    const [attributions] = await connection.query(
+      `SELECT source_type, source_id, source_url, headline, body, media_type, ctwa_clid, is_verified_ad, event_at, received_at
+       FROM pipeline_attributions WHERE uid_hash = ? AND lead_id = ? ORDER BY received_at DESC LIMIT 50`,
+      [uidHash, id],
+    );
+    return { ...leads[0], activities, conversations, attributions };
+  },sourcePool);
 }
 
-async function moveLead({ uid, id, stageKey, actorType, actorId }) {
+function assertAssignedAgent(role,agentId,lead){
+  if(role==='agent'&&!require('./access').canAgentAccessLead(agentId,lead.owner_agent_id)){
+    const error=new Error('This lead is not assigned to this agent.');error.status=403;throw error;
+  }
+}
+
+async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const [leads] = await connection.query("SELECT * FROM pipeline_leads WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE", [uidHash, id]);
     if (!leads.length) { const error = new Error("Lead not found."); error.status = 404; throw error; }
+    assertAssignedAgent(role,agentId,leads[0]);
     const target = await stageExists(connection, uidHash, stageKey);
     if (!target) { const error = new Error("Choose an existing stage."); error.status = 400; throw error; }
     const lead = leads[0];
@@ -819,18 +841,20 @@ async function moveLead({ uid, id, stageKey, actorType, actorId }) {
     }
     await addActivity(connection, uidHash, id, "stage_changed", `Stage changed from ${lead.stage_key} to ${stageKey}`, { stageFrom: lead.stage_key, stageTo: stageKey }, actorType, actorId);
     return { id, stageKey, status, stageEnteredAt: now };
-  });
+  },sourcePool);
 }
 
-async function updateLead({ uid, id, input, actorType, actorId, role, agentId }) {
+async function updateLead({ uid, id, input, actorType, actorId, role, agentId, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const [rows] = await connection.query("SELECT * FROM pipeline_leads WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE", [uidHash, id]);
     if (!rows.length) { const error = new Error("Lead not found."); error.status = 404; throw error; }
     const lead = rows[0];
+    assertAssignedAgent(role,agentId,lead);
     const changes = [];
     const values = [];
     const add = (column, value) => { changes.push(`${column} = ?`); values.push(value); };
+    const activityAt=dbDate(new Date());
     if (input.title !== undefined) { const value = text(input.title, 180); if (!value) { const error = new Error("Lead title is required."); error.status = 400; throw error; } add("title", value); }
     if (input.contactName !== undefined) add("contact_name", text(input.contactName, 255) || null);
     if (input.mobile !== undefined) {
@@ -859,7 +883,22 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId })
       if (!["low", "normal", "high", "urgent"].includes(input.priority)) { const error = new Error("Invalid lead priority."); error.status = 400; throw error; }
       add("priority", input.priority);
     }
-    if (input.nextFollowUpAt !== undefined) add("next_follow_up_at", input.nextFollowUpAt ? dbDate(input.nextFollowUpAt) : null);
+    const requestedFollowUp=input.nextFollowUpAt===undefined?undefined:inputDbDate(input.nextFollowUpAt);
+    if (requestedFollowUp !== undefined) add("next_follow_up_at", requestedFollowUp);
+    const outcomes=['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested'];
+    let contactOutcome=null;
+    if(input.outcome!==undefined){
+      if(!outcomes.includes(input.outcome)){const error=new Error('Choose a valid contact outcome.');error.status=400;throw error;}
+      contactOutcome=input.outcome;
+    }
+    if(input.followUpRequired!==undefined&&typeof input.followUpRequired!=='boolean'){
+      const error=new Error('Follow-up required must be true or false.');error.status=400;throw error;
+    }
+    const followUpRequired=input.followUpRequired===undefined?contactOutcome==='follow_up_scheduled'||contactOutcome==='requested_call':input.followUpRequired;
+    const existingFollowUp=lead.next_follow_up_at;
+    const providedFollowUp=requestedFollowUp!==undefined?requestedFollowUp:existingFollowUp;
+    if(followUpRequired&&!providedFollowUp){const error=new Error('Set a follow-up date and time when follow-up is required.');error.status=400;throw error;}
+    if(input.followUpRequired===false&&input.nextFollowUpAt===undefined&&existingFollowUp)add('next_follow_up_at',null);
     if (input.expectedValue !== undefined) {
       const amount = input.expectedValue === null || input.expectedValue === "" ? null : Number(input.expectedValue);
       if (amount !== null && (!Number.isFinite(amount) || amount < 0)) { const error = new Error("Expected value must be zero or greater."); error.status = 400; throw error; }
@@ -880,19 +919,24 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId })
       add("owner_agent_id", owner);
     }
     if (changes.length) {
-      values.push(dbDate(new Date()), uidHash, id);
+      values.push(activityAt, uidHash, id);
       await connection.query(`UPDATE pipeline_leads SET ${changes.join(", ")}, last_activity_at = ? WHERE uid_hash = ? AND id = ?`, values);
       await addActivity(connection, uidHash, id, "lead_updated", "Lead details updated", { fields: changes.map((value) => value.split(" ")[0]) }, actorType, actorId);
     }
+    if(contactOutcome){
+      await addActivity(connection,uidHash,id,'contact_outcome',`Contact outcome: ${contactOutcome}`,{outcome:contactOutcome,followUpRequired,nextFollowUpAt:providedFollowUp||null},actorType,actorId);
+      if(!changes.length)await connection.query('UPDATE pipeline_leads SET last_activity_at=? WHERE uid_hash=? AND id=?',[activityAt,uidHash,id]);
+    }
     if (input.note !== undefined && text(input.note, 2000)) {
       await addActivity(connection, uidHash, id, "note_added", text(input.note, 2000), null, actorType, actorId);
+      if(!changes.length&&!contactOutcome)await connection.query('UPDATE pipeline_leads SET last_activity_at=? WHERE uid_hash=? AND id=?',[activityAt,uidHash,id]);
     }
     if (input.automationPaused !== undefined && role !== "agent") {
       await connection.query("UPDATE pipeline_leads SET automation_paused = ?, last_activity_at = ? WHERE uid_hash = ? AND id = ?", [input.automationPaused ? 1 : 0, dbDate(new Date()), uidHash, id]);
       await addActivity(connection, uidHash, id, "automation_setting", input.automationPaused ? "Lead automation paused" : "Lead automation resumed", { paused: Boolean(input.automationPaused) }, actorType, actorId);
     }
     return { id };
-  });
+  },sourcePool);
 }
 
 module.exports = {

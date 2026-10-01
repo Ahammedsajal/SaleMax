@@ -45,7 +45,7 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC08 | Planned | TC01 TC05 | Existing feature wrappers and provider state labels; all requested legacy entries remain usable by permitted roles |
 | TC09 | Planned | TC05 TC40 | Course/offer/batch CRUD with history and capacity; price edits cannot change issued invoice snapshots |
 | TC10 | Planned | TC02 TC09 TC35 | Contact/opportunity model, timeline and dedupe; multiple learners sharing a phone remain distinguishable |
-| TC11 | Planned | TC07 TC10 | Routing, assignments, outcomes and next actions; reassignments preserve first/closing agent history |
+| TC11 | Implementing | TC07 TC10 | Existing lead board/detail now require exact agent assignment; structured outcomes, next-action enforcement and assignment history remain open |
 | TC12 | Planned | TC09 TC10 TC11 | Form editor, versioning and public capture; tampered tenant/course/agent fields cannot cross scope |
 | TC13 | Planned | TC12 | Mobile/tablet staff/kiosk form and accessibility; phone, tablet and keyboard flows pass with clean reset |
 | TC14 | Planned | TC09 TC10 | Sale review/approval contract; incomplete billing data or unapproved discount blocks conversion |
@@ -148,3 +148,9 @@ Verification: 28 automated tests pass. Ten forward migrations plus synthetic Mar
 The existing agent settings routes now update only agents owned by the authenticated business. Chat assignment rejects an active agent UID belonging to another owner, and assigned-agent lookup is owner-scoped. The team list and assigned-agent response now project only fields required by the existing UI; agent password hashes and raw owner identifiers are withheld. The compiled React bundle has no recovered source for screen-level regression, so the local database/service tests prove data isolation and response shape, not visible UI acceptance.
 
 The disposable MariaDB suite verifies cross-owner settings changes reject without changing the foreign row, foreign-agent lookup/assignment returns no record, active owned-agent lookup works, and listed agent records do not contain password or owner fields. The 28 automated tests and ten-migration synthetic MariaDB suite pass. TC02 remains Implementing until every tenant-owned endpoint, export, file, event and background job is audited and tested; no imported customer or production records were changed.
+
+## Existing lead pipeline agent-scope correction — 1 October 2026
+
+The existing `/api/pipeline/board` previously included unassigned leads in every agent's board, and lead detail/update authorization allowed access when `owner_agent_id` was null. The board now returns only the authenticated agent's assigned leads; detail and mutation middleware require the same exact assignment and deny both unassigned and other-agent records. This aligns legacy pipeline behavior with the training-center role policy.
+
+The synthetic MariaDB acceptance creates one assigned, one unassigned and one other-agent lead and proves only the assigned record appears in the agent board. Detail reads and transactional note, structured-outcome, follow-up and stage writes recheck that ownership; unauthorized activity remains unchanged. Structured outcomes are validated and append immutable activity details, and follow-up-required outcomes need a valid due date. Tests: 29 automated tests and the ten-migration real MariaDB suite pass. This does not complete TC11: there is no first/closing-agent reassignment history, due follow-ups are not yet enforced as task records, and compiled-screen outcome/error-state integration remains open. The complete manager/owner UI journey, reports, accountant/manager auth and broader TC02 API isolation remain open.

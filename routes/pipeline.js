@@ -2,6 +2,7 @@ const router = require("express").Router();
 const jwt = require("jsonwebtoken");
 const { query } = require("../database/dbpromise.js");
 const pipeline = require("../helper/pipeline/leadPipeline.js");
+const pipelineAccess = require("../helper/pipeline/access.js");
 
 function fail(res, error) {
   const status = Number(error?.status) || 500;
@@ -122,9 +123,9 @@ router.post("/leads", async (req, res) => {
 
 async function authorizeLead(req, res, next) {
   try {
-    const lead = await pipeline.getLead(req.pipelineActor.uid, req.params.id);
+    const lead = await pipeline.getLead(req.pipelineActor.uid, req.params.id,{role:req.pipelineActor.role,agentId:req.pipelineActor.agentId});
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found." });
-    if (req.pipelineActor.role === "agent" && lead.owner_agent_id && Number(lead.owner_agent_id) !== req.pipelineActor.agentId) {
+    if (req.pipelineActor.role === "agent" && !pipelineAccess.canAgentAccessLead(req.pipelineActor.agentId, lead.owner_agent_id)) {
       return res.status(403).json({ success: false, message: "This lead is assigned to another agent." });
     }
     req.pipelineLead = lead;
@@ -163,6 +164,8 @@ router.post("/leads/:id/move", authorizeLead, async (req, res) => {
       stageKey: req.body?.stageKey,
       actorType: req.pipelineActor.actorType,
       actorId: req.pipelineActor.actorId,
+      role: req.pipelineActor.role,
+      agentId: req.pipelineActor.agentId,
     });
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }

@@ -36,7 +36,7 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
     comments TEXT NULL, role VARCHAR(32) NULL, is_active TINYINT NULL,
     mask_number TINYINT NOT NULL DEFAULT 0, allow_send_new_qr TINYINT NOT NULL DEFAULT 0,
     UNIQUE KEY uq_synthetic_agent_uid(uid), KEY ix_synthetic_agent_owner(owner_uid)
-  ) ENGINE=InnoDB`);
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   const seats=require('../modules/platform/legacy-agent-seats');
   const agentAccess=require('../modules/platform/legacy-agent-access');
   const legacyAgents=[];
@@ -73,5 +73,28 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   assert.equal((await agentAccess.findOwnedAgent(pool,uid,foreignAgentUid)),null);
   assert.equal((await agentAccess.findOwnedAgent(pool,uid,legacyAgents[0].uid,{activeOnly:true})).uid,legacyAgents[0].uid);
   const ownedAgents=await agentAccess.listOwnedAgents(pool,uid);assert.ok(ownedAgents.length===7);assert.equal(Object.hasOwn(ownedAgents[0],'password'),false);assert.equal(Object.hasOwn(ownedAgents[0],'owner_uid'),false);
-  return {businessLegacyCanonicalAssignmentAtomic:true,businessAssignmentIdempotent:true,businessAssignmentStateChecked:true,legacyWriteBlockedAfterReviewedMapping:true,mappedCanonicalAssignmentAdapterRequired:true,existingAgentCreationUsesCanonicalSevenSeatLimit:true,concurrentEighthAgentRejected:true,agentDeactivationReleasesSeat:true,agentDeletionKeepsSeatAccountingCorrect:true,unlinkedLegacyAgentCreationPreserved:true,agentSettingsAreOwnerScoped:true,foreignAgentAssignmentDenied:true,agentListOmitsPasswordHash:true};
+  const leadPipeline=require('../helper/pipeline/leadPipeline');
+  const pipelineUidHash=crypto.createHash('sha256').update(uid).digest('hex');
+  const assignedLead=crypto.randomUUID(),unassignedLead=crypto.randomUUID(),foreignAssignedLead=crypto.randomUUID();
+  for(const [leadId,title,ownerAgentId] of [[assignedLead,'Assigned synthetic lead',legacyAgents[0].id],[unassignedLead,'Unassigned synthetic lead',null],[foreignAssignedLead,'Other agent synthetic lead',legacyAgents[2].id]]){
+    await db.query(`INSERT INTO pipeline_leads(id,uid_hash,uid,identity_key,title,stage_key,owner_agent_id,last_activity_at)
+      VALUES (?,?,?,?,?,'new',?,UTC_TIMESTAMP(3))`,[leadId,pipelineUidHash,uid,crypto.createHash('sha256').update(leadId).digest('hex'),title,ownerAgentId]);
+  }
+  const agentBoard=await leadPipeline.getBoard({uid,role:'agent',agentId:Number(legacyAgents[0].id),pool});
+  assert.deepEqual(agentBoard.leads.map(lead=>lead.id),[assignedLead],'agent boards exclude unassigned and other agents leads');
+  assert.equal(await leadPipeline.getLead(uid,unassignedLead,{role:'agent',agentId:Number(legacyAgents[0].id),pool}),null);
+  assert.equal(await leadPipeline.getLead(uid,foreignAssignedLead,{role:'agent',agentId:Number(legacyAgents[0].id),pool}),null);
+  assert.equal((await leadPipeline.getLead(uid,assignedLead,{role:'agent',agentId:Number(legacyAgents[0].id),pool})).id,assignedLead);
+  const agentLeadActor={uid,role:'agent',agentId:Number(legacyAgents[0].id),actorType:'agent',actorId:String(legacyAgents[0].id)};
+  await assert.rejects(leadPipeline.updateLead({...agentLeadActor,id:unassignedLead,input:{note:'should not be stored'},pool}),{status:403});
+  await assert.rejects(leadPipeline.updateLead({...agentLeadActor,id:foreignAssignedLead,input:{note:'should not be stored'},pool}),{status:403});
+  await assert.rejects(leadPipeline.moveLead({...agentLeadActor,id:foreignAssignedLead,stageKey:'contacted',pool}),{status:403});
+  await assert.rejects(leadPipeline.updateLead({...agentLeadActor,id:assignedLead,input:{outcome:'made_up'},pool}),{status:400});
+  await assert.rejects(leadPipeline.updateLead({...agentLeadActor,id:assignedLead,input:{outcome:'follow_up_scheduled'},pool}),{status:400});
+  const [[forbiddenNotes]]=await db.query("SELECT COUNT(*) n FROM pipeline_activity WHERE uid_hash=? AND lead_id IN (?,?) AND summary='should not be stored'",[pipelineUidHash,unassignedLead,foreignAssignedLead]);assert.equal(Number(forbiddenNotes.n),0);
+  await leadPipeline.updateLead({...agentLeadActor,id:assignedLead,input:{note:'Reached learner',outcome:'interested',followUpRequired:true,nextFollowUpAt:'2026-10-02T09:00:00Z'},pool});
+  const [[outcomeEvent]]=await db.query("SELECT activity_type,details FROM pipeline_activity WHERE uid_hash=? AND lead_id=? AND activity_type='contact_outcome' ORDER BY id DESC LIMIT 1",[pipelineUidHash,assignedLead]);
+  assert.equal(outcomeEvent.activity_type,'contact_outcome');assert.deepEqual(JSON.parse(outcomeEvent.details),{outcome:'interested',followUpRequired:true,nextFollowUpAt:'2026-10-02 09:00:00.000'});
+  await leadPipeline.moveLead({...agentLeadActor,id:assignedLead,stageKey:'contacted',pool});
+  return {businessLegacyCanonicalAssignmentAtomic:true,businessAssignmentIdempotent:true,businessAssignmentStateChecked:true,legacyWriteBlockedAfterReviewedMapping:true,mappedCanonicalAssignmentAdapterRequired:true,existingAgentCreationUsesCanonicalSevenSeatLimit:true,concurrentEighthAgentRejected:true,agentDeactivationReleasesSeat:true,agentDeletionKeepsSeatAccountingCorrect:true,unlinkedLegacyAgentCreationPreserved:true,agentSettingsAreOwnerScoped:true,foreignAgentAssignmentDenied:true,agentListOmitsPasswordHash:true,agentBoardExcludesUnassignedLeads:true,agentBoardExcludesOtherAgentsLeads:true,agentWriteAndMoveRecheckAssignmentInsideTransaction:true,assignedAgentNoteFollowupAndStageUpdateWorks:true,structuredLeadOutcomeRequiresValidFollowup:true};
 };

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { decision, platformDecision, capabilities } = require('../modules/platform/policy');
 const { trainingCenter, restaurantFixture } = require('../modules/platform/categories');
 const { navigationFor } = require('../modules/platform/navigation');
+const { canAgentAccessLead } = require('../helper/pipeline/access');
 function context(role='owner') {
   return { audience:'tenant',tenant:{id:'tenant-a',status:'active',categoryKey:trainingCenter.key,categoryVersion:1},membership:{id:'member-a',tenantId:'tenant-a',role,status:'active',delegatedPermissions:[]},subscription:{status:'active',capabilities:Object.keys(capabilities)},category:trainingCenter,runtimeReady:{} };
 }
@@ -19,6 +20,12 @@ test('agents cannot read unassigned leads, tenant finance or another agents repo
   assert.equal(decision(c,{capability:'finance.invoices',permission:'invoices.read'}).allowed,false);
   assert.equal(decision(c,{capability:'reports.read',permission:'reports.read',resource:{tenantId:'tenant-a',subjectMembershipId:'member-b'}}).allowed,false);
   assert.equal(decision(c,{capability:'reports.read',permission:'reports.read',resource:{tenantId:'tenant-a',subjectMembershipId:'member-a'}}).scope,'own');
+});
+test('legacy pipeline agents must own a lead before reading or changing it',()=>{
+  assert.equal(canAgentAccessLead(12,12),true);
+  assert.equal(canAgentAccessLead(12,null),false);
+  assert.equal(canAgentAccessLead(12,13),false);
+  assert.equal(canAgentAccessLead(0,0),false);
 });
 test('accountants can verify payments but only read billing-linked leads',()=>{
   const c=context('accountant');
