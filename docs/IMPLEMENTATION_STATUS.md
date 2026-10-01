@@ -8,9 +8,9 @@ Planned -> Implementing -> Locally verified -> Staging verified -> Provider veri
 
 ## 1 October 2026 increment
 
-TC00/TC01 started. Git initialized against the requested empty repository with private/runtime exclusions. Forward migration safety and ledger implemented. Nine automated tests passed; real MariaDB synthetic-database tests passed including repeat runs, two-connection locking and interrupted-DDL recovery gating. Baseline localhost health/branding/theme/homepage passed. Embedded legacy Meta app secret removed before publication. Production has not been upgraded by this increment.
+TC00/TC01 started. Git initialized against the requested empty repository with private/runtime exclusions. Forward migration safety and ledger implemented. Ten automated tests passed; real MariaDB synthetic-database tests passed including repeat runs, two-connection locking and interrupted-DDL recovery gating. Baseline localhost health/branding/theme/homepage passed. Embedded legacy Meta app secret removed before publication. Static AST inventory now records 20 mounted families and 369 declared routes; requested feature preservation is mapped with runtime acceptance still pending. Production has not been upgraded by this increment.
 
-Remaining immediate work: editable frontend recovery/recreation, fresh-checkout install/build verification, route/feature inventory and TC35 schema/API/permission contract pack. No training finance screen or new platform workflow is marked implemented. API documentation and user manual are started and explicitly describe their current limits.
+Remaining immediate work: editable frontend recovery/recreation, fresh-checkout install/build verification, runtime preservation acceptance and TC35 schema/API/permission contract pack. No training finance screen or new platform workflow is marked implemented. API documentation and user manual are started and explicitly describe their current limits.
 
 ## Ticket ledger
 
@@ -60,3 +60,4 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC39 | Planned | TC09 TC14 TC35 | Finance transition/reconciliation contract, recognition policy and approval evidence; synthetic edge cases reconcile before posting modules are enabled |
 | TC40 | Planned | TC02 TC03 TC05 TC07 TC08 TC35 | Foundation gate for source/build/auth/tenant compatibility; legacy regression, direct-URL denials and feature readiness matrix pass |
 | TC41 | Planned | TC00 TC37 | Release topology, capacity budget, private storage and isolation from other hosted products; measured failover/backpressure plan and clean release package |
+

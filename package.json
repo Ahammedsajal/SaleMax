@@ -56,5 +56,8 @@
   },
   "overrides": {
     "@tootallnate/once": "^3.0.1"
+  },
+  "devDependencies": {
+    "acorn": "8.16.0"
   }
 }
