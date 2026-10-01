@@ -18,6 +18,8 @@ The protected training-center contract and Manage Users assignment APIs are now 
 
 The lead-activity report API is now connected to a third Reports view inside the existing user-panel pipeline. It has Qatar-local daily/weekly/monthly and date filters, owner/agent scope labels, seven activity metrics, outcome breakdown, paginated activity rows, lead-detail links, and English/Arabic loading, empty and retry copy. Static integration checks and JavaScript syntax checks pass. An authenticated browser walkthrough in both languages is still required; report scheduling/delivery and finance reconciliation remain incomplete.
 
+The existing lead detail form now sends one of the supported structured contact outcomes and its follow-up requirement through the existing authenticated lead-update API. Required outcomes select the follow-up checkbox by default, and browser validation demands a due time when the user leaves follow-up required. The backend validation, activity recording and agent assignment scope were already covered by the synthetic database suite; static screen integration and JS syntax pass. Browser acceptance in English and Arabic is pending, as are a dedicated follow-up task queue and historical first/closing-agent attribution.
+
 ## 1 October 2026 increment
 
 TC00/TC01 started. Git initialized against the requested empty repository with private/runtime exclusions. Forward migration safety and ledger implemented. Ten automated tests passed; real MariaDB synthetic-database tests passed including repeat runs, two-connection locking and interrupted-DDL recovery gating. Baseline localhost health/branding/theme/homepage passed. Embedded legacy Meta app secret removed before publication. Static AST inventory now records 20 mounted families and 369 declared routes; requested feature preservation is mapped with runtime acceptance still pending. Fresh GitHub clone npm ci, ten tests, native dependencies, MariaDB synthetic checks and controlled localhost startup passed. Structural inventory captures 66 tables/651 columns without customer rows. Production has not been upgraded by this increment.
@@ -49,7 +51,7 @@ Execute by dependencies, not numeric order. TC34 is post-launch expansion; TC27 
 | TC08 | Planned | TC01 TC05 | Existing feature wrappers and provider state labels; all requested legacy entries remain usable by permitted roles |
 | TC09 | Planned | TC05 TC40 | Course/offer/batch CRUD with history and capacity; price edits cannot change issued invoice snapshots |
 | TC10 | Planned | TC02 TC09 TC35 | Contact/opportunity model, timeline and dedupe; multiple learners sharing a phone remain distinguishable |
-| TC11 | Implementing | TC07 TC10 | Existing lead board/detail now require exact agent assignment; structured outcomes, next-action enforcement and assignment history remain open |
+| TC11 | Implementing | TC07 TC10 | Existing lead board/detail enforce exact agent assignment and the detail form now records structured outcomes with required follow-up dates; authenticated bilingual acceptance, accountable task queue and assignment history remain open |
 | TC12 | Planned | TC09 TC10 TC11 | Form editor, versioning and public capture; tampered tenant/course/agent fields cannot cross scope |
 | TC13 | Planned | TC12 | Mobile/tablet staff/kiosk form and accessibility; phone, tablet and keyboard flows pass with clean reset |
 | TC14 | Planned | TC09 TC10 | Sale review/approval contract; incomplete billing data or unapproved discount blocks conversion |

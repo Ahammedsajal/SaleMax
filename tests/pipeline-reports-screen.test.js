@@ -26,3 +26,12 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /report-lead-link/);
   assert.match(pipeline, /window\.salemaxPipelineOpenLead=openLead/);
 });
+
+test('existing lead details submit localized outcomes and require a due time when selected', () => {
+  assert.match(pipeline, /name="contactOutcome"/);
+  assert.match(pipeline, /name="followUpRequired"/);
+  assert.match(pipeline, /followUpDateRequired:'Choose a follow-up date and time for this outcome\.'/);
+  assert.match(pipeline, /followUpDateRequired:'حدد تاريخ ووقت المتابعة لهذه النتيجة\.'/);
+  assert.match(pipeline, /payload\.outcome=outcome;payload\.followUpRequired=followUpRequired/);
+  assert.match(pipeline, /nextFollowUp\.reportValidity\(\)/);
+});
