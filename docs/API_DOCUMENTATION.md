@@ -73,3 +73,23 @@ The route inventory now contains 371 declarations: the previous 369 plus these t
 
 
 The existing-catalogue version bridge service contract, including frozen commercial snapshots and canonical MFA/permission requirements, is documented in PLAN_AND_SEAT_CONTRACT.md. It is not yet mounted as HTTP operations or available in the production panel. Do not call an unmounted service a usable category/seat assignment workflow.
+
+
+## Protected contracts inside the existing administration module
+
+The existing host conditionally mounts the following handlers when `SALEMAX_PLATFORM_ENABLED=true`. Activation requires nine forward migrations, reviewed legacy administrator identity links and a shared private 32-byte base64 key plus an exact HTTPS origin. It is disabled by default; either family returns 503 PLATFORM_UPGRADE_NOT_ENABLED while disabled. The key is never generated at production startup. Loopback HTTP is permitted only in explicit local-only mode. No new login page or catalogue shell is mounted.
+
+`/api/admin/platform-auth` exposes POST login/logout/mfa/enroll/mfa/verify and GET me using the canonical authentication contracts. All also require the existing legacy administrator bearer token. Cookie, Origin and CSRF requirements remain as documented in AUTHENTICATION_CONTRACT.md. The session cookie is HttpOnly; only its CSRF token is returned to the inline controls. Authentication is mounted before global body parsing so its 8 KiB limit remains effective.
+
+`/api/admin/plan-contracts` requires the legacy administrator plus a canonical platform cookie with MFA and an active exact administrator-ID/UID/identity mapping from sx_legacy_admin_identities. Tenant cookies and a different platform identity cannot inherit authority from the bearer token. Canonical staff grants are reloaded on every request. Mutations require exact Origin and X-CSRF-Token and accept at most 24 KiB JSON.
+
+| Method / suffix | Permission | Input / result |
+| --- | --- | --- |
+| GET /context | plans.read | Training-center manifest, translated feature labels and current read/draft/publish permissions |
+| GET /:legacyPlanId/versions | plans.read | Latest 100 mapped versions: id/version/revision/status/category, capabilities, roleLimits, frozen commercial fields and hash |
+| POST /:legacyPlanId/drafts | plans.draft | requestId UUID, categoryKey training_center, categoryVersion 1, known unique capabilities, roleLimits owner/accountant/manager/agent; 201 created version or matching replay |
+| POST /:legacyPlanId/publish | plans.publish plus recent authentication | versionId and expected revision; 200 published next revision; rejects changed catalogue data |
+
+Role limits are nonnegative integers at most 10000, with exactly one owner. The UI starts the first version with one accountant, one manager and seven agents, and later drafts inherit the latest contract. These are plan ceilings, not automatically created accounts. Path plan IDs are server-authoritative. Bounded 400/403/404/409 outcomes cover invalid input, missing MFA/permissions/link, absent plans, stale revisions/commercial snapshots and conflicting retries. Unexpected/storage failures are 503 CATALOGUE_UNAVAILABLE; failed rejection audit is 503 AUDIT_UNAVAILABLE. Denied mutations are recorded separately from rolled-back business transactions when an authenticated canonical actor is available. Legacy token rejection retains its HTTP-200 logout convention and no longer returns tokens or database errors.
+
+The static legacy inventory remains 371 declarations; these nine feature-flagged handlers are dynamically mounted and explicitly documented here rather than being inferred by that limited scanner. Production activation, administrator adoption, assignment adapters and the remaining TC06/TC40 gates are still open.

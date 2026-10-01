@@ -59,10 +59,11 @@
       const field = (name,en,ar,type='text',value='',required=false,wide=false) => `<label class="sx-plan-field ${wide?'sx-plan-wide':''}">${text(en,ar)}${required?' *':''}<input name="${name}" type="${type}" value="${escape(value)}" ${required?'required':''} ${type==='number'?`min="${name==='plan_duration_in_days'?1:0}" step="${name==='price_strike'?'0.01':1}"`:''} ${name==='title'?'maxlength="999"':''}><small data-error="${name}"></small></label>`;
       active.innerHTML = `<h2 tabindex="-1">${plan.id?text('Edit plan','تعديل الخطة'):text('Create plan','إنشاء خطة')}</h2><p>${text('Set catalogue pricing, duration and messaging access. Existing assigned contracts are preserved.','حدد أسعار الكتالوج والمدة وصلاحيات المراسلة. تبقى العقود المعينة الحالية محفوظة.')}</p><form><div class="sx-plan-fields">${field('title','Plan title','عنوان الخطة','text',plan.title,true,true)}<label class="sx-plan-field sx-plan-wide">${text('Description','الوصف')} *<textarea name="short_description" maxlength="10000" required>${escape(plan.short_description)}</textarea><small data-error="short_description"></small></label>${field('price','Price','السعر','number',plan.price??0)}${field('price_strike','Previous price (optional)','السعر السابق (اختياري)','number',plan.price_strike??'')}${field('plan_duration_in_days','Duration in days','المدة بالأيام','number',plan.plan_duration_in_days??30,true)}${field('contact_limit','Contact limit','حد جهات الاتصال','number',plan.contact_limit??0)}${field('qr_account','QR accounts','حسابات QR','number',plan.qr_account??0)}<label class="sx-plan-field">${text('Plan type','نوع الخطة')}<select name="is_trial"><option value="0">${text('Paid','مدفوعة')}</option><option value="1" ${Number(plan.is_trial)===1?'selected':''}>${text('Trial — free','تجريبية — مجانية')}</option></select><small data-error="is_trial"></small></label></div><fieldset class="sx-plan-options"><legend>${text('Messaging features','ميزات المراسلة')}</legend>${flags.map(([name,en,ar])=>`<label><input type="checkbox" name="${name}" ${Number(plan[name])===1?'checked':''}>${text(en,ar)}</label>`).join('')}</fieldset><div class="sx-plan-message" role="alert" hidden></div><div class="sx-plan-buttons"><button type="button" data-cancel>${text('Back to plans','العودة إلى الخطط')}</button><button type="submit">${text('Save plan','حفظ الخطة')}</button></div></form>`;
       active.querySelector('h2').focus();
+      window.salemaxPlanContracts?.mount(active,plan);
       let dirty = false, saving = false;
       requestClose = () => {
         if (saving) return false;
-        if (!dirty) return true;
+        if (!dirty && !window.salemaxPlanContracts?.isDirty(active)) return true;
         let confirmation = active.querySelector('.sx-plan-discard');
         if (!confirmation) {
           confirmation = document.createElement('div');
@@ -71,7 +72,7 @@
           confirmation.innerHTML = `<p>${text('You have unsaved changes. Discard them?','لديك تغييرات غير محفوظة. هل تريد تجاهلها؟')}</p><div class="sx-plan-buttons"><button type="button" data-keep>${text('Keep editing','متابعة التعديل')}</button><button type="button" data-discard>${text('Discard changes','تجاهل التغييرات')}</button></div>`;
           active.querySelector('form').appendChild(confirmation);
           confirmation.querySelector('[data-keep]').onclick = () => {confirmation.remove();active.querySelector('[data-cancel]').focus();};
-          confirmation.querySelector('[data-discard]').onclick = () => {dirty=false;close();};
+          confirmation.querySelector('[data-discard]').onclick = () => {dirty=false;window.salemaxPlanContracts?.clearDirty(active);close();};
         }
         confirmation.querySelector('[data-keep]').focus();
         return false;
@@ -83,6 +84,7 @@
       form.addEventListener('input',()=>{dirty=true;}); form.addEventListener('change',()=>{dirty=true;});
       form.addEventListener('submit', async event => {
         event.preventDefault(); if(saving) return;
+        if(window.salemaxPlanContracts?.isDirty(active)){const warning=form.querySelector('[role=alert]');warning.hidden=false;warning.textContent=text('Create the contract draft or discard its changes before saving catalogue changes.','أنشئ مسودة العقد أو تجاهل تغييراتها قبل حفظ تغييرات الكتالوج.');const discard=document.createElement('button');discard.type='button';discard.textContent=text('Discard contract changes','تجاهل تغييرات العقد');discard.onclick=()=>{window.salemaxPlanContracts.clearDirty(active);warning.hidden=true;};warning.appendChild(discard);return;}
         active.querySelector('.sx-plan-discard')?.remove();
         const data = new FormData(form), body = Object.fromEntries(data);
         if(plan.id) body.id = plan.id;

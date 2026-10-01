@@ -1,51 +1,16 @@
-const jwt = require('jsonwebtoken')
-const { query } = require('../database/dbpromise')
-
-const adminValidator = async (req, res, next) => {
-    try {
-        const token = req.get('Authorization')
-        if (!token) {
-            return res.json({ msg: "No token found", token: token, logout: true })
-        }
-
-        jwt.verify(token.split(' ')[1], process.env.JWTKEY, async (err, decode) => {
-            if (err) {
-                return res.json({
-                    success: 0,
-                    msg: "Invalid token found",
-                    token,
-                    logout: true
-                })
-            } else {
-                const getAdmin = await query(`SELECT * FROM admin WHERE email = ? and password = ? `, [
-                    decode.email, decode.password
-                ])
-                if (getAdmin.length < 1) {
-                    return res.json({
-                        success: false,
-                        msg: "Invalid token found",
-                        token,
-                        logout: true
-                    })
-                }
-                if (getAdmin[0].role === 'admin') {
-                    req.decode = decode
-                    next()
-                } else {
-                    return res.json({
-                        success: 0,
-                        msg: "Unauthorized token",
-                        token: token,
-                        logout: true
-                    })
-                }
-            }
-        })
-
-    } catch (err) {
-        console.log(err)
-        res.json({ msg: "server error", err })
-    }
+const jwt=require('jsonwebtoken');
+function createAdminValidator(runQuery,key){
+  return async(req,res,next)=>{
+    const authorization=req.get('Authorization');
+    if(typeof authorization!=='string'||!/^Bearer \S+$/.test(authorization))return res.json({success:false,msg:'Administrator sign-in is required',logout:true});
+    try{
+      const decode=jwt.verify(authorization.slice(7),typeof key==='function'?key():key);
+      if(!decode||typeof decode.email!=='string'||typeof decode.password!=='string'||typeof decode.uid!=='string')return res.json({success:false,msg:'Invalid token found',logout:true});
+      const rows=await runQuery('SELECT id,uid,role FROM admin WHERE email=? AND password=? AND uid=?',[decode.email,decode.password,decode.uid]);
+      if(rows.length!==1||rows[0].uid!==decode.uid||rows[0].role!=='admin')return res.json({success:false,msg:'Unauthorized token',logout:true});
+      req.decode=decode;req.legacyAdminId=rows[0].id;next();
+    }catch(_){return res.json({success:false,msg:'Administrator session could not be verified',logout:true});}
+  };
 }
-
-module.exports = adminValidator
+module.exports=createAdminValidator((sql,args)=>require('../database/dbpromise').query(sql,args),()=>process.env.JWTKEY);
+module.exports.createAdminValidator=createAdminValidator;

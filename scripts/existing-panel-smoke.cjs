@@ -5,9 +5,10 @@ const path=require('node:path');
 const crypto=require('node:crypto');
 const mysql=require('mysql2/promise');
 async function main() {
-  const access=JSON.parse(fs.readFileSync(path.join(__dirname,'../database/local-runtime/existing-panel-lab/access.json'),'utf8'));
-  if(access.syntheticData!==true || access.url!=='http://127.0.0.1:3017/admin/login' || !/^salemax_panel_lab_[a-f0-9]{12}$/.test(access.database))throw new Error('SYNTHETIC_PANEL_ONLY');
-  const origin='http://127.0.0.1:3017';
+  const port=Number(process.env.SALEMAX_TEST_PANEL_PORT||3017);if(![3017,3018].includes(port))throw new Error('SYNTHETIC_PANEL_PORT_ONLY');
+  const access=JSON.parse(fs.readFileSync(path.join(__dirname,'../database/local-runtime',port===3017?'existing-panel-lab':'existing-panel-lab-3018','access.json'),'utf8'));
+  if(access.syntheticData!==true || access.url!==`http://127.0.0.1:${port}/admin/login` || !/^salemax_panel_lab_[a-f0-9]{12}$/.test(access.database))throw new Error('SYNTHETIC_PANEL_ONLY');
+  const origin=`http://127.0.0.1:${port}`;
   const request=async(route,body,token)=>{
     const response=await fetch(origin+route,{method:body?'POST':'GET',headers:{...(body?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});
     return {status:response.status,data:await response.json()};

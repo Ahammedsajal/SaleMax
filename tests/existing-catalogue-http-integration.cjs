@@ -1,0 +1,51 @@
+const assert=require('node:assert/strict');
+const crypto=require('node:crypto');
+const bcrypt=require('bcrypt');
+const jwt=require('jsonwebtoken');
+const mysql=require('mysql2/promise');
+const express=require('express');
+const {mountExistingUpgrade}=require('../modules/platform/mount-existing-upgrade');
+const {createAdminValidator}=require('../middlewares/admin');
+const {totp}=require('../modules/platform/mfa');
+module.exports=async(db,config,{i1})=>{
+  const actor=crypto.randomUUID(),uid=crypto.randomUUID(),password=crypto.randomBytes(20).toString('base64url'),passwordHash=await bcrypt.hash(password,12),key=crypto.randomBytes(32),jwtKey=crypto.randomBytes(32).toString('hex');
+  const grants=['plans.read','plans.draft','plans.publish'];
+  await db.query('CREATE TABLE admin (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),email VARCHAR(254),password VARCHAR(255),role VARCHAR(20)) ENGINE=InnoDB');
+  const [inserted]=await db.query("INSERT INTO admin(uid,email,password,role) VALUES (?,?,?,'admin')",[uid,'mapped@example.invalid',passwordHash]);
+  await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,'Mapped staff',?,'active')",[actor,'mapped@example.invalid',passwordHash]);
+  await db.query("INSERT INTO sx_platform_memberships(identity_id,role,delegated_permissions) VALUES (?,'staff',?)",[actor,JSON.stringify(grants)]);
+  await db.query('INSERT INTO sx_legacy_admin_identities(legacy_admin_id,legacy_uid,legacy_uid_hash,identity_id,verified_by,verified_at) VALUES (?,?,?,?,?,UTC_TIMESTAMP(3))',[inserted.insertId,uid,crypto.createHash('sha256').update(uid).digest('hex'),actor,i1]);
+  const legacyToken=jwt.sign({uid,email:'mapped@example.invalid',password:passwordHash,role:'admin'},jwtKey);
+  const pool=mysql.createPool({...config,connectionLimit:3}),app=express(),origin='http://127.0.0.1:3017';
+  const legacyGuard=createAdminValidator(async(sql,args)=>{const [rows]=await pool.query(sql,args);return rows;},jwtKey);
+  mountExistingUpgrade(app,{pool,key,origin,insecureLoopback:true,legacyGuard});
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const base='http://127.0.0.1:'+server.address().port;
+  const authPath='/api/admin/platform-auth',contracts='/api/admin/plan-contracts';
+  let cookie='',csrf='';
+  async function request(path,{body,headers={},method}={}){return fetch(base+path,{method:method||(body?'POST':'GET'),headers:{Authorization:'Bearer '+legacyToken,...(cookie?{Cookie:cookie}:{}),...(body?{Origin:origin,'Content-Type':'application/json','X-CSRF-Token':csrf}:{}),...headers},body:body?JSON.stringify(body):undefined});}
+  try{
+    assert.equal((await request(contracts+'/context')).status,401);
+    const login=await request(authPath+'/login',{body:{email:'mapped@example.invalid',password,audience:'platform'}});assert.equal(login.status,200);cookie=login.headers.get('set-cookie').split(';')[0];csrf=(await login.json()).csrfToken;
+    assert.equal((await request(contracts+'/context')).status,403);
+    const enrolled=await request(authPath+'/mfa/enroll',{body:{}});assert.equal(enrolled.status,200);const seed=await enrolled.json();
+    let acc=0,bits=0,bytes=[];for(const letter of seed.secret){acc=(acc<<5)|'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(letter);bits+=5;if(bits>=8){bits-=8;bytes.push((acc>>>bits)&255);}acc&=(1<<bits)-1;}
+    const verify=await request(authPath+'/mfa/verify',{body:{code:totp(Buffer.from(bytes),Math.floor(Date.now()/30000))}});assert.equal(verify.status,200);
+    assert.equal((await request(authPath+'/login',{body:{email:'mapped@example.invalid',password:'x'.repeat(9000),audience:'platform'}})).status,413);
+    assert.equal((await request(contracts+'/1/drafts',{body:{padding:'x'.repeat(25000)}})).status,413);
+    assert.equal((await request(contracts+'/1e2/versions')).status,400);
+    const context=await request(contracts+'/context');assert.equal(context.status,200);assert.equal((await context.json()).permissions['plans.publish'],true);
+    const [[plan]]=await db.query('SELECT id FROM plan LIMIT 1');
+    const input={requestId:crypto.randomUUID(),categoryKey:'training_center',categoryVersion:1,capabilities:['messaging.inbox','team.members'],roleLimits:{owner:1,accountant:1,manager:1,agent:7}};
+    const draft=await request(contracts+'/'+plan.id+'/drafts',{body:input});assert.equal(draft.status,201);const version=await draft.json();
+    assert.equal((await request(contracts+'/'+plan.id+'/drafts',{body:input,headers:{'X-CSRF-Token':'invalid'}})).status,403);
+    const published=await request(contracts+'/'+plan.id+'/publish',{body:{versionId:version.id,revision:1}});assert.equal(published.status,200);
+    const versions=await request(contracts+'/'+plan.id+'/versions');assert.equal(versions.status,200);assert.ok((await versions.json()).items.some(v=>v.id===version.id&&v.status==='published'));
+    await db.query('UPDATE sx_platform_memberships SET delegated_permissions=? WHERE identity_id=?',[JSON.stringify(['plans.read']),actor]);
+    assert.equal((await request(contracts+'/'+plan.id+'/drafts',{body:{...input,requestId:crypto.randomUUID()}})).status,403);
+    await db.query("UPDATE sx_legacy_admin_identities SET status='inactive' WHERE identity_id=?",[actor]);
+    assert.equal((await request(contracts+'/context')).status,403);
+    const absent=await request(contracts+'/context',{headers:{Authorization:''}});assert.equal((await absent.json()).logout,true);
+    const [[audit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE actor_identity_id=? AND action='catalogue.request-rejected'",[actor]);assert.ok(audit.n>=1);
+    return {existingAdminCatalogueHttpWorkflow:true,verifiedLegacyCanonicalLinkRequired:true,catalogueMfaRequired:true,catalogueCsrfRequired:true,catalogueStaffGrantRevocation:true,catalogueDeniedMutationAudited:true};
+  }finally{await new Promise(resolve=>server.close(resolve));await pool.end();}
+};

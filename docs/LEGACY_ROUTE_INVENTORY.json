@@ -5,102 +5,102 @@
     {
       "prefix": "/sso",
       "source": "routes/sso.js",
-      "line": 110
+      "line": 113
     },
     {
       "prefix": "/api/user",
       "source": "routes/user.js",
-      "line": 116
+      "line": 119
     },
     {
       "prefix": "/api/web",
       "source": "routes/web.js",
-      "line": 117
+      "line": 120
     },
     {
       "prefix": "/api/admin",
       "source": "routes/admin.js",
-      "line": 118
+      "line": 121
     },
     {
       "prefix": "/api/phonebook",
       "source": "routes/phonebook.js",
-      "line": 119
+      "line": 122
     },
     {
       "prefix": "/api/chat_flow",
       "source": "routes/chatFlow.js",
-      "line": 120
+      "line": 123
     },
     {
       "prefix": "/api/inbox",
       "source": "routes/inbox.js",
-      "line": 121
+      "line": 124
     },
     {
       "prefix": "/api/templet",
       "source": "routes/templet.js",
-      "line": 122
+      "line": 125
     },
     {
       "prefix": "/api/chatbot",
       "source": "routes/chatbot.js",
-      "line": 123
+      "line": 126
     },
     {
       "prefix": "/api/broadcast",
       "source": "routes/broadcast.js",
-      "line": 124
+      "line": 127
     },
     {
       "prefix": "/api/v1",
       "source": "routes/apiv2.js",
-      "line": 125
+      "line": 128
     },
     {
       "prefix": "/api/agent",
       "source": "routes/agent.js",
-      "line": 126
+      "line": 129
     },
     {
       "prefix": "/api/qr",
       "source": "routes/qr.js",
-      "line": 127
+      "line": 130
     },
     {
       "prefix": "/api/ai",
       "source": "routes/ai.js",
-      "line": 128
+      "line": 131
     },
     {
       "prefix": "/api/webhook",
       "source": "routes/webhook.js",
-      "line": 129
+      "line": 132
     },
     {
       "prefix": "/api/wa_call",
       "source": "routes/waCall.js",
-      "line": 130
+      "line": 133
     },
     {
       "prefix": "/api/telegram",
       "source": "routes/telegram.js",
-      "line": 131
+      "line": 134
     },
     {
       "prefix": "/api/theme",
       "source": "routes/theme.js",
-      "line": 132
+      "line": 135
     },
     {
       "prefix": "/api/pipeline",
       "source": "routes/pipeline.js",
-      "line": 133
+      "line": 136
     },
     {
       "prefix": "/api/internal",
       "source": "routes/internal.js",
-      "line": 134
+      "line": 137
     }
   ],
   "direct": [
@@ -108,25 +108,25 @@
       "method": "GET",
       "path": "/healthz",
       "source": "server.js",
-      "line": 91
+      "line": 94
     },
     {
       "method": "GET",
       "path": "/admin-setup",
       "source": "server.js",
-      "line": 187
+      "line": 190
     },
     {
       "method": "GET",
       "path": "*",
       "source": "server.js",
-      "line": 192
+      "line": 195
     },
     {
       "method": "GET",
       "path": "*",
       "source": "server.js",
-      "line": 235
+      "line": 238
     }
   ],
   "routes": [

@@ -82,6 +82,9 @@ function validateAndRepairFrontendShell() {
 
 validateAndRepairFrontendShell();
 
+// Mounted before global body parsers so auth and contract limits remain effective.
+require('./modules/platform/mount-existing-upgrade').mountConfiguredUpgrade(app);
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));

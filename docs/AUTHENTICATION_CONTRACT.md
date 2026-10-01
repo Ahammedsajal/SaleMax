@@ -1,6 +1,6 @@
 # Canonical authentication and MFA contract
 
-Status: backend router/services implemented and verified through real HTTP against disposable MariaDB. Not mounted in `server.js`, not deployed, not yet a finished login screen or completed TC03. This is the planned shared replacement for legacy login, not an additional production identity system.
+Status: backend router/services implemented and verified through real HTTP against disposable MariaDB. Conditionally mounted in the existing host for protected administration with activation off by default; not deployed and not completed TC03. This is the planned shared replacement for legacy login, not an additional production identity system.
 
 ## Implementation and activation
 
@@ -14,7 +14,7 @@ The current IP limiter uses `req.socket.remoteAddress`, deliberately ignoring su
 
 ## Implemented router endpoints
 
-Paths below are relative to the unmounted router. They are tested handler contracts, not claims about currently live URLs.
+Paths below are relative to the canonical router. The existing-host administration mount is /api/admin/platform-auth when explicitly activated; production activation remains pending.
 
 | Method/path | Request | Response and behavior |
 | --- | --- | --- |
@@ -51,3 +51,6 @@ TC03 remains open for identity/bootstrap adoption, MFA device replacement and au
 The existing application's /user and /user/login entry points must remain business-only; /admin and /admin/login remain platform administration. Upgrade their current login/session integration without creating a parallel login or replacing the panels. The separate auth-lab UI verified audience isolation, logout and English/Arabic behavior but is not the product destination. Its former /admin/plans test page is superseded by integration into existing /admin?page=manage-plans. A session for another audience must not render its identity or trigger enrollment on the wrong page. Server-side audience/role/MFA enforcement remains mandatory; route names are not authorization. Legacy login/session adoption and existing-screen acceptance remain required before activation.
 
 23 automated tests pass. Real MariaDB/HTTP integration verifies six migrations, valid/wrong/foreign-membership login, cookie attributes, no raw token/password JSON claims, missing/foreign-origin CSRF rejection, guard continuation, logout revocation, database throttling, encrypted enrollment, MFA-required denial then verified access, TOTP replay denial, recovery retry/concurrency denial and MFA attempt limits. Passwords, seeds, bearer tokens and recovery codes are generated inside the synthetic test and are never printed. No customer data/provider sends/production writes.
+
+
+Existing-panel integration now conditionally mounts the same canonical authentication handlers under /api/admin/platform-auth with the legacy administrator guard, plus verified administrator mapping before /api/admin/plan-contracts. This is disabled by default in the actual host; the original login route is preserved. The in-editor EN/AR verification and authenticator/recovery workflows are locally verified using synthetic accounts. Production identity adoption, operational key/proxy/restore gates and full authentication replacement remain pending.
