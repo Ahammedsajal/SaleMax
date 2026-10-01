@@ -164,6 +164,22 @@ Responses retain bilingual course names, offer/version and QAR integer-minor-uni
 
 Finance contract arithmetic is implemented as internal validators documented in [`FINANCE_CONTRACT.md`](FINANCE_CONTRACT.md); it is not an HTTP API. `/api/user/finance` invoice, payment, receipt and journal routes are not mounted yet. Do not build clients against planned route names until their authenticated contracts and database posting behavior are implemented.
 
+### Training-center finance policy setup (TC39 in progress)
+
+Policy setup extends the existing `/user` workspace and is available only to an active training-center tenant with `tenant.settings` and `finance.invoices` entitlements. The existing owner business-token session may read/save drafts and submit a draft for accountant review. Accountant reads and decisions require the canonical tenant session, tenant membership role `accountant`, the finance entitlement, same-origin request and session-bound CSRF token. No caller-supplied tenant ID, role or approval identity is accepted.
+
+| Method and path | Purpose |
+| --- | --- |
+| GET `/api/user/training/finance-policies/current` | Owner: current policy version, last approved profile, configuration blockers and posting readiness. |
+| GET `/api/user/training/finance-policies/history` | Owner: up to 50 tenant-scoped policy versions and review history. |
+| PUT `/api/user/training/finance-policies/draft` | Owner: create/update a draft using `{ "expectedPolicyId": null, "expectedRevision": 0, "input": { ... } }`; stale edits conflict. Fixed jurisdiction/currency are `QA`/`QAR`. `input` accepts `legalName`, optional `legalRegistrationNumber`/`legalAddress`, `invoicePrefix`, `taxMode` (`unset`, `no_tax`, `exclusive`, `inclusive`), nullable `taxRateBps`, `revenueMethod` (`unset`, `deferred_until_delivery`, `over_time`), `issueApprover` (`unset`, `owner`, `accountant`) and nullable `manualSecondApprovalAboveMinor`. |
+| POST `/api/user/training/finance-policies/:id/submit` | Owner: submit a complete draft with `{ "expectedRevision": 2 }`. A pending version is locked until the accountant decides. |
+| GET `/api/user/training/finance-policies/accountant/current` | Canonical tenant account: current version and effective approved policy, scoped to its tenant. |
+| GET `/api/user/training/finance-policies/accountant/history` | Canonical tenant account: policy/review history. |
+| POST `/api/user/training/finance-policies/:id/decision` | Accountant only; canonical cookie session and `X-CSRF-Token` required. Body is `{ "expectedRevision": 3, "decision": "approved" | "rejected", "reason": "..." }`; rejection reason is required. Identical retries are idempotent. |
+
+The last approved policy stays effective while a newer draft or pending version is reviewed. Tax, legal invoice identity and revenue treatment are stored as tenant decisions; no Qatar rate or legal rule is assumed by the application. `policyReady` reports accountant-approved profile completeness, while `posting.ready` stays false with `FINANCE_POSTING_MODULES_NOT_IMPLEMENTED`. This module does not issue an invoice, verify/post a payment, create a journal entry, generate a PDF or send a receipt.
+
 `GET /api/pipeline/reports/activity?period=daily|weekly|monthly&at=YYYY-MM-DD&page=1&limit=50` returns a read-only, paginated lead activity report. `at` is optional and defaults to the current date in the authenticated business timezone. Weekly periods start Monday. The response includes the resolved UTC `from`/`to` bounds and timezone, lead-created/touched totals, outcome and note counts, follow-ups required/due/overdue, outcome breakdown, and activity items with the attending user/agent and linked lead details. `limit` is 1–100. Owners see business-wide activity; agents see only their currently assigned leads. Other legacy roles are denied. The endpoint is connected to a Reports view in the existing embedded pipeline panel, with Qatar-local period/date filters, summary metrics, paginated activity and links into existing lead details. The screen's **Export this page (CSV)** action downloads only the currently displayed rows and labels the columns in the selected language; it does not issue another API request. The endpoint does not send scheduled reports and does not include invoices, payments or finance reconciliation.
 
 ### Training-center course catalogue (initial implementation)

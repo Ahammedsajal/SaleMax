@@ -1,6 +1,6 @@
 # SaleMaX finance contract foundation (TC39)
 
-This is the executable arithmetic and readiness contract for the training-center finance work. It does not issue invoices, post payments, create journal entries, or configure a tenant. Posting remains disabled until an accountant-approved tenant policy and the transactional finance modules are implemented.
+This is the executable arithmetic and posting-readiness contract for training-center finance. Tenant policy drafts, review and accountant decisions are persisted through the existing `/user` Finance settings screen and the APIs documented in `API_DOCUMENTATION.md`. The policy workflow does not issue invoices, post payments, create journal entries or mark a sale converted. Posting remains disabled until transactional finance modules are implemented and verified.
 
 ## Core balance rules
 
@@ -14,7 +14,7 @@ All money is represented as integer minor units; the Qatar release uses QAR and 
 
 ## Posting-readiness gate
 
-`modules/platform/finance-contract.js` exposes a pure `postingReadiness` check. Posting requires an approved profile with Qatar jurisdiction, QAR, legal entity name, invoice prefix, explicit tax mode and rate where applicable, revenue method, invoice approver, and an authenticated accountant approval record. Missing/invalid values return stable blocker codes. Tax values, legal invoice identity and revenue treatment are deliberately not inferred from the country selection.
+`modules/platform/finance-contract.js` exposes a pure policy completeness/readiness check. A complete profile requires Qatar jurisdiction, QAR, legal entity name, invoice prefix, explicit tax mode and rate where applicable, revenue method, invoice approver, and an authenticated accountant approval record. Missing/invalid values return stable blocker codes. Tax values, legal invoice identity and revenue treatment are deliberately not inferred from the country selection. The API separately reports `policyReady`; transaction `posting.ready` remains false with `FINANCE_POSTING_MODULES_NOT_IMPLEMENTED` even after accountant approval.
 
 The `invoiceBalance`, `paymentBalance`, `assertInstallments`, `assertBalancedJournal`, and `assertRecognition` functions implement the invariant calculations and fail with stable error codes. They are reusable by the upcoming transactional APIs and synthetic reconciliation suite; they are not public HTTP APIs.
 
@@ -22,4 +22,4 @@ The `invoiceBalance`, `paymentBalance`, `assertInstallments`, `assertBalancedJou
 
 The plan's QAR 3,000 example is expressed in 300,000 minor units. Issuing a three-installment invoice begins at 300,000 receivable. Posting a 100,000 payment allocation leaves 200,000 open; a duplicate provider event must be rejected by the later idempotent posting layer, not counted twice here. A subsequent 50,000 credit leaves 150,000 open after the first payment. The payment receipt remains 100,000 even though the invoice balance is 150,000. These distinct values are intentional: invoice debt, cash received, and receipt total are not interchangeable.
 
-Automated tests cover partial allocation, credits, reversals, partial refund/chargeback, exact installments, invalid calendar dates, balanced and unbalanced journals, revenue caps, and missing/unapproved Qatar policy. Database locking, unique posting keys, transaction recovery, accountant approval screens, and live tenant finance state are still required before TC39 or any posting ticket can be marked complete.
+Unit and synthetic MariaDB tests cover partial allocation, credits, reversals, partial refund/chargeback, exact installments, invalid calendar dates, balanced and unbalanced journals, revenue caps, policy draft revision, completeness gating, accountant-only approval, retry idempotency, and retention of the previously approved policy while a replacement is drafted. Browser acceptance of the Finance settings screen, transactional posting locks/unique keys/recovery, accountant login provisioning, and finance edge-case reconciliation are still required before TC39 or any posting ticket can be marked complete.

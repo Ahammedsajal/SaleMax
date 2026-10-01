@@ -64,9 +64,8 @@ function assertRecognition({eligibleMinor,recognizedMinor=0,proposedMinor}){
   return {eligibleMinor:eligible,recognizedMinor:recognized,remainingMinor:eligible-recognized-proposed};
 }
 
-function postingReadiness(policy){
+function policyConfigurationIssues(policy){
   const reasons=[];
-  if(!policy||policy.status!=='approved')reasons.push('FINANCE_POLICY_NOT_APPROVED');
   if(policy?.jurisdiction!=='QA'||policy?.currency!=='QAR')reasons.push('QATAR_FINANCE_PROFILE_REQUIRED');
   if(typeof policy?.legalName!=='string'||policy.legalName.trim().length<2)reasons.push('LEGAL_ENTITY_REQUIRED');
   if(typeof policy?.invoicePrefix!=='string'||!/^[A-Z0-9-]{2,16}$/.test(policy.invoicePrefix))reasons.push('INVOICE_NUMBERING_REQUIRED');
@@ -74,8 +73,14 @@ function postingReadiness(policy){
   if(['exclusive','inclusive'].includes(policy?.taxMode)&&(!Number.isInteger(policy.taxRateBps)||policy.taxRateBps<0||policy.taxRateBps>10000))reasons.push('TAX_RATE_REQUIRED');
   if(!['deferred_until_delivery','over_time'].includes(policy?.revenueMethod))reasons.push('REVENUE_METHOD_REQUIRED');
   if(!['owner','accountant'].includes(policy?.issueApprover))reasons.push('INVOICE_APPROVER_REQUIRED');
+  if(policy?.manualSecondApprovalAboveMinor!==null&&policy?.manualSecondApprovalAboveMinor!==undefined&&(!Number.isSafeInteger(policy.manualSecondApprovalAboveMinor)||policy.manualSecondApprovalAboveMinor<0))reasons.push('INVALID_SECOND_APPROVAL_THRESHOLD');
+  return reasons;
+}
+function postingReadiness(policy){
+  const reasons=policyConfigurationIssues(policy);
+  if(!policy||policy.status!=='approved')reasons.push('FINANCE_POLICY_NOT_APPROVED');
   if(policy?.approvedByRole!=='accountant'||typeof policy.approvedBy!=='string'||!policy.approvedBy)reasons.push('ACCOUNTANT_APPROVAL_REQUIRED');
   return {ready:reasons.length===0,reasons};
 }
 
-module.exports={FinanceContractError,invoiceBalance,paymentBalance,assertInstallments,assertBalancedJournal,assertRecognition,postingReadiness};
+module.exports={FinanceContractError,invoiceBalance,paymentBalance,assertInstallments,assertBalancedJournal,assertRecognition,policyConfigurationIssues,postingReadiness};
