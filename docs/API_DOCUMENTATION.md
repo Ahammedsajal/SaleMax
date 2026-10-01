@@ -115,6 +115,10 @@ The existing team endpoints remain under `/api/agent` and keep their current use
 | POST `/api/agent/add_agent` | Creates an active account only when the current plan enables `team.members` and an agent seat remains. The response adds `seat:{used,limit}`. The eighth active account under a seven-agent assignment returns HTTP 409 `{success:false,code:"AGENT_SEAT_LIMIT",msg}`. |
 | POST `/api/agent/change_agent_activeness` | Owner-scopes the target; activation checks capacity and returns the same 409 when full. Deactivation releases the seat. `activeness` must be boolean or 0/1. |
 | POST `/api/agent/del_agent` | Owner-scopes deletion and deactivates any explicitly linked canonical agent membership in the same transaction. |
-| GET `/api/agent/get_my_agents` | Existing list response is preserved. |
+| POST `/api/agent/change_status_mask` | Owner-scoped update of the agent's mask-number setting. |
+| POST `/api/agent/change_status_allow_send` | Owner-scoped update of the agent's new-QR sending permission. |
+| GET `/api/agent/get_my_agents` | Existing list action is preserved; only fields used for agent administration are returned. Password hashes and raw owner IDs are excluded. |
+| POST `/api/agent/update_agent_in_chat` | Accepts assignment only when the selected active agent belongs to the authenticated business. |
+| POST `/api/agent/get_assigned_chat_agent` | Returns the assigned agent only when the agent and chat assignment belong to the authenticated business. |
 
 Legacy accounts without an explicit reviewed `user` ownership link retain the existing creation/status/deletion behavior. During gradual rollout, absence of the ownership migration also falls back to that route. A partial or invalid ownership schema, inconsistent mapping, inactive business, missing team capability or exhausted contract does not bypass enforcement for a linked account; it returns a bounded error. Existing plan-specific seat counts combine active canonical members, pending reservations and active unlinked legacy agent rows. Seat-changing transactions lock the same tenant row as canonical invite reservation, preventing a concurrent legacy account and canonical invite from consuming the same final seat. These endpoints do not yet implement staff invitation delivery or onboarding; that is tracked in TC07.

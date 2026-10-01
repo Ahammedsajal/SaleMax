@@ -34,9 +34,11 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
     email VARCHAR(999) NOT NULL, password VARCHAR(999) NOT NULL,
     name VARCHAR(999) NOT NULL, mobile VARCHAR(999) NOT NULL,
     comments TEXT NULL, role VARCHAR(32) NULL, is_active TINYINT NULL,
+    mask_number TINYINT NOT NULL DEFAULT 0, allow_send_new_qr TINYINT NOT NULL DEFAULT 0,
     UNIQUE KEY uq_synthetic_agent_uid(uid), KEY ix_synthetic_agent_owner(owner_uid)
   ) ENGINE=InnoDB`);
   const seats=require('../modules/platform/legacy-agent-seats');
+  const agentAccess=require('../modules/platform/legacy-agent-access');
   const legacyAgents=[];
   for(let n=0;n<6;n++){
     const agent={uid:`synthetic-old-agent-${n}-${crypto.randomUUID()}`,email:`old-${n}-${crypto.randomUUID()}@example.invalid`};
@@ -63,5 +65,13 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   await seats.deleteIfMapped(pool,uid,legacyAgents[1].uid);
   await seats.updateIfMapped(pool,uid,legacyAgents[0].uid,true);
   const [[remaining]]=await db.query('SELECT COUNT(*) n FROM agents WHERE owner_uid=? AND (is_active IS NULL OR is_active<>0)',[uid]);assert.equal(Number(remaining.n),7);
-  return {businessLegacyCanonicalAssignmentAtomic:true,businessAssignmentIdempotent:true,businessAssignmentStateChecked:true,legacyWriteBlockedAfterReviewedMapping:true,mappedCanonicalAssignmentAdapterRequired:true,existingAgentCreationUsesCanonicalSevenSeatLimit:true,concurrentEighthAgentRejected:true,agentDeactivationReleasesSeat:true,agentDeletionKeepsSeatAccountingCorrect:true,unlinkedLegacyAgentCreationPreserved:true};
+  const foreignAgentUid=`foreign-agent-${crypto.randomUUID()}`;
+  await db.query('INSERT INTO agents(owner_uid,uid,email,password,name,mobile,is_active) VALUES (?,?,?,?,?,?,1)',[`another-owner-${crypto.randomUUID()}`,foreignAgentUid,`foreign-${crypto.randomUUID()}@example.invalid`,'synthetic-secret-hash','Foreign Agent','00000000']);
+  await assert.rejects(agentAccess.setOwnerFlag(pool,uid,foreignAgentUid,'maskNumber',true),{code:'AGENT_NOT_FOUND'});
+  const [[foreign]]=await db.query('SELECT mask_number FROM agents WHERE uid=?',[foreignAgentUid]);assert.equal(Number(foreign.mask_number),0);
+  await agentAccess.setOwnerFlag(pool,uid,legacyAgents[0].uid,'allowSendNewQr',true);
+  assert.equal((await agentAccess.findOwnedAgent(pool,uid,foreignAgentUid)),null);
+  assert.equal((await agentAccess.findOwnedAgent(pool,uid,legacyAgents[0].uid,{activeOnly:true})).uid,legacyAgents[0].uid);
+  const ownedAgents=await agentAccess.listOwnedAgents(pool,uid);assert.ok(ownedAgents.length===7);assert.equal(Object.hasOwn(ownedAgents[0],'password'),false);assert.equal(Object.hasOwn(ownedAgents[0],'owner_uid'),false);
+  return {businessLegacyCanonicalAssignmentAtomic:true,businessAssignmentIdempotent:true,businessAssignmentStateChecked:true,legacyWriteBlockedAfterReviewedMapping:true,mappedCanonicalAssignmentAdapterRequired:true,existingAgentCreationUsesCanonicalSevenSeatLimit:true,concurrentEighthAgentRejected:true,agentDeactivationReleasesSeat:true,agentDeletionKeepsSeatAccountingCorrect:true,unlinkedLegacyAgentCreationPreserved:true,agentSettingsAreOwnerScoped:true,foreignAgentAssignmentDenied:true,agentListOmitsPasswordHash:true};
 };

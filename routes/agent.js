@@ -37,6 +37,7 @@ const ffmpeg = require("fluent-ffmpeg");
 const ffmpegStatic = require("ffmpeg-static");
 const fs = require("fs");
 const legacyAgentSeats = require("../modules/platform/legacy-agent-seats");
+const legacyAgentAccess = require("../modules/platform/legacy-agent-access");
 
 // adding agent
 router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
@@ -117,12 +118,11 @@ router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
 // get all agents
 router.get("/get_my_agents", validateUser, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM agents WHERE owner_uid = ?`, [
-      req.decode.uid,
-    ]);
+    const data = await legacyAgentAccess.listOwnedAgents(require("../database/config.js").promise(),req.decode.uid);
 
     res.json({ data, success: true });
   } catch (err) {
+    if (legacyAgentAccess.messages[err.code]) return res.status(err.code==='AGENT_NOT_FOUND'?404:400).json({success:false,code:err.code,msg:legacyAgentAccess.messages[err.code]});
     res.json({ success: false, msg: "something went wrong", err });
     console.log(err);
   }
@@ -133,16 +133,18 @@ router.post("/change_status_mask", validateUser, async (req, res) => {
   try {
     const { agentUid, activeness } = req.body;
 
-    await query(`UPDATE agents SET mask_number = ? WHERE uid = ?`, [
-      activeness ? 1 : 0,
-      agentUid,
-    ]);
+    if (!agentUid || ![true, false, 0, 1, "0", "1"].includes(activeness)) {
+      return res.status(400).json({ success: false, msg: "Choose a valid agent status" });
+    }
+
+    await legacyAgentAccess.setOwnerFlag(require("../database/config.js").promise(),req.decode.uid,agentUid,"maskNumber",activeness===true||activeness===1||activeness==="1");
 
     res.json({
       success: true,
       msg: "Success",
     });
   } catch (err) {
+    if (legacyAgentAccess.messages[err.code]) return res.status(err.code==='AGENT_NOT_FOUND'?404:400).json({success:false,code:err.code,msg:legacyAgentAccess.messages[err.code]});
     res.json({ success: false, msg: "something went wrong", err });
     console.log(err);
   }
@@ -153,16 +155,18 @@ router.post("/change_status_allow_send", validateUser, async (req, res) => {
   try {
     const { agentUid, activeness } = req.body;
 
-    await query(`UPDATE agents SET allow_send_new_qr = ? WHERE uid = ?`, [
-      activeness ? 1 : 0,
-      agentUid,
-    ]);
+    if (!agentUid || ![true, false, 0, 1, "0", "1"].includes(activeness)) {
+      return res.status(400).json({ success: false, msg: "Choose a valid agent status" });
+    }
+
+    await legacyAgentAccess.setOwnerFlag(require("../database/config.js").promise(),req.decode.uid,agentUid,"allowSendNewQr",activeness===true||activeness===1||activeness==="1");
 
     res.json({
       success: true,
       msg: "Success",
     });
   } catch (err) {
+    if (legacyAgentAccess.messages[err.code]) return res.status(err.code==='AGENT_NOT_FOUND'?404:400).json({success:false,code:err.code,msg:legacyAgentAccess.messages[err.code]});
     res.json({ success: false, msg: "something went wrong", err });
     console.log(err);
   }
@@ -259,6 +263,7 @@ router.post("/get_agent_chats_owner", validateUser, async (req, res) => {
 
     res.json({ data, success: true });
   } catch (err) {
+    if (legacyAgentAccess.messages[err.code]) return res.status(err.code==='AGENT_NOT_FOUND'?404:400).json({success:false,code:err.code,msg:legacyAgentAccess.messages[err.code]});
     res.json({ success: false, msg: "something went wrong", err });
     console.log(err);
   }
@@ -277,11 +282,9 @@ router.post("/get_assigned_chat_agent", validateUser, async (req, res) => {
     );
 
     if (data.length > 0) {
-      const agent = await query(`SELECT * FROM agents WHERE uid = ?`, [
-        data[0]?.uid,
-      ]);
+      const agent = await legacyAgentAccess.findOwnedAgent(require("../database/config.js").promise(),req.decode.uid,data[0]?.uid);
       data[0] = {
-        ...agent[0],
+        ...agent,
         chat_id: data[0].chat_id,
         owner_uid: data[0].owner_uid,
       };
@@ -304,6 +307,11 @@ router.post("/update_agent_in_chat", validateUser, async (req, res) => {
     const { assignAgent, chatId, agentUid } = req.body;
 
     if (assignAgent?.email) {
+      const ownedAgent = await legacyAgentAccess.findOwnedAgent(require("../database/config.js").promise(),req.decode.uid,assignAgent.uid,{activeOnly:true});
+      if (!ownedAgent) {
+        return res.status(404).json({ success: false, code: "AGENT_NOT_FOUND", msg: "Choose an active agent in this business" });
+      }
+
       await query(
         `DELETE FROM agent_chats WHERE owner_uid = ? AND chat_id = ?`,
         [req.decode?.uid, chatId]
