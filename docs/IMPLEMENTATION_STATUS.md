@@ -2,6 +2,12 @@
 
 Full objective: implement the audited upgrade, preserve and improve the existing UI, verify every required screen/function locally, document APIs and user journeys, push intended changes to Ahammedsajal/SaleMax, and release verified updates at crm.salemax.qa.
 
+## Production checkpoint — 2 October 2026
+
+Committed source `572e36a` is deployed at crm.salemax.qa. This supersedes earlier statements that no checkpoint was deployed, but does not mark the upgrade complete. The unfinished refund service/migration and unrelated working-tree edits were excluded. Courses navigation now requires an authenticated category/entitlement check. Clean-release evidence: 97/97 tests, 25-migration disposable MariaDB integration and baseline/syntax checks. Live existing-user profile/dashboard/tasks/phonebook/chatbot reads pass, both login pages return 200, app/DB are healthy and all 66 original tables retain their row counts.
+
+Production retains provider-disabled mode and the disabled platform-upgrade flag. No user was assigned a training category or a new plan. Training activation, owner bootstrap/configuration, full bilingual browser acceptance and remaining implementation tickets stay open. See [production release evidence](PRODUCTION_RELEASE_20261002.md) for deployment, reviewed schema adoption and rollback details.
+
 ## Evidence ladder
 
 Planned -> Implementing -> Locally verified -> Staging verified -> Provider verified where applicable -> Release approved. A passing foundation test does not mark an entire ticket or the product complete.
