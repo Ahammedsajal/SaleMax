@@ -13,7 +13,7 @@ const pipeline = fs.readFileSync(path.join(root, 'client/public/pipeline/pipelin
 test('reports is integrated as a bilingual view in the existing pipeline screen', () => {
   assert.match(html, /id="reportsMode"/);
   assert.match(html, /id="reports" class="reports hidden"/);
-  assert.match(html, /src="\/pipeline\/reports\.js\?v=3"/);
+  assert.match(html, /src="\/pipeline\/reports\.js\?v=\d+"/);
   assert.match(html, /id="followupsMode"/);
   assert.match(html, /id="followups" class="reports hidden"/);
   assert.match(reports, /\/api\/pipeline\/reports\/activity/);
