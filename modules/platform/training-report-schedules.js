@@ -4,6 +4,7 @@ const moment=require('moment-timezone');
 const {decision}=require('./policy');
 const reportRunner=require('./training-report-runner');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
+const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function validateContext(ctx){
   if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant?.id)fail('TENANT_CONTEXT_REQUIRED');
   const report=decision(ctx,{capability:'reports.read',permission:'reports.read'});if(!report.allowed)fail(report.code);
@@ -44,4 +45,29 @@ async function save(db,ctx,input){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 async function audit(db,ctx,action,id,data){const safe={period:data.period,timezone:data.timezone,localTime:data.localTime,emailEnabled:data.emailEnabled,whatsappEnabled:data.whatsappEnabled,status:data.status};await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,?,'identity',?,'report-schedule',?,?,?)`,[crypto.randomUUID(),ctx.tenant.id,ctx.identity.id,action,id,JSON.stringify(safe),crypto.randomUUID()]);}
-module.exports={validateContext,normalize,nextRun,list,save};
+async function reviseRun(db,ctx,input){
+  validateContext(ctx);
+  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!['scheduleId','runId','expectedRevision','requestKey','reason'].includes(key))||!uuid(input.scheduleId)||!uuid(input.runId)||!uuid(input.requestKey)||!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1)fail('INVALID_REPORT_REVISION');
+  input={...input,scheduleId:input.scheduleId.toLowerCase(),runId:input.runId.toLowerCase(),requestKey:input.requestKey.toLowerCase()};
+  const reason=typeof input.reason==='string'?input.reason.trim():'';if(reason.length<10||reason.length>500||/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(reason))fail('INVALID_REPORT_REVISION_REASON');
+  const tenantId=ctx.tenant.id,newId=crypto.randomUUID();await db.beginTransaction();
+  try{
+    const [[tenant]]=await db.query('SELECT status FROM sx_tenants WHERE id=? FOR UPDATE',[tenantId]);if(!tenant||tenant.status!=='active')fail('ACCOUNT_INACTIVE');
+    const [[source]]=await db.query(`SELECT id,schedule_id,schedule_revision,revision,period,DATE_FORMAT(period_start,'%Y-%m-%d %H:%i:%s.%f') AS period_start,DATE_FORMAT(period_end,'%Y-%m-%d %H:%i:%s.%f') AS period_end,DATE_FORMAT(cutoff_at,'%Y-%m-%d %H:%i:%s.%f') AS cutoff_at,timezone,metric_definition_version,status
+      FROM sx_training_report_runs WHERE tenant_id=? AND schedule_id=? AND id=? FOR UPDATE`,[tenantId,input.scheduleId,input.runId]);
+    if(!source)fail('REPORT_RUN_NOT_FOUND');
+    const [[replay]]=await db.query('SELECT id,schedule_id,supersedes_run_id,revision,revision_reason,status,DATE_FORMAT(period_start,\'%Y-%m-%d %H:%i:%s.%f\') AS period_start FROM sx_training_report_runs WHERE tenant_id=? AND request_key=? FOR UPDATE',[tenantId,input.requestKey]);
+    if(replay){if(replay.schedule_id!==source.schedule_id||replay.supersedes_run_id!==source.id||replay.revision_reason!==reason||input.expectedRevision!==Number(source.revision))fail('IDEMPOTENCY_CONFLICT');await db.commit();return {id:replay.id,scheduleId:replay.schedule_id,supersedesRunId:replay.supersedes_run_id,revision:Number(replay.revision),periodStart:replay.period_start,status:replay.status,reason:replay.revision_reason,repeated:true};}
+    if(source.status!=='generated')fail('REPORT_RUN_NOT_REVISIONABLE');
+    if(Number(source.revision)!==input.expectedRevision)fail('STALE_REPORT_REVISION');
+    const [[latest]]=await db.query('SELECT id,revision FROM sx_training_report_runs WHERE tenant_id=? AND schedule_id=? AND period_start=? ORDER BY revision DESC LIMIT 1 FOR UPDATE',[tenantId,source.schedule_id,source.period_start]);
+    if(!latest||latest.id!==source.id)fail('STALE_REPORT_REVISION');
+    await db.query(`INSERT INTO sx_training_report_runs(id,tenant_id,schedule_id,schedule_revision,revision,period,period_start,period_end,cutoff_at,timezone,metric_definition_version,status,revision_reason,supersedes_run_id,request_key)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,'queued',?,?,?)`,[newId,tenantId,source.schedule_id,Number(source.schedule_revision),Number(source.revision)+1,source.period,source.period_start,source.period_end,source.cutoff_at,source.timezone,Number(source.metric_definition_version),reason,source.id,input.requestKey]);
+    const digest=crypto.createHash('sha256').update(reason).digest('hex');
+    await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+      VALUES (?,?,?,'identity','reports.snapshot-revision-requested','report-run',?,?,?)`,[crypto.randomUUID(),tenantId,ctx.identity.id,newId,JSON.stringify({scheduleId:source.schedule_id,period:source.period,periodStart:source.period_start,revision:Number(source.revision)+1,supersedesRunId:source.id,reasonSha256:digest}),input.requestKey]);
+    await db.commit();return {id:newId,scheduleId:source.schedule_id,supersedesRunId:source.id,revision:Number(source.revision)+1,periodStart:source.period_start,status:'queued',reason,repeated:false};
+  }catch(error){try{await db.rollback();}catch{}throw error;}
+}
+module.exports={validateContext,normalize,nextRun,list,save,reviseRun};

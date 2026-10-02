@@ -45,7 +45,7 @@ async function enqueueDue(db,{now=new Date(),limit=25}={}){
 async function claimRuns(db,{workerId,limit=10,leaseSeconds=120}={}){
   workerInput(workerId,limit);if(!Number.isSafeInteger(leaseSeconds)||leaseSeconds<10||leaseSeconds>300)fail('INVALID_REPORT_WORKER_LEASE');await db.beginTransaction();
   try{
-    const [rows]=await db.query(`SELECT id,tenant_id,schedule_id,schedule_revision,period,DATE_FORMAT(period_start,'%Y-%m-%d %H:%i:%s.%f') AS period_start,DATE_FORMAT(period_end,'%Y-%m-%d %H:%i:%s.%f') AS period_end,DATE_FORMAT(cutoff_at,'%Y-%m-%d %H:%i:%s.%f') AS cutoff_at,timezone,metric_definition_version,attempts,status
+    const [rows]=await db.query(`SELECT id,tenant_id,schedule_id,schedule_revision,revision,revision_reason,supersedes_run_id,period,DATE_FORMAT(period_start,'%Y-%m-%d %H:%i:%s.%f') AS period_start,DATE_FORMAT(period_end,'%Y-%m-%d %H:%i:%s.%f') AS period_end,DATE_FORMAT(cutoff_at,'%Y-%m-%d %H:%i:%s.%f') AS cutoff_at,timezone,metric_definition_version,attempts,status
       FROM sx_training_report_runs WHERE ((status IN ('queued','retry') AND available_at<=UTC_TIMESTAMP(3)) OR (status='processing' AND lease_expires_at<=UTC_TIMESTAMP(3))) ORDER BY available_at,created_at,id LIMIT ? FOR UPDATE SKIP LOCKED`,[limit]);
     const items=[];
     for(const row of rows){if(Number(row.attempts)>=5){await db.query("UPDATE sx_training_report_runs SET status='dead',lease_owner=NULL,lease_expires_at=NULL,last_error_code='MAX_ATTEMPTS_EXCEEDED',updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=?",[row.tenant_id,row.id]);continue;}
@@ -67,7 +67,7 @@ async function buildSnapshot(pool,run){
   }finally{db.release();}
   const window=windowFor({period:run.period,timezone:run.timezone,scheduledAt:run.cutoff_at});
   const report=await reports.getActivityReport({pool,uid:ownerUid,role:'owner',period:run.period,at:window.date,timezone:run.timezone,cutoffAt:window.cutoffAt,page:1,limit:1});
-  const snapshot={schemaVersion:1,metricDefinitionVersion:Number(run.metric_definition_version),scheduleRevision:Number(run.schedule_revision),period:run.period,timezone:run.timezone,from:report.from,to:report.to,cutoffAt:report.cutoffAt||window.cutoffAt,generatedAt:new Date().toISOString(),activityCount:report.total,summary:report.summary,finance:report.finance||null,customerDetailsIncluded:false,delivery:{email:'not_configured',whatsapp:'not_configured'}};
+  const snapshot={schemaVersion:1,metricDefinitionVersion:Number(run.metric_definition_version),scheduleRevision:Number(run.schedule_revision),revision:Number(run.revision||1),revisionReason:run.revision_reason||null,supersedesRunId:run.supersedes_run_id||null,period:run.period,timezone:run.timezone,from:report.from,to:report.to,cutoffAt:report.cutoffAt||window.cutoffAt,generatedAt:new Date().toISOString(),activityCount:report.total,summary:report.summary,finance:report.finance||null,customerDetailsIncluded:false,delivery:{email:'not_configured',whatsapp:'not_configured'}};
   return snapshot;
 }
 async function completeRun(db,{run,workerId,snapshot}){
@@ -83,8 +83,17 @@ async function failRun(db,{run,workerId,errorCode,suppressed=false}){
     await db.query(`UPDATE sx_training_report_runs SET status=?,available_at=IF(?='retry',DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),available_at),lease_owner=NULL,lease_expires_at=NULL,last_error_code=?,updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=?`,[status,status,delay,code,run.tenant_id,run.id]);await db.commit();return {id:run.id,status,errorCode:code,externalWrites:false};
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
-async function listLatest(db,tenantId){const [rows]=await db.query(`SELECT schedule_id,period,status,DATE_FORMAT(period_start,'%Y-%m-%d %H:%i:%s.%f') AS period_start,DATE_FORMAT(generated_at,'%Y-%m-%d %H:%i:%s.%f') AS generated_at,last_error_code
-  FROM sx_training_report_runs WHERE tenant_id=? ORDER BY period_start DESC,created_at DESC LIMIT 300`,[tenantId]);const seen=new Set(),latest=[];for(const row of rows){if(seen.has(row.period))continue;seen.add(row.period);latest.push({scheduleId:row.schedule_id,period:row.period,status:row.status,periodStart:row.period_start,generatedAt:row.generated_at,errorCode:row.last_error_code});}return latest;}
+async function listLatest(db,tenantId){
+  const [rows]=await db.query(`SELECT id,schedule_id,period,revision,revision_reason,supersedes_run_id,status,DATE_FORMAT(period_start,'%Y-%m-%d %H:%i:%s.%f') AS period_start,DATE_FORMAT(generated_at,'%Y-%m-%d %H:%i:%s.%f') AS generated_at,last_error_code,snapshot_json
+    FROM sx_training_report_runs WHERE tenant_id=? ORDER BY schedule_id,period_start DESC,revision DESC LIMIT 600`,[tenantId]);
+  const schedules=new Map();
+  for(const row of rows){
+    const version={id:row.id,scheduleId:row.schedule_id,period:row.period,revision:Number(row.revision),revisionReason:row.revision_reason||null,supersedesRunId:row.supersedes_run_id||null,status:row.status,periodStart:row.period_start,generatedAt:row.generated_at,errorCode:row.last_error_code,snapshot:typeof row.snapshot_json==='string'?JSON.parse(row.snapshot_json):row.snapshot_json||null};
+    const latest=schedules.get(row.schedule_id);
+    if(!latest)schedules.set(row.schedule_id,{...version,versions:[version]});else if(latest.periodStart===version.periodStart)latest.versions.push(version);
+  }
+  return [...schedules.values()];
+}
 async function tick(pool,{workerId=`reports-${process.pid}`,limit=10,now=new Date()}={}){
   workerInput(workerId,limit);const db=await pool.getConnection();let due;
   try{due=await enqueueDue(db,{now,limit:Math.min(100,limit*3)});}finally{db.release();}

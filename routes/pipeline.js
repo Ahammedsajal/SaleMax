@@ -135,9 +135,14 @@ router.put('/reports/schedules',async(req,res)=>{
   try{const ctx=await saleContext(req.pipelineActor),db=await require('../database/config.js').promise().getConnection();let data;try{data=await reportSchedules.save(db,ctx,req.body);}finally{db.release();}res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){reportScheduleError(res,error);}
 });
+router.post('/reports/schedules/:scheduleId/runs/:runId/revisions',async(req,res)=>{
+  if(req.pipelineActor.role!=='owner')return res.status(403).json({success:false,code:'PERMISSION_DENIED'});
+  try{const ctx=await saleContext(req.pipelineActor),db=await require('../database/config.js').promise().getConnection();let data;try{data=await reportSchedules.reviseRun(db,ctx,{...req.body,scheduleId:req.params.scheduleId,runId:req.params.runId});}finally{db.release();}res.setHeader('Cache-Control','no-store');res.status(data.repeated?200:202).json({success:true,data});}
+  catch(error){reportScheduleError(res,error);}
+});
 function reportScheduleError(res,error){
   const code=error?.code||'REPORT_SCHEDULE_UNAVAILABLE';
-  const status=code==='PERMISSION_DENIED'?403:code==='FEATURE_UNAVAILABLE'||code==='CATEGORY_UNAVAILABLE'||code==='ACCOUNT_INACTIVE'?409:code==='STALE_REPORT_SCHEDULE'?409:code.startsWith('INVALID_')||code==='REPORT_CHANNEL_REQUIRED'?400:503;
+  const status=code==='PERMISSION_DENIED'?403:code==='FEATURE_UNAVAILABLE'||code==='CATEGORY_UNAVAILABLE'||code==='ACCOUNT_INACTIVE'||code==='STALE_REPORT_SCHEDULE'||code==='STALE_REPORT_REVISION'||code==='REPORT_RUN_NOT_REVISIONABLE'||code==='IDEMPOTENCY_CONFLICT'?409:code==='REPORT_RUN_NOT_FOUND'?404:code.startsWith('INVALID_')||code==='REPORT_CHANNEL_REQUIRED'?400:503;
   if(status>=500)console.error('Report schedule request failed:',code);
   return res.status(status).json({success:false,code:status===503?'REPORT_SCHEDULE_UNAVAILABLE':code});
 }

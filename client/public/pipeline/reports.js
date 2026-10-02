@@ -35,6 +35,8 @@
       tasksTitle:'قائمة المتابعات',tasksSubtitle:'تظهر كل المتابعات المستحقة مهما كانت مرحلة الفرصة.',allTasks:'كل المتابعات المفتوحة',overdueTasks:'متأخرة',upcomingTasks:'قادمة',tasksLoading:'جارٍ تحميل المتابعات…',tasksEmpty:'لا توجد متابعات في هذا العرض.',tasksFailed:'تعذر تحميل المتابعات. لم تتغير بياناتك.',completeTask:'إكمال',rescheduleTask:'تأجيل',saveTask:'حفظ الموعد',dueAt:'موعد المتابعة',stage:'المرحلة',assignedTo:'المسؤول',learner:'المتعلم',openLead:'فتح الفرصة',taskTotal:'المتابعات المفتوحة',taskOverdue:'متأخرة',taskUpcoming:'قادمة',previousPage:'السابق',nextPage:'التالي',taskCompleted:'تم إكمال المتابعة.',taskRescheduled:'تم تأجيل المتابعة.',dateRequired:'اختر تاريخ ووقت المتابعة التاليين.'
     }
   };
+  Object.assign(copy.en,{revisionLabel:'Revision',revisionReasonLabel:'Why is this report being corrected?',reviseReport:'Create corrected snapshot',queueRevision:'Queue correction',queueingRevision:'Queuing correction…',revisionQueued:'Correction queued. Refresh the schedule to see its new version.',revisionFailed:'Could not queue the correction. Refresh the report and try again.',revisionReasonRequired:'Enter a correction reason between 10 and 500 characters.',correctionReason:'Correction reason',snapshotHistory:'Generated snapshot versions'});
+  Object.assign(copy.ar,{revisionLabel:'الإصدار',revisionReasonLabel:'ما سبب تصحيح هذا التقرير؟',reviseReport:'إنشاء ملخص مصحح',queueRevision:'إضافة التصحيح إلى قائمة الانتظار',queueingRevision:'جارٍ إضافة التصحيح…',revisionQueued:'تمت إضافة التصحيح. حدّث الجدول لعرض الإصدار الجديد.',revisionFailed:'تعذرت إضافة التصحيح. حدّث التقرير ثم حاول مجددًا.',revisionReasonRequired:'أدخل سببًا للتصحيح من 10 إلى 500 حرف.',correctionReason:'سبب التصحيح',snapshotHistory:'إصدارات الملخص المنشأة'});
   const t = key => (arabic()?copy.ar:copy.en)[key] || key;
   const outcomeLabel = key => (arabic()?copy.ar:copy.en).outcomesMap[key] || key || '—';
   const qatarToday = () => {
@@ -164,6 +166,32 @@
   function bindScheduleForms(){
     $('#scheduleRetry')?.addEventListener('click',loadSchedules);
     $$('.report-schedule-card').forEach(form=>{
+      const row=state.schedules?.find(item=>item.period===form.elements.period.value),run=row?.latestRun;
+      if(run?.versions?.some(version=>version.snapshot)){
+        const history=document.createElement('details');history.className='report-run-versions';const title=document.createElement('summary');title.textContent=t('snapshotHistory');history.appendChild(title);
+        for(const version of run.versions){
+          const article=document.createElement('article');article.className='report-run-version';const heading=document.createElement('p');heading.textContent=`${t('revisionLabel')} ${version.revision} · ${t('scheduleRun_'+version.status)}${version.generatedAt?' · '+formatDate(version.generatedAt):''}`;article.appendChild(heading);
+          if(version.revisionReason){const reason=document.createElement('p');reason.textContent=`${t('correctionReason')}: ${version.revisionReason}`;article.appendChild(reason);}
+          if(version.snapshot){const values=version.snapshot.summary||{},facts=[['created',values.leadsCreated],['touched',values.leadsTouched],['outcomes',values.outcomes],['notes',values.notes],['followUpsRequired',values.followUpsRequired],['followUpsDue',values.followUpsDue],['overdue',values.followUpsOverdue]].filter(([,value])=>value!==undefined);const finance=version.snapshot.finance;if(finance)facts.push(['billed',formatQarMinor(finance.billedMinor)],['collected',formatQarMinor(finance.collectedMinor)],['credited',formatQarMinor(finance.creditedMinor)],['outstanding',formatQarMinor(finance.outstandingMinor)],['netCollections',formatQarMinor(finance.netCollectionsMinor)]);const list=document.createElement('ul');for(const [key,value] of facts){const item=document.createElement('li');item.textContent=`${t(key)}: ${value}`;list.appendChild(item);}article.appendChild(list);}
+          history.appendChild(article);
+        }
+        form.appendChild(history);
+      }
+      if(run?.status==='generated'&&!form.querySelector('[data-revise-run]')){
+        const details=document.createElement('details');details.className='report-revision';
+        const summary=document.createElement('summary');summary.textContent=`${t('reviseReport')} · ${t('revisionLabel')} ${Number(run.revision)||1}`;details.appendChild(summary);
+        const label=document.createElement('label');label.textContent=t('revisionReasonLabel');
+        const textarea=document.createElement('textarea');textarea.rows=3;textarea.maxLength=500;textarea.minLength=10;textarea.required=true;textarea.dataset.revisionReason='true';label.appendChild(textarea);details.appendChild(label);
+        const button=document.createElement('button');button.type='button';button.className='report-retry';button.textContent=t('queueRevision');button.dataset.reviseRun=run.id;button.dataset.revision=String(run.revision);button.dataset.schedule=row.id;details.appendChild(button);
+        const status=document.createElement('p');status.className='report-schedule-status';status.setAttribute('role','status');details.appendChild(status);form.appendChild(details);
+      }
+      form.querySelector('[data-revise-run]')?.addEventListener('click',async event=>{
+        const button=event.currentTarget,details=button.closest('.report-revision'),textarea=details?.querySelector('[data-revision-reason]'),reason=textarea?.value.trim()||'';
+        if(reason.length<10||reason.length>500){textarea?.setAttribute('aria-invalid','true');textarea?.focus();window.salemaxPipelineToast?.(t('revisionReasonRequired'));return;}
+        textarea.setAttribute('aria-invalid','false');button.disabled=true;button.textContent=t('queueingRevision');const requestKey=button.dataset.requestKey||(button.dataset.requestKey=crypto.randomUUID());
+        try{const response=await fetch(`/api/pipeline/reports/schedules/${encodeURIComponent(button.dataset.schedule)}/runs/${encodeURIComponent(button.dataset.reviseRun)}/revisions`,{method:'POST',headers:{Authorization:`Bearer ${token()}`,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({expectedRevision:Number(button.dataset.revision),requestKey,reason})});const body=await response.json().catch(()=>({}));if(!response.ok||!body.success)throw new Error(body.code||'REPORT_REVISION_UNAVAILABLE');window.salemaxPipelineToast?.(t('revisionQueued'));await loadSchedules();}
+        catch(_){status.textContent=t('revisionFailed');button.disabled=false;button.textContent=t('queueRevision');}
+      });
       const email=form.elements.emailEnabled,whatsapp=form.elements.whatsappEnabled;email?.addEventListener('change',()=>{form.elements.emailDestination.required=email.checked;});whatsapp?.addEventListener('change',()=>{form.elements.whatsappDestination.required=whatsapp.checked;});
       form.addEventListener('submit',async event=>{event.preventDefault();const button=form.querySelector('[type=submit]');button.disabled=true;button.textContent=t('savingSchedule');const payload={period:form.elements.period.value,expectedRevision:Number(form.elements.expectedRevision.value),timezone:form.elements.timezone.value,localTime:form.elements.localTime.value,emailEnabled:email.checked,emailDestination:form.elements.emailDestination.value,whatsappEnabled:whatsapp.checked,whatsappDestination:form.elements.whatsappDestination.value,status:form.elements.paused.checked?'paused':'active'};if(!payload.emailEnabled&&!payload.whatsappEnabled){window.salemaxPipelineToast?.(t('scheduleNoChannel'));button.disabled=false;button.textContent=t('saveSchedule');return;}try{const response=await fetch('/api/pipeline/reports/schedules',{method:'PUT',headers:{Authorization:`Bearer ${token()}`,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(payload)});const body=await response.json().catch(()=>({}));if(!response.ok||!body.success)throw new Error(body.code||'REPORT_SCHEDULE_UNAVAILABLE');window.salemaxPipelineToast?.(t('scheduleSaved'));await loadSchedules();}catch(_){window.salemaxPipelineToast?.(t('scheduleFailed'));button.disabled=false;button.textContent=t('saveSchedule');}});
     });

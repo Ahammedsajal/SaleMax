@@ -41,7 +41,13 @@ test('report schedules require active training-center entitlement and owner perm
   assert.throws(()=>schedules.validateContext(context({membership:{id:'manager',tenantId:'tenant-a',role:'manager',status:'active',delegatedPermissions:[]}})),{code:'PERMISSION_DENIED'});
   assert.throws(()=>schedules.validateContext(context({subscription:{status:'active',capabilities:['reports.read']}})),{code:'FEATURE_UNAVAILABLE'});
 });
+test('corrected report versions require the active owner and a bounded explanation',async()=>{
+  const revision={scheduleId:'00000000-0000-4000-8000-000000000001',runId:'00000000-0000-4000-8000-000000000002',expectedRevision:1,requestKey:'00000000-0000-4000-8000-000000000003',reason:'Late data correction.'};
+  const unusedDb={beginTransaction(){throw Error('permission and input checks must run before database access');}};
+  await assert.rejects(schedules.reviseRun(unusedDb,context({membership:{id:'manager',tenantId:'tenant-a',role:'manager',status:'active',delegatedPermissions:[]}}),revision),{code:'PERMISSION_DENIED'});
+  await assert.rejects(schedules.reviseRun(unusedDb,context(),{...revision,reason:'short'}),{code:'INVALID_REPORT_REVISION_REASON'});
+});
 test('the existing bilingual pipeline Reports view exposes schedules with honest delivery state',()=>{
-  const fs=require('node:fs'),path=require('node:path'),js=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),html=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
-  assert.match(html,/reports\.js\?v=6/);assert.match(js,/\/api\/pipeline\/reports\/schedules/);assert.match(js,/scheduleEmailUnverified/);assert.match(js,/scheduleWhatsAppUnverified/);assert.match(js,/scheduleRun_generated/);assert.match(js,/Snapshot generated \(not sent\)/);assert.match(js,/تم إنشاء الملخص \(لم يُرسل\)/);
+  const fs=require('node:fs'),path=require('node:path'),js=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),html=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8'),css=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/pipeline.css'),'utf8'),routes=fs.readFileSync(path.join(__dirname,'../routes/pipeline.js'),'utf8');
+  assert.match(html,/pipeline\.css\?v=5/);assert.match(html,/reports\.js\?v=7/);assert.match(js,/\/api\/pipeline\/reports\/schedules/);assert.match(js,/scheduleEmailUnverified/);assert.match(js,/scheduleWhatsAppUnverified/);assert.match(js,/scheduleRun_generated/);assert.match(js,/Snapshot generated \(not sent\)/);assert.match(js,/تم إنشاء الملخص \(لم يُرسل\)/);assert.match(js,/Create corrected snapshot/);assert.match(js,/إنشاء ملخص مصحح/);assert.match(js,/snapshotHistory/);assert.match(css,/\.report-revision/);assert.match(css,/\.report-run-versions/);assert.match(routes,/reports\/schedules\/:scheduleId\/runs\/:runId\/revisions/);
 });
