@@ -14,6 +14,12 @@ The failed authenticator submission returned `REAUTH_REQUIRED`, not `MFA_INVALID
 
 The focused screen checks and full `npm test` pass. Commits `37c2c4e` and `1d9ba44` are pushed. This UI correction is not deployed and did not change account state. Because the displayed QR/setup key may no longer match after reauthentication, the owner should scan only the newly displayed QR and keep its key and codes private. Super Admin enrollment and one-time recovery-code acknowledgement remain owner actions.
 
+## Reports finance reconciliation — local increment, 2 October 2026
+
+The existing **Lead Pipeline → Reports** view now adds an owner-only finance summary for active, explicitly linked training-center workspaces. It distinguishes invoices billed during the selected period from their current net allocations, posted credits and remaining receivable, and shows period cash/bank collections after refunds and chargebacks. Exact monetary totals are returned as integer minor-unit strings. Agent reports omit the entire finance object; an absent training ownership link or incomplete finance schema preserves the existing lead report without displaying financial data. English/Arabic labels explain the period and current-balance semantics.
+
+Verification: `npm test` passes 105/105; the 27-migration MariaDB workflow independently reconciles the summary against tenant invoices, net allocations, credit notes and journal cash flows, and confirms agents receive no finance totals. Syntax and whitespace checks pass. Authenticated screen rendering, small-screen acceptance and scheduled email/WhatsApp delivery remain open; TC24 and TC25 remain in progress. This local increment is not deployed.
+
 ## Excess-deposit returns — local increment, 2 October 2026
 
 The existing Finance invoice detail and its accountant action queue now include English/Arabic excess-deposit return requests, history, different-actor review and accountant-only completion evidence. Migration `20261016_training_manual_refunds.sql` stores tenant-bound requests, reservations, review and completion. Approval reserves unallocated funds; completion records an already performed cash/bank return, posts a balanced customer-deposits/cash-or-bank journal and queues an identifier-only event. No external transfer or notification is sent. Invoice collections now derive from posted installment allocations rather than gross payment minus the changing deposit projection, so returns cannot inflate collection totals. Original receipts remain immutable.

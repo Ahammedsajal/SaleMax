@@ -14,6 +14,7 @@
       followUpsRequired:'Follow-ups requested', followUpsDue:'Follow-ups due in period', overdue:'Open follow-ups overdue now', outcomeBreakdown:'Outcome breakdown',
       occurred:'Time', lead:'Lead / contact', attended:'Handled by', activity:'Activity', details:'Outcome or note', followUp:'Next follow-up',
       exportPage:'Export this page (CSV)', exportReady:'Report page downloaded as CSV.',
+      financeTitle:'Finance summary',financeScope:'Invoices issued in this selected period; collected and outstanding are current when the report runs.',issuedInvoices:'Invoices issued',billed:'Billed',collected:'Collected on these invoices',credited:'Credits issued',outstanding:'Outstanding now',netCollections:'Net collections this period',
       note:'Internal note', contactOutcome:'Contact outcome', followUpRequired:'Follow-up required', noFollowUp:'No follow-up required', previous:'Previous', next:'Next', page:'Page', of:'of',
       outcomesMap:{no_answer:'No answer',connected:'Connected',interested:'Interested',not_interested:'Not interested',follow_up_scheduled:'Follow-up scheduled',wrong_number:'Wrong number',requested_call:'Call requested',sale_requested:'Sale requested'},
       tasksTitle:'Follow-up queue',tasksSubtitle:'Every due action stays visible across pipeline stages.',allTasks:'All open follow-ups',overdueTasks:'Overdue',upcomingTasks:'Upcoming',tasksLoading:'Loading your follow-ups…',tasksEmpty:'No follow-ups match this view.',tasksFailed:'We could not load follow-ups. Your data is unchanged.',completeTask:'Complete',rescheduleTask:'Reschedule',saveTask:'Save date',dueAt:'Due',stage:'Stage',assignedTo:'Assigned to',learner:'Learner',openLead:'Open opportunity',taskTotal:'Open follow-ups',taskOverdue:'Overdue',taskUpcoming:'Upcoming',previousPage:'Previous',nextPage:'Next',taskCompleted:'Follow-up completed.',taskRescheduled:'Follow-up rescheduled.',dateRequired:'Choose the next date and time.'
@@ -26,6 +27,7 @@
       followUpsRequired:'متابعات مطلوبة', followUpsDue:'متابعات مستحقة خلال الفترة', overdue:'متابعات مفتوحة متأخرة الآن', outcomeBreakdown:'تفصيل النتائج',
       occurred:'الوقت', lead:'العميل / جهة الاتصال', attended:'تمت المتابعة بواسطة', activity:'النشاط', details:'النتيجة أو الملاحظة', followUp:'المتابعة التالية',
       exportPage:'تصدير هذه الصفحة (CSV)', exportReady:'تم تنزيل صفحة التقرير بصيغة CSV.',
+      financeTitle:'الملخص المالي',financeScope:'الفواتير الصادرة خلال الفترة المحددة؛ يعرض المحصل والمتبقي حتى وقت إعداد التقرير.',issuedInvoices:'الفواتير الصادرة',billed:'إجمالي الفواتير',collected:'المحصل لهذه الفواتير',credited:'الإشعارات الدائنة',outstanding:'المتبقي الآن',netCollections:'صافي التحصيل خلال الفترة',
       note:'ملاحظة داخلية', contactOutcome:'نتيجة التواصل', followUpRequired:'المتابعة مطلوبة', noFollowUp:'لا توجد متابعة مطلوبة', previous:'السابق', next:'التالي', page:'صفحة', of:'من',
       outcomesMap:{no_answer:'لا يوجد رد',connected:'تم التواصل',interested:'مهتم',not_interested:'غير مهتم',follow_up_scheduled:'تم تحديد متابعة',wrong_number:'رقم خاطئ',requested_call:'طلب اتصال',sale_requested:'طلب الشراء'},
       tasksTitle:'قائمة المتابعات',tasksSubtitle:'تظهر كل المتابعات المستحقة مهما كانت مرحلة الفرصة.',allTasks:'كل المتابعات المفتوحة',overdueTasks:'متأخرة',upcomingTasks:'قادمة',tasksLoading:'جارٍ تحميل المتابعات…',tasksEmpty:'لا توجد متابعات في هذا العرض.',tasksFailed:'تعذر تحميل المتابعات. لم تتغير بياناتك.',completeTask:'إكمال',rescheduleTask:'تأجيل',saveTask:'حفظ الموعد',dueAt:'موعد المتابعة',stage:'المرحلة',assignedTo:'المسؤول',learner:'المتعلم',openLead:'فتح الفرصة',taskTotal:'المتابعات المفتوحة',taskOverdue:'متأخرة',taskUpcoming:'قادمة',previousPage:'السابق',nextPage:'التالي',taskCompleted:'تم إكمال المتابعة.',taskRescheduled:'تم تأجيل المتابعة.',dateRequired:'اختر تاريخ ووقت المتابعة التاليين.'
@@ -75,6 +77,12 @@
     form.onsubmit=event=>{event.preventDefault();state.page=1;load();};
   }
   function metric(label,value) { return `<div class="report-kpi"><small>${escape(label)}</small><b>${escape(value)}</b></div>`; }
+  function formatQarMinor(value){
+    const amount=BigInt(String(value||'0')),locale=arabic()?'ar-QA':'en-QA',negative=amount<0n,absolute=negative?-amount:amount;
+    const whole=new Intl.NumberFormat(locale,{maximumFractionDigits:0}).format(absolute/100n);
+    const fraction=new Intl.NumberFormat(locale,{useGrouping:false,minimumIntegerDigits:2,maximumFractionDigits:0}).format(Number(absolute%100n));
+    return `${negative?'−':''}${whole}.${fraction} ${arabic()?'ر.ق':'QAR'}`;
+  }
   function render(report) {
     state.report=report;
     const s=report.summary||{};
@@ -89,9 +97,11 @@
     }).join('');
     const periodText=`${formatWindowDate(report.from)} – ${formatWindowDate(report.to,true)}`;
     const outcomeHtml=(s.outcomeCounts||[]).length?`<h3>${t('outcomeBreakdown')}</h3><div class="report-outcomes">${breakdown}</div>`:'';
+    const finance=report.finance;
+    const financeHtml=finance?`<section class="report-finance" aria-labelledby="reportFinanceTitle"><h3 id="reportFinanceTitle">${t('financeTitle')}</h3><p class="report-state">${t('financeScope')}</p><div class="report-kpis">${metric(t('issuedInvoices'),Number(finance.issuedInvoiceCount||0).toLocaleString(arabic()?'ar-QA':'en-QA'))}${metric(t('billed'),formatQarMinor(finance.billedMinor))}${metric(t('collected'),formatQarMinor(finance.collectedMinor))}${metric(t('credited'),formatQarMinor(finance.creditedMinor))}${metric(t('outstanding'),formatQarMinor(finance.outstandingMinor))}${metric(t('netCollections'),formatQarMinor(finance.netCollectionsMinor))}</div></section>`:'';
     const listHtml=report.total?`<div class="report-table-wrap"><table class="report-table"><thead><tr><th>${t('occurred')}</th><th>${t('lead')}</th><th>${t('attended')}</th><th>${t('activity')}</th><th>${t('details')}</th><th>${t('followUp')}</th></tr></thead><tbody>${rows}</tbody></table></div>
       <nav class="report-pagination" aria-label="Report pages"><button type="button" id="reportPrevious" ${report.page<=1?'disabled':''}>${t('previous')}</button><span>${t('page')} ${escape(report.page)} · ${report.total} ${t('of')} ${Math.max(1,Math.ceil(report.total/report.limit))}</span><button type="button" id="reportNext" ${report.hasMore?'':'disabled'}>${t('next')}</button></nav>`:`<div class="report-state">${t('empty')}</div>`;
-    host.innerHTML=shell(`<p class="report-period">${escape(periodText)} · ${escape(report.timezone||'Asia/Qatar')}</p><div class="report-kpis">${metrics.map(([key,value])=>metric(t(key),Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA'))).join('')}</div>${outcomeHtml}${listHtml}`);
+    host.innerHTML=shell(`<p class="report-period">${escape(periodText)} · ${escape(report.timezone||'Asia/Qatar')}</p><div class="report-kpis">${metrics.map(([key,value])=>metric(t(key),Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA'))).join('')}</div>${outcomeHtml}${financeHtml}${listHtml}`);
     bindFilters();
     $('#reportExport')?.addEventListener('click',()=>exportCurrentPage(report));
     $('#reportPrevious')?.addEventListener('click',()=>{state.page=Math.max(1,state.page-1);load();});
