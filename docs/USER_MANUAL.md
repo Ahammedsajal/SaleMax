@@ -21,7 +21,7 @@ Super Admin and staff administration; business onboarding and plan assignment; t
 1. Open the existing business panel's Lead Pipeline and select the lead. Review the learner, payer, invoice email, course offer, discount, terms and installment schedule in Sale Review.
 2. After the owner approves the review and the accountant has approved the business Finance profile, select **Confirm sale and issue invoice**. If the action is unavailable, read the readiness message; common causes are an unapproved finance profile, an issuer-role mismatch, a changed offer, or installments that do not equal the invoice total.
 3. On success, the panel shows the invoice number and total. The lead moves to Won and the enrollment, invoice, receivable schedule and initial journal posting are committed together. A selected batch reserves one seat.
-4. Repeating the same request does not create a second invoice. The current screen does not yet provide invoice PDF/download, payment posting, receipt, refund, or customer email/WhatsApp delivery. The notification event is queued internally only; it is not sent.
+4. Repeating the same request does not create a second invoice. The current screen provides manual payment posting and an on-screen receipt after verification; invoice PDF/download, refunds, and customer email/WhatsApp delivery remain unavailable. The notification event is queued internally only; it is not sent.
 
 The first conversion screen is an owner-issued flow. Although Finance policy can designate an accountant as issuer, the canonical accountant sale-conversion screen is still pending, so that setting cannot yet complete this journey. Batch reservation expiry is also pending a product policy decision.
 
@@ -29,7 +29,15 @@ The first conversion screen is an owner-issued flow. Although Finance policy can
 
 Open **Finance settings** in the existing business workspace. The **Issued invoices** register lists recently issued invoices and lets an owner or accountant search by invoice number, learner, payer or invoice email, filter by status, and move through result pages. Select **View details** to see the legal seller and tax snapshot, course line, discounts, installment due dates, enrollment details and the balanced invoice journal entry. The register works in English and Arabic and keeps invoice amounts in QAR.
 
-This view is read-only. It does not create a PDF, accept or verify payments, calculate a paid balance, issue a receipt, or notify the customer. Until payment posting is implemented, the displayed amount due equals the invoice total; the detail view calls this out explicitly.
+Invoice details now include a payment history, current verified amount collected, remaining balance, and receipts generated after verification. The owner or accountant records the amount received, method, Qatar-local receipt time and optional bank/cash reference. The record remains pending and does not change the invoice balance until an accountant verifies it. Duplicate references are flagged for review. After verification, the system allocates funds to the oldest open installments, posts the balanced entry and issues one receipt for that payment. Any amount beyond the invoice balance is shown as an unapplied customer deposit. An owner must provide a distinct second approval when the payment exceeds the threshold in the active finance policy.
+
+### Record and verify a manual payment
+
+Open **Finance settings → Issued invoices**, find the issued invoice and select **View details**. Enter the received QAR amount using up to two decimal places, choose cash, bank transfer, cheque or other, and select the Qatar-local date/time. Add the bank/cash reference when available; a duplicate warning means you should compare the original evidence before approval. Choose **Record payment for verification**. A pending record is visible in payment history but does not reduce the amount due.
+
+The accountant opens the **Payments awaiting verification** queue, checks the invoice, amount, method, date and reference against the accounting/bank/cash evidence, then selects **Verify and issue receipt**. If the record is wrong, enter a reason and choose **Reject payment record**; rejected records do not post. The accountant cannot verify their own record if the approved policy requires a second approver above its threshold. In that case the owner opens Finance settings and selects **Second-approve and issue receipt** for the eligible item. The owner cannot reject payment records. Below or at the threshold, the accountant completes verification.
+
+After posting, the invoice balance and installment states update. Choose **View receipt** in payment history to review the immutable receipt record and applied/unapplied amounts. The receipt is currently an on-screen record; PDF download, proof attachments and automatic email/WhatsApp delivery are not available. The customer is not notified by this workflow. Do not treat the initial payment record as a verified payment or send it as a receipt.
 
 ## Initial Super Admin setup (operations only)
 
@@ -147,7 +155,7 @@ The workspace owner reviews each pending request and can approve or reject it; a
 
 Open **Finance settings** in the existing `/user` workspace. The owner can save a draft legal entity name, invoice prefix, optional registration/address details, tax treatment/rate, revenue-recognition method, invoice approver and optional second-approval threshold. Qatar/QAR is fixed for this first release; SaleMaX does not select a tax rate or assert that a tax treatment is legally correct. Confirm those entries with the center's accountant before submitting the version for review. A submitted version is locked while the accountant reviews it; the accountant uses a signed-in canonical tenant account to approve or return it with a reason. The previous approved version stays in effect until a replacement is approved.
 
-The page shows policy history and a posting-readiness status. Accountant approval records policy only: invoices, payment posting, journals, receipts and external notifications remain unavailable until their transaction modules pass implementation and verification. If the accountant cannot access the review page, the tenant accountant login/role must first be provisioned and activated; the owner cannot approve on their behalf.
+The page shows policy history and a posting-readiness status. Accountant approval records policy; the implemented sale conversion and manual-payment transactions now create invoices, receivables, journals and receipts. Credits/refunds, customer documents and external notifications remain unavailable. If the accountant cannot access the review page, the tenant accountant login/role must first be provisioned and activated; the owner cannot approve on their behalf.
 
 ### Inviting an agent (implementation in progress)
 
