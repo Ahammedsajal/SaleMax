@@ -17,6 +17,6 @@ test('claiming outbox events requires an active tenant accountant/owner and boun
 });
 test('durable outbox stays explicitly disconnected from external delivery',()=>{
   const fs=require('node:fs'),path=require('node:path'),read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
-  assert.match(read('database/migrations/20261011_training_outbox.sql'),/uq_training_outbox_idempotency/);assert.match(read('database/migrations/20261011_training_outbox.sql'),/lease_expires_at/);
+  assert.match(read('database/migrations/20261011_training_outbox.sql'),/uq_training_outbox_idempotency/);assert.match(read('database/migrations/20261011_training_outbox.sql'),/lease_expires_at/);const fence=read('database/migrations/20261021_training_outbox_fencing.sql');assert.match(fence,/UPDATE sx_training_outbox_events SET lease_version=attempts/);assert.match(fence,/UPDATE sx_training_outbox_attempts SET lease_version=attempt_number/);assert.ok(fence.indexOf('UPDATE sx_training_outbox_attempts')<fence.indexOf('uq_training_outbox_attempt_lease'));assert.match(fence,/uq_training_outbox_attempt_lease/);
   assert.match(read('docs/API_DOCUMENTATION.md'),/Durable training notification outbox/);assert.match(read('docs/IMPLEMENTATION_STATUS.md'),/external dispatch disabled/);
 });
