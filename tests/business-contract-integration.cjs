@@ -29,7 +29,7 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   const [[audit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE tenant_id=? AND action='legacy-business.contract-assigned'",[t2]);assert.equal(audit.n,1);
   const initialCapabilities=typeof version.capabilities==='string'?JSON.parse(version.capabilities):version.capabilities;
   const formsPlan=require('../modules/platform/catalogue-bridge');
-  const formsDraft=await formsPlan.createDraft(db,actor,{legacyPlanId:Number(legacyPlan.id),requestId:crypto.randomUUID(),categoryKey:'training_center',categoryVersion:1,capabilities:[...new Set([...initialCapabilities,'portal.forms','training.enrollments','finance.invoices','tenant.settings'])],roleLimits});
+  const formsDraft=await formsPlan.createDraft(db,actor,{legacyPlanId:Number(legacyPlan.id),requestId:crypto.randomUUID(),categoryKey:'training_center',categoryVersion:1,capabilities:[...new Set([...initialCapabilities,'portal.forms','training.enrollments','finance.invoices','tenant.settings','reports.read','reports.schedule'])],roleLimits});
   await formsPlan.publish(db,actor,{legacyPlanId:Number(legacyPlan.id),versionId:formsDraft.id,revision:formsDraft.revision});
   const formsReview=await contract.preview(db,actor,{userId:created.insertId,planVersionId:formsDraft.id,roleLimits});
   await contract.assign(db,actor,{userId:created.insertId,tenantId:formsReview.tenantId,planVersionId:formsDraft.id,roleLimits,durationDays:formsReview.durationDays,expectedState:formsReview.expectedState,requestId:crypto.randomUUID()});
@@ -50,7 +50,13 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   const repeatedSubmission=await trainingForms.submitPublic(pool,{tenantSlug:'synthetic-b',formSlug:'course-intake-v2',submissionToken:token,values:{contact_name:'Should not duplicate',phone:'+97450000102',consent:true},visitorHash});assert.equal(repeatedSubmission.referenceCode,submitted.referenceCode);assert.equal(repeatedSubmission.repeated,true);
   const [[publicLead]]=await db.query("SELECT source_type,uid,contact_name FROM pipeline_leads WHERE id=?",[submitted.leadId]);assert.equal(publicLead.source_type,'public_form');assert.equal(publicLead.uid,uid);assert.equal(publicLead.contact_name,'Public synthetic learner');
   const sales=require('../modules/platform/training-sale-reviews'),courseService=require('../modules/platform/training-courses');
-  const saleContext={...formContext,subscription:{status:'active',capabilities:['portal.forms','training.courses','training.enrollments','finance.invoices','tenant.settings']}};
+  const saleContext={...formContext,subscription:{status:'active',capabilities:['portal.forms','training.courses','training.enrollments','finance.invoices','tenant.settings','reports.read','reports.schedule']}};
+  const reportSchedules=require('../modules/platform/training-report-schedules'),scheduleInput={period:'daily',timezone:'Asia/Qatar',localTime:'20:00',emailEnabled:true,emailDestination:'owner@example.invalid',whatsappEnabled:true,whatsappDestination:'+97450000101',status:'active',expectedRevision:0};
+  const savedSchedule=await reportSchedules.save(db,saleContext,scheduleInput);assert.equal(savedSchedule.revision,1);assert.equal(savedSchedule.status,'active');
+  const scheduleList=await reportSchedules.list(db,saleContext);assert.equal(scheduleList.length,1);assert.equal(scheduleList[0].emailVerified,false);assert.equal(scheduleList[0].whatsappVerified,false);assert.equal(new Date(scheduleList[0].nextRunAt.replace(' ','T')+'Z').getTime(),new Date(savedSchedule.nextRunAt.replace(' ','T')+'Z').getTime());
+  const changedSchedule=await reportSchedules.save(db,saleContext,{...scheduleInput,localTime:'19:30',expectedRevision:1});assert.equal(changedSchedule.revision,2);
+  await assert.rejects(reportSchedules.save(db,saleContext,{...scheduleInput,expectedRevision:1}),{code:'STALE_REPORT_SCHEDULE'});
+  const [[scheduleAudit]]=await db.query("SELECT changes FROM sx_audit_events WHERE tenant_id=? AND action='reports.schedule-created' ORDER BY occurred_at DESC LIMIT 1",[t2]);assert.ok(scheduleAudit);assert.equal(JSON.stringify(scheduleAudit.changes).includes('owner@example.invalid'),false);
   const saleCourse=await courseService.create(db,saleContext,{code:'SALE-101',nameEn:'Sale review course',nameAr:'دورة مراجعة البيع',durationValue:4,durationUnit:'weeks',deliveryMode:'online',offer:{priceMinor:300000,registrationFeeMinor:0}});
   await courseService.publish(db,saleContext,saleCourse.id,1);const saleOffer=(await courseService.offers(db,saleContext,saleCourse.id))[0];
   const saleOptions=await sales.listOptions(pool,saleContext);assert.ok(saleOptions.some(option=>option.offerId===saleOffer.id),'active QAR course offers appear in the sale review selector');

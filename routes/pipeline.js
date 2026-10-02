@@ -6,6 +6,7 @@ const pipelineAccess = require("../helper/pipeline/access.js");
 const pipelineReports = require("../helper/pipeline/reports.js");
 const trainingCourses = require('../modules/platform/training-courses');
 const saleReviews = require('../modules/platform/training-sale-reviews');
+const reportSchedules = require('../modules/platform/training-report-schedules');
 
 async function saleContext(actor) {
   const ctx=await trainingCourses.legacyOwnerContext(require('../database/config.js').promise(),actor.uid);
@@ -123,6 +124,23 @@ router.get("/reports/activity", async (req,res)=>{
     res.setHeader('Cache-Control','no-store');res.json({success:true,data});
   }catch(error){fail(res,error);}
 });
+
+router.get('/reports/schedules',async(req,res)=>{
+  if(req.pipelineActor.role!=='owner')return res.status(403).json({success:false,code:'PERMISSION_DENIED'});
+  try{const ctx=await saleContext(req.pipelineActor),db=await require('../database/config.js').promise().getConnection();let data;try{data=await reportSchedules.list(db,ctx);}finally{db.release();}res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  catch(error){reportScheduleError(res,error);}
+});
+router.put('/reports/schedules',async(req,res)=>{
+  if(req.pipelineActor.role!=='owner')return res.status(403).json({success:false,code:'PERMISSION_DENIED'});
+  try{const ctx=await saleContext(req.pipelineActor),db=await require('../database/config.js').promise().getConnection();let data;try{data=await reportSchedules.save(db,ctx,req.body);}finally{db.release();}res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  catch(error){reportScheduleError(res,error);}
+});
+function reportScheduleError(res,error){
+  const code=error?.code||'REPORT_SCHEDULE_UNAVAILABLE';
+  const status=code==='PERMISSION_DENIED'?403:code==='FEATURE_UNAVAILABLE'||code==='CATEGORY_UNAVAILABLE'||code==='ACCOUNT_INACTIVE'?409:code==='STALE_REPORT_SCHEDULE'?409:code.startsWith('INVALID_')||code==='REPORT_CHANNEL_REQUIRED'?400:503;
+  if(status>=500)console.error('Report schedule request failed:',code);
+  return res.status(status).json({success:false,code:status===503?'REPORT_SCHEDULE_UNAVAILABLE':code});
+}
 
 router.put("/settings", async (req, res) => {
   if (req.pipelineActor.role !== "owner") return res.status(403).json({ success: false, message: "Only a workspace admin can configure pipeline automation." });

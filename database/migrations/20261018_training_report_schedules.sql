@@ -1,0 +1,31 @@
+-- Owner-configured report cadence and recipients. Delivery remains blocked until
+-- a verified destination and eligible provider adapter are available.
+CREATE TABLE sx_training_report_schedules (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  period ENUM('daily','weekly','monthly') NOT NULL,
+  timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Qatar',
+  local_time TIME NOT NULL,
+  email_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  email_destination VARCHAR(254) NULL,
+  email_verified_at DATETIME(3) NULL,
+  whatsapp_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  whatsapp_destination VARCHAR(24) NULL,
+  whatsapp_verified_at DATETIME(3) NULL,
+  status ENUM('active','paused') NOT NULL DEFAULT 'active',
+  revision INT UNSIGNED NOT NULL DEFAULT 1,
+  next_run_at DATETIME(3) NOT NULL,
+  created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY(id),
+  UNIQUE KEY uq_training_report_schedule_tenant_period (tenant_id,period),
+  KEY idx_training_report_schedule_due (status,next_run_at),
+  CONSTRAINT fk_training_report_schedule_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_training_report_schedule_creator FOREIGN KEY (created_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT fk_training_report_schedule_updater FOREIGN KEY (updated_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT ck_training_report_schedule_channels CHECK(email_enabled=1 OR whatsapp_enabled=1),
+  CONSTRAINT ck_training_report_schedule_email CHECK(email_enabled=0 OR email_destination IS NOT NULL),
+  CONSTRAINT ck_training_report_schedule_whatsapp CHECK(whatsapp_enabled=0 OR whatsapp_destination IS NOT NULL)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
