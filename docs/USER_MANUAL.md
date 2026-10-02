@@ -21,7 +21,7 @@ Super Admin and staff administration; business onboarding and plan assignment; t
 1. Open the existing business panel's Lead Pipeline and select the lead. Review the learner, payer, invoice email, course offer, discount, terms and installment schedule in Sale Review.
 2. After the owner approves the review and the accountant has approved the business Finance profile, select **Confirm sale and issue invoice**. If the action is unavailable, read the readiness message; common causes are an unapproved finance profile, an issuer-role mismatch, a changed offer, or installments that do not equal the invoice total.
 3. On success, the panel shows the invoice number and total. The lead moves to Won and the enrollment, invoice, receivable schedule and initial journal posting are committed together. A selected batch reserves one seat.
-4. Repeating the same request does not create a second invoice. The current screen provides manual payment posting and an on-screen receipt after verification; invoice PDF/download, refunds, and customer email/WhatsApp delivery remain unavailable. The notification event is queued internally only; it is not sent.
+4. Repeating the same request does not create a second invoice. The current screen provides manual payment posting and an on-screen receipt after verification; invoice PDF/download, cash refunds, and customer email/WhatsApp delivery remain unavailable. The notification event is queued internally only; it is not sent.
 
 The first conversion screen is an owner-issued flow. Although Finance policy can designate an accountant as issuer, the canonical accountant sale-conversion screen is still pending, so that setting cannot yet complete this journey. Batch reservation expiry is also pending a product policy decision.
 
@@ -38,6 +38,10 @@ Open **Finance settings → Issued invoices**, find the issued invoice and selec
 The accountant opens the **Payments awaiting verification** queue, checks the invoice, amount, method, date and reference against the accounting/bank/cash evidence, then selects **Verify and issue receipt**. If the record is wrong, enter a reason and choose **Reject payment record**; rejected records do not post. The accountant cannot verify their own record if the approved policy requires a second approver above its threshold. In that case the owner opens Finance settings and selects **Second-approve and issue receipt** for the eligible item. The owner cannot reject payment records. Below or at the threshold, the accountant completes verification.
 
 After posting, the invoice balance and installment states update. Choose **View receipt** in payment history to review the immutable receipt record and applied/unapplied amounts. The receipt is currently an on-screen record; PDF download, proof attachments and automatic email/WhatsApp delivery are not available. The customer is not notified by this workflow. Do not treat the initial payment record as a verified payment or send it as a receipt.
+
+### Request an invoice credit
+
+Open **Finance settings → Issued invoices → View details** and review the amount due after payments and prior credits. The owner or accountant can enter a QAR credit amount up to that balance and provide the reason, then choose **Request credit for accountant review**. A pending payment must be verified or rejected first, and only one credit request can await review per invoice. A different accountant or owner approves or rejects the request in **Credit notes awaiting review**. Approval creates a numbered credit note, allocates the adjustment across the remaining installments, and reduces the balance; it never edits the issued invoice or an existing receipt. The invoice detail retains the request, reason, reviewer and decision. A credit does not return cash: refunds and chargebacks have separate workflows and are not available yet.
 
 ### Change future installment dates
 
@@ -163,7 +167,7 @@ The workspace owner reviews each pending request and can approve or reject it; a
 
 Open **Finance settings** in the existing `/user` workspace. The owner can save a draft legal entity name, invoice prefix, optional registration/address details, tax treatment/rate, revenue-recognition method, invoice approver and optional second-approval threshold. Qatar/QAR is fixed for this first release; SaleMaX does not select a tax rate or assert that a tax treatment is legally correct. Confirm those entries with the center's accountant before submitting the version for review. A submitted version is locked while the accountant reviews it; the accountant uses a signed-in canonical tenant account to approve or return it with a reason. The previous approved version stays in effect until a replacement is approved.
 
-The page shows policy history and a posting-readiness status. Accountant approval records policy; the implemented sale conversion and manual-payment transactions now create invoices, receivables, journals and receipts. Credits/refunds, customer documents and external notifications remain unavailable. If the accountant cannot access the review page, the tenant accountant login/role must first be provisioned and activated; the owner cannot approve on their behalf.
+The page shows policy history and a posting-readiness status. Accountant approval records policy; the implemented sale conversion and manual-payment transactions now create invoices, receivables, journals and receipts. Cash refunds, reversals, chargebacks, customer documents and external notifications remain unavailable. If the accountant cannot access the review page, the tenant accountant login/role must first be provisioned and activated; the owner cannot approve on their behalf.
 
 ### Inviting an agent (implementation in progress)
 
