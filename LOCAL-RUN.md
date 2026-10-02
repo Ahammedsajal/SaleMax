@@ -11,3 +11,7 @@ The Node app and its database snapshot are included. The production SQL archive 
 Production `.env`, live WhatsApp session files, logs, Linux `node_modules`, uploaded media, and recordings were excluded. Windows Node dependencies were installed locally. The local `.env` contains generated local-only secrets. Meta, Telegram, payments, SMTP, Firebase, and WhatsApp provider operations are disconnected. Local-only mode prevents background provider workers from starting.
 
 The production lock file did not match its package manifest (`sharp` version mismatch), so `npm install` resolved Windows dependencies and updated this local copy's `package-lock.json`.
+
+## Disposable migration integration
+
+Run `.\scripts\test-migrations-local.ps1 -Port 3313` from this checkout. The harness initializes a separate MariaDB datadir bound only to `127.0.0.1`, provisions the `salemax_test` account with privileges limited to `salemax_migration_test_local`, runs the full synthetic migration/workflow suite, clears the test tables, then stops its own server. It reads credentials from the ignored `database/local-runtime/migration-test-account.env`; keep that file local and never copy it into Git. The app's normal database on port 3307 is not used.

@@ -9,19 +9,33 @@ const { bootstrap: bootstrapSuperAdmin } = require('../modules/platform/bootstra
 const { discover, applyMigrations } = require('../database/migration-runner');
 async function main() {
   if (process.env.LOCAL_ONLY_MODE !== 'true' || !['127.0.0.1', 'localhost', '::1'].includes(process.env.DBHOST)) throw new Error('LOCAL_DATABASE_ONLY');
-  const db = 'salemax_migration_test_' + crypto.randomBytes(6).toString('hex');
+  const suppliedDb=process.env.SALEMAX_TEST_DATABASE||null;
+  if(suppliedDb&&!/^salemax_migration_test_[a-z0-9_]{1,40}$/.test(suppliedDb))throw new Error('INVALID_SYNTHETIC_TEST_DATABASE');
+  const db = suppliedDb||'salemax_migration_test_' + crypto.randomBytes(6).toString('hex');
   const config = { host: process.env.DBHOST, port: Number(process.env.DBPORT), user: process.env.DBUSER, password: process.env.DBPASS === '__EMPTY__' ? '' : process.env.DBPASS };
-  const admin = await mysql.createConnection(config);
+  const admin = suppliedDb?null:await mysql.createConnection(config);
   let connection, other, pool, created = false;
   try {
-    await admin.query(`CREATE DATABASE \`${db}\``);
-    created = true;
+    if(admin){await admin.query(`CREATE DATABASE \`${db}\``);created = true;}
     // Ensure modules that use the legacy mysql pool bind to this disposable DB,
     // never the application name retained in the local .env file.
     process.env.DBNAME=db;
     connection = await mysql.createConnection({ ...config, database: db });
     other = await mysql.createConnection({ ...config, database: db });
     pool = mysql.createPool({ ...config, database: db, connectionLimit: 5 });
+    if(suppliedDb){
+      const [[account]]=await connection.query('SELECT CURRENT_USER() AS userName,DATABASE() AS databaseName');
+      assert.equal(account.databaseName,db);
+      assert.equal(String(account.userName).split('@')[0],config.user);
+      const [grants]=await connection.query('SHOW GRANTS');
+      const grantText=grants.map(row=>String(Object.values(row)[0])).join('\n');
+      assert.match(grantText,new RegExp('ON `'+db.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'`\\.\\*'));
+      assert.doesNotMatch(grantText,/GRANT\s+(?!USAGE\b)[\s\S]*?ON\s+\*\.\*/i);
+      const [tables]=await connection.query('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=?',[db]);
+      await connection.query('SET FOREIGN_KEY_CHECKS=0');
+      for(const row of tables)await connection.query(`DROP TABLE IF EXISTS \`${String(row.TABLE_NAME).replace(/`/g,'``')}\``);
+      await connection.query('SET FOREIGN_KEY_CHECKS=1');
+    }
     await connection.query('CREATE TABLE instance (id INT PRIMARY KEY, status VARCHAR(20))');
     await connection.query("INSERT INTO instance VALUES (1, 'INACTIVE')");
     const migrations = discover(path.join(__dirname, '../database/migrations'));
@@ -76,7 +90,7 @@ async function main() {
     const [[failed]] = await connection.query('SELECT status, statements_completed FROM salemax_schema_migrations WHERE migration_name=?', [broken.file]);
     assert.equal(failed.status, 'failed'); assert.equal(failed.statements_completed, 1);
     await assert.rejects(applyMigrations(other, [...migrations, broken]), { code: 'MIGRATION_RECOVERY_REQUIRED' });
-    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: 28, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...teamInvitationEvidence,...outboxEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
+    console.log(JSON.stringify({ realMariaDb: true, isolatedTestAccount: Boolean(suppliedDb), scopedTestDatabase: Boolean(suppliedDb), forwardMigrations: 28, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...teamInvitationEvidence,...outboxEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
   } catch(error) {
     if(connection) {
       try {
@@ -88,11 +102,19 @@ async function main() {
   } finally {
     if (other) await other.end();
     if (pool) await pool.end();
-    if (connection) await connection.end();
     const legacyPoolPath=require.resolve('../database/config');
     if(require.cache[legacyPoolPath])await require(legacyPoolPath).end();
+    if(connection&&suppliedDb){
+      try{
+        const [tables]=await connection.query('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=?',[db]);
+        await connection.query('SET FOREIGN_KEY_CHECKS=0');
+        for(const row of tables)await connection.query(`DROP TABLE IF EXISTS \`${String(row.TABLE_NAME).replace(/`/g,'``')}\``);
+        await connection.query('SET FOREIGN_KEY_CHECKS=1');
+      }catch(cleanupError){console.error('Synthetic test schema cleanup failed:',cleanupError.code||'ERROR');}
+    }
+    if (connection) await connection.end();
     try { if (created) await admin.query(`DROP DATABASE IF EXISTS \`${db}\``); }
-    finally { await admin.end(); }
+    finally { if(admin)await admin.end(); }
   }
 }
 main().catch(error => { console.error('Migration integration failed:', error.code || 'ERROR', error.stack || error.message); process.exitCode=1; });

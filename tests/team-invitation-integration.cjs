@@ -63,16 +63,28 @@ module.exports=async(db,other,pool,{i1})=>{
     assert.equal(invite.role,invitedRole);assert.equal((await team.preview(pool,invite.token)).role,invitedRole);
     const acceptedRole=await team.accept(pool,{token:invite.token,displayName:`Synthetic ${invitedRole}`,password:plainPassword});
     assert.equal(acceptedRole.role,invitedRole);assert.match(acceptedRole.tenantSlug,/^team-/);
-    const [[canonicalMember]]=await db.query('SELECT m.role,m.status FROM sx_identities i JOIN sx_memberships m ON m.identity_id=i.id WHERE i.email_normalized=? AND m.tenant_id=?',[inviteEmail,tenantId]);
+    const [[canonicalMember]]=await db.query('SELECT i.id AS identityId,m.id AS membershipId,m.role,m.status FROM sx_identities i JOIN sx_memberships m ON m.identity_id=i.id WHERE i.email_normalized=? AND m.tenant_id=?',[inviteEmail,tenantId]);
     assert.equal(canonicalMember.role,invitedRole);assert.equal(canonicalMember.status,'active');
     const [[legacyAgent]]=await db.query('SELECT id FROM agents WHERE LOWER(email)=?',[inviteEmail]);assert.equal(legacyAgent,undefined);
     if(invitedRole!=='agent'){
-      const [[legacyUser]]=await db.query('SELECT id,uid,password,role FROM user WHERE LOWER(email)=?',[inviteEmail]);
+      const [[legacyUser]]=await db.query('SELECT id,uid,email,password,role FROM user WHERE LOWER(email)=?',[inviteEmail]);
       assert.ok(legacyUser,'staff account is available through the existing business login lookup');
       assert.equal(legacyUser.role,'user');
       assert.equal(await bcrypt.compare(plainPassword,legacyUser.password),true);
       const [[legacyLink]]=await db.query("SELECT m.role,o.legacy_uid_hash FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id WHERE o.source_table='user' AND o.source_id=? AND o.tenant_id=?",[String(legacyUser.id),tenantId]);
       assert.equal(legacyLink.role,invitedRole);assert.equal(legacyLink.legacy_uid_hash,crypto.createHash('sha256').update(legacyUser.uid).digest('hex'));
+      const pipelineActor=require('../modules/platform/legacy-pipeline-actor');
+      const resolved=await pipelineActor.resolve(pool,legacyUser,{loadEntitlements:async(_db,linkedTenant)=>{assert.equal(linkedTenant,tenantId);return {status:'active',capabilities:['crm.leads']};}});
+      if(invitedRole==='manager'){
+        assert.equal(resolved.role,'manager');assert.equal(resolved.uid,ownerUid);assert.equal(resolved.tenantId,tenantId);
+        assert.equal(resolved.identityId,canonicalMember.identityId);assert.equal(resolved.membershipId,canonicalMember.membershipId);
+        const followups=await require('../helper/pipeline/leadPipeline').getFollowUps({uid:resolved.uid,role:resolved.role,pool});
+        assert.equal(followups.role,'manager');assert.equal(followups.total,0);
+        const contacts=await require('../helper/pipeline/leadPipeline').findContactMatches({uid:resolved.uid,role:resolved.role,phone:'+97455123456',pool});
+        assert.deepEqual(contacts,[]);
+        const report=await require('../helper/pipeline/reports').getActivityReport({pool,uid:resolved.uid,role:resolved.role,period:'daily',at:'2026-10-02',timezone:'Asia/Qatar'});
+        assert.equal(report.period,'daily');assert.equal(report.finance,undefined);
+      }else assert.deepEqual(resolved,{denied:true,code:'PERMISSION_DENIED'});
       const bridge=require('../modules/platform/legacy-session-bridge'),previousEnabled=process.env.SALEMAX_PLATFORM_ENABLED;
       process.env.SALEMAX_PLATFORM_ENABLED='true';
       try{
