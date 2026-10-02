@@ -22,6 +22,10 @@ test('onboarding controls extend the original Manage Users contract screen',()=>
   const lab=fs.readFileSync(path.join(__dirname,'../scripts/existing-panel-lab.cjs'),'utf8');
   assert.match(router,/provision-options/);assert.match(router,/provision-preview/);assert.match(router,/provisioning\.provision/);
   assert.match(ui,/existing Manage Users account/);assert.match(ui,/Training center/);assert.match(ui,/Preview only/);
+  assert.match(ui,/PLATFORM_UPGRADE_NOT_ENABLED:t\('Training-center setup is not enabled in this environment/);
+  assert.match(ui,/إعداد مركز التدريب غير مفعّل في هذه البيئة/);
+  assert.match(ui,/ASSIGNMENT_UNAVAILABLE:t\('The setup service is temporarily unavailable/);
+  assert.match(ui,/AUDIT_UNAVAILABLE:t\('The required audit record could not be saved/);
   assert.match(manual,/Set up training-center business/);
   assert.match(lab,/provisioning-candidate@example\.invalid/);assert.match(lab,/provision-options\|provision-preview\|provision/);assert.match(lab,/SYNTHETIC_PANEL_ONLY/);
 });

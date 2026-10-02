@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Manage Users setup availability errors — 2 October 2026
+
+The existing Manage Users training-center setup now translates disabled-platform, assignment-service and audit-service failures into explicit bilingual messages. The disabled state tells staff that provisioning did not run and directs them to the platform owner; transient failures are described as unconfirmed rather than successful. The browser cache version and user manual were updated. Local read-only checks confirmed the shared local runtime currently returns `PLATFORM_UPGRADE_NOT_ENABLED`; no account or production data was changed.
+
 Full objective: implement the audited upgrade, preserve and improve the existing UI, verify every required screen/function locally, document APIs and user journeys, push intended changes to Ahammedsajal/SaleMax, and release verified updates at crm.salemax.qa.
 
 ## Payment disputes and chargebacks — local increment, 2 October 2026

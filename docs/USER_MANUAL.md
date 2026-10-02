@@ -199,6 +199,8 @@ Review the business display name and role account limits. The owner limit is fix
 
 Choose **Create business and assign plan** only after reviewing the preview. SaleMaX creates the Qatar workspace (QAR, Qatar and Asia/Qatar defaults), owner membership, reviewed link and canonical/legacy plan assignment in one transaction. The existing `/user/login` remains the sign-in route; the canonical identity does not copy or replace the user's legacy password. Users therefore continue using the existing business login. The operation is idempotent if the same confirmation is retried after a lost response. This step creates the workspace and plan link only; it does not create staff logins, invitations, courses, invoices or send messages. Production adoption still requires the reviewed migrations, administrator link and release gates.
 
+If Manage Users reports **Training-center setup is not enabled in this environment**, the request was denied before provisioning and the account was not changed. Ask the platform owner to enable the upgrade for that environment, then retry from the same Manage Users account. A temporary setup or audit-service error also leaves provisioning unconfirmed; reload the account and retry only after the service is available.
+
 \n
 
 ## Login compatibility during the phased upgrade
