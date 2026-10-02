@@ -34,7 +34,11 @@ function mountConfiguredUpgrade(app){
   if(typeof secret!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(secret))throw new Error('PLATFORM_KEY_REQUIRED');
   const key=Buffer.from(secret,'base64');if(key.length!==32||key.toString('base64')!==secret)throw new Error('PLATFORM_KEY_INVALID');
   const local=process.env.LOCAL_ONLY_MODE==='true';
-  mountExistingUpgrade(app,{pool:require('../../database/config').promise(),key,origin:process.env.SALEMAX_PLATFORM_ORIGIN,insecureLoopback:local,legacyGuard:require('../../middlewares/admin')});
+  const origin=process.env.SALEMAX_PLATFORM_ORIGIN;
+  const originUrl=new URL(origin);
+  // Provider isolation does not make a publicly hosted app a loopback origin.
+  const insecureLoopback=local&&originUrl.protocol==='http:'&&['127.0.0.1','localhost','[::1]'].includes(originUrl.hostname);
+  mountExistingUpgrade(app,{pool:require('../../database/config').promise(),key,origin,insecureLoopback,legacyGuard:require('../../middlewares/admin')});
   return true;
 }
 module.exports={mountExistingUpgrade,mountConfiguredUpgrade};
