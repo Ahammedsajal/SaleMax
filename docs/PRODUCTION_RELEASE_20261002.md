@@ -1,5 +1,13 @@
 # SaleMaX production checkpoint — 2 October 2026
 
+## Delegated SaleMaX Admin portfolios — 2 October 2026
+
+Commit `1f38ea5` is deployed at `/opt/salemax/releases/admin-portfolios-1f38ea5` and is serving `https://crm.salemax.qa`. It extends the existing `/admin` platform panel with Super Admin-created SaleMaX Admin/Staff accounts, Admin reporting lines, customer portfolios, audited assignment, scoped user/plan/category/bot actions, Super Admin-only customer session access, and scoped/global statistics. The existing `/user` customer application remains separate. All seven pending migrations were applied after a preflight confirmed all 25 existing checksums, zero outbox/payment-allocation rows affected by new constraints, and a clean database backup.
+
+Post-deploy checks: app container healthy; `/admin/login`, `/user/login`, and `/admin?page=manage-users` return HTTP 200; anonymous `/api/admin/get_users` returns `Administrator sign-in is required`; migration ledger has 32 applied entries ending in `20261022_platform_admin_portfolios.sql`. The live platform has one active Super Admin, zero delegated Admin/Staff accounts, and zero portfolio assignments. No existing customer was assigned or exposed. Initial Admin/Staff accounts still need to be created by the owner from the production Super Admin session after completing MFA.
+
+Previous release: `/opt/salemax/releases/admin-mfa-96f4d37`, retained as `salemax-app:rollback-admin-portfolios-1f38ea5`. Database/runtime backup: `/opt/salemax/shared/rollback-admin-portfolios-1f38ea5/`; the SQL dump is gzip-verified and its SHA-256 is recorded in the server backup metadata. Restore the previous app image and symlink for application rollback. The migrations are additive; a full database restore would overwrite writes since the backup and needs a maintenance window. Production keeps `LOCAL_ONLY_MODE=true`; provider delivery remains disabled. This is the delegated-admin release, not completion of all training-center product work.
+
 ## Administrator sign-in MFA release — 2 October 2026
 
 Commit `96f4d37` is deployed at `/opt/salemax/releases/admin-mfa-96f4d37` and is serving `https://crm.salemax.qa`. The existing `/admin/login` now completes password verification, then asks linked platform administrators to enroll or verify their authenticator before opening the existing admin panel. MFA no longer lives in Manage Plans. The one successful check covers the full eight-hour platform session; logout, expiry or revocation requires another password and MFA sign-in. The server also rejects saved legacy admin tokens without the matching verified platform session. Existing unlinked administrator and `/user` login flows keep their current behavior.

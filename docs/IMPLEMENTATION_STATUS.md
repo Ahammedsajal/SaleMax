@@ -1,5 +1,13 @@
 # SaleMaX implementation status
 
+## Delegated SaleMaX Admin portfolios — deployed 2 October 2026
+
+Commit `1f38ea5` is deployed at `/opt/salemax/releases/admin-portfolios-1f38ea5` and serving `https://crm.salemax.qa`. The existing platform panel now supports owner-created SaleMaX Admin and Staff accounts, Admin-to-Staff reporting lines, scoped customer listings and actions, audited customer assignment, Super Admin-only customer impersonation, and per-Admin/global dashboard statistics. Admins see customers they create or that Super Admin assigns; Staff inherit their Admin's portfolio. Super Admin-created private customers remain owner-only until assigned. Existing customer logins and the `/admin` and `/user` application routes remain in place.
+
+Production applied migrations 26–32 after a verified backup and clean checksum/schema preflight. The deployment health check is healthy; `/admin/login`, `/user/login`, and `/admin?page=manage-users` return HTTP 200, and the unauthenticated customer-list API returns an administrator sign-in denial. Production has one active Super Admin, no delegated Admin/Staff accounts, and no customer portfolio assignments, so no existing customer was exposed to a delegated account. Admin and Staff creation requires the Super Admin to sign in and complete MFA in production. The user did not provide identities for initial Admin/Staff creation, so none were created. Application rollback image and database backup are retained under `/opt/salemax/shared/rollback-admin-portfolios-1f38ea5/`.
+
+Verification: `npm test` passes 123/123, including cross-portfolio authorization. A fresh disposable MariaDB run applies all 32 migrations and verifies Super Admin-only visibility, Admin-created scope, explicit assignment, private customers, Staff inheritance, and tenant isolation. Provider workers remain disabled (`LOCAL_ONLY_MODE=true`); no WhatsApp, email, payment, or other provider action was enabled. This release implements the delegated platform-administration increment; it does not complete all training-center product tickets or imply provider-delivery readiness.
+
 ## Manage Users setup availability errors — 2 October 2026
 
 The existing Manage Users training-center setup now translates disabled-platform, assignment-service and audit-service failures into explicit bilingual messages. The disabled state tells staff that provisioning did not run and directs them to the platform owner; transient failures are described as unconfirmed rather than successful. The browser cache version and user manual were updated. Local read-only checks confirmed the shared local runtime currently returns `PLATFORM_UPGRADE_NOT_ENABLED`; no account or production data was changed.
