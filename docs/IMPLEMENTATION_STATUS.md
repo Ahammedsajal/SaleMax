@@ -2,6 +2,12 @@
 
 Full objective: implement the audited upgrade, preserve and improve the existing UI, verify every required screen/function locally, document APIs and user journeys, push intended changes to Ahammedsajal/SaleMax, and release verified updates at crm.salemax.qa.
 
+## Excess-deposit returns — local increment, 2 October 2026
+
+The existing Finance invoice detail now includes English/Arabic excess-deposit return requests, history, different-actor review and accountant-only completion evidence. Migration `20261016_training_manual_refunds.sql` stores tenant-bound requests, reservations, review and completion. Approval reserves unallocated funds; completion records an already performed cash/bank return, posts a balanced customer-deposits/cash-or-bank journal and queues an identifier-only event. No external transfer or notification is sent. Invoice collections now derive from posted installment allocations rather than gross payment minus the changing deposit projection, so returns cannot inflate collection totals. Original receipts remain immutable.
+
+Verified from an isolated release snapshot excluding unrelated edits: 101/101 automated tests, disposable MariaDB integration with 26 migrations, and baseline routes. Integration checks request/completion retry idempotency, self-approval denial, reservation without posting, excess-limit denial, one balanced refund journal, deposit reduction, unchanged original receipt and unchanged settled invoice balance. API docs and manual are updated. This increment is not deployed; full authenticated English/Arabic/mobile browser acceptance, broader negative/concurrency checks, queue UI, allocated-course refunds/reversals, chargebacks and delivery remain open. TC20 stays Implementing; the full goal is not complete.
+
 ## Super Admin and platform activation — 2 October 2026
 
 The owner explicitly selected the existing `admin@admin.com` administrator and supplied its credentials for adoption. The one-time bootstrap verified the existing password and UID, created the active canonical Super Admin membership, reviewed legacy link and audit record, and preserved the existing account/password. Temporary scripts containing credentials were removed; credentials are not in Git.
