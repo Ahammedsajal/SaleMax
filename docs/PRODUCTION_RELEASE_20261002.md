@@ -1,5 +1,15 @@
 # SaleMaX production checkpoint — 2 October 2026
 
+## Training Center category in Edit User — 2 October 2026
+
+Commit `13c3b58` adds a bilingual Business category selector to the existing Manage Users → Edit User screen. Training Center selection opens the existing reviewed provisioning flow; selecting alone does not change the account. The local test suite passes 124/124.
+
+The production Super Admin reviewed and confirmed onboarding for an existing Premium Plan user. The existing login was retained; Training Center category version 1 and the published Premium Plan version 1 contract are active, with seat ceilings of owner 1, accountant 1, manager 1 and agent 7. No separate login or staff invitations were created. The provision API returned HTTP 201; the follow-up context read confirms the active tenant category and contract.
+
+Release `/opt/salemax/releases/category-ui-13c3b58` is serving `https://crm.salemax.qa`. Production app and database health checks are healthy; `/admin/login` and `/user/login` return HTTP 200; the page serves `admin-user-plans.js?v=20261022b`; the authenticated Edit User screen displays the assigned category. CarsQatar remained running, `LOCAL_ONLY_MODE=true`, and no provider delivery was enabled. No database migration was needed.
+
+Rollback image: `salemax-app:rollback-category-ui-13c3b58`. Protected pre-release backup: `/opt/salemax/shared/rollback-category-ui-13c3b58/`, mode 700; its gzip SQL dump passed integrity validation and SHA-256 is stored beside it. For application rollback, restore `/opt/salemax/current` to `/opt/salemax/releases/admin-portfolios-1f38ea5`, retag the rollback image as `salemax-app:latest`, and recreate only the SaleMaX `app` service with the SaleMaX Compose project. No schema changes need reversal. Preserve new business data if doing any later database recovery.
+
 ## Delegated SaleMaX Admin portfolios — 2 October 2026
 
 Commit `1f38ea5` is deployed at `/opt/salemax/releases/admin-portfolios-1f38ea5` and is serving `https://crm.salemax.qa`. It extends the existing `/admin` platform panel with Super Admin-created SaleMaX Admin/Staff accounts, Admin reporting lines, customer portfolios, audited assignment, scoped user/plan/category/bot actions, Super Admin-only customer session access, and scoped/global statistics. The existing `/user` customer application remains separate. All seven pending migrations were applied after a preflight confirmed all 25 existing checksums, zero outbox/payment-allocation rows affected by new constraints, and a clean database backup.
