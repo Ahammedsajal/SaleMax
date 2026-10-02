@@ -156,12 +156,38 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   const seats=require('../modules/platform/legacy-agent-seats');
   const agentAccess=require('../modules/platform/legacy-agent-access');
+  await db.query("ALTER TABLE user ADD COLUMN email VARCHAR(254) NOT NULL DEFAULT '',ADD COLUMN password VARCHAR(255) NOT NULL DEFAULT '',ADD COLUMN role VARCHAR(32) NOT NULL DEFAULT 'user',ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Qatar'");
+  await db.query('UPDATE user SET email=?,password=?,role=\'user\',timezone=\'Asia/Qatar\' WHERE uid=?',[`owner-${crypto.randomUUID()}@example.invalid`,'synthetic-owner-password',uid]);
   const legacyAgents=[];
   for(let n=0;n<6;n++){
     const agent={uid:`synthetic-old-agent-${n}-${crypto.randomUUID()}`,email:`old-${n}-${crypto.randomUUID()}@example.invalid`};
     const [inserted]=await db.query('INSERT INTO agents(owner_uid,uid,email,password,name,mobile,is_active) VALUES (?,?,?,?,?,?,1)',[uid,agent.uid,agent.email,'synthetic-hash','Synthetic Agent','00000000']);
     legacyAgents.push({id:inserted.insertId,uid:agent.uid});
   }
+  await db.query("UPDATE agents SET role='agent' WHERE id=?",[legacyAgents[0].id]);
+  const captureExpress=require('express'),jwt=require('jsonwebtoken'),previousKey=process.env.JWTKEY,previousOrigin=process.env.SALEMAX_PLATFORM_ORIGIN,captureKey=crypto.randomBytes(32).toString('hex');
+  process.env.JWTKEY=captureKey;
+  const captureWeb=captureExpress();captureWeb.use(captureExpress.json({limit:'32kb'}));captureWeb.use('/api/pipeline',require('../routes/pipeline'));
+  const captureServer=captureWeb.listen(0,'127.0.0.1');await new Promise((resolve,reject)=>{captureServer.once('listening',resolve);captureServer.once('error',reject);});
+  let capturedStaffLeadId=null;
+  try{
+    const captureOrigin=`http://127.0.0.1:${captureServer.address().port}`;process.env.SALEMAX_PLATFORM_ORIGIN=captureOrigin;
+    const agentEmail=`old-0-${crypto.randomUUID()}@example.invalid`,agentPassword='synthetic-hash';
+    await db.query('UPDATE agents SET email=? WHERE id=?',[agentEmail,legacyAgents[0].id]);
+    const agentToken=jwt.sign({email:agentEmail,password:agentPassword},captureKey,{expiresIn:'5m'}),authHeaders={Authorization:`Bearer ${agentToken}`};
+    const staffDefinitionResponse=await fetch(`${captureOrigin}/api/pipeline/training-forms/course-intake-v2`,{headers:authHeaders});assert.equal(staffDefinitionResponse.status,200,'active assigned agents can open a published staff capture form');
+    const staffDefinition=await staffDefinitionResponse.json();assert.equal(staffDefinition.data.captureMode,'staff');
+    const submissionToken=crypto.randomUUID(),staffPayload={submissionToken,values:{contact_name:'Walk-in synthetic learner',phone:'+97450000301',consent:true}};
+    const staffHeaders={...authHeaders,Origin:captureOrigin,'Content-Type':'application/json'};
+    const savedResponse=await fetch(`${captureOrigin}/api/pipeline/training-forms/course-intake-v2/submissions`,{method:'POST',headers:staffHeaders,body:JSON.stringify(staffPayload)});assert.equal(savedResponse.status,201);const saved=await savedResponse.json();
+    const retriedResponse=await fetch(`${captureOrigin}/api/pipeline/training-forms/course-intake-v2/submissions`,{method:'POST',headers:staffHeaders,body:JSON.stringify({...staffPayload,values:{contact_name:'Ignored duplicate',phone:'+97450000302',consent:true}})});assert.equal(retriedResponse.status,200);assert.equal((await retriedResponse.json()).data.referenceCode,saved.data.referenceCode,'staff retries return the original enquiry without creating a duplicate');
+    const [[captured]]=await db.query('SELECT capture_mode,captured_by_type,captured_by_id,lead_id FROM sx_training_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=?',[t2,form.id,crypto.createHash('sha256').update(submissionToken).digest('hex')]);
+    capturedStaffLeadId=captured.lead_id;
+    assert.equal(captured.capture_mode,'staff');assert.equal(captured.captured_by_type,'agent');assert.equal(captured.captured_by_id,String(legacyAgents[0].id));
+    const [[staffLead]]=await db.query('SELECT source_type,owner_agent_id FROM pipeline_leads WHERE id=?',[captured.lead_id]);assert.equal(staffLead.source_type,'staff_form');assert.equal(Number(staffLead.owner_agent_id),Number(legacyAgents[0].id));
+    const [[captureActivity]]=await db.query("SELECT actor_type,actor_id FROM pipeline_activity WHERE lead_id=? AND activity_type='lead_created' ORDER BY id DESC LIMIT 1",[captured.lead_id]);assert.equal(captureActivity.actor_type,'agent');assert.equal(captureActivity.actor_id,String(legacyAgents[0].id));
+    const deniedOrigin=await fetch(`${captureOrigin}/api/pipeline/training-forms/course-intake-v2/submissions`,{method:'POST',headers:{...staffHeaders,Origin:'https://untrusted.example'},body:JSON.stringify({...staffPayload,submissionToken:crypto.randomUUID()})});assert.equal(deniedOrigin.status,403);
+  }finally{await new Promise((resolve,reject)=>captureServer.close(error=>error?reject(error):resolve()));if(previousKey===undefined)delete process.env.JWTKEY;else process.env.JWTKEY=previousKey;if(previousOrigin===undefined)delete process.env.SALEMAX_PLATFORM_ORIGIN;else process.env.SALEMAX_PLATFORM_ORIGIN=previousOrigin;}
   const newAgent=()=>({uid:crypto.randomUUID(),email:`new-${crypto.randomUUID()}@example.invalid`,password:'synthetic-hash',name:'Synthetic New Agent',mobile:'00000000',comments:''});
   const [raceA,raceB]=[newAgent(),newAgent()];
   const race=await Promise.allSettled([
@@ -198,7 +224,7 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
       VALUES (?,?,?,?,?,'new',?,UTC_TIMESTAMP(3))`,[leadId,pipelineUidHash,uid,crypto.createHash('sha256').update(leadId).digest('hex'),title,ownerAgentId]);
   }
   const agentBoard=await leadPipeline.getBoard({uid,role:'agent',agentId:Number(legacyAgents[0].id),pool});
-  assert.deepEqual(agentBoard.leads.map(lead=>lead.id),[assignedLead],'agent boards exclude unassigned and other agents leads');
+  assert.deepEqual(new Set(agentBoard.leads.map(lead=>lead.id)),new Set([assignedLead,capturedStaffLeadId]),'agent boards include assigned leads, including their own staff-captured enquiry, and exclude unassigned and other-agent leads');
   assert.equal(await leadPipeline.getLead(uid,unassignedLead,{role:'agent',agentId:Number(legacyAgents[0].id),pool}),null);
   assert.equal(await leadPipeline.getLead(uid,foreignAssignedLead,{role:'agent',agentId:Number(legacyAgents[0].id),pool}),null);
   assert.equal((await leadPipeline.getLead(uid,assignedLead,{role:'agent',agentId:Number(legacyAgents[0].id),pool})).id,assignedLead);

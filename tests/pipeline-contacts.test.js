@@ -38,7 +38,7 @@ test('existing pipeline add-opportunity screen offers contact reuse and separate
   assert.match(screen, /lead\.contact_id\|\|isAgent\?'disabled':''/);
   assert.match(screen, /Create a separate contact \/ learner/);
   assert.match(screen, /إنشاء جهة اتصال \/ متعلم مستقل/);
-  assert.match(html, /pipeline\.js\?v=14/);
+  assert.match(html, /pipeline\.js\?v=15/);
 });
 
 test('follow-up query and action inputs fail closed before touching the database', async () => {

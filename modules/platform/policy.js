@@ -26,6 +26,7 @@ const permissions = {
   'reports.read': { owner: 'tenant', accountant: 'finance', manager: 'sales', agent: 'own' },
   'reports.schedule': { owner: 'tenant' },
   'forms.manage': { owner: 'tenant', manager: 'tenant' },
+  'forms.capture': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
   'tasks.read': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
   'tasks.manage': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
   'templates.manage': { owner: 'tenant' },
@@ -46,7 +47,7 @@ const capabilities = Object.freeze({
   'finance.invoices': ['invoices.read', 'invoices.issue'], 'finance.installments': ['invoices.read'],
   'finance.payments': ['invoices.read', 'payments.verify'], 'finance.receipts': ['receipts.read'],
   'finance.credits': ['credits.prepare', 'credits.approve'], 'reports.read': ['reports.read'],
-  'reports.schedule': ['reports.schedule'], 'portal.forms': ['forms.manage'],
+  'reports.schedule': ['reports.schedule'], 'portal.forms': ['forms.manage', 'forms.capture'],
   'tenant.settings': ['tenant.read', 'tenant.manage'],
 });
 function scopeFor(membership, permission) {

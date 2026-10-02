@@ -52,8 +52,8 @@ test('public forms expose and submit an explicit challenge only when configured'
   const screen=fs.readFileSync(path.join(root,'training-public-form.js'),'utf8');
   const html=fs.readFileSync(path.join(root,'training-form.html'),'utf8');
   assert.match(router,/SALEMAX_TURNSTILE_SITE_KEY/);assert.match(router,/challenge\.verify\(req\.body\.challengeToken,req\.body\.submissionToken,\{tenantSlug:req\.params\.tenantSlug,formSlug:req\.params\.formSlug\}\)/);assert.match(router,/botChallenge:challenge\.publicConfig/);
-  assert.match(screen,/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js\?render=explicit/);assert.match(screen,/payload\.challengeToken=challengeToken/);assert.match(screen,/Complete the security check/);assert.match(screen,/أكمل التحقق الأمني/);
-  assert.match(html,/training-public-form\.js\?v=20261002-turnstile1/);
+  assert.match(screen,/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js\?render=explicit/);assert.match(screen,/payload\.challengeToken\s*=\s*challengeToken/);assert.match(screen,/Complete the security check/);assert.match(screen,/أكمل التحقق الأمني/);
+  assert.match(html,/training-public-form\.js\?v=20261018-staff-capture1/);
 });
 
 test('public submission route rejects an unverified challenge before opening the business database',async t=>{

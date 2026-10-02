@@ -23,7 +23,7 @@ function createTrainingFormRouter({pool,origin,userGuard}){
 function createPublicTrainingFormRouter({app,pool,rateKey,origin,turnstile}){
   const challenge=turnstile||createTrainingTurnstile({siteKey:process.env.SALEMAX_TURNSTILE_SITE_KEY,secretKey:process.env.SALEMAX_TURNSTILE_SECRET_KEY,hostname:new URL(origin).hostname});
   const router=express.Router();router.use(express.json({limit:'16kb',strict:true}));
-  app.get('/p/:tenantSlug/forms/:formSlug',(req,res)=>res.sendFile(path.resolve(__dirname,'../../client/public/training-form.html')));
+  app.get('/p/:tenantSlug/forms/:formSlug',(req,res)=>{res.setHeader('Cache-Control','no-store, private');res.sendFile(path.resolve(__dirname,'../../client/public/training-form.html'));});
   router.get('/:tenantSlug/:formSlug',async(req,res,next)=>{res.setHeader('Cache-Control','no-store');try{const data=await forms.publicForm(pool,req.params.tenantSlug,req.params.formSlug);if(!data)return res.status(404).json({success:false,code:'FORM_NOT_FOUND'});return res.json({success:true,data:{...data,botChallenge:challenge.publicConfig}});}catch(error){return next(error);}});
   router.post('/:tenantSlug/:formSlug/submissions',async(req,res,next)=>{
     res.setHeader('Cache-Control','no-store');

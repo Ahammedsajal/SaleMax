@@ -838,7 +838,7 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input,
     const amount = input.expectedValue === "" || input.expectedValue === null || input.expectedValue === undefined ? null : Number(input.expectedValue);
     if (amount !== null && (!Number.isFinite(amount) || amount < 0)) { const error = new Error("Expected value must be zero or greater."); error.status = 400; throw error; }
     const currency = /^[A-Z]{3}$/.test(String(input.currency || "QAR")) ? String(input.currency || "QAR") : "QAR";
-    const sourceType=input.sourceType==='public_form'?'public_form':'manual';
+    const sourceType=['public_form','staff_form'].includes(input.sourceType)?input.sourceType:'manual';
     await connection.query(
       `INSERT INTO pipeline_leads
         (id, uid_hash, uid, contact_id, identity_key, title, contact_name, learner_name, mobile, primary_origin, source_type,
