@@ -8,10 +8,12 @@ test('staff permissions cannot include owner or staff-management grants',()=>{
   assert.deepEqual(staff.permissions(['plans.read','tenants.read']),['plans.read','tenants.read']);
   for(const value of [null,'plans.read',['staff.manage'],['owner.recover'],['super_admin'],['plans.read','plans.read']])assert.throws(()=>staff.permissions(value),{code:'INVALID_STAFF_PERMISSIONS'});
 });
-test('staff access operations require a recently reauthenticated MFA Super Admin',async()=>{
-  for(const context of [staffContext,{...owner,mfaVerified:false},{...owner,recentlyAuthenticated:false},{...owner,audience:'tenant'}]){
+test('staff access operations require an MFA Super Admin, not a repeated step-up prompt',async()=>{
+  for(const context of [staffContext,{...owner,mfaVerified:false},{...owner,audience:'tenant'}]){
     await assert.rejects(staff.list({query:async()=>{throw new Error('must not query');}},context),{code:'PERMISSION_DENIED'});
   }
+  const continued=await staff.list({query:async()=>[[]]},{...owner,recentlyAuthenticated:false});
+  assert.deepEqual(continued.staff,[]);
 });
 test('staff invitations require normalized, valid Qatar-neutral identity input and owner permissions',()=>{
   assert.equal(staff.email('  STAFF@Example.Invalid '),'staff@example.invalid');

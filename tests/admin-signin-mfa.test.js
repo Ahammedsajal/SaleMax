@@ -1,0 +1,20 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'client/public/index.html'),'utf8');
+const ui=fs.readFileSync(path.join(root,'client/public/admin-signin-mfa.js'),'utf8');
+const router=fs.readFileSync(path.join(root,'modules/platform/auth-router.js'),'utf8');
+const admin=fs.readFileSync(path.join(root,'routes/admin.js'),'utf8');
+test('the existing administrator sign-in is the one-time MFA entry point',()=>{
+  assert.match(html,/<script defer="defer" src="\/static\/js\/main\.[^"]+"><\/script><script defer="defer" src="\/admin-signin-mfa\.js\?v=[^"]+"><\/script>/);
+  assert.match(ui,/location\.pathname !== '\/admin\/login'/);
+  assert.match(ui,/\/api\/admin\/login/);
+  assert.match(ui,/platformApi\('login-policy'/);
+  assert.match(ui,/platformApi\('mfa\/verify'/);
+  assert.match(ui,/recoveryScreen\(result, legacyToken, ui\)/);
+  assert.match(router,/router\.get\('\/login-policy'/);
+  assert.match(admin,/router\.post\("\/login"[\s\S]+?router\.use\(createSuperAdminMfaGate/);
+});

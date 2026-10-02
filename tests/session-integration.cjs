@@ -44,10 +44,10 @@ module.exports = async function verifySessions(db,{t1,i1,m1}) {
   await db.query('UPDATE sx_sessions SET mfa_verified_at=UTC_TIMESTAMP(3) WHERE id=?',[psid]);
   assert.equal(platformDecision(await loadSession(db,platformToken),'features.release'),true);
   await db.query('UPDATE sx_sessions SET authenticated_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 6 MINUTE) WHERE id=?',[psid]);
-  assert.equal(platformDecision(await loadSession(db,platformToken),'features.release'),false);
+  assert.equal(platformDecision(await loadSession(db,platformToken),'features.release'),true);
   assert.equal(platformDecision(await loadSession(db,platformToken),'tenants.read'),true);
   await db.query('UPDATE sx_sessions SET mfa_verified_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 13 HOUR) WHERE id=?',[psid]);
-  assert.equal(platformDecision(await loadSession(db,platformToken),'tenants.read'),false);
+  assert.equal(platformDecision(await loadSession(db,platformToken),'tenants.read'),true);
   await db.query('UPDATE sx_sessions SET mfa_verified_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 HOUR),authenticated_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 HOUR) WHERE id=?',[psid]);
   const future = await loadSession(db,platformToken);
   assert.equal(future.mfaVerified,false);
@@ -55,5 +55,5 @@ module.exports = async function verifySessions(db,{t1,i1,m1}) {
   await db.query("UPDATE sx_platform_memberships SET status='inactive' WHERE identity_id=?",[i1]);
   assert.equal(await loadSession(db,platformToken),null);
   await db.query("UPDATE sx_platform_memberships SET status='active' WHERE identity_id=?",[i1]);
-  return {sessionRevocation:true,currentMembershipReload:true,disabledIdentityDenied:true,credentialChangeInvalidates:true,expiryDenied:true,platformMfaFreshness:true,sensitiveActionReauthentication:true};
+  return {sessionRevocation:true,currentMembershipReload:true,disabledIdentityDenied:true,credentialChangeInvalidates:true,expiryDenied:true,platformMfaPersistsForSession:true,noRepeatedStepUp:true};
 };

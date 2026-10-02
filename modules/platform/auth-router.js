@@ -33,6 +33,23 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudienc
     if(!audienceMatches(context))return res.status(401).json({code:'AUTH_REQUIRED'});
     res.json({context,csrfToken:auth.csrf(raw),mfaRequired:context.audience==='platform'&&!context.mfaVerified});
   }));
+  // The existing administrator screen first validates its legacy account. It
+  // uses this read-only policy to know whether that linked platform identity
+  // must complete the canonical MFA challenge before entering the dashboard.
+  router.get('/login-policy',wrap(async(req,res)=>{
+    const adminId=Number(req.legacyAdminId),uid=req.decode?.uid;
+    if(!Number.isSafeInteger(adminId)||adminId<1||typeof uid!=='string')return res.status(401).json({code:'AUTH_REQUIRED'});
+    const uidHash=require('node:crypto').createHash('sha256').update(uid,'utf8').digest('hex');
+    const required=await connection(async db=>{
+      const [[row]]=await db.query(`SELECT m.role FROM sx_legacy_admin_identities l
+        JOIN sx_identities i ON i.id=l.identity_id
+        JOIN sx_platform_memberships m ON m.identity_id=i.id
+        WHERE l.legacy_admin_id=? AND l.legacy_uid=? AND l.legacy_uid_hash=? AND l.status='active'
+          AND i.status='active' AND m.status='active' AND m.role IN ('super_admin','staff') LIMIT 1`,[adminId,uid,uidHash]);
+      return !!row;
+    });
+    res.json({mfaRequired:required});
+  }));
   router.post('/logout',wrap(async(req,res)=>{
     const raw=token(req);if(!auth.validCsrf(raw,req.get('X-CSRF-Token')))return res.status(403).json({code:'CSRF_DENIED'});
     const context=await connection(db=>loadSession(db,raw));if(!audienceMatches(context))return res.status(401).json({code:'AUTH_REQUIRED'});

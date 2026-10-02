@@ -33,7 +33,6 @@ const permissions = {
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);
 const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read']);
 const platformPermissions = Object.freeze([...platformStaffAllowlist, 'owner.recover', 'owner.transfer', 'staff.manage', 'categories.manage', 'tenants.category-change', 'tenants.owner-transfer', 'providers.configure', 'features.release', 'audit.read', 'exports.create']);
-const sensitivePlatformPermissions = Object.freeze(['owner.recover','owner.transfer','staff.manage','categories.manage','tenants.category-change','tenants.owner-transfer','providers.configure','features.release','plans.publish']);
 const capabilities = Object.freeze({
   'messaging.inbox': ['conversations.read', 'conversations.reply'],
   'messaging.qr': ['channels.configure'], 'messaging.meta': ['channels.configure'],
@@ -77,7 +76,9 @@ function decision(context, { capability, permission, resource, external = false 
 }
 function platformDecision(context, permission) {
   if (!context || context.audience !== 'platform' || context.membership?.status !== 'active' || !platformPermissions.includes(permission) || context.mfaVerified !== true) return false;
-  if (sensitivePlatformPermissions.includes(permission) && context.recentlyAuthenticated !== true) return false;
+  // Platform MFA is verified once when the existing administrator signs in.
+  // Sensitive actions remain permission-checked and audited, but do not trigger
+  // another password/MFA prompt during that authenticated platform session.
   if (context.membership.role === 'super_admin') return true;
   return context.membership.role === 'staff' && platformStaffAllowlist.includes(permission) && context.membership.delegatedPermissions?.includes(permission) === true;
 }

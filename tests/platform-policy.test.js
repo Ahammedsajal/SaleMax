@@ -79,6 +79,6 @@ test('platform access requires separate audience, MFA and explicit staff grants'
   const owner={audience:'platform',mfaVerified:true,recentlyAuthenticated:true,membership:{role:'super_admin',status:'active'}};
   assert.equal(platformDecision(owner,'owner.recover'),true);
   assert.equal(platformDecision(owner,'invented.permission'),false);
-  owner.recentlyAuthenticated=false; assert.equal(platformDecision(owner,'owner.recover'),false);
+  owner.recentlyAuthenticated=false; assert.equal(platformDecision(owner,'owner.recover'),true);
   owner.mfaVerified=false; assert.equal(platformDecision(owner,'tenants.create'),false);
 });

@@ -14,7 +14,7 @@ async function loadSession(connection, token, {forUpdate=false}={}) {
     m.role AS tenantRole,m.status AS membershipStatus,m.permission_version AS permissionVersion,m.delegated_permissions AS tenantGrants,
     t.name AS tenantName,t.category_key AS categoryKey,t.category_version AS categoryVersion,t.status AS tenantStatus,t.revision AS tenantRevision,t.currency,t.timezone,
     p.role AS platformRole,p.status AS platformStatus,p.delegated_permissions AS platformGrants,p.permission_version AS platformPermissionVersion,
-    (s.mfa_verified_at BETWEEN DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 12 HOUR) AND UTC_TIMESTAMP(3)) AS mfaVerified,
+    (s.mfa_verified_at IS NOT NULL AND s.mfa_verified_at<=UTC_TIMESTAMP(3)) AS mfaVerified,
     (s.authenticated_at BETWEEN DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE) AND UTC_TIMESTAMP(3)) AS recentlyAuthenticated
     FROM sx_sessions s JOIN sx_identities i ON i.id=s.identity_id
     LEFT JOIN sx_memberships m ON m.tenant_id=s.tenant_id AND m.id=s.membership_id AND m.identity_id=s.identity_id
