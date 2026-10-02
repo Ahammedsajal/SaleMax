@@ -33,7 +33,7 @@ test('contract draft editing is mounted inside the original Manage Plans screen'
 });
 
 test('legacy Manage Users assignment denial offers the reviewed contract flow', () => {
-  assert.match(shell, /admin-user-plans\.js\?v=20261022a/);
+  assert.match(shell, /admin-user-plans\.js\?v=20261022b/);
   assert.match(userPlans, /CANONICAL_ASSIGNMENT_REQUIRED/);
   assert.match(userPlans, /MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT/);
   assert.match(userPlans, /Open training-center contract/);
@@ -45,4 +45,16 @@ test('legacy Manage Users assignment denial offers the reviewed contract flow', 
   assert.match(userPlans, /provision-preview/);
   assert.match(userPlans, /Create business and assign plan/);
   assert.match(userPlans, /إنشاء النشاط وتعيين الخطة/);
+});
+
+test('Edit User exposes the Training Center category through reviewed provisioning', () => {
+  assert.match(userPlans, /function mountEditCategoryControl\(\)/);
+  assert.match(userPlans, /data-sx-category-editor/);
+  assert.match(userPlans, /Business category/);
+  assert.match(userPlans, /Training Center/);
+  assert.match(userPlans, /No category is assigned yet/);
+  assert.match(userPlans, /business-contracts|protectedRequest/);
+  assert.match(userPlans, /current\.linked/);
+  assert.match(userPlans, /onComplete/);
+  assert.match(userPlans, /فئة النشاط/);
 });

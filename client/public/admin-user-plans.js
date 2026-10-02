@@ -6,7 +6,7 @@
   const fields=[['price','Price','السعر'],['plan_duration_in_days','Duration (days)','المدة (أيام)'],['contact_limit','Contacts','جهات الاتصال'],['qr_account','QR accounts','حسابات QR']];
   const flags=[['allow_tag','Chat tags','وسوم المحادثة'],['allow_note','Chat notes','ملاحظات المحادثة'],['allow_chatbot','Chatbot','روبوت المحادثة'],['allow_api','Cloud API','Cloud API'],['wa_warmer','WhatsApp Warmer','تهيئة واتساب'],['rest_api_qr','QR REST API','QR REST API']];
   let editor,hidden=[],returnFocus,refreshOnClose=false;
-  const style=document.createElement('style');style.textContent=`.sx-user-plan-action{border:0;background:#fff2f6;color:#860030;border-radius:6px;padding:5px 8px;font:600 11px Arial,sans-serif;cursor:pointer;white-space:nowrap}.sx-user-plan-link{display:inline-flex;align-items:center;min-height:40px;margin-inline-end:8px;padding:0 13px;border:1px solid #edbfd0;border-radius:8px;background:#fff2f6;color:#860030;font:600 13px Arial,sans-serif;text-decoration:none}.sx-user-plans table{width:100%;border-collapse:collapse;text-align:start}.sx-user-plans th,.sx-user-plans td{padding:10px;border-bottom:1px solid #e4e8ee;text-align:start}.sx-user-plans .sx-plan-field select{min-height:46px}.sx-user-history{overflow:auto;margin-top:24px}.sx-user-plans button:focus-visible,.sx-user-plan-link:focus-visible{outline:3px solid #a8003b70;outline-offset:2px}`;document.head.appendChild(style);
+  const style=document.createElement('style');style.textContent=`.sx-user-plan-action{border:0;background:#fff2f6;color:#860030;border-radius:6px;padding:5px 8px;font:600 11px Arial,sans-serif;cursor:pointer;white-space:nowrap}.sx-user-plan-link{display:inline-flex;align-items:center;min-height:40px;margin-inline-end:8px;padding:0 13px;border:1px solid #edbfd0;border-radius:8px;background:#fff2f6;color:#860030;font:600 13px Arial,sans-serif;text-decoration:none}.sx-user-plans table{width:100%;border-collapse:collapse;text-align:start}.sx-user-plans th,.sx-user-plans td{padding:10px;border-bottom:1px solid #e4e8ee;text-align:start}.sx-user-plans .sx-plan-field select{min-height:46px}.sx-user-history{overflow:auto;margin-top:24px}.sx-user-plans button:focus-visible,.sx-user-plan-link:focus-visible,.sx-user-category-assignment button:focus-visible,.sx-user-category-assignment select:focus-visible{outline:3px solid #a8003b70;outline-offset:2px}.sx-user-category-assignment{width:100%;box-sizing:border-box;margin:14px 0;padding:14px;border:1px solid #ead4df;border-radius:10px;background:#fff9fb;color:#263243}.sx-user-category-assignment h3{margin:0 0 8px;font-size:15px}.sx-user-category-assignment label{display:block;font-size:13px;font-weight:600}.sx-user-category-assignment select{display:block;width:100%;min-height:40px;margin-top:6px;padding:7px 10px;border:1px solid #d4dbe5;border-radius:7px;background:#fff;color:#263243;font:inherit}.sx-user-category-assignment [role=status],.sx-user-category-assignment [role=alert]{margin:8px 0;font-size:12px;color:#596579}.sx-user-category-assignment .sx-category-flow{margin-top:10px}`;document.head.appendChild(style);
   async function api(path,body) {
     const token=localStorage.getItem('wacrm_admin');if(!token)throw new Error(t('Your session expired. Sign in again.','انتهت الجلسة. يرجى تسجيل الدخول مجددًا.'));
     let response,data;
@@ -27,7 +27,7 @@
     while(node && node!==document.body) {if([...node.querySelectorAll('button')].some(button=>['Refresh','تحديث'].includes(button.textContent.trim())))return node.parentElement;node=node.parentElement;}
     return null;
   }
-  async function openBusiness(userId,active,reload){
+  async function openBusiness(userId,active,reload,onComplete){
     const access=window.salemaxPlanContracts?.protectedRequest;if(!access)return;
     let data,version,requestId=null,review=null,busy=false;
     const call=(path,body)=>access(`${encodeURIComponent(userId)}/${path}`,body);
@@ -48,7 +48,7 @@
           const roleLimits=Object.fromEntries(['owner','accountant','manager','agent'].map(role=>[role,Number(form.elements[role].value)]));requestId=crypto.randomUUID();
           const result=await call('provision-preview',{businessName:form.elements.businessName.value,planVersionId:options.contract.id,roleLimits,requestId});review=result.data;
           reviewBox.innerHTML=`<h3>${t('Review business setup','مراجعة إعداد النشاط')}</h3><p>${esc(review.user.name)} · ${esc(review.user.email)} → ${esc(review.businessName)}</p><p>${esc(review.category.title[ar()?'ar':'en'])} · ${esc(review.contract.commercial.title)} · ${esc(review.contract.commercial.price)} QAR · ${esc(review.contract.commercial.plan_duration_in_days)} ${t('days from confirmation','يومًا من التأكيد')}</p><p>${Object.entries(review.proposedLimits).map(([role,count])=>`${esc(t({owner:'Owner',accountant:'Accountant',manager:'Manager',agent:'Agent'}[role],{owner:'المالك',accountant:'المحاسب',manager:'المدير',agent:'الوكيل'}[role]))}: ${count} / ${review.contract.ceiling[role]}`).join(' · ')}</p><p>${t('Features enabled','الميزات المفعلة')}: ${review.contract.capabilities.map(esc).join(', ')}</p>${review.blockers.length?`<div role="alert" class="sx-plan-message">${review.blockers.map(esc).join(' · ')}</div>`:`<p role="status">${t('Preview only. No account or plan has changed.','معاينة فقط. لم يتغير الحساب أو الخطة.')}</p><button type="button" data-provision-confirm>${t('Create business and assign plan','إنشاء النشاط وتعيين الخطة')}</button>`}`;
-          const confirm=reviewBox.querySelector('[data-provision-confirm]');if(confirm)confirm.onclick=async()=>{if(saving||!review.canProvision)return;setBusy(true);try{await call('provision',{businessName:form.elements.businessName.value,planVersionId:options.contract.id,roleLimits:review.proposedLimits,requestId,expectedState:review.expectedState});refreshOnClose=true;await load();}catch(error){alert.textContent=errorText(error);alert.hidden=false;}finally{setBusy(false);}};
+          const confirm=reviewBox.querySelector('[data-provision-confirm]');if(confirm)confirm.onclick=async()=>{if(saving||!review.canProvision)return;setBusy(true);try{await call('provision',{businessName:form.elements.businessName.value,planVersionId:options.contract.id,roleLimits:review.proposedLimits,requestId,expectedState:review.expectedState});refreshOnClose=true;await load();if(onComplete)await onComplete();}catch(error){alert.textContent=errorText(error);alert.hidden=false;}finally{setBusy(false);}};
         }catch(error){alert.textContent=errorText(error);alert.hidden=false;}finally{setBusy(false);}};
       }catch(error){active.innerHTML=`<div role="alert" class="sx-plan-message">${esc(errorText(error))}</div><button type="button" data-return>${t('Back to users','العودة إلى المستخدمين')}</button>`;active.querySelector('[data-return]').onclick=close;}
     }
@@ -70,12 +70,40 @@
           const roleLimits=Object.fromEntries(['owner','accountant','manager','agent'].map(role=>[role,Number(form.elements[role].value)]));
           const result=await call('preview',{planVersionId:version.id,roleLimits});review=result.data;requestId=crypto.randomUUID();
           impact.innerHTML=`<h3>${t('Review before assigning','راجع قبل التعيين')}</h3><p>${esc(review.commercial.title)} · ${esc(review.commercial.price)} QAR · ${review.durationDays} ${t('days','يومًا')}</p><p>${['owner','accountant','manager','agent'].map(role=>`${esc(t(role,{owner:'المالك',accountant:'المحاسب',manager:'المدير',agent:'الوكيل'}))}: ${review.proposedLimits[role]} / ${review.ceiling[role]} (${t('in use','مستخدم')}: ${review.used[role]})`).join(' · ')}</p><p>${t('Features added','ميزات مضافة')}: ${esc(review.addedCapabilities.join(', ')||'—')}<br>${t('Features removed','ميزات محذوفة')}: ${esc(review.removedCapabilities.join(', ')||'—')}</p>${review.blockers.length?`<div role="alert" class="sx-plan-message">${review.blockers.map(esc).join(' · ')}</div>`:`<p role="status">${t('Preview only. No account has changed.','معاينة فقط. لم يتغير أي حساب.')}</p><button type="button" data-confirm>${t('Confirm contract assignment','تأكيد تعيين العقد')}</button>`}`;
-          const confirm=impact.querySelector('[data-confirm]');if(confirm)confirm.onclick=async()=>{if(busy||!review)return;setBusy(true);try{await call('assign',{planVersionId:version.id,roleLimits:review.proposedLimits,expectedState:review.expectedState,requestId});refreshOnClose=true;close();}catch(error){fail(error);}finally{setBusy(false);}};
+          const confirm=impact.querySelector('[data-confirm]');if(confirm)confirm.onclick=async()=>{if(busy||!review)return;setBusy(true);try{await call('assign',{planVersionId:version.id,roleLimits:review.proposedLimits,expectedState:review.expectedState,requestId});refreshOnClose=true;close();if(onComplete)await onComplete();}catch(error){fail(error);}finally{setBusy(false);}};
         }catch(error){fail(error);}finally{setBusy(false);}
       };
     };
     async function load(){data=null;draw();try{data=(await call('context')).data;draw();}catch(error){data={error};draw();const alert=active.querySelector('[role=alert]');if(alert)alert.textContent=errorText(error);}}
     await load();active.querySelector('h2')?.focus();
+  }
+  function mountEditCategoryControl(){
+    if(location.pathname.toLowerCase()!=='/admin'||new URLSearchParams(location.search).get('page')!=='manage-users')return;
+    const dialogs=[...document.querySelectorAll('[role="dialog"]')];
+    const dialog=dialogs.find(node=>[...node.querySelectorAll('h6,h5,h4')].some(heading=>/^Editing\s*[—-]/.test(heading.textContent.trim())||/^تحرير\s*[—-]/.test(heading.textContent.trim())));
+    if(!dialog||dialog.querySelector('[data-sx-category-editor]'))return;
+    const row=document.querySelector('.MuiDataGrid-row.Mui-selected[data-id]')||document.querySelector('.MuiDataGrid-row[aria-selected="true"][data-id]');
+    const userId=row?.getAttribute('data-id');if(!userId)return;
+    const save=[...dialog.querySelectorAll('button')].find(button=>['Update User','تحديث المستخدم'].includes(button.textContent.trim()));
+    if(!save?.parentElement)return;
+    const access=window.salemaxPlanContracts?.protectedRequest;if(!access)return;
+    const card=document.createElement('section');card.className='sx-user-category-assignment';card.dataset.sxCategoryEditor='';card.dir=ar()?'rtl':'ltr';
+    card.innerHTML=`<h3>${t('Business category','فئة النشاط')}</h3><div data-category-fields><label>${t('Assign category','تعيين الفئة')}<select aria-label="${t('Business category','فئة النشاط')}"><option value="">${t('No category assigned','لم يتم تعيين فئة')}</option><option value="training_center">${t('Training Center','مركز تدريب')}</option></select></label><p role="status" data-category-status>${t('Checking the current business category…','جارٍ التحقق من فئة النشاط الحالية…')}</p><button type="button" class="sx-user-plan-action" data-category-start disabled>${t('Review Training Center setup','مراجعة إعداد مركز التدريب')}</button></div><div class="sx-category-flow" data-category-flow hidden></div>`;
+    save.parentElement.insertBefore(card,save);
+    const fields=card.querySelector('[data-category-fields]'),select=card.querySelector('select'),status=card.querySelector('[data-category-status]'),start=card.querySelector('[data-category-start]'),flow=card.querySelector('[data-category-flow]');let current=null,loading=false;
+    async function refreshCategory(){
+      if(loading)return;loading=true;start.disabled=true;status.textContent=t('Checking the current business category…','جارٍ التحقق من فئة النشاط الحالية…');
+      try{
+        const result=await access(`${encodeURIComponent(userId)}/context`);current=result.data;
+        const linked=current.linked&&current.tenant?.category_key==='training_center';select.value=linked?'training_center':'';select.disabled=!!current.linked;
+        status.textContent=linked?t('Training Center is assigned. Module access follows its published contract and active plan.','تم تعيين فئة مركز التدريب. يعتمد الوصول إلى الوحدة على العقد المنشور والخطة النشطة.'):current.linked?t('This account already has a business category. Category changes require an owner-reviewed migration.','هذا الحساب مرتبط بفئة نشاط بالفعل. يتطلب تغيير الفئة مراجعة واعتماد المالك.'):t('No category is assigned yet. Confirming setup links this existing user to Training Center and applies its published contract.','لم يتم تعيين فئة بعد. يؤدي تأكيد الإعداد إلى ربط هذا المستخدم بمركز التدريب وتطبيق عقده المنشور.');
+        start.textContent=linked?t('Manage Training Center contract','إدارة عقد مركز التدريب'):t('Review Training Center setup','مراجعة إعداد مركز التدريب');start.disabled=!(linked||(!current.linked&&current.permissions?.provision));
+      }catch(error){select.value='';status.textContent=t('Could not verify the category. Refresh and try again.','تعذر التحقق من الفئة. حدّث الصفحة وحاول مجددًا.');start.disabled=true;}
+      finally{loading=false;}
+    }
+    select.onchange=()=>{start.disabled=select.value!=='training_center'||!(current?.linked||current?.permissions?.provision);};
+    start.onclick=async()=>{if(start.disabled||select.value!=='training_center')return;fields.hidden=true;flow.hidden=false;flow.innerHTML=`<div role="status">${t('Loading Training Center setup…','جارٍ تحميل إعداد مركز التدريب…')}</div>`;const completed=async()=>{await refreshCategory();flow.hidden=true;fields.hidden=false;};await openBusiness(userId,flow,completed,completed);};
+    refreshCategory();
   }
   async function open(userId) {
     const header=anchor();if(!header)return;
@@ -123,6 +151,7 @@
   }
   function mount() {
     if(location.pathname.toLowerCase()!=='/admin' || new URLSearchParams(location.search).get('page')!=='manage-users' || !localStorage.getItem('wacrm_admin'))return;
+    mountEditCategoryControl();
     document.querySelectorAll('.MuiDataGrid-row[data-id]').forEach(row=>{
       const cell=row.querySelector('[data-field="plan"]');if(!cell)return;
       let button=cell.querySelector('.sx-user-plan-action');

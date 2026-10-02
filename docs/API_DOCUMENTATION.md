@@ -258,7 +258,7 @@ The existing Team Invitations screen displays active agents, pending reservation
 
 ### Existing Manage Users business provisioning
 
-The existing `/api/admin/business-contracts` router now supports onboarding an existing legacy account into the first supported category, training center. The routes require the existing administrator bearer token, canonical platform session, MFA, reviewed administrator identity link and current `tenants.create`, `plans.read` and `plans.assign` grants. Mutations additionally require the configured exact Origin and `X-CSRF-Token`. The platform feature flag remains off by default.
+The **Manage Users → Edit User → Business category** control uses the existing `/api/admin/business-contracts` router to onboard an existing legacy account into the first supported category, Training Center. Selecting the category opens the existing provisioning review; it does not change the account until the authorized administrator confirms. The routes require the existing administrator bearer token, canonical platform session, MFA, reviewed administrator identity link and current `tenants.create`, `plans.read` and `plans.assign` grants. Mutations additionally require the configured exact Origin and `X-CSRF-Token`. The platform feature flag remains off by default.
 
 | Method / suffix | Permission | Input / result |
 | --- | --- | --- |
