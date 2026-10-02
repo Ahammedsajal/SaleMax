@@ -47,8 +47,8 @@ async function main() {
     let savedPlan;await planHandlers.add({body:{title:'Synthetic Training plan',short_description:'Browser test only',price:'250',plan_duration_in_days:'30',contact_limit:'100',qr_account:'2',is_trial:'0',allow_tag:'1',allow_note:'1',allow_chatbot:'1',allow_api:'0',wa_warmer:'0',rest_api_qr:'0'}},{json:result=>{savedPlan=result;}});
     if(!savedPlan?.success)throw new Error('SYNTHETIC_PLAN_FIXTURE_FAILED');
     const [[legacyPlan]]=await db.query('SELECT * FROM plan LIMIT 1');
-    const tenantId=crypto.randomUUID(),membershipId=crypto.randomUUID();
-    await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,?,'Synthetic Training Centre','training_center',1,'active')",[tenantId,'panel-'+crypto.randomUUID()]);
+    const tenantId=crypto.randomUUID(),membershipId=crypto.randomUUID(),tenantSlug='panel-'+crypto.randomUUID();
+    await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,?,'Synthetic Training Centre','training_center',1,'active')",[tenantId,tenantSlug]);
     await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES (?,?,?,'owner')",[membershipId,tenantId,ownerIdentityId]);
     const accountantEmail='accountant@example.invalid',accountantPassword=crypto.randomBytes(18).toString('base64url'),accountantIdentityId=crypto.randomUUID(),accountantMembershipId=crypto.randomUUID();
     await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,'Synthetic accountant',?,'active')",[accountantIdentityId,accountantEmail,await bcrypt.hash(accountantPassword,12)]);
@@ -64,7 +64,7 @@ async function main() {
     await db.query("INSERT INTO web_public(app_name,logo,currency_code,currency_symbol,rtl,login_header_footer,google_login_active,fb_login_active,is_custom_home) VALUES ('SaleMaX · Synthetic test','salemax-logo.png','QAR','QAR',0,0,0,0,0)");
     await db.query('INSERT INTO web_private(id) VALUES (1)');
     fs.mkdirSync(runtime,{recursive:true});
-    fs.writeFileSync(path.join(runtime,'access.json'),JSON.stringify({syntheticData:true,url:`http://127.0.0.1:${labPort}/admin/login`,email:'panel@example.invalid',password,businessEmail:'business@example.invalid',businessPassword:password,accountantEmail,accountantPassword,tenantSlug:`panel-${tenantId}`,database:name,provisioningUserId:unlinkedUser.insertId},null,2));
+    fs.writeFileSync(path.join(runtime,'access.json'),JSON.stringify({syntheticData:true,url:`http://127.0.0.1:${labPort}/admin/login`,email:'panel@example.invalid',password,businessEmail:'business@example.invalid',businessPassword:password,accountantEmail,accountantPassword,tenantSlug,database:name,provisioningUserId:unlinkedUser.insertId},null,2));
     // Use a minimal environment so production/local imported secrets cannot
     // flow into any imported legacy module. Only synthetic credentials exist.
     const env={SystemRoot:process.env.SystemRoot,PATH:process.env.PATH,TEMP:process.env.TEMP,TMP:process.env.TMP,
@@ -91,8 +91,10 @@ function serve() {
     const courseAction=courseRoute&&['GET','POST','PUT'].includes(req.method);
     const financeRoute=/^\/api\/user\/training\/finance-policies(?:\/(?:current|history|draft|accountant\/(?:current|history)|[0-9a-f-]{36}\/(?:submit|decision)))?$/.test(apiPath);
     const financeAction=financeRoute&&['GET','PUT','POST'].includes(req.method);
+    const publicFormDefinition=req.method==='GET'&&/^\/api\/public\/training\/forms\/[a-z0-9-]{1,80}\/[a-z0-9-]{1,48}$/.test(apiPath);
+    const publicFormSubmission=req.method==='POST'&&/^\/api\/public\/training\/forms\/[a-z0-9-]{1,80}\/[a-z0-9-]{1,48}\/submissions$/.test(apiPath);
     const protectedAction=(req.method==='GET' && (apiPath==='/api/admin/plan-contracts/context'||apiPath==='/api/admin/platform-auth/me'||(contractRoute&&apiPath.endsWith('/versions'))||(businessRoute&&(apiPath.endsWith('/context')||apiPath.endsWith('/provision-options'))))) || (req.method==='POST' && (['/api/admin/platform-auth/login','/api/admin/platform-auth/logout','/api/admin/platform-auth/mfa/enroll','/api/admin/platform-auth/mfa/verify'].includes(apiPath)||(contractRoute&&!apiPath.endsWith('/versions'))||(businessRoute&&!apiPath.endsWith('/context')&&!apiPath.endsWith('/provision-options')))) || draftUpdateRoute;
-    if(!allowed.has(key)&&!protectedAction&&!courseAction&&!financeAction) {console.log('Synthetic panel denied: '+key);return res.status(403).json({success:false,msg:'This action is outside the synthetic plan test.',syntheticData:true});}
+    if(!allowed.has(key)&&!protectedAction&&!courseAction&&!financeAction&&!publicFormDefinition&&!publicFormSubmission) {console.log('Synthetic panel denied: '+key);return res.status(403).json({success:false,msg:'This action is outside the synthetic plan test.',syntheticData:true});}
     next();
   });
   require('../modules/platform/mount-existing-upgrade').mountConfiguredUpgrade(app);
