@@ -246,15 +246,16 @@ These routes extend the existing authenticated business and agent APIs and are c
 
 | Method and path | Purpose |
 | --- | --- |
-| GET `/api/user/team-invitations/` | List up to 200 invitation records and supported role choices, plus `seatUsage.agent: { active, pending, limit, available }`. Active excludes valid pending invitations; available subtracts both active members and valid reservations from the assigned plan limit. |
-| POST `/api/user/team-invitations/` | Create one agent invitation. Body: `{ "email": "agent@example.qa", "role": "agent", "requestKey": "<uuid>" }`. Returns one-time token and `delivery: "copy-link"`; store/copy the link immediately. |
+| GET `/api/user/team-invitations/` | List up to 200 invitation records and `availableRoles`, plus `seatUsage` for `accountant`, `manager` and `agent`; each entry is `{ active, pending, limit, available }`. Pending reservations count toward capacity and expired reservations are closed before the summary is returned. |
+| POST `/api/user/team-invitations/` | Create one accountant, manager or agent invitation. Body: `{ "email": "staff@example.qa", "role": "accountant", "requestKey": "<uuid>" }`. The response includes the role and a one-time token with `delivery: "copy-link"`; store/copy the link immediately. The role must have a seat on the assigned plan. |
 | POST `/api/user/team-invitations/:id/rotate` | Replace a pending invite token and expiry; the old link stops working. |
 | POST `/api/user/team-invitations/:id/cancel` | Cancel a pending invite. |
-| POST `/api/agent/invitations/accept` | Public same-origin activation. Body: `{ "token": "<43-char-token>", "displayName": "...", "mobile": "+974...", "password": "..." }`. On success creates the existing compatible agent login and one-use tenant membership. |
+| GET `/api/agent/invitations/preview/:token` | Public, no-store preview of a valid one-time link. Returns invited email, role, business name and tenant slug; it does not consume the link. |
+| POST `/api/agent/invitations/accept` | Public same-origin activation. Body: `{ "token": "<43-char-token>", "displayName": "...", "mobile": "+974...", "password": "..." }`. `mobile` is required for agents and optional for accountant/manager. On success creates one active canonical tenant identity/membership; agent acceptance additionally creates the compatible legacy agent login and ownership link. |
 
 Invitation tokens are generated from 256 bits of randomness and only SHA-256 digests are stored. Links expire after seven days; passwords require at least 12 Unicode code points and are capped at 72 UTF-8 bytes for bcrypt compatibility. Responses use bounded error codes including `INVITE_INVALID`, `SEAT_LIMIT_EXCEEDED`, `TEAM_FEATURE_UNAVAILABLE`, and `ROLE_ONBOARDING_UNAVAILABLE`. Email/WhatsApp dispatch is not implemented. Accountant and manager onboarding remains disabled until every existing business API enforces those roles. These APIs are not production-ready evidence by themselves.
 
-The existing Team Invitations screen displays active agents, pending reservations, the assigned plan limit and seats available. Concurrent final-seat reservations are serialized by tenant locking and covered by the MariaDB integration smoke; only one invitation can reserve the final seat.
+The existing Team Invitations screen displays active accounts, pending reservations, assigned limits and seats available for each supported role. Accountant and manager accounts use the existing business sign-in with the invitation's workspace slug; agents continue through Agent Login. Concurrent final-seat reservations are serialized by tenant locking and covered by the MariaDB integration smoke; only one invitation can reserve the final seat for a role.
 
 ### Existing Manage Users business provisioning
 

@@ -53,6 +53,22 @@ module.exports=async(db,other,pool,{i1})=>{
   const createdHttp=await call('', 'POST',{code:'HTTP-101',nameEn:'HTTP course',nameAr:'دورة اختبار',durationValue:1,durationUnit:'days',deliveryMode:'online',offer:{priceMinor:10000}});assert.equal(createdHttp.status,201);assert.equal(createdHttp.data.data.offerVersion,1);
   const listedHttp=await call('?page=1&limit=20&search=HTTP-101');assert.equal(listedHttp.status,200);assert.equal(listedHttp.data.data.total,1);
   }finally{await new Promise(resolve=>httpServer.close(resolve));}
+  const canonicalAuth=require('../modules/platform/authentication').createAuthentication({key:Buffer.alloc(32,17)});
+  for(const invitedRole of ['accountant','manager']){
+    assert.ok(limits[invitedRole]>=1,`${invitedRole} fixture has a published seat`);
+    const inviteEmail=`${invitedRole}-${crypto.randomUUID()}@example.invalid`,plainPassword=`Synthetic-${invitedRole}-Password-73`;
+    const invite=await team.create(pool,ownerUid,{email:inviteEmail,role:invitedRole,requestKey:crypto.randomUUID()});
+    assert.equal(invite.role,invitedRole);assert.equal((await team.preview(pool,invite.token)).role,invitedRole);
+    const acceptedRole=await team.accept(pool,{token:invite.token,displayName:`Synthetic ${invitedRole}`,password:plainPassword});
+    assert.equal(acceptedRole.role,invitedRole);assert.match(acceptedRole.tenantSlug,/^team-/);
+    const [[canonicalMember]]=await db.query('SELECT m.role,m.status FROM sx_identities i JOIN sx_memberships m ON m.identity_id=i.id WHERE i.email_normalized=? AND m.tenant_id=?',[inviteEmail,tenantId]);
+    assert.equal(canonicalMember.role,invitedRole);assert.equal(canonicalMember.status,'active');
+    const [[legacyAgent]]=await db.query('SELECT id FROM agents WHERE LOWER(email)=?',[inviteEmail]);assert.equal(legacyAgent,undefined);
+    const login=await canonicalAuth.login(db,{email:inviteEmail,password:plainPassword,audience:'tenant',tenantSlug:acceptedRole.tenantSlug},'127.0.0.1');
+    assert.equal(login.context.membership.role,invitedRole);await canonicalAuth.logout(db,login.token);
+    const summary=await team.list(pool,ownerUid);assert.deepEqual(summary.seatUsage[invitedRole],{active:1,pending:0,limit:limits[invitedRole],available:limits[invitedRole]-1});
+  }
+  await assert.rejects(team.create(pool,ownerUid,{email:`invalid-${crypto.randomUUID()}@example.invalid`,role:'super_admin',requestKey:crypto.randomUUID()}),{code:'INVALID_ROLE'});
   const first=await team.create(pool,ownerUid,{email:`agent-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()});
   assert.equal(first.delivery,'copy-link');assert.equal(first.status,'pending');assert.equal(first.token.length,43);
   const reservedSummary=await team.list(pool,ownerUid);assert.deepEqual(reservedSummary.seatUsage.agent,{active:0,pending:1,limit:limits.agent,available:limits.agent-1});
@@ -80,5 +96,5 @@ module.exports=async(db,other,pool,{i1})=>{
   await assert.rejects(team.create(pool,ownerUid,{email:`full-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()}),{code:'SEAT_LIMIT_EXCEEDED'});
   const deniedOwner='unmapped-'+crypto.randomUUID();await db.query('INSERT INTO user(uid,name,email) VALUES (?,?,?)',[deniedOwner,'Unmapped',`unmapped-${crypto.randomUUID()}@example.invalid`]);
   await assert.rejects(team.list(pool,deniedOwner),{code:'VERIFIED_BUSINESS_OWNER_REQUIRED'});
-  return {trainingCourseCrudIsTenantScoped:true,trainingCourseHttpRoutesAndOriginGuard:true,courseOfferPriceHistoryImmutable:true,courseBatchCapacityAndScheduleScoped:true,staleCourseRevisionRejected:true,courseMustHaveOfferBeforePublish:true,teamInvitationTokenHashOnly:true,rotatedTokenInvalidatesPriorLink:true,oneTimeAgentActivation:true,legacyAndCanonicalAgentIdentityLinked:true,expiredInviteReissueRechecksCapacity:true,ownerAndTenantScopeRequired:true,seatLimitCheckedBeforeInvite:true,agentSeatSummarySeparatesActiveAndPending:true,concurrentFinalAgentSeatReservationIsAtomic:true};
+  return {trainingCourseCrudIsTenantScoped:true,trainingCourseHttpRoutesAndOriginGuard:true,courseOfferPriceHistoryImmutable:true,courseBatchCapacityAndScheduleScoped:true,staleCourseRevisionRejected:true,courseMustHaveOfferBeforePublish:true,teamInvitationTokenHashOnly:true,rotatedTokenInvalidatesPriorLink:true,oneTimeAgentActivation:true,legacyAndCanonicalAgentLinked:true,accountantAndManagerInvitationsUsePlanSeats:true,accountantAndManagerAcceptCanonicalTenantLogin:true,expiredInviteReissueRechecksCapacity:true,ownerAndTenantScopeRequired:true,seatLimitCheckedBeforeInvite:true,agentSeatSummarySeparatesActiveAndPending:true,concurrentFinalAgentSeatReservationIsAtomic:true};
 };
