@@ -1,6 +1,8 @@
 # SaleMaX production checkpoint — 2 October 2026
 
-Committed source `572e36a` is deployed at https://crm.salemax.qa/user/login. The existing administrator login remains https://crm.salemax.qa/admin/login.
+Committed source `248f1ab` is deployed at https://crm.salemax.qa/user/login, superseding the earlier `572e36a` checkpoint below. The existing administrator login remains https://crm.salemax.qa/admin/login.
+
+License/support follow-up: the Node license endpoint now verifies against `https://crm.gccbot.com/api/admin/check_license_external?lang=English`. The owner-supplied license was accepted for `crm.salemax.qa`; live theme checks return `licenseRequired:false`. Activation metadata is mounted persistently from `/opt/salemax/shared/license`, does not store the license key, and must be retained across deployments. The help link now points to `https://wa.me/97455160323`. Clean-release tests pass 98/98, live support asset hashes match, and existing-user reads and original row counts still pass. No WhatsApp message was sent. Current release: `/opt/salemax/releases/license-20261002-248f1ab`; previous image retained as `salemax-app:rollback-license-20261002`. A rollback to pre-fix source requires carrying the activation record into that version's expected license location; otherwise its license prompt returns.
 
 This is a verified checkpoint, not the completed full upgrade. Production preserves `LOCAL_ONLY_MODE=true` and the disabled `SALEMAX_PLATFORM_ENABLED` flag. Training APIs and contract management are uploaded but inactive pending verified owner bootstrap, configuration and acceptance. Providers remain disconnected as before. No user was assigned a training category or a new plan. Existing passwords and runtime credentials were preserved. Unfinished refunds and unrelated working-tree edits were excluded.
 

@@ -2,6 +2,12 @@
 
 Full objective: implement the audited upgrade, preserve and improve the existing UI, verify every required screen/function locally, document APIs and user journeys, push intended changes to Ahammedsajal/SaleMax, and release verified updates at crm.salemax.qa.
 
+## License and support follow-up — 2 October 2026
+
+Source `248f1ab` is now deployed in `/opt/salemax/releases/license-20261002-248f1ab`. The existing license-verification route uses `https://crm.gccbot.com/api/admin/check_license_external?lang=English`, with a bounded timeout and no response logging. The owner-supplied license was accepted for `crm.salemax.qa`; the live theme endpoint reports `success:true, licenseRequired:false`. Activation metadata is persisted under `/opt/salemax/shared/license/license.json` through a dedicated mount, contains no license key, and failed storage no longer reports successful activation. Temporary activation scripts containing the key were removed. No key is in Git.
+
+The original application's support links now point to `https://wa.me/97455160323` via a maintained DOM hook; unrelated contact links are preserved. No minified application logic was edited. Clean-release tests pass 98/98; link-transform checks, live asset hash, persistent storage, existing-user read checks and original-table row counts pass. All messaging/payment providers and training activation retain their previous settings. Only the explicitly requested CRM license check was performed; no WhatsApp message was sent.
+
 ## Production checkpoint — 2 October 2026
 
 Committed source `572e36a` is deployed at crm.salemax.qa. This supersedes earlier statements that no checkpoint was deployed, but does not mark the upgrade complete. The unfinished refund service/migration and unrelated working-tree edits were excluded. Courses navigation now requires an authenticated category/entitlement check. Clean-release evidence: 97/97 tests, 25-migration disposable MariaDB integration and baseline/syntax checks. Live existing-user profile/dashboard/tasks/phonebook/chatbot reads pass, both login pages return 200, app/DB are healthy and all 66 original tables retain their row counts.
