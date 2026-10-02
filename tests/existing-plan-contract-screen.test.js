@@ -26,6 +26,10 @@ test('contract draft editing is mounted inside the original Manage Plans screen'
   assert.match(contracts, /Cancel editing/);
   assert.match(contracts, /احفظ تغييرات المسودة أو تجاهلها قبل مراجعة النشر/);
   assert.match(contracts, /تحديث تغييرات المسودة|حفظ تغييرات المسودة/);
+  assert.match(contracts, /REAUTH_REQUIRED:t\('Your password sign-in expired/);
+  assert.match(contracts, /Complete verification within five minutes of signing in/);
+  assert.match(contracts, /reauth\.onclick=signIn/);
+  assert.match(contracts, /امسح رمز QR الجديد/);
 });
 
 test('legacy Manage Users assignment denial offers the reviewed contract flow', () => {

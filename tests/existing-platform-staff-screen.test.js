@@ -18,6 +18,9 @@ test('platform staff and invite setup are integrated into the original administr
   assert.match(screen,/data-lang/);
   assert.match(screen,/setAttribute\('aria-modal','true'\)/);
   assert.match(screen,/navigator\.clipboard\.writeText/);
+  assert.match(screen,/REAUTH_REQUIRED:t\('Your recent sign-in expired/);
+  assert.match(screen,/Complete verification within five minutes of signing in/);
+  assert.match(screen,/ضبط وقت الهاتف تلقائيًا/);
   assert.deepEqual(Object.keys(contract.paths).sort(),[
     '/api/admin/platform-access/staff','/api/admin/platform-access/staff/invitations',
     '/api/admin/platform-access/staff/invitations/{id}/cancel','/api/admin/platform-access/staff/invitations/{id}/resend',
