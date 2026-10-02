@@ -55,10 +55,13 @@ module.exports=async(db,config,{i1})=>{
     await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,'Synthetic center owner','active')",[ownerId,crypto.randomUUID()+'@example.invalid']);
     await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES (?,?,?,'owner')",[membershipId,tenantId,ownerId]);
     const [legacyUser]=await db.query('INSERT INTO user(uid,name,plan,plan_expire) VALUES (?,?,?,?)',[legacyUid,'Synthetic HTTP business','{}',String(Date.now())]);
+    await db.query("INSERT INTO sx_platform_user_portfolios(legacy_user_id,managed_by_identity_id,created_by_identity_id,source) VALUES (?,?,?,'super_admin_assigned')",[legacyUser.insertId,actor,i1]);
     await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(legacyUser.insertId),tenantId,membershipId,crypto.createHash('sha256').update(legacyUid).digest('hex')]);
     const businessContext=await request(business+'/'+legacyUser.insertId+'/context');assert.equal(businessContext.status,200);
+    const [foreignUser]=await db.query('INSERT INTO user(uid,name,plan,plan_expire) VALUES (?,?,?,?)',['out-of-portfolio-'+crypto.randomUUID(),'Private synthetic business','{}',String(Date.now())]);
+    assert.equal((await request(business+'/'+foreignUser.insertId+'/context')).status,403,'a granted staff permission cannot cross its assigned customer portfolio');
     const contractRequest={planVersionId:version.id,roleLimits:{owner:1,accountant:1,manager:2,agent:7}};
-    const businessPreview=await request(business+'/'+legacyUser.insertId+'/preview',{body:contractRequest});assert.equal(businessPreview.status,200);const reviewed=(await businessPreview.json()).data;assert.equal(reviewed.canAssign,true);
+    const businessPreview=await request(business+'/'+legacyUser.insertId+'/preview',{body:contractRequest});assert.equal(businessPreview.status,200,await businessPreview.clone().text());const reviewed=(await businessPreview.json()).data;assert.equal(reviewed.canAssign,true);
     const assignmentBody={...contractRequest,expectedState:reviewed.expectedState,requestId:crypto.randomUUID()};
     const businessAssignment=await request(business+'/'+legacyUser.insertId+'/assign',{body:assignmentBody});assert.equal(businessAssignment.status,200);
     const businessReplay=await request(business+'/'+legacyUser.insertId+'/assign',{body:assignmentBody});assert.equal(businessReplay.status,200);assert.equal((await businessReplay.json()).data.replayed,true);

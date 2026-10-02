@@ -18,7 +18,7 @@ function createSuperAdminMfaGate({runQuery,key}){
       const links=await runQuery(`SELECT i.id AS identity_id,m.role FROM sx_legacy_admin_identities l
         JOIN sx_identities i ON i.id=l.identity_id JOIN sx_platform_memberships m ON m.identity_id=i.id
         WHERE l.legacy_admin_id=? AND l.legacy_uid=? AND l.legacy_uid_hash=? AND l.status='active'
-          AND i.status='active' AND m.status='active' AND m.role IN ('super_admin','staff') LIMIT 1`,[admin.id,claims.uid,uidHash]);
+          AND i.status='active' AND m.status='active' AND m.role IN ('super_admin','platform_admin','staff') LIMIT 1`,[admin.id,claims.uid,uidHash]);
       if(!links.length)return next();
       const cookies=(req.get('Cookie')||'').split(';').map(v=>v.trim());
       const configuredOrigin=process.env.SALEMAX_PLATFORM_ORIGIN;
@@ -34,7 +34,7 @@ function createSuperAdminMfaGate({runQuery,key}){
         WHERE s.token_hash=? AND s.audience='platform' AND s.mfa_verified_at IS NOT NULL
           AND s.revoked_at IS NULL AND s.expires_at>UTC_TIMESTAMP(3)
           AND s.credential_version=i.credential_version AND i.status='active'
-          AND m.status='active' AND m.role IN ('super_admin','staff')
+          AND m.status='active' AND m.role IN ('super_admin','platform_admin','staff')
           AND l.legacy_admin_id=? AND l.legacy_uid=? AND l.legacy_uid_hash=? AND l.status='active' LIMIT 1`,[hash,admin.id,claims.uid,uidHash]):[];
       if(!sessions.length)return res.status(403).json({success:false,code:'MFA_REQUIRED',msg:'Complete authenticator verification at administrator sign-in'});
       req.platformMfaSession=sessions[0].id;

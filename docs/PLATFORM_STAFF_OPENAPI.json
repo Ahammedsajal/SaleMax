@@ -6,6 +6,24 @@
     "description": "Additive staff-invitation endpoints mounted into the existing /admin API. Platform activation is disabled by default. Management calls require the existing admin bearer session and the canonical MFA platform session. Invitation acceptance uses the existing /admin/login route and a same-origin, one-time link."
   },
   "paths": {
+    "/api/admin/platform-access/portfolios": {
+      "get": {
+        "operationId": "listAdminPortfolios",
+        "summary": "List active Admins and private/unassigned customer count (Super Admin only)",
+        "security": [{"LegacyAdminBearer": [], "PlatformSessionCookie": []}],
+        "responses": {"200": {"description": "Active Admin portfolio counts", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PortfolioListResponse"}}}}, "403": {"$ref": "#/components/responses/Forbidden"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+      }
+    },
+    "/api/admin/platform-access/portfolios/{userId}": {
+      "put": {
+        "operationId": "assignCustomerPortfolio",
+        "summary": "Assign a customer to an active Admin or keep it private to Super Admin",
+        "security": [{"LegacyAdminBearer": [], "PlatformSessionCookie": [], "CsrfToken": []}],
+        "parameters": [{"name": "userId", "in": "path", "required": true, "schema": {"type": "integer", "minimum": 1}}, {"$ref": "#/components/parameters/Origin"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AssignPortfolio"}}}},
+        "responses": {"200": {"description": "Audited portfolio owner update"}, "400": {"$ref": "#/components/responses/Invalid"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+      }
+    },
     "/api/admin/platform-access/staff": {
       "get": {
         "operationId": "listPlatformStaff",
@@ -141,7 +159,9 @@
     },
     "schemas": {
       "PermissionList": {"type": "array", "maxItems": 9, "uniqueItems": true, "items": {"type": "string", "enum": ["tenants.read", "tenants.create", "tenants.manage", "plans.read", "plans.draft", "plans.assign", "plans.publish", "support.request", "incidents.read"]}},
-      "CreateInvitation": {"type": "object", "additionalProperties": false, "required": ["email", "permissions"], "properties": {"email": {"type": "string", "format": "email", "maxLength": 254}, "permissions": {"$ref": "#/components/schemas/PermissionList"}}},
+      "CreateInvitation": {"type": "object", "additionalProperties": false, "required": ["email"], "properties": {"email": {"type": "string", "format": "email", "maxLength": 254}, "platformRole": {"type": "string", "enum": ["platform_admin", "staff"], "default": "staff"}, "reportsToIdentityId": {"type": ["string", "null"], "format": "uuid"}, "permissions": {"$ref": "#/components/schemas/PermissionList", "description": "Staff grants only; platform Admins receive the fixed Admin permission set."}}},
+      "AssignPortfolio": {"type": "object", "additionalProperties": false, "required": ["managedByIdentityId"], "properties": {"managedByIdentityId": {"type": ["string", "null"], "format": "uuid", "description": "Active platform Admin identity, or null for Super Admin-private status."}}},
+      "PortfolioListResponse": {"type": "object", "required": ["success", "data"], "properties": {"success": {"const": true}, "data": {"type": "object", "required": ["admins", "unassignedCount"], "properties": {"admins": {"type": "array", "items": {"type": "object", "required": ["id", "email", "customerCount"], "properties": {"id": {"type": "string", "format": "uuid"}, "email": {"type": "string", "format": "email"}, "displayName": {"type": ["string", "null"]}, "customerCount": {"type": "integer", "minimum": 0}}}}, "unassignedCount": {"type": "integer", "minimum": 0}}}}},
       "UpdateStaff": {"type": "object", "additionalProperties": false, "required": ["active", "permissions"], "properties": {"active": {"type": "boolean"}, "permissions": {"$ref": "#/components/schemas/PermissionList"}}},
       "AcceptInvitation": {"type": "object", "additionalProperties": false, "required": ["token", "displayName", "password"], "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "displayName": {"type": "string", "minLength": 1, "maxLength": 200}, "password": {"type": "string", "minLength": 12, "maxLength": 72, "description": "The server also enforces a maximum of 72 UTF-8 bytes."}}},
       "InvitationCreatedResponse": {"type": "object", "required": ["success", "data"], "properties": {"success": {"const": true}, "data": {"type": "object", "required": ["id", "email", "token", "expiresInHours", "status", "delivery"], "properties": {"id": {"type": "string", "format": "uuid"}, "email": {"type": "string", "format": "email"}, "token": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "expiresInHours": {"const": 72}, "status": {"const": "pending"}, "delivery": {"const": "copy-link"}}}}},

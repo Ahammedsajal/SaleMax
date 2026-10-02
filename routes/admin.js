@@ -18,6 +18,27 @@ const { recoverEmail } = require("../emails/returnEmails.js");
 const {
   sendFcmPushNotification,
 } = require("../helper/addon/web-notification/webPush.js");
+const portfolios = require("../modules/platform/user-portfolio");
+
+function platformContext(req) {
+  const access = req.platformAccess;
+  if (!access) return null;
+  return { audience: "platform", identity: { id: access.identityId }, membership: { status: "active", role: access.role, reportsToIdentityId: access.reportsToIdentityId || null } };
+}
+async function requireUserPortfolio(req, uid) {
+  const context = platformContext(req);
+  if (!context || context.membership.role === "super_admin") return;
+  const db = require("../database/config.js").promise();
+  const [rows] = await db.query("SELECT id FROM user WHERE uid=?", [uid]);
+  if (!rows.length) throw Object.assign(new Error("USER_NOT_FOUND"), { code: "USER_NOT_FOUND" });
+  await portfolios.requireAccess(db, context, rows[0].id);
+}
+function portfolioGuard(getUid) {
+  return async (req, res, next) => {
+    try { const uid = getUid(req); if (uid) await requireUserPortfolio(req, uid); next(); }
+    catch (error) { const denied = error.code === "PORTFOLIO_ACCESS_DENIED" || error.code === "PERMISSION_DENIED"; res.status(denied ? 403 : error.code === "USER_NOT_FOUND" ? 404 : 503).json({ success: false, code: error.code || "PORTFOLIO_CHECK_FAILED" }); }
+  };
+}
 
 router.post("/login", async (req, res) => {
   try {
@@ -112,7 +133,12 @@ router.post("/del_plan", adminValidator, async (req, res) => {
 // get all users
 router.get("/get_users", adminValidator, async (req, res) => {
   try {
-    const data = await query(`SELECT id,role,uid,name,email,mobile_with_country_code,timezone,plan,plan_expire,trial,createdAt FROM user`, []);
+    const context = platformContext(req);
+    const scoped = context && context.membership.role !== "super_admin";
+    const sql = scoped
+      ? `SELECT u.id,u.role,u.uid,u.name,u.email,u.mobile_with_country_code,u.timezone,u.plan,u.plan_expire,u.trial,u.createdAt FROM user u JOIN sx_platform_user_portfolios p ON p.legacy_user_id=u.id WHERE p.managed_by_identity_id=? ORDER BY u.id DESC`
+      : `SELECT id,role,uid,name,email,mobile_with_country_code,timezone,plan,plan_expire,trial,createdAt FROM user ORDER BY id DESC`;
+    const data = await query(sql, scoped ? [portfolios.portfolioIdentity(context)] : []);
     for (const row of data) {
       const parsed = require("../modules/platform/legacy-plan-assignment.js").summary(row.plan);
       row.plan_snapshot_valid = parsed.valid;
@@ -157,10 +183,17 @@ router.post("/add_user", adminValidator, async (req, res) => {
     }
     const uid = randomstring.generate();
     const passwordHash = await bcrypt.hash(String(password), 10);
-    await query(
-      "INSERT INTO user (name, uid, email, password, mobile_with_country_code) VALUES (?,?,?,?,?)",
-      [cleanName, uid, cleanEmail, passwordHash, cleanMobile],
-    );
+    const pool = require("../database/config.js").promise();
+    const db = await pool.getConnection();
+    const context = platformContext(req);
+    let inserted;
+    try {
+      await db.beginTransaction();
+      [inserted] = await db.query("INSERT INTO user (name, uid, email, password, mobile_with_country_code) VALUES (?,?,?,?,?)", [cleanName, uid, cleanEmail, passwordHash, cleanMobile]);
+      if (context) await portfolios.recordCreated(db, context, inserted.insertId);
+      await db.commit();
+    } catch (error) { await db.rollback(); throw error; }
+    finally { db.release(); }
     if (selectedPlan) await updateUserPlan(selectedPlan, uid);
     else await syncOrQueueNodeUser(uid);
     return res.json({ success: true, msg: "User created successfully" });
@@ -175,6 +208,9 @@ router.post("/update_user", adminValidator, async (req, res) => {
   try {
     const { newPassword, name, email, mobile_with_country_code, uid } =
       req.body;
+    if (req.platformAccess && req.platformAccess.role !== "super_admin" && newPassword) {
+      return res.status(403).json({ success: false, code: "CUSTOMER_CREDENTIALS_OWNER_ONLY", msg: "Only the Super Admin may reset a customer sign-in credential" });
+    }
 
     if (!uid || !name || !email || !mobile_with_country_code) {
       return res.json({
@@ -206,6 +242,7 @@ router.post("/update_user", adminValidator, async (req, res) => {
         msg: "User not found",
       });
     }
+    await requireUserPortfolio(req, uid);
 
     // Update user with or without password
     if (newPassword) {
@@ -236,10 +273,10 @@ router.post("/update_user", adminValidator, async (req, res) => {
 const legacyAssignmentHandler = require("../modules/platform/legacy-plan-assignment.js")
   .createHandler(require("../database/config.js").promise(), syncOrQueueNodeUser,
     error => console.error("Plan assignment failed:", error.code));
-router.post("/update_plan", adminValidator, legacyAssignmentHandler);
+router.post("/update_plan", adminValidator, portfolioGuard(req => req.body?.uid), legacyAssignmentHandler);
 const legacyAssignmentReads = require("../modules/platform/legacy-plan-assignment.js");
-router.get("/user_plan_context", adminValidator, legacyAssignmentReads.createReadHandler(require("../database/config.js").promise(), "context"));
-router.post("/preview_user_plan", adminValidator, legacyAssignmentReads.createReadHandler(require("../database/config.js").promise(), "preview"));
+router.get("/user_plan_context", adminValidator, portfolioGuard(req => req.query?.userId ? require("../database/dbpromise.js").query("SELECT uid FROM user WHERE id=?", [req.query.userId]).then(rows => rows[0]?.uid) : null), legacyAssignmentReads.createReadHandler(require("../database/config.js").promise(), "context"));
+router.post("/preview_user_plan", adminValidator, portfolioGuard(req => req.body?.uid), legacyAssignmentReads.createReadHandler(require("../database/config.js").promise(), "preview"));
 
 // get payment gateway admin
 router.get("/get_payment_gateway_admin", adminValidator, async (req, res) => {
@@ -516,6 +553,7 @@ router.post("/del_page", adminValidator, async (req, res) => {
 // auto user login
 router.post("/auto_login", adminValidator, async (req, res) => {
   try {
+    if (req.platformAccess && req.platformAccess.role !== "super_admin") return res.status(403).json({ success: false, code: "PERMISSION_DENIED" });
     const { uid } = req.body;
 
     if (!uid) {
@@ -523,6 +561,7 @@ router.post("/auto_login", adminValidator, async (req, res) => {
     }
 
     const user = await query(`SELECT * FROM user WHERE uid = ?`, [uid]);
+    if (!user.length) return res.status(404).json({ success: false, code: "USER_NOT_FOUND" });
     const token = sign(
       {
         uid: user[0].uid,
@@ -533,7 +572,10 @@ router.post("/auto_login", adminValidator, async (req, res) => {
       process.env.JWTKEY,
       {},
     );
-    console.log(token);
+    if (req.platformAccess) {
+      const reason = String(req.body.reason || "Super Admin support access").trim().slice(0, 500);
+      await query(`INSERT INTO sx_audit_events(id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,'identity','platform.customer-session-issued','platform-user',?,?,?)`, [require("node:crypto").randomUUID(), req.platformAccess.identityId, String(user[0].id), JSON.stringify({ reason }), require("node:crypto").randomUUID()]);
+    }
     res.json({
       success: true,
       token: token,
@@ -818,53 +860,61 @@ router.post("/send_test_email", adminValidator, async (req, res) => {
 // get dashboard for user
 router.get("/get_dashboard_for_user", adminValidator, async (req, res) => {
   try {
+    const context = platformContext(req);
+    const portfolioOwner = context && context.membership.role !== "super_admin" ? portfolios.portfolioIdentity(context) : null;
+    const getUsers = await query(portfolioOwner
+      ? `SELECT * FROM user WHERE id IN (SELECT legacy_user_id FROM sx_platform_user_portfolios WHERE managed_by_identity_id=?)`
+      : `SELECT * FROM user`, portfolioOwner ? [portfolioOwner] : []);
+    const uidScope = column => portfolioOwner
+      ? { sql: ` WHERE ${column} IN (SELECT u.uid FROM user u JOIN sx_platform_user_portfolios p ON p.legacy_user_id=u.id WHERE p.managed_by_identity_id=?)`, args: [portfolioOwner] }
+      : { sql: "", args: [] };
     // Get users data
-    const getUsers = await query(`SELECT * FROM user`, []);
     const { paidSignupsByMonth, unpaidSignupsByMonth } =
       getUserSignupsByMonth(getUsers);
 
     // Get orders data
-    const getOrders = await query(`SELECT * FROM orders`, []);
+    const orderScope = uidScope("uid");
+    const getOrders = await query(`SELECT * FROM orders${orderScope.sql}`, orderScope.args);
     const orders = getUserOrderssByMonth(getOrders);
 
     // Get contact form data
-    const getContactForm = await query(`SELECT * FROM contact_form`, []);
+    const getContactForm = portfolioOwner ? [] : await query(`SELECT * FROM contact_form`, []);
 
     // Get chats data
-    const getChats = await query(`SELECT * FROM beta_chats`, []);
+    const chatScope = uidScope("uid");
+    const getChats = await query(`SELECT * FROM beta_chats${chatScope.sql}`, chatScope.args);
     const chatsByMonth = getChatsByMonth(getChats);
 
     // Get conversations data
-    const getConversations = await query(`SELECT * FROM beta_conversation`, []);
+    const conversationScope = uidScope("uid");
+    const getConversations = await query(`SELECT * FROM beta_conversation${conversationScope.sql}`, conversationScope.args);
     const messagesByMonth = getMessagesByMonth(getConversations);
 
     // Get message types distribution
     const messageTypes = getMessageTypeDistribution(getConversations);
 
     // Get agents data
-    const getAgents = await query(`SELECT * FROM agents`, []);
+    const agentScope = uidScope("owner_uid");
+    const getAgents = await query(`SELECT * FROM agents${agentScope.sql}`, agentScope.args);
 
     // Get agent tasks data
-    const getAgentTasks = await query(`SELECT * FROM agent_task`, []);
+    const taskScope = uidScope("owner_uid");
+    const getAgentTasks = await query(`SELECT * FROM agent_task${taskScope.sql}`, taskScope.args);
     const agentPerformance = getAgentPerformance(getAgents, getAgentTasks);
 
     // Get instances data (WhatsApp connections)
-    const getInstances = await query(`SELECT * FROM instance`, []);
+    const instanceScope = uidScope("uid");
+    const getInstances = await query(`SELECT * FROM instance${instanceScope.sql}`, instanceScope.args);
     const activeInstances = getInstances.filter(
       (instance) => instance.status === "ACTIVE",
     ).length;
 
     // Get flows data
-    const getFlows = await query(`SELECT * FROM beta_flows`, []);
+    const flowScope = uidScope("uid");
+    const getFlows = await query(`SELECT * FROM beta_flows${flowScope.sql}`, flowScope.args);
 
     // Get system metrics (this would typically come from a monitoring service)
-    const systemMetrics = {
-      serverLoad: Math.floor(Math.random() * 60) + 20, // Simulated data between 20-80%
-      memoryUsage: Math.floor(Math.random() * 40) + 30, // Simulated data between 30-70%
-      diskSpace: Math.floor(Math.random() * 30) + 10, // Simulated data between 10-40%
-      activeSessions:
-        getUsers.length > 0 ? Math.floor(getUsers.length * 0.7) : 0,
-    };
+    const systemMetrics = { serverLoad: null, memoryUsage: null, diskSpace: null, activeSessions: null, source: "monitoring_not_configured" };
 
     // Get recent users (last 5)
     const recentUsers = getUsers
@@ -894,6 +944,21 @@ router.get("/get_dashboard_for_user", adminValidator, async (req, res) => {
         };
       });
 
+    let portfolioStats = null;
+    if (context?.membership.role === "super_admin") {
+      const rows = await query(`SELECT i.id AS adminId,i.email_normalized AS email,i.display_name AS displayName,
+        COUNT(p.legacy_user_id) AS customerCount,
+        SUM(CASE WHEN JSON_VALID(u.plan)=1 AND JSON_UNQUOTE(JSON_EXTRACT(u.plan,'$.is_trial'))='0' THEN 1 ELSE 0 END) AS paidCustomers,
+        SUM(CASE WHEN JSON_VALID(u.plan)=1 AND JSON_UNQUOTE(JSON_EXTRACT(u.plan,'$.is_trial'))='1' THEN 1 ELSE 0 END) AS trialCustomers,
+        (SELECT COUNT(*) FROM orders o JOIN user ou ON ou.uid=o.uid JOIN sx_platform_user_portfolios op ON op.legacy_user_id=ou.id WHERE op.managed_by_identity_id=i.id) AS orderCount,
+        (SELECT COALESCE(SUM(CAST(o.amount AS DECIMAL(18,2))),0) FROM orders o JOIN user ou ON ou.uid=o.uid JOIN sx_platform_user_portfolios op ON op.legacy_user_id=ou.id WHERE op.managed_by_identity_id=i.id) AS orderValue
+        FROM sx_platform_memberships m JOIN sx_identities i ON i.id=m.identity_id
+        LEFT JOIN sx_platform_user_portfolios p ON p.managed_by_identity_id=i.id
+        LEFT JOIN user u ON u.id=p.legacy_user_id
+        WHERE m.role='platform_admin' AND m.status='active' AND i.status='active'
+        GROUP BY i.id,i.email_normalized,i.display_name ORDER BY i.email_normalized` , []);
+      portfolioStats = { admins: rows.map(row => ({ adminId: row.adminId, email: row.email, displayName: row.displayName, customerCount: Number(row.customerCount || 0), paidCustomers: Number(row.paidCustomers || 0), trialCustomers: Number(row.trialCustomers || 0), orderCount: Number(row.orderCount || 0), orderValue: Number(row.orderValue || 0) })), unassignedCustomers: await query("SELECT COUNT(*) AS count FROM user u LEFT JOIN sx_platform_user_portfolios p ON p.legacy_user_id=u.id WHERE p.legacy_user_id IS NULL OR p.managed_by_identity_id IS NULL", []).then(rows => Number(rows[0]?.count || 0)) };
+    }
     res.json({
       data: {
         // User data
@@ -922,6 +987,7 @@ router.get("/get_dashboard_for_user", adminValidator, async (req, res) => {
         activeInstances,
         flowsLength: getFlows.length,
         systemMetrics,
+        portfolioStats,
       },
       success: true,
     });
@@ -1233,7 +1299,11 @@ router.get("/modify_password", adminValidator, async (req, res) => {
 router.post("/del_user", adminValidator, async (req, res) => {
   try {
     const { id } = req.body;
+    const rows = await query("SELECT uid FROM user WHERE id=?", [id]);
+    if (!rows.length) return res.status(404).json({ success: false, code: "USER_NOT_FOUND" });
+    await requireUserPortfolio(req, rows[0].uid);
     await query(`DELETE FROM user WHERE id = ?`, [id]);
+    if (req.platformAccess) await query("DELETE FROM sx_platform_user_portfolios WHERE legacy_user_id=?", [id]);
     res.json({ success: true, msg: "User was deletd" });
   } catch (err) {
     console.log(err);

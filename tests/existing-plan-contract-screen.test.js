@@ -33,7 +33,7 @@ test('contract draft editing is mounted inside the original Manage Plans screen'
 });
 
 test('legacy Manage Users assignment denial offers the reviewed contract flow', () => {
-  assert.match(shell, /admin-user-plans\.js\?v=20261002a/);
+  assert.match(shell, /admin-user-plans\.js\?v=20261022a/);
   assert.match(userPlans, /CANONICAL_ASSIGNMENT_REQUIRED/);
   assert.match(userPlans, /MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT/);
   assert.match(userPlans, /Open training-center contract/);

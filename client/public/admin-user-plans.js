@@ -130,5 +130,23 @@
       const label=t('Manage plan','إدارة الخطة');if(button.textContent!==label)button.textContent=label;
     });
   }
+  let portfolioRoster=null,portfolioProbe=null,portfolioChecked=false;
+  async function mountPortfolioControls() {
+    if(location.pathname.toLowerCase()!=='/admin' || new URLSearchParams(location.search).get('page')!=='manage-users' || !localStorage.getItem('wacrm_admin'))return;
+    const token=localStorage.getItem('wacrm_admin');
+    if(!portfolioChecked){if(!portfolioProbe)portfolioProbe=(async()=>{try{const response=await fetch('/api/admin/platform-access/portfolios',{headers:{Authorization:'Bearer '+token}});if(!response.ok)return null;return (await response.json()).data||null;}catch(_){return null;}})();portfolioRoster=await portfolioProbe;portfolioProbe=null;portfolioChecked=true;if(!portfolioRoster)return;}
+    if(!portfolioRoster)return;
+    document.querySelectorAll('.MuiDataGrid-row[data-id]').forEach(row=>{
+      const cell=row.querySelector('[data-field="plan"]');if(!cell||cell.querySelector('.sx-portfolio-action'))return;
+      const button=document.createElement('button');button.type='button';button.className='sx-user-plan-action sx-portfolio-action';button.textContent=t('Assign Admin','تعيين مدير');button.title=t('Assign this customer to an Admin or keep it private to Super Admin','تعيين هذا العميل لمدير أو إبقاؤه خاصًا بالمسؤول الأعلى');
+      button.onclick=async event=>{event.stopPropagation();button.disabled=true;let profile;try{const me=await fetch('/api/admin/platform-auth/me',{headers:{Authorization:'Bearer '+token}});profile=await me.json();if(!me.ok||!profile.csrfToken)throw new Error(t('Your verified platform session is required.','يلزم استخدام جلسة المنصة الموثقة.'));}catch(error){button.disabled=false;window.alert(error.message);return;}
+        const panel=document.createElement('div');panel.className='sx-portfolio-editor';panel.style.cssText='display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px';panel.innerHTML=`<select aria-label="${t('Assign to Admin','تعيين لمدير')}" style="max-width:220px;min-height:34px"><option value="">${t('Private to Super Admin','خاص بالمسؤول الأعلى')}</option>${portfolioRoster.admins.map(admin=>`<option value="${esc(admin.id)}">${esc(admin.displayName||admin.email)} · ${esc(admin.email)}</option>`).join('')}</select><button type="button" class="sx-user-plan-action">${t('Save','حفظ')}</button><button type="button" class="sx-user-plan-action">${t('Cancel','إلغاء')}</button><span role="status" aria-live="polite"></span>`;
+        const [select,save,cancel,status]=[panel.querySelector('select'),...panel.querySelectorAll('button'),panel.querySelector('[role=status]')];
+        select.value='';save.onclick=async()=>{save.disabled=true;status.textContent=t('Saving…','جارٍ الحفظ…');try{const response=await fetch('/api/admin/platform-access/portfolios/'+encodeURIComponent(row.getAttribute('data-id')),{method:'PUT',credentials:'same-origin',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json','X-CSRF-Token':profile.csrfToken},body:JSON.stringify({managedByIdentityId:select.value||null})});const result=await response.json();if(!response.ok||!result.success)throw new Error(result.code||t('Assignment failed.','فشل الإسناد.'));status.textContent=select.value?t('Assigned.','تم التعيين.'):t('Kept private.','تم الإبقاء عليه خاصًا.');setTimeout(()=>panel.remove(),1200);}catch(error){status.textContent=error.message;save.disabled=false;}};
+        cancel.onclick=()=>panel.remove();cell.appendChild(panel);button.disabled=false;
+      };cell.appendChild(button);
+    });
+  }
   new MutationObserver(mount).observe(document.documentElement,{subtree:true,childList:true});mount();
+  const portfolioObserver=new MutationObserver(()=>mountPortfolioControls());portfolioObserver.observe(document.documentElement,{subtree:true,childList:true});mountPortfolioControls();
 })();

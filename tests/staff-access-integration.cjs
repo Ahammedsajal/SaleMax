@@ -5,6 +5,7 @@ const bcrypt=require('bcrypt');
 const {createAuthentication}=require('../modules/platform/authentication');
 const {loadSession}=require('../modules/platform/sessions');
 const staff=require('../modules/platform/staff-access');
+const portfolios=require('../modules/platform/user-portfolio');
 module.exports=async(db,{ownerIdentityId})=>{
   const owner={audience:'platform',identity:{id:ownerIdentityId},membership:{role:'super_admin',status:'active'},mfaVerified:true,recentlyAuthenticated:true};
   const before=await staff.list(db,owner);assert.equal(before.staff.some(item=>item.email==='invited.staff@example.invalid'),false);
@@ -38,6 +39,30 @@ module.exports=async(db,{ownerIdentityId})=>{
   await staff.updateStaff(db,owner,mapping.id,{active:true,permissions:['tenants.read']});
   assert.equal(await loadSession(db,login.token),null);
   const list=await staff.list(db,owner),managed=list.staff.find(item=>item.id===mapping.id);assert.ok(managed);assert.equal(managed.accessStatus,'active');assert.deepEqual(managed.permissions,['tenants.read']);
+  const adminInvite=await staff.createInvite(db,owner,{email:'delegated.admin@example.invalid',platformRole:'platform_admin',permissions:['staff.manage','owner.recover']});
+  const adminPassword='Synthetic-Admin-Password-98';await staff.acceptInvite(db,{token:adminInvite.token,displayName:'Delegated Admin',password:adminPassword});
+  const [[adminIdentity]]=await db.query(`SELECT i.id,p.role,p.status,p.reports_to_identity_id AS reportsTo,p.delegated_permissions AS permissions FROM sx_identities i JOIN sx_platform_memberships p ON p.identity_id=i.id WHERE i.email_normalized=?`,['delegated.admin@example.invalid']);
+  assert.equal(adminIdentity.role,'platform_admin');assert.equal(adminIdentity.status,'active');assert.equal(adminIdentity.reportsTo,null);assert.deepEqual(JSON.parse(adminIdentity.permissions),[]);
+  const adminLogin=await auth.login(db,{email:'delegated.admin@example.invalid',password:adminPassword,audience:'platform'},'127.0.0.1');assert.equal(adminLogin.context.membership.role,'platform_admin');
+  const subordinate=await staff.createInvite(db,owner,{email:'delegated.subordinate@example.invalid',platformRole:'staff',reportsToIdentityId:adminIdentity.id,permissions:['tenants.read']});
+  const subordinatePassword='Synthetic-Subordinate-Password-99';await staff.acceptInvite(db,{token:subordinate.token,displayName:'Delegated Subordinate',password:subordinatePassword});
+  const subordinateLogin=await auth.login(db,{email:'delegated.subordinate@example.invalid',password:subordinatePassword,audience:'platform'},'127.0.0.1');
+  assert.equal(subordinateLogin.context.membership.reportsToIdentityId,adminIdentity.id);
+  assert.equal((await staff.list(db,owner)).staff.some(person=>person.platformRole==='platform_admin'&&person.id===adminIdentity.id),true);
+  const adminContext={audience:'platform',identity:{id:adminIdentity.id},membership:{role:'platform_admin',status:'active'}};
+  const subordinateContext={audience:'platform',identity:{id:subordinateLogin.context.identity.id},membership:{role:'staff',status:'active',reportsToIdentityId:adminIdentity.id}};
+  const otherAdmin={audience:'platform',identity:{id:'00000000-0000-4000-8000-000000000099'},membership:{role:'platform_admin',status:'active'}};
+  const [privateUser]=await db.query('INSERT INTO user(uid,name,plan,plan_expire) VALUES (?,?,?,?)',['private-'+crypto.randomUUID(),'Private synthetic user','{}','0']);
+  await portfolios.recordCreated(db,owner,privateUser.insertId);
+  assert.equal(await portfolios.canAccess(db,adminContext,privateUser.insertId),false);
+  await db.beginTransaction();try{await portfolios.assign(db,owner,privateUser.insertId,adminIdentity.id);await db.commit();}catch(error){await db.rollback();throw error;}
+  assert.equal(await portfolios.canAccess(db,adminContext,privateUser.insertId),true);
+  assert.equal(await portfolios.canAccess(db,subordinateContext,privateUser.insertId),true);
+  assert.equal(await portfolios.canAccess(db,otherAdmin,privateUser.insertId),false);
+  const [createdUser]=await db.query('INSERT INTO user(uid,name,plan,plan_expire) VALUES (?,?,?,?)',['admin-created-'+crypto.randomUUID(),'Admin created synthetic user','{}','0']);
+  await portfolios.recordCreated(db,adminContext,createdUser.insertId);
+  assert.equal(await portfolios.canAccess(db,adminContext,createdUser.insertId),true);
+  assert.equal(await portfolios.canAccess(db,otherAdmin,createdUser.insertId),false);
   const pendingAgain=await staff.createInvite(db,owner,{email:'cancel.staff@example.invalid',permissions:[]});
   await staff.cancelInvite(db,owner,pendingAgain.id);
   await assert.rejects(staff.acceptInvite(db,{token:pendingAgain.token,displayName:'Cancelled Staff',password}),{code:'INVITE_INVALID'});
@@ -49,5 +74,5 @@ module.exports=async(db,{ownerIdentityId})=>{
   await assert.rejects(staff.acceptInvite(db,{token:pendingAgain.token,displayName:'Reinvited Staff',password}),{code:'INVITE_INVALID'});
   const [[audit]]=await db.query("SELECT COUNT(*) AS n FROM sx_audit_events WHERE action IN ('platform.staff-invited','platform.staff-invite-rotated','platform.staff-invite-accepted','platform.staff-updated','platform.staff-invite-cancelled')");
   assert.ok(Number(audit.n)>=6);
-  return {ownerGatedStaffInvites:true,hashedOneTimeLink:true,staffIdentityAndLegacyAdminLinkedOnAcceptance:true,platformStaffCannotManageStaff:true,superAdminGrantCannotBeDelegated:true,staffSessionRevocationImmediate:true,staffInviteCancelAudited:true,cancelledInviteCanBeSafelyReissued:true,expiredInviteCanBeRotated:true,inviteDeliveryIsCopyLinkOnly:true};
+  return {ownerGatedStaffInvites:true,hashedOneTimeLink:true,staffIdentityAndLegacyAdminLinkedOnAcceptance:true,platformStaffCannotManageStaff:true,superAdminGrantCannotBeDelegated:true,staffSessionRevocationImmediate:true,staffInviteCancelAudited:true,cancelledInviteCanBeSafelyReissued:true,expiredInviteCanBeRotated:true,inviteDeliveryIsCopyLinkOnly:true,privateCustomersStayOwnerOnlyUntilAssignment:true,adminCreatedCustomersAreAutomaticallyScoped:true,staffInheritsAdminPortfolio:true,otherAdminsCannotReadAssignedCustomers:true};
 };

@@ -82,3 +82,9 @@ test('platform access requires separate audience, MFA and explicit staff grants'
   owner.recentlyAuthenticated=false; assert.equal(platformDecision(owner,'owner.recover'),true);
   owner.mfaVerified=false; assert.equal(platformDecision(owner,'tenants.create'),false);
 });
+test('platform Admin authority covers platform operations but never owner-only controls',()=>{
+  const admin={audience:'platform',mfaVerified:true,membership:{role:'platform_admin',status:'active'}};
+  for(const permission of ['tenants.read','tenants.create','tenants.manage','tenants.category-change','plans.read','plans.draft','plans.assign','plans.publish','bots.assign'])assert.equal(platformDecision(admin,permission),true,permission);
+  for(const permission of ['staff.manage','owner.recover','owner.transfer','providers.configure','tenants.owner-transfer','audit.read','invented.permission'])assert.equal(platformDecision(admin,permission),false,permission);
+  admin.mfaVerified=false;assert.equal(platformDecision(admin,'tenants.read'),false);
+});

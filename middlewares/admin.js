@@ -12,7 +12,7 @@ function createAdminValidator(runQuery,key){
       if(rows.length!==1||rows[0].uid!==decode.uid||rows[0].role!=='admin')return res.json({success:false,msg:'Unauthorized token',logout:true});
       const access=await staffBoundary({adminId:rows[0].id,uid:decode.uid,method:req.method,path:req.originalUrl||req.baseUrl+req.path});
       if(!access.allowed)return res.status(403).json({success:false,code:access.code});
-      req.decode=decode;req.legacyAdminId=rows[0].id;next();
+      req.decode=decode;req.legacyAdminId=rows[0].id;req.platformAccess=access.platform||null;next();
     }catch(_){return res.json({success:false,msg:'Administrator session could not be verified',logout:true});}
   };
 }

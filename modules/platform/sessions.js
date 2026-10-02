@@ -13,7 +13,7 @@ async function loadSession(connection, token, {forUpdate=false}={}) {
     i.display_name AS displayName,s.tenant_id AS tenantId,s.membership_id AS membershipId,
     m.role AS tenantRole,m.status AS membershipStatus,m.permission_version AS permissionVersion,m.delegated_permissions AS tenantGrants,
     t.name AS tenantName,t.category_key AS categoryKey,t.category_version AS categoryVersion,t.status AS tenantStatus,t.revision AS tenantRevision,t.currency,t.timezone,
-    p.role AS platformRole,p.status AS platformStatus,p.delegated_permissions AS platformGrants,p.permission_version AS platformPermissionVersion,
+    p.role AS platformRole,p.reports_to_identity_id AS reportsToIdentityId,p.status AS platformStatus,p.delegated_permissions AS platformGrants,p.permission_version AS platformPermissionVersion,
     (s.mfa_verified_at IS NOT NULL AND s.mfa_verified_at<=UTC_TIMESTAMP(3)) AS mfaVerified,
     (s.authenticated_at BETWEEN DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE) AND UTC_TIMESTAMP(3)) AS recentlyAuthenticated
     FROM sx_sessions s JOIN sx_identities i ON i.id=s.identity_id
@@ -26,8 +26,8 @@ async function loadSession(connection, token, {forUpdate=false}={}) {
   const base={audience:row.audience,sessionId:row.sessionId,identity:{id:row.identityId,displayName:row.displayName}};
   if(row.audience==='platform') {
     const grants=parseGrants(row.platformGrants);
-    if(row.platformStatus!=='active'||!grants||!['super_admin','staff'].includes(row.platformRole))return null;
-    return {...base,mfaVerified:!!row.mfaVerified,recentlyAuthenticated:!!row.recentlyAuthenticated,membership:{identityId:row.identityId,role:row.platformRole,status:row.platformStatus,delegatedPermissions:grants,permissionVersion:row.platformPermissionVersion}};
+    if(row.platformStatus!=='active'||!grants||!['super_admin','platform_admin','staff'].includes(row.platformRole))return null;
+    return {...base,mfaVerified:!!row.mfaVerified,recentlyAuthenticated:!!row.recentlyAuthenticated,membership:{identityId:row.identityId,role:row.platformRole,status:row.platformStatus,reportsToIdentityId:row.reportsToIdentityId||null,delegatedPermissions:grants,permissionVersion:row.platformPermissionVersion}};
   }
   const grants=parseGrants(row.tenantGrants);
   if(row.audience!=='tenant'||row.membershipStatus!=='active'||row.tenantStatus!=='active'||!grants)return null;

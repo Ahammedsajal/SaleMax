@@ -1,12 +1,12 @@
 const { capabilities, decision, platformDecision } = require('./policy');
 const { trainingCenter, restaurantFixture } = require('./categories');
 const { navigationFor } = require('./navigation');
-const roles = ['super_admin','staff','owner','accountant','manager','agent'];
+const roles = ['super_admin','platform_admin','staff','owner','accountant','manager','agent'];
 function fixture(role, categoryKey='training_center') {
   if(!roles.includes(role)) throw Object.assign(new Error('Unknown preview role'),{status:400});
   const category=categoryKey==='restaurant_fixture'?restaurantFixture:trainingCenter;
   if(!['training_center','restaurant_fixture'].includes(categoryKey)) throw Object.assign(new Error('Unknown preview category'),{status:400});
-  const platform=['super_admin','staff'].includes(role);
+  const platform=['super_admin','platform_admin','staff'].includes(role);
   const context=platform?{audience:'platform',mfaVerified:true,recentlyAuthenticated:true,membership:{role,status:'active',delegatedPermissions:['tenants.read','plans.read','plans.draft','plans.assign','support.request']}}:{audience:'tenant',tenant:{id:'demo-tenant-a',status:'active',categoryKey:category.key,categoryVersion:1},membership:{id:role==='agent'?'demo-agent-a':'demo-'+role,tenantId:'demo-tenant-a',role,status:'active',delegatedPermissions:[]},subscription:{status:'active',capabilities:Object.keys(capabilities)},category,runtimeReady:{}};
   const nav=platform?[['businesses','tenants.read','Businesses','الأعمال'],['plans','plans.read','Plans','الخطط'],['staff','staff.manage','Staff access','صلاحيات الموظفين'],['categories','categories.manage','Categories','الفئات'],['incidents','incidents.read','System health','سلامة النظام'],['audit','audit.read','Audit trail','سجل التدقيق']].filter(([,permission])=>platformDecision(context,permission)).map(([key,permission,en,ar])=>({key,permission,label:{en,ar},group:{en:'Platform',ar:'المنصة'},scope:'platform'})):navigationFor(context);
   const source=[

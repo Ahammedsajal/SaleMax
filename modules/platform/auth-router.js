@@ -45,7 +45,7 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudienc
         JOIN sx_identities i ON i.id=l.identity_id
         JOIN sx_platform_memberships m ON m.identity_id=i.id
         WHERE l.legacy_admin_id=? AND l.legacy_uid=? AND l.legacy_uid_hash=? AND l.status='active'
-          AND i.status='active' AND m.status='active' AND m.role IN ('super_admin','staff') LIMIT 1`,[adminId,uid,uidHash]);
+          AND i.status='active' AND m.status='active' AND m.role IN ('super_admin','platform_admin','staff') LIMIT 1`,[adminId,uid,uidHash]);
       return !!row;
     });
     res.json({mfaRequired:required});
