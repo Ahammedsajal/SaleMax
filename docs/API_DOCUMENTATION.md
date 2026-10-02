@@ -307,3 +307,18 @@ These endpoints extend the existing Finance screen. They require an active train
 | GET `/api/user/training/finance-policies/accountant/receipts/:id` | Canonical owner/accountant reads the same scoped receipt. |
 
 Verification allocates to the oldest open installments, supports partial and early payments, and records any excess as an unapplied customer deposit. Same-method/reference duplicates are flagged for human review. Verification retries return the original receipt; cross-tenant IDs return not found. The invoice register/detail now subtracts posted allocations. Receipt records are readable in the Finance screen, but PDF generation, proof uploads, email/WhatsApp delivery, refunds/credits, gateway reconciliation and revenue recognition are not implemented. These local APIs and tests do not constitute production release evidence.
+
+### Installment schedule rescheduling and approval (TC17 in progress)
+
+Schedule changes extend the existing invoice detail and Finance approval queue. Both existing owner bearer routes and canonical tenant routes require an active training-center tenant and the `finance.installments` entitlement. Mutations are same-origin, tenant-scoped, audited and idempotent. Migration `20261014_training_installment_schedule_changes.sql` is required.
+
+| Method and path | Purpose |
+| --- | --- |
+| POST `/api/user/training/finance-policies/invoices/:id/schedule-changes` | Owner requests a change using `{requestKey,expectedVersion,reason,installments:[{dueDate,amountMinor}]}`. |
+| POST `/api/user/training/finance-policies/accountant/invoices/:id/schedule-changes` | Canonical owner/accountant creates the same request. |
+| GET `/api/user/training/finance-policies/schedule-changes/pending?page=1&limit=20` | Existing owner session lists tenant requests and `canReview`. |
+| GET `/api/user/training/finance-policies/accountant/schedule-changes/pending?page=1&limit=20` | Canonical owner/accountant approval queue. |
+| POST `/api/user/training/finance-policies/schedule-changes/:id/decision` | Owner approves/rejects a request created by a different actor. Body `{expectedVersion,decision:"approved"|"rejected",reason?}`; rejection requires a 3–1000 character reason. |
+| POST `/api/user/training/finance-policies/accountant/schedule-changes/:id/decision` | Canonical owner/accountant decision using the same contract and session-bound CSRF token. |
+
+Only future installments in `pending` state with zero posted allocation can be replaced; paid, partly paid, due/overdue and historical rows remain unchanged. A pending payment blocks a schedule request until it is verified or rejected. The replacement must contain 1–12 strictly increasing Qatar-future dates and positive integer dirham amounts whose sum exactly equals the eligible unpaid total. Review uses the displayed base version and a different identity; stale schedules conflict. Approval cancels only the replaced rows, appends a new immutable version and emits `finance.installment.schedule-changed` in the transactional outbox. No reminder worker currently consumes this event, so this is not evidence of reminder cancellation or delivery. Pending rows/history appear in existing invoice detail and the approval queue. Schedule versions are retained for audit; automatic reminders, payments on a rescheduled date and authenticated EN/AR browser acceptance remain open.

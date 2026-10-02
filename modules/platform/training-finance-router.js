@@ -4,6 +4,7 @@ const courses=require('./training-courses');
 const policies=require('./training-finance-policies');
 const invoices=require('./training-invoices');
 const payments=require('./training-payments');
+const schedules=require('./training-installment-schedules');
 function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   const router=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
@@ -19,6 +20,8 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.get('/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.detail)(req.financeContext,req.params.id)})));
   router.get('/accountant/invoices',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.list)(req.businessContext,req.query)})));
   router.get('/accountant/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.detail)(req.businessContext,req.params.id)})));
+  router.post('/invoices/:id/schedule-changes',userGuard,ownerContext,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(schedules.request)(req.financeContext,req.params.id,req.body)})));
+  router.post('/accountant/invoices/:id/schedule-changes',canonicalGuard,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(schedules.request)(req.businessContext,req.params.id,req.body)})));
   router.post('/invoices/:id/payments',userGuard,ownerContext,wrap(async(req,res)=>{
     const data=await withConnection(payments.record)(req.financeContext,req.params.id,req.body);res.status(201).json({success:true,data});
   }));
@@ -31,6 +34,10 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.get('/payments/pending',userGuard,ownerContext,wrap(async(req,res)=>{
     const data=await withConnection(payments.pending)(req.financeContext,req.query);res.json({success:true,data});
   }));
+  router.get('/accountant/schedule-changes/pending',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(schedules.pending)(req.businessContext,req.query)})));
+  router.get('/schedule-changes/pending',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(schedules.pending)(req.financeContext,req.query)})));
+  router.post('/accountant/schedule-changes/:id/decision',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(schedules.decide)(req.businessContext,req.params.id,req.body)})));
+  router.post('/schedule-changes/:id/decision',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(schedules.decide)(req.financeContext,req.params.id,req.body)})));
   router.post('/accountant/payments/:id/verify',canonicalGuard,wrap(async(req,res)=>{
     const data=await withConnection(payments.verify)(req.businessContext,req.params.id,{reason:req.body?.reason});res.json({success:true,data});
   }));
@@ -51,7 +58,7 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.post('/:id/decision',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.decide)(req.businessContext,{id:req.params.id,expectedRevision:req.body?.expectedRevision,decision:req.body?.decision,reason:req.body?.reason})})));
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);const code=error.code||'FINANCE_POLICY_UNAVAILABLE';
-    const status=code==='ACCOUNTANT_REQUIRED'||code==='PERMISSION_DENIED'?403:['FINANCE_POLICY_NOT_FOUND','VERIFIED_BUSINESS_OWNER_REQUIRED','INVOICE_NOT_FOUND','PAYMENT_NOT_FOUND','RECEIPT_NOT_FOUND'].includes(code)?404:['STALE_FINANCE_POLICY','FINANCE_POLICY_REVIEW_PENDING','FINANCE_POLICY_NOT_DRAFT','FINANCE_POLICY_NOT_PENDING','BUSINESS_LINK_INVALID','INVOICE_NOT_PAYABLE','PAYMENT_NOT_PENDING','PAYMENT_IDEMPOTENCY_CONFLICT','SECOND_APPROVER_REQUIRED','PAYMENT_BALANCE_OUT_OF_RANGE','INSTALLMENT_BALANCE_OUT_OF_RANGE','INSTALLMENT_SCHEDULE_OUT_OF_SYNC'].includes(code)?409:['AUTH_REQUIRED','IDENTITY_REQUIRED'].includes(code)?401:code.startsWith('INVALID_')||['TAX_RATE_REQUIRED','TAX_RATE_NOT_APPLICABLE','TAX_MODE_REQUIRED','FINANCE_POLICY_INCOMPLETE','FINANCE_POLICY_REJECTION_REASON_REQUIRED','PAYMENT_REJECTION_REASON_REQUIRED'].includes(code)?400:['ACCOUNT_INACTIVE','BUSINESS_INACTIVE','CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:503;
+    const status=code==='ACCOUNTANT_REQUIRED'||code==='PERMISSION_DENIED'?403:['FINANCE_POLICY_NOT_FOUND','VERIFIED_BUSINESS_OWNER_REQUIRED','INVOICE_NOT_FOUND','PAYMENT_NOT_FOUND','RECEIPT_NOT_FOUND','SCHEDULE_CHANGE_NOT_FOUND'].includes(code)?404:['STALE_FINANCE_POLICY','FINANCE_POLICY_REVIEW_PENDING','FINANCE_POLICY_NOT_DRAFT','FINANCE_POLICY_NOT_PENDING','BUSINESS_LINK_INVALID','INVOICE_NOT_PAYABLE','PAYMENT_NOT_PENDING','PAYMENT_IDEMPOTENCY_CONFLICT','SECOND_APPROVER_REQUIRED','PAYMENT_BALANCE_OUT_OF_RANGE','INSTALLMENT_BALANCE_OUT_OF_RANGE','INSTALLMENT_SCHEDULE_OUT_OF_SYNC','STALE_INSTALLMENT_SCHEDULE','SCHEDULE_CHANGE_IDEMPOTENCY_CONFLICT','SCHEDULE_CHANGE_ALREADY_PENDING','SCHEDULE_CHANGE_NOT_PENDING','SCHEDULE_SECOND_APPROVER_REQUIRED','PENDING_PAYMENT_BLOCKS_SCHEDULE_CHANGE'].includes(code)?409:['AUTH_REQUIRED','IDENTITY_REQUIRED'].includes(code)?401:code.startsWith('INVALID_')||['TAX_RATE_REQUIRED','TAX_RATE_NOT_APPLICABLE','TAX_MODE_REQUIRED','FINANCE_POLICY_INCOMPLETE','FINANCE_POLICY_REJECTION_REASON_REQUIRED','PAYMENT_REJECTION_REASON_REQUIRED','SCHEDULE_REJECTION_REASON_REQUIRED','SCHEDULE_DATES_MUST_BE_FUTURE','NO_FUTURE_UNPAID_INSTALLMENTS','INSTALLMENT_TOTAL_MISMATCH','INVALID_INSTALLMENT_SCHEDULE','INVALID_INSTALLMENT_AMOUNT','INVALID_INSTALLMENT_DATE'].includes(code)?400:['ACCOUNT_INACTIVE','BUSINESS_INACTIVE','CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:503;
     res.status(status).json({success:false,code:status===503?'FINANCE_POLICY_UNAVAILABLE':code,...(error.details?{details:error.details}:{})});
   });
   return router;

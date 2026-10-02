@@ -39,6 +39,14 @@ The accountant opens the **Payments awaiting verification** queue, checks the in
 
 After posting, the invoice balance and installment states update. Choose **View receipt** in payment history to review the immutable receipt record and applied/unapplied amounts. The receipt is currently an on-screen record; PDF download, proof attachments and automatic email/WhatsApp delivery are not available. The customer is not notified by this workflow. Do not treat the initial payment record as a verified payment or send it as a receipt.
 
+### Change future installment dates
+
+Open **Finance settings → Issued invoices**, choose **View details**, then expand **Request a future installment schedule change**. Only future installments that are still wholly unpaid can move. Paid and partly paid installments, and installments already due or overdue, stay in the schedule unchanged. A payment waiting for verification must be resolved first.
+
+Enter one to twelve replacement dates in Qatar time and amounts that add up exactly to the eligible unpaid amount shown on the page. Add or remove a date as needed, enter the customer-agreed reason, then select **Submit schedule change for approval**. The request remains pending and the active dates do not change yet. A different owner or accountant reviews it in **Installment schedule changes awaiting approval**. Approve only after confirming the customer agreement; reject with a reason when the request is incorrect. An approved request creates a new schedule version and retains the replaced dates in history. A stale or changed schedule must be refreshed and reviewed again.
+
+The request is audited and queues a schedule-change event, but automated reminders are not yet running; this screen does not send or cancel customer reminders. It does not add late fees or change the invoice total. English and Arabic controls are available in the existing Finance panel; authenticated browser and mobile acceptance are still pending.
+
 ## Initial Super Admin setup (operations only)
 
 The initial canonical Super Admin must be created from a controlled terminal after the platform identity, security and verified-admin-link migrations have been applied. First verify which existing `/admin` account belongs to the product owner. Run `npm run bootstrap:super-admin -- --legacy-admin-id <id>`, type the requested confirmation phrase, enter the exact UID from that verified account's session, and enter its existing password at the hidden prompt. The command checks all three against the same legacy administrator row, creates the canonical owner and reviewed link in one transaction, and can succeed only once. It is not a routine deploy command. Do not use an employee account, guess by email, put credentials in shell arguments, or run it against the imported/production database before the release and owner-approval gates are satisfied.
