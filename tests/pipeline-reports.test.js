@@ -17,6 +17,20 @@ test('pipeline reports reject unsupported periods, invalid dates, roles and pagi
   await assert.rejects(getActivityReport({pool,uid:'synthetic',role:'owner',page:0}),{status:400});
 });
 
+test('managers can read sales activity reports without receiving finance totals',async()=>{
+  const queries=[];
+  const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
+    if(sql.includes('SUM(pa.activity_type'))return [[{outcomes:0,notes:0,leads_touched:0}]];
+    if(sql.includes('GROUP BY outcome'))return [[]];
+    if(sql.includes('SELECT pa.id'))return [[]];
+    return [[{n:0}]];
+  }};
+  const report=await getActivityReport({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'manager',period:'daily',at:'2026-10-01'});
+  assert.equal(report.period,'daily');
+  assert.deepEqual(report.finance,undefined);
+  assert.equal(queries.some(sql=>sql.includes('information_schema.TABLES')),false);
+});
+
 test('finance report summary remains owner-only and presents exact bilingual Qatar currency totals',()=>{
   const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
   assert.match(screen,/\/pipeline\/reports\.js\?v=4/);

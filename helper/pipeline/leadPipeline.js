@@ -47,7 +47,7 @@ async function findContactMatches({ uid, phone, email, role = "owner", agentId, 
     visibility = ` AND EXISTS (SELECT 1 FROM pipeline_leads l
       WHERE l.uid_hash = pipeline_contacts.uid_hash AND l.contact_id = pipeline_contacts.id AND l.owner_agent_id = ?)`;
     values.push(Number(agentId));
-  } else if (role !== "owner") {
+  } else if (!['owner','manager'].includes(role)) {
     const error = new Error("You do not have access to contact suggestions."); error.status = 403; throw error;
   }
   const [rows] = await getPromisePool(sourcePool).query(
@@ -898,7 +898,7 @@ async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
 }
 
 async function getFollowUps({ uid, role, agentId, period = "all", page = 1, limit = 20, pool: sourcePool }) {
-  if (!['owner', 'agent'].includes(role)) { const error = new Error("You do not have access to pipeline follow-ups."); error.status = 403; throw error; }
+  if (!['owner', 'manager', 'agent'].includes(role)) { const error = new Error("You do not have access to pipeline follow-ups."); error.status = 403; throw error; }
   const pageNumber = Number(page), pageSize = Number(limit);
   if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > 10000 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
     const error = new Error("Choose a valid follow-up page and page size."); error.status = 400; throw error;
@@ -1040,7 +1040,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
       await connection.query("UPDATE pipeline_identity_locks SET current_lead_id = ? WHERE uid_hash = ? AND identity_key = ?", [id, uidHash, identityKey]);
     }
     if (Object.keys(contactProfile).length) {
-      if (role !== 'owner') { const error = new Error("Only the workspace owner can update shared contact details."); error.status = 403; throw error; }
+      if (!['owner','manager'].includes(role)) { const error = new Error("Only the workspace owner or manager can update shared contact details."); error.status = 403; throw error; }
       const [profileRows] = await connection.query("SELECT display_name, normalized_email FROM pipeline_contacts WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE", [uidHash, lead.contact_id]);
       if (!profileRows.length) { const error = new Error("The linked contact could not be found."); error.status = 409; throw error; }
       const actual = {};

@@ -7,10 +7,16 @@ const pipelineReports = require("../helper/pipeline/reports.js");
 const trainingCourses = require('../modules/platform/training-courses');
 const saleReviews = require('../modules/platform/training-sale-reviews');
 const trainingForms = require('../modules/platform/training-forms');
+const legacyPipelineActor = require('../modules/platform/legacy-pipeline-actor');
 
 async function saleContext(actor) {
   const ctx=await trainingCourses.legacyOwnerContext(require('../database/config.js').promise(),actor.uid);
-  ctx.membership={...ctx.membership,role:actor.role,id:actor.role==='agent'?`legacy-agent-${actor.agentId}`:ctx.membership.id,delegatedPermissions:[]};
+  if(actor.role==='manager'){
+    ctx.identity={id:actor.identityId};
+    ctx.membership={...ctx.membership,role:'manager',id:actor.membershipId,delegatedPermissions:[]};
+  }else{
+    ctx.membership={...ctx.membership,role:actor.role,id:actor.role==='agent'?`legacy-agent-${actor.agentId}`:ctx.membership.id,delegatedPermissions:[]};
+  }
   return ctx;
 }
 
@@ -30,10 +36,18 @@ async function pipelineAuth(req, res, next) {
     catch (_) { return res.status(401).json({ success: false, message: "Your session has expired." }); }
 
     const users = await query(
-      "SELECT uid, role, timezone FROM user WHERE email = ? AND password = ? LIMIT 1",
+      "SELECT id, uid, name, email, role, timezone FROM user WHERE email = ? AND password = ? LIMIT 1",
       [decoded.email, decoded.password],
     );
     if (users.length && users[0].role === "user") {
+      if(process.env.SALEMAX_PLATFORM_ENABLED==='true'){
+        const linkedActor=await legacyPipelineActor.resolve(require('../database/config.js').promise(),users[0]);
+        if(linkedActor?.denied)return res.status(linkedActor.code==='AUTH_REQUIRED'?401:403).json({success:false,code:linkedActor.code});
+        if(linkedActor?.role==='manager'){
+          req.pipelineActor=linkedActor;
+          return next();
+        }
+      }
       req.pipelineActor = { uid: users[0].uid, role: "owner", actorType: "user", actorId: String(users[0].uid), timezone: users[0].timezone || "Asia/Qatar" };
       return next();
     }

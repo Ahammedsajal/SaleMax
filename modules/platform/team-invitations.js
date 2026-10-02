@@ -117,6 +117,7 @@ async function accept(pool,input){
     const [[tenant]]=await db.query('SELECT id,status,category_key,category_version FROM sx_tenants WHERE id=? FOR UPDATE',[invite.tenantId]);
     if(!tenant||tenant.status!=='active'||tenant.category_key!==trainingCenter.key||Number(tenant.category_version)!==trainingCenter.version)fail('INVITE_INVALID');
     const [[owner]]=await db.query(`SELECT u.id,u.uid FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='owner' AND m.status='active'
       WHERE o.tenant_id=? FOR UPDATE`,[tenant.id]);
     if(!owner||!owner.uid)fail('BUSINESS_LINK_INVALID');
     const [[ownerMap]]=await db.query(`SELECT m.identity_id,o.legacy_uid_hash FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id
@@ -138,6 +139,13 @@ async function accept(pool,input){
     if(invite.role==='agent'){
       const [agent]=await db.query(`INSERT INTO agents(owner_uid,uid,email,password,name,mobile,comments,role,is_active) VALUES (?,?,?,?,?,?,?,'agent',1)`,[owner.uid,agentUid,invite.email,passwordHash,name,mobile,'']);
       await db.query(`INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('agents',?,?,?,?,UTC_TIMESTAMP(3))`,[String(agent.insertId),tenant.id,membershipId,digest(agentUid)]);
+    }else{
+      // Keep the existing /user/login and user-shell contract. The canonical
+      // ownership link preserves the accountant/manager role for tenant APIs;
+      // the legacy UID is a staff identity, never the business owner's UID.
+      const staffUid=uid();
+      const [legacyUser]=await db.query(`INSERT INTO user(uid,name,email,password,role) VALUES (?,?,?,?, 'user')`,[staffUid,name,invite.email,passwordHash]);
+      await db.query(`INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))`,[String(legacyUser.insertId),tenant.id,membershipId,digest(staffUid)]);
     }
     await audit(db,identityId,tenant.id,'team.invitation-accepted',invite.id,{role:invite.role});
     return {status:'accepted',email:invite.email,role:invite.role,agentUid,tenantSlug:invite.tenantSlug};

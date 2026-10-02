@@ -53,7 +53,7 @@ async function getFinanceSummary(connection,uid,window){
 }
 async function getActivityReport({pool,uid,role='owner',agentId,period='daily',at,timezone='Asia/Qatar',page=1,limit=50}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
-  if(!['owner','agent'].includes(role))fail('This role cannot view the legacy lead activity report.',403);
+  if(!['owner','manager','agent'].includes(role))fail('This role cannot view the legacy lead activity report.',403);
   if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
   const currentPage=Number(page),pageSize=Number(limit);
   if(!Number.isSafeInteger(currentPage)||currentPage<1||currentPage>10000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)fail('Report page or page size is invalid.');

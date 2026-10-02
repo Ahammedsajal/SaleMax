@@ -40,7 +40,7 @@ async function load(db,user,data,locked){
   // an old repeatable-read snapshot before waiting for another seat mutation.
   const [[tenant]]=await db.query('SELECT id,name,status,category_key,category_version,revision FROM sx_tenants WHERE id=?'+suffix,[mapping.tenant_id]);
   if(!tenant)fail('VERIFIED_BUSINESS_LINK_REQUIRED');
-  const [links]=await db.query("SELECT source_id FROM sx_legacy_ownership WHERE source_table='user' AND tenant_id=?"+suffix,[tenant.id]);
+  const [links]=await db.query("SELECT o.source_id FROM sx_legacy_ownership o JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='owner' AND m.status='active' WHERE o.source_table='user' AND o.tenant_id=?"+suffix,[tenant.id]);
   if(links.length!==1||links[0].source_id!==String(user.id))fail('AMBIGUOUS_BUSINESS_LINK');
   const [[owner]]=await db.query("SELECT m.id,m.identity_id FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id WHERE m.id=? AND m.tenant_id=? AND m.role='owner' AND m.status='active' AND i.status='active'"+suffix,[mapping.membership_id,tenant.id]);
   if(!owner)fail('VERIFIED_BUSINESS_LINK_REQUIRED');

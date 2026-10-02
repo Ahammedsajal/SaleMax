@@ -10,6 +10,8 @@ const {createTrainingCourseRouter}=require('../modules/platform/training-course-
 module.exports=async(db,other,pool,{i1})=>{
   const [[column]]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='email'");
   if(!column)await db.query('ALTER TABLE user ADD COLUMN email VARCHAR(999) NULL');
+  const [[roleColumn]]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='role'");
+  if(!roleColumn)await db.query("ALTER TABLE user ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'");
   const ownerUid='team-owner-'+crypto.randomUUID(),tenantId=crypto.randomUUID(),identityId=crypto.randomUUID(),membershipId=crypto.randomUUID();
   await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,?,?,'training_center',1,'active')",[tenantId,'team-'+crypto.randomUUID(),'Team invitation fixture']);
   await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,'Team owner','active')",[identityId,`owner-${crypto.randomUUID()}@example.invalid`]);
@@ -64,6 +66,21 @@ module.exports=async(db,other,pool,{i1})=>{
     const [[canonicalMember]]=await db.query('SELECT m.role,m.status FROM sx_identities i JOIN sx_memberships m ON m.identity_id=i.id WHERE i.email_normalized=? AND m.tenant_id=?',[inviteEmail,tenantId]);
     assert.equal(canonicalMember.role,invitedRole);assert.equal(canonicalMember.status,'active');
     const [[legacyAgent]]=await db.query('SELECT id FROM agents WHERE LOWER(email)=?',[inviteEmail]);assert.equal(legacyAgent,undefined);
+    if(invitedRole!=='agent'){
+      const [[legacyUser]]=await db.query('SELECT id,uid,password,role FROM user WHERE LOWER(email)=?',[inviteEmail]);
+      assert.ok(legacyUser,'staff account is available through the existing business login lookup');
+      assert.equal(legacyUser.role,'user');
+      assert.equal(await bcrypt.compare(plainPassword,legacyUser.password),true);
+      const [[legacyLink]]=await db.query("SELECT m.role,o.legacy_uid_hash FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id WHERE o.source_table='user' AND o.source_id=? AND o.tenant_id=?",[String(legacyUser.id),tenantId]);
+      assert.equal(legacyLink.role,invitedRole);assert.equal(legacyLink.legacy_uid_hash,crypto.createHash('sha256').update(legacyUser.uid).digest('hex'));
+      const bridge=require('../modules/platform/legacy-session-bridge'),previousEnabled=process.env.SALEMAX_PLATFORM_ENABLED;
+      process.env.SALEMAX_PLATFORM_ENABLED='true';
+      try{
+        const bridged=await bridge.issueForVerifiedLegacyAccount({kind:'user',legacyId:Number(legacyUser.id),legacyUid:legacyUser.uid,legacyEmail:inviteEmail,password:plainPassword,address:'127.0.0.1',origin:'http://127.0.0.1',expectedOrigin:'http://127.0.0.1',pool,key:Buffer.alloc(32,31),local:true});
+        assert.equal(bridged.context.membership.role,invitedRole);assert.equal(bridged.context.tenant.id,tenantId);assert.equal(bridged.cookieName,'salemax_dev_session');
+        await canonicalAuth.logout(db,bridged.token);
+      }finally{if(previousEnabled===undefined)delete process.env.SALEMAX_PLATFORM_ENABLED;else process.env.SALEMAX_PLATFORM_ENABLED=previousEnabled;}
+    }
     const login=await canonicalAuth.login(db,{email:inviteEmail,password:plainPassword,audience:'tenant',tenantSlug:acceptedRole.tenantSlug},'127.0.0.1');
     assert.equal(login.context.membership.role,invitedRole);await canonicalAuth.logout(db,login.token);
     const summary=await team.list(pool,ownerUid);assert.deepEqual(summary.seatUsage[invitedRole],{active:1,pending:0,limit:limits[invitedRole],available:limits[invitedRole]-1});

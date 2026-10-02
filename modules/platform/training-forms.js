@@ -52,7 +52,7 @@ function cleanSubmission(schema,values){
   return result;
 }
 async function staffContext(db,actor){
-  if(!actor||typeof actor.uid!=='string'||!['owner','agent'].includes(actor.role))fail('PERMISSION_DENIED');
+  if(!actor||typeof actor.uid!=='string'||!['owner','manager','agent'].includes(actor.role))fail('PERMISSION_DENIED');
   const [rows]=await db.query(`SELECT u.id AS owner_id,u.uid,t.id AS tenant_id,t.slug AS tenant_slug,t.status AS tenant_status,t.category_key,t.category_version,m.id AS owner_membership_id,m.identity_id AS owner_identity_id,m.role AS owner_role,m.status AS owner_membership_status,i.status AS owner_identity_status,o.legacy_uid_hash
     FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
     JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
@@ -61,6 +61,15 @@ async function staffContext(db,actor){
   if(row.legacy_uid_hash!==sha(actor.uid)||row.owner_role!=='owner'||row.owner_membership_status!=='active'||row.owner_identity_status!=='active')fail('BUSINESS_LINK_INVALID');
   if(row.tenant_status!=='active'||row.category_key!==trainingCenter.key||Number(row.category_version)!==trainingCenter.version)fail('CATEGORY_UNAVAILABLE');
   let membership={id:row.owner_membership_id,tenantId:row.tenant_id,role:'owner',status:'active',delegatedPermissions:[]},identity={id:row.owner_identity_id};
+  if(actor.role==='manager'){
+    const [[manager]]=await db.query(`SELECT m.id,m.identity_id,o.legacy_uid_hash,i.email_normalized,i.status AS identity_status
+      FROM user staff JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(staff.id AS CHAR) AND o.tenant_id=?
+      JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id AND m.role='manager' AND m.status='active'
+      JOIN sx_identities i ON i.id=m.identity_id
+      WHERE staff.id=? AND staff.uid=? LIMIT 1 FOR UPDATE`,[row.tenant_id,actor.legacyUserId,actor.legacyUid]);
+    if(!manager||manager.legacy_uid_hash!==sha(actor.legacyUid)||manager.identity_status!=='active'||manager.identity_id!==actor.identityId||manager.id!==actor.membershipId)fail('PERMISSION_DENIED');
+    membership={id:manager.id,tenantId:row.tenant_id,role:'manager',status:'active',delegatedPermissions:[]};identity={id:manager.identity_id};
+  }
   if(actor.role==='agent'){
     const [[agent]]=await db.query("SELECT id,uid FROM agents WHERE id=? AND owner_uid=? AND role='agent' AND is_active=1 LIMIT 1 FOR UPDATE",[actor.agentId,actor.uid]);
     if(!agent||String(agent.id)!==String(actor.agentId)||(actor.agentUid&&agent.uid!==actor.agentUid))fail('PERMISSION_DENIED');
@@ -101,7 +110,7 @@ async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,vis
   if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken)||typeof visitorHash!=='string'||!/^[0-9a-f]{64}$/.test(visitorHash))fail('INVALID_SUBMISSION');
   const db=await pool.getConnection();let begun=false;try{
     await db.beginTransaction();begun=true;
-    const [[form]]=await db.query(`SELECT t.id AS tenant_id,t.slug AS tenant_slug,u.uid,own.legacy_uid_hash,f.id AS form_id,v.version,v.slug,v.name_en,v.name_ar,v.schema_json FROM sx_tenants t JOIN sx_training_forms f ON f.tenant_id=t.id AND f.status='published' JOIN sx_training_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version JOIN sx_legacy_ownership own ON own.tenant_id=t.id AND own.source_table='user' JOIN user u ON CAST(u.id AS CHAR)=own.source_id WHERE t.slug=? AND v.slug=? AND t.category_key='training_center' AND t.category_version=1 AND t.status='active' LIMIT 1 FOR UPDATE`,[tenantSlug,formSlug]);
+    const [[form]]=await db.query(`SELECT t.id AS tenant_id,t.slug AS tenant_slug,u.uid,own.legacy_uid_hash,f.id AS form_id,v.version,v.slug,v.name_en,v.name_ar,v.schema_json FROM sx_tenants t JOIN sx_training_forms f ON f.tenant_id=t.id AND f.status='published' JOIN sx_training_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version JOIN sx_legacy_ownership own ON own.tenant_id=t.id AND own.source_table='user' JOIN sx_memberships owner_membership ON owner_membership.tenant_id=own.tenant_id AND owner_membership.id=own.membership_id AND owner_membership.role='owner' AND owner_membership.status='active' JOIN user u ON CAST(u.id AS CHAR)=own.source_id WHERE t.slug=? AND v.slug=? AND t.category_key='training_center' AND t.category_version=1 AND t.status='active' LIMIT 1 FOR UPDATE`,[tenantSlug,formSlug]);
     if(!form)fail('FORM_NOT_FOUND');if(!form.legacy_uid_hash||sha(form.uid)!==form.legacy_uid_hash)fail('BUSINESS_LINK_INVALID');
     const result=await persistSubmission(db,{form,tenantId:form.tenant_id,uid:form.uid,formSlug,captureMode:'public',submissionToken,values,visitorHash});
     await db.commit();begun=false;return result;
@@ -111,7 +120,7 @@ async function submitStaff(pool,actor,formSlug,{submissionToken,values}){
   if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken))fail('INVALID_SUBMISSION');
   const db=await pool.getConnection();let begun=false;try{
     await db.beginTransaction();begun=true;const ctx=await staffContext(db,actor);const form=await publishedFormForTenant(db,ctx.tenant.id,formSlug);
-    const result=await persistSubmission(db,{form,tenantId:ctx.tenant.id,uid:ctx.ownerUid,formSlug,submissionToken,values,captureMode:'staff',actor:{actorType:actor.role==='agent'?'agent':'user',actorId:actor.role==='agent'?String(actor.agentId):actor.uid,agentId:actor.agentId,role:actor.role}});
+    const result=await persistSubmission(db,{form,tenantId:ctx.tenant.id,uid:ctx.ownerUid,formSlug,submissionToken,values,captureMode:'staff',actor:{actorType:actor.role==='agent'?'agent':'user',actorId:actor.role==='agent'?String(actor.agentId):actor.role==='manager'?actor.identityId:actor.uid,agentId:actor.agentId,role:actor.role}});
     await db.commit();begun=false;return {...result,collectorRole:actor.role};
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
