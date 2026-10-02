@@ -556,9 +556,10 @@ router.post("/verify_license", async (req, res) => {
     const { licenseKey, name, email, mobile } = req.body;
 
     const hit = await fetch(
-      "https://envato-buyer.oneoftheprojects.com/api/admin/check_license_external?lang=English",
+      "https://crm.gccbot.com/api/admin/check_license_external?lang=English",
       {
         method: "POST",
+        signal: AbortSignal.timeout(10000),
         headers: {
           "Content-Type": "application/json",
         },
@@ -574,8 +575,6 @@ router.post("/verify_license", async (req, res) => {
     );
 
     const ress = await hit.json();
-
-    console.log({ ress });
 
     if (ress.success) {
       createLicenseFile({

@@ -25,10 +25,13 @@ services:
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
     env_file: /opt/salemax/shared/runtime.env
+    environment:
+      SALEMAX_LICENSE_FILE: /app/license-store/license.json
     ports: ["127.0.0.1:3011:3010"]
     depends_on:
       db: {condition: service_healthy}
     volumes:
+      - /opt/salemax/shared/license:/app/license-store
       - /opt/salemax/shared/media:/app/client/public/media
       - /opt/salemax/shared/meta-media:/app/client/public/meta-media
       - /opt/salemax/shared/sessions:/app/sessions

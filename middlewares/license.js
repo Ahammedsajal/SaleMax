@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 // Path to license file
-const LICENSE_FILE = path.join(__dirname, "./license.json");
+const LICENSE_FILE = process.env.SALEMAX_LICENSE_FILE || path.join(__dirname, "./license.json");
 
 /**
  * Middleware to check license
@@ -41,10 +41,14 @@ const createLicenseFile = (data = {}) => {
       product: data.product || "whatscrm",
     };
 
-    fs.writeFileSync(LICENSE_FILE, JSON.stringify(licenseData, null, 2));
+    fs.mkdirSync(path.dirname(LICENSE_FILE), { recursive: true });
+    const temporary = `${LICENSE_FILE}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, JSON.stringify(licenseData, null, 2), { mode: 0o600 });
+    fs.renameSync(temporary, LICENSE_FILE);
     console.log("License file created ✅");
   } catch (err) {
     console.error("Error creating license file:", err);
+    throw err;
   }
 };
 
