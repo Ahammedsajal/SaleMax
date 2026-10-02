@@ -2,6 +2,18 @@
 
 Full objective: implement the audited upgrade, preserve and improve the existing UI, verify every required screen/function locally, document APIs and user journeys, push intended changes to Ahammedsajal/SaleMax, and release verified updates at crm.salemax.qa.
 
+## Payment disputes and chargebacks — local increment, 2 October 2026
+
+The existing `/user` Finance invoice detail and accountant queue now record QAR bank/card disputes, reserve disputed balances against overlapping returns, and require an independent accountant outcome. A lost dispute adds a separate balanced chargeback journal entry, consumes unapplied deposits first, then reverses the newest payment allocations and recalculates affected installment/invoice balances. The original payment and receipt remain immutable. Owner/accountant API routes, bilingual forms, queue, idempotency and audit evidence are documented. Provider contact and external recovery remain disabled.
+
+Verification: `npm test` passes 104/104; disposable MariaDB integration passes 27 forward migrations plus the end-to-end synthetic finance workflow, including duplicate retries, same-actor denial, overlapping refund reservation, won/lost outcomes, journal balance and invoice register reconciliation. Baseline health/public-settings/home routes return 200. The run confirms `customerDataTouched=false` and `externalWrites=false`. Commit `1d9ba44` is pushed. TC20, authenticated phone/tablet EN/AR acceptance, real bank evidence and release gates remain open; this increment is not deployed.
+
+## Super Admin MFA expiry recovery — local UI increment, 2 October 2026
+
+The failed authenticator submission returned `REAUTH_REQUIRED`, not `MFA_INVALID`: MFA enrollment/verification requires a password sign-in from within five minutes. The existing Manage Plans setup now explains the timeout in English/Arabic and offers **Verify access again**, which signs in again and displays a fresh setup QR when enrolling. The existing staff verification screen gives the same bilingual guidance; the user manual and authentication contract document TOTP compatibility, the five-minute rule, phone-clock troubleshooting and secret handling. Browser cache query versions are advanced.
+
+The focused screen checks and full `npm test` pass. Commits `37c2c4e` and `1d9ba44` are pushed. This UI correction is not deployed and did not change account state. Because the displayed QR/setup key may no longer match after reauthentication, the owner should scan only the newly displayed QR and keep its key and codes private. Super Admin enrollment and one-time recovery-code acknowledgement remain owner actions.
+
 ## Excess-deposit returns — local increment, 2 October 2026
 
 The existing Finance invoice detail and its accountant action queue now include English/Arabic excess-deposit return requests, history, different-actor review and accountant-only completion evidence. Migration `20261016_training_manual_refunds.sql` stores tenant-bound requests, reservations, review and completion. Approval reserves unallocated funds; completion records an already performed cash/bank return, posts a balanced customer-deposits/cash-or-bank journal and queues an identifier-only event. No external transfer or notification is sent. Invoice collections now derive from posted installment allocations rather than gross payment minus the changing deposit projection, so returns cannot inflate collection totals. Original receipts remain immutable.
