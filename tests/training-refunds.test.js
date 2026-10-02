@@ -13,3 +13,14 @@ test('manual return evidence rejects future dates and unsupported methods',()=>{
   assert.throws(()=>refunds.normalizeCompletion(id,{...valid,completedAt:new Date(Date.now()+3600000).toISOString()}),{code:'INVALID_REFUND_DATE'});
   assert.throws(()=>refunds.normalizeCompletion(id,{...valid,method:'cheque'}),{code:'INVALID_REFUND_COMPLETION'});
 });
+test('existing Finance screen mounts invoice returns and a bilingual accountant action queue',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/training-finance.js'),'utf8');
+  assert.match(ui,/function mountRefundSection/);
+  assert.match(ui,/function loadPendingRefunds/);
+  assert.match(ui,/accountant\/refunds\/queue/);
+  assert.match(ui,/Record completed return/);
+  assert.match(ui,/تسجيل رد المبلغ المكتمل/);
+  assert.match(ui,/data-refund-queue-error/);
+  assert.match(ui,/No deposit returns await action/);
+});
