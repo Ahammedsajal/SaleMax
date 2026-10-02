@@ -41,7 +41,7 @@ After posting, the invoice balance and installment states update. Choose **View 
 
 ### Request an invoice credit
 
-Open **Finance settings → Issued invoices → View details** and review the amount due after payments and prior credits. The owner or accountant can enter a QAR credit amount up to that balance and provide the reason, then choose **Request credit for accountant review**. A pending payment must be verified or rejected first, and only one credit request can await review per invoice. A different accountant or owner approves or rejects the request in **Credit notes awaiting review**. Approval creates a numbered credit note, allocates the adjustment across the remaining installments, and reduces the balance; it never edits the issued invoice or an existing receipt. The invoice detail retains the request, reason, reviewer and decision. A credit does not return cash: refunds and chargebacks have separate workflows and are not available yet.
+Open **Finance settings → Issued invoices → View details** and review the amount due after payments and prior credits. The owner or accountant can enter a QAR credit amount up to that balance and provide the reason, then choose **Request credit for accountant review**. A pending payment must be verified or rejected first, and only one credit request can await review per invoice. A different accountant or owner approves or rejects the request in **Credit notes awaiting review**. Approval creates a numbered credit note, allocates the adjustment across the remaining installments, and reduces the balance; it never edits the issued invoice or an existing receipt. The invoice detail retains the request, reason, reviewer and decision. A credit does not return cash: excess deposits and payment disputes use the separate workflows below.
 
 ### Change future installment dates
 
@@ -50,6 +50,12 @@ Open **Finance settings → Issued invoices**, choose **View details**, then exp
 Enter one to twelve replacement dates in Qatar time and amounts that add up exactly to the eligible unpaid amount shown on the page. Add or remove a date as needed, enter the customer-agreed reason, then select **Submit schedule change for approval**. The request remains pending and the active dates do not change yet. A different owner or accountant reviews it in **Installment schedule changes awaiting approval**. Approve only after confirming the customer agreement; reject with a reason when the request is incorrect. An approved request creates a new schedule version and retains the replaced dates in history. A stale or changed schedule must be refreshed and reviewed again.
 
 The request is audited and queues a schedule-change event, but automated reminders are not yet running; this screen does not send or cancel customer reminders. It does not add late fees or change the invoice total. English and Arabic controls are available in the existing Finance panel; authenticated browser and mobile acceptance are still pending.
+
+### Record a bank or card payment dispute
+
+In **Finance settings → Issued invoices → View details**, open **Payment disputes** and select the posted QAR payment. Enter the disputed amount, the bank or card issuer's case reference, and a short evidence summary. Recording a case reserves available balance so a concurrent excess-deposit return cannot use the same funds. The screen only records your evidence; it does not contact the provider.
+
+An accountant reviews the item in **Payment disputes** and records **Won; retain payment** or **Lost; record chargeback**, with a decision note. The reporter cannot resolve their own case. A loss creates a separate balanced chargeback journal entry, applies unapplied funds first, then reverses payment allocations and updates the invoice and affected installments. The original payment and receipt remain in history. A win leaves balances unchanged. If the bank later changes its decision, keep that evidence with your accountant; reopening and externally reconciling a closed case are not yet supported.
 
 ## Initial Super Admin setup (operations only)
 

@@ -25,10 +25,12 @@ async function paymentState(db, ctx, paymentId, lock=false) {
   if (!row) fail('PAYMENT_NOT_FOUND');
   if (row.status !== 'posted' || row.currency !== 'QAR') fail('REFUND_REQUIRES_POSTED_QAR_PAYMENT');
   const [[totals]] = await db.query("SELECT COALESCE(SUM(CASE WHEN status='completed' THEN amount_minor ELSE 0 END),0) AS refunded,COALESCE(SUM(CASE WHEN status IN ('pending_approval','approved') THEN amount_minor ELSE 0 END),0) AS reserved FROM sx_training_refunds WHERE tenant_id=? AND payment_id=?", [ctx.tenant.id,paymentId]);
-  const [[allocations]] = await db.query('SELECT COALESCE(SUM(amount_minor),0) AS allocated FROM sx_training_payment_allocations WHERE tenant_id=? AND payment_id=?', [ctx.tenant.id,paymentId]);
-  const balance = finance.paymentBalance({grossMinor:Number(row.amount_minor), completedRefundMinor:Number(totals.refunded), allocatedMinor:Number(allocations.allocated)});
+  const [[disputes]] = await db.query("SELECT COALESCE(SUM(CASE WHEN status='lost' THEN amount_minor ELSE 0 END),0) AS charged_back,COALESCE(SUM(CASE WHEN status='open' THEN amount_minor ELSE 0 END),0) AS reserved FROM sx_training_payment_disputes WHERE tenant_id=? AND payment_id=?", [ctx.tenant.id,paymentId]);
+  const [[allocations]] = await db.query('SELECT COALESCE(SUM(a.amount_minor),0)-COALESCE((SELECT SUM(r.amount_minor) FROM sx_training_payment_allocation_reversals r JOIN sx_training_payment_allocations a2 ON a2.tenant_id=r.tenant_id AND a2.id=r.allocation_id WHERE a2.tenant_id=? AND a2.payment_id=?),0) AS allocated FROM sx_training_payment_allocations a WHERE a.tenant_id=? AND a.payment_id=?', [ctx.tenant.id,paymentId,ctx.tenant.id,paymentId]);
+  const balance = finance.paymentBalance({grossMinor:Number(row.amount_minor), completedRefundMinor:Number(totals.refunded)+Number(disputes.charged_back), allocatedMinor:Number(allocations.allocated)});
   if (balance.availableMinor !== Number(row.unapplied_minor)) fail('REFUND_BALANCE_OUT_OF_SYNC');
-  return {payment:row, refundedMinor:Number(totals.refunded), reservedMinor:Number(totals.reserved), availableMinor:balance.availableMinor, requestableMinor:balance.availableMinor-Number(totals.reserved)};
+  const requestableMinor=balance.availableMinor-Number(totals.reserved)-Number(disputes.reserved);
+  return {payment:row, refundedMinor:Number(totals.refunded), chargedBackMinor:Number(disputes.charged_back), reservedMinor:Number(totals.reserved), reservedDisputeMinor:Number(disputes.reserved), availableMinor:balance.availableMinor, requestableMinor, disputableMinor:Number(row.amount_minor)-Number(totals.refunded)-Number(disputes.charged_back)-Number(totals.reserved)-Number(disputes.reserved)};
 }
 async function audit(db,ctx,id,action,changes,key) {
   await db.query("INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,?,'identity',?,'refund',?,?,?)", [crypto.randomUUID(),ctx.tenant.id,ctx.identity.id,action,id,JSON.stringify(changes),key]);
@@ -61,7 +63,7 @@ async function decide(db,ctx,id,{decision,reason=''}={}) {
     if(row.status===decision||(decision==='approved'&&row.status==='completed')){await db.commit();return {...shape(row,ctx),repeated:true};}
     if(row.status!=='pending_approval')fail('REFUND_NOT_PENDING');
     if(row.requested_by_identity_id===ctx.identity.id)fail('REFUND_SECOND_APPROVER_REQUIRED');
-    if(decision==='approved'){const state=await paymentState(db,ctx,row.payment_id,true);if(state.reservedMinor>state.availableMinor)fail('REFUND_EXCEEDS_UNAPPLIED_FUNDS');}
+    if(decision==='approved'){const state=await paymentState(db,ctx,row.payment_id,true);if(state.reservedMinor+state.reservedDisputeMinor>state.availableMinor)fail('REFUND_EXCEEDS_UNAPPLIED_FUNDS');}
     await db.query("UPDATE sx_training_refunds SET status=?,reviewed_by_identity_id=?,reviewed_at=UTC_TIMESTAMP(3),review_reason=? WHERE tenant_id=? AND id=? AND status='pending_approval'",[decision,ctx.identity.id,reason.trim()||null,ctx.tenant.id,id]);
     await audit(db,ctx,id,`training.refund-${decision}`,{decision,reason:reason.trim()},row.request_key);
     const [[updated]]=await db.query('SELECT * FROM sx_training_refunds WHERE tenant_id=? AND id=?',[ctx.tenant.id,id]);
@@ -79,7 +81,7 @@ async function complete(db,ctx,id,input) {
     if(row.status==='completed'){if(row.completion_key!==data.requestKey||row.completion_hash!==completionHash)fail('REFUND_COMPLETION_CONFLICT');await db.commit();return {...shape(row,ctx),repeated:true};}
     if(row.status!=='approved')fail('REFUND_NOT_APPROVED');
     const state=await paymentState(db,ctx,row.payment_id,true),amount=Number(row.amount_minor);
-    if(amount>state.availableMinor||state.reservedMinor>state.availableMinor)fail('REFUND_EXCEEDS_UNAPPLIED_FUNDS');
+    if(amount>state.availableMinor||state.reservedMinor-amount+state.reservedDisputeMinor>state.availableMinor)fail('REFUND_EXCEEDS_UNAPPLIED_FUNDS');
     const lines=[{currency:row.currency,debitMinor:amount,creditMinor:0},{currency:row.currency,debitMinor:0,creditMinor:amount}];finance.assertBalancedJournal(lines);
     const journalId=crypto.randomUUID(),cashAccount=data.method==='cash'?'cash':'bank';
     await db.query("INSERT INTO sx_training_journal_entries(id,tenant_id,source_type,source_id,entry_type,currency,occurred_at,created_by_identity_id) VALUES (?,?,'manual-refund',?,'refund_posted',?,?,?)",[journalId,ctx.tenant.id,id,row.currency,new Date(data.completedAt),ctx.identity.id]);
