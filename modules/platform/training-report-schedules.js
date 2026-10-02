@@ -2,6 +2,7 @@
 const crypto=require('node:crypto');
 const moment=require('moment-timezone');
 const {decision}=require('./policy');
+const reportRunner=require('./training-report-runner');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 function validateContext(ctx){
   if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant?.id)fail('TENANT_CONTEXT_REQUIRED');
@@ -31,7 +32,7 @@ function nextRun({period,timezone,localTime},now=new Date()){
   return next.utc().format('YYYY-MM-DD HH:mm:ss.SSS');
 }
 function shape(row){return {id:row.id,period:row.period,timezone:row.timezone,localTime:String(row.local_time).slice(0,5),emailEnabled:Boolean(row.email_enabled),emailDestination:row.email_destination||'',emailVerified:Boolean(row.email_verified_at),whatsappEnabled:Boolean(row.whatsapp_enabled),whatsappDestination:row.whatsapp_destination||'',whatsappVerified:Boolean(row.whatsapp_verified_at),status:row.status,revision:Number(row.revision),nextRunAt:row.next_run_at};}
-async function list(db,ctx){validateContext(ctx);const [rows]=await db.query(`SELECT id,tenant_id,period,timezone,local_time,email_enabled,email_destination,email_verified_at,whatsapp_enabled,whatsapp_destination,whatsapp_verified_at,status,revision,DATE_FORMAT(next_run_at,'%Y-%m-%d %H:%i:%s.%f') AS next_run_at FROM sx_training_report_schedules WHERE tenant_id=? ORDER BY FIELD(period,'daily','weekly','monthly')`,[ctx.tenant.id]);return rows.map(shape);}
+async function list(db,ctx){validateContext(ctx);const [rows]=await db.query(`SELECT id,tenant_id,period,timezone,local_time,email_enabled,email_destination,email_verified_at,whatsapp_enabled,whatsapp_destination,whatsapp_verified_at,status,revision,DATE_FORMAT(next_run_at,'%Y-%m-%d %H:%i:%s.%f') AS next_run_at FROM sx_training_report_schedules WHERE tenant_id=? ORDER BY FIELD(period,'daily','weekly','monthly')`,[ctx.tenant.id]);const runs=await reportRunner.listLatest(db,ctx.tenant.id);const latest=new Map(runs.map(run=>[run.period,run]));return rows.map(row=>({...shape(row),latestRun:latest.get(row.period)||null}));}
 async function save(db,ctx,input){
   validateContext(ctx);const data=normalize(input),tenantId=ctx.tenant.id,id=crypto.randomUUID(),runAt=nextRun(data);
   await db.beginTransaction();try{

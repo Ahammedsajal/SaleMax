@@ -4,13 +4,14 @@ const moment=require('moment-timezone');
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
 const periods=Object.freeze({daily:'day',weekly:'isoWeek',monthly:'month'});
 function fail(message,status=400){throw Object.assign(new Error(message),{status});}
-function periodWindow({period='daily',at,timezone='Asia/Qatar'}){
+function periodWindow({period='daily',at,timezone='Asia/Qatar',cutoffAt}){
   const unit=periods[period];
   if(!unit)fail('Choose a daily, weekly or monthly report period.');
   if(!moment.tz.zone(timezone))fail('Choose a valid business timezone.');
   const reference=at?moment.tz(at,'YYYY-MM-DD',true,timezone):moment.tz(timezone);
   if(!reference.isValid())fail('Report date must use YYYY-MM-DD.');
-  const start=reference.clone().startOf(unit),end=start.clone().add(1,unit);
+  const start=reference.clone().startOf(unit);let end=start.clone().add(1,unit);
+  if(period==='daily'&&cutoffAt){const cutoff=moment.utc(cutoffAt),startUtc=start.clone().utc(),endUtc=end.clone().utc();if(!cutoff.isValid()||!cutoff.isAfter(startUtc)||cutoff.isAfter(endUtc))fail('Report cutoff must fall inside the selected local day.');end=cutoff;}
   return {start:start.clone().utc().format('YYYY-MM-DD HH:mm:ss.SSS'),end:end.clone().utc().format('YYYY-MM-DD HH:mm:ss.SSS'),timezone,period};
 }
 function parseDetails(value){if(!value)return null;try{return typeof value==='string'?JSON.parse(value):value;}catch(_){return null;}}
@@ -51,13 +52,13 @@ async function getFinanceSummary(connection,uid,window){
     WHERE e.tenant_id=? AND e.occurred_at>=? AND e.occurred_at<? AND e.entry_type IN ('payment_posted','refund_posted','chargeback_posted')`,[tenantId,window.start,window.end]);
   return {currency:'QAR',invoiceScope:'issued_in_selected_period',issuedInvoiceCount:Number(totals.invoice_count),billedMinor:String(totals.billed_minor||0),collectedMinor:String(totals.collected_minor||0),creditedMinor:String(totals.credited_minor||0),outstandingMinor:String(totals.outstanding_minor||0),netCollectionsMinor:String(cashFlow.net_collections_minor||0)};
 }
-async function getActivityReport({pool,uid,role='owner',agentId,period='daily',at,timezone='Asia/Qatar',page=1,limit=50}){
+async function getActivityReport({pool,uid,role='owner',agentId,period='daily',at,timezone='Asia/Qatar',cutoffAt,page=1,limit=50}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','agent'].includes(role))fail('This role cannot view the legacy lead activity report.',403);
   if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
   const currentPage=Number(page),pageSize=Number(limit);
   if(!Number.isSafeInteger(currentPage)||currentPage<1||currentPage>10000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)fail('Report page or page size is invalid.');
-  const window=periodWindow({period,at,timezone}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool;
+  const window=periodWindow({period,at,timezone,cutoffAt}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool;
   const connection=await db.getConnection();
   try{
     await connection.beginTransaction();
@@ -77,7 +78,7 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
     const [[followupsRequired]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
       WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'
       AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.followUpRequired'))='true'${agentScope}`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
-    const [[overdue]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at<UTC_TIMESTAMP(3) AND l.status='open'${agentScope}`,[uidHash,...(role==='agent'?[agentId]:[])]);
+    const [[overdue]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at<COALESCE(?,UTC_TIMESTAMP(3)) AND l.status='open'${agentScope}`,[uidHash,cutoffAt?moment.utc(cutoffAt).format('YYYY-MM-DD HH:mm:ss.SSS'):null,...(role==='agent'?[agentId]:[])]);
     const finance=role==='owner'?await getFinanceSummary(connection,uid,window):null;
     const offset=(currentPage-1)*pageSize;
     const [events]=await connection.query(`SELECT pa.id,pa.lead_id AS leadId,pa.actor_type AS actorType,
@@ -92,7 +93,7 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
       ORDER BY pa.created_at DESC,pa.id DESC LIMIT ? OFFSET ?`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[]),pageSize,offset]);
     const total=Number(counts?.outcomes||0)+Number(counts?.notes||0);
     await connection.commit();
-    return {period:window.period,timezone:window.timezone,from:window.start,to:window.end,page:currentPage,limit:pageSize,total,hasMore:offset+events.length<total,
+    return {period:window.period,timezone:window.timezone,from:window.start,to:window.end,...(cutoffAt?{cutoffAt:moment.utc(cutoffAt).toISOString()}:{}),page:currentPage,limit:pageSize,total,hasMore:offset+events.length<total,
       summary:{leadsCreated:Number(created.n||0),leadsTouched:Number(counts.leads_touched||0),outcomes:Number(counts.outcomes||0),notes:Number(counts.notes||0),followUpsRequired:Number(followupsRequired.n||0),followUpsDue:Number(followups.n||0),followUpsOverdue:Number(overdue.n||0),outcomeCounts:outcomeRows.map(row=>({outcome:row.outcome,total:Number(row.total)}))},
       ...(finance?{finance}:{}),
       items:events.map(event=>({...event,details:parseDetails(event.details)}))};

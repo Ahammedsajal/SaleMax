@@ -2,6 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const schedules=require('../modules/platform/training-report-schedules');
+const runner=require('../modules/platform/training-report-runner');
 const {trainingCenter}=require('../modules/platform/categories');
 const base={period:'daily',timezone:'Asia/Qatar',localTime:'20:00',emailEnabled:true,emailDestination:'owner@example.qa',whatsappEnabled:true,whatsappDestination:'+97455123456'};
 function context(overrides={}){return {audience:'tenant',identity:{id:'identity-a'},tenant:{id:'tenant-a',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member-a',tenantId:'tenant-a',role:'owner',status:'active',delegatedPermissions:[]},category:trainingCenter,subscription:{status:'active',capabilities:['reports.read','reports.schedule']},...overrides};}
@@ -18,6 +19,23 @@ test('daily, weekly and monthly report schedules use timezone-aware next local r
   const before=new Date('2026-10-02T01:00:00.000Z');
   assert.equal(schedules.nextRun({period:'daily',timezone:'Asia/Qatar',localTime:'08:00'},before),'2026-10-02 05:00:00.000');
 });
+test('scheduled snapshots use the intended completed period and local cutoff',()=>{
+  const daily=runner.windowFor({period:'daily',timezone:'Asia/Qatar',scheduledAt:'2026-10-01 16:30:00.000'});
+  assert.deepEqual(daily,{period:'daily',timezone:'Asia/Qatar',date:'2026-10-01',start:'2026-09-30 21:00:00.000',end:'2026-10-01 16:30:00.000',cutoffAt:'2026-10-01 16:30:00.000'});
+  const weekly=runner.windowFor({period:'weekly',timezone:'Asia/Qatar',scheduledAt:'2026-10-05 05:00:00.000'});
+  assert.deepEqual(weekly,{period:'weekly',timezone:'Asia/Qatar',date:'2026-09-28',start:'2026-09-27 21:00:00.000',end:'2026-10-04 21:00:00.000',cutoffAt:'2026-10-05 05:00:00.000'});
+  const monthly=runner.windowFor({period:'monthly',timezone:'Asia/Qatar',scheduledAt:'2026-11-01 05:00:00.000'});
+  assert.deepEqual(monthly,{period:'monthly',timezone:'Asia/Qatar',date:'2026-10-01',start:'2026-09-30 21:00:00.000',end:'2026-10-31 21:00:00.000',cutoffAt:'2026-11-01 05:00:00.000'});
+  const midnight=runner.windowFor({period:'daily',timezone:'Asia/Qatar',scheduledAt:'2026-10-02 21:00:00.000'});
+  assert.deepEqual(midnight,{period:'daily',timezone:'Asia/Qatar',date:'2026-10-02',start:'2026-10-01 21:00:00.000',end:'2026-10-02 21:00:00.000',cutoffAt:'2026-10-02 21:00:00.000'});
+  assert.equal(runner.nextRunAfter({period:'daily',timezone:'Asia/Qatar',localTime:'19:30'},'2026-10-01 16:30:00.000'),'2026-10-02 16:30:00.000');
+});
+test('daily report cutoffs must stay inside the selected Qatar-local calendar day',()=>{
+  const reports=require('../helper/pipeline/reports');
+  assert.equal(reports.periodWindow({period:'daily',at:'2026-10-01',timezone:'Asia/Qatar',cutoffAt:'2026-10-01 16:30:00.000'}).end,'2026-10-01 16:30:00.000');
+  assert.equal(reports.periodWindow({period:'daily',at:'2026-10-02',timezone:'Asia/Qatar',cutoffAt:'2026-10-02T21:00:00.000Z'}).end,'2026-10-02 21:00:00.000');
+  assert.throws(()=>reports.periodWindow({period:'daily',at:'2026-10-01',timezone:'Asia/Qatar',cutoffAt:'2026-10-01T21:00:01.000Z'}));
+});
 test('report schedules require active training-center entitlement and owner permission',()=>{
   assert.doesNotThrow(()=>schedules.validateContext(context()));
   assert.throws(()=>schedules.validateContext(context({membership:{id:'manager',tenantId:'tenant-a',role:'manager',status:'active',delegatedPermissions:[]}})),{code:'PERMISSION_DENIED'});
@@ -25,5 +43,5 @@ test('report schedules require active training-center entitlement and owner perm
 });
 test('the existing bilingual pipeline Reports view exposes schedules with honest delivery state',()=>{
   const fs=require('node:fs'),path=require('node:path'),js=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),html=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
-  assert.match(html,/reports\.js\?v=5/);assert.match(js,/\/api\/pipeline\/reports\/schedules/);assert.match(js,/scheduleEmailUnverified/);assert.match(js,/scheduleWhatsAppUnverified/);assert.match(js,/scheduleProvider/);assert.match(js,/المجدول والتسليم الآلي غير مفعّلين/);
+  assert.match(html,/reports\.js\?v=6/);assert.match(js,/\/api\/pipeline\/reports\/schedules/);assert.match(js,/scheduleEmailUnverified/);assert.match(js,/scheduleWhatsAppUnverified/);assert.match(js,/scheduleRun_generated/);assert.match(js,/Snapshot generated \(not sent\)/);assert.match(js,/تم إنشاء الملخص \(لم يُرسل\)/);
 });
