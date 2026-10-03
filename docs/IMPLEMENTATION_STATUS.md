@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Training lifecycle stages in the existing Lead Pipeline — local, 3 October 2026
+
+Training sale conversion now seeds six protected post-sale stages into the existing pipeline and moves the won lead to **Sale converted · invoice issued** in the same transaction that issues its invoice. Payment verification advances to **Payment received** or **Paid in full** using posted allocations after reversals; course start, completion and certificate issuance advance the same linked lead automatically. The lead remains won, and existing open/lost workflows are unchanged. Arabic stage names are supplied in the existing board and Reports view. The regular 15-stage limit stays unchanged for other pipelines; training pipelines reserve six additional system stages. No migration was needed because this uses existing stage and activity tables. Full 38-migration MariaDB acceptance asserts every lifecycle transition and the final certificate lane; production deployment and authenticated browser acceptance remain open.
+
 ## Lead agent attribution correction — local, 3 October 2026
 
 The Lead Reports scorecard now attributes attended leads to the agent recorded on the actual contact/note activity. Reassigning a lead no longer moves an earlier agent's attendance to its new owner; current assignment remains a separate scorecard column. The sales column label now states that credit is attributed at conversion in English and Arabic. The existing read-only tenant-scoped report API and pipeline report cache key are updated; no database migration is needed. Focused tests pass, and a disposable MariaDB integration asserts the reassignment case after applying all 38 migrations (`customerDataTouched=false`, `externalWrites=false`). Production deployment and authenticated browser acceptance remain open.

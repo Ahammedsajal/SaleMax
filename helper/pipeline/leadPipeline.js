@@ -698,9 +698,12 @@ function makeStageKey(title) {
 async function createStage(uid, input) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
-    const [counts] = await connection.query("SELECT COUNT(*) AS count FROM pipeline_stages WHERE uid_hash = ?", [uidHash]);
-    if (Number(counts[0]?.count || 0) >= 15) {
-      const error = new Error("A pipeline can have at most 15 stages."); error.status = 400; throw error;
+    const [counts] = await connection.query(`SELECT COUNT(*) AS count,
+      SUM(stage_key IN ('training_invoice_issued','training_payment_received','training_course_started','training_fully_paid','training_course_completed','training_certificate_issued')) AS training_journey_stages
+      FROM pipeline_stages WHERE uid_hash = ?`, [uidHash]);
+    const stageLimit=Number(counts[0]?.training_journey_stages||0)===6?21:15;
+    if (Number(counts[0]?.count || 0) >= stageLimit) {
+      const error = new Error(`A pipeline can have at most ${stageLimit} stages.`); error.status = 400; throw error;
     }
     const title = text(input.title, 100);
     if (!title) { const error = new Error("Stage name is required."); error.status = 400; throw error; }
@@ -737,7 +740,9 @@ async function updateStage(uid, stageKey, input) {
 async function reorderStages(uid, stageKeys) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
-    if (!Array.isArray(stageKeys) || stageKeys.length < 2 || stageKeys.length > 15) {
+    const trainingJourneyStages=Array.isArray(stageKeys)?stageKeys.filter(key=>['training_invoice_issued','training_payment_received','training_course_started','training_fully_paid','training_course_completed','training_certificate_issued'].includes(key)).length:0;
+    const stageLimit=trainingJourneyStages===6?21:15;
+    if (!Array.isArray(stageKeys) || stageKeys.length < 2 || stageKeys.length > stageLimit) {
       const error = new Error("Provide the full ordered list of pipeline stages."); error.status = 400; throw error;
     }
     const [rows] = await connection.query("SELECT stage_key FROM pipeline_stages WHERE uid_hash = ? ORDER BY position, id", [uidHash]);

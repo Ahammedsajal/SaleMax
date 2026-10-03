@@ -40,7 +40,7 @@ test('existing pipeline add-opportunity screen offers contact reuse and separate
   assert.match(screen, /lead\.contact_id\|\|isAgent\?'disabled':''/);
   assert.match(screen, /Create a separate contact \/ learner/);
   assert.match(screen, /إنشاء جهة اتصال \/ متعلم مستقل/);
-  assert.match(html, /pipeline\.js\?v=16/);
+  assert.match(html, /pipeline\.js\?v=17/);
   assert.match(screen, /settingsModal\(\)\{if\(state\.data\?\.role!==['"]owner['"]\)/);
   assert.match(screen, /conversionReady&&\['owner','agent'\]\.includes\(state\.data\?\.role\)/);
   assert.match(screen, /invoiceIssueOwnerOnly/);

@@ -71,10 +71,14 @@ test('journey reports reject finance-only roles before database access',async()=
 });
 
 test('finance report summary remains owner-only and presents exact bilingual Qatar currency totals',()=>{
-  const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
-  assert.match(screen,/\/pipeline\/reports\.js\?v=12/);
+  const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),pipelineUi=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/pipeline.js'),'utf8'),screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
+  assert.match(screen,/\/pipeline\/reports\.js\?v=13/);
+  assert.match(screen,/\/pipeline\/pipeline\.js\?v=17/);
   assert.match(ui,/Sales credited at conversion/);
   assert.match(ui,/مبيعات منسوبة وقت التحويل/);
+  assert.match(ui,/Training journey/);
+  assert.match(ui,/رحلة التدريب/);
+  assert.match(pipelineUi,/training_certificate_issued:'صدرت الشهادة'/);
   assert.match(ui,/report\.finance/);assert.match(ui,/BigInt\(String\(value\|\|'0'\)\)/);
   assert.match(ui,/Outstanding now/);assert.match(ui,/المتبقي الآن/);
   assert.match(ui,/collected and outstanding are current/);assert.match(ui,/يعرض المحصل والمتبقي حتى وقت إعداد التقرير/);
