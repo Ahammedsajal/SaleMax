@@ -43,7 +43,7 @@ function decodeToken(token) {
         });
       }
 
-      if (getUser[0]?.api_key !== token) {
+      if (getUser[0]?.api_key !== token || !await require('../modules/platform/optional-features').enabledForUid(getUser[0].uid,'customer_api')) {
         return resolve({ success: false, msg: "Token was expired." });
       } else {
         resolve({

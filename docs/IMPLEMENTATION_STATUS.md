@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Optional customer integrations — 3 October 2026
+
+Chat Widget, customer API access (QR REST, conversational/template APIs and API Dashboard), webhooks (management, automation and logs), and WhatsApp Warmer now default to disabled for accounts in this isolated training deployment. The existing user sidebar hides these entries; direct navigation redirects to Dashboard. Per-user opt-in controls are added to existing Manage Users and require the existing verified platform session, MFA, plan grants, portfolio access, CSRF and an expected revision. Changes are audited and do not rewrite plans. Missing/unavailable settings deny optional access. Internal training APIs remain available. Legacy API-key issuance/use, public widgets, incoming webhook execution and warmer jobs all check the same per-user switches. The historical hard-coded QR diagnostic sender is retired.
+
+Verification and production release evidence will be recorded after the clean-release checks and deployment. The unrelated eight unfinished platform prototype files remain outside this release. Provider delivery remains disabled; this release does not complete the remaining training-center acceptance tickets.
+
 ## Delegated SaleMaX Admin portfolios — deployed 2 October 2026
 
 Commit `1f38ea5` is deployed at `/opt/salemax/releases/admin-portfolios-1f38ea5` and serving `https://crm.salemax.qa`. The existing platform panel now supports owner-created SaleMaX Admin and Staff accounts, Admin-to-Staff reporting lines, scoped customer listings and actions, audited customer assignment, Super Admin-only customer impersonation, and per-Admin/global dashboard statistics. Admins see customers they create or that Super Admin assigns; Staff inherit their Admin's portfolio. Super Admin-created private customers remain owner-only until assigned. Existing customer logins and the `/admin` and `/user` application routes remain in place.

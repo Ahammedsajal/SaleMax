@@ -67,6 +67,8 @@ async function main() {
     const businessProvisioningEvidence=await require('./business-provisioning-integration.cjs')(connection,other,{i1},pool);
     const teamInvitationEvidence=await require('./team-invitation-integration.cjs')(connection,other,pool,{i1});
     const outboxEvidence=await require('./outbox-integration.cjs')(connection,other,{t1,m1});
+    const optionalFeatureEvidence=await require('./optional-features-integration.cjs')(connection,{audience:'platform',identity:{id:i1},membership:{role:'super_admin',status:'active'},mfaVerified:true});
+    console.log(JSON.stringify(optionalFeatureEvidence));
     const lockName = 'salemax:migrate:' + crypto.createHash('sha256').update(db).digest('hex').slice(0,40);
     await connection.query('SELECT GET_LOCK(?, 0)', [lockName]);
     await assert.rejects(applyMigrations(other, migrations), { code: 'MIGRATION_LOCKED' });

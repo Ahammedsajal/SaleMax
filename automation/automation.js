@@ -510,6 +510,7 @@ async function processAutomation({
 }
 
 async function processWebhookAutomation({ webhook, data, type }) {
+  if (!await require('../modules/platform/optional-features').enabledForUid(webhook?.uid,'webhooks')) return;
   try {
     const { uid } = webhook;
     const userFlows = await flowProcessor.getActiveFlows({

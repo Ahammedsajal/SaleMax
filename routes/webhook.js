@@ -191,6 +191,8 @@ router.post("/webhook/:webhook_id", async (req, res) => {
 
     const webhook = webhooks[0];
 
+    if (!await require('../modules/platform/optional-features').enabledForUid(webhook.uid,'webhooks')) return res.status(403).json({success:false,code:'FEATURE_DISABLED'});
+
     // Get event type from headers or default to 'unknown'
     const eventType = req.headers["x-event-type"] || "unknown";
 
@@ -280,6 +282,8 @@ router.get("/webhook/:webhook_id", async (req, res) => {
     }
 
     const webhook = webhooks[0];
+
+    if (!await require('../modules/platform/optional-features').enabledForUid(webhook.uid,'webhooks')) return res.status(403).json({success:false,code:'FEATURE_DISABLED'});
 
     // Get event type from headers or default to 'unknown'
     const eventType = req.headers["x-event-type"] || "unknown";

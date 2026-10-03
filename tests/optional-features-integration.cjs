@@ -1,0 +1,21 @@
+'use strict';
+const assert=require('node:assert/strict');
+const optional=require('../modules/platform/optional-features');
+module.exports=async function(db,context){
+  const [result]=await db.query("INSERT INTO user(uid,name) VALUES ('optional-synthetic','Synthetic optional')");
+  const id=result.insertId;
+  assert.deepEqual((await optional.read(db,id)).features,optional.defaults());
+  const readQuery=async(sql,args)=>(await db.query(sql,args))[0];
+  assert.equal(await optional.enabledForUid('optional-synthetic','customer_api',readQuery),false);
+  const enabled={...optional.defaults(),customer_api:true,chat_widget:true};
+  const saved=await optional.save(db,context,id,{features:enabled,revision:0});assert.equal(saved.revision,1);
+  assert.equal(await optional.enabledForUid('optional-synthetic','customer_api',readQuery),true);
+  assert.equal(await optional.enabledForUid('optional-synthetic','webhooks',readQuery),false);
+  await assert.rejects(optional.save(db,context,id,{features:optional.defaults(),revision:0}),{code:'STALE_FEATURE_SETTINGS'});
+  const staff={...context,membership:{role:'platform_admin',status:'active'}};
+  await assert.rejects(optional.save(db,staff,id,{features:optional.defaults(),revision:1}),{code:'PORTFOLIO_ACCESS_DENIED'});
+  await optional.save(db,context,id,{features:optional.defaults(),revision:1});
+  assert.equal(await optional.enabledForUid('optional-synthetic','customer_api',readQuery),false);
+  const [[count]]=await db.query("SELECT COUNT(*) AS n FROM sx_audit_events WHERE action='user.optional-features-updated' AND resource_id=?",[String(id)]);assert.equal(Number(count.n),2);
+  return {optionalFeaturesDefaultOff:true,optionalFeaturesPerUserRevocation:true,optionalFeaturesStaleWriteDenied:true,optionalFeaturesPortfolioIsolation:true,optionalFeatureChangesAudited:true};
+};

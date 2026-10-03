@@ -2656,6 +2656,7 @@ function extractFileName(url) {
 
 async function checkWarmerPlan({ uid }) {
   try {
+    if (!await require('../modules/platform/optional-features').enabledForUid(uid,'whatsapp_warmer')) return false;
     const [user] = await query(`SELECT * FROM user WHERE uid = ?`, [uid]);
     const warmer = user?.plan ? JSON.parse(user?.plan)?.wa_warmer : 0;
     return parseInt(warmer) > 0 ? true : false;

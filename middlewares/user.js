@@ -32,6 +32,11 @@ const validateUser = async (req, res, next) => {
         if (getUser[0].role === "user") {
           req.decode = decode;
           req.decode.userData = getUser[0];
+          const optional = require('../modules/platform/optional-features');
+          const feature = optional.featureForRequest(req);
+          if (feature && !await optional.enabledForUid(getUser[0].uid, feature)) {
+            return res.status(403).json({success:false,code:'FEATURE_DISABLED',feature,msg:'This feature is disabled for your account.'});
+          }
           next();
         } else {
           return res.json({

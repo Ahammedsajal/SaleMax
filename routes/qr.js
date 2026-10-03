@@ -56,7 +56,7 @@ function decodeToken(token) {
         });
       }
 
-      if (getUser[0]?.api_key !== token) {
+      if (getUser[0]?.api_key !== token || !await require('../modules/platform/optional-features').enabledForUid(getUser[0].uid,'customer_api')) {
         return resolve({
           success: false,
           data: {},
@@ -74,7 +74,11 @@ function decodeToken(token) {
 
 router.get("/create", async (req, res) => {
   try {
+    const access=await decodeToken(req.query.token || '');
+    if(!access.success)return res.status(403).json({success:false,code:'FEATURE_DISABLED'});
     const { id } = req.query;
+    const owned=await query('SELECT uniqueId FROM instance WHERE uniqueId=? AND uid=?',[id,access.data.uid]);
+    if(owned.length!==1)return res.status(404).json({success:false,code:'INSTANCE_NOT_FOUND'});
     // Kick off session creation (which returns immediately)
     await createSession(id || "ID");
     res.json({
@@ -91,33 +95,8 @@ router.get("/create", async (req, res) => {
   }
 });
 
-router.get("/send", async (req, res) => {
-  try {
-    const number = req.query;
-    const session = await getSession(
-      "lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8_zCB5YplH",
-    );
-    console.log(session);
-
-    if (session) {
-      const esn = await session.sendMessage("918430088300@s.whatsapp.net", {
-        text: "Hello",
-      });
-      console.log({ esn });
-    } else {
-      console.log("Session not found");
-    }
-
-    res.json("DONE");
-  } catch (err) {
-    console.error(err);
-    res.json({
-      success: false,
-      msg: "Something went wrong",
-      err: err.message,
-    });
-  }
-});
+// Retired historical diagnostic sender. Real customer sends use /rest/send_message.
+router.get('/send',(req,res)=>res.status(410).json({success:false,code:'ENDPOINT_RETIRED'}));
 
 router.post(
   "/gen_qr",
@@ -654,8 +633,9 @@ async function processMessageRequest(params, res) {
     });
   }
 
-  const checkWarmer = await checkWarmerPlan({ uid: user.uid });
-  if (!checkWarmer) {
+  let qrApiAllowed=false;
+  try {qrApiAllowed=Number(JSON.parse(user.plan).rest_api_qr)>0;} catch {}
+  if (!qrApiAllowed) {
     return res.status(403).json({
       success: false,
       message: "Your subscription plan does not allow Rest API QR function.",

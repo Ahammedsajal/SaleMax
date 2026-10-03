@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const { query } = require("../database/dbpromise.js");
+const optionalFeatures = require('../modules/platform/optional-features');
 const { syncOrQueueNodeUser } = require("../functions/crmAccountSync.js");
 const randomstring = require("randomstring");
 const bcrypt = require("bcrypt");
@@ -1964,6 +1965,12 @@ router.get("/modify_password", validateUser, async (req, res) => {
 });
 
 // generate api keys
+router.get('/optional-features', validateUser, async (req,res) => {
+  try {
+    const rows=await query('SELECT * FROM sx_user_optional_features WHERE legacy_user_id=?',[req.decode.userData.id]);
+    res.setHeader('Cache-Control','no-store');res.json({success:true,data:optionalFeatures.project(rows[0])});
+  } catch {res.status(503).json({success:false,code:'FEATURE_SETTINGS_UNAVAILABLE'});}
+});
 router.get("/generate_api_keys", validateUser, async (req, res) => {
   try {
     const token = sign(
@@ -2172,6 +2179,8 @@ router.get("/widget", async (req, res) => {
     if (getWidget.length < 1) {
       return res.send(``);
     }
+
+    if (!await optionalFeatures.enabledForUid(getWidget[0].uid,'chat_widget')) return res.send('');
 
     const url = generateWhatsAppURL(
       getWidget[0]?.whatsapp_number,
