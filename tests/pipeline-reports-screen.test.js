@@ -9,11 +9,17 @@ const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'client/public/pipeline/index.html'), 'utf8');
 const reports = fs.readFileSync(path.join(root, 'client/public/pipeline/reports.js'), 'utf8');
 const pipeline = fs.readFileSync(path.join(root, 'client/public/pipeline/pipeline.js'), 'utf8');
+const entry = fs.readFileSync(path.join(root, 'client/public/pipeline-entry.js'), 'utf8');
+const sidebar = fs.readFileSync(path.join(root, 'client/public/training-sidebar.js'), 'utf8');
 
 test('reports is integrated as a bilingual view in the existing pipeline screen', () => {
   assert.match(html, /id="reportsMode"/);
   assert.match(html, /id="reports" class="reports hidden"/);
   assert.match(html, /src="\/pipeline\/reports\.js\?v=\d+"/);
+  assert.match(reports, /get\('view'\)==='reports'/);
+  assert.match(entry, /page.*lead-reports/);
+  assert.match(entry, /view=reports/);
+  assert.match(sidebar, /Lead Reports/);
   assert.match(html, /id="followupsMode"/);
   assert.match(html, /id="followups" class="reports hidden"/);
   assert.match(reports, /\/api\/pipeline\/reports\/activity/);
