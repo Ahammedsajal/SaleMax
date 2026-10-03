@@ -36,22 +36,25 @@ async function list(db,ctx,raw={}){
   const [agentCreditRows]=await db.query(`SELECT c.sales_agent_id AS agent_id,c.sales_agent_name AS agent_name,
       COUNT(DISTINCT c.sale_review_id) AS sale_count,COUNT(DISTINCT pay.id) AS payment_count,
       COALESCE(SUM(CAST(pay.amount_minor AS DECIMAL(65,0))),0) AS received_minor,
-      COALESCE(SUM(CAST(collected.applied_minor AS DECIMAL(65,0))),0) AS applied_minor,
-      COALESCE(SUM(CAST(collected.reversed_minor AS DECIMAL(65,0))),0) AS reversed_minor,
-      COALESCE(SUM(CAST(collected.applied_minor AS DECIMAL(65,0))-CAST(collected.reversed_minor AS DECIMAL(65,0))),0) AS credited_minor
+      COALESCE(SUM(CAST(COALESCE(collected.applied_minor,0)-COALESCE(collected.allocation_reversed_minor,0) AS DECIMAL(65,0))),0) AS applied_minor,
+      COALESCE(SUM(CAST(COALESCE(refunds.refunded_minor,0)+COALESCE(disputes.charged_back_minor,0) AS DECIMAL(65,0))),0) AS reversed_minor,
+      COALESCE(SUM(CAST(pay.amount_minor-COALESCE(refunds.refunded_minor,0)-COALESCE(disputes.charged_back_minor,0) AS DECIMAL(65,0))),0) AS credited_minor
     FROM sx_training_sale_conversions c
     JOIN sx_training_invoices i ON i.tenant_id=c.tenant_id AND i.id=c.invoice_id AND i.status='issued'
-    JOIN (SELECT a.tenant_id,a.invoice_id,a.payment_id,SUM(a.amount_minor) AS applied_minor,
-          SUM(COALESCE(r.reversed_minor,0)) AS reversed_minor
+    JOIN sx_training_payments pay ON pay.tenant_id=i.tenant_id AND pay.invoice_id=i.id AND pay.status='posted'
+    LEFT JOIN (SELECT a.tenant_id,a.invoice_id,a.payment_id,SUM(a.amount_minor) AS applied_minor,
+          SUM(COALESCE(r.reversed_minor,0)) AS allocation_reversed_minor
       FROM sx_training_payment_allocations a
-      JOIN sx_training_payments p ON p.tenant_id=a.tenant_id AND p.id=a.payment_id AND p.status='posted'
       LEFT JOIN (SELECT tenant_id,allocation_id,SUM(amount_minor) AS reversed_minor FROM sx_training_payment_allocation_reversals WHERE tenant_id=? GROUP BY tenant_id,allocation_id) r
         ON r.tenant_id=a.tenant_id AND r.allocation_id=a.id
       WHERE a.tenant_id=? GROUP BY a.tenant_id,a.invoice_id,a.payment_id) collected
-      ON collected.tenant_id=i.tenant_id AND collected.invoice_id=i.id
-    JOIN sx_training_payments pay ON pay.tenant_id=collected.tenant_id AND pay.id=collected.payment_id
+      ON collected.tenant_id=pay.tenant_id AND collected.invoice_id=pay.invoice_id AND collected.payment_id=pay.id
+    LEFT JOIN (SELECT tenant_id,payment_id,SUM(amount_minor) AS refunded_minor FROM sx_training_refunds WHERE tenant_id=? AND status='completed' GROUP BY tenant_id,payment_id) refunds
+      ON refunds.tenant_id=pay.tenant_id AND refunds.payment_id=pay.id
+    LEFT JOIN (SELECT tenant_id,payment_id,SUM(amount_minor) AS charged_back_minor FROM sx_training_payment_disputes WHERE tenant_id=? AND status='lost' GROUP BY tenant_id,payment_id) disputes
+      ON disputes.tenant_id=pay.tenant_id AND disputes.payment_id=pay.id
     WHERE c.tenant_id=? AND (?='' OR DATE(i.issued_at)>=?) AND (?='' OR DATE(i.issued_at)<=?)
-    GROUP BY c.sales_agent_id,c.sales_agent_name ORDER BY credited_minor DESC,payment_count DESC,c.sales_agent_name`,[tenantId,tenantId,tenantId,from,from,to,to]);
+    GROUP BY c.sales_agent_id,c.sales_agent_name ORDER BY credited_minor DESC,payment_count DESC,c.sales_agent_name`,[tenantId,tenantId,tenantId,tenantId,tenantId,from,from,to,to]);
   const clauses=['open_minor>0'],params=[...dateParams];if(bucket!=='all'){clauses.push('bucket=?');params.push(bucket);}if(q){const term=`%${q.replace(/[\\%_]/g,'\\$&')}%`;clauses.push('(invoice_number LIKE ? OR learner_name LIKE ? OR payer_name LIKE ? OR course_name_en LIKE ? OR course_name_ar LIKE ?)');params.push(term,term,term,term,term);}
   const where=clauses.join(' AND '),offset=(page-1)*limit,[[count]]=await db.query(`SELECT COUNT(*) AS total FROM (${base}) receivables WHERE ${where}`,params);
   const [rows]=await db.query(`SELECT * FROM (${base}) receivables WHERE ${where} ORDER BY age_days DESC,due_date,invoice_number,sequence_number LIMIT ? OFFSET ?`,[...params,limit,offset]);
