@@ -125,15 +125,55 @@ async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at
       COUNT(DISTINCT l.id) AS assignedLeads,
       COUNT(DISTINCT CASE WHEN l.created_at>=? AND l.created_at<? THEN l.id END) AS newLeads,
       COUNT(DISTINCT CASE WHEN pa.activity_type IN ('contact_outcome','note_added') AND pa.created_at>=? AND pa.created_at<? THEN l.id END) AS attendedLeads,
-      COUNT(DISTINCT CASE WHEN pa.activity_type='sale_converted' AND pa.created_at>=? AND pa.created_at<? THEN l.id END) AS salesAttributed,
-      COUNT(DISTINCT CASE WHEN pa.activity_type='sale_converted' AND pa.actor_type='agent' AND pa.actor_id COLLATE utf8mb4_general_ci=CAST(a.id AS CHAR) COLLATE utf8mb4_general_ci AND pa.created_at>=? AND pa.created_at<? THEN l.id END) AS salesClosedByAgent
+      COALESCE(MAX(sales.sales_attributed),0) AS salesAttributed,
+      COALESCE(MAX(sales.sales_closed_by_agent),0) AS salesClosedByAgent
       FROM agents a LEFT JOIN pipeline_leads l ON l.uid_hash=? AND l.uid=? AND l.owner_agent_id=a.id
       LEFT JOIN pipeline_activity pa ON pa.uid_hash=l.uid_hash AND pa.lead_id=l.id AND pa.created_at>=? AND pa.created_at<?
-      WHERE a.owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci${role==='agent'?' AND a.id=?':''} GROUP BY a.id,a.name,a.is_active ORDER BY salesClosedByAgent DESC,salesAttributed DESC,attendedLeads DESC,newLeads DESC,a.name`,[window.start,window.end,window.start,window.end,window.start,window.end,window.start,window.end,uidHash,uid,window.start,window.end,uid,...(role==='agent'?[agentId]:[])]);
+      LEFT JOIN (
+        SELECT e.legacy_uid_hash,e.legacy_uid,c.sales_agent_id,
+          COUNT(DISTINCT c.id) AS sales_attributed,
+          COUNT(DISTINCT CASE WHEN c.confirmed_by_actor_type='agent'
+          AND c.confirmed_by_actor_id COLLATE ascii_bin=CAST(c.sales_agent_id AS CHAR CHARACTER SET ascii) COLLATE ascii_bin
+            THEN c.id END) AS sales_closed_by_agent
+        FROM sx_training_sale_conversions c
+        JOIN sx_training_enrollments e ON e.tenant_id=c.tenant_id AND e.id=c.enrollment_id
+        JOIN sx_training_invoices i ON i.tenant_id=c.tenant_id AND i.id=c.invoice_id
+        WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND c.sales_agent_id IS NOT NULL
+          AND i.issued_at>=? AND i.issued_at<?
+        GROUP BY e.legacy_uid_hash,e.legacy_uid,c.sales_agent_id
+      ) sales ON sales.legacy_uid_hash=? AND sales.legacy_uid=? AND sales.sales_agent_id=a.id
+      WHERE a.owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci${role==='agent'?' AND a.id=?':''} GROUP BY a.id,a.name,a.is_active ORDER BY salesClosedByAgent DESC,salesAttributed DESC,attendedLeads DESC,newLeads DESC,a.name`,[window.start,window.end,window.start,window.end,uidHash,uid,window.start,window.end,uidHash,uid,window.start,window.end,uidHash,uid,uid,...(role==='agent'?[agentId]:[])]);
     const [transitions]=await connection.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.stageTo')) AS stageKey,COUNT(*) AS total
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
       WHERE pa.uid_hash=? AND l.uid=? AND pa.activity_type='stage_changed' AND pa.created_at>=? AND pa.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''}
       GROUP BY stageKey ORDER BY total DESC,stageKey`,[uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[])]);
+    const learnerScope=role==='agent'?` AND EXISTS (SELECT 1 FROM sx_training_sale_conversions attributed
+      WHERE attributed.tenant_id=e.tenant_id AND attributed.enrollment_id=e.id AND attributed.sales_agent_id=?)`:'';
+    const metricWindowArgs=()=>[uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[])];
+    const [[journeyActivity]]=await connection.query(`WITH journey_events AS (
+      SELECT 'invoice_issued' AS event_type,i.id AS event_id,0 AS amount_minor
+      FROM sx_training_invoices i JOIN sx_training_enrollments e ON e.tenant_id=i.tenant_id AND e.id=i.enrollment_id
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND i.status='issued' AND i.issued_at>=? AND i.issued_at<?${learnerScope}
+      UNION ALL
+      SELECT 'payment_received',r.id,r.amount_minor
+      FROM sx_training_receipts r JOIN sx_training_invoices i ON i.tenant_id=r.tenant_id AND i.id=r.invoice_id
+      JOIN sx_training_enrollments e ON e.tenant_id=i.tenant_id AND e.id=i.enrollment_id
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND r.issued_at>=? AND r.issued_at<?${learnerScope}
+      UNION ALL
+      SELECT ev.event_type,ev.id,0
+      FROM sx_training_enrollment_events ev JOIN sx_training_enrollments e ON e.tenant_id=ev.tenant_id AND e.id=ev.enrollment_id
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND ev.created_at>=? AND ev.created_at<? AND ev.event_type IN ('course_started','course_completed')${learnerScope}
+      UNION ALL
+      SELECT 'certificate_issued',cert.id,0
+      FROM sx_training_certificates cert JOIN sx_training_enrollments e ON e.tenant_id=cert.tenant_id AND e.id=cert.enrollment_id
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND cert.issued_at>=? AND cert.issued_at<?${learnerScope}
+    ) SELECT COUNT(DISTINCT CASE WHEN event_type='invoice_issued' THEN event_id END) AS invoices_issued,
+      COUNT(DISTINCT CASE WHEN event_type='payment_received' THEN event_id END) AS payment_receipts_issued,
+      COALESCE(SUM(CASE WHEN event_type='payment_received' THEN amount_minor ELSE 0 END),0) AS payments_received_minor,
+      COUNT(DISTINCT CASE WHEN event_type='course_started' THEN event_id END) AS courses_started,
+      COUNT(DISTINCT CASE WHEN event_type='course_completed' THEN event_id END) AS courses_completed,
+      COUNT(DISTINCT CASE WHEN event_type='certificate_issued' THEN event_id END) AS certificates_issued
+      FROM journey_events`,[...metricWindowArgs(),...metricWindowArgs(),...metricWindowArgs(),...metricWindowArgs()]);
     const [[learnerJourney]]=await connection.query(`SELECT COUNT(*) AS enrolled,
       SUM(e.started_at IS NOT NULL) AS course_started,SUM(e.completed_at IS NOT NULL) AS course_completed,
       SUM(cert.id IS NOT NULL) AS certificates_issued,
@@ -142,9 +182,9 @@ async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at
         WHERE a.tenant_id=e.tenant_id AND a.invoice_id=i.id)>=i.total_minor) AS fully_paid
       FROM sx_training_enrollments e JOIN sx_training_invoices i ON i.tenant_id=e.tenant_id AND i.enrollment_id=e.id
       LEFT JOIN sx_training_certificates cert ON cert.tenant_id=e.tenant_id AND cert.enrollment_id=e.id
-      WHERE e.legacy_uid_hash=? AND e.legacy_uid=?${role==='agent'?' AND e.lead_id IN (SELECT id FROM pipeline_leads WHERE uid_hash=? AND uid=? AND owner_agent_id=?)':''}`,[uidHash,uid,...(role==='agent'?[uidHash,uid,agentId]:[])]);
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=?${learnerScope}`,[uidHash,uid,...(role==='agent'?[agentId]:[])]);
     const mappedStages=stages.map(row=>({...row,total:Number(row.total)})),mappedAgents=agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),newLeads:Number(row.newLeads),attendedLeads:Number(row.attendedLeads),salesAttributed:Number(row.salesAttributed),salesClosedByAgent:Number(row.salesClosedByAgent)}));
-    await connection.commit();return {period:window.period,timezone:window.timezone,from:window.start,to:window.end,asOf:new Date().toISOString(),summary:{newLeads:Number(flow.new_leads||0),leadsAttended:Number(flow.leads_attended||0),stageChanges:Number(flow.stage_changes||0),salesConverted:Number(flow.sales_converted||0),salesClosedByAgents:Number(flow.sales_closed_by_agents||0),openLeads:mappedStages.filter(row=>row.stageType==='open').reduce((sum,row)=>sum+row.total,0),wonLeads:mappedStages.filter(row=>row.stageType==='won').reduce((sum,row)=>sum+row.total,0),lostLeads:mappedStages.filter(row=>row.stageType==='lost').reduce((sum,row)=>sum+row.total,0)},learnerJourney:{enrolled:Number(learnerJourney.enrolled||0),courseStarted:Number(learnerJourney.course_started||0),courseCompleted:Number(learnerJourney.course_completed||0),fullyPaid:Number(learnerJourney.fully_paid||0),certificatesIssued:Number(learnerJourney.certificates_issued||0)},stages:mappedStages,sources:sources.map(row=>({...row,total:Number(row.total)})),stageTransitions:transitions.map(row=>({...row,total:Number(row.total)})),agents:mappedAgents};
+    await connection.commit();return {period:window.period,timezone:window.timezone,from:window.start,to:window.end,asOf:new Date().toISOString(),summary:{newLeads:Number(flow.new_leads||0),leadsAttended:Number(flow.leads_attended||0),stageChanges:Number(flow.stage_changes||0),salesConverted:Number(flow.sales_converted||0),salesClosedByAgents:Number(flow.sales_closed_by_agents||0),openLeads:mappedStages.filter(row=>row.stageType==='open').reduce((sum,row)=>sum+row.total,0),wonLeads:mappedStages.filter(row=>row.stageType==='won').reduce((sum,row)=>sum+row.total,0),lostLeads:mappedStages.filter(row=>row.stageType==='lost').reduce((sum,row)=>sum+row.total,0)},journeyActivity:{invoicesIssued:Number(journeyActivity.invoices_issued||0),paymentReceiptsIssued:Number(journeyActivity.payment_receipts_issued||0),paymentsReceivedMinor:String(journeyActivity.payments_received_minor||0),coursesStarted:Number(journeyActivity.courses_started||0),coursesCompleted:Number(journeyActivity.courses_completed||0),certificatesIssued:Number(journeyActivity.certificates_issued||0)},learnerJourney:{enrolled:Number(learnerJourney.enrolled||0),courseStarted:Number(learnerJourney.course_started||0),courseCompleted:Number(learnerJourney.course_completed||0),fullyPaid:Number(learnerJourney.fully_paid||0),certificatesIssued:Number(learnerJourney.certificates_issued||0)},stages:mappedStages,sources:sources.map(row=>({...row,total:Number(row.total)})),stageTransitions:transitions.map(row=>({...row,total:Number(row.total)})),agents:mappedAgents};
   }catch(error){try{await connection.rollback();}catch(_){}throw error;}finally{connection.release();}
 }
 module.exports={periodWindow,getActivityReport,getJourneyReport};

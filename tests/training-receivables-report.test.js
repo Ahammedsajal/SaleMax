@@ -12,3 +12,23 @@ test('receivables report bounds paging and accepts only defined aging filters',(
 test('receivables report uses a Qatar-local ISO report date',()=>{
   assert.match(report.todayQatar(),/^\d{4}-\d{2}-\d{2}$/);
 });
+
+test('finance report exposes payment credit from posted invoice receipts net of reversals',async()=>{
+  const queries=[],tenantId='tenant-finance-credit',from='2026-10-01',to='2026-10-31';
+  const db={async query(sql,params){queries.push({sql,params});
+    if(sql.includes('COUNT(DISTINCT invoice_id) AS invoice_count'))return [[{invoice_count:0,installment_count:0,outstanding_minor:0,current_minor:0,overdue_minor:0,overdue_invoice_count:0}]];
+    if(sql.includes('GROUP BY bucket'))return [[]];
+    if(sql.includes('AS issued_invoice_count'))return [[{issued_invoice_count:1,billed_minor:300000,collected_minor:260000,credited_minor:0,credited_invoice_count:0,settled_invoice_count:0,partial_invoice_count:1}]];
+    if(sql.includes('AS pending')||sql.includes('AS amount_minor FROM sx_training_payments'))return [[{count:0,amount_minor:0}]];
+    if(sql.includes('COUNT(DISTINCT pay.id) AS payment_count'))return [[{agent_id:17,agent_name:'Agent Snapshot',sale_count:1,payment_count:2,received_minor:300000,applied_minor:275000,reversed_minor:15000,credited_minor:260000}]];
+    if(sql.includes('COUNT(*) AS total FROM ('))return [[{total:0}]];
+    if(sql.startsWith('SELECT * FROM ('))return [[]];
+    throw new Error(`Unexpected report query: ${sql}`);
+  }};
+  const ctx={audience:'tenant',identity:{id:'finance-reader'},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'finance-member',tenantId,role:'accountant',status:'active'},category:{key:'training_center',version:1,capabilities:['finance.invoices','tenant.settings']},subscription:{status:'active',capabilities:['finance.invoices','tenant.settings']}};
+  const result=await report.list(db,ctx,{from,to});
+  assert.deepEqual(result.agentPaymentCredit,[{agentId:17,agentName:'Agent Snapshot',saleCount:1,paymentCount:2,receivedMinor:300000,appliedMinor:275000,reversedMinor:15000,creditedMinor:260000}]);
+  const creditQuery=queries.find(item=>item.sql.includes('COUNT(DISTINCT pay.id) AS payment_count'));
+  assert.match(creditQuery.sql,/p\.status='posted'/);assert.match(creditQuery.sql,/training_payment_allocation_reversals/);assert.match(creditQuery.sql,/c\.tenant_id=\?/);
+  assert.deepEqual(creditQuery.params,[tenantId,tenantId,tenantId,from,from,to,to]);
+});

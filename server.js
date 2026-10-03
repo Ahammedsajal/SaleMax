@@ -15,8 +15,10 @@ const {
 const { query } = require("./database/dbpromise.js");
 const { startCrmAccountSyncWorker } = require("./functions/crmAccountSync.js");
 const { isLicenseActivated } = require("./middlewares/license.js");
+const receiptWorkerRuntime = require("./modules/platform/training-receipt-worker-runtime");
 
 const app = express();
+let receiptWorkerProcess = null;
 const currentDir = process.cwd();
 const publicDir = path.resolve(currentDir, "./client/public");
 
@@ -246,6 +248,14 @@ const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0
     console.log("Local training mode: background provider workers are disabled.");
     return;
   }
+  receiptWorkerProcess = receiptWorkerRuntime.start();
+  if (receiptWorkerProcess) {
+    receiptWorkerProcess.once("error", () => console.error("Receipt email worker could not start."));
+    receiptWorkerProcess.once("exit", (code) => {
+      receiptWorkerProcess = null;
+      if (code !== 0 && code !== null) console.error("Receipt email worker stopped with an error.");
+    });
+  }
   startCrmAccountSyncWorker();
   init();
   setTimeout(() => {
@@ -262,6 +272,14 @@ module.exports = io;
 
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 nodeCleanup(async (exitCode, signal) => {
+  const receiptWorker = receiptWorkerProcess;
+  if (receiptWorker && receiptWorker.exitCode === null) {
+    await new Promise((resolve) => {
+      const timeout = setTimeout(() => { receiptWorker.kill("SIGKILL"); resolve(); }, 2000);
+      receiptWorker.once("exit", () => { clearTimeout(timeout); resolve(); });
+      receiptWorker.kill("SIGTERM");
+    });
+  }
   await cleanupTele();
   cleanup();
 });
