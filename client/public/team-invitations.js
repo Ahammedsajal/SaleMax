@@ -180,13 +180,13 @@
   }
   function addNav() {
     if (location.pathname.replace(/\/$/,'') !== '/user') return;
-    const item = [...document.querySelectorAll('[role="button"],button,a')].find(node => ['Agent Login','تسجيل دخول الوكيل'].includes((node.innerText || '').trim()));
+    const item = [...document.querySelectorAll('[role="button"],button,a')].find(node => ['Agent Login','تسجيل دخول الوكيل','دخول الوكيل'].includes((node.innerText || '').trim()));
     if (!item) return;
     const row = item.closest('li') || item.parentElement;
     if (!row?.parentElement || row.parentElement.querySelector('[data-sx-team-nav]')) return;
     const copy = row.cloneNode(true); copy.dataset.sxTeamNav = '1';
     copy.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
-    copy.querySelectorAll('span').forEach(span => { if (['Agent Login','تسجيل دخول الوكيل'].includes(span.textContent.trim())) span.textContent = label('Team access','إدارة وصول الفريق'); });
+    copy.querySelectorAll('span').forEach(span => { if (['Agent Login','تسجيل دخول الوكيل','دخول الوكيل'].includes(span.textContent.trim())) span.textContent = label('Team access','إدارة وصول الفريق'); });
     copy.setAttribute('aria-label',label('Team access','إدارة وصول الفريق'));
     const button = copy.querySelector('[role="button"],button,a') || copy;
     button.onclick = event => { event.preventDefault(); location.href = '/user?page=team-invitations'; };

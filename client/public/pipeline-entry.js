@@ -33,7 +33,7 @@
       if (el.tagName !== 'LI') (el.closest('li') || el).remove();
     });
     const phonebooks = [...document.querySelectorAll('[role="button"],button,a')]
-      .filter((el) => ['phonebook', 'دفتر الهاتف'].includes((el.innerText || '').trim().toLowerCase()) && visible(el));
+      .filter((el) => ['phonebook', 'دفتر الهاتف'].includes((el.innerText || '').trim().toLowerCase()) && el.closest('.MuiDrawer-root'));
     phonebooks.forEach((phonebook) => {
       const row = phonebook.closest('li') || phonebook.parentElement;
       if (!row || row.parentElement.querySelector(':scope > li[data-salemax-pipeline-link]')) return;
