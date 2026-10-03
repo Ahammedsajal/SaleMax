@@ -1,5 +1,11 @@
 # Training finance and receipts — production release, 3 October 2026
 
+## Agent payment credit reconciliation — 4 October 2026
+
+Commit `e976356` is serving at `/opt/salemax/releases/training-agent-payment-credit-e976356`, with `/opt/salemax/current` pointing to it. Finance Reports now counts every posted payment against the agent snapshot for its converted sale, including any unapplied customer deposit. It distinguishes gross receipts, invoice application net of allocation reversals, completed refunds/lost chargebacks and net sales credit. There is no schema migration. Only the SaleMaX app container was recreated; MariaDB, CarsQatar and the other application services were left running. Rollback image: `salemax-app:rollback-agent-payment-credit-e976356`.
+
+Verification: the committed suite passes 160/160 and the isolated MariaDB integration passes all 38 migrations and the synthetic receipt/chargeback reconciliation with `customerDataTouched=false` and `externalWrites=false`. Production `/healthz` returns HTTP 200, the SaleMaX app and database are healthy, and the live `training-finance.js?v=20261004-payment-credit` SHA-256 matches the committed source (`944cd1c396a6e338452e7789ed12cdb2ba9fab3aaf5046fade12bc30b532376a`). No receipt email or other provider message was sent; SMTP remains unconfigured.
+
 ## Receipt delivery status — 4 October 2026
 
 Application commit `a13f6c9` is deployed at `/opt/salemax/releases/training-receipt-status-a13f6c9`, and `/opt/salemax/current` points to it. Owner/accountant invoice history and receipt details now show the tenant-scoped email outbox state (off, paused, queued, sending, sent, failed or partial). SMTP is still disabled and its settings are incomplete in the running app; no email was sent. The migration runner applied zero and skipped all 38 recorded migrations. The app and database remain healthy, `/healthz`, `/`, `/login`, and the versioned finance asset return HTTP 200, and the live finance asset SHA-256 matches the deployed source. Rollback image: `salemax-app:rollback-training-receipt-status-a13f6c9`.
