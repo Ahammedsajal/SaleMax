@@ -1,6 +1,6 @@
 # SaleMaX implementation status
 
-## Training Center course payment plans — local increment — 3 October 2026
+## Training Center course payment plans and learner lifecycle — production — 3 October 2026
 
 Course offers now carry a versioned payment plan of one payment or up to 12 weekly/monthly installments. Owners and managers with the existing course-management permission can configure the plan. The agent sale-review form seeds its installment dates and QAR amounts from the selected offer while allowing the schedule to be adjusted for an individual sale. When an approved sale is converted, invoice tax is distributed proportionally across the scheduled installments using integer minor units, with rounding pennies assigned deterministically and the original due-date order preserved. Existing offers use the safe one-payment default. Additive schema migration: `20261024_training_offer_payment_terms.sql`.
 
@@ -8,7 +8,9 @@ Agents can directly complete a full-price sale when its schedule exactly matches
 
 The existing Finance screen now includes a bilingual receivables aging report with invoice/learner/course search, aging-period filter, open balance per installment, current and overdue totals, and a separate pending-verification payment total. Aging subtracts posted installment allocations and reversals plus posted credit allocations. The APIs are owner/accountant scoped and tenant scoped. API documentation is in `docs/API_DOCUMENTATION.md`.
 
-This increment is local and uncommitted; the migration has not been applied to production. The full 146-test unit suite passes, including report scope, agent authorization, and tax rounding. Disposable DB migration/transactional integration could not connect because local MariaDB at 127.0.0.1:3307 is unavailable; authenticated agent browser acceptance and local Finance screen verification remain. The full Finance and Leads objective remains open, including historical journey reconstruction, payment/receipt workflows and delivery, course-start/completion/certificate tracking, and authenticated browser acceptance. External provider delivery remains disabled.
+Committed source `1a5dcec` is deployed at `/opt/salemax/releases/training-finance-1a5dcec`. The two additive migrations `20261024_training_offer_payment_terms.sql` and `20261025_training_enrollment_progress.sql` were applied after a protected database backup and exact release-source checksum preflight; a post-deploy migration-runner pass skipped all 36 migrations, confirming there are no pending migrations or checksum/history errors. The SaleMaX app and database are healthy, `/`, `/admin/login`, and `/user/login` return HTTP 200, and the training course/finance APIs return the existing `No token found` sign-in payload without credentials. `LOCAL_ONLY_MODE=true` remains configured; provider delivery was not enabled. Rollback image, release references and database backup are under `/opt/salemax/shared/rollback-training-finance-1a5dcec`.
+
+The clean committed source test suite passes 150/150. Full authenticated owner/agent/accountant browser acceptance, certificate PDF generation, customer/accountant/admin receipt delivery, and historical event-level funnel attribution remain open. This release is an incremental deployment, not completion of the full Training Center objective. Local uncommitted work remains preserved and was excluded from the production artifact.
 
 ## Sidebar organization — production 3 October 2026
 

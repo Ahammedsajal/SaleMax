@@ -7,12 +7,14 @@ const {createAuthRouter}=require('../modules/platform/auth-router');
 const {createAuthentication}=require('../modules/platform/authentication');
 const {loadSession,tokenHash}=require('../modules/platform/sessions');
 const {totp}=require('../modules/platform/mfa');
+const {createPlatformRouter}=require('../modules/platform/platform-router');
 module.exports=async function verifyAuth(db,config,{t1,i1}){
   const password=crypto.randomBytes(20).toString('base64url'),key=crypto.randomBytes(32);
   await db.query('UPDATE sx_identities SET password_hash=? WHERE id=?',[await bcrypt.hash(password,12),i1]);
   const pool=mysql.createPool({...config,connectionLimit:3}),app=express();
   const origin='http://127.0.0.1:3016',boundary=createAuthRouter({pool,key,origin,insecureLoopback:true});
   app.use('/auth',boundary.router);
+  app.use('/platform',createPlatformRouter({pool,guard:boundary.guard}));
   app.get('/protected',boundary.guard,(req,res)=>res.json({audience:req.businessContext.audience,identity:req.businessContext.identity.id}));
   app.post('/protected',boundary.guard,(req,res)=>res.json({ok:true}));
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
@@ -31,6 +33,7 @@ module.exports=async function verifyAuth(db,config,{t1,i1}){
     const payload=await logged.json(),setCookie=logged.headers.get('set-cookie'),cookie=setCookie.split(';')[0],raw=cookie.slice(cookie.indexOf('=')+1);
     assert.match(setCookie,/HttpOnly/i);assert.match(setCookie,/SameSite=Strict/i);assert.ok(!('token' in payload));assert.ok(!JSON.stringify(payload).includes(password));
     assert.equal((await request('/protected',{headers:{Cookie:cookie}})).status,200);
+    assert.equal((await request('/platform/plans',{headers:{Cookie:cookie}})).status,403);
     assert.equal((await request('/protected',{method:'POST',headers:{Cookie:cookie,Origin:origin}})).status,403);
     assert.equal((await request('/protected',{method:'POST',headers:{Cookie:cookie,Origin:'http://foreign.invalid','X-CSRF-Token':payload.csrfToken}})).status,403);
     assert.equal((await request('/protected',{method:'POST',headers:{Cookie:cookie,Origin:origin,'X-CSRF-Token':payload.csrfToken}})).status,200);
@@ -50,6 +53,42 @@ module.exports=async function verifyAuth(db,config,{t1,i1}){
     const recovery=await verified.json();assert.equal(recovery.recoveryCodes.length,10);
     assert.equal((await loadSession(db,platformRaw)).mfaVerified,true);
     assert.equal((await request('/protected',{headers:{Cookie:platformCookie}})).status,200);
+    const planDefinition={name:'HTTP plan fixture',categoryKey:'training_center',categoryVersion:1,roleLimits:{owner:1,accountant:1,manager:1,agent:7},capabilities:['tenant.settings','team.members']};
+    const createdPlan=await request('/platform/plans',{method:'POST',headers:mfaHeaders,body:JSON.stringify(planDefinition)});assert.equal(createdPlan.status,201);const created=await createdPlan.json();
+    const listed=await request('/platform/plans?search=HTTP',{headers:{Cookie:platformCookie}});assert.equal(listed.status,200);assert.equal((await listed.json()).items.length,1);
+    assert.equal((await request('/platform/plans/'+created.id,{method:'POST',headers:mfaHeaders,body:'{}'})).status,404);
+    const publishPlan=await request('/platform/plans/'+created.id+'/publish',{method:'POST',headers:mfaHeaders,body:JSON.stringify({revision:1})});assert.equal(publishPlan.status,200);
+    const publishedList=await request('/platform/plans?search=HTTP&status=published',{headers:{Cookie:platformCookie}});assert.equal((await publishedList.json()).items[0].id,created.id);
+    assert.equal((await request('/platform/plans?status=unknown',{headers:{Cookie:platformCookie}})).status,400);
+    assert.equal((await request('/platform/plans?offset=-1',{headers:{Cookie:platformCookie}})).status,400);
+    assert.equal((await request('/platform/tenants?search%5B%5D=a',{headers:{Cookie:platformCookie}})).status,400);
+    const businessList=await request('/platform/tenants?search='+encodeURIComponent(business.slug),{headers:{Cookie:platformCookie}});assert.equal(businessList.status,200);assert.equal((await businessList.json()).items[0].id,t1);
+    const assignment={tenantId:t1,planVersionId:created.id,roleLimits:planDefinition.roleLimits,durationDays:30};
+    const [[beforePreview]]=await db.query('SELECT COUNT(*) AS n FROM sx_plan_assignments WHERE tenant_id=?',[t1]);
+    const preview=await request('/platform/assignments/preview',{method:'POST',headers:mfaHeaders,body:JSON.stringify(assignment)});assert.equal(preview.status,200);assert.equal((await preview.json()).canAssign,true);
+    const [[afterPreview]]=await db.query('SELECT COUNT(*) AS n FROM sx_plan_assignments WHERE tenant_id=?',[t1]);assert.equal(afterPreview.n,beforePreview.n);
+    assert.equal((await request('/platform/assignments/preview',{method:'POST',headers:mfaHeaders,body:JSON.stringify({...assignment,durationDays:0})})).status,400);
+    assert.equal((await request('/platform/assignments',{method:'POST',headers:{...mfaHeaders,'X-CSRF-Token':'wrong'},body:JSON.stringify(assignment)})).status,403);
+    const assigned=await request('/platform/assignments',{method:'POST',headers:mfaHeaders,body:JSON.stringify(assignment)});assert.equal(assigned.status,201);const assignedBody=await assigned.json();
+    const [[storedAssignment]]=await db.query('SELECT id FROM sx_plan_assignments WHERE tenant_id=? AND current_tenant IS NOT NULL',[t1]);assert.equal(storedAssignment.id,assignedBody.id);
+    assert.equal((await request('/platform/plans',{method:'POST',headers:mfaHeaders,body:'[]'})).status,400);
+    // The same canonical session reloads staff grants; it cannot retain owner authority.
+    await db.query("UPDATE sx_platform_memberships SET role='staff',delegated_permissions=?,permission_version=permission_version+1 WHERE identity_id=?",[JSON.stringify(['plans.read','plans.draft','tenants.read']),i1]);
+    const staffContext=await request('/platform/context',{headers:{Cookie:platformCookie}});assert.equal(staffContext.status,200);const staffPermissions=(await staffContext.json()).permissions;assert.equal(staffPermissions['plans.draft'],true);assert.equal(staffPermissions['plans.publish'],false);assert.equal(staffPermissions['plans.assign'],false);
+    const nextDraft=await request('/platform/plans',{method:'POST',headers:mfaHeaders,body:JSON.stringify({...planDefinition,planId:created.planId})});assert.equal(nextDraft.status,201);const next=await nextDraft.json();assert.equal(next.version,2);
+    assert.equal((await request('/platform/plans/'+next.id+'/publish',{method:'POST',headers:mfaHeaders,body:JSON.stringify({revision:1})})).status,403);
+    assert.equal((await request('/platform/assignments',{method:'POST',headers:mfaHeaders,body:JSON.stringify(assignment)})).status,403);
+    const changed=await request('/platform/plans/'+next.id,{method:'PUT',headers:mfaHeaders,body:JSON.stringify({...planDefinition,revision:1})});assert.equal(changed.status,200);
+    assert.equal((await request('/platform/plans/'+next.id,{method:'PUT',headers:mfaHeaders,body:JSON.stringify({...planDefinition,revision:1})})).status,409);
+    await db.query("UPDATE sx_platform_memberships SET role='super_admin',delegated_permissions='[]',permission_version=permission_version+1 WHERE identity_id=?",[i1]);
+    // More than one page of draft versions must not hide older published versions.
+    const pagingPlan=crypto.randomUUID();await db.query("INSERT INTO sx_plans(id,name,next_version) VALUES (?,'Paging fixture',52)",[pagingPlan]);
+    for(let version=1;version<=51;version++)await db.query("INSERT INTO sx_plan_versions(id,plan_id,version,category_key,category_version,capabilities,role_limits) VALUES (?,?,?,'training_center',1,?,?)",[crypto.randomUUID(),pagingPlan,version,JSON.stringify(planDefinition.capabilities),JSON.stringify(planDefinition.roleLimits)]);
+    const page1=await (await request('/platform/plans?search=Paging&status=draft',{headers:{Cookie:platformCookie}})).json();assert.equal(page1.items.length,50);assert.equal(page1.nextOffset,50);
+    const page2=await (await request('/platform/plans?search=Paging&status=draft&offset=50',{headers:{Cookie:platformCookie}})).json();assert.equal(page2.items.length,1);assert.equal(page2.nextOffset,null);assert.equal(new Set([...page1.items,...page2.items].map(x=>x.id)).size,51);
+    assert.equal((await (await request('/platform/plans?status=published&search=HTTP',{headers:{Cookie:platformCookie}})).json()).items[0].id,created.id);
+    const immutable=await request('/platform/plans/'+created.id,{method:'PUT',headers:mfaHeaders,body:JSON.stringify({...planDefinition,revision:2})});assert.equal(immutable.status,409);
+    const [[rejection]]=await db.query("SELECT COUNT(*) AS n FROM sx_audit_events WHERE action='platform.request-rejected'");assert.ok(rejection.n>=1);
     assert.equal((await request('/auth/mfa/verify',{method:'POST',headers:mfaHeaders,body:JSON.stringify({code})})).status,403);
     assert.equal((await request('/auth/mfa/enroll',{method:'POST',headers:mfaHeaders,body:'{}'})).status,409);
     const recovered=await request('/auth/mfa/verify',{method:'POST',headers:mfaHeaders,body:JSON.stringify({recoveryCode:recovery.recoveryCodes[0]})});assert.equal(recovered.status,200);
@@ -65,6 +104,6 @@ module.exports=async function verifyAuth(db,config,{t1,i1}){
     const auth=createAuthentication({key});
     for(let n=0;n<8;n++)await assert.rejects(auth.login(db,{email:'absent@example.invalid',password:'synthetic',audience:'platform'},'synthetic-address'),{code:'AUTH_INVALID'});
     await assert.rejects(auth.login(db,{email:'absent@example.invalid',password:'synthetic',audience:'platform'},'synthetic-address'),{code:'AUTH_RATE_LIMITED'});
-    return {canonicalPasswordLogin:true,noPasswordClaims:true,hashedSessionStorage:true,cookieHttpOnly:true,csrfOriginAndToken:true,platformMfaGate:true,encryptedMfaEnrollment:true,totpReplayDenied:true,singleUseRecovery:true,authenticatedGuardContinuation:true,logoutRevokes:true,databaseLoginThrottling:true};
+    return {canonicalPasswordLogin:true,noPasswordClaims:true,hashedSessionStorage:true,cookieHttpOnly:true,csrfOriginAndToken:true,platformMfaGate:true,encryptedMfaEnrollment:true,totpReplayDenied:true,singleUseRecovery:true,authenticatedGuardContinuation:true,logoutRevokes:true,databaseLoginThrottling:true,platformPlanHttpWorkflow:true,staffPlanGrantReload:true,planPaginationAndFiltering:true,assignmentPreviewReadOnly:true};
   }finally{await new Promise(resolve=>server.close(resolve));await pool.end();}
 };

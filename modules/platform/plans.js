@@ -161,4 +161,17 @@ async function reserveInvite(db,ctx,input){
     return {id,status:'pending',repeated:false,deliveryQueued:false};
   });
 }
-module.exports={definition,limits,createDraft,updateDraft,publish,previewAssignment,assign,loadEntitlements,reserveInvite,readUsage,audit};
+async function listVersions(db,ctx,{search='',offset=0,status=''}={}){
+  authorize(ctx,'plans.read');
+  if(typeof search!=='string'||search.length>100||!Number.isSafeInteger(offset)||offset<0||offset>10000||!['','draft','published'].includes(status))fail('INVALID_QUERY');
+  const [rows]=await db.query(`SELECT v.id,v.plan_id AS planId,p.name,v.version,v.status,v.revision,v.role_limits AS roleLimits,v.capabilities,v.category_key AS categoryKey,v.category_version AS categoryVersion
+    FROM sx_plan_versions v JOIN sx_plans p ON p.id=v.plan_id WHERE p.name LIKE ? AND (?='' OR v.status=?) ORDER BY v.created_at DESC,v.id LIMIT 51 OFFSET ?`,['%'+search+'%',status,status,offset]);
+  const more=rows.length>50;return {items:rows.slice(0,50).map(row=>({...row,roleLimits:json(row.roleLimits),capabilities:json(row.capabilities)})),nextOffset:more?offset+50:null};
+}
+async function getVersion(db,ctx,id){
+  authorize(ctx,'plans.read');uuid(id);
+  const [[row]]=await db.query(`SELECT v.id,v.plan_id AS planId,p.name,v.version,v.status,v.revision,v.role_limits AS roleLimits,v.capabilities,v.category_key AS categoryKey,v.category_version AS categoryVersion
+    FROM sx_plan_versions v JOIN sx_plans p ON p.id=v.plan_id WHERE v.id=?`,[id]);
+  if(!row)fail('PLAN_NOT_FOUND');return {...row,roleLimits:json(row.roleLimits),capabilities:json(row.capabilities)};
+}
+module.exports={definition,limits,createDraft,updateDraft,publish,previewAssignment,assign,loadEntitlements,reserveInvite,listVersions,getVersion,readUsage,audit};

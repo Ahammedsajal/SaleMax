@@ -6,9 +6,10 @@
   const tr = (en, arabic) => ar() ? arabic : en;
   const groups = [
     ['Overview', 'نظرة عامة', ['Dashboard']],
-    ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Candidate Applications', 'Lead Pipeline']],
+    ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Candidate Applications']],
+    ['Leads & Reports', 'العملاء المحتملون والتقارير', ['Lead Pipeline', 'Lead Reports']],
     ['Contacts & Conversations', 'جهات الاتصال والمحادثات', ['Inbox', 'Phonebook']],
-    ['Finance', 'المالية', ['Invoices & Payments']],
+    ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports']],
     ['WhatsApp & Campaigns', 'واتساب والحملات', ['Add WhatsApp by QR', 'Link Meta WhatsApp', 'Create Meta Template', 'Send Campaign', 'Campaign Dashboard', 'Web Notification']],
     ['Automation & Bots', 'الأتمتة والروبوتات', ['Automation Flows', 'WA Chatbot']],
     ['Team & Tasks', 'الفريق والمهام', ['Team access', 'Agent Login', 'Agent Task']],
@@ -19,7 +20,8 @@
   ];
   const aliases = {
     'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications',
-    'مسار العملاء المحتملين': 'Lead Pipeline', 'الفواتير والمدفوعات': 'Invoices & Payments',
+    'مسار العملاء المحتملين': 'Lead Pipeline', 'تقارير العملاء المحتملين': 'Lead Reports',
+    'الفواتير والمدفوعات': 'Invoices & Payments', 'تقارير المالية': 'Finance Reports',
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Agent Login',
     'دخول الوكيل': 'Agent Login', 'Rest API': 'REST API', 'Web Notificaion': 'Web Notification',
     'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard'
@@ -67,6 +69,7 @@
       ['[data-sx-course-nav]:not([data-sx-finance-nav])', 'courses'],
       ['[data-sx-forms-nav]', 'forms'],
       ['[data-sx-finance-nav]', 'finance-settings'],
+      ['[data-sx-finance-report-nav]', 'finance-settings&section=reports'],
       ['[data-sx-team-nav]', 'team-invitations']
     ];
     entries.forEach(([selector, page]) => {
@@ -80,6 +83,14 @@
       button.onclick = event => { event.preventDefault(); location.href = '/user?page=' + page; };
       list.append(copy);
     });
+    const leadSource=document.querySelector('[data-salemax-pipeline-link]');
+    if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')){
+      const copy=leadSource.cloneNode(true);copy.dataset.sxLeadReportsNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      copy.querySelectorAll('.MuiListItemText-primary span').forEach(span=>{if(['Lead Pipeline','مسار العملاء المحتملين'].includes(span.textContent.trim()))span.textContent=tr('Lead Reports','تقارير العملاء المحتملين');});
+      copy.setAttribute('aria-label',tr('Lead Reports','تقارير العملاء المحتملين'));
+      const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;button.onclick=event=>{event.preventDefault();location.href='/user?page=lead-reports';};
+      list.append(copy);
+    }
   }
   function update() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return;
@@ -102,13 +113,13 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline'};
+      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
         if (Object.values(routes).includes(active)) {
           const button = row.querySelector('.MuiListItemButton-root');
-          if (button) { const selected = routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
+          if (button) { const selected = name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
         }
         const captions = {Dashboard:['Dashboard','لوحة التحكم'], 'Web Notification':['Web Notifications','إشعارات الويب'], 'Create Meta Template':['Create Meta Template','إنشاء قالب Meta']};
         const leaf = [...row.querySelectorAll('.MuiListItemText-primary span')].at(-1);

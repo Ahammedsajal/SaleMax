@@ -22,7 +22,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   const team=createTeamInvitationRouters({pool,origin,userGuard});
   app.use('/api/user/team-invitations',team.owner);
   app.use('/api/agent/invitations',team.accept);
-  app.use('/api/user/training/courses',createTrainingCourseRouter({pool,origin,userGuard}));
+  app.use('/api/user/training/courses',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/training/finance-policies',createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/training/forms',createTrainingFormRouter({pool,origin,userGuard}));
   app.use('/api/public/training/forms',createPublicTrainingFormRouter({app,pool,rateKey:key,origin}));

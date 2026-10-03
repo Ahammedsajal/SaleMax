@@ -29,5 +29,6 @@ test('new course workflow is mounted in existing user shell with bilingual scree
   const html=read('client/public/index.html'),screen=read('client/public/training-courses.js'),mount=read('modules/platform/mount-existing-upgrade.js');
   assert.match(html,/training-courses\.js\?v=/);assert.match(screen,/\?page=courses/);assert.match(screen,/الدورات/);assert.match(screen,/priceMinor/);assert.match(screen,/Publish course/);assert.match(screen,/Schedule a batch/);assert.match(screen,/Retire course/);assert.match(screen,/data-edit-batch/);
   assert.match(screen,/Learning outcomes/);assert.match(screen,/Prerequisites/);assert.match(screen,/addLearningInfo/);
+  assert.match(screen,/business-auth\/me/);assert.match(screen,/canonicalCsrf/);assert.match(mount,/canonicalGuard:businessBoundary\.guard/);
   assert.match(mount,/\/api\/user\/training\/courses/);assert.match(read('docs/API_DOCUMENTATION.md'),/Training-center course catalogue/);assert.match(read('docs/USER_MANUAL.md'),/Training courses/);
 });

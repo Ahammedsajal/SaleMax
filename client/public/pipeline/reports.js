@@ -205,6 +205,7 @@
   reportButton.textContent=arabic()?'التقارير':'Reports';
   reportButton.setAttribute('aria-label',reportButton.textContent);
   reportButton.onclick=()=>{setView('reports');loadSchedules();};
+  if(new URLSearchParams(location.search).get('view')==='reports'){setView('reports');loadSchedules();}
   $('#boardMode').addEventListener('click',()=>setView('board'));
   $('#listMode').addEventListener('click',()=>setView('list'));
   $('#refresh').addEventListener('click',()=>{if(!host.classList.contains('hidden'))load();});

@@ -2,14 +2,18 @@
 const express=require('express');
 const courses=require('./training-courses');
 const enrollmentProgress=require('./training-enrollment-progress');
-function createTrainingCourseRouter({pool,origin,userGuard}){
+function createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard}){
   const router=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   const withConnection=fn=>async(...args)=>{const db=await pool.getConnection();try{return await fn(db,...args);}finally{db.release();}};
   router.use(express.json({limit:'24kb',strict:true}));
   router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(req.get('Origin')!==origin||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(req.get('Origin')!==origin?403:400).json({success:false,code:req.get('Origin')!==origin?'ORIGIN_DENIED':'INVALID_BODY'});next();});
-  router.use(userGuard);
-  router.use((req,res,next)=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.courseContext=ctx;next();}).catch(next));
+  router.use((req,res,next)=>{
+    const authorization=req.get('Authorization')||'';
+    if(/^Bearer\s+/i.test(authorization))return userGuard(req,res,()=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.courseContext=ctx;next();}).catch(next));
+    if(!canonicalGuard)return userGuard(req,res,()=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.courseContext=ctx;next();}).catch(next));
+    return canonicalGuard(req,res,()=>{req.courseContext=req.businessContext;next();});
+  });
   const contextGuard=(req,res,next)=>req.courseContext?next():res.status(401).json({success:false,code:'AUTH_REQUIRED'});
   router.get('/',contextGuard,wrap(async(req,res)=>res.json({success:true,data:await courses.list(pool,req.courseContext,{page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?20:Number(req.query.limit),search:req.query.search||'',status:req.query.status||''})})));
   router.get('/enrollments',contextGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(enrollmentProgress.list)(req.courseContext,req.query)})));

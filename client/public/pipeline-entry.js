@@ -3,8 +3,9 @@
   window.__salemaxPipelineEntry = true;
 
   const isArabic = () => { const language = (localStorage.getItem('language') || '').toLowerCase(); return language === 'ar' || language.includes('arabic'); };
-  const pipelineLabel = () => isArabic() ? 'مسار العملاء المحتملين' : 'Lead Pipeline';
-  const isPipelineRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'lead-pipeline';
+  const isLeadReportsRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'lead-reports';
+  const isPipelineRoute = () => location.pathname.replace(/\/$/, '') === '/user' && ['lead-pipeline','lead-reports'].includes(new URLSearchParams(location.search).get('page'));
+  const pipelineLabel = () => isArabic() ? (isLeadReportsRoute()?'تقارير العملاء المحتملين':'مسار العملاء المحتملين') : (isLeadReportsRoute()?'Lead Reports':'Lead Pipeline');
   const visible = (el) => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
@@ -62,7 +63,7 @@
       row.parentElement.insertBefore(pipelineRow, row);
     });
 
-    const active = isPipelineRoute();
+    const active = isPipelineRoute()&&!isLeadReportsRoute();
     document.querySelectorAll('[data-salemax-pipeline-link] .MuiListItemButton-root').forEach((item) => {
       item.classList.toggle('Mui-selected', active);
       if (active) item.setAttribute('aria-current', 'page');
@@ -104,10 +105,12 @@
       workspace = document.createElement('iframe');
       workspace.id = 'salemax-pipeline-workspace';
       workspace.title = pipelineLabel();
-      workspace.src = '/pipeline/?embed=1';
+      workspace.src = '/pipeline/?embed=1'+(isLeadReportsRoute()?'&view=reports':'');
       workspace.style.cssText = 'position:fixed;z-index:1100;border:0;background:#f5f7fa;display:block;';
       document.body.appendChild(workspace);
     }
+    const expectedSrc='/pipeline/?embed=1'+(isLeadReportsRoute()?'&view=reports':'');
+    if(workspace.getAttribute('src')!==expectedSrc)workspace.src=expectedSrc;
     workspace.style.left = `${left}px`;
     workspace.style.top = `${top}px`;
     workspace.style.width = `${Math.max(0, window.innerWidth - left)}px`;
