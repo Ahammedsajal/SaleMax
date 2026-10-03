@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Production release — 3 October 2026
+
+Source `dcaf65b` is now deployed at `/opt/salemax/releases/optional-integrations-dcaf65b`. This supersedes historical "not deployed" notes for completed source increments included in this release. All completed main-branch work and the verified staff-capture/team onboarding branch are included; eight unfinished platform prototype files remain preserved and excluded. Chat Widget, customer APIs, webhooks and WhatsApp Warmer are hidden and disabled by default, with audited per-user controls in existing Manage Users. Internal training APIs remain available. Production checks confirm 34 migrations, preserved table row counts, healthy containers, successful legacy reads and direct optional-route denial. Clean tests pass 139/139, and the synthetic MariaDB workflow passes. The navigation observer loop found during live browser checks is fixed. Provider workers remain disabled and the full training-center objective remains open. See [release evidence](PRODUCTION_RELEASE_20261003.md).
+
 ## Optional customer integrations — 3 October 2026
 
 Chat Widget, customer API access (QR REST, conversational/template APIs and API Dashboard), webhooks (management, automation and logs), and WhatsApp Warmer now default to disabled for accounts in this isolated training deployment. The existing user sidebar hides these entries; direct navigation redirects to Dashboard. Per-user opt-in controls are added to existing Manage Users and require the existing verified platform session, MFA, plan grants, portfolio access, CSRF and an expected revision. Changes are audited and do not rewrite plans. Missing/unavailable settings deny optional access. Internal training APIs remain available. Legacy API-key issuance/use, public widgets, incoming webhook execution and warmer jobs all check the same per-user switches. The historical hard-coded QR diagnostic sender is retired.
