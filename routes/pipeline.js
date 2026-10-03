@@ -9,6 +9,7 @@ const saleReviews = require('../modules/platform/training-sale-reviews');
 const reportSchedules = require('../modules/platform/training-report-schedules');
 const trainingForms = require('../modules/platform/training-forms');
 const legacyPipelineActor = require('../modules/platform/legacy-pipeline-actor');
+const trainingLeadJourney = require('../modules/platform/training-lead-journey');
 
 async function saleContext(actor) {
   const ctx=await trainingCourses.legacyOwnerContext(require('../database/config.js').promise(),actor.uid);
@@ -103,6 +104,8 @@ router.post('/training-forms/:formSlug/submissions', async (req,res) => {
 
 router.get("/board", async (req, res) => {
   try {
+    const pool=require('../database/config.js').promise();
+    await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});
     const data = await pipeline.getBoard({
       uid: req.pipelineActor.uid,
       role: req.pipelineActor.role,
@@ -169,7 +172,7 @@ router.get("/reports/activity", async (req,res)=>{
 });
 
 router.get('/reports/journey',async(req,res)=>{
-  try{const data=await pipelineReports.getJourneyReport({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  try{const pool=require('../database/config.js').promise();await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){fail(res,error);}
 });
 
