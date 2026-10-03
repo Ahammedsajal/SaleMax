@@ -65,9 +65,9 @@ test('journey reports reject finance-only roles before database access',async()=
 
 test('finance report summary remains owner-only and presents exact bilingual Qatar currency totals',()=>{
   const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
-  assert.match(screen,/\/pipeline\/reports\.js\?v=9/);
+  assert.match(screen,/\/pipeline\/reports\.js\?v=10/);
   assert.match(ui,/report\.finance/);assert.match(ui,/BigInt\(String\(value\|\|'0'\)\)/);
   assert.match(ui,/Outstanding now/);assert.match(ui,/المتبقي الآن/);
   assert.match(ui,/collected and outstanding are current/);assert.match(ui,/يعرض المحصل والمتبقي حتى وقت إعداد التقرير/);
-  assert.match(ui,/journeyTitle:'Lead journey overview'/);assert.match(ui,/journeyTitle:'نظرة عامة على رحلة العميل'/);assert.match(ui,/journey\.agents/);
+  assert.match(ui,/journeyTitle:'Lead journey overview'/);assert.match(ui,/journeyTitle:'نظرة عامة على رحلة العميل'/);assert.match(ui,/journey\.agents/);assert.match(ui,/periodPaymentReceipts:'Payment receipts issued'/);assert.match(ui,/periodPaymentReceipts:'إيصالات الدفع الصادرة'/);
 });
