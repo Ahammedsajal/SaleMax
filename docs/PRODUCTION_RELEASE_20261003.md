@@ -56,6 +56,10 @@ The owner clarified that finance should stay centered on converting a lead into 
 
 Release `318c3d4` is live at `/opt/salemax/releases/training-finance-focus-318c3d4`; `/opt/salemax/current` points to it. Production HTML uses the existing `20261004-receivables-filters` finance asset, whose served SHA-256 matches the release (`4243741b2b5dbbda295d12cd483a697786d1782a8bb0ce33e34dbeeb10165c8c`). The CSV control is absent. `/healthz` returns 200 and the SaleMaX app and database are healthy. The app container alone was recreated; no migration was needed. Rollback image: `salemax-app:rollback-finance-focus-318c3d4`. `npm test` passes 161/161. Authenticated finance and lead workflow acceptance, plus production SMTP receipt delivery, remain open.
 
+## Lead attendance report correction — 4 October 2026
+
+Commit `a2c9a09` is deployed at `/opt/salemax/releases/training-attendance-a2c9a09`; `/opt/salemax/current` points to it. The journey report counts only recorded contact outcomes as agent attendance; internal notes do not qualify. The helper SHA-256 in the production release and running app image is `45a7fb76218d5faf0bedf70f2688aeae9d642d09828eee3510b1baa99f6c41da`. `npm test` passes 161/161. `/healthz` returns HTTP 200 and both app and database are healthy. Only the SaleMaX app was recreated; there is no migration. Rollback image: `salemax-app:rollback-attendance-a2c9a09`.
+
 ## Current sidebar release
 
 Source `a50f012` is deployed at https://crm.salemax.qa in `/opt/salemax/releases/sidebar-a50f012`, retaining all previously deployed completed updates. The user sidebar is organized into Overview, Courses & Admissions, Contacts & Conversations, Finance, WhatsApp & Campaigns, Automation & Bots, and Team & Tasks. Lead Forms is now **Candidate Applications**; **Invoices & Payments** opens the existing unified invoice/payment/receipt workspace. Native empty captions such as META REST API and Webhook Automation are hidden. Optional groups return only when an administrator enables relevant features. One correctly sized sidebar logo replaces the overlapping elements. Existing routes and handlers remain in the existing application shell.
