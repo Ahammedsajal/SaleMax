@@ -1,5 +1,11 @@
 # Training finance and receipts — production release, 3 October 2026
 
+## Receivables report clarity — 4 October 2026
+
+Commit `900fd10` is serving at `/opt/salemax/releases/training-receivables-filters-900fd10`, with `/opt/salemax/current` pointing to it. The Finance Reports aging summary now shows fully settled and partly settled invoice counts together, and offers a one-click reset for its issue-date, aging-bucket and search filters. The finance asset cache key is `20261004-receivables-filters`. No database migration was needed. Only the SaleMaX app container was recreated; MariaDB and other application services were left running. Rollback image: `salemax-app:rollback-receivables-filters-900fd10`.
+
+Verification: `npm test` passes 161/161; focused receivables report tests pass 4/4. Production `/healthz` returns HTTP 200, the SaleMaX app and database are healthy, and the live finance asset SHA-256 matches the committed source (`4243741b2b5dbbda295d12cd483a697786d1782a8bb0ce33e34dbeeb10165c8c`). Receipt email configuration and authenticated owner/accountant screen acceptance remain open.
+
 ## Agent payment credit reconciliation — 4 October 2026
 
 Commit `e976356` is serving at `/opt/salemax/releases/training-agent-payment-credit-e976356`, with `/opt/salemax/current` pointing to it. Finance Reports now counts every posted payment against the agent snapshot for its converted sale, including any unapplied customer deposit. It distinguishes gross receipts, invoice application net of allocation reversals, completed refunds/lost chargebacks and net sales credit. There is no schema migration. Only the SaleMaX app container was recreated; MariaDB, CarsQatar and the other application services were left running. Rollback image: `salemax-app:rollback-agent-payment-credit-e976356`.
