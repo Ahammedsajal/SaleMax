@@ -32,6 +32,7 @@ const {
 const {
   sendMessageTelegram,
 } = require("../addon/telegram/processTelegramInbox.js");
+const { recordAgentReply } = require("../pipeline/conversationAttendance.js");
 
 function processSocketEvent({
   socket,
@@ -804,6 +805,7 @@ function processSocketEvent({
               chatId: chatInfo.chat_id,
               messageData,
             });
+            if(isAgent)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatInfo.chat_id,agentId:socket?.userData?.id,origin:chatInfo.origin,providerMessageId:sendMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
 
             await query(
               `UPDATE beta_chats SET last_message = ? WHERE chat_id = ? AND uid = ?`,
@@ -1001,6 +1003,7 @@ function processSocketEvent({
               chatId: chatid,
               messageData,
             });
+            if(isAgent)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatid,agentId:socket?.userData?.id,origin:'qr',providerMessageId:sendNewMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
 
             const originInstanceId =
               sendNewMsg?.sessionData?.authState?.creds?.me ||
