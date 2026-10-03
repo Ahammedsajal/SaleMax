@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## WhatsApp agent replies in lead attendance — deployed 4 October 2026
+
+When an agent successfully sends a WhatsApp reply through the existing QR or Meta conversation flow, the reply is linked to that tenant's matching pipeline conversation and credited as agent attendance. Only the agent ID, linked lead, channel, provider message ID and timestamp are recorded; message text is not copied into the lead activity. Repeated provider message IDs are idempotent, and sends that fail or have no linked lead do not count. Lead journey, agent scorecard and cohort attendance now include these successful replies alongside recorded contact outcomes; internal notes remain excluded.
+
+Commit `a52954a` is pushed to `main` and deployed at `/opt/salemax/releases/training-attendance-replies-a52954a`. Production `/healthz` and `/` return HTTP 200, app and database containers are healthy, and the release/container source hashes match. `npm test` passes 168/168. This was an app-only release with no migration; rollback image: `salemax-app:rollback-training-attendance-replies-a52954a`. Authenticated production conversation/report acceptance remains open.
+
 ## Training lifecycle stages in the existing Lead Pipeline — local, 3 October 2026
 
 Training sale conversion now seeds six protected post-sale stages into the existing pipeline and moves the won lead to **Sale converted · invoice issued** in the same transaction that issues its invoice. Payment verification advances to **Payment received** or **Paid in full** using posted allocations after reversals; course start, completion and certificate issuance advance the same linked lead automatically. The lead remains won, and existing open/lost workflows are unchanged. Arabic stage names are supplied in the existing board and Reports view. The regular 15-stage limit stays unchanged for other pipelines; training pipelines reserve six additional system stages. No migration was needed because this uses existing stage and activity tables. Full 38-migration MariaDB acceptance asserts every lifecycle transition and the final certificate lane; production deployment and authenticated browser acceptance remain open.

@@ -104,4 +104,10 @@ Pre-release database backup and rollback references are protected under `/opt/sa
 
 The committed-source test suite passes 152/152. Production checks verified service health, login/report routes, refreshed assets and unauthenticated API denial. Authenticated browser acceptance for owner/agent/accountant workflows, certificate PDF generation, receipt delivery, and historical funnel reconstruction remain open. This release does not complete the overall Training Center objective. Local preview-only workspace files were preserved and excluded from the deployed artifact.
 
+## WhatsApp agent replies count as lead attendance — 4 October 2026
+
+Commit `a52954a` is deployed at `/opt/salemax/releases/training-attendance-replies-a52954a`; `/opt/salemax/current` points to it. After a successful agent send through the existing QR or Meta WhatsApp conversation flow, the linked lead records a tenant-scoped attendance activity attributed to that agent. Activity stores the lead, agent, channel, provider message ID and time, not message text. Duplicate provider message IDs do not create duplicate attendance, and unsuccessful or unlinked sends are ignored. Journey, per-agent and cohort attendance reports count these activities alongside recorded contact outcomes; internal notes remain excluded.
+
+Verification: `npm test` passes 168/168 and `git diff --check` passes. Production `/healthz` and `/` return HTTP 200; the app and database containers are healthy. The deployed source and running container helper SHA-256 both equal `49a1e1fb7514eb2726b641fa58338cc463de0556b47d77c34bf7b67d759ce6b9`. Only the SaleMaX app was recreated; no migration was needed and the database container remained running. Rollback image: `salemax-app:rollback-training-attendance-replies-a52954a`. Authenticated production conversation/report acceptance remains open.
+
 ## Sidebar organization and optional integrations — 3 October 2026
