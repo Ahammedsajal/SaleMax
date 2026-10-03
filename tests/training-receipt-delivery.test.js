@@ -10,6 +10,24 @@ test('receipt email stays off until its dedicated opt-in and complete SMTP confi
   const result=delivery.config(env);assert.equal(result.host,'smtp.example.invalid');assert.equal(result.secure,false);assert.equal(result.from,'receipts@example.invalid');
 });
 
+test('receipt delivery status is tenant-scoped and reports disabled, sent, queued and partial states',async()=>{
+  const ids=['receipt-disabled','receipt-sent','receipt-queued','receipt-partial'],queries=[];
+  const db={async query(sql,params){queries.push({sql,params});return [[
+    {receipt_id:'receipt-sent',status:'sent',count:2},
+    {receipt_id:'receipt-queued',status:'ready',count:1},
+    {receipt_id:'receipt-partial',status:'sent',count:1},
+    {receipt_id:'receipt-partial',status:'dead',count:1}
+  ]];}};
+  const result=await delivery.statuses(db,'tenant-a',ids,{env:{}});
+  assert.equal(result.get('receipt-disabled').state,'disabled');
+  assert.equal(result.get('receipt-sent').state,'sent');
+  assert.equal(result.get('receipt-queued').state,'paused');
+  assert.equal(result.get('receipt-partial').state,'partial');
+  assert.equal(result.get('receipt-partial').failed,1);
+  assert.equal(queries.length,1);assert.equal(queries[0].params[0],'tenant-a');assert.deepEqual(queries[0].params.slice(1),ids);
+  assert.match(queries[0].sql,/tenant_id=\?/);
+});
+
 test('receipt recipients are validated, deduplicated and limited to customer, owner and accountant',()=>{
   const result=delivery.recipients({customerEmail:' Learner@example.invalid ',staff:[{role:'owner',email:'admin@example.invalid'},{role:'accountant',email:'books@example.invalid'},{role:'manager',email:'manager@example.invalid'},{role:'accountant',email:'BOOKS@example.invalid'}]});
   assert.deepEqual(result.map(item=>[item.email,item.type]),[['learner@example.invalid','customer'],['admin@example.invalid','admin'],['books@example.invalid','accountant']]);
