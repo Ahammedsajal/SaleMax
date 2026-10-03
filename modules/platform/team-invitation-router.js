@@ -16,6 +16,7 @@ function createTeamInvitationRouters({pool,origin,userGuard}){
   owner.use((error,req,res,next)=>{if(res.headersSent)return next(error);errorHandler(req,res,error);});
 
   accept.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(req.method!=='POST')return next();if(req.get('Origin')!==origin)return res.status(403).json({success:false,code:'ORIGIN_DENIED'});next();});
+  accept.get('/preview/:token',wrap(async(req,res)=>res.json({success:true,data:await team.preview(pool,req.params.token)})));
   accept.post('/accept',express.json({limit:'8kb',strict:true}),wrap(async(req,res)=>res.status(201).json({success:true,data:await team.accept(pool,req.body||{})})));
   accept.use((error,req,res,next)=>{if(res.headersSent)return next(error);errorHandler(req,res,error);});
   return {owner,accept};

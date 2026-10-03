@@ -22,8 +22,8 @@ async function issueForVerifiedLegacyAccount({kind,legacyId,legacyUid,legacyEmai
   const config=configuration({pool,key,expectedOrigin,local});if(!config)return null;
   if(!origin||origin!==config.origin)return null;
   const source=kind==='user'?'user':kind==='agent'?'agents':null;
-  const expectedRole=kind==='user'?'owner':kind==='agent'?'agent':null;
-  if(!source||!expectedRole||!Number.isSafeInteger(Number(legacyId))||Number(legacyId)<1||typeof legacyUid!=='string'||!legacyUid||email(legacyEmail)===''||typeof password!=='string')return null;
+  const expectedRoles=kind==='user'?['owner','accountant','manager']:kind==='agent'?['agent']:null;
+  if(!source||!expectedRoles||!Number.isSafeInteger(Number(legacyId))||Number(legacyId)<1||typeof legacyUid!=='string'||!legacyUid||email(legacyEmail)===''||typeof password!=='string')return null;
   const db=await config.pool.getConnection();
   try{
     await db.beginTransaction();
@@ -36,7 +36,7 @@ async function issueForVerifiedLegacyAccount({kind,legacyId,legacyUid,legacyEmai
     if(!rows.length){await db.commit();return null;}
     if(rows.length!==1)throw Object.assign(new Error('BUSINESS_LINK_INVALID'),{code:'BUSINESS_LINK_INVALID'});
     const mapping=rows[0];
-    if(mapping.legacyUidHash!==uidHash(legacyUid)||email(mapping.email)!==email(legacyEmail)||mapping.role!==expectedRole||mapping.membershipStatus!=='active'||mapping.identityStatus!=='active'||mapping.tenantStatus!=='active'||mapping.categoryKey!=='training_center'||Number(mapping.categoryVersion)!==1){
+    if(mapping.legacyUidHash!==uidHash(legacyUid)||email(mapping.email)!==email(legacyEmail)||!expectedRoles.includes(mapping.role)||mapping.membershipStatus!=='active'||mapping.identityStatus!=='active'||mapping.tenantStatus!=='active'||mapping.categoryKey!=='training_center'||Number(mapping.categoryVersion)!==1){
       throw Object.assign(new Error('BUSINESS_ACCESS_INACTIVE'),{code:'BUSINESS_ACCESS_INACTIVE'});
     }
     const canonicalHash=typeof mapping.passwordHash==='string'?mapping.passwordHash:null;

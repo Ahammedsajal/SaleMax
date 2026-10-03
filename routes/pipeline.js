@@ -7,10 +7,17 @@ const pipelineReports = require("../helper/pipeline/reports.js");
 const trainingCourses = require('../modules/platform/training-courses');
 const saleReviews = require('../modules/platform/training-sale-reviews');
 const reportSchedules = require('../modules/platform/training-report-schedules');
+const trainingForms = require('../modules/platform/training-forms');
+const legacyPipelineActor = require('../modules/platform/legacy-pipeline-actor');
 
 async function saleContext(actor) {
   const ctx=await trainingCourses.legacyOwnerContext(require('../database/config.js').promise(),actor.uid);
-  ctx.membership={...ctx.membership,role:actor.role,id:actor.role==='agent'?`legacy-agent-${actor.agentId}`:ctx.membership.id,delegatedPermissions:[]};
+  if(actor.role==='manager'){
+    ctx.identity={id:actor.identityId};
+    ctx.membership={...ctx.membership,role:'manager',id:actor.membershipId,delegatedPermissions:[]};
+  }else{
+    ctx.membership={...ctx.membership,role:actor.role,id:actor.role==='agent'?`legacy-agent-${actor.agentId}`:ctx.membership.id,delegatedPermissions:[]};
+  }
   return ctx;
 }
 
@@ -30,10 +37,18 @@ async function pipelineAuth(req, res, next) {
     catch (_) { return res.status(401).json({ success: false, message: "Your session has expired." }); }
 
     const users = await query(
-      "SELECT uid, role, timezone FROM user WHERE email = ? AND password = ? LIMIT 1",
+      "SELECT id, uid, name, email, role, timezone FROM user WHERE email = ? AND password = ? LIMIT 1",
       [decoded.email, decoded.password],
     );
     if (users.length && users[0].role === "user") {
+      if(process.env.SALEMAX_PLATFORM_ENABLED==='true'){
+        const linkedActor=await legacyPipelineActor.resolve(require('../database/config.js').promise(),users[0]);
+        if(linkedActor?.denied)return res.status(linkedActor.code==='AUTH_REQUIRED'?401:403).json({success:false,code:linkedActor.code});
+        if(linkedActor?.role==='manager'){
+          req.pipelineActor=linkedActor;
+          return next();
+        }
+      }
       req.pipelineActor = { uid: users[0].uid, role: "owner", actorType: "user", actorId: String(users[0].uid), timezone: users[0].timezone || "Asia/Qatar" };
       return next();
     }
@@ -57,6 +72,34 @@ async function pipelineAuth(req, res, next) {
 }
 
 router.use(pipelineAuth);
+
+router.get('/training-forms/:formSlug', async (req,res) => {
+  try {
+    const data=await trainingForms.staffForm(require('../database/config.js').promise(),req.pipelineActor,req.params.formSlug);
+    res.setHeader('Cache-Control','no-store');res.json({success:true,data});
+  } catch(error) {
+    const code=error.code||'STAFF_FORM_UNAVAILABLE';
+    const status=['FORM_NOT_FOUND','INVALID_FORM_SLUG'].includes(code)?404:code==='PERMISSION_DENIED'?403:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)||code==='BUSINESS_LINK_INVALID'?409:500;
+    res.setHeader('Cache-Control','no-store');res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code});
+  }
+});
+
+router.post('/training-forms/:formSlug/submissions', async (req,res) => {
+  res.setHeader('Cache-Control','no-store');
+  const receivedOrigin=req.get('Origin')||'';const expectedOrigin=process.env.SALEMAX_PLATFORM_ORIGIN;
+  let sameHost=false;try{sameHost=new URL(receivedOrigin).host.toLowerCase()===(req.get('host')||'').toLowerCase();}catch{}
+  if(!receivedOrigin||(expectedOrigin?receivedOrigin!==expectedOrigin:!sameHost))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
+  if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
+  if(Buffer.byteLength(JSON.stringify(req.body),'utf8')>16*1024)return res.status(413).json({success:false,code:'PAYLOAD_TOO_LARGE'});
+  try {
+    const data=await trainingForms.submitStaff(require('../database/config.js').promise(),req.pipelineActor,req.params.formSlug,req.body);
+    res.status(data.repeated?200:201).json({success:true,data});
+  } catch(error) {
+    const code=error.code||'STAFF_FORM_UNAVAILABLE';
+    const status=code==='FORM_NOT_FOUND'?404:code==='PERMISSION_DENIED'?403:['INVALID_SUBMISSION','INVALID_PHONE','INVALID_EMAIL','INVALID_COURSE','INVALID_PREFERRED_DATE','REQUIRED_FIELD_MISSING','CONSENT_REQUIRED'].includes(code)?400:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:code==='BUSINESS_LINK_INVALID'?409:500;
+    res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code});
+  }
+});
 
 router.get("/board", async (req, res) => {
   try {

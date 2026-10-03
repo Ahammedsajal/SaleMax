@@ -22,6 +22,8 @@ test('contact matches query exact identifiers inside the tenant and return bound
   await contacts.findContactMatches({ uid: 'workspace', phone: '+97455123456', role: 'agent', agentId: 17, pool });
   assert.match(seen.sql, /EXISTS \(SELECT 1 FROM pipeline_leads l/);
   assert.equal(seen.values.at(-1), 17);
+  await contacts.findContactMatches({ uid: 'workspace', phone: '+97455123456', role: 'manager', pool });
+  assert.doesNotMatch(seen.sql, /owner_agent_id/);
   await assert.rejects(contacts.findContactMatches({ uid: 'workspace', phone: '+97455123456', role: 'accountant', pool }), { status: 403 });
   await assert.rejects(contacts.findContactMatches({ uid: 'workspace', phone: 'short', pool }), { status: 400 });
 });
@@ -38,12 +40,22 @@ test('existing pipeline add-opportunity screen offers contact reuse and separate
   assert.match(screen, /lead\.contact_id\|\|isAgent\?'disabled':''/);
   assert.match(screen, /Create a separate contact \/ learner/);
   assert.match(screen, /إنشاء جهة اتصال \/ متعلم مستقل/);
-  assert.match(html, /pipeline\.js\?v=14/);
+  assert.match(html, /pipeline\.js\?v=16/);
+  assert.match(screen, /settingsModal\(\)\{if\(state\.data\?\.role!==['"]owner['"]\)/);
+  assert.match(screen, /conversionReady&&state\.data\?\.role===['"]owner['"]/);
+  assert.match(screen, /invoiceIssueOwnerOnly/);
+  assert.match(screen, /يمكن لمالك مساحة العمل فقط إكمال إصدار الفاتورة هنا/);
 });
 
 test('follow-up query and action inputs fail closed before touching the database', async () => {
   const pool = { query: async () => { throw new Error('unexpected database access'); } };
   await assert.rejects(contacts.getFollowUps({ uid: 'workspace', role: 'accountant', pool }), { status: 403 });
+  const managerQueries=[];
+  const managerPool={async query(sql){managerQueries.push(sql);if(sql.includes('SELECT COUNT(*) AS total'))return [[{total:0,overdue:0,upcoming:0}]];return [[]];}};
+  const managerQueue=await contacts.getFollowUps({uid:'workspace',role:'manager',pool:managerPool});
+  assert.equal(managerQueue.role,'manager');
+  assert.equal(managerQueue.total,0);
+  assert.equal(managerQueries.length,3);
   await assert.rejects(contacts.getFollowUps({ uid: 'workspace', role: 'owner', period: 'all-ish', pool }), { status: 400 });
   await assert.rejects(contacts.getFollowUps({ uid: 'workspace', role: 'owner', page: 0, pool }), { status: 400 });
   await assert.rejects(contacts.getFollowUps({ uid: 'workspace', role: 'owner', limit: 101, pool }), { status: 400 });
