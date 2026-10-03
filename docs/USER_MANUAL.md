@@ -16,14 +16,14 @@ From the SaleMaX application directory, run `start-local.ps1` in PowerShell. Ope
 
 Super Admin and staff administration; business onboarding and plan assignment; team roles and seat limits; course/offer/batch setup; public and staff lead capture; assignments and follow-ups; sale approval; invoice and installment schedules; payment verification; receipt delivery; credits/refunds; reports; channel setup and delivery issues. Each journey requires tested screens, field guidance and recoverable error states before it is marked available.
 
-## Confirming an approved training sale (owner)
+## Confirming a training sale (agent or owner)
 
-1. Open the existing business panel's Lead Pipeline and select the lead. Review the learner, payer, invoice email, course offer, discount, terms and installment schedule in Sale Review.
-2. After the owner approves the review and the accountant has approved the business Finance profile, select **Confirm sale and issue invoice**. If the action is unavailable, read the readiness message; common causes are an unapproved finance profile, an issuer-role mismatch, a changed offer, or installments that do not equal the invoice total.
+1. Open the existing business panel's Lead Pipeline and select the lead. Review the learner, payer, invoice email, active course offer, discount, terms and installment schedule in Sale Review. The course's published payment plan pre-fills the installments.
+2. An assigned agent can submit and confirm a full-price sale when its installment dates and amounts exactly match the published course plan. A discount or changed plan requires owner/manager approval first. The accountant must approve the business Finance profile before any invoice can be issued. After the review is approved and the sale is conversion-ready, select **Confirm sale and issue invoice**. If the action is unavailable, read the readiness message; common causes are an unapproved Finance profile, an issuer-role mismatch, a changed offer, or installments that do not equal the invoice total.
 3. On success, the panel shows the invoice number and total. The lead moves to Won and the enrollment, invoice, receivable schedule and initial journal posting are committed together. A selected batch reserves one seat.
-4. Repeating the same request does not create a second invoice. The current screen provides manual payment posting and an on-screen receipt after verification; invoice PDF/download, refunds of course fees already allocated to installments, and customer email/WhatsApp delivery remain unavailable. Excess unallocated deposits can be returned using the reviewed workflow below. The notification event is queued internally only; it is not sent.
+4. Repeating the same request does not create a second invoice. The owner/accountant records payments and the accountant verifies them; verification posts the payment and issues one receipt. The receipt detail shows email-delivery state. When the separately enabled receipt-mail worker has complete SMTP settings, it sends the bilingual receipt to the invoice email, active business owner and active accountants. Receipt email is off in production until that private server configuration is supplied; no WhatsApp receipt or PDF download is provided. Excess unallocated deposits can be returned using the reviewed workflow below.
 
-The first conversion screen is an owner-issued flow. Although Finance policy can designate an accountant as issuer, the canonical accountant sale-conversion screen is still pending, so that setting cannot yet complete this journey. Batch reservation expiry is also pending a product policy decision.
+The pipeline conversion action is available to owners and assigned agents; accountants use the payment-verification and receipt screens. Batch reservation expiry is pending a product policy decision.
 
 ## Issued invoices
 
