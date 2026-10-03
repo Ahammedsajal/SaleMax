@@ -119,7 +119,7 @@ async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at
       SUM(pa.activity_type='stage_changed') AS stage_changes,
       SUM(pa.activity_type='sale_converted') AS sales_converted,
       SUM(pa.activity_type='sale_converted' AND pa.actor_type='agent') AS sales_closed_by_agents,
-      COUNT(DISTINCT CASE WHEN pa.activity_type IN ('contact_outcome','note_added') THEN pa.lead_id END) AS leads_attended
+      COUNT(DISTINCT CASE WHEN pa.activity_type='contact_outcome' THEN pa.lead_id END) AS leads_attended
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
       WHERE pa.uid_hash=? AND l.uid=? AND pa.created_at>=? AND pa.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''}`,[uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[]),uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[])]);
     const [agentRows]=await connection.query(`SELECT a.id AS agentId,a.name AS agentName,a.is_active AS active,
@@ -133,7 +133,7 @@ async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at
         SELECT CAST(pa.actor_id AS UNSIGNED) AS agent_id,COUNT(DISTINCT pa.lead_id) AS attended_leads
         FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
         WHERE pa.uid_hash=? AND l.uid=? AND pa.actor_type='agent' AND pa.actor_id REGEXP '^[0-9]+$'
-          AND pa.activity_type IN ('contact_outcome','note_added') AND pa.created_at>=? AND pa.created_at<?
+          AND pa.activity_type='contact_outcome' AND pa.created_at>=? AND pa.created_at<?
         GROUP BY CAST(pa.actor_id AS UNSIGNED)
       ) attendance ON attendance.agent_id=a.id
       LEFT JOIN (
@@ -158,7 +158,7 @@ async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at
       SELECT l.id,l.uid_hash,l.uid FROM pipeline_leads l
       WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''}
     ) SELECT COUNT(*) AS new_leads,
-      COALESCE(SUM(EXISTS(SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=c.uid_hash AND pa.lead_id=c.id AND pa.activity_type IN ('contact_outcome','note_added'))),0) AS attended,
+      COALESCE(SUM(EXISTS(SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=c.uid_hash AND pa.lead_id=c.id AND pa.activity_type='contact_outcome')),0) AS attended,
       COALESCE(SUM(EXISTS(SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=c.uid_hash AND pa.lead_id=c.id AND pa.activity_type='contact_outcome' AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.outcome'))='interested')),0) AS interested,
       COALESCE(SUM(EXISTS(SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=c.uid_hash AND pa.lead_id=c.id AND pa.activity_type='contact_outcome' AND (JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.followUpRequired'))='true' OR JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.outcome'))='follow_up_scheduled'))),0) AS follow_up,
       COALESCE(SUM(EXISTS(SELECT 1 FROM sx_training_sale_conversions sc JOIN sx_training_enrollments e ON e.tenant_id=sc.tenant_id AND e.id=sc.enrollment_id WHERE e.legacy_uid_hash=c.uid_hash AND e.legacy_uid=c.uid AND e.lead_id=c.id)),0) AS sales_converted,

@@ -58,8 +58,12 @@ test('journey report combines current pipeline stages, period sources and agent 
   assert.match(agentQuery,/pa\.actor_type='agent'/);
   assert.match(agentQuery,/CAST\(pa\.actor_id AS UNSIGNED\) AS agent_id/);
   assert.match(agentQuery,/COUNT\(DISTINCT pa\.lead_id\) AS attended_leads/);
+  assert.match(agentQuery,/pa\.activity_type='contact_outcome'/);assert.doesNotMatch(agentQuery,/note_added/);
   assert.doesNotMatch(agentQuery,/COUNT\(DISTINCT CASE WHEN pa\.activity_type IN/);
   assert.doesNotMatch(agentQuery,/pa\.activity_type='sale_converted'/);
+  const flowQuery=queries.find(sql=>sql.includes('AS leads_attended')),cohortQuery=queries.find(sql=>sql.includes('AS attended,'));
+  assert.match(flowQuery,/pa\.activity_type='contact_outcome'/);assert.doesNotMatch(flowQuery,/note_added/);
+  assert.match(cohortQuery,/pa\.activity_type='contact_outcome'/);assert.doesNotMatch(cohortQuery,/note_added/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_receipts/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_enrollment_events/);
   assert.equal(queries.length,8);
