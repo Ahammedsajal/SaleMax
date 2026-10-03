@@ -1,5 +1,11 @@
 # Training finance and receipts — production release, 3 October 2026
 
+## Receipt delivery status — 4 October 2026
+
+Application commit `a13f6c9` is deployed at `/opt/salemax/releases/training-receipt-status-a13f6c9`, and `/opt/salemax/current` points to it. Owner/accountant invoice history and receipt details now show the tenant-scoped email outbox state (off, paused, queued, sending, sent, failed or partial). SMTP is still disabled and its settings are incomplete in the running app; no email was sent. The migration runner applied zero and skipped all 38 recorded migrations. The app and database remain healthy, `/healthz`, `/`, `/login`, and the versioned finance asset return HTTP 200, and the live finance asset SHA-256 matches the deployed source. Rollback image: `salemax-app:rollback-training-receipt-status-a13f6c9`.
+
+Verification: `npm test` passes 160/160; JavaScript syntax checks and `git diff --check` pass. Authenticated user acceptance remains open. Receipt status reflects SMTP/outbox processing state; a provider-accepted email is not proof of mailbox delivery.
+
 ## SMTP credential-log hardening — 3 October 2026
 
 Commit `e3dda4d` is deployed at `/opt/salemax/releases/smtp-safe-e3dda4d`. It removes the legacy SMTP helper's log of the submitted email password. SaleMaX is healthy, `/healthz`, login pages and Lead Pipeline return HTTP 200, and the migration runner applied zero and skipped all 38 migrations. The receipt flag and SMTP host remain unset; no email was sent. The previous app image is retained as `salemax-app:rollback-receipt-optin-885ed7e`.
