@@ -244,10 +244,6 @@ app.get("*", function (request, response) {
 // ─── Server ───────────────────────────────────────────────────────────────────
 const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0.1", () => {
   console.log(`SaleMaX server is running on port ${process.env.PORT}`);
-  if (process.env.LOCAL_ONLY_MODE === "true") {
-    console.log("Local training mode: background provider workers are disabled.");
-    return;
-  }
   receiptWorkerProcess = receiptWorkerRuntime.start();
   if (receiptWorkerProcess) {
     receiptWorkerProcess.once("error", () => console.error("Receipt email worker could not start."));
@@ -255,6 +251,10 @@ const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0
       receiptWorkerProcess = null;
       if (code !== 0 && code !== null) console.error("Receipt email worker stopped with an error.");
     });
+  }
+  if (process.env.LOCAL_ONLY_MODE === "true") {
+    console.log("Local training mode: external provider workers are disabled; receipt email requires its separate explicit opt-in.");
+    return;
   }
   startCrmAccountSyncWorker();
   init();

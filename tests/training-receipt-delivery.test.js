@@ -3,12 +3,11 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const delivery=require('../modules/platform/training-receipt-delivery');
 
-test('receipt email stays off until the production flag and complete TLS-capable SMTP configuration are supplied',()=>{
+test('receipt email stays off until its dedicated opt-in and complete SMTP configuration are supplied',()=>{
   assert.throws(()=>delivery.config({}),{code:'RECEIPT_DELIVERY_DISABLED'});
   const env={SALEMAX_RECEIPT_EMAIL_ENABLED:'true',LOCAL_ONLY_MODE:'true',SALEMAX_SMTP_HOST:'smtp.example.invalid',SALEMAX_SMTP_PORT:'587',SALEMAX_SMTP_USER:'mailer@example.invalid',SALEMAX_SMTP_PASS:'synthetic-secret',SALEMAX_RECEIPT_FROM:'receipts@example.invalid'};
-  assert.throws(()=>delivery.config(env),{code:'RECEIPT_DELIVERY_LOCAL_ONLY'});
-  assert.throws(()=>delivery.config({...env,LOCAL_ONLY_MODE:'false',SALEMAX_SMTP_PASS:''}),{code:'RECEIPT_SMTP_NOT_CONFIGURED'});
-  const result=delivery.config({...env,LOCAL_ONLY_MODE:'false'});assert.equal(result.host,'smtp.example.invalid');assert.equal(result.secure,false);assert.equal(result.from,'receipts@example.invalid');
+  assert.throws(()=>delivery.config({...env,SALEMAX_SMTP_PASS:''}),{code:'RECEIPT_SMTP_NOT_CONFIGURED'});
+  const result=delivery.config(env);assert.equal(result.host,'smtp.example.invalid');assert.equal(result.secure,false);assert.equal(result.from,'receipts@example.invalid');
 });
 
 test('receipt recipients are validated, deduplicated and limited to customer, owner and accountant',()=>{
@@ -36,10 +35,10 @@ test('outbox worker can claim only receipt events without consuming unrelated no
   await assert.rejects(require('../modules/platform/training-outbox').claim(db,ctx,{workerId:'receipt-test-worker',limit:4,leaseSeconds:60,eventTypes:['*']}),{code:'INVALID_OUTBOX_WORKER'});
 });
 
-test('app starts the receipt worker only after explicit provider opt-in outside local-only mode',()=>{
+test('app starts only the explicitly opted-in receipt worker while other providers stay local-only',()=>{
   const runtime=require('../modules/platform/training-receipt-worker-runtime'),calls=[],spawnProcess=(...args)=>{calls.push(args);return {pid:123};};
   assert.equal(runtime.start({env:{SALEMAX_RECEIPT_EMAIL_ENABLED:'false'},spawnProcess}),null);
-  assert.equal(runtime.start({env:{SALEMAX_RECEIPT_EMAIL_ENABLED:'true',LOCAL_ONLY_MODE:'true'},spawnProcess}),null);
-  const env={SALEMAX_RECEIPT_EMAIL_ENABLED:'true',LOCAL_ONLY_MODE:'false',SALEMAX_SMTP_PASS:'synthetic-only'};
+  const env={SALEMAX_RECEIPT_EMAIL_ENABLED:'true',LOCAL_ONLY_MODE:'true',SALEMAX_SMTP_HOST:'smtp.example.invalid',SALEMAX_SMTP_PORT:'587',SALEMAX_SMTP_USER:'mailer@example.invalid',SALEMAX_SMTP_PASS:'synthetic-only',SALEMAX_RECEIPT_FROM:'receipts@example.invalid'};
+  assert.equal(runtime.start({env:{...env,SALEMAX_SMTP_PASS:''},spawnProcess}),null);
   assert.equal(runtime.start({env,spawnProcess,root:'C:\\salemax'}).pid,123);assert.equal(calls.length,1);assert.equal(calls[0][1][0],'C:\\salemax\\scripts\\training-receipt-worker.cjs');assert.equal(calls[0][2].env,env);assert.equal(calls[0][2].stdio,'inherit');
 });
