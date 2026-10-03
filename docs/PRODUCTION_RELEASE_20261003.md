@@ -1,4 +1,14 @@
-# Sidebar organization and optional integrations — 3 October 2026
+# Training finance and receipts — production release, 3 October 2026
+
+Committed application source `e0fd1fd` is deployed at `/opt/salemax/releases/training-finance-e0fd1fd`, and `/opt/salemax/current` points to it. GitHub `main` includes this commit. The release adds conversion-time agent sales-credit attribution, expanded period journey metrics, finance report changes, and a recipient-level SMTP receipt worker gated by configuration. Only the SaleMaX app was recreated; MariaDB and CarsQatar containers were left running.
+
+Migrations `20261026_training_payment_sales_credit.sql` and `20261027_training_receipt_delivery.sql` were applied from the exact release after a private pre-release SQL backup and checksum validation. The verified backup is `/opt/salemax/shared/rollback-training-finance-e0fd1fd/pre-release.sql.gz` (SHA-256 `b9af0401bf3f438a7781ef5255a4be624eba22f0620ca7916f572ecc177195ec`); its directory is mode 700. Before migration, the database had 124 tables, 36 applied migrations, zero training sale conversions and zero training receipts. The post-migration runner skipped all 38 migrations, confirming no pending work or checksum/history mismatch.
+
+The committed suite passes 159/159; `node --check` and `git diff --check` passed. The local MariaDB integration command could not connect to `127.0.0.1:3307`, so the 38-migration fake-SMTP integration scenario was not independently rerun in this deployment session. Live production root, login and report routes return HTTP 200; unauthenticated finance API requests return the existing `No token found` response. App and DB are healthy. `LOCAL_ONLY_MODE=true` and receipt email is unset, so the receipt worker did not start and no email was sent. Authenticated owner/accountant/agent acceptance and SMTP delivery remain unverified.
+
+The previous release was `/opt/salemax/releases/training-finance-b0d364d`; its image is retained as `salemax-app:rollback-training-finance-e0fd1fd`. To roll back the app, restore the previous symlink and image and recreate only the SaleMaX app. The schema changes are additive; do not restore the pre-release database dump over newer customer writes.
+
+## Sidebar organization and optional integrations — 3 October 2026
 
 ## Current sidebar release
 
