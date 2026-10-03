@@ -3,6 +3,7 @@ const express=require('express');
 const courses=require('./training-courses');
 const policies=require('./training-finance-policies');
 const invoices=require('./training-invoices');
+const receivablesReport=require('./training-receivables-report');
 const payments=require('./training-payments');
 const schedules=require('./training-installment-schedules');
 const credits=require('./training-credits');
@@ -23,6 +24,8 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.get('/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.detail)(req.financeContext,req.params.id)})));
   router.get('/accountant/invoices',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.list)(req.businessContext,req.query)})));
   router.get('/accountant/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.detail)(req.businessContext,req.params.id)})));
+  router.get('/reports/receivables-aging',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(receivablesReport.list)(req.financeContext,req.query)})));
+  router.get('/accountant/reports/receivables-aging',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(receivablesReport.list)(req.businessContext,req.query)})));
   router.post('/invoices/:id/schedule-changes',userGuard,ownerContext,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(schedules.request)(req.financeContext,req.params.id,req.body)})));
   router.post('/accountant/invoices/:id/schedule-changes',canonicalGuard,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(schedules.request)(req.businessContext,req.params.id,req.body)})));
   router.post('/invoices/:id/payments',userGuard,ownerContext,wrap(async(req,res)=>{

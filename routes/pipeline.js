@@ -168,6 +168,11 @@ router.get("/reports/activity", async (req,res)=>{
   }catch(error){fail(res,error);}
 });
 
+router.get('/reports/journey',async(req,res)=>{
+  try{const data=await pipelineReports.getJourneyReport({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  catch(error){fail(res,error);}
+});
+
 router.get('/reports/schedules',async(req,res)=>{
   if(req.pipelineActor.role!=='owner')return res.status(403).json({success:false,code:'PERMISSION_DENIED'});
   try{const ctx=await saleContext(req.pipelineActor),db=await require('../database/config.js').promise().getConnection();let data;try{data=await reportSchedules.list(db,ctx);}finally{db.release();}res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
@@ -284,7 +289,7 @@ router.post('/leads/:id/sale-reviews/:reviewId/decision',authorizeLead,async(req
 });
 
 router.post('/leads/:id/sale-reviews/:reviewId/convert',authorizeLead,async(req,res)=>{
-  try{if(req.pipelineActor.role!=='owner')return res.status(403).json({success:false,code:'PERMISSION_DENIED'});const ctx=await saleContext(req.pipelineActor);const conversion=require('../modules/platform/training-sale-conversion'),db=await require('../database/config.js').promise().getConnection();let data;try{data=await conversion.convert(db,ctx,{uid:req.pipelineActor.uid,leadId:req.params.id,saleReviewId:req.params.reviewId,requestKey:req.body?.requestKey,actorRole:req.pipelineActor.role});}finally{db.release();}res.status(data.repeated?200:201).json({success:true,data});}
+  try{if(!['owner','agent'].includes(req.pipelineActor.role))return res.status(403).json({success:false,code:'PERMISSION_DENIED'});const ctx=await saleContext(req.pipelineActor);const conversion=require('../modules/platform/training-sale-conversion'),db=await require('../database/config.js').promise().getConnection();let data;try{data=await conversion.convert(db,ctx,{uid:req.pipelineActor.uid,leadId:req.params.id,saleReviewId:req.params.reviewId,requestKey:req.body?.requestKey,actorRole:req.pipelineActor.role,actorType:req.pipelineActor.actorType==='agent'?'agent':'identity',actorId:String(req.pipelineActor.actorId)});}finally{db.release();}res.status(data.repeated?200:201).json({success:true,data});}
   catch(error){fail(res,error);}
 });
 

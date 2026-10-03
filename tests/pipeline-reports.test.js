@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {periodWindow,getActivityReport}=require('../helper/pipeline/reports');
+const {periodWindow,getActivityReport,getJourneyReport}=require('../helper/pipeline/reports');
 
 test('pipeline reports define Qatar-local daily, Monday-weekly and monthly periods',()=>{
   assert.deepEqual(periodWindow({period:'daily',at:'2026-10-01',timezone:'Asia/Qatar'}),{period:'daily',timezone:'Asia/Qatar',start:'2026-09-30 21:00:00.000',end:'2026-10-01 21:00:00.000'});
@@ -31,10 +31,35 @@ test('managers can read sales activity reports without receiving finance totals'
   assert.equal(queries.some(sql=>sql.includes('information_schema.TABLES')),false);
 });
 
+test('journey report combines current pipeline stages, period sources and agent sales credit',async()=>{
+  const queries=[];
+  const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
+    if(sql.includes('FROM pipeline_stages'))return [[{stageKey:'new',title:'New',stageType:'open',position:0,total:'2'},{stageKey:'won',title:'Won',stageType:'won',position:4,total:'1'}]];
+    if(sql.includes('GROUP BY l.source_type'))return [[{sourceType:'whatsapp',origin:'whatsapp',total:'2'}]];
+    if(sql.includes('AS new_leads'))return [[{new_leads:2,stage_changes:3,sales_converted:1,sales_closed_by_agents:1,leads_attended:2}]];
+    if(sql.includes('FROM agents a'))return [[{agentId:7,agentName:'Mona',active:1,assignedLeads:2,newLeads:2,attendedLeads:2,salesAttributed:1,salesClosedByAgent:1}]];
+    if(sql.includes("JSON_EXTRACT(pa.details,'$.stageTo')"))return [[{stageKey:'contacted',total:'3'}]];
+    if(sql.includes('AS enrolled'))return [[{enrolled:2,course_started:1,course_completed:1,certificates_issued:1,fully_paid:1}]];
+    throw new Error(`Unexpected query: ${sql}`);
+  }};
+  const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'owner',period:'daily',at:'2026-10-01'});
+  assert.deepEqual(report.summary,{newLeads:2,leadsAttended:2,stageChanges:3,salesConverted:1,salesClosedByAgents:1,openLeads:2,wonLeads:1,lostLeads:0});
+  assert.equal(report.stages[0].total,2);assert.equal(report.sources[0].total,2);
+  assert.equal(report.agents[0].salesClosedByAgent,1);assert.equal(report.stageTransitions[0].stageKey,'contacted');
+  assert.equal(report.learnerJourney.courseStarted,1);assert.equal(report.learnerJourney.certificatesIssued,1);
+  assert.equal(queries.length,6);
+});
+
+test('journey reports reject finance-only roles before database access',async()=>{
+  const pool={getConnection(){throw new Error('must not connect')}};
+  await assert.rejects(getJourneyReport({pool,uid:'synthetic',role:'accountant'}),{status:403});
+});
+
 test('finance report summary remains owner-only and presents exact bilingual Qatar currency totals',()=>{
   const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
-  assert.match(screen,/\/pipeline\/reports\.js\?v=7/);
+  assert.match(screen,/\/pipeline\/reports\.js\?v=8/);
   assert.match(ui,/report\.finance/);assert.match(ui,/BigInt\(String\(value\|\|'0'\)\)/);
   assert.match(ui,/Outstanding now/);assert.match(ui,/المتبقي الآن/);
   assert.match(ui,/collected and outstanding are current/);assert.match(ui,/يعرض المحصل والمتبقي حتى وقت إعداد التقرير/);
+  assert.match(ui,/journeyTitle:'Lead journey overview'/);assert.match(ui,/journeyTitle:'نظرة عامة على رحلة العميل'/);assert.match(ui,/journey\.agents/);
 });

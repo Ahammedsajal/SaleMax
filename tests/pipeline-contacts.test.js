@@ -42,7 +42,7 @@ test('existing pipeline add-opportunity screen offers contact reuse and separate
   assert.match(screen, /إنشاء جهة اتصال \/ متعلم مستقل/);
   assert.match(html, /pipeline\.js\?v=16/);
   assert.match(screen, /settingsModal\(\)\{if\(state\.data\?\.role!==['"]owner['"]\)/);
-  assert.match(screen, /conversionReady&&state\.data\?\.role===['"]owner['"]/);
+  assert.match(screen, /conversionReady&&\['owner','agent'\]\.includes\(state\.data\?\.role\)/);
   assert.match(screen, /invoiceIssueOwnerOnly/);
   assert.match(screen, /يمكن لمالك مساحة العمل فقط إكمال إصدار الفاتورة هنا/);
 });
