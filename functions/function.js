@@ -2154,12 +2154,6 @@ async function sendEmailBeta(config) {
 }
 
 function sendEmail(host, port, email, pass, html, subject, from, to, username) {
-  console.log({
-    host,
-    port,
-    email,
-    pass,
-  });
   return new Promise(async (resolve) => {
     try {
       let transporter = nodemailer.createTransport({
