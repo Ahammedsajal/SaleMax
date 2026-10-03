@@ -1,5 +1,11 @@
 # Training finance and receipts — production release, 3 October 2026
 
+## Lead cohort conversion context — 4 October 2026
+
+Commit `065df72` is serving at `/opt/salemax/releases/training-lead-cohort-rates-065df72`, with `/opt/salemax/current` pointing to it. The Lead Reports journey cohort now shows each milestone count and the share of period-created leads that have reached it so far; zero-lead periods show no percentage. English and Arabic strings are included. No API or database migration was needed. Only the SaleMaX app container was recreated. Rollback image: `salemax-app:rollback-lead-cohort-rates-065df72`.
+
+Verification: `npm test` passes 161/161, and the focused lead report screen/data/schedule tests pass 15/15. Production `/healthz` returns HTTP 200 and the SaleMaX app and database are healthy. The live HTML references CSS v7 and reports JS v14; both served asset hashes match the committed release source. Receipt SMTP configuration and authenticated owner/agent UI acceptance remain open.
+
 ## Receivables report clarity — 4 October 2026
 
 Commit `900fd10` is serving at `/opt/salemax/releases/training-receivables-filters-900fd10`, with `/opt/salemax/current` pointing to it. The Finance Reports aging summary now shows fully settled and partly settled invoice counts together, and offers a one-click reset for its issue-date, aging-bucket and search filters. The finance asset cache key is `20261004-receivables-filters`. No database migration was needed. Only the SaleMaX app container was recreated; MariaDB and other application services were left running. Rollback image: `salemax-app:rollback-receivables-filters-900fd10`.

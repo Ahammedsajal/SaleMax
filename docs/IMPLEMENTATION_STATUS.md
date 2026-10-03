@@ -478,3 +478,5 @@ The aging summary now exposes both fully settled and partly settled invoice coun
 ## Lead cohort conversion context — 4 October 2026
 
 Lead Reports now shows the percentage of the selected new-lead cohort that has reached each milestone, alongside its count. The label makes the denominator explicit (“of new leads”); when the period contains no new leads, the percentage is shown as unavailable. English and Arabic copy is included. This uses the existing cohort counts and does not change report calculations or lead data.
+
+Commit `065df72` is live in `/opt/salemax/releases/training-lead-cohort-rates-065df72`; production health and the served report/CSS asset hashes are verified. There is no migration; only the SaleMaX app container was recreated. The full suite passes 161/161 and focused pipeline report tests pass 15/15. Authenticated owner/agent screen acceptance remains open. See [production release evidence](PRODUCTION_RELEASE_20261003.md).
