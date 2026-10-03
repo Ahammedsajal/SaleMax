@@ -69,7 +69,7 @@ async function reconcileExisting(pool,{uid}){
         let milestone='training_invoice_issued';
         if(row.has_receipt)milestone='training_payment_received';
         if(BigInt(row.paid_minor||0)>=BigInt(row.total_minor||0))milestone='training_fully_paid';
-        if(row.started_at)milestone='training_course_started';
+        if(row.started_at&&stageIndex(milestone)<stageIndex('training_course_started'))milestone='training_course_started';
         if(row.completed_at)milestone='training_course_completed';
         if(row.certificate_id)milestone='training_certificate_issued';
         if(await advance(connection,{uidHash,uid,leadId:row.lead_id,milestone},{stagesReady:true}))advanced++;
