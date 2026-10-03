@@ -40,6 +40,8 @@
     [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{width:32px!important;height:32px!important}
   `;
   document.head.append(style);
+  const observed = new WeakSet();
+  const resizeObserver = new ResizeObserver(schedule);
   function label(row) {
     const spans = [...row.querySelectorAll('.MuiListItemText-primary span')];
     return (spans.at(-1)?.textContent || row.querySelector('.MuiListItemText-primary')?.textContent || row.textContent).trim();
@@ -82,6 +84,7 @@
   function update() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return;
     document.querySelectorAll('.MuiDrawer-paper').forEach(drawer => {
+      if (!observed.has(drawer)) { observed.add(drawer); resizeObserver.observe(drawer); }
       const list = drawer.querySelector('ul');
       if (!list) return;
       syncInjectedRows(list);
@@ -89,7 +92,7 @@
       const collapsed = drawer.getBoundingClientRect().width < 110;
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === 'SaleMaX' && !p.closest('ul'));
-      const brand = brandText?.parentElement?.parentElement;
+      const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
       if (brand) {
         brand.dataset.sxSidebarBrand = '1';
         let logo = brand.querySelector('[data-sx-sidebar-logo]');
