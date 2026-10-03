@@ -1,6 +1,8 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
 const report=require('../modules/platform/training-receivables-report');
 
 test('receivables report bounds paging and accepts only defined aging filters',()=>{
@@ -11,6 +13,14 @@ test('receivables report bounds paging and accepts only defined aging filters',(
 
 test('receivables report uses a Qatar-local ISO report date',()=>{
   assert.match(report.todayQatar(),/^\d{4}-\d{2}-\d{2}$/);
+});
+
+test('finance report labels settled and partial invoices separately and can clear every filter',()=>{
+  const screen=fs.readFileSync(path.join(__dirname,'../client/public/training-finance.js'),'utf8');
+  const index=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
+  assert.match(screen,/Settled \/ part-settled/);assert.match(screen,/partialInvoiceCount/);
+  assert.match(screen,/Clear filters/);assert.match(screen,/bucket='all';q='';from='';to='';page=1;render\(\)/);
+  assert.match(index,/training-finance\.js\?v=20261004-receivables-filters/);
 });
 
 test('finance report exposes payment credit from posted invoice receipts net of reversals',async()=>{
