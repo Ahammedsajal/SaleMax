@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Lead agent attribution correction — local, 3 October 2026
+
+The Lead Reports scorecard now attributes attended leads to the agent recorded on the actual contact/note activity. Reassigning a lead no longer moves an earlier agent's attendance to its new owner; current assignment remains a separate scorecard column. The sales column label now states that credit is attributed at conversion in English and Arabic. The existing read-only tenant-scoped report API and pipeline report cache key are updated; no database migration is needed. Focused tests pass, and a disposable MariaDB integration asserts the reassignment case after applying all 38 migrations (`customerDataTouched=false`, `externalWrites=false`). Production deployment and authenticated browser acceptance remain open.
+
 ## Finance page layout — deployed, browser-verified locally — 3 October 2026
 
 Removed the overview Credit notes awaiting review, Excess-deposit returns awaiting action, and Current posting readiness sections. Remaining payment verification, installment approvals and payment disputes share a responsive Needs attention card grid. Invoice filters and tables have clearer spacing, table headers and contained mobile scrolling. Finance settings/history and the embedded report are collapsible; the existing Finance Reports route stays available. English/Arabic section links scroll within the screen without reloading it. Existing invoice-specific credit/return records and backend authorization/policy validation remain intact.

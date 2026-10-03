@@ -55,6 +55,10 @@ test('journey report combines current pipeline stages, period sources and agent 
   const agentQuery=queries.find(sql=>sql.includes('FROM agents a'));
   assert.match(agentQuery,/c\.sales_agent_id/);
   assert.match(agentQuery,/c\.confirmed_by_actor_type='agent'/);
+  assert.match(agentQuery,/pa\.actor_type='agent'/);
+  assert.match(agentQuery,/CAST\(pa\.actor_id AS UNSIGNED\) AS agent_id/);
+  assert.match(agentQuery,/COUNT\(DISTINCT pa\.lead_id\) AS attended_leads/);
+  assert.doesNotMatch(agentQuery,/COUNT\(DISTINCT CASE WHEN pa\.activity_type IN/);
   assert.doesNotMatch(agentQuery,/pa\.activity_type='sale_converted'/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_receipts/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_enrollment_events/);
@@ -68,7 +72,9 @@ test('journey reports reject finance-only roles before database access',async()=
 
 test('finance report summary remains owner-only and presents exact bilingual Qatar currency totals',()=>{
   const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
-  assert.match(screen,/\/pipeline\/reports\.js\?v=11/);
+  assert.match(screen,/\/pipeline\/reports\.js\?v=12/);
+  assert.match(ui,/Sales credited at conversion/);
+  assert.match(ui,/مبيعات منسوبة وقت التحويل/);
   assert.match(ui,/report\.finance/);assert.match(ui,/BigInt\(String\(value\|\|'0'\)\)/);
   assert.match(ui,/Outstanding now/);assert.match(ui,/المتبقي الآن/);
   assert.match(ui,/collected and outstanding are current/);assert.match(ui,/يعرض المحصل والمتبقي حتى وقت إعداد التقرير/);

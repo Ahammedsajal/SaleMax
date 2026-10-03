@@ -280,7 +280,7 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   assert.equal(activityReport.items.length,2);assert.ok(activityReport.items.every(item=>item.attendedBy==='Synthetic Agent'));
   const agentJourney=await reportService.getJourneyReport({pool,uid,role:'agent',agentId:Number(legacyAgents[0].id),period:'daily',at:today,timezone:'Asia/Qatar'});
   assert.equal(agentJourney.summary.leadsAttended,1);assert.equal(agentJourney.summary.stageChanges,1);assert.equal(agentJourney.stages.find(stage=>stage.stageKey==='contacted')?.total,1);
-  assert.equal(agentJourney.agents.length,1);assert.equal(agentJourney.agents[0].agentName,'Synthetic Agent');
+  assert.equal(agentJourney.agents.length,1);assert.equal(agentJourney.agents[0].agentName,'Synthetic Agent');assert.equal(agentJourney.agents[0].attendedLeads,1);
   const ownerActivityReport=await reportService.getActivityReport({pool,uid,role:'owner',period:'monthly',at:today,timezone:'Asia/Qatar'});assert.equal(ownerActivityReport.finance.currency,'QAR');assert.equal(ownerActivityReport.finance.invoiceScope,'issued_in_selected_period');assert.ok(Number(ownerActivityReport.finance.issuedInvoiceCount)>0);
   const [[reportInvoiceTotals]]=await db.query(`SELECT COUNT(*) AS invoices,COALESCE(SUM(i.total_minor),0) AS billed,COALESCE(SUM(COALESCE(paid.amount_minor,0)),0) AS collected,COALESCE(SUM(COALESCE(credits.amount_minor,0)),0) AS credited FROM sx_training_invoices i
     LEFT JOIN (SELECT a.tenant_id,a.invoice_id,SUM(CAST(a.amount_minor AS DECIMAL(65,0))-CAST(COALESCE(r.amount_minor,0) AS DECIMAL(65,0))) AS amount_minor FROM sx_training_payment_allocations a JOIN sx_training_payments p ON p.tenant_id=a.tenant_id AND p.id=a.payment_id AND p.status='posted' LEFT JOIN (SELECT tenant_id,allocation_id,SUM(amount_minor) AS amount_minor FROM sx_training_payment_allocation_reversals WHERE tenant_id=? GROUP BY tenant_id,allocation_id) r ON r.tenant_id=a.tenant_id AND r.allocation_id=a.id WHERE a.tenant_id=? GROUP BY a.tenant_id,a.invoice_id) paid ON paid.tenant_id=i.tenant_id AND paid.invoice_id=i.id
@@ -300,6 +300,12 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   assert.equal(rescheduled.total,1);assert.equal(rescheduledDb.due,require('moment-timezone').utc(nextFollowUpAt).format('YYYY-MM-DD HH:mm:ss'));
   await assert.rejects(leadPipeline.resolveFollowUp({...agentLeadActor,id:assignedLead,action:'complete',expectedDueAt:oldDueRevision,pool}),{status:409});
   await leadPipeline.resolveFollowUp({...agentLeadActor,id:assignedLead,action:'complete',expectedDueAt:rescheduled.items[0].due_revision,pool});
+  const attendingAgentActor={...agentLeadActor,agentId:Number(legacyAgents[2].id),actorId:String(legacyAgents[2].id)};
+  await leadPipeline.updateLead({...attendingAgentActor,id:foreignAssignedLead,input:{note:'Attendance attribution fixture',outcome:'interested'},pool});
+  await leadPipeline.updateLead({uid,id:foreignAssignedLead,input:{ownerAgentId:Number(legacyAgents[4].id)},actorType:'user',actorId:'synthetic-owner',role:'owner',pool});
+  const reassignedJourney=await reportService.getJourneyReport({pool,uid,role:'owner',period:'daily',at:today,timezone:'Asia/Qatar'});
+  assert.equal(reassignedJourney.agents.find(agent=>agent.agentId===Number(legacyAgents[2].id))?.attendedLeads,1,'attendance stays with the agent who recorded it after reassignment');
+  assert.equal(reassignedJourney.agents.find(agent=>agent.agentId===Number(legacyAgents[4].id))?.attendedLeads,0,'current assignment does not falsely claim another agent\'s attendance');
   await assert.rejects(leadPipeline.resolveFollowUp({...agentLeadActor,id:assignedLead,action:'complete',expectedDueAt:rescheduled.items[0].due_revision,pool}),{status:409});
   assert.equal((await leadPipeline.getFollowUps({uid,role:'agent',agentId:Number(legacyAgents[0].id),pool})).total,0);
   await db.query(`CREATE TABLE phonebook(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,name VARCHAR(255) NOT NULL,uid VARCHAR(999) NOT NULL) ENGINE=InnoDB`);
