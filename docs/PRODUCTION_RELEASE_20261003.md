@@ -4,7 +4,7 @@
 
 Commit `065df72` is serving at `/opt/salemax/releases/training-lead-cohort-rates-065df72`, with `/opt/salemax/current` pointing to it. The Lead Reports journey cohort now shows each milestone count and the share of period-created leads that have reached it so far; zero-lead periods show no percentage. English and Arabic strings are included. No API or database migration was needed. Only the SaleMaX app container was recreated. Rollback image: `salemax-app:rollback-lead-cohort-rates-065df72`.
 
-The 4 October follow-up release `<COMMIT>` adds a Finance Reports CSV export for the visible receivables-aging page, including current filters, summary totals and installment detail rows. It is UTF-8 with a BOM, escapes spreadsheet formula-leading values, and names the export with its as-of date and page number. No API or database migration was needed. Only the SaleMaX app container was recreated. Rollback image: `<ROLLBACK_IMAGE>`.
+The 4 October follow-up release ``6fb97f2`` adds a Finance Reports CSV export for the visible receivables-aging page, including current filters, summary totals and installment detail rows. It is UTF-8 with a BOM, escapes spreadsheet formula-leading values, and names the export with its as-of date and page number. No API or database migration was needed. Only the SaleMaX app container was recreated. Rollback image: ``salemax-app:rollback-receivables-export-6fb97f2``.
 
 Verification: `npm test` passes 161/161, and the focused lead report screen/data/schedule tests pass 15/15. Production `/healthz` returns HTTP 200 and the SaleMaX app and database are healthy. The live HTML references CSS v7 and reports JS v14; both served asset hashes match the committed release source. Receipt SMTP configuration and authenticated owner/agent UI acceptance remain open.
 
@@ -93,3 +93,6 @@ Pre-release database backup and rollback references are protected under `/opt/sa
 The committed-source test suite passes 152/152. Production checks verified service health, login/report routes, refreshed assets and unauthenticated API denial. Authenticated browser acceptance for owner/agent/accountant workflows, certificate PDF generation, receipt delivery, and historical funnel reconstruction remain open. This release does not complete the overall Training Center objective. Local preview-only workspace files were preserved and excluded from the deployed artifact.
 
 ## Sidebar organization and optional integrations — 3 October 2026
+
+Verification: 
+pm test passes 161/161 and the focused receivables report tests pass 4/4. Production /healthz returns HTTP 200; both app and database containers are healthy. The live HTML references 	raining-finance.js?v=20261004-receivables-export; its served asset SHA-256 matches the built image and release source (7bc62f89bdb204918049059156d1944c130e63884fb64a1291199a16e1369bc3). Only the SaleMaX app container was recreated. No migration was required. SMTP delivery and authenticated owner/accountant UI acceptance remain open.
