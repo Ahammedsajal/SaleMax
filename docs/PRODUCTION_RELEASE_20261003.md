@@ -4,6 +4,8 @@
 
 Commit `065df72` is serving at `/opt/salemax/releases/training-lead-cohort-rates-065df72`, with `/opt/salemax/current` pointing to it. The Lead Reports journey cohort now shows each milestone count and the share of period-created leads that have reached it so far; zero-lead periods show no percentage. English and Arabic strings are included. No API or database migration was needed. Only the SaleMaX app container was recreated. Rollback image: `salemax-app:rollback-lead-cohort-rates-065df72`.
 
+The 4 October follow-up release `<COMMIT>` adds a Finance Reports CSV export for the visible receivables-aging page, including current filters, summary totals and installment detail rows. It is UTF-8 with a BOM, escapes spreadsheet formula-leading values, and names the export with its as-of date and page number. No API or database migration was needed. Only the SaleMaX app container was recreated. Rollback image: `<ROLLBACK_IMAGE>`.
+
 Verification: `npm test` passes 161/161, and the focused lead report screen/data/schedule tests pass 15/15. Production `/healthz` returns HTTP 200 and the SaleMaX app and database are healthy. The live HTML references CSS v7 and reports JS v14; both served asset hashes match the committed release source. Receipt SMTP configuration and authenticated owner/agent UI acceptance remain open.
 
 ## Receivables report clarity — 4 October 2026
