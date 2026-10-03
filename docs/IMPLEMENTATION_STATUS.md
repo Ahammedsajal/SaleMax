@@ -474,3 +474,7 @@ Finance Reports now credits every posted receipt to the agent snapshot stored wh
 ## Receivables report clarity — 4 October 2026
 
 The aging summary now exposes both fully settled and partly settled invoice counts, using the existing report totals, and provides a one-click clear action for issue-date, aging-bucket and search filters. English and Arabic labels are included. The finance asset cache key is versioned; no API or schema change is required. Commit `900fd10` is live in `/opt/salemax/releases/training-receivables-filters-900fd10`; the health endpoint and live finance asset hash are verified, and only the SaleMaX app container was recreated. Focused report UI/API tests pass 4/4 and the full suite passes 161/161. Authenticated owner/accountant visual acceptance and receipt SMTP configuration remain open. See [production release evidence](PRODUCTION_RELEASE_20261003.md).
+
+## Lead cohort conversion context — 4 October 2026
+
+Lead Reports now shows the percentage of the selected new-lead cohort that has reached each milestone, alongside its count. The label makes the denominator explicit (“of new leads”); when the period contains no new leads, the percentage is shown as unavailable. English and Arabic copy is included. This uses the existing cohort counts and does not change report calculations or lead data.
