@@ -1,5 +1,9 @@
 # Training finance and receipts — production release, 3 October 2026
 
+## SMTP credential-log hardening — 3 October 2026
+
+Commit `e3dda4d` is deployed at `/opt/salemax/releases/smtp-safe-e3dda4d`. It removes the legacy SMTP helper's log of the submitted email password. SaleMaX is healthy, `/healthz`, login pages and Lead Pipeline return HTTP 200, and the migration runner applied zero and skipped all 38 migrations. The receipt flag and SMTP host remain unset; no email was sent. The previous app image is retained as `salemax-app:rollback-receipt-optin-885ed7e`.
+
 ## Lead journey lifecycle release — 3 October 2026
 
 Commit `3c7cf85` is deployed at `/opt/salemax/releases/training-lead-3c7cf85`, and `/opt/salemax/current` points to it. It includes the pushed `f3303dd` lifecycle changes plus idempotent catch-up for already-converted learners: the existing Lead Pipeline board and Lead Reports reconcile linked issued invoices, posted payments net of reversals, course progress and certificates to the furthest valid stage. It adds no migration. Before the app-only switch, the prior image was retained as `salemax-app:rollback-training-finance-54893f4`; the previous release directory remains available at `/opt/salemax/releases/training-finance-54893f4`.
