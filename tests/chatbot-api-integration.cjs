@@ -264,12 +264,57 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
 
     const deleted = await call(`/${botId}`, 'DELETE', {});
     assert.equal(deleted.status, 200);
+
+    // Verify the Hybrid dispatcher end to end against the isolated database:
+    // the first greeting stays deterministic, while an unrelated question
+    // reaches the mocked provider. The channel transport above remains fake.
+    const hybrid = await call('/', 'POST', {
+      name: 'Synthetic Training Hybrid', engine: 'hybrid', config: {
+        guidedMode: 'domain_default', aiFallback: true,
+        instructions: 'Use only approved training-center facts.', confidenceThreshold: 0.72,
+        aiDataProcessingConfirmed: true, knowledgeEntries: [],
+      },
+    });
+    assert.equal(hybrid.status, 201);
+    const hybridId = hybrid.data.id;
+    const hybridAssigned = await call(`/${hybridId}/channels`, 'PUT', { expectedRevision: 1, channels: [{ kind: 'whatsapp_qr', reference: channelRef }] });
+    assert.equal(hybridAssigned.status, 200);
+    const hybridActivated = await call(`/${hybridId}/status`, 'PUT', { status: 'live', expectedRevision: 2 });
+    assert.equal(hybridActivated.status, 200);
+
+    const hybridConversation = `chatbot-hybrid-${crypto.randomUUID()}`;
+    await connection.query('INSERT INTO beta_chats(uid,chat_id) VALUES (?,?)', [legacyUid, hybridConversation]);
+    const greetingInbound = {
+      type: 'text', route: 'INCOMING', metaChatId: `synthetic-hybrid-greeting-${crypto.randomUUID()}`,
+      msgContext: { type: 'text', text: { body: 'Good evening' } },
+      senderName: 'Synthetic Learner', senderMobile: '+97455000004',
+    };
+    const greetingResult = await runtime.runConfiguredBot({ uid: legacyUid, message: greetingInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
+    assert.equal(greetingResult.handled, true);
+    assert.equal(greetingResult.flowDispatched, true);
+    assert.match(sentMessages.at(-1).content.text.body, /^Welcome! I can help you explore our training courses\./);
+    assert.equal(providerCalls, 2, 'Hybrid greeting is answered by the deterministic guide without a provider call');
+
+    const hybridQuestion = {
+      ...greetingInbound, metaChatId: `synthetic-hybrid-question-${crypto.randomUUID()}`,
+      msgContext: { type: 'text', text: { body: 'Can you explain your refund policy?' } },
+    };
+    const hybridQuestionResult = await runtime.runConfiguredBot({ uid: legacyUid, message: hybridQuestion, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
+    assert.equal(hybridQuestionResult.handled, true);
+    assert.equal(hybridQuestionResult.sent, true);
+    assert.equal(providerCalls, 3, 'Hybrid sends an ordinary follow-up to the configured AI fallback');
+    assert.equal(sentMessages.at(-1).content.text.body, 'Our approved course information is available.');
+    const hybridPaused = await call(`/${hybridId}/status`, 'PUT', { status: 'paused', expectedRevision: 3 });
+    assert.equal(hybridPaused.status, 200);
+    assert.equal((await call(`/${hybridId}`, 'DELETE', {})).status, 200);
+
     return {
       profileCrudAndRevisionConflicts: true, tenantIsolationAndPermissionChecks: true,
       providerKeyMaskedAndEncrypted: true, savedFactAiPreviewWithoutWhatsAppTurn: true,
       connectedNumberAssignmentAndActivation: true, perConversationPauseResume: true,
       liveInboundAiResponseWithFakeChannelTransport: true, inboundRetryIdempotency: true,
       pausedConversationSuppressesAiAndChannelSend: true,
+      hybridDeterministicGreetingAndAiFallbackWithFakeChannelTransport: true,
       guidedFlowOptionsAndRuntimeLookup: true, guidedPreviewUsesTenantPublishedFactsWithoutWritesOrProviderCalls: true,
     };
   } finally {
