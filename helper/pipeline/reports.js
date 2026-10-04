@@ -67,9 +67,10 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
     const [[counts]]=await connection.query(`SELECT
       SUM(pa.activity_type='contact_outcome') AS outcomes,
       SUM(pa.activity_type='note_added') AS notes,
+      SUM(pa.activity_type='agent_message_sent') AS agent_replies,
       COUNT(DISTINCT pa.lead_id) AS leads_touched
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
-      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added')${agentScope}`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
+      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${agentScope}`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
     const [outcomeRows]=await connection.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.outcome')) AS outcome,COUNT(*) AS total
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
       WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'${agentScope}
@@ -89,12 +90,12 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
       LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
       LEFT JOIN agents a ON pa.actor_type='agent' AND a.id=CAST(IF(pa.actor_id REGEXP '^[0-9]+$',pa.actor_id,'0') AS UNSIGNED)
         AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
-      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added')${agentScope}
+      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${agentScope}
       ORDER BY pa.created_at DESC,pa.id DESC LIMIT ? OFFSET ?`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[]),pageSize,offset]);
-    const total=Number(counts?.outcomes||0)+Number(counts?.notes||0);
+    const total=Number(counts?.outcomes||0)+Number(counts?.notes||0)+Number(counts?.agent_replies||0);
     await connection.commit();
     return {period:window.period,timezone:window.timezone,from:window.start,to:window.end,...(cutoffAt?{cutoffAt:moment.utc(cutoffAt).toISOString()}:{}),page:currentPage,limit:pageSize,total,hasMore:offset+events.length<total,
-      summary:{leadsCreated:Number(created.n||0),leadsTouched:Number(counts.leads_touched||0),outcomes:Number(counts.outcomes||0),notes:Number(counts.notes||0),followUpsRequired:Number(followupsRequired.n||0),followUpsDue:Number(followups.n||0),followUpsOverdue:Number(overdue.n||0),outcomeCounts:outcomeRows.map(row=>({outcome:row.outcome,total:Number(row.total)}))},
+      summary:{leadsCreated:Number(created.n||0),leadsTouched:Number(counts.leads_touched||0),outcomes:Number(counts.outcomes||0),notes:Number(counts.notes||0),agentReplies:Number(counts.agent_replies||0),followUpsRequired:Number(followupsRequired.n||0),followUpsDue:Number(followups.n||0),followUpsOverdue:Number(overdue.n||0),outcomeCounts:outcomeRows.map(row=>({outcome:row.outcome,total:Number(row.total)}))},
       ...(finance?{finance}:{}),
       items:events.map(event=>({...event,details:parseDetails(event.details)}))};
   }catch(error){try{await connection.rollback();}catch(_){}throw error;}

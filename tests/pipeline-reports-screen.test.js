@@ -25,6 +25,9 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /\/api\/pipeline\/reports\/activity/);
   assert.match(reports, /ownerScope:'All workspace activity'/);
   assert.match(reports, /agentScope:'Only leads currently assigned to you'/);
+  assert.match(reports, /agentReplies:'ردود الوكلاء عبر واتساب'/);
+  assert.match(reports, /agentReply:'Agent WhatsApp reply'/);
+  assert.match(reports, /activityType==='agent_message_sent'/);
   assert.match(reports, /ownerScope:'نشاط مساحة العمل بالكامل'/);
   assert.match(reports, /agentScope:'العملاء المسندون إليك حاليًا فقط'/);
   assert.match(reports, /name="period"/);
@@ -33,7 +36,7 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /cohortShare:'من العملاء الجدد'/);
   assert.match(reports, /Math\.round\(Number\(value\|\|0\)\*100\/cohortSize\)/);
   assert.match(html, /pipeline\.css\?v=7/);
-  assert.match(html, /reports\.js\?v=14/);
+  assert.match(html, /reports\.js\?v=15/);
   assert.match(fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8'),/journey-cohort \.journey-stage small/);
   assert.match(reports, /reportPrevious/);
   assert.match(reports, /reportNext/);

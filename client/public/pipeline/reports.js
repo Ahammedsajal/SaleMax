@@ -9,8 +9,8 @@
     en: {
       title:'Activity reports', subtitle:'A clear record of lead ownership, outcomes and the next follow-up.',
       ownerScope:'All workspace activity', agentScope:'Only leads currently assigned to you', period:'Period', daily:'Daily', weekly:'Weekly', monthly:'Monthly',
-      date:'Report date', apply:'Run report', loading:'Preparing your report…', empty:'No lead notes or outcomes were recorded in this period.',
-      failed:'We could not load this report. Your data is unchanged.', retry:'Try again', created:'Leads created', touched:'Leads touched', outcomes:'Contact outcomes', notes:'Notes added',
+      date:'Report date', apply:'Run report', loading:'Preparing your report…', empty:'No lead activity was recorded in this period.',
+      failed:'We could not load this report. Your data is unchanged.', retry:'Try again', created:'Leads created', touched:'Leads touched', outcomes:'Contact outcomes', notes:'Notes added', agentReplies:'Agent WhatsApp replies', agentReply:'Agent WhatsApp reply', qrReply:'Sent from QR WhatsApp', metaReply:'Sent from WhatsApp Cloud',
       followUpsRequired:'Follow-ups requested', followUpsDue:'Follow-ups due in period', overdue:'Open follow-ups overdue now', outcomeBreakdown:'Outcome breakdown',
       occurred:'Time', lead:'Lead / contact', attended:'Handled by', activity:'Activity', details:'Outcome or note', followUp:'Next follow-up',
       exportPage:'Export this page (CSV)', exportReady:'Report page downloaded as CSV.',
@@ -23,8 +23,8 @@
     ar: {
       title:'تقارير النشاط', subtitle:'سجل واضح لمسؤولية العملاء والنتائج والمتابعة التالية.',
       ownerScope:'نشاط مساحة العمل بالكامل', agentScope:'العملاء المسندون إليك حاليًا فقط', period:'الفترة', daily:'يومي', weekly:'أسبوعي', monthly:'شهري',
-      date:'تاريخ التقرير', apply:'عرض التقرير', loading:'جارٍ إعداد التقرير…', empty:'لم تُسجل ملاحظات أو نتائج للعملاء خلال هذه الفترة.',
-      failed:'تعذر تحميل التقرير. لم تتغير بياناتك.', retry:'إعادة المحاولة', created:'عملاء جدد', touched:'عملاء تمت متابعتهم', outcomes:'نتائج التواصل', notes:'ملاحظات مضافة',
+      date:'تاريخ التقرير', apply:'عرض التقرير', loading:'جارٍ إعداد التقرير…', empty:'لم يُسجل أي نشاط للعملاء خلال هذه الفترة.',
+      failed:'تعذر تحميل التقرير. لم تتغير بياناتك.', retry:'إعادة المحاولة', created:'عملاء جدد', touched:'عملاء تمت متابعتهم', outcomes:'نتائج التواصل', notes:'ملاحظات مضافة', agentReplies:'ردود الوكلاء عبر واتساب', agentReply:'رد الوكيل عبر واتساب', qrReply:'أُرسل عبر واتساب QR', metaReply:'أُرسل عبر واتساب كلاود',
       followUpsRequired:'متابعات مطلوبة', followUpsDue:'متابعات مستحقة خلال الفترة', overdue:'متابعات مفتوحة متأخرة الآن', outcomeBreakdown:'تفصيل النتائج',
       occurred:'الوقت', lead:'العميل / جهة الاتصال', attended:'تمت المتابعة بواسطة', activity:'النشاط', details:'النتيجة أو الملاحظة', followUp:'المتابعة التالية',
       exportPage:'تصدير هذه الصفحة (CSV)', exportReady:'تم تنزيل صفحة التقرير بصيغة CSV.',
@@ -107,12 +107,12 @@
   function render(report) {
     state.report=report;
     const s=report.summary||{};
-    const metrics=[['created',s.leadsCreated],['touched',s.leadsTouched],['outcomes',s.outcomes],['notes',s.notes],['followUpsRequired',s.followUpsRequired],['followUpsDue',s.followUpsDue],['overdue',s.followUpsOverdue]];
+    const metrics=[['created',s.leadsCreated],['touched',s.leadsTouched],['outcomes',s.outcomes],['agentReplies',s.agentReplies],['notes',s.notes],['followUpsRequired',s.followUpsRequired],['followUpsDue',s.followUpsDue],['overdue',s.followUpsOverdue]];
     const breakdown=(s.outcomeCounts||[]).map(row=>`<span class="report-outcome">${escape(outcomeLabel(row.outcome))} · <b>${escape(row.total)}</b></span>`).join('')||`<span class="report-state">${escape(t('empty'))}</span>`;
     const rows=(report.items||[]).map(item=>{
       const outcome=item.details?.outcome;
-      const activity=item.activityType==='note_added'?t('note'):t('contactOutcome');
-      const detail=item.activityType==='note_added'?item.summary:[outcomeLabel(outcome),item.details?.followUpRequired===true?t('followUpRequired'):item.details?.followUpRequired===false?t('noFollowUp'):''].filter(Boolean).join(' · ');
+      const activity=item.activityType==='note_added'?t('note'):item.activityType==='agent_message_sent'?t('agentReply'):t('contactOutcome');
+      const detail=item.activityType==='note_added'?item.summary:item.activityType==='agent_message_sent'?(item.details?.origin==='meta'?t('metaReply'):t('qrReply')):[outcomeLabel(outcome),item.details?.followUpRequired===true?t('followUpRequired'):item.details?.followUpRequired===false?t('noFollowUp'):''].filter(Boolean).join(' · ');
       const followUp=item.details?.nextFollowUpAt||item.nextFollowUpAt;
       return `<tr><td>${escape(formatDate(item.occurredAt))}</td><td><button class="report-lead-link" type="button" data-lead="${escape(item.leadId)}">${escape(item.contactName||item.leadTitle||t('lead'))}</button><small>${escape(item.mobile||'')}</small></td><td>${escape(item.attendedBy||'—')}</td><td>${escape(activity)}</td><td class="report-detail">${escape(detail||'—')}</td><td>${escape(formatDate(followUp))}</td></tr>`;
     }).join('');
@@ -140,8 +140,8 @@
     const headers=[t('occurred'),t('lead'),t('attended'),t('activity'),t('details'),t('followUp')];
     const rows=(report.items||[]).map(item=>[
       formatDate(item.occurredAt),item.contactName||item.leadTitle||t('lead'),item.attendedBy||'',
-      item.activityType==='note_added'?t('note'):t('contactOutcome'),
-      item.activityType==='note_added'?item.summary:[outcomeLabel(item.details?.outcome),item.details?.followUpRequired===true?t('followUpRequired'):item.details?.followUpRequired===false?t('noFollowUp'):''].filter(Boolean).join(' · '),
+      item.activityType==='note_added'?t('note'):item.activityType==='agent_message_sent'?t('agentReply'):t('contactOutcome'),
+      item.activityType==='note_added'?item.summary:item.activityType==='agent_message_sent'?(item.details?.origin==='meta'?t('metaReply'):t('qrReply')):[outcomeLabel(item.details?.outcome),item.details?.followUpRequired===true?t('followUpRequired'):item.details?.followUpRequired===false?t('noFollowUp'):''].filter(Boolean).join(' · '),
       formatDate(item.details?.nextFollowUpAt||item.nextFollowUpAt)
     ]);
     const cell=value=>{

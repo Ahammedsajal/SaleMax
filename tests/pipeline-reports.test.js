@@ -31,6 +31,22 @@ test('managers can read sales activity reports without receiving finance totals'
   assert.equal(queries.some(sql=>sql.includes('information_schema.TABLES')),false);
 });
 
+test('activity reports include agent WhatsApp replies with attribution and channel but no message text',async()=>{
+  const queries=[];
+  const reply={id:91,leadId:'lead-1',actorType:'agent',actorId:'17',attendedBy:'Mona',activityType:'agent_message_sent',summary:'Agent replied in WhatsApp conversation',details:{origin:'meta',providerMessageId:'provider-1'},occurredAt:'2026-10-01 10:00:00',leadTitle:'Course enquiry',contactName:'Aisha',mobile:'+97455555555'};
+  const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
+    if(sql.includes('SUM(pa.activity_type'))return [[{outcomes:1,notes:1,agent_replies:1,leads_touched:2}]];
+    if(sql.includes('GROUP BY outcome'))return [[{outcome:'connected',total:1}]];
+    if(sql.includes('SELECT pa.id'))return [[reply]];
+    return [[{n:0}]];
+  }};
+  const report=await getActivityReport({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'manager',period:'daily',at:'2026-10-01'});
+  assert.equal(report.total,3);assert.equal(report.summary.agentReplies,1);assert.equal(report.summary.leadsTouched,2);
+  assert.equal(report.items[0].activityType,'agent_message_sent');assert.equal(report.items[0].attendedBy,'Mona');
+  assert.deepEqual(report.items[0].details,{origin:'meta',providerMessageId:'provider-1'});
+  assert.equal(queries.filter(sql=>sql.includes("activity_type IN ('contact_outcome','note_added','agent_message_sent')")).length,2);
+});
+
 test('journey report combines current pipeline stages, period sources and agent sales credit',async()=>{
   const queries=[];
   const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
@@ -76,7 +92,7 @@ test('journey reports reject finance-only roles before database access',async()=
 
 test('finance report summary remains owner-only and presents exact bilingual Qatar currency totals',()=>{
   const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),pipelineUi=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/pipeline.js'),'utf8'),screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
-  assert.match(screen,/\/pipeline\/reports\.js\?v=14/);
+  assert.match(screen,/\/pipeline\/reports\.js\?v=15/);
   assert.match(screen,/\/pipeline\/pipeline\.js\?v=17/);
   assert.match(ui,/Sales credited at conversion/);
   assert.match(ui,/مبيعات منسوبة وقت التحويل/);
