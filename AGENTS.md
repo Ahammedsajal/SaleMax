@@ -15,5 +15,6 @@ Read docs/SALEMAX_TRAINING_CENTER_IMPLEMENTATION_PLAN.md and docs/IMPLEMENTATION
 ## Evidence and publication
 
 - A module is complete only when its existing screen preserves old functionality and performs the added workflow through authenticated APIs, with permission/error-state and English/Arabic verification.
-- Keep account/customer data, credentials, sessions, local runtime files, backups and test secrets outside Git. Commit intended files and push verified increments to the requested repository.
+- Keep account/customer data, credentials, sessions, local runtime files, backups and test secrets outside Git. Commit intended files and push verified increments to Ahammedsajal/SaleMax.
+- Every production update must also update the tracked production record in DEPLOYMENT.md: include the source commit, deployed release, migrations, rollback reference, verification evidence and remaining gates. Commit and push that record after the live result is verified. Follow docs/PRODUCTION_ACCESS.md; never put credentials or private access material in Git.
 - Retain meaningful database/concurrency tests and use disposable synthetic data for verification. Record remaining legacy adoption, provider, finance, load/restore and release gates honestly; never redefine the full goal around a smaller passing increment.
