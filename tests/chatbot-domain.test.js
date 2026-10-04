@@ -30,8 +30,11 @@ test('guided profile accepts edited messages and bounded display settings', () =
   const saved = botInput({
     name: 'Admissions guide', engine: 'guided', config: {
       guidedContent: {
-        messages: { greeting: { en: 'Hello from the center', ar: 'مرحباً من المركز' } },
-        display: { maxCourses: 4, showFees: false },
+        display: { maxCourses: 4, showFees: false, showDescription: false, showDuration: false },
+        messages: {
+          greeting: { en: 'Hello from the center', ar: 'مرحباً من المركز' },
+          currentFeeLabel: { en: 'Tuition', ar: 'الرسوم الدراسية' },
+        },
       },
     },
   }, 'training_center', 1);
@@ -40,6 +43,10 @@ test('guided profile accepts edited messages and bounded display settings', () =
   assert.equal(saved.config.guidedContent.messages.greeting.ar, 'مرحباً من المركز');
   assert.equal(saved.config.guidedContent.display.maxCourses, 4);
   assert.equal(saved.config.guidedContent.display.showFees, false);
+  assert.equal(saved.config.guidedContent.display.showDescription, false);
+  assert.equal(saved.config.guidedContent.display.showDuration, false);
+  assert.equal(saved.config.guidedContent.messages.currentFeeLabel.en, 'Tuition');
+  assert.equal(saved.config.guidedContent.messages.currentFeeLabel.ar, 'الرسوم الدراسية');
   assert.equal(saved.config.guidedContent.messages.courseListHeading.en, 'Available courses');
 });
 
