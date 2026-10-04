@@ -195,6 +195,36 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(activated.status, 200);
     assert.equal(activated.data.status, 'live');
 
+    const activeEdit = await call(`/${botId}`, 'PUT', {
+      name: 'Synthetic Training FAQ · revised', engine: 'ai', config: {
+        instructions: 'Use the latest approved Training Center facts.', confidenceThreshold: 0.72,
+        aiDataProcessingConfirmed: true,
+        knowledgeEntries: [{ questionEn: 'What changed?', answerEn: 'The live profile was safely updated.', questionAr: 'ما الذي تغير؟', answerAr: 'تم تحديث إعدادات الروبوت النشط بأمان.' }],
+      }, expectedRevision: 3,
+    });
+    assert.equal(activeEdit.status, 200, 'a live bot profile can be atomically edited without pausing its runtime');
+    assert.equal(activeEdit.data.revision, 4);
+    const rejectedUnsafeEdit = await call(`/${botId}`, 'PUT', {
+      name: 'Unsafe live edit', engine: 'ai', config: {
+        instructions: 'Updated without privacy acknowledgement.', confidenceThreshold: 0.72,
+        aiDataProcessingConfirmed: false, knowledgeEntries: [],
+      }, expectedRevision: 4,
+    });
+    assert.equal(rejectedUnsafeEdit.status, 409);
+    assert.equal(rejectedUnsafeEdit.code, 'AI_DATA_PROCESSING_ACK_REQUIRED');
+    const afterLiveEdit = await call('/');
+    const editedBot = afterLiveEdit.data.items.find(item => item.id === botId);
+    assert.equal(editedBot.status, 'live');
+    assert.equal(editedBot.revision, 4);
+    assert.equal(editedBot.config.instructions, 'Use the latest approved Training Center facts.');
+    assert.deepEqual(editedBot.channels.map(channel => channel.reference), [channelRef], 'a live profile edit preserves its connected-number assignment');
+    const liveProviderChange = await call('/settings/provider', 'PUT', {
+      provider: 'openai', model: 'gpt-next', expectedRevision: 1, dailyTokenLimit: 10000,
+    });
+    assert.equal(liveProviderChange.status, 409);
+    assert.equal(liveProviderChange.code, 'LIVE_BOT_MUST_BE_PAUSED');
+    assert.equal((await call('/settings/provider')).data.model, 'gpt-test', 'a live AI bot protects its shared provider config');
+
     // Exercise the actual inbound dispatcher and persistence path with a fake
     // channel transport. The synthetic DB and provider are real; no WhatsApp
     // network call or customer message is made.
@@ -259,7 +289,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(resumedControl.mode, 'inherit');
     assert.equal(Number(resumedControl.revision), 2);
 
-    const pausedBot = await call(`/${botId}/status`, 'PUT', { status: 'paused', expectedRevision: 3 });
+    const pausedBot = await call(`/${botId}/status`, 'PUT', { status: 'paused', expectedRevision: 4 });
     assert.equal(pausedBot.status, 200);
 
     const deleted = await call(`/${botId}`, 'DELETE', {});
@@ -281,6 +311,16 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(hybridAssigned.status, 200);
     const hybridActivated = await call(`/${hybridId}/status`, 'PUT', { status: 'live', expectedRevision: 2 });
     assert.equal(hybridActivated.status, 200);
+    const hybridLiveEdit = await call(`/${hybridId}`, 'PUT', {
+      name: 'Synthetic Training Hybrid · revised', engine: 'hybrid', config: {
+        guidedMode: 'domain_default', aiFallback: true,
+        instructions: 'Use only approved training-center facts.', confidenceThreshold: 0.72,
+        aiDataProcessingConfirmed: true, knowledgeEntries: [],
+        guidedContent: { messages: { greeting: { en: 'Welcome from the updated Training Center guide.' } } },
+      }, expectedRevision: 3,
+    });
+    assert.equal(hybridLiveEdit.status, 200, 'a live Hybrid profile can update Guided copy while preserving AI readiness');
+    assert.equal(hybridLiveEdit.data.revision, 4);
 
     const hybridConversation = `chatbot-hybrid-${crypto.randomUUID()}`;
     await connection.query('INSERT INTO beta_chats(uid,chat_id) VALUES (?,?)', [legacyUid, hybridConversation]);
@@ -292,7 +332,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     const greetingResult = await runtime.runConfiguredBot({ uid: legacyUid, message: greetingInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
     assert.equal(greetingResult.handled, true);
     assert.equal(greetingResult.flowDispatched, true);
-    assert.match(sentMessages.at(-1).content.text.body, /^Welcome! I can help you explore our training courses\./);
+    assert.match(sentMessages.at(-1).content.text.body, /^Welcome from the updated Training Center guide\./);
     assert.equal(providerCalls, 2, 'Hybrid greeting is answered by the deterministic guide without a provider call');
 
     const hybridQuestion = {
@@ -304,7 +344,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(hybridQuestionResult.sent, true);
     assert.equal(providerCalls, 3, 'Hybrid sends an ordinary follow-up to the configured AI fallback');
     assert.equal(sentMessages.at(-1).content.text.body, 'Our approved course information is available.');
-    const hybridPaused = await call(`/${hybridId}/status`, 'PUT', { status: 'paused', expectedRevision: 3 });
+    const hybridPaused = await call(`/${hybridId}/status`, 'PUT', { status: 'paused', expectedRevision: 4 });
     assert.equal(hybridPaused.status, 200);
     assert.equal((await call(`/${hybridId}`, 'DELETE', {})).status, 200);
 
@@ -313,8 +353,8 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       providerKeyMaskedAndEncrypted: true, savedFactAiPreviewWithoutWhatsAppTurn: true,
       connectedNumberAssignmentAndActivation: true, perConversationPauseResume: true,
       liveInboundAiResponseWithFakeChannelTransport: true, inboundRetryIdempotency: true,
-      pausedConversationSuppressesAiAndChannelSend: true,
-      hybridDeterministicGreetingAndAiFallbackWithFakeChannelTransport: true,
+      pausedConversationSuppressesAiAndChannelSend: true, liveProfileEditsAreAtomicAndPreserveActivationSafety: true,
+      hybridDeterministicGreetingAndAiFallbackWithFakeChannelTransport: true, liveHybridGuidedCopyEditAppliedToNextTurn: true,
       guidedFlowOptionsAndRuntimeLookup: true, guidedPreviewUsesTenantPublishedFactsWithoutWritesOrProviderCalls: true,
     };
   } finally {

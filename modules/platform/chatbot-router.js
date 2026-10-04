@@ -63,6 +63,10 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         const [[row]] = await db.query(`SELECT provider,model,revision,key_ciphertext,key_iv,key_auth_tag FROM sx_chatbot_provider_configs WHERE tenant_id=? FOR UPDATE`, [ctx.tenant.id]);
         const revision = row ? Number(row.revision) : 0;
         if (revision !== expectedRevision) fail('STALE_REVISION');
+        const [[liveAiBot]] = await db.query(`SELECT id FROM sx_chatbot_profiles
+          WHERE tenant_id=? AND status='live' AND (engine='ai' OR (engine='hybrid' AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(config,'$.aiFallback')),'true')<>'false'))
+          LIMIT 1`, [ctx.tenant.id]);
+        if (liveAiBot) fail('LIVE_BOT_MUST_BE_PAUSED');
         if (!row && !encrypted) fail('PROVIDER_KEY_REQUIRED');
         if (row && row.provider !== provider && !encrypted) fail('PROVIDER_KEY_REQUIRED');
         const nextRevision = revision + 1;
@@ -168,12 +172,15 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     if (!/^[0-9a-f-]{36}$/i.test(req.params.id) || !Number.isSafeInteger(req.body.expectedRevision) || req.body.expectedRevision < 1) fail('INVALID_REVISION');
     const data = await withDb(async db => {
       await db.beginTransaction(); try {
-        const [[row]] = await db.query(`SELECT revision,status FROM sx_chatbot_profiles WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
+        const [[row]] = await db.query(`SELECT revision,status,category_key AS categoryKey,category_version AS categoryVersion FROM sx_chatbot_profiles WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
         if (!row) fail('BOT_NOT_FOUND');
         if (Number(row.revision) !== req.body.expectedRevision) fail('STALE_REVISION');
-        if (row.status === 'live') fail('LIVE_BOT_MUST_BE_PAUSED');
+        if (row.status === 'live') await assertLiveProfileReady(db, req, ctx, {
+          id: req.params.id, engine: input.engine, config: input.config,
+          categoryKey: row.categoryKey, categoryVersion: Number(row.categoryVersion),
+        });
         await db.query(`UPDATE sx_chatbot_profiles SET name=?,engine=?,config=?,revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=?`, [input.name, input.engine, JSON.stringify(input.config), ctx.identity.id, ctx.tenant.id, req.params.id]);
-        await audit(db, ctx, 'chatbot.profile-updated', req.params.id, { engine: input.engine, revision: req.body.expectedRevision + 1 });
+        await audit(db, ctx, 'chatbot.profile-updated', req.params.id, { engine: input.engine, revision: req.body.expectedRevision + 1, status: row.status, appliedImmediately: row.status === 'live' });
         await db.commit(); return { id: req.params.id, revision: req.body.expectedRevision + 1 };
       } catch (error) { await db.rollback(); throw error; }
     });
@@ -187,24 +194,11 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         const [[row]] = await db.query(`SELECT revision,status,engine,config,category_key AS categoryKey,category_version AS categoryVersion FROM sx_chatbot_profiles WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
         if (!row) fail('BOT_NOT_FOUND'); if (Number(row.revision) !== expectedRevision) fail('STALE_REVISION');
         if (status === 'live') {
-          const [[assignment]] = await db.query(`SELECT COUNT(*) AS count FROM sx_chatbot_channel_assignments WHERE tenant_id=? AND chatbot_id=?`, [ctx.tenant.id, req.params.id]);
-          if (Number(assignment.count) < 1) fail('BOT_CHANNEL_REQUIRED');
           const config = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
-          if (row.categoryKey !== ctx.category.key || Number(row.categoryVersion) !== ctx.category.version) fail('CATEGORY_UNAVAILABLE');
-          const requirements = botRequirements(row.engine, config);
-          if (config?.guidedMode === 'domain_default' && !require('./chatbot-domain-packs').getDomainPack(row.categoryKey, Number(row.categoryVersion)).guidedReply) fail('CATEGORY_GUIDED_FLOW_UNAVAILABLE');
-          if (requirements.requiresGuidedFlow && !config?.flowId) fail('GUIDED_FLOW_REQUIRED');
-          if (requirements.requiresGuidedFlow) {
-            const uid = await legacyUidFor(db, req, ctx);
-            const flow = await require('../platform/chatbot-runtime').loadGuidedFlow(uid, config?.flowId);
-            if (!flow) fail('GUIDED_FLOW_UNAVAILABLE');
-          }
-          if (requirements.requiresAi) {
-            if (config?.aiDataProcessingConfirmed !== true) fail('AI_DATA_PROCESSING_ACK_REQUIRED');
-            const [[providerConfig]] = await db.query(`SELECT provider,key_ciphertext,key_iv,key_auth_tag FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]);
-            if (!providerConfig) fail('AI_PROVIDER_NOT_CONFIGURED');
-            chatbotSecrets.decrypt(providerConfig);
-          }
+          await assertLiveProfileReady(db, req, ctx, {
+            id: req.params.id, engine: row.engine, config,
+            categoryKey: row.categoryKey, categoryVersion: Number(row.categoryVersion),
+          });
         }
         await db.query(`UPDATE sx_chatbot_profiles SET status=?,revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=?`, [status, ctx.identity.id, ctx.tenant.id, req.params.id]);
         await audit(db, ctx, 'chatbot.status-changed', req.params.id, { from: row.status, to: status, revision: expectedRevision + 1 });
@@ -247,6 +241,27 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
       WHERE o.source_table='user' AND o.tenant_id=? AND u.role='user' LIMIT 2`, [ctx.tenant.id]);
     if (rows.length !== 1 || rows[0].uidHash !== crypto.createHash('sha256').update(rows[0].uid).digest('hex')) fail('LEGACY_INBOX_LINK_REQUIRED');
     return rows[0].uid;
+  }
+  async function assertLiveProfileReady(db, req, ctx, profile) {
+    const [[assignment]] = await db.query(`SELECT COUNT(*) AS count FROM sx_chatbot_channel_assignments WHERE tenant_id=? AND chatbot_id=?`, [ctx.tenant.id, profile.id]);
+    if (Number(assignment.count) < 1) fail('BOT_CHANNEL_REQUIRED');
+    if (profile.categoryKey !== ctx.category.key || Number(profile.categoryVersion) !== ctx.category.version) fail('CATEGORY_UNAVAILABLE');
+    const config = profile.config || {};
+    const domainPack = require('./chatbot-domain-packs').getDomainPack(profile.categoryKey, Number(profile.categoryVersion));
+    if (config.guidedMode === 'domain_default' && !domainPack.guidedReply) fail('CATEGORY_GUIDED_FLOW_UNAVAILABLE');
+    const requirements = botRequirements(profile.engine, config);
+    if (requirements.requiresGuidedFlow && !config.flowId) fail('GUIDED_FLOW_REQUIRED');
+    if (requirements.requiresGuidedFlow) {
+      const uid = await legacyUidFor(db, req, ctx);
+      const flow = await require('../platform/chatbot-runtime').loadGuidedFlow(uid, config.flowId);
+      if (!flow) fail('GUIDED_FLOW_UNAVAILABLE');
+    }
+    if (requirements.requiresAi) {
+      if (config.aiDataProcessingConfirmed !== true) fail('AI_DATA_PROCESSING_ACK_REQUIRED');
+      const [[providerConfig]] = await db.query(`SELECT provider,key_ciphertext,key_iv,key_auth_tag FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]);
+      if (!providerConfig) fail('AI_PROVIDER_NOT_CONFIGURED');
+      chatbotSecrets.decrypt(providerConfig);
+    }
   }
   async function requireConversation(db, ctx, req, conversationId, channelKind, channelRef) {
     if (!/^[A-Za-z0-9_.:@+/-]{1,999}$/.test(conversationId)) fail('INVALID_CONVERSATION_ID');

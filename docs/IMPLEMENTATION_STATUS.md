@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Live chatbot editing — locally verified, 5 October 2026
+
+Owners can edit a live bot's profile without pausing it. Saves use the existing expected-revision lock and atomically update the profile; server validation rechecks the connected-number assignment, category version, guided flow, AI privacy confirmation and provider readiness. The next inbound turn loads the revised profile. Number assignments, provider credentials, token limits and AI privacy acknowledgement stay locked during live edits. Provider-setting API changes are also denied while an AI or AI-fallback Hybrid bot is live. Pause first to change those operational settings. The selected Automation Flows screen remains the first pill; the Guided/Hybrid/AI tabs still use the existing SaleMaX shell.
+
+The Training Center Guided editor uses the category-pack schema for editable bilingual greeting/menu, course-list, course-detail, enquiry, fallback and handoff copy; published course facts remain catalogue-owned. The generic business-instructions field is hidden for deterministic Guided bots because it is not used by that engine. Verification: `npm test` passes 198/198; all 40 forward migrations and the synthetic MariaDB workflow pass, including live AI profile save, privacy-unsafe edit denial, provider-change denial, live Hybrid guided-copy update and fake-channel next-turn handling (`customerDataTouched=false`, `externalWrites=false`). Production deployment and authenticated edit-screen acceptance remain pending.
+
 ## Guided training course-detail controls — production, 5 October 2026
 
 Extended the existing category-pack schema so the Guided editor can customize English and Arabic labels for duration, delivery mode, current fee, and available seats. Added switches to include or hide the published course description, duration, and delivery mode in course-detail replies. These are saved with the bot profile; course names, descriptions, offers, batch dates, and seat counts still come from the tenant's published Courses catalogue. The legacy Automation Flows tab and sidebar were not changed.

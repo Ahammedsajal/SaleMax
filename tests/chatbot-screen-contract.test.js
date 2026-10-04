@@ -26,6 +26,22 @@ test('bot editor renders editable bilingual training-center guide fields', () =>
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:ar/);
 });
 
+test('active bots remain editable while assignments and provider credentials stay locked', () => {
+  assert.match(admin, /data-edit="\$\{esc\(bot\.id\)\}"/);
+  assert.doesNotMatch(admin, /data-edit="\$\{esc\(bot\.id\)\}"\s+\$\{bot\.status==='live'\?'disabled/);
+  assert.match(admin, /Saved changes take effect on the next incoming message/);
+  assert.match(admin, /Number assignments are locked while the bot is active/);
+  assert.match(admin, /Provider credentials and usage limits are locked while this bot is active/);
+  assert.match(admin, /Pause this bot before changing its AI privacy confirmation/);
+  assert.match(admin, /aiDataProcessingConfirmed:liveEdit\?config\.aiDataProcessingConfirmed===true/);
+  assert.match(admin, /if \(!liveEdit\) \{[\s\S]*?api\(`\/\$\{id\}\/channels`,'PUT'/);
+  assert.match(chatbotRouter, /if \(row\.status === 'live'\) await assertLiveProfileReady/);
+  assert.match(chatbotRouter, /appliedImmediately: row\.status === 'live'/);
+  assert.match(chatbotRouter, /status='live' AND \(engine='ai' OR \(engine='hybrid'/);
+  assert.match(chatbotRouter, /if \(liveAiBot\) fail\('LIVE_BOT_MUST_BE_PAUSED'\)/);
+  assert.match(chatbotRouter, /async function assertLiveProfileReady/);
+});
+
 test('bot assignments display connected channel labels instead of internal IDs', () => {
   assert.match(chatbotRouter, /JSON_EXTRACT\(embed_data,'\$\.phoneDetails\.display_phone_number'\)/);
   assert.doesNotMatch(chatbotRouter, /phoneDetails\.verified_name/);
@@ -57,5 +73,5 @@ test('Inbox bot control requires explicit number selection when channel scope is
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
   assert.match(index, /training-sidebar\.js\?v=20261005a/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261005b/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261005c/);
 });
