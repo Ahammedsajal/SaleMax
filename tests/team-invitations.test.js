@@ -32,5 +32,6 @@ test('staff invitation UI is integrated into the existing single SaleMaX app she
   assert.match(js,/Copy link/);assert.match(js,/Create new link/);assert.match(js,/Agent seats/);assert.match(js,/مقاعد الوكلاء/);
   assert.match(js,/Pending/);assert.match(js,/معلق/);assert.match(js,/available\.size === 0/);
   assert.match(js,/<button type="submit" class="primary" disabled>/);assert.match(js,/button\.disabled = false/);
-  assert.match(html,/team-invitations\.js\?v=20261003-sidebar/);
+  assert.match(html,/team-invitations\.js\?v=20261004-team-access/);
+  assert.match(js,/new MutationObserver\(addNav\)/);
 });
