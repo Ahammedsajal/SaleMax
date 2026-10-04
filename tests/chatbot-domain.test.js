@@ -113,6 +113,39 @@ test('fee and batch visibility settings affect replies without changing catalogu
   assert.doesNotMatch(result.reply, /350\.00|Registration fee|Upcoming batches|seats available/i);
 });
 
+test('guided course-detail fields localize labels and independently hide optional facts', () => {
+  const settings = {
+    messages: {
+      durationLabel: { en: 'Study time' },
+      deliveryLabel: { en: 'Learning format' },
+      currentFeeLabel: { en: 'Tuition' },
+      batchSeatsLabel: { en: 'places left' },
+    },
+  };
+  const english = trainingCenterGuidedReply({ message: 'Excel Essentials', state: null, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
+  assert.match(english.reply, /Study time: 8 weeks/);
+  assert.match(english.reply, /Learning format: classroom/);
+  assert.match(english.reply, /Tuition: 350\.00 QAR/);
+  assert.match(english.reply, /7 places left/);
+
+  const arabic = trainingCenterGuidedReply({
+    message: 'أساسيات إكسل', state: null, facts: courseFacts,
+    config: { messages: { durationLabel: { ar: 'الفترة' }, currentFeeLabel: { ar: 'الرسوم' }, batchSeatsLabel: { ar: 'أماكن شاغرة' } } },
+    defaults: pack.guidedContentDefaults,
+  });
+  assert.match(arabic.reply, /الفترة: 8 weeks/);
+  assert.match(arabic.reply, /الرسوم: 350\.00 QAR/);
+  assert.match(arabic.reply, /أماكن شاغرة: 7/);
+
+  const concise = trainingCenterGuidedReply({
+    message: 'Excel Essentials', state: null, facts: courseFacts,
+    config: { display: { showDescription: false, showDuration: false, showDelivery: false } },
+    defaults: pack.guidedContentDefaults,
+  });
+  assert.doesNotMatch(concise.reply, /Build practical spreadsheet skills|Duration:|Delivery:/);
+  assert.match(concise.reply, /Current fee: 350\.00 QAR/);
+});
+
 test('course list navigation, handoff and Arabic digit normalization work', () => {
   assert.equal(shouldStartGuided('أرسل ١'), true);
   const list = trainingCenterGuidedReply({ message: 'courses', state: null, facts: courseFacts, defaults: pack.guidedContentDefaults });
