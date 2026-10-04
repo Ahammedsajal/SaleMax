@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Detailed lead attendance reporting — deployed 4 October 2026
+
+Lead activity reports now include each successful QR or Meta agent reply, identify its agent and channel, and expose an agent reply count. Message text stays out of these records. The bilingual report uses updated empty-state and activity labels; the asset cache key is `reports.js?v=15`.
+
+Commit `e6cb803` is pushed to `main` and deployed at `/opt/salemax/releases/training-lead-report-replies-e6cb803`. Production `/healthz` is 200, both containers are healthy, and the deployed report source hashes match. Focused tests pass 16/16 and `npm test` passes 169/169. This was app-only, with no migration; rollback image: `salemax-app:rollback-training-lead-report-replies-e6cb803`.
+
 ## WhatsApp agent replies in lead attendance — deployed 4 October 2026
 
 When an agent successfully sends a WhatsApp reply through the existing QR or Meta conversation flow, the reply is linked to that tenant's matching pipeline conversation and credited as agent attendance. Only the agent ID, linked lead, channel, provider message ID and timestamp are recorded; message text is not copied into the lead activity. Repeated provider message IDs are idempotent, and sends that fail or have no linked lead do not count. Lead journey, agent scorecard and cohort attendance now include these successful replies alongside recorded contact outcomes; internal notes remain excluded.
