@@ -41,3 +41,14 @@ Manage services:
   docker logs --tail 50 salemax-app-1
 
 Verification helper: deploy/verify-runtime.cjs. Browser screenshot: rebrand-evidence/salemax-live-https.png.
+
+## Team activation screen styling — 4 October 2026
+
+- Source commit: `02a2d59` (pushed to `main`). Adds `client/public/team-activation.css` and its versioned stylesheet include. Styles apply only to the existing invitation activation screen; backend, authentication, password requirements and account activation are unchanged.
+- Active release remains `/opt/salemax/releases/chatbot-guided-course-detail-20261004`. The stylesheet and narrowly patched live index were installed in this release and the running `salemax-app-1` container without restarting the service.
+- Durable static overlay image: `salemax-app:team-activation-02a2d59` (`621e4a9ae850`), also tagged `salemax-app:latest` for container recreation. Built from the running container's existing base image with only the stylesheet and patched live index copied in. No runtime credentials were copied into the build context.
+- Live-derived artifact: the deployed index preserves newer production scripts absent from this local index. Its SHA-256 is `824d2b2495e6bdbc6e619882b81a2c67db7096a1786176f31bd749b7ad1ce4f8`; the tracked local index is not a byte-for-byte copy. The exact patched index and overlay Dockerfile are retained with the protected rollback artifacts. Stylesheet SHA-256: `e57178e5464f6420ef8ae8e8b24bd9dfe77921498530356b77fa32be8a4c41e6`.
+- Migrations: none. No account data or credentials changed during this styling release.
+- Verification: English desktop and Arabic RTL at 390×844 inspected with synthetic local preview data. Production browser verifies the branded used-invitation state because the actual invitation had already been accepted. Public stylesheet hash matches the source and running container; served index includes `team-activation.css?v=20261004a`; `/healthz` returns HTTP 200; SaleMaX app and database containers remain healthy. Whitespace checks pass.
+- Remaining verification: active invitation form styling is visually checked in the local preview, not on a new production invitation; no activation or password submission was repeated. The existing account activation behavior is unchanged. The whole legacy production release remains only partially reconstructible from this checkout; the overlay intentionally retains its current image and live index.
+- Rollback: protected directory `/opt/salemax/shared/rollback-team-activation-02a2d59` retains `release-index.html` and `container-index.html`. Restore the former to the release's `client/public/index.html` and copy the latter into `salemax-app-1:/app/client/public/index.html`; retag `salemax-app:rollback-team-activation-02a2d59` as `salemax-app:latest`. Removing the stylesheet include disables all added styles; the unused CSS file may remain. No service restart is required for that rollback.
