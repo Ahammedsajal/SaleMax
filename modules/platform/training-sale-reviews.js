@@ -54,6 +54,18 @@ async function listForLead(pool,ctx,{leadId,uid,role,agentId}){
       FROM sx_training_sale_reviews WHERE tenant_id=? AND lead_id=? ORDER BY created_at DESC,id`,[ctx.tenant.id,leadId]);return Promise.all(rows.map(async row=>publicReview(row,await conversionReadiness(db,ctx,row))));
   }finally{db.release();}
 }
+async function listApprovedForInvoice(pool,ctx,{uid}){
+  const permission=require('./policy').decision(ctx,{capability:'finance.invoices',permission:'invoices.issue'});if(!permission.allowed)fail(permission.code);
+  if(!['owner','accountant'].includes(ctx.membership.role)||typeof uid!=='string'||!uid)fail('PERMISSION_DENIED');
+  const db=await pool.getConnection();try{
+    const [rows]=await db.query(`SELECT r.id,r.lead_id,r.revision,r.status,r.decided_by_role,r.installments,r.lead_updated_at_snapshot,r.course_name_en,r.course_name_ar,r.currency,r.net_minor,r.learner_name,r.payer_name,r.decided_at,l.updated_at AS lead_updated_at
+      FROM sx_training_sale_reviews r JOIN pipeline_leads l ON l.id=r.lead_id AND l.uid_hash=r.legacy_uid_hash AND l.uid=r.legacy_uid
+      WHERE r.tenant_id=? AND r.legacy_uid_hash=? AND r.legacy_uid=? AND r.status='approved' AND l.status='open'
+        AND NOT EXISTS (SELECT 1 FROM sx_training_sale_conversions c WHERE c.tenant_id=r.tenant_id AND c.sale_review_id=r.id)
+      ORDER BY r.decided_at DESC,r.created_at DESC LIMIT 100`,[ctx.tenant.id,sha(uid),uid]);
+    return Promise.all(rows.map(async row=>{let readiness=await conversionReadiness(db,ctx,row);if(readiness.ready&&!leadTimestampMatches(row.lead_updated_at,row.lead_updated_at_snapshot))readiness={ready:false,blocker:'STALE_LEAD_REVISION'};return {id:row.id,leadId:row.lead_id,revision:Number(row.revision),courseNameEn:row.course_name_en,courseNameAr:row.course_name_ar,currency:row.currency,netMinor:Number(row.net_minor),learnerName:row.learner_name,payerName:row.payer_name,approvedAt:row.decided_at,leadUpdatedAt:row.lead_updated_at,conversionReady:readiness.ready,conversionBlocker:readiness.blocker||null};}));
+  }finally{db.release();}
+}
 async function create(pool,ctx,{uid,leadId,role,agentId,actorType,actorId,input}){
   const data=normalize(input);const capability=require('./policy').decision(ctx,{capability:'training.enrollments',permission:'sales.request'});if(!capability.allowed)fail(capability.code);
   const db=await pool.getConnection();try{await db.beginTransaction();
@@ -90,4 +102,4 @@ async function decide(pool,ctx,{uid,leadId,reviewId,actorType,actorId,actorRole,
     const [[updated]]=await db.query('SELECT * FROM sx_training_sale_reviews WHERE tenant_id=? AND id=?',[ctx.tenant.id,reviewId]);await db.commit();return publicReview(updated);
   }catch(error){try{await db.rollback();}catch{}throw error;}finally{db.release();}
 }
-module.exports={listOptions,listForLead,create,decide,normalize};
+module.exports={listOptions,listForLead,listApprovedForInvoice,create,decide,normalize};

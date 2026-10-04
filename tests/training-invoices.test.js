@@ -2,6 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const invoices=require('../modules/platform/training-invoices');
+const saleReviews=require('../modules/platform/training-sale-reviews');
 const {trainingCenter}=require('../modules/platform/categories');
 function context(role='owner',tenantId='tenant-1'){return {audience:'tenant',identity:{id:'identity-'+role},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'membership-'+role,tenantId,role,status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:['tenant.settings','finance.invoices']}};}
 test('invoice register filters are bounded and use safe defaults',()=>{
@@ -19,8 +20,12 @@ test('invoice register access is restricted to the active tenant owner and accou
 test('invoice register and detail are connected to the existing finance workspace and documented',()=>{
   const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
   const router=read('modules/platform/training-finance-router.js'),ui=read('client/public/training-finance.js');
-  assert.match(router,/\/accountant\/invoices/);assert.match(router,/invoices\.detail/);
-  assert.match(ui,/Issued invoices/);assert.match(ui,/Posting and approval record/);assert.match(ui,/finance-settings/);
+  assert.match(router,/\/accountant\/invoices/);assert.match(router,/invoices\.detail/);assert.match(router,/sales\/approved-for-invoice/);assert.match(router,/accountant\/sales\/\:leadId\/reviews\/\:reviewId\/convert/);
+  assert.match(ui,/New invoice/);assert.match(ui,/data-view-invoice/);assert.match(ui,/data-print-invoice/);assert.match(ui,/Posting and approval record/);assert.match(ui,/finance-settings/);assert.match(ui,/Issued invoices are immutable/);
   assert.match(read('docs/API_DOCUMENTATION.md'),/Training invoice register and detail/);
   assert.match(read('docs/USER_MANUAL.md'),/Issued invoices/);
+});
+test('approved-sale invoice queue rejects roles outside owner/accountant before database access',async()=>{
+  const ctx=context('agent'),pool={getConnection(){throw Error('unauthorized role must be rejected before database access')}};
+  await assert.rejects(saleReviews.listApprovedForInvoice(pool,ctx,{uid:'agent-uid'}),{code:'PERMISSION_DENIED'});
 });
