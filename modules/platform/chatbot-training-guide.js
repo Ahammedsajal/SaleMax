@@ -161,7 +161,7 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   }
   if (step === 'course_list') return { reply: `${copy(settings, 'courseListPrompt', language, language === 'ar' ? 'أرسل رقم الدورة أو 0 للقائمة الرئيسية.' : 'Reply with a course number or 0 for the main menu.')}\n\n${formatCourseList(courses, settings, language)}`, state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
 
-  const greeting = /^(?:hi|hello|hey|good morning|good afternoon|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(text);
+  const greeting = /^(?:hi|hello|hey|good morning|good afternoon|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(text);
   if (!step || greeting) return { reply: menuText(facts, settings, language), state: nextState('menu') };
   const fallback = copy(settings, 'fallbackMessage', language, language === 'ar' ? 'أعتذر، لم أفهم الاختيار.' : 'I did not understand that selection.');
   return { reply: `${fallback}\n\n${menuText(facts, settings, language, { includeGreeting: false })}`, state: nextState('menu') };
@@ -181,7 +181,7 @@ function trainingCenterGuidedReply({ message, state, facts, config, defaults }) 
 
 function shouldStartGuided(message) {
   const text = normalizeDigits(clean(message, 2000));
-  return /^(?:0|1|2|menu|back|main menu|courses?|course list|course details|fees?|prices?|schedule|batches|form|enquiry form|registration form|hi|hello|hey|good morning|good afternoon|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير|القائمة|القائمة الرئيسية|رجوع|الدورات|عرض الدورات|دورة|رسوم|السعر|جدول|مواعيد|التسجيل|القبول|نموذج|نموذج الاستفسار)$/i.test(text)
+  return /^(?:0|1|2|menu|back|main menu|courses?|course list|course details|fees?|prices?|schedule|batches|form|enquiry form|registration form|hi|hello|hey|good morning|good afternoon|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير|القائمة|القائمة الرئيسية|رجوع|الدورات|عرض الدورات|دورة|رسوم|السعر|جدول|مواعيد|التسجيل|القبول|نموذج|نموذج الاستفسار)$/i.test(text)
     || /^(?:send|reply|reply with|type|أرسل|ارسل|اكتب)\s*[0-9]+$/i.test(text)
     || /\b(?:courses?|fees?|prices?|costs?|schedule|batches?|classes?|training|enrol|enroll|register|registration|admission|form|enquiry|human|person|agent|staff|advisor|representative)\b|الدورات|دورة|رسوم|السعر|جدول|مواعيد|التسجيل|القبول|نموذج|استفسار|موظف|شخص|مستشار|خدمة العملاء/i.test(text);
 }

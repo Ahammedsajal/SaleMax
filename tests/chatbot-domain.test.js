@@ -169,3 +169,13 @@ test('hybrid routes menu and course choices deterministically and leaves ordinar
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: false, aiFallback: true, domainDefault: true }), { runGuided: false, allowAiFallback: true });
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: false, aiFallback: false, domainDefault: true }), { runGuided: true, allowAiFallback: false });
 });
+
+test('Hybrid starts the deterministic welcome menu for evening greetings in both languages', () => {
+  for (const [message, expected] of [['Good evening', 'Welcome!'], ['مساء الخير', 'أهلاً بك!']]) {
+    assert.equal(shouldStartGuided(message), true);
+    const plan = hybridTurnPlan({ hasSession: false, isChoice: false, aiFallback: true, domainDefault: true, shouldStartGuided: shouldStartGuided(message) });
+    assert.equal(plan.runGuided, true);
+    const result = trainingCenterGuidedReply({ message, state: null, facts: courseFacts, defaults: pack.guidedContentDefaults });
+    assert.ok(result.reply.startsWith(expected));
+  }
+});
