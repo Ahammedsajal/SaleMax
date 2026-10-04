@@ -50,6 +50,49 @@ function courseLimit(settings) {
   return Number.isSafeInteger(value) ? Math.max(1, Math.min(9, value)) : 9;
 }
 
+const DURATION_UNITS = Object.freeze({
+  hours: { en: ['hour', 'hours'], ar: ['ساعة', 'ساعتان', 'ساعات'] },
+  days: { en: ['day', 'days'], ar: ['يوم', 'يومان', 'أيام'] },
+  weeks: { en: ['week', 'weeks'], ar: ['أسبوع', 'أسبوعان', 'أسابيع'] },
+  months: { en: ['month', 'months'], ar: ['شهر', 'شهران', 'أشهر'] },
+});
+const DELIVERY_MODES = Object.freeze({
+  in_person: { en: 'In person', ar: 'حضوري' },
+  online: { en: 'Online', ar: 'عن بُعد' },
+  hybrid: { en: 'Hybrid', ar: 'مدمج' },
+});
+
+function localizedDurationUnit(value, amount, language) {
+  const unit = clean(value, 40).toLowerCase();
+  const choices = DURATION_UNITS[unit];
+  if (!choices) return unit.replace(/_/g, ' ');
+  const quantity = Number(amount);
+  if (language !== 'ar') return choices.en[quantity === 1 ? 0 : 1];
+  return choices.ar[quantity === 1 ? 0 : quantity === 2 ? 1 : 2];
+}
+
+function localizedDeliveryMode(value, language) {
+  const mode = clean(value, 80).toLowerCase();
+  return DELIVERY_MODES[mode]?.[language] || mode.replace(/_/g, ' ');
+}
+
+function localizedBatchLanguage(value, language) {
+  const code = clean(value, 20).replace(/_/g, '-');
+  if (!code) return '';
+  try { return new Intl.DisplayNames([language === 'ar' ? 'ar-QA' : 'en'], { type: 'language' }).of(code) || code; }
+  catch { return code; }
+}
+
+function localizedBatchDate(value, language) {
+  const date = clean(value, 24);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return date;
+  try {
+    return new Intl.DateTimeFormat(language === 'ar' ? 'ar-QA' : 'en-QA', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+      .format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))));
+  } catch { return date; }
+}
+
 function formatCourseList(courses, settings = {}, language = 'en') {
   const visible = courses.slice(0, courseLimit(settings));
   if (!visible.length) {
@@ -72,9 +115,9 @@ function formatCourseDetails(course, formUrl, settings = {}, language = 'en') {
   const lines = [name];
   if (description && settings.display?.showDescription !== false) lines.push(description);
   if (settings.display?.showDuration !== false && course.durationValue && course.durationUnit) {
-    lines.push(`${copy(settings, 'durationLabel', language, language === 'ar' ? 'المدة' : 'Duration')}: ${clean(String(course.durationValue), 24)} ${clean(course.durationUnit, 40)}`);
+    lines.push(`${copy(settings, 'durationLabel', language, language === 'ar' ? 'المدة' : 'Duration')}: ${clean(String(course.durationValue), 24)} ${localizedDurationUnit(course.durationUnit, course.durationValue, language)}`);
   }
-  if (settings.display?.showDelivery !== false && course.deliveryMode) lines.push(`${copy(settings, 'deliveryLabel', language, language === 'ar' ? 'طريقة الدراسة' : 'Delivery')}: ${clean(course.deliveryMode, 80)}`);
+  if (settings.display?.showDelivery !== false && course.deliveryMode) lines.push(`${copy(settings, 'deliveryLabel', language, language === 'ar' ? 'طريقة الدراسة' : 'Delivery')}: ${localizedDeliveryMode(course.deliveryMode, language)}`);
   if (settings.display?.showFees !== false) {
     if (course.offer?.priceAmount != null && course.offer?.currency) {
       lines.push(`${copy(settings, 'currentFeeLabel', language, language === 'ar' ? 'الرسوم الحالية' : 'Current fee')}: ${course.offer.priceAmount} ${course.offer.currency}`);
@@ -90,8 +133,8 @@ function formatCourseDetails(course, formUrl, settings = {}, language = 'en') {
     if (batches.length) {
       lines.push(copy(settings, 'batchesHeading', language, language === 'ar' ? 'المجموعات القادمة' : 'Upcoming batches'));
       for (const batch of batches.slice(0, 4)) {
-        const date = clean(batch.startsOn, 24);
-        const batchLanguage = clean(batch.language, 20);
+        const date = localizedBatchDate(batch.startsOn, language);
+        const batchLanguage = localizedBatchLanguage(batch.language, language);
         const seats = Math.max(0, Number(batch.seatsAvailable) || 0);
         lines.push(language === 'ar'
           ? `${date}${batchLanguage ? ` · ${batchLanguage}` : ''} · ${copy(settings, 'batchSeatsLabel', language, 'المقاعد المتاحة')}: ${seats}`

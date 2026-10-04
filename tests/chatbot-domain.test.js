@@ -11,7 +11,7 @@ const courseFacts = [
   {
     code: 'EXCEL-101', nameEn: 'Excel Essentials', nameAr: 'أساسيات إكسل',
     descriptionEn: 'Build practical spreadsheet skills.', descriptionAr: 'اكتسب مهارات الجداول العملية.',
-    durationValue: 8, durationUnit: 'weeks', deliveryMode: 'classroom',
+    durationValue: 8, durationUnit: 'weeks', deliveryMode: 'in_person',
     offer: { priceAmount: '350.00', registrationFeeAmount: '25.00', currency: 'QAR' },
     batches: [{ startsOn: '2026-11-15', language: 'en', seatsAvailable: 7 }],
   },
@@ -105,7 +105,7 @@ test('course list honors course limits and never invents unpublished fees', () =
   assert.doesNotMatch(list.reply, /IT Support/);
   const detail = trainingCenterGuidedReply({ message: '1', state: list.state, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
   assert.match(detail.reply, /Registration fee: 25\.00 QAR/);
-  assert.match(detail.reply, /2026-11-15/);
+  assert.match(detail.reply, /Nov 15, 2026/);
   assert.doesNotMatch(detail.reply, /IT Support/);
   assert.doesNotMatch(detail.reply, /not published/i);
 });
@@ -131,7 +131,7 @@ test('guided course-detail fields localize labels and independently hide optiona
   };
   const english = trainingCenterGuidedReply({ message: 'Excel Essentials', state: null, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
   assert.match(english.reply, /Study time: 8 weeks/);
-  assert.match(english.reply, /Learning format: classroom/);
+  assert.match(english.reply, /Learning format: In person/);
   assert.match(english.reply, /Tuition: 350\.00 QAR/);
   assert.match(english.reply, /7 places left/);
 
@@ -140,9 +140,13 @@ test('guided course-detail fields localize labels and independently hide optiona
     config: { messages: { durationLabel: { ar: 'الفترة' }, currentFeeLabel: { ar: 'الرسوم' }, batchSeatsLabel: { ar: 'أماكن شاغرة' } } },
     defaults: pack.guidedContentDefaults,
   });
-  assert.match(arabic.reply, /الفترة: 8 weeks/);
+  assert.match(arabic.reply, /الفترة: 8 أسابيع/);
   assert.match(arabic.reply, /الرسوم: 350\.00 QAR/);
   assert.match(arabic.reply, /أماكن شاغرة: 7/);
+  assert.match(arabic.reply, /طريقة الدراسة: حضوري/);
+  assert.match(arabic.reply, /١٥ نوفمبر ٢٠٢٦/);
+  assert.match(arabic.reply, /الإنجليزية/);
+  assert.doesNotMatch(arabic.reply, /\bin_person\b|\bweeks\b| · en\b/);
 
   const concise = trainingCenterGuidedReply({
     message: 'Excel Essentials', state: null, facts: courseFacts,
