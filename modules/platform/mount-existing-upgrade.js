@@ -6,6 +6,7 @@ const {createTeamInvitationRouters}=require('./team-invitation-router');
 const {createTrainingCourseRouter}=require('./training-course-router');
 const {createTrainingFinanceRouter}=require('./training-finance-router');
 const {createTrainingFormRouter,createPublicTrainingFormRouter}=require('./training-form-router');
+const {createChatbotRouter}=require('./chatbot-router');
 function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacyGuard,userGuard=require('../../middlewares/user')}){
   const boundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'platform'});
   const businessBoundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'tenant'});
@@ -25,6 +26,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/user/training/courses',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/training/finance-policies',createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/training/forms',createTrainingFormRouter({pool,origin,userGuard}));
+  app.use('/api/user/chatbots',createChatbotRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
   app.use('/api/public/training/forms',createPublicTrainingFormRouter({app,pool,rateKey:key,origin}));
   return boundary;
 }

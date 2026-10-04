@@ -16,7 +16,8 @@ module.exports=async(db,other)=>{
   const replay=await assign(other,'synthetic-admin',request);assert.equal(replay.replayed,true);assert.equal(replay.assignmentId,first.assignmentId);assert.equal(replay.expiresAt,first.expiresAt);
   const savedContext=await context(db,user.id);assert.equal(savedContext.history.length,1);assert.equal(savedContext.current.valid,true);
   const [[history]]=await db.query('SELECT * FROM sx_legacy_plan_assignments WHERE id=?',[first.assignmentId]);
-  assert.equal(history.previous_snapshot,user.plan);assert.equal(history.previous_expiry,'123');assert.equal(JSON.parse(history.assigned_snapshot).id,plan.id);
+  const assignedSnapshot=typeof history.assigned_snapshot==='string'?JSON.parse(history.assigned_snapshot):history.assigned_snapshot;
+  assert.equal(history.previous_snapshot,user.plan);assert.equal(history.previous_expiry,'123');assert.equal(assignedSnapshot.id,plan.id);
   await assert.rejects(assign(db,'synthetic-admin',{...request,requestId:crypto.randomUUID()}),{code:'STALE_ASSIGNMENT'});
   await assert.rejects(assign(db,'other-admin',request),{code:'IDEMPOTENCY_CONFLICT'});
   await assert.rejects(assign(db,'synthetic-admin',{...request,uid:'missing-user',requestId:crypto.randomUUID()}),{code:'USER_NOT_FOUND'});

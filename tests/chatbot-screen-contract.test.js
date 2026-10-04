@@ -1,0 +1,61 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+const admin = read('client/public/chatbot-admin.js');
+const sidebar = read('client/public/training-sidebar.js');
+const indexPath = path.join(__dirname, '..', 'client/public/index.html');
+const index = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, 'utf8') : '';
+const chatbotRouter = read('modules/platform/chatbot-router.js');
+
+test('existing Automation Flows canvas remains the first pill tab', () => {
+  const definitions = admin.match(/const definitions = \[([\s\S]*?)\];/)?.[1] || '';
+  assert.match(definitions, /\['legacy',\s*tr\('Automation Flows'/);
+  assert.ok(definitions.indexOf("['legacy'") < definitions.indexOf("['guided'") );
+});
+
+test('bot editor renders editable bilingual training-center guide fields', () => {
+  assert.match(admin, /guidedContentMarkup\(config, selectedDomainGuide\)/);
+  assert.match(admin, /English<textarea/);
+  assert.match(admin, /العربية<textarea/);
+  assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:en/);
+  assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:ar/);
+});
+
+test('bot assignments display connected channel labels instead of internal IDs', () => {
+  assert.match(chatbotRouter, /JSON_EXTRACT\(embed_data,'\$\.phoneDetails\.display_phone_number'\)/);
+  assert.doesNotMatch(chatbotRouter, /phoneDetails\.verified_name/);
+  assert.match(chatbotRouter, /SELECT uniqueId AS reference,number AS label FROM instance/);
+  assert.match(admin, /function channelLabel\(channel\)/);
+  assert.match(admin, /Number label unavailable/);
+  assert.doesNotMatch(admin, /Meta WhatsApp'\s*:\s*'QR WhatsApp'\)\}\s*·\s*\$\{esc\(c\.reference\)\}/);
+});
+
+test('guided editor previews unsaved copy with the authenticated read-only category guide', () => {
+  assert.match(admin, /data-guided-preview/);
+  assert.match(admin, /collectGuidedContent\(new FormData\(formElement\)\)/);
+  assert.match(admin, /does not save the bot, call an AI provider, or send a WhatsApp message/);
+  assert.match(admin, /api\('\/guided-preview', 'POST'/);
+  assert.match(chatbotRouter, /router\.post\('\/guided-preview'/);
+  assert.match(chatbotRouter, /previewGuidedTurn\(\{ body: req\.body, pack, db, tenantId: ctx\.tenant\.id/);
+});
+
+test('Inbox bot control requires explicit number selection when channel scope is missing', () => {
+  assert.match(admin, /data-sx-chatbot-channel/);
+  assert.match(admin, /inboxBotChannelOptions\(\)/);
+  assert.match(admin, /filter\(channel => assigned\.has/);
+  assert.match(admin, /Choose the number this conversation uses\./);
+  assert.match(admin, /\/conversations\/\$\{encodeURIComponent\(id\)\}\/bot-control/);
+  assert.match(admin, /manuallySelectedChatChannels\.set\(id, selectedScope\)/);
+  assert.match(admin, /manuallySelectedChatChannels\.get\(id\)/);
+  assert.match(admin, /manuallySelectedChatChannels\.delete\(id\)/);
+});
+
+test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
+  assert.match(index, /training-sidebar\.js\?v=20261005a/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261005b/);
+});

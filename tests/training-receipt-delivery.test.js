@@ -1,6 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const path=require('node:path');
 const delivery=require('../modules/platform/training-receipt-delivery');
 
 test('receipt email stays off until its dedicated opt-in and complete SMTP configuration are supplied',()=>{
@@ -58,5 +59,5 @@ test('app starts only the explicitly opted-in receipt worker while other provide
   assert.equal(runtime.start({env:{SALEMAX_RECEIPT_EMAIL_ENABLED:'false'},spawnProcess}),null);
   const env={SALEMAX_RECEIPT_EMAIL_ENABLED:'true',LOCAL_ONLY_MODE:'true',SALEMAX_SMTP_HOST:'smtp.example.invalid',SALEMAX_SMTP_PORT:'587',SALEMAX_SMTP_USER:'mailer@example.invalid',SALEMAX_SMTP_PASS:'synthetic-only',SALEMAX_RECEIPT_FROM:'receipts@example.invalid'};
   assert.equal(runtime.start({env:{...env,SALEMAX_SMTP_PASS:''},spawnProcess}),null);
-  assert.equal(runtime.start({env,spawnProcess,root:'C:\\salemax'}).pid,123);assert.equal(calls.length,1);assert.equal(calls[0][1][0],'C:\\salemax\\scripts\\training-receipt-worker.cjs');assert.equal(calls[0][2].env,env);assert.equal(calls[0][2].stdio,'inherit');
+  assert.equal(runtime.start({env,spawnProcess,root:'C:\\salemax'}).pid,123);assert.equal(calls.length,1);assert.equal(calls[0][1][0],path.join('C:\\salemax','scripts','training-receipt-worker.cjs'));assert.equal(calls[0][2].env,env);assert.equal(calls[0][2].stdio,'inherit');
 });

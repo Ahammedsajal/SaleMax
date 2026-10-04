@@ -7,6 +7,7 @@ const legacy=require('./legacy-plan-assignment');
 const {platformDecision}=require('./policy');
 const portfolio=require('./user-portfolio');
 const optional=require('./optional-features');
+const jsonValue=value=>typeof value==='string'?JSON.parse(value):value;
 function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
   const router=express.Router();router.use(legacyGuard,canonicalGuard);router.use(express.json({limit:'24kb',strict:true}));
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
@@ -40,7 +41,7 @@ function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
       if(!tenant)return {userId:user.id,uid:user.uid,name:user.name,current:legacy.summary(user.plan),expiresAt:user.plan_expire,linked:false,versions:[]};
       const state=crypto.createHash('sha256').update(JSON.stringify([user.plan==null?null:String(user.plan),user.plan_expire==null?null:String(user.plan_expire),mapping.tenant_id,mapping.membership_id,mapping.legacy_uid_hash,String(mapping.verified_at),String(tenant.revision)])).digest('hex');
       const [versions]=await db.query("SELECT v.id,v.version,v.category_key AS categoryKey,v.category_version AS categoryVersion,v.role_limits AS roleLimits,v.capabilities,c.commercial_snapshot AS commercial FROM sx_plan_versions v JOIN sx_legacy_plan_contracts c ON c.version_id=v.id WHERE v.status='published' AND v.category_key=? AND v.category_version=? ORDER BY c.legacy_plan_id,v.version DESC LIMIT 100",[tenant.category_key,tenant.category_version]);
-      return {userId:user.id,uid:user.uid,name:user.name,current:legacy.summary(user.plan),expiresAt:user.plan_expire,linked:true,tenant,verifiedAt:mapping.verified_at,state,versions:versions.map(v=>({id:v.id,version:v.version,categoryKey:v.categoryKey,categoryVersion:v.categoryVersion,roleLimits:JSON.parse(v.roleLimits),capabilities:JSON.parse(v.capabilities),commercial:JSON.parse(v.commercial)}))};
+      return {userId:user.id,uid:user.uid,name:user.name,current:legacy.summary(user.plan),expiresAt:user.plan_expire,linked:true,tenant,verifiedAt:mapping.verified_at,state,versions:versions.map(v=>({id:v.id,version:v.version,categoryKey:v.categoryKey,categoryVersion:v.categoryVersion,roleLimits:jsonValue(v.roleLimits),capabilities:jsonValue(v.capabilities),commercial:jsonValue(v.commercial)}))};
     });
     data.permissions={read:platformDecision(req.businessContext,'plans.read'),assign:platformDecision(req.businessContext,'plans.assign'),provision:platformDecision(req.businessContext,'tenants.create')&&platformDecision(req.businessContext,'plans.assign')};res.json({success:true,data});
   }));

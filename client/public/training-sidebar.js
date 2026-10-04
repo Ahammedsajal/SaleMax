@@ -4,6 +4,13 @@
   window.__sxTrainingSidebar = true;
   const ar = () => (localStorage.getItem('language') || '').toLowerCase().includes('arab') || document.documentElement.dir === 'rtl';
   const tr = (en, arabic) => ar() ? arabic : en;
+  if (!window.__sxChatbotAdminLoader) {
+    window.__sxChatbotAdminLoader = true;
+    const chatbotScript = document.createElement('script');
+    chatbotScript.src = '/chatbot-admin.js?v=20261005b';
+    chatbotScript.defer = true;
+    document.head.append(chatbotScript);
+  }
   const groups = [
     ['Overview', 'نظرة عامة', ['Dashboard']],
     ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Candidate Applications']],
@@ -86,7 +93,12 @@
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
     if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')){
       const copy=leadSource.cloneNode(true);copy.dataset.sxLeadReportsNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
-      copy.querySelectorAll('.MuiListItemText-primary span').forEach(span=>{if(['Lead Pipeline','مسار العملاء المحتملين'].includes(span.textContent.trim()))span.textContent=tr('Lead Reports','تقارير العملاء المحتملين');});
+      // This is a synthetic row, so set its primary label directly. The legacy
+      // row can wrap its text in different span structures across builds; only
+      // replacing an exact child span leaves the copied "Lead Pipeline" label
+      // behind in some versions of the shell.
+      const primary=copy.querySelector('.MuiListItemText-primary');
+      if(primary)primary.textContent=tr('Lead Reports','تقارير العملاء المحتملين');
       copy.setAttribute('aria-label',tr('Lead Reports','تقارير العملاء المحتملين'));
       const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;button.onclick=event=>{event.preventDefault();location.href='/user?page=lead-reports';};
       list.append(copy);

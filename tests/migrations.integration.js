@@ -81,6 +81,7 @@ async function main() {
     const businessProvisioningEvidence=await require('./business-provisioning-integration.cjs')(connection,other,{i1},pool);
     const teamInvitationEvidence=await require('./team-invitation-integration.cjs')(connection,other,pool,{i1});
     const outboxEvidence=await require('./outbox-integration.cjs')(connection,other,{t1,m1});
+    const chatbotApiEvidence=await require('./chatbot-api-integration.cjs')(connection,pool,{t1,t2,i1,i2,m1,m2});
     const optionalFeatureEvidence=await require('./optional-features-integration.cjs')(connection,{audience:'platform',identity:{id:i1},membership:{role:'super_admin',status:'active'},mfaVerified:true});
     console.log(JSON.stringify(optionalFeatureEvidence));
     const lockName = 'salemax:migrate:' + crypto.createHash('sha256').update(db).digest('hex').slice(0,40);
@@ -92,7 +93,7 @@ async function main() {
     const [[failed]] = await connection.query('SELECT status, statements_completed FROM salemax_schema_migrations WHERE migration_name=?', [broken.file]);
     assert.equal(failed.status, 'failed'); assert.equal(failed.statements_completed, 1);
     await assert.rejects(applyMigrations(other, [...migrations, broken]), { code: 'MIGRATION_RECOVERY_REQUIRED' });
-    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: migrations.length, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...teamInvitationEvidence,...outboxEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
+    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: migrations.length, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...teamInvitationEvidence,...outboxEvidence,...chatbotApiEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
   } catch(error) {
     if(connection) {
       try {
