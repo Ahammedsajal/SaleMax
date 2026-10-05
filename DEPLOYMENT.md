@@ -1,5 +1,13 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Restore the original pink-header Add Chatbot popup — production, 5 October 2026
+
+- Source commit `8ea8800` is pushed to `Ahammedsajal/SaleMax` `main`. The WA Chatbot **Add Chatbot** popup now matches the supplied original screen: pink robot header, webhook title field, origin selector, searchable **Select Automation Flow** picker, and the original footer arrangement. The picker is populated from the tenant's Guided, Hybrid and AI chatbot profiles; the visible Training Center profile is searchable there. Selecting a profile uses the existing assignment API. No separate legacy action or label is shown.
+- Active release remains `/opt/salemax/releases/chatbot-number-assignment-nav-4495535`. The live-generated index was retained and only the sidebar cache key advanced to `20261005-bot-profile-dropdown4`. Updated index and scripts are installed in both the release and running app container; no app restart was needed.
+- Deployed SHA-256 (release, container and served scripts match): live-derived index `a93abc4a808db20e80d5969c56aab2c16aef0abdcbf0c3eb23674a0012fe6afc`; `chatbot-admin.js` `66ceda3acc33dba5b862d36927fb881b026e2b191f31ce2659c04fec91e4c10d`; `training-sidebar.js` `ca8c2160b5112ea7fedccc58afa22ed9083e0b37e87e9d3ec08cb31fde77acb5`.
+- Migrations: none. No chatbot, channel assignment, WhatsApp session, conversation or customer data was changed. Pre-update release and container files are protected at `/opt/salemax/shared/rollback-bot-assignment-popup-8ea8800`; restore those three files to the respective locations to roll back without an app restart or database change.
+- Verification: both changed scripts pass `node --check`; `git diff --check` passes. Versioned production script URLs return HTTP 200 and hashes match source/release/container. The authenticated browser shows the original modal layout and `Training Center Course Guide · Guided Chatbot · Active` in the expanded search results. The modal was not saved. Production `/healthz` returns 200; app and database containers are healthy. Automated tests were not run.
+
 ## Keep original Add Chatbot dialog and list every created bot — production, 5 October 2026
 
 - Source commit `e76f61e` is pushed to `Ahammedsajal/SaleMax` `main`. The existing WA Chatbot **Add Chatbot** dialog is back to the original compact layout from the approved screen. Its **Select Automation Flow / Bot** dropdown now lists every tenant Guided, Hybrid and AI chatbot profile returned by `GET /api/user/chatbots`, with name, type and status. The old **Legacy flow setup** control and wording are removed; number assignment remains in this dialog.
