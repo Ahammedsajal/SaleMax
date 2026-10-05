@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Chatbot overlay geometry for right-side RTL sidebar — production, 5 October 2026
+
+Fixed the chatbot pill navigation and overlay bounds for SaleMaX RTL layouts. The original shell moves its sidebar to the right in RTL; the overlay now reserves space on the correct edge, keeps the four pill tabs in view, and sizes the chatbot panel to the available work area. The mobile pill bar uses the same measured gutters. The existing sidebar and legacy Automation Flows canvas remain untouched.
+
+Release `/opt/salemax/releases/chatbot-rtl-overlay-20261005` is active; protected source backups are in `/opt/salemax/shared/rollback-chatbot-rtl-overlay-20261005` and rollback image `salemax-app:rollback-chatbot-rtl-overlay-20261005` is retained. Only the app container was recreated. Its in-container JavaScript syntax checks pass; production app and database containers are healthy, `/healthz` returns `ok`, the database container ID and start time are unchanged, and live asset hashes match source. Authenticated browser verification confirmed visible translated pills and a correctly sized Guided chatbot panel with the sidebar on the right; the browser was restored to English/LTR and the legacy first tab. The editor was not opened or saved and no bot, number, provider, conversation, customer, or WhatsApp session was changed. `npm test` passes 203/203; focused chatbot screen tests pass 10/10.
+
 ## Structured bilingual FAQ editor for Hybrid and AI bots — production, 5 October 2026
 
 Replaced the delimiter-based FAQ textarea with editable English/Arabic question-and-answer fields, add/remove controls, a 60-entry cap, complete-pair validation and a 32 KB bot-settings limit. This prevents ordinary `|` characters in customer-facing FAQ text from shifting answers into the wrong fields and keeps the saved `knowledgeEntries` format compatible with existing bots. The change is limited to the existing chatbot screen and cache references; Guided bots continue to use the category-pack message editor.
