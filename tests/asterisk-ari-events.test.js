@@ -105,6 +105,8 @@ test('ARI event client uses TLS validation, header authentication, singleton loc
     assert.ok(calls.some(call => typeof call === 'object' && call.sql.includes('events_received=events_received+1')));
     assert.ok(calls.some(call => typeof call === 'object' && call.sql.includes('INSERT INTO sx_platform_asterisk_runtime')));
     await worker.checkLock();
+    assert.ok(calls.some(call => typeof call === 'object' && call.sql.includes("SET updated_at=UTC_TIMESTAMP(3)")
+      && call.sql.includes("status='connected'") && call.params[0] === 'test-ari-events'), 'a live event socket refreshes its worker heartbeat');
     lockOwner = 22;
     await worker.checkLock();
     assert.equal(worker.running, false);

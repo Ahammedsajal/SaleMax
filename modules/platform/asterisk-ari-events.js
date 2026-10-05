@@ -83,6 +83,10 @@ class AsteriskAriEvents extends EventEmitter {
     if (!this.running || !this.lockConnection) return;
     const [[row]] = await this.lockConnection.query('SELECT CONNECTION_ID() AS connectionId,IS_USED_LOCK(?) AS lockConnectionId', [LOCK_NAME]);
     if (Number(row?.connectionId) !== this.lockConnectionId || Number(row?.lockConnectionId) !== this.lockConnectionId) this.loseLock();
+    else if (this.socket?.readyState === this.WebSocketImpl.OPEN) {
+      await this.pool.query(`UPDATE sx_platform_asterisk_runtime SET updated_at=UTC_TIMESTAMP(3)
+        WHERE id=1 AND worker_id=? AND status='connected'`, [this.workerId]);
+    }
   }
 
   loseLock() {

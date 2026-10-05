@@ -142,6 +142,9 @@ class AsteriskCallControl {
       const [[pbx]] = await db.query('SELECT enabled,gateway_endpoint_status FROM sx_platform_asterisk_config WHERE id=1 FOR UPDATE');
       if (!pbx?.enabled) fail('ASTERISK_CONTROL_NOT_READY');
       if (pbx.gateway_endpoint_status !== 'online') fail('GATEWAY_ENDPOINT_NOT_READY');
+      const [[events]] = await db.query(`SELECT status,(updated_at>=UTC_TIMESTAMP(3)-INTERVAL 15 SECOND) AS heartbeat_fresh
+        FROM sx_platform_asterisk_runtime WHERE id=1 FOR UPDATE`);
+      if (events?.status !== 'connected' || Number(events.heartbeat_fresh) !== 1) fail('ASTERISK_EVENTS_NOT_READY');
       const [[member]] = await db.query(`SELECT x.extension,m.status AS membership_status,i.status AS identity_status,t.status AS tenant_status,
           t.category_key,t.category_version FROM sx_telephony_extensions x
         JOIN sx_memberships m ON m.tenant_id=x.tenant_id AND m.id=x.membership_id

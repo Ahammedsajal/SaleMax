@@ -138,6 +138,11 @@ async function main(){
       const [[credentialAudits]]=await db.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE resource_type='telephony-endpoint' AND action='telephony.endpoint-credential-accessed'");
       assert.equal(Number(credentialAudits.total),4,'admin preview and each member credential read are audited without storing passwords');
     }finally{for(const [name,value] of [['SALEMAX_PLATFORM_KEY_BASE64',oldEndpointEnv.key],['SALEMAX_ASTERISK_ALLOWED_HOSTS',oldEndpointEnv.hosts],['SALEMAX_ASTERISK_WS_URL',oldEndpointEnv.ws],['SALEMAX_ASTERISK_MOBILE_SIP_HOST',oldEndpointEnv.mobile]])if(value===undefined)delete process.env[name];else process.env[name]=value;}
+    await db.query("UPDATE sx_platform_asterisk_runtime SET status='reconnecting',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
+    await assert.rejects(callControl.originateOutbound(tenantContext,{destination:'+97455551234',clientType:'mobile'}),{code:'ASTERISK_EVENTS_NOT_READY'});
+    const [[unreserved]]=await db.query("SELECT COUNT(*) AS total FROM sx_telephony_calls WHERE tenant_id=? AND direction='outbound'",[tenantId]);
+    assert.equal(Number(unreserved.total),0,'event-worker outage fails before reserving a GSM channel');
+    await db.query("UPDATE sx_platform_asterisk_runtime SET status='connected',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
     const outbound=await callControl.originateOutbound(tenantContext,{destination:'+97455551234',clientType:'mobile'});
     const outboundAgent=originated.at(-1);
     assert.deepEqual(outboundAgent.appArgs,['outbound-agent',outbound.callId,ownerMembership,'mobile','+97455551234']);
