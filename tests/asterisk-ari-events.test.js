@@ -4,10 +4,32 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const { AsteriskAriEvents, eventsUrl, safeEvent, APP_NAME } = require('../modules/platform/asterisk-ari-events');
 const secrets = require('../modules/platform/asterisk-secrets');
 const { createAriClient } = require('../modules/platform/asterisk-ari-client');
 const { outboundAgentArgs, outboundGatewayArgs } = require('../modules/platform/asterisk-call-control');
+const asteriskEventsRuntime = require('../modules/platform/asterisk-ari-events-worker-runtime');
+
+test('ARI event worker starts only outside local mode with explicit opt-in and is part of the SaleMaX app lifecycle', () => {
+  let calls = 0;
+  let actual;
+  const spawnProcess = (...args) => { calls++; actual = args; return { pid: 123 }; };
+  assert.equal(asteriskEventsRuntime.start({ env: { SALEMAX_ARI_EVENTS_ENABLED: 'true', LOCAL_ONLY_MODE: 'true' }, spawnProcess }), null);
+  assert.equal(asteriskEventsRuntime.start({ env: { SALEMAX_ARI_EVENTS_ENABLED: 'false' }, spawnProcess }), null);
+  assert.equal(calls, 0);
+  assert.deepEqual(asteriskEventsRuntime.start({ env: { SALEMAX_ARI_EVENTS_ENABLED: 'true' }, spawnProcess,
+    executable: '/opt/node/bin/node', root: '/app' }), { pid: 123 });
+  assert.equal(calls, 1);
+  assert.equal(actual[0], '/opt/node/bin/node');
+  assert.deepEqual(actual[1], ['/app/scripts/asterisk-ari-events-worker.cjs']);
+  assert.equal(actual[2].env.SALEMAX_ARI_EVENTS_ENABLED, 'true');
+  assert.deepEqual(actual[2].stdio, 'inherit');
+  const server = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+  assert.match(server, /asteriskAriEventsWorkerRuntime\.start\(\)/);
+  assert.match(server, /asteriskWorker\.kill\("SIGTERM"\)/);
+});
 
 test('ARI event WebSocket URL uses the configured ARI origin and app without query credentials', () => {
   const url = eventsUrl('https://pbx.example.com:8089/ari');

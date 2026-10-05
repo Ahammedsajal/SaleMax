@@ -17,10 +17,12 @@ const { startCrmAccountSyncWorker } = require("./functions/crmAccountSync.js");
 const { isLicenseActivated } = require("./middlewares/license.js");
 const receiptWorkerRuntime = require("./modules/platform/training-receipt-worker-runtime");
 const taskNotificationWorkerRuntime = require("./modules/platform/task-notification-worker-runtime");
+const asteriskAriEventsWorkerRuntime = require("./modules/platform/asterisk-ari-events-worker-runtime");
 
 const app = express();
 let receiptWorkerProcess = null;
 let taskNotificationWorkerProcess = null;
+let asteriskAriEventsWorkerProcess = null;
 const currentDir = process.cwd();
 const publicDir = path.resolve(currentDir, "./client/public");
 
@@ -266,6 +268,14 @@ const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0
       if (code !== 0 && code !== null) console.error("Task email worker stopped with an error.");
     });
   }
+  asteriskAriEventsWorkerProcess = asteriskAriEventsWorkerRuntime.start();
+  if (asteriskAriEventsWorkerProcess) {
+    asteriskAriEventsWorkerProcess.once("error", () => console.error("Asterisk ARI event worker could not start."));
+    asteriskAriEventsWorkerProcess.once("exit", (code) => {
+      asteriskAriEventsWorkerProcess = null;
+      if (code !== 0 && code !== null) console.error("Asterisk ARI event worker stopped with an error.");
+    });
+  }
   startCrmAccountSyncWorker();
   init();
   setTimeout(() => {
@@ -298,7 +308,14 @@ nodeCleanup(async (exitCode, signal) => {
       taskWorker.kill("SIGTERM");
     });
   }
+  const asteriskWorker = asteriskAriEventsWorkerProcess;
+  if (asteriskWorker && asteriskWorker.exitCode === null) {
+    await new Promise((resolve) => {
+      const timeout = setTimeout(() => { asteriskWorker.kill("SIGKILL"); resolve(); }, 2000);
+      asteriskWorker.once("exit", () => { clearTimeout(timeout); resolve(); });
+      asteriskWorker.kill("SIGTERM");
+    });
+  }
   await cleanupTele();
   cleanup();
 });
-
