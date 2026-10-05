@@ -61,9 +61,11 @@ The existing Super Admin Asterisk overlay now provides a permission-gated **Prev
 - Exact UC2000-VE regional SKU/LTE bands, firmware, and management access method; these must match the carrier/network where the device will operate.
 - Public network addressing/firewall plan for direct gateway connectivity (no passwords in chat or Git).
 - Carrier/SIM count and which channels have inbound numbers, caller ID, and outbound permission.
-- Desired queue/extension ownership, business hours/timezone, call recording/retention policy, mobile SIP app choice and browser audio requirements.
+- Exact gateway public source IP, regional SKU/LTE bands and firmware, plus carrier/SIM/DID mapping and inbound/outbound permissions.
+- Mobile SIP app choice and whether remote agents use VPN/SBC or hardened public SIP TLS; browser WebRTC ICE/STUN/TURN/media policy.
+- Desired queue/extension ownership, business hours/timezone, and call recording/retention policy.
 
-Confirmed choices: install Asterisk on the SaleMaX server; agents use both mobile SIP softphone apps and browser calling; the UC2000-VE connects directly over the internet. The SaleMaX server has the Ubuntu Asterisk package installed, but its service remains stopped and disabled. Remaining inputs: exact UC2000-VE regional SKU/LTE band and firmware, carrier/SIM/DID mapping, mobile app choice, browser WebRTC media/network design, queue/extension ownership and recording/retention policy. The gateway is expected to use an IP SIP trunk over TLS/SRTP, restricted to its fixed public source IP. Until the remaining inputs and service/network configuration are verified, no inbound/outbound call path is ready.
+Confirmed choices: install Asterisk on the SaleMaX server; agents use both mobile SIP softphone apps and browser calling; the UC2000-VE connects directly over the internet. The SaleMaX server has the Ubuntu Asterisk package installed, but its service remains stopped and disabled. The package includes the open-source Opus codec module (`codec_opus_open_source.so`); its runtime load state is not yet verified. Remaining inputs: exact UC2000-VE regional SKU/LTE band and firmware, gateway fixed public source IP, carrier/SIM/DID mapping, mobile SIP app and VPN/SBC versus hardened public SIP decision, browser WebRTC media/network design, queue/extension ownership and recording/retention policy. The gateway is expected to use an IP SIP trunk over TLS/SRTP, restricted to its fixed public source IP. Until the remaining inputs and service/network configuration are verified, no inbound/outbound call path is ready.
 
 ## Current production boundary — 5 October 2026
 
