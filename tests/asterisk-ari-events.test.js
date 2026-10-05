@@ -9,7 +9,7 @@ const path = require('node:path');
 const { AsteriskAriEvents, eventsUrl, safeEvent, APP_NAME } = require('../modules/platform/asterisk-ari-events');
 const secrets = require('../modules/platform/asterisk-secrets');
 const { createAriClient } = require('../modules/platform/asterisk-ari-client');
-const { inboundArgs, outboundAgentArgs, outboundGatewayArgs } = require('../modules/platform/asterisk-call-control');
+const { AsteriskCallControl, inboundArgs, outboundAgentArgs, outboundGatewayArgs } = require('../modules/platform/asterisk-call-control');
 
 test('inbound DID Stasis arguments normalize digits-only DIDs and reject invalid values', () => {
   assert.deepEqual(inboundArgs(['inbound-did','+97455550001']), { did: '+97455550001' });
@@ -194,4 +194,17 @@ test('ARI channel snapshot validates channel IDs and response bounds for reconne
     response=Array.from({length:2049},(_,index)=>({id:`channel-${index}`}));
     await assert.rejects(client.listChannels(),{code:'ARI_INVALID_RESPONSE'});
   }finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;}
+});
+
+test('call control reconciles on ARI reconnect and unregisters the recovery listener on stop', async () => {
+  const events=new EventEmitter();let snapshots=0,queries=0;
+  const pool={async query(sql){queries++;assert.match(sql,/sx_telephony_calls/);return[[]];}};
+  const control=new AsteriskCallControl({pool,ariClientFactory:async()=>({async listChannels(){snapshots++;return[];}})});
+  control.start(events);
+  events.emit('connected');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(snapshots,1);assert.equal(queries,1);
+  control.stop();events.emit('connected');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(snapshots,1);assert.equal(queries,1);
 });
