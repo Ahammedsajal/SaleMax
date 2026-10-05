@@ -66,6 +66,12 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
   }
 
   return Object.freeze({
+    async listChannels() {
+      const channels = await request('GET', 'channels');
+      if (!Array.isArray(channels) || channels.length > 2048
+        || channels.some(channel => !channel || typeof channel.id !== 'string' || !RESOURCE_ID.test(channel.id))) fail('ARI_INVALID_RESPONSE');
+      return channels.map(channel => channel.id);
+    },
     async originateAgent({ extension, clientType, channelId, appArgs, timeout = 25 }) {
       if (!EXTENSION.test(extension || '') || !['mobile', 'browser'].includes(clientType) || !UUID.test(channelId || '')
         || !Number.isInteger(timeout) || timeout < 5 || timeout > 60) fail('INVALID_ARI_ORIGINATE');

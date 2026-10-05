@@ -177,3 +177,21 @@ test('ARI client applies only bounded dynamic PJSIP object types and accepts con
     await assert.rejects(client.upsertPjsipObject('endpoint','salemax_safe',[{attribute:'allow',value:'alaw\ncontext=public'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
   }finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;}
 });
+
+test('ARI channel snapshot validates channel IDs and response bounds for reconnect recovery', async () => {
+  const oldKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='pbx.example.com';
+  const credential=secrets.encrypt('test-password-that-is-long-enough');let response=[{id:'ARI-1201-00000001'}];let requested;
+  const client=createAriClient({ari_base_url:'https://pbx.example.com:8089/ari',ari_username:'salemax-admin',credential_ciphertext:credential.ciphertext,
+    credential_iv:credential.iv,credential_auth_tag:credential.authTag,enabled:1,revision:3},{fetchImpl:async url=>{
+      requested=new URL(url);return{ok:true,status:200,async text(){return JSON.stringify(response);}};
+    }});
+  try{
+    assert.deepEqual(await client.listChannels(),['ARI-1201-00000001']);
+    assert.equal(requested.pathname,'/ari/channels');
+    response=[{id:'invalid channel id'}];
+    await assert.rejects(client.listChannels(),{code:'ARI_INVALID_RESPONSE'});
+    response=Array.from({length:2049},(_,index)=>({id:`channel-${index}`}));
+    await assert.rejects(client.listChannels(),{code:'ARI_INVALID_RESPONSE'});
+  }finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;}
+});

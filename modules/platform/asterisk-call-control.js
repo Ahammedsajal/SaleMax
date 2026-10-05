@@ -52,22 +52,62 @@ class AsteriskCallControl {
     this.listener = event => this.handle(event).catch(error => {
       this.log({ ariCallControl: 'event_failed', code: /^[A-Z0-9_]{2,80}$/.test(error.code || '') ? error.code : 'ARI_CALL_CONTROL_FAILED' });
     });
+    this.connectedListener = () => this.reconcileAfterReconnect().catch(error => {
+      this.log({ ariCallControl: 'reconciliation_failed', code: /^[A-Z0-9_]{2,80}$/.test(error.code || '') ? error.code : 'ARI_RECONCILIATION_FAILED' });
+    });
   }
 
   start(events) {
     if (this.events) return;
     this.events = events;
     events.on('ariEvent', this.listener);
+    events.on('connected', this.connectedListener);
   }
 
   stop() {
     if (!this.events) return;
     this.events.off('ariEvent', this.listener);
+    this.events.off('connected', this.connectedListener);
     this.events = null;
   }
 
   async client() {
     return this.ariClientFactory(this.pool);
+  }
+
+  async reconcileAfterReconnect() {
+    const client = await this.client();
+    const liveChannels = new Set(await client.listChannels());
+    const [rows] = await this.pool.query(`SELECT c.tenant_id,c.id AS call_id,c.status,c.started_at,
+        l.asterisk_channel_id
+      FROM sx_telephony_calls c
+      LEFT JOIN sx_telephony_call_legs l ON l.tenant_id=c.tenant_id AND l.call_id=c.id
+        AND l.status IN ('originating','ringing','connected')
+      WHERE c.status IN ('starting','ringing','connected')
+        AND c.started_at < UTC_TIMESTAMP(3) - INTERVAL 30 SECOND
+      ORDER BY c.started_at,c.id LIMIT 1024`);
+    const calls = new Map();
+    for (const row of rows) {
+      let call = calls.get(row.call_id);
+      if (!call) {
+        call = { tenantId: row.tenant_id, callId: row.call_id, legs: [] };
+        calls.set(row.call_id, call);
+      }
+      if (row.asterisk_channel_id) call.legs.push(row.asterisk_channel_id);
+    }
+    let reconciled = 0;
+    for (const call of calls.values()) {
+      if (!call.legs.length) {
+        if (await this.finishCall(call.tenantId, call.callId, 'failed', 'ARI_RECONNECT_NO_ACTIVE_CHANNELS')) reconciled++;
+        continue;
+      }
+      for (const channelId of call.legs) {
+        if (liveChannels.has(channelId)) continue;
+        if (await this.endLeg(channelId, 'ARI_RECONNECT_CHANNEL_MISSING')) reconciled++;
+      }
+    }
+    if (reconciled) this.log({ ariCallControl: 'reconciled_after_reconnect', count: reconciled });
+    return { reconciled };
   }
 
   async handle(event) {
@@ -424,6 +464,16 @@ class AsteriskCallControl {
           cleanup = { ...leg, bridgeId: call.bridge_id, inbound_channel_id: call.inbound_channel_id,
             channels: others.map(row => row.asterisk_channel_id) };
         }
+      } else if (call.status === 'starting' && leg.leg_role === 'agent') {
+        const [others] = await db.query(`SELECT asterisk_channel_id FROM sx_telephony_call_legs
+          WHERE tenant_id=? AND call_id=? AND asterisk_channel_id<>? AND status IN ('originating','ringing','connected')`,
+        [leg.tenant_id,leg.call_id,channelId]);
+        await db.query(`UPDATE sx_telephony_call_legs SET status='ended',ended_at=COALESCE(ended_at,UTC_TIMESTAMP(3)),end_reason='OUTBOUND_AGENT_CHANNEL_LOST'
+          WHERE tenant_id=? AND call_id=? AND status IN ('originating','ringing','connected')`, [leg.tenant_id,leg.call_id]);
+        await db.query(`UPDATE sx_telephony_calls SET status='failed',leased_channel_no=NULL,ended_at=UTC_TIMESTAMP(3),end_reason='OUTBOUND_AGENT_CHANNEL_LOST',revision=revision+1
+          WHERE tenant_id=? AND id=? AND status='starting'`, [leg.tenant_id,leg.call_id]);
+        cleanup = { ...leg, bridgeId: call.bridge_id, inbound_channel_id: call.inbound_channel_id,
+          channels: others.map(row => row.asterisk_channel_id) };
       }
       await db.commit();
     } catch (error) {

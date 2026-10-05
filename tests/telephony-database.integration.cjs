@@ -82,14 +82,15 @@ async function main(){
     await gateway.save(db,platformContext,{channels:current.map(port=>port.channelNo===1?{...port,expectedRevision:port.revision,enabled:true,inboundEnabled:true,outboundEnabled:true}:{...port,expectedRevision:port.revision})});
     const preview=await gateway.previewRouting(db,platformContext);
     assert.equal(preview.inboundRoutes.length,1);assert.equal(preview.inboundRoutes[0].queueId,createdQueue.id);
-    assert.match(preview.config,/Stasis\\(salemax-call-center,inbound-did,\$\{EXTEN\}\\)/);
+    assert.match(preview.config,/Stasis\(salemax-call-center,inbound-did,\$\{EXTEN\}\)/);
     assert.deepEqual(preview.dinstarOutboundRoutes.map(route=>[route.channelNo,route.gatewayPort,route.routePrefix,route.digitsToDelete]),[[1,0,'9901',4]]);
     assert.match(preview.config,/Destination Prefix: 9901[\s\S]*Digits to be Deleted: 4/);
     const finalQueue=(await queues.list(db,tenantContext)).find(item=>item.id===createdQueue.id);
     await assert.rejects(queues.save(db,tenantContext,{...finalQueue,membershipIds:finalQueue.members.map(member=>member.membershipId),expectedRevision:finalQueue.revision,enabled:false}),{code:'TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'});
     await db.query("UPDATE sx_platform_asterisk_runtime SET status='connected',worker_id=?,events_received=events_received+1,last_event_type='StasisStart',last_event_at=UTC_TIMESTAMP(3) WHERE id=1",['synthetic-worker']);
-    const ariActions=[],originated=[],outboundGatewayOriginated=[];
+    const ariActions=[],originated=[],outboundGatewayOriginated=[];let liveAriChannels=[];
     const ariFactory=async()=>({
+      async listChannels(){return liveAriChannels;},
       async createMixingBridge(id){ariActions.push(['bridge-create',id]);return{id};},
       async answer(id){ariActions.push(['answer',id]);},
       async addToBridge(bridgeId,ids){ariActions.push(['bridge-add',bridgeId,...ids]);},
@@ -166,11 +167,27 @@ async function main(){
     await assert.rejects(db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,leased_channel_no)
       VALUES(?,?,'outbound','starting',1,1)`,[tenantId,crypto.randomUUID()]),{code:'ER_DUP_ENTRY'});
     await db.query("UPDATE sx_telephony_calls SET status='ended',leased_channel_no=NULL,ended_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=?",[tenantId,callId]);
+    const orphanedCallId=crypto.randomUUID(),orphanedAgentChannel=crypto.randomUUID();
+    await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,leased_channel_no,started_by_membership_id)
+      VALUES(?,?,'outbound','starting',1,1,?)`,[tenantId,orphanedCallId,ownerMembership]);
+    await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
+      VALUES(?,?,?,?,'agent','mobile',?,'originating')`,[tenantId,crypto.randomUUID(),orphanedCallId,orphanedAgentChannel,ownerMembership]);
+    await db.query('UPDATE sx_telephony_calls SET started_at=UTC_TIMESTAMP(3)-INTERVAL 60 SECOND WHERE tenant_id=? AND id=?',[tenantId,orphanedCallId]);
+    const recovery=await callControl.reconcileAfterReconnect();
+    assert.equal(recovery.reconciled,1,'a stale active call missing from the Asterisk channel snapshot is finalized');
+    const [[recoveredCall]]=await db.query('SELECT status,leased_channel_no,end_reason FROM sx_telephony_calls WHERE tenant_id=? AND id=?',[tenantId,orphanedCallId]);
+    assert.equal(recoveredCall.status,'failed');assert.equal(recoveredCall.leased_channel_no,null);assert.equal(recoveredCall.end_reason,'OUTBOUND_AGENT_CHANNEL_LOST');
+    const emptyCallId=crypto.randomUUID();
     await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,leased_channel_no)
-      VALUES(?,?,'outbound','starting',1,1)`,[tenantId,crypto.randomUUID()]);
+      VALUES(?,?,'outbound','starting',1,1)`,[tenantId,emptyCallId]);
+    await db.query('UPDATE sx_telephony_calls SET started_at=UTC_TIMESTAMP(3)-INTERVAL 60 SECOND WHERE tenant_id=? AND id=?',[tenantId,emptyCallId]);
+    const emptyRecovery=await callControl.reconcileAfterReconnect();
+    assert.equal(emptyRecovery.reconciled,1,'a call row left without any legs also releases its SIM lease');
+    const [[emptyRecoveredCall]]=await db.query('SELECT status,leased_channel_no,end_reason FROM sx_telephony_calls WHERE tenant_id=? AND id=?',[tenantId,emptyCallId]);
+    assert.equal(emptyRecoveredCall.status,'failed');assert.equal(emptyRecoveredCall.leased_channel_no,null);assert.equal(emptyRecoveredCall.end_reason,'ARI_RECONNECT_NO_ACTIVE_CHANNELS');
     const [[runtime]]=await db.query('SELECT status,events_received,last_event_type FROM sx_platform_asterisk_runtime WHERE id=1');
     assert.equal(runtime.status,'connected');assert.equal(Number(runtime.events_received),1);assert.equal(runtime.last_event_type,'StasisStart');
-    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAgentAnswerWins:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,syntheticOnly:true}));
+    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAgentAnswerWins:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,ariReconnectLeaseRecovery:true,missingActiveChannelReleasesSim:true,callWithoutLegsReleasesSim:true,syntheticOnly:true}));
   }finally{
     plans.loadEntitlements=originalEntitlements;
     if(originalSipKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalSipKey;
