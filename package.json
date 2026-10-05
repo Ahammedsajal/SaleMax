@@ -16,7 +16,10 @@
     "bootstrap:super-admin": "node scripts/bootstrap-super-admin.cjs",
     "migrate:plan": "node database/migrate-pipeline.js --plan",
     "migrate:apply": "node database/migrate-pipeline.js --apply",
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:call-center": "node scripts/build-call-center-sip.cjs",
+    "test:telephony:database": "node tests/telephony-database.integration.cjs",
+    "worker:asterisk-events": "node scripts/asterisk-ari-events-worker.cjs"
   },
   "keywords": [],
   "author": "",
@@ -59,12 +62,15 @@
     "telegram": "^2.26.22",
     "unzipper": "^0.10.14",
     "url": "^0.11.4",
-    "vm2": "^3.10.2"
+    "vm2": "^3.10.2",
+    "sip.js": "0.21.2",
+    "ws": "^8.20.0"
   },
   "overrides": {
     "@tootallnate/once": "^3.0.1"
   },
   "devDependencies": {
-    "acorn": "8.16.0"
+    "acorn": "8.16.0",
+    "esbuild": "0.28.2"
   }
 }

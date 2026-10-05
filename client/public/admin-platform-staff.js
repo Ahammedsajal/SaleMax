@@ -6,7 +6,8 @@
   const permissions={
     'tenants.read':['View businesses','عرض الأنشطة'],'tenants.create':['Create businesses','إنشاء الأنشطة'],'tenants.manage':['Manage business accounts','إدارة حسابات الأنشطة'],
     'plans.read':['View plans','عرض الخطط'],'plans.draft':['Edit plan drafts','تعديل مسودات الخطط'],'plans.assign':['Assign plans','تعيين الخطط'],'plans.publish':['Publish plans','نشر الخطط'],
-    'support.request':['Manage support requests','إدارة طلبات الدعم'],'incidents.read':['View incidents','عرض الحوادث']
+    'support.request':['Manage support requests','إدارة طلبات الدعم'],'incidents.read':['View incidents','عرض الحوادث'],
+    'telephony.configure':['Configure Asterisk PBX','إعداد مقسم أستريسك']
   };
   const css=document.createElement('style');css.textContent=`
     .sx-platform-staff-trigger{margin-inline-start:8px!important;border:1px solid #edbfd0!important;background:#fff2f6!important;color:#860030!important}

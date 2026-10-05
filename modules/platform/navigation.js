@@ -13,6 +13,7 @@ const items = [
   ['contacts', 'crm.contacts', 'contacts.read', 'Phonebook', 'دليل الهاتف', 'Sales', 'المبيعات'],
   ['agent-login', 'team.members', 'team.read', 'Agent Login', 'دخول الوكلاء', 'Sales', 'المبيعات'],
   ['tasks', 'team.tasks', 'tasks.read', 'Agent Task', 'مهام الوكلاء', 'Sales', 'المبيعات'],
+  ['call-center', 'telephony.call-center', 'calls.read', 'Call Center', 'مركز الاتصال', 'Sales', 'المبيعات'],
   ['courses', 'training.courses', 'courses.read', 'Courses', 'الدورات', 'Training', 'التدريب'],
   ['batches', 'training.batches', 'courses.read', 'Batches', 'المجموعات', 'Training', 'التدريب'],
   ['enrollments', 'training.enrollments', 'sales.request', 'Enrollments', 'التسجيلات', 'Training', 'التدريب'],

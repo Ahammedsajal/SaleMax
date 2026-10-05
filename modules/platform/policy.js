@@ -29,10 +29,13 @@ const permissions = {
   'forms.capture': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
   'tasks.read': { owner: 'tenant', accountant: 'assigned', manager: 'tenant', agent: 'assigned' },
   'tasks.manage': { owner: 'tenant', accountant: 'assigned', manager: 'tenant', agent: 'assigned' },
+  'calls.read': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
+  'calls.control': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
+  'calls.manage': { owner: 'tenant', manager: 'tenant' },
   'templates.manage': { owner: 'tenant' },
 };
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);
-const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read']);
+const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read', 'telephony.configure']);
 const platformAdminAllowlist = Object.freeze([...platformStaffAllowlist, 'tenants.category-change', 'bots.assign']);
 const platformPermissions = Object.freeze([...platformAdminAllowlist, 'owner.recover', 'owner.transfer', 'staff.manage', 'categories.manage', 'tenants.owner-transfer', 'providers.configure', 'features.release', 'audit.read', 'exports.create']);
 const capabilities = Object.freeze({
@@ -43,6 +46,7 @@ const capabilities = Object.freeze({
   'campaigns.dashboard': ['campaigns.manage'], 'crm.leads': ['leads.read', 'leads.manage', 'leads.assign'],
   'crm.contacts': ['contacts.read', 'contacts.manage'], 'team.members': ['team.read', 'team.invite'],
   'team.tasks': ['tasks.read', 'tasks.manage'], 'training.courses': ['courses.read', 'courses.manage'],
+  'telephony.call-center': ['calls.read', 'calls.control', 'calls.manage'],
   'training.batches': ['courses.read', 'courses.manage'], 'training.enrollments': ['sales.request', 'sales.approve'],
   'finance.invoices': ['invoices.read', 'invoices.issue'], 'finance.installments': ['invoices.read'],
   'finance.payments': ['invoices.read', 'payments.verify'], 'finance.receipts': ['receipts.read'],
