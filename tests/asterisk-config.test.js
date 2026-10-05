@@ -2,8 +2,22 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const asterisk = require('../modules/platform/asterisk-config');
 const secrets = require('../modules/platform/asterisk-secrets');
+const staff = require('../modules/platform/staff-access');
+const policy = require('../modules/platform/policy');
+
+test('Asterisk setup access is assignable through the existing bilingual platform staff screen', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../client/public/admin-platform-staff.js'), 'utf8');
+  assert.match(source, /'telephony\.configure':\['Configure Asterisk PBX','إعداد مقسم أستريسك'\]/);
+  assert.deepEqual(staff.permissions(['telephony.configure']), ['telephony.configure']);
+  assert.equal(policy.platformStaffAllowlist.includes('telephony.configure'), true);
+  assert.equal(policy.platformDecision({ audience: 'platform', membership: { role: 'platform_admin', status: 'active' }, mfaVerified: true }, 'telephony.configure'), true);
+  assert.equal(policy.platformDecision({ audience: 'platform', membership: { role: 'staff', status: 'active', delegatedPermissions: ['telephony.configure'] }, mfaVerified: true }, 'telephony.configure'), true);
+  assert.equal(policy.platformDecision({ audience: 'platform', membership: { role: 'staff', status: 'active', delegatedPermissions: [] }, mfaVerified: true }, 'telephony.configure'), false);
+});
 
 test('Dinstar public peer preview requires TLS, SRTP and the configured source address', () => {
   const result = asterisk.gatewayPjsipPreview({ gateway_host: '198.51.100.42', gateway_sip_port: 5061, gateway_sip_transport: 'tls' });
