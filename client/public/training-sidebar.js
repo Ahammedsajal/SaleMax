@@ -122,6 +122,7 @@
       const copy=pipelineSource.cloneNode(true);copy.dataset.sxTasksNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
       const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Tasks','المهام');
       copy.setAttribute('aria-label',tr('Tasks','المهام'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.setAttribute('aria-label',tr('Tasks','المهام'));
       button.onclick=event=>{event.preventDefault();location.href='/user?page=tasks';};list.append(copy);
     }
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
@@ -134,7 +135,7 @@
       const primary=copy.querySelector('.MuiListItemText-primary');
       if(primary)primary.textContent=tr('Lead Reports','تقارير العملاء المحتملين');
       copy.setAttribute('aria-label',tr('Lead Reports','تقارير العملاء المحتملين'));
-      const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;button.onclick=event=>{event.preventDefault();location.href='/user?page=lead-reports';};
+      const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;button.setAttribute('aria-label',tr('Lead Reports','تقارير العملاء المحتملين'));button.onclick=event=>{event.preventDefault();location.href='/user?page=lead-reports';};
       list.append(copy);
     }
   }
