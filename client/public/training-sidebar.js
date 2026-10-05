@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261005-bot-assignments1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261005-bot-assignments2';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
@@ -35,7 +35,7 @@
   };
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
-    'Automation Flows':'flows', 'WA Chatbot':'wa-chatbot', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
+    'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', Phonebook:'contacts', 'Agent Login':'agent-login',
     'Agent Task':'tasks', Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
     'Finance Reports':'reports', 'Lead Reports':'reports', 'Team access':'team', 'Team and Roles':'team',
@@ -152,7 +152,7 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports'};
+      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', 'WA Chatbot':'wa-chatbot'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
@@ -194,12 +194,20 @@
       if (rows.some((row, index) => row !== ordered[index])) ordered.forEach(row => list.append(row));
     });
     const page=new URLSearchParams(location.search).get('page');
-    const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team'};
+    const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot'};
     const required=routeKeys[page];
     if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'))location.replace('/user?page=dashboard');
   }
   let queued = false;
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; update(); }); }
+  document.addEventListener('click', event => {
+    const button = event.target.closest('.MuiListItemButton-root');
+    if (!button) return;
+    const title = button.querySelector('.MuiListItemText-primary')?.textContent?.trim() || button.textContent.trim();
+    const name = aliases[title] || window.salemaxSidebarAliases?.[title] || title;
+    if (name !== 'WA Chatbot') return;
+    event.preventDefault(); event.stopImmediatePropagation(); location.href = '/user?page=wa-chatbot';
+  }, true);
   // Observe permission flags too: restoring a feature must restore its group heading.
   new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['data-sx-optional-hidden']});
   document.addEventListener('input', schedule);
