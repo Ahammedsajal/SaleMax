@@ -486,15 +486,16 @@ function previewHostSetup(context) {
     },
     {
       path: '/etc/asterisk/logger.conf',
-      purpose: 'Write Asterisk security events to the messages log consumed by the Fail2ban jail.',
-      content: ['[logfiles]', 'messages => notice,warning,error,security', 'security => security'].join('\n'),
+      purpose: 'Write Asterisk registration failures and security events to a dedicated log consumed by the Fail2ban jail.',
+      content: ['[logfiles]', 'salemax-security.log => notice,warning,error,security'].join('\n'),
     },
     {
       path: '/etc/fail2ban/jail.d/salemax-asterisk.local',
       purpose: 'Temporarily ban repeated failed PJSIP registrations on the shared TLS port.',
       content: [
         '[salemax-asterisk]', 'enabled = true', 'filter = asterisk', 'port = 5061', 'protocol = tcp',
-        'logpath = /var/log/asterisk/messages', 'maxretry = 5', 'findtime = 10m', 'bantime = 1h',
+        'logpath = /var/log/asterisk/salemax-security.log', 'backend = polling',
+        'maxretry = 5', 'findtime = 10m', 'bantime = 1h',
       ].join('\n'),
     },
   ];
