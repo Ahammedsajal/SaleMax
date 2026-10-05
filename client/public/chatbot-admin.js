@@ -48,6 +48,42 @@
     return location.pathname.replace(/\/$/, '') === '/user' && ['wa-chatbot','wa_chatbot'].includes(pageKey().toLowerCase());
   }
   let nativeAddButtonRef = null;
+  let nativeProfileListRequest = null;
+  function mountNativeProfileList() {
+    if (!isAssignmentPage()) return;
+    const heading = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(node => node.textContent.trim() === 'WA Chatbot');
+    if (!heading) return;
+    const header = heading.parentElement?.parentElement?.parentElement;
+    if (!header) return;
+    let section = document.getElementById('sx-native-chatbot-profiles');
+    if (!section) {
+      section = document.createElement('section');
+      section.id = 'sx-native-chatbot-profiles';
+      section.setAttribute('aria-label', tr('Chatbot profiles','ملفات روبوتات المحادثة'));
+      header.insertAdjacentElement('afterend', section);
+    }
+    if (section.dataset.loaded === '1' || nativeProfileListRequest) return;
+    nativeProfileListRequest = Promise.all([api(''), api('/channels')]).then(([result, connected]) => {
+      const bots = result?.items || [];
+      const channelNames = new Map((connected || []).map(channel => [`${channel.kind}|${channel.reference}`, channel.label || channelLabel(channel)]));
+      if (!section.isConnected) { nativeProfileListRequest = null; window.setTimeout(mountNativeProfileList, 0); return; }
+      nativeProfileListRequest = null;
+      if (!bots.length) { section.remove(); return; }
+      const numberFor = bot => (bot.channels || []).map(channel => channel.kind === 'whatsapp_meta' ? tr('Meta WhatsApp','واتساب ميتا') : channelNames.get(`${channel.kind}|${channel.reference}`) || tr('Number label unavailable','اسم الرقم غير متاح')).join(', ') || tr('Not assigned','غير معيّن');
+      section.innerHTML = `<div style="margin-top:20px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;overflow:hidden"><div style="padding:16px 18px;border-bottom:1px solid #eaecf0;font-size:16px;font-weight:600;color:#182230">${esc(tr('Chatbots','روبوتات المحادثة'))}</div><div style="display:grid">${bots.map((bot,index) => `<article style="display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px;${index?'border-top:1px solid #eaecf0;':''}"><div style="min-width:0"><div style="font-weight:600;color:#182230">${esc(bot.name)}</div><div style="margin-top:5px;color:#667085;font-size:13px">${esc(numberFor(bot))}</div></div><div style="display:flex;align-items:center;gap:10px;flex-shrink:0"><span style="padding:5px 10px;border-radius:999px;background:${bot.status==='live'?'#ecfdf3':'#f2f4f7'};color:${bot.status==='live'?'#027a48':'#475467'};font-size:12px">${esc(engineLabel(bot.engine))} · ${esc(statusLabel(bot.status))}</span><button type="button" data-sx-manage-profile="${esc(bot.id)}" style="border:1px solid #d0d5dd;border-radius:8px;padding:8px 12px;background:#fff;color:#344054;font-weight:600;cursor:pointer">${esc(tr('Assign','تعيين'))}</button></div></article>`).join('')}</div></div>`;
+      const emptyHeading = [...document.querySelectorAll('h6')].find(node => node.textContent.trim() === 'No Chatbots Yet');
+      if (emptyHeading?.parentElement) emptyHeading.parentElement.style.display = 'none';
+      section.dataset.loaded = '1';
+      section.querySelectorAll('[data-sx-manage-profile]').forEach(button => button.addEventListener('click', () => {
+        const bot = bots.find(item => item.id === button.dataset.sxManageProfile);
+        if (bot) { state.nativeSelectedBotId = bot.id; openNativeAssignmentDialog(); }
+      }));
+      nativeProfileListRequest = null;
+    }).catch(error => {
+      nativeProfileListRequest = null;
+      if (section.isConnected) section.innerHTML = `<div role="alert" style="margin-top:16px;color:#b42318">${esc(errorLabel(error.message))}</div>`;
+    });
+  }
   function mountNativeAssignmentButton() {
     const addButton = [...document.querySelectorAll('button')].find(button => visible(button) && /^(?:Add Chatbot|إضافة روبوت محادثة)$/i.test(button.textContent.trim()));
     if (!addButton || addButton.dataset.sxBotPickerHooked) return;
@@ -73,7 +109,7 @@
     const originIcon = dialog.querySelector('[data-origin-icon]');
     const saveButton = dialog.querySelector('[data-save]');
     let bots = [], channels = [];
-    let selectedBotId = '';
+    let selectedBotId = state.nativeSelectedBotId || '';
     const closeOptions = () => { options.hidden = true; searchInput.setAttribute('aria-expanded','false'); };
     const renderBotOptions = (open = false) => {
       const query = searchInput.value.trim().toLocaleLowerCase();
@@ -122,12 +158,14 @@
     try {
       const [result, connected] = await Promise.all([api(''), api('/channels')]);
       bots = result.items || []; channels = connected || [];
+      state.nativeSelectedBotId = '';
       renderBotOptions(true);
       originSelect.innerHTML = `<option value="">${esc(tr('Select a connected number','اختر رقمًا متصلاً'))}</option>` + channels.map(channel => `<option value="${esc(channel.kind)}|${esc(channel.reference)}">${esc(channel.label || channelLabel(channel))}</option>`).join('');
       const firstOrigin = channels.find(channel => channel.kind === 'whatsapp_meta') || channels[0];
       if (firstOrigin) originSelect.value = `${firstOrigin.kind}|${firstOrigin.reference}`;
       if (!channels.length) { originSelect.disabled = true; }
-      renderAssignmentState();
+      if (selectedBotId && bots.some(bot => bot.id === selectedBotId)) { searchInput.value = bots.find(bot => bot.id === selectedBotId).name; renderAssignmentState(true); }
+      else renderAssignmentState();
     } catch (error) {
       dialog.querySelector('.sx-error').textContent = errorLabel(error.message);
       searchInput.disabled = true; originSelect.disabled = true; saveButton.disabled = true;
@@ -149,6 +187,10 @@
       channelsForBot.push({ kind, reference });
       try {
         await api(`/${bot.id}/channels`, 'PUT', { expectedRevision:Number(bot.revision), channels:channelsForBot });
+        nativeProfileListRequest = null;
+        const oldList = document.getElementById('sx-native-chatbot-profiles');
+        if (oldList) { oldList.dataset.loaded = ''; oldList.innerHTML = ''; }
+        mountNativeProfileList();
         closeDialog();
       } catch (error) { errorBox.textContent = errorLabel(error.message); button.disabled = false; }
     };
@@ -302,8 +344,8 @@
     syncChatbotTheme();
     // Keep the existing WA Chatbot page and Add Chatbot layout, and populate
     // its picker with the shared bot profiles.
-    if (isAssignmentPage()) { state.mounted = false; closeViews(); addStyle(); mountNativeAssignmentButton(); return false; }
-    if (!isFlowPage()) { state.mounted = false; closeViews(); return false; }
+    if (isAssignmentPage()) { state.mounted = false; closeViews(); addStyle(); mountNativeAssignmentButton(); mountNativeProfileList(); return false; }
+    if (!isFlowPage()) { state.mounted = false; closeViews(); document.getElementById('sx-native-chatbot-profiles')?.remove(); nativeProfileListRequest = null; return false; }
     addStyle();
     const pos = bounds(); let tabs = document.getElementById('sx-chatbot-tabs');
     if (!tabs) { tabs = document.createElement('nav'); tabs.id = 'sx-chatbot-tabs'; document.body.append(tabs); }
