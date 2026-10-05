@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Category-guided content contract validation — production, 5 October 2026
+
+Category packs that provide editable Guided Bot content must now supply matching versioned defaults and editor schema. Registration rejects duplicate fields/groups, unsafe paths, unsupported field types, malformed bilingual labels/locales, invalid numeric bounds, and default settings without an editor field. Defaults and schema are cloned and deeply frozen when registered, so one category cannot be mutated after startup and silently change another tenant's setup. This strengthens the extension point for future business categories; the Training Center schema passes unchanged. Release `/opt/salemax/releases/chatbot-domain-pack-contract-20261005` is active. The app image contains the matching source hash; the previous release's source file was restored and rollback image `salemax-app:rollback-chatbot-domain-pack-contract-20261005` is retained. Verification: domain tests 13/13, full Node suite 200/200, production app/DB healthy, `/healthz` 200, and database container start time unchanged. No database migration or bot/channel/customer change occurred.
+
 ## Guided training bot editing and theme follow-up — production, 5 October 2026
 
 The Training Center Guided bot setup is editable in English and Arabic: greeting, welcome/menu instructions, course menu labels, course-list heading/empty state/selection instructions and display count, course-detail visibility and labels, enquiry prompts, invalid-selection/fallback copy, and staff-handoff copy. The built-in guide uses the tenant's published Courses catalogue for course names, fees, descriptions, durations, batches and seats; this prevents duplicate bot-side course records from going stale. The editor has a multi-turn preview that uses unsaved copy and published catalogue data without saving, calling an AI provider, or sending WhatsApp.

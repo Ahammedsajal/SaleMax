@@ -2,6 +2,77 @@
 
 const registry = new Map();
 const PACK_KEY = /^[a-z][a-z0-9_]{1,79}$/;
+const FIELD_PATH = /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/;
+
+function plainRecord(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+}
+
+function valueAtPath(value, path) {
+  return path.split('.').reduce((current, key) => current && Object.hasOwn(current, key) ? current[key] : undefined, value);
+}
+
+function validateGuidedContentContract(defaults, schema) {
+  if (defaults == null && schema == null) return;
+  if (!plainRecord(defaults) || !plainRecord(schema) || !Array.isArray(schema.groups) || !schema.groups.length || schema.groups.length > 30) {
+    throw Object.assign(new Error('INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT'), { code: 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT' });
+  }
+
+  const groupIds = new Set();
+  const fields = new Map();
+  for (const group of schema.groups) {
+    if (!plainRecord(group) || typeof group.id !== 'string' || !/^[a-z][a-z0-9-]{1,79}$/.test(group.id) || groupIds.has(group.id)
+      || !plainRecord(group.title) || !['en', 'ar'].every(language => typeof group.title[language] === 'string' && group.title[language].trim())
+      || !Array.isArray(group.fields) || group.fields.length > 100) {
+      throw Object.assign(new Error('INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT'), { code: 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT' });
+    }
+    groupIds.add(group.id);
+    for (const field of group.fields) {
+      if (!plainRecord(field) || typeof field.path !== 'string' || !FIELD_PATH.test(field.path) || fields.has(field.path)
+        || !plainRecord(field.label) || !['en', 'ar'].every(language => typeof field.label[language] === 'string' && field.label[language].trim())) {
+        throw Object.assign(new Error('INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT'), { code: 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT' });
+      }
+      const value = valueAtPath(defaults, field.path);
+      if (field.type === 'localized-text') {
+        if (!plainRecord(value) || !['en', 'ar'].every(language => typeof value[language] === 'string')
+          || !Number.isSafeInteger(field.maxLength) || field.maxLength < 1 || field.maxLength > 4000) {
+          throw Object.assign(new Error('INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT'), { code: 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT' });
+        }
+      } else if (field.type === 'boolean') {
+        if (typeof value !== 'boolean') throw Object.assign(new Error('INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT'), { code: 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT' });
+      } else if (field.type === 'integer') {
+        if (!Number.isSafeInteger(value) || !Number.isSafeInteger(field.min) || !Number.isSafeInteger(field.max) || field.min > value || value > field.max) {
+          throw Object.assign(new Error('INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT'), { code: 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT' });
+        }
+      } else {
+        throw Object.assign(new Error('INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT'), { code: 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT' });
+      }
+      fields.set(field.path, field.type);
+    }
+  }
+
+  // Version is pack metadata; every other default must have an editor field so
+  // category authors cannot silently ship settings that tenants cannot change.
+  function assertEditableDefaults(value, path = '') {
+    if (path === 'version') return;
+    if (plainRecord(value)) {
+      if (path && fields.get(path) === 'localized-text') return;
+      for (const [key, child] of Object.entries(value)) assertEditableDefaults(child, path ? `${path}.${key}` : key);
+      return;
+    }
+    const expectedType = typeof value === 'boolean' ? 'boolean' : Number.isSafeInteger(value) ? 'integer' : null;
+    if (!expectedType || fields.get(path) !== expectedType) {
+      throw Object.assign(new Error('INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT'), { code: 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT' });
+    }
+  }
+  assertEditableDefaults(defaults);
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.values(value).forEach(deepFreeze);
+  return Object.freeze(value);
+}
 
 const TRAINING_CENTER_GUIDED_DEFAULTS = {
   version: 1,
@@ -81,6 +152,7 @@ function registerDomainPack(pack) {
   if (!pack || typeof pack !== 'object' || !PACK_KEY.test(pack.key || '') || !Number.isSafeInteger(pack.version) || pack.version < 1 || typeof pack.loadFacts !== 'function' || typeof pack.systemGuidance !== 'string' || !pack.systemGuidance.trim() || (pack.guidedReply != null && typeof pack.guidedReply !== 'function') || (pack.isGuidedIntent != null && typeof pack.isGuidedIntent !== 'function') || (pack.guidedContentDefaults != null && (typeof pack.guidedContentDefaults !== 'object' || Array.isArray(pack.guidedContentDefaults))) || (pack.guidedContentSchema != null && (typeof pack.guidedContentSchema !== 'object' || Array.isArray(pack.guidedContentSchema)))) {
     throw Object.assign(new Error('INVALID_CHATBOT_DOMAIN_PACK'), { code: 'INVALID_CHATBOT_DOMAIN_PACK' });
   }
+  validateGuidedContentContract(pack.guidedContentDefaults, pack.guidedContentSchema);
   const registryKey = `${pack.key}@${pack.version}`;
   if (registry.has(registryKey)) throw Object.assign(new Error('CHATBOT_DOMAIN_PACK_ALREADY_REGISTERED'), { code: 'CHATBOT_DOMAIN_PACK_ALREADY_REGISTERED' });
   const registered = Object.freeze({
@@ -92,8 +164,8 @@ function registerDomainPack(pack) {
     loadFacts: pack.loadFacts,
     guidedReply: pack.guidedReply || null,
     isGuidedIntent: pack.isGuidedIntent || null,
-    guidedContentDefaults: pack.guidedContentDefaults || null,
-    guidedContentSchema: pack.guidedContentSchema || null,
+    guidedContentDefaults: pack.guidedContentDefaults ? deepFreeze(JSON.parse(JSON.stringify(pack.guidedContentDefaults))) : null,
+    guidedContentSchema: pack.guidedContentSchema ? deepFreeze(JSON.parse(JSON.stringify(pack.guidedContentSchema))) : null,
   });
   registry.set(registryKey, registered);
   return registered;

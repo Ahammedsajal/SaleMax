@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getDomainPack } = require('../modules/platform/chatbot-domain-packs');
+const { getDomainPack, registerDomainPack } = require('../modules/platform/chatbot-domain-packs');
 const { botInput, hybridTurnPlan } = require('../modules/platform/chatbot-config');
 const { trainingCenterGuidedReply, shouldStartGuided } = require('../modules/platform/chatbot-training-guide');
 
@@ -18,12 +18,28 @@ const courseFacts = [
   { code: 'IT-102', nameEn: 'IT Support', nameAr: 'دعم تقنية المعلومات', offer: null, batches: [] },
 ];
 
- test('training-center pack exposes versioned, editable bilingual guided content', () => {
+test('training-center pack exposes versioned, editable bilingual guided content', () => {
   assert.equal(pack.key, 'training_center');
   assert.equal(pack.version, 1);
   assert.equal(pack.guidedContentDefaults.messages.greeting.en, 'Welcome! I can help you explore our training courses.');
   assert.equal(pack.guidedContentDefaults.messages.greeting.ar, 'أهلاً بك! يمكنني مساعدتك في استكشاف الدورات التدريبية.');
   assert.ok(pack.guidedContentSchema.groups.some(group => group.id === 'course-list'));
+});
+
+test('category guided packs reject defaults without editor fields and freeze the registered contract', () => {
+  const defaults = { version: 1, messages: { greeting: { en: 'Hello', ar: 'مرحباً' }, hidden: 'not editable' } };
+  const schema = { groups: [{ id: 'welcome-menu', title: { en: 'Welcome', ar: 'الترحيب' }, fields: [
+    { path: 'messages.greeting', type: 'localized-text', label: { en: 'Greeting', ar: 'الترحيب' }, maxLength: 100 },
+  ] }] };
+  const packDefinition = { key: 'fixture_category', version: 1, title: 'Fixture', systemGuidance: 'Answer using approved facts.', loadFacts: async () => [], guidedReply: () => ({ reply: 'ok' }), guidedContentDefaults: defaults, guidedContentSchema: schema };
+  assert.throws(() => registerDomainPack(packDefinition), error => error.code === 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT');
+
+  delete defaults.messages.hidden;
+  const registered = registerDomainPack(packDefinition);
+  defaults.messages.greeting.en = 'Changed after registration';
+  assert.equal(registered.guidedContentDefaults.messages.greeting.en, 'Hello');
+  assert.throws(() => { registered.guidedContentDefaults.messages.greeting.en = 'Mutated'; }, TypeError);
+  assert.equal(registered.guidedContentDefaults.messages.greeting.en, 'Hello');
 });
 
 test('guided profile accepts edited messages and bounded display settings', () => {
