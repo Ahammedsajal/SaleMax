@@ -24,6 +24,29 @@ test('existing Super Admin host setup preview covers loopback ARI, shared TLS, d
   assert.throws(()=>asterisk.previewHostSetup({audience:'platform',identity:{id:'x'},membership:{role:'staff',status:'active',delegatedPermissions:[]},mfaVerified:true}),{code:'PERMISSION_DENIED'});
 });
 
+test('Asterisk connection diagnostics distinguish running call, gateway and browser modules', async () => {
+  const required=['chan_pjsip','res_pjsip','res_pjsip_endpoint_identifier_ip','res_pjsip_transport_tls','res_ari','res_ari_channels',
+    'res_ari_bridges','app_stasis','res_stasis','res_sorcery_astdb','res_http_websocket','res_pjsip_transport_websocket',
+    'codec_opus_open_source','res_format_attr_opus'];
+  let modules=required.map(name=>({name:`${name}.so`,status:'Running'}));let request;
+  const probe=await asterisk.probeModuleReadiness(async(url,options)=>{request={url,options};return{ok:true,async text(){return JSON.stringify(modules);}};},
+    'https://pbx.example.com/ari','salemax-admin','server-secret');
+  assert.equal(request.url,'https://pbx.example.com/ari/asterisk/modules');
+  assert.equal(request.options.method,'GET');assert.equal(request.options.redirect,'error');
+  assert.deepEqual(probe,{status:'available',features:{callControl:{ready:true,missing:[]},gatewayProvisioning:{ready:true,missing:[]},browserWebrtc:{ready:true,missing:[]}}});
+  modules=modules.filter(module=>module.name!=='res_sorcery_astdb.so');modules[0].status='Not Running';
+  const incomplete=await asterisk.probeModuleReadiness(async()=>({ok:true,async text(){return JSON.stringify(modules);}}),
+    'https://pbx.example.com/ari','salemax-admin','server-secret');
+  assert.equal(incomplete.features.callControl.ready,false);
+  assert.deepEqual(incomplete.features.callControl.missing,['chan_pjsip']);
+  assert.deepEqual(incomplete.features.gatewayProvisioning.missing,['res_sorcery_astdb']);
+  const unknown=await asterisk.probeModuleReadiness(async()=>({ok:false,status:403}),
+    'https://pbx.example.com/ari','salemax-admin','server-secret');
+  assert.equal(unknown.status,'unknown');
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
+  assert.match(ui,/Call control/);assert.match(ui,/Browser WebRTC/);assert.match(ui,/جارٍ اختبار اتصال ARI/);
+});
+
 test('Asterisk setup access is assignable through the existing bilingual platform staff screen', () => {
   const source = fs.readFileSync(path.join(__dirname, '../client/public/admin-platform-staff.js'), 'utf8');
   assert.match(source, /'telephony\.configure':\['Configure Asterisk PBX','إعداد مقسم أستريسك'\]/);
@@ -46,7 +69,7 @@ test('existing Super Admin PBX setup applies the Dinstar peer only after a curre
   assert.match(router,/router\.post\('\/apply-gateway-peer'/);
   assert.match(router,/router\.get\('\/host-setup-preview'/);
   assert.match(ui,/host-setup-preview/);
-  assert.match(index,/admin-asterisk\.js\?v=20261005-host-setup-preview1/);
+  assert.match(index,/admin-asterisk\.js\?v=20261005-module-readiness1/);
   assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
 });
 

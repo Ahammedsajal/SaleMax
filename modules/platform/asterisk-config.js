@@ -7,6 +7,13 @@ const { platformDecision } = require('./policy');
 
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 
+const REQUIRED_MODULES = Object.freeze({
+  callControl: ['chan_pjsip', 'res_pjsip', 'res_pjsip_endpoint_identifier_ip', 'res_pjsip_transport_tls',
+    'res_ari', 'res_ari_channels', 'res_ari_bridges', 'app_stasis', 'res_stasis'],
+  gatewayProvisioning: ['res_sorcery_astdb'],
+  browserWebrtc: ['res_http_websocket', 'res_pjsip_transport_websocket', 'codec_opus_open_source', 'res_format_attr_opus'],
+});
+
 async function auditEndpointCredentialAccess(db, context, clientType) {
   await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
     VALUES(?,?,?,'identity','telephony.endpoint-credential-accessed','telephony-endpoint',?,?,?)`,[
@@ -562,9 +569,42 @@ async function test(db, context, fetchImpl = globalThis.fetch) {
     clearTimeout(timer);
   }
   gatewayEndpointStatus = await probeGatewayEndpoint(fetchImpl, target.value, row.ari_username, password);
+  const moduleReadiness = await probeModuleReadiness(fetchImpl, target.value, row.ari_username, password);
   await recordTest(db, context, Number(row.revision), target.hostname, 'success', version, null, gatewayEndpointStatus);
   return { connected: true, asteriskVersion: version, latencyMs: Date.now() - started, enabled: !!row.enabled,
-    gatewayEndpoint: { name: 'salemax_dinstar_uc2000ve', status: gatewayEndpointStatus }, testedAt: new Date().toISOString() };
+    gatewayEndpoint: { name: 'salemax_dinstar_uc2000ve', status: gatewayEndpointStatus }, moduleReadiness,
+    testedAt: new Date().toISOString() };
+}
+
+async function probeModuleReadiness(fetchImpl, ariBaseUrl, username, password) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetchImpl(`${ariBaseUrl}/asterisk/modules`, {
+      method: 'GET', redirect: 'error', signal: controller.signal,
+      headers: { Accept: 'application/json', Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` },
+    });
+    if (!response.ok) return { status: 'unknown', features: Object.fromEntries(Object.keys(REQUIRED_MODULES).map(key => [key, { ready: false, missing: [] }])) };
+    const raw = await response.text();
+    if (raw.length > 512 * 1024) return { status: 'unknown', features: Object.fromEntries(Object.keys(REQUIRED_MODULES).map(key => [key, { ready: false, missing: [] }])) };
+    let modules;
+    try { modules = JSON.parse(raw); } catch (_) { modules = null; }
+    if (!Array.isArray(modules) || modules.length > 2048 || modules.some(module => !module
+      || typeof module.name !== 'string' || module.name.length > 128 || typeof module.status !== 'string' || module.status.length > 64)) {
+      return { status: 'unknown', features: Object.fromEntries(Object.keys(REQUIRED_MODULES).map(key => [key, { ready: false, missing: [] }])) };
+    }
+    const loaded = new Set(modules.filter(module => module.status.toLowerCase() === 'running')
+      .map(module => module.name.toLowerCase().replace(/\.so$/, '')));
+    const features = Object.fromEntries(Object.entries(REQUIRED_MODULES).map(([key, required]) => {
+      const missing = required.filter(name => !loaded.has(name));
+      return [key, { ready: missing.length === 0, missing }];
+    }));
+    return { status: 'available', features };
+  } catch (_) {
+    return { status: 'unknown', features: Object.fromEntries(Object.keys(REQUIRED_MODULES).map(key => [key, { ready: false, missing: [] }])) };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function probeGatewayEndpoint(fetchImpl, ariBaseUrl, username, password) {
@@ -607,4 +647,4 @@ async function recordTest(db, context, revision, hostname, status, version, fail
   }
 }
 
-module.exports = { endpoint, allowlisted, browserWebsocketUrl, mobileSipHost, ownBrowserEndpoint, ownMobileEndpoint, gateway, gatewayPjsipPreview, present, get, previewGateway, applyGatewayPeer, previewAgentEndpoints, previewHostSetup, save, test };
+module.exports = { endpoint, allowlisted, browserWebsocketUrl, mobileSipHost, ownBrowserEndpoint, ownMobileEndpoint, gateway, gatewayPjsipPreview, present, get, previewGateway, applyGatewayPeer, previewAgentEndpoints, previewHostSetup, save, test, probeModuleReadiness };
