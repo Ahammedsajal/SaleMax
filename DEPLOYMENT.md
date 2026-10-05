@@ -1,5 +1,13 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Production catalogue cleanup — 5 October 2026
+
+- Production data change against the already active release `/opt/salemax/releases/all-updates-20261005-ce7461e` (source merge `ce7461eb2f8885c91b6fb2a8845971b4000bef8b`): retired the four unrelated ProCatalyst draft courses `PCAT-STERILIZATION`, `PCAT-GUEST-SERVICE`, `PCAT-CAREGIVER` and `PCAT-BARISTA`, following the owner's instruction to keep only the courses from the supplied outline.
+- This used the application's course-retirement workflow. Course records and catalogue history remain stored; they are no longer published/active. No course records were physically deleted, and no migration or service restart was performed.
+- Verification: the authenticated production Courses screen refreshed successfully and displayed those four entries with status `Retired`; the nine outline courses remain published. The catalogue still reports 13 total records because retired records are retained in its count. Screenshot evidence was captured from the production owner session.
+- Rollback boundary: the application has no unretire action. The pre-deployment full database archive recorded below predates this data change; restoring that entire archive would also revert subsequent database writes and must not be used as a targeted course rollback. A reversal requires a reviewed, course-ID-scoped database status restoration with a fresh backup and concurrency check. No such reversal was requested or performed.
+- Git release-record update: this entry is tracked on `main`; no application source change or new runtime release was made for this data-only cleanup.
+
 
 ## Production release — merged SaleMaX updates — 5 October 2026
 
