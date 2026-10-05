@@ -66,6 +66,30 @@ test('Super Admin Asterisk overview marks a connected worker stale when its hear
   assert.match(page,/admin-asterisk\.js\?v=20261005-event-heartbeat1/);
 });
 
+test('live PJSIP registration probe returns only requested bounded endpoint states', async () => {
+  const oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
+  process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='pbx.example.com';
+  let request;
+  try{
+    const states=await asterisk.probePjsipEndpointStates(async(url,options)=>{
+      request={url:new URL(url),options};
+      return{ok:true,async text(){return JSON.stringify([
+        {technology:'PJSIP',resource:'salemax_dinstar_uc2000ve',state:'online',channel_ids:[]},
+        {technology:'PJSIP',resource:'salemax-7401-mobile',state:'offline',channel_ids:[]},
+        {technology:'PJSIP',resource:'salemax-9999-mobile',state:'online',channel_ids:[]},
+      ]);}};
+    },'https://pbx.example.com/ari','salemax-admin','ari-probe-password',['salemax_dinstar_uc2000ve','salemax-7401-mobile','salemax-7401-browser']);
+    assert.equal(request.url.pathname,'/ari/endpoints/PJSIP');
+    assert.equal(request.options.method,'GET');assert.equal(request.options.redirect,'error');
+    assert.equal(states.salemax_dinstar_uc2000ve,'online');
+    assert.equal(states['salemax-7401-mobile'],'offline');
+    assert.equal(states['salemax-7401-browser'],'unknown','unlisted provisioned endpoints remain unknown');
+    assert.equal(Object.hasOwn(states,'salemax-9999-mobile'),false,'unrequested tenant endpoints are not returned');
+    await assert.rejects(asterisk.probePjsipEndpointStates(async()=>({ok:true,async text(){return'[]';}}),
+      'https://pbx.example.com/ari','salemax-admin','password',['endpoint/injection']),{code:'INVALID_ARI_ENDPOINT_PROBE'});
+  }finally{if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;}
+});
+
 test('Super Admin ARI connection test checks PBX version, gateway peer and feature modules without returning secrets', async () => {
   const oldKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
   process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');
@@ -165,17 +189,21 @@ test('Call Center requests provisioning with authenticated POSTs before showing 
   assert.match(client,/request\('\/sip-config','POST',\{\}\)/);
 });
 
-test('Call Center status reports only a fresh ARI event-worker heartbeat as ready', () => {
+test('Call Center status reports call readiness only with live Asterisk and endpoint prerequisites', () => {
   const router=fs.readFileSync(path.join(__dirname,'../modules/platform/call-center-router.js'),'utf8');
   const client=fs.readFileSync(path.join(__dirname,'../client/public/call-center/call-center.js'),'utf8');
   const page=fs.readFileSync(path.join(__dirname,'../client/public/call-center/index.html'),'utf8');
   assert.match(router,/status='connected' AND updated_at>=UTC_TIMESTAMP\(3\)-INTERVAL 15 SECOND/);
   assert.match(router,/events:\{status:eventRuntime\?\.status\|\|'not_started',ready:Number\(eventRuntime\?\.heartbeat_fresh\)===1/);
-  assert.match(router,/reason:Number\(eventRuntime\?\.heartbeat_fresh\)===1\?'CALL_ROUTING_NOT_PROVISIONED':'ASTERISK_EVENTS_NOT_READY'/);
+  assert.match(router,/ready:Number\(eventRuntime\?\.heartbeat_fresh\)===1/);
+  assert.match(router,/gatewayLiveStatus==='online'/);
+  assert.match(router,/inboundAgentReady/);
+  assert.match(router,/freeOutboundChannels>0/);
+  assert.match(router,/AGENT_ENDPOINT_NOT_REGISTERED/);
   assert.match(client,/Call events \$\{eventReady\?'connected':eventStatus\}/);
   assert.match(client,/SaleMaX is not receiving Asterisk call events/);
   assert.match(client,/لا يستقبل SaleMaX أحداث المكالمات من أستريسك/);
-  assert.match(page,/call-center\.js\?v=20261005-events-readiness1/);
+  assert.match(page,/call-center\.js\?v=20261005-live-endpoint-readiness1/);
 });
 
 test('Call Center queue UI exposes only the ring behavior implemented by the ARI caller', () => {

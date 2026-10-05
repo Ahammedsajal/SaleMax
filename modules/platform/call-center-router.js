@@ -7,8 +7,10 @@ const extensions=require('./telephony-extensions');
 const queues=require('./telephony-queues');
 const {AsteriskCallControl}=require('./asterisk-call-control');
 const asteriskConfig=require('./asterisk-config');
+const asteriskSecrets=require('./asterisk-secrets');
+const gatewayPorts=require('./asterisk-gateway-ports');
 
-function createCallCenterRouter({pool,userGuard,canonicalGuard,origin}){
+function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=globalThis.fetch}){
   const router=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   const withDb=async fn=>{const db=await pool.getConnection();try{return await fn(db);}finally{db.release();}};
@@ -77,7 +79,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin}){
     const decisionResult=decision(context,{capability:'telephony.call-center',permission:'calls.read'});
     if(!decisionResult.allowed)throw Object.assign(new Error(decisionResult.code),{code:decisionResult.code});
     const callControlAccess=decision(context,{capability:'telephony.call-center',permission:'calls.control'});
-    const [[pbx]]=await withDb(db=>db.query(`SELECT enabled,ari_base_url,ari_username,gateway_host,gateway_sip_port,gateway_sip_transport,gateway_endpoint_status,gateway_endpoint_tested_at,credential_ciphertext,revision,last_tested_at,last_test_status,last_test_version
+    const [[pbx]]=await withDb(db=>db.query(`SELECT enabled,ari_base_url,ari_username,gateway_host,gateway_sip_port,gateway_sip_transport,gateway_endpoint_status,gateway_endpoint_tested_at,credential_ciphertext,credential_iv,credential_auth_tag,revision,last_tested_at,last_test_status,last_test_version
       FROM sx_platform_asterisk_config WHERE id=1`));
     const [[eventRuntime]]=await withDb(db=>db.query(`SELECT status,updated_at,
         (status='connected' AND updated_at>=UTC_TIMESTAMP(3)-INTERVAL 15 SECOND) AS heartbeat_fresh
@@ -95,19 +97,64 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin}){
       [context.tenant.id,context.membership.id,extension.extension,extension.revision,Number(pbx.revision),extension.mobileCredentialRevision,extension.browserCredentialRevision]);
       return new Set(rows.map(row=>row.client_type));
     }):new Set();
+    const tenantEligible=await withDb(db=>gatewayPorts.eligible(db,{id:context.tenant.id,status:context.tenant.status,
+      category_key:context.tenant.categoryKey,category_version:context.tenant.categoryVersion}));
+    const [[routeCounts]]=await withDb(db=>db.query(`SELECT
+        (SELECT COUNT(*) FROM sx_platform_asterisk_gateway_ports p
+          JOIN sx_tenants t ON t.id=p.tenant_id AND t.status='active'
+          JOIN sx_telephony_queues q ON q.tenant_id=p.tenant_id AND q.id=p.inbound_queue_id AND q.enabled=1
+          WHERE p.tenant_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did LIKE '+%') AS inbound_routes,
+        (SELECT COUNT(*) FROM sx_platform_asterisk_gateway_ports p
+          WHERE p.tenant_id=? AND p.enabled=1 AND p.outbound_enabled=1 AND NOT EXISTS(
+            SELECT 1 FROM sx_telephony_calls c WHERE c.tenant_id=p.tenant_id AND c.leased_channel_no=p.channel_no)) AS free_outbound_channels`,
+      [context.tenant.id,context.tenant.id]));
+    const inboundRouteCount=Number(routeCounts.inbound_routes||0),freeOutboundChannels=Number(routeCounts.free_outbound_channels||0);
+    const inboundMembers=inboundRouteCount&&tenantEligible?await withDb(async db=>{
+      const [rows]=await db.query(`SELECT DISTINCT x.extension FROM sx_platform_asterisk_gateway_ports p
+        JOIN sx_telephony_queues q ON q.tenant_id=p.tenant_id AND q.id=p.inbound_queue_id AND q.enabled=1
+        JOIN sx_telephony_queue_members qm ON qm.tenant_id=q.tenant_id AND qm.queue_id=q.id
+        JOIN sx_memberships m ON m.tenant_id=qm.tenant_id AND m.id=qm.membership_id AND m.status='active'
+        JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
+        JOIN sx_telephony_extensions x ON x.tenant_id=m.tenant_id AND x.membership_id=m.id AND x.extension REGEXP '^[0-9]{3,8}$'
+        WHERE p.tenant_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did LIKE '+%' AND m.role IN ('owner','manager','agent')`,
+      [context.tenant.id]);
+      return rows.map(row=>String(row.extension));
+    }):[];
+    const endpointResources=['salemax_dinstar_uc2000ve',...(extension.assigned?['mobile','browser'].map(type=>`salemax-${extension.extension}-${type}`):[]),
+      ...inboundMembers.flatMap(ext=>['mobile','browser'].map(type=>`salemax-${ext}-${type}`))];
+    let endpointStates={};
+    if(pbx?.enabled&&Number(eventRuntime?.heartbeat_fresh)===1&&configured){
+      try{endpointStates=await asteriskConfig.probePjsipEndpointStates(fetchImpl,pbx.ari_base_url,pbx.ari_username,asteriskSecrets.decrypt(pbx),endpointResources);}
+      catch(_){endpointStates=Object.fromEntries([...new Set(endpointResources)].map(resource=>[resource,'unknown']));}
+    }
+    const gatewayLiveStatus=endpointStates.salemax_dinstar_uc2000ve||'unknown';
+    const ownEndpointState=type=>extension.assigned?endpointStates[`salemax-${extension.extension}-${type}`]||'unknown':'not_provisioned';
+    const inboundAgentReady=inboundMembers.some(ext=>['mobile','browser'].some(type=>endpointStates[`salemax-${ext}-${type}`]==='online'));
+    const controlReady=!!pbx?.enabled&&Number(eventRuntime?.heartbeat_fresh)===1;
+    const inboundAvailable=controlReady&&tenantEligible&&gatewayLiveStatus==='online'&&inboundRouteCount>0&&inboundAgentReady;
+    const outboundAvailable=controlReady&&tenantEligible&&gatewayLiveStatus==='online'&&freeOutboundChannels>0&&extension.assigned
+      &&['mobile','browser'].some(type=>ownEndpointState(type)==='online');
+    const inboundReason=!controlReady?(pbx?.enabled?'ASTERISK_EVENTS_NOT_READY':'ASTERISK_CONTROL_NOT_READY')
+      :!tenantEligible?'OUTBOUND_TENANT_NOT_ELIGIBLE':gatewayLiveStatus!=='online'?'GATEWAY_ENDPOINT_NOT_READY'
+        :!inboundRouteCount?'INBOUND_ROUTE_NOT_READY':!inboundAgentReady?'INBOUND_QUEUE_ENDPOINT_NOT_REGISTERED':null;
+    const outboundReason=!controlReady?(pbx?.enabled?'ASTERISK_EVENTS_NOT_READY':'ASTERISK_CONTROL_NOT_READY')
+      :!tenantEligible?'OUTBOUND_TENANT_NOT_ELIGIBLE':gatewayLiveStatus!=='online'?'GATEWAY_ENDPOINT_NOT_READY'
+        :!extension.assigned?'OUTBOUND_EXTENSION_NOT_READY':!freeOutboundChannels?'OUTBOUND_CHANNEL_UNAVAILABLE'
+          :!['mobile','browser'].some(type=>ownEndpointState(type)==='online')?'AGENT_ENDPOINT_NOT_REGISTERED':null;
     res.json({success:true,data:{
       tenantId:context.tenant.id,
       membershipRole:context.membership.role,
       asterisk:{configured,enabled:!!pbx?.enabled,revision:configured?Number(pbx.revision):0,health:configured?pbx.last_test_status||'unknown':'not_configured',lastTestedAt:pbx.last_tested_at||null,version:pbx.last_test_version||null,
         events:{status:eventRuntime?.status||'not_started',ready:Number(eventRuntime?.heartbeat_fresh)===1,lastHeartbeatAt:eventRuntime?.updated_at||null}},
       gateway:{model:'DINSTAR UC2000-VE',channelCapacity:4,settingsConfigured:!!pbx?.gateway_host,
-        endpointStatus:pbx?.gateway_endpoint_status||'not_tested',endpointTestedAt:pbx?.gateway_endpoint_tested_at||null,
+        endpointStatus:pbx?.gateway_endpoint_status||'not_tested',liveEndpointStatus:gatewayLiveStatus,endpointTestedAt:pbx?.gateway_endpoint_tested_at||null,
         provisioned:['online','offline'].includes(pbx?.gateway_endpoint_status),
         channelPolicy:{assignedChannels:Number(portPolicy.assignedChannels),enabledChannels:Number(portPolicy.enabledChannels),inboundChannels:Number(portPolicy.inboundChannels),outboundChannels:Number(portPolicy.outboundChannels)}},
-      calls:{inboundAvailable:false,outboundAvailable:false,reason:Number(eventRuntime?.heartbeat_fresh)===1?'CALL_ROUTING_NOT_PROVISIONED':'ASTERISK_EVENTS_NOT_READY'},
+      calls:{inboundAvailable,outboundAvailable,inboundReason,outboundReason,reason:outboundReason||inboundReason||null,
+        freeOutboundChannels,inboundRoutes:inboundRouteCount,registeredInboundEndpoints:inboundMembers.filter(ext=>['mobile','browser'].some(type=>endpointStates[`salemax-${ext}-${type}`]==='online')).length},
       clients:{
-        mobileSip:{ready:false,provisioned:provisioned.has('mobile'),reason:provisioned.has('mobile')?null:'SIP_ENDPOINT_NOT_PROVISIONED'},
-        browserWebRtc:{ready:false,provisioned:provisioned.has('browser'),reason:provisioned.has('browser')?null:'WEBRTC_ENDPOINT_NOT_PROVISIONED'},
+        mobileSip:{ready:ownEndpointState('mobile')==='online',registrationStatus:ownEndpointState('mobile'),provisioned:provisioned.has('mobile'),reason:!provisioned.has('mobile')?'SIP_ENDPOINT_NOT_PROVISIONED':ownEndpointState('mobile')!=='online'?'SIP_ENDPOINT_NOT_REGISTERED':null},
+        browserWebRtc:{ready:ownEndpointState('browser')==='online',registrationStatus:ownEndpointState('browser'),provisioned:provisioned.has('browser'),reason:!provisioned.has('browser')?'WEBRTC_ENDPOINT_NOT_PROVISIONED':ownEndpointState('browser')!=='online'?'WEBRTC_ENDPOINT_NOT_REGISTERED':null},
       },
       member:{extension:extension.extension,extensionAssigned:extension.assigned,extensionProvisioned:provisioned.size>0},
       permissions:{manageExtensions:['owner','manager'].includes(context.membership.role),controlCalls:callControlAccess.allowed},

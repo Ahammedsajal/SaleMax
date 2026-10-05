@@ -141,11 +141,26 @@ async function main(){
       const [[credentialAudits]]=await db.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE resource_type='telephony-endpoint' AND action='telephony.endpoint-credential-accessed'");
       assert.equal(Number(credentialAudits.total),4,'admin preview and each member credential read are audited without storing passwords');
     }finally{for(const [name,value] of [['SALEMAX_PLATFORM_KEY_BASE64',oldEndpointEnv.key],['SALEMAX_ASTERISK_ALLOWED_HOSTS',oldEndpointEnv.hosts],['SALEMAX_ASTERISK_WS_URL',oldEndpointEnv.ws],['SALEMAX_ASTERISK_MOBILE_SIP_HOST',oldEndpointEnv.mobile]])if(value===undefined)delete process.env[name];else process.env[name]=value;}
+    const statusPassword='synthetic-status-ari-password',statusCredential=asteriskSecrets.encrypt(statusPassword),oldAriHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
+    process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='pbx.example.invalid';
+    await db.query(`UPDATE sx_platform_asterisk_config SET enabled=1,ari_base_url='https://pbx.example.invalid/ari',ari_username='salemax-status',
+      credential_ciphertext=?,credential_iv=?,credential_auth_tag=?,gateway_endpoint_status='online' WHERE id=1`,
+    [statusCredential.ciphertext,statusCredential.iv,statusCredential.authTag]);
     await db.query("UPDATE sx_platform_asterisk_runtime SET status='connected',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
     assert.equal((await asteriskConfig.get(db,platformContext)).ariEvents.ready,true,'Super Admin sees a fresh connected event worker');
     const statusApp=express();
     statusApp.use('/call-center',createCallCenterRouter({pool,userGuard(_req,_res,next){next();},
-      canonicalGuard(req,_res,next){req.businessContext=tenantContext;next();},origin:'http://127.0.0.1'}));
+      canonicalGuard(req,_res,next){req.businessContext=tenantContext;next();},origin:'http://127.0.0.1',fetchImpl:async(url,options)=>{
+        assert.equal(new URL(url).pathname,'/ari/endpoints/PJSIP');
+        assert.equal(options.headers.Authorization,`Basic ${Buffer.from(`salemax-status:${statusPassword}`).toString('base64')}`);
+        return{ok:true,async text(){return JSON.stringify([
+          {technology:'PJSIP',resource:'salemax_dinstar_uc2000ve',state:'online',channel_ids:[]},
+          {technology:'PJSIP',resource:'salemax-7401-mobile',state:'online',channel_ids:[]},
+          {technology:'PJSIP',resource:'salemax-7401-browser',state:'offline',channel_ids:[]},
+          {technology:'PJSIP',resource:'salemax-7402-mobile',state:'offline',channel_ids:[]},
+          {technology:'PJSIP',resource:'salemax-7402-browser',state:'offline',channel_ids:[]},
+        ]);}};
+      }}));
     const statusServer=http.createServer(statusApp);
     await new Promise((resolve,reject)=>{statusServer.once('error',reject);statusServer.listen(0,'127.0.0.1',resolve);});
     try{
@@ -153,13 +168,16 @@ async function main(){
       let statusResponse=await fetch(statusUrl),statusBody=await statusResponse.json();
       assert.equal(statusResponse.status,200,`Call Center status endpoint failed: ${statusBody.code}`);assert.equal(statusBody.data.asterisk.events.ready,true);
       assert.equal(statusBody.data.asterisk.events.status,'connected');
+      assert.equal(statusBody.data.gateway.liveEndpointStatus,'online');
+      assert.equal(statusBody.data.calls.inboundAvailable,true);assert.equal(statusBody.data.calls.outboundAvailable,true);
+      assert.equal(statusBody.data.clients.mobileSip.ready,true);assert.equal(statusBody.data.clients.browserWebRtc.ready,false);
       await db.query("UPDATE sx_platform_asterisk_runtime SET status='reconnecting',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
       const adminEventState=(await asteriskConfig.get(db,platformContext)).ariEvents;
       assert.equal(adminEventState.status,'reconnecting');assert.equal(adminEventState.ready,false);
       statusResponse=await fetch(statusUrl);statusBody=await statusResponse.json();
       assert.equal(statusBody.data.asterisk.events.ready,false);
       assert.equal(statusBody.data.calls.reason,'ASTERISK_EVENTS_NOT_READY');
-    }finally{await new Promise(resolve=>statusServer.close(resolve));}
+    }finally{await new Promise(resolve=>statusServer.close(resolve));if(oldAriHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldAriHosts;}
     await assert.rejects(callControl.originateOutbound(tenantContext,{destination:'+97455551234',clientType:'mobile'}),{code:'ASTERISK_EVENTS_NOT_READY'});
     const [[unreserved]]=await db.query("SELECT COUNT(*) AS total FROM sx_telephony_calls WHERE tenant_id=? AND direction='outbound'",[tenantId]);
     assert.equal(Number(unreserved.total),0,'event-worker outage fails before reserving a GSM channel');

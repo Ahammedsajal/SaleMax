@@ -633,6 +633,39 @@ async function probeGatewayEndpoint(fetchImpl, ariBaseUrl, username, password) {
   }
 }
 
+async function probePjsipEndpointStates(fetchImpl, ariBaseUrl, username, password, resources) {
+  if (!Array.isArray(resources) || resources.length > 32 || resources.some(resource => typeof resource !== 'string'
+    || !(/^(?:salemax_dinstar_uc2000ve|salemax-[0-9]{3,8}-(?:mobile|browser))$/.test(resource)))) fail('INVALID_ARI_ENDPOINT_PROBE');
+  const states = Object.fromEntries([...new Set(resources)].map(resource => [resource, 'unknown']));
+  if (!Object.keys(states).length) return states;
+  const target = endpoint(ariBaseUrl);
+  allowlisted(target.hostname);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetchImpl(`${target.value}/endpoints/PJSIP`, {
+      method: 'GET', redirect: 'error', signal: controller.signal,
+      headers: { Accept: 'application/json', Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` },
+    });
+    if (!response.ok) return states;
+    const body = await response.text();
+    if (body.length > 1024 * 1024) return states;
+    let endpoints;
+    try { endpoints = JSON.parse(body); } catch (_) { return states; }
+    if (!Array.isArray(endpoints) || endpoints.length > 2048) return states;
+    const wanted = new Set(Object.keys(states));
+    for (const item of endpoints) {
+      if (!item || item.technology !== 'PJSIP' || typeof item.resource !== 'string' || !wanted.has(item.resource)) continue;
+      states[item.resource] = ['online', 'offline', 'unknown'].includes(item.state) ? item.state : 'unknown';
+    }
+  } catch (_) {
+    return states;
+  } finally {
+    clearTimeout(timer);
+  }
+  return states;
+}
+
 async function recordTest(db, context, revision, hostname, status, version, failureCode = null, gatewayEndpointStatus = null) {
   await db.beginTransaction();
   try {
@@ -653,4 +686,4 @@ async function recordTest(db, context, revision, hostname, status, version, fail
   }
 }
 
-module.exports = { endpoint, allowlisted, browserWebsocketUrl, mobileSipHost, ownBrowserEndpoint, ownMobileEndpoint, gateway, gatewayPjsipPreview, present, get, previewGateway, applyGatewayPeer, previewAgentEndpoints, previewHostSetup, save, test, probeModuleReadiness };
+module.exports = { endpoint, allowlisted, browserWebsocketUrl, mobileSipHost, ownBrowserEndpoint, ownMobileEndpoint, gateway, gatewayPjsipPreview, present, get, previewGateway, applyGatewayPeer, previewAgentEndpoints, previewHostSetup, save, test, probeModuleReadiness, probePjsipEndpointStates };
