@@ -171,6 +171,13 @@ async function main(){
       assert.equal(statusBody.data.gateway.liveEndpointStatus,'online');
       assert.equal(statusBody.data.calls.inboundAvailable,true);assert.equal(statusBody.data.calls.outboundAvailable,true);
       assert.equal(statusBody.data.clients.mobileSip.ready,true);assert.equal(statusBody.data.clients.browserWebRtc.ready,false);
+      await db.query('ALTER TABLE sx_platform_asterisk_gateway_ports DROP CHECK ck_sx_asterisk_gateway_inbound_did');
+      await db.query("UPDATE sx_platform_asterisk_gateway_ports SET inbound_did='+9741234' WHERE channel_no=1");
+      statusResponse=await fetch(statusUrl);statusBody=await statusResponse.json();
+      assert.equal(statusBody.data.calls.inboundAvailable,false,'a malformed historical DID cannot make inbound signaling appear ready');
+      assert.equal(statusBody.data.calls.inboundReason,'INBOUND_ROUTE_NOT_READY');
+      assert.equal(statusBody.data.calls.outboundAvailable,true,'an invalid inbound DID does not block the valid outbound channel');
+      await db.query("UPDATE sx_platform_asterisk_gateway_ports SET inbound_did='+97455550001' WHERE channel_no=1");
       await db.query("UPDATE sx_platform_asterisk_runtime SET status='reconnecting',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
       const adminEventState=(await asteriskConfig.get(db,platformContext)).ariEvents;
       assert.equal(adminEventState.status,'reconnecting');assert.equal(adminEventState.ready,false);

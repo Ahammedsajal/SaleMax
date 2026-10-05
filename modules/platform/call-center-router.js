@@ -103,7 +103,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         (SELECT COUNT(*) FROM sx_platform_asterisk_gateway_ports p
           JOIN sx_tenants t ON t.id=p.tenant_id AND t.status='active'
           JOIN sx_telephony_queues q ON q.tenant_id=p.tenant_id AND q.id=p.inbound_queue_id AND q.enabled=1
-          WHERE p.tenant_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did LIKE '+%') AS inbound_routes,
+          WHERE p.tenant_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did REGEXP '^[+][1-9][0-9]{7,14}$') AS inbound_routes,
         (SELECT COUNT(*) FROM sx_platform_asterisk_gateway_ports p
           WHERE p.tenant_id=? AND p.enabled=1 AND p.outbound_enabled=1 AND NOT EXISTS(
             SELECT 1 FROM sx_telephony_calls c WHERE c.tenant_id=p.tenant_id AND c.leased_channel_no=p.channel_no)) AS free_outbound_channels`,
@@ -116,7 +116,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         JOIN sx_memberships m ON m.tenant_id=qm.tenant_id AND m.id=qm.membership_id AND m.status='active'
         JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
         JOIN sx_telephony_extensions x ON x.tenant_id=m.tenant_id AND x.membership_id=m.id AND x.extension REGEXP '^[0-9]{3,8}$'
-        WHERE p.tenant_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did LIKE '+%' AND m.role IN ('owner','manager','agent')`,
+        WHERE p.tenant_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did REGEXP '^[+][1-9][0-9]{7,14}$' AND m.role IN ('owner','manager','agent')`,
       [context.tenant.id]);
       return rows.map(row=>String(row.extension));
     }):[];
