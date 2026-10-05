@@ -79,6 +79,9 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin}){
     const callControlAccess=decision(context,{capability:'telephony.call-center',permission:'calls.control'});
     const [[pbx]]=await withDb(db=>db.query(`SELECT enabled,ari_base_url,ari_username,gateway_host,gateway_sip_port,gateway_sip_transport,gateway_endpoint_status,gateway_endpoint_tested_at,credential_ciphertext,revision,last_tested_at,last_test_status,last_test_version
       FROM sx_platform_asterisk_config WHERE id=1`));
+    const [[eventRuntime]]=await withDb(db=>db.query(`SELECT status,updated_at,
+        (status='connected' AND updated_at>=UTC_TIMESTAMP(3)-INTERVAL 15 SECOND) AS heartbeat_fresh
+      FROM sx_platform_asterisk_runtime WHERE id=1`));
     const [[portPolicy]]=await withDb(db=>db.query(`SELECT COUNT(*) AS assignedChannels,
       COALESCE(SUM(enabled=1),0) AS enabledChannels,COALESCE(SUM(enabled=1 AND inbound_enabled=1),0) AS inboundChannels,
       COALESCE(SUM(enabled=1 AND outbound_enabled=1),0) AS outboundChannels
@@ -95,12 +98,13 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin}){
     res.json({success:true,data:{
       tenantId:context.tenant.id,
       membershipRole:context.membership.role,
-      asterisk:{configured,enabled:!!pbx?.enabled,revision:configured?Number(pbx.revision):0,health:configured?pbx.last_test_status||'unknown':'not_configured',lastTestedAt:pbx.last_tested_at||null,version:pbx.last_test_version||null},
+      asterisk:{configured,enabled:!!pbx?.enabled,revision:configured?Number(pbx.revision):0,health:configured?pbx.last_test_status||'unknown':'not_configured',lastTestedAt:pbx.last_tested_at||null,version:pbx.last_test_version||null,
+        events:{status:eventRuntime?.status||'not_started',ready:Number(eventRuntime?.heartbeat_fresh)===1,lastHeartbeatAt:eventRuntime?.updated_at||null}},
       gateway:{model:'DINSTAR UC2000-VE',channelCapacity:4,settingsConfigured:!!pbx?.gateway_host,
         endpointStatus:pbx?.gateway_endpoint_status||'not_tested',endpointTestedAt:pbx?.gateway_endpoint_tested_at||null,
         provisioned:['online','offline'].includes(pbx?.gateway_endpoint_status),
         channelPolicy:{assignedChannels:Number(portPolicy.assignedChannels),enabledChannels:Number(portPolicy.enabledChannels),inboundChannels:Number(portPolicy.inboundChannels),outboundChannels:Number(portPolicy.outboundChannels)}},
-      calls:{inboundAvailable:false,outboundAvailable:false,reason:'CALL_ROUTING_NOT_PROVISIONED'},
+      calls:{inboundAvailable:false,outboundAvailable:false,reason:Number(eventRuntime?.heartbeat_fresh)===1?'CALL_ROUTING_NOT_PROVISIONED':'ASTERISK_EVENTS_NOT_READY'},
       clients:{
         mobileSip:{ready:false,provisioned:provisioned.has('mobile'),reason:provisioned.has('mobile')?null:'SIP_ENDPOINT_NOT_PROVISIONED'},
         browserWebRtc:{ready:false,provisioned:provisioned.has('browser'),reason:provisioned.has('browser')?null:'WEBRTC_ENDPOINT_NOT_PROVISIONED'},

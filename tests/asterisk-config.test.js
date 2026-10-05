@@ -147,6 +147,19 @@ test('Call Center requests provisioning with authenticated POSTs before showing 
   assert.match(client,/request\('\/sip-config','POST',\{\}\)/);
 });
 
+test('Call Center status reports only a fresh ARI event-worker heartbeat as ready', () => {
+  const router=fs.readFileSync(path.join(__dirname,'../modules/platform/call-center-router.js'),'utf8');
+  const client=fs.readFileSync(path.join(__dirname,'../client/public/call-center/call-center.js'),'utf8');
+  const page=fs.readFileSync(path.join(__dirname,'../client/public/call-center/index.html'),'utf8');
+  assert.match(router,/status='connected' AND updated_at>=UTC_TIMESTAMP\(3\)-INTERVAL 15 SECOND/);
+  assert.match(router,/events:\{status:eventRuntime\?\.status\|\|'not_started',ready:Number\(eventRuntime\?\.heartbeat_fresh\)===1/);
+  assert.match(router,/reason:Number\(eventRuntime\?\.heartbeat_fresh\)===1\?'CALL_ROUTING_NOT_PROVISIONED':'ASTERISK_EVENTS_NOT_READY'/);
+  assert.match(client,/Call events \$\{eventReady\?'connected':eventStatus\}/);
+  assert.match(client,/SaleMaX is not receiving Asterisk call events/);
+  assert.match(client,/لا يستقبل SaleMaX أحداث المكالمات من أستريسك/);
+  assert.match(page,/call-center\.js\?v=20261005-events-readiness1/);
+});
+
 test('Call Center queue UI exposes only the ring behavior implemented by the ARI caller', () => {
   const source = fs.readFileSync(path.join(__dirname, '../client/public/call-center/call-center.js'), 'utf8');
   assert.match(source, /Ring all assigned agent endpoints/);
