@@ -424,6 +424,72 @@ async function previewAgentEndpoints(db, context) {
   };
 }
 
+function previewHostSetup(context) {
+  authorize(context);
+  const files = [
+    {
+      path: '/etc/asterisk/http.conf',
+      purpose: 'Loopback-only ARI and WebSocket listener; Nginx terminates public HTTPS/WSS.',
+      content: ['[general]', 'enabled=yes', 'bindaddr=127.0.0.1', 'bindport=8088'].join('\n'),
+    },
+    {
+      path: '/etc/asterisk/ari.conf',
+      purpose: 'Asterisk control account; substitute the exact username and password entered in SaleMaX Admin.',
+      content: [
+        '[general]', 'enabled=yes', 'pretty=no', '', '[REPLACE_WITH_SALEMAX_ARI_USERNAME]',
+        'type=user', 'read_only=no', 'password=REPLACE_WITH_THE_SAME_PASSWORD_SAVED_IN_SALEMAX',
+      ].join('\n'),
+    },
+    {
+      path: '/etc/asterisk/pjsip.conf',
+      purpose: 'One shared TLS transport for Dinstar and mobile apps, plus the WebRTC WSS transport.',
+      content: [
+        '[transport-salemax-tls]', 'type=transport', 'protocol=tls', 'bind=0.0.0.0:5061', 'method=tlsv1_2',
+        'cert_file=/etc/asterisk/keys/pbx.crt', 'priv_key_file=/etc/asterisk/keys/pbx.key', 'verify_client=no', 'allow_reload=yes', '',
+        '[transport-salemax-browser-wss]', 'type=transport', 'protocol=wss', 'bind=0.0.0.0', 'allow_reload=yes',
+      ].join('\n'),
+    },
+    {
+      path: '/etc/asterisk/sorcery.conf',
+      purpose: 'Merge these mappings with existing sections; preserve unrelated providers and entries.',
+      content: [
+        '[res_pjsip]', 'endpoint=astdb,ps_endpoints', 'auth=astdb,ps_auths', 'aor=astdb,ps_aors', '',
+        '[res_pjsip_endpoint_identifier_ip]', 'identify=astdb,ps_endpoint_id_ips',
+      ].join('\n'),
+    },
+    {
+      path: '/etc/asterisk/extensions.conf',
+      purpose: 'Static generic routes; SaleMaX resolves the DID and call policy at call time.',
+      content: [
+        '[from-dinstar-unrouted]',
+        'exten => _+X.,1,NoOp(SaleMaX inbound DID ${EXTEN})',
+        ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
+        ' same => n,Hangup()',
+        'exten => _X.,1,NoOp(SaleMaX inbound DID ${EXTEN})',
+        ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
+        ' same => n,Hangup()',
+        '',
+        '[from-salemax-agents-unrouted]',
+        'exten => _X!,1,NoOp(SaleMaX agent calls are controlled through ARI)',
+        ' same => n,Hangup(21)',
+      ].join('\n'),
+    },
+  ];
+  return {
+    files,
+    warnings: [
+      'Preview only. It does not write files, restart Asterisk, open firewall ports, or configure the Dinstar gateway.',
+      'Back up each existing file and merge the snippets; do not replace a file that contains unrelated Asterisk configuration.',
+      'Protect the SIP TLS private key at the listed path. Install the host certificate there with read access limited to Asterisk.',
+      'Create the ARI user in ari.conf with the same username/password saved in SaleMaX; this preview never returns the saved password.',
+      'Replace both ari.conf placeholders before restarting Asterisk; never commit the actual ARI password.',
+      'Asterisk HTTP must stay bound to loopback. Public browser WSS is routed through Nginx /ws; private ARI is routed through the app-only /ari/ location.',
+      'Set RTP bounds and firewall policy only after the direct gateway IP and mobile VPN/SBC or public SIP access design are confirmed.',
+      'Load res_sorcery_astdb before the first dynamic endpoint write; test config and call paths before enabling channel policies.',
+    ],
+  };
+}
+
 async function save(db, context, input) {
   authorize(context);
   if (!input || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0 || typeof input.enabled !== 'boolean') fail('INVALID_ARI_CONFIG');
@@ -541,4 +607,4 @@ async function recordTest(db, context, revision, hostname, status, version, fail
   }
 }
 
-module.exports = { endpoint, allowlisted, browserWebsocketUrl, mobileSipHost, ownBrowserEndpoint, ownMobileEndpoint, gateway, gatewayPjsipPreview, present, get, previewGateway, applyGatewayPeer, previewAgentEndpoints, save, test };
+module.exports = { endpoint, allowlisted, browserWebsocketUrl, mobileSipHost, ownBrowserEndpoint, ownMobileEndpoint, gateway, gatewayPjsipPreview, present, get, previewGateway, applyGatewayPeer, previewAgentEndpoints, previewHostSetup, save, test };

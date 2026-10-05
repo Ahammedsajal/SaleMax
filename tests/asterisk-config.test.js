@@ -9,6 +9,21 @@ const secrets = require('../modules/platform/asterisk-secrets');
 const staff = require('../modules/platform/staff-access');
 const policy = require('../modules/platform/policy');
 
+test('existing Super Admin host setup preview covers loopback ARI, shared TLS, dynamic PJSIP, and generic DID routes without secrets', () => {
+  const context={audience:'platform',identity:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},membership:{role:'super_admin',status:'active'},mfaVerified:true};
+  const preview=asterisk.previewHostSetup(context);
+  assert.deepEqual(preview.files.map(file=>file.path),['/etc/asterisk/http.conf','/etc/asterisk/ari.conf','/etc/asterisk/pjsip.conf','/etc/asterisk/sorcery.conf','/etc/asterisk/extensions.conf']);
+  const configs=preview.files.map(file=>file.content).join('\n');
+  assert.match(configs,/bindaddr=127\.0\.0\.1/);
+  assert.match(configs,/\[transport-salemax-tls\]/);
+  assert.match(configs,/\[transport-salemax-browser-wss\]/);
+  assert.match(configs,/endpoint=astdb,ps_endpoints/);
+  assert.match(configs,/Stasis\(salemax-call-center,inbound-did,\$\{EXTEN\}\)/);
+  assert.match(configs,/password=REPLACE_WITH_THE_SAME_PASSWORD_SAVED_IN_SALEMAX/);
+  assert.doesNotMatch(configs,/password=asterisk/i);
+  assert.throws(()=>asterisk.previewHostSetup({audience:'platform',identity:{id:'x'},membership:{role:'staff',status:'active',delegatedPermissions:[]},mfaVerified:true}),{code:'PERMISSION_DENIED'});
+});
+
 test('Asterisk setup access is assignable through the existing bilingual platform staff screen', () => {
   const source = fs.readFileSync(path.join(__dirname, '../client/public/admin-platform-staff.js'), 'utf8');
   assert.match(source, /'telephony\.configure':\['Configure Asterisk PBX','إعداد مقسم أستريسك'\]/);
@@ -21,6 +36,7 @@ test('Asterisk setup access is assignable through the existing bilingual platfor
 
 test('existing Super Admin PBX setup applies the Dinstar peer only after a current ARI check', () => {
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
+  const index=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   const router=fs.readFileSync(path.join(__dirname,'../modules/platform/asterisk-router.js'),'utf8');
   const mount=fs.readFileSync(path.join(__dirname,'../modules/platform/mount-existing-upgrade.js'),'utf8');
   assert.match(ui,/data-apply-gateway/);
@@ -28,6 +44,9 @@ test('existing Super Admin PBX setup applies the Dinstar peer only after a curre
   assert.match(ui,/window\.confirm\(/);
   assert.match(ui,/\/api\/admin\/asterisk\/apply-gateway-peer/);
   assert.match(router,/router\.post\('\/apply-gateway-peer'/);
+  assert.match(router,/router\.get\('\/host-setup-preview'/);
+  assert.match(ui,/host-setup-preview/);
+  assert.match(index,/admin-asterisk\.js\?v=20261005-host-setup-preview1/);
   assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
 });
 

@@ -54,6 +54,8 @@ identify=astdb,ps_endpoint_id_ips
 
 The `res_sorcery_astdb` module must be installed and loaded. Protect Asterisk's AstDB file and backups as secret-bearing runtime data: pushed auth objects include SIP passwords. Keep Asterisk HTTP/ARI bound to `127.0.0.1:8088`; do not publish port 8088 or enable public ARI access. Verify each mapping with the matching `asterisk -rx 'module show like res_sorcery_astdb'` and `pjsip show endpoints` checks after startup before enabling SaleMaX's ARI connection.
 
+The existing Super Admin Asterisk overlay now provides a permission-gated **Preview Asterisk host setup** action with loopback `http.conf`, an `ari.conf` account template containing username/password placeholders, the shared TLS and WSS transport declarations, Sorcery mappings, and the generic DID Stasis contexts. The preview contains no saved ARI or SIP passwords, writes no host files, and does not restart Asterisk. It is an operator-reviewed configuration aid; replace the ARI placeholders with the same values entered in SaleMaX, merge the sections into backed-up host files, and preserve unrelated config. The gateway peer, tenant DID routing, and password-bearing agent endpoints remain separate previews with their own access controls and warnings.
+
 ## Inputs still required for real setup
 
 - Exact UC2000-VE regional SKU/LTE bands, firmware, and management access method; these must match the carrier/network where the device will operate.
