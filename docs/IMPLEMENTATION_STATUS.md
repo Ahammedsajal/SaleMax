@@ -1,3 +1,9 @@
+## Invoice PDF builder — 5 October 2026
+
+The existing Finance screen has a document-only invoice builder with shared company name, CR number, address, logo, optional footer, invoice prefix and payment-duration plans. Users can select a lead/contact or enter customer details, select an active course, and use a saved plan or enter payment dates and amounts. Generated documents use QAR with no tax and are stored as immutable snapshots, separately from receivables, enrollments, payments and journals. The A4 print view opens for browser Save as PDF.
+
+Migration `20261028_invoice_pdf_generator.sql` is part of this increment. Full details of production deployment and verification will follow this entry once the release is complete.
+
 # SaleMaX implementation status
 
 ## Hybrid/AI provider failure handoff and runtime packaging — production, 5 October 2026

@@ -342,6 +342,20 @@ The staff URL uses the same published form with `?mode=staff`. It does not trust
 
 The staff POST body is `{submissionToken,values}` and is limited to 16 KiB. Writes require the configured `SALEMAX_PLATFORM_ORIGIN` (or the request's same host when that setting is absent); request keys beyond those two fields are rejected. The server validates the published field allowlist, required service-contact consent, contact data and tenant-owned course offer inside the transaction. It records `capture_mode='staff'` and the server-derived collector type/ID with the consent/version evidence, creates the opportunity as `staff_form`, and assigns agent-created leads to the authenticated agent. A UUIDv4 retry returns the same reference and does not create another lead. `201` means a new lead was saved; `200` is an idempotent retry; `400` validation error; `401` sign-in required/expired; `403` origin or permission denied; `404` form unavailable; `409` business or plan unavailable; `413` payload too large. The staff route does not call Turnstile or send email/WhatsApp. A separate reset control clears the form and session idempotency token after a successful capture; no customer fields are stored in browser storage. The training-form page is `no-store` to avoid browser cache reuse on reception tablets.
 
+### Simple invoice PDF builder (local implementation)
+
+The existing Finance screen includes a separate document-only invoice builder. It requires an active training-center tenant and invoice read/issue entitlements, but does not require an approved finance posting policy. Generated documents use QAR and zero tax, and do not create receivables, enrollments, payments or journal entries. Migration `20261028_invoice_pdf_generator.sql` is required before use. The UI opens an A4 print view for browser Save as PDF; there is no server-generated PDF file or customer-facing document link.
+
+| Method and path | Purpose |
+| --- | --- |
+| GET/PUT `/api/user/training/finance-policies/generator/settings` | Read/save company identity, optional logo/footer, invoice prefix and payment-duration plans. Saving is owner-only. |
+| GET `/api/user/training/finance-policies/generator/courses` | List active courses with current active QAR offers. |
+| GET `/api/user/training/finance-policies/generator/customers?q=...` | Search tenant leads and contacts. |
+| GET/POST `/api/user/training/finance-policies/generator/invoices` | List up to 50 saved documents or create an immutable invoice snapshot. |
+| GET `/api/user/training/finance-policies/generator/invoices/:id` | Read a tenant-scoped generated invoice snapshot. |
+
+Canonical accountant equivalents are available under `/accountant/generator/...`.
+
 ### Manual payment recording, verification and receipts (TC18/TC19 in progress)
 
 These endpoints extend the existing Finance screen. They require an active training-center tenant, approved finance policy, `finance.payments` and `finance.receipts` entitlements, and the corresponding tenant role. Owner routes resolve the existing signed-in legacy owner through the reviewed ownership mapping. Accountant routes use the canonical tenant session and its CSRF token. All records are tenant-scoped; writes require the configured same-origin Origin and JSON body and return `Cache-Control: no-store`. Migration `20261013_training_manual_payments.sql` is required.

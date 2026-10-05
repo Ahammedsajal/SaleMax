@@ -1,0 +1,45 @@
+-- Simple tenant-scoped invoice PDF generator settings and issued document snapshots.
+CREATE TABLE sx_invoice_generator_settings (
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  company_name VARCHAR(200) NOT NULL,
+  cr_number VARCHAR(100) NOT NULL,
+  company_address VARCHAR(1000) NOT NULL,
+  footer VARCHAR(500) NULL,
+  logo_data_url MEDIUMTEXT NULL,
+  invoice_prefix VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'INV',
+  payment_plans JSON NOT NULL,
+  last_number BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (tenant_id),
+  CONSTRAINT fk_sx_invoice_gen_settings_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_sx_invoice_gen_settings_identity FOREIGN KEY (updated_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT ck_sx_invoice_gen_prefix CHECK (invoice_prefix REGEXP '^[A-Z0-9-]{2,16}$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_invoice_generator_documents (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  invoice_number VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  request_key CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  payload_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  customer_type ENUM('contact','lead','manual') NOT NULL,
+  customer_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  customer_name VARCHAR(255) NOT NULL,
+  course_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  course_name VARCHAR(200) NOT NULL,
+  amount_minor BIGINT UNSIGNED NOT NULL,
+  snapshot JSON NOT NULL,
+  created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_sx_invoice_gen_number (tenant_id,invoice_number),
+  UNIQUE KEY uq_sx_invoice_gen_request (tenant_id,request_key),
+  KEY idx_sx_invoice_gen_customer (tenant_id,customer_name,created_at),
+  KEY idx_sx_invoice_gen_issued (tenant_id,created_at),
+  CONSTRAINT fk_sx_invoice_gen_doc_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_sx_invoice_gen_doc_course FOREIGN KEY (tenant_id,course_id) REFERENCES sx_training_courses(tenant_id,id),
+  CONSTRAINT fk_sx_invoice_gen_doc_creator FOREIGN KEY (created_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT ck_sx_invoice_gen_amount CHECK (amount_minor > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
