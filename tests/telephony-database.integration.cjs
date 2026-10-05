@@ -54,7 +54,7 @@ async function main(){
     const createdQueue=await queues.save(db,tenantContext,{id:null,expectedRevision:0,name:'support_main',strategy:'ringall',ringTimeoutSeconds:20,enabled:false,membershipIds:[ownerMembership,agentMembership]});
     assert.equal(createdQueue.members.length,2);
     const memberIds=createdQueue.members.map(member=>member.membershipId);
-    const contenders=[{...createdQueue,membershipIds:memberIds,enabled:true,expectedRevision:createdQueue.revision},{...createdQueue,membershipIds:memberIds,strategy:'rrmemory',expectedRevision:createdQueue.revision}];
+    const contenders=[{...createdQueue,membershipIds:memberIds,enabled:true,expectedRevision:createdQueue.revision},{...createdQueue,membershipIds:memberIds,strategy:'ringall',expectedRevision:createdQueue.revision}];
     const race=await Promise.allSettled(contenders.map((item,index)=>queues.save(index?other:db,tenantContext,item)));
     assert.equal(race.filter(item=>item.status==='fulfilled').length,1);
     assert.equal(race.find(item=>item.status==='rejected').reason.code,'STALE_TELEPHONY_QUEUE');

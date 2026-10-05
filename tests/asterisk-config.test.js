@@ -19,6 +19,13 @@ test('Asterisk setup access is assignable through the existing bilingual platfor
   assert.equal(policy.platformDecision({ audience: 'platform', membership: { role: 'staff', status: 'active', delegatedPermissions: [] }, mfaVerified: true }, 'telephony.configure'), false);
 });
 
+test('Call Center queue UI exposes only the ring behavior implemented by the ARI caller', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../client/public/call-center/call-center.js'), 'utf8');
+  assert.match(source, /Ring all assigned agent endpoints/);
+  assert.match(source, /strategy\.disabled=true/);
+  assert.doesNotMatch(source, /rrmemory|Linear order/);
+});
+
 test('Dinstar public peer preview requires TLS, SRTP and the configured source address', () => {
   const result = asterisk.gatewayPjsipPreview({ gateway_host: '198.51.100.42', gateway_sip_port: 5061, gateway_sip_transport: 'tls' });
   assert.equal(result.transport, 'tls');

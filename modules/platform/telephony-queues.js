@@ -8,7 +8,7 @@ function authorize(context){const result=decision(context,{capability:'telephony
 function parse(input){
   if(!input||typeof input!=='object'||Array.isArray(input)||!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0
     ||typeof input.name!=='string'||!/^[-a-z0-9_]{2,80}$/.test(input.name)||!/^[a-z]/.test(input.name)
-    ||!['ringall','rrmemory','linear'].includes(input.strategy)||!Number.isInteger(input.ringTimeoutSeconds)||input.ringTimeoutSeconds<5||input.ringTimeoutSeconds>120
+    ||input.strategy!=='ringall'||!Number.isInteger(input.ringTimeoutSeconds)||input.ringTimeoutSeconds<5||input.ringTimeoutSeconds>120
     ||typeof input.enabled!=='boolean'||!Array.isArray(input.membershipIds)||input.membershipIds.length>50
     ||input.membershipIds.some(id=>!uuid(id))||new Set(input.membershipIds).size!==input.membershipIds.length
     ||(input.id!==null&&input.id!==undefined&&!uuid(input.id)))fail('INVALID_TELEPHONY_QUEUE');

@@ -28,7 +28,9 @@ module.exports=async function telephonyIntegration(db,other,{tenantId,identityId
   const created=await queueService.save(db,context,initial);
   assert.equal(created.enabled,false);assert.equal(created.members.length,2);assert.equal(created.revision,1);
   const updateA={...initial,id:created.id,expectedRevision:created.revision,ringTimeoutSeconds:30};
-  const updateB={...initial,id:created.id,expectedRevision:created.revision,strategy:'rrmemory'};
+  assert.throws(()=>queueService.parse({...initial,strategy:'rrmemory'}),{code:'INVALID_TELEPHONY_QUEUE'});
+  assert.throws(()=>queueService.parse({...initial,strategy:'linear'}),{code:'INVALID_TELEPHONY_QUEUE'});
+  const updateB={...initial,id:created.id,expectedRevision:created.revision,strategy:'ringall'};
   const race=await Promise.allSettled([queueService.save(db,context,updateA),queueService.save(other,context,updateB)]);
   assert.equal(race.filter(item=>item.status==='fulfilled').length,1);
   assert.equal(race.find(item=>item.status==='rejected').reason.code,'STALE_TELEPHONY_QUEUE');

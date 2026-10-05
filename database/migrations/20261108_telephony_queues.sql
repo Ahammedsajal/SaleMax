@@ -2,7 +2,7 @@ CREATE TABLE sx_telephony_queues (
   tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   queue_name VARCHAR(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-  strategy ENUM('ringall','rrmemory','linear') NOT NULL DEFAULT 'ringall',
+  strategy ENUM('ringall') NOT NULL DEFAULT 'ringall',
   ring_timeout_seconds SMALLINT UNSIGNED NOT NULL DEFAULT 20,
   enabled TINYINT(1) NOT NULL DEFAULT 0,
   revision BIGINT UNSIGNED NOT NULL DEFAULT 1,
