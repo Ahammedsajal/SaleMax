@@ -47,6 +47,79 @@
   function isAssignmentPage() {
     return location.pathname.replace(/\/$/, '') === '/user' && ['wa-chatbot','wa_chatbot'].includes(pageKey().toLowerCase());
   }
+  function mountNativeAssignmentButton() {
+    const addButton = [...document.querySelectorAll('button')].find(button => visible(button) && /^(?:Add Chatbot|إضافة روبوت محادثة)$/i.test(button.textContent.trim()));
+    if (!addButton || document.querySelector('[data-sx-profile-assignment]')) return;
+    const button = document.createElement('button');
+    button.type = 'button'; button.dataset.sxProfileAssignment = '1';
+    button.className = addButton.className;
+    button.textContent = tr('Assign Guided / Hybrid / AI Bot','تعيين روبوت موجّه / هجين / ذكي');
+    button.style.marginInlineStart = '10px'; button.style.border = '1px solid #d0d5dd';
+    button.style.background = 'white'; button.style.color = '#344054';
+    button.addEventListener('click', openNativeAssignmentDialog);
+    addButton.insertAdjacentElement('afterend', button);
+  }
+  async function openNativeAssignmentDialog() {
+    addStyle();
+    const dialog = document.createElement('div'); dialog.id = 'sx-chatbot-dialog';
+    dialog.innerHTML = `<section class="sx-dialog" role="dialog" aria-modal="true" aria-labelledby="sx-native-assignment-title"><h2 id="sx-native-assignment-title">${esc(tr('Assign a chatbot','تعيين روبوت محادثة'))}</h2><div class="sx-muted">${esc(tr('Create and edit bot profiles in Automation Flows. Assign one profile to a connected number here.','أنشئ ملفات الروبوت وعدّلها في تدفقات الأتمتة. عيّن ملفًا لرقم متصل من هنا.'))}</div><div class="sx-form-grid"><label class="sx-full">${esc(tr('Bot profile','ملف الروبوت'))}<select data-profile><option value="">${esc(tr('Loading bots…','جارٍ تحميل الروبوتات…'))}</option></select></label><label>${esc(tr('Origin','المصدر'))}<select data-origin><option value="whatsapp_qr">QR WhatsApp</option><option value="whatsapp_meta">Meta WhatsApp</option></select></label><label>${esc(tr('Connected number','الرقم المتصل'))}<select data-channel><option value="">${esc(tr('Loading numbers…','جارٍ تحميل الأرقام…'))}</option></select></label></div><div class="sx-muted" data-assignment-note></div><div class="sx-error" role="alert"></div><div class="sx-footer"><button type="button" class="sx-secondary" data-close>${esc(tr('Cancel','إلغاء'))}</button><button type="button" class="sx-primary" data-save>${esc(tr('Save assignment','حفظ التعيين'))}</button></div></section>`;
+    document.body.append(dialog);
+    dialog.querySelector('[data-close]').onclick = () => dialog.remove();
+    const profileSelect = dialog.querySelector('[data-profile]');
+    const originSelect = dialog.querySelector('[data-origin]');
+    const channelSelect = dialog.querySelector('[data-channel]');
+    const note = dialog.querySelector('[data-assignment-note]');
+    let bots = [], channels = [];
+    const renderChannels = () => {
+      const bot = bots.find(item => item.id === profileSelect.value);
+      const origin = originSelect.value;
+      const kind = origin === 'whatsapp_meta' ? 'whatsapp_meta' : 'whatsapp_qr';
+      const assigned = new Set((bot?.channels || []).map(item => `${item.kind}|${item.reference}`));
+      const usedByOther = new Set(bots.filter(item => item.id !== bot?.id).flatMap(item => (item.channels || []).map(channel => `${channel.kind}|${channel.reference}`)));
+      const available = channels.filter(item => item.kind === kind);
+      channelSelect.innerHTML = `<option value="">${esc(tr('Unassign from this origin','إزالة التعيين لهذا المصدر'))}</option>` + available.map(channel => {
+        const key = `${channel.kind}|${channel.reference}`;
+        const blocked = usedByOther.has(key);
+        return `<option value="${esc(key)}" ${assigned.has(key)?'selected':''} ${blocked?'disabled':''}>${esc(channel.kind==='whatsapp_meta'?'Meta WhatsApp':'QR WhatsApp')} · ${esc(channel.label || tr('Connected number','رقم متصل'))}${blocked?` · ${esc(tr('Assigned to another bot','مُعيّن لروبوت آخر'))}`:''}</option>`;
+      }).join('');
+      if (bot?.status === 'live') {
+        note.textContent = tr('This bot is active. Pause it in Automation Flows before changing its number assignment.','هذا الروبوت نشط. أوقفه في تدفقات الأتمتة قبل تغيير تعيين الرقم.');
+        channelSelect.disabled = true;
+      } else {
+        note.textContent = bot ? `${engineLabel(bot.engine)} · ${statusLabel(bot.status)} · ${tr('Activate the bot in Automation Flows after assigning its number.','فعّل الروبوت من تدفقات الأتمتة بعد تعيين الرقم.')}` : '';
+        channelSelect.disabled = !bot;
+      }
+      dialog.querySelector('[data-save]').disabled = !bot || bot.status === 'live' || available.length === 0;
+    };
+    originSelect.addEventListener('change', renderChannels);
+    profileSelect.addEventListener('change', renderChannels);
+    try {
+      const [result, connected] = await Promise.all([api(''), api('/channels')]);
+      bots = result.items || []; channels = connected || [];
+      profileSelect.innerHTML = bots.map(bot => `<option value="${esc(bot.id)}">${esc(bot.name)} · ${esc(engineLabel(bot.engine))} · ${esc(statusLabel(bot.status))}</option>`).join('') || `<option value="">${esc(tr('Create a bot in Automation Flows first','أنشئ روبوتًا في تدفقات الأتمتة أولاً'))}</option>`;
+      if (!bots.length) profileSelect.disabled = true;
+      if (!channels.some(channel => channel.kind === 'whatsapp_qr')) originSelect.value = 'whatsapp_meta';
+      if (!channels.length) note.textContent = tr('No connected QR or Meta WhatsApp numbers are available. Connect a number first.','لا توجد أرقام QR أو Meta WhatsApp متصلة. اربط رقمًا أولاً.');
+      renderChannels();
+    } catch (error) {
+      dialog.querySelector('.sx-error').textContent = errorLabel(error.message);
+      profileSelect.disabled = true; originSelect.disabled = true; channelSelect.disabled = true; dialog.querySelector('[data-save]').disabled = true;
+    }
+    dialog.querySelector('[data-save]').onclick = async event => {
+      const button = event.currentTarget; button.disabled = true;
+      const errorBox = dialog.querySelector('.sx-error'); errorBox.textContent = '';
+      const bot = bots.find(item => item.id === profileSelect.value);
+      if (!bot) { errorBox.textContent = tr('Create a bot in Automation Flows first.','أنشئ روبوتًا في تدفقات الأتمتة أولاً.'); button.disabled = false; return; }
+      const channelsForBot = (bot.channels || []).filter(item => item.kind !== (originSelect.value === 'whatsapp_meta' ? 'whatsapp_meta' : 'whatsapp_qr')).map(item => ({ kind:item.kind, reference:item.reference }));
+      if (channelSelect.value) {
+        const [kind, ...parts] = channelSelect.value.split('|'); channelsForBot.push({ kind, reference:parts.join('|') });
+      }
+      try {
+        await api(`/${bot.id}/channels`, 'PUT', { expectedRevision:Number(bot.revision), channels:channelsForBot });
+        dialog.remove();
+      } catch (error) { errorBox.textContent = errorLabel(error.message); button.disabled = false; }
+    };
+  }
   function isInboxPage() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return false;
     return ['inbox', 'chat', 'conversations'].includes(pageKey().toLowerCase()) ||
@@ -197,7 +270,7 @@
     // WA Chatbot is the established legacy assignment screen. Keep its native
     // React list and Add Chatbot dialog intact; the profile editor remains on
     // the Automation Flows tabs above.
-    if (isAssignmentPage()) { state.mounted = false; closeViews(); return false; }
+    if (isAssignmentPage()) { state.mounted = false; closeViews(); addStyle(); mountNativeAssignmentButton(); return false; }
     if (!isFlowPage()) { state.mounted = false; closeViews(); return false; }
     addStyle();
     const pos = bounds(); let tabs = document.getElementById('sx-chatbot-tabs');
