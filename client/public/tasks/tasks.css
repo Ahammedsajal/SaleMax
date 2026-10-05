@@ -5,3 +5,5 @@
 .toggle{display:flex;align-items:center;gap:10px}.toggle input{width:auto}.hint{color:#637083;margin:0}
 
 .pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin:18px 0}.pagination button:disabled{opacity:.45;cursor:default}
+
+[hidden]{display:none!important}
