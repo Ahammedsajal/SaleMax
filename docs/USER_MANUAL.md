@@ -16,6 +16,10 @@ From the SaleMaX application directory, run `start-local.ps1` in PowerShell. Ope
 
 Super Admin and staff administration; business onboarding and plan assignment; team roles and seat limits; course/offer/batch setup; public and staff lead capture; assignments and follow-ups; sale approval; invoice and installment schedules; payment verification; receipt delivery; credits/refunds; reports; channel setup and delivery issues. Each journey requires tested screens, field guidance and recoverable error states before it is marked available.
 
+## Chatbot setup and number assignment
+
+Create and edit Guided, Hybrid AI, and AI bot profiles from the corresponding pill in **Automation Flows**. The existing Automation Flows canvas remains the first pill. Assign connected WhatsApp numbers from **WA Chatbot** in the sidebar; assignment is no longer part of the bot editor. Pause a live bot before changing its number assignment. The prior WA Chatbot setup remains available from the new assignment page. Inbox bot pause/resume remains scoped to one conversation.
+
 ## Confirming a training sale (agent or owner)
 
 1. Open the existing business panel's Lead Pipeline and select the lead. Review the learner, payer, invoice email, active course offer, discount, terms and installment schedule in Sale Review. The course's published payment plan pre-fills the installments.

@@ -18,6 +18,19 @@ test('existing Automation Flows canvas remains the first pill tab', () => {
   assert.ok(definitions.indexOf("['legacy'") < definitions.indexOf("['guided'") );
 });
 
+test('all engine number assignments are managed on the Chatbot sidebar page', () => {
+  assert.match(admin, /function isAssignmentPage\(\)[\s\S]*?\['wa-chatbot','wa_chatbot'\]/);
+  assert.match(admin, /function renderAssignments\(\)[\s\S]*?All bots[\s\S]*?Assigned number\(s\)/);
+  assert.match(admin, /location\.href = '\/user\?page=wa-chatbot'/);
+  assert.match(admin, /function openAssignmentEditor\(bot\)[\s\S]*?api\(`\/\$\{bot\.id\}\/channels`,\s*'PUT'/);
+  assert.match(admin, /function isFlowPage\(\)[\s\S]*?return \['automation-flows', 'automation_flows', 'automation', 'chat-flow'\]/);
+  assert.match(sidebar, /'WA Chatbot':'wa-chatbot'/);
+  assert.match(admin, /location\.href = '\/user\?page=chatbot'/);
+  const editor = admin.slice(admin.indexOf('function openEditor('), admin.indexOf('function conversationId('));
+  assert.doesNotMatch(editor, /name="channel"|api\(`\/\$\{id\}\/channels`,'PUT'/);
+  assert.doesNotMatch(admin, /<th>\$\{esc\(tr\('WhatsApp Number'/);
+});
+
 test('chatbot overlays follow the active SaleMaX dark theme without restyling the legacy canvas', () => {
   assert.match(admin, /function syncChatbotTheme\(\)/);
   assert.match(admin, /localStorage\.getItem\('theme_mode'\)/);
@@ -36,15 +49,14 @@ test('bot editor renders editable bilingual training-center guide fields', () =>
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:ar/);
 });
 
-test('active bots remain editable while assignments and provider credentials stay locked', () => {
+test('active bot profiles stay editable while provider credentials and sensitive AI settings stay locked', () => {
   assert.match(admin, /data-edit="\$\{esc\(bot\.id\)\}"/);
   assert.doesNotMatch(admin, /data-edit="\$\{esc\(bot\.id\)\}"\s+\$\{bot\.status==='live'\?'disabled/);
   assert.match(admin, /Saved changes take effect on the next incoming message/);
-  assert.match(admin, /Number assignments are locked while the bot is active/);
   assert.match(admin, /Provider credentials and usage limits are locked while this bot is active/);
   assert.match(admin, /Pause this bot before changing its AI privacy confirmation/);
   assert.match(admin, /aiDataProcessingConfirmed:liveEdit\?config\.aiDataProcessingConfirmed===true/);
-  assert.match(admin, /if \(!liveEdit\) \{[\s\S]*?api\(`\/\$\{id\}\/channels`,'PUT'/);
+  assert.match(admin, /assign its number from the Chatbot page/);
   assert.match(chatbotRouter, /if \(row\.status === 'live'\) await assertLiveProfileReady/);
   assert.match(chatbotRouter, /appliedImmediately: row\.status === 'live'/);
   assert.match(chatbotRouter, /status='live' AND \(engine='ai' OR \(engine='hybrid'/);
@@ -82,6 +94,6 @@ test('Inbox bot control requires explicit number selection when channel scope is
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261102-team-access2/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261102-team-access2/);
+  assert.match(index, /training-sidebar\.js\?v=20261005-bot-assignments1/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261005-bot-assignments1/);
 });

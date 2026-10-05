@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261102-team-access2';
+    chatbotScript.src = '/chatbot-admin.js?v=20261005-bot-assignments1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
@@ -35,7 +35,7 @@
   };
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
-    'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
+    'Automation Flows':'flows', 'WA Chatbot':'wa-chatbot', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', Phonebook:'contacts', 'Agent Login':'agent-login',
     'Agent Task':'tasks', Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
     'Finance Reports':'reports', 'Lead Reports':'reports', 'Team access':'team', 'Team and Roles':'team',
