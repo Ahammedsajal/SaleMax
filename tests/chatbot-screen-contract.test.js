@@ -28,6 +28,15 @@ test('chatbot overlays follow the active SaleMaX dark theme without restyling th
   assert.doesNotMatch(admin, /html\[data-sx-chatbot-theme="dark"\].*\.react-flow/);
 });
 
+test('chatbot tabs and panel stay inside either sidebar edge in RTL and narrow layouts', () => {
+  assert.match(admin, /const drawerOnRight = Boolean\(drawerRect && drawerRect\.left > innerWidth \/ 2\)/);
+  assert.match(admin, /right: drawerOnRight \? Math\.max\(0, innerWidth - drawerRect\.left\) : 0/);
+  assert.match(admin, /innerWidth-pos\.left-pos\.right/);
+  assert.match(admin, /--sx-chatbot-tabs-left/);
+  assert.match(admin, /--sx-chatbot-tabs-width/);
+  assert.match(admin, /left:var\(--sx-chatbot-tabs-left,10px\)!important/);
+});
+
 test('bot editor renders editable bilingual training-center guide fields', () => {
   assert.match(admin, /guidedContentMarkup\(config, selectedDomainGuide\)/);
   assert.match(admin, /English<textarea/);
@@ -98,6 +107,6 @@ test('Inbox bot control requires explicit number selection when channel scope is
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261005c/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261005f/);
+  assert.match(index, /training-sidebar\.js\?v=20261005d/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261005g/);
 });
