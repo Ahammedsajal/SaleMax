@@ -28,12 +28,37 @@ test('chatbot overlays follow the active SaleMaX dark theme without restyling th
   assert.doesNotMatch(admin, /html\[data-sx-chatbot-theme="dark"\].*\.react-flow/);
 });
 
+test('chatbot tabs and panel stay inside either sidebar edge in RTL and narrow layouts', () => {
+  assert.match(admin, /const drawerOnRight = Boolean\(drawerRect && drawerRect\.left > innerWidth \/ 2\)/);
+  assert.match(admin, /right: drawerOnRight \? Math\.max\(0, innerWidth - drawerRect\.left\) : 0/);
+  assert.match(admin, /innerWidth-pos\.left-pos\.right/);
+  assert.match(admin, /--sx-chatbot-tabs-left/);
+  assert.match(admin, /--sx-chatbot-tabs-width/);
+  assert.match(admin, /left:var\(--sx-chatbot-tabs-left,10px\)!important/);
+});
+
 test('bot editor renders editable bilingual training-center guide fields', () => {
   assert.match(admin, /guidedContentMarkup\(config, selectedDomainGuide\)/);
   assert.match(admin, /English<textarea/);
   assert.match(admin, /العربية<textarea/);
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:en/);
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:ar/);
+});
+
+test('AI and Hybrid FAQ content uses structured, bounded bilingual rows', () => {
+  assert.match(admin, /function faqEntryMarkup\(/);
+  assert.match(admin, /function faqEditorMarkup\(config\)/);
+  assert.match(admin, /field\('questionEn','Question · English'/);
+  assert.match(admin, /field\('answerEn','Answer · English'/);
+  assert.match(admin, /field\('questionAr','Question · Arabic'/);
+  assert.match(admin, /field\('answerAr','Answer · Arabic'/);
+  assert.match(admin, /data-add-faq/);
+  assert.match(admin, /rows\.length >= 60/);
+  assert.match(admin, /new TextEncoder\(\)\.encode\(JSON\.stringify\(body\.config\)\)\.length > 32000/);
+  assert.match(admin, /total bot settings are limited to 32 KB/);
+  assert.match(admin, /function collectFaqEntries\(editor\)/);
+  assert.match(admin, /Each FAQ language needs both a question and an answer/);
+  assert.doesNotMatch(admin, /split\('\n'\)\.map\(line=>line\.split\('\|'\)/);
 });
 
 test('active bots remain editable while assignments and provider credentials stay locked', () => {
@@ -82,6 +107,6 @@ test('Inbox bot control requires explicit number selection when channel scope is
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261005a/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261005e/);
+  assert.match(index, /training-sidebar\.js\?v=20261005d/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261005g/);
 });
