@@ -20,10 +20,13 @@ test('existing Automation Flows canvas remains the first pill tab', () => {
 
 test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', () => {
   assert.match(admin, /if \(isAssignmentPage\(\)\) \{ state\.mounted = false; closeViews\(\); return false; \}/);
-  assert.match(admin, /Keep its native React list and Add Chatbot dialog intact/);
+  assert.match(admin, /Keep the existing WA Chatbot page and Add Chatbot layout/);
   assert.match(admin, /function mountNativeAssignmentButton\(\)[\s\S]*?openNativeAssignmentDialog\(\)/);
-  assert.match(admin, /Select Automation Flow \/ Bot/);
-  assert.match(admin, /profileSelect\.innerHTML = `[^`]*bots\.map\(bot =>/);
+  const picker = admin.slice(admin.indexOf('async function openNativeAssignmentDialog('), admin.indexOf('function isInboxPage('));
+  assert.match(picker, /Select Automation Flow/);
+  assert.match(picker, /profileSelect\.innerHTML = `[^`]*bots\.map\(bot =>/);
+  assert.match(picker, /All Guided, Hybrid and AI bot profiles created in Automation Flows appear in this list/);
+  assert.doesNotMatch(picker, /Legacy flow setup/);
   assert.match(admin, /async function openNativeAssignmentDialog\(\)[\s\S]*?api\(`\/\$\{bot\.id\}\/channels`, 'PUT'/);
   assert.match(admin, /function isFlowPage\(\)[\s\S]*?return \['automation-flows', 'automation_flows', 'automation', 'chat-flow'\]/);
   assert.match(sidebar, /'WA Chatbot':'chatbot'/);
@@ -97,6 +100,6 @@ test('Inbox bot control requires explicit number selection when channel scope is
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261005-unified-bot-dropdown/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261005-unified-bot-dropdown/);
+  assert.match(index, /training-sidebar\.js\?v=20261005-bot-profile-dropdown3/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261005-bot-profile-dropdown3/);
 });
