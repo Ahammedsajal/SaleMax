@@ -151,3 +151,22 @@ test('ARI call client restricts originated endpoints, app arguments, and transpo
     if (oldHosts === undefined) delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS; else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS = oldHosts;
   }
 });
+
+test('ARI client applies only bounded dynamic PJSIP object types and accepts configuration tuple responses', async () => {
+  const oldKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='pbx.example.com';
+  const credential=secrets.encrypt('test-password-that-is-long-enough');let captured;
+  const client=createAriClient({ari_base_url:'https://pbx.example.com:8089/ari',ari_username:'salemax-admin',credential_ciphertext:credential.ciphertext,
+    credential_iv:credential.iv,credential_auth_tag:credential.authTag,enabled:1,revision:3},{fetchImpl:async(url,options)=>{
+      captured={url:new URL(url),options};return{ok:true,status:200,async text(){return JSON.stringify([{attribute:'endpoint',value:'salemax_dinstar_uc2000ve'}]);}};
+    }});
+  try{
+    const result=await client.upsertPjsipObject('endpoint','salemax_dinstar_uc2000ve',[{attribute:'allow',value:'alaw,ulaw'}]);
+    assert.deepEqual(result,{attributes:1});assert.equal(captured.options.method,'PUT');
+    assert.equal(captured.url.pathname,'/ari/asterisk/config/dynamic/res_pjsip/endpoint/salemax_dinstar_uc2000ve');
+    assert.deepEqual(JSON.parse(captured.options.body),{fields:[{attribute:'allow',value:'alaw,ulaw'}]});
+    await assert.rejects(client.upsertPjsipObject('global','salemax_bad',[{attribute:'allow',value:'alaw'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
+    await assert.rejects(client.upsertPjsipObject('endpoint','../../ari',[{attribute:'allow',value:'alaw'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
+    await assert.rejects(client.upsertPjsipObject('endpoint','salemax_safe',[{attribute:'allow',value:'alaw\ncontext=public'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
+  }finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;}
+});

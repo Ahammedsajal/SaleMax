@@ -206,6 +206,67 @@ async function previewGateway(db, context) {
   return gatewayPjsipPreview(row);
 }
 
+async function applyGatewayPeer(db, context, clientFactory) {
+  authorize(context);
+  const [[row]] = await db.query(`SELECT ari_base_url,ari_username,credential_ciphertext,credential_iv,credential_auth_tag,
+    gateway_host,gateway_sip_port,gateway_sip_transport,enabled,revision,last_test_status
+    FROM sx_platform_asterisk_config WHERE id=1`);
+  if (!row) fail('ASTERISK_CONFIG_UNAVAILABLE');
+  if (!row.enabled) fail('ASTERISK_CONTROL_NOT_READY');
+  if (row.last_test_status !== 'success') fail('ASTERISK_CONNECTION_TEST_REQUIRED');
+  const preview = gatewayPjsipPreview(row);
+  const client = await (clientFactory || ((connection, config) => require('./asterisk-ari-client').createAriClient(config, { pool: connection })))(db, row);
+  const hostUri = net.isIP(preview.gatewayIp) === 6 ? `[${preview.gatewayIp}]` : preview.gatewayIp;
+  const aor = 'salemax_dinstar_uc2000ve';
+  const endpointId = 'salemax_dinstar_uc2000ve';
+  const identify = 'salemax_dinstar_uc2000ve_identify';
+  const correlationId = crypto.randomUUID();
+  let objectsApplied = 0;
+  await db.query(`INSERT INTO sx_audit_events(id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+    VALUES (?,?,'identity','asterisk.gateway-peer-apply-requested','asterisk-config','dinstar-uc2000ve',?,?)`, [
+    crypto.randomUUID(), context.identity.id, JSON.stringify({ gatewayIp: preview.gatewayIp, revision: Number(row.revision) }), correlationId,
+  ]);
+  try {
+    await client.upsertPjsipObject('aor', aor, [
+      { attribute: 'contact', value: `sips:${hostUri}:${preview.port}` },
+      { attribute: 'qualify_frequency', value: '30' },
+    ]);
+    objectsApplied++;
+    await client.upsertPjsipObject('endpoint', endpointId, [
+      { attribute: 'context', value: 'from-dinstar-unrouted' },
+      { attribute: 'disallow', value: 'all' },
+      { attribute: 'allow', value: 'alaw,ulaw' },
+      { attribute: 'transport', value: 'transport-salemax-tls' },
+      { attribute: 'media_encryption', value: 'sdes' },
+      { attribute: 'media_encryption_optimistic', value: 'no' },
+      { attribute: 'aors', value: aor },
+      { attribute: 'direct_media', value: 'no' },
+      { attribute: 'rtp_symmetric', value: 'yes' },
+      { attribute: 'force_rport', value: 'yes' },
+      { attribute: 'rewrite_contact', value: 'yes' },
+    ]);
+    objectsApplied++;
+    await client.upsertPjsipObject('identify', identify, [
+      { attribute: 'endpoint', value: endpointId },
+      { attribute: 'match', value: preview.gatewayIp },
+    ]);
+    objectsApplied++;
+  } catch (error) {
+    await db.query(`INSERT INTO sx_audit_events(id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+      VALUES (?,?,'identity','asterisk.gateway-peer-apply-failed','asterisk-config','dinstar-uc2000ve',?,?)`, [
+      crypto.randomUUID(), context.identity.id, JSON.stringify({ gatewayIp: preview.gatewayIp, revision: Number(row.revision),
+        objectsApplied, failureCode: /^[A-Z0-9_]{2,80}$/.test(error.code || '') ? error.code : 'ARI_UNAVAILABLE' }), correlationId,
+    ]);
+    throw error;
+  }
+  await db.query(`INSERT INTO sx_audit_events(id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+    VALUES (?,?,'identity','asterisk.gateway-peer-applied','asterisk-config','dinstar-uc2000ve',?,?)`, [
+    crypto.randomUUID(), context.identity.id, JSON.stringify({ gatewayIp: preview.gatewayIp, revision: Number(row.revision), objects: 3 }), correlationId,
+  ]);
+  return { applied: true, gatewayIp: preview.gatewayIp, objects: objectsApplied, revision: Number(row.revision),
+    note: 'Asterisk dynamic PJSIP objects were accepted. The TLS transport, unrouted dialplan context, firewall, and Dinstar settings remain separate prerequisites.' };
+}
+
 async function previewAgentEndpoints(db, context) {
   authorize(context);
   const [rows] = await db.query(`SELECT x.tenant_id,x.membership_id,x.extension,x.mobile_credential_revision,x.browser_credential_revision FROM sx_telephony_extensions x
@@ -375,4 +436,4 @@ async function recordTest(db, context, revision, hostname, status, version, fail
   }
 }
 
-module.exports = { endpoint, allowlisted, browserWebsocketUrl, mobileSipHost, ownBrowserEndpoint, ownMobileEndpoint, gateway, gatewayPjsipPreview, present, get, previewGateway, previewAgentEndpoints, save, test };
+module.exports = { endpoint, allowlisted, browserWebsocketUrl, mobileSipHost, ownBrowserEndpoint, ownMobileEndpoint, gateway, gatewayPjsipPreview, present, get, previewGateway, applyGatewayPeer, previewAgentEndpoints, save, test };

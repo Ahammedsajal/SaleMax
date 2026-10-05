@@ -32,6 +32,7 @@ function createAsteriskRouter({ pool }) {
   }));
   router.get('/config', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => asterisk.get(db, req.businessContext)) })));
   router.get('/gateway-config-preview', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => asterisk.previewGateway(db, req.businessContext)) })));
+  router.post('/apply-gateway-peer', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => asterisk.applyGatewayPeer(db, req.businessContext)) })));
   router.get('/agent-endpoint-preview', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => asterisk.previewAgentEndpoints(db, req.businessContext)) })));
   router.get('/gateway-routing-preview', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => gatewayPorts.previewRouting(db, req.businessContext)) })));
   router.put('/config', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => asterisk.save(db, req.businessContext, req.body)) })));

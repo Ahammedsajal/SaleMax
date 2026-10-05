@@ -25,7 +25,7 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
   const revision = Number(row.revision);
 
   async function request(method, path, query = {}, body = undefined) {
-    if (!['GET', 'POST', 'DELETE'].includes(method) || typeof path !== 'string'
+    if (!['GET', 'POST', 'PUT', 'DELETE'].includes(method) || typeof path !== 'string'
       || path.startsWith('/') || path.includes('..') || path.includes('?') || path.includes('#')) fail('INVALID_ARI_REQUEST');
     if (pool) {
       const [[current]] = await pool.query('SELECT enabled,revision FROM sx_platform_asterisk_config WHERE id=1');
@@ -54,7 +54,7 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
       if (raw.length > 1024 * 1024) fail('ARI_INVALID_RESPONSE');
       let result;
       try { result = JSON.parse(raw); } catch (_) { fail('ARI_INVALID_RESPONSE'); }
-      if (!result || typeof result !== 'object' || Array.isArray(result)) fail('ARI_INVALID_RESPONSE');
+      if (!result || typeof result !== 'object') fail('ARI_INVALID_RESPONSE');
       return result;
     } catch (error) {
       const known = ['ARI_AUTH_REJECTED', 'ARI_RESOURCE_NOT_FOUND', 'ARI_CONFLICT', 'ARI_UNAVAILABLE', 'ARI_INVALID_RESPONSE', 'INVALID_ARI_REQUEST'];
@@ -106,6 +106,18 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
     async destroyBridge(bridgeId) {
       if (!UUID.test(bridgeId || '')) fail('INVALID_ARI_BRIDGE_ID');
       await request('DELETE', `bridges/${encodeURIComponent(bridgeId)}`);
+    },
+    async upsertPjsipObject(objectType, objectId, fields) {
+      if (!['aor', 'auth', 'endpoint', 'identify'].includes(objectType)
+        || !/^salemax_[A-Za-z0-9_-]{1,96}$/.test(objectId || '')
+        || !Array.isArray(fields) || !fields.length || fields.length > 32
+        || fields.some(field => !field || typeof field.attribute !== 'string'
+          || !/^[a-z][a-z0-9_]{0,63}$/.test(field.attribute)
+          || typeof field.value !== 'string' || field.value.length > 512
+          || /[\r\n\0]/.test(field.value))) fail('INVALID_ARI_PJSIP_OBJECT');
+      const result = await request('PUT', `asterisk/config/dynamic/res_pjsip/${objectType}/${encodeURIComponent(objectId)}`, {}, { fields });
+      if (!Array.isArray(result) || result.length > 64 || result.some(field => !field || typeof field.attribute !== 'string' || typeof field.value !== 'string')) fail('ARI_INVALID_RESPONSE');
+      return { attributes: result.length };
     },
   });
 }

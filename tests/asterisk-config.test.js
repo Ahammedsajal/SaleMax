@@ -19,6 +19,18 @@ test('Asterisk setup access is assignable through the existing bilingual platfor
   assert.equal(policy.platformDecision({ audience: 'platform', membership: { role: 'staff', status: 'active', delegatedPermissions: [] }, mfaVerified: true }, 'telephony.configure'), false);
 });
 
+test('existing Super Admin PBX setup applies the Dinstar peer only after a current ARI check', () => {
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
+  const router=fs.readFileSync(path.join(__dirname,'../modules/platform/asterisk-router.js'),'utf8');
+  const mount=fs.readFileSync(path.join(__dirname,'../modules/platform/mount-existing-upgrade.js'),'utf8');
+  assert.match(ui,/data-apply-gateway/);
+  assert.match(ui,/saved\.lastTestStatus!=='success'/);
+  assert.match(ui,/window\.confirm\(/);
+  assert.match(ui,/\/api\/admin\/asterisk\/apply-gateway-peer/);
+  assert.match(router,/router\.post\('\/apply-gateway-peer'/);
+  assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
+});
+
 test('Call Center queue UI exposes only the ring behavior implemented by the ARI caller', () => {
   const source = fs.readFileSync(path.join(__dirname, '../client/public/call-center/call-center.js'), 'utf8');
   assert.match(source, /Ring all assigned agent endpoints/);
@@ -44,6 +56,32 @@ test('Dinstar public peer preview rejects missing and non-IP source addresses', 
 test('direct-internet gateway config cannot fall back to UDP or TCP', () => {
   assert.throws(() => asterisk.gateway({ gatewayHost: '198.51.100.42', gatewaySipPort: 5061, gatewaySipTransport: 'udp' }), { code: 'INSECURE_GATEWAY_TRANSPORT' });
   assert.throws(() => asterisk.gateway({ gatewayHost: '198.51.100.42', gatewaySipPort: 5061, gatewaySipTransport: 'tcp' }), { code: 'INSECURE_GATEWAY_TRANSPORT' });
+});
+
+test('Super Admin can apply only the fixed Dinstar peer through audited ARI dynamic PJSIP writes', async () => {
+  const operations=[];
+  const queries=[];
+  const row={gateway_host:'198.51.100.42',gateway_sip_port:5061,gateway_sip_transport:'tls',enabled:1,revision:7,last_test_status:'success'};
+  const db={async query(sql,params){queries.push({sql,params});if(sql.includes('FROM sx_platform_asterisk_config'))return [[row]];return [{affectedRows:1}];}};
+  const context={audience:'platform',identity:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},membership:{status:'active',role:'super_admin'},mfaVerified:true};
+  const result=await asterisk.applyGatewayPeer(db,context,async()=>({async upsertPjsipObject(type,id,fields){operations.push({type,id,fields});return{attributes:fields.length};}}));
+  assert.deepEqual(result,{applied:true,gatewayIp:'198.51.100.42',objects:3,revision:7,
+    note:'Asterisk dynamic PJSIP objects were accepted. The TLS transport, unrouted dialplan context, firewall, and Dinstar settings remain separate prerequisites.'});
+  assert.deepEqual(operations.map(item=>[item.type,item.id]),[
+    ['aor','salemax_dinstar_uc2000ve'],['endpoint','salemax_dinstar_uc2000ve'],['identify','salemax_dinstar_uc2000ve_identify'],
+  ]);
+  assert.equal(operations[0].fields[0].value,'sips:198.51.100.42:5061');
+  assert.ok(operations[1].fields.some(field=>field.attribute==='context'&&field.value==='from-dinstar-unrouted'));
+  assert.ok(operations[1].fields.some(field=>field.attribute==='media_encryption'&&field.value==='sdes'));
+  assert.ok(operations[2].fields.some(field=>field.attribute==='match'&&field.value==='198.51.100.42'));
+  const audit=queries.filter(item=>item.sql.includes('INSERT INTO sx_audit_events'));
+  assert.equal(audit.length,2);
+  assert.match(audit[0].sql,/asterisk\.gateway-peer-apply-requested/);
+  assert.match(audit[1].sql,/asterisk\.gateway-peer-applied/);
+  assert.doesNotMatch(JSON.stringify(audit),/password|credential/i);
+  row.last_test_status=null;let clientCreated=false;
+  await assert.rejects(asterisk.applyGatewayPeer(db,context,async()=>{clientCreated=true;return{};}),{code:'ASTERISK_CONNECTION_TEST_REQUIRED'});
+  assert.equal(clientCreated,false,'do not write Asterisk config before a successful ARI test for this saved revision');
 });
 
 test('agent endpoint preview builds distinct tenant-bound mobile and browser credentials without call routes', async () => {

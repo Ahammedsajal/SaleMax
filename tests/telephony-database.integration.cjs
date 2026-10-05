@@ -31,7 +31,10 @@ async function main(){
     await db.query(`CREATE TABLE sx_identities(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,email_normalized VARCHAR(254) NOT NULL,display_name VARCHAR(120) NOT NULL,status VARCHAR(20) NOT NULL) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_memberships(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,role VARCHAR(20) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'active',PRIMARY KEY(id),UNIQUE KEY uq_test_membership_tenant_id(tenant_id,id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),FOREIGN KEY(identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_audit_events(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_kind VARCHAR(24) NOT NULL,action VARCHAR(100) NOT NULL,resource_type VARCHAR(100) NOT NULL,resource_id VARCHAR(120) NOT NULL,changes JSON NOT NULL,correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,FOREIGN KEY(actor_identity_id) REFERENCES sx_identities(id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id)) ENGINE=InnoDB`);
-    await db.query(`CREATE TABLE sx_platform_asterisk_config(id TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,gateway_endpoint_status VARCHAR(20) NULL) ENGINE=InnoDB`);
+    await db.query(`CREATE TABLE sx_platform_asterisk_config(id TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,gateway_endpoint_status VARCHAR(20) NULL,
+      gateway_host VARCHAR(253) NOT NULL DEFAULT '',gateway_sip_port SMALLINT UNSIGNED NOT NULL DEFAULT 5061,gateway_sip_transport VARCHAR(8) NOT NULL DEFAULT 'tls',
+      ari_base_url VARCHAR(512) NOT NULL DEFAULT '',ari_username VARCHAR(128) NOT NULL DEFAULT '',credential_ciphertext VARBINARY(512) NULL,credential_iv BINARY(12) NULL,
+      credential_auth_tag BINARY(16) NULL,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,last_test_status VARCHAR(16) NULL) ENGINE=InnoDB`);
     await db.query('INSERT INTO sx_platform_asterisk_config(id) VALUES(1)');
     await db.query(`CREATE TABLE sx_platform_asterisk_gateway_ports(channel_no TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,inbound_enabled TINYINT(1) NOT NULL DEFAULT 0,outbound_enabled TINYINT(1) NOT NULL DEFAULT 0,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,updated_at DATETIME(3) NULL,FOREIGN KEY(updated_by_identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
     await db.query('INSERT INTO sx_platform_asterisk_gateway_ports(channel_no) VALUES(1),(2),(3),(4)');
@@ -47,6 +50,12 @@ async function main(){
     plans.loadEntitlements=async()=>({status:'active',categoryKey:'training_center',categoryVersion:1,capabilities:['telephony.call-center']});
     const tenantContext={audience:'tenant',identity:{id:ownerId},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:ownerMembership,tenantId,role:'owner',status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:['telephony.call-center']}};
     const platformContext={audience:'platform',identity:{id:ownerId},membership:{role:'super_admin',status:'active'},mfaVerified:true};
+    await db.query("UPDATE sx_platform_asterisk_config SET enabled=1,gateway_host='198.51.100.42',gateway_sip_port=5061,gateway_sip_transport='tls',revision=7,last_test_status='success' WHERE id=1");
+    const peerWrites=[];
+    const appliedPeer=await asteriskConfig.applyGatewayPeer(db,platformContext,async()=>({async upsertPjsipObject(type,id,fields){peerWrites.push({type,id,fields});return{attributes:fields.length};}}));
+    assert.equal(appliedPeer.applied,true);assert.equal(appliedPeer.objects,3);assert.equal(peerWrites.length,3);
+    const [[peerAudit]]=await db.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE action IN ('asterisk.gateway-peer-apply-requested','asterisk.gateway-peer-applied')");
+    assert.equal(Number(peerAudit.total),2,'gateway peer apply attempt and completion are audited');
     const endpointPreview=await asteriskConfig.previewAgentEndpoints(db,platformContext);
     assert.deepEqual(endpointPreview.extensions,['7401','7402']);
     assert.match(endpointPreview.config,/\[salemax-7401-mobile\]/);
