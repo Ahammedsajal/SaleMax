@@ -29,6 +29,7 @@ test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', (
   assert.match(picker, /bots\.filter\(bot =>/);
   assert.match(picker, /data-bot-option/);
   assert.match(picker, /renderBotOptions\(true\)/);
+  assert.match(picker, /alreadyAssigned \? tr\('This bot is already assigned to this number\.'/);
   assert.doesNotMatch(picker, /Legacy flow setup/);
   assert.match(admin, /async function openNativeAssignmentDialog\(\)[\s\S]*?api\(`\/\$\{bot\.id\}\/channels`, 'PUT'/);
   assert.match(admin, /function isFlowPage\(\)[\s\S]*?return \['automation-flows', 'automation_flows', 'automation', 'chat-flow'\]/);
@@ -103,6 +104,6 @@ test('Inbox bot control requires explicit number selection when channel scope is
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261005-bot-profile-dropdown5/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261005-bot-profile-dropdown5/);
+  assert.match(index, /training-sidebar\.js\?v=20261005-bot-profile-dropdown6/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261005-bot-profile-dropdown6/);
 });

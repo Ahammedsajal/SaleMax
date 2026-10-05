@@ -83,10 +83,10 @@
       options.querySelectorAll('[data-bot-option]').forEach(option => option.addEventListener('click', () => {
         selectedBotId = option.dataset.botOption;
         const bot = bots.find(item => item.id === selectedBotId);
-        searchInput.value = bot?.name || ''; titleInput.value = bot?.name || ''; closeOptions(); renderAssignmentState();
+        searchInput.value = bot?.name || ''; titleInput.value = bot?.name || ''; closeOptions(); renderAssignmentState(true);
       }));
     };
-    const renderAssignmentState = () => {
+    const renderAssignmentState = (preferExistingAssignment = false) => {
       const bot = bots.find(item => item.id === selectedBotId);
       titleInput.value = bot?.name || '';
       const assigned = new Set((bot?.channels || []).map(item => `${item.kind}|${item.reference}`));
@@ -98,17 +98,21 @@
         const label = channel.kind === 'whatsapp_meta' ? tr('Meta','ميتا') : (channel.label || channelLabel(channel));
         return `<option value="${esc(key)}" ${assigned.has(key)?'selected':''} ${blocked?'disabled':''}>${esc(label)}${blocked?` · ${esc(tr('Assigned to another bot','مُعيّن لروبوت آخر'))}`:''}</option>`;
       }).join('');
-      if (selectedChannel && [...originSelect.options].some(option => option.value === selectedChannel && !option.disabled)) originSelect.value = selectedChannel;
-      else if (bot?.channels?.length) {
-        const current = bot.channels.find(channel => [...originSelect.options].some(option => option.value === `${channel.kind}|${channel.reference}` && !option.disabled));
-        if (current) originSelect.value = `${current.kind}|${current.reference}`;
+      const existingAssignment = bot?.channels.find(channel => [...originSelect.options].some(option => option.value === `${channel.kind}|${channel.reference}` && !option.disabled));
+      if (preferExistingAssignment && existingAssignment) originSelect.value = `${existingAssignment.kind}|${existingAssignment.reference}`;
+      else if (selectedChannel && [...originSelect.options].some(option => option.value === selectedChannel && !option.disabled)) originSelect.value = selectedChannel;
+      else if (existingAssignment) {
+        originSelect.value = `${existingAssignment.kind}|${existingAssignment.reference}`;
       }
       originIcon.textContent = originSelect.value.startsWith('whatsapp_meta|') ? 'f' : '◉';
       assignmentNote.hidden = !bot;
-      assignmentNote.textContent = bot?.status === 'live'
+      const alreadyAssigned = !!bot && assigned.has(originSelect.value);
+      assignmentNote.textContent = bot?.status === 'live' && !alreadyAssigned
         ? tr('This bot is active. Pause it before changing its number assignment.','هذا الروبوت نشط. أوقفه قبل تغيير تعيين الرقم.')
-        : (bot ? `${engineLabel(bot.engine)} · ${statusLabel(bot.status)}` : '');
-      saveButton.disabled = !bot || !selectedChannel || bot.status === 'live' || originSelect.selectedOptions[0]?.disabled === true;
+        : (alreadyAssigned ? tr('This bot is already assigned to this number.','هذا الروبوت مُعيّن بالفعل لهذا الرقم.') : (bot ? `${engineLabel(bot.engine)} · ${statusLabel(bot.status)}` : ''));
+      saveButton.disabled = !bot || !originSelect.value || (bot.status === 'live' && !alreadyAssigned) || originSelect.selectedOptions[0]?.disabled === true;
+      saveButton.style.background = saveButton.disabled ? '#e4e7ec' : '#b0004b';
+      saveButton.style.color = saveButton.disabled ? '#98a2b3' : '#fff';
     };
     searchInput.addEventListener('focus', () => renderBotOptions(true));
     searchInput.addEventListener('click', () => renderBotOptions(true));
@@ -133,7 +137,11 @@
       const errorBox = dialog.querySelector('.sx-error'); errorBox.textContent = '';
       const bot = bots.find(item => item.id === selectedBotId);
       if (!bot) { errorBox.textContent = tr('Create a bot in Automation Flows first.','أنشئ روبوتًا في تدفقات الأتمتة أولاً.'); button.disabled = false; return; }
-      if (bot.status === 'live') { errorBox.textContent = errorLabel('LIVE_BOT_MUST_BE_PAUSED'); button.disabled = false; return; }
+      if (bot.status === 'live') {
+        const alreadyAssigned = (bot.channels || []).some(channel => channel.kind === originSelect.value.split('|')[0] && channel.reference === originSelect.value.split('|').slice(1).join('|'));
+        if (alreadyAssigned) { closeDialog(); return; }
+        errorBox.textContent = errorLabel('LIVE_BOT_MUST_BE_PAUSED'); button.disabled = false; return;
+      }
       if (!originSelect.value) { errorBox.textContent = tr('Select a connected number.','اختر رقمًا متصلاً.'); button.disabled = false; return; }
       const [kind, ...parts] = originSelect.value.split('|');
       const reference = parts.join('|');
