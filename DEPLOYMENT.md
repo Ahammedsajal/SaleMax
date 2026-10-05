@@ -1,5 +1,13 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Show bot choices immediately in the original assignment popup — production, 5 October 2026
+
+- Source commits `370452a` and `3e1c19e` are pushed to `Ahammedsajal/SaleMax` `main`. The restored pink-header **Add Chatbot** popup now opens with its searchable bot list already visible. Selecting a profile fills the title and shows its assignment state. When the selected active bot is already assigned to the chosen number, Save is an enabled no-op; changing an active bot's number still requires pausing it first.
+- Active release remains `/opt/salemax/releases/chatbot-number-assignment-nav-4495535`. The live-generated index was retained and its sidebar script key advanced to `20261005-bot-profile-dropdown6`. The index and updated scripts are installed in the release and running app container; no restart was needed.
+- Deployed SHA-256 (release, container and served scripts match): live-derived index `52dae2132f0c8d1583079ebde38b49e2b5eef2753aa0054bbe0f6824c097d77c`; `chatbot-admin.js` `dac2eb93c646e7975d50944a3795caac1c05d11d701803b7da67455df581aff6`; `training-sidebar.js` `94c7bce713ca376856dd5222c9ce58e95f1b3f7f78f43a0e9bca6db79ec5e31d`.
+- Migrations: none. The bot list was opened and the existing profile selected for read-only UI verification; Save was not clicked and no chatbot assignment/session/data changed. Pre-deploy release and container files are protected at `/opt/salemax/shared/rollback-bot-picker-visible-3e1c19e`.
+- Verification: syntax and whitespace checks pass; versioned script URLs return HTTP 200 with matching hashes. The authenticated browser shows `Training Center Course Guide · Guided Chatbot · Active` immediately on popup open; selecting it fills Title and displays “This bot is already assigned to this number.” Production `/healthz` returns 200 and app/database containers are healthy. Automated tests were not run.
+
 ## Restore the original pink-header Add Chatbot popup — production, 5 October 2026
 
 - Source commit `8ea8800` is pushed to `Ahammedsajal/SaleMax` `main`. The WA Chatbot **Add Chatbot** popup now matches the supplied original screen: pink robot header, webhook title field, origin selector, searchable **Select Automation Flow** picker, and the original footer arrangement. The picker is populated from the tenant's Guided, Hybrid and AI chatbot profiles; the visible Training Center profile is searchable there. Selecting a profile uses the existing assignment API. No separate legacy action or label is shown.
