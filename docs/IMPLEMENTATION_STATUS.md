@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Structured bilingual FAQ editor for Hybrid and AI bots — production, 5 October 2026
+
+Replaced the delimiter-based FAQ textarea with editable English/Arabic question-and-answer fields, add/remove controls, a 60-entry cap, complete-pair validation and a 32 KB bot-settings limit. This prevents ordinary `|` characters in customer-facing FAQ text from shifting answers into the wrong fields and keeps the saved `knowledgeEntries` format compatible with existing bots. The change is limited to the existing chatbot screen and cache references; Guided bots continue to use the category-pack message editor.
+
+Production release `/opt/salemax/releases/chatbot-structured-faq-20261005` serves the exact local hashes for `chatbot-admin.js`, `training-sidebar.js` and `index.html`; app and database containers are healthy and `/healthz` returns `200`. An authenticated production browser check confirmed the refreshed script versions, Guided bilingual greeting/course-list controls, Hybrid structured FAQ fields and working add/remove controls. All dialogs were cancelled without saving; no bot profile, provider, phone assignment, conversation, customer data or WhatsApp session was changed. `npm test` passes 202/202 and `git diff --check` passes. Real Hybrid/AI provider delivery remains gated on the business API key, privacy notice and authorized end-to-end channel acceptance; published courses are still required for real course choices.
+
 ## Hybrid/AI provider failure handoff and runtime packaging — production, 5 October 2026
 
 The provider adapter now returns stable operator-safe error codes for HTTP failures, malformed/oversized responses and network failures; only aborts are reported as timeouts. When an AI response is malformed, the Hybrid/AI runtime records `AI_PROVIDER_INVALID_OUTPUT` on the turn and auto-pauses that conversation for staff follow-up. This reason is already localized in the Inbox UI. A synthetic MariaDB inbound test confirms no malformed reply is sent and that the turn/control retain the reason. The test exposed that the prior deployed source release omitted `chatbot-ai-prompt.js`, a required runtime dependency; the new image includes it and the runtime module load check passes.
