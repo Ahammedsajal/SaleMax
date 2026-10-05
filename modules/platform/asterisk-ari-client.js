@@ -109,7 +109,7 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
     },
     async upsertPjsipObject(objectType, objectId, fields) {
       if (!['aor', 'auth', 'endpoint', 'identify'].includes(objectType)
-        || !/^salemax_[A-Za-z0-9_-]{1,96}$/.test(objectId || '')
+        || !/^salemax[-_][A-Za-z0-9_-]{1,96}$/.test(objectId || '')
         || !Array.isArray(fields) || !fields.length || fields.length > 32
         || fields.some(field => !field || typeof field.attribute !== 'string'
           || !/^[a-z][a-z0-9_]{0,63}$/.test(field.attribute)
@@ -118,6 +118,17 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
       const result = await request('PUT', `asterisk/config/dynamic/res_pjsip/${objectType}/${encodeURIComponent(objectId)}`, {}, { fields });
       if (!Array.isArray(result) || result.length > 64 || result.some(field => !field || typeof field.attribute !== 'string' || typeof field.value !== 'string')) fail('ARI_INVALID_RESPONSE');
       return { attributes: result.length };
+    },
+    async deletePjsipObject(objectType, objectId) {
+      if (!['aor', 'auth', 'endpoint', 'identify'].includes(objectType)
+        || !/^salemax[-_][A-Za-z0-9_-]{1,96}$/.test(objectId || '')) fail('INVALID_ARI_PJSIP_OBJECT');
+      try {
+        await request('DELETE', `asterisk/config/dynamic/res_pjsip/${objectType}/${encodeURIComponent(objectId)}`);
+        return { deleted: true };
+      } catch (error) {
+        if (error.code === 'ARI_RESOURCE_NOT_FOUND') return { deleted: false };
+        throw error;
+      }
     },
   });
 }

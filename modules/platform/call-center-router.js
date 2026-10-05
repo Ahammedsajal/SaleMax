@@ -42,8 +42,8 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin}){
   router.put('/extensions',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>extensions.save(db,req.callCenterContext,req.body))})));
   router.put('/extensions/credentials',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>extensions.rotateEndpointCredential(db,req.callCenterContext,req.body))})));
   router.get('/queues',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>queues.list(db,req.callCenterContext))})));
-  router.get('/webrtc-config',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>asteriskConfig.ownBrowserEndpoint(db,req.callCenterContext))})));
-  router.get('/sip-config',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>asteriskConfig.ownMobileEndpoint(db,req.callCenterContext))})));
+  router.post('/webrtc-config',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>asteriskConfig.ownBrowserEndpoint(db,req.callCenterContext))})));
+  router.post('/sip-config',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>asteriskConfig.ownMobileEndpoint(db,req.callCenterContext))})));
   router.put('/queues',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>queues.save(db,req.callCenterContext,req.body))})));
   router.post('/calls',wrap(async(req,res)=>{
     const access=decision(req.callCenterContext,{capability:'telephony.call-center',permission:'calls.control'});
@@ -85,6 +85,13 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin}){
       FROM sx_platform_asterisk_gateway_ports WHERE tenant_id=?`,[context.tenant.id]));
     const configured=!!(pbx?.ari_base_url&&pbx?.ari_username&&pbx?.credential_ciphertext);
     const extension=await withDb(db=>extensions.own(db,context));
+    const provisioned=extension.assigned&&!!pbx?.enabled?await withDb(async db=>{
+      const [rows]=await db.query(`SELECT client_type FROM sx_telephony_endpoint_provisioning
+        WHERE tenant_id=? AND membership_id=? AND extension=? AND extension_revision=? AND asterisk_config_revision=?
+          AND ((client_type='mobile' AND credential_revision=?) OR (client_type='browser' AND credential_revision=?))`,
+      [context.tenant.id,context.membership.id,extension.extension,extension.revision,Number(pbx.revision),extension.mobileCredentialRevision,extension.browserCredentialRevision]);
+      return new Set(rows.map(row=>row.client_type));
+    }):new Set();
     res.json({success:true,data:{
       tenantId:context.tenant.id,
       membershipRole:context.membership.role,
@@ -95,10 +102,10 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin}){
         channelPolicy:{assignedChannels:Number(portPolicy.assignedChannels),enabledChannels:Number(portPolicy.enabledChannels),inboundChannels:Number(portPolicy.inboundChannels),outboundChannels:Number(portPolicy.outboundChannels)}},
       calls:{inboundAvailable:false,outboundAvailable:false,reason:'CALL_ROUTING_NOT_PROVISIONED'},
       clients:{
-        mobileSip:{ready:false,reason:'SIP_ENDPOINT_NOT_PROVISIONED'},
-        browserWebRtc:{ready:false,reason:'WEBRTC_ENDPOINT_NOT_PROVISIONED'},
+        mobileSip:{ready:false,provisioned:provisioned.has('mobile'),reason:provisioned.has('mobile')?null:'SIP_ENDPOINT_NOT_PROVISIONED'},
+        browserWebRtc:{ready:false,provisioned:provisioned.has('browser'),reason:provisioned.has('browser')?null:'WEBRTC_ENDPOINT_NOT_PROVISIONED'},
       },
-      member:{extension:extension.extension,extensionAssigned:extension.assigned,extensionProvisioned:false},
+      member:{extension:extension.extension,extensionAssigned:extension.assigned,extensionProvisioned:provisioned.size>0},
       permissions:{manageExtensions:['owner','manager'].includes(context.membership.role),controlCalls:callControlAccess.allowed},
       feature:{enabled:true,scope:decisionResult.scope}
     }});

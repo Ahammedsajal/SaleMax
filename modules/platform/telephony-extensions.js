@@ -105,9 +105,11 @@ async function save(db, context, input) {
 async function own(db, context) {
   const decisionResult = decision(context, { capability: 'telephony.call-center', permission: 'calls.read' });
   if (!decisionResult.allowed) fail(decisionResult.code);
-  const [[row]] = await db.query(`SELECT extension FROM sx_telephony_extensions
+  const [[row]] = await db.query(`SELECT extension,revision,mobile_credential_revision,browser_credential_revision FROM sx_telephony_extensions
     WHERE tenant_id=? AND membership_id=?`, [context.tenant.id, context.membership.id]);
-  return { membershipId: context.membership.id, extension: row?.extension || '', assigned: !!row?.extension };
+  return { membershipId: context.membership.id, extension: row?.extension || '', revision:Number(row?.revision||0),
+    mobileCredentialRevision:Number(row?.mobile_credential_revision||1),browserCredentialRevision:Number(row?.browser_credential_revision||1),
+    assigned: !!row?.extension };
 }
 
 module.exports = { authorize, parseAssignment, list, save, rotateEndpointCredential, own };

@@ -31,6 +31,16 @@ test('existing Super Admin PBX setup applies the Dinstar peer only after a curre
   assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
 });
 
+test('Call Center requests provisioning with authenticated POSTs before showing SIP credentials', () => {
+  const router=fs.readFileSync(path.join(__dirname,'../modules/platform/call-center-router.js'),'utf8');
+  const client=fs.readFileSync(path.join(__dirname,'../client/public/call-center/call-center.js'),'utf8');
+  assert.match(router,/router\.post\('\/webrtc-config'/);
+  assert.match(router,/router\.post\('\/sip-config'/);
+  assert.doesNotMatch(router,/router\.get\('\/(?:webrtc-config|sip-config)'/);
+  assert.match(client,/request\('\/webrtc-config','POST',\{\}\)/);
+  assert.match(client,/request\('\/sip-config','POST',\{\}\)/);
+});
+
 test('Call Center queue UI exposes only the ring behavior implemented by the ARI caller', () => {
   const source = fs.readFileSync(path.join(__dirname, '../client/public/call-center/call-center.js'), 'utf8');
   assert.match(source, /Ring all assigned agent endpoints/);
@@ -128,8 +138,8 @@ test('browser endpoint credentials are own-member scoped and require enabled Ast
   const oldKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS,oldWs=process.env.SALEMAX_ASTERISK_WS_URL;
   process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,23).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='crm.example.test';process.env.SALEMAX_ASTERISK_WS_URL='wss://crm.example.test/ws';
   const context={audience:'tenant',identity:{id:'identity'},tenant:{id:'11111111-1111-4111-8111-111111111111',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'22222222-2222-4222-8222-222222222222',tenantId:'11111111-1111-4111-8111-111111111111',role:'agent',status:'active'},category:{key:'training_center',version:1,capabilities:['telephony.call-center']},subscription:{status:'active',capabilities:['telephony.call-center']}};
-  let index=0;const db={async query(){index++;return index===1?[[{enabled:1}]]:[[ {extension:'1201',browser_credential_revision:1,membership_status:'active',identity_status:'active',tenant_status:'active'} ]];}};
-  try{const credential=await asterisk.ownBrowserEndpoint(db,context);assert.equal(credential.server,'wss://crm.example.test/ws');assert.equal(credential.authorizationUsername,'1201-browser');assert.equal(credential.authorizationPassword.length,43);assert.match(credential.uri,/^sip:1201-browser@crm\.example\.test$/);}
+  const db={async query(sql){if(sql.includes('sx_platform_asterisk_config'))return [[{enabled:1,revision:2}]];if(sql.includes('sx_telephony_extensions'))return [[{extension:'1201',extension_revision:1,browser_credential_revision:1,membership_status:'active',identity_status:'active',tenant_status:'active'}]];if(sql.includes('sx_telephony_endpoint_provisioning'))return [[]];return [{affectedRows:1}];}};const writes=[];const clientFactory=async()=>({async upsertPjsipObject(type,id,fields){writes.push({type,id,fields});return{attributes:fields.length};},async deletePjsipObject(type,id){writes.push({type,id,deleted:true});return{deleted:true};}});
+  try{const credential=await asterisk.ownBrowserEndpoint(db,context,clientFactory);assert.equal(credential.server,'wss://crm.example.test/ws');assert.equal(credential.authorizationUsername,'1201-browser');assert.equal(credential.authorizationPassword.length,43);assert.match(credential.uri,/^sip:1201-browser@crm\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-browser-auth'],['aor','salemax-1201-browser-aor'],['endpoint','salemax-1201-browser']]);assert.ok(writes[2].fields.some(field=>field.attribute==='webrtc'&&field.value==='yes'));}
   finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;if(oldWs===undefined)delete process.env.SALEMAX_ASTERISK_WS_URL;else process.env.SALEMAX_ASTERISK_WS_URL=oldWs;}
 });
 
@@ -138,7 +148,7 @@ test('mobile endpoint credentials are own-member scoped and require an allowlist
   process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,29).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='sip.example.test';process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST='sip.example.test';
   const tenantId='11111111-1111-4111-8111-111111111111',membershipId='22222222-2222-4222-8222-222222222222';
   const context={audience:'tenant',identity:{id:'identity'},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:membershipId,tenantId,role:'agent',status:'active'},category:{key:'training_center',version:1,capabilities:['telephony.call-center']},subscription:{status:'active',capabilities:['telephony.call-center']}};
-  let index=0;const db={async query(){index++;return index===1?[[{enabled:1}]]:[[ {extension:'1201',mobile_credential_revision:1,membership_status:'active',identity_status:'active',tenant_status:'active'} ]];}};
-  try{const config=await asterisk.ownMobileEndpoint(db,context);assert.equal(config.host,'sip.example.test');assert.equal(config.port,5061);assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP');assert.equal(config.username,'1201-mobile');assert.equal(config.password.length,43);assert.match(config.uri,/^sip:1201-mobile@sip\.example\.test$/);}
+  const db={async query(sql){if(sql.includes('sx_platform_asterisk_config'))return [[{enabled:1,revision:2}]];if(sql.includes('sx_telephony_extensions'))return [[{extension:'1201',extension_revision:1,mobile_credential_revision:1,membership_status:'active',identity_status:'active',tenant_status:'active'}]];if(sql.includes('sx_telephony_endpoint_provisioning'))return [[]];return [{affectedRows:1}];}};const writes=[];const clientFactory=async()=>({async upsertPjsipObject(type,id,fields){writes.push({type,id,fields});return{attributes:fields.length};},async deletePjsipObject(type,id){writes.push({type,id,deleted:true});return{deleted:true};}});
+  try{const config=await asterisk.ownMobileEndpoint(db,context,clientFactory);assert.equal(config.host,'sip.example.test');assert.equal(config.port,5061);assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP');assert.equal(config.username,'1201-mobile');assert.equal(config.password.length,43);assert.match(config.uri,/^sip:1201-mobile@sip\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-mobile-auth'],['aor','salemax-1201-mobile-aor'],['endpoint','salemax-1201-mobile']]);assert.ok(writes[2].fields.some(field=>field.attribute==='media_encryption'&&field.value==='sdes'));}
   finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;if(oldHost===undefined)delete process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST;else process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST=oldHost;}
 });
