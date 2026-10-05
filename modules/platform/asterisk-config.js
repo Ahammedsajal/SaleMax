@@ -12,6 +12,7 @@ const REQUIRED_MODULES = Object.freeze({
     'res_ari', 'res_ari_channels', 'res_ari_bridges', 'app_stasis', 'res_stasis'],
   gatewayProvisioning: ['res_sorcery_astdb'],
   browserWebrtc: ['res_http_websocket', 'res_pjsip_transport_websocket', 'codec_opus_open_source', 'res_format_attr_opus'],
+  sipSecurityLogging: ['res_security_log'],
 });
 
 async function auditEndpointCredentialAccess(db, context, clientType) {
@@ -227,7 +228,7 @@ function gatewayPjsipPreview(row) {
     config: [
       '; SaleMaX starter peer for Dinstar UC2000-VE (four-channel model)',
       '; Review with the installed Asterisk version and existing PJSIP transports before applying.',
-      '; The gateway address must be static/reserved; firewall rules must allow its TLS SIP and bounded RTP range only from this source IP.',
+      '; The gateway address must be static/reserved. Restrict its source at the edge/SBC where possible; the shared TLS listener also serves mobile SIP clients.',
       '; Inbound calls land in an intentionally unrouted context until tenant DID/queue routing is configured.',
       '',
       '[salemax_dinstar_uc2000ve]',
@@ -483,6 +484,19 @@ function previewHostSetup(context) {
         ' same => n,Hangup(21)',
       ].join('\n'),
     },
+    {
+      path: '/etc/asterisk/logger.conf',
+      purpose: 'Write Asterisk security events to the messages log consumed by the Fail2ban jail.',
+      content: ['[logfiles]', 'messages => notice,warning,error,security', 'security => security'].join('\n'),
+    },
+    {
+      path: '/etc/fail2ban/jail.d/salemax-asterisk.local',
+      purpose: 'Temporarily ban repeated failed PJSIP registrations on the shared TLS port.',
+      content: [
+        '[salemax-asterisk]', 'enabled = true', 'filter = asterisk', 'port = 5061', 'protocol = tcp',
+        'logpath = /var/log/asterisk/messages', 'maxretry = 5', 'findtime = 10m', 'bantime = 1h',
+      ].join('\n'),
+    },
   ];
   return {
     files,
@@ -494,6 +508,9 @@ function previewHostSetup(context) {
       'Replace both ari.conf placeholders before restarting Asterisk; never commit the actual ARI password.',
       'Asterisk HTTP must stay bound to loopback. Public browser WSS is routed through Nginx /ws; private ARI is routed through the app-only /ari/ location.',
       'Set RTP bounds and firewall policy only after the direct gateway IP and mobile VPN/SBC or public SIP access design are confirmed.',
+      'Fail2ban requires its Asterisk filter, the res_security_log module, and the configured security log channel. Merge the logger snippet, verify the jail log path exists and captures failed REGISTER events, then run fail2ban-client -t before enabling the jail.',
+      'Before real clients connect, add the confirmed fixed Dinstar source IP to the existing Fail2ban ignoreip list to avoid banning the gateway during credential recovery; do not add broad address ranges. Keep a documented unban/rollback procedure.',
+      'The Fail2ban jail is a defense-in-depth control, not a replacement for edge firewall/SBC source restrictions, unique strong SIP credentials, TLS/SRTP, or monitoring.',
       'Load res_sorcery_astdb before the first dynamic endpoint write; test config and call paths before enabling channel policies.',
     ],
   };

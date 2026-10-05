@@ -75,7 +75,7 @@
     overlay.querySelector('[data-events]').after(readiness);
     const readinessReport=moduleReadiness=>{
       if(moduleReadiness?.status!=='available')return{ready:false,text:tr('Asterisk responded, but the required module list could not be verified.','استجاب أستريسك، لكن تعذر التحقق من قائمة الوحدات المطلوبة.')};
-      const labels={callControl:tr('Call control modules','وحدات التحكم بالمكالمات'),gatewayProvisioning:tr('Gateway provisioning module','وحدة تهيئة البوابة'),browserWebrtc:tr('Browser WebRTC modules','وحدات اتصال المتصفح')};
+      const labels={callControl:tr('Call control modules','وحدات التحكم بالمكالمات'),gatewayProvisioning:tr('Gateway provisioning module','وحدة تهيئة البوابة'),browserWebrtc:tr('Browser WebRTC modules','وحدات اتصال المتصفح'),sipSecurityLogging:tr('SIP security logging module','وحدة تسجيل أمان SIP')};
       const entries=Object.entries(labels).map(([key,label])=>{const feature=moduleReadiness.features?.[key];if(!feature)return{ready:false,text:`${label}: ${tr('unknown','غير معروف')}`};return{ready:feature.ready===true,text:`${label}: ${feature.ready?tr('ready','جاهز'):`${tr('missing','ناقص')} ${feature.missing.join(', ')}`}`};});
       return{ready:entries.every(item=>item.ready),text:entries.map(item=>item.text).join(' · ')};
     };

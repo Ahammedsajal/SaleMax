@@ -10,42 +10,46 @@ const secrets = require('../modules/platform/asterisk-secrets');
 const staff = require('../modules/platform/staff-access');
 const policy = require('../modules/platform/policy');
 
-test('existing Super Admin host setup preview covers loopback ARI, shared TLS, dynamic PJSIP, and generic DID routes without secrets', () => {
+test('existing Super Admin host setup preview covers loopback ARI, shared TLS, dynamic PJSIP, DID routing and SIP intrusion blocking without secrets', () => {
   const context={audience:'platform',identity:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},membership:{role:'super_admin',status:'active'},mfaVerified:true};
   const preview=asterisk.previewHostSetup(context);
-  assert.deepEqual(preview.files.map(file=>file.path),['/etc/asterisk/http.conf','/etc/asterisk/ari.conf','/etc/asterisk/pjsip.conf','/etc/asterisk/sorcery.conf','/etc/asterisk/extensions.conf']);
+  assert.deepEqual(preview.files.map(file=>file.path),['/etc/asterisk/http.conf','/etc/asterisk/ari.conf','/etc/asterisk/pjsip.conf','/etc/asterisk/sorcery.conf','/etc/asterisk/extensions.conf','/etc/asterisk/logger.conf','/etc/fail2ban/jail.d/salemax-asterisk.local']);
   const configs=preview.files.map(file=>file.content).join('\n');
   assert.match(configs,/bindaddr=127\.0\.0\.1/);
   assert.match(configs,/\[transport-salemax-tls\]/);
   assert.match(configs,/\[transport-salemax-browser-wss\]/);
   assert.match(configs,/endpoint=astdb,ps_endpoints/);
   assert.match(configs,/Stasis\(salemax-call-center,inbound-did,\$\{EXTEN\}\)/);
+  assert.match(configs,/messages => notice,warning,error,security/);
+  assert.match(configs,/\[salemax-asterisk\][\s\S]*filter = asterisk[\s\S]*port = 5061[\s\S]*protocol = tcp[\s\S]*maxretry = 5[\s\S]*findtime = 10m[\s\S]*bantime = 1h/);
   assert.match(configs,/password=REPLACE_WITH_THE_SAME_PASSWORD_SAVED_IN_SALEMAX/);
   assert.doesNotMatch(configs,/password=asterisk/i);
+  assert.ok(preview.warnings.some(message=>message.includes('fail2ban-client -t')));
   assert.throws(()=>asterisk.previewHostSetup({audience:'platform',identity:{id:'x'},membership:{role:'staff',status:'active',delegatedPermissions:[]},mfaVerified:true}),{code:'PERMISSION_DENIED'});
 });
 
 test('Asterisk connection diagnostics distinguish running call, gateway and browser modules', async () => {
   const required=['chan_pjsip','res_pjsip','res_pjsip_endpoint_identifier_ip','res_pjsip_transport_tls','res_ari','res_ari_channels',
     'res_ari_bridges','app_stasis','res_stasis','res_sorcery_astdb','res_http_websocket','res_pjsip_transport_websocket',
-    'codec_opus_open_source','res_format_attr_opus'];
+    'codec_opus_open_source','res_format_attr_opus','res_security_log'];
   let modules=required.map(name=>({name:`${name}.so`,status:'Running'}));let request;
   const probe=await asterisk.probeModuleReadiness(async(url,options)=>{request={url,options};return{ok:true,async text(){return JSON.stringify(modules);}};},
     'https://pbx.example.com/ari','salemax-admin','server-secret');
   assert.equal(request.url,'https://pbx.example.com/ari/asterisk/modules');
   assert.equal(request.options.method,'GET');assert.equal(request.options.redirect,'error');
-  assert.deepEqual(probe,{status:'available',features:{callControl:{ready:true,missing:[]},gatewayProvisioning:{ready:true,missing:[]},browserWebrtc:{ready:true,missing:[]}}});
-  modules=modules.filter(module=>module.name!=='res_sorcery_astdb.so');modules[0].status='Not Running';
+  assert.deepEqual(probe,{status:'available',features:{callControl:{ready:true,missing:[]},gatewayProvisioning:{ready:true,missing:[]},browserWebrtc:{ready:true,missing:[]},sipSecurityLogging:{ready:true,missing:[]}}});
+  modules=modules.filter(module=>!['res_sorcery_astdb.so','res_security_log.so'].includes(module.name));modules[0].status='Not Running';
   const incomplete=await asterisk.probeModuleReadiness(async()=>({ok:true,async text(){return JSON.stringify(modules);}}),
     'https://pbx.example.com/ari','salemax-admin','server-secret');
   assert.equal(incomplete.features.callControl.ready,false);
   assert.deepEqual(incomplete.features.callControl.missing,['chan_pjsip']);
   assert.deepEqual(incomplete.features.gatewayProvisioning.missing,['res_sorcery_astdb']);
+  assert.deepEqual(incomplete.features.sipSecurityLogging.missing,['res_security_log']);
   const unknown=await asterisk.probeModuleReadiness(async()=>({ok:false,status:403}),
     'https://pbx.example.com/ari','salemax-admin','server-secret');
   assert.equal(unknown.status,'unknown');
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
-  assert.match(ui,/Call control/);assert.match(ui,/Browser WebRTC/);assert.match(ui,/جارٍ اختبار اتصال ARI/);
+  assert.match(ui,/Call control/);assert.match(ui,/Browser WebRTC/);assert.match(ui,/SIP security logging/);assert.match(ui,/جارٍ اختبار اتصال ARI/);
 });
 
 test('Super Admin Asterisk overview marks a connected worker stale when its heartbeat expires', async () => {
@@ -63,7 +67,7 @@ test('Super Admin Asterisk overview marks a connected worker stale when its hear
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
   const page=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   assert.match(ui,/eventState\.status==='connected'\?tr\('stale heartbeat','نبضة اتصال قديمة'\)/);
-  assert.match(page,/admin-asterisk\.js\?v=20261005-event-heartbeat1/);
+  assert.match(page,/admin-asterisk\.js\?v=20261005-sip-security1/);
 });
 
 test('live PJSIP registration probe returns only requested bounded endpoint states', async () => {
@@ -100,7 +104,7 @@ test('Super Admin ARI connection test checks PBX version, gateway peer and featu
   const requests=[],queries=[];let committed=false,activeDiagnostics=0,maxConcurrentDiagnostics=0;
   const required=['chan_pjsip','res_pjsip','res_pjsip_endpoint_identifier_ip','res_pjsip_transport_tls','res_ari','res_ari_channels',
     'res_ari_bridges','app_stasis','res_stasis','res_sorcery_astdb','res_http_websocket','res_pjsip_transport_websocket',
-    'codec_opus_open_source','res_format_attr_opus'];
+    'codec_opus_open_source','res_format_attr_opus','res_security_log'];
   const db={
     async query(sql,params){queries.push({sql,params});if(sql.includes('FROM sx_platform_asterisk_config'))return[[row]];return[{affectedRows:1}];},
     async beginTransaction(){},async commit(){committed=true;},async rollback(){throw new Error('unexpected rollback');},
@@ -159,7 +163,7 @@ test('existing Super Admin PBX setup applies the Dinstar peer only after a curre
   assert.match(router,/router\.post\('\/apply-gateway-peer'/);
   assert.match(router,/router\.get\('\/host-setup-preview'/);
   assert.match(ui,/host-setup-preview/);
-  assert.match(index,/admin-asterisk\.js\?v=20261005-event-heartbeat1/);
+  assert.match(index,/admin-asterisk\.js\?v=20261005-sip-security1/);
   assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
 });
 
