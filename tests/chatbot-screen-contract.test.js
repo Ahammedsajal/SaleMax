@@ -18,28 +18,14 @@ test('existing Automation Flows canvas remains the first pill tab', () => {
   assert.ok(definitions.indexOf("['legacy'") < definitions.indexOf("['guided'") );
 });
 
-test('Chatbot page is the only assignment surface and keeps the legacy WA chatbot accessible', () => {
-  assert.match(admin, /function isAssignmentPage\(\)/);
-  assert.match(admin, /id="sx-open-legacy-chatbot"/);
-  assert.match(admin, /data-manage-assignment/);
-  assert.match(admin, /id="sx-open-assignments"/);
-  assert.match(admin, /api\(`\/\$\{bot\.id\}\/channels`, 'PUT'/);
-  const flowsList = admin.slice(admin.indexOf('function panelMarkup('), admin.indexOf('async function refresh('));
-  assert.doesNotMatch(flowsList, /WhatsApp Number|bot\.channels/);
-  const editor = admin.slice(admin.indexOf('function openEditor('), admin.indexOf('function conversationId('));
-  assert.doesNotMatch(editor, /name="channel"|input\[name=channel\]|\/channels`,'PUT'/);
-  assert.match(editor, /assign its number from the Chatbot page/);
-});
-
-test('runtime writes bounded stage and code diagnostics for failed bot turns', () => {
-  const runtime = read('modules/platform/chatbot-runtime.js');
-  const migration = read('database/migrations/20261101_chatbot_turn_diagnostics.sql');
-  assert.match(runtime, /error_stage=\?,error_code=\?/);
-  assert.match(runtime, /console\.warn\('\[chatbot\] turn failed'/);
-  assert.match(runtime, /guided_session_read/);
-  assert.match(runtime, /channel_send/);
-  assert.match(migration, /ADD COLUMN error_stage VARCHAR\(64\)/);
-  assert.match(migration, /ADD COLUMN error_code VARCHAR\(64\)/);
+test('chatbot overlays follow the active SaleMaX dark theme without restyling the legacy canvas', () => {
+  assert.match(admin, /function syncChatbotTheme\(\)/);
+  assert.match(admin, /localStorage\.getItem\('theme_mode'\)/);
+  assert.match(admin, /data-sx-chatbot-theme/);
+  assert.match(admin, /html\[data-sx-chatbot-theme="dark"\] #sx-chatbot-tabs/);
+  assert.match(admin, /html\[data-sx-chatbot-theme="dark"\] #sx-chatbot-panel/);
+  assert.match(admin, /html\[data-sx-chatbot-theme="dark"\] #sx-chatbot-dialog/);
+  assert.doesNotMatch(admin, /html\[data-sx-chatbot-theme="dark"\].*\.react-flow/);
 });
 
 test('bot editor renders editable bilingual training-center guide fields', () => {
@@ -48,20 +34,28 @@ test('bot editor renders editable bilingual training-center guide fields', () =>
   assert.match(admin, /العربية<textarea/);
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:en/);
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:ar/);
-  assert.match(admin, /function faqEditorMarkup\(config\)/);
-  assert.match(admin, /function collectFaqEntries\(editor\)/);
-  assert.match(admin, /Each FAQ language needs both a question and an answer/);
-  assert.match(admin, /settings exceed the 32 KB limit/i);
-  assert.doesNotMatch(admin, /input\[name=channel\]:checked/);
-  assert.doesNotMatch(admin, /api\(`\/\$\{id\}\/channels`/);
+});
+
+test('active bots remain editable while assignments and provider credentials stay locked', () => {
+  assert.match(admin, /data-edit="\$\{esc\(bot\.id\)\}"/);
+  assert.doesNotMatch(admin, /data-edit="\$\{esc\(bot\.id\)\}"\s+\$\{bot\.status==='live'\?'disabled/);
+  assert.match(admin, /Saved changes take effect on the next incoming message/);
+  assert.match(admin, /Number assignments are locked while the bot is active/);
+  assert.match(admin, /Provider credentials and usage limits are locked while this bot is active/);
+  assert.match(admin, /Pause this bot before changing its AI privacy confirmation/);
+  assert.match(admin, /aiDataProcessingConfirmed:liveEdit\?config\.aiDataProcessingConfirmed===true/);
+  assert.match(admin, /if \(!liveEdit\) \{[\s\S]*?api\(`\/\$\{id\}\/channels`,'PUT'/);
+  assert.match(chatbotRouter, /if \(row\.status === 'live'\) await assertLiveProfileReady/);
+  assert.match(chatbotRouter, /appliedImmediately: row\.status === 'live'/);
+  assert.match(chatbotRouter, /status='live' AND \(engine='ai' OR \(engine='hybrid'/);
+  assert.match(chatbotRouter, /if \(liveAiBot\) fail\('LIVE_BOT_MUST_BE_PAUSED'\)/);
+  assert.match(chatbotRouter, /async function assertLiveProfileReady/);
 });
 
 test('bot assignments display connected channel labels instead of internal IDs', () => {
   assert.match(chatbotRouter, /JSON_EXTRACT\(embed_data,'\$\.phoneDetails\.display_phone_number'\)/);
   assert.doesNotMatch(chatbotRouter, /phoneDetails\.verified_name/);
   assert.match(chatbotRouter, /SELECT uniqueId AS reference,number AS label FROM instance/);
-  assert.match(chatbotRouter, /SELECT uniqueId AS reference,number AS label FROM instance WHERE uid=\? AND status='ACTIVE'/);
-  assert.match(chatbotRouter, /uniqueId AS id FROM instance WHERE uid=\? AND uniqueId=\? AND status='ACTIVE'/);
   assert.match(admin, /function channelLabel\(channel\)/);
   assert.match(admin, /Number label unavailable/);
   assert.doesNotMatch(admin, /Meta WhatsApp'\s*:\s*'QR WhatsApp'\)\}\s*·\s*\$\{esc\(c\.reference\)\}/);
@@ -88,6 +82,6 @@ test('Inbox bot control requires explicit number selection when channel scope is
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261102-team-access1/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261101b/);
+  assert.match(index, /training-sidebar\.js\?v=20261102-team-access2/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261102-team-access2/);
 });

@@ -1,0 +1,101 @@
+/* The invitation activation page shares the existing team access module. */
+#sx-team-screen[data-accept="1"] {
+  display: flex;
+  align-items: safe center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 40px 20px !important;
+  background: radial-gradient(ellipse at top, #faedf2 0, #f7f8fb 55%);
+  color: #202638;
+}
+#sx-team-screen[data-accept="1"] *,
+#sx-team-screen[data-accept="1"] *::before,
+#sx-team-screen[data-accept="1"] *::after { box-sizing: border-box; }
+#sx-team-screen[data-accept="1"] .wrap { width: 100%; max-width: 520px; margin: auto; }
+#sx-team-screen[data-accept="1"] .card {
+  margin: 0;
+  padding: 36px;
+  border: 1px solid #e8e2e7;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 18px 65px #4420350d, 0 2px 8px #44203505;
+}
+#sx-team-screen[data-accept="1"] .card::before {
+  content: "";
+  display: block;
+  width: 142px;
+  height: 48px;
+  margin-bottom: 26px;
+  background: url('/media/salemax-logo.png') left center / contain no-repeat;
+}
+#sx-team-screen[data-accept="1"][dir="rtl"] .card::before { background-position: right center; }
+#sx-team-screen[data-accept="1"] h1 { font-size: 26px; line-height: 1.3; letter-spacing: -.5px; margin: 0 0 12px; }
+#sx-team-screen[data-accept="1"] p { color: #667085; line-height: 1.65; margin: 0 0 22px; }
+#sx-team-screen[data-accept="1"] p strong { color: #344054; }
+#sx-team-screen[data-accept="1"] .accept-meta {
+  margin: 0 0 26px;
+  padding: 16px 18px;
+  border: 1px solid #f0e0e7;
+  border-radius: 12px;
+  background: #fcf7f9;
+  display: grid;
+  gap: 8px;
+  color: #667085;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+#sx-team-screen[data-accept="1"] .accept-meta strong { color: #344054; font-weight: 600; }
+#sx-team-screen[data-accept="1"] .accept-meta div:first-child strong { direction: ltr; unicode-bidi: isolate; }
+#sx-team-screen[data-accept="1"] .accept-meta div:last-child strong {
+  display: inline-block;
+  padding: 2px 10px;
+  margin-inline-start: 4px;
+  border-radius: 20px;
+  background: #f5e4eb;
+  color: #a8003b;
+  font-size: 12px;
+}
+#sx-team-screen[data-accept="1"] .accept-form { max-width: none; gap: 18px; }
+#sx-team-screen[data-accept="1"] form[hidden] { display: none !important; }
+#sx-team-screen[data-accept="1"] label { gap: 7px; font-size: 13px; font-weight: 600; color: #344054; }
+#sx-team-screen[data-accept="1"] #sx-mobile-label.muted { color: #344054; font-size: 13px; }
+#sx-team-screen[data-accept="1"] input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #d8dce4;
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: #202638;
+  font-size: 15px;
+  font-weight: 400;
+  transition: border-color .15s, box-shadow .15s;
+}
+#sx-team-screen[data-accept="1"] input[type="tel"] { direction: ltr; text-align: start; }
+#sx-team-screen[data-accept="1"] input::placeholder { color: #98a2b3; }
+#sx-team-screen[data-accept="1"] input:focus-visible { outline: none; border-color: #a8003b; box-shadow: 0 0 0 3px #a8003b14; }
+#sx-team-screen[data-accept="1"] .primary {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 4px;
+  border: 1px solid #a8003b;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 4px 10px #a8003b14;
+}
+#sx-team-screen[data-accept="1"] .primary:hover:not(:disabled) { background: #910032; }
+#sx-team-screen[data-accept="1"] button:focus-visible,
+#sx-team-screen[data-accept="1"] a:focus-visible { outline: 3px solid #a8003b55; outline-offset: 3px; }
+#sx-team-screen[data-accept="1"] .error,
+#sx-team-screen[data-accept="1"] .notice { margin-bottom: 18px; border-radius: 10px; }
+#sx-team-screen[data-accept="1"] .card > a { display: block; padding: 12px 16px; border-radius: 10px; text-align: center; background: #a8003b; color: #fff; text-decoration: none; font-weight: 600; }
+@media (max-width: 560px) {
+  #sx-team-screen[data-accept="1"] { padding: 20px 14px !important; }
+  #sx-team-screen[data-accept="1"] .card { padding: 26px 22px; border-radius: 18px; }
+  #sx-team-screen[data-accept="1"] h1 { font-size: 24px; }
+  #sx-team-screen[data-accept="1"] input { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #sx-team-screen[data-accept="1"] input { transition: none; }
+}

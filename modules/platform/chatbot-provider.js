@@ -1,4 +1,5 @@
 'use strict';
+const fetch = require('node-fetch');
 
 const PROVIDERS = Object.freeze({
   openai: { endpoint: 'https://api.openai.com/v1/chat/completions', style: 'openai' },
@@ -14,7 +15,7 @@ async function boundedJson(response, maxBytes = 65536) {
   try { return JSON.parse(text); } catch { throw Object.assign(new Error('PROVIDER_INVALID_RESPONSE'), { code: 'PROVIDER_INVALID_RESPONSE' }); }
 }
 
-async function generate({ provider, model, apiKey, system, user, maxOutputTokens = 350, fetchImpl }) {
+async function generate({ provider, model, apiKey, system, user, maxOutputTokens = 350, fetchImpl = fetch }) {
   const spec = PROVIDERS[provider];
   if (!spec) throw Object.assign(new Error('AI_PROVIDER_UNSUPPORTED'), { code: 'AI_PROVIDER_UNSUPPORTED' });
   if (typeof model !== 'string' || !/^[A-Za-z0-9._:-]{1,80}$/.test(model)) throw Object.assign(new Error('AI_MODEL_INVALID'), { code: 'AI_MODEL_INVALID' });
@@ -31,10 +32,8 @@ async function generate({ provider, model, apiKey, system, user, maxOutputTokens
       headers['x-goog-api-key'] = apiKey;
       body = { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0.1, maxOutputTokens: Math.min(Math.max(maxOutputTokens, 64), 700), responseMimeType: 'application/json' } };
     }
-    // Load the network adapter only for real provider calls. Injected fetch
-    // implementations keep preview and contract tests fully offline.
-    const request = fetchImpl || require('node-fetch');
-    const response = await request(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal, redirect: 'error', size: 65536 });
+    const response = await fetchImpl(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal, redirect: 'error', size: 65536 });
+    if (!response.ok) throw Object.assign(new Error('AI_PROVIDER_REQUEST_FAILED'), { code: 'AI_PROVIDER_REQUEST_FAILED', status: response.status });
     let payload;
     try { payload = await boundedJson(response); }
     catch (error) {
@@ -43,7 +42,6 @@ async function generate({ provider, model, apiKey, system, user, maxOutputTokens
       }
       throw error;
     }
-    if (!response.ok) throw Object.assign(new Error('AI_PROVIDER_REQUEST_FAILED'), { code: 'AI_PROVIDER_REQUEST_FAILED', status: response.status });
     const text = spec.style === 'openai' ? payload?.choices?.[0]?.message?.content : payload?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('');
     if (typeof text !== 'string' || !text.trim() || text.length > 12000) throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
     let parsed;
@@ -53,7 +51,8 @@ async function generate({ provider, model, apiKey, system, user, maxOutputTokens
   } catch (error) {
     if (error.name === 'AbortError') throw Object.assign(new Error('AI_PROVIDER_TIMEOUT'), { code: 'AI_PROVIDER_TIMEOUT' });
     if (['AI_PROVIDER_REQUEST_FAILED', 'AI_PROVIDER_INVALID_OUTPUT'].includes(error.code)) throw error;
-    // Keep network and provider implementation details out of conversation state.
+    // Do not leak provider/network implementation errors into conversation
+    // state. The Inbox presents this stable code to the human operator.
     throw Object.assign(new Error('AI_PROVIDER_REQUEST_FAILED'), { code: 'AI_PROVIDER_REQUEST_FAILED' });
   } finally { clearTimeout(timeout); }
 }

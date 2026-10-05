@@ -16,7 +16,6 @@ let nextGuidedSessionPruneAt = 0;
 let guidedSessionPrunePromise = null;
 
 const fail = code => { throw Object.assign(new Error(code), { code }); };
-
 const textOf = message => {
   const body = message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title;
   return typeof body === 'string' ? body.trim().slice(0, 2000) : '';
@@ -69,23 +68,15 @@ async function claimTurn(ctx, profile, message, chatId) {
     if (row.status === 'sent' || row.status === 'handed_off' || (row.status === 'processing' && !leaseExpired) || Number(row.attempts) >= 3) {
       await db.commit(); return { id: row.id, duplicate: true };
     }
-    await db.query(`UPDATE sx_chatbot_turns SET profile_id=?,conversation_id=?,status='processing',attempts=attempts+1,lease_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 45 SECOND),result_class=NULL,error_stage=NULL,error_code=NULL WHERE id=?`, [profile.id, chatId, row.id]);
+    await db.query(`UPDATE sx_chatbot_turns SET profile_id=?,conversation_id=?,status='processing',attempts=attempts+1,lease_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 45 SECOND),result_class=NULL WHERE id=?`, [profile.id, chatId, row.id]);
     await db.commit(); return { id: row.id, duplicate: false };
   } catch (error) { await db.rollback(); throw error; }
   finally { db.release(); }
 }
 
-async function finishTurn(turn, status, resultClass, diagnostics = null) {
+async function finishTurn(turn, status, resultClass) {
   if (!turn?.id) return;
-  await query(`UPDATE sx_chatbot_turns SET status=?,result_class=?,error_stage=?,error_code=?,lease_until=UTC_TIMESTAMP(3) WHERE id=? AND status='processing'`, [status, resultClass, diagnostics?.stage || null, diagnostics?.code || null, turn.id]);
-}
-
-async function atStage(stage, operation) {
-  try { return await operation(); }
-  catch (error) {
-    if (!error.chatbotStage) error.chatbotStage = stage;
-    throw error;
-  }
+  await query(`UPDATE sx_chatbot_turns SET status=?,result_class=?,lease_until=UTC_TIMESTAMP(3) WHERE id=? AND status='processing'`, [status, resultClass, turn.id]);
 }
 
 async function handoffConversation(ctx, chatId, channelKind, channelRef, reason) {
@@ -164,45 +155,45 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   const channelKind = channelFor(origin);
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   if (!channelKind || !pack.guidedReply) return false;
-  await atStage('guided_session_prune', () => pruneExpiredGuidedSessions());
+  await pruneExpiredGuidedSessions();
   const db = await dbPool.getConnection();
   let reply = null;
   try {
     const facts = pack.requiresDatabase
-      ? await atStage('load_category_facts', () => pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN }))
+      ? await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN })
       : [];
-    await atStage('guided_session_begin', () => db.beginTransaction());
-    await atStage('guided_session_create', () => db.query(`INSERT IGNORE INTO sx_chatbot_guided_sessions(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,conversation_hash,state,expires_at)
+    await db.beginTransaction();
+    await db.query(`INSERT IGNORE INTO sx_chatbot_guided_sessions(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,conversation_hash,state,expires_at)
       VALUES (?,?,?,?,?,?,?,JSON_OBJECT(),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR))`,
-    [crypto.randomUUID(), ctx.tenant.id, profile.id, channelKind, sessionId, chatId, guidedConversationHash(chatId)]));
-    const [[row]] = await atStage('guided_session_read', () => db.query(`SELECT id,state,expires_at AS expiresAt FROM sx_chatbot_guided_sessions
+    [crypto.randomUUID(), ctx.tenant.id, profile.id, channelKind, sessionId, chatId, guidedConversationHash(chatId)]);
+    const [[row]] = await db.query(`SELECT id,state,expires_at AS expiresAt FROM sx_chatbot_guided_sessions
       WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_hash=? AND conversation_id=?
-      FOR UPDATE`, [ctx.tenant.id, profile.id, channelKind, sessionId, guidedConversationHash(chatId), chatId]));
+      FOR UPDATE`, [ctx.tenant.id, profile.id, channelKind, sessionId, guidedConversationHash(chatId), chatId]);
     let priorState = null;
     if (row && new Date(row.expiresAt).getTime() <= Date.now()) priorState = null;
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
-    reply = await atStage('guided_reply_build', async () => pack.guidedReply({ message: textOf(message), state: priorState, facts, config: profile.config?.guidedContent }));
+    reply = pack.guidedReply({ message: textOf(message), state: priorState, facts, config: profile.config?.guidedContent });
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
       return false;
     }
     const nextState = JSON.stringify(reply.state || {});
-    await atStage('guided_session_write', () => db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]));
-    await atStage('guided_session_commit', () => db.commit());
+    await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
+    await db.commit();
   } catch (error) {
     await db.rollback().catch(() => {});
     throw error;
   } finally { db.release(); }
 
-  if (await atStage('conversation_pause_check', () => shouldPause(uid, chatId, channelKind, sessionId))) return false;
+  if (await shouldPause(uid, chatId, channelKind, sessionId)) return false;
   const { sendWaMessage } = require('../../automation/functions');
-  const sentId = await atStage('channel_send', () => sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: reply.reply } } }));
+  const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: reply.reply } } });
   if (!sentId) return false;
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: reply.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
-  await atStage('outgoing_message_persist', () => query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId }));
-  await atStage('conversation_last_message_update', () => query(`UPDATE beta_chats SET last_message=?,last_message_came=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), timestamp, uid, chatId]));
-  if (reply.handoff) await atStage('guided_handoff', () => handoffConversation(ctx, chatId, channelKind, sessionId, 'customer-requested-human'));
+  await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
+  await query(`UPDATE beta_chats SET last_message=?,last_message_came=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), timestamp, uid, chatId]);
+  if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, 'customer-requested-human');
   return true;
 }
 
@@ -227,19 +218,19 @@ async function settleTokens(ctx, reservation, used) {
 }
 
 async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null }) {
-  const [settings] = await atStage('provider_settings_read', () => query(`SELECT provider,model,key_ciphertext,key_iv,key_auth_tag,daily_token_limit FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]));
+  const [settings] = await query(`SELECT provider,model,key_ciphertext,key_iv,key_auth_tag,daily_token_limit FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]);
   if (!settings) return { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
-  if (uid && chatId && await atStage('conversation_pause_check', () => shouldPause(uid, chatId, channelKind, channelRef))) return { paused: true };
+  if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   let facts = [...(profile.config?.knowledgeEntries || [])];
   if (pack.requiresDatabase) {
     const db = await dbPool.getConnection();
-    try { facts = facts.concat(await atStage('load_category_facts', () => pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN }))); }
+    try { facts = facts.concat(await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN })); }
     finally { db.release(); }
   }
   const history = uid && chatId
-    ? await atStage('conversation_history_read', () => query(`SELECT type,msgContext,route FROM beta_conversation WHERE uid=? AND chat_id=? ORDER BY timestamp DESC LIMIT 8`, [uid, chatId]))
+    ? await query(`SELECT type,msgContext,route FROM beta_conversation WHERE uid=? AND chat_id=? ORDER BY timestamp DESC LIMIT 8`, [uid, chatId])
     : [];
   const historySafe = history.reverse().map(item => {
     let content; try { content = typeof item.msgContext === 'string' ? JSON.parse(item.msgContext) : item.msgContext; } catch { content = null; }
@@ -250,16 +241,16 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (inputBytes > 18000) return { handedOff: true, code: 'CONTEXT_LIMIT' };
   const prompt = `${system}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
-  const reservation = await atStage('token_reservation', () => reserveTokens(ctx, settings, estimate));
+  const reservation = await reserveTokens(ctx, settings, estimate);
   if (!reservation) return { handedOff: true, code: 'DAILY_TOKEN_LIMIT' };
   let response;
   let succeeded = false;
   try {
-    const apiKey = await atStage('provider_key_decrypt', async () => secrets.decrypt(settings));
-    response = await atStage('provider_generate', () => provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, maxOutputTokens: 350 }));
+    const apiKey = secrets.decrypt(settings);
+    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, maxOutputTokens: 350 });
     succeeded = true;
   } finally {
-    await atStage('token_settlement', () => settleTokens(ctx, reservation, succeeded ? (response?.inputTokens || 0) + (response?.outputTokens || 0) : null));
+    await settleTokens(ctx, reservation, succeeded ? (response?.inputTokens || 0) + (response?.outputTokens || 0) : null);
   }
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);
   if (!response.canAnswer || response.confidence < threshold || !response.reply) return { handedOff: true, code: 'LOW_CONFIDENCE', confidence: response.confidence || 0 };
@@ -289,14 +280,14 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   }
   const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId });
   if (answer.handedOff || answer.paused) return answer;
-  if (await atStage('conversation_pause_check', () => shouldPause(uid, chatId, channelFor(origin), sessionId))) return { paused: true };
+  if (await shouldPause(uid, chatId, channelFor(origin), sessionId)) return { paused: true };
   const { sendWaMessage } = require('../../automation/functions');
-  const sentId = await atStage('channel_send', () => sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: answer.reply } } }));
+  const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: answer.reply } } });
   if (!sentId) return { handedOff: true, code: 'CHANNEL_SEND_FAILED' };
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: answer.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
-  await atStage('outgoing_message_persist', () => query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId }));
-  await atStage('conversation_last_message_update', () => query(`UPDATE beta_chats SET last_message=?,last_message_came=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), timestamp, uid, chatId]));
+  await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
+  await query(`UPDATE beta_chats SET last_message=?,last_message_came=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), timestamp, uid, chatId]);
   return { sent: true };
 }
 
@@ -315,11 +306,11 @@ async function previewConfiguredBot({ ctx, profile, uid, message }) {
 }
 
 async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId }) {
-  if (!uid || !chatId || message?.route !== 'INCOMING') return { handled: false, reason: 'invalid-inbound-context' };
+  if (!uid || !chatId || message?.route !== 'INCOMING') return { handled: false };
   const ctx = await resolveTenant(uid);
-  if (!ctx) return { handled: false, reason: 'tenant-not-runtime-ready' };
+  if (!ctx) return { handled: false };
   const profile = await profileFor(ctx, uid, origin, sessionId);
-  if (!profile) return { handled: false, reason: 'no-live-profile-assignment' };
+  if (!profile) return { handled: false };
   const channelKind = channelFor(origin);
   if (await shouldPause(uid, chatId, channelKind, sessionId)) return { handled: true, paused: true };
   const turn = await claimTurn(ctx, profile, message, chatId);
@@ -328,11 +319,10 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     return { handled: true, handedOff: true, code: 'INBOUND_MESSAGE_ID_UNAVAILABLE' };
   }
   if (turn.duplicate) return { handled: true, duplicate: true };
-  let runtimeStage = profile.engine === 'guided' ? 'guided_dispatch' : 'ai_dispatch';
   try {
     let result;
-    if (profile.engine === 'guided') result = await atStage('guided_turn', () => guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId })) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
-    else result = await atStage('ai_turn', () => aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId }));
+    if (profile.engine === 'guided') result = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId }) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
+    else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId });
     if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {
@@ -342,11 +332,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     return { handled: true, ...result };
   } catch (error) {
     const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code) ? error.code : 'runtime-error';
-    const safeStage = String(error.chatbotStage || runtimeStage).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || 'unknown';
-    const safeCode = String(error.code || 'BOT_RUNTIME_ERROR').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || 'BOT_RUNTIME_ERROR';
-    console.warn('[chatbot] turn failed', JSON.stringify({ stage: safeStage, code: safeCode, engine: profile.engine }));
     await handoffConversation(ctx, chatId, channelKind, sessionId, failure).catch(() => {});
-    await finishTurn(turn, 'handed_off', failure, { stage: safeStage, code: safeCode }).catch(() => {});
+    await finishTurn(turn, 'handed_off', failure).catch(() => {});
     return { handled: true, handedOff: true, code: error.code || 'BOT_RUNTIME_ERROR' };
   }
 }

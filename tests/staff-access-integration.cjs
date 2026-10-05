@@ -27,7 +27,8 @@ module.exports=async(db,{ownerIdentityId})=>{
     FROM sx_identities i JOIN sx_platform_memberships p ON p.identity_id=i.id JOIN admin a ON a.email=i.email_normalized
     JOIN sx_legacy_admin_identities l ON l.identity_id=i.id WHERE i.email_normalized=?`,['invited.staff@example.invalid']);
   assert.ok(mapping);assert.equal(mapping.status,'active');assert.equal(mapping.display_name,'Invited Staff');assert.equal(mapping.role,'staff');assert.equal(mapping.access_status,'active');
-  assert.deepEqual(JSON.parse(mapping.delegated_permissions),['plans.read','tenants.read']);assert.equal(mapping.password_hash,mapping.legacy_password);
+  const storedPermissions=typeof mapping.delegated_permissions==='string'?JSON.parse(mapping.delegated_permissions):mapping.delegated_permissions;
+  assert.deepEqual(storedPermissions,['plans.read','tenants.read']);assert.equal(mapping.password_hash,mapping.legacy_password);
   assert.equal(mapping.linked_identity,mapping.id);assert.equal(mapping.verified_by,ownerIdentityId);assert.equal(mapping.legacy_uid_hash,crypto.createHash('sha256').update(mapping.uid).digest('hex'));
   assert.equal(await bcrypt.compare(password,mapping.password_hash),true);
   const auth=createAuthentication({key:crypto.randomBytes(32)}),login=await auth.login(db,{email:'invited.staff@example.invalid',password,audience:'platform'},'127.0.0.1');
@@ -42,7 +43,8 @@ module.exports=async(db,{ownerIdentityId})=>{
   const adminInvite=await staff.createInvite(db,owner,{email:'delegated.admin@example.invalid',platformRole:'platform_admin',permissions:['staff.manage','owner.recover']});
   const adminPassword='Synthetic-Admin-Password-98';await staff.acceptInvite(db,{token:adminInvite.token,displayName:'Delegated Admin',password:adminPassword});
   const [[adminIdentity]]=await db.query(`SELECT i.id,p.role,p.status,p.reports_to_identity_id AS reportsTo,p.delegated_permissions AS permissions FROM sx_identities i JOIN sx_platform_memberships p ON p.identity_id=i.id WHERE i.email_normalized=?`,['delegated.admin@example.invalid']);
-  assert.equal(adminIdentity.role,'platform_admin');assert.equal(adminIdentity.status,'active');assert.equal(adminIdentity.reportsTo,null);assert.deepEqual(JSON.parse(adminIdentity.permissions),[]);
+  const adminPermissions=typeof adminIdentity.permissions==='string'?JSON.parse(adminIdentity.permissions):adminIdentity.permissions;
+  assert.equal(adminIdentity.role,'platform_admin');assert.equal(adminIdentity.status,'active');assert.equal(adminIdentity.reportsTo,null);assert.deepEqual(adminPermissions,[]);
   const adminLogin=await auth.login(db,{email:'delegated.admin@example.invalid',password:adminPassword,audience:'platform'},'127.0.0.1');assert.equal(adminLogin.context.membership.role,'platform_admin');
   const subordinate=await staff.createInvite(db,owner,{email:'delegated.subordinate@example.invalid',platformRole:'staff',reportsToIdentityId:adminIdentity.id,permissions:['tenants.read']});
   const subordinatePassword='Synthetic-Subordinate-Password-99';await staff.acceptInvite(db,{token:subordinate.token,displayName:'Delegated Subordinate',password:subordinatePassword});

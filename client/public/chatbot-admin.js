@@ -5,7 +5,7 @@
 
   const root = '/api/user/chatbots';
   const engines = ['guided', 'hybrid', 'ai'];
-  const state = { tab: 'legacy', bots: [], channels: [], flows: [], categoryKey: 'training_center', categoryTitle: null, categoryVersion: 1, guidedContentDefaults: null, guidedContentSchema: null, provider: { configured: false, revision: 0 }, csrf: null, mounted: false, assignmentPage: true, showLegacyChatbot: false };
+  const state = { tab: 'legacy', bots: [], channels: [], flows: [], categoryKey: 'training_center', categoryTitle: null, categoryVersion: 1, guidedContentDefaults: null, guidedContentSchema: null, provider: { configured: false, revision: 0 }, csrf: null, mounted: false };
   const ar = () => (localStorage.getItem('language') || '').toLowerCase().startsWith('ar') || document.documentElement.dir === 'rtl';
   const tr = (en, arabic) => ar() ? arabic : en;
   function syncChatbotTheme() {
@@ -49,18 +49,13 @@
     return ['inbox', 'chat', 'conversations'].includes(pageKey().toLowerCase()) ||
       (!!document.querySelector('[data-chat-id],[data-chat_id],[data-conversation-id]') && /inbox|صندوق الوارد/i.test(document.body.innerText || ''));
   }
-  function isAssignmentPage() {
-    return location.pathname.replace(/\/$/, '') === '/user' && ['wa-chatbot','wa_chatbot'].includes(pageKey().toLowerCase());
-  }
   function visible(el) { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; }
   function bounds() {
     const drawer = [...document.querySelectorAll('.MuiDrawer-paper')].find(visible);
-    const drawerRect = drawer?.getBoundingClientRect();
-    const drawerOnRight = Boolean(drawerRect && drawerRect.left > innerWidth / 2);
     const topbar = [...document.querySelectorAll('.MuiBox-root')].filter(el => {
       const r = el.getBoundingClientRect(); return visible(el) && r.y <= 5 && r.height >= 30 && r.height < 100 && r.width > innerWidth * .5;
     }).sort((a, b) => a.getBoundingClientRect().height - b.getBoundingClientRect().height)[0];
-    return { left: drawerRect ? (drawerOnRight ? 0 : Math.max(0, drawerRect.right)) : 260, right: drawerOnRight ? Math.max(0, innerWidth - drawerRect.left) : 0, top: Math.max(0, topbar?.getBoundingClientRect().bottom || 68) };
+    return { left: Math.max(0, drawer?.getBoundingClientRect().right || 260), top: Math.max(0, topbar?.getBoundingClientRect().bottom || 68) };
   }
   function addStyle() {
     if (document.getElementById('sx-chatbot-admin-style')) return;
@@ -84,7 +79,6 @@
       #sx-chatbot-panel .sx-status{display:inline-flex;align-items:center;gap:6px;border-radius:20px;padding:5px 10px;background:#ecfdf3;color:#067647;font-size:12px;font-weight:700} #sx-chatbot-panel .sx-status:before{content:'';width:8px;height:8px;border-radius:50%;background:#12b76a}
       #sx-chatbot-panel .sx-status[data-status=draft],#sx-chatbot-panel .sx-status[data-status=testing]{background:#f2f4f7;color:#475467} #sx-chatbot-panel .sx-status[data-status=draft]:before,#sx-chatbot-panel .sx-status[data-status=testing]:before{background:#98a2b3}
       #sx-chatbot-panel .sx-alert{padding:12px 14px;border-radius:9px;background:#eff8ff;color:#175cd3;border:1px solid #b2ddff;margin-top:16px}
-      #sx-chatbot-assignment-toggle{position:fixed;z-index:1201;right:24px;top:82px;border:1px solid #edbfd0;border-radius:999px;background:#fff;color:#a8003b;padding:9px 14px;font-weight:700;box-shadow:0 3px 14px #10182818;cursor:pointer}
       #sx-chatbot-dialog{position:fixed;z-index:2147483000;inset:0;background:#10182880;display:grid;place-items:center;padding:18px}
       #sx-chatbot-dialog .sx-dialog{width:min(760px,100%);max-height:92vh;overflow:auto;background:#fff;color:#182230;border-radius:16px;padding:24px;box-shadow:0 20px 70px #10182840}
       #sx-chatbot-dialog h2{margin:0 0 6px;font-size:22px;color:#101828} #sx-chatbot-dialog .sx-muted{color:#667085} #sx-chatbot-dialog .sx-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:18px}
@@ -106,14 +100,6 @@
       #sx-chatbot-dialog .sx-language-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
       #sx-chatbot-dialog .sx-language-pair label{font-size:12px;color:#667085}
       #sx-chatbot-dialog .sx-language-pair textarea{min-height:58px;font-size:13px;font-weight:400}
-      #sx-chatbot-dialog .sx-faq-editor{grid-column:1/-1;border:1px solid #e4e7ec;border-radius:10px;padding:12px;background:#fff}
-      #sx-chatbot-dialog .sx-faq-title{font-weight:700;color:#182230} #sx-chatbot-dialog .sx-faq-help{margin:4px 0 12px;color:#667085;font-size:12px}
-      #sx-chatbot-dialog .sx-faq-entry{min-width:0;border:1px solid #eaecf0;border-radius:9px;background:#fff;padding:10px 12px;margin:9px 0}
-      #sx-chatbot-dialog .sx-faq-entry legend{padding:0 5px;color:#344054;font-weight:700}
-      #sx-chatbot-dialog .sx-faq-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-      #sx-chatbot-dialog .sx-faq-fields label{min-width:0;font-size:12px;color:#667085}
-      #sx-chatbot-dialog .sx-faq-fields textarea{min-height:62px;font-size:13px;font-weight:400}
-      #sx-chatbot-dialog .sx-faq-actions{display:flex;align-items:center;gap:10px;margin-top:10px}
       #sx-chatbot-dialog .sx-guide-toggle{display:flex;align-items:flex-start;gap:8px;font-weight:500!important}
       #sx-chatbot-dialog .sx-guide-toggle input{width:auto;margin:2px 0 0;accent-color:#a8003b}
       #sx-chatbot-dialog [data-guide-content][hidden]{display:none}
@@ -122,88 +108,52 @@
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs{background:#191b22;border-color:#343741;box-shadow:0 3px 14px #0008}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs button{color:#e4e7ec}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs button[aria-selected=true]{background:#3b1728;color:#ffb5ce}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs .sx-legacy-tag{background:#343741;color:#d0d5dd}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel{background:#111319;color:#f2f4f7}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel h1,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-bot-name{color:#f2f4f7}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-muted,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-bot-desc{color:#aab1bd}
-      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-card{background:#191c24;border-color:#343741}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-card{background:#191c24;border-color:#343741;box-shadow:0 1px 2px #0004}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-secondary,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-row-button{background:#20232c;border-color:#444955;color:#e4e7ec}
-      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-table-wrap,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel th,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel td{border-color:#343741}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-row-button.sx-live{background:#123126;border-color:#216e4b;color:#75d9a4}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-row-button.sx-danger{color:#ff9daf}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-table-wrap{border-color:#343741}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel th,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel td{border-color:#343741}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel th{background:#20232c;color:#aab1bd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-badge{background:#3b1728;color:#ffb5ce}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status{background:#123126;color:#75d9a4}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status[data-status=draft],html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status[data-status=testing]{background:#343741;color:#d0d5dd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status[data-status=draft]:before,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status[data-status=testing]:before{background:#98a2b3}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-alert{background:#142439;border-color:#244c72;color:#9bc8ff}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-dialog{background:#191c24;color:#f2f4f7}
-      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog h2,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-title,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-entry legend{color:#f2f4f7}
-      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog label,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-help,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-fields label{color:#aab1bd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog h2,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-preview-title,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-preview-title{color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-muted,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-preview-note,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-preview-note,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-help,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-language-pair label{color:#aab1bd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog label{color:#e4e7ec}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog input,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog select,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog textarea{background:#20232c;border-color:#444955;color:#f2f4f7;color-scheme:dark}
-      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-editor{background:#20232c;border-color:#444955}
-      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-entry{background:#191c24;border-color:#444955}
-      html[data-sx-chatbot-theme="dark"] #sx-chatbot-assignment-toggle{background:#20232c;border-color:#593047;color:#ffb5ce}
-      @media(max-width:760px){#sx-chatbot-tabs{width:var(--sx-chatbot-tabs-width,calc(100vw - 20px));left:var(--sx-chatbot-tabs-left,10px)!important;overflow:auto}#sx-chatbot-tabs button{font-size:12px;padding:10px 9px}#sx-chatbot-panel{padding:18px 14px 30px}#sx-chatbot-dialog .sx-form-grid{grid-template-columns:1fr}#sx-chatbot-dialog label.sx-full,#sx-chatbot-dialog .sx-guide-content,#sx-chatbot-dialog .sx-faq-editor{grid-column:auto}#sx-chatbot-dialog .sx-language-pair,#sx-chatbot-dialog .sx-faq-fields{grid-template-columns:1fr}}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog input::placeholder,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog textarea::placeholder{color:#98a2b3}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-checks label{border-color:#343741}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-preview,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-preview{background:#20232c;border-color:#444955}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-preview-result,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-transcript{background:#15171d;border-color:#343741;color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-bubble{background:#2a2e38;color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-bubble[data-role=user]{background:#3b1728;color:#ffd6e2}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-content{background:#251923;border-color:#593047}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-heading,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-catalogue-link{color:#ffb5ce}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-group{background:#20232c;border-color:#343741}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-group legend,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-field-title{color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-secondary{background:#20232c;border-color:#444955;color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-error{color:#ff9daf}
+      html[data-sx-chatbot-theme="dark"] [data-sx-chatbot-control]{background:#3b1728;border-color:#593047;color:#ffb5ce}
+      @media(max-width:760px){#sx-chatbot-tabs{width:calc(100vw - 20px);left:10px!important;overflow:auto}#sx-chatbot-tabs button{font-size:12px;padding:10px 9px}#sx-chatbot-panel{padding:18px 14px 30px}#sx-chatbot-dialog .sx-form-grid{grid-template-columns:1fr}#sx-chatbot-dialog label.sx-full{grid-column:auto}#sx-chatbot-dialog .sx-guide-content{grid-column:auto}#sx-chatbot-dialog .sx-language-pair{grid-template-columns:1fr}}
     `;
     document.head.append(style);
   }
-  function closeViews() { document.getElementById('sx-chatbot-tabs')?.remove(); document.getElementById('sx-chatbot-panel')?.remove(); document.getElementById('sx-chatbot-assignment-toggle')?.remove(); }
-  function renderAssignments() {
-    syncChatbotTheme();
-    addStyle();
-    if (state.showLegacyChatbot) {
-      document.getElementById('sx-chatbot-panel')?.remove();
-      let toggle = document.getElementById('sx-chatbot-assignment-toggle');
-      if (!toggle) { toggle = document.createElement('button'); toggle.id = 'sx-chatbot-assignment-toggle'; toggle.type = 'button'; document.body.append(toggle); }
-      toggle.textContent = tr('Open bot assignments','فتح تعيينات الروبوتات');
-      toggle.onclick = () => { state.showLegacyChatbot = false; renderAssignments(); };
-      return;
-    }
-    document.getElementById('sx-chatbot-assignment-toggle')?.remove();
-    const pos = bounds(); let panel = document.getElementById('sx-chatbot-panel');
-    if (!panel) { panel = document.createElement('main'); panel.id = 'sx-chatbot-panel'; document.body.append(panel); }
-    panel.style.left = `${pos.left}px`; panel.style.right = `${pos.right}px`; panel.style.top = `${pos.top}px`; panel.style.width = `${Math.max(0, innerWidth-pos.left-pos.right)}px`; panel.style.height = `${Math.max(0, innerHeight-pos.top)}px`;
-    if (panel.dataset.assignmentPage === 'true') return;
-    panel.dataset.assignmentPage = 'true';
-    panel.innerHTML = `<div class="sx-muted">${esc(tr('Loading bots…','جارٍ تحميل الروبوتات…'))}</div>`;
-    refresh().then(() => {
-      if (!panel.isConnected || !isAssignmentPage() || state.showLegacyChatbot) return;
-      const rows = state.bots.map(bot => {
-        const assigned = (bot.channels || []).map(c => `${c.kind}|${c.reference}`);
-        const channels = state.channels.map(channel => `<label><input type="checkbox" name="assignment-channel" value="${esc(channel.kind)}|${esc(channel.reference)}" ${assigned.includes(`${channel.kind}|${channel.reference}`)?'checked':''}>${esc(channel.kind==='whatsapp_meta'?'Meta WhatsApp':'QR WhatsApp')} · ${esc(channelLabel(channel))}</label>`).join('') || `<span class="sx-muted">${esc(tr('No connected numbers. Connect a number in WhatsApp setup first.','لا توجد أرقام متصلة. اربط رقمًا من إعداد واتساب أولاً.'))}</span>`;
-        return `<tr><td><div class="sx-bot-name">${esc(bot.name)}</div><div class="sx-bot-desc">${esc(botDescription(bot))}</div></td><td><span class="sx-badge">${esc(engineLabel(bot.engine))}</span></td><td><span class="sx-status" data-status="${esc(bot.status)}">${esc(statusLabel(bot.status))}</span></td><td>${assigned.length ? (bot.channels || []).map(c => `<div>${esc(c.kind==='whatsapp_meta'?'Meta WhatsApp':'QR WhatsApp')} · ${esc(channelLabel(state.channels.find(x=>x.kind===c.kind&&x.reference===c.reference)||c))}</div>`).join('') : `<span class="sx-muted">${esc(tr('Not assigned','غير مرتبط'))}</span>`}</td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${bot.status==='live'?`<button class="sx-row-button" data-assignment-status="${esc(bot.id)}">${esc(tr('Pause bot','إيقاف الروبوت'))}</button>`:''}<button class="sx-row-button" data-manage-assignment="${esc(bot.id)}" ${bot.status==='live'?'disabled title="Pause this bot before changing its assignment"':''}>${esc(tr(bot.status==='live'?'Reassign after pause':'Manage assignment',bot.status==='live'?'أعد التعيين بعد الإيقاف':'إدارة التعيين'))}</button></div></td></tr>`;
-      }).join('');
-      panel.innerHTML = `<header><h1>${esc(tr('Chatbot assignments','تعيينات الروبوتات'))}</h1><div class="sx-muted">${esc(tr('Create and configure bots in Automation Flows. Assign connected numbers here.','أنشئ الروبوتات واضبطها في تدفقات الأتمتة. عيّن الأرقام المتصلة هنا.'))}</div></header><section class="sx-card"><div class="sx-toolbar"><strong>${esc(tr('All bots','كل الروبوتات'))}</strong><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="sx-secondary" id="sx-configure-bots">${esc(tr('Configure bots','إعداد الروبوتات'))}</button><button type="button" class="sx-secondary" id="sx-open-legacy-chatbot">${esc(tr('Legacy WA Chatbot setup','إعداد WA Chatbot القديم'))}</button></div></div><div class="sx-table-wrap"><table><thead><tr><th>${esc(tr('Bot name','اسم الروبوت'))}</th><th>${esc(tr('Type','النوع'))}</th><th>${esc(tr('Status','الحالة'))}</th><th>${esc(tr('Assigned number(s)','الأرقام المعينة'))}</th><th>${esc(tr('Assignment','التعيين'))}</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="sx-muted">${esc(tr('No Guided, Hybrid or AI bots yet. Create one in Automation Flows.','لا توجد روبوتات موجّهة أو هجينة أو ذكية. أنشئ روبوتًا في تدفقات الأتمتة.'))}</td></tr>`}</tbody></table></div><div class="sx-alert"><strong>${esc(tr('Bot setup stays in Automation Flows','يبقى إعداد الروبوت في تدفقات الأتمتة'))}</strong><div>${esc(tr('This page controls number assignments for Guided, Hybrid and AI bots. The legacy WA Chatbot setup remains available above. Active bots must be paused before their number assignment can change.','تتحكم هذه الصفحة في تعيين الأرقام للروبوتات الموجّهة والهجينة والذكية. يظل إعداد WA Chatbot القديم متاحًا أعلاه. يجب إيقاف الروبوت النشط قبل تغيير تعيين رقمه.'))}</div></div></section>`;
-      panel.querySelector('#sx-configure-bots')?.addEventListener('click', () => { location.href = '/user?page=automation-flows'; });
-      panel.querySelector('#sx-open-legacy-chatbot')?.addEventListener('click', () => { state.showLegacyChatbot = true; renderAssignments(); });
-      panel.querySelectorAll('[data-assignment-status]').forEach(button => button.addEventListener('click', async () => {
-        const bot = state.bots.find(item => item.id === button.dataset.assignmentStatus); if (!bot) return;
-        button.disabled = true;
-        try { await api(`/${bot.id}/status`, 'PUT', { status: 'paused', expectedRevision: Number(bot.revision) }); panel.dataset.assignmentPage = ''; renderAssignments(); }
-        catch (error) { alert(errorLabel(error.message)); button.disabled = false; }
-      }));
-      panel.querySelectorAll('[data-manage-assignment]').forEach(button => button.addEventListener('click', () => openAssignmentEditor(state.bots.find(bot => bot.id === button.dataset.manageAssignment))));
-    }).catch(error => { if (panel.isConnected) { panel.dataset.assignmentPage = 'error'; panel.innerHTML = `<h1>${esc(tr('Chatbot assignments','تعيينات الروبوتات'))}</h1><div role="alert" class="sx-alert">${esc(errorLabel(error.message))}</div><button class="sx-secondary" id="sx-chatbot-retry">${esc(tr('Retry','إعادة المحاولة'))}</button>`; panel.querySelector('#sx-chatbot-retry')?.addEventListener('click', () => { panel.dataset.assignmentPage = ''; renderAssignments(); }); } });
-  }
-  function openAssignmentEditor(bot) {
-    if (!bot || bot.status === 'live') return;
-    const assigned = (bot.channels || []).map(c => `${c.kind}|${c.reference}`);
-    const options = state.channels.map(channel => `<label><input type="checkbox" name="assignment-channel" value="${esc(channel.kind)}|${esc(channel.reference)}" ${assigned.includes(`${channel.kind}|${channel.reference}`)?'checked':''}>${esc(channel.kind==='whatsapp_meta'?'Meta WhatsApp':'QR WhatsApp')} · ${esc(channelLabel(channel))}</label>`).join('') || `<span class="sx-muted">${esc(tr('No connected numbers. Connect a number in WhatsApp setup first.','لا توجد أرقام متصلة. اربط رقمًا من إعداد واتساب أولاً.'))}</span>`;
-    const dialog = document.createElement('div'); dialog.id = 'sx-chatbot-dialog';
-    dialog.innerHTML = `<section class="sx-dialog" role="dialog" aria-modal="true"><h2>${esc(tr('Assign connected numbers','تعيين الأرقام المتصلة'))}</h2><div class="sx-muted">${esc(bot.name)} · ${esc(engineLabel(bot.engine))}</div><div class="sx-checks" style="margin-top:18px">${options}</div><div class="sx-error" role="alert"></div><div class="sx-footer"><button type="button" class="sx-secondary" data-close>${esc(tr('Cancel','إلغاء'))}</button><button type="button" class="sx-primary" data-save-assignment>${esc(tr('Save assignment','حفظ التعيين'))}</button></div></section>`;
-    document.body.append(dialog);
-    dialog.querySelector('[data-close]').onclick = () => dialog.remove();
-    dialog.querySelector('[data-save-assignment]').onclick = async event => {
-      const button = event.currentTarget; button.disabled = true; const error = dialog.querySelector('.sx-error'); error.textContent = '';
-      const channels = [...dialog.querySelectorAll('input[name=assignment-channel]:checked')].map(input => { const [kind,...reference] = input.value.split('|'); return { kind, reference: reference.join('|') }; });
-      try { await api(`/${bot.id}/channels`, 'PUT', { expectedRevision: Number(bot.revision), channels }); dialog.remove(); const panel = document.getElementById('sx-chatbot-panel'); if (panel) panel.dataset.assignmentPage = ''; renderAssignments(); }
-      catch (err) { error.textContent = errorLabel(err.message); button.disabled = false; }
-    };
-  }
+  function closeViews() { document.getElementById('sx-chatbot-tabs')?.remove(); document.getElementById('sx-chatbot-panel')?.remove(); }
   function mountTabs() {
     syncChatbotTheme();
-    if (isAssignmentPage()) { state.mounted = false; document.getElementById('sx-chatbot-tabs')?.remove(); renderAssignments(); return false; }
     if (!isFlowPage()) { state.mounted = false; closeViews(); return false; }
     addStyle();
     const pos = bounds(); let tabs = document.getElementById('sx-chatbot-tabs');
     if (!tabs) { tabs = document.createElement('nav'); tabs.id = 'sx-chatbot-tabs'; document.body.append(tabs); }
-    tabs.style.left = `${pos.left + 24}px`; tabs.style.right = `${pos.right + 24}px`; tabs.style.top = `${pos.top + 14}px`;
-    tabs.style.setProperty('--sx-chatbot-tabs-left', `${pos.left + 10}px`);
-    tabs.style.setProperty('--sx-chatbot-tabs-width', `calc(100vw - ${pos.left + pos.right + 20}px)`);
+    tabs.style.left = `${pos.left + 24}px`; tabs.style.top = `${pos.top + 14}px`;
     const definitions = [
       ['legacy', tr('Automation Flows','تدفقات الأتمتة'), `<span class="sx-legacy-tag">${tr('Legacy','قديم')}</span>`],
       ['guided', tr('Guided Chatbot','روبوت موجّه'), ''], ['hybrid', tr('Hybrid AI','ذكاء هجين'), ''], ['ai', tr('AI Chatbot','روبوت ذكاء اصطناعي'), '']
@@ -236,12 +186,12 @@
     return channel?.label || tr('Number label unavailable','اسم الرقم غير متاح');
   }
   function previewReasonLabel(code) { return ({ LOW_CONFIDENCE:tr('AI confidence is below the handoff threshold','ثقة الذكاء الاصطناعي أقل من حد التحويل'), AI_PROVIDER_NOT_CONFIGURED:tr('AI provider is not configured','لم يتم إعداد مزود الذكاء الاصطناعي'), AI_PROVIDER_TIMEOUT:tr('AI provider timed out','انتهت مهلة مزود الذكاء الاصطناعي'), AI_PROVIDER_REQUEST_FAILED:tr('AI provider request failed','فشل طلب مزود الذكاء الاصطناعي'), DAILY_TOKEN_LIMIT:tr('Daily AI usage limit reached','تم بلوغ حد الاستخدام اليومي للذكاء الاصطناعي'), CONTEXT_LIMIT:tr('AI context is too large','سياق الذكاء الاصطناعي كبير جدًا'), GUIDED_FLOW_REQUIRED:tr('Choose a guided flow before testing Hybrid AI','اختر تدفقًا موجّهًا قبل اختبار الذكاء الهجين'), GUIDED_FLOW_UNAVAILABLE:tr('The selected guided flow is unavailable','التدفق الموجّه المحدد غير متاح'), AI_DATA_PROCESSING_ACK_REQUIRED:tr('Confirm the AI privacy notice first','أكد إشعار خصوصية الذكاء الاصطناعي أولاً'), AI_FALLBACK_DISABLED:tr('AI fallback is disabled for this bot','الرد الاحتياطي بالذكاء الاصطناعي متوقف لهذا الروبوت') })[code] || tr('Staff review is recommended','يوصى بمراجعة الموظف'); }
-  function errorLabel(code) { return ({ AUTH_REQUIRED:tr('Please sign in again.','يرجى تسجيل الدخول مجددًا.'), PERMISSION_DENIED:tr('Your account cannot manage chatbots.','لا يملك حسابك صلاحية إدارة الروبوتات.'), FEATURE_UNAVAILABLE:tr('Chatbots are not included in this account plan.','الروبوتات غير متاحة ضمن خطة هذا الحساب.'), CHATBOT_UNAVAILABLE:tr('The chatbot service is temporarily unavailable. Try again shortly.','خدمة الروبوت غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل.'), INVALID_GUIDED_CONTENT:tr('One of the guided messages is too long or has an invalid value. Review the message fields.','إحدى رسائل التوجيه طويلة جداً أو تحتوي قيمة غير صالحة. راجع حقول الرسائل.'), CATEGORY_GUIDED_CONTENT_UNAVAILABLE:tr('Guided content editing is not available for this category version.','تحرير محتوى التوجيه غير متاح لإصدار فئة النشاط هذا.'), AI_PROVIDER_NOT_CONFIGURED:tr('Configure an AI provider and key before activating this bot.','أعد إعداد مزود الذكاء الاصطناعي ومفتاحه قبل تفعيل الروبوت.'), AI_DATA_PROCESSING_ACK_REQUIRED:tr('Confirm the AI privacy notice before activating this bot.','أكد إشعار خصوصية الذكاء الاصطناعي قبل تفعيل الروبوت.'), BOT_CHANNEL_REQUIRED:tr('Assign at least one connected number before activating.','اربط رقمًا متصلًا واحدًا على الأقل قبل التفعيل.'), CONNECTED_CHANNEL_NOT_FOUND:tr('That number is no longer connected. Refresh the channel list.','لم يعد هذا الرقم متصلًا. حدّث قائمة القنوات.'), GUIDED_FLOW_REQUIRED:tr('Choose an active supported Automation Flow.','اختر تدفق أتمتة نشطًا ومدعومًا.'), GUIDED_FLOW_UNAVAILABLE:tr('The selected flow is unavailable or uses unsupported actions.','التدفق المختار غير متاح أو يستخدم إجراءات غير مدعومة.'), STALE_REVISION:tr('This bot changed in another session. Reload and try again.','تغير هذا الروبوت في جلسة أخرى. أعد التحميل وحاول مجددًا.'), PROVIDER_KEY_REQUIRED:tr('Enter a new provider key when switching providers.','أدخل مفتاح مزود جديدًا عند التبديل بين المزودين.'), AI_PROVIDER_REQUEST_FAILED:tr('The AI provider rejected the request. Check the model and provider settings.','رفض مزود الذكاء الاصطناعي الطلب. تحقق من النموذج والإعدادات.'), LIVE_BOT_MUST_BE_PAUSED:tr('Pause this bot before changing its number assignment.','أوقف الروبوت قبل تغيير تعيين رقمه.'), CHANNEL_ALREADY_ASSIGNED:tr('This number is already assigned to another bot. Remove that assignment first.','هذا الرقم معين بالفعل لروبوت آخر. أزل التعيين الآخر أولاً.'), INVALID_CHANNELS:tr('Choose up to 10 valid connected numbers.','اختر حتى 10 أرقام متصلة وصالحة.') })[code] || tr('The request could not be completed. Try again or contact an administrator.','تعذر إكمال الطلب. حاول مرة أخرى أو تواصل مع المسؤول.'); }
+  function errorLabel(code) { return ({ AUTH_REQUIRED:tr('Please sign in again.','يرجى تسجيل الدخول مجددًا.'), PERMISSION_DENIED:tr('Your account cannot manage chatbots.','لا يملك حسابك صلاحية إدارة الروبوتات.'), FEATURE_UNAVAILABLE:tr('Chatbots are not included in this account plan.','الروبوتات غير متاحة ضمن خطة هذا الحساب.'), CHATBOT_UNAVAILABLE:tr('The chatbot service is temporarily unavailable. Try again shortly.','خدمة الروبوت غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل.'), INVALID_GUIDED_CONTENT:tr('One of the guided messages is too long or has an invalid value. Review the message fields.','إحدى رسائل التوجيه طويلة جداً أو تحتوي قيمة غير صالحة. راجع حقول الرسائل.'), CATEGORY_GUIDED_CONTENT_UNAVAILABLE:tr('Guided content editing is not available for this category version.','تحرير محتوى التوجيه غير متاح لإصدار فئة النشاط هذا.'), AI_PROVIDER_NOT_CONFIGURED:tr('Configure an AI provider and key before activating this bot.','أعد إعداد مزود الذكاء الاصطناعي ومفتاحه قبل تفعيل الروبوت.'), AI_DATA_PROCESSING_ACK_REQUIRED:tr('Confirm the AI privacy notice before activating this bot.','أكد إشعار خصوصية الذكاء الاصطناعي قبل تفعيل الروبوت.'), BOT_CHANNEL_REQUIRED:tr('Assign at least one connected number before activating.','اربط رقمًا متصلًا واحدًا على الأقل قبل التفعيل.'), CONNECTED_CHANNEL_NOT_FOUND:tr('That number is no longer connected. Refresh the channel list.','لم يعد هذا الرقم متصلًا. حدّث قائمة القنوات.'), GUIDED_FLOW_REQUIRED:tr('Choose an active supported Automation Flow.','اختر تدفق أتمتة نشطًا ومدعومًا.'), GUIDED_FLOW_UNAVAILABLE:tr('The selected flow is unavailable or uses unsupported actions.','التدفق المختار غير متاح أو يستخدم إجراءات غير مدعومة.'), LIVE_BOT_MUST_BE_PAUSED:tr('Pause active bots before changing their numbers, AI privacy confirmation, or provider settings.','أوقف الروبوتات النشطة قبل تغيير أرقامها أو تأكيد خصوصية الذكاء الاصطناعي أو إعدادات المزود.'), STALE_REVISION:tr('This bot changed in another session. Reload and try again.','تغير هذا الروبوت في جلسة أخرى. أعد التحميل وحاول مجددًا.'), PROVIDER_KEY_REQUIRED:tr('Enter a new provider key when switching providers.','أدخل مفتاح مزود جديدًا عند التبديل بين المزودين.'), AI_PROVIDER_REQUEST_FAILED:tr('The AI provider rejected the request. Check the model and provider settings.','رفض مزود الذكاء الاصطناعي الطلب. تحقق من النموذج والإعدادات.') })[code] || tr('The request could not be completed. Try again or contact an administrator.','تعذر إكمال الطلب. حاول مرة أخرى أو تواصل مع المسؤول.'); }
   function panelMarkup(engine) {
     const bots = state.bots.filter(bot => bot.engine === engine);
-    return `<header><h1>${esc(tr('Chatbot & Automation','الروبوتات والأتمتة'))}</h1><div class="sx-muted">${esc(tr('Create and configure bots here. Assign connected numbers from the Chatbot page.','أنشئ الروبوتات واضبطها هنا. عيّن الأرقام المتصلة من صفحة Chatbot.'))}</div></header>
-      <section class="sx-card"><div class="sx-toolbar"><div><strong>${esc(engineLabel(engine))}</strong><div class="sx-muted">${esc(tr(`${categoryLabel()} · category-aware setup`,`${categoryLabel()} · إعداد حسب فئة النشاط`))} · v${Number(state.categoryVersion)||1}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="sx-secondary" id="sx-open-assignments">${esc(tr('Manage assignments','إدارة التعيينات'))}</button><button class="sx-primary" id="sx-chatbot-create">＋ ${esc(tr('Create Bot','إنشاء روبوت'))}</button></div></div>
-      <div class="sx-table-wrap"><table><thead><tr><th>${esc(tr('Bot Name','اسم الروبوت'))}</th><th>${esc(tr('Type','النوع'))}</th><th>${esc(tr('Status','الحالة'))}</th><th>${esc(tr('Actions','الإجراءات'))}</th></tr></thead><tbody>${bots.length ? bots.map(bot => `<tr><td><div class="sx-bot-name">${esc(bot.name)}</div><div class="sx-bot-desc">${esc(botDescription(bot))}</div></td><td><span class="sx-badge">${esc(engineLabel(bot.engine))}</span></td><td><span class="sx-status" data-status="${esc(bot.status)}">${esc(statusLabel(bot.status))}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="sx-row-button" data-edit="${esc(bot.id)}" ${bot.status==='live'?'disabled title="Pause this bot before editing"':''}>${esc(tr('Edit','تعديل'))}</button>${bot.status==='live'?`<button class="sx-row-button" data-status-action="${esc(bot.id)}" data-next="paused">${esc(tr('Pause','إيقاف'))}</button>`:`<button class="sx-row-button sx-live" data-status-action="${esc(bot.id)}" data-next="live">${esc(tr('Activate','تفعيل'))}</button>`}<button class="sx-row-button sx-danger" data-delete="${esc(bot.id)}" ${bot.status==='live'?'disabled title="Pause this bot before deleting"':''}>${esc(tr('Delete','حذف'))}</button></div></td></tr>`).join('') : `<tr><td colspan="4" class="sx-muted">${esc(tr('No bots yet. Create a bot to get started.','لا توجد روبوتات بعد. أنشئ روبوتًا للبدء.'))}</td></tr>`}</tbody></table></div>
+    return `<header><h1>${esc(tr('Chatbot & Automation','الروبوتات والأتمتة'))}</h1><div class="sx-muted">${esc(tr('Create separate bots and assign each to a connected WhatsApp number.','أنشئ روبوتات مستقلة واربط كل روبوت برقم واتساب متصل.'))}</div></header>
+      <section class="sx-card"><div class="sx-toolbar"><div><strong>${esc(engineLabel(engine))}</strong><div class="sx-muted">${esc(tr(`${categoryLabel()} · category-aware setup`,`${categoryLabel()} · إعداد حسب فئة النشاط`))} · v${Number(state.categoryVersion)||1}</div></div><button class="sx-primary" id="sx-chatbot-create">＋ ${esc(tr('Create Bot','إنشاء روبوت'))}</button></div>
+      <div class="sx-table-wrap"><table><thead><tr><th>${esc(tr('Bot Name','اسم الروبوت'))}</th><th>${esc(tr('Type','النوع'))}</th><th>${esc(tr('WhatsApp Number','رقم واتساب'))}</th><th>${esc(tr('Status','الحالة'))}</th><th>${esc(tr('Actions','الإجراءات'))}</th></tr></thead><tbody>${bots.length ? bots.map(bot => `<tr><td><div class="sx-bot-name">${esc(bot.name)}</div><div class="sx-bot-desc">${esc(botDescription(bot))}</div></td><td><span class="sx-badge">${esc(engineLabel(bot.engine))}</span></td><td>${bot.channels?.length ? bot.channels.map(c=>`<div>${esc(c.kind==='whatsapp_meta'?'Meta WhatsApp':'QR WhatsApp')} · ${esc(channelLabel(state.channels.find(channel=>channel.kind===c.kind&&channel.reference===c.reference)||c))}</div>`).join('') : `<span class="sx-muted">${esc(tr('Not assigned','غير مرتبط'))}</span>`}</td><td><span class="sx-status" data-status="${esc(bot.status)}">${esc(statusLabel(bot.status))}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="sx-row-button" data-edit="${esc(bot.id)}">${esc(tr('Edit','تعديل'))}</button>${bot.status==='live'?`<button class="sx-row-button" data-status-action="${esc(bot.id)}" data-next="paused">${esc(tr('Pause','إيقاف'))}</button>`:`<button class="sx-row-button sx-live" data-status-action="${esc(bot.id)}" data-next="live">${esc(tr('Activate','تفعيل'))}</button>`}<button class="sx-row-button sx-danger" data-delete="${esc(bot.id)}" ${bot.status==='live'?'disabled title="Pause this bot before deleting"':''}>${esc(tr('Delete','حذف'))}</button></div></td></tr>`).join('') : `<tr><td colspan="5" class="sx-muted">${esc(tr('No bots yet. Create a bot to get started.','لا توجد روبوتات بعد. أنشئ روبوتًا للبدء.'))}</td></tr>`}</tbody></table></div>
       <div class="sx-alert"><strong>${esc(tr('Legacy automations remain unchanged','ستبقى الأتمتة القديمة كما هي'))}</strong><div>${esc(tr('Your existing flow stays preserved in the first tab. A live bot takes priority over legacy automation on its assigned number. Pausing the whole bot lets legacy automation run again; pause one chat in Inbox to hand only that chat to staff.','يظل التدفق الحالي محفوظًا في علامة التبويب الأولى. تكون أولوية الروبوت النشط على الأتمتة القديمة للرقم المخصص له. عند إيقاف الروبوت بالكامل، تعمل الأتمتة القديمة مجددًا؛ أوقف محادثة واحدة من صندوق الوارد لتحويلها إلى الموظفين فقط.'))}</div></div></section>`;
   }
   async function refresh() {
@@ -253,7 +203,7 @@
     if (state.tab === 'legacy') return;
     let panel = document.getElementById('sx-chatbot-panel');
     if (!panel) { panel = document.createElement('main'); panel.id = 'sx-chatbot-panel'; document.body.append(panel); }
-    const pos = bounds(); panel.style.left = `${pos.left}px`; panel.style.right = `${pos.right}px`; panel.style.top = `${pos.top + 72}px`; panel.style.width = `${Math.max(0, innerWidth-pos.left-pos.right)}px`; panel.style.height = `${Math.max(0, innerHeight-pos.top-72)}px`;
+    const pos = bounds(); panel.style.left = `${pos.left}px`; panel.style.top = `${pos.top + 72}px`; panel.style.width = `${Math.max(0, innerWidth-pos.left)}px`; panel.style.height = `${Math.max(0, innerHeight-pos.top-72)}px`;
     panel.innerHTML = `<div class="sx-muted" id="sx-chatbot-loading">${esc(tr('Loading bots…','جارٍ تحميل الروبوتات…'))}</div>`;
     refresh().then(() => {
       if (!panel.isConnected || state.tab === 'legacy') return;
@@ -261,7 +211,6 @@
       }).catch(error => { if (panel.isConnected) panel.innerHTML = `<h1>${esc(tr('Chatbot & Automation','الروبوتات والأتمتة'))}</h1><div role="alert" class="sx-alert">${esc(errorLabel(error.message))}</div><button class="sx-secondary" id="sx-chatbot-retry">${esc(tr('Retry','إعادة المحاولة'))}</button>`; panel.querySelector('#sx-chatbot-retry')?.addEventListener('click', render); });
   }
   function bindPanel(panel, engine) {
-    panel.querySelector('#sx-open-assignments')?.addEventListener('click', () => { location.href = '/user?page=wa-chatbot'; });
     panel.querySelector('#sx-chatbot-create')?.addEventListener('click', () => openEditor(engine));
     panel.querySelectorAll('[data-edit]').forEach(button => button.addEventListener('click', () => openEditor(engine, state.bots.find(bot => bot.id === button.dataset.edit))));
     panel.querySelectorAll('[data-status-action]').forEach(button => button.addEventListener('click', async () => {
@@ -318,24 +267,12 @@
     }
     return content;
   }
-  function faqEntryMarkup(entry = {}, index = 0) {
-    const field = (key, labelEn, labelAr, maxLength) => `<label>${esc(tr(labelEn,labelAr))}<textarea data-faq-field="${key}" maxlength="${maxLength}">${esc(entry[key] || '')}</textarea></label>`;
-    return `<fieldset class="sx-faq-entry" data-faq-entry><legend>${esc(tr('FAQ','سؤال شائع'))} ${index + 1}</legend><div class="sx-faq-fields">${field('questionEn','Question · English','السؤال · الإنجليزية',400)}${field('answerEn','Answer · English','الإجابة · الإنجليزية',1600)}${field('questionAr','Question · Arabic','السؤال · العربية',400)}${field('answerAr','Answer · Arabic','الإجابة · العربية',1600)}</div><button type="button" class="sx-secondary" data-remove-faq aria-label="${esc(tr('Remove FAQ','إزالة السؤال'))} ${index + 1}">${esc(tr('Remove','إزالة'))}</button></fieldset>`;
-  }
-  function faqEditorMarkup(config) {
-    const entries = Array.isArray(config.knowledgeEntries) ? config.knowledgeEntries.slice(0, 60) : [];
-    if (!entries.length) entries.push({});
-    return `<section class="sx-faq-editor sx-full" data-faq-editor><div class="sx-faq-title">${esc(tr('Approved FAQs','الأسئلة الشائعة المعتمدة'))}</div><div class="sx-faq-help">${esc(tr('Add clear question-and-answer pairs. Add both language pairs when you want precise English and Arabic answers. These become reference facts for Hybrid and AI replies. Up to 60 FAQs; total bot settings are limited to 32 KB.','أضف أزواجاً واضحة من الأسئلة والإجابات. أضف الزوجين اللغويين للحصول على إجابات دقيقة بالإنجليزية والعربية. ستُستخدم هذه المعلومات في ردود الذكاء الهجين والاصطناعي. حتى 60 سؤالاً، ويبلغ الحد الإجمالي لإعدادات الروبوت 32 كيلوبايت.'))}</div><div data-faq-list>${entries.map((entry,index)=>faqEntryMarkup(entry,index)).join('')}</div><div class="sx-faq-actions"><button type="button" class="sx-secondary" data-add-faq>＋ ${esc(tr('Add FAQ','إضافة سؤال'))}</button><span class="sx-muted" data-faq-count></span></div></section>`;
-  }
-  function collectFaqEntries(editor) {
-    if (!editor) return [];
-    return [...editor.querySelectorAll('[data-faq-entry]')].map(row => Object.fromEntries(
-      [...row.querySelectorAll('[data-faq-field]')].map(field => [field.dataset.faqField, field.value.trim()])
-    )).filter(entry => Object.values(entry).some(Boolean));
-  }
   function openEditor(engine, existing) {
     const bot = existing || { name: '', engine, status: 'draft', revision: 1, channels: [], config: {} };
     const config = bot.config || {};
+    const liveEdit = existing?.status === 'live';
+    const locked = liveEdit ? 'disabled' : '';
+    const channels = state.channels.map(channel => `<label><input type="checkbox" name="channel" value="${esc(channel.kind)}|${esc(channel.reference)}" ${bot.channels?.some(item=>item.kind===channel.kind&&item.reference===channel.reference)?'checked':''} ${locked}>${esc(channel.kind==='whatsapp_meta'?'Meta WhatsApp':'QR WhatsApp')} · ${esc(channelLabel(channel))}</label>`).join('') || `<span class="sx-muted">${esc(tr('Connect a WhatsApp number first.','اتصل برقم واتساب أولاً.'))}</span>`;
     const domainGuideValue = `__${state.categoryKey}_default_v${Number(state.categoryVersion)||1}__`;
     const hasBuiltInGuide = Boolean(state.guidedContentDefaults && state.guidedContentSchema);
     const selectedDomainGuide = hasBuiltInGuide && (config.guidedMode === 'domain_default' || !config.flowId);
@@ -345,38 +282,17 @@
     const flowChoices = defaultFlowOption + state.flows.map(flow=>`<option value="${esc(flow.id)}" ${config.flowId===flow.id?'selected':''}>${esc(flow.name)}</option>`).join('');
     const flowField = engine !== 'ai' ? `<label class="sx-full">${esc(tr('Guided conversation setup','إعداد المحادثة الموجّهة'))}<select name="flowId">${flowChoices}</select><small class="sx-muted">${esc(hasBuiltInGuide ? tr('The built-in guide uses this category’s published facts and the editable messages below.','يستخدم الدليل المدمج البيانات المنشورة لهذه الفئة والرسائل القابلة للتعديل أدناه.') : tr('Choose an active Automation Flow for guided turns.','اختر تدفق أتمتة نشطاً للمحادثات الموجّهة.'))}</small></label>` : '';
     const guideSettings = engine !== 'ai' && hasBuiltInGuide ? guidedContentMarkup(config, selectedDomainGuide) : '';
-    const instructions = `<label class="sx-full">${esc(tr('Business instructions','تعليمات النشاط'))}<textarea name="instructions" maxlength="4000" placeholder="${esc(tr('Describe tone and approved answers. Do not include payment or enrollment commitments.','صف الأسلوب والإجابات المعتمدة دون وعود بالدفع أو التسجيل.'))}">${esc(config.instructions||'')}</textarea></label>`;
-    const faq = engine === 'guided' ? '' : faqEditorMarkup(config);
-    const providerFields = engine === 'guided' ? '' : `<div class="sx-full"><strong>${esc(tr('AI provider','مزود الذكاء الاصطناعي'))}</strong><div class="sx-muted">${esc(state.provider.configured ? tr(`Configured: ${state.provider.provider} · ${state.provider.model}. Leave the key empty to keep the saved key.`,`تم الإعداد: ${state.provider.provider} · ${state.provider.model}. اترك المفتاح فارغًا للاحتفاظ بالمفتاح الحالي.`) : tr('An API key is required before an AI bot can be activated.','يلزم مفتاح API قبل تفعيل روبوت الذكاء الاصطناعي.'))}</div></div><label>${esc(tr('Provider','المزود'))}<select name="provider"><option value="openai" ${state.provider.provider==='openai'?'selected':''}>OpenAI</option><option value="gemini" ${state.provider.provider==='gemini'?'selected':''}>Gemini</option><option value="deepseek" ${state.provider.provider==='deepseek'?'selected':''}>DeepSeek</option></select></label><label>${esc(tr('Model ID','معرّف النموذج'))}<input name="model" maxlength="80" value="${esc(state.provider.model||'')}"></label><label class="sx-full">${esc(tr('Provider API key','مفتاح API للمزود'))}<input name="apiKey" type="password" maxlength="2048" autocomplete="new-password" placeholder="${esc(tr('Enter a key to add or rotate it','أدخل مفتاحًا لإضافته أو تغييره'))}"></label><label>${esc(tr('Daily token limit','حد الرموز اليومي'))}<input name="dailyTokenLimit" type="number" min="1000" max="1000000" value="${esc(state.provider.dailyTokenLimit||50000)}"></label>`;
+    const instructions = engine === 'guided' ? '' : `<label class="sx-full">${esc(tr('Business instructions','تعليمات النشاط'))}<textarea name="instructions" maxlength="4000" placeholder="${esc(tr('Describe tone and approved answers. Do not include payment or enrollment commitments.','صف الأسلوب والإجابات المعتمدة دون وعود بالدفع أو التسجيل.'))}">${esc(config.instructions||'')}</textarea></label>`;
+    const faq = engine === 'guided' ? '' : `<label class="sx-full">${esc(tr('Approved FAQs (English and Arabic)','الأسئلة المعتمدة بالعربية والإنجليزية'))}<textarea name="faq" maxlength="7000" placeholder="${esc(tr('One FAQ per line: English question | English answer | Arabic question | Arabic answer','سؤال واحد في كل سطر: السؤال الإنجليزي | الإجابة الإنجليزية | السؤال العربي | الإجابة العربية'))}">${esc((config.knowledgeEntries||[]).map(x=>[x.questionEn,x.answerEn,x.questionAr,x.answerAr].join(' | ')).join('\n'))}</textarea></label>`;
+    const providerFields = engine === 'guided' ? '' : `<div class="sx-full"><strong>${esc(tr('AI provider','مزود الذكاء الاصطناعي'))}</strong><div class="sx-muted">${esc(liveEdit ? tr('Provider credentials and usage limits are locked while this bot is active. Pause it to change them.','بيانات المزود وحدود الاستخدام مقفلة أثناء نشاط الروبوت. أوقفه لتغييرها.') : state.provider.configured ? tr(`Configured: ${state.provider.provider} · ${state.provider.model}. Leave the key empty to keep the saved key.`,`تم الإعداد: ${state.provider.provider} · ${state.provider.model}. اترك المفتاح فارغًا للاحتفاظ بالمفتاح الحالي.`) : tr('An API key is required before an AI bot can be activated.','يلزم مفتاح API قبل تفعيل روبوت الذكاء الاصطناعي.'))}</div></div><label>${esc(tr('Provider','المزود'))}<select name="provider" ${locked}><option value="openai" ${state.provider.provider==='openai'?'selected':''}>OpenAI</option><option value="gemini" ${state.provider.provider==='gemini'?'selected':''}>Gemini</option><option value="deepseek" ${state.provider.provider==='deepseek'?'selected':''}>DeepSeek</option></select></label><label>${esc(tr('Model ID','معرّف النموذج'))}<input name="model" maxlength="80" value="${esc(state.provider.model||'')}" ${locked}></label><label class="sx-full">${esc(tr('Provider API key','مفتاح API للمزود'))}<input name="apiKey" type="password" maxlength="2048" autocomplete="new-password" placeholder="${esc(tr('Enter a key to add or rotate it','أدخل مفتاحًا لإضافته أو تغييره'))}" ${locked}></label><label>${esc(tr('Daily token limit','حد الرموز اليومي'))}<input name="dailyTokenLimit" type="number" min="1000" max="1000000" value="${esc(state.provider.dailyTokenLimit||50000)}" ${locked}></label>`;
     const thresholdField = engine === 'guided' ? '' : `<label>${esc(tr('Confidence threshold','حد الثقة'))}<input name="confidenceThreshold" type="number" min="0.5" max="0.95" step="0.01" value="${esc(config.confidenceThreshold||0.72)}"></label>`;
     const preview = existing && engine !== 'guided' && !(engine === 'hybrid' && config.aiFallback === false) ? `<section class="sx-preview"><div class="sx-preview-title">${esc(tr('Test this bot','اختبر هذا الروبوت'))}</div><div class="sx-preview-note">${esc(tr('Your test message is sent to the configured AI provider, never to WhatsApp, and counts toward the daily AI limit. Preview uses saved settings. Save changes and reopen this bot before testing.','ستُرسل رسالة الاختبار إلى مزود الذكاء الاصطناعي المُعد، ولن تُرسل عبر واتساب، وستُحتسب ضمن الحد اليومي. يستخدم الاختبار الإعدادات المحفوظة؛ احفظ التغييرات وأعد فتح الروبوت أولاً.'))}</div><label>${esc(tr('Test customer message','رسالة العميل للاختبار'))}<textarea id="sx-chatbot-preview-message" maxlength="2000" placeholder="${esc(tr('Ask a course or FAQ question…','اسأل عن دورة أو سؤال شائع…'))}"></textarea></label><button type="button" class="sx-secondary" id="sx-chatbot-preview" ${state.provider.configured ? '' : 'disabled'}>${esc(tr('Preview reply','معاينة الرد'))}</button><div class="sx-preview-result" id="sx-chatbot-preview-result" aria-live="polite"></div></section>` : '';
-    const guidedPreview = engine !== 'ai' && hasBuiltInGuide ? `<section class="sx-guided-preview" data-guided-preview ${selectedDomainGuide ? '' : 'hidden'}><div class="sx-guided-preview-title">${esc(tr('Preview the guided conversation','معاينة المحادثة الموجّهة'))}</div><div class="sx-guided-preview-note">${esc(tr('Uses this draft’s current messages and published course data. It does not save the bot, call an AI provider, or send a WhatsApp message.','تستخدم رسائل المسودة الحالية وبيانات الدورات المنشورة. لا تحفظ الروبوت ولا تتصل بمزود ذكاء اصطناعي ولا ترسل رسالة واتساب.'))}</div><div class="sx-guided-transcript" data-guided-transcript aria-live="polite"></div><div class="sx-guided-preview-controls"><input data-guided-message maxlength="2000" placeholder="${esc(tr('Type hello, courses, or a menu choice','اكتب مرحباً أو الدورات أو اختر من القائمة'))}"><button type="button" class="sx-secondary" data-guided-send>${esc(tr('Send preview','إرسال للمعاينة'))}</button><button type="button" class="sx-secondary" data-guided-reset>${esc(tr('Reset','إعادة'))}</button></div><div class="sx-guided-preview-status" data-guided-status role="status"></div></section>` : '';
+    const liveEditNotice = liveEdit ? `<div class="sx-alert sx-full">${esc(tr('This bot stays active. Saved changes take effect on the next incoming message. Preview first; its connected number and AI provider settings stay unchanged.','سيظل هذا الروبوت نشطًا. تسري التغييرات المحفوظة على الرسالة الواردة التالية. عاين التغييرات أولاً؛ سيبقى الرقم المتصل وإعدادات مزود الذكاء الاصطناعي كما هي.'))}</div>` : '';
+    const guidedPreview = engine !== 'ai' && hasBuiltInGuide ? `<section class="sx-guided-preview" data-guided-preview ${selectedDomainGuide ? '' : 'hidden'}><div class="sx-guided-preview-title">${esc(tr('Preview the guided conversation','معاينة المحادثة الموجّهة'))}</div><div class="sx-guided-preview-note">${esc(tr('Uses the current unsaved messages and published course data. It does not save the bot, call an AI provider, or send a WhatsApp message.','تستخدم الرسائل الحالية غير المحفوظة وبيانات الدورات المنشورة. لا تحفظ الروبوت ولا تتصل بمزود ذكاء اصطناعي ولا ترسل رسالة واتساب.'))}</div><div class="sx-guided-transcript" data-guided-transcript aria-live="polite"></div><div class="sx-guided-preview-controls"><input data-guided-message maxlength="2000" placeholder="${esc(tr('Type hello, courses, or a menu choice','اكتب مرحباً أو الدورات أو اختر من القائمة'))}"><button type="button" class="sx-secondary" data-guided-send>${esc(tr('Send preview','إرسال للمعاينة'))}</button><button type="button" class="sx-secondary" data-guided-reset>${esc(tr('Reset','إعادة'))}</button></div><div class="sx-guided-preview-status" data-guided-status role="status"></div></section>` : '';
     const dialog = document.createElement('div'); dialog.id='sx-chatbot-dialog';
-    dialog.innerHTML = `<section class="sx-dialog" role="dialog" aria-modal="true" aria-labelledby="sx-chatbot-editor-title"><h2 id="sx-chatbot-editor-title">${esc(existing?tr('Edit bot','تعديل الروبوت'):tr('Create bot','إنشاء روبوت'))}</h2><div class="sx-muted">${esc(tr(`${categoryLabel()} bot · assign its number from the Chatbot page`,`${categoryLabel()} · عيّن رقم الروبوت من صفحة Chatbot`))}</div><form><div class="sx-form-grid"><label class="sx-full">${esc(tr('Bot name','اسم الروبوت'))}<input name="name" required maxlength="120" value="${esc(bot.name)}"></label>${flowField}${guideSettings}${instructions}${faq}${providerFields}${thresholdField}${engine==='hybrid'?`<label>${esc(tr('AI fallback','الرد بالذكاء الاصطناعي عند الحاجة'))}<select name="aiFallback"><option value="true" ${config.aiFallback!==false?'selected':''}>${esc(tr('Enabled','مفعّل'))}</option><option value="false" ${config.aiFallback===false?'selected':''}>${esc(tr('Disabled','متوقف'))}</option></select></label>`:''}${engine!=='guided'?`<label class="sx-full"><span><input type="checkbox" name="aiDataProcessingConfirmed" ${config.aiDataProcessingConfirmed===true?'checked':''}> ${esc(tr('I have configured a suitable customer privacy notice for AI processing of conversation messages.','أؤكد إعداد إشعار خصوصية مناسب لمعالجة رسائل المحادثات بالذكاء الاصطناعي.'))}</span></label>`:''}</div>${guidedPreview}${preview}<div class="sx-error" role="alert"></div><div class="sx-footer"><button type="button" class="sx-secondary" data-close>${esc(tr('Cancel','إلغاء'))}</button><button type="submit" class="sx-primary">${esc(tr('Save bot','حفظ الروبوت'))}</button></div></form></section>`;
+    dialog.innerHTML = `<section class="sx-dialog" role="dialog" aria-modal="true" aria-labelledby="sx-chatbot-editor-title"><h2 id="sx-chatbot-editor-title">${esc(existing?tr('Edit bot','تعديل الروبوت'):tr('Create bot','إنشاء روبوت'))}</h2><div class="sx-muted">${esc(tr(`${categoryLabel()} bot · connected WhatsApp only`,`${categoryLabel()} · أرقام واتساب متصلة فقط`))}</div><form><div class="sx-form-grid">${liveEditNotice}<label class="sx-full">${esc(tr('Bot name','اسم الروبوت'))}<input name="name" required maxlength="120" value="${esc(bot.name)}"></label>${flowField}${guideSettings}${instructions}${faq}${providerFields}${thresholdField}${engine==='hybrid'?`<label>${esc(tr('AI fallback','الرد بالذكاء الاصطناعي عند الحاجة'))}<select name="aiFallback"><option value="true" ${config.aiFallback!==false?'selected':''}>${esc(tr('Enabled','مفعّل'))}</option><option value="false" ${config.aiFallback===false?'selected':''}>${esc(tr('Disabled','متوقف'))}</option></select></label>`:''}${engine!=='guided'?`<label class="sx-full"><span><input type="checkbox" name="aiDataProcessingConfirmed" ${config.aiDataProcessingConfirmed===true?'checked':''} ${locked}> ${esc(tr('I have configured a suitable customer privacy notice for AI processing of conversation messages.','أؤكد إعداد إشعار خصوصية مناسب لمعالجة رسائل المحادثات بالذكاء الاصطناعي.'))}</span>${liveEdit?`<small class="sx-muted">${esc(tr('Pause this bot before changing its AI privacy confirmation.','أوقف هذا الروبوت قبل تغيير تأكيد خصوصية الذكاء الاصطناعي.'))}</small>`:''}</label>`:''}<div class="sx-full"><strong>${esc(tr('Assign connected numbers','اربط أرقامًا متصلة'))}</strong>${liveEdit?`<div class="sx-muted">${esc(tr('Number assignments are locked while the bot is active. Pause it to change numbers.','تعيينات الأرقام مقفلة أثناء نشاط الروبوت. أوقفه لتغيير الأرقام.'))}</div>`:''}<div class="sx-checks">${channels}</div></div></div>${guidedPreview}${preview}<div class="sx-error" role="alert"></div><div class="sx-footer"><button type="button" class="sx-secondary" data-close>${esc(tr('Cancel','إلغاء'))}</button><button type="submit" class="sx-primary">${esc(tr('Save bot','حفظ الروبوت'))}</button></div></form></section>`;
     dialog.addEventListener('click', event => { if (event.target === dialog || event.target.closest('[data-close]')) dialog.remove(); });
     const formElement = dialog.querySelector('form');
-    const faqEditor = formElement.querySelector('[data-faq-editor]');
-    const faqList = faqEditor?.querySelector('[data-faq-list]');
-    const faqAdd = faqEditor?.querySelector('[data-add-faq]');
-    const faqCount = faqEditor?.querySelector('[data-faq-count]');
-    const syncFaqControls = () => {
-      const rows = [...(faqList?.querySelectorAll('[data-faq-entry]') || [])];
-      if (faqCount) faqCount.textContent = tr(`${rows.length} of 60 FAQs`, `${rows.length} من 60 سؤالاً`);
-      if (faqAdd) faqAdd.disabled = rows.length >= 60;
-      rows.forEach((row,index) => { const legend=row.querySelector('legend'); if (legend) legend.textContent=`${tr('FAQ','سؤال شائع')} ${index+1}`; const remove=row.querySelector('[data-remove-faq]'); if (remove) remove.setAttribute('aria-label',`${tr('Remove FAQ','إزالة السؤال')} ${index+1}`); });
-    };
-    faqEditor?.addEventListener('click', event => {
-      if (event.target.closest('[data-add-faq]')) {
-        if (faqList.querySelectorAll('[data-faq-entry]').length >= 60) return;
-        faqList.insertAdjacentHTML('beforeend', faqEntryMarkup({}, faqList.querySelectorAll('[data-faq-entry]').length)); syncFaqControls();
-        faqList.querySelector('[data-faq-entry]:last-child [data-faq-field]')?.focus();
-      } else if (event.target.closest('[data-remove-faq]')) {
-        const row=event.target.closest('[data-faq-entry]');
-        if (faqList.querySelectorAll('[data-faq-entry]').length > 1) row.remove(); else row.querySelectorAll('[data-faq-field]').forEach(field => { field.value=''; });
-        syncFaqControls();
-      }
-    });
-    syncFaqControls();
     const flowSelect = formElement.querySelector('select[name="flowId"]');
     const guideSection = formElement.querySelector('[data-guide-content]');
     const guidedPreviewPanel = formElement.querySelector('[data-guided-preview]');
@@ -458,28 +374,26 @@
       const flowChoice=String(data.get('flowId')||'');
       const usesDomainGuide=hasBuiltInGuide && flowChoice===domainGuideValue;
       const flowId=usesDomainGuide?null:(flowChoice||null);
-      const entries=collectFaqEntries(faqEditor);
-      const invalidEntry=entries.find(entry=>{
-        const hasEn=Boolean(entry.questionEn||entry.answerEn), hasAr=Boolean(entry.questionAr||entry.answerAr);
-        return (!hasEn&&!hasAr) || (hasEn&&(!entry.questionEn||!entry.answerEn)) || (hasAr&&(!entry.questionAr||!entry.answerAr));
-      });
-      if (invalidEntry) { error.textContent=tr('Each FAQ language needs both a question and an answer. Complete the English or Arabic pair before saving.','أكمل السؤال والإجابة لكل لغة قبل الحفظ.'); submit.disabled=false; return; }
-      const body={name:String(data.get('name')||'').trim(),engine,config:{...config,flowId,guidedMode:usesDomainGuide?'domain_default':(flowId?'automation_flow':null),instructions:String(data.get('instructions')||''),workflow:'course_admissions',aiFallback:data.get('aiFallback')!=='false',confidenceThreshold:Number(data.get('confidenceThreshold')||config.confidenceThreshold||0.72),aiDataProcessingConfirmed:data.get('aiDataProcessingConfirmed')==='on',knowledgeEntries:entries}};
+      const entries=String(data.get('faq')||'').split('\n').map(line=>line.split('|').map(part=>part.trim())).filter(parts=>parts.some(Boolean)).map(parts=>({questionEn:parts[0]||'',answerEn:parts[1]||'',questionAr:parts[2]||'',answerAr:parts[3]||''}));
+      const body={name:String(data.get('name')||'').trim(),engine,config:{...config,flowId,guidedMode:usesDomainGuide?'domain_default':(flowId?'automation_flow':null),instructions:String(data.get('instructions')||''),workflow:'course_admissions',aiFallback:data.get('aiFallback')!=='false',confidenceThreshold:Number(data.get('confidenceThreshold')||config.confidenceThreshold||0.72),aiDataProcessingConfirmed:liveEdit?config.aiDataProcessingConfirmed===true:data.get('aiDataProcessingConfirmed')==='on',knowledgeEntries:entries}};
       if (usesDomainGuide) body.config.guidedContent=collectGuidedContent(data);
-      if (new TextEncoder().encode(JSON.stringify(body.config)).length > 32000) { error.textContent=tr('Bot settings exceed the 32 KB limit. Shorten FAQ answers or business instructions before saving.','تجاوزت إعدادات الروبوت حد 32 كيلوبايت. اختصر إجابات الأسئلة الشائعة أو تعليمات النشاط قبل الحفظ.'); submit.disabled=false; return; }
       try {
         let saved;
         if (existing) saved=await api(`/${bot.id}`,'PUT',{...body,expectedRevision:Number(bot.revision)});
         else saved=await api('', 'POST', body);
         let id=existing?.id||saved.id, revision=Number(saved.revision||1);
         const usesAi = engine === 'ai' || (engine === 'hybrid' && body.config.aiFallback !== false);
-        if (usesAi) {
+        if (usesAi && !liveEdit) {
           const key=String(data.get('apiKey')||'');
           const providerBody={provider:String(data.get('provider')),model:String(data.get('model')||''),dailyTokenLimit:Number(data.get('dailyTokenLimit')||50000),expectedRevision:Number(state.provider.revision||0)};
           if (key) providerBody.apiKey=key;
           if (key || (state.provider.configured && (state.provider.provider!==providerBody.provider || state.provider.model!==providerBody.model || Number(state.provider.dailyTokenLimit)!==providerBody.dailyTokenLimit))) {
             state.provider=await api('/settings/provider','PUT',providerBody);
           }
+        }
+        if (!liveEdit) {
+          const assigned=[...form.querySelectorAll('input[name=channel]:checked')].map(input=>{const [kind,...ref]=input.value.split('|');return {kind,reference:ref.join('|')};});
+          await api(`/${id}/channels`,'PUT',{expectedRevision:revision,channels:assigned});
         }
         dialog.remove(); await refresh(); render();
       } catch (err) {

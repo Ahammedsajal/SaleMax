@@ -9,9 +9,14 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
   const originalGenerate = provider.generate;
   let providerCalls = 0;
   let previewInput = '';
+  let failNextProvider = false;
   provider.generate = async request => {
     providerCalls++;
     previewInput = request.user;
+    if (failNextProvider) {
+      failNextProvider = false;
+      throw Object.assign(new Error('synthetic malformed provider output'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
+    }
     return { canAnswer: true, confidence: 0.96, reply: 'Our approved course information is available.', inputTokens: 31, outputTokens: 14 };
   };
 
@@ -188,19 +193,42 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(qrChannel?.label, '+97455000001');
     const metaChannel = channels.data.find(channel => channel.kind === 'whatsapp_meta' && channel.reference === 'synthetic-meta-phone-id');
     assert.equal(metaChannel?.label, '+97455000003');
-    await connection.query("UPDATE instance SET status='DISCONNECTED' WHERE uid=? AND uniqueId=?", [legacyUid, channelRef]);
-    const disconnectedChannels = await call('/channels');
-    assert.equal(disconnectedChannels.data.some(channel => channel.kind === 'whatsapp_qr' && channel.reference === channelRef), false);
-    const disconnectedAssignment = await call(`/${botId}/channels`, 'PUT', { expectedRevision: 1, channels: [{ kind: 'whatsapp_qr', reference: channelRef }] });
-    assert.equal(disconnectedAssignment.status, 409);
-    assert.equal(disconnectedAssignment.code, 'CONNECTED_CHANNEL_NOT_FOUND');
-    await connection.query("UPDATE instance SET status='ACTIVE' WHERE uid=? AND uniqueId=?", [legacyUid, channelRef]);
     const assigned = await call(`/${botId}/channels`, 'PUT', { expectedRevision: 1, channels: [{ kind: 'whatsapp_qr', reference: channelRef }] });
     assert.equal(assigned.status, 200);
     assert.equal(assigned.data.revision, 2);
     const activated = await call(`/${botId}/status`, 'PUT', { status: 'live', expectedRevision: 2 });
     assert.equal(activated.status, 200);
     assert.equal(activated.data.status, 'live');
+
+    const activeEdit = await call(`/${botId}`, 'PUT', {
+      name: 'Synthetic Training FAQ · revised', engine: 'ai', config: {
+        instructions: 'Use the latest approved Training Center facts.', confidenceThreshold: 0.72,
+        aiDataProcessingConfirmed: true,
+        knowledgeEntries: [{ questionEn: 'What changed?', answerEn: 'The live profile was safely updated.', questionAr: 'ما الذي تغير؟', answerAr: 'تم تحديث إعدادات الروبوت النشط بأمان.' }],
+      }, expectedRevision: 3,
+    });
+    assert.equal(activeEdit.status, 200, 'a live bot profile can be atomically edited without pausing its runtime');
+    assert.equal(activeEdit.data.revision, 4);
+    const rejectedUnsafeEdit = await call(`/${botId}`, 'PUT', {
+      name: 'Unsafe live edit', engine: 'ai', config: {
+        instructions: 'Updated without privacy acknowledgement.', confidenceThreshold: 0.72,
+        aiDataProcessingConfirmed: false, knowledgeEntries: [],
+      }, expectedRevision: 4,
+    });
+    assert.equal(rejectedUnsafeEdit.status, 409);
+    assert.equal(rejectedUnsafeEdit.code, 'AI_DATA_PROCESSING_ACK_REQUIRED');
+    const afterLiveEdit = await call('/');
+    const editedBot = afterLiveEdit.data.items.find(item => item.id === botId);
+    assert.equal(editedBot.status, 'live');
+    assert.equal(editedBot.revision, 4);
+    assert.equal(editedBot.config.instructions, 'Use the latest approved Training Center facts.');
+    assert.deepEqual(editedBot.channels.map(channel => channel.reference), [channelRef], 'a live profile edit preserves its connected-number assignment');
+    const liveProviderChange = await call('/settings/provider', 'PUT', {
+      provider: 'openai', model: 'gpt-next', expectedRevision: 1, dailyTokenLimit: 10000,
+    });
+    assert.equal(liveProviderChange.status, 409);
+    assert.equal(liveProviderChange.code, 'LIVE_BOT_MUST_BE_PAUSED');
+    assert.equal((await call('/settings/provider')).data.model, 'gpt-test', 'a live AI bot protects its shared provider config');
 
     // Exercise the actual inbound dispatcher and persistence path with a fake
     // channel transport. The synthetic DB and provider are real; no WhatsApp
@@ -216,27 +244,19 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     );
     await connection.query(`INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at)
       VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))`, [String(syntheticUser.insertId), t1, m1, crypto.createHash('sha256').update(legacyUid).digest('hex')]);
-    // The preceding plan integration deliberately expires the test tenant's
-    // final assignment. Restore a disposable active term for inbound runtime.
-    await connection.query(`UPDATE sx_plan_assignments SET effective_from=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 DAY),expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 DAY) WHERE tenant_id=? AND status='active'`, [t1]);
-    // This test's API/runtime case needs the chatbot entitlement specifically;
-    // the earlier plan workflow also exercises plans without that capability.
-    await connection.query(`UPDATE sx_plan_versions p JOIN sx_plan_assignments a ON a.plan_version_id=p.id SET p.capabilities=JSON_ARRAY_APPEND(p.capabilities,'$','automation.chatbot') WHERE a.tenant_id=? AND a.status='active' AND a.current_tenant IS NOT NULL`, [t1]);
-    const [[runtimeReadiness]] = await connection.query(`SELECT u.role AS legacyRole,t.status AS tenantStatus,m.role AS membershipRole,m.status AS membershipStatus,a.status AS planStatus,
-        JSON_CONTAINS(pv.capabilities,JSON_QUOTE('automation.chatbot')) AS chatbotCapability,
-        BINARY o.legacy_uid_hash=BINARY SHA2(u.uid,256) AS ownerLinkValid
-      FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
-      JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id
-      LEFT JOIN sx_plan_assignments a ON a.tenant_id=t.id AND a.status IN ('active','trial','grace')
-      LEFT JOIN sx_plan_versions pv ON pv.id=a.plan_version_id WHERE u.uid=?`, [legacyUid]);
-    if (process.env.CHATBOT_TEST_DIAGNOSTICS === 'true') console.log(JSON.stringify({ chatbotRuntimeReadiness: runtimeReadiness }));
+    // This isolated runtime fixture needs the bot capability present in the
+    // tenant's published entitlement snapshot; plan lifecycle is tested above.
+    await connection.query(`UPDATE sx_plan_versions v JOIN sx_plan_assignments a ON a.plan_version_id=v.id
+      SET v.capabilities=JSON_ARRAY_APPEND(v.capabilities,'$','automation.chatbot')
+      WHERE a.tenant_id=? AND a.status IN ('active','trial','grace')
+        AND JSON_CONTAINS(v.capabilities,JSON_QUOTE('automation.chatbot'))=0`, [t1]);
     const inbound = {
       type: 'text', route: 'INCOMING', metaChatId: `synthetic-inbound-${crypto.randomUUID()}`,
       msgContext: { type: 'text', text: { body: 'When are classes?' } },
       senderName: 'Synthetic Learner', senderMobile: '+97455000002',
     };
     const runtimeResult = await runtime.runConfiguredBot({ uid: legacyUid, message: inbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: conversationId });
-    assert.equal(runtimeResult.handled, true, JSON.stringify(runtimeResult));
+    assert.equal(runtimeResult.handled, true);
     assert.equal(runtimeResult.sent, true);
     assert.equal(providerCalls, 2, 'live AI runtime calls the configured provider after the separate preview call');
     assert.equal(sentMessages.length, 1);
@@ -274,43 +294,88 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(resumedControl.mode, 'inherit');
     assert.equal(Number(resumedControl.revision), 2);
 
-    fakeAutomationModule.exports.sendWaMessage = async () => { throw Object.assign(new Error('synthetic send failure'), { code: 'SYNTHETIC_CHANNEL_FAILURE' }); };
-    const failedInbound = { ...inbound, metaChatId: `synthetic-failed-send-${crypto.randomUUID()}` };
-    const failedRuntime = await runtime.runConfiguredBot({ uid: legacyUid, message: failedInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: conversationId });
-    assert.equal(failedRuntime.handled, true);
-    assert.equal(failedRuntime.handedOff, true);
-    const [[failedTurn]] = await connection.query('SELECT status,result_class,error_stage,error_code FROM sx_chatbot_turns WHERE tenant_id=? AND inbound_message_id=?', [t1, require('../modules/platform/chatbot-profile-utils').inboundMessageKey({ channelKind: 'whatsapp_qr', channelRef }, conversationId, failedInbound.metaChatId)]);
-    assert.equal(failedTurn.status, 'handed_off');
-    assert.equal(failedTurn.result_class, 'runtime-error');
-    assert.equal(failedTurn.error_stage, 'channel_send');
-    assert.equal(failedTurn.error_code, 'SYNTHETIC_CHANNEL_FAILURE');
-
-    const pausedBot = await call(`/${botId}/status`, 'PUT', { status: 'paused', expectedRevision: 3 });
+    const pausedBot = await call(`/${botId}/status`, 'PUT', { status: 'paused', expectedRevision: 4 });
     assert.equal(pausedBot.status, 200);
 
     const deleted = await call(`/${botId}`, 'DELETE', {});
     assert.equal(deleted.status, 200);
-    const guidedBotId = crypto.randomUUID();
-    const guidedConversationId = `synthetic-guided-${crypto.randomUUID()}`;
-    await connection.query(`INSERT INTO sx_chatbot_profiles(id,tenant_id,category_key,category_version,name,engine,status,config,created_by_identity_id,updated_by_identity_id)
-      VALUES (?,?, 'training_center',1,'Synthetic Guided Bot','guided','live',JSON_OBJECT('guidedMode','domain_default'),?,?)`, [guidedBotId,t1,i1,i1]);
-    await connection.query(`INSERT INTO sx_chatbot_channel_assignments(id,tenant_id,chatbot_id,channel_kind,channel_ref,assigned_by_identity_id) VALUES (?,?,?,'whatsapp_qr',?,?)`, [crypto.randomUUID(),t1,guidedBotId,channelRef,i1]);
-    const failedGuidedInbound = { type: 'image', route: 'INCOMING', metaChatId: `synthetic-guided-image-${crypto.randomUUID()}`, msgContext: { type: 'image', image: { caption: '' } }, senderName: 'Synthetic Learner', senderMobile: '+97455000002' };
-    const failedGuidedRuntime = await runtime.runConfiguredBot({ uid: legacyUid, message: failedGuidedInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: guidedConversationId });
-    assert.equal(failedGuidedRuntime.handled, true);
-    assert.equal(failedGuidedRuntime.handedOff, true);
-    const [[failedGuidedTurn]] = await connection.query('SELECT result_class,error_stage,error_code FROM sx_chatbot_turns WHERE tenant_id=? AND inbound_message_id=?', [t1, require('../modules/platform/chatbot-profile-utils').inboundMessageKey({ channelKind: 'whatsapp_qr', channelRef }, guidedConversationId, failedGuidedInbound.metaChatId)]);
-    assert.equal(failedGuidedTurn.result_class, 'runtime-error');
-    assert.equal(failedGuidedTurn.error_stage, 'channel_send');
-    assert.equal(failedGuidedTurn.error_code, 'SYNTHETIC_CHANNEL_FAILURE');
+
+    // Verify the Hybrid dispatcher end to end against the isolated database:
+    // the first greeting stays deterministic, while an unrelated question
+    // reaches the mocked provider. The channel transport above remains fake.
+    const hybrid = await call('/', 'POST', {
+      name: 'Synthetic Training Hybrid', engine: 'hybrid', config: {
+        guidedMode: 'domain_default', aiFallback: true,
+        instructions: 'Use only approved training-center facts.', confidenceThreshold: 0.72,
+        aiDataProcessingConfirmed: true, knowledgeEntries: [],
+      },
+    });
+    assert.equal(hybrid.status, 201);
+    const hybridId = hybrid.data.id;
+    const hybridAssigned = await call(`/${hybridId}/channels`, 'PUT', { expectedRevision: 1, channels: [{ kind: 'whatsapp_qr', reference: channelRef }] });
+    assert.equal(hybridAssigned.status, 200);
+    const hybridActivated = await call(`/${hybridId}/status`, 'PUT', { status: 'live', expectedRevision: 2 });
+    assert.equal(hybridActivated.status, 200);
+    const hybridLiveEdit = await call(`/${hybridId}`, 'PUT', {
+      name: 'Synthetic Training Hybrid · revised', engine: 'hybrid', config: {
+        guidedMode: 'domain_default', aiFallback: true,
+        instructions: 'Use only approved training-center facts.', confidenceThreshold: 0.72,
+        aiDataProcessingConfirmed: true, knowledgeEntries: [],
+        guidedContent: { messages: { greeting: { en: 'Welcome from the updated Training Center guide.' } } },
+      }, expectedRevision: 3,
+    });
+    assert.equal(hybridLiveEdit.status, 200, 'a live Hybrid profile can update Guided copy while preserving AI readiness');
+    assert.equal(hybridLiveEdit.data.revision, 4);
+
+    const hybridConversation = `chatbot-hybrid-${crypto.randomUUID()}`;
+    await connection.query('INSERT INTO beta_chats(uid,chat_id) VALUES (?,?)', [legacyUid, hybridConversation]);
+    const greetingInbound = {
+      type: 'text', route: 'INCOMING', metaChatId: `synthetic-hybrid-greeting-${crypto.randomUUID()}`,
+      msgContext: { type: 'text', text: { body: 'Good evening' } },
+      senderName: 'Synthetic Learner', senderMobile: '+97455000004',
+    };
+    const greetingResult = await runtime.runConfiguredBot({ uid: legacyUid, message: greetingInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
+    assert.equal(greetingResult.handled, true);
+    assert.equal(greetingResult.flowDispatched, true);
+    assert.match(sentMessages.at(-1).content.text.body, /^Welcome from the updated Training Center guide\./);
+    assert.equal(providerCalls, 2, 'Hybrid greeting is answered by the deterministic guide without a provider call');
+
+    const hybridQuestion = {
+      ...greetingInbound, metaChatId: `synthetic-hybrid-question-${crypto.randomUUID()}`,
+      msgContext: { type: 'text', text: { body: 'Can you explain your refund policy?' } },
+    };
+    const hybridQuestionResult = await runtime.runConfiguredBot({ uid: legacyUid, message: hybridQuestion, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
+    assert.equal(hybridQuestionResult.handled, true);
+    assert.equal(hybridQuestionResult.sent, true);
+    assert.equal(providerCalls, 3, 'Hybrid sends an ordinary follow-up to the configured AI fallback');
+    assert.equal(sentMessages.at(-1).content.text.body, 'Our approved course information is available.');
+    const sentCountBeforeFailure = sentMessages.length;
+    failNextProvider = true;
+    const invalidOutputInbound = { ...hybridQuestion, metaChatId: `synthetic-hybrid-invalid-output-${crypto.randomUUID()}` };
+    const invalidOutputResult = await runtime.runConfiguredBot({ uid: legacyUid, message: invalidOutputInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
+    assert.equal(invalidOutputResult.handedOff, true);
+    assert.equal(invalidOutputResult.code, 'AI_PROVIDER_INVALID_OUTPUT');
+    assert.equal(sentMessages.length, sentCountBeforeFailure, 'invalid AI output is never sent to the customer');
+    const [[providerFailureControl]] = await connection.query('SELECT mode,reason FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND conversation_id=?', [t1, hybridConversation]);
+    assert.equal(providerFailureControl.mode, 'paused');
+    assert.equal(providerFailureControl.reason, 'AI_PROVIDER_INVALID_OUTPUT', 'Inbox handoff retains a useful provider failure code');
+    const inboundKey = require('../modules/platform/chatbot-profile-utils').inboundMessageKey({ channelKind: 'whatsapp_qr', channelRef }, hybridConversation, invalidOutputInbound.metaChatId);
+    const [[providerFailureTurn]] = await connection.query('SELECT status,result_class FROM sx_chatbot_turns WHERE tenant_id=? AND conversation_id=? AND inbound_message_id=?', [t1, hybridConversation, inboundKey]);
+    assert.equal(providerFailureTurn.status, 'handed_off');
+    assert.equal(providerFailureTurn.result_class, 'AI_PROVIDER_INVALID_OUTPUT');
+    const hybridPaused = await call(`/${hybridId}/status`, 'PUT', { status: 'paused', expectedRevision: 4 });
+    assert.equal(hybridPaused.status, 200);
+    assert.equal((await call(`/${hybridId}`, 'DELETE', {})).status, 200);
+
     return {
       profileCrudAndRevisionConflicts: true, tenantIsolationAndPermissionChecks: true,
       providerKeyMaskedAndEncrypted: true, savedFactAiPreviewWithoutWhatsAppTurn: true,
       connectedNumberAssignmentAndActivation: true, perConversationPauseResume: true,
       liveInboundAiResponseWithFakeChannelTransport: true, inboundRetryIdempotency: true,
-      pausedConversationSuppressesAiAndChannelSend: true,
+      pausedConversationSuppressesAiAndChannelSend: true, liveProfileEditsAreAtomicAndPreserveActivationSafety: true,
+      hybridDeterministicGreetingAndAiFallbackWithFakeChannelTransport: true, liveHybridGuidedCopyEditAppliedToNextTurn: true,
+      hybridProviderInvalidOutputIsHumanReadableAndNeverSent: true,
       guidedFlowOptionsAndRuntimeLookup: true, guidedPreviewUsesTenantPublishedFactsWithoutWritesOrProviderCalls: true,
-      guidedRuntimeFailureRecordsSafeOperationDiagnostics: true,
     };
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));

@@ -16,7 +16,7 @@ The chatbot management experience is mounted in the existing Automation Flows sc
 
 ## Adding a category
 
-Register an immutable `{category key, version}` pack with a display title, allowed system guidance, `loadFacts`, and optional `guidedReply`/`isGuidedIntent` handlers. Guided content is declared as typed schema fields with defaults and length/range limits; the common editor renders bilingual text, toggles, and bounded integers from that schema. Its read-only preview uses unsaved normalized content and tenant-scoped live facts; bounded conversation state remains in the browser. Category-specific facts must be tenant-scoped and published/active before reaching a model or customer. Add tests for pack validation, facts isolation, bilingual guide behavior, and Hybrid routing. A category without a reviewed guide can use the FAQ/AI path but cannot claim a built-in Guided workflow.
+Register an immutable `{category key, version}` pack with a display title, allowed system guidance, `loadFacts`, and optional `guidedReply`/`isGuidedIntent` handlers. Guided content is declared as typed schema fields with defaults and length/range limits; the common editor renders bilingual text, toggles, and bounded integers from that schema. Its read-only preview uses unsaved normalized content and tenant-scoped live facts; conversation state remains in the browser. Category-specific facts must be tenant-scoped and published/active before reaching a model or customer. Add tests for pack validation, facts isolation, bilingual guide behavior, and Hybrid routing. A category without a reviewed guide can use the FAQ/AI path but cannot claim a built-in Guided workflow.
 
 ## Current acceptance boundary
 

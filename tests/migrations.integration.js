@@ -20,10 +20,7 @@ async function main() {
     // Ensure modules that use the legacy mysql pool bind to this disposable DB,
     // never the application name retained in the local .env file.
     process.env.DBNAME=db;
-    if (process.env.DBPASS === '__EMPTY__') process.env.DBPASS = '';
-    // The bootstrap helpers above may load the legacy pool before the test
-    // schema is selected. Rebind runtime modules explicitly so chatbot preview
-    // and inbound runtime queries use the same disposable database as the API.
+    // Chatbot runtime modules may be loaded before the synthetic schema is selected.
     const configPath = require.resolve('../database/config');
     const runtimePool = require.cache[configPath]?.exports;
     if (runtimePool) await runtimePool.promise().end();
@@ -91,8 +88,13 @@ async function main() {
     const businessProvisioningEvidence=await require('./business-provisioning-integration.cjs')(connection,other,{i1},pool);
     const teamInvitationEvidence=await require('./team-invitation-integration.cjs')(connection,other,pool,{i1});
     const outboxEvidence=await require('./outbox-integration.cjs')(connection,other,{t1,m1});
-    const chatbotEvidence=await require('./chatbot-migration-integration.cjs')(connection,{t1,t2,i1,i2});
+    const chatbotMigrationEvidence=await require('./chatbot-migration-integration.cjs')(connection,{t1,t2,i1,i2});
     const chatbotApiEvidence=await require('./chatbot-api-integration.cjs')(connection,pool,{t1,t2,i1,i2,m1,m2});
+    const assignedNavigation=['dashboard','courses'];
+    await connection.query('UPDATE sx_memberships SET role=?,assigned_navigation=? WHERE id=?',['manager',JSON.stringify(assignedNavigation),m2]);
+    const [[memberNavigationRow]]=await connection.query('SELECT assigned_navigation AS assignedNavigation FROM sx_memberships WHERE id=?',[m2]);
+    const memberNavigation=typeof memberNavigationRow.assignedNavigation==='string'?JSON.parse(memberNavigationRow.assignedNavigation):memberNavigationRow.assignedNavigation;
+    assert.deepEqual(memberNavigation,assignedNavigation);
     const optionalFeatureEvidence=await require('./optional-features-integration.cjs')(connection,{audience:'platform',identity:{id:i1},membership:{role:'super_admin',status:'active'},mfaVerified:true});
     console.log(JSON.stringify(optionalFeatureEvidence));
     const lockName = 'salemax:migrate:' + crypto.createHash('sha256').update(db).digest('hex').slice(0,40);
@@ -104,7 +106,7 @@ async function main() {
     const [[failed]] = await connection.query('SELECT status, statements_completed FROM salemax_schema_migrations WHERE migration_name=?', [broken.file]);
     assert.equal(failed.status, 'failed'); assert.equal(failed.statements_completed, 1);
     await assert.rejects(applyMigrations(other, [...migrations, broken]), { code: 'MIGRATION_RECOVERY_REQUIRED' });
-    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: migrations.length, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...teamInvitationEvidence,...outboxEvidence,...chatbotEvidence,...chatbotApiEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
+    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: migrations.length, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, memberNavigationAssignmentRoundTrip: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...teamInvitationEvidence,...outboxEvidence,...chatbotMigrationEvidence,...chatbotApiEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
   } catch(error) {
     if(connection) {
       try {

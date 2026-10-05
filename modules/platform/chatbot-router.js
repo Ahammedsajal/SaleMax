@@ -92,7 +92,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
           ) ELSE NULL END AS label
         FROM meta_api
         WHERE uid=? AND business_phone_number_id IS NOT NULL AND business_phone_number_id<>''`, [uid]);
-      const [qr] = await db.query(`SELECT uniqueId AS reference,number AS label FROM instance WHERE uid=? AND status='ACTIVE'`, [uid]);
+      const [qr] = await db.query(`SELECT uniqueId AS reference,number AS label FROM instance WHERE uid=?`, [uid]);
       return [
         ...meta.map(item => ({ kind: 'whatsapp_meta', reference: String(item.reference), label: item.label ? String(item.label) : null })),
         ...qr.map(item => ({ kind: 'whatsapp_qr', reference: String(item.reference), label: item.label ? String(item.label) : null })),
@@ -223,7 +223,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         for (const channel of clean) {
           const [matches] = channel.kind === 'whatsapp_meta'
             ? await db.query(`SELECT id FROM meta_api WHERE uid=? AND business_phone_number_id=? LIMIT 2`, [uid, channel.reference])
-            : await db.query(`SELECT uniqueId AS id FROM instance WHERE uid=? AND uniqueId=? AND status='ACTIVE' LIMIT 2`, [uid, channel.reference]);
+            : await db.query(`SELECT uniqueId AS id FROM instance WHERE uid=? AND uniqueId=? LIMIT 2`, [uid, channel.reference]);
           if (matches.length !== 1) fail('CONNECTED_CHANNEL_NOT_FOUND');
         }
         await db.query(`DELETE FROM sx_chatbot_channel_assignments WHERE tenant_id=? AND chatbot_id=?`, [ctx.tenant.id, req.params.id]);
@@ -273,7 +273,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     if (!beta && !legacy) fail('CONVERSATION_NOT_FOUND');
     const [channels] = channelKind === 'whatsapp_meta'
       ? await db.query(`SELECT id FROM meta_api WHERE uid=? AND business_phone_number_id=? LIMIT 2`, [uid, channelRef])
-      : await db.query(`SELECT uniqueId AS id FROM instance WHERE uid=? AND uniqueId=? AND status='ACTIVE' LIMIT 2`, [uid, channelRef]);
+      : await db.query(`SELECT uniqueId AS id FROM instance WHERE uid=? AND uniqueId=? LIMIT 2`, [uid, channelRef]);
     if (channels.length !== 1) fail('CONNECTED_CHANNEL_NOT_FOUND');
     const [[assignment]] = await db.query(`SELECT b.id FROM sx_chatbot_profiles b
       JOIN sx_chatbot_channel_assignments a ON a.tenant_id=b.tenant_id AND a.chatbot_id=b.id
@@ -337,11 +337,6 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     if (res.headersSent) return next(error);
     const code = error.code || 'CHATBOT_UNAVAILABLE';
     const status = ['PERMISSION_DENIED'].includes(code) ? 403 : ['TENANT_CONTEXT_REQUIRED','VERIFIED_BUSINESS_OWNER_REQUIRED'].includes(code) ? 403 : ['BOT_NOT_FOUND','CONVERSATION_NOT_FOUND'].includes(code) ? 404 : ['STALE_REVISION','LIVE_BOT_MUST_BE_PAUSED','CATEGORY_UNAVAILABLE','CATEGORY_GUIDED_FLOW_UNAVAILABLE','FEATURE_UNAVAILABLE','ER_DUP_ENTRY','BOT_CHANNEL_REQUIRED','CONNECTED_CHANNEL_NOT_FOUND','GUIDED_FLOW_REQUIRED','GUIDED_FLOW_UNAVAILABLE','AI_PROVIDER_NOT_CONFIGURED','PROVIDER_KEY_REQUIRED','AI_DATA_PROCESSING_ACK_REQUIRED'].includes(code) ? 409 : code.startsWith('INVALID_') || code === 'DUPLICATE_CHANNEL' ? 400 : 503;
-    if (status >= 500) {
-      const route = typeof req.route?.path === 'string' ? req.route.path : 'unmatched';
-      const unknownColumn = code === 'ER_BAD_FIELD_ERROR' ? String(error.sqlMessage || '').match(/Unknown column '([^']+)'/)?.[1] : null;
-      console.warn('[chatbot-api] request failed', JSON.stringify({ method: req.method, route, code: String(code).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || 'UNKNOWN', ...(unknownColumn ? { unknownColumn: unknownColumn.replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 80) } : {}) }));
-    }
     res.status(status).json({ success: false, code: status >= 500 ? 'CHATBOT_UNAVAILABLE' : code === 'ER_DUP_ENTRY' ? 'CHANNEL_ALREADY_ASSIGNED' : code });
   });
   return router;

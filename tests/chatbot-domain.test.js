@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getDomainPack } = require('../modules/platform/chatbot-domain-packs');
+const { getDomainPack, registerDomainPack } = require('../modules/platform/chatbot-domain-packs');
 const { botInput, hybridTurnPlan } = require('../modules/platform/chatbot-config');
 const { trainingCenterGuidedReply, shouldStartGuided } = require('../modules/platform/chatbot-training-guide');
 
@@ -11,14 +11,14 @@ const courseFacts = [
   {
     code: 'EXCEL-101', nameEn: 'Excel Essentials', nameAr: 'أساسيات إكسل',
     descriptionEn: 'Build practical spreadsheet skills.', descriptionAr: 'اكتسب مهارات الجداول العملية.',
-    durationValue: 8, durationUnit: 'weeks', deliveryMode: 'classroom',
+    durationValue: 8, durationUnit: 'weeks', deliveryMode: 'in_person',
     offer: { priceAmount: '350.00', registrationFeeAmount: '25.00', currency: 'QAR' },
     batches: [{ startsOn: '2026-11-15', language: 'en', seatsAvailable: 7 }],
   },
   { code: 'IT-102', nameEn: 'IT Support', nameAr: 'دعم تقنية المعلومات', offer: null, batches: [] },
 ];
 
- test('training-center pack exposes versioned, editable bilingual guided content', () => {
+test('training-center pack exposes versioned, editable bilingual guided content', () => {
   assert.equal(pack.key, 'training_center');
   assert.equal(pack.version, 1);
   assert.equal(pack.guidedContentDefaults.messages.greeting.en, 'Welcome! I can help you explore our training courses.');
@@ -26,12 +26,31 @@ const courseFacts = [
   assert.ok(pack.guidedContentSchema.groups.some(group => group.id === 'course-list'));
 });
 
+test('category guided packs reject defaults without editor fields and freeze the registered contract', () => {
+  const defaults = { version: 1, messages: { greeting: { en: 'Hello', ar: 'مرحباً' }, hidden: 'not editable' } };
+  const schema = { groups: [{ id: 'welcome-menu', title: { en: 'Welcome', ar: 'الترحيب' }, fields: [
+    { path: 'messages.greeting', type: 'localized-text', label: { en: 'Greeting', ar: 'الترحيب' }, maxLength: 100 },
+  ] }] };
+  const packDefinition = { key: 'fixture_category', version: 1, title: 'Fixture', systemGuidance: 'Answer using approved facts.', loadFacts: async () => [], guidedReply: () => ({ reply: 'ok' }), guidedContentDefaults: defaults, guidedContentSchema: schema };
+  assert.throws(() => registerDomainPack(packDefinition), error => error.code === 'INVALID_CHATBOT_GUIDED_CONTENT_CONTRACT');
+
+  delete defaults.messages.hidden;
+  const registered = registerDomainPack(packDefinition);
+  defaults.messages.greeting.en = 'Changed after registration';
+  assert.equal(registered.guidedContentDefaults.messages.greeting.en, 'Hello');
+  assert.throws(() => { registered.guidedContentDefaults.messages.greeting.en = 'Mutated'; }, TypeError);
+  assert.equal(registered.guidedContentDefaults.messages.greeting.en, 'Hello');
+});
+
 test('guided profile accepts edited messages and bounded display settings', () => {
   const saved = botInput({
     name: 'Admissions guide', engine: 'guided', config: {
       guidedContent: {
-        messages: { greeting: { en: 'Hello from the center', ar: 'مرحباً من المركز' } },
-        display: { maxCourses: 4, showFees: false },
+        display: { maxCourses: 4, showFees: false, showDescription: false, showDuration: false },
+        messages: {
+          greeting: { en: 'Hello from the center', ar: 'مرحباً من المركز' },
+          currentFeeLabel: { en: 'Tuition', ar: 'الرسوم الدراسية' },
+        },
       },
     },
   }, 'training_center', 1);
@@ -40,6 +59,10 @@ test('guided profile accepts edited messages and bounded display settings', () =
   assert.equal(saved.config.guidedContent.messages.greeting.ar, 'مرحباً من المركز');
   assert.equal(saved.config.guidedContent.display.maxCourses, 4);
   assert.equal(saved.config.guidedContent.display.showFees, false);
+  assert.equal(saved.config.guidedContent.display.showDescription, false);
+  assert.equal(saved.config.guidedContent.display.showDuration, false);
+  assert.equal(saved.config.guidedContent.messages.currentFeeLabel.en, 'Tuition');
+  assert.equal(saved.config.guidedContent.messages.currentFeeLabel.ar, 'الرسوم الدراسية');
   assert.equal(saved.config.guidedContent.messages.courseListHeading.en, 'Available courses');
 });
 
@@ -113,6 +136,43 @@ test('fee and batch visibility settings affect replies without changing catalogu
   assert.doesNotMatch(result.reply, /350\.00|Registration fee|Upcoming batches|seats available/i);
 });
 
+test('guided course-detail fields localize labels and independently hide optional facts', () => {
+  const settings = {
+    messages: {
+      durationLabel: { en: 'Study time' },
+      deliveryLabel: { en: 'Learning format' },
+      currentFeeLabel: { en: 'Tuition' },
+      batchSeatsLabel: { en: 'places left' },
+    },
+  };
+  const english = trainingCenterGuidedReply({ message: 'Excel Essentials', state: null, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
+  assert.match(english.reply, /Study time: 8 weeks/);
+  assert.match(english.reply, /Learning format: In person/);
+  assert.match(english.reply, /Tuition: 350\.00 QAR/);
+  assert.match(english.reply, /7 places left/);
+
+  const arabic = trainingCenterGuidedReply({
+    message: 'أساسيات إكسل', state: null, facts: courseFacts,
+    config: { messages: { durationLabel: { ar: 'الفترة' }, currentFeeLabel: { ar: 'الرسوم' }, batchSeatsLabel: { ar: 'أماكن شاغرة' } } },
+    defaults: pack.guidedContentDefaults,
+  });
+  assert.match(arabic.reply, /الفترة: 8 أسابيع/);
+  assert.match(arabic.reply, /الرسوم: 350\.00 QAR/);
+  assert.match(arabic.reply, /أماكن شاغرة: 7/);
+  assert.match(arabic.reply, /طريقة الدراسة: حضوري/);
+  assert.match(arabic.reply, /١٥ نوفمبر ٢٠٢٦/);
+  assert.match(arabic.reply, /الإنجليزية/);
+  assert.doesNotMatch(arabic.reply, /\bin_person\b|\bweeks\b| · en\b/);
+
+  const concise = trainingCenterGuidedReply({
+    message: 'Excel Essentials', state: null, facts: courseFacts,
+    config: { display: { showDescription: false, showDuration: false, showDelivery: false } },
+    defaults: pack.guidedContentDefaults,
+  });
+  assert.doesNotMatch(concise.reply, /Build practical spreadsheet skills|Duration:|Delivery:/);
+  assert.match(concise.reply, /Current fee: 350\.00 QAR/);
+});
+
 test('course list navigation, handoff and Arabic digit normalization work', () => {
   assert.equal(shouldStartGuided('أرسل ١'), true);
   const list = trainingCenterGuidedReply({ message: 'courses', state: null, facts: courseFacts, defaults: pack.guidedContentDefaults });
@@ -128,4 +188,14 @@ test('hybrid routes menu and course choices deterministically and leaves ordinar
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: true, aiFallback: true, domainDefault: true }), { runGuided: true, allowAiFallback: true });
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: false, aiFallback: true, domainDefault: true }), { runGuided: false, allowAiFallback: true });
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: false, aiFallback: false, domainDefault: true }), { runGuided: true, allowAiFallback: false });
+});
+
+test('Hybrid starts the deterministic welcome menu for evening greetings in both languages', () => {
+  for (const [message, expected] of [['Good evening', 'Welcome!'], ['مساء الخير', 'أهلاً بك!']]) {
+    assert.equal(shouldStartGuided(message), true);
+    const plan = hybridTurnPlan({ hasSession: false, isChoice: false, aiFallback: true, domainDefault: true, shouldStartGuided: shouldStartGuided(message) });
+    assert.equal(plan.runGuided, true);
+    const result = trainingCenterGuidedReply({ message, state: null, facts: courseFacts, defaults: pack.guidedContentDefaults });
+    assert.ok(result.reply.startsWith(expected));
+  }
 });

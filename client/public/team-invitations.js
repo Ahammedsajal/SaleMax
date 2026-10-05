@@ -221,7 +221,10 @@
     if (route()) { if (inviteToken) accept(); else if (!document.getElementById('sx-team-screen')) load(); }
     else if (!inviteToken) document.getElementById('sx-team-screen')?.remove();
   }
-  const observer = new MutationObserver(() => { if (route()) addNav(); });
+  // The legacy sidebar is inserted after this deferred script starts. Keep
+  // looking for its Agent Login row on every route so owners see Team access
+  // from the regular dashboard without first visiting that page.
+  const observer = new MutationObserver(addNav);
   observer.observe(document.documentElement,{childList:true,subtree:true});
   window.addEventListener('popstate',update);
   if (inviteToken) accept(); else update();
