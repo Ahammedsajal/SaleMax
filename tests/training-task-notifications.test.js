@@ -6,10 +6,19 @@ const runtime=require('../modules/platform/task-notification-worker-runtime');
 
 test('task email worker requires explicit opt-in and complete SMTP configuration',()=>{
   assert.throws(()=>runner.config({}),{code:'TASK_EMAIL_DISABLED'});
-  assert.equal(runtime.start({env:{}}),null);
   const env={SALEMAX_TASK_EMAIL_ENABLED:'true',SALEMAX_SMTP_HOST:'smtp.example.test',SALEMAX_SMTP_PORT:'587',SALEMAX_SMTP_USER:'worker',SALEMAX_SMTP_PASS:'secret',SALEMAX_TASK_EMAIL_FROM:'tasks@example.test'};
   assert.equal(runner.config(env).port,587);
   assert.throws(()=>runner.config({...env,SALEMAX_SMTP_PASS:''}),{code:'TASK_SMTP_NOT_CONFIGURED'});
+});
+
+
+test('production task worker starts without providers so unavailable notices are recorded instead of left queued',()=>{
+  let received;
+  const marker={pid:456};
+  const child=runtime.start({env:{LOCAL_ONLY_MODE:'false'},root:'/app',executable:'/usr/bin/node',spawnProcess:(...args)=>{received=args;return marker;}});
+  assert.equal(child,marker);
+  assert.equal(received[0],'/usr/bin/node');
+  assert.equal(received[1][0],'/app/scripts/task-notification-worker.cjs');
 });
 
 test('local-only mode never starts task email or WhatsApp delivery even when configured',()=>{
@@ -36,6 +45,16 @@ test('task notification claim uses tenant-active training tasks and fenced lease
   assert.ok(calls.some(entry=>Array.isArray(entry)&&entry[0].includes('FOR UPDATE SKIP LOCKED')));
   assert.ok(calls.some(entry=>Array.isArray(entry)&&entry[0].includes('INSERT INTO sx_task_notification_attempts')));
   assert.equal(calls.at(-1),'commit');
+});
+
+test('unconfigured task notification channels are marked suppressed instead of left queued',async()=>{
+  const calls=[],item={id:9,tenant_id:'tenant',task_id:'task',channel:'email',workerId:'tasks-worker-1',attempt:1};
+  const db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},query:async(sql,args=[])=>{calls.push([sql,args]);if(sql.includes('SELECT status,lease_owner,attempt_count'))return [[{status:'processing',lease_owner:item.workerId,attempt_count:1}],[]];return [{affectedRows:1},[]];}};
+  const result=await runner.dispatch(db,item,{});
+  assert.equal(result.status,'suppressed');
+  const update=calls.find(([sql])=>sql.startsWith('UPDATE sx_task_notifications SET status='));
+  assert.equal(update[1][0],'suppressed');
+  assert.equal(update[1][3],'TASK_EMAIL_NOT_CONFIGURED');
 });
 
 test('WhatsApp dispatch requires an approved template and posts only a template message',async()=>{

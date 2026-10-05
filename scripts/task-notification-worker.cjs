@@ -5,7 +5,6 @@ const nodemailer=require('nodemailer');
 const runner=require('../modules/platform/task-notification-runner');
 let settings=null;try{settings=runner.config(process.env);}catch{}
 const whatsapp=runner.whatsappConfig(process.env);
-if(!settings&&!whatsapp)throw new Error('TASK_NOTIFICATION_WORKER_DISABLED');
 const pool=require('../database/config').promise();
 const workerId=process.env.SALEMAX_TASK_WORKER_ID||`tasks-${os.hostname().replace(/[^A-Za-z0-9._:-]/g,'-').slice(0,55)}-${process.pid}`;
 const once=process.argv.includes('--once'),interval=Number(process.env.SALEMAX_TASK_WORKER_INTERVAL_MS||10000);
