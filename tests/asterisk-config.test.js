@@ -40,6 +40,9 @@ test('production deployment routes ARI only from the SaleMaX app container to lo
   assert.match(nginx,/location \^~ \/ari\/ \{[\s\S]*?allow 172\.30\.240\.2;[\s\S]*?deny all;[\s\S]*?proxy_pass http:\/\/127\.0\.0\.1:8088\/ari\//);
   assert.match(nginx,/proxy_set_header Upgrade \$http_upgrade;/);
   assert.match(nginx,/proxy_set_header Connection "upgrade";/);
+  assert.match(nginx,/location = \/ws \{[\s\S]*?proxy_pass http:\/\/127\.0\.0\.1:8088\/ws;[\s\S]*?proxy_set_header Upgrade \$http_upgrade;[\s\S]*?proxy_read_timeout 1h;/);
+  assert.doesNotMatch(nginx,/location = \/ws \{[^}]*allow 172\.30\.240\.2/s,
+    'browser SIP WSS must be reachable for agents while ARI stays app-container-only');
 });
 
 test('Call Center requests provisioning with authenticated POSTs before showing SIP credentials', () => {
@@ -65,7 +68,8 @@ test('Dinstar public peer preview requires TLS, SRTP and the configured source a
   assert.match(result.config, /transport=transport-salemax-tls/);
   assert.match(result.config, /media_encryption=sdes/);
   assert.match(result.config, /match=198\.51\.100\.42/);
-  assert.match(result.warnings.join('\n'), /direct-internet topology, allow TLS SIP and the required bounded RTP range only from this configured gateway source IP/);
+  assert.match(result.warnings.join('\n'), /shared TLS listener serves the gateway and mobile SIP apps/);
+  assert.match(result.warnings.join('\n'), /gateway-only host firewall allowlist would block remote agents/);
   assert.doesNotMatch(result.warnings.join('\n'), /private PBX-gateway path/);
 });
 
@@ -122,7 +126,9 @@ test('agent endpoint preview builds distinct tenant-bound mobile and browser cre
   assert.match(queries[0], /i\.status='active'/);
   assert.match(queries[0], /t\.status='active'/);
   assert.match(result.config, /\[salemax-1201-mobile\]/);
-  assert.match(result.config, /transport=transport-salemax-mobile-tls/);
+  assert.match(result.config, /transport=transport-salemax-tls/);
+  assert.equal((result.config.match(/\[transport-salemax-tls\]/g) || []).length, 1,
+    'the gateway and mobile endpoints must share one TLS transport and socket');
   assert.match(result.config, /media_encryption=sdes/);
   assert.match(result.config, /media_encryption_optimistic=no/);
   assert.match(result.config, /\[salemax-1201-browser\]/);
@@ -160,6 +166,6 @@ test('mobile endpoint credentials are own-member scoped and require an allowlist
   const tenantId='11111111-1111-4111-8111-111111111111',membershipId='22222222-2222-4222-8222-222222222222';
   const context={audience:'tenant',identity:{id:'identity'},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:membershipId,tenantId,role:'agent',status:'active'},category:{key:'training_center',version:1,capabilities:['telephony.call-center']},subscription:{status:'active',capabilities:['telephony.call-center']}};
   const db={async query(sql){if(sql.includes('sx_platform_asterisk_config'))return [[{enabled:1,revision:2}]];if(sql.includes('sx_telephony_extensions'))return [[{extension:'1201',extension_revision:1,mobile_credential_revision:1,membership_status:'active',identity_status:'active',tenant_status:'active'}]];if(sql.includes('sx_telephony_endpoint_provisioning'))return [[]];return [{affectedRows:1}];}};const writes=[];const clientFactory=async()=>({async upsertPjsipObject(type,id,fields){writes.push({type,id,fields});return{attributes:fields.length};},async deletePjsipObject(type,id){writes.push({type,id,deleted:true});return{deleted:true};}});
-  try{const config=await asterisk.ownMobileEndpoint(db,context,clientFactory);assert.equal(config.host,'sip.example.test');assert.equal(config.port,5061);assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP');assert.equal(config.username,'1201-mobile');assert.equal(config.password.length,43);assert.match(config.uri,/^sip:1201-mobile@sip\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-mobile-auth'],['aor','salemax-1201-mobile-aor'],['endpoint','salemax-1201-mobile']]);assert.ok(writes[2].fields.some(field=>field.attribute==='media_encryption'&&field.value==='sdes'));}
+  try{const config=await asterisk.ownMobileEndpoint(db,context,clientFactory);assert.equal(config.host,'sip.example.test');assert.equal(config.port,5061);assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP');assert.equal(config.username,'1201-mobile');assert.equal(config.password.length,43);assert.match(config.uri,/^sip:1201-mobile@sip\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-mobile-auth'],['aor','salemax-1201-mobile-aor'],['endpoint','salemax-1201-mobile']]);assert.ok(writes[2].fields.some(field=>field.attribute==='transport'&&field.value==='transport-salemax-tls'));assert.ok(writes[2].fields.some(field=>field.attribute==='media_encryption'&&field.value==='sdes'));}
   finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;if(oldHost===undefined)delete process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST;else process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST=oldHost;}
 });

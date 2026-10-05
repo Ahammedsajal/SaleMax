@@ -110,7 +110,7 @@ async function applyMemberEndpoint(db, context, extension, clientType, extension
       { attribute: 'rewrite_contact', value: 'yes' },
     ];
     if (clientType === 'mobile') fields.push(
-      { attribute: 'transport', value: 'transport-salemax-mobile-tls' },
+      { attribute: 'transport', value: 'transport-salemax-tls' },
       { attribute: 'media_encryption', value: 'sdes' },
       { attribute: 'media_encryption_optimistic', value: 'no' },
     );
@@ -249,14 +249,14 @@ function gatewayPjsipPreview(row) {
       '',
       '; The endpoint requires a configured PJSIP TLS transport named transport-salemax-tls.',
       '; Configure transport-salemax-tls with protocol=tls, bind=<public-ip>:<tls-port>, and protected cert_file/priv_key_file paths.',
-      '; Keep SIP TLS limited to the gateway and authenticated phone clients using host firewall and rate limits.',
+      '; This shared TLS listener serves both the gateway and mobile SIP apps; harden SIP authentication before public exposure.',
       '',
     ].join('\n'),
     warnings: [
       'This config requires TLS signaling and SDES-SRTP on the Dinstar peer. The datasheet lists both, but confirm the exact firmware and configure matching TLS/SRTP settings there.',
-      'This config defines only the gateway PJSIP peer. It does not configure a dialplan, SIM ports, carrier routes, tenant extensions, queues, or call-control events.',
+      'This config defines only the gateway PJSIP peer. Mobile softphones share the same TLS transport; do not create a second TLS listener on the same Asterisk IP family. It does not configure a dialplan, SIM ports, carrier routes, tenant extensions, queues, or call-control events.',
       'Create an explicit inbound route in context from-dinstar-unrouted before routing calls to any tenant.',
-      `Ensure an Asterisk PJSIP ${transport.toUpperCase()} transport already exists. For the selected direct-internet topology, allow TLS SIP and the required bounded RTP range only from this configured gateway source IP; keep ARI/AMI management access restricted to SaleMaX server addresses.`,
+      `Ensure an Asterisk PJSIP ${transport.toUpperCase()} transport already exists. The shared TLS listener serves the gateway and mobile SIP apps, so a gateway-only host firewall allowlist would block remote agents; use a VPN/SBC for mobile SIP or apply strong authenticated SIP rate limits and intrusion blocking. Restrict the Dinstar source at the network/SBC layer where possible, scope RTP media exposure, and keep ARI/AMI private to SaleMaX server addresses.`,
       'Apply through your normal Asterisk configuration-management process, then verify the endpoint and a synthetic call before enabling users.',
     ],
   };
@@ -380,11 +380,12 @@ async function previewAgentEndpoints(db, context) {
     WHERE m.role IN ('owner','manager','agent') AND x.extension REGEXP '^[0-9]{3,8}$' ORDER BY x.extension`);
   const lines = [
     '; SaleMaX agent endpoint templates for Asterisk 20 PJSIP. See https://docs.asterisk.org/Configuration/WebRTC/Configuring-Asterisk-for-WebRTC-Clients/.',
-    '; Apply only after setting up TLS/WSS listeners, certificates, RTP firewall limits, and an unrouted context.',
+    '; Mobile softphones and the Dinstar peer share one TLS listener (transport-salemax-tls); do not define duplicate TLS transports.',
+    '; Apply only after setting up the TLS/WSS listeners, certificates, RTP firewall limits, and unrouted contexts.',
     '; Passwords below are unique derived SIP endpoint secrets; they are separate from the ARI credential.',
     '; This preview derives credentials for authenticated member access but does not install/reload Asterisk configuration.',
     '',
-    '[transport-salemax-mobile-tls]', 'type=transport', 'protocol=tls', 'bind=0.0.0.0:5061', 'method=tlsv1_2',
+    '[transport-salemax-tls]', 'type=transport', 'protocol=tls', 'bind=0.0.0.0:5061', 'method=tlsv1_2',
     'cert_file=/etc/asterisk/keys/pbx.crt', 'priv_key_file=/etc/asterisk/keys/pbx.key', 'verify_client=no', 'allow_reload=yes', '',
     '; Configure res_http_websocket and TLS certificate/key in http.conf before enabling browser clients.',
     '[transport-salemax-browser-wss]', 'type=transport', 'protocol=wss', 'bind=0.0.0.0', 'allow_reload=yes', '',
@@ -404,7 +405,7 @@ async function previewAgentEndpoints(db, context) {
         `[salemax-${suffix}]`, 'type=endpoint', 'context=from-salemax-agents-unrouted', 'disallow=all', 'allow=alaw,ulaw',
         `auth=salemax-${suffix}-auth`, `aors=salemax-${suffix}-aor`, 'direct_media=no', 'rtp_symmetric=yes', 'force_rport=yes',
         'rewrite_contact=yes');
-      if (client === 'mobile') lines.push('transport=transport-salemax-mobile-tls', 'media_encryption=sdes', 'media_encryption_optimistic=no');
+      if (client === 'mobile') lines.push('transport=transport-salemax-tls', 'media_encryption=sdes', 'media_encryption_optimistic=no');
       else lines.push('transport=transport-salemax-browser-wss', 'webrtc=yes', 'use_avpf=yes', 'media_encryption=dtls',
         'dtls_verify=fingerprint', 'dtls_setup=actpass', 'ice_support=yes', 'rtcp_mux=yes');
       lines.push('');
