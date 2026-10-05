@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261005-native-wa-assignment2';
+    chatbotScript.src = '/chatbot-admin.js?v=20261005-unified-bot-dropdown';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
