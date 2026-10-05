@@ -549,6 +549,7 @@ async function test(db, context, fetchImpl = globalThis.fetch) {
   const started = Date.now();
   let version;
   let gatewayEndpointStatus = 'unknown';
+  let moduleReadiness;
   try {
     const response = await fetchImpl(`${target.value}/asterisk/info?only=system`, {
       method: 'GET', redirect: 'error', signal: controller.signal,
@@ -568,10 +569,13 @@ async function test(db, context, fetchImpl = globalThis.fetch) {
   } finally {
     clearTimeout(timer);
   }
-  gatewayEndpointStatus = await probeGatewayEndpoint(fetchImpl, target.value, row.ari_username, password);
-  const moduleReadiness = await probeModuleReadiness(fetchImpl, target.value, row.ari_username, password);
+  const latencyMs = Date.now() - started;
+  [gatewayEndpointStatus, moduleReadiness] = await Promise.all([
+    probeGatewayEndpoint(fetchImpl, target.value, row.ari_username, password),
+    probeModuleReadiness(fetchImpl, target.value, row.ari_username, password),
+  ]);
   await recordTest(db, context, Number(row.revision), target.hostname, 'success', version, null, gatewayEndpointStatus);
-  return { connected: true, asteriskVersion: version, latencyMs: Date.now() - started, enabled: !!row.enabled,
+  return { connected: true, asteriskVersion: version, latencyMs, enabled: !!row.enabled,
     gatewayEndpoint: { name: 'salemax_dinstar_uc2000ve', status: gatewayEndpointStatus }, moduleReadiness,
     testedAt: new Date().toISOString() };
 }

@@ -55,7 +55,7 @@ test('Super Admin ARI connection test checks PBX version, gateway peer and featu
   const encrypted=secrets.encrypt('integration-test-ari-password');
   const row={ari_base_url:'https://pbx.example.com/ari',ari_username:'salemax-admin',credential_ciphertext:encrypted.ciphertext,
     credential_iv:encrypted.iv,credential_auth_tag:encrypted.authTag,enabled:1,revision:4};
-  const requests=[],queries=[];let committed=false;
+  const requests=[],queries=[];let committed=false,activeDiagnostics=0,maxConcurrentDiagnostics=0;
   const required=['chan_pjsip','res_pjsip','res_pjsip_endpoint_identifier_ip','res_pjsip_transport_tls','res_ari','res_ari_channels',
     'res_ari_bridges','app_stasis','res_stasis','res_sorcery_astdb','res_http_websocket','res_pjsip_transport_websocket',
     'codec_opus_open_source','res_format_attr_opus'];
@@ -65,6 +65,10 @@ test('Super Admin ARI connection test checks PBX version, gateway peer and featu
   };
   const fetchImpl=async(url,options)=>{
     const target=new URL(url);requests.push({target,options});
+    if(!target.pathname.endsWith('/asterisk/info')){
+      activeDiagnostics++;maxConcurrentDiagnostics=Math.max(maxConcurrentDiagnostics,activeDiagnostics);
+      await new Promise(resolve=>setImmediate(resolve));activeDiagnostics--;
+    }
     const body=target.pathname.endsWith('/asterisk/info')?{system:{version:'20.6.0'}}
       :target.pathname.endsWith('/endpoints/PJSIP/salemax_dinstar_uc2000ve')
         ?{technology:'PJSIP',resource:'salemax_dinstar_uc2000ve',state:'online'}
@@ -77,6 +81,7 @@ test('Super Admin ARI connection test checks PBX version, gateway peer and featu
     assert.equal(result.connected,true);assert.equal(result.asteriskVersion,'20.6.0');
     assert.equal(result.gatewayEndpoint.status,'online');assert.equal(result.moduleReadiness.status,'available');
     assert.ok(Object.values(result.moduleReadiness.features).every(feature=>feature.ready));
+    assert.equal(maxConcurrentDiagnostics,2,'gateway endpoint and feature-module probes execute concurrently');
     assert.equal(Object.hasOwn(result,'password'),false);assert.equal(committed,true);
     assert.deepEqual(requests.map(request=>request.target.pathname),[
       '/ari/asterisk/info','/ari/endpoints/PJSIP/salemax_dinstar_uc2000ve','/ari/asterisk/modules',
