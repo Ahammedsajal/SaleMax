@@ -1,5 +1,16 @@
 # SaleMaX live deployment — 30 September 2026
 
+
+## Production release — merged SaleMaX updates — 5 October 2026
+
+- Source commit: `ce7461eb2f8885c91b6fb2a8845971b4000bef8b`, pushed to `Ahammedsajal/SaleMax` `main`. This merge includes the latest upstream chatbot, invoice, finance and team activation work plus the local course, student, training-center profile, chatbot and per-staff navigation changes.
+- Active release: `/opt/salemax/releases/all-updates-20261005-ce7461e`; app image `sha256:b8e03748fb26d707ddaf4f36c77356f80bebc5c4042b9a9c975566bd8faa28f1`. The release was copied from the active production tree and overlaid from the commit. The live-generated `client/public/index.html` and compiled `client/public/static` bundle were retained; only asset cache references were advanced. Live index SHA-256: `0f750b5e68faaf7d5e62adec8ab08b1b9320ceff775477ef4a9faf6b80736747`.
+- Migrations applied: `20261101_chatbot_turn_diagnostics.sql` and `20261102_team_sidebar_access.sql`. Existing recorded migrations were checksum-matched and skipped. The migration runner reported both new migrations applied; no migration rollback was attempted.
+- Pre-deployment database backup: `/opt/salemax/shared/rollback-all-updates-ce7461e/pre-deploy.sql.gz`, SHA-256 `06a530c09f0cc4145815c5e6a5c269b6b10d2c95d685d195eb3cfe6bd501ff08`, 3,227,037 bytes, mode 600 in a mode-700 rollback directory. `gzip -t` passed. Previous release: `/opt/salemax/releases/course-optional-publish-20261005`; previous image: `salemax-app:rollback-all-updates-ce7461e` (`sha256:9edc15377e92f25e5e0d03c7e728ac87eac22080a73c8842cb4e6f9d0a153c84`).
+- Verification: focused local tests pass 95/95; syntax checks pass across the 24 staged JavaScript files. Public `/healthz` and all versioned updated scripts/styles return HTTP 200. App is healthy with zero restarts. MariaDB stayed running and healthy. The authenticated Edge owner session displays the profile logo upload controls and the Team access page's per-member section checklists; no member assignment or profile was saved during verification. The logo storage directory is on the existing persistent media mount, owned by app UID 1000 with mode 700.
+- Remaining verification: the full Node suite and disposable MariaDB integration were not run to completion in the local checkout; no local-only database configuration is present, and the course-router loopback test harness stalled. No logo file upload, Arabic visual pass or live staff-side denial scenario was performed. No customer message, payment, invoice or financial record was created.
+- Rollback: point `/opt/salemax/current` to `/opt/salemax/releases/course-optional-publish-20261005`, retag `salemax-app:rollback-all-updates-ce7461e` as `salemax-app:latest`, then recreate only the app service with the standard compose command below. Keep the two additive database migrations applied when rolling back the application. The pre-deployment database archive remains available at the path above.
+
 ## Chatbot theme alignment follow-up — 5 October 2026
 
 - The existing four-pill Automation Flows/Guided/Hybrid/AI experience now detects SaleMaX's active light/dark mode for the chatbot tabs, bot list and editor overlays. The legacy Automation Flows canvas remains outside the chatbot theme selectors and unchanged. Guided Training Center setup continues to expose editable bilingual greeting/menu, course-list, course-detail, enquiry, fallback and staff-handoff copy; course facts still come from the published tenant Courses catalogue.
@@ -36,7 +47,7 @@
 Live URL: https://crm.salemax.qa/
 Server: carsqatar-prod-01, 145.241.229.168 (Oracle ARM64)
 Deployment root: /opt/salemax
-Current release: /opt/salemax/releases/rebrand-20260930
+Current release: /opt/salemax/releases/all-updates-20261005-ce7461e
 Local project: A:\Salemax - Training center\Salemax-Node
 
 DNS configured by owner: A record crm -> 145.241.229.168.
