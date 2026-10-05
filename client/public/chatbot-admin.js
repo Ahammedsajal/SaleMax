@@ -52,10 +52,16 @@
   function visible(el) { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; }
   function bounds() {
     const drawer = [...document.querySelectorAll('.MuiDrawer-paper')].find(visible);
+    const drawerRect = drawer?.getBoundingClientRect();
+    const drawerOnRight = Boolean(drawerRect && drawerRect.left > innerWidth / 2);
     const topbar = [...document.querySelectorAll('.MuiBox-root')].filter(el => {
       const r = el.getBoundingClientRect(); return visible(el) && r.y <= 5 && r.height >= 30 && r.height < 100 && r.width > innerWidth * .5;
     }).sort((a, b) => a.getBoundingClientRect().height - b.getBoundingClientRect().height)[0];
-    return { left: Math.max(0, drawer?.getBoundingClientRect().right || 260), top: Math.max(0, topbar?.getBoundingClientRect().bottom || 68) };
+    return {
+      left: drawerRect ? (drawerOnRight ? 0 : Math.max(0, drawerRect.right)) : 260,
+      right: drawerOnRight ? Math.max(0, innerWidth - drawerRect.left) : 0,
+      top: Math.max(0, topbar?.getBoundingClientRect().bottom || 68),
+    };
   }
   function addStyle() {
     if (document.getElementById('sx-chatbot-admin-style')) return;
@@ -155,7 +161,7 @@
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-secondary{background:#20232c;border-color:#444955;color:#e4e7ec}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-error{color:#ff9daf}
       html[data-sx-chatbot-theme="dark"] [data-sx-chatbot-control]{background:#3b1728;border-color:#593047;color:#ffb5ce}
-      @media(max-width:760px){#sx-chatbot-tabs{width:calc(100vw - 20px);left:10px!important;overflow:auto}#sx-chatbot-tabs button{font-size:12px;padding:10px 9px}#sx-chatbot-panel{padding:18px 14px 30px}#sx-chatbot-dialog .sx-form-grid{grid-template-columns:1fr}#sx-chatbot-dialog label.sx-full{grid-column:auto}#sx-chatbot-dialog .sx-guide-content,#sx-chatbot-dialog .sx-faq-editor{grid-column:auto}#sx-chatbot-dialog .sx-language-pair,#sx-chatbot-dialog .sx-faq-fields{grid-template-columns:1fr}}
+      @media(max-width:760px){#sx-chatbot-tabs{width:var(--sx-chatbot-tabs-width,calc(100vw - 20px));left:var(--sx-chatbot-tabs-left,10px)!important;overflow:auto}#sx-chatbot-tabs button{font-size:12px;padding:10px 9px}#sx-chatbot-panel{padding:18px 14px 30px}#sx-chatbot-dialog .sx-form-grid{grid-template-columns:1fr}#sx-chatbot-dialog label.sx-full{grid-column:auto}#sx-chatbot-dialog .sx-guide-content,#sx-chatbot-dialog .sx-faq-editor{grid-column:auto}#sx-chatbot-dialog .sx-language-pair,#sx-chatbot-dialog .sx-faq-fields{grid-template-columns:1fr}}
     `;
     document.head.append(style);
   }
@@ -167,6 +173,8 @@
     const pos = bounds(); let tabs = document.getElementById('sx-chatbot-tabs');
     if (!tabs) { tabs = document.createElement('nav'); tabs.id = 'sx-chatbot-tabs'; document.body.append(tabs); }
     tabs.style.left = `${pos.left + 24}px`; tabs.style.top = `${pos.top + 14}px`;
+    tabs.style.setProperty('--sx-chatbot-tabs-left', `${pos.left + 10}px`);
+    tabs.style.setProperty('--sx-chatbot-tabs-width', `calc(100vw - ${pos.left + pos.right + 20}px)`);
     const definitions = [
       ['legacy', tr('Automation Flows','تدفقات الأتمتة'), `<span class="sx-legacy-tag">${tr('Legacy','قديم')}</span>`],
       ['guided', tr('Guided Chatbot','روبوت موجّه'), ''], ['hybrid', tr('Hybrid AI','ذكاء هجين'), ''], ['ai', tr('AI Chatbot','روبوت ذكاء اصطناعي'), '']
@@ -216,7 +224,7 @@
     if (state.tab === 'legacy') return;
     let panel = document.getElementById('sx-chatbot-panel');
     if (!panel) { panel = document.createElement('main'); panel.id = 'sx-chatbot-panel'; document.body.append(panel); }
-    const pos = bounds(); panel.style.left = `${pos.left}px`; panel.style.top = `${pos.top + 72}px`; panel.style.width = `${Math.max(0, innerWidth-pos.left)}px`; panel.style.height = `${Math.max(0, innerHeight-pos.top-72)}px`;
+    const pos = bounds(); panel.style.left = `${pos.left}px`; panel.style.top = `${pos.top + 72}px`; panel.style.width = `${Math.max(0, innerWidth-pos.left-pos.right)}px`; panel.style.height = `${Math.max(0, innerHeight-pos.top-72)}px`;
     panel.innerHTML = `<div class="sx-muted" id="sx-chatbot-loading">${esc(tr('Loading bots…','جارٍ تحميل الروبوتات…'))}</div>`;
     refresh().then(() => {
       if (!panel.isConnected || state.tab === 'legacy') return;
