@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const asterisk = require('../modules/platform/asterisk-config');
@@ -45,6 +46,48 @@ test('Asterisk connection diagnostics distinguish running call, gateway and brow
   assert.equal(unknown.status,'unknown');
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
   assert.match(ui,/Call control/);assert.match(ui,/Browser WebRTC/);assert.match(ui,/جارٍ اختبار اتصال ARI/);
+});
+
+test('Super Admin ARI connection test checks PBX version, gateway peer and feature modules without returning secrets', async () => {
+  const oldKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');
+  process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='pbx.example.com';
+  const encrypted=secrets.encrypt('integration-test-ari-password');
+  const row={ari_base_url:'https://pbx.example.com/ari',ari_username:'salemax-admin',credential_ciphertext:encrypted.ciphertext,
+    credential_iv:encrypted.iv,credential_auth_tag:encrypted.authTag,enabled:1,revision:4};
+  const requests=[],queries=[];let committed=false;
+  const required=['chan_pjsip','res_pjsip','res_pjsip_endpoint_identifier_ip','res_pjsip_transport_tls','res_ari','res_ari_channels',
+    'res_ari_bridges','app_stasis','res_stasis','res_sorcery_astdb','res_http_websocket','res_pjsip_transport_websocket',
+    'codec_opus_open_source','res_format_attr_opus'];
+  const db={
+    async query(sql,params){queries.push({sql,params});if(sql.includes('FROM sx_platform_asterisk_config'))return[[row]];return[{affectedRows:1}];},
+    async beginTransaction(){},async commit(){committed=true;},async rollback(){throw new Error('unexpected rollback');},
+  };
+  const fetchImpl=async(url,options)=>{
+    const target=new URL(url);requests.push({target,options});
+    const body=target.pathname.endsWith('/asterisk/info')?{system:{version:'20.6.0'}}
+      :target.pathname.endsWith('/endpoints/PJSIP/salemax_dinstar_uc2000ve')
+        ?{technology:'PJSIP',resource:'salemax_dinstar_uc2000ve',state:'online'}
+        :required.map(name=>({name:`${name}.so`,status:'Running'}));
+    return{ok:true,status:200,async json(){return body;},async text(){return JSON.stringify(body);}};
+  };
+  const context={audience:'platform',identity:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},membership:{role:'super_admin',status:'active'},mfaVerified:true};
+  try{
+    const result=await asterisk.test(db,context,fetchImpl);
+    assert.equal(result.connected,true);assert.equal(result.asteriskVersion,'20.6.0');
+    assert.equal(result.gatewayEndpoint.status,'online');assert.equal(result.moduleReadiness.status,'available');
+    assert.ok(Object.values(result.moduleReadiness.features).every(feature=>feature.ready));
+    assert.equal(Object.hasOwn(result,'password'),false);assert.equal(committed,true);
+    assert.deepEqual(requests.map(request=>request.target.pathname),[
+      '/ari/asterisk/info','/ari/endpoints/PJSIP/salemax_dinstar_uc2000ve','/ari/asterisk/modules',
+    ]);
+    assert.ok(requests.every(request=>request.options.method==='GET'&&request.options.redirect==='error'));
+    assert.ok(requests.every(request=>request.options.headers.Authorization===`Basic ${Buffer.from('salemax-admin:integration-test-ari-password').toString('base64')}`));
+    assert.ok(queries.some(query=>query.sql.includes('asterisk.connection-tested')));
+  }finally{
+    if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;
+    if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;
+  }
 });
 
 test('Asterisk setup access is assignable through the existing bilingual platform staff screen', () => {
