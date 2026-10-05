@@ -179,8 +179,8 @@ test('production deployment routes ARI only from the SaleMaX app container to lo
   assert.match(nginx,/location = \/ws \{[\s\S]*?proxy_pass http:\/\/127\.0\.0\.1:8088\/ws;[\s\S]*?proxy_set_header Upgrade \$http_upgrade;[\s\S]*?proxy_read_timeout 1h;/);
   assert.doesNotMatch(nginx,/location = \/ws \{[^}]*allow 172\.30\.240\.2/s,
     'browser SIP WSS must be reachable for agents while ARI stays app-container-only');
-  assert.match(nginx,/location \^~ \/api\/user\/training\/courses\/ \{[\s\S]*?client_max_body_size 1025m;[\s\S]*?proxy_pass http:\/\/127\.0\.0\.1:3011;/,
-    'retain the live Training Courses media upload route when preparing the Nginx release');
+  assert.match(nginx,/location \^~ \/api\/user\/training\/courses\/ \{[\s\S]*?client_max_body_size 1025m;[\s\S]*?client_body_timeout 3600s;[\s\S]*?proxy_request_buffering off;[\s\S]*?proxy_pass http:\/\/127\.0\.0\.1:3011;[\s\S]*?proxy_send_timeout 3600s;/,
+    'retain the complete live Training Courses upload buffering/timeouts when preparing the Nginx release');
 });
 
 test('Call Center requests provisioning with authenticated POSTs before showing SIP credentials', () => {
