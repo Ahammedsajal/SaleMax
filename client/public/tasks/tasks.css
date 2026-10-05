@@ -7,3 +7,5 @@
 .pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin:18px 0}.pagination button:disabled{opacity:.45;cursor:default}
 
 [hidden]{display:none!important}
+
+.session-login-link{display:inline-block;margin-inline-start:6px;color:#9b2443;font-weight:600;text-decoration:underline}.session-login-link:focus-visible{outline:2px solid #9b2443;outline-offset:2px}
