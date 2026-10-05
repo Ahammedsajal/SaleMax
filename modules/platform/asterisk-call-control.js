@@ -154,6 +154,13 @@ class AsteriskCallControl {
         || !/^[0-9]{3,8}$/.test(member.extension || '')) fail('OUTBOUND_EXTENSION_NOT_READY');
       if (!(await gatewayPorts.eligible(db, { id: context.tenant.id, status: member.tenant_status,
         category_key: member.category_key, category_version: member.category_version }))) fail('OUTBOUND_TENANT_NOT_ELIGIBLE');
+      const [[memberCallLimits]] = await db.query(`SELECT
+          COALESCE(SUM(status IN ('starting','ringing','connected')),0) AS active_calls,
+          COALESCE(SUM(started_at>=UTC_TIMESTAMP(3)-INTERVAL 60 SECOND),0) AS recent_attempts
+        FROM sx_telephony_calls WHERE tenant_id=? AND direction='outbound' AND started_by_membership_id=?`,
+      [context.tenant.id,context.membership.id]);
+      if (Number(memberCallLimits.active_calls)>0) fail('OUTBOUND_CALL_ALREADY_ACTIVE');
+      if (Number(memberCallLimits.recent_attempts)>=5) fail('OUTBOUND_CALL_RATE_LIMITED');
       const [[port]] = await db.query(`SELECT p.channel_no FROM sx_platform_asterisk_gateway_ports p
         WHERE p.tenant_id=? AND p.enabled=1 AND p.outbound_enabled=1
           AND NOT EXISTS(SELECT 1 FROM sx_telephony_calls c WHERE c.leased_channel_no=p.channel_no)

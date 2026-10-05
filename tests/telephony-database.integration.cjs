@@ -184,13 +184,26 @@ async function main(){
       statusResponse=await fetch(statusUrl);statusBody=await statusResponse.json();
       assert.equal(statusBody.data.asterisk.events.ready,false);
       assert.equal(statusBody.data.calls.reason,'ASTERISK_EVENTS_NOT_READY');
+      await db.query("UPDATE sx_platform_asterisk_runtime SET status='connected',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
+      for(let attempt=0;attempt<5;attempt++)await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,started_by_membership_id)
+        VALUES(?,?,'outbound','failed',1,?)`,[tenantId,crypto.randomUUID(),ownerMembership]);
+      const limitedResponse=await fetch(statusUrl.replace('/status','/calls'),{method:'POST',headers:{Origin:'http://127.0.0.1','Content-Type':'application/json'},body:JSON.stringify({destination:'+97455551234',clientType:'mobile'})});
+      assert.equal(limitedResponse.status,429);assert.equal(limitedResponse.headers.get('retry-after'),'60');
+      assert.equal((await limitedResponse.json()).code,'OUTBOUND_CALL_RATE_LIMITED','call-attempt rate limit is surfaced as HTTP 429');
+      await db.query("DELETE FROM sx_telephony_calls WHERE tenant_id=? AND direction='outbound' AND started_by_membership_id=? AND status='failed'",[tenantId,ownerMembership]);
+      await db.query("UPDATE sx_platform_asterisk_runtime SET status='reconnecting',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
     }finally{await new Promise(resolve=>statusServer.close(resolve));if(oldAriHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldAriHosts;}
     await assert.rejects(callControl.originateOutbound(tenantContext,{destination:'+97455551234',clientType:'mobile'}),{code:'ASTERISK_EVENTS_NOT_READY'});
     const [[unreserved]]=await db.query("SELECT COUNT(*) AS total FROM sx_telephony_calls WHERE tenant_id=? AND direction='outbound'",[tenantId]);
     assert.equal(Number(unreserved.total),0,'event-worker outage fails before reserving a GSM channel');
     await db.query("UPDATE sx_platform_asterisk_runtime SET status='connected',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
+    for(let attempt=0;attempt<4;attempt++)await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,started_by_membership_id)
+      VALUES(?,?,'outbound','failed',1,?)`,[tenantId,crypto.randomUUID(),ownerMembership]);
     const outbound=await callControl.originateOutbound(tenantContext,{destination:'+97455551234',clientType:'mobile'});
     const outboundAgent=originated.at(-1);
+    await assert.rejects(callControl.originateOutbound(tenantContext,{destination:'+97455550000',clientType:'mobile'}),{code:'OUTBOUND_CALL_ALREADY_ACTIVE'});
+    const [[oneActive]]=await db.query("SELECT COUNT(*) AS total FROM sx_telephony_calls WHERE tenant_id=? AND started_by_membership_id=? AND status IN ('starting','ringing','connected')",[tenantId,ownerMembership]);
+    assert.equal(Number(oneActive.total),1,'a member may hold only one active outbound call even when other SIM channels are free');
     assert.deepEqual(outboundAgent.appArgs,['outbound-agent',outbound.callId,ownerMembership,'mobile','+97455551234']);
     assert.equal(outboundGatewayOriginated.length,0,'the GSM leg waits until the agent endpoint answers');
     const outboundAgentEvent={type:'StasisStart',application:'salemax-call-center',args:outboundAgent.appArgs,channel:{id:outboundAgent.channelId}};
@@ -210,6 +223,7 @@ async function main(){
     await callControl.handle({type:'ChannelDestroyed',application:'salemax-call-center',channel:{id:outboundGatewayChannel}});
     const [[outboundEnded]]=await db.query('SELECT status,leased_channel_no FROM sx_telephony_calls WHERE tenant_id=? AND id=?',[tenantId,outbound.callId]);
     assert.equal(outboundEnded.status,'ended');assert.equal(outboundEnded.leased_channel_no,null);
+    await assert.rejects(callControl.originateOutbound(tenantContext,{destination:'+97455550000',clientType:'mobile'}),{code:'OUTBOUND_CALL_RATE_LIMITED'});
     const callId=crypto.randomUUID(),bridgeId=crypto.randomUUID();
     await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,leased_channel_no,inbound_queue_id,inbound_channel_id,bridge_id)
       VALUES(?,?,'inbound','ringing',1,1,?,?,?)`,[tenantId,callId,createdQueue.id,'synthetic-inbound-channel',bridgeId]);
@@ -238,7 +252,7 @@ async function main(){
     assert.equal(emptyRecoveredCall.status,'failed');assert.equal(emptyRecoveredCall.leased_channel_no,null);assert.equal(emptyRecoveredCall.end_reason,'ARI_RECONNECT_NO_ACTIVE_CHANNELS');
     const [[runtime]]=await db.query('SELECT status,events_received,last_event_type FROM sx_platform_asterisk_runtime WHERE id=1');
     assert.equal(runtime.status,'connected');assert.equal(Number(runtime.events_received),1);assert.equal(runtime.last_event_type,'StasisStart');
-    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAgentAnswerWins:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,ariReconnectLeaseRecovery:true,missingActiveChannelReleasesSim:true,callWithoutLegsReleasesSim:true,syntheticOnly:true}));
+    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAnswerWins:true,oneActiveOutboundPerMember:true,outboundCallRateLimit:true,http429RetryAfter:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,ariReconnectLeaseRecovery:true,missingActiveChannelReleasesSim:true,callWithoutLegsReleasesSim:true,syntheticOnly:true}));
   }finally{
     plans.loadEntitlements=originalEntitlements;
     if(originalSipKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalSipKey;
