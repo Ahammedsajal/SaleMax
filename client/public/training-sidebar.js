@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261005-bot-assignments2';
+    chatbotScript.src = '/chatbot-admin.js?v=20261005-restore-wa-chatbot';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }

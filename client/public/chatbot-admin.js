@@ -194,7 +194,10 @@
   }
   function mountTabs() {
     syncChatbotTheme();
-    if (isAssignmentPage()) { state.mounted = false; document.getElementById('sx-chatbot-tabs')?.remove(); renderAssignments(); return false; }
+    // WA Chatbot is the established legacy assignment screen. Keep its native
+    // React list and Add Chatbot dialog intact; the profile editor remains on
+    // the Automation Flows tabs above.
+    if (isAssignmentPage()) { state.mounted = false; closeViews(); return false; }
     if (!isFlowPage()) { state.mounted = false; closeViews(); return false; }
     addStyle();
     const pos = bounds(); let tabs = document.getElementById('sx-chatbot-tabs');

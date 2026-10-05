@@ -18,16 +18,13 @@ test('existing Automation Flows canvas remains the first pill tab', () => {
   assert.ok(definitions.indexOf("['legacy'") < definitions.indexOf("['guided'") );
 });
 
-test('all engine number assignments are managed on the Chatbot sidebar page', () => {
-  assert.match(admin, /function isAssignmentPage\(\)[\s\S]*?\['wa-chatbot','wa_chatbot'\]/);
-  assert.match(admin, /function renderAssignments\(\)[\s\S]*?All bots[\s\S]*?Assigned number\(s\)/);
-  assert.match(admin, /location\.href = '\/user\?page=wa-chatbot'/);
-  assert.match(admin, /function openAssignmentEditor\(bot\)[\s\S]*?api\(`\/\$\{bot\.id\}\/channels`,\s*'PUT'/);
+test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', () => {
+  assert.match(admin, /if \(isAssignmentPage\(\)\) \{ state\.mounted = false; closeViews\(\); return false; \}/);
+  assert.match(admin, /Keep its native React list and Add Chatbot dialog intact/);
   assert.match(admin, /function isFlowPage\(\)[\s\S]*?return \['automation-flows', 'automation_flows', 'automation', 'chat-flow'\]/);
   assert.match(sidebar, /'WA Chatbot':'chatbot'/);
   assert.match(sidebar, /'WA Chatbot':'wa-chatbot'/);
   assert.match(sidebar, /event\.stopImmediatePropagation\(\); location\.href = '\/user\?page=wa-chatbot'/);
-  assert.match(admin, /location\.href = '\/user\?page=chatbot'/);
   const editor = admin.slice(admin.indexOf('function openEditor('), admin.indexOf('function conversationId('));
   assert.doesNotMatch(editor, /name="channel"|api\(`\/\$\{id\}\/channels`,'PUT'/);
   assert.doesNotMatch(admin, /<th>\$\{esc\(tr\('WhatsApp Number'/);
@@ -96,6 +93,6 @@ test('Inbox bot control requires explicit number selection when channel scope is
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261005-bot-assignments2/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261005-bot-assignments2/);
+  assert.match(index, /training-sidebar\.js\?v=20261005-restore-wa-chatbot/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261005-restore-wa-chatbot/);
 });
