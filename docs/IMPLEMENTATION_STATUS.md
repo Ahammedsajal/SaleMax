@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Guided training bot editing and theme follow-up — production, 5 October 2026
+
+The Training Center Guided bot setup is editable in English and Arabic: greeting, welcome/menu instructions, course menu labels, course-list heading/empty state/selection instructions and display count, course-detail visibility and labels, enquiry prompts, invalid-selection/fallback copy, and staff-handoff copy. The built-in guide uses the tenant's published Courses catalogue for course names, fees, descriptions, durations, batches and seats; this prevents duplicate bot-side course records from going stale. The editor has a multi-turn preview that uses unsaved copy and published catalogue data without saving, calling an AI provider, or sending WhatsApp.
+
+The chatbot tabs, list and editor now follow the CRM's active dark/light theme while retaining the existing sidebar and unmodified Automation Flows canvas as the first pill. Production browser inspection confirmed the editable greeting and course-list setup in the existing Guided bot editor; it was closed without saving. `/healthz` returns 200 and the app/database containers are healthy. Deployed script hashes match source; no migration, bot/profile/number/provider/chat/session/customer change was made. Existing Node verification passed 199/199 and the focused screen contract passed 8/8. Remaining setup is to publish real courses/batches; AI provider credentials/privacy notice and real provider delivery remain separate gates.
+
 ## Live chatbot editing — production, 5 October 2026
 
 Owners can edit a live bot's profile without pausing it. Saves use the existing expected-revision lock and atomically update the profile; server validation rechecks the connected-number assignment, category version, guided flow, AI privacy confirmation and provider readiness. The next inbound turn loads the revised profile. Number assignments, provider credentials, token limits and AI privacy acknowledgement stay locked during live edits. Provider-setting API changes are also denied while an AI or AI-fallback Hybrid bot is live. Pause first to change those operational settings. The selected Automation Flows screen remains the first pill; the Guided/Hybrid/AI tabs still use the existing SaleMaX shell.

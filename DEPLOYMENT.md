@@ -1,5 +1,13 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Chatbot theme alignment follow-up — 5 October 2026
+
+- The existing four-pill Automation Flows/Guided/Hybrid/AI experience now detects SaleMaX's active light/dark mode for the chatbot tabs, bot list and editor overlays. The legacy Automation Flows canvas remains outside the chatbot theme selectors and unchanged. Guided Training Center setup continues to expose editable bilingual greeting/menu, course-list, course-detail, enquiry, fallback and staff-handoff copy; course facts still come from the published tenant Courses catalogue.
+- Active release: `/opt/salemax/releases/chatbot-theme-detection-20261005` (confirmed via `/opt/salemax/current`). The deployed `chatbot-admin.js` and `training-sidebar.js` hashes match source: `461230db09b411da888da29402eb735aefb7aebd86876d561d68e521a91865eb` and `c3f602037211e2c383e5a871ab5f64f59a1d9ec7e36af60e0f5092befc9604f1`.
+- Verification: production `/healthz` returns 200; app and database containers are healthy. Authenticated browser inspection confirmed the first Legacy pill/canvas remains present, Guided bot management loads, and the active Training Center bot's editor exposes English/Arabic greeting, menu, course-list text and preview controls. The editor was closed with Cancel. No bot text, assignments, AI provider, chat, WhatsApp session or customer data was changed; no migration ran.
+- The corrected dark-mode selector uses a SaleMaX chatbot-specific root attribute populated from the existing theme preference/control. Automated source checks passed in the implementation run (full Node suite 199/199, focused chatbot screen contract 8/8, syntax and whitespace checks). These checks are source evidence; the production browser and health checks above are independent live evidence.
+- Remaining business setup: publish courses and batches in Courses before the bot can show actual offerings. AI provider configuration/privacy notice and authorized real-channel delivery remain separate gates.
+
 ## Active chatbot profile editing — 5 October 2026
 
 - Source commit: `66f2c3affb20d96658d6824dfefec9d73decbbf9` (pushed to `Ahammedsajal/SaleMax` main). It allows safe profile edits to active bots while locking channel assignments, provider credentials, token limits, and AI privacy confirmation until the bot is paused.

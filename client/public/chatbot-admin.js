@@ -8,6 +8,14 @@
   const state = { tab: 'legacy', bots: [], channels: [], flows: [], categoryKey: 'training_center', categoryTitle: null, categoryVersion: 1, guidedContentDefaults: null, guidedContentSchema: null, provider: { configured: false, revision: 0 }, csrf: null, mounted: false };
   const ar = () => (localStorage.getItem('language') || '').toLowerCase().startsWith('ar') || document.documentElement.dir === 'rtl';
   const tr = (en, arabic) => ar() ? arabic : en;
+  function syncChatbotTheme() {
+    const rootElement = document.documentElement;
+    const candidates = [localStorage.getItem('theme_mode'), rootElement.getAttribute('data-mui-color-scheme'), document.body?.getAttribute('data-mui-color-scheme'), rootElement.getAttribute('data-theme')];
+    const explicitMode = candidates.map(value => String(value || '').toLowerCase()).find(value => value === 'dark' || value === 'light');
+    const themeControl = [...document.querySelectorAll('button')].some(button => /^(?:light mode|الوضع الفاتح)$/i.test(`${button.title || ''} ${button.getAttribute('aria-label') || ''}`.trim()));
+    const theme = explicitMode || (themeControl ? 'dark' : 'light');
+    if (rootElement.getAttribute('data-sx-chatbot-theme') !== theme) rootElement.setAttribute('data-sx-chatbot-theme', theme);
+  }
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const token = () => localStorage.getItem('wacrm_user');
   async function api(path, method = 'GET', body) {
@@ -97,12 +105,50 @@
       #sx-chatbot-dialog [data-guide-content][hidden]{display:none}
       #sx-chatbot-dialog .sx-footer{display:flex;justify-content:flex-end;gap:9px;margin-top:20px} #sx-chatbot-dialog .sx-primary{border:0;border-radius:9px;padding:11px 17px;background:#a8003b;color:#fff;font-weight:700;cursor:pointer} #sx-chatbot-dialog .sx-secondary{border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:8px;padding:10px 14px;cursor:pointer;font-weight:600} #sx-chatbot-dialog .sx-error{color:#b42318;margin-top:10px;white-space:pre-wrap}
       [data-sx-chatbot-control]{border:1px solid #edbfd0;background:#fff2f6;color:#a8003b;border-radius:7px;padding:6px 9px;font:600 12px Roboto,Arial,sans-serif;cursor:pointer}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs{background:#191b22;border-color:#343741;box-shadow:0 3px 14px #0008}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs button{color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs button[aria-selected=true]{background:#3b1728;color:#ffb5ce}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs .sx-legacy-tag{background:#343741;color:#d0d5dd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel{background:#111319;color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel h1,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-bot-name{color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-muted,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-bot-desc{color:#aab1bd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-card{background:#191c24;border-color:#343741;box-shadow:0 1px 2px #0004}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-secondary,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-row-button{background:#20232c;border-color:#444955;color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-row-button.sx-live{background:#123126;border-color:#216e4b;color:#75d9a4}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-row-button.sx-danger{color:#ff9daf}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-table-wrap{border-color:#343741}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel th,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel td{border-color:#343741}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel th{background:#20232c;color:#aab1bd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-badge{background:#3b1728;color:#ffb5ce}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status{background:#123126;color:#75d9a4}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status[data-status=draft],html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status[data-status=testing]{background:#343741;color:#d0d5dd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status[data-status=draft]:before,html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-status[data-status=testing]:before{background:#98a2b3}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-panel .sx-alert{background:#142439;border-color:#244c72;color:#9bc8ff}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-dialog{background:#191c24;color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog h2,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-preview-title,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-preview-title{color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-muted,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-preview-note,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-preview-note,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-help,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-language-pair label{color:#aab1bd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog label{color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog input,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog select,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog textarea{background:#20232c;border-color:#444955;color:#f2f4f7;color-scheme:dark}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog input::placeholder,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog textarea::placeholder{color:#98a2b3}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-checks label{border-color:#343741}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-preview,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-preview{background:#20232c;border-color:#444955}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-preview-result,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-transcript{background:#15171d;border-color:#343741;color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-bubble{background:#2a2e38;color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guided-bubble[data-role=user]{background:#3b1728;color:#ffd6e2}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-content{background:#251923;border-color:#593047}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-heading,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-catalogue-link{color:#ffb5ce}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-group{background:#20232c;border-color:#343741}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-group legend,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-field-title{color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-secondary{background:#20232c;border-color:#444955;color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-error{color:#ff9daf}
+      html[data-sx-chatbot-theme="dark"] [data-sx-chatbot-control]{background:#3b1728;border-color:#593047;color:#ffb5ce}
       @media(max-width:760px){#sx-chatbot-tabs{width:calc(100vw - 20px);left:10px!important;overflow:auto}#sx-chatbot-tabs button{font-size:12px;padding:10px 9px}#sx-chatbot-panel{padding:18px 14px 30px}#sx-chatbot-dialog .sx-form-grid{grid-template-columns:1fr}#sx-chatbot-dialog label.sx-full{grid-column:auto}#sx-chatbot-dialog .sx-guide-content{grid-column:auto}#sx-chatbot-dialog .sx-language-pair{grid-template-columns:1fr}}
     `;
     document.head.append(style);
   }
   function closeViews() { document.getElementById('sx-chatbot-tabs')?.remove(); document.getElementById('sx-chatbot-panel')?.remove(); }
   function mountTabs() {
+    syncChatbotTheme();
     if (!isFlowPage()) { state.mounted = false; closeViews(); return false; }
     addStyle();
     const pos = bounds(); let tabs = document.getElementById('sx-chatbot-tabs');

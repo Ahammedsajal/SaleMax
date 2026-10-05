@@ -18,6 +18,16 @@ test('existing Automation Flows canvas remains the first pill tab', () => {
   assert.ok(definitions.indexOf("['legacy'") < definitions.indexOf("['guided'") );
 });
 
+test('chatbot overlays follow the active SaleMaX dark theme without restyling the legacy canvas', () => {
+  assert.match(admin, /function syncChatbotTheme\(\)/);
+  assert.match(admin, /localStorage\.getItem\('theme_mode'\)/);
+  assert.match(admin, /data-sx-chatbot-theme/);
+  assert.match(admin, /html\[data-sx-chatbot-theme="dark"\] #sx-chatbot-tabs/);
+  assert.match(admin, /html\[data-sx-chatbot-theme="dark"\] #sx-chatbot-panel/);
+  assert.match(admin, /html\[data-sx-chatbot-theme="dark"\] #sx-chatbot-dialog/);
+  assert.doesNotMatch(admin, /html\[data-sx-chatbot-theme="dark"\].*\.react-flow/);
+});
+
 test('bot editor renders editable bilingual training-center guide fields', () => {
   assert.match(admin, /guidedContentMarkup\(config, selectedDomainGuide\)/);
   assert.match(admin, /English<textarea/);
@@ -73,5 +83,5 @@ test('Inbox bot control requires explicit number selection when channel scope is
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
   assert.match(index, /training-sidebar\.js\?v=20261005a/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261005c/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261005e/);
 });
