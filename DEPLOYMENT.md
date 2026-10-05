@@ -1,5 +1,15 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Active chatbot profile editing — 5 October 2026
+
+- Source commit: `66f2c3affb20d96658d6824dfefec9d73decbbf9` (pushed to `Ahammedsajal/SaleMax` main). It allows safe profile edits to active bots while locking channel assignments, provider credentials, token limits, and AI privacy confirmation until the bot is paused.
+- Production release: `/opt/salemax/releases/chatbot-active-edit-20261005`; `/opt/salemax/current` resolves to this release. The release was copied from the previous active release to retain production-only files, then updated with `client/public/chatbot-admin.js`, `client/public/training-sidebar.js`, and `modules/platform/chatbot-router.js` from that source commit.
+- Rollback: protected source files are in `/opt/salemax/shared/rollback-chatbot-active-edit-20261005`; the pre-deploy image is retained as `salemax-app:rollback-chatbot-active-edit-20261005` (image `sha256:edb724fba69fa808624d04e4b14f9e454e8fd61bfe7e996c86da71ba41cf30f7`). Atomically point `/opt/salemax/current` back to `/opt/salemax/releases/chatbot-localized-course-facts-20261005`, tag `salemax-app:rollback-chatbot-active-edit-20261005` as `salemax-app:latest`, then run `docker compose -p salemax --env-file /opt/salemax/shared/stack.env -f /opt/salemax/current/deploy/compose.yml up -d --no-build --no-deps --force-recreate app`.
+- Migrations: none. Only `salemax-app-1` was recreated; `salemax-db-1` remained running. No bot profile, WhatsApp connection/session, number assignment, provider key, conversation, or customer record was changed.
+- Deployed SHA-256: `chatbot-admin.js` `0fff737b2869055524b66fcd89b8a7084f9a2f68b558c5e11e4bf2be510709c1`; `training-sidebar.js` `609dcacd4e350160370fcb019206f6d797ac9a88077fc741e9fcbd0fec21cb85`; `chatbot-router.js` `5cd2ec77200d588ae0423036f63f41cf39edccc09c3a5ad6802ea4dff874f691`.
+- Verification: `npm test` passes 198/198. The app and database containers are healthy and production `/healthz` returns 200. An authenticated browser reload confirms the existing SaleMaX sidebar and Legacy Automation Flows first tab/canvas are preserved; Guided, Hybrid AI, and AI Chatbot remain pill tabs. Guided Chatbot Edit is enabled for the active profile. The editor displayed the bilingual greeting/menu, course list, course details, enquiry, fallback and handoff controls. Read-only preview returned the configured welcome menu; the course-list preview accurately reported that there are currently no published courses for this tenant. The editor was cancelled without saving.
+- Remaining gates: publish the Training Center course catalogue, configure and privacy-approve an AI provider, and verify real provider/channel delivery with an explicitly authorized customer-facing test. The synthetic MariaDB/transport tests exercise AI and Hybrid behavior but do not prove provider delivery.
+
 Live URL: https://crm.salemax.qa/
 Server: carsqatar-prod-01, 145.241.229.168 (Oracle ARM64)
 Deployment root: /opt/salemax
