@@ -171,6 +171,8 @@ async function main(){
       assert.equal(statusBody.data.gateway.liveEndpointStatus,'online');
       assert.equal(statusBody.data.calls.inboundAvailable,true);assert.equal(statusBody.data.calls.outboundAvailable,true);
       assert.equal(statusBody.data.clients.mobileSip.ready,true);assert.equal(statusBody.data.clients.browserWebRtc.ready,false);
+      const callsResponse=await fetch(statusUrl.replace('/status','/calls')),callsBody=await callsResponse.json();
+      assert.equal(callsResponse.status,200);assert.ok(callsBody.data.items.some(item=>item.canControl===true),'the owner can control their tenant calls');
       await db.query('ALTER TABLE sx_platform_asterisk_gateway_ports DROP CHECK ck_sx_asterisk_gateway_inbound_did');
       await db.query("UPDATE sx_platform_asterisk_gateway_ports SET inbound_did='+9741234' WHERE channel_no=1");
       statusResponse=await fetch(statusUrl);statusBody=await statusResponse.json();
@@ -224,6 +226,18 @@ async function main(){
     const [[outboundEnded]]=await db.query('SELECT status,leased_channel_no FROM sx_telephony_calls WHERE tenant_id=? AND id=?',[tenantId,outbound.callId]);
     assert.equal(outboundEnded.status,'ended');assert.equal(outboundEnded.leased_channel_no,null);
     await assert.rejects(callControl.originateOutbound(tenantContext,{destination:'+97455550000',clientType:'mobile'}),{code:'OUTBOUND_CALL_RATE_LIMITED'});
+    const controlledCallId=crypto.randomUUID(),controlledBridgeId=crypto.randomUUID(),controlledInbound='synthetic-controlled-inbound';
+    await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,leased_channel_no,inbound_channel_id,bridge_id,answered_by_membership_id,answered_at)
+      VALUES(?,?,'inbound','connected',1,1,?,?,?,UTC_TIMESTAMP(3))`,[tenantId,controlledCallId,controlledInbound,controlledBridgeId,ownerMembership]);
+    for(const [channel,role,membership] of [[controlledInbound,'caller',null],['synthetic-controlled-agent','agent',ownerMembership]])await db.query(`INSERT INTO sx_telephony_call_legs
+      (tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status) VALUES(?,?,?,?,?,?,?,'connected')`,
+    [tenantId,crypto.randomUUID(),controlledCallId,channel,role,role==='caller'?'gateway':'mobile',membership]);
+    const agentContext={...tenantContext,identity:{id:agentId},membership:{id:agentMembership,tenantId,role:'agent',status:'active'}};
+    await assert.rejects(callControl.endCall(agentContext,controlledCallId),{code:'PERMISSION_DENIED'},'a different agent cannot terminate another member\'s call');
+    assert.deepEqual(await callControl.endCall(tenantContext,controlledCallId),{callId:controlledCallId,status:'ended'});
+    const [[controlledCall]]=await db.query('SELECT status,leased_channel_no,end_reason FROM sx_telephony_calls WHERE tenant_id=? AND id=?',[tenantId,controlledCallId]);
+    assert.equal(controlledCall.status,'ended');assert.equal(controlledCall.leased_channel_no,null);assert.equal(controlledCall.end_reason,'ENDED_BY_USER');
+    assert.ok(ariActions.some(action=>action[0]==='hangup'&&action[1]==='synthetic-controlled-agent'));
     const callId=crypto.randomUUID(),bridgeId=crypto.randomUUID();
     await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,leased_channel_no,inbound_queue_id,inbound_channel_id,bridge_id)
       VALUES(?,?,'inbound','ringing',1,1,?,?,?)`,[tenantId,callId,createdQueue.id,'synthetic-inbound-channel',bridgeId]);
@@ -252,7 +266,7 @@ async function main(){
     assert.equal(emptyRecoveredCall.status,'failed');assert.equal(emptyRecoveredCall.leased_channel_no,null);assert.equal(emptyRecoveredCall.end_reason,'ARI_RECONNECT_NO_ACTIVE_CHANNELS');
     const [[runtime]]=await db.query('SELECT status,events_received,last_event_type FROM sx_platform_asterisk_runtime WHERE id=1');
     assert.equal(runtime.status,'connected');assert.equal(Number(runtime.events_received),1);assert.equal(runtime.last_event_type,'StasisStart');
-    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAnswerWins:true,oneActiveOutboundPerMember:true,outboundCallRateLimit:true,http429RetryAfter:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,ariReconnectLeaseRecovery:true,missingActiveChannelReleasesSim:true,callWithoutLegsReleasesSim:true,syntheticOnly:true}));
+    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAnswerWins:true,oneActiveOutboundPerMember:true,outboundCallRateLimit:true,http429RetryAfter:true,tenantScopedCallTermination:true,oneActiveCallPerMemberControl:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,ariReconnectLeaseRecovery:true,missingActiveChannelReleasesSim:true,callWithoutLegsReleasesSim:true,syntheticOnly:true}));
   }finally{
     plans.loadEntitlements=originalEntitlements;
     if(originalSipKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalSipKey;

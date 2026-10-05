@@ -53,6 +53,10 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const result=await new AsteriskCallControl({pool}).originateOutbound(req.callCenterContext,req.body);
     res.status(202).json({success:true,data:result});
   }));
+  router.post('/calls/:callId/end',wrap(async(req,res)=>{
+    const result=await new AsteriskCallControl({pool}).endCall(req.callCenterContext,req.params.callId);
+    res.json({success:true,data:result});
+  }));
   router.get('/calls',wrap(async(req,res)=>{
     const context=req.callCenterContext;
     const access=decision(context,{capability:'telephony.call-center',permission:'calls.read'});
@@ -61,16 +65,19 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
       const [items]=await db.query(`SELECT c.id,c.direction,c.status,c.gateway_channel_no AS gatewayChannelNo,
           q.queue_name AS queueName,c.started_at AS startedAt,c.answered_at AS answeredAt,c.ended_at AS endedAt,
           IF(c.answered_at IS NULL,NULL,IF(c.ended_at IS NULL,TIMESTAMPDIFF(SECOND,c.answered_at,UTC_TIMESTAMP(3)),c.duration_seconds)) AS durationSeconds,
-          c.answered_by_membership_id AS answeredByMembershipId
+          c.answered_by_membership_id AS answeredByMembershipId,c.started_by_membership_id AS startedByMembershipId,
+          EXISTS(SELECT 1 FROM sx_telephony_call_legs l WHERE l.tenant_id=c.tenant_id AND l.call_id=c.id AND l.membership_id=?
+            AND l.status IN ('originating','ringing','connected')) AS hasAssignedActiveLeg
         FROM sx_telephony_calls c LEFT JOIN sx_telephony_queues q ON q.tenant_id=c.tenant_id AND q.id=c.inbound_queue_id
         WHERE c.tenant_id=? AND (?=0 OR c.started_by_membership_id=? OR c.answered_by_membership_id=? OR EXISTS(
           SELECT 1 FROM sx_telephony_queue_members qm WHERE qm.tenant_id=c.tenant_id AND qm.queue_id=c.inbound_queue_id AND qm.membership_id=?))
-        ORDER BY c.started_at DESC,c.id DESC LIMIT 100`,[context.tenant.id,access.scope==='assigned'?1:0,
+        ORDER BY c.started_at DESC,c.id DESC LIMIT 100`,[context.membership.id,context.tenant.id,access.scope==='assigned'?1:0,
         context.membership.id,context.membership.id,context.membership.id]);
       return items.map(row=>({callId:row.id,direction:row.direction,status:row.status,gatewayChannelNo:Number(row.gatewayChannelNo),
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
-        canControl:context.membership.role==='owner'||context.membership.role==='manager'||row.answeredByMembershipId===context.membership.id}));
+        canControl:context.membership.role==='owner'||context.membership.role==='manager'||row.startedByMembershipId===context.membership.id
+          ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1}));
     });
     res.json({success:true,data:{items:rows,hasMore:rows.length===100}});
   }));
@@ -165,7 +172,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     if(res.headersSent)return next(error);
     const code=error.code||'CALL_CENTER_UNAVAILABLE';
     const status=code==='PERMISSION_DENIED'?403:['FEATURE_UNAVAILABLE','CATEGORY_UNAVAILABLE','ACCOUNT_INACTIVE'].includes(code)?409
-      :['TEAM_MEMBER_NOT_FOUND','TELEPHONY_QUEUE_NOT_FOUND','SIP_ENDPOINT_NOT_PROVISIONED'].includes(code)?404:code==='OUTBOUND_CALL_RATE_LIMITED'?429:['OUTBOUND_CALL_ALREADY_ACTIVE','OUTBOUND_CHANNEL_UNAVAILABLE','OUTBOUND_EXTENSION_NOT_READY','OUTBOUND_TENANT_NOT_ELIGIBLE','ASTERISK_CONTROL_NOT_READY','ASTERISK_EVENTS_NOT_READY','ASTERISK_CONFIG_CHANGED','GATEWAY_ENDPOINT_NOT_READY','STALE_ENDPOINT_CREDENTIAL'].includes(code)?409:['STALE_EXTENSION_ASSIGNMENT','EXTENSION_ALREADY_ASSIGNED','STALE_TELEPHONY_QUEUE','TELEPHONY_QUEUE_NAME_EXISTS','TELEPHONY_QUEUE_MEMBER_EXTENSION_REQUIRED','TELEPHONY_QUEUE_MEMBERS_REQUIRED','EXTENSION_QUEUE_MUST_BE_DISABLED','TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'].includes(code)?409
+      :['TEAM_MEMBER_NOT_FOUND','TELEPHONY_QUEUE_NOT_FOUND','SIP_ENDPOINT_NOT_PROVISIONED','CALL_NOT_FOUND'].includes(code)?404:code==='OUTBOUND_CALL_RATE_LIMITED'?429:['OUTBOUND_CALL_ALREADY_ACTIVE','OUTBOUND_CHANNEL_UNAVAILABLE','OUTBOUND_EXTENSION_NOT_READY','OUTBOUND_TENANT_NOT_ELIGIBLE','ASTERISK_CONTROL_NOT_READY','ASTERISK_EVENTS_NOT_READY','ASTERISK_CONFIG_CHANGED','GATEWAY_ENDPOINT_NOT_READY','STALE_ENDPOINT_CREDENTIAL'].includes(code)?409:['STALE_EXTENSION_ASSIGNMENT','EXTENSION_ALREADY_ASSIGNED','STALE_TELEPHONY_QUEUE','TELEPHONY_QUEUE_NAME_EXISTS','TELEPHONY_QUEUE_MEMBER_EXTENSION_REQUIRED','TELEPHONY_QUEUE_MEMBERS_REQUIRED','EXTENSION_QUEUE_MUST_BE_DISABLED','TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'].includes(code)?409
         :code.startsWith('INVALID_')?400:503;
     const finalStatus=error.type==='entity.too.large'?413:error.type==='entity.parse.failed'?400:status;
     if(code==='OUTBOUND_CALL_RATE_LIMITED')res.setHeader('Retry-After','60');

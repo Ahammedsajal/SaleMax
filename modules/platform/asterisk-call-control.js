@@ -190,6 +190,50 @@ class AsteriskCallControl {
     }
   }
 
+  async endCall(context, callId) {
+    const { decision } = require('./policy');
+    const access = decision(context, { capability: 'telephony.call-center', permission: 'calls.control' });
+    if (!access.allowed) fail(access.code);
+    if (!UUID.test(callId || '')) fail('INVALID_CALL_ID');
+    const db = await connection(this.pool);
+    let call,channels=[];
+    try {
+      await db.beginTransaction();
+      const [[row]] = await db.query(`SELECT direction,status,started_by_membership_id,answered_by_membership_id,
+          inbound_channel_id,bridge_id FROM sx_telephony_calls WHERE tenant_id=? AND id=? FOR UPDATE`,
+      [context.tenant.id,callId]);
+      if (!row) fail('CALL_NOT_FOUND');
+      call=row;
+      if (!['owner','manager'].includes(context.membership.role)
+        && row.started_by_membership_id!==context.membership.id && row.answered_by_membership_id!==context.membership.id) {
+        const [[leg]] = await db.query(`SELECT id FROM sx_telephony_call_legs WHERE tenant_id=? AND call_id=? AND membership_id=?
+          AND status IN ('originating','ringing','connected') LIMIT 1`,[context.tenant.id,callId,context.membership.id]);
+        if (!leg) fail('PERMISSION_DENIED');
+      }
+      if (['starting','ringing','connected'].includes(row.status)) {
+        const [legs] = await db.query(`SELECT asterisk_channel_id FROM sx_telephony_call_legs
+          WHERE tenant_id=? AND call_id=? AND status IN ('originating','ringing','connected')`,[context.tenant.id,callId]);
+        channels=[...new Set([...legs.map(leg=>leg.asterisk_channel_id),row.inbound_channel_id].filter(Boolean))];
+        if (channels.some(channel=>!CHANNEL_ID.test(channel))) fail('ASTERISK_CALL_CHANNEL_INVALID');
+      }
+      await db.commit();
+    } catch (error) {
+      try { await db.rollback(); } catch (_) {}
+      throw error;
+    } finally { db.release(); }
+    if (channels.length) {
+      const client=await this.client();
+      for (const channel of channels) {
+        try { await client.hangup(channel); }
+        catch (error) { if (error.code!=='ARI_RESOURCE_NOT_FOUND') throw error; }
+      }
+      if (call.bridge_id) try { await client.destroyBridge(call.bridge_id); }
+      catch (error) { if (error.code!=='ARI_RESOURCE_NOT_FOUND') throw error; }
+      await this.finishCall(context.tenant.id,callId,'ended','ENDED_BY_USER');
+    }
+    return {callId,status:channels.length?'ended':call.status};
+  }
+
   async startOutboundGateway(agentChannelId, input) {
     const db=await connection(this.pool);let call;const gatewayChannelId=crypto.randomUUID();
     try {

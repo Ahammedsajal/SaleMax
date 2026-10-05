@@ -93,7 +93,13 @@
       const started=call.startedAt?new Date(call.startedAt).toLocaleString(isArabic()?'ar-QA':'en-QA',{timeZone:'Asia/Qatar'}):'';
       meta.textContent=`${started}${started?' · ':''}${text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`)}`;main.append(title,meta);
       const state=document.createElement('span');state.className='call-status';const labels={ringing:text('Ringing','يرن'),connected:text('Connected','متصل'),ended:text('Ended','انتهت'),failed:text('Failed','فشلت')};state.textContent=labels[call.status]||call.status;
-      row.append(main,state);host.append(row);
+      row.append(main,state);
+      if(call.canControl&&['ringing','connected'].includes(call.status)){
+        const end=document.createElement('button');end.type='button';end.className='call-end';end.textContent=text('End call','إنهاء المكالمة');end.setAttribute('aria-label',text('End this call','إنهاء هذه المكالمة'));
+        end.addEventListener('click',async()=>{end.disabled=true;end.textContent=text('Ending…','جارٍ الإنهاء…');try{await request(`/calls/${encodeURIComponent(call.callId)}/end`,'POST',{});await loadCalls();}catch(error){end.disabled=false;end.textContent=text('Retry ending call','إعادة محاولة إنهاء المكالمة');end.title=error.code==='PERMISSION_DENIED'?text('You cannot control this call.','لا يمكنك التحكم بهذه المكالمة.'):text('Asterisk could not confirm call termination. Retry or ask your administrator.','تعذر على أستريسك تأكيد إنهاء المكالمة. أعد المحاولة أو تواصل مع المسؤول.');}});
+        row.append(end);
+      }
+      host.append(row);
     }
   }
   async function loadCalls(){

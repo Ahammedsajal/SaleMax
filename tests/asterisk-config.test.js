@@ -184,6 +184,7 @@ test('Call Center requests provisioning with authenticated POSTs before showing 
   const client=fs.readFileSync(path.join(__dirname,'../client/public/call-center/call-center.js'),'utf8');
   assert.match(router,/router\.post\('\/webrtc-config'/);
   assert.match(router,/router\.post\('\/sip-config'/);
+  assert.match(router,/router\.post\('\/calls\/:callId\/end'/);
   assert.doesNotMatch(router,/router\.get\('\/(?:webrtc-config|sip-config)'/);
   assert.match(client,/request\('\/webrtc-config','POST',\{\}\)/);
   assert.match(client,/request\('\/sip-config','POST',\{\}\)/);
@@ -203,7 +204,10 @@ test('Call Center status reports call readiness only with live Asterisk and endp
   assert.match(client,/Call events \$\{eventReady\?'connected':eventStatus\}/);
   assert.match(client,/SaleMaX is not receiving Asterisk call events/);
   assert.match(client,/لا يستقبل SaleMaX أحداث المكالمات من أستريسك/);
-  assert.match(page,/call-center\.js\?v=20261005-live-endpoint-readiness1/);
+  assert.match(client,/calls\/\$\{encodeURIComponent\(call\.callId\)\}\/end/);
+  assert.match(client,/text\('End call','إنهاء المكالمة'\)/);
+  assert.match(page,/call-center\.js\?v=20261005-call-control1/);
+  assert.match(page,/call-center\.css\?v=20261005-call-control1/);
 });
 
 test('Call Center queue UI exposes only the ring behavior implemented by the ARI caller', () => {
