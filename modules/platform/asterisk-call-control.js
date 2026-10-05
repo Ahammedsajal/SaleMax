@@ -11,6 +11,11 @@ const ACTIVE_LEG_STATUSES = ['originating', 'ringing', 'connected'];
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 
 function inboundArgs(args) {
+  if (Array.isArray(args) && args.length === 2 && args[0] === 'inbound-did'
+    && typeof args[1] === 'string' && /^\+?[0-9]{8,15}$/.test(args[1])) {
+    const did = args[1].startsWith('+') ? args[1] : `+${args[1]}`;
+    if (/^\+[1-9][0-9]{7,14}$/.test(did)) return { did };
+  }
   if (!Array.isArray(args) || args.length !== 4 || args[0] !== 'inbound' || !UUID.test(args[1] || '')
     || !/^[1-4]$/.test(args[2] || '') || !UUID.test(args[3] || '')) return null;
   return { tenantId: args[1], channelNo: Number(args[2]), queueId: args[3] };
@@ -208,9 +213,11 @@ class AsteriskCallControl {
         FROM sx_platform_asterisk_gateway_ports p
         JOIN sx_tenants t ON t.id=p.tenant_id
         JOIN sx_telephony_queues q ON q.tenant_id=p.tenant_id AND q.id=p.inbound_queue_id
-        WHERE p.channel_no=? AND p.tenant_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_queue_id=? FOR UPDATE`,
-      [input.channelNo, input.tenantId, input.queueId]);
+        WHERE ${input.did ? 'p.inbound_did=?' : 'p.channel_no=? AND p.tenant_id=? AND p.inbound_queue_id=?'}
+          AND p.enabled=1 AND p.inbound_enabled=1 FOR UPDATE`,
+      input.did ? [input.did] : [input.channelNo, input.tenantId, input.queueId]);
       if (!mapping || mapping.tenant_status !== 'active' || !mapping.queue_enabled) fail('INBOUND_ROUTE_NOT_ACTIVE');
+      input = { ...input, tenantId: mapping.tenant_id, channelNo: Number(mapping.channel_no), queueId: mapping.inbound_queue_id };
       if (!(await gatewayPorts.eligible(db, { id: mapping.tenant_id, status: mapping.tenant_status,
         category_key: mapping.category_key, category_version: mapping.category_version }))) fail('INBOUND_TENANT_NOT_ELIGIBLE');
       const [members] = await db.query(`SELECT m.id AS membership_id,x.extension FROM sx_telephony_queue_members qm

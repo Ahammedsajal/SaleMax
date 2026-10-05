@@ -54,7 +54,7 @@ module.exports=async function telephonyIntegration(db,other,{tenantId,identityId
   });
   await gatewayService.save(db,root,{channels});
   const preview=await gatewayService.previewRouting(db,root);
-  assert.match(preview.config,new RegExp(`Stasis\\(salemax-call-center,inbound,${tenantId},1,${created.id}\\)`));
+  assert.match(preview.config,/Stasis\\(salemax-call-center,inbound-did,\$\{EXTEN\}\\)/);
   assert.equal(preview.inboundRoutes[0].queueId,created.id);
   assert.deepEqual(preview.dinstarOutboundRoutes.map(route=>[route.channelNo,route.gatewayPort,route.routePrefix,route.digitsToDelete]),[[1,0,'9901',4]]);
   assert.match(preview.config,/Destination Prefix: 9901[\s\S]*Digits to be Deleted: 4/);

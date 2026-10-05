@@ -94,16 +94,17 @@ async function previewRouting(db, context) {
   const inbound = active.filter(row => row.inbound_enabled && row.inbound_queue_id && row.inbound_queue_enabled
     && /^\+[1-9][0-9]{7,14}$/.test(row.inbound_did || ''));
   const lines = [
-    '; SaleMaX reviewed UC2000-VE inbound route preview; not applied automatically.',
-    '; Requires the SaleMaX ARI Stasis application and verified Dinstar DID presentation.',
+    '; SaleMaX generic UC2000-VE inbound route preview; apply once, then manage DID/queue mappings in SaleMaX.',
+    '; The ARI controller resolves each presented DID against current enabled SaleMaX channel policy.',
     '', '[from-dinstar-unrouted]',
+    'exten => _+X.,1,NoOp(SaleMaX inbound DID ${EXTEN})',
+    ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
+    ' same => n,Hangup()',
+    'exten => _X.,1,NoOp(SaleMaX inbound DID ${EXTEN})',
+    ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
+    ' same => n,Hangup()',
   ];
-  for (const row of inbound) {
-    lines.push(`exten => ${row.inbound_did},1,NoOp(SaleMaX tenant ${row.tenant_id} UC2000-VE channel ${row.channel_no})`);
-    lines.push(` same => n,Stasis(salemax-call-center,inbound,${row.tenant_id},${row.channel_no},${row.inbound_queue_id})`);
-    lines.push(' same => n,Hangup()');
-  }
-  if (!inbound.length) lines.push('; No currently eligible inbound channel is enabled.');
+  if (!inbound.length) lines.push('; No enabled eligible inbound DID is currently assigned; unknown calls are rejected by SaleMaX.');
   const outboundChannels = active.filter(row => row.outbound_enabled);
   const outboundTenants = [...new Map(outboundChannels.map(row => [row.tenant_id, row])).values()];
   const dinstarOutboundRoutes = outboundChannels.map(row => ({
@@ -131,7 +132,7 @@ async function previewRouting(db, context) {
     outboundEligibleTenants: outboundTenants.map(row => ({ tenantId: row.tenant_id, tenantName: row.tenant_name })),
     warnings: [
       'Preview only. It does not write or reload Asterisk configuration.',
-      'Exact DID matching assumes Asterisk receives the DID with its leading +. Confirm Dinstar SIP To/Request-URI formatting before applying.',
+      'Generic _+X. and _X. patterns accept plus-prefixed or digits-only DIDs; SaleMaX normalizes then requires an exact enabled mapping.',
       'The singleton ARI event worker and tenant-aware Stasis call controller are implemented locally; production use still requires deploying the matching source/migrations and operating the worker.',
       'The Dinstar IP->Tel rules map SaleMaX route prefixes 9901–9904 to gateway ports 0–3 and strip four selector digits. Configure these rules manually and test the exact firmware behavior before enabling outbound calls.',
       'Outbound ARI call control is implemented locally and selects only enabled tenant-assigned channels. It is not live until the source/migrations, endpoint profiles, Dinstar routes and worker are deployed and verified together.',

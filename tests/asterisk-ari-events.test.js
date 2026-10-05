@@ -9,7 +9,14 @@ const path = require('node:path');
 const { AsteriskAriEvents, eventsUrl, safeEvent, APP_NAME } = require('../modules/platform/asterisk-ari-events');
 const secrets = require('../modules/platform/asterisk-secrets');
 const { createAriClient } = require('../modules/platform/asterisk-ari-client');
-const { outboundAgentArgs, outboundGatewayArgs } = require('../modules/platform/asterisk-call-control');
+const { inboundArgs, outboundAgentArgs, outboundGatewayArgs } = require('../modules/platform/asterisk-call-control');
+
+test('inbound DID Stasis arguments normalize digits-only DIDs and reject invalid values', () => {
+  assert.deepEqual(inboundArgs(['inbound-did','+97455550001']), { did: '+97455550001' });
+  assert.deepEqual(inboundArgs(['inbound-did','97455550001']), { did: '+97455550001' });
+  assert.equal(inboundArgs(['inbound-did','0123456789']), null);
+  assert.equal(inboundArgs(['inbound-did','+123']), null);
+});
 const asteriskEventsRuntime = require('../modules/platform/asterisk-ari-events-worker-runtime');
 
 test('ARI event worker starts only outside local mode with explicit opt-in and is part of the SaleMaX app lifecycle', () => {

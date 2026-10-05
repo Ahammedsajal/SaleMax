@@ -82,7 +82,7 @@ async function main(){
     await gateway.save(db,platformContext,{channels:current.map(port=>port.channelNo===1?{...port,expectedRevision:port.revision,enabled:true,inboundEnabled:true,outboundEnabled:true}:{...port,expectedRevision:port.revision})});
     const preview=await gateway.previewRouting(db,platformContext);
     assert.equal(preview.inboundRoutes.length,1);assert.equal(preview.inboundRoutes[0].queueId,createdQueue.id);
-    assert.match(preview.config,new RegExp(`Stasis\\(salemax-call-center,inbound,${tenantId},1,${createdQueue.id}\\)`));
+    assert.match(preview.config,/Stasis\\(salemax-call-center,inbound-did,\$\{EXTEN\}\\)/);
     assert.deepEqual(preview.dinstarOutboundRoutes.map(route=>[route.channelNo,route.gatewayPort,route.routePrefix,route.digitsToDelete]),[[1,0,'9901',4]]);
     assert.match(preview.config,/Destination Prefix: 9901[\s\S]*Digits to be Deleted: 4/);
     const finalQueue=(await queues.list(db,tenantContext)).find(item=>item.id===createdQueue.id);
@@ -100,7 +100,7 @@ async function main(){
     });
     const callControl=new AsteriskCallControl({pool,ariClientFactory:ariFactory});
     const inboundChannel='synthetic-pjsip-inbound-1';
-    const inboundEvent={type:'StasisStart',application:'salemax-call-center',args:['inbound',tenantId,'1',createdQueue.id],channel:{id:inboundChannel}};
+    const inboundEvent={type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550001'],channel:{id:inboundChannel}};
     assert.equal(await callControl.handle(inboundEvent),true);
     assert.equal(originated.length,4);
     await callControl.handle(inboundEvent);
