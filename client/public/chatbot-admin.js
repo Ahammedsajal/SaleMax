@@ -95,6 +95,15 @@
       #sx-chatbot-dialog .sx-guide-catalogue-link:hover{text-decoration:underline}
       #sx-chatbot-dialog .sx-guide-group{border:1px solid #eaecf0;border-radius:9px;background:#fff;padding:10px 12px;margin:9px 0}
       #sx-chatbot-dialog .sx-guide-group legend{padding:0 5px;color:#344054;font-weight:700}
+      #sx-chatbot-dialog .sx-faq-editor{grid-column:1/-1;border:1px solid #e4e7ec;border-radius:11px;background:#f9fafb;padding:14px}
+      #sx-chatbot-dialog .sx-faq-title{font-weight:700;color:#182230} #sx-chatbot-dialog .sx-faq-help{margin:4px 0 12px;color:#667085;font-size:12px}
+      #sx-chatbot-dialog .sx-faq-entry{min-width:0;border:1px solid #eaecf0;border-radius:9px;background:#fff;padding:10px 12px;margin:9px 0}
+      #sx-chatbot-dialog .sx-faq-entry legend{padding:0 5px;color:#344054;font-weight:700}
+      #sx-chatbot-dialog .sx-faq-entry-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+      #sx-chatbot-dialog .sx-faq-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+      #sx-chatbot-dialog .sx-faq-fields label{min-width:0;font-size:12px;color:#667085}
+      #sx-chatbot-dialog .sx-faq-fields textarea{min-height:62px;font-size:13px;font-weight:400}
+      #sx-chatbot-dialog .sx-faq-actions{display:flex;align-items:center;gap:10px;margin-top:10px}
       #sx-chatbot-dialog .sx-guide-fields{display:grid;gap:11px}
       #sx-chatbot-dialog .sx-guide-field-title{display:block;margin:3px 0 6px;color:#344054;font-weight:600}
       #sx-chatbot-dialog .sx-language-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
@@ -139,10 +148,14 @@
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-heading,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-catalogue-link{color:#ffb5ce}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-group{background:#20232c;border-color:#343741}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-group legend,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-guide-field-title{color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-editor{background:#20232c;border-color:#444955}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-title,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-entry legend{color:#f2f4f7}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-help,html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-fields label{color:#aab1bd}
+      html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-faq-entry{background:#191c24;border-color:#444955}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-secondary{background:#20232c;border-color:#444955;color:#e4e7ec}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-error{color:#ff9daf}
       html[data-sx-chatbot-theme="dark"] [data-sx-chatbot-control]{background:#3b1728;border-color:#593047;color:#ffb5ce}
-      @media(max-width:760px){#sx-chatbot-tabs{width:calc(100vw - 20px);left:10px!important;overflow:auto}#sx-chatbot-tabs button{font-size:12px;padding:10px 9px}#sx-chatbot-panel{padding:18px 14px 30px}#sx-chatbot-dialog .sx-form-grid{grid-template-columns:1fr}#sx-chatbot-dialog label.sx-full{grid-column:auto}#sx-chatbot-dialog .sx-guide-content{grid-column:auto}#sx-chatbot-dialog .sx-language-pair{grid-template-columns:1fr}}
+      @media(max-width:760px){#sx-chatbot-tabs{width:calc(100vw - 20px);left:10px!important;overflow:auto}#sx-chatbot-tabs button{font-size:12px;padding:10px 9px}#sx-chatbot-panel{padding:18px 14px 30px}#sx-chatbot-dialog .sx-form-grid{grid-template-columns:1fr}#sx-chatbot-dialog label.sx-full{grid-column:auto}#sx-chatbot-dialog .sx-guide-content,#sx-chatbot-dialog .sx-faq-editor{grid-column:auto}#sx-chatbot-dialog .sx-language-pair,#sx-chatbot-dialog .sx-faq-fields{grid-template-columns:1fr}}
     `;
     document.head.append(style);
   }
@@ -267,6 +280,21 @@
     }
     return content;
   }
+  function faqEntryMarkup(entry = {}, index = 0) {
+    const field = (key, labelEn, labelAr, maxLength) => `<label>${esc(tr(labelEn,labelAr))}<textarea data-faq-field="${key}" maxlength="${maxLength}">${esc(entry[key] || '')}</textarea></label>`;
+    return `<fieldset class="sx-faq-entry" data-faq-entry><legend>${esc(tr('FAQ','سؤال شائع'))} ${index + 1}</legend><div class="sx-faq-fields">${field('questionEn','Question · English','السؤال · الإنجليزية',400)}${field('answerEn','Answer · English','الإجابة · الإنجليزية',1600)}${field('questionAr','Question · Arabic','السؤال · العربية',400)}${field('answerAr','Answer · Arabic','الإجابة · العربية',1600)}</div><button type="button" class="sx-secondary" data-remove-faq aria-label="${esc(tr('Remove FAQ','إزالة السؤال'))} ${index + 1}">${esc(tr('Remove','إزالة'))}</button></fieldset>`;
+  }
+  function faqEditorMarkup(config) {
+    const entries = Array.isArray(config.knowledgeEntries) ? config.knowledgeEntries.slice(0, 60) : [];
+    if (!entries.length) entries.push({});
+    return `<section class="sx-faq-editor sx-full" data-faq-editor><div class="sx-faq-title">${esc(tr('Approved FAQs','الأسئلة الشائعة المعتمدة'))}</div><div class="sx-faq-help">${esc(tr('Add clear question-and-answer pairs. Add both language pairs when you want precise English and Arabic answers. These become reference facts for Hybrid and AI replies. Up to 60 FAQs; total bot settings are limited to 32 KB.','أضف أزواجاً واضحة من الأسئلة والإجابات. أضف الزوجين اللغويين للحصول على إجابات دقيقة بالإنجليزية والعربية. ستُستخدم هذه المعلومات في ردود الذكاء الهجين والاصطناعي. حتى 60 سؤالاً، ويبلغ الحد الإجمالي لإعدادات الروبوت 32 كيلوبايت.'))}</div><div data-faq-list>${entries.map((entry,index)=>faqEntryMarkup(entry,index)).join('')}</div><div class="sx-faq-actions"><button type="button" class="sx-secondary" data-add-faq>＋ ${esc(tr('Add FAQ','إضافة سؤال'))}</button><span class="sx-muted" data-faq-count></span></div></section>`;
+  }
+  function collectFaqEntries(editor) {
+    if (!editor) return [];
+    return [...editor.querySelectorAll('[data-faq-entry]')].map(row => Object.fromEntries(
+      [...row.querySelectorAll('[data-faq-field]')].map(field => [field.dataset.faqField, field.value.trim()])
+    )).filter(entry => Object.values(entry).some(Boolean));
+  }
   function openEditor(engine, existing) {
     const bot = existing || { name: '', engine, status: 'draft', revision: 1, channels: [], config: {} };
     const config = bot.config || {};
@@ -283,7 +311,7 @@
     const flowField = engine !== 'ai' ? `<label class="sx-full">${esc(tr('Guided conversation setup','إعداد المحادثة الموجّهة'))}<select name="flowId">${flowChoices}</select><small class="sx-muted">${esc(hasBuiltInGuide ? tr('The built-in guide uses this category’s published facts and the editable messages below.','يستخدم الدليل المدمج البيانات المنشورة لهذه الفئة والرسائل القابلة للتعديل أدناه.') : tr('Choose an active Automation Flow for guided turns.','اختر تدفق أتمتة نشطاً للمحادثات الموجّهة.'))}</small></label>` : '';
     const guideSettings = engine !== 'ai' && hasBuiltInGuide ? guidedContentMarkup(config, selectedDomainGuide) : '';
     const instructions = engine === 'guided' ? '' : `<label class="sx-full">${esc(tr('Business instructions','تعليمات النشاط'))}<textarea name="instructions" maxlength="4000" placeholder="${esc(tr('Describe tone and approved answers. Do not include payment or enrollment commitments.','صف الأسلوب والإجابات المعتمدة دون وعود بالدفع أو التسجيل.'))}">${esc(config.instructions||'')}</textarea></label>`;
-    const faq = engine === 'guided' ? '' : `<label class="sx-full">${esc(tr('Approved FAQs (English and Arabic)','الأسئلة المعتمدة بالعربية والإنجليزية'))}<textarea name="faq" maxlength="7000" placeholder="${esc(tr('One FAQ per line: English question | English answer | Arabic question | Arabic answer','سؤال واحد في كل سطر: السؤال الإنجليزي | الإجابة الإنجليزية | السؤال العربي | الإجابة العربية'))}">${esc((config.knowledgeEntries||[]).map(x=>[x.questionEn,x.answerEn,x.questionAr,x.answerAr].join(' | ')).join('\n'))}</textarea></label>`;
+    const faq = engine === 'guided' ? '' : faqEditorMarkup(config);
     const providerFields = engine === 'guided' ? '' : `<div class="sx-full"><strong>${esc(tr('AI provider','مزود الذكاء الاصطناعي'))}</strong><div class="sx-muted">${esc(liveEdit ? tr('Provider credentials and usage limits are locked while this bot is active. Pause it to change them.','بيانات المزود وحدود الاستخدام مقفلة أثناء نشاط الروبوت. أوقفه لتغييرها.') : state.provider.configured ? tr(`Configured: ${state.provider.provider} · ${state.provider.model}. Leave the key empty to keep the saved key.`,`تم الإعداد: ${state.provider.provider} · ${state.provider.model}. اترك المفتاح فارغًا للاحتفاظ بالمفتاح الحالي.`) : tr('An API key is required before an AI bot can be activated.','يلزم مفتاح API قبل تفعيل روبوت الذكاء الاصطناعي.'))}</div></div><label>${esc(tr('Provider','المزود'))}<select name="provider" ${locked}><option value="openai" ${state.provider.provider==='openai'?'selected':''}>OpenAI</option><option value="gemini" ${state.provider.provider==='gemini'?'selected':''}>Gemini</option><option value="deepseek" ${state.provider.provider==='deepseek'?'selected':''}>DeepSeek</option></select></label><label>${esc(tr('Model ID','معرّف النموذج'))}<input name="model" maxlength="80" value="${esc(state.provider.model||'')}" ${locked}></label><label class="sx-full">${esc(tr('Provider API key','مفتاح API للمزود'))}<input name="apiKey" type="password" maxlength="2048" autocomplete="new-password" placeholder="${esc(tr('Enter a key to add or rotate it','أدخل مفتاحًا لإضافته أو تغييره'))}" ${locked}></label><label>${esc(tr('Daily token limit','حد الرموز اليومي'))}<input name="dailyTokenLimit" type="number" min="1000" max="1000000" value="${esc(state.provider.dailyTokenLimit||50000)}" ${locked}></label>`;
     const thresholdField = engine === 'guided' ? '' : `<label>${esc(tr('Confidence threshold','حد الثقة'))}<input name="confidenceThreshold" type="number" min="0.5" max="0.95" step="0.01" value="${esc(config.confidenceThreshold||0.72)}"></label>`;
     const preview = existing && engine !== 'guided' && !(engine === 'hybrid' && config.aiFallback === false) ? `<section class="sx-preview"><div class="sx-preview-title">${esc(tr('Test this bot','اختبر هذا الروبوت'))}</div><div class="sx-preview-note">${esc(tr('Your test message is sent to the configured AI provider, never to WhatsApp, and counts toward the daily AI limit. Preview uses saved settings. Save changes and reopen this bot before testing.','ستُرسل رسالة الاختبار إلى مزود الذكاء الاصطناعي المُعد، ولن تُرسل عبر واتساب، وستُحتسب ضمن الحد اليومي. يستخدم الاختبار الإعدادات المحفوظة؛ احفظ التغييرات وأعد فتح الروبوت أولاً.'))}</div><label>${esc(tr('Test customer message','رسالة العميل للاختبار'))}<textarea id="sx-chatbot-preview-message" maxlength="2000" placeholder="${esc(tr('Ask a course or FAQ question…','اسأل عن دورة أو سؤال شائع…'))}"></textarea></label><button type="button" class="sx-secondary" id="sx-chatbot-preview" ${state.provider.configured ? '' : 'disabled'}>${esc(tr('Preview reply','معاينة الرد'))}</button><div class="sx-preview-result" id="sx-chatbot-preview-result" aria-live="polite"></div></section>` : '';
@@ -294,6 +322,30 @@
     dialog.addEventListener('click', event => { if (event.target === dialog || event.target.closest('[data-close]')) dialog.remove(); });
     const formElement = dialog.querySelector('form');
     const flowSelect = formElement.querySelector('select[name="flowId"]');
+    const faqEditor = formElement.querySelector('[data-faq-editor]');
+    const faqList = faqEditor?.querySelector('[data-faq-list]');
+    const faqAdd = faqEditor?.querySelector('[data-add-faq]');
+    const faqCount = faqEditor?.querySelector('[data-faq-count]');
+    const syncFaqControls = () => {
+      const rows = [...(faqList?.querySelectorAll('[data-faq-entry]') || [])];
+      if (faqCount) faqCount.textContent = tr(`${rows.length} of 60 FAQs`,`عدد الأسئلة ${rows.length} من 60`);
+      if (faqAdd) faqAdd.disabled = rows.length >= 60;
+      rows.forEach((row,index) => { const legend=row.querySelector('legend'); if (legend) legend.textContent=`${tr('FAQ','سؤال شائع')} ${index+1}`; const remove=row.querySelector('[data-remove-faq]'); if (remove) remove.setAttribute('aria-label',`${tr('Remove FAQ','إزالة السؤال')} ${index+1}`); });
+    };
+    faqEditor?.addEventListener('click', event => {
+      if (event.target.closest('[data-add-faq]')) {
+        const rows=faqList.querySelectorAll('[data-faq-entry]');
+        if (rows.length >= 60) return;
+        faqList.insertAdjacentHTML('beforeend',faqEntryMarkup({},rows.length)); syncFaqControls();
+        faqList.querySelector('[data-faq-entry]:last-child [data-faq-field]')?.focus();
+      } else if (event.target.closest('[data-remove-faq]')) {
+        const row=event.target.closest('[data-faq-entry]');
+        if (faqList.querySelectorAll('[data-faq-entry]').length > 1) row.remove();
+        else row.querySelectorAll('[data-faq-field]').forEach(field=>{field.value='';});
+        syncFaqControls();
+      }
+    });
+    syncFaqControls();
     const guideSection = formElement.querySelector('[data-guide-content]');
     const guidedPreviewPanel = formElement.querySelector('[data-guided-preview]');
     flowSelect?.addEventListener('change', () => {
@@ -374,9 +426,20 @@
       const flowChoice=String(data.get('flowId')||'');
       const usesDomainGuide=hasBuiltInGuide && flowChoice===domainGuideValue;
       const flowId=usesDomainGuide?null:(flowChoice||null);
-      const entries=String(data.get('faq')||'').split('\n').map(line=>line.split('|').map(part=>part.trim())).filter(parts=>parts.some(Boolean)).map(parts=>({questionEn:parts[0]||'',answerEn:parts[1]||'',questionAr:parts[2]||'',answerAr:parts[3]||''}));
+      const entries=collectFaqEntries(faqEditor);
+      const invalidEntry=entries.find(entry=>{
+        const hasEn=Boolean(entry.questionEn||entry.answerEn), hasAr=Boolean(entry.questionAr||entry.answerAr);
+        return (!hasEn&&!hasAr) || (hasEn&&(!entry.questionEn||!entry.answerEn)) || (hasAr&&(!entry.questionAr||!entry.answerAr));
+      });
+      if (invalidEntry) {
+        error.textContent=tr('Each FAQ language needs both a question and an answer. Complete the English or Arabic pair before saving.','يجب إدخال السؤال والإجابة لكل لغة. أكمل زوج السؤال والإجابة بالإنجليزية أو العربية قبل الحفظ.'); submit.disabled=false;
+        const invalidRow=[...(faqEditor?.querySelectorAll('[data-faq-entry]')||[])].find(row=>{const value=key=>row.querySelector(`[data-faq-field="${key}"]`)?.value.trim()||'';return (Boolean(value('questionEn')||value('answerEn'))&&(!value('questionEn')||!value('answerEn')))||(Boolean(value('questionAr')||value('answerAr'))&&(!value('questionAr')||!value('answerAr')));});
+        if (invalidRow) { const value=key=>invalidRow.querySelector(`[data-faq-field="${key}"]`)?.value.trim()||''; const missing=!value('questionEn')&&value('answerEn')?'questionEn':value('questionEn')&&!value('answerEn')?'answerEn':!value('questionAr')&&value('answerAr')?'questionAr':'answerAr'; invalidRow.querySelector(`[data-faq-field="${missing}"]`)?.focus(); }
+        return;
+      }
       const body={name:String(data.get('name')||'').trim(),engine,config:{...config,flowId,guidedMode:usesDomainGuide?'domain_default':(flowId?'automation_flow':null),instructions:String(data.get('instructions')||''),workflow:'course_admissions',aiFallback:data.get('aiFallback')!=='false',confidenceThreshold:Number(data.get('confidenceThreshold')||config.confidenceThreshold||0.72),aiDataProcessingConfirmed:liveEdit?config.aiDataProcessingConfirmed===true:data.get('aiDataProcessingConfirmed')==='on',knowledgeEntries:entries}};
       if (usesDomainGuide) body.config.guidedContent=collectGuidedContent(data);
+      if (new TextEncoder().encode(JSON.stringify(body.config)).length > 32000) { error.textContent=tr('Bot settings exceed the 32 KB limit. Shorten FAQ answers or business instructions before saving.','تجاوزت إعدادات الروبوت حد 32 كيلوبايت. اختصر إجابات الأسئلة الشائعة أو تعليمات النشاط قبل الحفظ.'); submit.disabled=false; return; }
       try {
         let saved;
         if (existing) saved=await api(`/${bot.id}`,'PUT',{...body,expectedRevision:Number(bot.revision)});
