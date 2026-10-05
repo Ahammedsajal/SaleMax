@@ -4,6 +4,8 @@ require('dotenv').config({quiet:true});
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const fs=require('node:fs');
+const http=require('node:http');
+const express=require('express');
 const mysql=require('mysql2/promise');
 const plans=require('../modules/platform/plans');
 const {trainingCenter}=require('../modules/platform/categories');
@@ -13,6 +15,7 @@ const gateway=require('../modules/platform/asterisk-gateway-ports');
 const asteriskConfig=require('../modules/platform/asterisk-config');
 const asteriskSecrets=require('../modules/platform/asterisk-secrets');
 const {AsteriskCallControl}=require('../modules/platform/asterisk-call-control');
+const {createCallCenterRouter}=require('../modules/platform/call-center-router');
 
 async function main(){
   if(process.env.LOCAL_ONLY_MODE!=='true'||!['127.0.0.1','localhost','::1'].includes(process.env.DBHOST))throw new Error('LOCAL_DATABASE_ONLY');
@@ -32,9 +35,9 @@ async function main(){
     await db.query(`CREATE TABLE sx_memberships(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,role VARCHAR(20) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'active',PRIMARY KEY(id),UNIQUE KEY uq_test_membership_tenant_id(tenant_id,id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),FOREIGN KEY(identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_audit_events(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_kind VARCHAR(24) NOT NULL,action VARCHAR(100) NOT NULL,resource_type VARCHAR(100) NOT NULL,resource_id VARCHAR(120) NOT NULL,changes JSON NOT NULL,correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,FOREIGN KEY(actor_identity_id) REFERENCES sx_identities(id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id)) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_platform_asterisk_config(id TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,gateway_endpoint_status VARCHAR(20) NULL,
-      gateway_host VARCHAR(253) NOT NULL DEFAULT '',gateway_sip_port SMALLINT UNSIGNED NOT NULL DEFAULT 5061,gateway_sip_transport VARCHAR(8) NOT NULL DEFAULT 'tls',
+      gateway_endpoint_tested_at DATETIME(3) NULL,gateway_host VARCHAR(253) NOT NULL DEFAULT '',gateway_sip_port SMALLINT UNSIGNED NOT NULL DEFAULT 5061,gateway_sip_transport VARCHAR(8) NOT NULL DEFAULT 'tls',
       ari_base_url VARCHAR(512) NOT NULL DEFAULT '',ari_username VARCHAR(128) NOT NULL DEFAULT '',credential_ciphertext VARBINARY(512) NULL,credential_iv BINARY(12) NULL,
-      credential_auth_tag BINARY(16) NULL,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,last_test_status VARCHAR(16) NULL) ENGINE=InnoDB`);
+      credential_auth_tag BINARY(16) NULL,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,last_tested_at DATETIME(3) NULL,last_test_status VARCHAR(16) NULL,last_test_version VARCHAR(80) NULL) ENGINE=InnoDB`);
     await db.query('INSERT INTO sx_platform_asterisk_config(id) VALUES(1)');
     await db.query(`CREATE TABLE sx_platform_asterisk_gateway_ports(channel_no TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,inbound_enabled TINYINT(1) NOT NULL DEFAULT 0,outbound_enabled TINYINT(1) NOT NULL DEFAULT 0,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,updated_at DATETIME(3) NULL,FOREIGN KEY(updated_by_identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
     await db.query('INSERT INTO sx_platform_asterisk_gateway_ports(channel_no) VALUES(1),(2),(3),(4)');
@@ -138,7 +141,22 @@ async function main(){
       const [[credentialAudits]]=await db.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE resource_type='telephony-endpoint' AND action='telephony.endpoint-credential-accessed'");
       assert.equal(Number(credentialAudits.total),4,'admin preview and each member credential read are audited without storing passwords');
     }finally{for(const [name,value] of [['SALEMAX_PLATFORM_KEY_BASE64',oldEndpointEnv.key],['SALEMAX_ASTERISK_ALLOWED_HOSTS',oldEndpointEnv.hosts],['SALEMAX_ASTERISK_WS_URL',oldEndpointEnv.ws],['SALEMAX_ASTERISK_MOBILE_SIP_HOST',oldEndpointEnv.mobile]])if(value===undefined)delete process.env[name];else process.env[name]=value;}
-    await db.query("UPDATE sx_platform_asterisk_runtime SET status='reconnecting',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
+    await db.query("UPDATE sx_platform_asterisk_runtime SET status='connected',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
+    const statusApp=express();
+    statusApp.use('/call-center',createCallCenterRouter({pool,userGuard(_req,_res,next){next();},
+      canonicalGuard(req,_res,next){req.businessContext=tenantContext;next();},origin:'http://127.0.0.1'}));
+    const statusServer=http.createServer(statusApp);
+    await new Promise((resolve,reject)=>{statusServer.once('error',reject);statusServer.listen(0,'127.0.0.1',resolve);});
+    try{
+      const statusUrl=`http://127.0.0.1:${statusServer.address().port}/call-center/status`;
+      let statusResponse=await fetch(statusUrl),statusBody=await statusResponse.json();
+      assert.equal(statusResponse.status,200,`Call Center status endpoint failed: ${statusBody.code}`);assert.equal(statusBody.data.asterisk.events.ready,true);
+      assert.equal(statusBody.data.asterisk.events.status,'connected');
+      await db.query("UPDATE sx_platform_asterisk_runtime SET status='reconnecting',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
+      statusResponse=await fetch(statusUrl);statusBody=await statusResponse.json();
+      assert.equal(statusBody.data.asterisk.events.ready,false);
+      assert.equal(statusBody.data.calls.reason,'ASTERISK_EVENTS_NOT_READY');
+    }finally{await new Promise(resolve=>statusServer.close(resolve));}
     await assert.rejects(callControl.originateOutbound(tenantContext,{destination:'+97455551234',clientType:'mobile'}),{code:'ASTERISK_EVENTS_NOT_READY'});
     const [[unreserved]]=await db.query("SELECT COUNT(*) AS total FROM sx_telephony_calls WHERE tenant_id=? AND direction='outbound'",[tenantId]);
     assert.equal(Number(unreserved.total),0,'event-worker outage fails before reserving a GSM channel');
