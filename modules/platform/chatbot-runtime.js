@@ -331,7 +331,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     return { handled: true, ...result };
   } catch (error) {
-    const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED'].includes(error.code) ? error.code : 'runtime-error';
+    const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code) ? error.code : 'runtime-error';
     await handoffConversation(ctx, chatId, channelKind, sessionId, failure).catch(() => {});
     await finishTurn(turn, 'handed_off', failure).catch(() => {});
     return { handled: true, handedOff: true, code: error.code || 'BOT_RUNTIME_ERROR' };

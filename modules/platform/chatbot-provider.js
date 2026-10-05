@@ -33,8 +33,15 @@ async function generate({ provider, model, apiKey, system, user, maxOutputTokens
       body = { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0.1, maxOutputTokens: Math.min(Math.max(maxOutputTokens, 64), 700), responseMimeType: 'application/json' } };
     }
     const response = await fetchImpl(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal, redirect: 'error', size: 65536 });
-    const payload = await boundedJson(response);
     if (!response.ok) throw Object.assign(new Error('AI_PROVIDER_REQUEST_FAILED'), { code: 'AI_PROVIDER_REQUEST_FAILED', status: response.status });
+    let payload;
+    try { payload = await boundedJson(response); }
+    catch (error) {
+      if (['PROVIDER_RESPONSE_TOO_LARGE', 'PROVIDER_INVALID_RESPONSE'].includes(error.code)) {
+        throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
+      }
+      throw error;
+    }
     const text = spec.style === 'openai' ? payload?.choices?.[0]?.message?.content : payload?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('');
     if (typeof text !== 'string' || !text.trim() || text.length > 12000) throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
     let parsed;
@@ -43,7 +50,10 @@ async function generate({ provider, model, apiKey, system, user, maxOutputTokens
     return { canAnswer: parsed.can_answer, confidence: parsed.confidence, reply: parsed.reply.trim(), inputTokens: Number(payload?.usage?.prompt_tokens ?? payload?.usageMetadata?.promptTokenCount ?? 0), outputTokens: Number(payload?.usage?.completion_tokens ?? payload?.usageMetadata?.candidatesTokenCount ?? 0) };
   } catch (error) {
     if (error.name === 'AbortError') throw Object.assign(new Error('AI_PROVIDER_TIMEOUT'), { code: 'AI_PROVIDER_TIMEOUT' });
-    throw error;
+    if (['AI_PROVIDER_REQUEST_FAILED', 'AI_PROVIDER_INVALID_OUTPUT'].includes(error.code)) throw error;
+    // Do not leak provider/network implementation errors into conversation
+    // state. The Inbox presents this stable code to the human operator.
+    throw Object.assign(new Error('AI_PROVIDER_REQUEST_FAILED'), { code: 'AI_PROVIDER_REQUEST_FAILED' });
   } finally { clearTimeout(timeout); }
 }
 

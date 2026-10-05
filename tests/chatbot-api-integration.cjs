@@ -9,9 +9,14 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
   const originalGenerate = provider.generate;
   let providerCalls = 0;
   let previewInput = '';
+  let failNextProvider = false;
   provider.generate = async request => {
     providerCalls++;
     previewInput = request.user;
+    if (failNextProvider) {
+      failNextProvider = false;
+      throw Object.assign(new Error('synthetic malformed provider output'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
+    }
     return { canAnswer: true, confidence: 0.96, reply: 'Our approved course information is available.', inputTokens: 31, outputTokens: 14 };
   };
 
@@ -344,6 +349,20 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(hybridQuestionResult.sent, true);
     assert.equal(providerCalls, 3, 'Hybrid sends an ordinary follow-up to the configured AI fallback');
     assert.equal(sentMessages.at(-1).content.text.body, 'Our approved course information is available.');
+    const sentCountBeforeFailure = sentMessages.length;
+    failNextProvider = true;
+    const invalidOutputInbound = { ...hybridQuestion, metaChatId: `synthetic-hybrid-invalid-output-${crypto.randomUUID()}` };
+    const invalidOutputResult = await runtime.runConfiguredBot({ uid: legacyUid, message: invalidOutputInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
+    assert.equal(invalidOutputResult.handedOff, true);
+    assert.equal(invalidOutputResult.code, 'AI_PROVIDER_INVALID_OUTPUT');
+    assert.equal(sentMessages.length, sentCountBeforeFailure, 'invalid AI output is never sent to the customer');
+    const [[providerFailureControl]] = await connection.query('SELECT mode,reason FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND conversation_id=?', [t1, hybridConversation]);
+    assert.equal(providerFailureControl.mode, 'paused');
+    assert.equal(providerFailureControl.reason, 'AI_PROVIDER_INVALID_OUTPUT', 'Inbox handoff retains a useful provider failure code');
+    const inboundKey = require('../modules/platform/chatbot-profile-utils').inboundMessageKey({ channelKind: 'whatsapp_qr', channelRef }, hybridConversation, invalidOutputInbound.metaChatId);
+    const [[providerFailureTurn]] = await connection.query('SELECT status,result_class FROM sx_chatbot_turns WHERE tenant_id=? AND conversation_id=? AND inbound_message_id=?', [t1, hybridConversation, inboundKey]);
+    assert.equal(providerFailureTurn.status, 'handed_off');
+    assert.equal(providerFailureTurn.result_class, 'AI_PROVIDER_INVALID_OUTPUT');
     const hybridPaused = await call(`/${hybridId}/status`, 'PUT', { status: 'paused', expectedRevision: 4 });
     assert.equal(hybridPaused.status, 200);
     assert.equal((await call(`/${hybridId}`, 'DELETE', {})).status, 200);
@@ -355,6 +374,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       liveInboundAiResponseWithFakeChannelTransport: true, inboundRetryIdempotency: true,
       pausedConversationSuppressesAiAndChannelSend: true, liveProfileEditsAreAtomicAndPreserveActivationSafety: true,
       hybridDeterministicGreetingAndAiFallbackWithFakeChannelTransport: true, liveHybridGuidedCopyEditAppliedToNextTurn: true,
+      hybridProviderInvalidOutputIsHumanReadableAndNeverSent: true,
       guidedFlowOptionsAndRuntimeLookup: true, guidedPreviewUsesTenantPublishedFactsWithoutWritesOrProviderCalls: true,
     };
   } finally {

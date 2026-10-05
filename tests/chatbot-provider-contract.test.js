@@ -41,3 +41,10 @@ test('provider failures and malformed model output are safe errors for handoff',
   await assert.rejects(() => generate({ provider: 'openai', model: 'model', apiKey: 'test-provider-key-123456', system: 'system', user: 'question', fetchImpl: async () => response({ choices: [{ message: { content: '{bad json' } }] }) }), error => error.code === 'AI_PROVIDER_INVALID_OUTPUT');
   await assert.rejects(() => generate({ provider: 'openai', model: 'model', apiKey: 'test-provider-key-123456', system: 'system', user: 'question', fetchImpl: async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }); } }), error => error.code === 'AI_PROVIDER_TIMEOUT');
 });
+
+test('provider errors normalize non-JSON HTTP failures, oversized output, and transport errors', async () => {
+  const args = { provider: 'openai', model: 'model', apiKey: 'test-provider-key-123456', system: 'system', user: 'question' };
+  await assert.rejects(() => generate({ ...args, fetchImpl: async () => ({ ok: false, status: 502, headers: { get: () => null }, text: async () => '<html>bad gateway</html>' }) }), error => error.code === 'AI_PROVIDER_REQUEST_FAILED');
+  await assert.rejects(() => generate({ ...args, fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => null }, text: async () => 'x'.repeat(70000) }) }), error => error.code === 'AI_PROVIDER_INVALID_OUTPUT');
+  await assert.rejects(() => generate({ ...args, fetchImpl: async () => { throw Object.assign(new Error('socket closed'), { code: 'ECONNRESET' }); } }), error => error.code === 'AI_PROVIDER_REQUEST_FAILED');
+});
