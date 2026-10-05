@@ -19,11 +19,24 @@ const {
   sendFcmPushNotification,
 } = require("../helper/addon/web-notification/webPush.js");
 const portfolios = require("../modules/platform/user-portfolio");
+const userTeamTree = require("../modules/platform/admin-user-team-tree");
 
 function platformContext(req) {
   const access = req.platformAccess;
   if (!access) return null;
   return { audience: "platform", identity: { id: access.identityId }, membership: { status: "active", role: access.role, reportsToIdentityId: access.reportsToIdentityId || null } };
+}
+function manageUsersQuery(context) {
+  const scoped = context && context.membership.role !== "super_admin";
+  return scoped
+    ? {
+        sql: `SELECT u.id,u.role,u.uid,u.name,u.email,u.mobile_with_country_code,u.timezone,u.plan,u.plan_expire,u.trial,u.createdAt FROM user u JOIN sx_platform_user_portfolios p ON p.legacy_user_id=u.id WHERE p.managed_by_identity_id=? ORDER BY u.id DESC`,
+        args: [portfolios.portfolioIdentity(context)]
+      }
+    : {
+        sql: `SELECT id,role,uid,name,email,mobile_with_country_code,timezone,plan,plan_expire,trial,createdAt FROM user ORDER BY id DESC`,
+        args: []
+      };
 }
 async function requireUserPortfolio(req, uid) {
   const context = platformContext(req);
@@ -133,12 +146,13 @@ router.post("/del_plan", adminValidator, async (req, res) => {
 // get all users
 router.get("/get_users", adminValidator, async (req, res) => {
   try {
-    const context = platformContext(req);
-    const scoped = context && context.membership.role !== "super_admin";
-    const sql = scoped
-      ? `SELECT u.id,u.role,u.uid,u.name,u.email,u.mobile_with_country_code,u.timezone,u.plan,u.plan_expire,u.trial,u.createdAt FROM user u JOIN sx_platform_user_portfolios p ON p.legacy_user_id=u.id WHERE p.managed_by_identity_id=? ORDER BY u.id DESC`
-      : `SELECT id,role,uid,name,email,mobile_with_country_code,timezone,plan,plan_expire,trial,createdAt FROM user ORDER BY id DESC`;
-    const data = await query(sql, scoped ? [portfolios.portfolioIdentity(context)] : []);
+    const list = manageUsersQuery(platformContext(req));
+    let data = await query(list.sql, list.args);
+    const staffTree = await userTeamTree.list(query, data.map(row => row.id));
+    const nestedStaff = new Set(staffTree.staffUserIds);
+    // Canonically linked tenant staff are displayed under their business owner,
+    // not as separate platform customers. Unlinked legacy users remain visible.
+    data = data.filter(row => !nestedStaff.has(Number(row.id)));
     for (const row of data) {
       const parsed = require("../modules/platform/legacy-plan-assignment.js").summary(row.plan);
       row.plan_snapshot_valid = parsed.valid;
@@ -147,6 +161,19 @@ router.get("/get_users", adminValidator, async (req, res) => {
     res.json({ data, success: true });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong" });
+    console.log(err);
+  }
+});
+
+router.get("/get_user_team_tree", adminValidator, async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const list = manageUsersQuery(platformContext(req));
+    const users = await query(list.sql, list.args);
+    const tree = await userTeamTree.list(query, users.map(row => row.id));
+    res.json({ data: tree.businesses, success: true });
+  } catch (err) {
+    res.status(503).json({ success: false, code: "USER_TEAM_TREE_UNAVAILABLE" });
     console.log(err);
   }
 });

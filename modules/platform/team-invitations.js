@@ -4,6 +4,8 @@ const bcrypt=require('bcrypt');
 const plans=require('./plans');
 const seats=require('./legacy-agent-seats');
 const {trainingCenter}=require('./categories');
+const navigation=require('./navigation');
+const {decision}=require('./policy');
 
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const digest=value=>crypto.createHash('sha256').update(value,'utf8').digest('hex');
@@ -18,7 +20,8 @@ async function audit(db,identityId,tenantId,action,id,changes){await db.query(`I
 async function storage(db){
   const [[table]]=await db.query("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sx_team_invites'");
   const [columns]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sx_team_invites' AND COLUMN_NAME IN ('token_hash','invited_by_identity_id','accepted_at')");
-  if(table?.ENGINE!=='InnoDB'||columns.length!==3)fail('TEAM_INVITATION_STORAGE_NOT_READY');
+  const [[membershipColumn]]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sx_memberships' AND COLUMN_NAME='assigned_navigation'");
+  if(table?.ENGINE!=='InnoDB'||columns.length!==3||!membershipColumn)fail('TEAM_INVITATION_STORAGE_NOT_READY');
 }
 async function ownerScope(db,ownerUid,{requireTeam=true}={}){
   const [rows]=await db.query(`SELECT u.id AS legacyUserId,u.uid,t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,
@@ -71,7 +74,56 @@ async function list(pool,ownerUid){
     const seatUsage=Object.fromEntries(staffRoles.map(key=>{const pendingCount=pending[key]||0,limit=scope.entitlement?.roleLimits?.[key]??null,total=Number(used[key]||0);return [key,{active:Math.max(0,total-pendingCount),pending:pendingCount,limit,available:!teamEnabled||limit===null?0:Math.max(0,limit-total)}];}));
     const [rows]=await db.query(`SELECT id,email_normalized AS email,role,status,DATE_FORMAT(expires_at,'%Y-%m-%dT%H:%i:%s.%fZ') AS expiresAt
       FROM sx_team_invites WHERE tenant_id=? AND token_hash IS NOT NULL ORDER BY created_at DESC,id LIMIT 200`,[scope.tenantId]);
-    return {invitations:rows,availableRoles:staffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
+    const [members]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,i.email_normalized AS email,i.display_name AS displayName,
+        m.assigned_navigation AS assignedNavigation
+      FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
+      WHERE m.tenant_id=? AND m.status='active' AND i.status='active' AND m.role IN ('accountant','manager','agent')
+      ORDER BY i.display_name,i.email_normalized LIMIT 500`,[scope.tenantId]);
+    const tenant={id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)};
+    const navigationByRole=Object.fromEntries(staffRoles.map(memberRole=>{
+      const context={audience:'tenant',tenant,category:trainingCenter,subscription:scope.entitlement,
+        membership:{id:'preview',tenantId:scope.tenantId,role:memberRole,status:'active',delegatedPermissions:[]}};
+      return [memberRole,navigation.navigationFor(context).map(item=>({key:item.key,label:item.label,group:item.group}))];
+    }));
+    return {invitations:rows,members:members.map(member=>({...member,assignedNavigation:parseNavigation(member.assignedNavigation)})),navigationByRole,availableRoles:staffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
+  });}finally{db.release();}
+}
+async function sidebarAccess(pool,legacyUid){
+  if(typeof legacyUid!=='string'||!legacyUid)fail('AUTH_REQUIRED');
+  const db=await pool.getConnection();
+  try{
+    const [rows]=await db.query(`SELECT m.id,m.role,m.status AS membershipStatus,m.assigned_navigation AS assignedNavigation,
+        t.id AS tenantId,t.status AS tenantStatus,o.legacy_uid_hash AS uidHash
+      FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
+      JOIN sx_identities i ON i.id=m.identity_id
+      WHERE u.uid=? AND i.status='active' LIMIT 2`,[legacyUid]);
+    if(rows.length!==1||rows[0].uidHash!==digest(legacyUid)||rows[0].membershipStatus!=='active'||rows[0].tenantStatus!=='active')fail('PERMISSION_DENIED');
+    return {role:rows[0].role,assignedNavigation:parseNavigation(rows[0].assignedNavigation)};
+  }finally{db.release();}
+}
+function parseNavigation(value){
+  try{const keys=typeof value==='string'?JSON.parse(value):value;return Array.isArray(keys)&&keys.every(key=>typeof key==='string')?keys:null;}
+  catch{return null;}
+}
+async function updateMemberNavigation(pool,ownerUid,membershipId,input){
+  invitationId(membershipId);
+  if(!input||!Array.isArray(input.navigation)||input.navigation.length>100||input.navigation.some(key=>typeof key!=='string')||new Set(input.navigation).size!==input.navigation.length)fail('INVALID_NAVIGATION');
+  const db=await pool.getConnection();
+  try{return await tx(db,async()=>{
+    await storage(db);const scope=await ownerScope(db,ownerUid);
+    const [[member]]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,m.assigned_navigation AS assignedNavigation
+      FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
+      WHERE m.tenant_id=? AND m.id=? AND m.status='active' AND i.status='active' AND m.role IN ('accountant','manager','agent') FOR UPDATE`,[scope.tenantId,membershipId]);
+    if(!member)fail('MEMBER_NOT_FOUND');
+    const context={audience:'tenant',tenant:{id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)},category:trainingCenter,subscription:scope.entitlement,
+      membership:{id:member.id,tenantId:scope.tenantId,role:member.role,status:'active',delegatedPermissions:[]}};
+    const allowed=new Set(navigation.navigationFor(context).map(item=>item.key));
+    if(input.navigation.some(key=>!allowed.has(key)))fail('NAVIGATION_NOT_AVAILABLE');
+    const old=parseNavigation(member.assignedNavigation);
+    await db.query('UPDATE sx_memberships SET assigned_navigation=?,permission_version=permission_version+1 WHERE id=? AND tenant_id=?',[JSON.stringify(input.navigation),member.id,scope.tenantId]);
+    await audit(db,scope.identityId,scope.tenantId,'team.navigation-updated',member.id,{oldNavigation:old,newNavigation:input.navigation});
+    return {membershipId:member.id,assignedNavigation:input.navigation};
   });}finally{db.release();}
 }
 async function rotate(pool,ownerUid,id){
@@ -151,4 +203,4 @@ async function accept(pool,input){
     return {status:'accepted',email:invite.email,role:invite.role,agentUid,tenantSlug:invite.tenantSlug};
   });}finally{db.release();}
 }
-module.exports={create,list,rotate,cancel,preview,accept,email,role};
+module.exports={create,list,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,parseNavigation};

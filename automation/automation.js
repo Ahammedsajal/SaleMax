@@ -1,5 +1,6 @@
 const flowProcessor = require("./functions");
 const { query } = require("../database/dbpromise");
+const { shouldPause } = require("../modules/platform/chatbot-conversation-control");
 
 async function processFlow({
   nodes,
@@ -16,6 +17,7 @@ async function processFlow({
   webhookVariables = {},
   loopDetection = { visitedNodes: new Map(), startTime: Date.now() }, // Add loop detection
 }) {
+  if (chatId && await shouldPause(uid, chatId)) return;
   // ===== LOOP PROTECTION START =====
   const MAX_ITERATIONS = 50; // Maximum total iterations
   const MAX_NODE_VISITS = 3; // Maximum visits to same node

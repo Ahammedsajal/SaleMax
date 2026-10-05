@@ -11,7 +11,7 @@ async function loadSession(connection, token, {forUpdate=false}={}) {
   const hash=tokenHash(token);if(!hash)return null;
   const [rows]=await connection.query(`SELECT s.id AS sessionId,s.audience,s.identity_id AS identityId,
     i.display_name AS displayName,s.tenant_id AS tenantId,s.membership_id AS membershipId,
-    m.role AS tenantRole,m.status AS membershipStatus,m.permission_version AS permissionVersion,m.delegated_permissions AS tenantGrants,
+    m.role AS tenantRole,m.status AS membershipStatus,m.permission_version AS permissionVersion,m.delegated_permissions AS tenantGrants,m.assigned_navigation AS assignedNavigation,
     t.name AS tenantName,t.category_key AS categoryKey,t.category_version AS categoryVersion,t.status AS tenantStatus,t.revision AS tenantRevision,t.currency,t.timezone,
     p.role AS platformRole,p.reports_to_identity_id AS reportsToIdentityId,p.status AS platformStatus,p.delegated_permissions AS platformGrants,p.permission_version AS platformPermissionVersion,
     (s.mfa_verified_at IS NOT NULL AND s.mfa_verified_at<=UTC_TIMESTAMP(3)) AS mfaVerified,
@@ -30,7 +30,9 @@ async function loadSession(connection, token, {forUpdate=false}={}) {
     return {...base,mfaVerified:!!row.mfaVerified,recentlyAuthenticated:!!row.recentlyAuthenticated,membership:{identityId:row.identityId,role:row.platformRole,status:row.platformStatus,reportsToIdentityId:row.reportsToIdentityId||null,delegatedPermissions:grants,permissionVersion:row.platformPermissionVersion}};
   }
   const grants=parseGrants(row.tenantGrants);
+  const assignedNavigation=parseGrants(row.assignedNavigation);
   if(row.audience!=='tenant'||row.membershipStatus!=='active'||row.tenantStatus!=='active'||!grants)return null;
-  return {...base,tenant:{id:row.tenantId,name:row.tenantName,status:row.tenantStatus,categoryKey:row.categoryKey,categoryVersion:row.categoryVersion,revision:row.tenantRevision,currency:row.currency,timezone:row.timezone},membership:{id:row.membershipId,tenantId:row.tenantId,identityId:row.identityId,role:row.tenantRole,status:row.membershipStatus,permissionVersion:row.permissionVersion,delegatedPermissions:grants}};
+  if(row.assignedNavigation!==null&&row.assignedNavigation!==undefined&&!assignedNavigation)return null;
+  return {...base,tenant:{id:row.tenantId,name:row.tenantName,status:row.tenantStatus,categoryKey:row.categoryKey,categoryVersion:row.categoryVersion,revision:row.tenantRevision,currency:row.currency,timezone:row.timezone},membership:{id:row.membershipId,tenantId:row.tenantId,identityId:row.identityId,role:row.tenantRole,status:row.membershipStatus,permissionVersion:row.permissionVersion,delegatedPermissions:grants,assignedNavigation}};
 }
 module.exports={tokenHash,loadSession};

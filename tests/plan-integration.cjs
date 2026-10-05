@@ -4,7 +4,7 @@ const plans=require('../modules/platform/plans');
 const {trainingCenter}=require('../modules/platform/categories');
 module.exports=async function verifyPlans(db,other,{t1,i1,m1}){
   const platform={audience:'platform',identity:{id:i1},mfaVerified:true,recentlyAuthenticated:true,membership:{role:'super_admin',status:'active'}};
-  const input={name:'Synthetic training plan',categoryKey:'training_center',categoryVersion:1,capabilities:['team.members','training.courses','tenant.settings'],roleLimits:{owner:1,accountant:1,manager:1,agent:7}};
+  const input={name:'Synthetic training plan',categoryKey:'training_center',categoryVersion:1,capabilities:['team.members','training.courses','tenant.settings','automation.chatbot'],roleLimits:{owner:1,accountant:1,manager:1,agent:7}};
   const continuing=await plans.createDraft(db,platform,{...input,name:'No repeated MFA fixture'});
   await plans.publish(db,{...platform,recentlyAuthenticated:false},continuing.id,continuing.revision);
   const draft=await plans.createDraft(db,platform,input);

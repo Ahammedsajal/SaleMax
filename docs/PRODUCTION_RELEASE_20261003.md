@@ -104,12 +104,6 @@ Pre-release database backup and rollback references are protected under `/opt/sa
 
 The committed-source test suite passes 152/152. Production checks verified service health, login/report routes, refreshed assets and unauthenticated API denial. Authenticated browser acceptance for owner/agent/accountant workflows, certificate PDF generation, receipt delivery, and historical funnel reconstruction remain open. This release does not complete the overall Training Center objective. Local preview-only workspace files were preserved and excluded from the deployed artifact.
 
-## Detailed lead attendance reporting — 4 October 2026
-
-Commit `e6cb803` is deployed at `/opt/salemax/releases/training-lead-report-replies-e6cb803`; `/opt/salemax/current` points to it. The detailed lead activity report now lists successful QR and Meta agent replies with the responsible agent and channel, and includes an agent-reply count. Message text is not stored or shown. Empty states and activity labels are bilingual, and the Lead Reports asset cache key is `reports.js?v=15`.
-
-Verification: focused report tests pass 16/16 and `npm test` passes 169/169. Production `/healthz` returns HTTP 200 and the SaleMaX app and database are healthy. The deployed helper and UI report source hashes match the release (`123a37fb2352d1e35182412432cb99e87b356e239790996ee221d3847427b401`, `9c3340925a5edc2247e6a80e5f9f0e8882dfaf7a6860e9b082fa71d7a7cf174f`). Only the app container was recreated; no migration was needed. Rollback image: `salemax-app:rollback-training-lead-report-replies-e6cb803`.
-
 ## WhatsApp agent replies count as lead attendance — 4 October 2026
 
 Commit `a52954a` is deployed at `/opt/salemax/releases/training-attendance-replies-a52954a`; `/opt/salemax/current` points to it. After a successful agent send through the existing QR or Meta WhatsApp conversation flow, the linked lead records a tenant-scoped attendance activity attributed to that agent. Activity stores the lead, agent, channel, provider message ID and time, not message text. Duplicate provider message IDs do not create duplicate attendance, and unsuccessful or unlinked sends are ignored. Journey, per-agent and cohort attendance reports count these activities alongside recorded contact outcomes; internal notes remain excluded.

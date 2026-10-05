@@ -6,7 +6,7 @@
   const fields=[['price','Price','السعر'],['plan_duration_in_days','Duration (days)','المدة (أيام)'],['contact_limit','Contacts','جهات الاتصال'],['qr_account','QR accounts','حسابات QR']];
   const flags=[['allow_tag','Chat tags','وسوم المحادثة'],['allow_note','Chat notes','ملاحظات المحادثة'],['allow_chatbot','Chatbot','روبوت المحادثة'],['allow_api','Cloud API','Cloud API'],['wa_warmer','WhatsApp Warmer','تهيئة واتساب'],['rest_api_qr','QR REST API','QR REST API']];
   let editor,hidden=[],returnFocus,refreshOnClose=false;
-  const style=document.createElement('style');style.textContent=`.sx-user-plan-action{border:0;background:#fff2f6;color:#860030;border-radius:6px;padding:5px 8px;font:600 11px Arial,sans-serif;cursor:pointer;white-space:nowrap}.sx-user-plan-link{display:inline-flex;align-items:center;min-height:40px;margin-inline-end:8px;padding:0 13px;border:1px solid #edbfd0;border-radius:8px;background:#fff2f6;color:#860030;font:600 13px Arial,sans-serif;text-decoration:none}.sx-user-plans table{width:100%;border-collapse:collapse;text-align:start}.sx-user-plans th,.sx-user-plans td{padding:10px;border-bottom:1px solid #e4e8ee;text-align:start}.sx-user-plans .sx-plan-field select{min-height:46px}.sx-user-history{overflow:auto;margin-top:24px}.sx-user-plans button:focus-visible,.sx-user-plan-link:focus-visible,.sx-user-category-assignment button:focus-visible,.sx-user-category-assignment select:focus-visible{outline:3px solid #a8003b70;outline-offset:2px}.sx-user-category-assignment{width:100%;box-sizing:border-box;margin:14px 0;padding:14px;border:1px solid #ead4df;border-radius:10px;background:#fff9fb;color:#263243}.sx-user-category-assignment h3{margin:0 0 8px;font-size:15px}.sx-user-category-assignment label{display:block;font-size:13px;font-weight:600}.sx-user-category-assignment select{display:block;width:100%;min-height:40px;margin-top:6px;padding:7px 10px;border:1px solid #d4dbe5;border-radius:7px;background:#fff;color:#263243;font:inherit}.sx-user-category-assignment [role=status],.sx-user-category-assignment [role=alert]{margin:8px 0;font-size:12px;color:#596579}.sx-user-category-assignment .sx-category-flow{margin-top:10px}`;document.head.appendChild(style);
+  const style=document.createElement('style');style.textContent=`.sx-user-plan-action{border:0;background:#fff2f6;color:#860030;border-radius:6px;padding:5px 8px;font:600 11px Arial,sans-serif;cursor:pointer;white-space:nowrap}.sx-user-plan-cell{min-width:0;box-sizing:border-box;gap:4px!important}.sx-user-plan-cell .sx-user-plan-action{flex:0 0 auto;padding:4px 5px;font-size:10px}.sx-user-plan-link{display:inline-flex;align-items:center;min-height:40px;margin-inline-end:8px;padding:0 13px;border:1px solid #edbfd0;border-radius:8px;background:#fff2f6;color:#860030;font:600 13px Arial,sans-serif;text-decoration:none}.sx-user-plans table{width:100%;border-collapse:collapse;text-align:start}.sx-user-plans th,.sx-user-plans td{padding:10px;border-bottom:1px solid #e4e8ee;text-align:start}.sx-user-plans .sx-plan-field select{min-height:46px}.sx-user-history{overflow:auto;margin-top:24px}.sx-user-plans button:focus-visible,.sx-user-plan-link:focus-visible,.sx-user-category-assignment button:focus-visible,.sx-user-category-assignment select:focus-visible{outline:3px solid #a8003b70;outline-offset:2px}.sx-user-category-assignment{width:100%;box-sizing:border-box;margin:14px 0;padding:14px;border:1px solid #ead4df;border-radius:10px;background:#fff9fb;color:#263243}.sx-user-category-assignment h3{margin:0 0 8px;font-size:15px}.sx-user-category-assignment label{display:block;font-size:13px;font-weight:600}.sx-user-category-assignment select{display:block;width:100%;min-height:40px;margin-top:6px;padding:7px 10px;border:1px solid #d4dbe5;border-radius:7px;background:#fff;color:#263243;font:inherit}.sx-user-category-assignment [role=status],.sx-user-category-assignment [role=alert]{margin:8px 0;font-size:12px;color:#596579}.sx-user-category-assignment .sx-category-flow{margin-top:10px}.sx-user-staff-cell{position:relative!important;overflow:visible!important}.MuiDataGrid-row.sx-user-staff-open{z-index:5;overflow:visible!important}.sx-user-staff-toggle{display:inline-flex;align-items:center;gap:5px;margin-inline-start:8px;padding:4px 8px;border:1px solid #ead4df;border-radius:999px;background:#fff8fb;color:#8a1742;font:600 11px Roboto,Arial,sans-serif;cursor:pointer;white-space:nowrap}.sx-user-staff-toggle:hover{background:#fceaf1}.sx-user-staff-panel{position:absolute;z-index:20;top:calc(100% + 3px);inset-inline-start:0;width:min(340px,calc(100vw - 36px));padding:12px 14px;border:1px solid #ead4df;border-radius:12px;background:#fff;box-shadow:0 12px 32px #29324426;color:#273345;white-space:normal;text-align:start}.sx-user-staff-panel[hidden]{display:none}.sx-user-staff-panel h3{margin:0 0 8px;font-size:12px;color:#687487;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.sx-user-staff-list{list-style:none;margin:0;padding:0}.sx-user-staff-list li{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:7px;padding:8px 0;border-top:1px solid #f0e8ec}.sx-user-staff-branch{position:relative;align-self:stretch;min-height:24px;border-inline-start:1px solid #d8a4b7}.sx-user-staff-branch:after{position:absolute;top:50%;inset-inline-start:0;width:11px;border-top:1px solid #d8a4b7;content:''}.sx-user-staff-name{min-width:0;font-size:12px;font-weight:600;overflow-wrap:anywhere}.sx-user-staff-email{display:block;margin-top:2px;color:#748094;font-size:11px;font-weight:400}.sx-user-staff-role{padding:3px 6px;border-radius:999px;background:#f4f5f8;color:#596579;font-size:10px;white-space:nowrap}.sx-user-staff-state{grid-column:2/4;color:#687487;font-size:10px}.sx-user-staff-state[data-status=active]{color:#12845b}@media(max-width:700px){.sx-user-staff-toggle{margin-inline-start:4px;padding:4px 6px;font-size:10px}.sx-user-staff-panel{inset-inline-start:auto;inset-inline-end:0;width:min(300px,calc(100vw - 150px))}.sx-user-plan-cell .sx-user-plan-action{padding:3px 4px;font-size:10px}}`;document.head.appendChild(style);
   async function api(path,body) {
     const token=localStorage.getItem('wacrm_admin');if(!token)throw new Error(t('Your session expired. Sign in again.','انتهت الجلسة. يرجى تسجيل الدخول مجددًا.'));
     let response,data;
@@ -149,15 +149,98 @@
     }
     await load();
   }
+  let teamTreeToken=null,teamTreePromise=null,teamTreeByOwner=new Map(),teamTreeFailedAt=0;
+  const expandedBusinessTeams=new Set();
+  const teamRowLayoutDefaults=new WeakMap(),teamGridLayoutDefaults=new WeakMap();
+  function applyTeamTreeLayout(){
+    const rows=[...document.querySelectorAll('.MuiDataGrid-row[data-rowindex]')];
+    for(const row of rows){const base=teamRowLayoutDefaults.get(row);if(base!==undefined){row.style.translate=base;teamRowLayoutDefaults.delete(row);}}
+    for(const content of document.querySelectorAll('.MuiDataGrid-virtualScrollerContent')){const base=teamGridLayoutDefaults.get(content);if(base!==undefined){content.style.paddingBottom=base;teamGridLayoutDefaults.delete(content);}}
+    const open=document.querySelector('.MuiDataGrid-row.sx-user-staff-open[data-rowindex]');if(!open)return;
+    const panel=open.querySelector('.sx-user-staff-panel');if(!panel||panel.hidden)return;
+    const zone=open.closest('.MuiDataGrid-virtualScrollerRenderZone');if(!zone)return;
+    const index=Number(open.getAttribute('data-rowindex')),height=Math.ceil(panel.getBoundingClientRect().height)+8;
+    if(!Number.isFinite(index)||height<=8)return;
+    for(const row of zone.querySelectorAll('.MuiDataGrid-row[data-rowindex]')){
+      if(Number(row.getAttribute('data-rowindex'))<=index)continue;
+      teamRowLayoutDefaults.set(row,row.style.translate);row.style.translate=`0px ${height}px`;
+    }
+    const content=zone.parentElement;
+    if(content?.classList.contains('MuiDataGrid-virtualScrollerContent')){
+      teamGridLayoutDefaults.set(content,content.style.paddingBottom);
+      const base=parseFloat(getComputedStyle(content).paddingBottom)||0;
+      content.style.paddingBottom=`${base+height}px`;
+    }
+  }
+  function closeExpandedTeamPanels(){
+    expandedBusinessTeams.clear();
+    for(const row of document.querySelectorAll('.MuiDataGrid-row.sx-user-staff-open'))row.classList.remove('sx-user-staff-open');
+    for(const panel of document.querySelectorAll('.sx-user-staff-panel'))panel.hidden=true;
+    for(const toggle of document.querySelectorAll('.sx-user-staff-toggle'))toggle.setAttribute('aria-expanded','false');
+    applyTeamTreeLayout();
+  }
+  async function mountBusinessStaffTree(){
+    if(location.pathname.toLowerCase()!=='/admin'||new URLSearchParams(location.search).get('page')!=='manage-users'||!localStorage.getItem('wacrm_admin'))return;
+    const token=localStorage.getItem('wacrm_admin');
+    if(teamTreeToken!==token){teamTreeToken=token;teamTreePromise=null;teamTreeByOwner=new Map();teamTreeFailedAt=0;closeExpandedTeamPanels();}
+    if(!teamTreePromise&&Date.now()-teamTreeFailedAt>5000){
+      teamTreePromise=(async()=>{
+        try{
+          const response=await fetch('/api/admin/get_user_team_tree',{headers:{Authorization:'Bearer '+token}}),result=await response.json();
+          if(!response.ok||!result.success)throw new Error(result.code||'USER_TEAM_TREE_UNAVAILABLE');
+          teamTreeByOwner=new Map((result.data||[]).map(item=>[String(item.ownerUserId),Array.isArray(item.staff)?item.staff:[]]));
+        }catch(_){teamTreeFailedAt=Date.now();teamTreePromise=null;return;}
+      })();
+    }
+    if(teamTreePromise)await teamTreePromise;
+    const refresh=[...document.querySelectorAll('button')].find(button=>['Refresh','تحديث'].includes(button.textContent.trim()));
+    if(refresh&&!refresh.dataset.sxTeamTreeRefresh){refresh.dataset.sxTeamTreeRefresh='1';refresh.addEventListener('click',()=>{teamTreePromise=null;teamTreeByOwner=new Map();closeExpandedTeamPanels();setTimeout(()=>mountBusinessStaffTree(),500);});}
+    if(!teamTreeByOwner.size){applyTeamTreeLayout();return;}
+    for(const row of document.querySelectorAll('.MuiDataGrid-row[data-id]')){
+      const ownerId=String(row.getAttribute('data-id')),staff=teamTreeByOwner.get(ownerId)||[];
+      const cell=row.querySelector('[data-field="name"]');if(!cell)continue;
+      const existing=cell.querySelector('.sx-user-staff-toggle'),panel=cell.querySelector('.sx-user-staff-panel');
+      if(!staff.length){existing?.remove();panel?.remove();row.classList.remove('sx-user-staff-open');continue;}
+      cell.classList.add('sx-user-staff-cell');
+      if(!cell.dataset.sxTeamCellBound){cell.dataset.sxTeamCellBound='1';cell.addEventListener('click',event=>{if(event.target.closest('button,a,input,select,textarea'))return;cell.querySelector('.sx-user-staff-toggle')?.click();});}
+      let toggle=existing;
+      if(!toggle){
+        toggle=document.createElement('button');toggle.type='button';toggle.className='sx-user-staff-toggle';
+        const content=cell.querySelector('.MuiDataGrid-cellContent');(content?.parentElement||cell).appendChild(toggle);
+        toggle.onclick=event=>{
+          event.preventDefault();event.stopPropagation();
+          const next=toggle.getAttribute('aria-expanded')!=='true';
+          if(next){expandedBusinessTeams.clear();expandedBusinessTeams.add(ownerId);}else expandedBusinessTeams.delete(ownerId);
+          toggle.textContent=t('Staff','الموظفون')+` · ${staff.length} `+(next?'⌃':'⌄');
+          for(const gridRow of document.querySelectorAll('.MuiDataGrid-row.sx-user-staff-open'))gridRow.classList.remove('sx-user-staff-open');
+          for(const openPanel of document.querySelectorAll('.sx-user-staff-panel'))openPanel.hidden=true;
+          if(next){toggle.setAttribute('aria-expanded','true');const target=cell.querySelector('.sx-user-staff-panel');if(target){target.hidden=false;row.classList.add('sx-user-staff-open');}}
+          else toggle.setAttribute('aria-expanded','false');
+          requestAnimationFrame(applyTeamTreeLayout);
+        };
+      }
+      toggle.textContent=t('Staff','الموظفون')+` · ${staff.length} `+(expandedBusinessTeams.has(ownerId)?'⌃':'⌄');
+      toggle.setAttribute('aria-label',t(`Show ${staff.length} business staff members`,`إظهار ${staff.length} من موظفي النشاط`));
+      const panelId=`sx-user-team-${ownerId}`;toggle.setAttribute('aria-controls',panelId);toggle.setAttribute('aria-expanded',String(expandedBusinessTeams.has(ownerId)));
+      let tree=panel;
+      if(!tree){tree=document.createElement('section');tree.className='sx-user-staff-panel';tree.id=panelId;tree.setAttribute('role','region');tree.setAttribute('aria-label',t('Business staff','موظفو النشاط'));cell.appendChild(tree);}
+      tree.hidden=!expandedBusinessTeams.has(ownerId);
+      const markup=`<h3>${t('Business staff','موظفو النشاط')}</h3><ul class="sx-user-staff-list">${staff.map(person=>{const role=person.role==='accountant'?t('Accountant','محاسب'):t('Manager','مدير'),status=person.status==='active'?t('Active','نشط'):t('Inactive','غير نشط');return `<li><span class="sx-user-staff-branch" aria-hidden="true"></span><span class="sx-user-staff-name">${esc(person.name||'—')}<span class="sx-user-staff-email">${esc(person.email||'—')}</span></span><span class="sx-user-staff-role">${role}</span><span class="sx-user-staff-state" data-status="${esc(person.status)}">${status}</span></li>`;}).join('')}</ul>`;
+      if(tree.dataset.signature!==markup){tree.innerHTML=markup;tree.dataset.signature=markup;}
+      if(tree.hidden)row.classList.remove('sx-user-staff-open');else row.classList.add('sx-user-staff-open');
+    }
+    applyTeamTreeLayout();
+  }
   function mount() {
     if(location.pathname.toLowerCase()!=='/admin' || new URLSearchParams(location.search).get('page')!=='manage-users' || !localStorage.getItem('wacrm_admin'))return;
     mountEditCategoryControl();
     document.querySelectorAll('.MuiDataGrid-row[data-id]').forEach(row=>{
       const cell=row.querySelector('[data-field="plan"]');if(!cell)return;
       let button=cell.querySelector('.sx-user-plan-action');
-      if(!button){button=document.createElement('button');button.type='button';button.className='sx-user-plan-action';button.onclick=event=>{event.stopPropagation();open(row.getAttribute('data-id'));};cell.style.gap='6px';cell.appendChild(button);}
-      const label=t('Manage plan','إدارة الخطة');if(button.textContent!==label)button.textContent=label;
+      if(!button){button=document.createElement('button');button.type='button';button.className='sx-user-plan-action';button.onclick=event=>{event.stopPropagation();open(row.getAttribute('data-id'));};cell.classList.add('sx-user-plan-cell');cell.appendChild(button);}
+      const label=t('Manage plan','إدارة الخطة'),compactLabel=t('Plan','الخطة');if(button.textContent!==compactLabel)button.textContent=compactLabel;button.title=label;button.setAttribute('aria-label',label);
     });
+    mountBusinessStaffTree();
   }
   let portfolioRoster=null,portfolioProbe=null,portfolioChecked=false;
   async function mountPortfolioControls() {
@@ -167,7 +250,7 @@
     if(!portfolioRoster)return;
     document.querySelectorAll('.MuiDataGrid-row[data-id]').forEach(row=>{
       const cell=row.querySelector('[data-field="plan"]');if(!cell||cell.querySelector('.sx-portfolio-action'))return;
-      const button=document.createElement('button');button.type='button';button.className='sx-user-plan-action sx-portfolio-action';button.textContent=t('Assign Admin','تعيين مدير');button.title=t('Assign this customer to an Admin or keep it private to Super Admin','تعيين هذا العميل لمدير أو إبقاؤه خاصًا بالمسؤول الأعلى');
+      const button=document.createElement('button');button.type='button';button.className='sx-user-plan-action sx-portfolio-action';button.textContent=t('Assign','تعيين');button.setAttribute('aria-label',t('Assign Admin','تعيين مدير'));button.title=t('Assign this customer to an Admin or keep it private to Super Admin','تعيين هذا العميل لمدير أو إبقاؤه خاصًا بالمسؤول الأعلى');
       button.onclick=async event=>{event.stopPropagation();button.disabled=true;let profile;try{const me=await fetch('/api/admin/platform-auth/me',{headers:{Authorization:'Bearer '+token}});profile=await me.json();if(!me.ok||!profile.csrfToken)throw new Error(t('Your verified platform session is required.','يلزم استخدام جلسة المنصة الموثقة.'));}catch(error){button.disabled=false;window.alert(error.message);return;}
         const panel=document.createElement('div');panel.className='sx-portfolio-editor';panel.style.cssText='display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px';panel.innerHTML=`<select aria-label="${t('Assign to Admin','تعيين لمدير')}" style="max-width:220px;min-height:34px"><option value="">${t('Private to Super Admin','خاص بالمسؤول الأعلى')}</option>${portfolioRoster.admins.map(admin=>`<option value="${esc(admin.id)}">${esc(admin.displayName||admin.email)} · ${esc(admin.email)}</option>`).join('')}</select><button type="button" class="sx-user-plan-action">${t('Save','حفظ')}</button><button type="button" class="sx-user-plan-action">${t('Cancel','إلغاء')}</button><span role="status" aria-live="polite"></span>`;
         const [select,save,cancel,status]=[panel.querySelector('select'),...panel.querySelectorAll('button'),panel.querySelector('[role=status]')];

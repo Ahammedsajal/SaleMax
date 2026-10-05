@@ -19,6 +19,7 @@
     learner_name: ['Learner name', 'اسم المتعلم', 'text', 'name'],
     phone: ['WhatsApp number', 'رقم واتساب', 'tel', 'tel'],
     email: ['Email address', 'البريد الإلكتروني', 'email', 'email'],
+    nationality: ['Nationality', 'الجنسية', 'text', 'country-name'],
     course_id: ['Course of interest', 'الدورة المطلوبة', 'select', ''],
     preferred_date: ['Preferred start date', 'تاريخ البدء المفضل', 'date', ''],
   };

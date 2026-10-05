@@ -60,6 +60,16 @@ test('navigation reflects backend decisions and future category fixture excludes
   assert.ok(!navigationFor(fixture).some(i=>i.key==='courses'));
   const stale=context(); stale.membership.tenantId='tenant-b'; assert.deepEqual(navigationFor(stale),[]);
 });
+test('member navigation assignment hides unselected sections and denies their canonical APIs',()=>{
+  const c=context('agent');c.membership.assignedNavigation=['tasks'];
+  assert.equal(decision(c,{capability:'team.tasks',permission:'tasks.read'}).allowed,true);
+  assert.equal(decision(c,{capability:'crm.leads',permission:'leads.read',resource:{tenantId:'tenant-a',assignedMembershipId:'member-a'}}).code,'PERMISSION_DENIED');
+  const keys=navigationFor(c).map(item=>item.key);
+  assert.ok(keys.includes('tasks'));
+  assert.ok(!keys.includes('leads'));
+  c.membership.assignedNavigation=[];
+  assert.deepEqual(navigationFor(c),[]);
+});
 test('malformed capability assignments and unknown roles fail closed',()=>{
   const request={capability:'training.courses',permission:'courses.read'};
   for(const malformed of [null,{},'training.courses']) {

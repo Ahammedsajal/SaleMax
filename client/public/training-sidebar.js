@@ -4,6 +4,13 @@
   window.__sxTrainingSidebar = true;
   const ar = () => (localStorage.getItem('language') || '').toLowerCase().includes('arab') || document.documentElement.dir === 'rtl';
   const tr = (en, arabic) => ar() ? arabic : en;
+  if (!window.__sxChatbotAdminLoader) {
+    window.__sxChatbotAdminLoader = true;
+    const chatbotScript = document.createElement('script');
+    chatbotScript.src = '/chatbot-admin.js?v=20261101b';
+    chatbotScript.defer = true;
+    document.head.append(chatbotScript);
+  }
   const groups = [
     ['Overview', 'نظرة عامة', ['Dashboard']],
     ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Candidate Applications']],
@@ -26,10 +33,37 @@
     'دخول الوكيل': 'Agent Login', 'Rest API': 'REST API', 'Web Notificaion': 'Web Notification',
     'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard'
   };
+  const navigationKeys = {
+    Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
+    'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
+    'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', Phonebook:'contacts', 'Agent Login':'agent-login',
+    'Agent Task':'tasks', Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
+    'Finance Reports':'reports', 'Lead Reports':'reports', 'Team access':'team', 'Team and Roles':'team',
+    'Business Settings':'settings', Settings:'settings'
+  };
+  let assignedNavigation = null;
+  let membershipRole = null;
+  let navigationLoaded = false;
+  async function loadAssignedNavigation(){
+    if(navigationLoaded)return;
+    navigationLoaded=true;
+    document.documentElement.setAttribute('data-sx-navigation-loading','');
+    try{
+      const token=localStorage.getItem('wacrm_user');
+      const response=await fetch('/api/user/team-invitations/sidebar-access',{credentials:'same-origin',headers:{Accept:'application/json',...(token?{Authorization:'Bearer '+token}:{})}});
+      if(response.ok){
+        const data=await response.json();
+        const value=data?.data?.assignedNavigation;
+        membershipRole=data?.data?.role||null;
+        if(Array.isArray(value))assignedNavigation=new Set(value);
+      }
+    }catch(_){}finally{document.documentElement.removeAttribute('data-sx-navigation-loading');schedule();}
+  }
   // Native labels remain intact so the original React search and actions still work.
   Object.assign(aliases, window.salemaxSidebarAliases || {});
   const style = document.createElement('style');
   style.textContent = `
+    html[data-sx-navigation-loading] .MuiDrawer-paper{visibility:hidden!important}
     [data-sx-sidebar-list]{display:flex!important;flex-direction:column}
     [data-sx-sidebar-list]>p:not([data-sx-nav-section]){display:none!important}
     [data-sx-nav-section]{margin:20px 24px 6px;color:#6b7280;font:600 12px/1.6 Roboto,Arial,sans-serif;letter-spacing:.04em}
@@ -86,7 +120,12 @@
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
     if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')){
       const copy=leadSource.cloneNode(true);copy.dataset.sxLeadReportsNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
-      copy.querySelectorAll('.MuiListItemText-primary span').forEach(span=>{if(['Lead Pipeline','مسار العملاء المحتملين'].includes(span.textContent.trim()))span.textContent=tr('Lead Reports','تقارير العملاء المحتملين');});
+      // This is a synthetic row, so set its primary label directly. The legacy
+      // row can wrap its text in different span structures across builds; only
+      // replacing an exact child span leaves the copied "Lead Pipeline" label
+      // behind in some versions of the shell.
+      const primary=copy.querySelector('.MuiListItemText-primary');
+      if(primary)primary.textContent=tr('Lead Reports','تقارير العملاء المحتملين');
       copy.setAttribute('aria-label',tr('Lead Reports','تقارير العملاء المحتملين'));
       const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;button.onclick=event=>{event.preventDefault();location.href='/user?page=lead-reports';};
       list.append(copy);
@@ -134,7 +173,9 @@
         const rank = groups[group][2].indexOf(name);
         const order = String(group * 100 + 1 + (rank < 0 ? index : rank));
         if (row.style.order !== order) row.style.order = order;
-        const hidden = !!query && !text.toLowerCase().includes(query) && !name.toLowerCase().includes(query);
+        const navKey=navigationKeys[name]||navigationKeys[text];
+        const hiddenByOwner=(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(name==='Team access'&&membershipRole&&membershipRole!=='owner');
+        const hidden = hiddenByOwner || (!!query && !text.toLowerCase().includes(query) && !name.toLowerCase().includes(query));
         row.toggleAttribute('data-sx-search-hidden', hidden);
         if (!hidden && !row.hasAttribute('data-sx-optional-hidden') && getComputedStyle(row).display !== 'none') present.add(group);
       });
@@ -152,6 +193,10 @@
       const ordered = [...rows].sort((a, b) => Number(a.style.order) - Number(b.style.order));
       if (rows.some((row, index) => row !== ordered[index])) ordered.forEach(row => list.append(row));
     });
+    const page=new URLSearchParams(location.search).get('page');
+    const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team'};
+    const required=routeKeys[page];
+    if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'))location.replace('/user?page=dashboard');
   }
   let queued = false;
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; update(); }); }
@@ -161,5 +206,6 @@
   window.addEventListener('resize', schedule);
   window.addEventListener('popstate', schedule);
   window.addEventListener('storage', schedule);
+  loadAssignedNavigation();
   schedule();
 })();

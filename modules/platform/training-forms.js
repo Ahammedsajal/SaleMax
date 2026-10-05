@@ -6,7 +6,7 @@ const {trainingCenter}=require('./categories');
 const pipeline=require('../../helper/pipeline/leadPipeline');
 const uuid=()=>crypto.randomUUID();
 const fail=code=>{throw Object.assign(new Error(code),{code});};
-const keys=new Set(['contact_name','learner_name','phone','email','course_id','preferred_date','consent']);
+const keys=new Set(['contact_name','learner_name','phone','email','nationality','course_id','preferred_date','consent']);
 function context(ctx){if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant?.id)fail('TENANT_CONTEXT_REQUIRED');const result=decision(ctx,{capability:'portal.forms',permission:'forms.manage'});if(!result.allowed)fail(result.code);}
 function formInput(value){
   if(!value||typeof value!=='object'||Array.isArray(value))fail('INVALID_FORM');
@@ -45,6 +45,7 @@ function cleanSubmission(schema,values){
     if(field.key==='contact_name'||field.key==='learner_name'){if(trimmed.length>255)fail('INVALID_SUBMISSION');result[field.key]=trimmed;}
     else if(field.key==='phone'){const phone=pipeline.normalizePhone(trimmed);if(!phone)fail('INVALID_PHONE');result.phone=phone;}
     else if(field.key==='email'){const email=pipeline.normalizeEmail(trimmed);if(!email)fail('INVALID_EMAIL');result.email=email;}
+    else if(field.key==='nationality'){if(trimmed.length>120)fail('INVALID_NATIONALITY');result.nationality=trimmed;}
     else if(field.key==='course_id'){if(!/^[0-9a-f-]{36}$/i.test(trimmed))fail('INVALID_COURSE');result.course_id=trimmed;}
     else if(field.key==='preferred_date'){const parsed=/^\d{4}-\d{2}-\d{2}$/.test(trimmed)?new Date(trimmed+'T00:00:00Z'):null;if(!parsed||Number.isNaN(parsed.valueOf())||parsed.toISOString().slice(0,10)!==trimmed)fail('INVALID_PREFERRED_DATE');result.preferred_date=trimmed;}
   }

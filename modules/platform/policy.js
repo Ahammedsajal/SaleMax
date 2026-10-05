@@ -68,6 +68,16 @@ function decision(context, { capability, permission, resource, external = false 
   if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || !subscription.capabilities.includes(capability)) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
   const scope = scopeFor(membership, permission);
   if (!scope) return { allowed: false, code: 'PERMISSION_DENIED' };
+  // Once an owner has configured a member's sidebar, that assignment also
+  // constrains the corresponding canonical module APIs. A missing value keeps
+  // existing memberships on their established role-based behavior.
+  if (Array.isArray(membership.assignedNavigation)) {
+    const menuItems = require('./navigation').items;
+    const matchingKeys = menuItems.filter(item => item.capability === capability).map(item => item.key);
+    if (matchingKeys.length && !matchingKeys.some(key => membership.assignedNavigation.includes(key))) {
+      return { allowed: false, code: 'PERMISSION_DENIED' };
+    }
+  }
   if (resource) {
     if (scope === 'assigned' && resource.assignedMembershipId !== membership.id) return { allowed: false, code: 'RESOURCE_NOT_FOUND' };
     if (scope === 'own' && resource.subjectMembershipId !== membership.id) return { allowed: false, code: 'RESOURCE_NOT_FOUND' };

@@ -10,6 +10,7 @@ const { setQrMsgObj, sendMetaMsg } = require("../helper/socket/function");
 const fetch = require("node-fetch");
 const { google } = require("googleapis");
 const { aiTransferHandler } = require("./useAITransferHandler");
+const { shouldPause } = require("../modules/platform/chatbot-conversation-control");
 const FormData = require("form-data");
 const {} = require("../helper/addon/telegram/processTelegramInbox");
 
@@ -654,10 +655,12 @@ async function sendWaMessage({
   message,
   isGroup = false,
   uid,
+  chatId,
   variablesObj,
   content = null,
 }) {
   try {
+    if (chatId && await shouldPause(uid, chatId)) return null;
     let sendMsgId = null;
     const messageContent = content || node?.data?.content;
     const messageType = messageContent?.type;
@@ -1046,6 +1049,7 @@ async function processSendMessage({
       sessionId,
       isGroup: false,
       uid,
+      chatId,
     });
 
     const userTimezone = getCurrentTimestampInTimeZone(
@@ -1716,6 +1720,7 @@ async function processAiTransfer({
         sessionId,
         isGroup: false,
         uid,
+        chatId,
         content: {
           type: "text",
           text: {
@@ -1978,6 +1983,7 @@ async function processSendWaTemplate({
   incomingText: incomingTextOld,
 }) {
   try {
+    if (chatId && await shouldPause(user?.uid, chatId)) return {};
     const { uid } = user;
     const { template, variableMap = {} } = node.data;
 
@@ -2215,4 +2221,5 @@ module.exports = {
   getNestedValue,
   sendMetaMsgWithMediaUpload,
   processSendWaTemplate,
+  sendWaMessage,
 };

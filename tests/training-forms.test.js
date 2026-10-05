@@ -11,6 +11,12 @@ test('training enquiry form validates bilingual names, public slug, fields and e
   for(const invalidValues of [{contact_name:'Learner',phone:'+97450000102',consent:false},{contact_name:'Learner',phone:'+97450000102',consent:true,tenant_id:'another-tenant'},{contact_name:'Learner',phone:'bad',consent:true}])assert.throws(()=>forms.cleanSubmission(parsed.schema,invalidValues));
   for(const invalid of [{...valid,slug:'../admin'},{...valid,schema:{...valid.schema,fields:[...valid.schema.fields,{key:'tenant_id',labelEn:'Tenant',labelAr:'مستأجر',required:false}]}},{...valid,schema:{...valid.schema,fields:valid.schema.fields.map(f=>f.key==='phone'?{...f,required:false}:f)}},{...valid,schema:{...valid.schema,fields:valid.schema.fields.filter(f=>f.key!=='consent')}},{...valid,schema:{...valid.schema,fields:[...valid.schema.fields,{...valid.schema.fields[0]}]}}])assert.throws(()=>forms.formInput(invalid));
 });
+test('optional nationality is validated and retained in submitted application details',()=>{
+  const form={...valid,schema:{...valid.schema,fields:[...valid.schema.fields,{key:'nationality',labelEn:'Nationality',labelAr:'الجنسية',required:false}]}};
+  const parsed=forms.formInput(form);
+  assert.deepEqual(forms.cleanSubmission(parsed.schema,{contact_name:'Learner',phone:'+97450000102',nationality:'Qatari',consent:true}),{contact_name:'Learner',phone:'+97450000102',nationality:'Qatari',consent:true});
+  assert.throws(()=>forms.cleanSubmission(parsed.schema,{contact_name:'Learner',phone:'+97450000102',nationality:'x'.repeat(121),consent:true}));
+});
 test('form access is tenant scoped, category scoped and plan-gated by portal.forms',()=>{
   const ctx={audience:'tenant',identity:{id:'identity'},tenant:{id:'tenant',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'membership',tenantId:'tenant',role:'owner',status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:['portal.forms']}};
   assert.doesNotThrow(()=>forms.formInput(valid));

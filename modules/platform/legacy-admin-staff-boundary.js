@@ -10,6 +10,7 @@ function requiredPermission(method,path){
   if(method==='GET'&&pathname==='/api/admin/get_admin')return null;
   if(method==='POST'&&pathname==='/api/admin/update-admin')return 'staff.manage';
   if(method==='GET'&&pathname==='/api/admin/get_users')return 'tenants.read';
+  if(method==='GET'&&pathname==='/api/admin/get_user_team_tree')return 'tenants.read';
   if(method==='GET'&&pathname==='/api/admin/user_plan_context')return 'plans.read';
   if(method==='POST'&&pathname==='/api/admin/preview_user_plan')return 'plans.assign';
   if(method==='POST'&&pathname==='/api/admin/add_user')return 'tenants.create';
