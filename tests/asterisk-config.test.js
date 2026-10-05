@@ -31,6 +31,17 @@ test('existing Super Admin PBX setup applies the Dinstar peer only after a curre
   assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
 });
 
+test('production deployment routes ARI only from the SaleMaX app container to loopback Asterisk', () => {
+  const compose=fs.readFileSync(path.join(__dirname,'../deploy/compose.yml'),'utf8');
+  const nginx=fs.readFileSync(path.join(__dirname,'../deploy/nginx-https.conf'),'utf8');
+  assert.match(compose,/crm\.salemax\.qa:host-gateway/);
+  assert.match(compose,/ipv4_address:\s*172\.30\.240\.2/);
+  assert.match(compose,/subnet:\s*172\.30\.240\.0\/28/);
+  assert.match(nginx,/location \^~ \/ari\/ \{[\s\S]*?allow 172\.30\.240\.2;[\s\S]*?deny all;[\s\S]*?proxy_pass http:\/\/127\.0\.0\.1:8088\/ari\//);
+  assert.match(nginx,/proxy_set_header Upgrade \$http_upgrade;/);
+  assert.match(nginx,/proxy_set_header Connection "upgrade";/);
+});
+
 test('Call Center requests provisioning with authenticated POSTs before showing SIP credentials', () => {
   const router=fs.readFileSync(path.join(__dirname,'../modules/platform/call-center-router.js'),'utf8');
   const client=fs.readFileSync(path.join(__dirname,'../client/public/call-center/call-center.js'),'utf8');

@@ -27,7 +27,13 @@ services:
     env_file: /opt/salemax/shared/runtime.env
     environment:
       SALEMAX_LICENSE_FILE: /app/license-store/license.json
+    extra_hosts:
+      - "crm.salemax.qa:host-gateway"
     ports: ["127.0.0.1:3011:3010"]
+    networks:
+      default: {}
+      ari_proxy:
+        ipv4_address: 172.30.240.2
     depends_on:
       db: {condition: service_healthy}
     volumes:
@@ -47,3 +53,10 @@ services:
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
+networks:
+  default: {}
+  ari_proxy:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.240.0/28
