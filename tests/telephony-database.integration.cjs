@@ -37,7 +37,7 @@ async function main(){
     await db.query(`CREATE TABLE sx_platform_asterisk_config(id TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,gateway_endpoint_status VARCHAR(20) NULL,
       gateway_endpoint_tested_at DATETIME(3) NULL,gateway_host VARCHAR(253) NOT NULL DEFAULT '',gateway_sip_port SMALLINT UNSIGNED NOT NULL DEFAULT 5061,gateway_sip_transport VARCHAR(8) NOT NULL DEFAULT 'tls',
       ari_base_url VARCHAR(512) NOT NULL DEFAULT '',ari_username VARCHAR(128) NOT NULL DEFAULT '',credential_ciphertext VARBINARY(512) NULL,credential_iv BINARY(12) NULL,
-      credential_auth_tag BINARY(16) NULL,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,last_tested_at DATETIME(3) NULL,last_test_status VARCHAR(16) NULL,last_test_version VARCHAR(80) NULL) ENGINE=InnoDB`);
+      credential_auth_tag BINARY(16) NULL,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,last_tested_at DATETIME(3) NULL,last_test_status VARCHAR(16) NULL,last_test_version VARCHAR(80) NULL,updated_at DATETIME(3) NULL) ENGINE=InnoDB`);
     await db.query('INSERT INTO sx_platform_asterisk_config(id) VALUES(1)');
     await db.query(`CREATE TABLE sx_platform_asterisk_gateway_ports(channel_no TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,inbound_enabled TINYINT(1) NOT NULL DEFAULT 0,outbound_enabled TINYINT(1) NOT NULL DEFAULT 0,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,updated_at DATETIME(3) NULL,FOREIGN KEY(updated_by_identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
     await db.query('INSERT INTO sx_platform_asterisk_gateway_ports(channel_no) VALUES(1),(2),(3),(4)');
@@ -142,6 +142,7 @@ async function main(){
       assert.equal(Number(credentialAudits.total),4,'admin preview and each member credential read are audited without storing passwords');
     }finally{for(const [name,value] of [['SALEMAX_PLATFORM_KEY_BASE64',oldEndpointEnv.key],['SALEMAX_ASTERISK_ALLOWED_HOSTS',oldEndpointEnv.hosts],['SALEMAX_ASTERISK_WS_URL',oldEndpointEnv.ws],['SALEMAX_ASTERISK_MOBILE_SIP_HOST',oldEndpointEnv.mobile]])if(value===undefined)delete process.env[name];else process.env[name]=value;}
     await db.query("UPDATE sx_platform_asterisk_runtime SET status='connected',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
+    assert.equal((await asteriskConfig.get(db,platformContext)).ariEvents.ready,true,'Super Admin sees a fresh connected event worker');
     const statusApp=express();
     statusApp.use('/call-center',createCallCenterRouter({pool,userGuard(_req,_res,next){next();},
       canonicalGuard(req,_res,next){req.businessContext=tenantContext;next();},origin:'http://127.0.0.1'}));
@@ -153,6 +154,8 @@ async function main(){
       assert.equal(statusResponse.status,200,`Call Center status endpoint failed: ${statusBody.code}`);assert.equal(statusBody.data.asterisk.events.ready,true);
       assert.equal(statusBody.data.asterisk.events.status,'connected');
       await db.query("UPDATE sx_platform_asterisk_runtime SET status='reconnecting',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
+      const adminEventState=(await asteriskConfig.get(db,platformContext)).ariEvents;
+      assert.equal(adminEventState.status,'reconnecting');assert.equal(adminEventState.ready,false);
       statusResponse=await fetch(statusUrl);statusBody=await statusResponse.json();
       assert.equal(statusBody.data.asterisk.events.ready,false);
       assert.equal(statusBody.data.calls.reason,'ASTERISK_EVENTS_NOT_READY');

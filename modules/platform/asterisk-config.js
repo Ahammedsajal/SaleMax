@@ -295,10 +295,12 @@ async function get(db, context) {
   const [[row]] = await db.query(`SELECT ari_base_url,ari_username,gateway_host,gateway_sip_port,gateway_sip_transport,gateway_endpoint_status,gateway_endpoint_tested_at,credential_ciphertext,enabled,revision,last_tested_at,last_test_status,last_test_version,updated_at
     FROM sx_platform_asterisk_config WHERE id=1`);
   if (!row) fail('ASTERISK_CONFIG_UNAVAILABLE');
-  const [[runtime]] = await db.query(`SELECT status,worker_id,config_revision,connected_at,last_event_at,last_event_type,events_received,error_code,updated_at
+  const [[runtime]] = await db.query(`SELECT status,worker_id,config_revision,connected_at,last_event_at,last_event_type,events_received,error_code,updated_at,
+      (status='connected' AND updated_at>=UTC_TIMESTAMP(3)-INTERVAL 15 SECOND) AS heartbeat_fresh
     FROM sx_platform_asterisk_runtime WHERE id=1`);
   return { ...present(row), ariEvents: runtime ? {
     status: runtime.status,
+    ready: Number(runtime.heartbeat_fresh) === 1,
     workerId: runtime.worker_id || null,
     configRevision: runtime.config_revision == null ? null : Number(runtime.config_revision),
     connectedAt: runtime.connected_at || null,

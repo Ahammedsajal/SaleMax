@@ -48,6 +48,24 @@ test('Asterisk connection diagnostics distinguish running call, gateway and brow
   assert.match(ui,/Call control/);assert.match(ui,/Browser WebRTC/);assert.match(ui,/جارٍ اختبار اتصال ARI/);
 });
 
+test('Super Admin Asterisk overview marks a connected worker stale when its heartbeat expires', async () => {
+  const context={audience:'platform',identity:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},membership:{role:'super_admin',status:'active'},mfaVerified:true};
+  const config={ari_base_url:'https://pbx.example.com/ari',ari_username:'salemax-admin',credential_ciphertext:Buffer.from('encrypted'),enabled:1,revision:2};
+  let fresh=1;
+  const db={async query(sql){return sql.includes('sx_platform_asterisk_runtime')
+    ?[[{status:'connected',worker_id:'worker-1',events_received:5,heartbeat_fresh:fresh}]]:[[config]];}};
+  let result=await asterisk.get(db,context);
+  assert.equal(result.ariEvents.ready,true);
+  fresh=0;
+  result=await asterisk.get(db,context);
+  assert.equal(result.ariEvents.status,'connected');
+  assert.equal(result.ariEvents.ready,false);
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
+  const page=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
+  assert.match(ui,/eventState\.status==='connected'\?tr\('stale heartbeat','نبضة اتصال قديمة'\)/);
+  assert.match(page,/admin-asterisk\.js\?v=20261005-event-heartbeat1/);
+});
+
 test('Super Admin ARI connection test checks PBX version, gateway peer and feature modules without returning secrets', async () => {
   const oldKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
   process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');
@@ -117,7 +135,7 @@ test('existing Super Admin PBX setup applies the Dinstar peer only after a curre
   assert.match(router,/router\.post\('\/apply-gateway-peer'/);
   assert.match(router,/router\.get\('\/host-setup-preview'/);
   assert.match(ui,/host-setup-preview/);
-  assert.match(index,/admin-asterisk\.js\?v=20261005-module-readiness1/);
+  assert.match(index,/admin-asterisk\.js\?v=20261005-event-heartbeat1/);
   assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
 });
 
