@@ -19,7 +19,7 @@
     ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports']],
     ['WhatsApp & Campaigns', 'واتساب والحملات', ['Add WhatsApp by QR', 'Link Meta WhatsApp', 'Create Meta Template', 'Send Campaign', 'Campaign Dashboard', 'Web Notification']],
     ['Automation & Bots', 'الأتمتة والروبوتات', ['Automation Flows', 'WA Chatbot']],
-    ['Team & Tasks', 'الفريق والمهام', ['Team access', 'Agent Login', 'Agent Task']],
+    ['Team & Tasks', 'الفريق والمهام', ['Team access', 'Tasks', 'Agent Login', 'Agent Task']],
     ['API & Integrations', 'واجهات البرمجة والتكامل', ['Chat Widget', 'REST API', 'Conversational API', 'Template API', 'API Dashboard']],
     ['Webhooks', 'الويب هوك', ['Manage Webhooks', 'Webhook Automation', 'Webhook Logs']],
     ['WhatsApp Warmer', 'تهيئة واتساب', ['WhatsApp Warmer']],
@@ -31,13 +31,13 @@
     'الفواتير والمدفوعات': 'Invoices & Payments', 'تقارير المالية': 'Finance Reports',
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Agent Login',
     'دخول الوكيل': 'Agent Login', 'Rest API': 'REST API', 'Web Notificaion': 'Web Notification',
-    'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard'
+    'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard', 'المهام': 'Tasks'
   };
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', Phonebook:'contacts', 'Agent Login':'agent-login',
-    'Agent Task':'tasks', Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
+    'Agent Task':'tasks', Tasks:'tasks', Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
     'Finance Reports':'reports', 'Lead Reports':'reports', 'Team access':'team', 'Team and Roles':'team',
     'Business Settings':'settings', Settings:'settings'
   };
@@ -117,6 +117,13 @@
       button.onclick = event => { event.preventDefault(); location.href = '/user?page=' + page; };
       list.append(copy);
     });
+    const pipelineSource=document.querySelector('[data-salemax-pipeline-link]');
+    if(pipelineSource&&!list.querySelector('[data-sx-tasks-nav]')){
+      const copy=pipelineSource.cloneNode(true);copy.dataset.sxTasksNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Tasks','المهام');
+      copy.setAttribute('aria-label',tr('Tasks','المهام'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.onclick=event=>{event.preventDefault();location.href='/user?page=tasks';};list.append(copy);
+    }
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
     if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')){
       const copy=leadSource.cloneNode(true);copy.dataset.sxLeadReportsNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
@@ -152,7 +159,7 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', 'WA Chatbot':'wa-chatbot'};
+      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'WA Chatbot':'wa-chatbot'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
@@ -194,7 +201,7 @@
       if (rows.some((row, index) => row !== ordered[index])) ordered.forEach(row => list.append(row));
     });
     const page=new URLSearchParams(location.search).get('page');
-    const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot'};
+    const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot'};
     const required=routeKeys[page];
     if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'))location.replace('/user?page=dashboard');
   }

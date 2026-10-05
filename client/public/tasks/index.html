@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f7fa">
+  <title>Tasks · SaleMaX</title><link rel="stylesheet" href="/tasks/tasks.css?v=3">
+</head>
+<body>
+  <main class="app">
+    <header><div><small data-en="SALEMAX · TRAINING CENTER" data-ar="سليماكس · مركز التدريب">SALEMAX · TRAINING CENTER</small><h1 data-en="Tasks" data-ar="المهام">Tasks</h1><p data-en="Shared work queue for leads, learners and collections." data-ar="قائمة عمل مشتركة للعملاء والمتعلمين والتحصيل.">Shared work queue for leads, learners and collections.</p></div><button id="newTask" class="primary" data-en="＋ New task" data-ar="＋ مهمة جديدة">＋ New task</button></header>
+    <nav><div class="filters"><button data-scope="mine" class="active" data-en="My tasks" data-ar="مهامي">My tasks</button><button data-scope="team" data-en="Team tasks" data-ar="مهام الفريق">Team tasks</button></div>
+      <select id="statusFilter" aria-label="Status filter"><option value="all" data-en="All statuses" data-ar="كل الحالات">All statuses</option><option value="open" data-en="Open" data-ar="مفتوحة">Open</option><option value="in_progress" data-en="In progress" data-ar="قيد التنفيذ">In progress</option><option value="blocked" data-en="Blocked" data-ar="متوقفة">Blocked</option><option value="completed" data-en="Completed" data-ar="مكتملة">Completed</option><option value="canceled" data-en="Canceled" data-ar="ملغاة">Canceled</option></select><button id="refresh" aria-label="Refresh" data-en="Refresh" data-ar="تحديث">↻</button><button id="notificationPrefs" class="quiet" data-en="Notifications" data-ar="الإشعارات">Notifications</button>
+    </nav>
+    <div id="notice" role="status" aria-live="polite"></div><section id="taskList" class="task-list" aria-live="polite"></section><div class="pagination"><button id="previousPage" class="quiet" data-en="Previous" data-ar="السابق">Previous</button><span id="pageNumber">Page 1</span><button id="nextPage" class="quiet" data-en="Next" data-ar="التالي">Next</button></div>
+  </main>
+  <dialog id="taskDialog"><form id="taskForm"><header><div><small data-en="TRAINING CENTER" data-ar="مركز التدريب">TRAINING CENTER</small><h2 id="formTitle">New task</h2></div><button type="button" class="close" data-close aria-label="Close">×</button></header>
+    <label><span data-en="Title" data-ar="العنوان">Title</span><input name="title" maxlength="180" required></label>
+    <label><span data-en="Description" data-ar="الوصف">Description</span><textarea name="description" rows="3" maxlength="5000"></textarea></label>
+    <div class="two"><label><span data-en="Type" data-ar="النوع">Type</span><select name="taskType"><option value="lead_follow_up" data-en="Lead follow-up" data-ar="متابعة عميل محتمل">Lead follow-up</option><option value="invoice_follow_up" data-en="Invoice follow-up" data-ar="متابعة فاتورة">Invoice follow-up</option><option value="enrollment" data-en="Enrollment" data-ar="تسجيل">Enrollment</option><option value="general" data-en="General" data-ar="عام">General</option></select></label>
+      <label><span data-en="Priority" data-ar="الأولوية">Priority</span><select name="priority"><option value="normal" data-en="Normal" data-ar="عادية">Normal</option><option value="low" data-en="Low" data-ar="منخفضة">Low</option><option value="high" data-en="High" data-ar="عالية">High</option><option value="urgent" data-en="Urgent" data-ar="عاجلة">Urgent</option></select></label></div>
+    <label><span data-en="Due date and time" data-ar="تاريخ ووقت الاستحقاق">Due date and time</span><input name="dueAt" type="datetime-local"></label>
+    <p id="linkedSourceNote" class="hint" hidden></p><button id="unlinkFinanceSource" class="quiet" type="button" hidden data-en="Remove linked finance record" data-ar="إزالة ارتباط السجل المالي">Remove linked finance record</button>
+    <label><span data-en="Link lead" data-ar="ربط بعميل محتمل">Link lead</span><select name="leadId"><option value="" data-en="No linked lead" data-ar="بلا عميل مرتبط">No linked lead</option></select></label>
+    <fieldset><legend data-en="Assignees and observers" data-ar="المسؤولون والمراقبون">Assignees and observers</legend><div id="people" class="people"></div></fieldset><p id="formError" class="error" role="alert"></p>
+    <footer><button type="button" class="quiet" data-close data-en="Cancel" data-ar="إلغاء">Cancel</button><button class="primary" type="submit" data-en="Save task" data-ar="حفظ المهمة">Save task</button></footer>
+  </form></dialog>
+  <dialog id="preferencesDialog"><form id="preferencesForm"><header><div><small data-en="TASK SETTINGS" data-ar="إعدادات المهام">TASK SETTINGS</small><h2 data-en="Notification preferences" data-ar="تفضيلات الإشعارات">Notification preferences</h2></div><button type="button" class="close" data-preferences-close aria-label="Close">×</button></header><label class="toggle"><input type="checkbox" name="whatsappOptIn"><span data-en="Send my task status notifications to me on WhatsApp" data-ar="أوافق على استلام إشعارات حالة مهامي عبر واتساب">Send my task status notifications to me on WhatsApp</span></label><p class="hint" data-en="This is optional. WhatsApp task updates are sent only after you enable this setting. You can turn it off at any time. Email settings are managed by your workspace." data-ar="هذا الخيار اختياري. لن تُرسل تحديثات المهام عبر واتساب إلا بعد تفعيله. يمكنك إيقافه في أي وقت. يدير مسؤول مساحة العمل إعدادات البريد الإلكتروني.">This is optional. WhatsApp task updates are sent only after you enable this setting. You can turn it off at any time. Email settings are managed by your workspace.</p><footer><button type="button" class="quiet" data-preferences-close data-en="Cancel" data-ar="إلغاء">Cancel</button><button class="primary" type="submit" data-en="Save preferences" data-ar="حفظ التفضيلات">Save preferences</button></footer></form></dialog>
+  <dialog id="detailDialog" class="detail-dialog"><section id="detail"></section></dialog>
+  <script src="/tasks/tasks.js?v=13"></script>
+</body>
+</html>

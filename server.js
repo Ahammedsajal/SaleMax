@@ -16,9 +16,11 @@ const { query } = require("./database/dbpromise.js");
 const { startCrmAccountSyncWorker } = require("./functions/crmAccountSync.js");
 const { isLicenseActivated } = require("./middlewares/license.js");
 const receiptWorkerRuntime = require("./modules/platform/training-receipt-worker-runtime");
+const taskNotificationWorkerRuntime = require("./modules/platform/task-notification-worker-runtime");
 
 const app = express();
 let receiptWorkerProcess = null;
+let taskNotificationWorkerProcess = null;
 const currentDir = process.cwd();
 const publicDir = path.resolve(currentDir, "./client/public");
 
@@ -256,6 +258,14 @@ const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0
     console.log("Local training mode: external provider workers are disabled; receipt email requires its separate explicit opt-in.");
     return;
   }
+  taskNotificationWorkerProcess = taskNotificationWorkerRuntime.start();
+  if (taskNotificationWorkerProcess) {
+    taskNotificationWorkerProcess.once("error", () => console.error("Task email worker could not start."));
+    taskNotificationWorkerProcess.once("exit", (code) => {
+      taskNotificationWorkerProcess = null;
+      if (code !== 0 && code !== null) console.error("Task email worker stopped with an error.");
+    });
+  }
   startCrmAccountSyncWorker();
   init();
   setTimeout(() => {
@@ -278,6 +288,14 @@ nodeCleanup(async (exitCode, signal) => {
       const timeout = setTimeout(() => { receiptWorker.kill("SIGKILL"); resolve(); }, 2000);
       receiptWorker.once("exit", () => { clearTimeout(timeout); resolve(); });
       receiptWorker.kill("SIGTERM");
+    });
+  }
+  const taskWorker = taskNotificationWorkerProcess;
+  if (taskWorker && taskWorker.exitCode === null) {
+    await new Promise((resolve) => {
+      const timeout = setTimeout(() => { taskWorker.kill("SIGKILL"); resolve(); }, 2000);
+      taskWorker.once("exit", () => { clearTimeout(timeout); resolve(); });
+      taskWorker.kill("SIGTERM");
     });
   }
   await cleanupTele();

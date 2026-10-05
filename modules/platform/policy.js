@@ -27,8 +27,8 @@ const permissions = {
   'reports.schedule': { owner: 'tenant' },
   'forms.manage': { owner: 'tenant', manager: 'tenant' },
   'forms.capture': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
-  'tasks.read': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
-  'tasks.manage': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
+  'tasks.read': { owner: 'tenant', accountant: 'assigned', manager: 'tenant', agent: 'assigned' },
+  'tasks.manage': { owner: 'tenant', accountant: 'assigned', manager: 'tenant', agent: 'assigned' },
   'templates.manage': { owner: 'tenant' },
 };
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);

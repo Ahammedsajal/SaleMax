@@ -1,6 +1,7 @@
 // Uses a fresh synthetic database only, never the imported training database.
 require('dotenv').config({ quiet: true });
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const mysql = require('mysql2/promise');
@@ -11,8 +12,10 @@ async function main() {
   if (process.env.LOCAL_ONLY_MODE !== 'true' || !['127.0.0.1', 'localhost', '::1'].includes(process.env.DBHOST)) throw new Error('LOCAL_DATABASE_ONLY');
   const suppliedDb=process.env.SALEMAX_TEST_DATABASE||null;
   if(suppliedDb&&!/^salemax_migration_test_[a-z0-9_]{1,40}$/.test(suppliedDb))throw new Error('INVALID_SYNTHETIC_TEST_DATABASE');
+  const socketPath=process.env.SALEMAX_TEST_DB_SOCKET||null;
+  if(socketPath&&(!path.isAbsolute(socketPath)||!fs.lstatSync(socketPath,{throwIfNoEntry:false})?.isSocket()))throw new Error('INVALID_LOCAL_TEST_DB_SOCKET');
   const db = suppliedDb||'salemax_migration_test_' + crypto.randomBytes(6).toString('hex');
-  const config = { host: process.env.DBHOST, port: Number(process.env.DBPORT), user: process.env.DBUSER, password: process.env.DBPASS === '__EMPTY__' ? '' : process.env.DBPASS };
+  const config = { host: process.env.DBHOST, port: Number(process.env.DBPORT), user: process.env.DBUSER, password: process.env.DBPASS === '__EMPTY__' ? '' : process.env.DBPASS,...(socketPath?{socketPath}:{}) };
   const admin = suppliedDb?null:await mysql.createConnection(config);
   let connection, other, pool, created = false;
   try {
@@ -84,6 +87,7 @@ async function main() {
     const legacyAssignmentEvidence=await require('./legacy-assignment-integration.cjs')(connection,other);
     const existingCatalogueHttpEvidence=await require('./existing-catalogue-http-integration.cjs')(connection,{...config,database:db},{i1});
     const businessContractEvidence=await require('./business-contract-integration.cjs')(connection,other,{t2,i1,m2},pool);
+    const taskEvidence=await require('./task-integration.cjs')(connection,other,{tenantId:t1,identityId:i1});
     const staffAccessEvidence=await require('./staff-access-integration.cjs')(connection,{ownerIdentityId:i1});
     const businessProvisioningEvidence=await require('./business-provisioning-integration.cjs')(connection,other,{i1},pool);
     const teamInvitationEvidence=await require('./team-invitation-integration.cjs')(connection,other,pool,{i1});
@@ -106,7 +110,7 @@ async function main() {
     const [[failed]] = await connection.query('SELECT status, statements_completed FROM salemax_schema_migrations WHERE migration_name=?', [broken.file]);
     assert.equal(failed.status, 'failed'); assert.equal(failed.statements_completed, 1);
     await assert.rejects(applyMigrations(other, [...migrations, broken]), { code: 'MIGRATION_RECOVERY_REQUIRED' });
-    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: migrations.length, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, memberNavigationAssignmentRoundTrip: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...teamInvitationEvidence,...outboxEvidence,...chatbotMigrationEvidence,...chatbotApiEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
+    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: migrations.length, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, memberNavigationAssignmentRoundTrip: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...taskEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...teamInvitationEvidence,...outboxEvidence,...chatbotMigrationEvidence,...chatbotApiEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
   } catch(error) {
     if(connection) {
       try {
