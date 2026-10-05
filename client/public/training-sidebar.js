@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261005-bot-profile-dropdown3';
+    chatbotScript.src = '/chatbot-admin.js?v=20261005-bot-profile-dropdown4';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }

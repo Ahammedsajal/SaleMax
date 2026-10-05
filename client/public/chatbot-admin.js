@@ -61,18 +61,32 @@
   async function openNativeAssignmentDialog() {
     addStyle();
     const dialog = document.createElement('div'); dialog.id = 'sx-chatbot-dialog';
-    dialog.innerHTML = `<section class="sx-dialog" role="dialog" aria-modal="true" aria-labelledby="sx-native-assignment-title"><h2 id="sx-native-assignment-title">${esc(tr('Add Chatbot','إضافة روبوت محادثة'))}</h2><div class="sx-form-grid"><label class="sx-full">${esc(tr('Title','العنوان'))}<input data-title readonly placeholder="${esc(tr('Select a bot below','اختر روبوتًا أدناه'))}"></label><label class="sx-full">${esc(tr('Select Origin','اختر المصدر'))}<select data-origin><option value="">${esc(tr('Loading connected numbers…','جارٍ تحميل الأرقام المتصلة…'))}</option></select></label><label class="sx-full">${esc(tr('Select Automation Flow / Bot','اختر تدفق الأتمتة / الروبوت'))}<select data-profile><option value="">${esc(tr('Loading bots…','جارٍ تحميل الروبوتات…'))}</option></select></label></div><div class="sx-muted" data-assignment-note>${esc(tr('All Guided, Hybrid and AI bot profiles created in Automation Flows appear in this list.','تظهر في هذه القائمة جميع ملفات الروبوتات الموجّهة والهجينة والذكية المنشأة في تدفقات الأتمتة.'))}</div><div class="sx-error" role="alert"></div><div class="sx-footer"><button type="button" class="sx-secondary" data-close>${esc(tr('Cancel','إلغاء'))}</button><button type="button" class="sx-primary" data-save>${esc(tr('Save Changes','حفظ التغييرات'))}</button></div></section>`;
+    dialog.innerHTML = `<section class="sx-dialog" role="dialog" aria-modal="true" aria-labelledby="sx-native-assignment-title" style="width:min(600px,100%);padding:0;border-radius:20px;overflow:visible"><header style="display:flex;align-items:center;justify-content:space-between;padding:16px;background:#fff7fa;border-bottom:1px solid #eaecf0;border-radius:20px 20px 0 0"><div style="display:flex;align-items:center;gap:12px"><span style="display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:#b0004b;color:#fff;box-shadow:0 4px 9px #b0004b33"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M9 4h6M12 4v4M8 13h.01M16 13h.01M9 17h6"/></svg></span><h2 id="sx-native-assignment-title" style="margin:0;font-size:16px;font-weight:600">${esc(tr('Add Chatbot','إضافة روبوت محادثة'))}</h2></div><button type="button" data-close aria-label="${esc(tr('Close','إغلاق'))}" style="border:0;border-radius:50%;width:32px;height:32px;background:#f2f4f7;color:#667085;font-size:20px;cursor:pointer">×</button></header><div style="padding:14px 18px 18px"><div style="display:grid;gap:14px"><label class="sx-full" style="display:grid;gap:6px;color:#667085;font-size:14px;font-weight:400">${esc(tr('Title','العنوان'))}<input data-title readonly placeholder="${esc(tr('Enter webhook title...','أدخل عنوان webhook...'))}" style="height:38px;padding:9px 11px;border:1px solid #d0d5dd;border-radius:8px;font:14px Roboto,Arial,sans-serif;color:#182230;background:#fff"></label><label class="sx-full" style="display:grid;gap:6px;color:#667085;font-size:14px;font-weight:400">${esc(tr('Select Origin','اختر المصدر'))}<span style="position:relative;display:flex;align-items:center"><span data-origin-icon style="position:absolute;left:12px;z-index:1;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#b0004b;color:#fff;font-size:12px;font-weight:700">f</span><select data-origin style="height:38px;padding:8px 36px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font:14px Roboto,Arial,sans-serif;color:#182230"><option value="">${esc(tr('Loading connected numbers…','جارٍ تحميل الأرقام المتصلة…'))}</option></select></span></label><label class="sx-full" style="display:grid;gap:6px;color:#667085;font-size:14px;font-weight:400">${esc(tr('Select Automation Flow','اختر تدفق الأتمتة'))}<span data-picker style="position:relative;display:block"><input data-search type="text" autocomplete="off" placeholder="${esc(tr('Search flows...','ابحث عن التدفقات...'))}" aria-haspopup="listbox" aria-expanded="false" aria-controls="sx-chatbot-profile-options" style="height:38px;padding:9px 34px 9px 12px;border:1px solid #b0004b;border-radius:8px;outline:none;font:14px Roboto,Arial,sans-serif;color:#182230;background:#fff"><span aria-hidden="true" style="position:absolute;right:14px;top:13px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:5px solid #888"></span><div id="sx-chatbot-profile-options" data-options role="listbox" hidden style="position:absolute;z-index:2;top:calc(100% + 3px);left:0;right:0;max-height:180px;overflow:auto;background:#fff;border:1px solid #eaecf0;border-radius:9px;box-shadow:0 4px 9px #1018280d;padding:4px 0"></div></span></label></div><div class="sx-error" role="alert" style="color:#b42318;font-size:13px;margin-top:8px"></div><div class="sx-footer" style="display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #eaecf0;padding-top:16px;margin-top:10px"><button type="button" class="sx-secondary" data-close style="border:1px solid #b0004b;border-radius:8px;background:#fff;color:#b0004b;padding:9px 13px;font-size:12px">${esc(tr('Cancel','إلغاء'))}</button><button type="button" class="sx-primary" data-save style="border:0;border-radius:8px;background:#b0004b;color:#fff;padding:9px 15px;font-size:12px">${esc(tr('Save Changes','حفظ التغييرات'))}</button></div></div></section>`;
     document.body.append(dialog);
     const closeDialog = () => dialog.remove();
-    dialog.querySelector('[data-close]').onclick = closeDialog;
+    dialog.querySelectorAll('[data-close]').forEach(button => { button.onclick = closeDialog; });
     const originSelect = dialog.querySelector('[data-origin]');
-    const profileSelect = dialog.querySelector('[data-profile]');
+    const searchInput = dialog.querySelector('[data-search]');
+    const options = dialog.querySelector('[data-options]');
     const titleInput = dialog.querySelector('[data-title]');
-    const note = dialog.querySelector('[data-assignment-note]');
+    const originIcon = dialog.querySelector('[data-origin-icon]');
     const saveButton = dialog.querySelector('[data-save]');
     let bots = [], channels = [];
+    let selectedBotId = '';
+    const closeOptions = () => { options.hidden = true; searchInput.setAttribute('aria-expanded','false'); };
+    const renderBotOptions = (open = false) => {
+      const query = searchInput.value.trim().toLocaleLowerCase();
+      const matches = bots.filter(bot => `${bot.name} ${engineLabel(bot.engine)} ${statusLabel(bot.status)}`.toLocaleLowerCase().includes(query));
+      options.innerHTML = matches.length ? matches.map(bot => `<button type="button" role="option" aria-selected="${selectedBotId===bot.id}" data-bot-option="${esc(bot.id)}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:start;border:0;background:${selectedBotId===bot.id?'#fff5f8':'#fff'};padding:11px 14px;color:#182230;font:14px Roboto,Arial,sans-serif;cursor:pointer"><span>${esc(bot.name)}</span><span style="color:#667085;font-size:12px;white-space:nowrap">${esc(engineLabel(bot.engine))} · ${esc(statusLabel(bot.status))}</span></button>`).join('') : `<div class="sx-muted" style="padding:13px 15px;color:#667085;font-size:14px">${esc(bots.length ? tr('No bots match this search','لا توجد روبوتات تطابق البحث') : tr('No bots found','لم يتم العثور على روبوتات'))}</div>`;
+      if (open) { options.hidden = false; searchInput.setAttribute('aria-expanded','true'); }
+      options.querySelectorAll('[data-bot-option]').forEach(option => option.addEventListener('click', () => {
+        selectedBotId = option.dataset.botOption;
+        const bot = bots.find(item => item.id === selectedBotId);
+        searchInput.value = bot?.name || ''; titleInput.value = bot?.name || ''; closeOptions(); renderAssignmentState();
+      }));
+    };
     const renderAssignmentState = () => {
-      const bot = bots.find(item => item.id === profileSelect.value);
+      const bot = bots.find(item => item.id === selectedBotId);
       titleInput.value = bot?.name || '';
       const assigned = new Set((bot?.channels || []).map(item => `${item.kind}|${item.reference}`));
       const usedByOther = new Set(bot ? bots.filter(item => item.id !== bot.id).flatMap(item => (item.channels || []).map(channel => `${channel.kind}|${channel.reference}`)) : []);
@@ -80,42 +94,39 @@
       originSelect.innerHTML = `<option value="">${esc(tr('Select a connected number','اختر رقمًا متصلاً'))}</option>` + channels.map(channel => {
         const key = `${channel.kind}|${channel.reference}`;
         const blocked = usedByOther.has(key);
-        return `<option value="${esc(key)}" ${assigned.has(key)?'selected':''} ${blocked?'disabled':''}>${esc(channel.kind==='whatsapp_meta'?'Meta WhatsApp':'QR WhatsApp')} · ${esc(channel.label || channelLabel(channel))}${blocked?` · ${esc(tr('Assigned to another bot','مُعيّن لروبوت آخر'))}`:''}</option>`;
+        const label = channel.kind === 'whatsapp_meta' ? tr('Meta','ميتا') : (channel.label || channelLabel(channel));
+        return `<option value="${esc(key)}" ${assigned.has(key)?'selected':''} ${blocked?'disabled':''}>${esc(label)}${blocked?` · ${esc(tr('Assigned to another bot','مُعيّن لروبوت آخر'))}`:''}</option>`;
       }).join('');
       if (selectedChannel && [...originSelect.options].some(option => option.value === selectedChannel && !option.disabled)) originSelect.value = selectedChannel;
       else if (bot?.channels?.length) {
         const current = bot.channels.find(channel => [...originSelect.options].some(option => option.value === `${channel.kind}|${channel.reference}` && !option.disabled));
         if (current) originSelect.value = `${current.kind}|${current.reference}`;
       }
-      if (bot?.status === 'live') {
-        note.textContent = tr('Active bot · pause it before changing its number assignment.','روبوت نشط · أوقفه قبل تغيير تعيين الرقم.');
-        note.hidden = false;
-      } else {
-        note.textContent = bot ? `${engineLabel(bot.engine)} · ${statusLabel(bot.status)}` : '';
-        note.hidden = !bot;
-      }
+      originIcon.textContent = originSelect.value.startsWith('whatsapp_meta|') ? 'f' : '◉';
       saveButton.disabled = !bot || !selectedChannel || bot.status === 'live' || originSelect.selectedOptions[0]?.disabled === true;
     };
+    searchInput.addEventListener('focus', () => renderBotOptions(true));
+    searchInput.addEventListener('click', () => renderBotOptions(true));
+    searchInput.addEventListener('input', () => renderBotOptions(true));
+    dialog.addEventListener('click', event => { if (!dialog.querySelector('[data-picker]').contains(event.target)) closeOptions(); });
     originSelect.addEventListener('change', renderAssignmentState);
-    profileSelect.addEventListener('change', renderAssignmentState);
     try {
       const [result, connected] = await Promise.all([api(''), api('/channels')]);
       bots = result.items || []; channels = connected || [];
-      profileSelect.innerHTML = `<option value="">${esc(tr('Select a bot','اختر روبوتًا'))}</option>` + bots.map(bot => `<option value="${esc(bot.id)}">${esc(bot.name)} · ${esc(engineLabel(bot.engine))} · ${esc(statusLabel(bot.status))}</option>`).join('');
-      if (!bots.length) profileSelect.disabled = true;
+      renderBotOptions();
       originSelect.innerHTML = `<option value="">${esc(tr('Select a connected number','اختر رقمًا متصلاً'))}</option>` + channels.map(channel => `<option value="${esc(channel.kind)}|${esc(channel.reference)}">${esc(channel.label || channelLabel(channel))}</option>`).join('');
-      const firstOrigin = channels.find(channel => channel.kind === 'whatsapp_qr') || channels[0];
+      const firstOrigin = channels.find(channel => channel.kind === 'whatsapp_meta') || channels[0];
       if (firstOrigin) originSelect.value = `${firstOrigin.kind}|${firstOrigin.reference}`;
-      if (!channels.length) { note.textContent = tr('No connected numbers found. Connect a WhatsApp number first.','لم يتم العثور على أرقام متصلة. اربط رقم واتساب أولاً.'); originSelect.disabled = true; }
+      if (!channels.length) { originSelect.disabled = true; }
       renderAssignmentState();
     } catch (error) {
       dialog.querySelector('.sx-error').textContent = errorLabel(error.message);
-      profileSelect.disabled = true; originSelect.disabled = true; saveButton.disabled = true;
+      searchInput.disabled = true; originSelect.disabled = true; saveButton.disabled = true;
     }
     saveButton.onclick = async event => {
       const button = event.currentTarget; button.disabled = true;
       const errorBox = dialog.querySelector('.sx-error'); errorBox.textContent = '';
-      const bot = bots.find(item => item.id === profileSelect.value);
+      const bot = bots.find(item => item.id === selectedBotId);
       if (!bot) { errorBox.textContent = tr('Create a bot in Automation Flows first.','أنشئ روبوتًا في تدفقات الأتمتة أولاً.'); button.disabled = false; return; }
       if (bot.status === 'live') { errorBox.textContent = errorLabel('LIVE_BOT_MUST_BE_PAUSED'); button.disabled = false; return; }
       if (!originSelect.value) { errorBox.textContent = tr('Select a connected number.','اختر رقمًا متصلاً.'); button.disabled = false; return; }
