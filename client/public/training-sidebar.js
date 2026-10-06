@@ -78,6 +78,8 @@
     [data-sx-sidebar-list]>p:not([data-sx-nav-section]){display:none!important}
     [data-sx-nav-section]{margin:20px 24px 6px;color:#6b7280;font:600 12px/1.6 Roboto,Arial,sans-serif;letter-spacing:.04em}
     [data-sx-sidebar-list]>li .MuiListItemButton-root{min-height:44px}
+    [data-sx-sidebar-list] .MuiListItemIcon-root{box-sizing:border-box!important;display:inline-flex!important;flex:0 0 34px!important;align-items:center!important;justify-content:center!important;width:34px!important;min-width:34px!important;margin:0!important}
+    [data-sx-sidebar-list] .MuiListItemIcon-root svg{display:block!important;width:20px!important;height:20px!important;flex:0 0 20px!important}
     [data-sx-search-hidden],[data-sx-nav-section][hidden]{display:none!important}
     [data-sx-sidebar-brand]{min-width:0!important;background:none!important;display:flex!important;align-items:center}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
@@ -93,18 +95,57 @@
     return (spans.at(-1)?.textContent || row.querySelector('.MuiListItemText-primary')?.textContent || row.textContent).trim();
   }
   function trainingIcon(row, name) {
-    const paths = {
-      Courses: 'M4 3h14a2 2 0 0 1 2 2v16H6a3 3 0 0 1-3-3V5a2 2 0 0 1 1-2zm2 2v11h12V5H6zm0 13a1 1 0 0 0 0 2h12v-2H6zm3-11h6v2H9V7zm0 4h6v2H9v-2z',
-      'Candidate Applications': 'M5 2h10l5 5v15H5V2zm2 2v16h11V8h-4V4H7zm1 7h8v2H8v-2zm0 4h8v2H8v-2z',
-      'Invoices & Payments': 'M5 2h14v20l-3-2-3 2-3-2-3 2-2-2V2zm2 2v14l3-1 3 2 3-2 1 1V4H7zm5 2h2v1h2v2h-4v1h3a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-1v1h-2v-1h-2v-2h5v-1h-3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2V6z'
+    const icons = {
+      Dashboard:['M3 3h8v8H3z','M13 3h8v5h-8z','M13 10h8v11h-8z','M3 13h8v8H3z'],
+      Courses:['M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21z','M4 4.5V21','M8 6h8','M8 10h8'],
+      'Candidate Applications':['M8 3h8','M9 2h6v4H9z','M6 4H4v18h16V4h-2','M8 11h8','M8 15h8','M8 19h5'],
+      'Lead Pipeline':['M4 19V5','M4 19h17','M7 15l4-4 3 2 6-7','M16 6h4v4'],
+      'Lead Reports':['M4 19V5','M4 19h17','M8 16v-4','M13 16V8','M18 16V5'],
+      Inbox:['M4 5h16v13H8l-4 3z','M8 10h8','M8 14h5'],
+      Phonebook:['M5 3h14v18H5z','M8 7h3v3H8z','M13 8h3','M13 11h3','M8 14h8','M8 17h8'],
+      'Call Center':['M4 13v-2a8 8 0 0 1 16 0v2','M4 12H3v5h4v-5z','M20 12h1v5h-4v-5z','M17 19a5 5 0 0 1-5 3h-2'],
+      'Invoices & Payments':['M6 2h12v20l-3-2-3 2-3-2-3 2z','M9 7h6','M9 11h6','M12 14v4','M10 16h4'],
+      'Finance Reports':['M4 19V5','M4 19h17','M8 16v-3','M13 16V8','M18 16V5'],
+      'Add WhatsApp by QR':['M3 8V3h5','M16 3h5v5','M21 16v5h-5','M8 21H3v-5','M8 8h3v3H8z','M15 8v2','M15 14h2v2h-2z','M10 15v2'],
+      'Link Meta WhatsApp':['M4 5h16v12H8l-4 4z','M8 9h8','M8 13h5'],
+      'Create Meta Template':['M5 3h10l4 4v14H5z','M14 3v5h5','M8 12h8','M8 16h8'],
+      'Send Campaign':['M22 2 11 13','M22 2l-7 20-4-9-9-4z'],
+      'Campaign Dashboard':['M3 11v3h4l9 5V6l-9 5z','M7 14l2 7h4l-3-8','M19 9a5 5 0 0 1 0 7'],
+      'Web Notification':['M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9','M10 21h4'],
+      'Web Notifications':['M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9','M10 21h4'],
+      'Automation Flows':['M6 4v5','M6 15v5','M18 4v5','M18 15v5','M6 9h12v6H6z','M9 12h.01','M12 12h.01','M15 12h.01'],
+      'WA Chatbot':['M4 5h16v12H9l-5 4z','M8 10h.01','M12 10h.01','M16 10h.01','M9 14h6'],
+      'Team access':['M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2','M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8','M20 8v6','M17 11h6'],
+      Tasks:['M9 6h11','M9 12h11','M9 18h11','M4 6l1 1 2-2','M4 12l1 1 2-2','M4 18l1 1 2-2'],
+      'Agent Login':['M15 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2','M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8','M18 8v6','M15 11h6'],
+      'Agent Task':['M9 6h11','M9 12h11','M9 18h11','M4 6l1 1 2-2','M4 12l1 1 2-2','M4 18l1 1 2-2'],
+      'Chat Widget':['M4 5h16v12H9l-5 4z','M8 9h8','M8 13h5'],
+      'REST API':['M8 4 3 12l5 8','M16 4l5 8-5 8','M14 3l-4 18'],
+      'Conversational API':['M4 5h16v12H9l-5 4z','M8 9h8','M8 13h5'],
+      'Template API':['M5 3h10l4 4v14H5z','M14 3v5h5','M8 12h8','M8 16h5'],
+      'API Dashboard':['M4 19V5','M4 19h17','M8 16v-3','M13 16V8','M18 16V5'],
+      'Manage Webhooks':['M8 12a4 4 0 0 1 0-8h4','M16 12a4 4 0 0 1 0 8h-4','M9 12h6','M12 9l3 3-3 3'],
+      'Webhook Automation':['M8 12a4 4 0 0 1 0-8h4','M16 12a4 4 0 0 1 0 8h-4','M9 12h6','M12 9l3 3-3 3'],
+      'Webhook Logs':['M5 3h14v18H5z','M8 8h8','M8 12h8','M8 16h5'],
+      'WhatsApp Warmer':['M12 22s8-4 8-11a8 8 0 0 0-16 0c0 7 8 11 8 11z','M12 14a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
+      'Center profile':['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8','M4 21a8 8 0 0 1 16 0','M17 4h4','M19 2v4'],
+      Students:['M3 5h18v14H3z','M7 9h4v4H7z','M14 9h4','M14 12h4','M7 16h11'],
+      Settings:['M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8','M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.7 2.9-.2-.1a1.7 1.7 0 0 0-1.8.1l-.2.1h-3.4l-.1-.2a1.7 1.7 0 0 0-1.5-1l-.2-.1-1.7-2.9.1-.2a1.7 1.7 0 0 0-.3-1.8l-.1-.2V10l.2-.1a1.7 1.7 0 0 0 1-1.5l.1-.2 2.9-1.7.2.1a1.7 1.7 0 0 0 1.8-.3l.2-.1h3.4l.1.2a1.7 1.7 0 0 0 1.5 1l.2.1 1.7 2.9-.1.2a1.7 1.7 0 0 0 .3 1.8l.1.2v3.4z']
     };
-    const path = paths[name], svg = row.querySelector('svg');
-    if (!path || !svg || svg.dataset.sxTrainingIcon === name) return;
+    const paths = icons[name], svg = row.querySelector('svg');
+    if (!paths || !svg || svg.dataset.sxTrainingIcon === name) return;
     svg.dataset.sxTrainingIcon = name;
     svg.setAttribute('viewBox', '0 0 24 24');
-    const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    shape.setAttribute('d', path);
-    svg.replaceChildren(shape);
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.8');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.replaceChildren(...paths.map(path => {
+      const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      shape.setAttribute('d', path);
+      return shape;
+    }));
   }
   function syncInjectedRows(list) {
     // The legacy shell mounts separate desktop and mobile drawers. Reuse only
