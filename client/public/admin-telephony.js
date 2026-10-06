@@ -19,6 +19,7 @@
     @media(max-width:760px){.sx-pbx-page{left:0;padding:14px}.sx-pbx-grid{grid-template-columns:1fr}.sx-pbx-channel{grid-template-columns:56px 1fr 1fr}.sx-pbx-channel label{grid-column:auto}.sx-pbx-head{display:block}}
   `;document.head.append(style);
   function adminPage(){return location.pathname.toLowerCase()==='/admin'&&!!token();}
+  let platformPageInstance=null;
   function addSidebarLink(){
     if(!adminPage()||document.querySelector('.sx-pbx-nav'))return;
     const userLink=[...document.querySelectorAll('a,button,[role="button"]')].find(item=>/manage-users/.test(item.getAttribute('href')||'')||['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
@@ -30,17 +31,18 @@
     userLink.insertAdjacentElement('afterend',link);
   }
   function platformPage(){
-    if(!adminPage()||new URLSearchParams(location.search).get('page')!=='pbx-telephony'||document.querySelector('[data-sx-pbx-page]'))return;
+    const active=adminPage()&&new URLSearchParams(location.search).get('page')==='pbx-telephony';
+    if(!active){if(platformPageInstance){window.removeEventListener('resize',platformPageInstance.align);platformPageInstance.page.remove();platformPageInstance=null;}return;}
+    if(document.querySelector('[data-sx-pbx-page]'))return;
     const page=document.createElement('main');page.className='sx-pbx-page';page.dataset.sxPbxPage='';page.dir=ar()?'rtl':'ltr';page.innerHTML=`<div class="sx-pbx-wrap"><header class="sx-pbx-head"><div><h1>${tr('PBX & Telephony','المقسم والاتصالات')}</h1><p class="sx-pbx-subtitle">${tr('Platform connection and readiness for business-owned gateways. Configure each business device in Manage Users → Edit User → Telephony.','اتصال المنصة وجاهزية بوابات الأنشطة. اضبط جهاز كل نشاط من إدارة المستخدمين ← تحرير المستخدم ← الاتصالات.')}</p></div><a href="/admin?page=manage-users">${tr('Manage Users','إدارة المستخدمين')}</a></header><section class="sx-pbx-card"><h2>${tr('Shared Asterisk server','خادم أستريسك المشترك')}</h2><div data-message class="sx-pbx-banner" role="status">${tr('Loading Asterisk configuration…','جارٍ تحميل إعدادات أستريسك…')}</div><form data-form><div class="sx-pbx-grid"><label class="sx-pbx-field">${tr('ARI base URL','عنوان ARI الأساسي')}<input name="ariBaseUrl" type="url" required placeholder="https://pbx.example.com:8089/ari"></label><label class="sx-pbx-field">${tr('ARI username','اسم مستخدم ARI')}<input name="ariUsername" maxlength="128" required></label><label class="sx-pbx-field">${tr('ARI password','كلمة مرور ARI')}<input name="ariPassword" type="password" minlength="16" maxlength="256" autocomplete="new-password"><span class="sx-pbx-help">${tr('Encrypted on the server. Leave blank to keep the saved password.','تُشفّر على الخادم. اتركها فارغة للاحتفاظ بكلمة المرور.')}</span></label><label class="sx-pbx-field">${tr('Connection','الاتصال')}<span><input name="enabled" type="checkbox"> ${tr('Enable the shared Asterisk control connection','تفعيل اتصال التحكم المشترك بأستريسك')}</span></label></div><div class="sx-pbx-actions"><button class="primary" type="submit">${tr('Save Asterisk settings','حفظ إعدادات أستريسك')}</button><button type="button" data-test>${tr('Test ARI connection','اختبار اتصال ARI')}</button></div></form><p class="sx-pbx-help">${tr('This setting is platform-wide. Gateway IPs, SIM channels, DIDs and queues are configured on each business account. A saved connection alone does not mean a business gateway or call route is ready.','هذا الإعداد عام للمنصة. يتم ضبط عناوين البوابات وقنوات SIM والأرقام وقوائم الانتظار لكل نشاط. حفظ الاتصال وحده لا يعني جاهزية بوابة النشاط أو مسار المكالمات.')}</p><p class="sx-pbx-help" data-events></p><p class="sx-pbx-help" data-readiness></p></section></div>`;
     document.body.append(page);
     function alignPage(){
       if(innerWidth<=760){page.style.left='0';page.style.right='0';return;}
       const userItem=[...document.querySelectorAll('a,button,[role="button"]')].find(item=>['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
       const rect=userItem?.getBoundingClientRect();if(!rect)return;
-      if(ar()){page.style.right=`${Math.max(0,innerWidth-rect.left)}px`;page.style.left='0';}
-      else{page.style.left=`${Math.max(0,rect.right)}px`;page.style.right='0';}
+      page.style.left=`${Math.max(0,rect.right)}px`;page.style.right='0';
     }
-    alignPage();window.addEventListener('resize',alignPage,{passive:true});
+    alignPage();window.addEventListener('resize',alignPage,{passive:true});platformPageInstance={page,align:alignPage};
     const form=page.querySelector('[data-form]'),message=page.querySelector('[data-message]');let saved={revision:0};
     const notice=(kind,text)=>{message.dataset.kind=kind;message.textContent=text;};
     const csrf=async()=>{const value=await api('/api/admin/platform-auth/me');if(value.mfaRequired)throw Object.assign(new Error('MFA_REQUIRED'),{code:'MFA_REQUIRED'});return value.csrfToken;};
