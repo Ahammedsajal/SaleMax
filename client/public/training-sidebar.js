@@ -92,7 +92,9 @@
   const resizeObserver = new ResizeObserver(schedule);
   function label(row) {
     const spans = [...row.querySelectorAll('.MuiListItemText-primary span')];
-    return (spans.at(-1)?.textContent || row.querySelector('.MuiListItemText-primary')?.textContent || row.textContent).trim();
+    const visible = spans.at(-1)?.textContent || row.querySelector('.MuiListItemText-primary')?.textContent || row.textContent;
+    const accessible = row.getAttribute('aria-label') || row.querySelector('.MuiListItemButton-root')?.getAttribute('aria-label');
+    return (visible.trim() || accessible || '').trim();
   }
   function trainingIcon(row, name) {
     const icons = {
