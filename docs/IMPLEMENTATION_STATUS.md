@@ -1,10 +1,10 @@
 # SaleMaX implementation status
 
-## Guided bot provider model choices — local source, 6 October 2026
+## Guided bot provider model choices — production, 6 October 2026
 
 The existing Training Center bot editor uses provider-specific model dropdowns for OpenAI, Gemini, and DeepSeek. Options show recommended low-cost chat models, stronger choices, and indicative USD input/output rates per million text tokens. Provider changes switch to that provider's recommendation. Daily token limits and confidence thresholds use preset dropdowns. The OpenAI adapter sends the current GPT-6 token and reasoning parameters. Existing saved models or numeric settings outside the presets remain selectable for backward-compatible editing. Labels are bilingual.
 
-The catalog is a curated list of text models supported by the JSON chat adapters; it does not cover every provider model or multimodal API. Pricing, model availability, billing, and account limits remain provider-controlled. This source change is local until release; authenticated browser acceptance and live provider-key calls remain separate evidence.
+The catalog is a curated list of text models supported by the JSON chat adapters; it does not cover every provider model or multimodal API. Pricing, model availability, billing, and account limits remain provider-controlled. Production release `/opt/salemax/releases/chatbot-model-picker-505130f` is active; release, rollback and verification details are in `DEPLOYMENT.md`. An authenticated browser confirmed all three provider-specific selectors and the default recommendation. Live provider-key calls and actual AI responses remain unverified because no provider key was configured or saved.
 
 ## Training Center candidate registration and Business Profile document branding — production, 6 October 2026
 
