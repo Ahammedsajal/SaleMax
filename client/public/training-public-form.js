@@ -56,7 +56,7 @@
       <section class="form-card">${schema.templateKey==='procatalyst-registration-v1'?'':`<p class="eyebrow">${staffCapture ? tr('STAFF ENQUIRY CAPTURE', 'تسجيل استفسار بواسطة الموظف') : tr('TRAINING CENTER ENQUIRY', 'استفسار مركز التدريب')}</p><h1>${esc(isArabic ? schema.titleAr : schema.titleEn)}</h1>${(isArabic ? schema.descriptionAr : schema.descriptionEn) ? `<p class="description">${esc(isArabic ? schema.descriptionAr : schema.descriptionEn)}</p>` : ''}`}
       <div id="form-message" role="status" aria-live="polite"></div><form id="enquiry-form" novalidate autocomplete="off">
       <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-      ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture) : schema.fields.filter(field => field.key !== 'consent').map(field => {
+      ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture, data.tenant) : schema.fields.filter(field => field.key !== 'consent').map(field => {
         const [labelEn, labelAr, type, autocomplete] = fields[field.key];
         const label = isArabic ? field.labelAr || labelAr : field.labelEn || labelEn;
         if (field.key === 'course_id') return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="course_id" ${field.required ? 'required' : ''}><option value="">${tr('Choose a course', 'اختر دورة')}</option>${data.courses.map(course => `<option value="${esc(course.id)}">${esc(isArabic ? course.nameAr : course.nameEn)}</option>`).join('')}</select></label>`;
