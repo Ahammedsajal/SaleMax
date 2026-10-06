@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Inbox chatbot number control layout — production, 6 October 2026
+
+The existing per-conversation chatbot number selector is compact in the desktop chat header. On mobile, users open Bot details under Chat info; the selector expands in the conversation flow and pushes messages down instead of covering them. Production release `/opt/salemax/releases/inbox-bot-header-flow-0e66fad` is active. The existing generated shell and sidebar icon update were preserved. Release hashes, rollback reference and verification evidence are recorded in `DEPLOYMENT.md`.
+
 ## Guided bot provider model choices — production, 6 October 2026
 
 The existing Training Center bot editor uses provider-specific model dropdowns for OpenAI, Gemini, and DeepSeek. Options show recommended low-cost chat models, stronger choices, and indicative USD input/output rates per million text tokens. Provider changes switch to that provider's recommendation. Daily token limits and confidence thresholds use preset dropdowns. The OpenAI adapter sends the current GPT-6 token and reasoning parameters. Existing saved models or numeric settings outside the presets remain selectable for backward-compatible editing. Labels are bilingual.
