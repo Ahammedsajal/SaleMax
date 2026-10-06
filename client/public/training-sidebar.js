@@ -36,9 +36,9 @@
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
-    'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', Phonebook:'contacts', 'Agent Login':'agent-login',
-    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
-    'Finance Reports':'reports', 'Lead Reports':'reports', 'Team access':'team', 'Team and Roles':'team',
+    'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Agent Login':'agent-login',
+    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', Courses:'courses', Students:'enrollments', 'Center profile':'enrollments', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
+    'Finance Reports':'reports', 'Team access':'team', 'Team and Roles':'team',
     'Business Settings':'settings', Settings:'settings'
   };
   let assignedNavigation = null;
@@ -230,7 +230,6 @@
         const text = label(row), name = aliases[text] || text;
         const navButton = row.querySelector('.MuiListItemButton-root,[role="button"],button,a');
         const tooltip = name === 'Web Notification' ? tr('Web Notifications', 'إشعارات الويب') : text;
-        if (navButton && navButton.getAttribute('title') !== tooltip) navButton.setAttribute('title', tooltip);
         if (Object.values(routes).includes(active)) {
           const button = row.querySelector('.MuiListItemButton-root');
           if (button) { const selected = name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
@@ -252,7 +251,12 @@
         const hiddenByOwner=(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(name==='Team access'&&membershipRole&&membershipRole!=='owner');
         const hidden = hiddenByOwner || (!!query && !text.toLowerCase().includes(query) && !name.toLowerCase().includes(query));
         row.toggleAttribute('data-sx-search-hidden', hidden);
-        if (!hidden && !row.hasAttribute('data-sx-optional-hidden') && getComputedStyle(row).display !== 'none') present.add(group);
+        const available = !hidden && !row.hidden && !row.hasAttribute('data-sx-optional-hidden') && getComputedStyle(row).display !== 'none';
+        if (navButton) {
+          if (available) { if (navButton.getAttribute('title') !== tooltip) navButton.setAttribute('title', tooltip); }
+          else navButton.removeAttribute('title');
+        }
+        if (available) present.add(group);
       });
       groups.forEach(([en, arabic], index) => {
         let title = list.querySelector(`[data-sx-nav-section="${index}"]`);
