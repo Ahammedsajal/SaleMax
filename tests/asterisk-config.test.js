@@ -167,11 +167,25 @@ test('existing Super Admin PBX setup applies the Dinstar peer only after a curre
   assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
 });
 
-test('Manage Users shows the PBX setup entry without a silent permission preflight', () => {
+test('PBX settings have a dedicated admin sidebar page and tenant gateways live in Edit User', () => {
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
-  assert.match(ui,/trigger\.textContent=tr\('Asterisk PBX setup','إعداد مقسم أستريسك'\)/);
-  assert.match(ui,/trigger\.onclick=show/);
-  assert.doesNotMatch(ui,/await api\('\/api\/admin\/asterisk\/config'\)/);
+  const telephony=fs.readFileSync(path.join(__dirname,'../client/public/admin-telephony.js'),'utf8');
+  const index=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
+  const router=fs.readFileSync(path.join(__dirname,'../modules/platform/asterisk-router.js'),'utf8');
+  const tenantGateway=fs.readFileSync(path.join(__dirname,'../modules/platform/tenant-asterisk-gateways.js'),'utf8');
+  const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261114_tenant_asterisk_gateways.sql'),'utf8');
+  assert.match(ui,/trigger\?\.remove\(\)/);
+  assert.match(telephony,/PBX & Telephony/);
+  assert.match(telephony,/pbx-telephony/);
+  assert.match(telephony,/data-sx-tenant-gateway/);
+  assert.match(telephony,/business-gateway-statuses/);
+  assert.match(telephony,/Needs attention/);
+  assert.match(tenantGateway,/GATEWAY_RUNTIME_MIGRATION_REQUIRED/);
+  assert.match(router,/tenantGateways\.save/);
+  assert.match(router,/tenantGateways\.statuses/);
+  assert.match(migration,/CREATE TABLE sx_telephony_gateways/);
+  assert.match(migration,/PRIMARY KEY \(tenant_id,gateway_id,channel_no\)/);
+  assert.match(index,/admin-telephony\.js\?v=20261006-tenant-pbx1/);
   assert.match(ui,/VERIFIED_ADMIN_LINK_REQUIRED:tr\(/);
 });
 

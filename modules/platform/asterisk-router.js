@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const express = require('express');
 const asterisk = require('./asterisk-config');
 const gatewayPorts = require('./asterisk-gateway-ports');
+const tenantGateways = require('./tenant-asterisk-gateways');
 
 function createAsteriskRouter({ pool }) {
   const router = express.Router();
@@ -42,16 +43,23 @@ function createAsteriskRouter({ pool }) {
   router.get('/gateway-tenants', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => gatewayPorts.listTenants(db, req.businessContext)) })));
   router.get('/gateway-queues', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => gatewayPorts.listQueues(db, req.businessContext, req.query.tenantId)) })));
   router.put('/gateway-ports', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => gatewayPorts.save(db, req.businessContext, req.body)) })));
+  router.get('/business/:userId/gateway', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => tenantGateways.read(db, req.businessContext, req.params.userId)) })));
+  router.get('/business/:userId/queues', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => tenantGateways.queues(db, req.businessContext, req.params.userId)) })));
+  router.put('/business/:userId/gateway', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => tenantGateways.save(db, req.businessContext, req.params.userId, req.body)) })));
+  router.get('/business-gateway-statuses', wrap(async (req, res) => {
+    const userIds=String(req.query.userIds||'').split(',').filter(Boolean);
+    res.json({success:true,data:await withDb(db=>tenantGateways.statuses(db,req.businessContext,userIds))});
+  }));
   router.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const code = error.code || '';
-    const status = ['PERMISSION_DENIED', 'PLATFORM_REQUIRED', 'VERIFIED_ADMIN_LINK_REQUIRED'].includes(code) ? 403
-      : ['STALE_REVISION', 'STALE_GATEWAY_CHANNEL_REVISION', 'GATEWAY_CHANNEL_MUST_BE_DISABLED_FOR_REASSIGNMENT', 'GATEWAY_DID_ALREADY_ASSIGNED', 'ASTERISK_CONFIG_CHANGED_DURING_TEST'].includes(code) ? 409
+    const status = ['PERMISSION_DENIED', 'PLATFORM_REQUIRED', 'VERIFIED_ADMIN_LINK_REQUIRED','TENANT_PORTFOLIO_FORBIDDEN'].includes(code) ? 403
+      : ['STALE_REVISION', 'STALE_GATEWAY_REVISION','STALE_GATEWAY_CHANNEL_REVISION', 'GATEWAY_CHANNEL_MUST_BE_DISABLED_FOR_REASSIGNMENT', 'GATEWAY_DID_ALREADY_ASSIGNED', 'ASTERISK_CONFIG_CHANGED_DURING_TEST'].includes(code) ? 409
             : ['TENANT_NOT_FOUND','GATEWAY_QUEUE_TENANT_MISMATCH'].includes(code) ? 404
             : ['TENANT_TELEPHONY_UNAVAILABLE'].includes(code) ? 409
             : ['GATEWAY_QUEUE_DISABLED','TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'].includes(code) ? 409
-            : ['ARI_CREDENTIAL_REQUIRED', 'GATEWAY_IP_REQUIRED', 'GATEWAY_TENANT_REQUIRED', 'GATEWAY_DID_REQUIRED','GATEWAY_QUEUE_REQUIRED', 'INVALID_GATEWAY_TENANT','INVALID_GATEWAY_QUEUE', 'INVALID_GATEWAY_DID', 'INVALID_GATEWAY_IP', 'INSECURE_GATEWAY_TRANSPORT'].includes(code) || code.startsWith('INVALID_GATEWAY_CHANNEL') ? 400
-        : code.startsWith('INVALID_') ? 400
+            : ['ARI_CREDENTIAL_REQUIRED', 'GATEWAY_IP_REQUIRED', 'GATEWAY_TENANT_REQUIRED', 'GATEWAY_DID_REQUIRED','GATEWAY_QUEUE_REQUIRED','GATEWAY_DID_AND_QUEUE_REQUIRED','INVALID_BUSINESS_USER','INVALID_GATEWAY_CONFIG','INVALID_GATEWAY_TENANT','INVALID_GATEWAY_QUEUE', 'INVALID_GATEWAY_DID', 'INVALID_GATEWAY_IP','INVALID_GATEWAY_PORT', 'INSECURE_GATEWAY_TRANSPORT'].includes(code) || code.startsWith('INVALID_GATEWAY_CHANNEL') ? 400
+      : code.startsWith('INVALID_') ? 400
           : code === 'ARI_AUTH_REJECTED' ? 502
             : ['ARI_TIMEOUT', 'ARI_UNAVAILABLE', 'ARI_UNREACHABLE', 'ARI_INVALID_RESPONSE', 'ASTERISK_CONFIG_UNAVAILABLE', 'ASTERISK_HOST_ALLOWLIST_REQUIRED', 'ASTERISK_HOST_NOT_ALLOWED', 'ASTERISK_SECRET_KEY_UNAVAILABLE'].includes(code) ? 503
               : error.type === 'entity.parse.failed' ? 400 : error.type === 'entity.too.large' ? 413 : 503;
