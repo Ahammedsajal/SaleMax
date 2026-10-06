@@ -79,7 +79,7 @@
     [data-sx-nav-section]{margin:20px 24px 6px;color:#6b7280;font:600 12px/1.6 Roboto,Arial,sans-serif;letter-spacing:.04em}
     [data-sx-sidebar-list]>li .MuiListItemButton-root{min-height:44px}
     [data-sx-sidebar-list] .MuiListItemIcon-root{box-sizing:border-box!important;display:inline-flex!important;flex:0 0 34px!important;align-items:center!important;justify-content:center!important;width:34px!important;min-width:34px!important;margin:0!important}
-    [data-sx-sidebar-collapsed] [data-sx-sidebar-list]{box-sizing:border-box!important;width:100%!important;padding-inline:0!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-list]{box-sizing:border-box!important;width:100%!important;flex:0 0 100%!important;margin-inline:auto!important;padding-inline:0!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list]>li{box-sizing:border-box!important;width:100%!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemButton-root{box-sizing:border-box!important;justify-content:center!important;padding-inline:0!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemIcon-root{flex:1 1 100%!important;width:100%!important;min-width:100%!important}
