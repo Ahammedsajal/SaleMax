@@ -295,8 +295,10 @@
       #sx-active-chatbot-control [data-sx-chatbot-toggle]:disabled{opacity:.6;cursor:wait}
       @media(max-width:767px){
         #sx-active-chatbot-control{position:relative;z-index:1300;max-width:none;min-width:0;margin:0;padding:0;border:0;background:transparent}
+        #sx-active-chatbot-control.sx-mobile-open{display:flex;flex-direction:column;align-items:stretch;width:auto;margin:8px 12px;padding:10px;border:1px solid #edbfd0;border-radius:12px;background:#fff;box-shadow:0 3px 14px #10182818}
         #sx-active-chatbot-control [data-sx-chatbot-mobile-toggle]{display:inline-flex;align-items:center;justify-content:center;min-width:42px;height:34px;padding:0 9px;border:1px solid #edbfd0;border-radius:9px;background:#fff2f6;color:#a8003b;font:600 12px Roboto,Arial,sans-serif;cursor:pointer;white-space:nowrap}
         #sx-active-chatbot-control [data-sx-chatbot-control-body]{position:absolute;top:calc(100% + 8px);inset-inline-end:0;display:flex;flex-wrap:wrap;width:min(340px,calc(100vw - 24px));padding:12px;gap:9px;border:1px solid #edbfd0;border-radius:12px;background:#fff;box-shadow:0 8px 28px #10182826}
+        #sx-active-chatbot-control.sx-mobile-open [data-sx-chatbot-control-body]{position:static;width:auto;max-width:none;padding:9px 0 0;gap:9px;border:0;border-radius:0;background:transparent;box-shadow:none}
         #sx-active-chatbot-control:not(.sx-mobile-open) [data-sx-chatbot-control-body]{display:none}
         #sx-active-chatbot-control [data-sx-chatbot-control-body] label{flex:1 1 100%;justify-content:space-between;white-space:normal}
         #sx-active-chatbot-control [data-sx-chatbot-mobile-heading]{display:block;flex:1 1 100%;font-size:13px;font-weight:700;color:#344054}
@@ -737,6 +739,13 @@
       control.querySelector('[data-sx-chatbot-mobile-toggle]').addEventListener('click', event => {
         const open = control.classList.toggle('sx-mobile-open');
         event.currentTarget.setAttribute('aria-expanded', String(open));
+        const infoButton = [...document.querySelectorAll('button[aria-label],button[title]')].find(button => /show info|معلومات/i.test(`${button.getAttribute('aria-label') || ''} ${button.title || ''}`));
+        const actions = infoButton?.parentElement;
+        const header = actions?.parentElement;
+        if (window.matchMedia('(max-width: 767px)').matches && header?.parentElement) {
+          if (open) header.parentElement.insertBefore(control, header.nextElementSibling);
+          else if (actions) actions.insertBefore(control, infoButton);
+        }
       });
     }
     if (control.dataset.conversationId && control.dataset.conversationId !== id) {
@@ -751,7 +760,9 @@
     const narrow = window.matchMedia('(max-width: 767px)').matches;
     if (narrow) {
       control.classList.add('sx-mobile-layout');
-      if (control.parentElement !== actions) actions.insertBefore(control, infoButton);
+      if (control.classList.contains('sx-mobile-open') && header.parentElement) {
+        if (control.parentElement !== header.parentElement || control.previousElementSibling !== header) header.parentElement.insertBefore(control, header.nextElementSibling);
+      } else if (control.parentElement !== actions) actions.insertBefore(control, infoButton);
     } else {
       control.classList.remove('sx-mobile-layout', 'sx-mobile-open');
       control.querySelector('[data-sx-chatbot-mobile-toggle]')?.setAttribute('aria-expanded', 'false');

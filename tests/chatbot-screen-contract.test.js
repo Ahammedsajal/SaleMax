@@ -120,10 +120,12 @@ test('Inbox bot control requires explicit number selection when channel scope is
   assert.match(admin, /data-sx-chatbot-mobile-toggle/);
   assert.match(admin, /let lastActiveConversation = null/);
   assert.match(admin, /if \(lastActiveConversation && infoButton\)/);
+  assert.match(admin, /header\.parentElement\.insertBefore\(control, header\.nextElementSibling\)/);
+  assert.match(admin, /sx-active-chatbot-control\.sx-mobile-open \[data-sx-chatbot-control-body\]\{position:static/);
   assert.doesNotMatch(admin, /position:fixed;z-index:1100;top:82px/);
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261006-inbox-bot-header2/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261006-inbox-bot-header2/);
+  assert.match(index, /training-sidebar\.js\?v=20261006-inbox-bot-header3/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261006-inbox-bot-header3/);
 });
