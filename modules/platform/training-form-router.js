@@ -3,9 +3,13 @@ const express=require('express');
 const crypto=require('node:crypto');
 const net=require('node:net');
 const path=require('node:path');
+const fs=require('node:fs/promises');
 const forms=require('./training-forms');
 const courses=require('./training-courses');
 const {createTrainingTurnstile}=require('./training-turnstile');
+function publicFormMetadata(data,publicUrl,language='en'){
+  const isArabic=language==='ar';const company=data.tenant.companyName||data.tenant.name;const center=(isArabic?data.tenant.centerNameAr:data.tenant.centerNameEn)||company;const address=isArabic?data.tenant.addressAr:data.tenant.addressEn;const description=[company,center,address].filter(Boolean).filter((value,index,list)=>list.indexOf(value)===index).join(' · ');const title=data.form.schema.templateKey==='procatalyst-registration-v1'?'Registration Form':(isArabic?data.form.nameAr:data.form.nameEn);const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));return {title,html:`<meta name="description" content="${escape(description)}"><meta property="og:type" content="website"><meta property="og:site_name" content="${escape(company)}"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${escape(description)}"><meta property="og:url" content="${escape(publicUrl)}"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${escape(title)}"><meta name="twitter:description" content="${escape(description)}">`};
+}
 function createTrainingFormRouter({pool,origin,userGuard}){
   const router=express.Router();const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   router.use(express.json({limit:'32kb',strict:true}));
@@ -24,7 +28,7 @@ function createTrainingFormRouter({pool,origin,userGuard}){
 function createPublicTrainingFormRouter({app,pool,rateKey,origin,turnstile}){
   const challenge=turnstile||createTrainingTurnstile({siteKey:process.env.SALEMAX_TURNSTILE_SITE_KEY,secretKey:process.env.SALEMAX_TURNSTILE_SECRET_KEY,hostname:new URL(origin).hostname});
   const router=express.Router();router.use(express.json({limit:'16kb',strict:true}));
-  app.get('/p/:tenantSlug/forms/:formSlug',(req,res)=>{res.setHeader('Cache-Control','no-store, private');res.sendFile(path.resolve(__dirname,'../../client/public/training-form.html'));});
+  app.get('/p/:tenantSlug/forms/:formSlug',async(req,res,next)=>{res.setHeader('Cache-Control','no-store, private');let db;try{db=await pool.getConnection();const data=await forms.publicForm(db,req.params.tenantSlug,req.params.formSlug);if(!data)return res.status(404).send('Form not found');const template=await fs.readFile(path.resolve(__dirname,'../../client/public/training-form.html'),'utf8');const language=(req.query.lang||'').toLowerCase().startsWith('ar')?'ar':'en';const publicUrl=new URL(`/p/${encodeURIComponent(req.params.tenantSlug)}/forms/${encodeURIComponent(req.params.formSlug)}`,origin);if(language==='ar')publicUrl.searchParams.set('lang','ar');const metadata=publicFormMetadata(data,publicUrl.href,language);res.type('html').send(template.replace('<!--PUBLIC_FORM_META-->',metadata.html).replace('<title>Course enquiry</title>',`<title>${metadata.title}</title>`));}catch(error){next(error);}finally{db?.release();}});
   router.get('/:tenantSlug/:formSlug',async(req,res,next)=>{res.setHeader('Cache-Control','no-store');try{const data=await forms.publicForm(pool,req.params.tenantSlug,req.params.formSlug);if(!data)return res.status(404).json({success:false,code:'FORM_NOT_FOUND'});return res.json({success:true,data:{...data,botChallenge:challenge.publicConfig}});}catch(error){return next(error);}});
   router.post('/:tenantSlug/:formSlug/submissions',async(req,res,next)=>{
     res.setHeader('Cache-Control','no-store');
@@ -44,4 +48,4 @@ function createPublicTrainingFormRouter({app,pool,rateKey,origin,turnstile}){
   router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'PUBLIC_FORM_UNAVAILABLE';const status=error.type==='entity.too.large'?413:error instanceof SyntaxError&&error.status===400?400:code==='FORM_NOT_FOUND'?404:code==='FORM_RATE_LIMITED'?429:['INVALID_SUBMISSION','INVALID_PHONE','INVALID_EMAIL','INVALID_COURSE','INVALID_PREFERRED_DATE','REQUIRED_FIELD_MISSING','CONSENT_REQUIRED','BOT_CHALLENGE_REQUIRED','BOT_CHALLENGE_FAILED'].includes(code)?400:code==='BUSINESS_LINK_INVALID'?409:503;res.status(status).json({success:false,code:error.type==='entity.too.large'?'PAYLOAD_TOO_LARGE':status===503?(code==='BOT_CHALLENGE_UNAVAILABLE'?'BOT_CHALLENGE_UNAVAILABLE':'PUBLIC_FORM_UNAVAILABLE'):code});});
   return router;
 }
-module.exports={createTrainingFormRouter,createPublicTrainingFormRouter};
+module.exports={createTrainingFormRouter,createPublicTrainingFormRouter,publicFormMetadata};

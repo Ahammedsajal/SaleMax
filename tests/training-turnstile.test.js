@@ -51,7 +51,7 @@ test('public forms expose and submit an explicit challenge only when configured'
   const router=fs.readFileSync(path.join(__dirname,'../modules/platform/training-form-router.js'),'utf8');
   const screen=fs.readFileSync(path.join(root,'training-public-form.js'),'utf8');
   const html=fs.readFileSync(path.join(root,'training-form.html'),'utf8');
-  assert.match(router,/SALEMAX_TURNSTILE_SITE_KEY/);assert.match(router,/challenge\.verify\(req\.body\.challengeToken,req\.body\.submissionToken,\{tenantSlug:req\.params\.tenantSlug,formSlug:req\.params\.formSlug\}\)/);assert.match(router,/botChallenge:challenge\.publicConfig/);
+  assert.match(router,/SALEMAX_TURNSTILE_SITE_KEY/);assert.match(html,/PUBLIC_FORM_META/);assert.match(router,/challenge\.verify\(req\.body\.challengeToken,req\.body\.submissionToken,\{tenantSlug:req\.params\.tenantSlug,formSlug:req\.params\.formSlug\}\)/);assert.match(router,/botChallenge:challenge\.publicConfig/);
   assert.match(screen,/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js\?render=explicit/);assert.match(screen,/payload\.challengeToken\s*=\s*challengeToken/);assert.match(screen,/Complete the security check/);assert.match(screen,/أكمل التحقق الأمني/);
   assert.match(html,/training-public-form\.js\?v=20261006-registration2/);
 });
@@ -67,4 +67,17 @@ test('public submission route rejects an unverified challenge before opening the
   await new Promise(resolve=>server.once('listening',resolve));
   const response=await fetch(`http://127.0.0.1:${server.address().port}/api/public/training/forms/gcc-training/course-enquiry/submissions`,{method:'POST',headers:{Origin:'https://crm.salemax.qa','Content-Type':'application/json'},body:JSON.stringify({submissionToken:uuid(),values:{},website:'',challengeToken:'forged'})});
   assert.equal(response.status,400);assert.deepEqual(await response.json(),{success:false,code:'BOT_CHALLENGE_FAILED'});assert.equal(verificationCalls,1);assert.equal(databaseCalls,0);
+});
+
+test('public registration link returns crawler-readable center, company, address and registration metadata',async t=>{
+  const express=require('express'),forms=require('../modules/platform/training-forms');
+  const {createPublicTrainingFormRouter}=require('../modules/platform/training-form-router');
+  const original=forms.publicForm;forms.publicForm=async()=>({tenant:{name:'Company <One>',companyName:'Company <One>',centerNameEn:'Training Center',centerNameAr:'مركز التدريب',addressEn:'Doha & West Bay',addressAr:'الدوحة'},form:{nameEn:'Student Registration Form',nameAr:'استمارة تسجيل الطالب',schema:{templateKey:'procatalyst-registration-v1'}}});
+  t.after(()=>{forms.publicForm=original;});
+  const app=express(),pool={getConnection:async()=>({release(){}})};
+  const router=createPublicTrainingFormRouter({app,pool,rateKey:Buffer.alloc(32,1),origin:'https://crm.salemax.qa'});app.use('/api/public/training/forms',router);
+  const server=app.listen(0,'127.0.0.1');t.after(()=>new Promise(resolve=>server.close(resolve)));await new Promise(resolve=>server.once('listening',resolve));
+  const response=await fetch(`http://127.0.0.1:${server.address().port}/p/test-center/forms/student-registration`),html=await response.text();
+  assert.equal(response.status,200);assert.match(html,/<title>Registration Form<\/title>/);assert.match(html,/property="og:title" content="Registration Form"/);assert.match(html,/property="og:site_name" content="Company &lt;One&gt;"/);assert.match(html,/property="og:description" content="Company &lt;One&gt; · Training Center · Doha &amp; West Bay"/);assert.match(html,/property="og:url" content="https:\/\/crm\.salemax\.qa\/p\/test-center\/forms\/student-registration"/);
+  const arabic=await fetch(`http://127.0.0.1:${server.address().port}/p/test-center/forms/student-registration?lang=ar`),arabicHtml=await arabic.text();assert.match(arabicHtml,/property="og:description" content="Company &lt;One&gt; · مركز التدريب · الدوحة"/);assert.match(arabicHtml,/student-registration\?lang=ar/);
 });
