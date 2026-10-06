@@ -180,14 +180,14 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   assert.match(telephony,/data-sx-tenant-gateway/);
   assert.match(telephony,/business-gateway-statuses/);
   assert.match(telephony,/Needs attention/);
-  assert.match(telephony,/page\.style\.left=`\$\{Math\.max\(0,rect\.right\)\}px`/);
+  assert.match(telephony,/page\.style\.left=`\$\{Math\.max\(0,rect\.right\+24\)\}px`/);
   assert.match(telephony,/platformPageInstance\.page\.remove\(\)/);
   assert.match(tenantGateway,/GATEWAY_RUNTIME_MIGRATION_REQUIRED/);
   assert.match(router,/tenantGateways\.save/);
   assert.match(router,/tenantGateways\.statuses/);
   assert.match(migration,/CREATE TABLE sx_telephony_gateways/);
   assert.match(migration,/PRIMARY KEY \(tenant_id,gateway_id,channel_no\)/);
-  assert.match(index,/admin-telephony\.js\?v=20261006-tenant-pbx3/);
+  assert.match(index,/admin-telephony\.js\?v=20261006-tenant-pbx4/);
   assert.match(ui,/VERIFIED_ADMIN_LINK_REQUIRED:tr\(/);
 });
 

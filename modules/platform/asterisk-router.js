@@ -57,6 +57,7 @@ function createAsteriskRouter({ pool }) {
       method: req.method,
       route: req.route?.path || req.path,
       type: error.name || 'Error',
+      stack: error.stack?.split('\n').slice(0, 5).join('\n'),
     });
     const status = ['PERMISSION_DENIED', 'PLATFORM_REQUIRED', 'VERIFIED_ADMIN_LINK_REQUIRED','TENANT_PORTFOLIO_FORBIDDEN'].includes(code) ? 403
       : ['STALE_REVISION', 'STALE_GATEWAY_REVISION','STALE_GATEWAY_CHANNEL_REVISION', 'GATEWAY_CHANNEL_MUST_BE_DISABLED_FOR_REASSIGNMENT', 'GATEWAY_DID_ALREADY_ASSIGNED', 'ASTERISK_CONFIG_CHANGED_DURING_TEST'].includes(code) ? 409

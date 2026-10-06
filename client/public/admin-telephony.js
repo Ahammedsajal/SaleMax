@@ -22,7 +22,8 @@
   let platformPageInstance=null;
   function addSidebarLink(){
     if(!adminPage()||document.querySelector('.sx-pbx-nav'))return;
-    const userLink=[...document.querySelectorAll('a,button,[role="button"]')].find(item=>/manage-users/.test(item.getAttribute('href')||'')||['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
+    const sidebarItems=[...document.querySelectorAll('.MuiListItemButton-root')];
+    const userLink=sidebarItems.find(item=>['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()))||[...document.querySelectorAll('a,button,[role="button"]')].find(item=>/manage-users/.test(item.getAttribute('href')||'')||['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
     if(!userLink)return;
     const link=userLink.cloneNode(false);link.removeAttribute('id');link.dataset.sxPbxNav='';link.classList.add('sx-pbx-nav');
     if(link.tagName==='A')link.href='/admin?page=pbx-telephony';else{link.type='button';}
@@ -38,9 +39,9 @@
     document.body.append(page);
     function alignPage(){
       if(innerWidth<=760){page.style.left='0';page.style.right='0';return;}
-      const userItem=[...document.querySelectorAll('a,button,[role="button"]')].find(item=>['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
+      const userItem=[...document.querySelectorAll('.MuiListItemButton-root')].find(item=>['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
       const rect=userItem?.getBoundingClientRect();if(!rect)return;
-      page.style.left=`${Math.max(0,rect.right)}px`;page.style.right='0';
+      page.style.left=`${Math.max(0,rect.right+24)}px`;page.style.right='0';
     }
     alignPage();window.addEventListener('resize',alignPage,{passive:true});platformPageInstance={page,align:alignPage};
     const form=page.querySelector('[data-form]'),message=page.querySelector('[data-message]');let saved={revision:0};
@@ -74,4 +75,5 @@
   }
   function mount(){addSidebarLink();platformPage();editUserGateway();listGatewayStatuses();}
   const observer=new MutationObserver(mount);observer.observe(document.documentElement,{childList:true,subtree:true});window.addEventListener('popstate',mount);mount();
+  const pushState=history.pushState;history.pushState=function(...args){const result=pushState.apply(this,args);queueMicrotask(mount);return result;};
 })();
