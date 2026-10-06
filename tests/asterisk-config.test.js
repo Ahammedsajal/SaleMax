@@ -173,6 +173,7 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   const index=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   const router=fs.readFileSync(path.join(__dirname,'../modules/platform/asterisk-router.js'),'utf8');
   const tenantGateway=fs.readFileSync(path.join(__dirname,'../modules/platform/tenant-asterisk-gateways.js'),'utf8');
+  const gatewayPorts=fs.readFileSync(path.join(__dirname,'../modules/platform/asterisk-gateway-ports.js'),'utf8');
   const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261114_tenant_asterisk_gateways.sql'),'utf8');
   assert.match(ui,/trigger\?\.remove\(\)/);
   assert.match(telephony,/PBX & Telephony/);
@@ -186,6 +187,7 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   assert.match(router,/tenantGateways\.save/);
   assert.match(router,/tenantGateways\.statuses/);
   assert.match(router,/Promise\.resolve\(fn\(req, res, next\)\)/);
+  assert.match(gatewayPorts,/module\.exports = \{[^}]*\blistQueues\b/);
   assert.match(migration,/CREATE TABLE sx_telephony_gateways/);
   assert.match(migration,/PRIMARY KEY \(tenant_id,gateway_id,channel_no\)/);
   assert.match(index,/admin-telephony\.js\?v=20261006-tenant-pbx5/);

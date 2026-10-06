@@ -208,4 +208,4 @@ async function save(db, context, body) {
   }
 }
 
-module.exports = { parsePorts, present, dinstarRoutePrefix, list, listTenants, previewRouting, eligible, validateTenant, save };
+module.exports = { parsePorts, present, dinstarRoutePrefix, list, listTenants, listQueues, previewRouting, eligible, validateTenant, save };
