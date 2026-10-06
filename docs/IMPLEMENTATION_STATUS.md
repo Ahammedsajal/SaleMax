@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Guided bot provider model choices — local source, 6 October 2026
+
+The existing Training Center bot editor uses provider-specific model dropdowns for OpenAI, Gemini, and DeepSeek. Options show recommended low-cost chat models, stronger choices, and indicative USD input/output rates per million text tokens. Provider changes switch to that provider's recommendation. Daily token limits and confidence thresholds use preset dropdowns. The OpenAI adapter sends the current GPT-6 token and reasoning parameters. Existing saved models or numeric settings outside the presets remain selectable for backward-compatible editing. Labels are bilingual.
+
+The catalog is a curated list of text models supported by the JSON chat adapters; it does not cover every provider model or multimodal API. Pricing, model availability, billing, and account limits remain provider-controlled. This source change is local until release; authenticated browser acceptance and live provider-key calls remain separate evidence.
+
 ## Training Center candidate registration and Business Profile document branding — production, 6 October 2026
 
 The existing Candidate Applications page is live at `/user?page=forms`. It publishes the supplied ProCatalyst registration fields, tables, agreement and signatures through a mobile-first public link, and staff can search/date-filter applications, review them and print the filled form. The A4 print header now carries `REGISTRATION FORM`, the current Business Profile center name and uploaded logo inside the sheet, matching the supplied paper reference. Public share previews use title `Registration Form`, company name, center name and configured address in English and Arabic.

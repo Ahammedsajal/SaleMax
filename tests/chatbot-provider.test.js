@@ -23,6 +23,24 @@ test('OpenAI-compatible provider sends bounded JSON with authorization only in t
   assert.deepEqual(result, { canAnswer: true, confidence: 0.93, reply: 'English is open.', inputTokens: 20, outputTokens: 8 });
 });
 
+test('GPT-6 chat models use current token and reasoning parameters', async () => {
+  for (const [model, effort, hasTemperature] of [
+    ['gpt-6-luna', 'none', true],
+    ['gpt-6.1-sol', 'low', false],
+    ['gpt-6-astra', 'low', false],
+  ]) {
+    let body;
+    await generate({ provider: 'openai', model, apiKey: 'secret-provider-key-012345', system: 'Rules', user: 'Question', fetchImpl: async (_url, options) => {
+      body = JSON.parse(options.body);
+      return response({ choices: [{ message: { content: JSON.stringify({ can_answer: true, confidence: 0.9, reply: 'Answer' }) } }] });
+    } });
+    assert.equal(body.max_completion_tokens, 350, model);
+    assert.equal('max_tokens' in body, false, model);
+    assert.equal(body.reasoning_effort, effort, model);
+    assert.equal('temperature' in body, hasTemperature, model);
+  }
+});
+
 test('Gemini sends its key in a header and percent-encodes the model path', async () => {
   let captured;
   const result = await generate({ provider: 'gemini', model: 'gemini-2.0-flash', apiKey: 'secret-provider-key-012345', system: 'Rules', user: 'Question', fetchImpl: async (url, options) => {

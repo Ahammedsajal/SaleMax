@@ -26,7 +26,19 @@ async function generate({ provider, model, apiKey, system, user, maxOutputTokens
     let url = spec.endpoint, body, headers = { 'Content-Type': 'application/json' };
     if (spec.style === 'openai') {
       headers.Authorization = `Bearer ${apiKey}`;
-      body = { model, temperature: 0.1, max_tokens: Math.min(Math.max(maxOutputTokens, 64), 700), response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] };
+      const tokenLimit = Math.min(Math.max(maxOutputTokens, 64), 700);
+      body = { model, temperature: 0.1, max_tokens: tokenLimit, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] };
+      if (/^gpt-6(?:\.|-)/.test(model)) {
+        // Current reasoning models use max_completion_tokens. Non-none reasoning
+        // effort also rejects temperature, so use low effort for capable models.
+        body.max_completion_tokens = tokenLimit;
+        delete body.max_tokens;
+        if (model === 'gpt-6-luna') body.reasoning_effort = 'none';
+        else {
+          body.reasoning_effort = 'low';
+          delete body.temperature;
+        }
+      }
     } else {
       url += `${encodeURIComponent(model)}:generateContent`;
       headers['x-goog-api-key'] = apiKey;
