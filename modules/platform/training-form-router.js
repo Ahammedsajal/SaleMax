@@ -14,6 +14,7 @@ function createTrainingFormRouter({pool,origin,userGuard}){
   router.use((req,res,next)=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.formContext=ctx;next();}).catch(next));
   const connection=fn=>async(...args)=>{const db=await pool.getConnection();try{return await fn(db,...args);}finally{db.release();}};
   router.get('/',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.list)(req.formContext)})));
+  router.get('/submissions',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.submissions)(req.formContext,req.query)})));
   router.post('/',wrap(async(req,res)=>res.status(201).json({success:true,data:await connection(forms.create)(req.formContext,req.body)})));
   router.put('/:id',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.update)(req.formContext,req.params.id,req.body.expectedRevision,req.body)})));
   router.post('/:id/publish',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.publish)(req.formContext,req.params.id,req.body.expectedRevision)})));
