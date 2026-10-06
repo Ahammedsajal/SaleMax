@@ -80,6 +80,7 @@
     [data-sx-sidebar-list]>li .MuiListItemButton-root{min-height:44px}
     [data-sx-sidebar-list] .MuiListItemIcon-root{box-sizing:border-box!important;display:inline-flex!important;flex:0 0 34px!important;align-items:center!important;justify-content:center!important;width:34px!important;min-width:34px!important;margin:0!important}
     [data-sx-sidebar-list] .MuiListItemIcon-root svg{display:block!important;width:20px!important;height:20px!important;flex:0 0 20px!important}
+    [data-sx-sidebar-list] svg[data-sx-training-icon]{fill:none!important;stroke:currentColor!important;stroke-width:1.8px!important;stroke-linecap:round!important;stroke-linejoin:round!important}
     [data-sx-search-hidden],[data-sx-nav-section][hidden]{display:none!important}
     [data-sx-sidebar-brand]{min-width:0!important;background:none!important;display:flex!important;align-items:center}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
