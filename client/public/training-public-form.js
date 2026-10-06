@@ -51,11 +51,10 @@
     root.dir = isArabic ? 'rtl' : 'ltr';
     root.innerHTML = `<header class="form-header"><div class="brand-mark">${esc(data.tenant.name)}</div><button type="button" id="language-toggle" aria-label="${tr('Switch to Arabic', 'التبديل إلى الإنجليزية')}">${tr('العربية', 'English')}</button></header>
       ${staffCapture ? `<div class="capture-banner" role="status">${tr('Staff capture · details clear after each enquiry', 'تسجيل الموظف · تُمسح البيانات بعد كل استفسار')}</div>` : ''}
-      <section class="form-card"><p class="eyebrow">${staffCapture ? tr('STAFF ENQUIRY CAPTURE', 'تسجيل استفسار بواسطة الموظف') : tr('TRAINING CENTER ENQUIRY', 'استفسار مركز التدريب')}</p>
-      <h1>${esc(isArabic ? schema.titleAr : schema.titleEn)}</h1>${(isArabic ? schema.descriptionAr : schema.descriptionEn) ? `<p class="description">${esc(isArabic ? schema.descriptionAr : schema.descriptionEn)}</p>` : ''}
+      <section class="form-card">${schema.templateKey==='procatalyst-registration-v1'?'':`<p class="eyebrow">${staffCapture ? tr('STAFF ENQUIRY CAPTURE', 'تسجيل استفسار بواسطة الموظف') : tr('TRAINING CENTER ENQUIRY', 'استفسار مركز التدريب')}</p><h1>${esc(isArabic ? schema.titleAr : schema.titleEn)}</h1>${(isArabic ? schema.descriptionAr : schema.descriptionEn) ? `<p class="description">${esc(isArabic ? schema.descriptionAr : schema.descriptionEn)}</p>` : ''}`}
       <div id="form-message" role="status" aria-live="polite"></div><form id="enquiry-form" novalidate autocomplete="off">
       <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-      ${schema.fields.filter(field => field.key !== 'consent').map(field => {
+      ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture) : schema.fields.filter(field => field.key !== 'consent').map(field => {
         const [labelEn, labelAr, type, autocomplete] = fields[field.key];
         const label = isArabic ? field.labelAr || labelAr : field.labelEn || labelEn;
         if (field.key === 'course_id') return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="course_id" ${field.required ? 'required' : ''}><option value="">${tr('Choose a course', 'اختر دورة')}</option>${data.courses.map(course => `<option value="${esc(course.id)}">${esc(isArabic ? course.nameAr : course.nameEn)}</option>`).join('')}</select></label>`;
@@ -152,7 +151,8 @@
       return;
     }
     const values = {};
-    for (const field of data.form.schema.fields) {
+    if(data.form.schema.templateKey==='procatalyst-registration-v1')Object.assign(values,window.SXTrainingRegistration.valuesFromForm(form,data.form.schema));
+    else for (const field of data.form.schema.fields) {
       if (field.key === 'consent') { values.consent = form.elements.consent.checked; continue; }
       const control = form.elements[field.key];
       if (control?.value) values[field.key] = control.value.trim();
