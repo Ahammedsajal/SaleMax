@@ -9,6 +9,7 @@ const CHANNEL_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 const CLIENT_TYPES = new Set(['mobile', 'browser']);
 const ACTIVE_LEG_STATUSES = ['originating', 'ringing', 'connected'];
 const fail = code => { throw Object.assign(new Error(code), { code }); };
+const gatewayEndpoint = id => `salemax_gw_${String(id || '').replace(/-/g, '').toLowerCase()}`;
 
 function inboundArgs(args) {
   if (Array.isArray(args) && args.length === 2 && args[0] === 'inbound-did'
@@ -114,7 +115,7 @@ class AsteriskCallControl {
     if (!event || event.application !== ari.APP_NAME || !CHANNEL_ID.test(event.channel?.id || '')) return false;
     if (event.type === 'StasisStart') {
       const incoming = inboundArgs(event.args);
-      if (incoming) return this.startInbound(event.channel.id, incoming);
+      if (incoming) return this.startInbound(event.channel.id, { ...incoming, channelName: event.channel.name || '' });
       const member = agentArgs(event.args);
       if (member) return this.connectInboundAgent(event.channel.id, member);
       const outboundAgent = outboundAgentArgs(event.args);
@@ -139,9 +140,8 @@ class AsteriskCallControl {
     let reservation;
     try {
       await db.beginTransaction();
-      const [[pbx]] = await db.query('SELECT enabled,gateway_endpoint_status FROM sx_platform_asterisk_config WHERE id=1 FOR UPDATE');
+      const [[pbx]] = await db.query('SELECT enabled FROM sx_platform_asterisk_config WHERE id=1 FOR UPDATE');
       if (!pbx?.enabled) fail('ASTERISK_CONTROL_NOT_READY');
-      if (pbx.gateway_endpoint_status !== 'online') fail('GATEWAY_ENDPOINT_NOT_READY');
       const [[events]] = await db.query(`SELECT status,(updated_at>=UTC_TIMESTAMP(3)-INTERVAL 15 SECOND) AS heartbeat_fresh
         FROM sx_platform_asterisk_runtime WHERE id=1 FOR UPDATE`);
       if (events?.status !== 'connected' || Number(events.heartbeat_fresh) !== 1) fail('ASTERISK_EVENTS_NOT_READY');
@@ -161,16 +161,18 @@ class AsteriskCallControl {
       [context.tenant.id,context.membership.id]);
       if (Number(memberCallLimits.active_calls)>0) fail('OUTBOUND_CALL_ALREADY_ACTIVE');
       if (Number(memberCallLimits.recent_attempts)>=5) fail('OUTBOUND_CALL_RATE_LIMITED');
-      const [[port]] = await db.query(`SELECT p.channel_no FROM sx_platform_asterisk_gateway_ports p
-        WHERE p.tenant_id=? AND p.enabled=1 AND p.outbound_enabled=1
-          AND NOT EXISTS(SELECT 1 FROM sx_telephony_calls c WHERE c.leased_channel_no=p.channel_no)
-        ORDER BY p.channel_no LIMIT 1 FOR UPDATE`, [context.tenant.id]);
+      const [[gateway]] = await db.query(`SELECT id,gateway_host,gateway_sip_port,connection_status FROM sx_telephony_gateways WHERE tenant_id=? AND enabled=1 FOR UPDATE`, [context.tenant.id]);
+      if (!gateway || gateway.connection_status !== 'online') fail('GATEWAY_ENDPOINT_NOT_READY');
+      const [[port]] = await db.query(`SELECT p.channel_no FROM sx_telephony_gateway_channels p
+        WHERE p.tenant_id=? AND p.gateway_id=? AND p.enabled=1 AND p.outbound_enabled=1
+          AND NOT EXISTS(SELECT 1 FROM sx_telephony_calls c WHERE c.gateway_id=p.gateway_id AND c.leased_channel_no=p.channel_no)
+        ORDER BY p.channel_no LIMIT 1 FOR UPDATE`, [context.tenant.id,gateway.id]);
       if (!port) fail('OUTBOUND_CHANNEL_UNAVAILABLE');
-      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,leased_channel_no,started_by_membership_id)
-        VALUES(?,?,'outbound','starting',?,?,?)`, [context.tenant.id,callId,port.channel_no,port.channel_no,context.membership.id]);
+      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_channel_no,leased_channel_no,started_by_membership_id)
+        VALUES(?,?,'outbound','starting',?,?,?,?)`, [context.tenant.id,callId,gateway.id,port.channel_no,port.channel_no,context.membership.id]);
       await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
         VALUES(?,?,?,?,'agent',?,?, 'originating')`, [context.tenant.id,crypto.randomUUID(),callId,agentChannelId,input.clientType,context.membership.id]);
-      reservation = { tenantId: context.tenant.id, callId, channelNo: Number(port.channel_no), agentChannelId,
+      reservation = { tenantId: context.tenant.id, callId, channelNo: Number(port.channel_no), gatewayEndpoint: gatewayEndpoint(gateway.id), agentChannelId,
         extension: member.extension, destination: input.destination, clientType: input.clientType };
       await db.commit();
     } catch (error) {
@@ -253,7 +255,9 @@ class AsteriskCallControl {
         await db.rollback();
         try{await(await this.client()).hangup(agentChannelId);}catch(_){}return false;
       }
-      call={tenantId:row.tenant_id,id:row.id,channelNo:Number(row.gateway_channel_no),bridgeId:crypto.randomUUID()};
+      const [[gateway]]=await db.query('SELECT id FROM sx_telephony_gateways WHERE tenant_id=? AND id=? AND enabled=1 FOR UPDATE',[row.tenant_id,row.gateway_id]);
+      if(!gateway){await db.rollback();try{await(await this.client()).hangup(agentChannelId);}catch(_){}return false;}
+      call={tenantId:row.tenant_id,id:row.id,channelNo:Number(row.gateway_channel_no),gatewayEndpoint:gatewayEndpoint(gateway.id),bridgeId:crypto.randomUUID()};
       await db.query(`UPDATE sx_telephony_calls SET bridge_id=?,revision=revision+1 WHERE tenant_id=? AND id=? AND status='starting'`,[call.bridgeId,call.tenantId,call.id]);
       await db.query(`UPDATE sx_telephony_call_legs SET status='connected',answered_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND call_id=? AND asterisk_channel_id=? AND status='originating'`,[call.tenantId,call.id,agentChannelId]);
       await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,status)
@@ -265,7 +269,7 @@ class AsteriskCallControl {
     try{
       await client.createMixingBridge(call.bridgeId);
       await client.addToBridge(call.bridgeId,[agentChannelId]);
-      await client.originateGateway({destination:input.destination,channelNo:call.channelNo,channelId:gatewayChannelId,
+      await client.originateGateway({destination:input.destination,channelNo:call.channelNo,endpointName:call.gatewayEndpoint,channelId:gatewayChannelId,
         appArgs:['outbound-gateway',call.id],timeout:45});
       return true;
     }catch(error){
@@ -302,15 +306,17 @@ class AsteriskCallControl {
     const bridgeId = crypto.randomUUID();
     try {
       await db.beginTransaction();
-      const [[mapping]] = await db.query(`SELECT p.channel_no,p.tenant_id,p.inbound_queue_id,t.status AS tenant_status,
-          t.category_key,t.category_version,q.enabled AS queue_enabled,q.ring_timeout_seconds
-        FROM sx_platform_asterisk_gateway_ports p
+      const [[mapping]] = await db.query(`SELECT p.channel_no,p.tenant_id,p.gateway_id,p.inbound_queue_id,t.status AS tenant_status,
+          t.category_key,t.category_version,q.enabled AS queue_enabled,q.ring_timeout_seconds,g.enabled AS gateway_enabled,g.connection_status
+        FROM sx_telephony_gateway_channels p JOIN sx_telephony_gateways g ON g.id=p.gateway_id AND g.tenant_id=p.tenant_id
         JOIN sx_tenants t ON t.id=p.tenant_id
         JOIN sx_telephony_queues q ON q.tenant_id=p.tenant_id AND q.id=p.inbound_queue_id
         WHERE ${input.did ? 'p.inbound_did=?' : 'p.channel_no=? AND p.tenant_id=? AND p.inbound_queue_id=?'}
-          AND p.enabled=1 AND p.inbound_enabled=1 FOR UPDATE`,
+          AND p.enabled=1 AND p.inbound_enabled=1 AND g.enabled=1 FOR UPDATE`,
       input.did ? [input.did] : [input.channelNo, input.tenantId, input.queueId]);
-      if (!mapping || mapping.tenant_status !== 'active' || !mapping.queue_enabled) fail('INBOUND_ROUTE_NOT_ACTIVE');
+      if (!mapping || mapping.tenant_status !== 'active' || !mapping.queue_enabled || !mapping.gateway_enabled || mapping.connection_status !== 'online') fail('INBOUND_ROUTE_NOT_ACTIVE');
+      const source = String(input.channelName || '').match(/^PJSIP\/(salemax_gw_[a-f0-9]{32})-/);
+      if (!source || source[1] !== gatewayEndpoint(mapping.gateway_id)) fail('INBOUND_GATEWAY_IDENTITY_MISMATCH');
       input = { ...input, tenantId: mapping.tenant_id, channelNo: Number(mapping.channel_no), queueId: mapping.inbound_queue_id };
       if (!(await gatewayPorts.eligible(db, { id: mapping.tenant_id, status: mapping.tenant_status,
         category_key: mapping.category_key, category_version: mapping.category_version }))) fail('INBOUND_TENANT_NOT_ELIGIBLE');
@@ -321,10 +327,10 @@ class AsteriskCallControl {
         WHERE qm.tenant_id=? AND qm.queue_id=? AND m.role IN ('owner','manager','agent') ORDER BY qm.position FOR UPDATE`,
       [input.tenantId, input.queueId]);
       if (!members.length) fail('INBOUND_QUEUE_HAS_NO_ACTIVE_ENDPOINTS');
-      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,leased_channel_no,
+      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_channel_no,leased_channel_no,
           inbound_queue_id,inbound_channel_id,bridge_id)
-        VALUES(?,?,'inbound','ringing',?,?,?,?,?)`,
-      [input.tenantId, callId, input.channelNo, input.channelNo, input.queueId, channelId, bridgeId]);
+        VALUES(?,?,'inbound','ringing',?,?,?,?,?,?)`,
+      [input.tenantId, callId, mapping.gateway_id, input.channelNo, input.channelNo, input.queueId, channelId, bridgeId]);
       await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,status)
         VALUES(?,?,?,?,'caller','gateway','connected')`, [input.tenantId, crypto.randomUUID(), callId, channelId]);
       const agentLegs = [];

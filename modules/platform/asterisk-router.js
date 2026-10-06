@@ -46,6 +46,7 @@ function createAsteriskRouter({ pool }) {
   router.get('/business/:userId/gateway', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => tenantGateways.read(db, req.businessContext, req.params.userId)) })));
   router.get('/business/:userId/queues', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => tenantGateways.queues(db, req.businessContext, req.params.userId)) })));
   router.put('/business/:userId/gateway', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => tenantGateways.save(db, req.businessContext, req.params.userId, req.body)) })));
+  router.post('/business/:userId/gateway/apply-peer', wrap(async (req, res) => res.json({ success: true, data: await withDb(db => tenantGateways.applyPeer(db, req.businessContext, req.params.userId)) })));
   router.get('/business-gateway-statuses', wrap(async (req, res) => {
     const userIds=String(req.query.userIds||'').split(',').filter(Boolean);
     res.json({success:true,data:await withDb(db=>tenantGateways.statuses(db,req.businessContext,userIds))});

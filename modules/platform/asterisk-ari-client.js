@@ -72,6 +72,17 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
         || channels.some(channel => !channel || typeof channel.id !== 'string' || !RESOURCE_ID.test(channel.id))) fail('ARI_INVALID_RESPONSE');
       return channels.map(channel => channel.id);
     },
+    async endpointState(resource) {
+      if (!/^salemax_gw_[a-f0-9]{32}$/.test(resource || '')) fail('INVALID_ARI_ENDPOINT');
+      try {
+        const endpoint = await request('GET', `endpoints/PJSIP/${encodeURIComponent(resource)}`);
+        if (endpoint.technology !== 'PJSIP' || endpoint.resource !== resource) fail('ARI_INVALID_RESPONSE');
+        return ['online','offline','unknown'].includes(endpoint.state) ? endpoint.state : 'unknown';
+      } catch (error) {
+        if (error.code === 'ARI_RESOURCE_NOT_FOUND') return 'not_configured';
+        throw error;
+      }
+    },
     async originateAgent({ extension, clientType, channelId, appArgs, timeout = 25 }) {
       if (!EXTENSION.test(extension || '') || !['mobile', 'browser'].includes(clientType) || !UUID.test(channelId || '')
         || !Number.isInteger(timeout) || timeout < 5 || timeout > 60) fail('INVALID_ARI_ORIGINATE');
@@ -80,11 +91,12 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
       if (typeof channel.id !== 'string' || channel.id !== channelId) fail('ARI_INVALID_RESPONSE');
       return { id: channel.id, name: typeof channel.name === 'string' ? channel.name.slice(0, 160) : '' };
     },
-    async originateGateway({ destination, channelNo, channelId, appArgs, timeout = 45 }) {
+    async originateGateway({ destination, channelNo, endpointName = 'salemax_dinstar_uc2000ve', channelId, appArgs, timeout = 45 }) {
       if (typeof destination !== 'string' || !/^\+[1-9][0-9]{7,14}$/.test(destination) || !UUID.test(channelId || '')
         || !Number.isInteger(channelNo) || channelNo < 1 || channelNo > 4
+        || (!/^salemax_gw_[a-f0-9]{32}$/.test(endpointName) && endpointName !== 'salemax_dinstar_uc2000ve')
         || !Number.isInteger(timeout) || timeout < 5 || timeout > 60) fail('INVALID_ARI_ORIGINATE');
-      const endpoint = `PJSIP/990${channelNo}${destination}@salemax_dinstar_uc2000ve`;
+      const endpoint = `PJSIP/990${channelNo}${destination}@${endpointName}`;
       const channel = await request('POST', 'channels', { endpoint,
         app: APP_NAME, appArgs: safeArgs(appArgs), channelId, timeout: String(timeout) });
       if (typeof channel.id !== 'string' || channel.id !== channelId) fail('ARI_INVALID_RESPONSE');

@@ -653,7 +653,7 @@ async function probeGatewayEndpoint(fetchImpl, ariBaseUrl, username, password) {
 
 async function probePjsipEndpointStates(fetchImpl, ariBaseUrl, username, password, resources) {
   if (!Array.isArray(resources) || resources.length > 32 || resources.some(resource => typeof resource !== 'string'
-    || !(/^(?:salemax_dinstar_uc2000ve|salemax-[0-9]{3,8}-(?:mobile|browser))$/.test(resource)))) fail('INVALID_ARI_ENDPOINT_PROBE');
+    || !(/^(?:salemax_dinstar_uc2000ve|salemax_gw_[a-f0-9]{32}|salemax-[0-9]{3,8}-(?:mobile|browser))$/.test(resource)))) fail('INVALID_ARI_ENDPOINT_PROBE');
   const states = Object.fromEntries([...new Set(resources)].map(resource => [resource, 'unknown']));
   if (!Object.keys(states).length) return states;
   const target = endpoint(ariBaseUrl);
