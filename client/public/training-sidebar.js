@@ -43,7 +43,9 @@
   };
   let assignedNavigation = null;
   let membershipRole = null;
+  let optionalFeatures = {};
   let navigationLoaded = false;
+  let navigationChecksPending = 2;
   window.__sxCallCenterAllowed = false;
   async function loadCallCenterAccess(){
     try{
@@ -67,7 +69,20 @@
         membershipRole=data?.data?.role||null;
         if(Array.isArray(value))assignedNavigation=new Set(value);
       }
-    }catch(_){}finally{document.documentElement.removeAttribute('data-sx-navigation-loading');schedule();}
+    }catch(_){}finally{navigationCheckComplete();}
+  }
+  async function loadOptionalNavigation(){
+    try{
+      const token=localStorage.getItem('wacrm_user');
+      if(token){
+        const response=await fetch('/api/user/optional-features',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',Authorization:'Bearer '+token}});
+        if(response.ok){const data=await response.json();if(data?.success&&token===localStorage.getItem('wacrm_user'))optionalFeatures=data?.data?.features||{};}
+      }
+    }catch(_){}finally{navigationCheckComplete();}
+  }
+  function navigationCheckComplete(){
+    navigationChecksPending=Math.max(0,navigationChecksPending-1);
+    if(!navigationChecksPending){document.documentElement.removeAttribute('data-sx-navigation-loading');schedule();}
   }
   // Native labels remain intact so the original React search and actions still work.
   Object.assign(aliases, window.salemaxSidebarAliases || {});
@@ -237,7 +252,6 @@
         const captions = {Dashboard:['Dashboard','لوحة التحكم'], 'Web Notification':['Web Notifications','إشعارات الويب'], 'Create Meta Template':['Create Meta Template','إنشاء قالب Meta']};
         const leaf = [...row.querySelectorAll('.MuiListItemText-primary span')].at(-1);
         if (leaf && captions[name]) { const next = tr(...captions[name]); if (leaf.textContent !== next) leaf.textContent = next; }
-        trainingIcon(row, name);
         let group = groups.findIndex(g => g[2].includes(name));
         if (group < 0) {
           const feature = window.salemaxOptionalLabels?.[text];
@@ -249,11 +263,15 @@
         if (row.style.order !== order) row.style.order = order;
         const navKey=navigationKeys[name]||navigationKeys[text];
         const hiddenByOwner=(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(name==='Team access'&&membershipRole&&membershipRole!=='owner');
+        const optionalFeature=window.salemaxOptionalLabels?.[text]||window.salemaxOptionalLabels?.[name];
+        const hiddenByFeature=!!optionalFeature&&optionalFeatures[optionalFeature]!==true;
+        if(hiddenByFeature)row.setAttribute('data-sx-optional-hidden','1');
+        else if(optionalFeature)row.removeAttribute('data-sx-optional-hidden');
         const hidden = hiddenByOwner || (!!query && !text.toLowerCase().includes(query) && !name.toLowerCase().includes(query));
         row.toggleAttribute('data-sx-search-hidden', hidden);
         const available = !hidden && !row.hidden && !row.hasAttribute('data-sx-optional-hidden') && getComputedStyle(row).display !== 'none';
         if (navButton) {
-          if (available) { if (navButton.getAttribute('title') !== tooltip) navButton.setAttribute('title', tooltip); }
+          if (available) { trainingIcon(row, name); if (navButton.getAttribute('title') !== tooltip) navButton.setAttribute('title', tooltip); }
           else navButton.removeAttribute('title');
         }
         if (available) present.add(group);
@@ -294,6 +312,7 @@
   window.addEventListener('popstate', schedule);
   window.addEventListener('storage', schedule);
   loadAssignedNavigation();
+  loadOptionalNavigation();
   loadCallCenterAccess();
   schedule();
 })();
