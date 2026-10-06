@@ -15,6 +15,7 @@ test('enrollment progress is manager/owner scoped to active training course capa
 
 test('a course cannot be completed or certified until the full invoice is paid',async()=>{
   const db={async beginTransaction(){},async commit(){},async rollback(){},async query(sql){
+    if(sql.includes('SELECT t.name AS tenantName'))return [[{tenantName:'Training',nameEn:'Center English',nameAr:'مركز عربي',logoUrl:'/media/logo.png'}]];
     if(sql.includes('FROM sx_tenants'))return [[]];
     if(sql.includes('FROM sx_training_enrollments e JOIN sx_training_invoices'))return [[{id:enrollment,status:'started',learner_name:'Learner',course_id:'course',started_at:new Date(),completed_at:null,invoice_id:'invoice',total_minor:'200000',name_en:'Course',name_ar:'دورة'}]];
     if(sql.includes('AS paid_minor'))return [[{paid_minor:'199999'}]];

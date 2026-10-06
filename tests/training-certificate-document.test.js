@@ -26,7 +26,7 @@ test('certificate print control is part of the learner journey and its renderer 
   assert.match(screen,/Print \/ save certificate PDF/);
   assert.match(screen,/window\.SXTrainingCertificate\.html/);
   assert.ok(index.indexOf('training-certificate.js')<index.indexOf('training-courses.js'));
-  assert.match(index,/training-courses\.js\?v=20261004-certificate/);
+  assert.match(index,/training-courses\.js\?v=20261006-profile-brand1/);
 });
 
 test('course enrollment response includes the tenant name needed on the issued certificate',async()=>{
@@ -34,11 +34,12 @@ test('course enrollment response includes the tenant name needed on the issued c
   const {trainingCenter}=require('../modules/platform/categories');
   const ctx={audience:'tenant',identity:{id:'11111111-1111-4111-8111-111111111111'},tenant:{id:'22222222-2222-4222-8222-222222222222',name:'Salemax Academy',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'33333333-3333-4333-8333-333333333333',tenantId:'22222222-2222-4222-8222-222222222222',role:'manager',status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:['training.courses']}};
   const db={async query(sql){
+    if(sql.includes('SELECT t.name AS tenantName'))return [[{tenantName:'Salemax Academy',nameEn:'Center English',nameAr:'مركز عربي',logoUrl:'/media/center.png'}]];
     if(sql.includes('COUNT(*) AS total'))return [[{total:0}]];
     if(sql.includes('SELECT e.id,e.status'))return [[]];
     if(sql.includes('SELECT status,COUNT(*)'))return [[]];
     throw new Error(`Unexpected query: ${sql}`);
   }};
   const result=await progress.list(db,ctx);
-  assert.equal(result.tenantName,'Salemax Academy');
+  assert.equal(result.tenantName,'Center English');assert.deepEqual(result.businessProfile,{nameEn:'Center English',nameAr:'مركز عربي',logoUrl:'/media/center.png'});
 });
