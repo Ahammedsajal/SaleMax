@@ -39,9 +39,9 @@
     document.body.append(page);
     function alignPage(){
       if(innerWidth<=760){page.style.left='0';page.style.right='0';return;}
-      const userItem=[...document.querySelectorAll('.MuiListItemButton-root')].find(item=>['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
-      const rect=userItem?.getBoundingClientRect();if(!rect)return;
-      page.style.left=`${Math.max(0,rect.right+24)}px`;page.style.right='0';
+      const sidebar=[...document.querySelectorAll('.MuiDrawer-paper')].find(item=>item.getBoundingClientRect().width>0);
+      const rect=sidebar?.getBoundingClientRect();if(!rect)return;
+      page.style.left=`${Math.max(0,rect.right)}px`;page.style.right='0';
     }
     alignPage();window.addEventListener('resize',alignPage,{passive:true});platformPageInstance={page,align:alignPage};
     const form=page.querySelector('[data-form]'),message=page.querySelector('[data-message]');let saved={revision:0};
