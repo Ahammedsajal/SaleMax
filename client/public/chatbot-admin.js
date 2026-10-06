@@ -694,6 +694,11 @@
     const ref = source.channelRef ?? source.channel_ref ?? source.channelExternalId ?? source.channel_external_id ?? source.sessionId ?? source.session_id ?? source.uniqueId ?? source.unique_id ?? source.instanceId ?? source.instance_id ?? source.businessPhoneNumberId ?? source.business_phone_number_id ?? params.get('channelRef') ?? params.get('channel_ref') ?? params.get('sessionId') ?? params.get('uniqueId') ?? params.get('business_phone_number_id') ?? '';
     return kind && typeof ref === 'string' && ref.length > 0 && ref.length <= 160 ? { channelKind:kind, channelRef:ref } : null;
   }
+  let lastActiveConversation = null;
+  function rememberActiveConversation(value) {
+    if (value?.id) lastActiveConversation = { id:String(value.id), scope:value.scope || null };
+    return lastActiveConversation;
+  }
   function activeConversation() {
     const selected = [...document.querySelectorAll('[data-chat-id],[data-chat_id],[data-conversation-id]')]
       .filter(el => {
@@ -703,19 +708,23 @@
       .find(el => { const id=conversationId(el); return id && id.length <= 999; });
     if (selected) {
       const id = conversationId(selected);
-      return { id, scope:channelScope(selected.dataset || {}) || manuallySelectedChatChannels.get(id) || null };
+      return rememberActiveConversation({ id, scope:channelScope(selected.dataset || {}) || manuallySelectedChatChannels.get(id) || null });
     }
     const fromUrl = new URLSearchParams(location.search).get('chatId');
-    if (fromUrl) return { id:fromUrl, scope:channelScope() || manuallySelectedChatChannels.get(fromUrl) || null };
+    if (fromUrl) return rememberActiveConversation({ id:fromUrl, scope:channelScope() || manuallySelectedChatChannels.get(fromUrl) || null });
     try {
       const current = JSON.parse(localStorage.getItem('currentChat') || 'null');
       const id = current?.chat_id ?? current?.id ?? current?.chatId ?? current?.conversationId;
       if ((typeof id === 'string' || Number.isSafeInteger(id)) && String(id).length <= 999) {
         const key = String(id);
-        return { id:key, scope:channelScope(current || {}) || manuallySelectedChatChannels.get(key) || null };
+        return rememberActiveConversation({ id:key, scope:channelScope(current || {}) || manuallySelectedChatChannels.get(key) || null });
       }
-      return null;
-    } catch { return null; }
+    } catch {}
+    const infoButton = [...document.querySelectorAll('button[aria-label],button[title]')].find(button => /show info|معلومات/i.test(`${button.getAttribute('aria-label') || ''} ${button.title || ''}`) && visible(button));
+    if (lastActiveConversation && infoButton) {
+      return rememberActiveConversation({ ...lastActiveConversation, scope:channelScope() || lastActiveConversation.scope || manuallySelectedChatChannels.get(lastActiveConversation.id) || null });
+    }
+    return null;
   }
   function renderActiveChatControl(conversation) {
     let control = document.getElementById('sx-active-chatbot-control');
