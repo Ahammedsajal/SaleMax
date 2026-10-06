@@ -24,13 +24,13 @@ test('finance policy permissions fail closed for agents, managers, unrelated ten
   assert.doesNotThrow(()=>policies.requireAccess(context('accountant'),'approve'));
 });
 
-test('finance policy API and bilingual screen extend the existing user workspace with separate accountant approval',()=>{
+test('legacy finance policy API remains mounted while its confusing policy editor is absent from the finance screen',()=>{
   const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
   const router=read('modules/platform/training-finance-router.js'),mount=read('modules/platform/mount-existing-upgrade.js'),ui=read('client/public/training-finance.js'),html=read('client/public/index.html'),sidebar=read('client/public/training-sidebar.js');
   assert.match(router,/\/accountant\/current/);assert.match(router,/canonicalGuard/);assert.match(router,/\/decision/);
   assert.match(mount,/\/api\/user\/training\/finance-policies/);assert.match(mount,/businessBoundary\.guard/);
-  assert.match(html,/training-finance\.js\?v=/);assert.match(ui,/finance-settings/);assert.match(ui,/المالية/);assert.match(ui,/Request accountant review/);assert.match(ui,/X-CSRF-Token/);assert.match(ui,/reportValidity/);assert.match(ui,/Loading finance settings/);
+  assert.match(html,/training-finance\.js\?v=/);assert.match(ui,/finance-settings/);assert.match(ui,/المالية/);assert.doesNotMatch(ui,/Request accountant review|Tenant policy draft|Revenue recognition|Policy history/);assert.match(ui,/X-CSRF-Token/);assert.match(ui,/Loading finance settings/);
   assert.match(ui,/Finance Reports/);assert.match(ui,/data-sx-finance-report-nav/);assert.match(ui,/billedMinor/);assert.match(ui,/creditedInvoiceCount/);assert.match(ui,/name="from"/);assert.match(ui,/name="to"/);
   assert.match(sidebar,/finance-settings&section=reports/);assert.match(sidebar,/Lead Reports/);assert.match(sidebar,/Leads & Reports/);
-  assert.match(read('docs/API_DOCUMENTATION.md'),/Training-center finance policy setup/);assert.match(read('docs/USER_MANUAL.md'),/Finance setup/);
+  assert.match(read('docs/API_DOCUMENTATION.md'),/Legacy training-center finance policy API/);assert.match(read('docs/USER_MANUAL.md'),/Center details on invoices/);
 });

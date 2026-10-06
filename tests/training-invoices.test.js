@@ -21,7 +21,8 @@ test('invoice register and detail are connected to the existing finance workspac
   const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
   const router=read('modules/platform/training-finance-router.js'),ui=read('client/public/training-finance.js');
   assert.match(router,/\/accountant\/invoices/);assert.match(router,/invoices\.detail/);assert.match(router,/sales\/approved-for-invoice/);assert.match(router,/accountant\/sales\/\:leadId\/reviews\/\:reviewId\/convert/);
-  assert.match(ui,/New invoice/);assert.match(ui,/data-view-invoice/);assert.match(ui,/data-print-invoice/);assert.match(ui,/Posting and approval record/);assert.match(ui,/finance-settings/);assert.match(ui,/Issued invoices are immutable/);
+  assert.match(ui,/New invoice/);assert.match(ui,/data-view-invoice/);assert.match(ui,/data-print-invoice/);assert.doesNotMatch(ui,/Posting and approval record/);assert.match(ui,/finance-settings/);assert.match(ui,/Issued invoices are immutable/);
+  assert.match(ui,/managed in the Training Center Profile/);assert.doesNotMatch(ui,/Tenant policy draft|Revenue recognition|Request accountant review/);
   assert.match(read('docs/API_DOCUMENTATION.md'),/Training invoice register and detail/);
   assert.match(read('docs/USER_MANUAL.md'),/Issued invoices/);
 });

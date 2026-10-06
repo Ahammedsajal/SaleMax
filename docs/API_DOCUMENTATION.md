@@ -201,7 +201,9 @@ The internal `modules/platform/training-outbox.js` service provides tenant-scope
 
 Internal worker calls claim at most 50 tenant events with `FOR UPDATE SKIP LOCKED`, a 10–300 second lease and a stable worker ID. Every claim increments a monotonic `leaseVersion`; acknowledge/retry requires the current unexpired owner and version. A stale worker cannot finish a reclaimed event, including when its worker ID is reused. Failed attempts use bounded exponential backoff and stop at eight attempts; expired leases are recorded and eventually dead-lettered. Attempt outcomes and lease generations are retained in `sx_training_outbox_attempts`. Results explicitly include `externalDispatch:false`. Migrations `20261011_training_outbox.sql` and `20261021_training_outbox_fencing.sql` are required. This foundation is not a configured notification worker or dispatch acceptance; provider adapters, consent checks at send-time, dead-letter staff UI, alerting and actual email/WhatsApp delivery remain open.
 
-### Training-center finance policy setup (TC39 in progress)
+### Legacy training-center finance policy API (not shown in the workspace)
+
+These compatibility routes remain mounted for stored policy history, but the business workspace no longer exposes a finance-policy editor or requires accountant policy approval to issue an invoice. Center name, logo, address, CR number and invoice prefix are managed in Training Center Profile. The invoice screen keeps only payment plans and an optional footer. New training invoices use QAR with no tax added.
 
 Policy setup extends the existing `/user` workspace and is available only to an active training-center tenant with `tenant.settings` and `finance.invoices` entitlements. The existing owner business-token session may read/save drafts and submit a draft for accountant review. Accountant reads and decisions require the canonical tenant session, tenant membership role `accountant`, the finance entitlement, same-origin request and session-bound CSRF token. No caller-supplied tenant ID, role or approval identity is accepted.
 
