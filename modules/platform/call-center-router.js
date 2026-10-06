@@ -91,10 +91,13 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const [[eventRuntime]]=await withDb(db=>db.query(`SELECT status,updated_at,
         (status='connected' AND updated_at>=UTC_TIMESTAMP(3)-INTERVAL 15 SECOND) AS heartbeat_fresh
       FROM sx_platform_asterisk_runtime WHERE id=1`));
+    const [[tenantGateway]]=await withDb(db=>db.query(`SELECT id,gateway_name,gateway_host,gateway_sip_port,gateway_sip_transport,enabled,connection_status,revision,updated_at
+      FROM sx_telephony_gateways WHERE tenant_id=?`,[context.tenant.id]));
+    const gatewayResource=tenantGateway?`salemax_gw_${String(tenantGateway.id).replace(/-/g,'').toLowerCase()}`:null;
     const [[portPolicy]]=await withDb(db=>db.query(`SELECT COUNT(*) AS assignedChannels,
       COALESCE(SUM(enabled=1),0) AS enabledChannels,COALESCE(SUM(enabled=1 AND inbound_enabled=1),0) AS inboundChannels,
       COALESCE(SUM(enabled=1 AND outbound_enabled=1),0) AS outboundChannels
-      FROM sx_platform_asterisk_gateway_ports WHERE tenant_id=?`,[context.tenant.id]));
+      FROM sx_telephony_gateway_channels WHERE tenant_id=? AND gateway_id=?`,[context.tenant.id,tenantGateway?.id||null]));
     const configured=!!(pbx?.ari_base_url&&pbx?.ari_username&&pbx?.credential_ciphertext);
     const extension=await withDb(db=>extensions.own(db,context));
     const provisioned=extension.assigned&&!!pbx?.enabled?await withDb(async db=>{
@@ -107,34 +110,34 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const tenantEligible=await withDb(db=>gatewayPorts.eligible(db,{id:context.tenant.id,status:context.tenant.status,
       category_key:context.tenant.categoryKey,category_version:context.tenant.categoryVersion}));
     const [[routeCounts]]=await withDb(db=>db.query(`SELECT
-        (SELECT COUNT(*) FROM sx_platform_asterisk_gateway_ports p
+        (SELECT COUNT(*) FROM sx_telephony_gateway_channels p
           JOIN sx_tenants t ON t.id=p.tenant_id AND t.status='active'
           JOIN sx_telephony_queues q ON q.tenant_id=p.tenant_id AND q.id=p.inbound_queue_id AND q.enabled=1
-          WHERE p.tenant_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did REGEXP '^[+][1-9][0-9]{7,14}$') AS inbound_routes,
-        (SELECT COUNT(*) FROM sx_platform_asterisk_gateway_ports p
-          WHERE p.tenant_id=? AND p.enabled=1 AND p.outbound_enabled=1 AND NOT EXISTS(
-            SELECT 1 FROM sx_telephony_calls c WHERE c.tenant_id=p.tenant_id AND c.leased_channel_no=p.channel_no)) AS free_outbound_channels`,
-      [context.tenant.id,context.tenant.id]));
+          WHERE p.tenant_id=? AND p.gateway_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did REGEXP '^[+][1-9][0-9]{7,14}$') AS inbound_routes,
+        (SELECT COUNT(*) FROM sx_telephony_gateway_channels p
+          WHERE p.tenant_id=? AND p.gateway_id=? AND p.enabled=1 AND p.outbound_enabled=1 AND NOT EXISTS(
+            SELECT 1 FROM sx_telephony_calls c WHERE c.gateway_id=p.gateway_id AND c.leased_channel_no=p.channel_no)) AS free_outbound_channels`,
+      [context.tenant.id,tenantGateway?.id||null,context.tenant.id,tenantGateway?.id||null]));
     const inboundRouteCount=Number(routeCounts.inbound_routes||0),freeOutboundChannels=Number(routeCounts.free_outbound_channels||0);
     const inboundMembers=inboundRouteCount&&tenantEligible?await withDb(async db=>{
-      const [rows]=await db.query(`SELECT DISTINCT x.extension FROM sx_platform_asterisk_gateway_ports p
+      const [rows]=await db.query(`SELECT DISTINCT x.extension FROM sx_telephony_gateway_channels p
         JOIN sx_telephony_queues q ON q.tenant_id=p.tenant_id AND q.id=p.inbound_queue_id AND q.enabled=1
         JOIN sx_telephony_queue_members qm ON qm.tenant_id=q.tenant_id AND qm.queue_id=q.id
         JOIN sx_memberships m ON m.tenant_id=qm.tenant_id AND m.id=qm.membership_id AND m.status='active'
         JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
         JOIN sx_telephony_extensions x ON x.tenant_id=m.tenant_id AND x.membership_id=m.id AND x.extension REGEXP '^[0-9]{3,8}$'
-        WHERE p.tenant_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did REGEXP '^[+][1-9][0-9]{7,14}$' AND m.role IN ('owner','manager','agent')`,
-      [context.tenant.id]);
+        WHERE p.tenant_id=? AND p.gateway_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did REGEXP '^[+][1-9][0-9]{7,14}$' AND m.role IN ('owner','manager','agent')`,
+      [context.tenant.id,tenantGateway?.id||null]);
       return rows.map(row=>String(row.extension));
     }):[];
-    const endpointResources=['salemax_dinstar_uc2000ve',...(extension.assigned?['mobile','browser'].map(type=>`salemax-${extension.extension}-${type}`):[]),
+    const endpointResources=[...(gatewayResource?[gatewayResource]:[]),...(extension.assigned?['mobile','browser'].map(type=>`salemax-${extension.extension}-${type}`):[]),
       ...inboundMembers.flatMap(ext=>['mobile','browser'].map(type=>`salemax-${ext}-${type}`))];
     let endpointStates={};
     if(pbx?.enabled&&Number(eventRuntime?.heartbeat_fresh)===1&&configured){
       try{endpointStates=await asteriskConfig.probePjsipEndpointStates(fetchImpl,pbx.ari_base_url,pbx.ari_username,asteriskSecrets.decrypt(pbx),endpointResources);}
       catch(_){endpointStates=Object.fromEntries([...new Set(endpointResources)].map(resource=>[resource,'unknown']));}
     }
-    const gatewayLiveStatus=endpointStates.salemax_dinstar_uc2000ve||'unknown';
+    const gatewayLiveStatus=gatewayResource?(endpointStates[gatewayResource]||tenantGateway?.connection_status||'unknown'):'not_configured';
     const ownEndpointState=type=>extension.assigned?endpointStates[`salemax-${extension.extension}-${type}`]||'unknown':'not_provisioned';
     const inboundAgentReady=inboundMembers.some(ext=>['mobile','browser'].some(type=>endpointStates[`salemax-${ext}-${type}`]==='online'));
     const controlReady=!!pbx?.enabled&&Number(eventRuntime?.heartbeat_fresh)===1;
@@ -153,9 +156,9 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
       membershipRole:context.membership.role,
       asterisk:{configured,enabled:!!pbx?.enabled,revision:configured?Number(pbx.revision):0,health:configured?pbx.last_test_status||'unknown':'not_configured',lastTestedAt:pbx.last_tested_at||null,version:pbx.last_test_version||null,
         events:{status:eventRuntime?.status||'not_started',ready:Number(eventRuntime?.heartbeat_fresh)===1,lastHeartbeatAt:eventRuntime?.updated_at||null}},
-      gateway:{model:'DINSTAR UC2000-VE',channelCapacity:4,settingsConfigured:!!pbx?.gateway_host,
-        endpointStatus:pbx?.gateway_endpoint_status||'not_tested',liveEndpointStatus:gatewayLiveStatus,endpointTestedAt:pbx?.gateway_endpoint_tested_at||null,
-        provisioned:['online','offline'].includes(pbx?.gateway_endpoint_status),
+      gateway:{model:tenantGateway?.gateway_name||'DINSTAR UC2000-VE',channelCapacity:4,settingsConfigured:!!tenantGateway?.gateway_host,
+        endpointStatus:tenantGateway?.connection_status||'not_configured',liveEndpointStatus:gatewayLiveStatus,endpointTestedAt:tenantGateway?.updated_at||null,
+        provisioned:['online','offline'].includes(tenantGateway?.connection_status),
         channelPolicy:{assignedChannels:Number(portPolicy.assignedChannels),enabledChannels:Number(portPolicy.enabledChannels),inboundChannels:Number(portPolicy.inboundChannels),outboundChannels:Number(portPolicy.outboundChannels)}},
       calls:{inboundAvailable,outboundAvailable,inboundReason,outboundReason,reason:outboundReason||inboundReason||null,
         freeOutboundChannels,inboundRoutes:inboundRouteCount,registeredInboundEndpoints:inboundMembers.filter(ext=>['mobile','browser'].some(type=>endpointStates[`salemax-${ext}-${type}`]==='online')).length},
