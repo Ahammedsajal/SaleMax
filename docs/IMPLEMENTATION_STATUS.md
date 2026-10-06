@@ -1,5 +1,15 @@
 # SaleMaX implementation status
 
+## PBX admin and business gateway structure — source increment, 6 October 2026
+
+The existing `/admin` panel now has a dedicated **PBX & Telephony** entry for the platform-wide Asterisk/ARI connection. The previous PBX button has been removed from the Manage Users heading. Each existing Manage Users → Edit User dialog now has a Telephony section for that business's Dinstar gateway, four SIM-channel policies, inbound DID and queue selections. Manage Users rows show **Not configured** or **Needs attention** with a Configure shortcut. The existing Manage Plans Call Center capability remains the entitlement gate.
+
+Additive migration `20261114_tenant_asterisk_gateways.sql` creates one gateway per tenant and tenant-keyed channel rows. The current production database was read-only checked before the change: the platform gateway is blank/disabled, all four legacy channels are disabled/unassigned, and there are no active call sessions, so no configured production route requires remapping. Gateway writes are audited and limited to the current tenant's verified owner mapping and platform portfolio; public static IP and TLS are required.
+
+**Call-control gate:** this increment stores per-business setup but does not yet make the deployed ARI call controller select among tenant gateway records. The UI therefore reports **Needs attention** after save and explicitly says Asterisk peer provisioning and live routing are not ready. Do not enable real calls or treat a saved gateway as operational until the follow-up call-session schema, Dinstar peer provisioning, inbound/outbound channel leasing, and per-tenant routing are upgraded and verified. The old shared-channel call path remains present for compatibility. This is not the complete PBX runtime migration and does not complete the wider 42-ticket upgrade.
+
+Focused Asterisk source checks and syntax checks pass. Full `npm test` currently has seven failures: this increment's previous navigation assertion (updated to the new layout) plus six legacy screen/cache contracts already inconsistent with current source; migration/telephony DB integrations could not run because no disposable local MariaDB is configured (`LOCAL_DATABASE_ONLY`). Production deployment and authenticated English/Arabic browser acceptance are pending.
+
 ## Asterisk/Dinstar production app layer — 5 October 2026
 
 Reviewed source `75751523530bef8225911f121563e1cd19a494d5` is running at `/opt/salemax/releases/asterisk-telephony-20261005-7575152`; the deployment record is merged to `main` in PR #5. Ten additive telephony migrations are applied after confirming the prior 47 ledger entries. The full MariaDB backup and rollback image/release are recorded in `DEPLOYMENT.md`. Production `/healthz` returns 200; app and database containers are healthy. The index and five Asterisk/Call Center scripts match across release, running container and public URLs. Nginx now has private `/ari/` and `/ws` proxy paths and retains the existing Courses upload limits/timeouts. The unauthenticated admin API returns the existing sign-in gate; public `/ari/` returns 403.
