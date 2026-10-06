@@ -115,9 +115,13 @@ test('Inbox bot control requires explicit number selection when channel scope is
   assert.match(admin, /manuallySelectedChatChannels\.set\(id, selectedScope\)/);
   assert.match(admin, /manuallySelectedChatChannels\.get\(id\)/);
   assert.match(admin, /manuallySelectedChatChannels\.delete\(id\)/);
+  assert.match(admin, /header\.insertBefore\(control, actions\)/);
+  assert.match(admin, /matchMedia\('\(max-width: 767px\)'\)/);
+  assert.match(admin, /data-sx-chatbot-mobile-toggle/);
+  assert.doesNotMatch(admin, /position:fixed;z-index:1100;top:82px/);
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261006-ai-model-picker1/);
-  assert.match(sidebar, /chatbot-admin\.js\?v=20261006-ai-model-picker1/);
+  assert.match(index, /training-sidebar\.js\?v=20261006-inbox-bot-header1/);
+  assert.match(sidebar, /chatbot-admin\.js\?v=20261006-inbox-bot-header1/);
 });

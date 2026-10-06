@@ -284,6 +284,30 @@
       #sx-chatbot-dialog .sx-guide-toggle input{width:auto;margin:2px 0 0;accent-color:#a8003b}
       #sx-chatbot-dialog [data-guide-content][hidden]{display:none}
       #sx-chatbot-dialog .sx-footer{display:flex;justify-content:flex-end;gap:9px;margin-top:20px} #sx-chatbot-dialog .sx-primary{border:0;border-radius:9px;padding:11px 17px;background:#a8003b;color:#fff;font-weight:700;cursor:pointer} #sx-chatbot-dialog .sx-secondary{border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:8px;padding:10px 14px;cursor:pointer;font-weight:600} #sx-chatbot-dialog .sx-error{color:#b42318;margin-top:10px;white-space:pre-wrap}
+      #sx-active-chatbot-control{position:relative;z-index:2;display:flex;align-items:center;flex:0 1 auto;min-width:0;max-width:min(34vw,440px);margin-inline-start:auto;padding:4px 6px;gap:7px;border:1px solid #edbfd0;border-radius:9px;background:#fff;color:#344054;font:500 12px/1.25 Roboto,Arial,sans-serif;box-shadow:none;box-sizing:border-box}
+      #sx-active-chatbot-control [data-sx-chatbot-mobile-toggle]{display:none}
+      #sx-active-chatbot-control [data-sx-chatbot-control-body]{display:flex;align-items:center;min-width:0;gap:7px}
+      #sx-active-chatbot-control [data-sx-chatbot-mobile-heading]{display:none}
+      #sx-active-chatbot-control [data-sx-chatbot-control-body] label{display:flex;align-items:center;gap:6px;min-width:0;font-weight:500;white-space:nowrap}
+      #sx-active-chatbot-control [data-sx-chatbot-control-body] select{width:min(220px,18vw);min-width:120px;max-width:220px;border:1px solid #d0d5dd;border-radius:7px;padding:5px 7px;background:#fff;color:#344054;font:500 12px Roboto,Arial,sans-serif}
+      #sx-active-chatbot-control [data-sx-chatbot-state]{min-width:0;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#667085;font-size:11px}
+      #sx-active-chatbot-control [data-sx-chatbot-toggle]{flex:0 0 auto;border:1px solid #edbfd0;background:#fff2f6;color:#a8003b;border-radius:7px;padding:5px 8px;font:600 11px Roboto,Arial,sans-serif;cursor:pointer;white-space:nowrap}
+      #sx-active-chatbot-control [data-sx-chatbot-toggle]:disabled{opacity:.6;cursor:wait}
+      @media(max-width:767px){
+        #sx-active-chatbot-control{position:relative;z-index:1300;max-width:none;min-width:0;margin:0;padding:0;border:0;background:transparent}
+        #sx-active-chatbot-control [data-sx-chatbot-mobile-toggle]{display:inline-flex;align-items:center;justify-content:center;min-width:42px;height:34px;padding:0 9px;border:1px solid #edbfd0;border-radius:9px;background:#fff2f6;color:#a8003b;font:600 12px Roboto,Arial,sans-serif;cursor:pointer;white-space:nowrap}
+        #sx-active-chatbot-control [data-sx-chatbot-control-body]{position:absolute;top:calc(100% + 8px);inset-inline-end:0;display:flex;flex-wrap:wrap;width:min(340px,calc(100vw - 24px));padding:12px;gap:9px;border:1px solid #edbfd0;border-radius:12px;background:#fff;box-shadow:0 8px 28px #10182826}
+        #sx-active-chatbot-control:not(.sx-mobile-open) [data-sx-chatbot-control-body]{display:none}
+        #sx-active-chatbot-control [data-sx-chatbot-control-body] label{flex:1 1 100%;justify-content:space-between;white-space:normal}
+        #sx-active-chatbot-control [data-sx-chatbot-mobile-heading]{display:block;flex:1 1 100%;font-size:13px;font-weight:700;color:#344054}
+        #sx-active-chatbot-control [data-sx-chatbot-control-body] select{width:auto;min-width:0;max-width:70%;flex:1}
+        #sx-active-chatbot-control [data-sx-chatbot-state]{flex:1 1 100%;max-width:none;white-space:normal}
+      }
+      html[data-sx-chatbot-theme="dark"] #sx-active-chatbot-control,html[data-sx-chatbot-theme="dark"] #sx-active-chatbot-control [data-sx-chatbot-control-body]{background:#191c24;border-color:#4b3040;color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-active-chatbot-control [data-sx-chatbot-mobile-toggle],html[data-sx-chatbot-theme="dark"] #sx-active-chatbot-control [data-sx-chatbot-toggle]{background:#3b1728;border-color:#70415a;color:#ffb5ce}
+      html[data-sx-chatbot-theme="dark"] #sx-active-chatbot-control [data-sx-chatbot-control-body] select{background:#20232c;border-color:#444955;color:#e4e7ec}
+      html[data-sx-chatbot-theme="dark"] #sx-active-chatbot-control [data-sx-chatbot-state]{color:#aab1bd}
+      html[data-sx-chatbot-theme="dark"] #sx-active-chatbot-control [data-sx-chatbot-mobile-heading]{color:#e4e7ec}
       [data-sx-chatbot-control]{border:1px solid #edbfd0;background:#fff2f6;color:#a8003b;border-radius:7px;padding:6px 9px;font:600 12px Roboto,Arial,sans-serif;cursor:pointer}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs{background:#191b22;border-color:#343741;box-shadow:0 3px 14px #0008}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs button{color:#e4e7ec}
@@ -700,14 +724,36 @@
     if (!control) {
       control = document.createElement('div'); control.id = 'sx-active-chatbot-control';
       control.setAttribute('role', 'group'); control.setAttribute('aria-label', tr('Bot control for this chat', 'التحكم بالروبوت لهذه المحادثة'));
-      control.style.cssText = 'position:fixed;z-index:1100;top:82px;right:20px;display:flex;align-items:center;gap:8px;padding:7px 10px;background:#fff;border:1px solid #edbfd0;border-radius:999px;box-shadow:0 2px 10px #10182818;font:600 12px Roboto,Arial,sans-serif;color:#344054';
-      document.body.append(control);
+      control.innerHTML = `<button type="button" data-sx-chatbot-mobile-toggle aria-controls="sx-active-chatbot-control-content" aria-expanded="false">${esc(tr('Bot','الروبوت'))}</button><div id="sx-active-chatbot-control-content" data-sx-chatbot-control-body></div>`;
+      control.querySelector('[data-sx-chatbot-mobile-toggle]').addEventListener('click', event => {
+        const open = control.classList.toggle('sx-mobile-open');
+        event.currentTarget.setAttribute('aria-expanded', String(open));
+      });
     }
+    if (control.dataset.conversationId && control.dataset.conversationId !== id) {
+      control.classList.remove('sx-mobile-open');
+      control.querySelector('[data-sx-chatbot-mobile-toggle]')?.setAttribute('aria-expanded', 'false');
+    }
+    const infoButton = [...document.querySelectorAll('button[aria-label],button[title]')].find(button => /show info|معلومات/i.test(`${button.getAttribute('aria-label') || ''} ${button.title || ''}`));
+    const actions = infoButton?.parentElement;
+    const header = actions?.parentElement;
+    if (!header || !actions) { control.style.display = 'none'; return; }
+    control.style.display = '';
+    const narrow = window.matchMedia('(max-width: 767px)').matches;
+    if (narrow) {
+      control.classList.add('sx-mobile-layout');
+      if (control.parentElement !== actions) actions.insertBefore(control, infoButton);
+    } else {
+      control.classList.remove('sx-mobile-layout', 'sx-mobile-open');
+      control.querySelector('[data-sx-chatbot-mobile-toggle]')?.setAttribute('aria-expanded', 'false');
+      if (control.parentElement !== header || control.nextElementSibling !== actions) header.insertBefore(control, actions);
+    }
+    const body = control.querySelector('[data-sx-chatbot-control-body]');
     const scopeKey = scope ? `${scope.channelKind}|${scope.channelRef}` : '';
     if (control.dataset.conversationId === id && control.dataset.channelScope === scopeKey && control.dataset.loading !== 'true') return;
     control.dataset.conversationId = id; control.dataset.channelScope = scopeKey; control.dataset.loading = 'true';
     if (!scope) {
-      control.innerHTML = `<span>${esc(tr('This chat','هذه المحادثة'))}</span><label style="display:flex;align-items:center;gap:6px;font-weight:500"><span>${esc(tr('WhatsApp number','رقم واتساب'))}</span><select data-sx-chatbot-channel aria-label="${esc(tr('WhatsApp number for this chat','رقم واتساب لهذه المحادثة'))}" style="max-width:280px;border:1px solid #d0d5dd;border-radius:8px;padding:6px 8px;background:#fff;color:#344054;font:500 12px Roboto,Arial,sans-serif"><option value="">${esc(tr('Loading connected bot numbers…','جارٍ تحميل أرقام الروبوتات المتصلة…'))}</option></select></label><span data-sx-chatbot-state aria-live="polite">${esc(tr('Choose the number this conversation uses.','اختر الرقم المستخدم في هذه المحادثة.'))}</span>`;
+      body.innerHTML = `<strong data-sx-chatbot-mobile-heading>${esc(tr('Chat info','معلومات المحادثة'))}</strong><label><span>${esc(tr('Bot number','رقم الروبوت'))}</span><select data-sx-chatbot-channel aria-label="${esc(tr('WhatsApp number for this chat','رقم واتساب لهذه المحادثة'))}"><option value="">${esc(tr('Loading connected bot numbers…','جارٍ تحميل أرقام الروبوتات المتصلة…'))}</option></select></label><span data-sx-chatbot-state aria-live="polite">${esc(tr('Choose the number this conversation uses.','اختر الرقم المستخدم في هذه المحادثة.'))}</span>`;
       control.dataset.loading = 'false';
       const select = control.querySelector('[data-sx-chatbot-channel]');
       select.addEventListener('change', () => {
@@ -735,7 +781,7 @@
       return;
     }
     const endpoint = `/conversations/${encodeURIComponent(id)}/bot-control?channelKind=${encodeURIComponent(scope.channelKind)}&channelRef=${encodeURIComponent(scope.channelRef)}`;
-    control.innerHTML = `<span>${esc(tr('This chat','هذه المحادثة'))}</span><span data-sx-chatbot-state aria-live="polite">${esc(tr('Checking…','جارٍ التحقق…'))}</span><button type="button" data-sx-chatbot-toggle style="border:1px solid #edbfd0;background:#fff2f6;color:#a8003b;border-radius:999px;padding:6px 11px;font:600 12px Roboto,Arial,sans-serif;cursor:pointer">${esc(tr('Checking…','جارٍ التحقق…'))}</button>`;
+    body.innerHTML = `<strong data-sx-chatbot-mobile-heading>${esc(tr('Chat info','معلومات المحادثة'))}</strong><span data-sx-chatbot-state aria-live="polite">${esc(tr('Checking…','جارٍ التحقق…'))}</span><button type="button" data-sx-chatbot-toggle>${esc(tr('Checking…','جارٍ التحقق…'))}</button>`;
     const button = control.querySelector('[data-sx-chatbot-toggle]');
     button.addEventListener('click', async () => {
       button.disabled = true;
