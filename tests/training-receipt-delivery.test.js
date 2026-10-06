@@ -36,8 +36,8 @@ test('receipt recipients are validated, deduplicated and limited to customer, ow
 });
 
 test('receipt email is bilingual, escapes receipt data and targets one recipient per message',()=>{
-  const receipt={from:'receipts@example.invalid',receiptNumber:'R-2026-000001',invoiceNumber:'TC-2026-000001',payerName:'<script>alert(1)</script>',courseNameEn:'Safety <Basics>',currency:'QAR',amountMinor:50000,receivedAt:'2026-10-03T10:00:00.000Z'};
-  const rendered=delivery.message(receipt,'learner@example.invalid');assert.equal(rendered.to,'learner@example.invalid');assert.match(rendered.subject,/إيصال دفع/);assert.match(rendered.text,/مركز سيل ماكس للتدريب/);assert.match(rendered.html,/&lt;script&gt;/);assert.doesNotMatch(rendered.html,/<script>/);assert.match(rendered.html,/QAR/);
+  const receipt={from:'receipts@example.invalid',receiptNumber:'R-2026-000001',invoiceNumber:'TC-2026-000001',payerName:'<script>alert(1)</script>',courseNameEn:'Safety <Basics>',currency:'QAR',amountMinor:50000,receivedAt:'2026-10-03T10:00:00.000Z',businessProfile:{nameEn:'Center English',nameAr:'مركز عربي',logoUrl:'https://example.invalid/logo.png'}};
+  const rendered=delivery.message(receipt,'learner@example.invalid');assert.equal(rendered.to,'learner@example.invalid');assert.match(rendered.subject,/إيصال دفع/);assert.match(rendered.text,/Center English \/ مركز عربي/);assert.match(rendered.html,/https:\/\/example\.invalid\/logo\.png/);assert.match(rendered.html,/&lt;script&gt;/);assert.doesNotMatch(rendered.html,/<script>/);assert.match(rendered.html,/QAR/);
 });
 
 test('SMTP acceptance must name the intended recipient and otherwise remains retryable',()=>{
