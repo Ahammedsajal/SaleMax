@@ -45,12 +45,14 @@
     }
     challengeToken = '';
     const schema = data.form.schema;
+    const isRegistration = schema.templateKey === 'procatalyst-registration-v1';
     const isArabic = language === 'ar';
     document.documentElement.lang = language;
     document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
     root.dir = isArabic ? 'rtl' : 'ltr';
+    document.title = isRegistration ? tr('Student Registration Form', 'استمارة تسجيل الطالب') : (isArabic ? data.form.nameAr : data.form.nameEn);
     root.innerHTML = `<header class="form-header"><div class="brand-mark">${esc(data.tenant.name)}</div><button type="button" id="language-toggle" aria-label="${tr('Switch to Arabic', 'التبديل إلى الإنجليزية')}">${tr('العربية', 'English')}</button></header>
-      ${staffCapture ? `<div class="capture-banner" role="status">${tr('Staff capture · details clear after each enquiry', 'تسجيل الموظف · تُمسح البيانات بعد كل استفسار')}</div>` : ''}
+      ${staffCapture ? `<div class="capture-banner" role="status">${isRegistration ? tr('Staff capture · details clear after each registration', 'تسجيل الموظف · تُمسح البيانات بعد كل طلب تسجيل') : tr('Staff capture · details clear after each enquiry', 'تسجيل الموظف · تُمسح البيانات بعد كل استفسار')}</div>` : ''}
       <section class="form-card">${schema.templateKey==='procatalyst-registration-v1'?'':`<p class="eyebrow">${staffCapture ? tr('STAFF ENQUIRY CAPTURE', 'تسجيل استفسار بواسطة الموظف') : tr('TRAINING CENTER ENQUIRY', 'استفسار مركز التدريب')}</p><h1>${esc(isArabic ? schema.titleAr : schema.titleEn)}</h1>${(isArabic ? schema.descriptionAr : schema.descriptionEn) ? `<p class="description">${esc(isArabic ? schema.descriptionAr : schema.descriptionEn)}</p>` : ''}`}
       <div id="form-message" role="status" aria-live="polite"></div><form id="enquiry-form" novalidate autocomplete="off">
       <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
@@ -60,10 +62,10 @@
         if (field.key === 'course_id') return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="course_id" ${field.required ? 'required' : ''}><option value="">${tr('Choose a course', 'اختر دورة')}</option>${data.courses.map(course => `<option value="${esc(course.id)}">${esc(isArabic ? course.nameAr : course.nameEn)}</option>`).join('')}</select></label>`;
         return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<input name="${field.key}" type="${type}" autocomplete="${staffCapture ? 'off' : autocomplete || 'off'}" ${staffCapture ? 'autocapitalize="off" spellcheck="false"' : ''} ${field.key === 'phone' ? 'inputmode="tel" placeholder="+974 …"' : ''} maxlength="${field.key === 'email' ? 254 : field.key === 'phone' ? 40 : 255}" ${field.required ? 'required' : ''}></label>`;
       }).join('')}
-      <label class="consent"><input type="checkbox" name="consent" required><span>${esc(isArabic ? schema.consentTextAr : schema.consentTextEn)}</span></label>
+      ${isRegistration ? '' : `<label class="consent"><input type="checkbox" name="consent" required><span>${esc(isArabic ? schema.consentTextAr : schema.consentTextEn)}</span></label>`}
       ${!staffCapture && data.botChallenge ? `<div class="bot-challenge"><p>${tr('Complete the security check to send this enquiry.', 'أكمل التحقق الأمني لإرسال هذا الاستفسار.')}</p><div id="turnstile-widget"></div><div id="turnstile-status" role="status" aria-live="polite">${tr('Loading security check…', 'جارٍ تحميل التحقق الأمني…')}</div></div>` : ''}
-      <button id="submit-button" class="submit-button" type="submit">${tr(staffCapture ? 'Save enquiry' : 'Send enquiry', staffCapture ? 'حفظ الاستفسار' : 'إرسال الاستفسار')}</button>
-      <p class="privacy-note">${tr('Your details will be used to respond to this enquiry. This does not register you or reserve a seat.', 'ستُستخدم بياناتك للرد على هذا الاستفسار. لا يُعد هذا تسجيلًا أو حجزًا لمقعد.')}</p></form></section><footer>${tr('Powered by SaleMaX', 'مدعوم من SaleMaX')}</footer>`;
+      <button id="submit-button" class="submit-button" type="submit">${isRegistration ? tr('Submit registration', 'إرسال طلب التسجيل') : tr(staffCapture ? 'Save enquiry' : 'Send enquiry', staffCapture ? 'حفظ الاستفسار' : 'إرسال الاستفسار')}</button>
+      <p class="privacy-note">${isRegistration ? tr('Submitting this form records your application. It does not issue an invoice or payment receipt or confirm a course seat.', 'إرسال هذا النموذج يسجل طلبك. ولا يصدر فاتورة أو إيصال دفع ولا يؤكد حجز مقعد في الدورة.') : tr('Your details will be used to respond to this enquiry. This does not register you or reserve a seat.', 'ستُستخدم بياناتك للرد على هذا الاستفسار. لا يُعد هذا تسجيلًا أو حجزًا لمقعد.')}</p></form></section><footer>${tr('Powered by SaleMaX', 'مدعوم من SaleMaX')}</footer>`;
 
     for (const [name, value] of Object.entries(prior)) {
       const control = root.querySelector(`#enquiry-form [name="${name}"]`);
@@ -161,7 +163,7 @@
     if (!staffCapture) payload.website = form.elements.website.value;
     if (!staffCapture && data.botChallenge) payload.challengeToken = challengeToken;
     button.disabled = true;
-    button.textContent = tr('Sending…', 'جارٍ الإرسال…');
+      button.textContent = data.form.schema.templateKey === 'procatalyst-registration-v1' ? tr('Submitting…', 'جارٍ الإرسال…') : tr('Sending…', 'جارٍ الإرسال…');
     try {
       const token = actorToken();
       if (staffCapture && !token) throw Error('AUTH_REQUIRED');
@@ -177,11 +179,14 @@
       if (!response.ok || body.success !== true) throw Error(body.code || 'SUBMISSION_FAILED');
       sessionStorage.removeItem(storageKey);
       const reference = esc(body.data.referenceCode);
-      const successHeading = staffCapture ? tr('Enquiry saved', 'تم حفظ الاستفسار') : tr('Thank you, we’ll be in touch.', 'شكرًا لك، سنتواصل معك.');
-      const successDetail = staffCapture
+      const isRegistration = data.form.schema.templateKey === 'procatalyst-registration-v1';
+      const successHeading = isRegistration ? tr('Registration application received', 'تم استلام طلب التسجيل') : staffCapture ? tr('Enquiry saved', 'تم حفظ الاستفسار') : tr('Thank you, we’ll be in touch.', 'شكرًا لك، سنتواصل معك.');
+      const successDetail = isRegistration
+        ? tr('Your application was recorded. The training center will follow up about the invoice, payment, and course start.', 'تم تسجيل طلبك. سيتواصل معك مركز التدريب بخصوص الفاتورة والدفع وبدء الدورة.')
+        : staffCapture
         ? tr('The lead was added to your workspace and attributed to your signed-in account.', 'أُضيف العميل المحتمل إلى مساحة العمل ونُسب إلى حسابك المسجّل.')
         : tr('This confirms receipt of your enquiry only. It is not an invoice, payment receipt or confirmed course seat.', 'هذا تأكيد لاستلام الاستفسار فقط، وليس فاتورة أو إيصال دفع أو مقعدًا مؤكدًا في الدورة.');
-      root.querySelector('.form-card').innerHTML = `<div class="success-mark" aria-hidden="true">✓</div><p class="eyebrow">${staffCapture ? tr('STAFF CAPTURE COMPLETE', 'اكتمل تسجيل الموظف') : tr('ENQUIRY RECEIVED', 'تم استلام الاستفسار')}</p><h1 tabindex="-1">${successHeading}</h1><p class="description">${tr('Enquiry reference', 'رقم مرجع الاستفسار')}: <strong>${reference}</strong></p><p class="privacy-note">${successDetail}</p>${staffCapture ? `<button id="new-enquiry" class="secondary-button" type="button">${tr('Capture next enquiry', 'تسجيل الاستفسار التالي')}</button>` : ''}`;
+      root.querySelector('.form-card').innerHTML = `<div class="success-mark" aria-hidden="true">✓</div><p class="eyebrow">${isRegistration ? tr('APPLICATION RECEIVED', 'تم استلام الطلب') : staffCapture ? tr('STAFF CAPTURE COMPLETE', 'اكتمل تسجيل الموظف') : tr('ENQUIRY RECEIVED', 'تم استلام الاستفسار')}</p><h1 tabindex="-1">${successHeading}</h1><p class="description">${tr(isRegistration ? 'Application reference' : 'Enquiry reference', isRegistration ? 'رقم مرجع الطلب' : 'رقم مرجع الاستفسار')}: <strong>${reference}</strong></p><p class="privacy-note">${successDetail}</p>${staffCapture ? `<button id="new-enquiry" class="secondary-button" type="button">${tr(isRegistration ? 'Capture next registration' : 'Capture next enquiry', isRegistration ? 'تسجيل الطلب التالي' : 'تسجيل الاستفسار التالي')}</button>` : ''}`;
       root.querySelector('.form-card h1')?.focus();
       root.querySelector('#new-enquiry')?.addEventListener('click', () => {
         sessionStorage.removeItem(storageKey);
