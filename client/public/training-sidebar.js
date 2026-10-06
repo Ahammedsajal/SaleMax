@@ -79,6 +79,8 @@
     [data-sx-nav-section]{margin:20px 24px 6px;color:#6b7280;font:600 12px/1.6 Roboto,Arial,sans-serif;letter-spacing:.04em}
     [data-sx-sidebar-list]>li .MuiListItemButton-root{min-height:44px}
     [data-sx-sidebar-list] .MuiListItemIcon-root{box-sizing:border-box!important;display:inline-flex!important;flex:0 0 34px!important;align-items:center!important;justify-content:center!important;width:34px!important;min-width:34px!important;margin:0!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemButton-root{box-sizing:border-box!important;justify-content:center!important;padding-inline:0!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemIcon-root{flex:1 1 100%!important;width:100%!important;min-width:100%!important}
     [data-sx-sidebar-list] .MuiListItemIcon-root svg{display:block!important;width:20px!important;height:20px!important;flex:0 0 20px!important}
     [data-sx-sidebar-list] svg[data-sx-training-icon]{fill:none!important;stroke:currentColor!important;stroke-width:1.8px!important;stroke-linecap:round!important;stroke-linejoin:round!important}
     [data-sx-search-hidden],[data-sx-nav-section][hidden]{display:none!important}
