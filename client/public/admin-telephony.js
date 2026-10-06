@@ -21,11 +21,12 @@
   function adminPage(){return location.pathname.toLowerCase()==='/admin'&&!!token();}
   let platformPageInstance=null;
   function addSidebarLink(){
-    if(!adminPage()||document.querySelector('.sx-pbx-nav'))return;
+    if(!adminPage())return;
     const sidebarItems=[...document.querySelectorAll('.MuiListItemButton-root')];
-    const userLink=sidebarItems.find(item=>['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()))||[...document.querySelectorAll('a,button,[role="button"]')].find(item=>/manage-users/.test(item.getAttribute('href')||'')||['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
+    if(sidebarItems.some(item=>item.hasAttribute('data-sx-pbx-sidebar')))return;
+    const userLink=sidebarItems.find(item=>['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
     if(!userLink)return;
-    const link=userLink.cloneNode(false);link.removeAttribute('id');link.dataset.sxPbxNav='';link.classList.add('sx-pbx-nav');
+    const link=userLink.cloneNode(false);link.removeAttribute('id');link.dataset.sxPbxNav='';link.dataset.sxPbxSidebar='';link.classList.add('sx-pbx-nav');
     if(link.tagName==='A')link.href='/admin?page=pbx-telephony';else{link.type='button';}
     link.textContent=tr('PBX & Telephony','المقسم والاتصالات');link.setAttribute('aria-label',tr('PBX & Telephony','المقسم والاتصالات'));
     link.addEventListener('click',event=>{event.preventDefault();location.assign('/admin?page=pbx-telephony');});
@@ -72,7 +73,7 @@
     const rows=[...document.querySelectorAll('.MuiDataGrid-row[data-id]')].filter(r=>!r.querySelector('.sx-pbx-row-status'));
     const ids=rows.map(r=>r.getAttribute('data-id')).filter(id=>/^\d{1,10}$/.test(id)&&!userStatuses.has(id));
     if(ids.length){statusRequest=true;try{const result=await api('/api/admin/asterisk/business-gateway-statuses?userIds='+ids.slice(0,100).join(','));for(const item of result.data||[])userStatuses.set(String(item.userId),item.status);for(const id of ids)if(!userStatuses.has(id))userStatuses.set(id,'not_configured');}catch{}finally{statusRequest=false;}}
-    for(const row of rows){const id=row.getAttribute('data-id'),state=userStatuses.get(id);if(!state)continue;const target=row.querySelector('[role=gridcell]')||row.firstElementChild;if(!target)continue;const badge=document.createElement('span');badge.className='sx-pbx-row-status';badge.dataset.state=state;badge.textContent=state==='needs_attention'?tr('Telephony · Needs attention','الاتصالات · تتطلب المتابعة'):state==='not_entitled'?tr('Call Center plan required','يلزم تفعيل مركز الاتصال'):tr('Telephony · Not configured','الاتصالات · غير مهيأة');target.append(' ',badge);const edit=[...row.querySelectorAll('button')].find(b=>/edit|تعديل/i.test(`${b.getAttribute('aria-label')||''} ${b.title||''} ${b.textContent||''}`));if(edit){const action=document.createElement('button');action.type='button';action.className='sx-pbx-row-action';action.textContent=tr('Configure','إعداد');action.onclick=()=>edit.click();target.append(' ',action);}}
+    for(const row of rows){const id=row.getAttribute('data-id'),state=userStatuses.get(id);if(!state)continue;const target=row.querySelector('[role=gridcell]')||row.firstElementChild;if(!target)continue;const badge=document.createElement('span');badge.className='sx-pbx-row-status';badge.dataset.state=state;badge.textContent=state==='needs_attention'?tr('Telephony · Needs attention','الاتصالات · تتطلب المتابعة'):state==='ready'?tr('Telephony · Ready','الاتصالات · جاهزة'):state==='not_entitled'?tr('Call Center plan required','يلزم تفعيل مركز الاتصال'):tr('Telephony · Not configured','الاتصالات · غير مهيأة');target.append(' ',badge);const edit=[...row.querySelectorAll('button')].find(b=>/edit|تعديل/i.test(`${b.getAttribute('aria-label')||''} ${b.title||''} ${b.textContent||''}`));if(edit){const action=document.createElement('button');action.type='button';action.className='sx-pbx-row-action';action.textContent=tr('Configure','إعداد');action.onclick=()=>edit.click();target.append(' ',action);}}
   }
   function mount(){addSidebarLink();platformPage();editUserGateway();listGatewayStatuses();}
   const observer=new MutationObserver(mount);observer.observe(document.documentElement,{childList:true,subtree:true});window.addEventListener('popstate',mount);mount();
