@@ -219,7 +219,7 @@
           requestAnimationFrame(applyTeamTreeLayout);
         };
       }
-      toggle.textContent=t('Staff','الموظفون')+` · ${staff.length} `+(expandedBusinessTeams.has(ownerId)?'⌃':'⌄');
+      const toggleText=t('Staff','الموظفون')+` · ${staff.length} `+(expandedBusinessTeams.has(ownerId)?'⌃':'⌄');if(toggle.textContent!==toggleText)toggle.textContent=toggleText;
       toggle.setAttribute('aria-label',t(`Show ${staff.length} business staff members`,`إظهار ${staff.length} من موظفي النشاط`));
       const panelId=`sx-user-team-${ownerId}`;toggle.setAttribute('aria-controls',panelId);toggle.setAttribute('aria-expanded',String(expandedBusinessTeams.has(ownerId)));
       let tree=panel;
