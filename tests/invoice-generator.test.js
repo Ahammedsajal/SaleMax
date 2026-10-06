@@ -45,3 +45,12 @@ test('payment schedule totals must match the selected course price',async()=>{
   const db=fakeDb();await assert.rejects(generator.create(db,context(),{uid:'legacy-owner',input:{...input,installments:[{dueDate:'2026-10-05',amountMinor:9999}]}}),{code:'PAYMENT_SCHEDULE_TOTAL_MISMATCH'});
   assert.equal(db.calls.some(call=>call.sql==='BEGIN'),false);
 });
+
+test('legacy generated invoices acquire Business Profile branding when opened and preserve existing issue snapshots',async()=>{
+  const id='d38c7530-feba-4e44-8e43-a28e6b83e8f1',queries=[];
+  const db={async query(sql){queries.push(sql);if(sql.includes('FROM sx_invoice_generator_documents'))return [[{snapshot:JSON.stringify({id,companyName:'Old Settings Name',logoDataUrl:'legacy-logo'})}]];if(sql.includes('SELECT t.name AS tenantName'))return [[{tenantName:'Tenant',nameEn:'Current Center',nameAr:'المركز الحالي',logoUrl:'/media/current.png'}]];throw new Error(`Unexpected query: ${sql}`);}};
+  const current=await generator.detail(db,context(),id);assert.deepEqual(current.businessProfile,{nameEn:'Current Center',nameAr:'المركز الحالي',logoUrl:'/media/current.png'});assert.equal(current.companyName,'Old Settings Name');
+  const existing={...current,businessProfile:{nameEn:'Issued Center',nameAr:'مركز الإصدار',logoUrl:'/media/issued.png'}};
+  db.query=async sql=>sql.includes('FROM sx_invoice_generator_documents')?[[{snapshot:JSON.stringify(existing)}]]:[[]];
+  const preserved=await generator.detail(db,context(),id);assert.deepEqual(preserved.businessProfile,existing.businessProfile);
+});
