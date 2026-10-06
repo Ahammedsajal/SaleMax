@@ -8,7 +8,7 @@ const tenantGateways = require('./tenant-asterisk-gateways');
 
 function createAsteriskRouter({ pool }) {
   const router = express.Router();
-  const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
+  const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
   const withDb = async fn => { const db = await pool.getConnection(); try { return await fn(db); } finally { db.release(); } };
   router.use(express.json({ limit: '12kb', strict: true }));
   router.use((req, res, next) => {
