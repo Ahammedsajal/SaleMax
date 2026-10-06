@@ -32,6 +32,13 @@ test('contract draft editing is mounted inside the original Manage Plans screen'
   assert.match(contracts, /امسح رمز QR الجديد/);
 });
 
+test('new plan contract drafts leave Call Center disabled until a Super Admin opts in', () => {
+  assert.match(shell, /admin-plan-contracts\.js\?v=20261006-call-center-optin1/);
+  assert.match(contracts, /!latest\?feature\.key!==['"]telephony\.call-center['"]:latest\.capabilities\.includes\(feature\.key\)/);
+  assert.match(contracts, /draft\.querySelectorAll\('\[name=capability\]'\)/);
+  assert.match(contracts, /input\.checked=version\.capabilities\.includes\(input\.value\)/);
+});
+
 test('legacy Manage Users assignment denial offers the reviewed contract flow', () => {
   assert.match(shell, /admin-user-plans\.js\?v=20261102-staff-tree1/);
   assert.match(userPlans, /CANONICAL_ASSIGNMENT_REQUIRED/);

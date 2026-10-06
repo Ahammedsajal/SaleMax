@@ -5,7 +5,7 @@
   const isArabic=()=>document.documentElement.dir==='rtl'||[...document.querySelectorAll('h5')].some(n=>n.textContent.trim()==='إدارة المستخدمين');
   const tr=(en,ar)=>isArabic()?ar:en;
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let checked=false,checking=false,trigger;
+  let checked=false,trigger;
   const styles=document.createElement('style');styles.textContent=`
     .sx-asterisk-trigger{margin-inline-start:8px!important;border:1px solid #edbfd0!important;background:#fff2f6!important;color:#860030!important}
     .sx-asterisk-overlay{position:fixed;z-index:2147483100;inset:0;background:#101828a8;display:grid;place-items:center;padding:18px;overflow:auto}
@@ -28,6 +28,7 @@
   async function csrf(){const result=await api('/api/admin/platform-auth/me');if(result.mfaRequired)throw Object.assign(new Error('MFA_REQUIRED'),{code:'MFA_REQUIRED'});return result.csrfToken;}
   function translateError(code){const messages={
     PERMISSION_DENIED:tr('Your platform role does not include PBX setup. Ask the Super Admin to grant Telephony configuration access.','لا يتضمن دورك إعداد المقسم. اطلب من المسؤول الأعلى منحك صلاحية إعداد الاتصالات.'),
+    VERIFIED_ADMIN_LINK_REQUIRED:tr('This admin account is not linked to a verified platform identity. Complete Super Admin account setup, then reopen PBX setup.','حساب المسؤول هذا غير مرتبط بهوية منصة تم التحقق منها. أكمل إعداد حساب المسؤول الأعلى، ثم أعد فتح إعداد المقسم.'),
     MFA_REQUIRED:tr('Complete the platform authenticator check, then reopen PBX setup.','أكمل التحقق بمصادقة المنصة ثم أعد فتح إعداد المقسم.'),
     AUTH_REQUIRED:tr('Your admin session needs to be renewed. Sign in and try again.','يلزم تجديد جلسة الإدارة. سجّل الدخول وحاول مرة أخرى.'),
     STALE_REVISION:tr('Another administrator changed this setup. Close and reopen the panel to load the latest revision.','غيّر مسؤول آخر هذا الإعداد. أغلق اللوحة وأعد فتحها لتحميل أحدث إصدار.'),
@@ -146,11 +147,8 @@
     const refresh=[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Refresh');
     const heading=[...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(node=>['Manage Users','إدارة المستخدمين'].includes(node.textContent.trim()));
     const container=refresh?.parentElement||heading?.parentElement;
-    if(!container||container.querySelector('.sx-asterisk-trigger')||checking||checked)return;
-    checking=true;
-    try{await api('/api/admin/asterisk/config');checked=true;trigger=document.createElement('button');trigger.type='button';trigger.className='MuiButtonBase-root MuiButton-root sx-asterisk-trigger';trigger.textContent=tr('Asterisk PBX setup','إعداد مقسم أستريسك');trigger.onclick=show;container.insertBefore(trigger,refresh||container.firstChild);}
-    catch(error){checked=error.code==='PERMISSION_DENIED'||error.code==='VERIFIED_ADMIN_LINK_REQUIRED'||error.code==='AUTH_REQUIRED';}
-    finally{checking=false;}
+    if(!container||container.querySelector('.sx-asterisk-trigger')||checked)return;
+    checked=true;trigger=document.createElement('button');trigger.type='button';trigger.className='MuiButtonBase-root MuiButton-root sx-asterisk-trigger';trigger.textContent=tr('Asterisk PBX setup','إعداد مقسم أستريسك');trigger.onclick=show;container.insertBefore(trigger,refresh||container.firstChild);
   }
   const observer=new MutationObserver(()=>{mount();});observer.observe(document.documentElement,{childList:true,subtree:true});
   window.addEventListener('popstate',()=>{checked=false;mount();});mount();

@@ -67,7 +67,7 @@ test('Super Admin Asterisk overview marks a connected worker stale when its hear
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
   const page=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   assert.match(ui,/eventState\.status==='connected'\?tr\('stale heartbeat','نبضة اتصال قديمة'\)/);
-  assert.match(page,/admin-asterisk\.js\?v=20261005-sip-security1/);
+  assert.match(page,/admin-asterisk\.js\?v=20261006-pbx-access1/);
 });
 
 test('live PJSIP registration probe returns only requested bounded endpoint states', async () => {
@@ -163,8 +163,16 @@ test('existing Super Admin PBX setup applies the Dinstar peer only after a curre
   assert.match(router,/router\.post\('\/apply-gateway-peer'/);
   assert.match(router,/router\.get\('\/host-setup-preview'/);
   assert.match(ui,/host-setup-preview/);
-  assert.match(index,/admin-asterisk\.js\?v=20261005-sip-security1/);
+  assert.match(index,/admin-asterisk\.js\?v=20261006-pbx-access1/);
   assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
+});
+
+test('Manage Users shows the PBX setup entry without a silent permission preflight', () => {
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
+  assert.match(ui,/trigger\.textContent=tr\('Asterisk PBX setup','إعداد مقسم أستريسك'\)/);
+  assert.match(ui,/trigger\.onclick=show/);
+  assert.doesNotMatch(ui,/await api\('\/api\/admin\/asterisk\/config'\)/);
+  assert.match(ui,/VERIFIED_ADMIN_LINK_REQUIRED:tr\(/);
 });
 
 test('production deployment routes ARI only from the SaleMaX app container to loopback Asterisk', () => {
