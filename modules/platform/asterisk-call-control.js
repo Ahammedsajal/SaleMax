@@ -168,8 +168,8 @@ class AsteriskCallControl {
           AND NOT EXISTS(SELECT 1 FROM sx_telephony_calls c WHERE c.gateway_id=p.gateway_id AND c.leased_channel_no=p.channel_no)
         ORDER BY p.channel_no LIMIT 1 FOR UPDATE`, [context.tenant.id,gateway.id]);
       if (!port) fail('OUTBOUND_CHANNEL_UNAVAILABLE');
-      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_channel_no,leased_channel_no,started_by_membership_id)
-        VALUES(?,?,'outbound','starting',?,?,?,?)`, [context.tenant.id,callId,gateway.id,port.channel_no,port.channel_no,context.membership.id]);
+      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_lease_scope,gateway_channel_no,leased_channel_no,started_by_membership_id)
+        VALUES(?,?,'outbound','starting',?,?,?,?,?)`, [context.tenant.id,callId,gateway.id,gateway.id,port.channel_no,port.channel_no,context.membership.id]);
       await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
         VALUES(?,?,?,?,'agent',?,?, 'originating')`, [context.tenant.id,crypto.randomUUID(),callId,agentChannelId,input.clientType,context.membership.id]);
       reservation = { tenantId: context.tenant.id, callId, channelNo: Number(port.channel_no), gatewayEndpoint: gatewayEndpoint(gateway.id), agentChannelId,
@@ -327,10 +327,10 @@ class AsteriskCallControl {
         WHERE qm.tenant_id=? AND qm.queue_id=? AND m.role IN ('owner','manager','agent') ORDER BY qm.position FOR UPDATE`,
       [input.tenantId, input.queueId]);
       if (!members.length) fail('INBOUND_QUEUE_HAS_NO_ACTIVE_ENDPOINTS');
-      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_channel_no,leased_channel_no,
+      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_lease_scope,gateway_channel_no,leased_channel_no,
           inbound_queue_id,inbound_channel_id,bridge_id)
-        VALUES(?,?,'inbound','ringing',?,?,?,?,?,?)`,
-      [input.tenantId, callId, mapping.gateway_id, input.channelNo, input.channelNo, input.queueId, channelId, bridgeId]);
+        VALUES(?,?,'inbound','ringing',?,?,?,?,?,?,?)`,
+      [input.tenantId, callId, mapping.gateway_id, mapping.gateway_id, input.channelNo, input.channelNo, input.queueId, channelId, bridgeId]);
       await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,status)
         VALUES(?,?,?,?,'caller','gateway','connected')`, [input.tenantId, crypto.randomUUID(), callId, channelId]);
       const agentLegs = [];

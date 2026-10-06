@@ -3,8 +3,8 @@ ALTER TABLE sx_telephony_gateways
 
 ALTER TABLE sx_telephony_calls
   ADD COLUMN gateway_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL AFTER status,
-  ADD COLUMN gateway_lease_scope CHAR(36) CHARACTER SET ascii COLLATE ascii_bin
-    GENERATED ALWAYS AS (COALESCE(gateway_id,'00000000-0000-0000-0000-000000000000')) STORED AFTER gateway_id,
+  ADD COLUMN gateway_lease_scope CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL
+    DEFAULT '00000000-0000-0000-0000-000000000000' AFTER gateway_id,
   DROP INDEX uq_sx_telephony_call_active_gateway_channel,
   ADD UNIQUE KEY uq_sx_telephony_call_active_gateway_channel (gateway_lease_scope,leased_channel_no),
   ADD KEY idx_sx_telephony_call_gateway (tenant_id,gateway_id,status),
