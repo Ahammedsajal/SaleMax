@@ -15,12 +15,12 @@ test('payment review role gate admits owners and accountants while rejecting oth
   assert.doesNotThrow(()=>payments.requireRole(context('accountant'),'payments.verify',['owner','accountant']));
   assert.throws(()=>payments.requireRole(context('agent'),'payments.verify',['owner','accountant']),{code:'PERMISSION_DENIED'});
 });
-test('second approval is required only above the configured amount and by a different identity',()=>{
+test('owner or accountant can verify payments without a separate finance-policy approval threshold',()=>{
   const recorder=crypto.randomUUID(),owner=crypto.randomUUID(),payment={amount_minor:600000,recorded_by_identity_id:recorder};
   assert.throws(()=>payments.approvalRule('accountant',recorder,payment,500000),{code:'SECOND_APPROVER_REQUIRED'});
   assert.equal(payments.approvalRule('owner',owner,payment,500000),true);
-  assert.throws(()=>payments.approvalRule('owner',owner,{...payment,amount_minor:500000},500000),{code:'ACCOUNTANT_REQUIRED'});
-  assert.equal(payments.approvalRule('accountant',recorder,{...payment,amount_minor:500000},500000),false);
+  assert.equal(payments.approvalRule('owner',owner,{...payment,amount_minor:500000},null),false);
+  assert.equal(payments.approvalRule('accountant',recorder,{...payment,amount_minor:500000},null),false);
 });
 test('manual payments and receipts use the existing bilingual Finance screen and authenticated routes',()=>{
   const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
