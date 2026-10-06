@@ -784,3 +784,8 @@ Production app health, asset delivery, sidebar navigation and the authenticated 
 ## ProCatalyst student registration applications — implementation history, 6 October 2026
 
 The Candidate Applications page, `procatalyst-registration-v1` form, responsive public capture, tenant-scoped application search/date filters, filled-form A4 renderer, and existing pipeline/student handoff were initially validated in this increment. The original local-only status below has been superseded by the production releases summarized above; it remains here as implementation history. Production applicant creation and physical printer acceptance are still unverified.
+
+
+## Reusable team role profiles — 6 October 2026
+
+The existing Team access workflow now supports owner-managed role profiles bounded by accountant, manager, or agent seat permissions. Invitations can select a profile while seat usage remains charged to the existing plan limit. Profile edits are audited; membership sessions, the sidebar, and legacy API requests apply the profile's reduced permission set. Migration `20261113_team_role_profiles.sql` creates role profiles and links them to invitations and memberships. Production browser acceptance and live migration remain release gates until verified.

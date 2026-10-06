@@ -56,10 +56,14 @@ const capabilities = Object.freeze({
 });
 function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
+  // A custom role is an additional restriction on its fixed seat role. It can
+  // never create a permission or scope that the seat role itself lacks.
+  if (Array.isArray(membership.customPermissions) && !membership.customPermissions.includes(permission)) return null;
   const base = Object.hasOwn(permissions[permission], membership.role) ? permissions[permission][membership.role] : null;
   if (base) return base;
   // Delegations cannot change finance/owner authority or elevate an agent.
-  return membership.role === 'manager' && delegationAllowlist.includes(permission) && membership.delegatedPermissions?.includes(permission) ? 'tenant' : null;
+  return membership.role === 'manager' && delegationAllowlist.includes(permission) &&
+    (membership.delegatedPermissions?.includes(permission) || membership.customPermissions?.includes(permission)) ? 'tenant' : null;
 }
 function decision(context, { capability, permission, resource, external = false }) {
   if (!context || context.audience !== 'tenant') return { allowed: false, code: 'TENANT_CONTEXT_REQUIRED' };

@@ -10,6 +10,12 @@ test('team invitation inputs are bounded to tenant staff roles',()=>{
   for(const value of ['',null,'bad','a'.repeat(250)+'@example.qa'])assert.throws(()=>team.email(value),{code:'INVALID_EMAIL'});
   for(const value of ['agent','accountant','manager'])assert.equal(team.role(value),value);
   for(const value of ['owner','super_admin',null])assert.throws(()=>team.role(value),{code:'INVALID_ROLE'});
+  const plan={capabilities:['messaging.inbox','team.members']};
+  const category={capabilities:['messaging.inbox','team.members']};
+  const allowed=team.permissionsFor('agent',category,plan);
+  assert.ok(allowed.includes('conversations.read'));
+  assert.ok(!allowed.includes('channels.configure'));
+  assert.throws(()=>team.rolePermissions(['tenant.manage'],'agent',allowed),{code:'INVALID_ROLE_PERMISSIONS'});
 });
 
 test('invalid invitation requests fail before acquiring a database connection',async()=>{
@@ -30,8 +36,11 @@ test('staff invitation UI is integrated into the existing single SaleMaX app she
   assert.match(js,/\/api\/agent\/invitations\/preview\//);assert.match(js,/Team access/);assert.match(js,/إدارة وصول الفريق/);
   assert.match(js,/accountant/);assert.match(js,/manager/);assert.match(js,/seat-grid/);assert.match(js,/business sign in/);
   assert.match(js,/Copy link/);assert.match(js,/Create new link/);assert.match(js,/Agent seats/);assert.match(js,/مقاعد الوكلاء/);
-  assert.match(js,/Pending/);assert.match(js,/معلق/);assert.match(js,/available\.size === 0/);
+  assert.match(js,/Pending/);assert.match(js,/معلق/);
+  assert.match(js,/Roles & permissions/);assert.match(js,/الأدوار والصلاحيات/);assert.match(js,/Module permissions/);
+  assert.match(js,/roleProfileId/);assert.match(js,/Role permissions are enforced separately by the server/);
   assert.match(js,/<button type="submit" class="primary" disabled>/);assert.match(js,/button\.disabled = false/);
-  assert.match(html,/team-invitations\.js\?v=20261102-navigation1/);
+  assert.match(html,/team-invitations\.js\?v=20261113-role-profiles1/);
+  assert.match(html,/training-sidebar\.js\?v=20261113-role-profiles1/);
   assert.match(js,/new MutationObserver\(addNav\)/);
 });

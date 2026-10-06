@@ -55,6 +55,11 @@ const validateAgent = async (req, res, next) => {
           req.owner = getOwner[0];
           req.decode = decode;
           req.decode.userData = getAgent[0];
+          const roleGuard = require('../modules/platform/team-role-request-guard');
+          let roleAccess;
+          try { roleAccess = await roleGuard.authorizeLegacyRequest(req,{sourceTable:'agents',sourceId:getAgent[0].id}); }
+          catch (_) { return res.status(503).json({success:false,code:'TEAM_ROLE_ACCESS_UNAVAILABLE'}); }
+          if (!roleAccess.allowed) return res.status(403).json({success:false,code:roleAccess.code||'TEAM_ROLE_PERMISSION_DENIED'});
           next();
         } else {
           return res.json({

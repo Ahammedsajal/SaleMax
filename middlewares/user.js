@@ -32,6 +32,11 @@ const validateUser = async (req, res, next) => {
         if (getUser[0].role === "user") {
           req.decode = decode;
           req.decode.userData = getUser[0];
+          const roleGuard = require('../modules/platform/team-role-request-guard');
+          let roleAccess;
+          try { roleAccess = await roleGuard.authorizeLegacyRequest(req,{sourceTable:'user',sourceId:getUser[0].id}); }
+          catch (_) { return res.status(503).json({success:false,code:'TEAM_ROLE_ACCESS_UNAVAILABLE'}); }
+          if (!roleAccess.allowed) return res.status(403).json({success:false,code:roleAccess.code||'TEAM_ROLE_PERMISSION_DENIED'});
           const optional = require('../modules/platform/optional-features');
           const feature = optional.featureForRequest(req);
           if (feature && !await optional.enabledForUid(getUser[0].uid, feature)) {

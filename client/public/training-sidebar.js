@@ -42,6 +42,7 @@
     'Business Settings':'settings', Settings:'settings'
   };
   let assignedNavigation = null;
+  let roleNavigation = null;
   let membershipRole = null;
   let optionalFeatures = {};
   let navigationLoaded = false;
@@ -66,8 +67,10 @@
       if(response.ok){
         const data=await response.json();
         const value=data?.data?.assignedNavigation;
+        const allowedByRole=data?.data?.roleNavigation;
         membershipRole=data?.data?.role||null;
         if(Array.isArray(value))assignedNavigation=new Set(value);
+        if(Array.isArray(allowedByRole))roleNavigation=new Set(allowedByRole);
       }
     }catch(_){}finally{navigationCheckComplete();}
   }
@@ -262,7 +265,7 @@
         const order = String(group * 100 + 1 + (rank < 0 ? index : rank));
         if (row.style.order !== order) row.style.order = order;
         const navKey=navigationKeys[name]||navigationKeys[text];
-        const hiddenByOwner=(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(name==='Team access'&&membershipRole&&membershipRole!=='owner');
+        const hiddenByOwner=(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(roleNavigation!==null&&navKey&&!roleNavigation.has(navKey))||(name==='Team access'&&membershipRole&&membershipRole!=='owner');
         const optionalFeature=window.salemaxOptionalLabels?.[text]||window.salemaxOptionalLabels?.[name];
         const hiddenByFeature=!!optionalFeature&&optionalFeatures[optionalFeature]!==true;
         if(hiddenByFeature)row.setAttribute('data-sx-optional-hidden','1');
@@ -293,7 +296,7 @@
     const page=new URLSearchParams(location.search).get('page');
     const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot'};
     const required=routeKeys[page];
-    if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'))location.replace('/user?page=dashboard');
+    if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(roleNavigation!==null&&required&&!roleNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'))location.replace('/user?page=dashboard');
   }
   let queued = false;
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; update(); }); }
