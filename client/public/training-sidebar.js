@@ -228,6 +228,8 @@
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
+        const navButton = row.querySelector('.MuiListItemButton-root,[role="button"],button,a');
+        if (navButton && navButton.getAttribute('title') !== text) navButton.setAttribute('title', text);
         if (Object.values(routes).includes(active)) {
           const button = row.querySelector('.MuiListItemButton-root');
           if (button) { const selected = name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
