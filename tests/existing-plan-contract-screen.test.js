@@ -40,7 +40,7 @@ test('new plan contract drafts leave Call Center disabled until a Super Admin op
 });
 
 test('legacy Manage Users assignment denial offers the reviewed contract flow', () => {
-  assert.match(shell, /admin-user-plans\.js\?v=20261102-staff-tree1/);
+  assert.match(shell, /admin-user-plans\.js\?v=20261006-staff-tree-idempotent1/);
   assert.match(userPlans, /CANONICAL_ASSIGNMENT_REQUIRED/);
   assert.match(userPlans, /MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT/);
   assert.match(userPlans, /Open training-center contract/);
@@ -52,6 +52,12 @@ test('legacy Manage Users assignment denial offers the reviewed contract flow', 
   assert.match(userPlans, /provision-preview/);
   assert.match(userPlans, /Create business and assign plan/);
   assert.match(userPlans, /إنشاء النشاط وتعيين الخطة/);
+});
+
+test('Manage Users staff-tree observer avoids rewriting unchanged toggle text', () => {
+  assert.match(shell, /admin-user-plans\.js\?v=20261006-staff-tree-idempotent1/);
+  assert.match(userPlans, /const toggleText=t\('Staff','الموظفون'\)\+` · \$\{staff\.length\} `\+\(expandedBusinessTeams\.has\(ownerId\)\?'⌃':'⌄'\);if\(toggle\.textContent!==toggleText\)toggle\.textContent=toggleText;/);
+  assert.match(userPlans, /new MutationObserver\(mount\)\.observe\(document\.documentElement,\{subtree:true,childList:true\}\)/);
 });
 
 test('Edit User exposes the Training Center category through reviewed provisioning', () => {
