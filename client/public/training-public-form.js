@@ -47,11 +47,12 @@
     const schema = data.form.schema;
     const isRegistration = schema.templateKey === 'procatalyst-registration-v1';
     const isArabic = language === 'ar';
+    const outerBrand = isRegistration ? '' : `${data.tenant.logoUrl?`<img class="brand-logo" src="${esc(new URL(data.tenant.logoUrl,location.origin).href)}" alt="${esc(isArabic?data.tenant.centerNameAr||data.tenant.name:data.tenant.centerNameEn||data.tenant.name)}">`:``}<div class="brand-mark">${esc(isArabic?data.tenant.centerNameAr||data.tenant.name:data.tenant.centerNameEn||data.tenant.name)}</div>`;
     document.documentElement.lang = language;
     document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
     root.dir = isArabic ? 'rtl' : 'ltr';
     document.title = isRegistration ? tr('Student Registration Form', 'استمارة تسجيل الطالب') : (isArabic ? data.form.nameAr : data.form.nameEn);
-    root.innerHTML = `<header class="form-header">${data.tenant.logoUrl?`<img class="brand-logo" src="${esc(new URL(data.tenant.logoUrl,location.origin).href)}" alt="${esc(isArabic?data.tenant.centerNameAr||data.tenant.name:data.tenant.centerNameEn||data.tenant.name)}">`:``}<div class="brand-mark">${esc(isArabic?data.tenant.centerNameAr||data.tenant.name:data.tenant.centerNameEn||data.tenant.name)}</div><button type="button" id="language-toggle" aria-label="${tr('Switch to Arabic', 'التبديل إلى الإنجليزية')}">${tr('العربية', 'English')}</button></header>
+    root.innerHTML = `<header class="form-header ${isRegistration?'form-header-registration':''}">${outerBrand}<button type="button" id="language-toggle" aria-label="${tr('Switch to Arabic', 'التبديل إلى الإنجليزية')}">${tr('العربية', 'English')}</button></header>
       ${staffCapture ? `<div class="capture-banner" role="status">${isRegistration ? tr('Staff capture · details clear after each registration', 'تسجيل الموظف · تُمسح البيانات بعد كل طلب تسجيل') : tr('Staff capture · details clear after each enquiry', 'تسجيل الموظف · تُمسح البيانات بعد كل استفسار')}</div>` : ''}
       <section class="form-card">${schema.templateKey==='procatalyst-registration-v1'?'':`<p class="eyebrow">${staffCapture ? tr('STAFF ENQUIRY CAPTURE', 'تسجيل استفسار بواسطة الموظف') : tr('TRAINING CENTER ENQUIRY', 'استفسار مركز التدريب')}</p><h1>${esc(isArabic ? schema.titleAr : schema.titleEn)}</h1>${(isArabic ? schema.descriptionAr : schema.descriptionEn) ? `<p class="description">${esc(isArabic ? schema.descriptionAr : schema.descriptionEn)}</p>` : ''}`}
       <div id="form-message" role="status" aria-live="polite"></div><form id="enquiry-form" novalidate autocomplete="off">

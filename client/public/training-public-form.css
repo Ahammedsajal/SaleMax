@@ -2,3 +2,4 @@
 .capture-banner{max-width:720px;margin:-12px auto 14px;padding:10px 14px;border:1px solid #d9e7f4;border-radius:9px;background:#edf6ff;color:#345b79;font-size:14px}.form-action,.secondary-button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 14px;border:1px solid #cbd6df;border-radius:8px;background:#fff;color:#344b5b;font:inherit;text-decoration:none;cursor:pointer}.secondary-button{margin-top:16px;border-color:#a8003b;color:#a8003b}.form-action:focus-visible,.secondary-button:focus-visible{outline:3px solid #a8003b80;outline-offset:3px}.login-actions{display:flex;flex-wrap:wrap;gap:10px}.capture-banner[dir=rtl]{text-align:right}@media(max-width:600px){.capture-banner{margin:-6px 0 12px}.login-actions>*{flex:1 1 100%}}
 
 .brand-logo{display:block;max-width:160px;max-height:64px;object-fit:contain}
+.form-header-registration{justify-content:flex-end}
