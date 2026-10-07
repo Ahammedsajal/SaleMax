@@ -94,6 +94,20 @@ async function publishedFormForTenant(db,tenantId,formSlug){
 async function staffForm(pool,actor,formSlug){
   const db=await pool.getConnection();try{const ctx=await staffContext(db,actor);const form=await publishedFormForTenant(db,ctx.tenant.id,formSlug);const definition=await publicForm(db,ctx.tenantSlug,form.slug);if(!definition)fail('FORM_NOT_FOUND');return {...definition,captureMode:'staff'};}finally{db.release();}
 }
+async function searchStaffLeads(pool,actor,search){
+  const term=String(search||'').trim().slice(0,100);
+  if(term.length<2)fail('SEARCH_TERM_TOO_SHORT');
+  const db=await pool.getConnection();try{
+    const ctx=await staffContext(db,actor),uidHash=sha(actor.uid),like=`%${term.replace(/[\\%_]/g,'\\$&')}%`;
+    const scope=actor.role==='agent'?' AND l.owner_agent_id=?':'';
+    const params=[uidHash,like,like,like,like];if(actor.role==='agent')params.push(actor.agentId);
+    const [rows]=await db.query(`SELECT l.id,l.contact_name AS contactName,l.learner_name AS learnerName,l.mobile AS phone,c.normalized_email AS email
+      FROM pipeline_leads l LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
+      WHERE l.uid_hash=? AND (l.contact_name LIKE ? OR l.learner_name LIKE ? OR l.mobile LIKE ? OR c.normalized_email LIKE ?)${scope}
+      ORDER BY l.updated_at DESC,l.created_at DESC LIMIT 20`,params);
+    return rows;
+  }finally{db.release();}
+}
 async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,values,captureMode,visitorHash,actor}){
   const entitlements=await plans.loadEntitlements(db,tenantId);if(!entitlements||!['active','trial','grace'].includes(entitlements.status)||!entitlements.capabilities.includes('portal.forms'))fail('FEATURE_UNAVAILABLE');
   const schema=typeof form.schema_json==='string'?JSON.parse(form.schema_json):form.schema_json;const data=cleanSubmission(schema,values);let courseTitle='';
@@ -106,9 +120,17 @@ async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3))`,[submissionId,tenantId,form.form_id,form.version,captureMode,actor?.actorType||null,actor?.actorId||null,tokenHash,reference,JSON.stringify(data),schema.consentTextEn,schema.consentTextAr]);
   if(!reservation.affectedRows){const [[prior]]=await db.query('SELECT reference_code,lead_id FROM sx_training_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=? LIMIT 1',[tenantId,form.form_id,tokenHash]);return {referenceCode:prior.reference_code,leadId:prior.lead_id,repeated:true};}
   if(visitorHash){const visitors=[visitorHash,sha('form:'+tenantId+':'+form.form_id)];for(const visitor of visitors){await db.query(`INSERT INTO sx_training_form_rate_limits(tenant_id,form_id,visitor_hash,window_started_at,attempts) VALUES (?,?,?,UTC_TIMESTAMP(3),1) ON DUPLICATE KEY UPDATE attempts=IF(window_started_at<TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3)),1,attempts+1),window_started_at=IF(window_started_at<TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3)),UTC_TIMESTAMP(3),window_started_at)`,[tenantId,form.form_id,visitor]);const [[limit]]=await db.query('SELECT attempts FROM sx_training_form_rate_limits WHERE tenant_id=? AND form_id=? AND visitor_hash=?',[tenantId,form.form_id,visitor]);if(Number(limit.attempts)>(visitor===visitorHash?10:500))fail('FORM_RATE_LIMITED');}}
-  const lead=await pipeline.createManualLead({uid,actorType:captureMode==='public'?'system':actor.actorType,actorId:captureMode==='public'?null:actor.actorId,agentId:actor?.agentId,role:captureMode==='public'?'owner':actor.role,connection:db,input:{title:courseTitle||form.name_en,contactName:data.contact_name,learnerName:data.learner_name||data.contact_name,mobile:data.phone||'',email:data.email||'',sourceType:captureMode==='public'?'public_form':'staff_form'}});
-  await db.query('UPDATE sx_training_form_submissions SET lead_id=? WHERE id=? AND tenant_id=?',[lead.id,submissionId,tenantId]);
-  return {referenceCode:reference,leadId:lead.id,repeated:false};
+  let leadId=null;
+  if(captureMode==='staff'&&actor.selectedLeadId){
+    const uidHash=sha(uid),scope=actor.role==='agent'?' AND owner_agent_id=?':'';
+    const params=[uidHash,actor.selectedLeadId];if(actor.role==='agent')params.push(actor.agentId);
+    const [[linked]]=await db.query(`SELECT id FROM pipeline_leads WHERE uid_hash=? AND id=?${scope} LIMIT 1 FOR UPDATE`,params);
+    if(!linked)fail('LEAD_NOT_ACCESSIBLE');leadId=linked.id;
+  }else{
+    const lead=await pipeline.createManualLead({uid,actorType:captureMode==='public'?'system':actor.actorType,actorId:captureMode==='public'?null:actor.actorId,agentId:actor?.agentId,role:captureMode==='public'?'owner':actor.role,connection:db,input:{title:courseTitle||form.name_en,contactName:data.contact_name,learnerName:data.learner_name||data.contact_name,mobile:data.phone||'',email:data.email||'',sourceType:captureMode==='public'?'public_form':'staff_form'}});leadId=lead.id;
+  }
+  await db.query('UPDATE sx_training_form_submissions SET lead_id=? WHERE id=? AND tenant_id=?',[leadId,submissionId,tenantId]);
+  return {referenceCode:reference,leadId,repeated:false};
 }
 async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,visitorHash}){
   if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken)||typeof visitorHash!=='string'||!/^[0-9a-f]{64}$/.test(visitorHash))fail('INVALID_SUBMISSION');
@@ -120,12 +142,13 @@ async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,vis
     await db.commit();begun=false;return result;
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
-async function submitStaff(pool,actor,formSlug,{submissionToken,values}){
+async function submitStaff(pool,actor,formSlug,{submissionToken,values,selectedLeadId}){
   if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken))fail('INVALID_SUBMISSION');
+  if(selectedLeadId!==undefined&&(typeof selectedLeadId!=='string'||!/^[0-9a-f-]{36}$/i.test(selectedLeadId)))fail('INVALID_SUBMISSION');
   const db=await pool.getConnection();let begun=false;try{
     await db.beginTransaction();begun=true;const ctx=await staffContext(db,actor);const form=await publishedFormForTenant(db,ctx.tenant.id,formSlug);
-    const result=await persistSubmission(db,{form,tenantId:ctx.tenant.id,uid:ctx.ownerUid,formSlug,submissionToken,values,captureMode:'staff',actor:{actorType:actor.role==='agent'?'agent':'user',actorId:actor.role==='agent'?String(actor.agentId):actor.role==='manager'?actor.identityId:actor.uid,agentId:actor.agentId,role:actor.role}});
+    const result=await persistSubmission(db,{form,tenantId:ctx.tenant.id,uid:ctx.ownerUid,formSlug,submissionToken,values,captureMode:'staff',actor:{actorType:actor.role==='agent'?'agent':'user',actorId:actor.role==='agent'?String(actor.agentId):actor.role==='manager'?actor.identityId:actor.uid,agentId:actor.agentId,role:actor.role,selectedLeadId}});
     await db.commit();begun=false;return {...result,collectorRole:actor.role};
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
-module.exports={formInput,list,submissions,create,update,publish,publicForm,cleanSubmission,submitPublic,staffForm,submitStaff};
+module.exports={formInput,list,submissions,create,update,publish,publicForm,cleanSubmission,submitPublic,staffForm,searchStaffLeads,submitStaff};

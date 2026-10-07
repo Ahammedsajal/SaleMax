@@ -9,6 +9,7 @@
   const staffCapture = query.get('mode') === 'staff';
   const storageKey = `sx-form-token:${tenantSlug}:${formSlug}:${staffCapture ? 'staff' : 'public'}`;
   let data = null;
+  let selectedLead = null;
   let challengeToken = '';
   let turnstileWidgetId = null;
   let turnstileReady = null;
@@ -56,6 +57,7 @@
       ${staffCapture ? `<div class="capture-banner" role="status">${isRegistration ? tr('Staff capture · details clear after each registration', 'تسجيل الموظف · تُمسح البيانات بعد كل طلب تسجيل') : tr('Staff capture · details clear after each enquiry', 'تسجيل الموظف · تُمسح البيانات بعد كل استفسار')}</div>` : ''}
       <section class="form-card">${schema.templateKey==='procatalyst-registration-v1'?'':`<p class="eyebrow">${staffCapture ? tr('STAFF ENQUIRY CAPTURE', 'تسجيل استفسار بواسطة الموظف') : tr('TRAINING CENTER ENQUIRY', 'استفسار مركز التدريب')}</p><h1>${esc(isArabic ? schema.titleAr : schema.titleEn)}</h1>${(isArabic ? schema.descriptionAr : schema.descriptionEn) ? `<p class="description">${esc(isArabic ? schema.descriptionAr : schema.descriptionEn)}</p>` : ''}`}
       <div id="form-message" role="status" aria-live="polite"></div><form id="enquiry-form" novalidate autocomplete="off">
+      ${staffCapture ? `<section class="lead-prefill" aria-label="${tr('Find an existing lead','البحث عن عميل محتمل موجود')}"><label for="lead-search">${tr('Find existing lead by name, phone or email','ابحث عن عميل محتمل بالاسم أو الهاتف أو البريد الإلكتروني')}</label><input id="lead-search" type="search" autocomplete="off" placeholder="${tr('Type at least 2 characters','اكتب حرفين على الأقل')}"/><div id="lead-search-results" role="listbox" aria-live="polite"></div><p id="lead-selected" class="lead-selected" role="status"></p></section>` : ''}
       <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
       ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture, data.tenant) : schema.fields.filter(field => field.key !== 'consent').map(field => {
         const [labelEn, labelAr, type, autocomplete] = fields[field.key];
@@ -78,7 +80,35 @@
       root.querySelector('h1')?.focus();
     };
     root.querySelector('#enquiry-form').onsubmit = submit;
+    if(staffCapture) wireLeadSearch();
     if (!staffCapture && data.botChallenge) mountTurnstile();
+  }
+
+  function wireLeadSearch(){
+    const input=root.querySelector('#lead-search'),results=root.querySelector('#lead-search-results'),selected=root.querySelector('#lead-selected');
+    if(!input||!results)return;
+    if(selectedLead)selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}`);
+    let timer;
+    input.addEventListener('input',()=>{
+      clearTimeout(timer);selectedLead=null;selected.textContent='';
+      const term=input.value.trim();if(term.length<2){results.innerHTML='';return;}
+      results.innerHTML=`<p>${tr('Searching…','جارٍ البحث…')}</p>`;
+      timer=setTimeout(async()=>{
+        try{
+          const response=await fetch(`/api/pipeline/training-forms/${encodeURIComponent(formSlug)}/leads?search=${encodeURIComponent(term)}`,{cache:'no-store',credentials:'same-origin',headers:{Authorization:`Bearer ${actorToken()}`}});
+          const body=await response.json();if(!response.ok||!body.success)throw Error(body.code||'LOOKUP_FAILED');
+          if(!body.data.length){results.innerHTML=`<p>${tr('No matching leads found.','لم يتم العثور على عملاء محتملين مطابقين.')}</p>`;return;}
+          results.innerHTML=body.data.map(lead=>`<button type="button" class="lead-result" role="option" data-lead-id="${esc(lead.id)}"><strong>${esc(lead.contactName||lead.learnerName||tr('Unnamed lead','عميل محتمل بلا اسم'))}</strong><span>${[lead.phone,lead.email].filter(Boolean).map(esc).join(' · ')}</span></button>`).join('');
+          results.querySelectorAll('[data-lead-id]').forEach(button=>button.addEventListener('click',()=>{
+            selectedLead=body.data.find(lead=>lead.id===button.dataset.leadId)||null;if(!selectedLead)return;
+            const form=root.querySelector('#enquiry-form');const fill=(name,value)=>{const control=form.elements[name];if(control&&value!==null&&value!==undefined&&value!=='')control.value=value;};
+            fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);
+            selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. You can edit the form details.` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. يمكنك تعديل بيانات النموذج.`);
+            results.innerHTML='';input.value='';
+          }));
+        }catch{results.innerHTML=`<p class="error-message">${tr('Lead search is unavailable.','البحث عن العميل المحتمل غير متاح.')}</p>`;}
+      },250);
+    });
   }
 
   function mountTurnstile() {
@@ -160,7 +190,7 @@
       const control = form.elements[field.key];
       if (control?.value) values[field.key] = control.value.trim();
     }
-    const payload = { submissionToken: getSubmissionToken(), values };
+    const payload = { submissionToken: getSubmissionToken(), values, ...(staffCapture&&selectedLead?{selectedLeadId:selectedLead.id}:{}) };
     if (!staffCapture) payload.website = form.elements.website.value;
     if (!staffCapture && data.botChallenge) payload.challengeToken = challengeToken;
     button.disabled = true;
@@ -179,6 +209,7 @@
       try { body = await response.json(); } catch { throw Error('SERVER_ERROR'); }
       if (!response.ok || body.success !== true) throw Error(body.code || 'SUBMISSION_FAILED');
       sessionStorage.removeItem(storageKey);
+      selectedLead=null;
       const reference = esc(body.data.referenceCode);
       const isRegistration = data.form.schema.templateKey === 'procatalyst-registration-v1';
       const successHeading = isRegistration ? tr('Registration application received', 'تم استلام طلب التسجيل') : staffCapture ? tr('Enquiry saved', 'تم حفظ الاستفسار') : tr('Thank you, we’ll be in touch.', 'شكرًا لك، سنتواصل معك.');

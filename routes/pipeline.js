@@ -117,19 +117,32 @@ router.get('/training-forms/:formSlug', async (req,res) => {
   }
 });
 
+router.get('/training-forms/:formSlug/leads', async (req,res) => {
+  res.setHeader('Cache-Control','no-store');
+  try {
+    const data=await trainingForms.searchStaffLeads(require('../database/config.js').promise(),req.pipelineActor,req.query.search);
+    res.json({success:true,data});
+  } catch(error) {
+    const code=error.code||'STAFF_FORM_UNAVAILABLE';
+    const status=code==='PERMISSION_DENIED'?403:code==='SEARCH_TERM_TOO_SHORT'?400:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:500;
+    if(status>=500)console.error('Staff lead lookup failed:',code);
+    res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code});
+  }
+});
+
 router.post('/training-forms/:formSlug/submissions', async (req,res) => {
   res.setHeader('Cache-Control','no-store');
   const receivedOrigin=req.get('Origin')||'';const expectedOrigin=process.env.SALEMAX_PLATFORM_ORIGIN;
   let sameHost=false;try{sameHost=new URL(receivedOrigin).host.toLowerCase()===(req.get('host')||'').toLowerCase();}catch{}
   if(!receivedOrigin||(expectedOrigin?receivedOrigin!==expectedOrigin:!sameHost))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
-  if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
+  if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values','selectedLeadId'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
   if(Buffer.byteLength(JSON.stringify(req.body),'utf8')>16*1024)return res.status(413).json({success:false,code:'PAYLOAD_TOO_LARGE'});
   try {
     const data=await trainingForms.submitStaff(require('../database/config.js').promise(),req.pipelineActor,req.params.formSlug,req.body);
     res.status(data.repeated?200:201).json({success:true,data});
   } catch(error) {
     const code=error.code||'STAFF_FORM_UNAVAILABLE';
-    const status=code==='FORM_NOT_FOUND'?404:code==='PERMISSION_DENIED'?403:['INVALID_SUBMISSION','INVALID_PHONE','INVALID_EMAIL','INVALID_COURSE','INVALID_PREFERRED_DATE','REQUIRED_FIELD_MISSING','CONSENT_REQUIRED'].includes(code)?400:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:code==='BUSINESS_LINK_INVALID'?409:500;
+    const status=code==='FORM_NOT_FOUND'?404:code==='PERMISSION_DENIED'?403:['INVALID_SUBMISSION','INVALID_PHONE','INVALID_EMAIL','INVALID_COURSE','INVALID_PREFERRED_DATE','REQUIRED_FIELD_MISSING','CONSENT_REQUIRED'].includes(code)?400:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:code==='BUSINESS_LINK_INVALID'||code==='LEAD_NOT_ACCESSIBLE'?409:500;
     res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code});
   }
 });
