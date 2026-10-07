@@ -13,7 +13,9 @@
     const data=await response.json().catch(()=>({}));if(!response.ok||data.success===false||data.logout)throw Object.assign(new Error(data.code||'REQUEST_FAILED'),{code:data.code||'REQUEST_FAILED'});return data;
   }
   const style=document.createElement('style');style.textContent=`
+    .sx-pbx-sidebar-row{grid-column:1/-1!important;flex:0 0 100%!important;width:100%!important;min-width:0;box-sizing:border-box}
     .sx-pbx-nav{display:flex!important;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:10px 16px!important;border:0;border-radius:8px;background:transparent;color:inherit;text-decoration:none;text-align:start;font:500 14px Roboto,Arial,sans-serif;cursor:pointer}
+    .sx-pbx-nav-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 20px;width:20px;height:20px;color:#667085}.sx-pbx-nav-icon svg{width:18px;height:18px;fill:currentColor}.sx-pbx-nav-label{min-width:0}
     .sx-pbx-nav:hover{background:#fff2f6;color:#860030}.sx-pbx-page{position:fixed;z-index:1200;top:68px;right:0;bottom:0;left:72px;overflow:auto;background:#f4f6f9;color:#17212f;padding:24px;box-sizing:border-box;font:14px/1.5 Roboto,Arial,sans-serif}
     .sx-pbx-wrap{max-width:1040px;margin:0 auto}.sx-pbx-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}.sx-pbx-head h1{margin:0;font-size:26px}.sx-pbx-subtitle{color:#596579;margin:6px 0 20px}.sx-pbx-card{background:#fff;border:1px solid #e1e5eb;border-radius:12px;padding:22px;margin:14px 0;box-shadow:0 2px 8px #1822300b}.sx-pbx-card h2{font-size:18px;margin:0 0 14px}.sx-pbx-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sx-pbx-field{display:grid;gap:5px;font-weight:600}.sx-pbx-field input,.sx-pbx-field select{width:100%;min-height:40px;box-sizing:border-box;border:1px solid #cfd5dd;border-radius:7px;padding:8px 10px;font:14px Roboto,Arial,sans-serif}.sx-pbx-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.sx-pbx-actions button,.sx-pbx-user-btn{border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:7px;padding:9px 13px;font-weight:600;cursor:pointer}.sx-pbx-actions .primary{background:#a8003b;border-color:#a8003b;color:#fff}.sx-pbx-banner{border-radius:8px;background:#fff7e6;color:#8a4b08;padding:10px 12px;margin:10px 0}.sx-pbx-banner[data-kind=error]{background:#fff1f0;color:#b42318}.sx-pbx-banner[data-kind=success]{background:#ecfdf3;color:#027a48}.sx-pbx-help{color:#667085;font-size:12px}.sx-pbx-channel{display:grid;grid-template-columns:74px minmax(120px,1fr) minmax(150px,1.3fr) repeat(3,auto);gap:10px;align-items:center;border-top:1px solid #eaecf0;padding:12px 0}.sx-pbx-channel label{display:flex;gap:5px;align-items:center;font-size:12px}.sx-pbx-channel input[type=text],.sx-pbx-channel select{min-height:36px;min-width:0;box-sizing:border-box;padding:6px;border:1px solid #cfd5dd;border-radius:6px}.sx-pbx-edit{margin:8px 0 12px;padding:14px;background:#fff9fb;border:1px solid #ead4df;border-radius:10px}.sx-pbx-edit h3{margin:0 0 8px}.sx-pbx-edit [role=status]{margin:8px 0;color:#596579}.sx-pbx-user-btn{color:#860030;background:#fff2f6;border-color:#edbfd0}.sx-pbx-pill{display:inline-block;border-radius:999px;padding:3px 8px;background:#fff7e6;color:#8a4b08;font-size:11px}
     @media(max-width:760px){.sx-pbx-page{left:0;padding:14px}.sx-pbx-grid{grid-template-columns:1fr}.sx-pbx-channel{grid-template-columns:56px 1fr 1fr}.sx-pbx-channel label{grid-column:auto}.sx-pbx-head{display:block}}
@@ -26,11 +28,17 @@
     if(sidebarItems.some(item=>item.hasAttribute('data-sx-pbx-sidebar')))return;
     const userLink=sidebarItems.find(item=>['Manage Users','إدارة المستخدمين'].includes(item.textContent.trim()));
     if(!userLink)return;
-    const link=userLink.cloneNode(false);link.removeAttribute('id');link.dataset.sxPbxNav='';link.dataset.sxPbxSidebar='';link.classList.add('sx-pbx-nav');
+    const itemRow=userLink.closest('.MuiListItem-root')||userLink.parentElement;
+    if(!itemRow?.parentElement)return;
+    const row=itemRow.cloneNode(false);row.removeAttribute('id');row.removeAttribute('aria-label');row.classList.add('sx-pbx-sidebar-row');
+    const link=userLink.cloneNode(false);link.removeAttribute('id');link.removeAttribute('aria-current');link.removeAttribute('tabindex');link.classList.remove('Mui-selected');link.dataset.sxPbxNav='';link.dataset.sxPbxSidebar='';link.classList.add('sx-pbx-nav');
     if(link.tagName==='A')link.href='/admin?page=pbx-telephony';else{link.type='button';}
-    link.textContent=tr('PBX & Telephony','المقسم والاتصالات');link.setAttribute('aria-label',tr('PBX & Telephony','المقسم والاتصالات'));
+    const label=tr('PBX & Telephony','المقسم والاتصالات');
+    const icon=document.createElement('span');icon.className='sx-pbx-nav-icon';icon.setAttribute('aria-hidden','true');icon.innerHTML='<svg viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24c1.12.37 2.33.56 3.58.56.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.61 21 3 13.39 3 4c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.19 2.46.56 3.58.11.36.02.75-.24 1.01l-2.2 2.2Z"/></svg>';
+    const text=document.createElement('span');text.className='sx-pbx-nav-label';text.textContent=label;
+    link.replaceChildren(icon,text);link.setAttribute('aria-label',label);link.title=label;
     link.addEventListener('click',event=>{event.preventDefault();location.assign('/admin?page=pbx-telephony');});
-    userLink.insertAdjacentElement('afterend',link);
+    row.append(link);itemRow.insertAdjacentElement('afterend',row);
   }
   function platformPage(){
     const active=adminPage()&&new URLSearchParams(location.search).get('page')==='pbx-telephony';

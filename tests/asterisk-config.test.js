@@ -178,6 +178,8 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   assert.match(ui,/trigger\?\.remove\(\)/);
   assert.match(telephony,/PBX & Telephony/);
   assert.match(telephony,/pbx-telephony/);
+  assert.match(telephony,/itemRow\.insertAdjacentElement\('afterend',row\)/);
+  assert.match(telephony,/sx-pbx-sidebar-row/);
   assert.match(telephony,/data-sx-tenant-gateway/);
   assert.match(telephony,/business-gateway-statuses/);
   assert.match(telephony,/Needs attention/);
@@ -190,7 +192,7 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   assert.match(gatewayPorts,/module\.exports = \{[^}]*\blistQueues\b/);
   assert.match(migration,/CREATE TABLE sx_telephony_gateways/);
   assert.match(migration,/PRIMARY KEY \(tenant_id,gateway_id,channel_no\)/);
-  assert.match(index,/admin-telephony\.js\?v=20261006-tenant-pbx5/);
+  assert.match(index,/admin-telephony\.js\?v=20261007-sidebar-row1/);
   assert.match(ui,/VERIFIED_ADMIN_LINK_REQUIRED:tr\(/);
 });
 
