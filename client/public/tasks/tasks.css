@@ -9,3 +9,43 @@
 [hidden]{display:none!important}
 
 .session-login-link{display:inline-block;margin-inline-start:6px;color:#9b2443;font-weight:600;text-decoration:underline}.session-login-link:focus-visible{outline:2px solid #9b2443;outline-offset:2px}
+
+/* Tasks stays inside the existing /user shell. Use the available workspace
+   width and keep session recovery visually distinct from queue content. */
+.app{width:100%;max-width:1500px;padding:24px 30px 34px}
+.app>header{align-items:flex-end;padding-bottom:4px}
+.app>header>div{min-width:0}
+.app>header small{font-size:10px;letter-spacing:.12em}
+.app>header h1{font-size:30px;line-height:1.2;letter-spacing:-.025em;margin:5px 0 7px}
+.app>header p{font-size:14px;color:#667386}
+.app>header .primary{min-height:42px;padding-inline:18px;white-space:nowrap;box-shadow:0 3px 8px #a8003b20}
+.app nav{gap:10px;margin:24px 0 16px;padding:12px;background:#fff;border:1px solid #e3e8ef;border-radius:12px;box-shadow:0 2px 8px #18283a06}
+.filters{gap:5px}
+.filters button{padding:9px 15px;font-weight:600;border-color:transparent;background:transparent;color:#586578}
+.filters button:hover{background:#f7f8fa}
+.filters button.active{border-color:#f0c4d2;background:#fff5f8;color:#a8003b}
+.app nav select,#refresh{min-height:39px}
+#refresh{font-weight:600}
+#notificationPrefs{min-height:39px}
+#notice:has(.session-login-link){position:relative;display:block;margin:12px 0 18px;padding:18px 132px 18px 66px;min-height:78px;border:1px solid #f0c4d2;border-radius:12px;background:linear-gradient(105deg,#fff3f6 0%,#fff9fa 100%);color:#8d1939!important;font-weight:600;line-height:1.55;box-shadow:0 3px 12px #a8003b08}
+#notice:has(.session-login-link)::before{content:"!";position:absolute;inset-inline-start:19px;top:19px;width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#f9dce5;color:#a8003b;font-size:19px;font-weight:800}
+.session-login-link{position:absolute;inset-inline-end:18px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:0;padding:0 17px;border:1px solid #bd315b;border-radius:8px;background:#fff;color:#99153e;text-decoration:none;font-weight:700;white-space:nowrap}
+.session-login-link:hover{background:#fff5f8}
+#notice:has(.session-login-link)+.task-list{opacity:.48;filter:saturate(.55);pointer-events:none}
+.app:has(#notice .session-login-link) .pagination{display:none}
+.task-list{gap:0;overflow:hidden;border:1px solid #e0e5ec;border-radius:12px;background:#fff;box-shadow:0 3px 12px #18283a07}
+.task{min-height:76px;padding:14px 18px;border:0;border-bottom:1px solid #edf0f4;border-radius:0;background:#fff;grid-template-columns:minmax(0,1fr) auto;gap:18px;transition:background .15s ease,box-shadow .15s ease}
+.task:last-child{border-bottom:0}
+.task:hover{position:relative;border-color:#edf0f4;background:#fffafd;box-shadow:inset 3px 0 #a8003b18}
+.task h3{font-size:15px;font-weight:650;letter-spacing:-.01em;color:#202a39}
+.meta{align-items:center;gap:7px 10px;font-size:12px;color:#647184}
+.badge{padding:3px 9px;border:1px solid #e9edf2;border-radius:999px;background:#f7f8fa;color:#475467;font-weight:600}
+.badge.urgent,.badge.overdue{border-color:#f5ced3;background:#fff0f2;color:#a12337}
+.badge.unread{border-color:#a8003b;background:#a8003b;color:#fff}
+.task-controls .quiet{min-width:66px;padding:8px 12px;font-weight:600}
+.empty{min-height:205px;display:grid;place-content:center;justify-items:center;gap:8px;padding:32px;background:#fff;border:0;color:#647184}
+.empty::before{content:"✓";display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:#f7edf1;color:#a8003b;font-size:22px;font-weight:700}
+.pagination{margin:16px 0 0;color:#647184;font-size:13px}
+.pagination button{min-height:36px}
+@media(max-width:900px){.app{padding:20px 18px 28px}.app nav{flex-wrap:wrap}.filters{flex-basis:100%}.task{padding:13px 14px}}
+@media(max-width:600px){.app{padding:16px 12px 24px}.app>header{align-items:flex-start;flex-direction:column}.app>header .primary{align-self:stretch}.app nav{padding:9px}.filters button{flex:1;padding-inline:9px}.app nav select{flex:1;min-width:130px}.task{grid-template-columns:minmax(0,1fr);gap:10px}.task-controls{justify-content:flex-end}.meta{gap:6px}.task-list{border-radius:10px}#notice:has(.session-login-link){padding:16px 16px 68px 56px}#notice:has(.session-login-link)::before{inset-inline-start:13px;top:15px;width:30px;height:30px}.session-login-link{inset-inline-start:auto;inset-inline-end:14px;top:auto;bottom:13px;transform:none}}
