@@ -12,7 +12,7 @@
 
 /* Tasks stays inside the existing /user shell. Use the available workspace
    width and keep session recovery visually distinct from queue content. */
-.app{width:100%;max-width:1500px;padding:24px 30px 34px}
+.app{width:100%;max-width:none;margin:0;padding:24px 30px 34px}
 .app>header{align-items:flex-end;padding-bottom:4px}
 .app>header>div{min-width:0}
 .app>header small{font-size:10px;letter-spacing:.12em}
