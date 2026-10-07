@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Tasks workspace layout and shared session handling — production, 7 October 2026
+
+The existing `/user?page=tasks` screen now uses the available content width, keeps the existing SaleMaX shell/sidebar, presents queue rows with clearer hierarchy, and shows expired-session recovery in a prominent bilingual alert. A small Tasks-only fetch hook reads the current `wacrm_user` token for each same-origin pipeline request, so the iframe does not keep reusing a token captured when it first loaded. It uses the existing business account and `/user/login`; no separate Tasks login or setup was added. Source commits `5702c40` and `654ee36` are pushed. Production release `/opt/salemax/releases/tasks-session-654ee36` is active; release, rollback and verification details are in `DEPLOYMENT.md`.
+
+Focused task/notification/actor/session tests pass 37/37; the new session-hook tests verify token refresh and same-origin request scope. Production app/database health is good, the three task assets match across source, release, running container and served URLs, and the updated layout is visible in the existing business shell. The current browser still receives HTTP 401 because its existing business token is expired. No authentication bypass was introduced, no migration or task/customer write occurred, and the app/database containers were not restarted. Authenticated task CRUD/assignment/chat, role and Arabic acceptance still require the normal business sign-in to refresh that expired session. SMTP and an approved WhatsApp template remain unconfigured, so delivery is not verified.
+
 ## Inbox chatbot number control layout — production, 6 October 2026
 
 The existing per-conversation chatbot number selector is compact in the desktop chat header. On mobile, users open Bot details under Chat info; the selector expands in the conversation flow and pushes messages down instead of covering them. Production release `/opt/salemax/releases/inbox-bot-header-flow-0e66fad` is active. The existing generated shell and sidebar icon update were preserved. Release hashes, rollback reference and verification evidence are recorded in `DEPLOYMENT.md`.
