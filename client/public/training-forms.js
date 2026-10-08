@@ -16,7 +16,7 @@
     root.style.setProperty('--sx-forms-top-inset',`${Math.ceil(barHeight)}px`);
     // Only persistent drawers consume workspace width. Temporary mobile drawers
     // overlay the page and must not create a second inset when opened.
-    const drawers=[...document.querySelectorAll('.MuiDrawer-paper')].map(drawer=>({drawer,rect:drawer.getBoundingClientRect(),style:getComputedStyle(drawer),docked:Boolean(drawer.closest('.MuiDrawer-docked'))})).filter(item=>item.docked&&item.style.display!=='none'&&item.style.visibility!=='hidden'&&item.rect.width>0&&(item.rect.left<=12||item.rect.right>=window.innerWidth-12)).sort((a,b)=>b.rect.width-a.rect.width);
+    const drawers=[...document.querySelectorAll('.MuiDrawer-paper')].map(drawer=>({drawer,rect:drawer.getBoundingClientRect(),style:getComputedStyle(drawer),docked:Boolean(drawer.closest('.MuiDrawer-docked')||drawer.classList.contains('MuiDrawer-paperAnchorDockedLeft')||drawer.classList.contains('MuiDrawer-paperAnchorDockedRight'))})).filter(item=>item.docked&&item.style.display!=='none'&&item.style.visibility!=='hidden'&&item.rect.width>0&&(item.rect.left<=12||item.rect.right>=window.innerWidth-12)).sort((a,b)=>b.rect.width-a.rect.width);
     const current=drawers[0],onLeft=current&&current.rect.left<=12,onRight=current&&current.rect.right>=window.innerWidth-12;
     root.style.setProperty('--sx-forms-left-inset',onLeft?`${Math.round(current.rect.width)}px`:'0px');
     root.style.setProperty('--sx-forms-right-inset',onRight&&!onLeft?`${Math.round(current.rect.width)}px`:'0px');
@@ -43,7 +43,7 @@
   function addStaffCaptureLinks(){document.querySelectorAll('#sx-forms-screen .sx-form-row').forEach(row=>{const published=row.querySelector('a.sx-form-link[href^="/p/"]');if(!published||row.dataset.staffCaptureLinks==='1')return;row.dataset.staffCaptureLinks='1';const staffUrl=new URL(published.getAttribute('href'),location.origin);staffUrl.searchParams.set('mode','staff');const open=document.createElement('a');open.className='sx-form-link';open.href=staffUrl.pathname+staffUrl.search;open.target='_blank';open.rel='noopener';open.textContent=tr('Staff capture','تسجيل الموظف');open.setAttribute('aria-label',tr('Open staff capture form','فتح نموذج تسجيل الموظف'));const copy=document.createElement('button');copy.type='button';copy.className='sx-form-staff-copy';copy.textContent=tr('Copy staff link','نسخ رابط الموظف');copy.onclick=async()=>{try{await navigator.clipboard.writeText(staffUrl.href);copy.textContent=tr('Copied','تم النسخ');}catch{window.prompt(tr('Copy this staff capture link','انسخ رابط تسجيل الموظف'),staffUrl.href);}};row.append(open,copy);});}
   function start(){setNav();if(active())load();}
   sidebarResizeObserver=new ResizeObserver(()=>syncScreenBounds());
-  new MutationObserver(()=>{setNav();if(active()){if(!document.getElementById('sx-forms-screen'))load();else syncScreenBounds();}else document.getElementById('sx-forms-screen')?.remove();}).observe(document.documentElement,{subtree:true,childList:true});
+  new MutationObserver(()=>{setNav();if(active()){if(!document.getElementById('sx-forms-screen'))load();else syncScreenBounds();}else document.getElementById('sx-forms-screen')?.remove();}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-hidden']});
   new MutationObserver(addStaffCaptureLinks).observe(document.documentElement,{subtree:true,childList:true});
   window.addEventListener('popstate',start);window.addEventListener('resize',()=>syncScreenBounds());setTimeout(start,200);
 })();
