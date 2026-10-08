@@ -986,7 +986,7 @@ Reviewed the existing Pro Catalyst course-enquiry page at 390×844 and 768×1024
 
 ## Current source regression check — 8 October 2026
 
-The current checkout passes `npm test` 356/356. The business-contract integration source also contains assertions for two approved sales racing to reserve a one-seat batch and for a later offer version leaving an issued invoice line's version and amounts unchanged. A fresh migration-integration rerun could not start because `LOCAL_ONLY_MODE` and loopback database settings are not configured in this checkout; it exited at the runner's `LOCAL_DATABASE_ONLY` guard before connecting or creating a database. This is not new MariaDB integration evidence. Authenticated production sale approval/conversion and accountant acceptance remain open.
+The current checkout passes `npm test` 356/356. A fresh isolated MariaDB 11.4.13 run applied and replay-checked all 68 forward migrations and passed the composed synthetic business-contract integrations. The returned evidence includes `publicSubmissionTokenIdempotency`, `publicRetryPreservesOriginalAttribution`, `multipleFormSubmissionsLinkToOneLead`, `batchCapacityConcurrentConversionsSerialized`, `invoiceOfferSnapshotRemainsHistorical`, `saleConversionConcurrentRetrySingleInvoice`, `nonparticipantDirectRoutesDenied`, and tenant-scoped finance, Tasks, reports and chatbot checks. It reported `customerDataTouched:false` and `externalWrites:false`; the temporary database, user and server were removed after the run. No production data was changed. Authenticated production role workflows, owner sale approval/conversion, accountant acceptance and real provider/PBX delivery remain open.
 
 ## Scheduled report snapshots enabled in production — 8 October 2026
 
