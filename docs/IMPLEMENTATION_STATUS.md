@@ -969,3 +969,7 @@ The authenticated Pro Catalyst owner created and reopened synthetic draft `QA-AC
 ## Public enquiry form phone layout — production acceptance, 8 October 2026
 
 Reviewed the existing Pro Catalyst course-enquiry page at a 390px viewport in English and Arabic. Both render without document-level horizontal overflow; Arabic uses RTL direction and localized labels, consent text, and submit action. This was read-only review: no form was submitted and no customer record was created. Authenticated owner sale review and conversion remain separate acceptance gates.
+
+## Scheduled report snapshots enabled in production — 8 October 2026
+
+The existing report-runner now runs as a dedicated production worker using the active SaleMaX image and a database-health dependency. Source commit `ef8b0f27b9783f29b86d3920716b03b989c11392` is deployed in `/opt/salemax/releases/report-worker-ef8b0f2-20261008`. The worker is live with zero restarts and reports a database connection; `/healthz` returns 200. Production currently has no report schedules or report runs, so no report snapshot or external delivery was created. No migration, customer-data change, or provider action occurred. Schedule generation with a synthetic active schedule, authenticated owner review, recipient verification, and email/WhatsApp delivery remain open. Full release and rollback evidence is in `DEPLOYMENT.md`.
