@@ -948,3 +948,10 @@ The existing submitted-applications table now becomes stacked application cards 
 ## Lead-linked task end-to-end and mobile detail acceptance — production, 8 October 2026
 
 In the authenticated owner session, opened the synthetic pipeline opportunity `SALEMAX QA COURSE OPPORTUNITY 20261008D` and created task `SALEMAX QA FOLLOW-UP LINK 20261008E` from its lead drawer. The task was assigned to Pro Catalyst; its team queue row names the same linked contact, and opening task details expands the linked lead with its opportunity, learner, contact data and a `task_created` activity. The task remains Open as a QA fixture. Email and WhatsApp delivery are unavailable and no provider send occurred. The 355px task detail view initially overflowed horizontally when displaying activity JSON; after source commit `871fd1493c151bbe29f0e3619e68cbf38474b84a` and production release, the same task and expanded lead fit the viewport with wrapped content and vertical scrolling. Release and rollback evidence are in `DEPLOYMENT.md` under “Tasks detail mobile overflow”.
+
+
+## 8 October 2026 — public enquiry consent and attribution acceptance
+
+The existing Forms editor now presents the generic enquiry consent field as “Consent to contact” in English and “موافقة التواصل” in Arabic. Student registration keeps its agreement label, selected by its stable `student-registration` slug. Production static release `forms-consent-3e05883-20261008` is active and recorded in `DEPLOYMENT.md`; no migration or service restart was needed.
+
+In the Pro Catalyst tenant, the existing screen published the bilingual `course-enquiry` form. A synthetic public submission with campaign parameters appeared in Candidate Applications, linked to its lead, and retained source, medium, campaign, and landing-page attribution. Reference: `12C702690110`; lead: `42486758-e6e4-4094-b5e2-93d0fbf6370d`. Provider delivery and the wider upgrade matrix remain unverified/open.
