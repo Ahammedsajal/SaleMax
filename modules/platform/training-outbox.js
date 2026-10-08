@@ -32,19 +32,19 @@ async function claim(db,ctx,{workerId,limit=10,leaseSeconds=60,eventTypes}={}){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 async function finish(db,ctx,{eventId,workerId,leaseVersion,outcome,errorCode,maxAttempts=8}={}){
-  authorize(ctx);if(!uuid(eventId)||typeof workerId!=='string'||!/^[A-Za-z0-9._:-]{3,100}$/.test(workerId)||!Number.isSafeInteger(leaseVersion)||leaseVersion<1||!['delivered','retry'].includes(outcome)||!Number.isSafeInteger(maxAttempts)||maxAttempts<1||maxAttempts>20||(outcome==='retry'&&(typeof errorCode!=='string'||!/^[A-Z0-9_]{2,100}$/.test(errorCode))))fail('INVALID_OUTBOX_RESULT');
+  authorize(ctx);if(!uuid(eventId)||typeof workerId!=='string'||!/^[A-Za-z0-9._:-]{3,100}$/.test(workerId)||!Number.isSafeInteger(leaseVersion)||leaseVersion<1||!['delivered','retry','suppressed'].includes(outcome)||!Number.isSafeInteger(maxAttempts)||maxAttempts<1||maxAttempts>20||(outcome==='retry'&&(typeof errorCode!=='string'||!/^[A-Z0-9_]{2,100}$/.test(errorCode)))||(outcome==='suppressed'&&(typeof errorCode!=='string'||!/^[A-Z0-9_]{2,100}$/.test(errorCode))))fail('INVALID_OUTBOX_RESULT');
   await db.beginTransaction();try{
     const [[row]]=await db.query('SELECT attempts,status,lease_owner,lease_version,(lease_expires_at>UTC_TIMESTAMP(3)) AS lease_valid FROM sx_training_outbox_events WHERE tenant_id=? AND id=? FOR UPDATE',[ctx.tenant.id,eventId]);if(!row)fail('OUTBOX_EVENT_NOT_FOUND');if(row.status==='delivered'&&outcome==='delivered'&&Number(row.lease_version)===leaseVersion){await db.commit();return {eventId,status:'delivered',repeated:true};}if(row.status!=='leased'||row.lease_owner!==workerId||Number(row.lease_version)!==leaseVersion||Number(row.lease_valid)!==1)fail('OUTBOX_LEASE_REQUIRED');
     const attempt=Number(row.attempts),dead=outcome==='retry'&&attempt>=maxAttempts;
-    if(outcome==='delivered'){
-      await db.query("UPDATE sx_training_outbox_events SET status='delivered',lease_owner=NULL,lease_expires_at=NULL,last_error_code=NULL,delivered_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=?",[ctx.tenant.id,eventId]);
-      await db.query("UPDATE sx_training_outbox_attempts SET outcome='delivered',finished_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND event_id=? AND attempt_number=? AND lease_version=? AND worker_id=? AND outcome='leased'",[ctx.tenant.id,eventId,attempt,leaseVersion,workerId]);
+    if(outcome==='delivered'||outcome==='suppressed'){
+      await db.query("UPDATE sx_training_outbox_events SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error_code=?,delivered_at=IF(?='delivered',UTC_TIMESTAMP(3),NULL) WHERE tenant_id=? AND id=?",[outcome,outcome==='suppressed'?errorCode:null,outcome,ctx.tenant.id,eventId]);
+      await db.query("UPDATE sx_training_outbox_attempts SET outcome=?,error_code=?,finished_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND event_id=? AND attempt_number=? AND lease_version=? AND worker_id=? AND outcome='leased'",[outcome,outcome==='suppressed'?errorCode:null,ctx.tenant.id,eventId,attempt,leaseVersion,workerId]);
     }else{
       const delaySeconds=Math.min(3600,15*Math.pow(2,Math.min(attempt-1,8)));
       await db.query(`UPDATE sx_training_outbox_events SET status=?,available_at=IF(?='dead',available_at,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND)),lease_owner=NULL,lease_expires_at=NULL,last_error_code=? WHERE tenant_id=? AND id=?`,[dead?'dead':'ready',dead?'dead':'ready',delaySeconds,errorCode,ctx.tenant.id,eventId]);
       await db.query('UPDATE sx_training_outbox_attempts SET outcome=?,error_code=?,finished_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND event_id=? AND attempt_number=? AND lease_version=? AND worker_id=? AND outcome=\'leased\'',[dead?'dead':'retry',errorCode,ctx.tenant.id,eventId,attempt,leaseVersion,workerId]);
     }
-    await db.commit();return {eventId,status:outcome==='delivered'?'delivered':dead?'dead':'ready',attempt,retryInSeconds:outcome==='retry'&&!dead?Math.min(3600,15*Math.pow(2,Math.min(attempt-1,8))):null,externalDispatch:false};
+    await db.commit();return {eventId,status:outcome==='delivered'?'delivered':outcome==='suppressed'?'suppressed':dead?'dead':'ready',attempt,retryInSeconds:outcome==='retry'&&!dead?Math.min(3600,15*Math.pow(2,Math.min(attempt-1,8))):null,externalDispatch:false};
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 module.exports={normalizeEvent,enqueue,claim,finish};

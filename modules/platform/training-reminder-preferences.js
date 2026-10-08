@@ -1,0 +1,38 @@
+'use strict';
+const crypto=require('node:crypto');
+const access=require('./policy');
+const fail=code=>{const status=code==='PERMISSION_DENIED'?403:code==='INVOICE_NOT_FOUND'?404:400;throw Object.assign(new Error(code),{code,status});};
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CONSENT_VERSION='installment-reminders-v1';
+function digest(value){return crypto.createHash('sha256').update(value).digest('hex');}
+function tokenHash(token){if(typeof token!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(token))fail('REMINDER_LINK_UNAVAILABLE');const raw=Buffer.from(token,'base64url');if(raw.length!==32||raw.toString('base64url')!==token)fail('REMINDER_LINK_UNAVAILABLE');return digest(raw);}
+function key(env=process.env){const encoded=env.SALEMAX_PLATFORM_KEY_BASE64;if(typeof encoded!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(encoded))fail('REMINDER_LINK_KEY_UNAVAILABLE');const value=Buffer.from(encoded,'base64');if(value.length!==32||value.toString('base64')!==encoded)fail('REMINDER_LINK_KEY_UNAVAILABLE');return value;}
+function encryptToken(token,env=process.env){const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',key(env),iv),ciphertext=Buffer.concat([cipher.update(token,'utf8'),cipher.final()]);return {tokenHash:tokenHash(token),ciphertext,iv,tag:cipher.getAuthTag()};}
+function decryptToken(row,env=process.env){try{const decipher=crypto.createDecipheriv('aes-256-gcm',key(env),Buffer.from(row.token_iv));decipher.setAuthTag(Buffer.from(row.token_tag));const token=Buffer.concat([decipher.update(Buffer.from(row.token_ciphertext)),decipher.final()]).toString('utf8');if(!crypto.timingSafeEqual(Buffer.from(tokenHash(token),'hex'),Buffer.from(row.token_hash,'hex')))fail('REMINDER_LINK_UNAVAILABLE');return token;}catch{fail('REMINDER_LINK_UNAVAILABLE');}}
+function permitted(ctx){if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.categoryKey!=='training_center'||ctx.tenant.status!=='active'||ctx.membership?.status!=='active'||ctx.membership.tenantId!==ctx.tenant.id)fail('TENANT_CONTEXT_REQUIRED');const result=access.decision(ctx,{capability:'finance.invoices',permission:'invoices.read'});if(!result.allowed)fail(result.code);if(!['owner','accountant'].includes(ctx.membership.role)||!ctx.identity?.id)fail('PERMISSION_DENIED');}
+function maskEmail(value){const email=String(value||''),at=email.lastIndexOf('@');if(at<1||at===email.length-1)return null;return `${email[0]}•••@${email.slice(at+1)}`;}
+async function issue(db,ctx,invoiceId,{origin,env=process.env}={}){
+  permitted(ctx);if(typeof invoiceId!=='string'||!UUID.test(invoiceId))fail('INVALID_INVOICE_ID');let baseOrigin;try{baseOrigin=new URL(origin).origin;}catch{fail('REMINDER_LINK_UNAVAILABLE');}
+  const token=crypto.randomBytes(32).toString('base64url'),sealed=encryptToken(token,env),id=crypto.randomUUID();await db.beginTransaction();
+  try{const [[invoice]]=await db.query("SELECT id,invoice_email FROM sx_training_invoices WHERE tenant_id=? AND id=? AND status='issued' FOR UPDATE",[ctx.tenant.id,invoiceId]);if(!invoice)fail('INVOICE_NOT_FOUND');if(!String(invoice.invoice_email||'').trim())fail('REMINDER_RECIPIENT_UNAVAILABLE');const recipientHash=digest(String(invoice.invoice_email).trim().toLowerCase());const [[existing]]=await db.query('SELECT id,status,recipient_hash FROM sx_training_reminder_preferences WHERE tenant_id=? AND invoice_id=? FOR UPDATE',[ctx.tenant.id,invoiceId]);const consentReset=Boolean(existing&&existing.recipient_hash!==recipientHash);if(existing)await db.query('UPDATE sx_training_reminder_preferences SET token_hash=?,token_ciphertext=?,token_iv=?,token_tag=?,recipient_hash=?,status=?,consent_version=IF(?,NULL,consent_version),consented_at=IF(?,NULL,consented_at),opted_out_at=IF(?,NULL,opted_out_at) WHERE tenant_id=? AND invoice_id=?',[sealed.tokenHash,sealed.ciphertext,sealed.iv,sealed.tag,recipientHash,consentReset?'pending':existing.status,consentReset?1:0,consentReset?1:0,consentReset?1:0,ctx.tenant.id,invoiceId]);else await db.query(`INSERT INTO sx_training_reminder_preferences(id,tenant_id,invoice_id,token_hash,token_ciphertext,token_iv,token_tag,recipient_hash,status) VALUES(?,?,?,?,?,?,?,?,'pending')`,[id,ctx.tenant.id,invoiceId,sealed.tokenHash,sealed.ciphertext,sealed.iv,sealed.tag,recipientHash]);const pref=existing?{...existing,status:consentReset?'pending':existing.status}:{id,status:'pending'};await db.query("INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES(?,?,?,'identity','training.installment-reminder-link-issued','invoice',?,?,?)",[crypto.randomUUID(),ctx.tenant.id,ctx.identity.id,invoiceId,JSON.stringify({recipientMasked:maskEmail(invoice.invoice_email),status:pref.status,consentReset}),pref.id]);await db.commit();return {url:`${baseOrigin}/customer-reminders#${token}`,recipient:maskEmail(invoice.invoice_email),status:pref.status};}
+  catch(error){try{await db.rollback();}catch{}throw error;}
+}
+async function resolve(db,token){const hash=tokenHash(token),[[row]]=await db.query(`SELECT p.status,p.consent_version,p.consented_at,p.opted_out_at,i.invoice_number,i.invoice_email,t.category_key FROM sx_training_reminder_preferences p JOIN sx_training_invoices i ON i.tenant_id=p.tenant_id AND i.id=p.invoice_id AND i.status='issued' JOIN sx_tenants t ON t.id=p.tenant_id AND t.status='active' WHERE p.token_hash=?`,[hash]);if(!row||row.category_key!=='training_center')fail('REMINDER_LINK_UNAVAILABLE');return {status:row.status,invoiceNumber:row.invoice_number,recipient:maskEmail(row.invoice_email),consentVersion:row.consent_version};}
+async function update(db,token,optIn){
+  if(typeof optIn!=='boolean')fail('INVALID_REMINDER_PREFERENCE');
+  const hash=tokenHash(token),[[identity]]=await db.query('SELECT tenant_id,invoice_id FROM sx_training_reminder_preferences WHERE token_hash=?',[hash]);
+  if(!identity)fail('REMINDER_LINK_UNAVAILABLE');
+  await db.beginTransaction();
+  try{
+    const [[tenant]]=await db.query("SELECT id FROM sx_tenants WHERE id=? AND status='active' AND category_key='training_center' FOR UPDATE",[identity.tenant_id]);
+    const [[invoice]]=await db.query("SELECT id FROM sx_training_invoices WHERE tenant_id=? AND id=? AND status='issued' FOR UPDATE",[identity.tenant_id,identity.invoice_id]);
+    const [[row]]=await db.query('SELECT id,status FROM sx_training_reminder_preferences WHERE tenant_id=? AND invoice_id=? AND token_hash=? FOR UPDATE',[identity.tenant_id,identity.invoice_id,hash]);
+    if(!tenant||!invoice||!row)fail('REMINDER_LINK_UNAVAILABLE');
+    const status=optIn?'opted_in':'opted_out';
+    if(row.status===status){await db.commit();return {status};}
+    await db.query(`UPDATE sx_training_reminder_preferences SET status=?,consent_version=?,consented_at=IF(?=1,UTC_TIMESTAMP(3),NULL),opted_out_at=IF(?=1,NULL,UTC_TIMESTAMP(3)) WHERE tenant_id=? AND invoice_id=?`,[status,optIn?CONSENT_VERSION:null,optIn?1:0,optIn?1:0,identity.tenant_id,identity.invoice_id]);
+    await db.query("INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES(?,?,NULL,'system',?,'invoice',?,?,?)",[crypto.randomUUID(),identity.tenant_id,optIn?'training.installment-reminders-opted-in':'training.installment-reminders-opted-out',identity.invoice_id,JSON.stringify({status,consentVersion:optIn?CONSENT_VERSION:null}),row.id]);
+    await db.commit();return {status};
+  }catch(error){try{await db.rollback();}catch{}throw error;}
+}
+module.exports={CONSENT_VERSION,tokenHash,encryptToken,decryptToken,maskEmail,issue,resolve,update};

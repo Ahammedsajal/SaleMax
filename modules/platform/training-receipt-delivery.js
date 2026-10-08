@@ -3,7 +3,9 @@ const crypto=require('node:crypto');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const email=value=>typeof value==='string'&&value.trim().length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())?value.trim().toLowerCase():null;
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-function config(env=process.env){if(env.SALEMAX_RECEIPT_EMAIL_ENABLED!=='true')fail('RECEIPT_DELIVERY_DISABLED');const host=String(env.SALEMAX_SMTP_HOST||'').trim(),port=Number(env.SALEMAX_SMTP_PORT),user=String(env.SALEMAX_SMTP_USER||''),pass=String(env.SALEMAX_SMTP_PASS||''),from=email(env.SALEMAX_RECEIPT_FROM);if(!host||host.length>253||!Number.isInteger(port)||port<1||port>65535||!user||user.length>254||!pass||!from)fail('RECEIPT_SMTP_NOT_CONFIGURED');return {host,port,secure:env.SALEMAX_SMTP_SECURE==='true',auth:{user,pass},from};}
+function smtpConfig(env=process.env){const host=String(env.SALEMAX_SMTP_HOST||'').trim(),port=Number(env.SALEMAX_SMTP_PORT),user=String(env.SALEMAX_SMTP_USER||''),pass=String(env.SALEMAX_SMTP_PASS||''),from=email(env.SALEMAX_TRAINING_EMAIL_FROM||env.SALEMAX_RECEIPT_FROM);if(!host||host.length>253||!Number.isInteger(port)||port<1||port>65535||!user||user.length>254||!pass||!from)fail('RECEIPT_SMTP_NOT_CONFIGURED');return {host,port,secure:env.SALEMAX_SMTP_SECURE==='true',auth:{user,pass},from};}
+function config(env=process.env){if(env.SALEMAX_RECEIPT_EMAIL_ENABLED!=='true')fail('RECEIPT_DELIVERY_DISABLED');return smtpConfig(env);}
+function reminderEmailEnabled(env=process.env){if(env.SALEMAX_INSTALLMENT_REMINDER_EMAIL_ENABLED!=='true')return false;const encoded=env.SALEMAX_PLATFORM_KEY_BASE64;if(typeof encoded!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(encoded)||Buffer.from(encoded,'base64').length!==32||Buffer.from(encoded,'base64').toString('base64')!==encoded)return false;try{smtpConfig(env);return true;}catch{return false;}}
 function enabled(env=process.env){try{config(env);return true;}catch{return false;}}
 async function statuses(db,tenantId,receiptIds,{env=process.env}={}){
   const ids=[...new Set((receiptIds||[]).filter(value=>typeof value==='string'&&value))],result=new Map();if(!ids.length)return result;
@@ -29,4 +31,4 @@ async function sendPending(db,{tenantId,receiptId,workerId,transport,from,now=ne
     catch(error){const code=/^SMTP_[A-Z_]+$/.test(error.code||'')?error.code:'SMTP_DELIVERY_FAILED',attempt=Number(row.attempts)+1,dead=attempt>=8,delay=Math.min(3600,15*2**Math.min(attempt-1,8));await db.query(`UPDATE sx_training_receipt_deliveries SET status=?,available_at=IF(?='dead',available_at,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND)),lease_owner=NULL,lease_expires_at=NULL,last_error_code=? WHERE tenant_id=? AND id=? AND status='sending' AND lease_owner=?`,[dead?'dead':'ready',dead?'dead':'ready',delay,code,tenantId,row.id,workerId]);if(!dead)retryPending=true;}
   }
 }
-module.exports={config,enabled,statuses,recipients,message,accepted,sendPending};
+module.exports={smtpConfig,config,reminderEmailEnabled,enabled,statuses,recipients,message,accepted,sendPending};
