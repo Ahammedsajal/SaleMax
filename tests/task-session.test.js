@@ -55,6 +55,43 @@ test('Tasks uses the existing HttpOnly business session and CSRF token when it i
   assert.equal(taskCall.init.credentials,'same-origin');
 });
 
+test('parallel Tasks requests wait for one canonical session probe before choosing their API', async () => {
+  const calls = [];
+  let resolveSession;
+  const sessionResponse = new Promise(resolve => { resolveSession = resolve; });
+  const window = { fetch: async (input, init) => {
+    calls.push({ input, init });
+    if (String(input).includes('/api/user/business-auth/me')) return sessionResponse;
+    return { ok: true };
+  } };
+  const context = {
+    window,
+    localStorage: { getItem: () => 'legacy-token' },
+    location: { href: 'https://crm.salemax.qa/tasks/', origin: 'https://crm.salemax.qa' },
+    URL,
+    Headers,
+    Request,
+  };
+  vm.runInNewContext(source, context, { filename: 'tasks-session.js' });
+
+  const requests = [
+    window.fetch('/api/pipeline/tasks'),
+    window.fetch('/api/pipeline/tasks/participants'),
+    window.fetch('/api/pipeline/board?limit=100'),
+  ];
+  await Promise.resolve();
+  resolveSession({ ok: true, json: async () => ({ context: { audience: 'tenant' }, csrfToken: 'csrf-proof' }) });
+  await Promise.all(requests);
+
+  assert.equal(calls.filter(call => String(call.input).includes('/api/user/business-auth/me')).length, 1);
+  assert.deepEqual(
+    calls.filter(call => String(call.input).includes('/api/user/training/tasks')).map(call => new URL(String(call.input)).pathname),
+    ['/api/user/training/tasks', '/api/user/training/tasks/participants'],
+  );
+  assert.equal(calls.some(call => String(call.input).includes('/api/pipeline/board')), true);
+  assert.equal(calls.filter(call => String(call.input).includes('/api/pipeline/tasks/participants')).length, 0);
+});
+
 test('Tasks does not rewrite authorization for requests outside its same-origin pipeline API', async () => {
   const calls = [];
   const window = {

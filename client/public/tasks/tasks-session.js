@@ -5,6 +5,7 @@
   let canonicalSession = null;
   let canonicalCheckedAt = 0;
   let canonicalChecked = false;
+  let canonicalSessionPromise = null;
 
   // The business shell guards /user/login by checking whether wacrm_user is
   // present, not whether it is still valid. A stale token therefore bounces
@@ -23,21 +24,32 @@
   }
 
   async function getCanonicalSession() {
+    // Tasks starts the queue, participant and board requests at the same time.
+    // Share the first session probe so the other requests don't fall back to
+    // the legacy API while the canonical check is still in flight.
+    if (canonicalSessionPromise) return canonicalSessionPromise;
     if (canonicalChecked && Date.now() - canonicalCheckedAt < 30000) return canonicalSession;
     canonicalCheckedAt = Date.now();
     canonicalChecked = true;
+    canonicalSessionPromise = (async () => {
+      try {
+        const response = await originalFetch('/api/user/business-auth/me', {
+          credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' },
+        });
+        const result = response.ok ? await response.json() : null;
+        canonicalSession = result?.context?.audience === 'tenant' && typeof result.csrfToken === 'string'
+          ? { csrfToken: result.csrfToken }
+          : null;
+      } catch (_) {
+        canonicalSession = null;
+      }
+      return canonicalSession;
+    })();
     try {
-      const response = await originalFetch('/api/user/business-auth/me', {
-        credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' },
-      });
-      const result = response.ok ? await response.json() : null;
-      canonicalSession = result?.context?.audience === 'tenant' && typeof result.csrfToken === 'string'
-        ? { csrfToken: result.csrfToken }
-        : null;
-    } catch (_) {
-      canonicalSession = null;
+      return await canonicalSessionPromise;
+    } finally {
+      canonicalSessionPromise = null;
     }
-    return canonicalSession;
   }
 
   window.fetch = async (input, init = {}) => {
