@@ -302,6 +302,16 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   assert.equal(await leadPipeline.getLead(uid,unassignedLead,{role:'agent',agentId:Number(legacyAgents[0].id),pool}),null);
   assert.equal(await leadPipeline.getLead(uid,foreignAssignedLead,{role:'agent',agentId:Number(legacyAgents[0].id),pool}),null);
   assert.equal((await leadPipeline.getLead(uid,assignedLead,{role:'agent',agentId:Number(legacyAgents[0].id),pool})).id,assignedLead);
+  const qualificationFixture={courseInterest:'Excel and bookkeeping',enquiryPurpose:'course',preferredContactMethod:'whatsapp',preferredContactTime:'evening',preferredStartWindow:'within_month',preferredSchedule:'Weekday evenings',learningGoal:'Prepare monthly accounts',experienceLevel:'beginner',payerRelationship:'employer',payerName:'Synthetic Training Ltd',referralSource:'Partner referral',followUpUrgency:'this_week',campaign:{utmSource:'partner',utmCampaign:'synthetic-pipeline',landingPage:'https://crm.example.invalid/courses'}};
+  const qualifiedLead=await leadPipeline.createManualLead({uid,actorType:'user',actorId:'synthetic-owner',role:'owner',input:{title:'Synthetic qualification persistence',contactName:'Synthetic qualification contact',learnerName:'Synthetic qualification learner',stageKey:'new',ownerAgentId:legacyAgents[0].id,qualificationData:qualificationFixture},pool});
+  const ownerQualifiedLead=await leadPipeline.getLead(uid,qualifiedLead.id,{role:'owner',pool});
+  const agentQualifiedLead=await leadPipeline.getLead(uid,qualifiedLead.id,{role:'agent',agentId:Number(legacyAgents[0].id),pool});
+  const decodeQualification=value=>typeof value==='string'?JSON.parse(value):value;
+  assert.deepEqual(decodeQualification(ownerQualifiedLead.qualification_data),qualificationFixture,'owner lead detail returns the saved qualification and campaign snapshot');
+  assert.deepEqual(decodeQualification(agentQualifiedLead.qualification_data),qualificationFixture,'assigned agent can read qualification for an assigned lead');
+  await assert.rejects(leadPipeline.createManualLead({uid,actorType:'user',actorId:'synthetic-owner',role:'owner',input:{title:'Invalid synthetic qualification',stageKey:'new',qualificationData:{enquiryPurpose:'unapproved'}},pool}),{status:400});
+  const [[invalidQualificationCount]]=await db.query("SELECT COUNT(*) AS total FROM pipeline_leads WHERE uid_hash=? AND title='Invalid synthetic qualification'",[pipelineUidHash]);
+  assert.equal(Number(invalidQualificationCount.total),0,'invalid qualification rolls back the lead and its contact atomically');
   const agentLeadActor={uid,role:'agent',agentId:Number(legacyAgents[0].id),actorType:'agent',actorId:String(legacyAgents[0].id)};
   await assert.rejects(leadPipeline.updateLead({...agentLeadActor,id:unassignedLead,input:{note:'should not be stored'},pool}),{status:403});
   await assert.rejects(leadPipeline.updateLead({...agentLeadActor,id:foreignAssignedLead,input:{note:'should not be stored'},pool}),{status:403});
