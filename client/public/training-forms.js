@@ -19,11 +19,11 @@
     const drawers=[...document.querySelectorAll('.MuiDrawer-paper')].map(drawer=>({drawer,rect:drawer.getBoundingClientRect(),style:getComputedStyle(drawer),docked:Boolean(drawer.closest('.MuiDrawer-docked')||drawer.classList.contains('MuiDrawer-paperAnchorDockedLeft')||drawer.classList.contains('MuiDrawer-paperAnchorDockedRight')),modal:Boolean(drawer.closest('.MuiModal-root'))})).filter(item=>{
       const visible=item.style.display!=='none'&&item.style.visibility!=='hidden'&&item.rect.width>0;
       const atViewportEdge=item.rect.left<=12||item.rect.right>=window.innerWidth-12;
-      // Persistent drawers can be missing MUI's docked marker in the existing
-      // app shell. At desktop widths, a non-modal drawer at the viewport edge
-      // still consumes workspace width; temporary drawers live in a Modal and
-      // remain overlays.
-      return visible&&atViewportEdge&&(item.docked||(window.innerWidth>=900&&!item.modal));
+      // Persistent drawers can be missing MUI's docked marker at compact
+      // breakpoints too. Any visible non-modal drawer at the viewport edge
+      // consumes workspace width; temporary mobile drawers live in a Modal
+      // and remain overlays.
+      return visible&&atViewportEdge&&(item.docked||!item.modal);
     }).sort((a,b)=>b.rect.width-a.rect.width);
     const current=drawers[0],onLeft=current&&current.rect.left<=12,onRight=current&&current.rect.right>=window.innerWidth-12;
     // The existing shell can omit the drawer's MUI class in some render states.
