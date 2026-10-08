@@ -75,7 +75,7 @@
     const findMatches=()=>{clearTimeout(matchTimer);matchTimer=setTimeout(async()=>{
       const phoneDigits=phone.value.replace(/\D/g,'');const validPhone=phoneDigits.length>=7&&phoneDigits.length<=15;const validEmail=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim());
       if(!validPhone&&!validEmail){contactSelect.innerHTML=`<option value="">${tr('createSeparateContact')}</option>`;return;}
-      try{const params=new URLSearchParams();if(validPhone)params.set('phone',phone.value.trim());if(validEmail)params.set('email',email.value.trim());const result=await api(`/contacts/matches?${params}`);contactSelect.innerHTML=`<option value="">${tr('createSeparateContact')}</option>`+result.data.map(c=>`<option value="${escape(c.id)}">${escape(c.name)}${c.phone?` · ${escape(c.phone)}`:''}${c.email?` · ${escape(c.email)}`:''}</option>`).join('');}
+      try{const params=new URLSearchParams();if(validPhone)params.set('phone',phone.value.trim());if(validEmail)params.set('email',email.value.trim());const matches=await api(`/contacts/matches?${params}`);contactSelect.innerHTML=`<option value="">${tr('createSeparateContact')}</option>`+matches.map(c=>`<option value="${escape(c.id)}">${escape(c.name)}${c.phone?` · ${escape(c.phone)}`:''}${c.email?` · ${escape(c.email)}`:''}</option>`).join('');}
       catch(err){toast(err.message);}
     },300)};
     phone.addEventListener('input',findMatches);email.addEventListener('input',findMatches);

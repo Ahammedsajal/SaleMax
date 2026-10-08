@@ -34,6 +34,8 @@ test('existing pipeline add-opportunity screen offers contact reuse and separate
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.match(screen, /learnerName/);
   assert.match(screen, /\/contacts\/matches\?/);
+  assert.match(screen, /const matches=await api\(`\/contacts\/matches\?\$\{params\}`\);contactSelect\.innerHTML=.*matches\.map\(c=>/);
+  assert.doesNotMatch(screen, /result\.data\.map\(c=>/);
   assert.match(screen, /contactId/);
   assert.match(screen, /contactProfileHint/);
   assert.match(screen, /name="contactEmail"/);
