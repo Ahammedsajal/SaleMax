@@ -12,6 +12,7 @@ const legacyPipelineActor = require('../modules/platform/legacy-pipeline-actor')
 const trainingLeadJourney = require('../modules/platform/training-lead-journey');
 const trainingTasks = require('../modules/platform/task-management');
 const crypto = require('node:crypto');
+const {createTaskRouter}=require('../modules/platform/task-router');
 
 async function saleContext(actor) {
   const ctx=await trainingCourses.legacyOwnerContext(require('../database/config.js').promise(),actor.uid);
@@ -34,9 +35,6 @@ async function taskContext(actor,permission='tasks.read'){
   trainingTasks.authorize(ctx,permission);
   return ctx;
 }
-
-async function withTaskDb(fn){const db=await require('../database/config.js').promise().getConnection();try{return await fn(db);}finally{db.release();}}
-function taskReply(res,error){const code=error?.code||'TASK_UNAVAILABLE';const status=Number(error?.status)||(['TASK_NOT_FOUND','TASK_LEAD_NOT_FOUND','TASK_PARTICIPANT_NOT_FOUND','TASK_MESSAGE_NOT_FOUND','TASK_SOURCE_NOT_FOUND'].includes(code)?404:['PERMISSION_DENIED'].includes(code)?403:['TASK_REVISION_CONFLICT','TASK_INVOICE_NOT_ACTIVE','TASK_INSTALLMENT_NOT_OPEN'].includes(code)?409:code.startsWith('INVALID_')||code.startsWith('DUPLICATE_')||code==='TASK_ASSIGNEE_REQUIRED'||code==='UNSUPPORTED_TASK_SOURCE'?400:503);if(status>=500)console.error('Task request failed:',code);return res.status(status).json({success:false,code:status>=500?'TASK_UNAVAILABLE':code});}
 
 function fail(res, error) {
   const status = Number(error?.status) || 500;
@@ -89,22 +87,7 @@ async function pipelineAuth(req, res, next) {
 }
 
 router.use(pipelineAuth);
-
-router.get('/tasks',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor),data=await withTaskDb(db=>trainingTasks.list(db,ctx,{status:req.query.status||'all',scope:req.query.scope||'mine',page:req.query.page,limit:req.query.limit}));res.setHeader('Cache-Control','no-store');res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.get('/tasks/participants',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor),data=await withTaskDb(db=>trainingTasks.listParticipants(db,ctx));res.setHeader('Cache-Control','no-store');res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.get('/tasks/source',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor,'tasks.manage'),data=await withTaskDb(db=>trainingTasks.sourceDetail(db,ctx,req.query.type,req.query.id));res.setHeader('Cache-Control','no-store');res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.get('/tasks/preferences',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor),data=await withTaskDb(db=>trainingTasks.getNotificationPreferences(db,ctx));res.setHeader('Cache-Control','no-store');res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.put('/tasks/preferences',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor),data=await withTaskDb(db=>trainingTasks.setNotificationPreferences(db,ctx,req.body||{}));res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.post('/tasks',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor,'tasks.manage'),data=await withTaskDb(db=>trainingTasks.create(db,ctx,req.body||{}));res.status(201).json({success:true,data});}catch(e){taskReply(res,e);}});
-router.get('/tasks/:id',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor),data=await withTaskDb(db=>trainingTasks.detail(db,ctx,req.params.id));res.setHeader('Cache-Control','no-store');res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.get('/tasks/:id/events',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor),data=await withTaskDb(db=>trainingTasks.eventHistory(db,ctx,req.params.id,{before:req.query.before,limit:req.query.limit}));res.setHeader('Cache-Control','no-store');res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.get('/tasks/:id/notifications',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor),data=await withTaskDb(db=>trainingTasks.notificationHistory(db,ctx,req.params.id,{before:req.query.before,limit:req.query.limit}));res.setHeader('Cache-Control','no-store');res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.patch('/tasks/:id',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor,'tasks.manage'),data=await withTaskDb(db=>trainingTasks.edit(db,ctx,req.params.id,req.body||{}));res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.patch('/tasks/:id/status',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor,'tasks.manage'),data=await withTaskDb(db=>trainingTasks.updateStatus(db,ctx,req.params.id,req.body||{}));res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.delete('/tasks/:id',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor,'tasks.manage'),data=await withTaskDb(db=>trainingTasks.remove(db,ctx,req.params.id,req.body?.expectedRevision));res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.get('/tasks/:id/messages',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor),data=await withTaskDb(db=>trainingTasks.messages(db,ctx,req.params.id,{after:req.query.after,before:req.query.before,latest:req.query.latest==='1',limit:req.query.limit}));res.setHeader('Cache-Control','no-store');res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.post('/tasks/:id/read',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor),data=await withTaskDb(db=>trainingTasks.markMessagesRead(db,ctx,req.params.id,req.body?.lastReadMessageId));res.json({success:true,data});}catch(e){taskReply(res,e);}});
-router.post('/tasks/:id/messages',async(req,res)=>{try{const ctx=await taskContext(req.pipelineActor,'tasks.manage'),data=await withTaskDb(db=>trainingTasks.addMessage(db,ctx,req.params.id,req.body?.body));res.status(201).json({success:true,data});}catch(e){taskReply(res,e);}});
+router.use('/tasks',createTaskRouter({pool:require('../database/config.js').promise(),contextFor:(req,permission)=>taskContext(req.pipelineActor,permission)}));
 
 router.get('/training-forms/:formSlug', async (req,res) => {
   try {

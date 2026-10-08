@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const tasks=require('../modules/platform/task-management');
+const {createTaskContext}=require('../modules/platform/training-task-context');
 const linkedRecords=require('../modules/platform/task-linked-records');
 const {trainingCenter,restaurantFixture}=require('../modules/platform/categories');
 
@@ -198,9 +199,17 @@ test('task capability is enforced by category, plan and role policy',()=>{
   assert.equal(tasks.authorize({...policyCtx,membership:{...policyCtx.membership,role:'accountant'}},'tasks.manage').scope,'assigned');
 });
 
-test('Tasks is integrated into the existing business shell and authenticated pipeline router',()=>{
-  const root=path.join(__dirname,'..');const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');const entry=fs.readFileSync(path.join(root,'client/public/pipeline-entry.js'),'utf8');const router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8');const html=fs.readFileSync(path.join(root,'client/public/tasks/index.html'),'utf8');
-  assert.match(sidebar,/\['Team & Tasks'.*'Tasks'/);assert.match(sidebar,/user\?page=tasks/);assert.match(entry,/salemax-tasks-workspace/);assert.match(router,/router\.post\('\/tasks\/\:id\/messages'/);assert.match(router,/router\.get\('\/tasks\/\:id\/events'/);assert.match(router,/router\.get\('\/tasks\/\:id\/notifications'/);assert.match(router,/router\.post\('\/tasks\/\:id\/read'/);assert.match(router,/router\.patch\('\/tasks\/\:id\/status'/);assert.match(router,/router\.put\('\/tasks\/preferences'/);assert.match(html,/whatsappOptIn/);assert.match(html,/previousPage/);assert.match(html,/nextPage/);assert.match(html,/tasks\.js/);
+test('canonical business sessions map to the workspace owner data scope for Tasks',async()=>{
+  const uid='owner-uid',uidHash=require('node:crypto').createHash('sha256').update(uid).digest('hex'),calls=[];
+  const pool={getConnection:async()=>({query:async(sql,args)=>{calls.push({sql,args});return [[{uid,uidHash}],[]];},release(){}})};
+  const context={audience:'tenant',tenant:{id:ctx.tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'membership',tenantId:ctx.tenantId,role:'owner',status:'active',delegatedPermissions:[]},identity:{id:ctx.actorId},category:trainingCenter,subscription:{status:'active',capabilities:['team.tasks']}};
+  const result=await createTaskContext(pool,context,'tasks.read');
+  assert.equal(result.tenantId,ctx.tenantId);assert.equal(result.uid,uid);assert.equal(result.uidHash,uidHash);assert.equal(result.actorType,'identity');assert.equal(result.actorId,ctx.actorId);assert.equal(calls.length,1);assert.match(calls[0].sql,/m\.role='owner'/);
+});
+
+test('Tasks stays in the existing business shell and supports legacy and canonical business sessions',()=>{
+  const root=path.join(__dirname,'..');const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');const entry=fs.readFileSync(path.join(root,'client/public/pipeline-entry.js'),'utf8');const router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8');const taskRouter=fs.readFileSync(path.join(root,'modules/platform/task-router.js'),'utf8');const mount=fs.readFileSync(path.join(root,'modules/platform/mount-existing-upgrade.js'),'utf8');const session=fs.readFileSync(path.join(root,'client/public/tasks/tasks-session.js'),'utf8');const html=fs.readFileSync(path.join(root,'client/public/tasks/index.html'),'utf8');
+  assert.match(sidebar,/\['Team & Tasks'.*'Tasks'/);assert.match(sidebar,/user\?page=tasks/);assert.match(entry,/salemax-tasks-workspace/);assert.match(entry,/drawerRect\?\.right\|\|0/);assert.match(router,/router\.use\('\/tasks',createTaskRouter/);for(const route of ['messages','events','notifications','read','status','preferences'])assert.ok(taskRouter.includes(route));assert.match(mount,/api\/user\/training\/tasks/);assert.match(mount,/businessBoundary\.guard,createTaskRouter/);assert.match(session,/api\/user\/business-auth\/me/);assert.match(session,/X-CSRF-Token/);assert.match(html,/whatsappOptIn/);assert.match(html,/previousPage/);assert.match(html,/nextPage/);assert.match(html,/tasks\.js/);
   for(const term of ['Title','Description','Priority','Due date and time','Assignees and observers','Save task'])assert.match(html,new RegExp(`data-en="${term}" data-ar="`));
   const taskUi=fs.readFileSync(path.join(root,'client/public/tasks/tasks.js'),'utf8');for(const kind of ['status','priority','type','role','event','notification'])assert.match(taskUi,new RegExp(`label\\('${kind}'`));assert.match(taskUi,/unread_count/);assert.match(taskUi,/lastReadMessageId/);assert.match(taskUi,/loadOlderMessages/);assert.match(taskUi,/loadOlderHistory/);assert.match(taskUi,/loadOlderNotifications/);assert.match(taskUi,/eventsHasMore/);assert.match(taskUi,/notificationsHasMore/);assert.match(taskUi,/latest=1/);assert.match(taskUi,/chatInitial=true;state\.chatHasOlder=false/);assert.match(taskUi,/Completed at/);assert.match(taskUi,/m\.senderName\|\|/);
 });

@@ -30,6 +30,7 @@ test('existing plan, contract and staff routes fail closed while the upgrade is 
     '/api/admin/platform-access/staff',
     '/api/admin/staff-invitations/accept',
     '/api/user/business-auth/me',
+    '/api/user/training/tasks',
     '/api/user/training/finance-policies/current',
   ]) {
     const response = await fetch(origin + route);

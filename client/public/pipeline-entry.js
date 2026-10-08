@@ -124,7 +124,7 @@
     if(!isTasksRoute()){existing?.remove();return;}
     const drawer=[...document.querySelectorAll('.MuiDrawer-paper')].find(visible);
     const topbar=[...document.querySelectorAll('.MuiBox-root')].filter(el=>{const r=el.getBoundingClientRect();return visible(el)&&r.y<=5&&r.height>=30&&r.height<100&&r.width>window.innerWidth*.5;}).sort((a,b)=>a.getBoundingClientRect().height-b.getBoundingClientRect().height)[0];
-    const drawerRect=drawer?.getBoundingClientRect(),topRect=topbar?.getBoundingClientRect(),left=Math.max(0,drawerRect?.right||260),top=Math.max(0,topRect?.bottom||60);
+    const drawerRect=drawer?.getBoundingClientRect(),topRect=topbar?.getBoundingClientRect(),left=Math.max(0,drawerRect?.right||0),top=Math.max(0,topRect?.bottom||60);
     if(topbar){const crumb=[...topbar.querySelectorAll('*')].find(el=>el.childElementCount===0&&['Dashboard','لوحة التحكم'].includes((el.textContent||'').trim()));if(crumb)crumb.textContent=isArabic()?'المهام':'Tasks';}
     const params=new URLSearchParams(location.search),taskId=params.get('task'),leadId=params.get('lead'),sourceType=params.get('sourceType'),sourceId=params.get('sourceId');const expectedSource='/tasks/?embed=1'+(taskId?'&task='+encodeURIComponent(taskId):'')+(leadId?'&lead='+encodeURIComponent(leadId):'')+(sourceType&&sourceId?'&sourceType='+encodeURIComponent(sourceType)+'&sourceId='+encodeURIComponent(sourceId):'');
     let frame=existing;if(!frame){frame=document.createElement('iframe');frame.id='salemax-tasks-workspace';frame.title=isArabic()?'المهام':'Tasks';frame.src=expectedSource;frame.style.cssText='position:fixed;z-index:1100;border:0;background:#f5f7fa;display:block;';document.body.append(frame);}else if(frame.getAttribute('src')!==expectedSource)frame.src=expectedSource;
