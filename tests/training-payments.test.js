@@ -24,9 +24,9 @@ test('owner or accountant can verify payments without a separate finance-policy 
 });
 test('manual payments and receipts use the existing bilingual Finance screen and authenticated routes',()=>{
   const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
-  const router=read('modules/platform/training-finance-router.js'),ui=read('client/public/training-finance.js');
+  const router=read('modules/platform/training-finance-router.js'),ui=read('client/public/training-finance.js'),service=read('modules/platform/training-payments.js');
   assert.match(router,/accountant\/payments\/pending/);assert.match(router,/payments\/pending/);assert.match(router,/payments\.verify/);assert.match(router,/payments\.receipt/);
-  assert.match(ui,/Record payment/);assert.match(ui,/Verify and issue receipt/);assert.match(ui,/Receipt/);
+  assert.match(ui,/Record payment/);assert.match(ui,/Verify and issue receipt/);assert.match(ui,/Receipt/);assert.match(ui,/data-print-receipt/);assert.match(ui,/renderReceiptPrint/);assert.match(ui,/Print \/ Save receipt as PDF/);assert.match(service,/businessIdentity/);assert.match(service,/legal_name_snapshot/);
   assert.match(read('docs/API_DOCUMENTATION.md'),/Manual payment recording, verification and receipts/);
   assert.match(read('docs/USER_MANUAL.md'),/Record and verify a manual payment/);
 });

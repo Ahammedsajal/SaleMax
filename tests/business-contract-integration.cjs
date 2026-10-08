@@ -156,7 +156,7 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   assert.equal((await refundService.paymentState(db,creditAccountantContext,excessPending.id)).availableMinor,15000);
   const refundedInvoice=await invoiceService.detail(db,accountantContext,converted[0].invoiceId);
   assert.equal(refundedInvoice.collectedMinor,275000);assert.equal(refundedInvoice.amountDueMinor,0);
-  assert.equal((await paymentService.receipt(db,paymentAccountantContext,excessPost.receipt.id)).amountMinor,200000);
+  const excessReceipt=await paymentService.receipt(db,paymentAccountantContext,excessPost.receipt.id);assert.equal(excessReceipt.amountMinor,200000);assert.equal(excessReceipt.businessIdentity.invoiceNumber,converted[0].invoiceNumber);assert.equal(excessReceipt.businessIdentity.legalName,'Synthetic Training Center LLC');
   const [[refundJournal]]=await db.query("SELECT COUNT(DISTINCT e.id) n,SUM(l.debit_minor) debit,SUM(l.credit_minor) credit FROM sx_training_journal_entries e JOIN sx_training_journal_lines l ON l.tenant_id=e.tenant_id AND l.entry_id=e.id WHERE e.tenant_id=? AND e.source_type='manual-refund' AND e.source_id=?",[t2,refund.id]);
   assert.equal(Number(refundJournal.n),1);assert.equal(Number(refundJournal.debit),10000);assert.equal(Number(refundJournal.credit),10000);
   await assert.rejects(refundService.request(db,creditOwnerContext,excessPending.id,{...refundRequest,requestKey:crypto.randomUUID(),amountMinor:15001}),{code:'REFUND_EXCEEDS_UNAPPLIED_FUNDS'});

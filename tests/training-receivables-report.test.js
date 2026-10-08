@@ -20,7 +20,7 @@ test('finance report labels settled and partial invoices separately and can clea
   const index=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   assert.match(screen,/Settled \/ part-settled/);assert.match(screen,/partialInvoiceCount/);
   assert.match(screen,/Clear filters/);assert.match(screen,/bucket='all';q='';from='';to='';page=1;render\(\)/);
-  assert.match(index,/training-finance\.js\?v=20261008-sale-issuer-policy1/);
+  assert.match(index,/training-finance\.js\?v=20261008-finance-receipt-print1/);
 });
 
 test('finance report exposes payment credit from posted invoice receipts net of reversals',async()=>{
