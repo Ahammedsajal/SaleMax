@@ -1,10 +1,10 @@
 # SaleMaX implementation status
 
-## Lead to application to enrollment record chain — source implementation, 8 October 2026
+## Lead to application to enrollment record chain — production, 8 October 2026
 
 The existing lead detail and Candidate Applications screens now navigate between a lead and its linked form submissions. Staff can open the immutable submitted data and captured consent/version snapshot without overwriting the current CRM contact, then carry that application into the existing sale-review flow. The sale review records the application ID and the API verifies the application belongs to the same tenant and lead. Staff must confirm the current offer and enter/confirm payer and invoice details before submitting. Lead and application views show the latest linked review plus resulting enrollment and invoice state. The existing Tasks link still opens follow-up work scoped to the lead. The existing optional lead qualification form stores enquiry purpose, contact preference, course schedule/start window, learning goal/experience, payer relationship, referral, follow-up urgency and UTM/landing-page attribution.
 
-Two additive migrations add the lead qualification JSON and nullable application link on sale reviews; existing form/enrollment/invoice snapshot behavior is preserved. Focused lead/form/sale-review/conversion tests pass 17/17; migration plan discovers both new files; changed JavaScript syntax and whitespace checks pass. Production deployment and authenticated browser acceptance are pending; no production lead, application or sale was created for verification.
+Two additive migrations add the lead qualification JSON and nullable application link on sale reviews, plus tenant/lead and application lookup indexes; existing form/enrollment/invoice snapshot behavior is preserved. Release `lead-chain-1a06888` is active with both migrations recorded as applied. Focused lead/form/sale-review/conversion tests pass 17/17; changed JavaScript syntax and whitespace checks pass. Production health and served assets are verified. Authenticated English/Arabic screen acceptance remains open; no production lead, application or sale was created for verification. Release, backup and rollback evidence are in `DEPLOYMENT.md`.
 
 ## Task chat collaboration — source increment, 8 October 2026
 
