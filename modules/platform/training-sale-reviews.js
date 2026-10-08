@@ -61,7 +61,7 @@ async function listApprovedForInvoice(pool,ctx,{uid}){
   if(!['owner','accountant'].includes(ctx.membership.role)||typeof uid!=='string'||!uid)fail('PERMISSION_DENIED');
   const db=await pool.getConnection();try{
     const [rows]=await db.query(`SELECT r.id,r.lead_id,r.revision,r.status,r.decided_by_role,r.installments,r.lead_updated_at_snapshot,r.course_name_en,r.course_name_ar,r.currency,r.net_minor,r.learner_name,r.payer_name,r.decided_at,l.updated_at AS lead_updated_at
-      FROM sx_training_sale_reviews r JOIN pipeline_leads l ON l.id=r.lead_id AND l.uid_hash=r.legacy_uid_hash AND l.uid=r.legacy_uid
+      FROM sx_training_sale_reviews r JOIN pipeline_leads l ON l.id=r.lead_id AND l.uid_hash=r.legacy_uid_hash AND BINARY l.uid=BINARY r.legacy_uid
       WHERE r.tenant_id=? AND r.legacy_uid_hash=? AND r.legacy_uid=? AND r.status='approved' AND l.status='open'
         AND NOT EXISTS (SELECT 1 FROM sx_training_sale_conversions c WHERE c.tenant_id=r.tenant_id AND c.sale_review_id=r.id)
       ORDER BY r.decided_at DESC,r.created_at DESC LIMIT 100`,[ctx.tenant.id,sha(uid),uid]);

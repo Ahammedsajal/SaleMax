@@ -32,3 +32,9 @@ test('approved-sale invoice queue rejects roles outside owner/accountant before 
   const ctx=context('agent'),pool={getConnection(){throw Error('unauthorized role must be rejected before database access')}};
   await assert.rejects(saleReviews.listApprovedForInvoice(pool,ctx,{uid:'agent-uid'}),{code:'PERMISSION_DENIED'});
 });
+test('approved-sale invoice queue matches legacy UIDs without depending on database collation',async()=>{
+  const ctx=context('owner');let sql='';
+  const pool={async getConnection(){return {async query(query){sql=query;return [[]];},release(){}};}};
+  assert.deepEqual(await saleReviews.listApprovedForInvoice(pool,ctx,{uid:'owner-uid'}),[]);
+  assert.match(sql,/BINARY\s+l\.uid\s*=\s*BINARY\s+r\.legacy_uid/);
+});
