@@ -842,15 +842,16 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input,
     const now = dbDate(new Date());
     const amount = input.expectedValue === "" || input.expectedValue === null || input.expectedValue === undefined ? null : Number(input.expectedValue);
     if (amount !== null && (!Number.isFinite(amount) || amount < 0)) { const error = new Error("Expected value must be zero or greater."); error.status = 400; throw error; }
+    const qualification = normalizeQualification(input.qualificationData);
     const currency = /^[A-Z]{3}$/.test(String(input.currency || "QAR")) ? String(input.currency || "QAR") : "QAR";
     const sourceType=['public_form','staff_form'].includes(input.sourceType)?input.sourceType:'manual';
     await connection.query(
       `INSERT INTO pipeline_leads
         (id, uid_hash, uid, contact_id, identity_key, title, contact_name, learner_name, mobile, primary_origin, source_type,
-         stage_key, stage_entered_at, owner_agent_id, expected_value, currency, next_follow_up_at, last_activity_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
+         stage_key, stage_entered_at, owner_agent_id, expected_value, currency, next_follow_up_at, qualification_data, last_activity_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3))`,
       [id, uidHash, uid, contactId, identityKey, title, contactName, learnerName, phone, sourceType, stageKey, now, owner, amount, currency,
-        input.nextFollowUpAt ? dbDate(input.nextFollowUpAt) : null, now],
+        input.nextFollowUpAt ? dbDate(input.nextFollowUpAt) : null, Object.keys(qualification).length ? JSON.stringify(qualification) : null, now],
     );
     await addActivity(connection, uidHash, id, "lead_created", "Opportunity added manually", { title, contactId }, actorType, actorId);
     if (owner !== null) {
@@ -861,6 +862,45 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input,
   };
   if(existingConnection)return work(existingConnection);
   return inTransaction(work,sourcePool);
+}
+
+function normalizeQualification(value) {
+  if (value === undefined || value === null || value === "") return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) { const error = new Error("Lead qualification details are invalid."); error.status = 400; throw error; }
+  const enums = {
+    enquiryPurpose: ["course", "corporate_training", "pricing", "schedule", "other"],
+    preferredContactMethod: ["whatsapp", "call", "email"],
+    preferredContactTime: ["anytime", "morning", "afternoon", "evening"],
+    preferredStartWindow: ["asap", "within_month", "one_to_three_months", "later", "flexible"],
+    experienceLevel: ["beginner", "some_experience", "experienced", "unsure"],
+    payerRelationship: ["self", "parent_guardian", "employer", "company", "other"],
+    followUpUrgency: ["today", "this_week", "this_month", "flexible"],
+  };
+  const textLimits = { courseInterest: 180, preferredSchedule: 255, learningGoal: 500, payerName: 255, referralSource: 255 };
+  const result = {};
+  for (const [key, choices] of Object.entries(enums)) {
+    const raw = value[key]; if (raw === undefined || raw === null || raw === "") continue;
+    if (typeof raw !== "string" || !choices.includes(raw)) { const error = new Error(`Invalid lead qualification: ${key}.`); error.status = 400; throw error; }
+    result[key] = raw;
+  }
+  for (const [key, limit] of Object.entries(textLimits)) {
+    const raw = value[key]; if (raw === undefined || raw === null || raw === "") continue;
+    if (typeof raw !== "string" || raw.length > limit) { const error = new Error(`Invalid lead qualification: ${key}.`); error.status = 400; throw error; }
+    const clean = raw.trim(); if (clean) result[key] = clean;
+  }
+  const campaign = value.campaign;
+  if (campaign !== undefined && campaign !== null) {
+    if (typeof campaign !== "object" || Array.isArray(campaign)) { const error = new Error("Invalid campaign attribution."); error.status = 400; throw error; }
+    const fields = { utmSource: 120, utmMedium: 120, utmCampaign: 180, utmContent: 180, utmTerm: 180, landingPage: 500, referrer: 500 };
+    const safe = {};
+    for (const [key, limit] of Object.entries(fields)) {
+      const raw = campaign[key]; if (raw === undefined || raw === null || raw === "") continue;
+      if (typeof raw !== "string" || raw.length > limit) { const error = new Error(`Invalid campaign attribution: ${key}.`); error.status = 400; throw error; }
+      const clean = raw.trim(); if (clean) safe[key] = clean;
+    }
+    if (Object.keys(safe).length) result.campaign = safe;
+  }
+  return result;
 }
 
 async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
@@ -898,7 +938,27 @@ async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
        FROM pipeline_attributions WHERE uid_hash = ? AND lead_id = ? ORDER BY received_at DESC LIMIT 50`,
       [uidHash, id],
     );
-    return { ...leads[0], activities, conversations, attributions };
+    const [[tenant]] = await connection.query(`SELECT o.tenant_id AS tenantId FROM sx_legacy_ownership o
+      JOIN user u ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      WHERE u.uid=? AND o.legacy_uid_hash=? LIMIT 1`, [uid, uidHash]);
+    let applications=[];
+    if(tenant?.tenantId){
+      const [rows]=await connection.query(`SELECT s.id,s.reference_code AS referenceCode,s.form_id AS formId,s.form_version AS formVersion,
+        s.capture_mode AS captureMode,s.submission_data AS submissionData,s.consent_text_en AS consentTextEn,s.consent_text_ar AS consentTextAr,
+        s.consented_at AS submittedAt,s.created_at AS createdAt,v.name_en AS formNameEn,v.name_ar AS formNameAr,v.schema_json AS schemaJson,
+        r.id AS saleReviewId,r.status AS saleReviewStatus,r.course_name_en AS saleCourseNameEn,r.course_name_ar AS saleCourseNameAr,
+        i.invoice_number AS invoiceNumber,e.id AS enrollmentId,e.status AS enrollmentStatus
+        FROM sx_training_form_submissions s
+        LEFT JOIN sx_training_form_versions v ON v.tenant_id=s.tenant_id AND v.form_id=s.form_id AND v.version=s.form_version
+        LEFT JOIN sx_training_sale_reviews r ON r.tenant_id=s.tenant_id AND r.id=(SELECT r2.id FROM sx_training_sale_reviews r2 WHERE r2.tenant_id=s.tenant_id AND r2.application_submission_id=s.id ORDER BY r2.created_at DESC,r2.id DESC LIMIT 1)
+        LEFT JOIN sx_training_sale_conversions c ON c.tenant_id=r.tenant_id AND c.sale_review_id=r.id
+        LEFT JOIN sx_training_enrollments e ON e.tenant_id=c.tenant_id AND e.id=c.enrollment_id
+        LEFT JOIN sx_training_invoices i ON i.tenant_id=c.tenant_id AND i.id=c.invoice_id
+        WHERE s.tenant_id=? AND s.lead_id=? ORDER BY s.created_at DESC,s.id DESC`,[tenant.tenantId,id]);
+      applications=rows.map(row=>({...row,submissionData:typeof row.submissionData==='string'?JSON.parse(row.submissionData):row.submissionData,
+        schema:typeof row.schemaJson==='string'?JSON.parse(row.schemaJson):row.schemaJson,schemaJson:undefined}));
+    }
+    return { ...leads[0], activities, conversations, attributions, applications };
   },sourcePool);
 }
 
