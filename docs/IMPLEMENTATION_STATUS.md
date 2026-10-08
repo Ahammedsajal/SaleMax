@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Tasks stale-session sign-in recovery — production, 8 October 2026
+
+The live failure was a code issue in session recovery. The existing login route treats the presence of `wacrm_user` as a signed-in state without checking whether its token is still valid. Tasks showed an API 401, but clicking its sign-in link left that stale token in local storage, so `/user/login` redirected back to the dashboard. Source `ba99886` now clears that one saved token only when the user chooses the Tasks recovery link, allowing the existing business login to open. The static fix is active in `/opt/salemax/releases/tasks-stale-login-ba99886`; no migration, customer/task data, app image, or database was changed.
+
+The live browser confirmed the recovery link reaches the actual `/user/login` form. Credentials were not entered, so the fresh-login-to-Tasks API flow and authenticated list/CRUD behavior remain to be confirmed. The user must enter their own credentials on the displayed business login form, then open Tasks again. See `DEPLOYMENT.md` for source commit, backup, rollback and hash evidence.
+
 ## Tasks existing-session integration — production, 8 October 2026
 
 Source `7be54a6` is pushed and deployed in `/opt/salemax/releases/tasks-business-session-7be54a6`. The current Tasks page now prefers the tenant-scoped HttpOnly business session used by the existing `/user` panel, including CSRF protection for writes, and retains the legacy API as a compatibility path. The mobile iframe no longer reserves an invisible 260px sidebar gutter. No task/login page or data model was added; no migration or customer-data change occurred. Focused task/session/route tests pass 30/30; production `/healthz` and assets return HTTP 200, and app/database are healthy.
