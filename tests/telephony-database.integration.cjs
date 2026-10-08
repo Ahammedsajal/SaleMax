@@ -41,7 +41,7 @@ async function main(){
     await db.query('INSERT INTO sx_platform_asterisk_config(id) VALUES(1)');
     await db.query(`CREATE TABLE sx_platform_asterisk_gateway_ports(channel_no TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,inbound_enabled TINYINT(1) NOT NULL DEFAULT 0,outbound_enabled TINYINT(1) NOT NULL DEFAULT 0,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,updated_at DATETIME(3) NULL,FOREIGN KEY(updated_by_identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
     await db.query('INSERT INTO sx_platform_asterisk_gateway_ports(channel_no) VALUES(1),(2),(3),(4)');
-    for(const name of ['20261106_tenant_telephony_extensions.sql','20261107_gateway_tenant_assignment.sql','20261108_telephony_queues.sql','20261109_gateway_inbound_queues.sql','20261110_asterisk_ari_runtime.sql','20261111_telephony_call_sessions.sql','20261112_asterisk_endpoint_credentials.sql','20261113_telephony_endpoint_provisioning.sql']){
+    for(const name of ['20261106_tenant_telephony_extensions.sql','20261107_gateway_tenant_assignment.sql','20261108_telephony_queues.sql','20261109_gateway_inbound_queues.sql','20261110_asterisk_ari_runtime.sql','20261111_telephony_call_sessions.sql','20261112_asterisk_endpoint_credentials.sql','20261113_telephony_endpoint_provisioning.sql','20261114_tenant_asterisk_gateways.sql','20261115_tenant_gateway_call_leases.sql']){
       const sql=fs.readFileSync(require('node:path').join(__dirname,'../database/migrations',name),'utf8');
       for(const statement of sql.split(';').map(part=>part.trim()).filter(Boolean))await db.query(statement);
     }
@@ -90,6 +90,12 @@ async function main(){
     assert.match(preview.config,/Destination Prefix: 9901[\s\S]*Digits to be Deleted: 4/);
     const finalQueue=(await queues.list(db,tenantContext)).find(item=>item.id===createdQueue.id);
     await assert.rejects(queues.save(db,tenantContext,{...finalQueue,membershipIds:finalQueue.members.map(member=>member.membershipId),expectedRevision:finalQueue.revision,enabled:false}),{code:'TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'});
+    const tenantGatewayId=crypto.randomUUID();
+    await db.query(`INSERT INTO sx_telephony_gateways(id,tenant_id,gateway_name,gateway_host,gateway_sip_port,gateway_sip_transport,enabled,connection_status,revision,configured_by_identity_id)
+      VALUES(?,?,'Synthetic Dinstar','198.51.100.42',5061,'tls',1,'online',1,?)`,[tenantGatewayId,tenantId,ownerId]);
+    for(let channelNo=1;channelNo<=4;channelNo++)await db.query(`INSERT INTO sx_telephony_gateway_channels
+      (tenant_id,gateway_id,channel_no,enabled,inbound_enabled,outbound_enabled,inbound_did,inbound_queue_id,updated_by_identity_id)
+      VALUES(?,?,?,?,?,?,?,?,?)`,[tenantId,tenantGatewayId,channelNo,channelNo===1?1:0,channelNo===1?1:0,channelNo===1?1:0,channelNo===1?'+97455550001':null,channelNo===1?createdQueue.id:null,channelNo===1?ownerId:null]);
     await db.query("UPDATE sx_platform_asterisk_runtime SET status='connected',worker_id=?,events_received=events_received+1,last_event_type='StasisStart',last_event_at=UTC_TIMESTAMP(3) WHERE id=1",['synthetic-worker']);
     const ariActions=[],originated=[],outboundGatewayOriginated=[];let liveAriChannels=[];
     const ariFactory=async()=>({
@@ -104,7 +110,7 @@ async function main(){
     });
     const callControl=new AsteriskCallControl({pool,ariClientFactory:ariFactory});
     const inboundChannel='synthetic-pjsip-inbound-1';
-    const inboundEvent={type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550001'],channel:{id:inboundChannel}};
+    const inboundEvent={type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550001'],channel:{id:inboundChannel,name:`PJSIP/salemax_gw_${tenantGatewayId.replace(/-/g,'')}-0001`}};
     assert.equal(await callControl.handle(inboundEvent),true);
     assert.equal(originated.length,4);
     await callControl.handle(inboundEvent);
@@ -154,7 +160,7 @@ async function main(){
         assert.equal(new URL(url).pathname,'/ari/endpoints/PJSIP');
         assert.equal(options.headers.Authorization,`Basic ${Buffer.from(`salemax-status:${statusPassword}`).toString('base64')}`);
         return{ok:true,async text(){return JSON.stringify([
-          {technology:'PJSIP',resource:'salemax_dinstar_uc2000ve',state:'online',channel_ids:[]},
+          {technology:'PJSIP',resource:`salemax_gw_${tenantGatewayId.replace(/-/g,'')}`,state:'online',channel_ids:[]},
           {technology:'PJSIP',resource:'salemax-7401-mobile',state:'online',channel_ids:[]},
           {technology:'PJSIP',resource:'salemax-7401-browser',state:'offline',channel_ids:[]},
           {technology:'PJSIP',resource:'salemax-7402-mobile',state:'offline',channel_ids:[]},
@@ -173,13 +179,13 @@ async function main(){
       assert.equal(statusBody.data.clients.mobileSip.ready,true);assert.equal(statusBody.data.clients.browserWebRtc.ready,false);
       const callsResponse=await fetch(statusUrl.replace('/status','/calls')),callsBody=await callsResponse.json();
       assert.equal(callsResponse.status,200);assert.ok(callsBody.data.items.some(item=>item.canControl===true),'the owner can control their tenant calls');
-      await db.query('ALTER TABLE sx_platform_asterisk_gateway_ports DROP CHECK ck_sx_asterisk_gateway_inbound_did');
-      await db.query("UPDATE sx_platform_asterisk_gateway_ports SET inbound_did='+9741234' WHERE channel_no=1");
+      await db.query('ALTER TABLE sx_telephony_gateway_channels DROP CHECK ck_sx_telephony_gateway_channel_did');
+      await db.query("UPDATE sx_telephony_gateway_channels SET inbound_did='+9741234' WHERE tenant_id=? AND gateway_id=? AND channel_no=1",[tenantId,tenantGatewayId]);
       statusResponse=await fetch(statusUrl);statusBody=await statusResponse.json();
       assert.equal(statusBody.data.calls.inboundAvailable,false,'a malformed historical DID cannot make inbound signaling appear ready');
       assert.equal(statusBody.data.calls.inboundReason,'INBOUND_ROUTE_NOT_READY');
       assert.equal(statusBody.data.calls.outboundAvailable,true,'an invalid inbound DID does not block the valid outbound channel');
-      await db.query("UPDATE sx_platform_asterisk_gateway_ports SET inbound_did='+97455550001' WHERE channel_no=1");
+      await db.query("UPDATE sx_telephony_gateway_channels SET inbound_did='+97455550001' WHERE tenant_id=? AND gateway_id=? AND channel_no=1",[tenantId,tenantGatewayId]);
       await db.query("UPDATE sx_platform_asterisk_runtime SET status='reconnecting',updated_at=UTC_TIMESTAMP(3) WHERE id=1");
       const adminEventState=(await asteriskConfig.get(db,platformContext)).ariEvents;
       assert.equal(adminEventState.status,'reconnecting');assert.equal(adminEventState.ready,false);
@@ -215,6 +221,7 @@ async function main(){
     assert.equal(outboundGatewayOriginated.length,1,'duplicate outbound agent StasisStart must not originate a second GSM leg');
     assert.equal(outboundGatewayOriginated[0].destination,'+97455551234');
     assert.equal(outboundGatewayOriginated[0].channelNo,1);
+    assert.equal(outboundGatewayOriginated[0].endpointName,`salemax_gw_${tenantGatewayId.replace(/-/g,'')}`,'outbound GSM leg uses the tenant-owned gateway endpoint');
     assert.deepEqual(outboundGatewayOriginated[0].appArgs,['outbound-gateway',outbound.callId]);
     const outboundGatewayChannel=outboundGatewayOriginated[0].channelId;
     assert.equal(await callControl.handle({type:'StasisStart',application:'salemax-call-center',args:['outbound-gateway',outbound.callId],channel:{id:outboundGatewayChannel}}),true);

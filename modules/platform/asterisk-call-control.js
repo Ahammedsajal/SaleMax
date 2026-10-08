@@ -240,7 +240,7 @@ class AsteriskCallControl {
     const db=await connection(this.pool);let call;const gatewayChannelId=crypto.randomUUID();
     try {
       await db.beginTransaction();
-      const [[row]]=await db.query(`SELECT c.tenant_id,c.id,c.status,c.gateway_channel_no,c.started_by_membership_id,c.bridge_id,
+      const [[row]]=await db.query(`SELECT c.tenant_id,c.id,c.status,c.gateway_id,c.gateway_channel_no,c.started_by_membership_id,c.bridge_id,
           l.membership_id,l.device_kind,l.status AS leg_status FROM sx_telephony_calls c
         JOIN sx_telephony_call_legs l ON l.tenant_id=c.tenant_id AND l.call_id=c.id
         WHERE c.id=? AND c.direction='outbound' AND l.asterisk_channel_id=? FOR UPDATE`,[input.callId,agentChannelId]);
