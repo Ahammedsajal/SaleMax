@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Finance approved-sale queue collation repair — production, 8 October 2026
+
+Fixed the approved-sale queue failure caused by comparing legacy UID columns with incompatible MariaDB collations. The existing queue now uses an exact binary comparison. Source commit `e9d7ba57b59ae1592024188a571284417057fada` is deployed at `/opt/salemax/releases/finance-queue-collation-e9d7ba5-20261008`; no migration or database restart was needed. `npm test` passes 312/312. Production health and release/container hashes match. The authenticated owner Finance screen now shows the empty approved-sale state without an error; no finance data changed. Accountant-session acceptance and the wider 42-ticket upgrade remain open. See `DEPLOYMENT.md` for rollback details.
+
 ## Bilingual printable Finance receipts — production, 8 October 2026
 
 The existing owner/accountant Finance screen now opens a bilingual printable receipt with the legal identity snapshot from its invoice, payment and receipt details, installment allocations, and any unapplied deposit. Source commit `6ea45a0` is deployed at `/opt/salemax/releases/finance-receipt-6ea45a0-20261008`; no migration or database restart was needed. The full JavaScript suite passes 311/311, and disposable MariaDB integration passes all 65 forward migrations plus synthetic payment/receipt checks with no customer data touched or external writes. Production health and release/container/served hashes match. No live financial record was created or modified. Authenticated accountant acceptance and visual print/save-as-PDF review remain open because the browser is at business login. See `DEPLOYMENT.md` for rollback evidence.
