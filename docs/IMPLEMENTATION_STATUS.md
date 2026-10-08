@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Tasks concurrent-session request race — production, 8 October 2026
+
+After the user signed in, live logs confirmed the canonical session and Tasks list were valid, but the parallel participants request raced the session probe and fell back to the legacy API, which returned 401. Because the screen awaited all three requests together, one failure hid the successful task list behind an expired-session alert. Source `730c1f7` now shares the in-flight session probe across those requests. The fix is live in `/opt/salemax/releases/tasks-session-race-730c1f7`.
+
+Verified in the user's live browser: the expired-session alert is gone; the Tasks queue renders its controls and “No tasks in this view yet” empty state. The latest canonical-session, task-list and participants API calls all return 200. The queue currently contains no tasks, and no task was created or changed during verification. Focused session-hook tests pass 5/5. Task CRUD/assignment, linked records, role denials, Arabic rendering and provider delivery remain open. Release and rollback details are in `DEPLOYMENT.md`.
+
 ## Tasks stale-session sign-in recovery — production, 8 October 2026
 
 The live failure was a code issue in session recovery. The existing login route treats the presence of `wacrm_user` as a signed-in state without checking whether its token is still valid. Tasks showed an API 401, but clicking its sign-in link left that stale token in local storage, so `/user/login` redirected back to the dashboard. Source `ba99886` now clears that one saved token only when the user chooses the Tasks recovery link, allowing the existing business login to open. The static fix is active in `/opt/salemax/releases/tasks-stale-login-ba99886`; no migration, customer/task data, app image, or database was changed.
