@@ -6,6 +6,22 @@
   let canonicalCheckedAt = 0;
   let canonicalChecked = false;
 
+  // The business shell guards /user/login by checking whether wacrm_user is
+  // present, not whether it is still valid. A stale token therefore bounces
+  // users straight back to the dashboard when they follow the expired-session
+  // link. Remove that token only when they explicitly choose Tasks recovery;
+  // the existing login screen can then perform a real sign-in and refresh both
+  // the legacy token and canonical HttpOnly session.
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', event => {
+      const link = event.target?.closest?.('a.session-login-link');
+      if (!link) return;
+      const destination = new URL(link.href, location.href);
+      if (destination.origin !== location.origin || destination.pathname !== '/user/login') return;
+      localStorage.removeItem('wacrm_user');
+    }, true);
+  }
+
   async function getCanonicalSession() {
     if (canonicalChecked && Date.now() - canonicalCheckedAt < 30000) return canonicalSession;
     canonicalCheckedAt = Date.now();

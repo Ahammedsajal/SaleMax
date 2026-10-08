@@ -77,3 +77,28 @@ test('Tasks does not rewrite authorization for requests outside its same-origin 
 
   assert.equal(new Headers(calls[0].init.headers).get('authorization'), 'Bearer third-party-token');
 });
+
+test('Tasks recovery clears the stale token so the existing login route can authenticate again', () => {
+  let clickHandler;
+  const removed = [];
+  const context = {
+    window: { fetch: async () => ({ ok: true }) },
+    document: { addEventListener: (name, handler, capture) => {
+      assert.equal(name, 'click');
+      assert.equal(capture, true);
+      clickHandler = handler;
+    } },
+    localStorage: { removeItem: key => removed.push(key) },
+    location: { href: 'https://crm.salemax.qa/tasks/', origin: 'https://crm.salemax.qa' },
+    URL,
+    Headers,
+    Request,
+  };
+  vm.runInNewContext(source, context, { filename: 'tasks-session.js' });
+
+  clickHandler({ target: { closest: () => ({ href: 'https://crm.salemax.qa/user/login' }) } });
+  clickHandler({ target: { closest: () => ({ href: 'https://outside.example/user/login' }) } });
+  clickHandler({ target: { closest: () => null } });
+
+  assert.deepEqual(removed, ['wacrm_user']);
+});
