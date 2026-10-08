@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Owner Finance screen and receivables report — read-only production acceptance, 8 October 2026
+
+The authenticated Pro Catalyst owner loaded the existing `/user?page=finance-settings` screen and its `section=reports` Receivables Aging view. Both render in the existing business shell. Production currently shows no invoices, verified payments, installment-change requests, disputes, or receivables; all displayed report totals are zero. No invoice, payment, receipt, or other financial record was created or changed. This proves owner-screen access and empty-state rendering only. Accountant permissions, a populated synthetic reconciliation fixture, transaction workflows, and live delivery remain unverified.
+
 ## Public form attribution and submission-chain acceptance — production, 8 October 2026
 
 Added server-validated public-form UTM capture with query-free landing/referrer URLs into the existing lead campaign field. Source commit `51d63a9a524cad45f3922d88c572578344caca90` is deployed in `/opt/salemax/releases/public-form-attribution-51d63a-20261008`. On production, an identical public submission retry returned the original reference and `repeated:true`; authenticated staff capture added two more applications to the same synthetic lead, and the existing Lead Pipeline detail shows all three linked snapshots plus the stored campaign attribution. The live public form was reviewed in English/Arabic at phone width and Arabic at tablet width with no horizontal overflow. Focused tests pass 7/7; health and served hashes are verified. Synthetic QA records are labeled and no provider, finance or customer contact action was triggered. Release/rollback evidence is in `DEPLOYMENT.md`.
@@ -17,6 +21,8 @@ Restored English and Arabic prerequisite inputs in the existing course create an
 ## Tasks authenticated production acceptance — 8 October 2026
 
 Using the authenticated Pro Catalyst owner session, created a disposable task titled `SALEMAX QA E2E 20261008`, linked it to the existing synthetic QA lead, and confirmed the task detail resolved the linked lead context. The participant list contained only the owner. Deleted the task through the existing UI; this is a soft delete and it no longer appears in the queue. A read-only production database check confirmed the task's email and WhatsApp notification rows are both `suppressed` after deletion, with no provider delivery. The live app reports task email disabled, SMTP not configured, and no WhatsApp task template configured. This verifies owner task creation, linked lead details, and cleanup in the authenticated production UI only.
+
+On a later acceptance pass, the synthetic lead's existing `Create follow-up task` action correctly opened the current Tasks composer with that lead selected and a prefilled follow-up title. The embedded Tasks API reported the owner session expired and returned no participant choices, so the save was blocked and no task was created. A normal business sign-in is required before additional CRUD and assignment acceptance.
 
 Remaining task gates: authenticated manager/agent/accountant permission and collaboration acceptance; Arabic/RTL screen acceptance; disposable local database/concurrency integration; and provider setup plus approved end-to-end notification delivery. Do not treat the suppressed outbox check as proof of successful provider delivery. No production customer data or financial records were changed.
 
