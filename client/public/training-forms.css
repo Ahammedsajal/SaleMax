@@ -7,7 +7,8 @@
    persistent navigation drawer sits above the app content. */
 @media (min-width: 900px) {
   #sx-forms-screen {
-    inset-inline-start: var(--sx-forms-sidebar-offset, 260px);
+    left: var(--sx-forms-left-inset, 260px);
+    right: var(--sx-forms-right-inset, 0px);
     padding: 28px 24px;
   }
 }
