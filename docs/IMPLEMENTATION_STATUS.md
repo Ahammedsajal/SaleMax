@@ -928,3 +928,8 @@ In the authenticated Pro Catalyst owner session, the existing Lead Pipeline edit
 ## Authenticated owner follow-up task completion — production, 8 October 2026
 
 In the authenticated Pro Catalyst owner session, the existing Tasks screen showed the QA follow-up task `SALEMAX QA FOLLOW-UP E2E 20261008B`, linked to `SALEMAX QA TEST ONLY 20261008A`. The task detail preserved its QA-only description, owner assignment, and internal chat entry. The owner changed the status from Open to Completed, and the queue immediately displayed Completed. Email and WhatsApp task notifications both remained unavailable (`TASK_EMAIL_NOT_CONFIGURED`, `TASK_WHATSAPP_TEMPLATE_NOT_CONFIGURED`); no customer contact or provider send occurred. This verifies owner task creation, lead linkage, assignee, internal chat, and completion on synthetic data. Manager/accountant/agent task permissions and workflow acceptance remain open.
+
+
+## Authenticated Courses prerequisites screen acceptance — production, 8 October 2026
+
+The Pro Catalyst owner opened the existing Courses screen in English and Arabic. An active published course exposes English and Arabic prerequisite fields as editable, with the save action available; no course data was changed. A separately labeled retired QA course retained its saved prerequisite text in both languages, while its fields remained disabled because the course is retired. This confirms the bilingual prerequisites UI and the retired-course read-only behavior, but does not verify a saved edit. Course CRUD, offer-version history, batch capacity/concurrency, learner conversion and historical offer snapshots remain open.
