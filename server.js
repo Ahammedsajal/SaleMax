@@ -92,7 +92,7 @@ validateAndRepairFrontendShell();
 require('./modules/platform/mount-existing-upgrade').mountConfiguredUpgrade(app);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "10mb", verify: require("./modules/platform/meta-webhook-signature").captureRawBody }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(cors());
 app.use(fileUpload());

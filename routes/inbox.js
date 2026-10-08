@@ -39,11 +39,22 @@ const {
 
 const { handleCalls } = require("../helper/addon/wacall/wacall.js");
 const { captureMetaWebhook } = require("../helper/pipeline/leadPipeline.js");
+const metaWebhookSignature = require("../modules/platform/meta-webhook-signature");
 const {
   handleBroadcastCallConnect,
   handleBroadcastCallTerminate,
   outgoingCallStates,
 } = require("../helper/addon/wacall/broadcastProcessor.js");
+
+function verifyMetaWebhookRequest(req, res) {
+  const configured = typeof process.env.META_APP_SECRET === "string" && process.env.META_APP_SECRET.length > 0;
+  if (metaWebhookSignature.requireMetaSignature(req, process.env.META_APP_SECRET)) return true;
+  res.set("Cache-Control", "no-store").status(configured ? 401 : 503).json({
+    success: false,
+    code: configured ? "INVALID_META_WEBHOOK_SIGNATURE" : "META_WEBHOOK_SIGNATURE_NOT_CONFIGURED",
+  });
+  return false;
+}
 
 // WhatsApp Webhook Verification
 router.get("/embed/webhook/:uid", async (req, res) => {
@@ -78,11 +89,10 @@ router.get("/embed/webhook/:uid", async (req, res) => {
 // handle embed webhook
 router.post("/embed/webhook/:uid", async (req, res) => {
   try {
+    if (!verifyMetaWebhookRequest(req, res)) return;
     const body = req.body;
     res.sendStatus(200);
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses;
-
-    console.log(JSON.stringify({ body }));
 
     // Handle message status updates - SIMPLE VERSION
     if (req.body && req.body.entry) {
@@ -318,6 +328,7 @@ router.post("/embed/webhook/:uid", async (req, res) => {
 
 router.post("/webhook/:uid", async (req, res) => {
   try {
+    if (!verifyMetaWebhookRequest(req, res)) return;
     const body = req.body;
     const userUID = req.params.uid;
 
