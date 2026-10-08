@@ -20,6 +20,12 @@ test('sale requests require the training enrollment capability and role permissi
   assert.equal(policy.decision({...base,category:restaurantFixture},{capability:'training.enrollments',permission:'sales.request'}).code,'CATEGORY_UNAVAILABLE');
   assert.equal(policy.decision({...base,subscription:{status:'active',capabilities:[]}},{capability:'training.enrollments',permission:'sales.request'}).code,'FEATURE_UNAVAILABLE');
 });
+test('sale options use the Qatar-local calendar date without MariaDB timezone tables',async()=>{
+  const tenantId=crypto.randomUUID(),ctx={audience:'tenant',identity:{id:crypto.randomUUID()},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:crypto.randomUUID(),tenantId,role:'owner',status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:['training.enrollments','training.courses']}};
+  let statement,params;await reviews.listOptions({query:async(sql,values)=>{statement=sql;params=values;return [[]];}},ctx);
+  const expectedToday=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Qatar',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  assert.doesNotMatch(statement,/CONVERT_TZ/);assert.deepEqual(params,[expectedToday,tenantId,expectedToday,expectedToday]);
+});
 test('sale review API and bilingual screen are integrated into the existing pipeline drawer',()=>{
   const fs=require('node:fs'),path=require('node:path'),root=path.join(__dirname,'..');const ui=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.js'),'utf8'),router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8'),css=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8');
   assert.match(ui,/sale-review-area/);assert.match(ui,/saleReviewDescription/);assert.match(ui,/مراجعة البيع/);assert.match(ui,/installmentTotalMismatch/);assert.match(ui,/financeBlocker/);assert.match(router,/\/sale-options/);assert.match(router,/sale-reviews\/\:reviewId\/decision/);assert.match(css,/sale-review-form/);
