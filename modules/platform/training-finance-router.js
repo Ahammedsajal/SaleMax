@@ -11,6 +11,7 @@ const credits=require('./training-credits');
 const refunds=require('./training-refunds');
 const disputes=require('./training-disputes');
 const invoiceGenerator=require('./invoice-generator');
+const documentGrants=require('./training-document-grants');
 function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   const router=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
@@ -84,6 +85,11 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.get('/accountant/receipts/:id',canonicalGuard,wrap(async(req,res)=>{
     const data=await withConnection(payments.receipt)(req.businessContext,req.params.id);res.json({success:true,data});
   }));
+  for(const canonical of [false,true]){
+    const prefix=canonical?'/accountant':'',guards=canonical?[canonicalGuard]:[userGuard,ownerContext],ctx=req=>canonical?req.businessContext:req.financeContext;
+    router.post(`${prefix}/documents/:type/:id/link`,...guards,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(documentGrants.issue)(ctx(req),req.params.type,req.params.id,{origin})})));
+    router.delete(`${prefix}/documents/:type/:id/link`,...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(documentGrants.revoke)(ctx(req),req.params.type,req.params.id)})));
+  }
   router.post('/invoices/:id/credits',userGuard,ownerContext,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(credits.request)(req.financeContext,req.params.id,req.body)})));
   router.post('/accountant/invoices/:id/credits',canonicalGuard,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(credits.request)(req.businessContext,req.params.id,req.body)})));
   router.get('/credits/pending',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(credits.pending)(req.financeContext,req.query)})));
@@ -106,10 +112,18 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);const code=error.code||'FINANCE_POLICY_UNAVAILABLE';
     if(code.startsWith('REFUND_'))return res.status(code==='REFUND_NOT_FOUND'?404:409).json({success:false,code});
+    if(code.startsWith('DOCUMENT_LINK_')||code==='DOCUMENT_NOT_FOUND'||code==='DOCUMENT_RECIPIENT_UNAVAILABLE')return res.status(404).json({success:false,code:'DOCUMENT_LINK_UNAVAILABLE'});
     if(code.startsWith('DISPUTE_'))return res.status(code==='DISPUTE_NOT_FOUND'?404:code==='DISPUTE_BALANCE_OUT_OF_SYNC'?503:409).json({success:false,code});
     const status=['ACCOUNTANT_REQUIRED','PERMISSION_DENIED','INVOICE_ISSUER_ROLE_REQUIRED'].includes(code)?403:['FINANCE_POLICY_NOT_FOUND','VERIFIED_BUSINESS_OWNER_REQUIRED','INVOICE_NOT_FOUND','CUSTOMER_NOT_FOUND','PAYMENT_NOT_FOUND','RECEIPT_NOT_FOUND','SCHEDULE_CHANGE_NOT_FOUND','CREDIT_NOT_FOUND','SALE_REVIEW_NOT_FOUND','LEAD_NOT_FOUND'].includes(code)?404:['STALE_FINANCE_POLICY','FINANCE_POLICY_REVIEW_PENDING','FINANCE_POLICY_NOT_DRAFT','FINANCE_POLICY_NOT_PENDING','BUSINESS_LINK_INVALID','INVOICE_NOT_PAYABLE','INVOICE_SETTINGS_REQUIRED','INVOICE_REQUEST_KEY_CONFLICT','COURSE_UNAVAILABLE','PAYMENT_NOT_PENDING','PAYMENT_IDEMPOTENCY_CONFLICT','SECOND_APPROVER_REQUIRED','PAYMENT_BALANCE_OUT_OF_RANGE','INSTALLMENT_BALANCE_OUT_OF_SYNC','INSTALLMENT_SCHEDULE_OUT_OF_SYNC','STALE_INSTALLMENT_SCHEDULE','SCHEDULE_CHANGE_IDEMPOTENCY_CONFLICT','SCHEDULE_CHANGE_ALREADY_PENDING','SCHEDULE_CHANGE_NOT_PENDING','SCHEDULE_SECOND_APPROVER_REQUIRED','PENDING_PAYMENT_BLOCKS_SCHEDULE_CHANGE','CREDIT_IDEMPOTENCY_CONFLICT','CREDIT_ALREADY_PENDING','CREDIT_NOT_PENDING','CREDIT_SECOND_APPROVER_REQUIRED','CREDIT_EXCEEDS_OUTSTANDING','PENDING_PAYMENT_BLOCKS_CREDIT','STALE_LEAD_REVISION','LEAD_NOT_OPEN','SALE_REVIEW_NOT_APPROVED','SALE_REVIEW_ALREADY_CONVERTED','SALE_APPROVAL_IDENTITY_REQUIRED','BATCH_UNAVAILABLE','FINANCE_POLICY_NOT_APPROVED','FINANCE_POLICY_INCOMPLETE','SALE_SCHEDULE_NEEDS_TAX_UPDATE','OFFER_PAYMENT_PLAN_CHANGED','INVOICE_NUMBER_CONFLICT'].includes(code)?409:['AUTH_REQUIRED','IDENTITY_REQUIRED'].includes(code)?401:code.startsWith('INVALID_')||['TAX_RATE_REQUIRED','TAX_RATE_NOT_APPLICABLE','TAX_MODE_REQUIRED','FINANCE_POLICY_INCOMPLETE','FINANCE_POLICY_REJECTION_REASON_REQUIRED','PAYMENT_REJECTION_REASON_REQUIRED','SCHEDULE_REJECTION_REASON_REQUIRED','SCHEDULE_DATES_MUST_BE_FUTURE','NO_FUTURE_UNPAID_INSTALLMENTS','INSTALLMENT_TOTAL_MISMATCH','INVALID_INSTALLMENT_SCHEDULE','INVALID_INSTALLMENT_AMOUNT','INVALID_INSTALLMENT_DATE','PAYMENT_SCHEDULE_TOTAL_MISMATCH'].includes(code)?400:['ACCOUNT_INACTIVE','BUSINESS_INACTIVE','CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:503;
     res.status(status).json({success:false,code:status===503?'FINANCE_POLICY_UNAVAILABLE':code,...(error.details?{details:error.details}:{})});
   });
   return router;
 }
-module.exports={createTrainingFinanceRouter};
+function createPublicTrainingDocumentRouter({pool,origin}){
+  const router=express.Router();
+  router.use(express.json({limit:'2kb',strict:true}));
+  router.use((req,res,next)=>{res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Pragma','no-cache');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Content-Type-Options','nosniff');next();});
+  router.post('/resolve',async(req,res)=>{if((req.get('Origin')&&req.get('Origin')!==origin)||!req.body||typeof req.body.token!=='string'||Object.keys(req.body).some(key=>key!=='token'))return res.status(404).json({success:false,code:'DOCUMENT_LINK_UNAVAILABLE'});const db=await pool.getConnection();try{const data=await documentGrants.resolve(db,req.body.token);res.json({success:true,data});}catch(error){res.status(404).json({success:false,code:'DOCUMENT_LINK_UNAVAILABLE'});}finally{db.release();}});
+  return router;
+}
+module.exports={createTrainingFinanceRouter,createPublicTrainingDocumentRouter};

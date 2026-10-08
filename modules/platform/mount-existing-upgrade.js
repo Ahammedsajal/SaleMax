@@ -5,7 +5,7 @@ const {createExistingPlatformAccessRouters}=require('./existing-platform-access-
 const {createTeamInvitationRouters}=require('./team-invitation-router');
 const {createTrainingCourseRouter}=require('./training-course-router');
 const {createTrainingCenterProfileRouter}=require('./training-center-profile-router');
-const {createTrainingFinanceRouter}=require('./training-finance-router');
+const {createTrainingFinanceRouter,createPublicTrainingDocumentRouter}=require('./training-finance-router');
 const {createTrainingStudentsRouter}=require('./training-students-router');
 const {createTrainingFormRouter,createPublicTrainingFormRouter}=require('./training-form-router');
 const {createChatbotRouter}=require('./chatbot-router');
@@ -35,6 +35,8 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/user/training/students',createTrainingStudentsRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/training/profile',createTrainingCenterProfileRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/training/finance-policies',createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
+  app.use('/api/public/training/documents',createPublicTrainingDocumentRouter({pool,origin}));
+  app.get('/customer-document',(req,res)=>{res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");res.sendFile(require('node:path').resolve(__dirname,'../../client/public/customer-document.html'));});
   app.use('/api/user/training/forms',createTrainingFormRouter({pool,origin,userGuard}));
   app.use('/api/user/chatbots',createChatbotRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/call-center',createCallCenterRouter({pool,userGuard,canonicalGuard:businessBoundary.guard,origin}));
@@ -42,7 +44,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   return boundary;
 }
 function mountConfiguredUpgrade(app){
-  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/user/team-invitations','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/call-center','/api/public/training/forms','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
+  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/user/team-invitations','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/call-center','/api/public/training/forms','/api/public/training/documents','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
   const secret=process.env.SALEMAX_PLATFORM_KEY_BASE64;
   if(typeof secret!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(secret))throw new Error('PLATFORM_KEY_REQUIRED');
   const key=Buffer.from(secret,'base64');if(key.length!==32||key.toString('base64')!==secret)throw new Error('PLATFORM_KEY_INVALID');
