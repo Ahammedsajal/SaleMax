@@ -30,6 +30,7 @@ test('new course workflow is mounted in existing user shell with bilingual scree
   assert.match(html,/training-courses\.js\?v=/);assert.match(screen,/\?page=courses/);assert.match(screen,/الدورات/);assert.match(screen,/priceMinor/);assert.match(screen,/Publish course/);assert.match(screen,/Schedule a batch/);assert.match(screen,/Retire course/);assert.match(screen,/data-edit-batch/);
   assert.match(screen,/Learning outcomes/);assert.match(screen,/Prerequisites/);assert.match(screen,/addLearningInfo/);
   assert.match(screen,/prerequisitesEn:f\.get\('prerequisitesEn'\)/);assert.match(screen,/prerequisitesAr:f\.get\('prerequisitesAr'\)/);
+  assert.match(screen,/area\.dir=rtl\?'rtl':'ltr'/);assert.match(screen,/help\.dir=field\.endsWith\('Ar'\)\?'rtl':'ltr'/);
   assert.equal((screen.match(/prerequisitesEn:f\.get\('prerequisitesEn'\)/g)||[]).length,2,'create and edit must both persist English prerequisites');
   assert.equal((screen.match(/prerequisitesAr:f\.get\('prerequisitesAr'\)/g)||[]).length,2,'create and edit must both persist Arabic prerequisites');
   assert.match(screen,/business-auth\/me/);assert.match(screen,/canonicalCsrf/);assert.match(mount,/canonicalGuard:businessBoundary\.guard/);
