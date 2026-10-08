@@ -26,8 +26,15 @@
       return visible&&atViewportEdge&&(item.docked||(window.innerWidth>=900&&!item.modal));
     }).sort((a,b)=>b.rect.width-a.rect.width);
     const current=drawers[0],onLeft=current&&current.rect.left<=12,onRight=current&&current.rect.right>=window.innerWidth-12;
-    root.style.setProperty('--sx-forms-left-inset',onLeft?`${Math.round(current.rect.width)}px`:'0px');
-    root.style.setProperty('--sx-forms-right-inset',onRight&&!onLeft?`${Math.round(current.rect.width)}px`:'0px');
+    // The existing shell can omit the drawer's MUI class in some render states.
+    // Candidate Applications is still inside the desktop /user workspace, so
+    // retain the known sidebar gutter instead of letting the fixed screen cover it.
+    const fallbackSidebar=document.querySelector('[data-sx-sidebar-collapsed]');
+    const fallbackWidth=fallbackSidebar?Math.round(fallbackSidebar.getBoundingClientRect().width):260;
+    const desktopFallback=window.innerWidth>=900&&!current?Math.max(64,fallbackWidth):0;
+    const rtl=(document.documentElement.dir||'').toLowerCase()==='rtl'||(localStorage.getItem('language')||'').toLowerCase().startsWith('ar');
+    root.style.setProperty('--sx-forms-left-inset',onLeft?`${Math.round(current.rect.width)}px`:desktopFallback&&!rtl?`${desktopFallback}px`:'0px');
+    root.style.setProperty('--sx-forms-right-inset',onRight&&!onLeft?`${Math.round(current.rect.width)}px`:desktopFallback&&rtl?`${desktopFallback}px`:'0px');
     if(sidebarResizeObserver){sidebarResizeObserver.disconnect();if(current)sidebarResizeObserver.observe(current.drawer);if(appBar&&barHeight)sidebarResizeObserver.observe(appBar);}
   }
   function screen(){let el=document.getElementById('sx-forms-screen');if(!el){el=document.createElement('section');el.id='sx-forms-screen';el.setAttribute('aria-live','polite');document.body.append(el);}el.dir=tr('ltr','rtl');syncScreenBounds(el);return el;}
