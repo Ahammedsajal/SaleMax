@@ -34,18 +34,18 @@ function createPublicTrainingFormRouter({app,pool,rateKey,origin,turnstile}){
     res.setHeader('Cache-Control','no-store');
     if(req.get('Origin')!==origin)return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
     try{
-      if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values','website','challengeToken'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
+      if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values','website','challengeToken','campaignAttribution'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
       if(typeof req.body.website==='string'&&req.body.website.trim())return res.status(201).json({success:true,data:{referenceCode:crypto.randomBytes(6).toString('hex').toUpperCase()}});
       if(req.body.challengeToken!==undefined&&(typeof req.body.challengeToken!=='string'||req.body.challengeToken.length>2048))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
       if(challenge.enabled)await challenge.verify(req.body.challengeToken,req.body.submissionToken,{tenantSlug:req.params.tenantSlug,formSlug:req.params.formSlug});
       const remote=req.socket.remoteAddress||'';let clientIp=null;
       if(['127.0.0.1','::1','::ffff:127.0.0.1'].includes(remote)){const chain=(req.get('X-Forwarded-For')||'').split(',').map(value=>value.trim()).filter(Boolean);const last=chain.at(-1);if(last&&net.isIP(last))clientIp=last;}
       const visitorHash=crypto.createHmac('sha256',rateKey).update(clientIp||crypto.randomBytes(32)).digest('hex');
-      const result=await forms.submitPublic(pool,{tenantSlug:req.params.tenantSlug,formSlug:req.params.formSlug,submissionToken:req.body.submissionToken,values:req.body.values,visitorHash});
+      const result=await forms.submitPublic(pool,{tenantSlug:req.params.tenantSlug,formSlug:req.params.formSlug,submissionToken:req.body.submissionToken,values:req.body.values,visitorHash,campaignAttribution:req.body.campaignAttribution});
       return res.status(result.repeated?200:201).json({success:true,data:{referenceCode:result.referenceCode,repeated:result.repeated}});
     }catch(error){return next(error);}
   });
-  router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'PUBLIC_FORM_UNAVAILABLE';const status=error.type==='entity.too.large'?413:error instanceof SyntaxError&&error.status===400?400:code==='FORM_NOT_FOUND'?404:code==='FORM_RATE_LIMITED'?429:['INVALID_SUBMISSION','INVALID_PHONE','INVALID_EMAIL','INVALID_COURSE','INVALID_PREFERRED_DATE','REQUIRED_FIELD_MISSING','CONSENT_REQUIRED','BOT_CHALLENGE_REQUIRED','BOT_CHALLENGE_FAILED'].includes(code)?400:code==='BUSINESS_LINK_INVALID'?409:503;res.status(status).json({success:false,code:error.type==='entity.too.large'?'PAYLOAD_TOO_LARGE':status===503?(code==='BOT_CHALLENGE_UNAVAILABLE'?'BOT_CHALLENGE_UNAVAILABLE':'PUBLIC_FORM_UNAVAILABLE'):code});});
+  router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'PUBLIC_FORM_UNAVAILABLE';const status=error.type==='entity.too.large'?413:error instanceof SyntaxError&&error.status===400?400:code==='FORM_NOT_FOUND'?404:code==='FORM_RATE_LIMITED'?429:['INVALID_SUBMISSION','INVALID_ATTRIBUTION','INVALID_PHONE','INVALID_EMAIL','INVALID_COURSE','INVALID_PREFERRED_DATE','REQUIRED_FIELD_MISSING','CONSENT_REQUIRED','BOT_CHALLENGE_REQUIRED','BOT_CHALLENGE_FAILED'].includes(code)?400:code==='BUSINESS_LINK_INVALID'?409:503;res.status(status).json({success:false,code:error.type==='entity.too.large'?'PAYLOAD_TOO_LARGE':status===503?(code==='BOT_CHALLENGE_UNAVAILABLE'?'BOT_CHALLENGE_UNAVAILABLE':'PUBLIC_FORM_UNAVAILABLE'):code});});
   return router;
 }
 module.exports={createTrainingFormRouter,createPublicTrainingFormRouter,publicFormMetadata};

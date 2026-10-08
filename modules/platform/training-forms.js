@@ -7,6 +7,22 @@ const pipeline=require('../../helper/pipeline/leadPipeline');
 const uuid=()=>crypto.randomUUID();
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const keys=new Set(['contact_name','learner_name','phone','email','nationality','course_id','preferred_date','consent','student_id','certificate_name','qid','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','source','referral_name','courses','student_agreement','tuition_qar','student_signature','student_signature_date','representative_signature','representative_signature_date','payment_plan']);
+function cleanCampaignAttribution(value){
+  if(value===undefined||value===null)return null;
+  if(typeof value!=='object'||Array.isArray(value))fail('INVALID_ATTRIBUTION');
+  const fields={utmSource:120,utmMedium:120,utmCampaign:180,utmContent:180,utmTerm:180,landingPage:500,referrer:500},clean={};
+  for(const [key,limit] of Object.entries(fields)){
+    const raw=value[key];if(raw===undefined||raw===null||raw==='')continue;
+    if(typeof raw!=='string'||raw.length>limit)fail('INVALID_ATTRIBUTION');
+    const trimmed=raw.trim();if(!trimmed)continue;
+    if(key==='landingPage'||key==='referrer'){
+      let url;try{url=new URL(trimmed);}catch{fail('INVALID_ATTRIBUTION');}
+      if(!['http:','https:'].includes(url.protocol))fail('INVALID_ATTRIBUTION');
+      clean[key]=`${url.origin}${url.pathname}`.slice(0,limit);
+    }else clean[key]=trimmed;
+  }
+  return Object.keys(clean).length?clean:null;
+}
 function context(ctx){if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant?.id)fail('TENANT_CONTEXT_REQUIRED');const result=decision(ctx,{capability:'portal.forms',permission:'forms.manage'});if(!result.allowed)fail(result.code);}
 function formInput(value){
   if(!value||typeof value!=='object'||Array.isArray(value))fail('INVALID_FORM');
@@ -108,7 +124,7 @@ async function searchStaffLeads(pool,actor,search){
     return rows;
   }finally{db.release();}
 }
-async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,values,captureMode,visitorHash,actor}){
+async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,values,captureMode,visitorHash,actor,campaignAttribution}){
   const entitlements=await plans.loadEntitlements(db,tenantId);if(!entitlements||!['active','trial','grace'].includes(entitlements.status)||!entitlements.capabilities.includes('portal.forms'))fail('FEATURE_UNAVAILABLE');
   const schema=typeof form.schema_json==='string'?JSON.parse(form.schema_json):form.schema_json;const data=cleanSubmission(schema,values);let courseTitle='';
   if(schema.fields.some(field=>field.key==='course_id')){
@@ -127,18 +143,19 @@ async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,
     const [[linked]]=await db.query(`SELECT id FROM pipeline_leads WHERE uid_hash=? AND id=?${scope} LIMIT 1 FOR UPDATE`,params);
     if(!linked)fail('LEAD_NOT_ACCESSIBLE');leadId=linked.id;
   }else{
-    const lead=await pipeline.createManualLead({uid,actorType:captureMode==='public'?'system':actor.actorType,actorId:captureMode==='public'?null:actor.actorId,agentId:actor?.agentId,role:captureMode==='public'?'owner':actor.role,connection:db,input:{title:courseTitle||form.name_en,contactName:data.contact_name,learnerName:data.learner_name||data.contact_name,mobile:data.phone||'',email:data.email||'',sourceType:captureMode==='public'?'public_form':'staff_form'}});leadId=lead.id;
+    const lead=await pipeline.createManualLead({uid,actorType:captureMode==='public'?'system':actor.actorType,actorId:captureMode==='public'?null:actor.actorId,agentId:actor?.agentId,role:captureMode==='public'?'owner':actor.role,connection:db,input:{title:courseTitle||form.name_en,contactName:data.contact_name,learnerName:data.learner_name||data.contact_name,mobile:data.phone||'',email:data.email||'',sourceType:captureMode==='public'?'public_form':'staff_form',qualificationData:captureMode==='public'&&campaignAttribution?{campaign:campaignAttribution}:undefined}});leadId=lead.id;
   }
   await db.query('UPDATE sx_training_form_submissions SET lead_id=? WHERE id=? AND tenant_id=?',[leadId,submissionId,tenantId]);
   return {referenceCode:reference,leadId,repeated:false};
 }
-async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,visitorHash}){
+async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,visitorHash,campaignAttribution}){
   if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken)||typeof visitorHash!=='string'||!/^[0-9a-f]{64}$/.test(visitorHash))fail('INVALID_SUBMISSION');
+  campaignAttribution=cleanCampaignAttribution(campaignAttribution);
   const db=await pool.getConnection();let begun=false;try{
     await db.beginTransaction();begun=true;
     const [[form]]=await db.query(`SELECT t.id AS tenant_id,t.slug AS tenant_slug,u.uid,own.legacy_uid_hash,f.id AS form_id,v.version,v.slug,v.name_en,v.name_ar,v.schema_json FROM sx_tenants t JOIN sx_training_forms f ON f.tenant_id=t.id AND f.status='published' JOIN sx_training_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version JOIN sx_legacy_ownership own ON own.tenant_id=t.id AND own.source_table='user' JOIN sx_memberships owner_membership ON owner_membership.tenant_id=own.tenant_id AND owner_membership.id=own.membership_id AND owner_membership.role='owner' AND owner_membership.status='active' JOIN user u ON CAST(u.id AS CHAR)=own.source_id WHERE t.slug=? AND v.slug=? AND t.category_key='training_center' AND t.category_version=1 AND t.status='active' LIMIT 1 FOR UPDATE`,[tenantSlug,formSlug]);
     if(!form)fail('FORM_NOT_FOUND');if(!form.legacy_uid_hash||sha(form.uid)!==form.legacy_uid_hash)fail('BUSINESS_LINK_INVALID');
-    const result=await persistSubmission(db,{form,tenantId:form.tenant_id,uid:form.uid,formSlug,captureMode:'public',submissionToken,values,visitorHash});
+    const result=await persistSubmission(db,{form,tenantId:form.tenant_id,uid:form.uid,formSlug,captureMode:'public',submissionToken,values,visitorHash,campaignAttribution});
     await db.commit();begun=false;return result;
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
@@ -151,4 +168,4 @@ async function submitStaff(pool,actor,formSlug,{submissionToken,values,selectedL
     await db.commit();begun=false;return {...result,collectorRole:actor.role};
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
-module.exports={formInput,list,submissions,create,update,publish,publicForm,cleanSubmission,submitPublic,staffForm,searchStaffLeads,submitStaff};
+module.exports={formInput,list,submissions,create,update,publish,publicForm,cleanSubmission,cleanCampaignAttribution,submitPublic,staffForm,searchStaffLeads,submitStaff};

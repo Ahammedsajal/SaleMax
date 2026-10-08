@@ -29,6 +29,22 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
   const actorToken = () => localStorage.getItem('wacrm_agent') || localStorage.getItem('wacrm_user');
+  function campaignAttribution() {
+    const fields = { utmSource: ['utm_source', 120], utmMedium: ['utm_medium', 120], utmCampaign: ['utm_campaign', 180], utmContent: ['utm_content', 180], utmTerm: ['utm_term', 180] };
+    const attribution = {};
+    for (const [key, [parameter, limit]] of Object.entries(fields)) {
+      const value = query.get(parameter)?.trim().slice(0, limit);
+      if (value) attribution[key] = value;
+    }
+    attribution.landingPage = `${location.origin}${location.pathname}`.slice(0, 500);
+    if (document.referrer) {
+      try {
+        const referrer = new URL(document.referrer);
+        if (['http:', 'https:'].includes(referrer.protocol)) attribution.referrer = `${referrer.origin}${referrer.pathname}`.slice(0, 500);
+      } catch {}
+    }
+    return Object.keys(attribution).length ? attribution : null;
+  }
 
   function renderMessage(title, detail, actionHref, actionLabel) {
     root.innerHTML = `<section class="form-card"><h1 tabindex="-1">${esc(title)}</h1><p class="description">${esc(detail)}</p>${actionHref ? `<a class="form-action" href="${esc(actionHref)}">${esc(actionLabel)}</a>` : ''}</section>`;
@@ -190,7 +206,8 @@
       const control = form.elements[field.key];
       if (control?.value) values[field.key] = control.value.trim();
     }
-    const payload = { submissionToken: getSubmissionToken(), values, ...(staffCapture&&selectedLead?{selectedLeadId:selectedLead.id}:{}) };
+    const attribution = staffCapture ? null : campaignAttribution();
+    const payload = { submissionToken: getSubmissionToken(), values, ...(staffCapture&&selectedLead?{selectedLeadId:selectedLead.id}:{}), ...(attribution?{campaignAttribution:attribution}:{}) };
     if (!staffCapture) payload.website = form.elements.website.value;
     if (!staffCapture && data.botChallenge) payload.challengeToken = challengeToken;
     button.disabled = true;
