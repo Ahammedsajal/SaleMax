@@ -22,6 +22,12 @@
   }
 }
 
+@media (max-width: 899px) {
+  #sx-forms-screen {
+    inset-block-start: var(--sx-forms-top-inset, 56px);
+  }
+}
+
 @media (max-width: 720px) {
   #sx-forms-screen {
     padding: 16px 12px calc(24px + env(safe-area-inset-bottom));

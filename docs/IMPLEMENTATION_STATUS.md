@@ -220,7 +220,7 @@ Clean committed tests pass 139/139. Production English/Arabic browser checks pas
 
 ## Candidate Applications responsive layout — source change 8 October 2026
 
-The existing `/user?page=forms` screen now measures the visible desktop sidebar and starts after its expanded or collapsed width, removing the sidebar overlap visible on narrower desktop windows. Tablet filters use a two-column layout; phone filters and form actions stack to fit the screen, while the submissions table remains horizontally scrollable and detail dialogs fit short viewports. Both screen and stylesheet cache versions were advanced. This is a local source change only; responsive browser acceptance and production deployment have not been performed.
+The existing `/user?page=forms` screen now measures the visible desktop sidebar and starts after its expanded or collapsed width, removing the sidebar overlap visible on narrower desktop windows. At compact widths it starts below the fixed app bar. Tablet filters use a two-column layout; phone filters and form actions stack to fit the screen, while the submissions table remains horizontally scrollable and detail dialogs fit short viewports. Both screen and stylesheet cache versions were advanced. Responsive browser acceptance is in progress; this source change has not yet been deployed.
 
 ## Production release — 3 October 2026
 
