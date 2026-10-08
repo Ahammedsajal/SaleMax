@@ -67,6 +67,11 @@ test('task chat read cursor advances only for a real message on an active task p
   assert.equal(calls.at(-1)[0],'COMMIT');
 });
 
+test('task chat denies managers who are not active task participants',async()=>{
+  const db={query:async(sql)=>sql.includes('FROM sx_tasks')?[[{id:'66666666-6666-4666-8666-666666666666'}],[]]:[[],[]]};
+  await assert.rejects(tasks.messages(db,ctx,'66666666-6666-4666-8666-666666666666',{}),{code:'PERMISSION_DENIED',status:403});
+});
+
 test('WhatsApp task notification preference is per authenticated recipient and defaults off',async()=>{
   const calls=[];let optedIn=0;const db={query:async(sql,args=[])=>{calls.push([sql,args]);if(sql.startsWith('INSERT INTO sx_task_notification_preferences')){optedIn=args[3];return [{affectedRows:1},[]];}if(sql.includes('FROM sx_task_notification_preferences'))return optedIn?[[{whatsappOptIn:1,whatsappOptedInAt:'2026-10-05 10:00:00',whatsappOptedOutAt:null}],[]]:[[],[]];return [[],[]];}};
   assert.deepEqual(await tasks.getNotificationPreferences(db,ctx),{whatsappOptIn:false,whatsappOptedInAt:null,whatsappOptedOutAt:null});
@@ -178,9 +183,9 @@ test('task creation keeps the lead, participants, history and channel notificati
   const calls=[];const lead={id:'33333333-3333-4333-8333-333333333333',title:'Course enquiry',contact_name:'Learner',owner_agent_id:null};
   const db={beginTransaction:async()=>calls.push(['BEGIN']),commit:async()=>calls.push(['COMMIT']),rollback:async()=>calls.push(['ROLLBACK']),query:async(sql,args=[])=>{calls.push([sql,args]);if(sql.includes('FROM pipeline_leads'))return [[lead],[]];if(sql.includes('FROM agents'))return [[{id:7}],[]];if(sql.includes('FROM sx_memberships'))return [[{id:'member'}],[]];if(sql.startsWith('INSERT'))return [{insertId:1,affectedRows:1},[]];return [[],[]];}};
   const result=await tasks.create(db,ctx,{title:'Call about course schedule',description:'Ask about evening classes',taskType:'lead_follow_up',dueAt:'2026-10-06T10:00:00.000Z',source:{type:'lead',id:lead.id},participants:[{actorType:'agent',actorId:'7',role:'assignee'},{actorType:'agent',actorId:'8',role:'assignee'},{actorType:'identity',actorId:'member-id',role:'observer'}]});
-  assert.equal(result.lead.id,lead.id);assert.equal(result.participants.length,3);assert.equal(result.status,'open');
-  assert.equal(calls.filter(([sql])=>String(sql).startsWith('INSERT INTO sx_task_participants')).length,3);
-  assert.equal(calls.filter(([sql])=>String(sql).startsWith('INSERT IGNORE INTO sx_task_notifications')).length,6);
+  assert.equal(result.lead.id,lead.id);assert.equal(result.participants.length,4);assert.ok(result.participants.some(p=>p.actorType===ctx.actorType&&p.actorId===ctx.actorId&&p.role==='observer'));assert.equal(result.status,'open');
+  assert.equal(calls.filter(([sql])=>String(sql).startsWith('INSERT INTO sx_task_participants')).length,4);
+  assert.equal(calls.filter(([sql])=>String(sql).startsWith('INSERT IGNORE INTO sx_task_notifications')).length,8);
   assert.equal(calls.at(-1)[0],'COMMIT');
   const activity=calls.find(([sql])=>String(sql).includes('INSERT INTO pipeline_activity'));assert.ok(activity);assert.deepEqual(activity[1].slice(0,2),[ctx.uidHash,lead.id]);
 });

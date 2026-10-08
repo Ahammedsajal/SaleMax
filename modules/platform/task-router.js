@@ -30,7 +30,7 @@ function createTaskRouter({pool,contextFor}){
   router.patch('/:id',run('tasks.manage',(db,ctx,req)=>tasks.edit(db,ctx,req.params.id,req.body||{})));
   router.delete('/:id',run('tasks.manage',(db,ctx,req)=>tasks.remove(db,ctx,req.params.id,req.body?.expectedRevision)));
   router.post('/:id/read',run('tasks.read',(db,ctx,req)=>tasks.markMessagesRead(db,ctx,req.params.id,req.body?.lastReadMessageId)));
-  router.post('/:id/messages',run('tasks.manage',(db,ctx,req)=>tasks.addMessage(db,ctx,req.params.id,req.body?.body),201));
+  router.post('/:id/messages',run('tasks.manage',(db,ctx,req)=>tasks.addMessage(db,ctx,req.params.id,req.body?.body,req.body?.mentions||[]),201));
   return router;
 }
 module.exports={createTaskRouter};

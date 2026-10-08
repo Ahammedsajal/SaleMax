@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Task chat collaboration — source increment, 8 October 2026
+
+The existing Tasks thread now requires active task participation for message reads, replies and read-cursor updates, including owner/manager accounts. New task creators are added as observers, edits preserve the creator, and the additive migration backfills creators without making historical messages unread. Task messages accept validated @mention targets drawn only from current active participants. Existing per-participant unread counts are refreshed in the task queue every 15 seconds; an open thread continues the existing 4-second message polling. Attachments are deferred pending storage policy. Focused task tests pass 25/25, JavaScript syntax and `git diff --check` pass, and the migration is discoverable as two statements. The disposable database integration could not run because `LOCAL_ONLY_MODE=true` and a local DB host are not configured. This source increment is not deployed; run the DB integration and authenticated multi-user acceptance before release. WebSocket push delivery remains a follow-up; current updates use the existing polling behavior. No production/task data was changed.
+
 ## Tasks concurrent-session request race — production, 8 October 2026
 
 After the user signed in, live logs confirmed the canonical session and Tasks list were valid, but the parallel participants request raced the session probe and fell back to the legacy API, which returned 401. Because the screen awaited all three requests together, one failure hid the successful task list behind an expired-session alert. Source `730c1f7` now shares the in-flight session probe across those requests. The fix is live in `/opt/salemax/releases/tasks-session-race-730c1f7`.

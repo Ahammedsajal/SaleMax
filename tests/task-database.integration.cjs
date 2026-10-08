@@ -28,9 +28,10 @@ async function main(){
     await db.query("CREATE TABLE pipeline_contacts(id CHAR(36) NOT NULL,uid_hash CHAR(64) NOT NULL,display_name VARCHAR(255),normalized_email VARCHAR(254),preferred_language VARCHAR(8),PRIMARY KEY(uid_hash,id)) ENGINE=InnoDB");
     await db.query("CREATE TABLE pipeline_conversations(id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,uid_hash CHAR(64) NOT NULL,lead_id CHAR(36) NOT NULL,conversation_key CHAR(64) NOT NULL,chat_id VARCHAR(999) NOT NULL,origin VARCHAR(12) NOT NULL,first_inbound_at DATETIME(3) NOT NULL,last_inbound_at DATETIME(3) NOT NULL,KEY idx_task_lead_conversation(uid_hash,lead_id,last_inbound_at)) ENGINE=InnoDB");
     await db.query("CREATE TABLE pipeline_attributions(id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,uid_hash CHAR(64) NOT NULL,lead_id CHAR(36) NOT NULL,conversation_key CHAR(64) NOT NULL,event_key CHAR(64) NOT NULL,source_type VARCHAR(64) NOT NULL,source_id VARCHAR(191),source_url TEXT,headline VARCHAR(500),body VARCHAR(1000),media_type VARCHAR(64),ctwa_clid VARCHAR(255),is_verified_ad TINYINT NOT NULL DEFAULT 0,event_at DATETIME(3),received_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),KEY idx_task_lead_attribution(uid_hash,lead_id,received_at)) ENGINE=InnoDB");
-    const tasksMigration=discover(path.join(__dirname,'../database/migrations')).filter(m=>m.file==='20261103_task_management.sql');
-    assert.equal(tasksMigration.length,1,'task migration is present and uniquely discoverable');
-    const migrated=await applyMigrations(db,tasksMigration);assert.deepEqual(migrated.applied,['20261103_task_management.sql']);
+    const allMigrations=discover(path.join(__dirname,'../database/migrations'));
+    const tasksMigration=allMigrations.filter(m=>['20261103_task_management.sql','20261117_task_chat_collaboration.sql'].includes(m.file));
+    assert.equal(tasksMigration.length,2,'task and chat migrations are present and uniquely discoverable');
+    const migrated=await applyMigrations(db,tasksMigration);assert.deepEqual(migrated.applied,['20261103_task_management.sql','20261117_task_chat_collaboration.sql']);
     const tenantId=crypto.randomUUID(),identityId=crypto.randomUUID();
     await db.query('INSERT INTO sx_tenants(id,status) VALUES(?,?)',[tenantId,'active']);
     await db.query('INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES(?,?,?,?)',[identityId,'task-owner@example.invalid','Synthetic Task Owner','active']);
