@@ -126,6 +126,34 @@ async function main(){
     assert.equal(endedCall.status,'ended');assert.equal(endedCall.leased_channel_no,null);
     assert.ok(ariActions.some(action=>action[0]==='bridge-add'&&action.includes(winner.channelId)));
     assert.ok(ariActions.some(action=>action[0]==='hangup'&&action[1]===inboundChannel));
+    const tenant2Id=crypto.randomUUID(),tenant2OwnerId=crypto.randomUUID(),tenant2AgentId=crypto.randomUUID(),tenant2OwnerMembership=crypto.randomUUID(),tenant2AgentMembership=crypto.randomUUID();
+    await db.query(`INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES(?,?,?,'training_center',1,'active')`,[tenant2Id,'synthetic-telephony-b','Synthetic telephony B']);
+    await db.query(`INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES(?,?,?,'active'),(?,?,?,'active')`,[tenant2OwnerId,'owner-b@example.invalid','Synthetic Owner B',tenant2AgentId,'agent-b@example.invalid','Synthetic Agent B']);
+    await db.query(`INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES(?,?,?,'owner'),(?,?,?,'agent')`,[tenant2OwnerMembership,tenant2Id,tenant2OwnerId,tenant2AgentMembership,tenant2Id,tenant2AgentId]);
+    await db.query('INSERT INTO sx_telephony_extensions(tenant_id,membership_id,extension,revision,assigned_by_identity_id) VALUES(?,?,?,1,?),(?,?,?,1,?)',[tenant2Id,tenant2OwnerMembership,'7501',tenant2OwnerId,tenant2Id,tenant2AgentMembership,'7502',tenant2OwnerId]);
+    const tenant2Context={...tenantContext,identity:{id:tenant2OwnerId},tenant:{...tenantContext.tenant,id:tenant2Id},membership:{...tenantContext.membership,id:tenant2OwnerMembership,tenantId:tenant2Id}};
+    const tenant2Queue=await queues.save(db,tenant2Context,{id:null,expectedRevision:0,name:'support_secondary',strategy:'ringall',ringTimeoutSeconds:20,enabled:true,membershipIds:[tenant2OwnerMembership,tenant2AgentMembership]});
+    const tenant2GatewayId=crypto.randomUUID();
+    await db.query(`INSERT INTO sx_telephony_gateways(id,tenant_id,gateway_name,gateway_host,gateway_sip_port,gateway_sip_transport,enabled,connection_status,revision,configured_by_identity_id)
+      VALUES(?,?,'Synthetic Dinstar B','198.51.100.43',5061,'tls',1,'online',1,?)`,[tenant2GatewayId,tenant2Id,tenant2OwnerId]);
+    for(let channelNo=1;channelNo<=4;channelNo++)await db.query(`INSERT INTO sx_telephony_gateway_channels
+      (tenant_id,gateway_id,channel_no,enabled,inbound_enabled,outbound_enabled,inbound_did,inbound_queue_id,updated_by_identity_id)
+      VALUES(?,?,?,?,?,?,?,?,?)`,[tenant2Id,tenant2GatewayId,channelNo,channelNo===1?1:0,channelNo===1?1:0,0,channelNo===1?'+97455550002':null,channelNo===1?tenant2Queue.id:null,channelNo===1?tenant2OwnerId:null]);
+    const tenant2InboundChannel='synthetic-pjsip-inbound-tenant-b',originatedBeforeTenant2=originated.length;
+    assert.equal(await callControl.handle({type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550002'],channel:{id:tenant2InboundChannel,name:`PJSIP/salemax_gw_${tenant2GatewayId.replace(/-/g,'')}-0002`}}),true);
+    const tenant2AgentLegs=originated.slice(originatedBeforeTenant2);
+    assert.equal(tenant2AgentLegs.length,4);
+    assert.deepEqual(tenant2AgentLegs.map(leg=>leg.extension).sort(),['7501','7501','7502','7502'],'the second tenant rings only its own queue members');
+    const [[tenant2InboundCall]]=await db.query('SELECT tenant_id,gateway_id,inbound_queue_id,id FROM sx_telephony_calls WHERE inbound_channel_id=?',[tenant2InboundChannel]);
+    assert.deepEqual([tenant2InboundCall.tenant_id,tenant2InboundCall.gateway_id,tenant2InboundCall.inbound_queue_id],[tenant2Id,tenant2GatewayId,tenant2Queue.id]);
+    const [tenant2InboundMemberships]=await db.query(`SELECT DISTINCT m.tenant_id FROM sx_telephony_call_legs l
+      JOIN sx_memberships m ON m.id=l.membership_id WHERE l.tenant_id=? AND l.call_id=? AND l.leg_role='agent'`,[tenant2Id,tenant2InboundCall.id]);
+    assert.deepEqual(tenant2InboundMemberships.map(row=>row.tenant_id),[tenant2Id],'tenant B call legs cannot reference tenant A memberships');
+    const originatedBeforeSpoof=originated.length,foreignGatewayChannel='synthetic-pjsip-foreign-did';
+    await assert.rejects(callControl.handle({type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550002'],channel:{id:foreignGatewayChannel,name:`PJSIP/salemax_gw_${tenantGatewayId.replace(/-/g,'')}-0003`}}),{code:'INBOUND_GATEWAY_IDENTITY_MISMATCH'});
+    assert.equal(originated.length,originatedBeforeSpoof,'a gateway cannot claim another tenant gateway DID');
+    const [[spoofedCall]]=await db.query('SELECT COUNT(*) AS total FROM sx_telephony_calls WHERE inbound_channel_id=?',[foreignGatewayChannel]);
+    assert.equal(Number(spoofedCall.total),0,'foreign DID events create no tenant call or channel lease');
     const rotated=await extensions.rotateEndpointCredential(db,tenantContext,{membershipId:ownerMembership,clientType:'browser',expectedCredentialRevision:1});
     assert.equal(rotated.credentialRevision,2);
     await assert.rejects(extensions.rotateEndpointCredential(db,tenantContext,{membershipId:ownerMembership,clientType:'browser',expectedCredentialRevision:1}),{code:'STALE_ENDPOINT_CREDENTIAL'});
@@ -179,7 +207,7 @@ async function main(){
       assert.equal(statusBody.data.clients.mobileSip.ready,true);assert.equal(statusBody.data.clients.browserWebRtc.ready,false);
       const callsResponse=await fetch(statusUrl.replace('/status','/calls')),callsBody=await callsResponse.json();
       assert.equal(callsResponse.status,200);assert.ok(callsBody.data.items.some(item=>item.canControl===true),'the owner can control their tenant calls');
-      await db.query('ALTER TABLE sx_telephony_gateway_channels DROP CHECK ck_sx_telephony_gateway_channel_did');
+      await db.query('ALTER TABLE sx_telephony_gateway_channels DROP CONSTRAINT ck_sx_telephony_gateway_channel_did');
       await db.query("UPDATE sx_telephony_gateway_channels SET inbound_did='+9741234' WHERE tenant_id=? AND gateway_id=? AND channel_no=1",[tenantId,tenantGatewayId]);
       statusResponse=await fetch(statusUrl);statusBody=await statusResponse.json();
       assert.equal(statusBody.data.calls.inboundAvailable,false,'a malformed historical DID cannot make inbound signaling appear ready');
@@ -273,7 +301,7 @@ async function main(){
     assert.equal(emptyRecoveredCall.status,'failed');assert.equal(emptyRecoveredCall.leased_channel_no,null);assert.equal(emptyRecoveredCall.end_reason,'ARI_RECONNECT_NO_ACTIVE_CHANNELS');
     const [[runtime]]=await db.query('SELECT status,events_received,last_event_type FROM sx_platform_asterisk_runtime WHERE id=1');
     assert.equal(runtime.status,'connected');assert.equal(Number(runtime.events_received),1);assert.equal(runtime.last_event_type,'StasisStart');
-    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAnswerWins:true,oneActiveOutboundPerMember:true,outboundCallRateLimit:true,http429RetryAfter:true,tenantScopedCallTermination:true,oneActiveCallPerMemberControl:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,ariReconnectLeaseRecovery:true,missingActiveChannelReleasesSim:true,callWithoutLegsReleasesSim:true,syntheticOnly:true}));
+    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAnswerWins:true,tenantGatewayInboundIsolation:true,foreignGatewayCannotClaimTenantDid:true,oneActiveOutboundPerMember:true,outboundCallRateLimit:true,http429RetryAfter:true,tenantScopedCallTermination:true,oneActiveCallPerMemberControl:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,ariReconnectLeaseRecovery:true,missingActiveChannelReleasesSim:true,callWithoutLegsReleasesSim:true,syntheticOnly:true}));
   }finally{
     plans.loadEntitlements=originalEntitlements;
     if(originalSipKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalSipKey;
