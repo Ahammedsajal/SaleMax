@@ -955,3 +955,8 @@ In the authenticated owner session, opened the synthetic pipeline opportunity `S
 The existing Forms editor now presents the generic enquiry consent field as “Consent to contact” in English and “موافقة التواصل” in Arabic. Student registration keeps its agreement label, selected by its stable `student-registration` slug. Production static release `forms-consent-3e05883-20261008` is active and recorded in `DEPLOYMENT.md`; no migration or service restart was needed.
 
 In the Pro Catalyst tenant, the existing screen published the bilingual `course-enquiry` form. A synthetic public submission with campaign parameters appeared in Candidate Applications, linked to its lead, and retained source, medium, campaign, and landing-page attribution. Reference: `12C702690110`; lead: `42486758-e6e4-4094-b5e2-93d0fbf6370d`. Provider delivery and the wider upgrade matrix remain unverified/open.
+
+
+## Public form duplicate retry — production acceptance, 8 October 2026
+
+Replayed a synthetic public course enquiry with the exact same UUIDv4 submission token and payload. First request created reference `93E17A4E7B93` (`repeated=false`, HTTP 201); replay returned the same reference (`repeated=true`, HTTP 200). The authenticated Candidate Applications screen displays exactly one row for that reference and one linked lead (`a454c669-f2ea-45c0-bdef-61eea9ce745c`). This verifies API idempotency, but automatic browser retry after a network failure remains unverified. Evidence and the QA record are described in `DEPLOYMENT.md`.
