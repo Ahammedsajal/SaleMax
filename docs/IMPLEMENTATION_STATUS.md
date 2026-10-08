@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Tenant gateway outbound routing repair — production, 8 October 2026
+
+Fixed a production-path defect in `AsteriskCallControl.startOutboundGateway`: the locked call query omitted `gateway_id`, so the call could not resolve the tenant's gateway after the agent answered. Commit `760687b` is deployed in `/opt/salemax/releases/tenant-gateway-outbound-760687b-20261008`; the release and running-container module hashes match. The app was recreated, the database was not restarted, and no migration or production call/gateway data changed. Production health is green. The repaired loopback-only disposable MySQL 9.6 integration passes tenant gateway selection, inbound route identity, outbound GSM endpoint selection, duplicate event handling, call limits, concurrency and lease release. The full JavaScript suite passes 311/311. Asterisk remains inactive/disabled, so no live call was made; device variant, public IP, carrier/SIM/DID mapping, call-center plan entitlement, SIP/TLS, mobile/WebRTC media and real inbound/outbound acceptance remain release gates. Rollback is recorded in `DEPLOYMENT.md`.
+
 ## Owner Finance screen and receivables report — read-only production acceptance, 8 October 2026
 
 The authenticated Pro Catalyst owner loaded the existing `/user?page=finance-settings` screen and its `section=reports` Receivables Aging view. Both render in the existing business shell. Production currently shows no invoices, verified payments, installment-change requests, disputes, or receivables; all displayed report totals are zero. No invoice, payment, receipt, or other financial record was created or changed. This proves owner-screen access and empty-state rendering only. Accountant permissions, a populated synthetic reconciliation fixture, transaction workflows, and live delivery remain unverified.
