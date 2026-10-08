@@ -713,7 +713,7 @@ router.post("/exchange-token", require("../middlewares/user.js"), async (req, re
 });
 
 // get embed config
-router.get("/get_web_pvt", async (req, res) => {
+router.get("/get_web_pvt", adminValidator, async (req, res) => {
   try {
     const [data] = await query(`SELECT * FROM web_private`, []);
     const webhook = await genEmbedWebhook();
@@ -726,4 +726,3 @@ router.get("/get_web_pvt", async (req, res) => {
 });
 
 module.exports = router;
-

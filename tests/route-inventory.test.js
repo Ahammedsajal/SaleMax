@@ -10,3 +10,9 @@ test('inventory records actual mounted declarations and ignores commented login'
   assert.deepEqual(exchange.declaredGuards, ['require(../middlewares/user.js)']);
   assert.ok(result.routes.find(r => r.path === '/api/agent/add_agent').declaredGuards.includes('checkPlan'));
 });
+
+test('private web settings require the existing administrator guard', () => {
+  const route = inventory().routes.find(r => r.path === '/api/web/get_web_pvt' && r.method === 'GET');
+  assert.ok(route, 'private web settings route is present');
+  assert.deepEqual(route.declaredGuards, ['adminValidator']);
+});
