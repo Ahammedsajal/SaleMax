@@ -16,7 +16,15 @@
     root.style.setProperty('--sx-forms-top-inset',`${Math.ceil(barHeight)}px`);
     // Only persistent drawers consume workspace width. Temporary mobile drawers
     // overlay the page and must not create a second inset when opened.
-    const drawers=[...document.querySelectorAll('.MuiDrawer-paper')].map(drawer=>({drawer,rect:drawer.getBoundingClientRect(),style:getComputedStyle(drawer),docked:Boolean(drawer.closest('.MuiDrawer-docked')||drawer.classList.contains('MuiDrawer-paperAnchorDockedLeft')||drawer.classList.contains('MuiDrawer-paperAnchorDockedRight'))})).filter(item=>item.docked&&item.style.display!=='none'&&item.style.visibility!=='hidden'&&item.rect.width>0&&(item.rect.left<=12||item.rect.right>=window.innerWidth-12)).sort((a,b)=>b.rect.width-a.rect.width);
+    const drawers=[...document.querySelectorAll('.MuiDrawer-paper')].map(drawer=>({drawer,rect:drawer.getBoundingClientRect(),style:getComputedStyle(drawer),docked:Boolean(drawer.closest('.MuiDrawer-docked')||drawer.classList.contains('MuiDrawer-paperAnchorDockedLeft')||drawer.classList.contains('MuiDrawer-paperAnchorDockedRight')),modal:Boolean(drawer.closest('.MuiModal-root'))})).filter(item=>{
+      const visible=item.style.display!=='none'&&item.style.visibility!=='hidden'&&item.rect.width>0;
+      const atViewportEdge=item.rect.left<=12||item.rect.right>=window.innerWidth-12;
+      // Persistent drawers can be missing MUI's docked marker in the existing
+      // app shell. At desktop widths, a non-modal drawer at the viewport edge
+      // still consumes workspace width; temporary drawers live in a Modal and
+      // remain overlays.
+      return visible&&atViewportEdge&&(item.docked||(window.innerWidth>=900&&!item.modal));
+    }).sort((a,b)=>b.rect.width-a.rect.width);
     const current=drawers[0],onLeft=current&&current.rect.left<=12,onRight=current&&current.rect.right>=window.innerWidth-12;
     root.style.setProperty('--sx-forms-left-inset',onLeft?`${Math.round(current.rect.width)}px`:'0px');
     root.style.setProperty('--sx-forms-right-inset',onRight&&!onLeft?`${Math.round(current.rect.width)}px`:'0px');
