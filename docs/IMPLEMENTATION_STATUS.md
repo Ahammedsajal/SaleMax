@@ -960,3 +960,8 @@ In the Pro Catalyst tenant, the existing screen published the bilingual `course-
 ## Public form duplicate retry — production acceptance, 8 October 2026
 
 Replayed a synthetic public course enquiry with the exact same UUIDv4 submission token and payload. First request created reference `93E17A4E7B93` (`repeated=false`, HTTP 201); replay returned the same reference (`repeated=true`, HTTP 200). The authenticated Candidate Applications screen displays exactly one row for that reference and one linked lead (`a454c669-f2ea-45c0-bdef-61eea9ce745c`). This verifies API idempotency, but automatic browser retry after a network failure remains unverified. Evidence and the QA record are described in `DEPLOYMENT.md`.
+
+
+## Owner Courses CRUD, offer history and batch screen acceptance — 8 October 2026
+
+The authenticated Pro Catalyst owner created and reopened synthetic draft `QA-ACCEPT-20261008` through the existing Courses screen. English/Arabic fields and an edited bilingual prerequisite persisted after returning to the catalogue and reopening the course. The owner added v2 at QAR 120; history retained v1 QAR 100 as retired. Batch `QA-BATCH-20261008` saved for 15–16 October 2026 with capacity 2 and 0/2 seats. No learner or financial record was created. The course remains a synthetic QA artifact; a retirement confirmation interrupted the browser, so its final state was not rechecked. This verifies owner CRUD and batch creation, not capacity concurrency or sale-linked offer snapshots. Production evidence is in `DEPLOYMENT.md`.
