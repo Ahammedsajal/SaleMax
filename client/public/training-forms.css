@@ -108,3 +108,37 @@
     gap: 4px;
   }
 }
+
+.sx-app-attribution {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid #dce3ec;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.sx-app-attribution h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.sx-app-attribution dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.sx-app-attribution dl > div {
+  min-width: 0;
+}
+
+.sx-app-attribution dt {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.sx-app-attribution dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}

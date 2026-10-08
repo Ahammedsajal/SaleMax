@@ -10,8 +10,8 @@ test('quoted delimiters and comments do not split SQL', () => {
 });
 test('actual discovery excludes destructive rollback', () => {
   const migrations = discover(path.join(__dirname, '../database/migrations'));
-  assert.equal(migrations.length, 64);
-  assert.equal(migrations.at(-1).file, '20261119_training_sale_review_application_link.sql');
+  assert.equal(migrations.length, 65);
+  assert.equal(migrations.at(-1).file, '20261120_training_form_attribution_history.sql');
   assert.ok(migrations.some(m => m.file === '20261113_team_role_profiles.sql'));
   assert.ok(migrations.every(m => !/rollback/.test(m.file)));
   assert.equal(migrations[0].file, '20260928_lead_pipeline.sql');
