@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Bilingual printable Finance receipts — production, 8 October 2026
+
+The existing owner/accountant Finance screen now opens a bilingual printable receipt with the legal identity snapshot from its invoice, payment and receipt details, installment allocations, and any unapplied deposit. Source commit `6ea45a0` is deployed at `/opt/salemax/releases/finance-receipt-6ea45a0-20261008`; no migration or database restart was needed. The full JavaScript suite passes 311/311, and disposable MariaDB integration passes all 65 forward migrations plus synthetic payment/receipt checks with no customer data touched or external writes. Production health and release/container/served hashes match. No live financial record was created or modified. Authenticated accountant acceptance and visual print/save-as-PDF review remain open because the browser is at business login. See `DEPLOYMENT.md` for rollback evidence.
+
 ## Finance policy setup diagnostics — production, 8 October 2026
 
 The existing owner Finance policy form now displays API-provided configuration blockers with bilingual copy before policy submission. Source commit `46cec77` is deployed at `/opt/salemax/releases/finance-policy-setup-46cec77-20261008`; there was no migration or database restart. The full JavaScript suite passes 311/311, the disposable MariaDB integration passes all 65 forward migrations and synthetic cross-module checks, and production health plus served/release/container hashes match. Authenticated owner/accountant screen acceptance remains open because the production browser is currently at business login. Release and rollback evidence is in `DEPLOYMENT.md`.
