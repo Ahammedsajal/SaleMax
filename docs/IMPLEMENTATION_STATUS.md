@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Course prerequisites editing repair — source increment, 8 October 2026
+
+Restored English and Arabic prerequisite inputs in the existing course create and edit forms. Both forms now submit their current values to the existing tenant-scoped course API; saving a course no longer silently preserves stale prerequisites from the previously loaded record. Inputs enforce the existing 5,000-character API limit, support RTL Arabic, and appear in their own step in the existing responsive editor. Focused course tests pass 3/3, JavaScript syntax and `git diff --check` pass. Authenticated production browser verification and deployed release evidence remain open.
+
 ## Tasks authenticated production acceptance — 8 October 2026
 
 Using the authenticated Pro Catalyst owner session, created a disposable task titled `SALEMAX QA E2E 20261008`, linked it to the existing synthetic QA lead, and confirmed the task detail resolved the linked lead context. The participant list contained only the owner. Deleted the task through the existing UI; this is a soft delete and it no longer appears in the queue. A read-only production database check confirmed the task's email and WhatsApp notification rows are both `suppressed` after deletion, with no provider delivery. The live app reports task email disabled, SMTP not configured, and no WhatsApp task template configured. This verifies owner task creation, linked lead details, and cleanup in the authenticated production UI only.

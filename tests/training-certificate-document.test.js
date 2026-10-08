@@ -26,7 +26,7 @@ test('certificate print control is part of the learner journey and its renderer 
   assert.match(screen,/Print \/ save certificate PDF/);
   assert.match(screen,/window\.SXTrainingCertificate\.html/);
   assert.ok(index.indexOf('training-certificate.js')<index.indexOf('training-courses.js'));
-  assert.match(index,/training-courses\.js\?v=20261006-profile-brand1/);
+  assert.match(index,/training-courses\.js\?v=20261008-prerequisites-edit1/);
 });
 
 test('course enrollment response includes the tenant name needed on the issued certificate',async()=>{
