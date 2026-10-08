@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Finance policy setup diagnostics — production, 8 October 2026
+
+The existing owner Finance policy form now displays API-provided configuration blockers with bilingual copy before policy submission. Source commit `46cec77` is deployed at `/opt/salemax/releases/finance-policy-setup-46cec77-20261008`; there was no migration or database restart. The full JavaScript suite passes 311/311, the disposable MariaDB integration passes all 65 forward migrations and synthetic cross-module checks, and production health plus served/release/container hashes match. Authenticated owner/accountant screen acceptance remains open because the production browser is currently at business login. Release and rollback evidence is in `DEPLOYMENT.md`.
+
 ## Finance policy and approved sale issuance workflow — production, 8 October 2026
 
 The existing Finance screen now supports owner finance-policy setup and submission, accountant approval or rejection, and a queue of approved sales awaiting invoice issuance. Sale conversion and readiness both enforce the policy-configured issuer; agent auto-approval remains available where permitted, while configured owner/accountant users issue the invoice. Invoice details show the approved tax treatment, and the Lead Pipeline explains issuer-role blockers in English and Arabic. Source commit `881f527` is deployed at `/opt/salemax/releases/finance-policy-881f527-20261008`; no migration or database restart was needed. `npm test` passes 311/311, and the disposable MariaDB integration passes all 65 migrations plus synthetic finance workflow checks. Production health and release/container/served-script hashes match. Authenticated production owner/accountant workflow acceptance remains open because browser inspection timed out. See `DEPLOYMENT.md` for rollback details.
