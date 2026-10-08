@@ -10,6 +10,7 @@ test('customer link tokens have high entropy and only valid 32-byte base64url to
   assert.match(grants.tokenHash(raw),/^[a-f0-9]{64}$/);
   assert.notEqual(grants.tokenHash(raw),raw);
   for(const bad of ['', 'a'.repeat(42), '*'.repeat(43), `${raw}=`, null])assert.throws(()=>grants.tokenHash(bad),{code:'DOCUMENT_LINK_INVALID'});
+  const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_',lastIndex=alphabet.indexOf(raw.at(-1)),alternateLast=alphabet[(lastIndex&48)|((lastIndex+1)&15)];assert.notEqual(alternateLast,raw.at(-1));assert.throws(()=>grants.tokenHash(`${raw.slice(0,-1)}${alternateLast}`),{code:'DOCUMENT_LINK_INVALID'});
 });
 test('customer link expiry is bounded to seven days and recipient display is masked',()=>{
   assert.equal(grants.TTL_MS,7*24*60*60*1000);
@@ -54,7 +55,7 @@ test('customer document access rejects an unauthorized role and malformed or tam
   await assert.rejects(grants.issue(db,context('owner','tenant-b'),'invoice','invoice-a',{origin:'https://crm.example.qa'}),{code:'DOCUMENT_NOT_FOUND'});
   await assert.rejects(grants.resolve(db,'not-a-token'),{code:'DOCUMENT_LINK_INVALID'});
   const issued=await grants.issue(db,context(),'invoice','invoice-a',{origin:'https://crm.example.qa'}),token=new URL(issued.url).hash.slice(1);
-  await assert.rejects(grants.resolve(db,`${token.slice(0,-1)}${token.endsWith('A')?'B':'A'}`),{code:'DOCUMENT_LINK_UNAVAILABLE'});
+  const alteredChar=token[10]==='A'?'B':'A';await assert.rejects(grants.resolve(db,`${token.slice(0,10)}${alteredChar}${token.slice(11)}`),{code:'DOCUMENT_LINK_UNAVAILABLE'});
   db.grantsRows[0].expiresAt=new Date(Date.now()-1000);await assert.rejects(grants.resolve(db,token),{code:'DOCUMENT_LINK_UNAVAILABLE'});
 });
 test('customer document route and existing Finance screen use same-origin, fragment-only, no-store links',()=>{
