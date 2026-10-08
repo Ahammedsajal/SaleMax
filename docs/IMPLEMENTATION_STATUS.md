@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Tasks authenticated production acceptance — 8 October 2026
+
+Using the authenticated Pro Catalyst owner session, created a disposable task titled `SALEMAX QA E2E 20261008`, linked it to the existing synthetic QA lead, and confirmed the task detail resolved the linked lead context. The participant list contained only the owner. Deleted the task through the existing UI; this is a soft delete and it no longer appears in the queue. A read-only production database check confirmed the task's email and WhatsApp notification rows are both `suppressed` after deletion, with no provider delivery. The live app reports task email disabled, SMTP not configured, and no WhatsApp task template configured. This verifies owner task creation, linked lead details, and cleanup in the authenticated production UI only.
+
+Remaining task gates: authenticated manager/agent/accountant permission and collaboration acceptance; Arabic/RTL screen acceptance; disposable local database/concurrency integration; and provider setup plus approved end-to-end notification delivery. Do not treat the suppressed outbox check as proof of successful provider delivery. No production customer data or financial records were changed.
+
 ## Lead to application to enrollment record chain — production, 8 October 2026
 
 The existing lead detail and Candidate Applications screens now navigate between a lead and its linked form submissions. Staff can open the immutable submitted data and captured consent/version snapshot without overwriting the current CRM contact, then carry that application into the existing sale-review flow. The sale review records the application ID and the API verifies the application belongs to the same tenant and lead. Staff must confirm the current offer and enter/confirm payer and invoice details before submitting. Lead and application views show the latest linked review plus resulting enrollment and invoice state. The existing Tasks link still opens follow-up work scoped to the lead. The existing optional lead qualification form stores enquiry purpose, contact preference, course schedule/start window, learning goal/experience, payer relationship, referral, follow-up urgency and UTM/landing-page attribution.
