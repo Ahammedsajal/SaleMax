@@ -14,10 +14,10 @@ async function main(){
   const name=`salemax_task_test_${crypto.randomBytes(6).toString('hex')}`;
   if(!/^salemax_task_test_[a-f0-9]{12}$/.test(name))throw Error('INVALID_SYNTHETIC_TEST_DATABASE');
   const config={host:process.env.DBHOST,port:Number(process.env.DBPORT),user:process.env.DBUSER,password:process.env.DBPASS==='__EMPTY__'?'':process.env.DBPASS,...(socketPath?{socketPath}:{})};
-  const admin=await mysql.createConnection(config);let db,other,created=false;
+  const admin=await mysql.createConnection(config);let db,other,pool,created=false;
   try{
     await admin.query(`CREATE DATABASE \`${name}\``);created=true;
-    db=await mysql.createConnection({...config,database:name});other=await mysql.createConnection({...config,database:name});
+    db=await mysql.createConnection({...config,database:name});other=await mysql.createConnection({...config,database:name});pool=mysql.createPool({...config,database:name,connectionLimit:4});
     await db.query("CREATE TABLE sx_tenants(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,status VARCHAR(24) NOT NULL DEFAULT 'active') ENGINE=InnoDB");
     await db.query("CREATE TABLE sx_identities(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,email_normalized VARCHAR(254) NOT NULL,display_name VARCHAR(200) NOT NULL,status VARCHAR(24) NOT NULL DEFAULT 'active') ENGINE=InnoDB");
     await db.query("CREATE TABLE sx_memberships(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,role VARCHAR(24) NOT NULL,status VARCHAR(24) NOT NULL DEFAULT 'active',KEY idx_task_membership(tenant_id,identity_id,status)) ENGINE=InnoDB");
@@ -37,10 +37,10 @@ async function main(){
     await db.query('INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES(?,?,?,?)',[identityId,'task-owner@example.invalid','Synthetic Task Owner','active']);
     await db.query('INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES(?,?,?,?,?)',[crypto.randomUUID(),tenantId,identityId,'owner','active']);
     const [[serverInfo]]=await db.query('SELECT VERSION() AS version');
-    const evidence=await require('./task-integration.cjs')(db,other,{tenantId,identityId});
+    const evidence=await require('./task-integration.cjs')(db,other,{tenantId,identityId,pool});
     console.log(JSON.stringify({localDisposableDatabase:true,databaseVersion:serverInfo.version,tableStorage:'InnoDB',taskMigration:true,...evidence,customerDataTouched:false,externalWrites:false}));
   }finally{
-    if(other)await other.end();if(db)await db.end();
+    if(pool)await pool.end();if(other)await other.end();if(db)await db.end();
     if(created)await admin.query(`DROP DATABASE IF EXISTS \`${name}\``);
     await admin.end();
   }

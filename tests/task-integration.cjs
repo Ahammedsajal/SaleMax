@@ -1,9 +1,12 @@
 'use strict';
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
+const http=require('node:http');
+const express=require('express');
 const tasks=require('../modules/platform/task-management');
+const {createTaskRouter}=require('../modules/platform/task-router');
 
-module.exports=async(db,other,{tenantId,identityId})=>{
+module.exports=async(db,other,{tenantId,identityId,pool})=>{
   const uid=`synthetic-task-owner-${crypto.randomUUID()}`;
   const uidHash=crypto.createHash('sha256').update(uid).digest('hex');
   const owner={tenantId,uidHash,uid,role:'owner',actorType:'identity',actorId:identityId};
@@ -13,6 +16,9 @@ module.exports=async(db,other,{tenantId,identityId})=>{
   const secondAgentUid=`synthetic-task-agent-${crypto.randomUUID()}`;
   const [secondAgentInsert]=await db.query("INSERT INTO agents(owner_uid,uid,email,password,name,mobile,role,is_active) VALUES(?,?,?,?,?,?,'agent',1)",[uid,secondAgentUid,`${secondAgentUid}@example.invalid`,'synthetic-task-hash','Synthetic Second Task Agent','00000001']);
   const secondAgentId=Number(secondAgentInsert.insertId);
+  const outsiderAgentUid=`synthetic-task-outsider-${crypto.randomUUID()}`;
+  const [outsiderAgentInsert]=await db.query("INSERT INTO agents(owner_uid,uid,email,password,name,mobile,role,is_active) VALUES(?,?,?,?,?,?,'agent',1)",[uid,outsiderAgentUid,`${outsiderAgentUid}@example.invalid`,'synthetic-task-hash','Synthetic Unassigned Agent','00000002']);
+  const outsiderAgentId=Number(outsiderAgentInsert.insertId);
   const observerId=crypto.randomUUID();
   await db.query('INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES(?,?,?,?)',[observerId,`${observerId}@example.invalid`,'Synthetic Task Observer','active']);
   await db.query('INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES(?,?,?,?,?)',[crypto.randomUUID(),tenantId,observerId,'manager','active']);
@@ -20,6 +26,7 @@ module.exports=async(db,other,{tenantId,identityId})=>{
   await db.query("INSERT INTO pipeline_leads(id,uid_hash,uid,identity_key,title,contact_name,mobile,stage_key,owner_agent_id,next_follow_up_at,last_activity_at) VALUES(?,?,?,?,?,?,'00000000','new',?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 DAY),UTC_TIMESTAMP(3))",[leadId,uidHash,uid,crypto.createHash('sha256').update(leadId).digest('hex'),'Synthetic task lead','Synthetic learner',agentId]);
   const agent={...owner,role:'agent',actorType:'agent',actorId:String(agentId),agentId};
   const secondAgent={...owner,role:'agent',actorType:'agent',actorId:String(secondAgentId),agentId:secondAgentId};
+  const outsiderAgent={...owner,role:'agent',actorType:'agent',actorId:String(outsiderAgentId),agentId:outsiderAgentId};
   const observer={...owner,role:'manager',actorType:'identity',actorId:observerId};
   const participants=[{actorType:'agent',actorId:String(agentId),role:'assignee'},{actorType:'agent',actorId:String(secondAgentId),role:'assignee'},{actorType:'identity',actorId:identityId,role:'observer'},{actorType:'identity',actorId:observerId,role:'observer'}];
   const created=await tasks.create(db,owner,{title:'Synthetic learner follow-up',taskType:'lead_follow_up',source:{type:'lead',id:leadId},participants});
@@ -29,6 +36,17 @@ module.exports=async(db,other,{tenantId,identityId})=>{
   assert.deepEqual(agentDetail.participants.map(item=>item.role).sort(),['assignee','assignee','observer','observer']);
   assert.equal((await tasks.detail(db,secondAgent,created.id)).lead.id,leadId,'each assigned agent can see the full linked lead');
   await assert.rejects(tasks.detail(db,{...agent,tenantId:crypto.randomUUID()},created.id),{code:'TASK_NOT_FOUND'});
+  const taskApp=express();taskApp.use('/tasks',createTaskRouter({pool,contextFor:async req=>req.get('x-test-actor')==='outsider'?outsiderAgent:owner}));
+  const taskServer=http.createServer(taskApp);await new Promise((resolve,reject)=>{taskServer.once('error',reject);taskServer.listen(0,'127.0.0.1',resolve);});
+  try{
+    const taskUrl=`http://127.0.0.1:${taskServer.address().port}/tasks/${created.id}`;
+    const ownerResponse=await fetch(taskUrl);assert.equal(ownerResponse.status,200,'owner can reach task detail through the existing route');
+    for(const suffix of ['', '/events', '/notifications', '/messages']){
+      const response=await fetch(taskUrl+suffix,{headers:{'X-Test-Actor':'outsider'}}),body=await response.json();
+      assert.equal(response.status,403,`nonparticipant agent is denied direct ${suffix||'detail'} route access`);
+      assert.equal(body.code,'PERMISSION_DENIED');
+    }
+  }finally{await new Promise(resolve=>taskServer.close(resolve));}
 
   const latest=await tasks.messages(db,owner,created.id,{latest:true});assert.deepEqual(latest.items,[]);
   const message=await tasks.addMessage(db,agent,created.id,'Synthetic appointment confirmed.');
@@ -66,5 +84,5 @@ module.exports=async(db,other,{tenantId,identityId})=>{
   const removed=await tasks.remove(db,owner,created.id,4);assert.equal(removed.deleted,true);assert.equal(removed.revision,5);
   await assert.rejects(tasks.detail(db,agent,created.id),{code:'TASK_NOT_FOUND'});
   const [[deleted]]=await db.query('SELECT deleted_at FROM sx_tasks WHERE tenant_id=? AND id=?',[tenantId,created.id]);assert.ok(deleted.deleted_at);
-  return {taskCreateWithLead:true,multiRoleParticipants:true,participantLeadContext:true,participantChatAndReadCursor:true,revisionCheckedEdit:true,concurrentStatusSerialization:true,historyAndNotificationPagination:true,historyAndNotificationAtomicity:true,softDelete:true,syntheticTaskData:true,externalWrites:false};
+  return {taskCreateWithLead:true,multiRoleParticipants:true,participantLeadContext:true,participantChatAndReadCursor:true,nonparticipantDirectRoutesDenied:true,revisionCheckedEdit:true,concurrentStatusSerialization:true,historyAndNotificationPagination:true,historyAndNotificationAtomicity:true,softDelete:true,syntheticTaskData:true,externalWrites:false};
 };
