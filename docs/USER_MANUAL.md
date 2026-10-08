@@ -185,7 +185,9 @@ The workspace owner or an active manager reviews each pending request and can ap
 
 Open **Training Center Profile** in the existing `/user` workspace to set the center name, logo, address, commercial registration (CR) number and invoice number prefix. These profile details are the source used on training center documents and invoices. Update them there whenever the center's details change.
 
-Invoice settings contain only payment plans and an optional invoice footer. They do not ask the center to configure tax, revenue recognition or approval policies. Invoices use QAR with no tax added. The invoice register supports search, status filters, viewing and printing. Issued invoices are retained as records; use the credit-note workflow for corrections. Payment recording, verification and receipts are described below.
+In **Finance settings**, the owner can save the Qatar/QAR invoice policy reviewed by the center accountant. Enter the legal invoice identity, the tax treatment and rate confirmed by the accountant, revenue method, configured invoice issuer, and any optional second-approval threshold. Sale conversion remains unavailable until the accountant approves a complete policy. The last approved policy stays active while a replacement is under review. Only the configured owner or accountant can issue invoices; agents can submit eligible full-price sales but cannot bypass the configured issuer. SaleMaX does not select a tax rate or legal treatment for the center.
+
+The invoice register supports search, status filters, viewing and printing. The Finance screen's **Approved sales awaiting invoice** queue shows readiness blockers and the approved invoice amount; the authorized issuer reviews and confirms conversion there. Issued invoices are retained as records; use the credit-note workflow for corrections. Payment recording, verification and receipts are described below.
 
 ### Inviting an agent (implementation in progress)
 

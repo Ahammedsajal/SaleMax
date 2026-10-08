@@ -19,10 +19,12 @@ test('invoice register access is restricted to the active tenant owner and accou
 });
 test('invoice register and detail are connected to the existing finance workspace and documented',()=>{
   const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
-  const router=read('modules/platform/training-finance-router.js'),ui=read('client/public/training-finance.js');
-  assert.match(router,/\/accountant\/invoices/);assert.match(router,/invoices\.detail/);assert.match(router,/sales\/approved-for-invoice/);assert.match(router,/accountant\/sales\/\:leadId\/reviews\/\:reviewId\/convert/);
+  const router=read('modules/platform/training-finance-router.js'),pipeline=read('routes/pipeline.js'),ui=read('client/public/training-finance.js');
+  assert.match(router,/\/accountant\/invoices/);assert.match(router,/invoices\.detail/);assert.match(router,/sales\/approved-for-invoice/);assert.match(router,/accountant\/sales\/\:leadId\/reviews\/\:reviewId\/convert/);assert.match(pipeline,/router\.post\('\/leads\/\:id\/sale-reviews\/\:reviewId\/convert'/);
+  assert.match(ui,/Approved sales awaiting invoice/);assert.match(ui,/loadPendingSales\(node,mode,csrf\)/);assert.match(ui,/data-convert-sale/);assert.match(ui,/FINANCE_POLICY_NOT_APPROVED/);assert.match(ui,/legacyAt\('\/api\/pipeline'/);
+  assert.match(ui,/taxTreatment\(data\)/);assert.match(ui,/Tax included/);assert.match(ui,/Tax added/);
   assert.match(ui,/New invoice/);assert.match(ui,/data-view-invoice/);assert.match(ui,/data-print-invoice/);assert.doesNotMatch(ui,/Posting and approval record/);assert.match(ui,/finance-settings/);assert.match(ui,/Issued invoices are immutable/);
-  assert.match(ui,/managed in the Training Center Profile/);assert.doesNotMatch(ui,/Tenant policy draft|Revenue recognition|Request accountant review/);
+  assert.match(ui,/managed in the Training Center Profile/);assert.match(ui,/Invoice policy and approval/);assert.match(ui,/Save and submit for accountant review/);
   assert.match(read('docs/API_DOCUMENTATION.md'),/Training invoice register and detail/);
   assert.match(read('docs/USER_MANUAL.md'),/Issued invoices/);
 });
