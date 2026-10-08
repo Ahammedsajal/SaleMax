@@ -72,8 +72,12 @@ async function buildSnapshot(pool,run){
 }
 async function completeRun(db,{run,workerId,snapshot}){
   const json=JSON.stringify(snapshot),digest=crypto.createHash('sha256').update(json).digest('hex');await db.beginTransaction();
-  try{const [[current]]=await db.query('SELECT status,lease_owner,(lease_expires_at>UTC_TIMESTAMP(3)) AS valid FROM sx_training_report_runs WHERE tenant_id=? AND id=? FOR UPDATE',[run.tenant_id,run.id]);if(!current||current.status!=='processing'||current.lease_owner!==workerId||Number(current.valid)!==1)fail('REPORT_RUN_LEASE_REQUIRED');
-    await db.query("UPDATE sx_training_report_runs SET status='generated',snapshot_json=?,snapshot_sha256=?,generated_at=UTC_TIMESTAMP(3),lease_owner=NULL,lease_expires_at=NULL,last_error_code=NULL,updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=?",[json,digest,run.tenant_id,run.id]);await db.commit();return {id:run.id,status:'generated',snapshotSha256:digest,externallySent:false};
+  try{const [[current]]=await db.query('SELECT status,lease_owner,schedule_id,schedule_revision,(lease_expires_at>UTC_TIMESTAMP(3)) AS valid FROM sx_training_report_runs WHERE tenant_id=? AND id=? FOR UPDATE',[run.tenant_id,run.id]);if(!current||current.status!=='processing'||current.lease_owner!==workerId||Number(current.valid)!==1)fail('REPORT_RUN_LEASE_REQUIRED');
+    const [[schedule]]=await db.query('SELECT revision,status,email_enabled,email_destination,email_verified_at,whatsapp_enabled,whatsapp_destination,whatsapp_verified_at FROM sx_training_report_schedules WHERE tenant_id=? AND id=? FOR UPDATE',[run.tenant_id,current.schedule_id]);
+    let queued={email:false,whatsapp:false};if(schedule&&schedule.status==='active'&&Number(schedule.revision)===Number(current.schedule_revision)){
+      for(const [channel,enabled,verified] of [['email',schedule.email_enabled,schedule.email_verified_at],['whatsapp',schedule.whatsapp_enabled,schedule.whatsapp_verified_at]])if(Number(enabled)===1&&verified){await db.query("INSERT IGNORE INTO sx_training_report_deliveries(id,tenant_id,report_run_id,schedule_revision,channel,status,available_at) VALUES (?,?,?,?,?,'queued',UTC_TIMESTAMP(3))",[crypto.randomUUID(),run.tenant_id,run.id,Number(current.schedule_revision),channel]);queued[channel]=true;}
+    }
+    await db.query("UPDATE sx_training_report_runs SET status='generated',snapshot_json=?,snapshot_sha256=?,generated_at=UTC_TIMESTAMP(3),lease_owner=NULL,lease_expires_at=NULL,last_error_code=NULL,updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=?",[json,digest,run.tenant_id,run.id]);await db.commit();return {id:run.id,status:'generated',snapshotSha256:digest,deliveriesQueued:queued,externallySent:false};
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 async function failRun(db,{run,workerId,errorCode,suppressed=false}){
@@ -86,9 +90,10 @@ async function failRun(db,{run,workerId,errorCode,suppressed=false}){
 async function listLatest(db,tenantId){
   const [rows]=await db.query(`SELECT id,schedule_id,period,revision,revision_reason,supersedes_run_id,status,DATE_FORMAT(period_start,'%Y-%m-%d %H:%i:%s.%f') AS period_start,DATE_FORMAT(generated_at,'%Y-%m-%d %H:%i:%s.%f') AS generated_at,last_error_code,snapshot_json
     FROM sx_training_report_runs WHERE tenant_id=? ORDER BY schedule_id,period_start DESC,revision DESC LIMIT 600`,[tenantId]);
+  const deliveriesByRun=new Map();if(rows.length){const [deliveries]=await db.query('SELECT report_run_id,channel,status,last_error_code,DATE_FORMAT(accepted_at,\'%Y-%m-%d %H:%i:%s.%f\') AS accepted_at FROM sx_training_report_deliveries WHERE tenant_id=? AND report_run_id IN (?) ORDER BY created_at,channel',[tenantId,rows.map(row=>row.id)]);for(const item of deliveries){if(!deliveriesByRun.has(item.report_run_id))deliveriesByRun.set(item.report_run_id,{});deliveriesByRun.get(item.report_run_id)[item.channel]={status:item.status,errorCode:item.last_error_code||null,acceptedAt:item.accepted_at||null};}}
   const schedules=new Map();
   for(const row of rows){
-    const version={id:row.id,scheduleId:row.schedule_id,period:row.period,revision:Number(row.revision),revisionReason:row.revision_reason||null,supersedesRunId:row.supersedes_run_id||null,status:row.status,periodStart:row.period_start,generatedAt:row.generated_at,errorCode:row.last_error_code,snapshot:typeof row.snapshot_json==='string'?JSON.parse(row.snapshot_json):row.snapshot_json||null};
+    const version={id:row.id,scheduleId:row.schedule_id,period:row.period,revision:Number(row.revision),revisionReason:row.revision_reason||null,supersedesRunId:row.supersedes_run_id||null,status:row.status,periodStart:row.period_start,generatedAt:row.generated_at,errorCode:row.last_error_code,snapshot:typeof row.snapshot_json==='string'?JSON.parse(row.snapshot_json):row.snapshot_json||null,deliveries:deliveriesByRun.get(row.id)||{}};
     const latest=schedules.get(row.schedule_id);
     if(!latest)schedules.set(row.schedule_id,{...version,versions:[version]});else if(latest.periodStart===version.periodStart)latest.versions.push(version);
   }

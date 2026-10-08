@@ -7,6 +7,7 @@ const pipelineReports = require("../helper/pipeline/reports.js");
 const trainingCourses = require('../modules/platform/training-courses');
 const saleReviews = require('../modules/platform/training-sale-reviews');
 const reportSchedules = require('../modules/platform/training-report-schedules');
+const reportDelivery = require('../modules/platform/training-report-delivery');
 const trainingForms = require('../modules/platform/training-forms');
 const legacyPipelineActor = require('../modules/platform/legacy-pipeline-actor');
 const trainingLeadJourney = require('../modules/platform/training-lead-journey');
@@ -214,6 +215,16 @@ router.put('/reports/schedules',async(req,res)=>{
   try{const ctx=await saleContext(req.pipelineActor),db=await require('../database/config.js').promise().getConnection();let data;try{data=await reportSchedules.save(db,ctx,req.body);}finally{db.release();}res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){reportScheduleError(res,error);}
 });
+router.post('/reports/schedules/:scheduleId/verifications',async(req,res)=>{
+  if(req.pipelineActor.role!=='owner')return res.status(403).json({success:false,code:'PERMISSION_DENIED'});
+  try{const ctx=await saleContext(req.pipelineActor),db=await require('../database/config.js').promise().getConnection();let data;try{data=await reportDelivery.requestVerification(db,ctx,{...req.body,scheduleId:req.params.scheduleId});}finally{db.release();}res.setHeader('Cache-Control','no-store');res.status(202).json({success:true,data});}
+  catch(error){reportScheduleError(res,error);}
+});
+router.post('/reports/schedules/:scheduleId/verifications/:challengeId/confirm',async(req,res)=>{
+  if(req.pipelineActor.role!=='owner')return res.status(403).json({success:false,code:'PERMISSION_DENIED'});
+  try{const ctx=await saleContext(req.pipelineActor),db=await require('../database/config.js').promise().getConnection();let data;try{data=await reportDelivery.confirmVerification(db,ctx,{...req.body,scheduleId:req.params.scheduleId,challengeId:req.params.challengeId});}finally{db.release();}res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  catch(error){reportScheduleError(res,error);}
+});
 router.post('/reports/schedules/:scheduleId/runs/:runId/revisions',async(req,res)=>{
   if(req.pipelineActor.role!=='owner')return res.status(403).json({success:false,code:'PERMISSION_DENIED'});
   try{const ctx=await saleContext(req.pipelineActor),db=await require('../database/config.js').promise().getConnection();let data;try{data=await reportSchedules.reviseRun(db,ctx,{...req.body,scheduleId:req.params.scheduleId,runId:req.params.runId});}finally{db.release();}res.setHeader('Cache-Control','no-store');res.status(data.repeated?200:202).json({success:true,data});}
@@ -221,7 +232,7 @@ router.post('/reports/schedules/:scheduleId/runs/:runId/revisions',async(req,res
 });
 function reportScheduleError(res,error){
   const code=error?.code||'REPORT_SCHEDULE_UNAVAILABLE';
-  const status=code==='PERMISSION_DENIED'?403:code==='FEATURE_UNAVAILABLE'||code==='CATEGORY_UNAVAILABLE'||code==='ACCOUNT_INACTIVE'||code==='STALE_REPORT_SCHEDULE'||code==='STALE_REPORT_REVISION'||code==='REPORT_RUN_NOT_REVISIONABLE'||code==='IDEMPOTENCY_CONFLICT'?409:code==='REPORT_RUN_NOT_FOUND'?404:code.startsWith('INVALID_')||code==='REPORT_CHANNEL_REQUIRED'?400:503;
+  const status=code==='PERMISSION_DENIED'?403:code==='REPORT_SCHEDULE_NOT_FOUND'||code==='REPORT_VERIFICATION_NOT_FOUND'||code==='REPORT_RUN_NOT_FOUND'?404:code==='REPORT_VERIFICATION_RATE_LIMIT'||code==='REPORT_VERIFICATION_COOLDOWN'?429:code==='FEATURE_UNAVAILABLE'||code==='CATEGORY_UNAVAILABLE'||code==='ACCOUNT_INACTIVE'||code==='STALE_REPORT_SCHEDULE'||code==='STALE_REPORT_REVISION'||code==='REPORT_RUN_NOT_REVISIONABLE'||code==='REPORT_DESTINATION_NOT_ENABLED'||code==='REPORT_EMAIL_NOT_CONFIGURED'||code==='REPORT_WHATSAPP_NOT_CONFIGURED'||code==='REPORT_VERIFICATION_NOT_CONFIGURED'||code==='REPORT_VERIFICATION_EXPIRED'||code==='REPORT_VERIFICATION_LOCKED'||code==='REPORT_VERIFICATION_NOT_ACTIVE'||code==='STALE_REPORT_VERIFICATION'||code==='IDEMPOTENCY_CONFLICT'?409:code==='REPORT_RUN_NOT_FOUND'?404:code==='REPORT_VERIFICATION_CODE_INVALID'||code==='REPORT_EMAIL_NOT_ACCEPTED'||code.startsWith('INVALID_')||code==='REPORT_CHANNEL_REQUIRED'?400:503;
   if(status>=500)console.error('Report schedule request failed:',code);
   return res.status(status).json({success:false,code:status===503?'REPORT_SCHEDULE_UNAVAILABLE':code});
 }

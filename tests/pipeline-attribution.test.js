@@ -30,5 +30,5 @@ test('the existing Lead Pipeline renders bilingual first/latest attribution with
   assert.match(pipeline,/First recorded touch/);assert.match(pipeline,/Latest recorded touch/);
   assert.match(pipeline,/أول مصدر مسجل/);assert.match(pipeline,/أحدث مصدر مسجل/);
   assert.match(css,/\.campaign-attribution-history/);assert.match(css,/@media\(max-width:600px\)\{\.attribution-touch-grid\{grid-template-columns:1fr/);
-  assert.match(html,/pipeline\.js\?v=22/);assert.match(html,/pipeline\.css\?v=9/);
+  assert.match(html,/pipeline\.js\?v=22/);assert.match(html,/pipeline\.css\?v=10/);
 });
