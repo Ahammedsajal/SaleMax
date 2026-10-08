@@ -215,13 +215,13 @@
     try {
       const token = actorToken();
       if (staffCapture && !token) throw Error('AUTH_REQUIRED');
-      const response = await fetch(staffCapture
+      const response = await window.SXTrainingFormRequest.post(fetch, staffCapture
         ? `/api/pipeline/training-forms/${encodeURIComponent(formSlug)}/submissions`
         : `/api/public/training/forms/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(formSlug)}/submissions`, {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...(staffCapture ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(payload),
-      });
+      }, { retrySafe: !data.botChallenge, onRetry: () => { button.textContent = tr('Retrying…', 'جارٍ إعادة المحاولة…'); } });
       let body;
       try { body = await response.json(); } catch { throw Error('SERVER_ERROR'); }
       if (!response.ok || body.success !== true) throw Error(body.code || 'SUBMISSION_FAILED');
