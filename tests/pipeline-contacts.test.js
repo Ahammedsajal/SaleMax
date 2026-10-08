@@ -40,9 +40,13 @@ test('existing pipeline add-opportunity screen offers contact reuse and separate
   assert.match(screen, /contactProfileHint/);
   assert.match(screen, /name="contactEmail"/);
   assert.match(screen, /lead\.contact_id\|\|isAgent\?'disabled':''/);
+  assert.match(screen, /class="field" \${isAgent\?'hidden':''}/);
+  assert.match(screen, /state\.data\?\.role==='agent'\?'hidden':''/);
+  assert.match(screen, /state\.data\?\.role==='agent'\?'disabled':''/);
+  assert.match(screen, /if\(isAgent\)delete payload\.ownerAgentId/);
   assert.match(screen, /Create a separate contact \/ learner/);
   assert.match(screen, /إنشاء جهة اتصال \/ متعلم مستقل/);
-  assert.match(html, /pipeline\.js\?v=22/);
+  assert.match(html, /pipeline\.js\?v=23/);
   assert.match(screen, /settingsModal\(\)\{if\(state\.data\?\.role!==['"]owner['"]\)/);
   assert.match(screen, /conversionReady&&\['owner','agent'\]\.includes\(state\.data\?\.role\)/);
   assert.match(screen, /invoiceIssueOwnerOnly/);

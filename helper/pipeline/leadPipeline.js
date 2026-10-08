@@ -1073,6 +1073,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
     if (!rows.length) { const error = new Error("Lead not found."); error.status = 404; throw error; }
     const lead = rows[0];
     assertAssignedAgent(role,agentId,lead);
+    if(role==='agent'&&input.ownerAgentId!==undefined){const error=new Error('Agents cannot reassign leads.');error.status=403;error.code='PERMISSION_DENIED';throw error;}
     const changes = [];
     const values = [];
     const contactProfile = {};

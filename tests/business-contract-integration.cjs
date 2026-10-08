@@ -313,6 +313,27 @@ module.exports=async(db,other,{t2,i1,m2},pool)=>{
   const [[invalidQualificationCount]]=await db.query("SELECT COUNT(*) AS total FROM pipeline_leads WHERE uid_hash=? AND title='Invalid synthetic qualification'",[pipelineUidHash]);
   assert.equal(Number(invalidQualificationCount.total),0,'invalid qualification rolls back the lead and its contact atomically');
   const agentLeadActor={uid,role:'agent',agentId:Number(legacyAgents[0].id),actorType:'agent',actorId:String(legacyAgents[0].id)};
+  await assert.rejects(leadPipeline.updateLead({...agentLeadActor,id:assignedLead,input:{ownerAgentId:Number(legacyAgents[2].id)},pool}),{status:403,code:'PERMISSION_DENIED'});
+  const [[unchangedAssignment]]=await db.query('SELECT owner_agent_id FROM pipeline_leads WHERE uid_hash=? AND id=?',[pipelineUidHash,assignedLead]);assert.equal(Number(unchangedAssignment.owner_agent_id),Number(legacyAgents[0].id),'agents cannot reassign their own lead through the update service');
+  const pipelineExpress=require('express'),pipelineJwt=require('jsonwebtoken'),previousPipelineKey=process.env.JWTKEY,previousPlatformEnabled=process.env.SALEMAX_PLATFORM_ENABLED,pipelineKey=crypto.randomBytes(32).toString('hex');
+  process.env.JWTKEY=pipelineKey;process.env.SALEMAX_PLATFORM_ENABLED='false';
+  const pipelineApp=pipelineExpress();pipelineApp.use(pipelineExpress.json());pipelineApp.use('/api/pipeline',require('../routes/pipeline'));
+  const pipelineServer=pipelineApp.listen(0,'127.0.0.1');await new Promise((resolve,reject)=>{pipelineServer.once('listening',resolve);pipelineServer.once('error',reject);});
+  try{
+    const [[agentCredentials]]=await db.query('SELECT email,password FROM agents WHERE id=? AND owner_uid=?',[legacyAgents[0].id,uid]);
+    const pipelineOrigin=`http://127.0.0.1:${pipelineServer.address().port}`,pipelineToken=pipelineJwt.sign(agentCredentials,pipelineKey,{expiresIn:'5m'}),pipelineHeaders={Authorization:`Bearer ${pipelineToken}`};
+    const assignedResponse=await fetch(`${pipelineOrigin}/api/pipeline/leads/${assignedLead}`,{headers:pipelineHeaders});assert.equal(assignedResponse.status,200,'an agent can open an assigned lead by direct URL');
+    for(const leadId of [unassignedLead,foreignAssignedLead]){
+      const detail=await fetch(`${pipelineOrigin}/api/pipeline/leads/${leadId}`,{headers:pipelineHeaders});assert.equal(detail.status,404,'direct lead URLs do not reveal unassigned or another agent\'s lead');
+      const activity=await fetch(`${pipelineOrigin}/api/pipeline/leads/${leadId}/activity`,{headers:pipelineHeaders});assert.equal(activity.status,404,'direct activity URLs use the same assignment scope');
+    }
+    const reassignment=await fetch(`${pipelineOrigin}/api/pipeline/leads/${assignedLead}`,{method:'PATCH',headers:{...pipelineHeaders,'Content-Type':'application/json'},body:JSON.stringify({ownerAgentId:Number(legacyAgents[2].id)})});assert.equal(reassignment.status,403,'the direct update API rejects agent reassignment attempts');assert.equal((await reassignment.json()).code,'PERMISSION_DENIED');
+    const [[afterRouteAssignment]]=await db.query('SELECT owner_agent_id FROM pipeline_leads WHERE uid_hash=? AND id=?',[pipelineUidHash,assignedLead]);assert.equal(Number(afterRouteAssignment.owner_agent_id),Number(legacyAgents[0].id));
+  }finally{
+    await new Promise((resolve,reject)=>pipelineServer.close(error=>error?reject(error):resolve()));
+    if(previousPipelineKey===undefined)delete process.env.JWTKEY;else process.env.JWTKEY=previousPipelineKey;
+    if(previousPlatformEnabled===undefined)delete process.env.SALEMAX_PLATFORM_ENABLED;else process.env.SALEMAX_PLATFORM_ENABLED=previousPlatformEnabled;
+  }
   await assert.rejects(leadPipeline.updateLead({...agentLeadActor,id:unassignedLead,input:{note:'should not be stored'},pool}),{status:403});
   await assert.rejects(leadPipeline.updateLead({...agentLeadActor,id:foreignAssignedLead,input:{note:'should not be stored'},pool}),{status:403});
   await assert.rejects(leadPipeline.moveLead({...agentLeadActor,id:foreignAssignedLead,stageKey:'contacted',pool}),{status:403});
