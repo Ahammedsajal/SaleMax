@@ -126,6 +126,6 @@ test('Inbox bot control requires explicit number selection when channel scope is
 });
 
 test('HTML and sidebar cache keys invalidate older chatbot scripts together', { skip: !index }, () => {
-  assert.match(index, /training-sidebar\.js\?v=20261006-inbox-bot-header3/);
+  assert.match(index, /training-sidebar\.js\?v=20261113-role-profiles1/);
   assert.match(sidebar, /chatbot-admin\.js\?v=20261006-inbox-bot-header3/);
 });

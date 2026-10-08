@@ -185,7 +185,7 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   assert.match(telephony,/Needs attention/);
   assert.match(telephony,/MuiDrawer-paper/);
   assert.match(telephony,/platformPageInstance\.page\.remove\(\)/);
-  assert.match(tenantGateway,/GATEWAY_RUNTIME_MIGRATION_REQUIRED/);
+  assert.match(tenantGateway,/connection_status='not_tested'/,'editing a gateway must invalidate its prior connectivity check');
   assert.match(router,/tenantGateways\.save/);
   assert.match(router,/tenantGateways\.statuses/);
   assert.match(router,/Promise\.resolve\(fn\(req, res, next\)\)/);
