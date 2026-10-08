@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Linked application history and campaign attribution — source increment, 8 October 2026
+
+The existing Lead Pipeline detail now returns a compact `attributionHistory` summary alongside its tenant-scoped application list and renders the first/latest sanitized campaign touch in English and Arabic. Staff can attach an additional submission only after explicitly selecting an existing lead; the service does not merge public enquiries based on a phone match. The synthetic MariaDB integration verifies two application snapshots remain on the same selected lead, submission-token retries do not duplicate or replace the linked record, and the original public attribution remains visible. `npm test` passes 315/315; the 65-migration disposable MariaDB workflow also passes with `customerDataTouched:false` and `externalWrites:false`. This source increment is not yet deployed or visually accepted in the authenticated Lead Pipeline. Broader public-form, role, and full upgrade acceptance remains open.
+
 ## Finance approved-sale queue collation repair — production, 8 October 2026
 
 Fixed the approved-sale queue failure caused by comparing legacy UID columns with incompatible MariaDB collations. The existing queue now uses an exact binary comparison. Source commit `e9d7ba57b59ae1592024188a571284417057fada` is deployed at `/opt/salemax/releases/finance-queue-collation-e9d7ba5-20261008`; no migration or database restart was needed. `npm test` passes 312/312. Production health and release/container hashes match. The authenticated owner Finance screen now shows the empty approved-sale state without an error; no finance data changed. Accountant-session acceptance and the wider 42-ticket upgrade remain open. See `DEPLOYMENT.md` for rollback details.
