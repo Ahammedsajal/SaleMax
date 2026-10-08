@@ -12,20 +12,15 @@
   const msg=code=>labels[code]?.[isAr()?1:0]||tr('Could not save this form. Check your entries and try again. ('+code+')','تعذر حفظ النموذج. تحقق من البيانات وحاول مجددًا. ('+code+')');
   function syncScreenBounds(root=document.getElementById('sx-forms-screen')){
     if(!root)return;
-    if(window.innerWidth<900){
-      root.style.setProperty('--sx-forms-left-inset','0px');
-      root.style.setProperty('--sx-forms-right-inset','0px');
-      const appBar=document.querySelector('header.MuiAppBar-root'),barRect=appBar?.getBoundingClientRect(),barStyle=appBar&&getComputedStyle(appBar),barHeight=barStyle?.position==='fixed'&&barStyle.display!=='none'&&barStyle.visibility!=='hidden'?Math.max(0,barRect?.bottom||0):0;
-      root.style.setProperty('--sx-forms-top-inset',`${Math.ceil(barHeight)}px`);
-      if(sidebarResizeObserver){sidebarResizeObserver.disconnect();if(appBar&&barHeight)sidebarResizeObserver.observe(appBar);}
-      return;
-    }
-    root.style.setProperty('--sx-forms-top-inset','0px');
-    const drawers=[...document.querySelectorAll('.MuiDrawer-paper')].map(drawer=>({drawer,rect:drawer.getBoundingClientRect(),style:getComputedStyle(drawer)})).filter(item=>item.style.display!=='none'&&item.style.visibility!=='hidden'&&item.rect.width>0&&(item.rect.left<=12||item.rect.right>=window.innerWidth-12)).sort((a,b)=>b.rect.width-a.rect.width);
+    const appBar=document.querySelector('header.MuiAppBar-root'),barRect=appBar?.getBoundingClientRect(),barStyle=appBar&&getComputedStyle(appBar),barHeight=window.innerWidth<900&&barStyle?.position==='fixed'&&barStyle.display!=='none'&&barStyle.visibility!=='hidden'?Math.max(0,barRect?.bottom||0):0;
+    root.style.setProperty('--sx-forms-top-inset',`${Math.ceil(barHeight)}px`);
+    // Only persistent drawers consume workspace width. Temporary mobile drawers
+    // overlay the page and must not create a second inset when opened.
+    const drawers=[...document.querySelectorAll('.MuiDrawer-paper')].map(drawer=>({drawer,rect:drawer.getBoundingClientRect(),style:getComputedStyle(drawer),docked:Boolean(drawer.closest('.MuiDrawer-docked'))})).filter(item=>item.docked&&item.style.display!=='none'&&item.style.visibility!=='hidden'&&item.rect.width>0&&(item.rect.left<=12||item.rect.right>=window.innerWidth-12)).sort((a,b)=>b.rect.width-a.rect.width);
     const current=drawers[0],onLeft=current&&current.rect.left<=12,onRight=current&&current.rect.right>=window.innerWidth-12;
     root.style.setProperty('--sx-forms-left-inset',onLeft?`${Math.round(current.rect.width)}px`:'0px');
     root.style.setProperty('--sx-forms-right-inset',onRight&&!onLeft?`${Math.round(current.rect.width)}px`:'0px');
-    if(sidebarResizeObserver){sidebarResizeObserver.disconnect();if(current)sidebarResizeObserver.observe(current.drawer);}
+    if(sidebarResizeObserver){sidebarResizeObserver.disconnect();if(current)sidebarResizeObserver.observe(current.drawer);if(appBar&&barHeight)sidebarResizeObserver.observe(appBar);}
   }
   function screen(){let el=document.getElementById('sx-forms-screen');if(!el){el=document.createElement('section');el.id='sx-forms-screen';el.setAttribute('aria-live','polite');document.body.append(el);}el.dir=tr('ltr','rtl');syncScreenBounds(el);return el;}
   async function setNav(){if(location.pathname.replace(/\/$/,'')!=='/user')return;const token=localStorage.getItem('wacrm_user');if(!token){navChecked=false;navAllowed=false;document.querySelector('[data-sx-forms-nav]')?.remove();return;}if(!navChecked&&!navLoading){navLoading=true;try{await api();navAllowed=true;}catch{navAllowed=false;}finally{navLoading=false;navChecked=true;}}if(!navAllowed)return;const item=[...document.querySelectorAll('[role="button"],button,a')].find(x=>['Agent Login','تسجيل دخول الوكيل','دخول الوكيل'].includes((x.innerText||'').trim()));const row=item?.closest('li')||item?.parentElement;if(!row?.parentElement)return;let copy=row.parentElement.querySelector('[data-sx-forms-nav]');if(!copy){copy=row.cloneNode(true);copy.dataset.sxFormsNav='1';copy.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));row.parentElement.insertBefore(copy,row.nextSibling);const btn=copy.querySelector('[role="button"],button,a')||copy;btn.onclick=e=>{e.preventDefault();location.href='/user?page=forms';};}copy.querySelectorAll('span').forEach(s=>{if(['Agent Login','تسجيل دخول الوكيل','دخول الوكيل','Lead Forms','نماذج العملاء المحتملين','Candidate Applications','طلبات المتقدمين'].includes(s.textContent.trim())){const next=tr('Candidate Applications','طلبات المتقدمين');if(s.textContent!==next)s.textContent=next;}});}
