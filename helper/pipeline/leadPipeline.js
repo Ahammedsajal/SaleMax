@@ -903,6 +903,12 @@ function normalizeQualification(value) {
   return result;
 }
 
+function summarizeCampaignAttribution(applications){
+  const tracked=(Array.isArray(applications)?applications:[]).filter(item=>item?.attribution&&typeof item.attribution==='object'&&!Array.isArray(item.attribution)&&Object.keys(item.attribution).length>0);
+  const touch=item=>item?{submissionId:item.id,referenceCode:item.referenceCode,submittedAt:item.submittedAt,attribution:item.attribution}:null;
+  return {trackedTouchCount:tracked.length,firstTouch:touch(tracked.at(-1)),latestTouch:touch(tracked[0])};
+}
+
 async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
   const uidHash = sha(uid);
   return inTransaction(async(connection)=>{
@@ -945,7 +951,7 @@ async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
     if(tenant?.tenantId){
       const [rows]=await connection.query(`SELECT s.id,s.reference_code AS referenceCode,s.form_id AS formId,s.form_version AS formVersion,
         s.capture_mode AS captureMode,s.submission_data AS submissionData,s.consent_text_en AS consentTextEn,s.consent_text_ar AS consentTextAr,
-        s.consented_at AS submittedAt,s.created_at AS createdAt,v.name_en AS formNameEn,v.name_ar AS formNameAr,v.schema_json AS schemaJson,
+        s.consented_at AS submittedAt,s.created_at AS createdAt,s.attribution_json AS attributionJson,v.name_en AS formNameEn,v.name_ar AS formNameAr,v.schema_json AS schemaJson,
         r.id AS saleReviewId,r.status AS saleReviewStatus,r.course_name_en AS saleCourseNameEn,r.course_name_ar AS saleCourseNameAr,
         i.invoice_number AS invoiceNumber,e.id AS enrollmentId,e.status AS enrollmentStatus
         FROM sx_training_form_submissions s
@@ -956,9 +962,11 @@ async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
         LEFT JOIN sx_training_invoices i ON i.tenant_id=c.tenant_id AND i.id=c.invoice_id
         WHERE s.tenant_id=? AND s.lead_id=? ORDER BY s.created_at DESC,s.id DESC`,[tenant.tenantId,id]);
       applications=rows.map(row=>({...row,submissionData:typeof row.submissionData==='string'?JSON.parse(row.submissionData):row.submissionData,
-        schema:typeof row.schemaJson==='string'?JSON.parse(row.schemaJson):row.schemaJson,schemaJson:undefined}));
+        attribution:typeof row.attributionJson==='string'?JSON.parse(row.attributionJson):row.attributionJson,
+        schema:typeof row.schemaJson==='string'?JSON.parse(row.schemaJson):row.schemaJson,schemaJson:undefined,attributionJson:undefined}));
     }
-    return { ...leads[0], activities, conversations, attributions, applications };
+    const attributionHistory=summarizeCampaignAttribution(applications);
+    return { ...leads[0], activities, conversations, attributions, applications, attributionHistory };
   },sourcePool);
 }
 
@@ -1206,6 +1214,7 @@ module.exports = {
   deleteStage,
   createManualLead,
   getLead,
+  summarizeCampaignAttribution,
   getFollowUps,
   resolveFollowUp,
   moveLead,
