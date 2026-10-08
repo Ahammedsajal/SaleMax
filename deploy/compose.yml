@@ -53,6 +53,23 @@ services:
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
+  report-worker:
+    image: salemax-app
+    command: ["node", "scripts/training-report-worker.cjs"]
+    restart: unless-stopped
+    init: true
+    env_file: /opt/salemax/shared/runtime.env
+    environment:
+      SALEMAX_TRAINING_REPORT_WORKER_ENABLED: "true"
+      SALEMAX_TRAINING_REPORT_WORKER_INTERVAL_MS: "30000"
+    depends_on:
+      db: {condition: service_healthy}
+    mem_limit: 256m
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
 networks:
   default: {}
   ari_proxy:
