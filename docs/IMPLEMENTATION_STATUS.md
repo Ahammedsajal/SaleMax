@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Finance policy and approved sale issuance workflow — production, 8 October 2026
+
+The existing Finance screen now supports owner finance-policy setup and submission, accountant approval or rejection, and a queue of approved sales awaiting invoice issuance. Sale conversion and readiness both enforce the policy-configured issuer; agent auto-approval remains available where permitted, while configured owner/accountant users issue the invoice. Invoice details show the approved tax treatment, and the Lead Pipeline explains issuer-role blockers in English and Arabic. Source commit `881f527` is deployed at `/opt/salemax/releases/finance-policy-881f527-20261008`; no migration or database restart was needed. `npm test` passes 311/311, and the disposable MariaDB integration passes all 65 migrations plus synthetic finance workflow checks. Production health and release/container/served-script hashes match. Authenticated production owner/accountant workflow acceptance remains open because browser inspection timed out. See `DEPLOYMENT.md` for rollback details.
+
 ## Sale conversion readiness projection — production, 8 October 2026
 
 The existing sale-review list and invoice-ready queue now share the conversion endpoint's approved finance-policy gate and tax calculation. The screen no longer reports a sale as convertible before accountant approval or shows a no-tax amount when a different approved tax policy applies. Commit `816fac0` is deployed at `/opt/salemax/releases/sale-readiness-816fac0-20261008`; there was no migration or database restart. Unit suite passes 311/311 and the disposable MariaDB integration confirms the readiness transition before and after policy approval. Production health and release/container hashes are verified. Authenticated production browser acceptance remains open.
