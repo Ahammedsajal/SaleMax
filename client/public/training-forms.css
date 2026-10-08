@@ -146,7 +146,7 @@
 
 /* Submitted applications become readable records when the available panel is narrow. */
 #sx-applications-register{container-type:inline-size;min-width:0}
-@container (max-width: 800px){
+@container (max-width: 900px){
   .sx-app-table-wrap{overflow:visible}
   .sx-app-table{display:block;width:100%;min-width:0;border-collapse:separate;border-spacing:0}
   .sx-app-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
