@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Public form attribution and submission-chain acceptance — production, 8 October 2026
+
+Added server-validated public-form UTM capture with query-free landing/referrer URLs into the existing lead campaign field. Source commit `51d63a9a524cad45f3922d88c572578344caca90` is deployed in `/opt/salemax/releases/public-form-attribution-51d63a-20261008`. On production, an identical public submission retry returned the original reference and `repeated:true`; authenticated staff capture added two more applications to the same synthetic lead, and the existing Lead Pipeline detail shows all three linked snapshots plus the stored campaign attribution. The live public form was reviewed in English/Arabic at phone width and Arabic at tablet width with no horizontal overflow. Focused tests pass 7/7; health and served hashes are verified. Synthetic QA records are labeled and no provider, finance or customer contact action was triggered. Release/rollback evidence is in `DEPLOYMENT.md`.
+
+Remaining public-form gates: first-touch versus latest-touch history, duplicate/contact matching across independent submissions, more phone/tablet/keyboard/screen-reader acceptance, and staff/agent role-specific capture verification. The 42-ticket plan remains active.
+
 ## Candidate Applications responsive layout repair — production, 8 October 2026
 
 Fixed desktop screen bounds so the Candidate Applications screen begins beside the existing navigation drawer in both English and Arabic/RTL. The original direction-based logical offset incorrectly treated the left-side drawer as a right-side drawer in Arabic, leaving the screen beneath the sidebar and exposing the dashboard at the opposite edge. The existing mobile header and one-column filters remain in place, and the submitted-applications table scrolls within its own container. Source commit `185563a612e5451fcb8467ba413c38717d5be120` is deployed at `/opt/salemax/releases/forms-sidebar-rtl-185563a-20261008`; production browser checks passed at desktop 1080 px, phone 390 px, and 320 px with no document-level horizontal overflow. Focused forms tests pass 6/6. Release and rollback details are in `DEPLOYMENT.md`. Persisted form CRUD, additional tablet/browser coverage, and the other implementation-plan gates remain open.
