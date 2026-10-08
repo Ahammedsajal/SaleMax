@@ -81,6 +81,7 @@ async function submit(db,ctx,{id,expectedRevision}){
 async function decide(db,ctx,{id,expectedRevision,decision,reason=''}){
   requireAccess(ctx,'approve');if(typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id)||!Number.isSafeInteger(expectedRevision)||expectedRevision<1||!['approved','rejected'].includes(decision)||typeof reason!=='string'||reason.length>1000)fail('INVALID_FINANCE_POLICY_DECISION');const note=reason.trim();if(decision==='rejected'&&note.length<3)fail('FINANCE_POLICY_REJECTION_REASON_REQUIRED');
   await db.beginTransaction();try{
+    await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[ctx.tenant.id]);
     const [[row]]=await db.query(`SELECT ${fields} FROM sx_training_finance_policies WHERE tenant_id=? AND id=? FOR UPDATE`,[ctx.tenant.id,id]);if(!row)fail('FINANCE_POLICY_NOT_FOUND');
     if(['approved','rejected','superseded'].includes(row.status)&&row.reviewed_by_identity_id===ctx.identity.id&&row.reviewed_by_role==='accountant'&&((decision==='approved'&&['approved','superseded'].includes(row.status))||(decision==='rejected'&&row.status==='rejected'))&&String(row.review_reason||'')===note){await db.commit();return {...shape(row),repeated:true};}
     if(row.status!=='pending_accountant')fail('FINANCE_POLICY_NOT_PENDING');if(Number(row.revision)!==expectedRevision)fail('STALE_FINANCE_POLICY');
