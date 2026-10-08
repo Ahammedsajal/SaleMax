@@ -982,7 +982,7 @@ The authenticated Pro Catalyst owner created and reopened synthetic draft `QA-AC
 
 ## Public enquiry form phone layout — production acceptance, 8 October 2026
 
-Reviewed the existing Pro Catalyst course-enquiry page at a 390px viewport in English and Arabic. Both render without document-level horizontal overflow; Arabic uses RTL direction and localized labels, consent text, and submit action. This was read-only review: no form was submitted and no customer record was created. Authenticated owner sale review and conversion remain separate acceptance gates.
+Reviewed the existing Pro Catalyst course-enquiry page at 390×844 and 768×1024 in English and Arabic. At each viewport, document and body scroll widths equal the viewport; the phone form controls stay within the 390px viewport, and Arabic uses RTL direction with localized labels, consent text, and submit action. This was read-only review: no form was submitted and no customer record was created. This does not verify the language-toggle interaction or authenticated owner sale review and conversion, which remain separate acceptance gates.
 
 ## Scheduled report snapshots enabled in production — 8 October 2026
 
