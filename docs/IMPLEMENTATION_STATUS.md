@@ -1,5 +1,11 @@
 # SaleMaX implementation status
 
+## Tasks existing-session integration — production, 8 October 2026
+
+Source `7be54a6` is pushed and deployed in `/opt/salemax/releases/tasks-business-session-7be54a6`. The current Tasks page now prefers the tenant-scoped HttpOnly business session used by the existing `/user` panel, including CSRF protection for writes, and retains the legacy API as a compatibility path. The mobile iframe no longer reserves an invisible 260px sidebar gutter. No task/login page or data model was added; no migration or customer-data change occurred. Focused task/session/route tests pass 30/30; production `/healthz` and assets return HTTP 200, and app/database are healthy.
+
+The current browser still receives an expired-session response from Tasks. The main shell can continue displaying cached account information, but it does not prove the stored API credential is valid. One normal sign-in through the existing business login is needed before authenticated list/CRUD acceptance. Task assignment, linked records, status/history/chat, role-denial and Arabic acceptance remain open. Provider delivery is not verified because SMTP and an approved WhatsApp template are not configured. See `DEPLOYMENT.md` for image, rollback, hashes and live checks.
+
 ## Tasks workspace layout and shared session handling — production, 7 October 2026
 
 The existing `/user?page=tasks` screen now uses the available content width, keeps the existing SaleMaX shell/sidebar, presents queue rows with clearer hierarchy, and shows expired-session recovery in a prominent bilingual alert. A small Tasks-only fetch hook reads the current `wacrm_user` token for each same-origin pipeline request, so the iframe does not keep reusing a token captured when it first loaded. It uses the existing business account and `/user/login`; no separate Tasks login or setup was added. Source commits `5702c40` and `654ee36` are pushed. Production release `/opt/salemax/releases/tasks-session-654ee36` is active; release, rollback and verification details are in `DEPLOYMENT.md`.
