@@ -965,3 +965,7 @@ Replayed a synthetic public course enquiry with the exact same UUIDv4 submission
 ## Owner Courses CRUD, offer history and batch screen acceptance — 8 October 2026
 
 The authenticated Pro Catalyst owner created and reopened synthetic draft `QA-ACCEPT-20261008` through the existing Courses screen. English/Arabic fields and an edited bilingual prerequisite persisted after returning to the catalogue and reopening the course. The owner added v2 at QAR 120; history retained v1 QAR 100 as retired. Batch `QA-BATCH-20261008` saved for 15–16 October 2026 with capacity 2 and 0/2 seats. No learner or financial record was created. The course remains a synthetic QA artifact; a retirement confirmation interrupted the browser, so its final state was not rechecked. This verifies owner CRUD and batch creation, not capacity concurrency or sale-linked offer snapshots. Production evidence is in `DEPLOYMENT.md`.
+
+## Public enquiry form phone layout — production acceptance, 8 October 2026
+
+Reviewed the existing Pro Catalyst course-enquiry page at a 390px viewport in English and Arabic. Both render without document-level horizontal overflow; Arabic uses RTL direction and localized labels, consent text, and submit action. This was read-only review: no form was submitted and no customer record was created. Authenticated owner sale review and conversion remain separate acceptance gates.
