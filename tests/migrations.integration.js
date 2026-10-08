@@ -87,7 +87,7 @@ async function main() {
     const legacyAssignmentEvidence=await require('./legacy-assignment-integration.cjs')(connection,other);
     const existingCatalogueHttpEvidence=await require('./existing-catalogue-http-integration.cjs')(connection,{...config,database:db},{i1});
     const businessContractEvidence=await require('./business-contract-integration.cjs')(connection,other,{t2,i1,m2},pool);
-    const taskEvidence=await require('./task-integration.cjs')(connection,other,{tenantId:t1,identityId:i1});
+    const taskEvidence=await require('./task-integration.cjs')(connection,other,{tenantId:t1,identityId:i1,pool});
     const staffAccessEvidence=await require('./staff-access-integration.cjs')(connection,{ownerIdentityId:i1});
     const businessProvisioningEvidence=await require('./business-provisioning-integration.cjs')(connection,other,{i1},pool);
     const teamInvitationEvidence=await require('./team-invitation-integration.cjs')(connection,other,pool,{i1});
