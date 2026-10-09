@@ -7,7 +7,7 @@ function routePermission(req){
   const path=String(req.path||'/').toLowerCase();
   const method=String(req.method||'GET').toUpperCase();
   const read=method==='GET'||method==='HEAD';
-  if(mount==='/api/user/team-invitations')return path==='/sidebar-access'?'tenant.read':'team.invite';
+  if(mount==='/api/user/team-invitations')return ['/sidebar-access','/conversation-access'].includes(path)?'tenant.read':'team.invite';
   if(mount==='/api/user/call-center')return path==='/status'||read?'calls.read':'calls.control';
   if(mount==='/api/user/chatbots')return 'automation.manage';
   if(mount.startsWith('/api/user/training/courses'))return read?'courses.read':'courses.manage';

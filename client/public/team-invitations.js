@@ -63,6 +63,23 @@
       };
     });
   }
+  let checkingChatAccess=false;
+  async function checkOpenChatAccess(){
+    if(checkingChatAccess||new URLSearchParams(location.search).get('page')!=='inbox'||!getToken())return;
+    let chat;try{chat=JSON.parse(localStorage.getItem('currentChat')||'null');}catch{return;}
+    if(!chat?.chat_id)return;
+    checkingChatAccess=true;
+    try{
+      const result=await api('/api/user/team-invitations/conversation-access?chatId='+encodeURIComponent(chat.chat_id));
+      const current=JSON.parse(localStorage.getItem('currentChat')||'null');
+      if(result.assignedOnly&&!result.allowed&&current?.chat_id===chat.chat_id){
+        await clearInboxCache();
+        location.replace('/user?page=inbox');
+      }
+    }catch{/* Network errors do not erase a conversation; server authorization remains authoritative. */}
+    finally{checkingChatAccess=false;}
+  }
+  window.setInterval(checkOpenChatAccess,3000);
   async function loginAs(member,button){
     button.disabled=true;
     try{
