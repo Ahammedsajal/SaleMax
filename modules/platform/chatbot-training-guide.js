@@ -133,6 +133,7 @@ function formatCourseDetails(course, formUrl, settings = {}, language = 'en') {
       lines.push(`${copy(settings, 'registrationFeeLabel', language, language === 'ar' ? 'رسوم التسجيل' : 'Registration fee')}: ${course.offer.registrationFeeAmount} ${course.offer.currency}`);
     }
   }
+  const batchIndex = lines.length;
   if (settings.display?.showUpcomingBatches !== false) {
     const batches = Array.isArray(course.batches) ? course.batches : [];
     if (batches.length) {
@@ -145,14 +146,13 @@ function formatCourseDetails(course, formUrl, settings = {}, language = 'en') {
           ? `${date}${batchLanguage ? ` · ${batchLanguage}` : ''} · ${copy(settings, 'batchSeatsLabel', language, 'المقاعد المتاحة')}: ${seats}`
           : `${date}${batchLanguage ? ` · ${batchLanguage}` : ''} · ${seats} ${copy(settings, 'batchSeatsLabel', language, 'seats available')}`);
       }
-    } else {
-      lines.push(copy(settings, 'noUpcomingBatches', language, language === 'ar' ? 'لم تُنشر مواعيد مجموعات قادمة.' : 'No upcoming batch dates are published.'));
     }
   }
+  const batchLine = lines.splice(batchIndex).join(' · ');
   const heading = lines.shift();
   const summary = description && settings.display?.showDescription !== false ? lines.shift() : null;
   const factsLine = lines.join(' · ');
-  const prompt = language === 'ar' ? '1 الدورات · form التسجيل · agent موظف' : 'Reply 1 to browse courses · form to enquire · agent for staff';
+  const prompt = (batchLine ? batchLine + ' · ' : '') + (language === 'ar' ? '1 الدورات · form التسجيل · agent موظف' : 'Reply 1 to browse courses · form to enquire · agent for staff');
   return [heading, summary, factsLine, prompt].filter(Boolean).join('\n');
 }
 
@@ -237,6 +237,12 @@ function trainingCenterGuidedReply({ message, state, facts, config, defaults }) 
     result.reply = `${greeting} ${result.reply}`;
   }
   result.state = { ...(result.state || {}), greeted: true };
+  const selected = facts.find(course => course.code === result.state.selectedCourseCode);
+  if (!result.handoff && result.state.step === 'course_detail' && selected && (state?.selectedCourseCode !== selected.code || /brochure|catalog(?:ue)?|pdf|photo|image|بروشور|كتالوج|صورة/i.test(message))) {
+    const files = Array.isArray(selected.media) ? selected.media : [];
+    result.media = ['image', 'document'].map(kind => files.find(file => file.kind === kind)).filter(Boolean)
+      .map(file => ({ ...file, courseId: selected.courseId }));
+  }
   return result;
 }
 

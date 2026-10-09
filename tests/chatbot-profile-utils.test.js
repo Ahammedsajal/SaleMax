@@ -163,7 +163,8 @@ test('category domain packs use versioned training retrieval and safe FAQ-only f
   const calls = [];
   const db = { async query(sql) {
     calls.push(sql);
-    if (sql.includes('sx_training_courses')) return [[{ courseId: 'course-1', code: 'EN-1', nameEn: 'English', offer: '{"currency":"QAR","priceMinor":35000,"registrationFeeMinor":1000}', batches: '[]' }]];
+    if (sql.includes('sx_training_course_media')) return [[]];
+    if (sql.includes('sx_training_courses')) return [[{ id: 'course-1', code: 'EN-1', nameEn: 'English', offer: '{"currency":"QAR","priceMinor":35000,"registrationFeeMinor":1000}', batches: '[]' }]];
     if (sql.includes('sx_training_batches')) return [[]];
     return [[{ tenantSlug: 'center-1', formSlug: 'apply' }]];
   } };
@@ -171,7 +172,9 @@ test('category domain packs use versioned training retrieval and safe FAQ-only f
   assert.equal(facts[0].code, 'EN-1');
   assert.deepEqual(facts[0].offer, { currency: 'QAR', priceAmount: '350.00', registrationFeeAmount: '10.00' });
   assert.equal(facts.at(-1).url, 'https://crm.salemax.qa/p/center-1/forms/apply');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
+  assert.equal(facts[0].courseId, 'course-1');
+  assert.deepEqual(facts[0].media, []);
   const faqOnly = getDomainPack('future_category', 4);
   assert.equal(faqOnly.key, 'faq_only');
   assert.deepEqual(await faqOnly.loadFacts({}), []);

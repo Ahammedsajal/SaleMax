@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { assignConversation, ownsConversation } = require('../modules/platform/team-conversation-assignment');
+const { assignConversation, ownsConversation, chooseAvailableStaff } = require('../modules/platform/team-conversation-assignment');
 const hash = uid => crypto.createHash('sha256').update(uid).digest('hex');
 const ctx = { tenant: { id: 'tenant-a' }, identity: { id: 'actor' }, membership: { role: 'manager' } };
 function fixture(overrides = {}) {
@@ -31,6 +31,15 @@ test('transfer replaces the old staff assignment and preserves the shared owner 
   assert.deepEqual(update.params.slice(1), ['owner', input.chatId]);
   assert.equal(result.previous[0].identityId, 'old-staff');
   assert.equal(calls.filter(call => call.sql.includes('sx_audit_events')).length, 1);
+});
+
+test('incoming routing chooses the online staff with least assigned work, then falls back to the manager', () => {
+  const staff = [{identityId:'a',uid:'user-a',role:'agent'},{identityId:'b',uid:'user-b',role:'agent'},{identityId:'m',uid:'manager',role:'manager'},{identityId:'o',uid:'owner',role:'owner'}];
+  const chats = [{assigned_agent:JSON.stringify([{kind:'identity',identityId:'a'}])}];
+  assert.equal(chooseAvailableStaff(staff,['owner','user-a','user-b'],chats,'m').identityId,'b');
+  assert.equal(chooseAvailableStaff(staff,['user-a'],chats,'m').identityId,'a');
+  assert.equal(chooseAvailableStaff(staff,[],chats,'m').identityId,'m');
+  assert.equal(chooseAvailableStaff(staff,[],chats,'missing'),null);
 });
 
 test('agents can transfer only a conversation currently assigned to them', async () => {

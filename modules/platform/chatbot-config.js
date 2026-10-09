@@ -70,6 +70,10 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   const config = { domainPack: categoryKey, language: ['en', 'ar', 'en_ar'].includes(source.language) ? source.language : 'en_ar' };
   const audience = normalizeAudience(source.allowedRecipientPhones);
   if (audience !== undefined) config.allowedRecipientPhones = audience;
+  if (source.sharedInboxRouting != null) {
+    if (typeof source.sharedInboxRouting !== 'boolean') throw Object.assign(new Error('INVALID_SHARED_INBOX_ROUTING'), { code: 'INVALID_SHARED_INBOX_ROUTING' });
+    config.sharedInboxRouting = source.sharedInboxRouting;
+  }
   if (source.handoffAssigneeIdentityId != null) {
     if (typeof source.handoffAssigneeIdentityId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(source.handoffAssigneeIdentityId)) throw Object.assign(new Error('INVALID_HANDOFF_ASSIGNEE'), { code: 'INVALID_HANDOFF_ASSIGNEE' });
     config.handoffAssigneeIdentityId = source.handoffAssigneeIdentityId;

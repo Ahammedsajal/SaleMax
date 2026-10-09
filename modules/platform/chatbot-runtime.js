@@ -92,6 +92,9 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
       VALUES (?,?,NULL,'system','chatbot.conversation-auto-handoff','chatbot-conversation',?,?,?)`,
     [crypto.randomUUID(), ctx.tenant.id, chatId, JSON.stringify({ mode: 'paused', reason: String(reason || 'human-review').slice(0, 240) }), crypto.randomUUID()]);
     if (profile && uid) await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
+    if (profile?.config?.sharedInboxRouting === true && profile.config.handoffAssigneeIdentityId && uid) {
+      await require('./team-conversation-assignment').assignConversation(db, { ctx, uid, chatId, identityId: profile.config.handoffAssigneeIdentityId, reason: 'bot-human-handover' });
+    }
     await db.commit();
   } catch (error) { await db.rollback(); throw error; }
   finally { db.release(); }
@@ -196,6 +199,11 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: reply.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
+  if (!reply.handoff && reply.media?.length) {
+    try {
+      await require('./chatbot-course-media').sendCourseMedia({ pool: dbPool, ctx, profile, uid, chatId, sessionId, message, origin, media: reply.media });
+    } catch (error) { console.warn('[chatbot] course attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'); }
+  }
   return true;
 }
 
@@ -313,6 +321,13 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   if (!ctx) return { handled: false };
   const profile = await profileFor(ctx, uid, origin, sessionId);
   if (!profile) return { handled: false };
+  if (profile.config?.sharedInboxRouting === true) {
+    const { getConnectedUsers, sendToUid } = require('../../socket');
+    const routed = await require('./team-conversation-assignment').routeIncomingConversation(dbPool, {
+      ctx, profile, uid, chatId, connectedUids: getConnectedUsers().map(item => item.uid),
+    });
+    if (routed) sendToUid(uid, { chatId }, 'request_update_chat_list');
+  }
   // A restricted chat is handled silently so it cannot fall through to legacy bots.
   if (!recipientAllowed(profile.config, message?.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   const channelKind = channelFor(origin);

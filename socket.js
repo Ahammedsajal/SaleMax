@@ -91,6 +91,12 @@ function initializeSocket(server) {
         isAgent,
         connectedAt: new Date(),
       };
+      if (!isAgent) {
+        try {
+          const scope = await require('./modules/platform/team-inbox-scope').resolveInboxScope(query, userData, 'get_chat_list');
+          if (scope.canonical) socket.userData.teamOwnerUid = scope.uid;
+        } catch { /* Accounts without Inbox permission keep their own socket scope. */ }
+      }
 
       // Success response
       socket.emit("connection_ack", {
@@ -159,6 +165,7 @@ function sendToUid(uid, data, event = "message") {
     if (
       socket.userData &&
       (socket.userData.uid === uid ||
+        socket.userData.teamOwnerUid === uid ||
         (socket.userData.isAgent && socket.userData.owner_uid === uid))
     ) {
       socket.emit(event, data);
@@ -233,8 +240,7 @@ function getConnectionsByUid(uid, includeAgents = false) {
       // If includeAgents is true, also include agents where owner_uid matches
       else if (
         includeAgents &&
-        socket.userData.isAgent &&
-        socket.userData.owner_uid === uid
+        ((socket.userData.isAgent && socket.userData.owner_uid === uid) || socket.userData.teamOwnerUid === uid)
       ) {
         connections.push({
           socketId: socket.id,

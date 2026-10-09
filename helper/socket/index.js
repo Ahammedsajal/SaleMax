@@ -49,7 +49,10 @@ function processSocketEvent({
     const { isAgent, uid: actorUid } = socket?.userData || {};
 
     try {
-      const uid = isAgent ? actorUid : await require('../../modules/platform/team-inbox-scope').resolveInboxUid(query, socket.userData, type);
+      const inboxAccess = require('../../modules/platform/team-inbox-scope');
+      const inboxScope = isAgent ? { uid: actorUid, canonical: false, assignedOnly: false } : await inboxAccess.resolveInboxScope(query, socket.userData, type);
+      const uid = inboxScope.uid;
+      payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {});
       switch (type) {
         case "get_chat_list":
           const {
@@ -168,6 +171,7 @@ function processSocketEvent({
             );
           }
 
+          chats = inboxAccess.filterAssignedChats(chats, inboxScope);
           const total = chats.length;
           chats = chats.slice(offset, offset + limit);
 
@@ -179,10 +183,14 @@ function processSocketEvent({
             contacts,
           );
 
-          const agentData = await query(
+          let agentData = await query(
             `SELECT * FROM agents WHERE owner_uid = ?`,
             [chatListOwnerUid],
           );
+          if (inboxScope.canonical) {
+            const staff = await require('../../modules/platform/team-conversation-assignment').eligibleStaff({ query: async (sql, params) => [await query(sql, params)] }, inboxScope.ctx.tenant.id);
+            agentData = agentData.concat(staff.map(item => ({ ...item, id: item.identityId })));
+          }
 
           const qrInstances = await query(
             `SELECT uniqueId, title, number, status
@@ -231,6 +239,7 @@ function processSocketEvent({
             exportChatsOwnerUid,
           ]);
 
+          chats = inboxAccess.filterAssignedChats(chats, inboxScope);
           const enriched = chats.map((chat) => {
             const contact = contacts.find(
               (c) => String(c.mobile) === String(chat.sender_mobile),
@@ -869,6 +878,25 @@ function processSocketEvent({
 
         case "assign_agent_to_chat":
           const { chatId, agentUid, unAssign } = payload;
+          if (inboxScope.canonical && !unAssign) {
+            const pool = require('../../database/config').promise();
+            const db = await pool.getConnection();
+            try {
+              const assignments = require('../../modules/platform/team-conversation-assignment');
+              const staff = await assignments.eligibleStaff(db, inboxScope.ctx.tenant.id);
+              const target = staff.find(item => item.uid === agentUid);
+              if (target) {
+                await db.beginTransaction();
+                await assignments.assignConversation(db, { ctx: inboxScope.ctx, uid, chatId, identityId: target.identityId });
+                await db.commit();
+                sendToUid(uid, { chatId }, 'request_update_chat_list');
+                sendToUid(uid, { chatId }, 'request_update_opened_chat');
+                break;
+              }
+              if (inboxScope.assignedOnly) throw new Error('CONVERSATION_ASSIGNEE_INVALID');
+            } catch (error) { await db.rollback(); throw error; }
+            finally { db.release(); }
+          }
 
           // Get current chat data
           const [chatDatao] = await query(
