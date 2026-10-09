@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Concurrent registration form acquisition — implementation, 9 October 2026
+
+The Candidate Applications registration button now uses a tenant-serialized server operation that creates and publishes the initial form atomically or returns the existing form. Concurrent staff requests share one form/version. Existing drafts and published snapshots are preserved. The button opens staff capture for a published form and the editor for an existing unpublished draft. Custom enquiry slug conflicts remain errors. Disposable concurrency verification and production deployment evidence follow below after checks.
+
 ## Optional initial password for team accounts — local, 9 October 2026
 
 The existing Team access screen has an optional temporary-password input, full name and mobile fields. Providing a password creates an active account with its assigned system/custom role in the same transaction as seat reservation and legacy/canonical linking. Leaving it blank preserves copy-link invitations. Agent accounts require an international mobile; passwords use the existing 12-character/72-byte policy and bcrypt hashing. No password or usable invitation token is returned for direct accounts. The screen shows the existing agent/business login route and clears the password after creation. This is an initial credential; no expiry or forced first-login reset is introduced.
