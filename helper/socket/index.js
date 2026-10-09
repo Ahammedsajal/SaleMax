@@ -191,7 +191,8 @@ function processSocketEvent({
           );
           if (inboxScope.canonical) {
             const staff = await require('../../modules/platform/team-conversation-assignment').eligibleStaff({ query: async (sql, params) => [await query(sql, params)] }, inboxScope.ctx.tenant.id);
-            agentData = agentData.concat(staff.map(item => ({ ...item, id: item.identityId })));
+            const combined = agentData.concat(staff.map(item => ({ ...item, id: item.identityId })));
+            agentData = [...new Map(combined.map(item => [item.uid,item])).values()];
           }
 
           const qrInstances = await query(
@@ -478,7 +479,8 @@ function processSocketEvent({
           );
           if (inboxScope.canonical) {
             const staff = await require('../../modules/platform/team-conversation-assignment').eligibleStaff({ query: async (sql, params) => [await query(sql, params)] }, inboxScope.ctx.tenant.id);
-            agents = agents.concat(staff.map(item => ({ ...item, id: item.identityId })));
+            const combined = agents.concat(staff.map(item => ({ ...item, id: item.identityId })));
+            agents = [...new Map(combined.map(item => [item.uid,item])).values()];
           }
 
           const [getContact] = await query(
