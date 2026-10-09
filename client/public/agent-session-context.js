@@ -11,9 +11,9 @@
     requests.delete(this);
     try {
       const target = new URL(url, location.origin);
-      if (agentPage() && method.toUpperCase() === 'GET' && target.origin === location.origin && target.pathname === '/api/user/get_me') {
-        target.pathname = '/api/agent/session-context';
-        url = target.href;
+      // The legacy selector passes token_user but its HTTP helper ignores that
+      // option without an agent flag. Keep the existing route, use Agent auth.
+      if (agentPage() && method.toUpperCase() === 'GET' && target.origin === location.origin && target.pathname === '/api/qr/get_all_agent') {
         requests.add(this);
       }
     } catch {}
