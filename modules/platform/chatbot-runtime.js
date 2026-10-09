@@ -12,6 +12,7 @@ const { getDomainPack } = require('./chatbot-domain-packs');
 const { isGuidedChoice, hybridTurnPlan, supportsAiPreview } = require('./chatbot-config');
 const { channelFor } = require('./chatbot-channels');
 const { buildAiPrompt } = require('./chatbot-ai-prompt');
+const { recipientAllowed } = require('./chatbot-audience');
 let nextGuidedSessionPruneAt = 0;
 let guidedSessionPrunePromise = null;
 
@@ -185,15 +186,15 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     throw error;
   } finally { db.release(); }
 
-  if (await shouldPause(uid, chatId, channelKind, sessionId)) return false;
+  if (!recipientAllowed(profile.config, message?.senderMobile) || await shouldPause(uid, chatId, channelKind, sessionId)) return false;
   const { sendWaMessage } = require('../../automation/functions');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: reply.reply } } });
   if (!sentId) return false;
+  if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, 'customer-requested-human');
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: reply.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
-  await query(`UPDATE beta_chats SET last_message=?,last_message_came=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), timestamp, uid, chatId]);
-  if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, 'customer-requested-human');
+  await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
   return true;
 }
 
@@ -280,14 +281,14 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   }
   const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId });
   if (answer.handedOff || answer.paused) return answer;
-  if (await shouldPause(uid, chatId, channelFor(origin), sessionId)) return { paused: true };
+  if (!recipientAllowed(profile.config, message?.senderMobile) || await shouldPause(uid, chatId, channelFor(origin), sessionId)) return { paused: true };
   const { sendWaMessage } = require('../../automation/functions');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: answer.reply } } });
   if (!sentId) return { handedOff: true, code: 'CHANNEL_SEND_FAILED' };
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: answer.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
-  await query(`UPDATE beta_chats SET last_message=?,last_message_came=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), timestamp, uid, chatId]);
+  await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
   return { sent: true };
 }
 
@@ -311,6 +312,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   if (!ctx) return { handled: false };
   const profile = await profileFor(ctx, uid, origin, sessionId);
   if (!profile) return { handled: false };
+  // A restricted chat is handled silently so it cannot fall through to legacy bots.
+  if (!recipientAllowed(profile.config, message?.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   const channelKind = channelFor(origin);
   if (await shouldPause(uid, chatId, channelKind, sessionId)) return { handled: true, paused: true };
   const turn = await claimTurn(ctx, profile, message, chatId);

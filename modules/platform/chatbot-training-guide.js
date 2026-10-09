@@ -27,6 +27,8 @@ function copy(settings, key, language, fallback = '') {
 }
 
 function languageFor(message, state, config) {
+  if (/^(?:english|en)$/i.test(String(message || '').trim())) return 'en';
+  if (/^(?:arabic|ar|العربية|عربي)$/i.test(String(message || '').trim())) return 'ar';
   if (/[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/.test(String(message || ''))) return 'ar';
   if (state?.language === 'ar' || state?.language === 'en') return state.language;
   return config?.language === 'ar' ? 'ar' : 'en';
@@ -41,6 +43,7 @@ function menuText(facts = [], settings = {}, language = 'en', { includeGreeting 
     lines.push(`2. ${copy(settings, 'enquiryLabel', language, language === 'ar' ? 'نموذج الاستفسار' : 'Enquiry form')}`);
   }
   lines.push(`0. ${copy(settings, 'mainMenuLabel', language, language === 'ar' ? 'القائمة الرئيسية' : 'Main menu')}`);
+  lines.push(language === 'ar' ? '3. التحدث مع فريق القبول' : '3. Speak to admissions');
   lines.push(copy(settings, 'menuPrompt', language, language === 'ar' ? 'اختر خياراً أو أرسل agent لمساعدة الموظفين.' : 'Choose an option or type agent for staff help.'));
   return lines.join('\n');
 }
@@ -162,10 +165,10 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   const step = state?.step;
   const nextState = (nextStep, extra = {}) => ({ step: nextStep, language, ...extra });
 
-  if (/\b(?:human|person|agent|staff|advisor|representative)\b|موظف|شخص|مستشار|خدمة العملاء/i.test(text)) {
+  if ((text === '3' && step !== 'course_list') || /\b(?:human|person|someone|agent|staff|advisor|representative)\b|موظف|شخص|مستشار|خدمة العملاء|فريق القبول/i.test(text)) {
     return { reply: copy(settings, 'handoffMessage', language, language === 'ar' ? 'تم إيقاف الردود الآلية مؤقتاً ليتمكن فريق العمل من مساعدتك.' : 'I have paused the automated replies so the team can help you.'), state: nextState(step || 'menu', state || {}), handoff: true };
   }
-  if (/^(?:0|menu|back|main menu|القائمة|القائمة الرئيسية|رجوع)$/i.test(text)) {
+  if (/^(?:0|menu|back|main menu|english|en|arabic|ar|العربية|عربي|القائمة|القائمة الرئيسية|رجوع)$/i.test(text)) {
     return { reply: menuText(facts, settings, language, { includeGreeting: false }), state: nextState('menu') };
   }
   if (/^(?:2|form|enquiry form|registration form|نموذج|نموذج الاستفسار)$/i.test(text) && (step !== 'course_list' || text !== '2')) {
@@ -205,7 +208,7 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   if (step === 'course_list') return { reply: `${copy(settings, 'courseListPrompt', language, language === 'ar' ? 'أرسل رقم الدورة أو 0 للقائمة الرئيسية.' : 'Reply with a course number or 0 for the main menu.')}\n\n${formatCourseList(courses, settings, language)}`, state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
 
   const greeting = /^(?:hi|hello|hey|good morning|good afternoon|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(text);
-  if (!step || greeting) return { reply: menuText(facts, settings, language), state: nextState('menu') };
+  if (!step || greeting) return { reply: menuText(facts, settings, language, { includeGreeting: !state?.greeted }), state: nextState('menu') };
   const fallback = copy(settings, 'fallbackMessage', language, language === 'ar' ? 'أعتذر، لم أفهم الاختيار.' : 'I did not understand that selection.');
   return { reply: `${fallback}\n\n${menuText(facts, settings, language, { includeGreeting: false })}`, state: nextState('menu') };
 }

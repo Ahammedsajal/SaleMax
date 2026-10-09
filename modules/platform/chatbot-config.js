@@ -2,6 +2,7 @@
 
 const ENGINES = new Set(['guided', 'hybrid', 'ai']);
 const { getDomainPack } = require('./chatbot-domain-packs');
+const { normalizeAudience } = require('./chatbot-audience');
 
 function cleanText(value, max, code) {
   if (value == null || value === '') return '';
@@ -67,6 +68,8 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   const source = input.config;
   if (!source || typeof source !== 'object' || Array.isArray(source) || Buffer.byteLength(JSON.stringify(source)) > 32000) throw Object.assign(new Error('INVALID_BOT_CONFIG'), { code: 'INVALID_BOT_CONFIG' });
   const config = { domainPack: categoryKey, language: ['en', 'ar', 'en_ar'].includes(source.language) ? source.language : 'en_ar' };
+  const audience = normalizeAudience(source.allowedRecipientPhones);
+  if (audience !== undefined) config.allowedRecipientPhones = audience;
   if (input.engine === 'guided') {
     if (source.flowId != null && (typeof source.flowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.flowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
     config.flowId = source.flowId || null;
