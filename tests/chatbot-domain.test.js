@@ -108,7 +108,7 @@ test('guided training conversation greets once, keeps menu navigation concise, a
 test('the first specific course question includes the editable greeting only once', () => {
   const config = { messages: { greeting: { en: 'Welcome to Northstar Academy.' } } };
   const first = trainingCenterGuidedReply({ message: 'What is the fee for Excel Essentials?', state: null, facts: courseFacts, config, defaults: pack.guidedContentDefaults });
-  assert.match(first.reply, /^Welcome to Northstar Academy\.\n\nExcel Essentials/);
+  assert.match(first.reply, /^Welcome to Northstar Academy\. \*Excel Essentials\*/);
   assert.equal(first.state.greeted, true);
   const followUp = trainingCenterGuidedReply({ message: 'tell me more', state: first.state, facts: courseFacts, config, defaults: pack.guidedContentDefaults });
   assert.doesNotMatch(followUp.reply, /^Welcome to Northstar Academy\./);
