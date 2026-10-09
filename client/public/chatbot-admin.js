@@ -668,6 +668,7 @@
     return el?.dataset.chatId || el?.dataset.chat_id || el?.dataset.conversationId || new URLSearchParams(location.search).get('chatId') || '';
   }
   const chatStates = new Map();
+  let inboxBotControlsDenied = false;
   const manuallySelectedChatChannels = new Map();
   let inboxBotChannelOptionsPromise = null;
   async function inboxBotChannelOptions() {
@@ -731,7 +732,7 @@
   }
   function renderActiveChatControl(conversation) {
     let control = document.getElementById('sx-active-chatbot-control');
-    if (!conversation?.id) { control?.remove(); return; }
+    if (!conversation?.id || inboxBotControlsDenied) { control?.remove(); return; }
     const { id, scope } = conversation;
     if (!control) {
       control = document.createElement('div'); control.id = 'sx-active-chatbot-control';
@@ -795,6 +796,11 @@
           : tr('Assign and activate a bot on a connected number first.','اربط روبوتًا وفعّله على رقم متصل أولاً.');
       }).catch(error => {
         if (!control.isConnected || control.dataset.conversationId !== id) return;
+        if (error.message === 'TENANT_PERMISSION_DENIED') {
+          inboxBotControlsDenied = true;
+          control.remove();
+          return;
+        }
         select.innerHTML = `<option value="">${esc(errorLabel(error.message))}</option>`;
         select.disabled = true;
         control.querySelector('[data-sx-chatbot-state]').textContent = tr('Could not load bot numbers. Refresh and try again.','تعذر تحميل أرقام الروبوتات. حدّث الصفحة وحاول مجددًا.');
@@ -838,6 +844,7 @@
         : value.mode === 'paused' ? tr('Paused for this chat','متوقف لهذه المحادثة') : tr('Bot replies enabled','ردود الروبوت مفعلة');
     } catch (error) {
       control.remove();
+      if (error.message === 'TENANT_PERMISSION_DENIED') inboxBotControlsDenied = true;
       if (error.message === 'CONVERSATION_NOT_FOUND' && manuallySelectedChatChannels.has(id)) {
         manuallySelectedChatChannels.delete(id);
         renderActiveChatControl({ id, scope:null });
