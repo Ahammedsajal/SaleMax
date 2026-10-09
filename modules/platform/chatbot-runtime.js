@@ -80,7 +80,7 @@ async function finishTurn(turn, status, resultClass) {
   await query(`UPDATE sx_chatbot_turns SET status=?,result_class=?,lease_until=UTC_TIMESTAMP(3) WHERE id=? AND status='processing'`, [status, resultClass, turn.id]);
 }
 
-async function handoffConversation(ctx, chatId, channelKind, channelRef, reason) {
+async function handoffConversation(ctx, chatId, channelKind, channelRef, reason, profile = null, uid = null) {
   const db = await dbPool.getConnection();
   try {
     await db.beginTransaction();
@@ -91,6 +91,7 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason)
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,NULL,'system','chatbot.conversation-auto-handoff','chatbot-conversation',?,?,?)`,
     [crypto.randomUUID(), ctx.tenant.id, chatId, JSON.stringify({ mode: 'paused', reason: String(reason || 'human-review').slice(0, 240) }), crypto.randomUUID()]);
+    if (profile && uid) await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
     await db.commit();
   } catch (error) { await db.rollback(); throw error; }
   finally { db.release(); }
@@ -190,7 +191,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   const { sendWaMessage } = require('../../automation/functions');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: reply.reply } } });
   if (!sentId) return false;
-  if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, 'customer-requested-human');
+  if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, 'customer-requested-human', profile, uid);
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: reply.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
@@ -318,7 +319,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   if (await shouldPause(uid, chatId, channelKind, sessionId)) return { handled: true, paused: true };
   const turn = await claimTurn(ctx, profile, message, chatId);
   if (!turn) {
-    await handoffConversation(ctx, chatId, channelKind, sessionId, 'inbound-message-id-unavailable');
+    await handoffConversation(ctx, chatId, channelKind, sessionId, 'inbound-message-id-unavailable', profile, uid);
     return { handled: true, handedOff: true, code: 'INBOUND_MESSAGE_ID_UNAVAILABLE' };
   }
   if (turn.duplicate) return { handled: true, duplicate: true };
@@ -329,13 +330,13 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {
-      await handoffConversation(ctx, chatId, channelKind, sessionId, result?.code || 'human-review');
+      await handoffConversation(ctx, chatId, channelKind, sessionId, result?.code || 'human-review', profile, uid);
       await finishTurn(turn, 'handed_off', result?.code || 'human-review');
     }
     return { handled: true, ...result };
   } catch (error) {
     const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code) ? error.code : 'runtime-error';
-    await handoffConversation(ctx, chatId, channelKind, sessionId, failure).catch(() => {});
+    await handoffConversation(ctx, chatId, channelKind, sessionId, failure, profile, uid).catch(() => {});
     await finishTurn(turn, 'handed_off', failure).catch(() => {});
     return { handled: true, handedOff: true, code: error.code || 'BOT_RUNTIME_ERROR' };
   }

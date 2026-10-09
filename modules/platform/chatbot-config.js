@@ -70,6 +70,10 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   const config = { domainPack: categoryKey, language: ['en', 'ar', 'en_ar'].includes(source.language) ? source.language : 'en_ar' };
   const audience = normalizeAudience(source.allowedRecipientPhones);
   if (audience !== undefined) config.allowedRecipientPhones = audience;
+  if (source.handoffAssigneeIdentityId != null) {
+    if (typeof source.handoffAssigneeIdentityId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(source.handoffAssigneeIdentityId)) throw Object.assign(new Error('INVALID_HANDOFF_ASSIGNEE'), { code: 'INVALID_HANDOFF_ASSIGNEE' });
+    config.handoffAssigneeIdentityId = source.handoffAssigneeIdentityId;
+  }
   if (input.engine === 'guided') {
     if (source.flowId != null && (typeof source.flowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.flowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
     config.flowId = source.flowId || null;
