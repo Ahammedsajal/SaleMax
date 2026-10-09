@@ -67,7 +67,9 @@
   async function checkOpenChatAccess(){
     const agent=location.pathname.startsWith('/agent');
     const token=agent?localStorage.getItem('wacrm_agent'):getToken();
-    if(checkingChatAccess||new URLSearchParams(location.search).get('page')!=='inbox'||!token)return;
+    const page=new URLSearchParams(location.search).get('page');
+    const inbox=agent?(page===null||page==='chat'):page==='inbox';
+    if(checkingChatAccess||!inbox||!token)return;
     let chat;try{chat=JSON.parse(localStorage.getItem('currentChat')||'null');}catch{return;}
     if(!chat?.chat_id)return;
     checkingChatAccess=true;
@@ -76,7 +78,7 @@
       const current=JSON.parse(localStorage.getItem('currentChat')||'null');
       if(result.assignedOnly&&!result.allowed&&current?.chat_id===chat.chat_id){
         await clearInboxCache();
-        location.replace((agent?'/agent':'/user')+'?page=inbox');
+        location.replace(agent?'/agent?page=chat':'/user?page=inbox');
       }
     }catch{/* Network errors do not erase a conversation; server authorization remains authoritative. */}
     finally{checkingChatAccess=false;}
