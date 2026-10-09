@@ -1,8 +1,8 @@
 # SaleMaX implementation status
 
-## Concurrent registration form acquisition — implementation, 9 October 2026
+## Concurrent registration form acquisition — production, 9 October 2026
 
-The Candidate Applications registration button now uses a tenant-serialized server operation that creates and publishes the initial form atomically or returns the existing form. Concurrent staff requests share one form/version. Existing drafts and published snapshots are preserved. The button opens staff capture for a published form and the editor for an existing unpublished draft. Custom enquiry slug conflicts remain errors. Disposable concurrency verification and production deployment evidence follow below after checks.
+The Candidate Applications registration button now uses a tenant-serialized server operation that creates and publishes the initial form atomically or returns the existing form. Concurrent staff requests share one form/version. Existing drafts and published snapshots are preserved. The button opens staff capture for a published form and the editor for an existing unpublished draft. Custom enquiry slug conflicts remain errors. Source commit 63db2a4 is deployed at /opt/salemax/releases/form-concurrency-63db2a4-20261009. Focused tests pass 10/10; disposable MariaDB applies/replays 69 migrations and proves 12 concurrent acquisitions create one form/version, with later draft edits preserved. Synthetic browser double-click sends one request and opens staff capture. Production service verification returns the same existing form for 12 concurrent requests without changing form/version/audit counts. App health and served hashes match. Live authenticated button acceptance remains open; no registration/customer data was changed. See DEPLOYMENT.md for the durable image and rollback.
 
 ## Optional initial password for team accounts — local, 9 October 2026
 
