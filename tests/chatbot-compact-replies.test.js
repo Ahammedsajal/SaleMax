@@ -6,6 +6,11 @@ const pack = getDomainPack('training_center', 1);
 const facts = Array.from({ length: 9 }, (_, index) => ({ code: `C${index + 1}`, nameEn: `Program ${index + 1}`, nameAr: `برنامج ${index + 1}`, descriptionEn: 'An approved course overview. '.repeat(50), offer: { priceAmount: '100.00', currency: 'QAR' } }));
 facts.push({ kind: 'published_enquiry_form', url: 'https://example.com/enquiry' });
 const run = (message, state) => pack.guidedReply({ message, state, facts });
+test('custom greetings stay compact and handover preserves short formatted lines',()=>{
+  const config={messages:{greeting:{en:'Welcome '.repeat(100)},handoffMessage:{en:'*Admissions handover*\nSent to the manager.\nPlease share name, course and schedule.'}}};
+  const menu=pack.guidedReply({message:'hello',facts,config});assert.ok(menu.reply.length<350);
+  const handover=pack.guidedReply({message:'agent',facts,config});assert.equal(handover.reply.split('\n').length,3);assert.match(handover.reply,/\*Admissions handover\*/);
+});
 
 test('English and Arabic menus, details and recovery replies stay within four lines', () => {
   for (const language of ['en', 'ar']) {

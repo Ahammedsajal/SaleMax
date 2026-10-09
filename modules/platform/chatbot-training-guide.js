@@ -24,9 +24,9 @@ function mergeDefaults(defaults, value) {
 
 function copy(settings, key, language, fallback = '') {
   const value = settings.messages?.[key];
-  if (typeof value === 'string') return clean(value, 1000) || fallback;
-  if (!value || typeof value !== 'object') return fallback;
-  return clean(value[language], 1000) || clean(value[language === 'ar' ? 'en' : 'ar'], 1000) || fallback;
+  const selected=typeof value==='string'?value:value&&typeof value==='object'?(value[language]||value[language==='ar'?'en':'ar']):fallback;
+  if(key==='handoffMessage')return String(selected||fallback).split(/\r?\n/).map(line=>clean(line,90)).filter(Boolean).slice(0,4).join('\n');
+  return clean(selected, /Label$/.test(key)?40:100) || fallback;
 }
 
 function languageFor(message, state, config) {
@@ -181,7 +181,7 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   }
   if (/^(?:2|form|enquiry form|registration form|نموذج|نموذج الاستفسار)$/i.test(text) && (step !== 'course_list' || text !== '2')) {
     return { reply: formUrl
-      ? `${copy(settings, 'enquiryPrompt', language, language === 'ar' ? 'استخدم نموذج الاستفسار المنشور للتواصل مع المركز:' : 'Use the published enquiry form to contact the center:')} ${formUrl}`
+      ? `*${copy(settings, 'enquiryPrompt', language, language === 'ar' ? 'نموذج الاستفسار' : 'Enquiry form')}*\n${formUrl}`
       : copy(settings, 'enquiryUnavailable', language, language === 'ar' ? 'لم يتم نشر نموذج استفسار بعد.' : 'An enquiry form is not published yet.'),
     state: nextState('menu') };
   }

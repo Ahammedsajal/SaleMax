@@ -51,10 +51,23 @@
     return node;
   }
   const accountKey='sx_owner_account_return';
+  async function clearInboxCache(){
+    for(const key of ['chatList','conversationArr','labelData','phonebookData','agentData','chatBots','chatInfo','chatNote','cdTimer','currentChat','loadingChats','hasMoreChats','loadingConversation','hasMoreMessages','chatFilters','conversationFilters'])localStorage.removeItem(key);
+    await new Promise((resolve,reject)=>{
+      const request=indexedDB.open('whatscrm_db',1);
+      request.onerror=()=>reject(new Error('CACHE_CLEAR_FAILED'));
+      request.onsuccess=()=>{
+        const db=request.result;if(!db.objectStoreNames.contains('cache')){db.close();resolve();return;}
+        const transaction=db.transaction('cache','readwrite');transaction.objectStore('cache').clear();
+        transaction.oncomplete=()=>{db.close();resolve();};transaction.onerror=transaction.onabort=()=>{db.close();reject(new Error('CACHE_CLEAR_FAILED'));};
+      };
+    });
+  }
   async function loginAs(member,button){
     button.disabled=true;
     try{
       const ownerToken=getToken();
+      await clearInboxCache();
       const result=await api('/api/user/team-invitations/members/'+encodeURIComponent(member.id)+'/login-as',{method:'POST',body:{}});
       sessionStorage.setItem(accountKey,JSON.stringify({ownerToken,staffToken:result.token,sessionId:result.sessionId,name:member.displayName||member.email}));
       localStorage.setItem('wacrm_user',result.token);
@@ -72,6 +85,7 @@
       button.disabled=true;
       try{
         await api('/api/user/team-invitations/return-owner',{method:'POST',token:saved.ownerToken,body:{sessionId:saved.sessionId}});
+        await clearInboxCache();
         localStorage.setItem('wacrm_user',saved.ownerToken);sessionStorage.removeItem(accountKey);location.assign('/user?page=team-invitations');
       }catch(error){text.textContent=label('Could not restore owner session. Please sign in again. ','تعذر استعادة جلسة المالك. يرجى تسجيل الدخول مجدداً. ');button.disabled=false;}
     };

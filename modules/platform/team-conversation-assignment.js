@@ -52,7 +52,7 @@ async function assignConversation(db, { ctx, uid, chatId, identityId, reason = '
 }
 
 async function eligibleStaff(db, tenantId) {
-  const [rows] = await db.query(`SELECT i.id AS identityId,i.display_name AS name,u.uid,m.role,m.role_profile_id AS roleProfileId,
+  const [rows] = await db.query(`SELECT i.id AS identityId,i.display_name AS name,i.email_normalized AS email,u.uid,m.role,m.role_profile_id AS roleProfileId,
       r.permissions AS rolePermissions,r.status AS roleStatus,r.seat_role AS seatRole,o.legacy_uid_hash AS uidHash
     FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
     JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
@@ -67,7 +67,7 @@ async function eligibleStaff(db, tenantId) {
       member.customPermissions = permissions(row.rolePermissions);
     }
     return Boolean(scopeFor(member, 'conversations.read') && scopeFor(member, 'conversations.reply'));
-  }).map(({ identityId, name, uid, role }) => ({ kind: 'identity', identityId, name, uid, role }));
+  }).map(({ identityId, name, email, uid, role }) => ({ kind: 'identity', identityId, name, email, uid, role }));
 }
 
 function chooseAvailableStaff(staff, connectedUids, chats, fallbackIdentityId) {
