@@ -25,3 +25,15 @@ test('report delivery migration keeps channel idempotency per profile recipient'
   const ui=fs.readFileSync(require.resolve('../client/public/training-courses.js'),'utf8');
   for(const control of ['Scheduled report recipients','Add recipient','Send code','Verify','Remove'])assert.ok(ui.includes(control));
 });
+test('generated report delivery fans out only to verified profile recipients on enabled channels',async()=>{
+  const runner=require('../modules/platform/training-report-runner'),inserted=[];
+  const db={async beginTransaction(){},async commit(){},async rollback(){},async query(sql,params){
+    if(sql.includes('SELECT status,lease_owner,schedule_id,schedule_revision'))return [[{status:'processing',lease_owner:'worker',valid:1,schedule_id:'schedule',schedule_revision:2}]];
+    if(sql.includes('SELECT revision,status,email_enabled'))return [[{revision:2,status:'active',email_enabled:1,email_verified_at:null,whatsapp_enabled:0,whatsapp_verified_at:null}]];
+    if(sql.includes('SELECT id FROM sx_training_report_recipients'))return [[{id:'recipient-a'},{id:'recipient-b'}]];
+    if(sql.includes('INSERT IGNORE INTO sx_training_report_deliveries')){inserted.push(params);return [{affectedRows:1}];}
+    return [{affectedRows:1}];
+  }};
+  const result=await runner.completeRun(db,{run:{id:'run',tenant_id:'tenant'},workerId:'worker',snapshot:{summary:{}}});
+  assert.deepEqual(result.deliveriesQueued,{email:true,whatsapp:false});assert.equal(inserted.length,2);assert.deepEqual(inserted.map(row=>row[5]),['recipient-a','recipient-b']);
+});
