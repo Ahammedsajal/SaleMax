@@ -392,6 +392,7 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
             downloadResult.success ? downloadResult.fileName : ""
           }`,
           caption: doc.caption || doc.title || "",
+          filename: String(doc.fileName || doc.title || downloadResult.fileName || 'Document').split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 240),
         },
       };
       if (doc.contextInfo?.quotedMessage) {
@@ -408,6 +409,7 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
             downloadResult.success ? downloadResult.fileName : ""
           }`,
           caption: doc.caption || doc.title || doc.fileName || "",
+          filename: String(doc.fileName || doc.title || downloadResult.fileName || 'Document').split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 240),
         },
       };
       if (doc.contextInfo?.quotedMessage) {
