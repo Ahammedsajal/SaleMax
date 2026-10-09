@@ -32,3 +32,13 @@ test('admissions handover option does not steal third course selection and langu
   assert.equal(run('العربية', { step: 'menu', language: 'en', greeted: true }).state.language, 'ar');
   assert.doesNotMatch(run('hello', { step: 'menu', greeted: true }).reply, /Welcome!/);
 });
+
+test('short course enquiries resolve approved names, clarify ambiguity and truncate at word boundaries', () => {
+  const pack = getDomainPack('training_center', 1);
+  const facts = [{ code: 'SYN-EXCEL', nameEn: 'Advanced Excel Professional Training', descriptionEn: 'word '.repeat(160), batches: [] }, { code: 'SYN-TEACHER', nameEn: 'Primary Teacher Training', batches: [] }, { code: 'SYN-SEN', nameEn: 'SEN Teacher Training', batches: [] }];
+  const run = message => pack.guidedReply({ message, facts });
+  assert.equal(run('How much is Excel?').state.selectedCourseCode, 'SYN-EXCEL');
+  assert.deepEqual(run('teacher').state.courseCodes, ['SYN-TEACHER', 'SYN-SEN']);
+  assert.match(run('Excel').reply, /word…/);
+  assert.equal(run('unlisted aviation').state.selectedCourseCode, undefined);
+});

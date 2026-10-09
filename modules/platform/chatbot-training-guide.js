@@ -1,7 +1,10 @@
 'use strict';
 
 function clean(value, max = 240) {
-  return typeof value === 'string' ? value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ').replace(/[ \t]+/g, ' ').trim().slice(0, max) : '';
+  if (typeof value !== 'string') return '';
+  const text = value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ').replace(/[ \t]+/g, ' ').trim();
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1).replace(/\s+\S*$/u, '').trimEnd() + '…';
 }
 
 function normalizeDigits(value) {
@@ -38,12 +41,12 @@ function menuText(facts = [], settings = {}, language = 'en', { includeGreeting 
   const form = facts.find(item => item?.kind === 'published_enquiry_form' && typeof item.url === 'string');
   const lines = [];
   if (includeGreeting) lines.push(copy(settings, 'greeting', language, language === 'ar' ? 'أهلاً بك!' : 'Welcome!'));
-  lines.push(`1. ${copy(settings, 'coursesLabel', language, language === 'ar' ? 'عرض الدورات' : 'View courses')}`);
+  lines.push(`[1] ${copy(settings, 'coursesLabel', language, language === 'ar' ? 'عرض الدورات' : 'View courses')}`);
   if (form && settings.display?.showEnquiryForm !== false) {
-    lines.push(`2. ${copy(settings, 'enquiryLabel', language, language === 'ar' ? 'نموذج الاستفسار' : 'Enquiry form')}`);
+    lines.push(`[2] ${copy(settings, 'enquiryLabel', language, language === 'ar' ? 'نموذج الاستفسار' : 'Enquiry form')}`);
   }
-  lines.push(`0. ${copy(settings, 'mainMenuLabel', language, language === 'ar' ? 'القائمة الرئيسية' : 'Main menu')}`);
-  lines.push(language === 'ar' ? '3. التحدث مع فريق القبول' : '3. Speak to admissions');
+  lines.push(`[0] ${copy(settings, 'mainMenuLabel', language, language === 'ar' ? 'القائمة الرئيسية' : 'Main menu')}`);
+  lines.push(language === 'ar' ? '[3] التحدث مع فريق القبول' : '[3] Speak to admissions');
   lines.push(copy(settings, 'menuPrompt', language, language === 'ar' ? 'اختر خياراً أو أرسل agent لمساعدة الموظفين.' : 'Choose an option or type agent for staff help.'));
   return lines.join('\n');
 }
@@ -182,6 +185,13 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
     return normalized.length >= 3 && text.includes(normalized);
   }));
   if (namedCourse && !/^\d+$/.test(text)) return { reply: formatCourseDetails(namedCourse, formUrl, settings, language), state: nextState('course_detail', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code), selectedCourseCode: namedCourse.code }) };
+  const keywords = text.split(/[\s?!،؟.,]+/u).filter(word => word.length >= 3 && !/^(?:what|which|how|much|the|for|about|tell|please|want|would|like|know|course|courses|training|fee|fees|price|cost|details|information|هل|اريد|أريد|دورة|الدورة|رسوم|تفاصيل|سعر|كم)$/iu.test(word));
+  const matches = keywords.length && !/^\d+$/.test(text) ? courses.filter(course => {
+    const names = [course.nameEn, course.nameAr, course.code].join(' ').toLowerCase();
+    return keywords.every(word => names.includes(word));
+  }) : [];
+  if (matches.length === 1) return { reply: formatCourseDetails(matches[0], formUrl, settings, language), state: nextState('course_detail', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code), selectedCourseCode: matches[0].code }) };
+  if (matches.length > 1) return { reply: formatCourseList(matches, settings, language), state: nextState('course_list', { courseCodes: matches.slice(0, courseLimit(settings)).map(course => course.code) }) };
   if (step === 'course_detail') {
     if (/^(?:1|courses?|course list|another|other course|الدورات|عرض الدورات|دورة أخرى)$/i.test(text)) {
       const visible = courses.slice(0, courseLimit(settings));
