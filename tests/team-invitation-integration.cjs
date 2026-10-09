@@ -56,12 +56,30 @@ module.exports=async(db,other,pool,{i1})=>{
   const listedHttp=await call('?page=1&limit=20&search=HTTP-101');assert.equal(listedHttp.status,200);assert.equal(listedHttp.data.data.total,1);
   }finally{await new Promise(resolve=>httpServer.close(resolve));}
   const canonicalAuth=require('../modules/platform/authentication').createAuthentication({key:Buffer.alloc(32,17)});
+  const rollbackEmail=`rollback-${crypto.randomUUID()}@example.invalid`;
+  const failingPool={async getConnection(){const connection=await pool.getConnection();return new Proxy(connection,{get(target,key){if(key==='query')return async(sql,args)=>{if(sql.startsWith('INSERT INTO user('))throw Object.assign(new Error('Synthetic legacy write failure'),{code:'SYNTHETIC_WRITE_FAILURE'});return target.query(sql,args);};const value=target[key];return typeof value==='function'?value.bind(target):value;}});}};
+  await assert.rejects(team.create(failingPool,ownerUid,{email:rollbackEmail,role:'accountant',requestKey:crypto.randomUUID(),temporaryPassword:'Synthetic-Initial-Password-73',displayName:'Rollback staff'}),{code:'SYNTHETIC_WRITE_FAILURE'});
+  const [[rollbackInvite]]=await db.query('SELECT id FROM sx_team_invites WHERE email_normalized=?',[rollbackEmail]);assert.equal(rollbackInvite,undefined);
+  const [[rollbackIdentity]]=await db.query('SELECT id FROM sx_identities WHERE email_normalized=?',[rollbackEmail]);assert.equal(rollbackIdentity,undefined);
   for(const invitedRole of ['accountant','manager']){
     assert.ok(limits[invitedRole]>=1,`${invitedRole} fixture has a published seat`);
     const inviteEmail=`${invitedRole}-${crypto.randomUUID()}@example.invalid`,plainPassword=`Synthetic-${invitedRole}-Password-73`;
-    const invite=await team.create(pool,ownerUid,{email:inviteEmail,role:invitedRole,requestKey:crypto.randomUUID()});
-    assert.equal(invite.role,invitedRole);assert.equal((await team.preview(pool,invite.token)).role,invitedRole);
-    const acceptedRole=await team.accept(pool,{token:invite.token,displayName:`Synthetic ${invitedRole}`,password:plainPassword});
+    const direct=invitedRole==='accountant';
+    const profile=direct?await team.createRole(pool,ownerUid,{name:'Temporary staff role',seatRole:invitedRole,permissions:[]}):null;
+    const request={email:inviteEmail,role:invitedRole,requestKey:crypto.randomUUID(),...(direct?{roleProfileId:profile.id,temporaryPassword:plainPassword,displayName:`Synthetic ${invitedRole}`}:{})};
+    const invite=await team.create(pool,ownerUid,request);
+    assert.equal(invite.role,invitedRole);
+    let acceptedRole;
+    if(direct){
+      assert.equal(invite.status,'accepted');assert.equal(invite.delivery,'password');assert.equal(invite.loginPath,'/user/login');assert.equal(invite.token,undefined);assert.equal(invite.roleProfileId,profile.id);assert.ok(!JSON.stringify(invite).includes(plainPassword));
+      const retry=await team.create(pool,ownerUid,request);assert.equal(retry.repeated,true);assert.equal(retry.id,invite.id);
+      await assert.rejects(team.create(pool,ownerUid,{...request,temporaryPassword:'Different-Initial-Password-73'}),{code:'IDEMPOTENCY_CONFLICT'});
+      const [events]=await db.query('SELECT changes FROM sx_audit_events WHERE resource_id=?',[invite.id]);assert.ok(!JSON.stringify(events).includes(plainPassword));
+      const [[tenant]]=await db.query('SELECT slug FROM sx_tenants WHERE id=?',[tenantId]);acceptedRole={...invite,tenantSlug:tenant.slug};
+    }else{
+      assert.equal((await team.preview(pool,invite.token)).role,invitedRole);
+      acceptedRole=await team.accept(pool,{token:invite.token,displayName:`Synthetic ${invitedRole}`,password:plainPassword});
+    }
     assert.equal(acceptedRole.role,invitedRole);assert.match(acceptedRole.tenantSlug,/^team-/);
     const [[canonicalMember]]=await db.query('SELECT i.id AS identityId,m.id AS membershipId,m.role,m.status FROM sx_identities i JOIN sx_memberships m ON m.identity_id=i.id WHERE i.email_normalized=? AND m.tenant_id=?',[inviteEmail,tenantId]);
     assert.equal(canonicalMember.role,invitedRole);assert.equal(canonicalMember.status,'active');
@@ -114,6 +132,14 @@ module.exports=async(db,other,pool,{i1})=>{
   await db.query("UPDATE sx_team_invites SET status='expired',expires_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 DAY) WHERE id=?",[second.id]);
   const reissued=await team.rotate(pool,ownerUid,second.id);assert.equal(reissued.status,'pending');assert.notEqual(reissued.token,second.token);
   await team.cancel(pool,ownerUid,second.id);
+  const directAgentRequest={email:`direct-agent-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID(),temporaryPassword:'Synthetic-Direct-Agent-Password-73',displayName:'Direct agent',mobile:'+97450123456'};
+  await assert.rejects(team.create(pool,ownerUid,{...directAgentRequest,mobile:''}),{code:'INVALID_MOBILE'});
+  const directAgent=await team.create(pool,ownerUid,directAgentRequest);assert.equal(directAgent.delivery,'password');assert.equal(directAgent.loginPath,'/agent/login');assert.equal(directAgent.token,undefined);
+  const [[directLegacyAgent]]=await db.query('SELECT uid,password FROM agents WHERE email=?',[directAgentRequest.email]);assert.ok(await bcrypt.compare(directAgentRequest.temporaryPassword,directLegacyAgent.password));
+  const directLogin=await canonicalAuth.login(db,{email:directAgentRequest.email,password:directAgentRequest.temporaryPassword,audience:'tenant',tenantId},'127.0.0.1');assert.equal(directLogin.context.membership.role,'agent');await canonicalAuth.logout(db,directLogin.token);
+  await assert.rejects(team.create(pool,ownerUid,{...directAgentRequest,requestKey:crypto.randomUUID()}),{code:'MEMBERSHIP_EXISTS'});
+  await db.query("UPDATE sx_memberships SET status='inactive' WHERE tenant_id=? AND identity_id=(SELECT id FROM sx_identities WHERE email_normalized=?)",[tenantId,directAgentRequest.email]);
+  await db.query('UPDATE agents SET is_active=0 WHERE uid=?',[directLegacyAgent.uid]);
   const reserved=[];for(let n=0;n<limits.agent-2;n++)reserved.push(await team.create(pool,ownerUid,{email:`reserved-${n}-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()}));
   const beforeRace=await team.list(pool,ownerUid);assert.deepEqual(beforeRace.seatUsage.agent,{active:1,pending:limits.agent-2,limit:limits.agent,available:1});
   const racing=await Promise.allSettled([0,1].map(n=>team.create(pool,ownerUid,{email:`race-${n}-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()})));

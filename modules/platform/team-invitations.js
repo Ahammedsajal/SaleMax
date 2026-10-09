@@ -87,6 +87,8 @@ async function archiveRole(pool,ownerUid,id){
 function publicInvitation(invite,token){return {id:invite.id,email:invite.email,role:invite.role||'agent',token,expiresInDays:7,status:'pending',delivery:'copy-link'};}
 async function create(pool,ownerUid,input){
   const targetEmail=email(input?.email),profileId=input?.roleProfileId?invitationId(input.roleProfileId):null,requestKey=invitationId(input?.requestKey);
+  const direct=input?.temporaryPassword!==undefined&&input.temporaryPassword!=='';
+  const activation=direct?activationInput({...input,password:input.temporaryPassword}):null;
   if(!profileId)role(input?.role??'agent');
   const token=crypto.randomBytes(32).toString('base64url'),id=crypto.randomUUID();
   const db=await pool.getConnection();try{return await tx(db,async()=>{
@@ -95,8 +97,13 @@ async function create(pool,ownerUid,input){
     let profile=null,targetRole;
     if(profileId){const [[row]]=await db.query("SELECT id,name,seat_role AS seatRole,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE",[scope.tenantId,profileId]);if(!row||row.status!=='active')fail('ROLE_NOT_FOUND');profile=row;targetRole=role(row.seatRole);}
     else targetRole=role(input?.role??'agent');
+    if(direct&&targetRole==='agent'&&!activation.mobile)fail('INVALID_MOBILE');
     const [[prior]]=await db.query('SELECT id,email_normalized,role,role_profile_id AS roleProfileId,status,token_hash FROM sx_team_invites WHERE tenant_id=? AND request_key=? FOR UPDATE',[scope.tenantId,requestKey]);
-    if(prior){if(prior.email_normalized!==targetEmail||prior.role!==targetRole||prior.roleProfileId!==profileId)fail('IDEMPOTENCY_CONFLICT');return {id:prior.id,email:targetEmail,role:prior.role,roleProfileId:prior.roleProfileId,status:prior.status,repeated:true,delivery:'copy-link'};}
+    if(prior){
+      if(prior.email_normalized!==targetEmail||prior.role!==targetRole||prior.roleProfileId!==profileId||(direct&&prior.status!=='accepted'))fail('IDEMPOTENCY_CONFLICT');
+      if(direct){const [[identity]]=await db.query('SELECT password_hash FROM sx_identities WHERE email_normalized=? FOR UPDATE',[targetEmail]);if(!identity?.password_hash||!await bcrypt.compare(activation.password,identity.password_hash))fail('IDEMPOTENCY_CONFLICT');}
+      return {id:prior.id,email:targetEmail,role:prior.role,roleProfileId:prior.roleProfileId,status:prior.status,repeated:true,delivery:direct?'password':'copy-link',loginPath:direct?(targetRole==='agent'?'/agent/login':'/user/login'):undefined};
+    }
     const [[existingAgent]]=await db.query('SELECT id FROM agents WHERE LOWER(email)=? LIMIT 1 FOR UPDATE',[targetEmail]);
     const [[existingUser]]=await db.query('SELECT id FROM user WHERE LOWER(email)=? LIMIT 1 FOR UPDATE',[targetEmail]);
     const [[existingIdentity]]=await db.query('SELECT id FROM sx_identities WHERE email_normalized=? FOR UPDATE',[targetEmail]);
@@ -109,6 +116,10 @@ async function create(pool,ownerUid,input){
     const [inserted]=await db.query(`INSERT INTO sx_team_invites(id,tenant_id,request_key,email_normalized,role,role_profile_id,token_hash,invited_by_identity_id,expires_at)
       VALUES (?,?,?,?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 7 DAY))`,[id,scope.tenantId,requestKey,targetEmail,targetRole,profileId,digest(token),scope.identityId]);
     await audit(db,scope.identityId,scope.tenantId,'team.invitation-created',inserted.insertId||id,{email:targetEmail,role:targetRole,roleProfileId:profileId,roleName:profile?.name||null});
+    if(direct){
+      const account=await activate(db,{token,...activation},scope.identityId);
+      return {id,email:targetEmail,role:targetRole,roleProfileId:profileId,roleName:profile?.name||null,status:account.status,delivery:'password',loginPath:targetRole==='agent'?'/agent/login':'/user/login'};
+    }
     return {...publicInvitation({id,email:targetEmail,role:targetRole},token),roleProfileId:profileId,roleName:profile?.name||null};
   });}finally{db.release();}
 }
@@ -221,13 +232,19 @@ async function preview(pool,token){
 }
 async function accept(pool,input){
   if(typeof input?.token!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(input.token))fail('INVITE_INVALID');
+  const activation=activationInput(input),db=await pool.getConnection();
+  try{return await tx(db,()=>activate(db,{token:input.token,...activation}));}finally{db.release();}
+}
+function activationInput(input){
   const name=typeof input.displayName==='string'?input.displayName.trim():'';
   if(!name||name.length>200)fail('INVALID_DISPLAY_NAME');
   const mobile=typeof input.mobile==='string'?input.mobile.trim():'';
   if(mobile&&!/^\+[1-9][0-9]{7,14}$/.test(mobile))fail('INVALID_MOBILE');
   if(typeof input.password!=='string'||Array.from(input.password).length<12||Buffer.byteLength(input.password,'utf8')>72)fail('INVALID_PASSWORD');
-  const db=await pool.getConnection();
-  try{return await tx(db,async()=>{
+  return {displayName:name,mobile,password:input.password};
+}
+async function activate(db,input,creatorIdentityId=null){
+    const name=input.displayName,mobile=input.mobile;
     await storage(db);
     const [[invite]]=await db.query(`SELECT v.id,v.tenant_id AS tenantId,v.email_normalized AS email,v.role,v.role_profile_id AS roleProfileId,r.status AS roleStatus,v.status,v.expires_at>UTC_TIMESTAMP(3) AS valid_now,t.slug AS tenantSlug
       FROM sx_team_invites v JOIN sx_tenants t ON t.id=v.tenant_id LEFT JOIN sx_team_roles r ON r.id=v.role_profile_id AND r.tenant_id=v.tenant_id WHERE v.token_hash=? FOR UPDATE`,[digest(input.token)]);
@@ -267,8 +284,7 @@ async function accept(pool,input){
       const [legacyUser]=await db.query(`INSERT INTO user(uid,name,email,password,role) VALUES (?,?,?,?, 'user')`,[staffUid,name,invite.email,passwordHash]);
       await db.query(`INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))`,[String(legacyUser.insertId),tenant.id,membershipId,digest(staffUid)]);
     }
-    await audit(db,identityId,tenant.id,'team.invitation-accepted',invite.id,{role:invite.role,roleProfileId:invite.roleProfileId||null});
+    await audit(db,creatorIdentityId||identityId,tenant.id,creatorIdentityId?'team.account-created':'team.invitation-accepted',invite.id,{role:invite.role,roleProfileId:invite.roleProfileId||null});
     return {status:'accepted',email:invite.email,role:invite.role,roleProfileId:invite.roleProfileId||null,agentUid,tenantSlug:invite.tenantSlug};
-  });}finally{db.release();}
 }
 module.exports={create,list,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};

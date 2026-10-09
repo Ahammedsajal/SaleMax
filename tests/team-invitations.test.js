@@ -24,6 +24,10 @@ test('invalid invitation requests fail before acquiring a database connection',a
   await assert.rejects(team.create(pool,'owner',{email:'agent@example.qa',role:'super_admin',requestKey:'00000000-0000-4000-8000-000000000000'}),{code:'INVALID_ROLE'});
   await assert.rejects(team.accept(pool,{token:'bad'}),{code:'INVITE_INVALID'});
   await assert.rejects(team.accept(pool,{token:'A'.repeat(43),displayName:'Agent',mobile:'+97450123456',password:'short'}),{code:'INVALID_PASSWORD'});
+  const direct={email:'staff@example.qa',role:'manager',requestKey:'00000000-0000-4000-8000-000000000000',displayName:'Staff'};
+  for(const temporaryPassword of ['short','🙂'.repeat(20),null])await assert.rejects(team.create(pool,'owner',{...direct,temporaryPassword}),{code:'INVALID_PASSWORD'});
+  await assert.rejects(team.create(pool,'owner',{...direct,temporaryPassword:'Initial-password-73',displayName:''}),{code:'INVALID_DISPLAY_NAME'});
+  await assert.rejects(team.create(pool,'owner',{...direct,temporaryPassword:'Initial-password-73',mobile:'123'}),{code:'INVALID_MOBILE'});
 });
 
 test('staff invitation UI is integrated into the existing single SaleMaX app shell',()=>{
@@ -40,7 +44,7 @@ test('staff invitation UI is integrated into the existing single SaleMaX app she
   assert.match(js,/Roles & permissions/);assert.match(js,/الأدوار والصلاحيات/);assert.match(js,/Module permissions/);
   assert.match(js,/roleProfileId/);assert.match(js,/Role permissions are enforced separately by the server/);
   assert.match(js,/<button type="submit" class="primary" disabled>/);assert.match(js,/button\.disabled = false/);
-  assert.match(html,/team-invitations\.js\?v=20261113-role-profiles1/);
+  assert.match(html,/team-invitations\.js\?v=20261009-password1/);
   assert.match(html,/training-sidebar\.js\?v=20261113-role-profiles1/);
   assert.match(js,/new MutationObserver\(addNav\)/);
 });
