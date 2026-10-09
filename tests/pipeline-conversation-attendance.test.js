@@ -30,6 +30,6 @@ test('agent reply activity is idempotent per provider message and ignores unlink
 
 test('only a successful agent send in QR or Meta writes lead attendance',()=>{
   const socket=fs.readFileSync(path.join(__dirname,'../helper/socket/index.js'),'utf8');
-  assert.match(socket,/if\(isAgent\)try\{await recordAgentReply\([\s\S]*?origin:chatInfo\.origin,providerMessageId:sendMsg\.id/);
-  assert.match(socket,/if\(isAgent\)try\{await recordAgentReply\([\s\S]*?origin:'qr',providerMessageId:sendNewMsg\.id/);
+  assert.match(socket,/if\(agentAccount\)try\{await recordAgentReply\([\s\S]*?origin:chatInfo\.origin,providerMessageId:sendMsg\.id/);
+  assert.match(socket,/if\(agentAccount\)try\{await recordAgentReply\([\s\S]*?origin:'qr',providerMessageId:sendNewMsg\.id/);
 });

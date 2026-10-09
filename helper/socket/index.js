@@ -1040,7 +1040,7 @@ function processSocketEvent({
               chatId: chatid,
               messageData,
             });
-            if(isAgent)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatid,agentId:socket?.userData?.id,origin:'qr',providerMessageId:sendNewMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
+            if(agentAccount)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatid,agentId:socket?.userData?.id,origin:'qr',providerMessageId:sendNewMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
 
             const originInstanceId =
               sendNewMsg?.sessionData?.authState?.creds?.me ||

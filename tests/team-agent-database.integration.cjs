@@ -10,7 +10,7 @@ async function main(){
   const db=await mysql.createConnection({host:'127.0.0.1',user:'root',password:'',multipleStatements:false});
   const name='salemax_agent_proof_'+crypto.randomBytes(5).toString('hex');
   try{
-    await db.query('CREATE DATABASE '+name);await db.query('USE '+name);
+    await db.query('CREATE DATABASE '+name+' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');await db.query('USE '+name);
     const tables=[
       'sx_tenants (id VARCHAR(36) PRIMARY KEY,status VARCHAR(20))',
       'user (id INT PRIMARY KEY,uid VARCHAR(64),role VARCHAR(20))',
