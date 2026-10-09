@@ -47,6 +47,34 @@ test('activity reports include agent WhatsApp replies with attribution and chann
   assert.equal(queries.filter(sql=>sql.includes("activity_type IN ('contact_outcome','note_added','agent_message_sent')")).length,2);
 });
 
+test('owner finance separates period cash from invoice cohorts and flags, rather than hiding, mismatches',async()=>{
+  const tables=['sx_legacy_ownership','sx_tenants','sx_memberships','sx_training_invoices','sx_training_installments','sx_training_payment_allocations','sx_training_payments','sx_training_payment_allocation_reversals','sx_training_refunds','sx_training_payment_disputes','sx_training_credit_notes','sx_training_credit_allocations','sx_training_journal_entries','sx_training_journal_lines'];
+  const queries=[];const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql,params=[]){queries.push({sql,params});
+    if(sql.includes('information_schema.TABLES'))return [[{total:tables.length}]];
+    if(sql.includes('FROM user WHERE uid='))return [[{id:7}]];
+    if(sql.includes('FROM sx_legacy_ownership'))return [[{tenantId:'tenant-a'}]];
+    if(sql.includes('AS invoice_count'))return [[{invoice_count:2,billed_minor:'20000',collected_minor:'5000',credited_minor:'0',outstanding_minor:'15000',mismatched:1}]];
+    if(sql.includes('AS payment_count'))return [[{payment_count:1,received_minor:'3000'}]];
+    if(sql.includes('AS refund_count'))return [[{refund_count:1,refunded_minor:'500'}]];
+    if(sql.includes('AS credit_count'))return [[{credit_count:1,credit_minor:'250'}]];
+    if(sql.includes('AS reported_count'))return [[{reported_count:1,reported_minor:'1000',open_count:1,open_minor:'1000'}]];
+    if(sql.includes('AS mismatch_count'))return [[{outstanding_minor:'15000',mismatch_count:1}]];
+    if(sql.includes('AS bucket'))return [[{bucket:'1-30',outstanding_minor:'2500',overdue_invoice_count:1}]];
+    if(sql.includes('AS net_collections_minor'))return [[{net_collections_minor:'2500'}]];
+    if(sql.includes('AS contacted'))return [[{contacted:0}]];
+    if(sql.includes('SELECT COUNT(*) AS n'))return [[{n:0}]];
+    if(sql.includes('SUM(pa.activity_type'))return [[{outcomes:0,notes:0,agent_replies:0,leads_touched:0}]];
+    if(sql.includes('GROUP BY outcome'))return [[]];
+    if(sql.includes('JSON_UNQUOTE(JSON_EXTRACT(pa.details,\'$.outcome\'))'))return [[]];
+    if(sql.includes('SELECT pa.id'))return [[]];
+    throw new Error(`Unexpected finance report query: ${sql}`);
+  }};
+  const report=await getActivityReport({pool:{async getConnection(){return connection;}},uid:'synthetic-owner',role:'owner',period:'daily',at:'2026-10-01'});
+  assert.equal(report.finance.billedMinor,'20000');assert.equal(report.finance.collectedOnPeriodIssuedInvoicesMinor,'5000');assert.equal(report.finance.cashReceivedMinor,'3000');assert.equal(report.finance.refundsPaidMinor,'500');assert.equal(report.finance.creditsIssuedMinor,'250');
+  assert.equal(report.finance.allOutstandingMinor,'15000');assert.equal(report.finance.overdueReceivablesMinor,'2500');assert.equal(report.finance.reconciliation.status,'attention');
+  for(const query of queries)assert.equal(query.params.length,(query.sql.match(/\?/g)||[]).length,`placeholder count for ${query.sql.slice(0,90)}`);
+});
+
 test('journey report combines current pipeline stages, period sources and agent sales credit',async()=>{
   const queries=[];
   const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
@@ -92,7 +120,7 @@ test('journey reports reject finance-only roles before database access',async()=
 
 test('finance report summary remains owner-only and presents exact bilingual Qatar currency totals',()=>{
   const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),pipelineUi=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/pipeline.js'),'utf8'),screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
-  assert.match(screen,/\/pipeline\/reports\.js\?v=17/);
+  assert.match(screen,/\/pipeline\/reports\.js\?v=19/);
   assert.match(screen,/\/pipeline\/pipeline\.js\?v=20261009-registration1/);
   assert.match(ui,/Sales credited at conversion/);
   assert.match(ui,/مبيعات منسوبة وقت التحويل/);
@@ -100,7 +128,7 @@ test('finance report summary remains owner-only and presents exact bilingual Qat
   assert.match(ui,/رحلة التدريب/);
   assert.match(pipelineUi,/training_certificate_issued:'صدرت الشهادة'/);
   assert.match(ui,/report\.finance/);assert.match(ui,/BigInt\(String\(value\|\|'0'\)\)/);
-  assert.match(ui,/Outstanding now/);assert.match(ui,/المتبقي الآن/);
-  assert.match(ui,/collected and outstanding are current/);assert.match(ui,/يعرض المحصل والمتبقي حتى وقت إعداد التقرير/);
+  assert.match(ui,/Payments received this period/);assert.match(ui,/المدفوعات المستلمة خلال الفترة/);
+  assert.match(ui,/Period activity is separate from the current receivables position/);assert.match(ui,/نشاط الفترة منفصل عن الذمم المدينة الحالية/);
   assert.match(ui,/journeyTitle:'Lead journey overview'/);assert.match(ui,/journeyTitle:'نظرة عامة على رحلة العميل'/);assert.match(ui,/journey\.agents/);assert.match(ui,/periodPaymentReceipts:'Payment receipts issued'/);assert.match(ui,/periodPaymentReceipts:'إيصالات الدفع الصادرة'/);
 });

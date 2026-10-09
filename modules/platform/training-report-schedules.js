@@ -21,8 +21,8 @@ function normalize(input){
   if(!input.emailEnabled&&!input.whatsappEnabled)fail('REPORT_CHANNEL_REQUIRED');
   const email=typeof input.emailDestination==='string'?input.emailDestination.trim().toLowerCase():'';
   const phone=typeof input.whatsappDestination==='string'?input.whatsappDestination.trim().replace(/[\s().-]/g,''):'';
-  if(input.emailEnabled&&(!email||email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))fail('INVALID_REPORT_EMAIL');
-  if(input.whatsappEnabled&&(!/^\+[1-9]\d{7,14}$/.test(phone)))fail('INVALID_REPORT_WHATSAPP');
+  if(input.emailEnabled&&email&&(email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))fail('INVALID_REPORT_EMAIL');
+  if(input.whatsappEnabled&&phone&&!/^\+[1-9]\d{7,14}$/.test(phone))fail('INVALID_REPORT_WHATSAPP');
   const status=input.status??'active';if(!['active','paused'].includes(status))fail('INVALID_REPORT_SCHEDULE_STATUS');
   return {period:input.period,timezone,localTime:input.localTime,emailEnabled:input.emailEnabled,emailDestination:input.emailEnabled?email:null,whatsappEnabled:input.whatsappEnabled,whatsappDestination:input.whatsappEnabled?phone:null,status};
 }
@@ -33,7 +33,7 @@ function nextRun({period,timezone,localTime},now=new Date()){
   return next.utc().format('YYYY-MM-DD HH:mm:ss.SSS');
 }
 function shape(row){return {id:row.id,period:row.period,timezone:row.timezone,localTime:String(row.local_time).slice(0,5),emailEnabled:Boolean(row.email_enabled),emailDestination:row.email_destination||'',emailVerified:Boolean(row.email_verified_at),whatsappEnabled:Boolean(row.whatsapp_enabled),whatsappDestination:row.whatsapp_destination||'',whatsappVerified:Boolean(row.whatsapp_verified_at),status:row.status,revision:Number(row.revision),nextRunAt:row.next_run_at};}
-async function list(db,ctx){validateContext(ctx);const [rows]=await db.query(`SELECT id,tenant_id,period,timezone,local_time,email_enabled,email_destination,email_verified_at,whatsapp_enabled,whatsapp_destination,whatsapp_verified_at,status,revision,DATE_FORMAT(next_run_at,'%Y-%m-%d %H:%i:%s.%f') AS next_run_at FROM sx_training_report_schedules WHERE tenant_id=? ORDER BY FIELD(period,'daily','weekly','monthly')`,[ctx.tenant.id]);const runs=await reportRunner.listLatest(db,ctx.tenant.id);const latest=new Map(runs.map(run=>[run.period,run])),providers=await require('./training-report-delivery').providerCapabilities(db,ctx.tenant.id);return rows.map(row=>({...shape(row),providers,latestRun:latest.get(row.period)||null}));}
+async function list(db,ctx){validateContext(ctx);const [rows]=await db.query(`SELECT id,tenant_id,period,timezone,local_time,email_enabled,email_destination,email_verified_at,whatsapp_enabled,whatsapp_destination,whatsapp_verified_at,status,revision,DATE_FORMAT(next_run_at,'%Y-%m-%d %H:%i:%s.%f') AS next_run_at FROM sx_training_report_schedules WHERE tenant_id=? ORDER BY FIELD(period,'daily','weekly','monthly')`,[ctx.tenant.id]);const [recipients]=await db.query("SELECT channel,COUNT(*) AS total FROM sx_training_report_recipients WHERE tenant_id=? AND status='verified' GROUP BY channel",[ctx.tenant.id]);const counts=Object.fromEntries(recipients.map(x=>[x.channel,Number(x.total)]));const runs=await reportRunner.listLatest(db,ctx.tenant.id);const latest=new Map(runs.map(run=>[run.period,run])),providers=await require('./training-report-delivery').providerCapabilities(db,ctx.tenant.id);return rows.map(row=>({...shape(row),recipientCounts:{email:counts.email||0,whatsapp:counts.whatsapp||0},providers,latestRun:latest.get(row.period)||null}));}
 async function save(db,ctx,input){
   validateContext(ctx);const data=normalize(input),tenantId=ctx.tenant.id,id=crypto.randomUUID(),runAt=nextRun(data);
   await db.beginTransaction();try{

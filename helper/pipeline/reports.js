@@ -15,8 +15,9 @@ function periodWindow({period='daily',at,timezone='Asia/Qatar',cutoffAt}){
   return {start:start.clone().utc().format('YYYY-MM-DD HH:mm:ss.SSS'),end:end.clone().utc().format('YYYY-MM-DD HH:mm:ss.SSS'),timezone,period};
 }
 function parseDetails(value){if(!value)return null;try{return typeof value==='string'?JSON.parse(value):value;}catch(_){return null;}}
-async function getFinanceSummary(connection,uid,window){
-  const tables=['sx_legacy_ownership','sx_tenants','sx_memberships','sx_training_invoices','sx_training_payment_allocations','sx_training_payments','sx_training_payment_allocation_reversals','sx_training_credit_notes','sx_training_credit_allocations','sx_training_journal_entries','sx_training_journal_lines'];
+async function getFinanceSummary(connection,uid,window,cutoffAt){
+  const asOfMoment=cutoffAt?moment.utc(cutoffAt):moment.utc();if(!asOfMoment.isValid())fail('Report cutoff must be a valid timestamp.');const asOf=asOfMoment.format('YYYY-MM-DD HH:mm:ss.SSS');
+  const tables=['sx_legacy_ownership','sx_tenants','sx_memberships','sx_training_invoices','sx_training_installments','sx_training_payment_allocations','sx_training_payments','sx_training_payment_allocation_reversals','sx_training_refunds','sx_training_payment_disputes','sx_training_credit_notes','sx_training_credit_allocations','sx_training_journal_entries','sx_training_journal_lines'];
   const [available]=await connection.query('SELECT COUNT(*) AS total FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN (?)',[tables]);
   if(Number(available[0]?.total)!==tables.length)return null;
   const [users]=await connection.query('SELECT id FROM user WHERE uid=? LIMIT 2',[uid]);
@@ -38,19 +39,54 @@ async function getFinanceSummary(connection,uid,window){
     LEFT JOIN (
       SELECT x.tenant_id,x.invoice_id,SUM(CAST(x.amount_minor AS DECIMAL(65,0))-CAST(COALESCE(r.reversed_minor,0) AS DECIMAL(65,0))) AS allocated_minor
       FROM sx_training_payment_allocations x
-      JOIN sx_training_payments p ON p.tenant_id=x.tenant_id AND p.id=x.payment_id AND p.status='posted'
-      LEFT JOIN (SELECT tenant_id,allocation_id,SUM(amount_minor) AS reversed_minor FROM sx_training_payment_allocation_reversals WHERE tenant_id=? GROUP BY tenant_id,allocation_id) r
+      JOIN sx_training_payments p ON p.tenant_id=x.tenant_id AND p.id=x.payment_id AND p.status='posted' AND p.verified_at<=?
+      LEFT JOIN (SELECT tenant_id,allocation_id,SUM(amount_minor) AS reversed_minor FROM sx_training_payment_allocation_reversals WHERE tenant_id=? AND created_at<=? GROUP BY tenant_id,allocation_id) r
         ON r.tenant_id=x.tenant_id AND r.allocation_id=x.id
       WHERE x.tenant_id=? GROUP BY x.tenant_id,x.invoice_id
     ) a ON a.tenant_id=i.tenant_id AND a.invoice_id=i.id
-    LEFT JOIN (SELECT tenant_id,invoice_id,SUM(amount_minor) AS credited_minor FROM sx_training_credit_notes WHERE tenant_id=? AND status='posted' GROUP BY tenant_id,invoice_id) c
+    LEFT JOIN (SELECT tenant_id,invoice_id,SUM(amount_minor) AS credited_minor FROM sx_training_credit_notes WHERE tenant_id=? AND status='posted' AND reviewed_at<=? GROUP BY tenant_id,invoice_id) c
       ON c.tenant_id=i.tenant_id AND c.invoice_id=i.id
-    WHERE i.tenant_id=? AND i.status='issued' AND i.issued_at>=? AND i.issued_at<?`,[tenantId,tenantId,tenantId,tenantId,window.start,window.end]);
-  if(Number(totals.mismatched)>0)fail('Finance balances need reconciliation before this report can be shown.',500);
+    WHERE i.tenant_id=? AND i.status='issued' AND i.issued_at>=? AND i.issued_at<?`,[asOf,tenantId,asOf,tenantId,tenantId,asOf,tenantId,window.start,window.end]);
+  const [[cashReceived]]=await connection.query(`SELECT COUNT(*) AS payment_count,COALESCE(SUM(amount_minor),0) AS received_minor
+    FROM sx_training_payments WHERE tenant_id=? AND status='posted' AND verified_at<=? AND received_at>=? AND received_at<?`,[tenantId,asOf,window.start,window.end]);
+  const [[refunds]]=await connection.query(`SELECT COUNT(*) AS refund_count,COALESCE(SUM(amount_minor),0) AS refunded_minor
+    FROM sx_training_refunds WHERE tenant_id=? AND status='completed' AND completed_at<=? AND completed_at>=? AND completed_at<?`,[tenantId,asOf,window.start,window.end]);
+  const [[creditsIssued]]=await connection.query(`SELECT COUNT(*) AS credit_count,COALESCE(SUM(amount_minor),0) AS credit_minor
+    FROM sx_training_credit_notes WHERE tenant_id=? AND status='posted' AND reviewed_at<=? AND reviewed_at>=? AND reviewed_at<?`,[tenantId,asOf,window.start,window.end]);
+  const [[disputes]]=await connection.query(`SELECT SUM(created_at>=? AND created_at<? AND created_at<=?) AS reported_count,COALESCE(SUM(CASE WHEN created_at>=? AND created_at<? AND created_at<=? THEN amount_minor ELSE 0 END),0) AS reported_minor,
+      SUM(created_at<=? AND (status='open' OR resolved_at>?)) AS open_count,COALESCE(SUM(CASE WHEN created_at<=? AND (status='open' OR resolved_at>?) THEN amount_minor ELSE 0 END),0) AS open_minor
+    FROM sx_training_payment_disputes WHERE tenant_id=?`,[window.start,window.end,asOf,window.start,window.end,asOf,asOf,asOf,asOf,asOf,tenantId]);
+  const [[receivable]]=await connection.query(`SELECT COALESCE(SUM(GREATEST(i.total_minor-COALESCE(a.allocated_minor,0)-COALESCE(c.credited_minor,0),0)),0) AS outstanding_minor,
+      SUM(i.total_minor<COALESCE(a.allocated_minor,0)+COALESCE(c.credited_minor,0)) AS mismatch_count
+    FROM sx_training_invoices i
+    LEFT JOIN (SELECT x.tenant_id,x.invoice_id,SUM(CAST(x.amount_minor AS DECIMAL(65,0))-CAST(COALESCE(r.reversed_minor,0) AS DECIMAL(65,0))) AS allocated_minor
+      FROM sx_training_payment_allocations x JOIN sx_training_payments p ON p.tenant_id=x.tenant_id AND p.id=x.payment_id AND p.status='posted' AND p.verified_at<=?
+      LEFT JOIN (SELECT tenant_id,allocation_id,SUM(amount_minor) AS reversed_minor FROM sx_training_payment_allocation_reversals WHERE tenant_id=? AND created_at<=? GROUP BY tenant_id,allocation_id) r ON r.tenant_id=x.tenant_id AND r.allocation_id=x.id
+      WHERE x.tenant_id=? GROUP BY x.tenant_id,x.invoice_id) a ON a.tenant_id=i.tenant_id AND a.invoice_id=i.id
+    LEFT JOIN (SELECT tenant_id,invoice_id,SUM(amount_minor) AS credited_minor FROM sx_training_credit_notes WHERE tenant_id=? AND status='posted' AND reviewed_at<=? GROUP BY tenant_id,invoice_id) c ON c.tenant_id=i.tenant_id AND c.invoice_id=i.id
+    WHERE i.tenant_id=? AND i.status='issued' AND i.issued_at<=?`,[asOf,tenantId,asOf,tenantId,tenantId,asOf,tenantId,asOf]);
+  const asOfDate=moment.utc(asOf).tz(window.timezone).format('YYYY-MM-DD');
+  const [agingRows]=await connection.query(`SELECT CASE WHEN x.due_date>=? THEN 'current' WHEN DATEDIFF(?,x.due_date)<=30 THEN '1-30' WHEN DATEDIFF(?,x.due_date)<=60 THEN '31-60' WHEN DATEDIFF(?,x.due_date)<=90 THEN '61-90' ELSE '90+' END AS bucket,
+      COALESCE(SUM(GREATEST(x.amount_minor-COALESCE(a.applied_minor,0)-COALESCE(c.credited_minor,0),0)),0) AS outstanding_minor,
+      COUNT(DISTINCT CASE WHEN x.due_date<? THEN i.id END) AS overdue_invoice_count
+    FROM sx_training_installments x JOIN sx_training_invoices i ON i.tenant_id=x.tenant_id AND i.id=x.invoice_id AND i.status='issued'
+    LEFT JOIN (SELECT a.tenant_id,a.installment_id,SUM(a.amount_minor-COALESCE(r.reversed_minor,0)) AS applied_minor FROM sx_training_payment_allocations a
+      JOIN sx_training_payments p ON p.tenant_id=a.tenant_id AND p.id=a.payment_id AND p.status='posted' AND p.verified_at<=?
+      LEFT JOIN (SELECT tenant_id,allocation_id,SUM(amount_minor) AS reversed_minor FROM sx_training_payment_allocation_reversals WHERE tenant_id=? AND created_at<=? GROUP BY tenant_id,allocation_id) r ON r.tenant_id=a.tenant_id AND r.allocation_id=a.id
+      WHERE a.tenant_id=? GROUP BY a.tenant_id,a.installment_id) a ON a.tenant_id=x.tenant_id AND a.installment_id=x.id
+    LEFT JOIN (SELECT ca.tenant_id,ca.installment_id,SUM(ca.amount_minor) AS credited_minor FROM sx_training_credit_allocations ca
+      JOIN sx_training_credit_notes cn ON cn.tenant_id=ca.tenant_id AND cn.id=ca.credit_note_id AND cn.status='posted' AND cn.reviewed_at<=? WHERE ca.tenant_id=? GROUP BY ca.tenant_id,ca.installment_id) c ON c.tenant_id=x.tenant_id AND c.installment_id=x.id
+    WHERE x.tenant_id=? AND x.status<>'cancelled' AND i.issued_at<=? GROUP BY bucket`,[asOfDate,asOfDate,asOfDate,asOfDate,asOfDate,asOf,tenantId,asOf,tenantId,asOf,tenantId,tenantId,asOf]);
+  const aging=Object.fromEntries(['current','1-30','31-60','61-90','90+'].map(key=>{const row=agingRows.find(item=>item.bucket===key);return [key,{outstandingMinor:String(row?.outstanding_minor||0),overdueInvoiceCount:key==='current'?0:Number(row?.overdue_invoice_count||0)}];}));
   const [[cashFlow]]=await connection.query(`SELECT COALESCE(SUM(CASE WHEN l.account_code IN ('cash','bank','cash_in_transit') THEN CAST(l.debit_minor AS DECIMAL(65,0))-CAST(l.credit_minor AS DECIMAL(65,0)) ELSE 0 END),0) AS net_collections_minor
     FROM sx_training_journal_entries e JOIN sx_training_journal_lines l ON l.tenant_id=e.tenant_id AND l.entry_id=e.id
-    WHERE e.tenant_id=? AND e.occurred_at>=? AND e.occurred_at<? AND e.entry_type IN ('payment_posted','refund_posted','chargeback_posted')`,[tenantId,window.start,window.end]);
-  return {currency:'QAR',invoiceScope:'issued_in_selected_period',issuedInvoiceCount:Number(totals.invoice_count),billedMinor:String(totals.billed_minor||0),collectedMinor:String(totals.collected_minor||0),creditedMinor:String(totals.credited_minor||0),outstandingMinor:String(totals.outstanding_minor||0),netCollectionsMinor:String(cashFlow.net_collections_minor||0)};
+    WHERE e.tenant_id=? AND e.occurred_at>=? AND e.occurred_at<? AND e.created_at<=? AND e.entry_type IN ('payment_posted','refund_posted','chargeback_posted')`,[tenantId,window.start,window.end,asOf]);
+  return {currency:'QAR',invoiceScope:'issued_in_selected_period',issuedInvoiceCount:Number(totals.invoice_count),billedMinor:String(totals.billed_minor||0),
+    collectedOnPeriodIssuedInvoicesMinor:String(totals.collected_minor||0),creditedOnPeriodIssuedInvoicesMinor:String(totals.credited_minor||0),outstandingOnPeriodIssuedInvoicesMinor:String(totals.outstanding_minor||0),
+    cashReceivedMinor:String(cashReceived.received_minor||0),paymentsReceivedCount:Number(cashReceived.payment_count||0),refundsPaidMinor:String(refunds.refunded_minor||0),refundCount:Number(refunds.refund_count||0),
+    creditsIssuedMinor:String(creditsIssued.credit_minor||0),creditNotesIssuedCount:Number(creditsIssued.credit_count||0),disputesReportedCount:Number(disputes.reported_count||0),disputesReportedMinor:String(disputes.reported_minor||0),openDisputesCount:Number(disputes.open_count||0),openDisputesMinor:String(disputes.open_minor||0),netCollectionsMinor:String(cashFlow.net_collections_minor||0),
+    receivablesAsOf:moment.utc(asOf).toISOString(),allOutstandingMinor:String(receivable.outstanding_minor||0),overdueReceivablesMinor:Object.entries(aging).filter(([key])=>key!=='current').reduce((sum,[,value])=>sum+BigInt(value.outstandingMinor),0n).toString(),receivablesAging:aging,reconciliation:{status:Number(totals.mismatched||0)+Number(receivable.mismatch_count||0)>0?'attention':'clear',
+      periodIssuedInvoiceMismatchCount:Number(totals.mismatched||0),allInvoiceMismatchCount:Number(receivable.mismatch_count||0)}};
 }
 async function getActivityReport({pool,uid,role='owner',agentId,period='daily',at,timezone='Asia/Qatar',cutoffAt,page=1,limit=50}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
@@ -71,6 +107,10 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
       COUNT(DISTINCT pa.lead_id) AS leads_touched
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
       WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${agentScope}`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
+    const [[cohortContact]]=await connection.query(`SELECT COUNT(DISTINCT l.id) AS contacted FROM pipeline_leads l
+      JOIN pipeline_activity pa ON pa.uid_hash=l.uid_hash AND pa.lead_id=l.id AND pa.created_at>=? AND pa.created_at<?
+        AND pa.activity_type IN ('contact_outcome','agent_message_sent')
+      WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${agentScope}`,[window.start,window.end,uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
     const [outcomeRows]=await connection.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.outcome')) AS outcome,COUNT(*) AS total
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
       WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'${agentScope}
@@ -80,7 +120,7 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
       WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'
       AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.followUpRequired'))='true'${agentScope}`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
     const [[overdue]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at<COALESCE(?,UTC_TIMESTAMP(3)) AND l.status='open'${agentScope}`,[uidHash,cutoffAt?moment.utc(cutoffAt).format('YYYY-MM-DD HH:mm:ss.SSS'):null,...(role==='agent'?[agentId]:[])]);
-    const finance=role==='owner'?await getFinanceSummary(connection,uid,window):null;
+    const finance=role==='owner'?await getFinanceSummary(connection,uid,window,cutoffAt):null;
     const offset=(currentPage-1)*pageSize;
     const [events]=await connection.query(`SELECT pa.id,pa.lead_id AS leadId,pa.actor_type AS actorType,
       CASE WHEN pa.actor_type='agent' THEN COALESCE(a.name,'Agent') WHEN pa.actor_type='system' THEN 'System' ELSE 'Business user' END AS attendedBy,
@@ -95,7 +135,7 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
     const total=Number(counts?.outcomes||0)+Number(counts?.notes||0)+Number(counts?.agent_replies||0);
     await connection.commit();
     return {period:window.period,timezone:window.timezone,from:window.start,to:window.end,...(cutoffAt?{cutoffAt:moment.utc(cutoffAt).toISOString()}:{}),page:currentPage,limit:pageSize,total,hasMore:offset+events.length<total,
-      summary:{leadsCreated:Number(created.n||0),leadsTouched:Number(counts.leads_touched||0),outcomes:Number(counts.outcomes||0),notes:Number(counts.notes||0),agentReplies:Number(counts.agent_replies||0),followUpsRequired:Number(followupsRequired.n||0),followUpsDue:Number(followups.n||0),followUpsOverdue:Number(overdue.n||0),outcomeCounts:outcomeRows.map(row=>({outcome:row.outcome,total:Number(row.total)}))},
+      summary:{leadsCreated:Number(created.n||0),newLeadsContacted:Number(cohortContact.contacted||0),newLeadsUntouched:Math.max(0,Number(created.n||0)-Number(cohortContact.contacted||0)),leadsTouched:Number(counts.leads_touched||0),outcomes:Number(counts.outcomes||0),notes:Number(counts.notes||0),agentReplies:Number(counts.agent_replies||0),followUpsRequired:Number(followupsRequired.n||0),followUpsDue:Number(followups.n||0),followUpsOverdue:Number(overdue.n||0),outcomeCounts:outcomeRows.map(row=>({outcome:row.outcome,total:Number(row.total)}))},
       ...(finance?{finance}:{}),
       items:events.map(event=>({...event,details:parseDetails(event.details)}))};
   }catch(error){try{await connection.rollback();}catch(_){}throw error;}
@@ -126,12 +166,15 @@ async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at
     const [agentRows]=await connection.query(`SELECT a.id AS agentId,a.name AS agentName,a.is_active AS active,
       COUNT(DISTINCT l.id) AS assignedLeads,
       COUNT(DISTINCT CASE WHEN l.created_at>=? AND l.created_at<? THEN l.id END) AS newLeads,
+      COUNT(DISTINCT CASE WHEN l.next_follow_up_at>=? AND l.next_follow_up_at<? AND l.status='open' THEN l.id END) AS followUpsDue,
+      COUNT(DISTINCT CASE WHEN l.next_follow_up_at<? AND l.status='open' THEN l.id END) AS followUpsOverdue,
       COALESCE(MAX(attendance.attended_leads),0) AS attendedLeads,
+      COALESCE(MAX(attendance.agent_replies),0) AS agentReplies,
       COALESCE(MAX(sales.sales_attributed),0) AS salesAttributed,
       COALESCE(MAX(sales.sales_closed_by_agent),0) AS salesClosedByAgent
       FROM agents a LEFT JOIN pipeline_leads l ON l.uid_hash=? AND l.uid=? AND l.owner_agent_id=a.id
       LEFT JOIN (
-        SELECT CAST(pa.actor_id AS UNSIGNED) AS agent_id,COUNT(DISTINCT pa.lead_id) AS attended_leads
+        SELECT CAST(pa.actor_id AS UNSIGNED) AS agent_id,COUNT(DISTINCT pa.lead_id) AS attended_leads,SUM(pa.activity_type='agent_message_sent') AS agent_replies
         FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
         WHERE pa.uid_hash=? AND l.uid=? AND pa.actor_type='agent' AND pa.actor_id REGEXP '^[0-9]+$'
           AND pa.activity_type IN ('contact_outcome','agent_message_sent') AND pa.created_at>=? AND pa.created_at<?
@@ -150,7 +193,7 @@ async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at
           AND i.issued_at>=? AND i.issued_at<?
         GROUP BY e.legacy_uid_hash,e.legacy_uid,c.sales_agent_id
       ) sales ON sales.legacy_uid_hash=? AND sales.legacy_uid=? AND sales.sales_agent_id=a.id
-      WHERE a.owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci${role==='agent'?' AND a.id=?':''} GROUP BY a.id,a.name,a.is_active ORDER BY salesClosedByAgent DESC,salesAttributed DESC,attendedLeads DESC,newLeads DESC,a.name`,[window.start,window.end,uidHash,uid,uidHash,uid,window.start,window.end,uidHash,uid,window.start,window.end,uidHash,uid,uid,...(role==='agent'?[agentId]:[])]);
+      WHERE a.owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci${role==='agent'?' AND a.id=?':''} GROUP BY a.id,a.name,a.is_active ORDER BY salesClosedByAgent DESC,salesAttributed DESC,attendedLeads DESC,newLeads DESC,a.name`,[window.start,window.end,window.start,window.end,window.end,uidHash,uid,uidHash,uid,window.start,window.end,uidHash,uid,window.start,window.end,uidHash,uid,uid,...(role==='agent'?[agentId]:[])]);
     const [transitions]=await connection.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.stageTo')) AS stageKey,COUNT(*) AS total
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
       WHERE pa.uid_hash=? AND l.uid=? AND pa.activity_type='stage_changed' AND pa.created_at>=? AND pa.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''}
@@ -206,7 +249,7 @@ async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at
       FROM sx_training_enrollments e JOIN sx_training_invoices i ON i.tenant_id=e.tenant_id AND i.enrollment_id=e.id
       LEFT JOIN sx_training_certificates cert ON cert.tenant_id=e.tenant_id AND cert.enrollment_id=e.id
       WHERE e.legacy_uid_hash=? AND e.legacy_uid=?${learnerScope}`,[uidHash,uid,...(role==='agent'?[agentId]:[])]);
-    const mappedStages=stages.map(row=>({...row,total:Number(row.total),cohortTotal:Number(row.cohortTotal||0)})),mappedAgents=agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),newLeads:Number(row.newLeads),attendedLeads:Number(row.attendedLeads),salesAttributed:Number(row.salesAttributed),salesClosedByAgent:Number(row.salesClosedByAgent)}));
+    const mappedStages=stages.map(row=>({...row,total:Number(row.total),cohortTotal:Number(row.cohortTotal||0)})),mappedAgents=agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),newLeads:Number(row.newLeads),attendedLeads:Number(row.attendedLeads),agentReplies:Number(row.agentReplies||0),followUpsDue:Number(row.followUpsDue||0),followUpsOverdue:Number(row.followUpsOverdue||0),salesAttributed:Number(row.salesAttributed),salesClosedByAgent:Number(row.salesClosedByAgent)}));
     const report={period:window.period,timezone:window.timezone,from:window.start,to:window.end,asOf:new Date().toISOString(),
       summary:{newLeads:Number(flow.new_leads||0),leadsAttended:Number(flow.leads_attended||0),stageChanges:Number(flow.stage_changes||0),salesConverted:Number(flow.sales_converted||0),salesClosedByAgents:Number(flow.sales_closed_by_agents||0),openLeads:mappedStages.filter(row=>row.stageType==='open').reduce((sum,row)=>sum+row.total,0),wonLeads:mappedStages.filter(row=>row.stageType==='won').reduce((sum,row)=>sum+row.total,0),lostLeads:mappedStages.filter(row=>row.stageType==='lost').reduce((sum,row)=>sum+row.total,0)},
       cohortFunnel:{newLeads:Number(cohortFunnel.new_leads||0),attended:Number(cohortFunnel.attended||0),interested:Number(cohortFunnel.interested||0),followUp:Number(cohortFunnel.follow_up||0),salesConverted:Number(cohortFunnel.sales_converted||0),invoicesIssued:Number(cohortFunnel.invoices_issued||0),paymentReceived:Number(cohortFunnel.payment_received||0),courseStarted:Number(cohortFunnel.course_started||0),fullyPaid:Number(cohortFunnel.fully_paid||0),courseCompleted:Number(cohortFunnel.course_completed||0),certificateIssued:Number(cohortFunnel.certificate_issued||0)},

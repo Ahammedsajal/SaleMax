@@ -20,7 +20,8 @@ test('finance report labels settled and partial invoices separately and can clea
   const index=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   assert.match(screen,/Settled \/ part-settled/);assert.match(screen,/partialInvoiceCount/);
   assert.match(screen,/Clear filters/);assert.match(screen,/bucket='all';q='';from='';to='';page=1;render\(\)/);
-  assert.match(index,/training-finance\.js\?v=20261122-reminder-preferences1/);
+  assert.match(index,/training-finance\.js\?v=20261009-owner-report1/);
+  assert.match(screen,/Cash received in range/);assert.match(screen,/Refunds paid in range/);assert.match(screen,/Credits issued in range/);
 });
 
 test('finance report exposes payment credit from posted invoice receipts net of reversals',async()=>{
@@ -30,6 +31,10 @@ test('finance report exposes payment credit from posted invoice receipts net of 
     if(sql.includes('GROUP BY bucket'))return [[]];
     if(sql.includes('AS issued_invoice_count'))return [[{issued_invoice_count:1,billed_minor:300000,collected_minor:260000,credited_minor:0,credited_invoice_count:0,settled_invoice_count:0,partial_invoice_count:1}]];
     if(sql.includes('AS pending')||sql.includes('AS amount_minor FROM sx_training_payments'))return [[{count:0,amount_minor:0}]];
+    if(sql.includes('AS payment_count')&&sql.includes('received_at'))return [[{payment_count:2,received_minor:10000}]];
+    if(sql.includes('AS refund_count'))return [[{refund_count:1,refunded_minor:500}]];
+    if(sql.includes('AS credit_count'))return [[{credit_count:1,credit_minor:250}]];
+    if(sql.includes('AS dispute_count'))return [[{dispute_count:1,disputed_minor:1000,open_dispute_count:1}]];
     if(sql.includes('COUNT(DISTINCT pay.id) AS payment_count'))return [[{agent_id:17,agent_name:'Agent Snapshot',sale_count:1,payment_count:3,received_minor:350000,applied_minor:260000,reversed_minor:40000,credited_minor:310000}]];
     if(sql.includes('COUNT(*) AS total FROM ('))return [[{total:0}]];
     if(sql.startsWith('SELECT * FROM ('))return [[]];
@@ -38,6 +43,7 @@ test('finance report exposes payment credit from posted invoice receipts net of 
   const ctx={audience:'tenant',identity:{id:'finance-reader'},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'finance-member',tenantId,role:'accountant',status:'active'},category:{key:'training_center',version:1,capabilities:['finance.invoices','tenant.settings']},subscription:{status:'active',capabilities:['finance.invoices','tenant.settings']}};
   const result=await report.list(db,ctx,{from,to});
   assert.deepEqual(result.agentPaymentCredit,[{agentId:17,agentName:'Agent Snapshot',saleCount:1,paymentCount:3,receivedMinor:350000,appliedMinor:260000,reversedMinor:40000,creditedMinor:310000}]);
+  assert.equal(result.summary.cashReceivedMinor,10000);assert.equal(result.summary.refundsPaidMinor,500);assert.equal(result.summary.creditsIssuedMinor,250);assert.equal(result.summary.disputedMinor,1000);
   const creditQuery=queries.find(item=>item.sql.includes('COUNT(DISTINCT pay.id) AS payment_count'));
   assert.match(creditQuery.sql,/pay\.status='posted'/);assert.match(creditQuery.sql,/LEFT JOIN \(SELECT a\.tenant_id/);assert.match(creditQuery.sql,/training_payment_allocation_reversals/);assert.match(creditQuery.sql,/sx_training_refunds WHERE tenant_id=\? AND status='completed'/);assert.match(creditQuery.sql,/sx_training_payment_disputes WHERE tenant_id=\? AND status='lost'/);assert.match(creditQuery.sql,/c\.tenant_id=\?/);
   assert.deepEqual(creditQuery.params,[tenantId,tenantId,tenantId,tenantId,tenantId,from,from,to,to]);
