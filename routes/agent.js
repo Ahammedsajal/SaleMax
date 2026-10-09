@@ -40,6 +40,8 @@ const legacyAgentSeats = require("../modules/platform/legacy-agent-seats");
 const legacyAgentAccess = require("../modules/platform/legacy-agent-access");
 const {issueForVerifiedLegacyAccount} = require("../modules/platform/legacy-session-bridge");
 
+router.get('/session-context', require('../modules/platform/agent-session-context')(validateAgent, query));
+
 // adding agent
 router.post("/add_agent", validateUser, checkPlan, async (req, res) => {
   try {
