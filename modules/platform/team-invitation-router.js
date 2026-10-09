@@ -1,7 +1,7 @@
 'use strict';
 const express=require('express');
 const team=require('./team-invitations');
-function createTeamInvitationRouters({pool,origin,userGuard}){
+function createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback=false}){
   const owner=express.Router(),accept=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   function errorHandler(req,res,error){
@@ -11,6 +11,18 @@ function createTeamInvitationRouters({pool,origin,userGuard}){
   owner.use(express.json({limit:'16kb',strict:true}));owner.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(req.get('Origin')!==origin||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(req.get('Origin')!==origin?403:400).json({success:false,code:req.get('Origin')!==origin?'ORIGIN_DENIED':'INVALID_BODY'});next();});owner.use(userGuard);
   owner.get('/sidebar-access',wrap(async(req,res)=>res.json({success:true,data:await team.sidebarAccess(pool,req.decode.uid)})));
   owner.get('/',wrap(async(req,res)=>res.json({success:true,data:await team.list(pool,req.decode.uid)})));
+  function setAccountCookie(res,result){
+    res.cookie(insecureLoopback?'salemax_dev_session':'__Host-salemax_session',result.cookieToken,
+      {httpOnly:true,secure:!insecureLoopback,sameSite:'strict',path:'/',maxAge:result.expiresInSeconds*1000});
+  }
+  owner.post('/members/:id/login-as',wrap(async(req,res)=>{
+    const result=await team.accountSession(pool,req.decode.uid,req.params.id,{jwtKey:process.env.JWTKEY});
+    setAccountCookie(res,result);res.json({success:true,data:{token:result.token,sessionId:result.sessionId,expiresInSeconds:result.expiresInSeconds}});
+  }));
+  owner.post('/return-owner',wrap(async(req,res)=>{
+    const result=await team.accountSession(pool,req.decode.uid,null,{jwtKey:process.env.JWTKEY,returning:true,sessionId:req.body.sessionId});
+    setAccountCookie(res,result);res.json({success:true,data:{returned:true}});
+  }));
   owner.post('/',wrap(async(req,res)=>res.status(201).json({success:true,data:await team.create(pool,req.decode.uid,req.body)})));
   owner.post('/roles',wrap(async(req,res)=>res.status(201).json({success:true,data:await team.createRole(pool,req.decode.uid,req.body)})));
   owner.put('/roles/:id',wrap(async(req,res)=>res.json({success:true,data:await team.updateRole(pool,req.decode.uid,req.params.id,req.body)})));

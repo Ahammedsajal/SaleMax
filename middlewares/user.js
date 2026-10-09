@@ -17,6 +17,8 @@ const validateUser = async (req, res, next) => {
           logout: true,
         });
       } else {
+        try { await require('../modules/platform/delegated-account-session').assertDelegatedSession(query,decode); }
+        catch (_) { return res.status(401).json({success:false,logout:true,msg:'Account session expired'}); }
         const getUser = await query(
           `SELECT * FROM user WHERE email = ? and password = ? `,
           [decode.email, decode.password]

@@ -34,7 +34,7 @@
   async function api(url, options = {}) {
     const headers = {'Content-Type':'application/json'};
     if (!options.public) {
-      const token = getToken();
+      const token = options.token || getToken();
       if (!token) throw new Error('AUTH_REQUIRED');
       headers.Authorization = 'Bearer ' + token;
     }
@@ -49,6 +49,33 @@
     if (!node) { node = document.createElement('section'); node.id = 'sx-team-screen'; node.setAttribute('aria-live','polite'); document.body.append(node); }
     node.dir = label('ltr','rtl');
     return node;
+  }
+  const accountKey='sx_owner_account_return';
+  async function loginAs(member,button){
+    button.disabled=true;
+    try{
+      const ownerToken=getToken();
+      const result=await api('/api/user/team-invitations/members/'+encodeURIComponent(member.id)+'/login-as',{method:'POST',body:{}});
+      sessionStorage.setItem(accountKey,JSON.stringify({ownerToken,staffToken:result.token,sessionId:result.sessionId,name:member.displayName||member.email}));
+      localStorage.setItem('wacrm_user',result.token);
+      location.assign('/user?page='+(member.role==='manager'?'inbox':'dashboard'));
+    }catch(error){nodeMessage(document.getElementById('sx-team-list'),errorText(error.message),true);button.disabled=false;}
+  }
+  function accountBanner(){
+    let saved;try{saved=JSON.parse(sessionStorage.getItem(accountKey)||'null');}catch{sessionStorage.removeItem(accountKey);}
+    if(!saved||saved.staffToken!==getToken()||document.getElementById('sx-account-return'))return;
+    const banner=document.createElement('aside');banner.id='sx-account-return';banner.setAttribute('role','status');
+    banner.style.cssText='position:fixed;bottom:18px;right:18px;z-index:1600;background:#fff;border:2px solid #a8003b;border-radius:12px;padding:12px;box-shadow:0 4px 20px #0002;max-width:calc(100vw - 36px)';
+    const text=document.createElement('span');text.textContent=label('Logged in as ','تم تسجيل الدخول باسم ')+saved.name+' · ';
+    const button=document.createElement('button');button.type='button';button.textContent=label('Return to owner','العودة إلى المالك');
+    button.onclick=async()=>{
+      button.disabled=true;
+      try{
+        await api('/api/user/team-invitations/return-owner',{method:'POST',token:saved.ownerToken,body:{sessionId:saved.sessionId}});
+        localStorage.setItem('wacrm_user',saved.ownerToken);sessionStorage.removeItem(accountKey);location.assign('/user?page=team-invitations');
+      }catch(error){text.textContent=label('Could not restore owner session. Please sign in again. ','تعذر استعادة جلسة المالك. يرجى تسجيل الدخول مجدداً. ');button.disabled=false;}
+    };
+    banner.append(text,button);document.body.append(banner);
   }
   function roleLabel(role) { const pair = roles[role] || [role, role]; return label(pair[0], pair[1]); }
   function permissionGroup(key){const prefix=key.split('.')[0];return permissionModules[prefix]||[prefix,prefix];}
@@ -220,6 +247,15 @@
       if(!node.querySelector('#sx-role-form [name="id"]').value)renderRolePermissions(data);
       renderMembers(node.querySelector('#sx-team-members'),data);
       element.innerHTML = data.invitations.length ? data.invitations.map(invite => `<div class="row"><div><strong>${esc(invite.email)}</strong><div class="muted">${esc(invite.roleName||roleLabel(invite.role))} · ${esc(invite.status)} · ${esc(invite.expiresAt || '')}</div></div><div class="actions">${['pending','expired'].includes(invite.status) ? `<button data-rotate="${esc(invite.id)}">${label('Create new link','إنشاء رابط جديد')}</button>${invite.status === 'pending' ? `<button data-cancel="${esc(invite.id)}">${label('Cancel','إلغاء')}</button>` : ''}` : ''}</div></div>`).join('') : `<div class="muted">${label('No invitations yet.','لا توجد دعوات بعد.')}</div>`;
+      element.querySelectorAll('.row').forEach((row,index)=>{
+        const invite=data.invitations[index];
+        const member=(data.members||[]).find(item=>item.email.toLowerCase()===invite.email.toLowerCase());
+        if(invite.status!=='accepted'||!member||!['manager','accountant'].includes(member.role))return;
+        const button=document.createElement('button');button.type='button';button.textContent=label('Login as','الدخول باسم');
+        button.setAttribute('aria-label',label('Login as ','الدخول باسم ')+(member.displayName||member.email));
+        button.title=label('Switch this browser to the staff account for 30 minutes. Use Return to owner to switch back.','تبديل هذا المتصفح إلى حساب الموظف لمدة 30 دقيقة. استخدم العودة إلى المالك للرجوع.');
+        button.onclick=()=>loginAs(member,button);row.querySelector('.actions').append(button);
+      });
       element.querySelectorAll('[data-rotate]').forEach(button => button.onclick = async () => {
         button.disabled = true;
         try { const rotated = await api('/api/user/team-invitations/' + encodeURIComponent(button.dataset.rotate) + '/rotate',{method:'POST',body:{}}); showLink(node,rotated.token,label('New link (the previous link is now invalid)','الرابط الجديد (الرابط السابق لم يعد صالحاً)')); await list(node); }
@@ -307,6 +343,7 @@
     row.parentElement.insertBefore(copy,row.nextSibling);
   }
   function update() {
+    accountBanner();
     addNav();
     if (route()) { if (inviteToken) accept(); else if (!document.getElementById('sx-team-screen')) load(); }
     else if (!inviteToken) document.getElementById('sx-team-screen')?.remove();

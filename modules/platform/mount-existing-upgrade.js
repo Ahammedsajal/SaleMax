@@ -27,7 +27,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/admin/platform-access',legacyGuard,boundary.guard,access.admin);
   app.use('/api/admin/asterisk',legacyGuard,boundary.guard,createAsteriskRouter({pool}));
   app.use('/api/admin/staff-invitations',access.accept);
-  const team=createTeamInvitationRouters({pool,origin,userGuard});
+  const team=createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback});
   app.use('/api/user/team-invitations',team.owner);
   app.use('/api/agent/invitations',team.accept);
   app.use('/api/user/training/courses',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));

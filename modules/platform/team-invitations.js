@@ -287,4 +287,36 @@ async function activate(db,input,creatorIdentityId=null){
     await audit(db,creatorIdentityId||identityId,tenant.id,creatorIdentityId?'team.account-created':'team.invitation-accepted',invite.id,{role:invite.role,roleProfileId:invite.roleProfileId||null});
     return {status:'accepted',email:invite.email,role:invite.role,roleProfileId:invite.roleProfileId||null,agentUid,tenantSlug:invite.tenantSlug};
 }
-module.exports={create,list,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};
+async function accountSession(pool,ownerUid,membershipId,{jwtKey,returning=false,sessionId=null}={}){
+  if(!jwtKey)fail('AUTH_UNAVAILABLE');
+  if(!returning)invitationId(membershipId);
+  const db=await pool.getConnection();
+  try{return await tx(db,async()=>{
+    const scope=await ownerScope(db,ownerUid,{requireTeam:!returning});
+    const targetId=returning?scope.membershipId:membershipId;
+    const [rows]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,i.credential_version AS credentialVersion,
+        u.uid,u.email,u.password,o.legacy_uid_hash AS uidHash
+      FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
+      JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
+      JOIN user u ON CAST(u.id AS CHAR)=o.source_id
+      WHERE m.tenant_id=? AND m.id=? AND m.status='active' FOR UPDATE`,[scope.tenantId,targetId]);
+    if(rows.length!==1)fail('MEMBER_NOT_FOUND');
+    const member=rows[0];
+    if(member.uidHash!==digest(member.uid)||(!returning&&!['manager','accountant'].includes(member.role)))fail('PERMISSION_DENIED');
+    if(returning&&sessionId){
+      invitationId(sessionId);
+      await db.query(`UPDATE sx_sessions s JOIN sx_audit_events a ON a.resource_id=s.id AND a.resource_type='session'
+        SET s.revoked_at=UTC_TIMESTAMP(3) WHERE s.id=? AND s.tenant_id=? AND a.actor_identity_id=?
+        AND a.action='team.account-login'`,[sessionId,scope.tenantId,scope.identityId]);
+    }
+    const raw=crypto.randomBytes(32).toString('base64url'),id=crypto.randomUUID(),seconds=returning?28800:1800;
+    await db.query(`INSERT INTO sx_sessions(id,token_hash,identity_id,audience,tenant_id,membership_id,credential_version,authenticated_at,expires_at)
+      VALUES (?,?,?,'tenant',?,?,?,UTC_TIMESTAMP(3),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND))`,
+      [id,digest(raw),member.identityId,scope.tenantId,member.id,member.credentialVersion,seconds]);
+    await audit(db,scope.identityId,scope.tenantId,returning?'team.account-returned':'team.account-login',id,
+      {membershipId:member.id,identityId:member.identityId,role:member.role,expiresInSeconds:seconds},'session');
+    const legacyToken=returning?null:require('jsonwebtoken').sign({uid:member.uid,email:member.email,password:member.password,role:'user',delegatedSessionId:id},jwtKey,{expiresIn:seconds});
+    return {token:legacyToken,cookieToken:raw,sessionId:id,expiresInSeconds:seconds};
+  });}finally{db.release();}
+}
+module.exports={accountSession,create,list,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};

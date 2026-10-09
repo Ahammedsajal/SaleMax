@@ -50,6 +50,7 @@ function processSocketEvent({
 
     try {
       const inboxAccess = require('../../modules/platform/team-inbox-scope');
+      await require('../../modules/platform/delegated-account-session').assertDelegatedSession(query,socket.decodedToken);
       const inboxScope = isAgent ? { uid: actorUid, canonical: false, assignedOnly: false } : await inboxAccess.resolveInboxScope(query, socket.userData, type);
       const uid = inboxScope.uid;
       payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {});

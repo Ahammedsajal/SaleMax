@@ -60,6 +60,7 @@ function initializeSocket(server) {
       }
 
       const decoded = jwt.verify(token, process.env.JWTKEY);
+      await require('./modules/platform/delegated-account-session').assertDelegatedSession(require('./database/dbpromise').query,decoded);
       socket.decodedToken = decoded;
       next();
     } catch (error) {
