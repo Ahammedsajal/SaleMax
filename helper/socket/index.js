@@ -471,10 +471,14 @@ function processSocketEvent({
             `SELECT * FROM beta_chats WHERE id = ?`,
             [chat?.id],
           );
-          const agents = await query(
+          let agents = await query(
             `SELECT * FROM agents WHERE owner_uid = ?`,
             [conversationOwnerUid],
           );
+          if (inboxScope.canonical) {
+            const staff = await require('../../modules/platform/team-conversation-assignment').eligibleStaff({ query: async (sql, params) => [await query(sql, params)] }, inboxScope.ctx.tenant.id);
+            agents = agents.concat(staff.map(item => ({ ...item, id: item.identityId })));
+          }
 
           const [getContact] = await query(
             `SELECT * FROM contact WHERE uid = ? AND mobile = ?`,
