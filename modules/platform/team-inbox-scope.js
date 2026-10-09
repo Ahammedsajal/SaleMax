@@ -12,13 +12,14 @@ const fail = () => { throw Object.assign(new Error('TEAM_INBOX_PERMISSION_DENIED
 const parse = value => { try { const list = typeof value === 'string' ? JSON.parse(value) : value; return Array.isArray(list) && list.every(x => typeof x === 'string') ? list : null; } catch { return null; } };
 
 async function resolveInboxScope(query, user, event) {
+  const source=user.isAgent||user.role==='agent'?'agents':'user';
   const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
       i.status AS identityStatus,o.legacy_uid_hash AS uidHash,m.role_profile_id AS roleProfileId,
       m.delegated_permissions AS delegatedPermissions,r.permissions AS rolePermissions,r.seat_role AS seatRole,r.status AS roleStatus
     FROM sx_legacy_ownership o JOIN sx_tenants t ON t.id=o.tenant_id
     JOIN sx_memberships m ON m.tenant_id=t.id AND m.id=o.membership_id JOIN sx_identities i ON i.id=m.identity_id
     LEFT JOIN sx_team_roles r ON r.tenant_id=m.tenant_id AND r.id=m.role_profile_id
-    WHERE o.source_table='user' AND o.source_id=? LIMIT 2`, [String(user.id)])];
+    WHERE o.source_table='${source}' AND o.source_id=? LIMIT 2`, [String(user.id)])];
   if (!rows.length) return { uid: user.uid, canonical: false, assignedOnly: false };
   const row = rows[0];
   if (rows.length !== 1 || row.uidHash !== crypto.createHash('sha256').update(user.uid).digest('hex') || row.tenantStatus !== 'active' || row.membershipStatus !== 'active' || row.identityStatus !== 'active') fail();
@@ -40,6 +41,7 @@ async function resolveInboxScope(query, user, event) {
     JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED) JOIN sx_identities i ON i.id=m.identity_id
     WHERE m.tenant_id=? AND m.role='owner' AND m.status='active' AND i.status='active' AND u.role='user' LIMIT 2`, [row.tenantId]);
   if (owners.length !== 1 || owners[0].uidHash !== crypto.createHash('sha256').update(owners[0].uid).digest('hex')) fail();
+  if(source==='agents'&&(user.is_active===0||user.owner_uid!==owners[0].uid))fail();
   return { ...base, uid: owners[0].uid };
 }
 

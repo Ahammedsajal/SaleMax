@@ -12,7 +12,7 @@ function fixture(overrides = {}) {
     if (sql.includes("m.role='owner'")) return [[{ uid: 'owner', uidHash: hash('owner') }]];
     if (sql.includes('FOR UPDATE')) return [[{ assigned_agent: JSON.stringify([{ kind: 'identity', identityId: 'old-staff', uid: 'old-user' }]) }]];
     if (sql.includes('i.id=?')) {
-      assert.deepEqual(params, ['tenant-a', 'new-staff']);
+      assert.deepEqual(params, ['owner','tenant-a', 'new-staff']);
       return [[{ identityId: 'new-staff', uid: 'new-user', name: 'Staff', role: 'agent', uidHash: hash('new-user'), ...overrides }]];
     }
     return [{ affectedRows: 1 }];

@@ -92,9 +92,9 @@ function initializeSocket(server) {
         isAgent,
         connectedAt: new Date(),
       };
-      if (!isAgent) {
+      {
         try {
-          const scope = await require('./modules/platform/team-inbox-scope').resolveInboxScope(query, userData, 'get_chat_list');
+          const scope = await require('./modules/platform/team-inbox-scope').resolveInboxScope(query, socket.userData, 'get_chat_list');
           if (scope.canonical) socket.userData.teamOwnerUid = scope.uid;
         } catch { /* Accounts without Inbox permission keep their own socket scope. */ }
       }

@@ -10,6 +10,7 @@ function routePermission(req){
   if(mount==='/api/user/team-invitations')return ['/sidebar-access','/conversation-access'].includes(path)?'tenant.read':'team.invite';
   if(mount==='/api/user/call-center')return path==='/status'||read?'calls.read':'calls.control';
   if(mount==='/api/user/chatbots')return 'automation.manage';
+  if(mount==='/api/agent/invitations'&&path==='/conversation-access'&&read)return 'tenant.read';
   if(mount.startsWith('/api/user/training/courses'))return read?'courses.read':'courses.manage';
   if(mount.startsWith('/api/user/training/students'))return read?'sales.request':'sales.approve';
   if(mount.startsWith('/api/user/training/finance'))return read?'invoices.read':'payments.verify';

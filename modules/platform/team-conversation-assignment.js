@@ -30,10 +30,12 @@ async function assignConversation(db, { ctx, uid, chatId, identityId, reason = '
   const [targets] = await db.query(`SELECT i.id AS identityId,i.display_name AS name,u.uid,m.role,m.role_profile_id AS roleProfileId,
       r.permissions AS rolePermissions,r.status AS roleStatus,r.seat_role AS seatRole,o.legacy_uid_hash AS uidHash
     FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
-    JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
-    JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED)
+    JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table IN ('user','agents')
+    JOIN (SELECT id,uid,'user' AS sourceTable,NULL AS owner_uid FROM user
+      UNION ALL SELECT id,uid,'agents' AS sourceTable,owner_uid FROM agents WHERE is_active=1) u
+      ON u.id=CAST(o.source_id AS UNSIGNED) AND u.sourceTable=o.source_table
     LEFT JOIN sx_team_roles r ON r.tenant_id=m.tenant_id AND r.id=m.role_profile_id
-    WHERE m.tenant_id=? AND i.id=? AND m.status='active' AND i.status='active' LIMIT 2`, [ctx.tenant.id, identityId]);
+    WHERE (u.sourceTable='user' OR u.owner_uid=?) AND m.tenant_id=? AND i.id=? AND m.status='active' AND i.status='active' LIMIT 2`, [uid, ctx.tenant.id, identityId]);
   if (targets.length !== 1) fail('CONVERSATION_ASSIGNEE_INVALID');
   const target = targets[0];
   const membership = { role: target.role };
@@ -55,10 +57,16 @@ async function eligibleStaff(db, tenantId) {
   const [rows] = await db.query(`SELECT i.id AS identityId,i.display_name AS name,i.email_normalized AS email,u.uid,m.role,m.role_profile_id AS roleProfileId,
       r.permissions AS rolePermissions,r.status AS roleStatus,r.seat_role AS seatRole,o.legacy_uid_hash AS uidHash
     FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
-    JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
-    JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED)
+    JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table IN ('user','agents')
+    JOIN (SELECT id,uid,'user' AS sourceTable,NULL AS owner_uid FROM user
+      UNION ALL SELECT id,uid,'agents' AS sourceTable,owner_uid FROM agents WHERE is_active=1) u
+      ON u.id=CAST(o.source_id AS UNSIGNED) AND u.sourceTable=o.source_table
     LEFT JOIN sx_team_roles r ON r.tenant_id=m.tenant_id AND r.id=m.role_profile_id
-    WHERE m.tenant_id=? AND m.status='active' AND i.status='active' ORDER BY i.display_name,i.id`, [tenantId]);
+    WHERE m.tenant_id=? AND m.status='active' AND i.status='active'
+      AND (u.sourceTable='user' OR EXISTS (SELECT 1 FROM user own
+        JOIN sx_legacy_ownership oo ON oo.source_table='user' AND oo.source_id=CAST(own.id AS CHAR)
+        JOIN sx_memberships om ON om.id=oo.membership_id AND om.tenant_id=m.tenant_id AND om.role='owner' AND om.status='active'
+        WHERE own.uid=u.owner_uid)) ORDER BY i.display_name,i.id`, [tenantId]);
   return rows.filter(row => {
     if (row.uidHash !== crypto.createHash('sha256').update(row.uid).digest('hex')) return false;
     const member = { role: row.role };

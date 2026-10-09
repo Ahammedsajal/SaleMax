@@ -46,12 +46,13 @@ function processSocketEvent({
   getAllSocketData,
 }) {
   socket.on("message", async ({ type, payload }) => {
-    const { isAgent, uid: actorUid } = socket?.userData || {};
+    const { isAgent: agentAccount, uid: actorUid } = socket?.userData || {};
 
     try {
       const inboxAccess = require('../../modules/platform/team-inbox-scope');
       await require('../../modules/platform/delegated-account-session').assertDelegatedSession(query,socket.decodedToken);
-      const inboxScope = isAgent ? { uid: actorUid, canonical: false, assignedOnly: false } : await inboxAccess.resolveInboxScope(query, socket.userData, type);
+      const inboxScope = await inboxAccess.resolveInboxScope(query, socket.userData, type);
+      const isAgent=agentAccount&&!inboxScope.canonical;
       const uid = inboxScope.uid;
       payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {});
       switch (type) {
@@ -820,7 +821,7 @@ function processSocketEvent({
               chatId: chatInfo.chat_id,
               messageData,
             });
-            if(isAgent)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatInfo.chat_id,agentId:socket?.userData?.id,origin:chatInfo.origin,providerMessageId:sendMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
+            if(agentAccount)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatInfo.chat_id,agentId:socket?.userData?.id,origin:chatInfo.origin,providerMessageId:sendMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
 
             await query(
               `UPDATE beta_chats SET last_message = ? WHERE chat_id = ? AND uid = ?`,

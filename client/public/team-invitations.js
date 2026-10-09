@@ -65,16 +65,18 @@
   }
   let checkingChatAccess=false;
   async function checkOpenChatAccess(){
-    if(checkingChatAccess||new URLSearchParams(location.search).get('page')!=='inbox'||!getToken())return;
+    const agent=location.pathname.startsWith('/agent');
+    const token=agent?localStorage.getItem('wacrm_agent'):getToken();
+    if(checkingChatAccess||new URLSearchParams(location.search).get('page')!=='inbox'||!token)return;
     let chat;try{chat=JSON.parse(localStorage.getItem('currentChat')||'null');}catch{return;}
     if(!chat?.chat_id)return;
     checkingChatAccess=true;
     try{
-      const result=await api('/api/user/team-invitations/conversation-access?chatId='+encodeURIComponent(chat.chat_id));
+      const result=await api((agent?'/api/agent/invitations':'/api/user/team-invitations')+'/conversation-access?chatId='+encodeURIComponent(chat.chat_id),{token});
       const current=JSON.parse(localStorage.getItem('currentChat')||'null');
       if(result.assignedOnly&&!result.allowed&&current?.chat_id===chat.chat_id){
         await clearInboxCache();
-        location.replace('/user?page=inbox');
+        location.replace((agent?'/agent':'/user')+'?page=inbox');
       }
     }catch{/* Network errors do not erase a conversation; server authorization remains authoritative. */}
     finally{checkingChatAccess=false;}

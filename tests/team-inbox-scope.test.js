@@ -7,6 +7,12 @@ const hash = uid => crypto.createHash('sha256').update(uid).digest('hex');
 const user = { id: 2, uid: 'synthetic-manager' };
 const member = { tenantId: 'synthetic-tenant', tenantStatus: 'active', identityId: 'staff-a', role: 'manager', membershipStatus: 'active', identityStatus: 'active', uidHash: hash(user.uid), delegatedPermissions: [] };
 const query = row => async sql => sql.includes('WHERE o.source_table') ? [row] : [{ uid: 'synthetic-owner', uidHash: hash('synthetic-owner') }];
+test('real Agent-seat source uses the agents ownership link and rejects foreign owner bindings',async()=>{
+  const agent={...user,isAgent:true,role:'agent',is_active:1,owner_uid:'synthetic-owner'};
+  const lookup=async sql=>{if(sql.includes('WHERE o.source_table')){assert.match(sql,/source_table='agents'/);return [{...member,role:'agent'}];}return [{uid:'synthetic-owner',uidHash:hash('synthetic-owner')}];};
+  assert.equal((await resolveInboxScope(lookup,agent,'send_chat_message')).assignedOnly,true);
+  for(const change of [{owner_uid:'other'},{is_active:0}])await assert.rejects(resolveInboxScope(lookup,{...agent,...change},'get_chat_list'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});
 
 test('manager reads and replies through the verified owner Inbox scope', async () => {
   for (const event of ['get_chat_list','load_conversation','send_chat_message']) assert.equal(await resolveInboxUid(query(member), user, event), 'synthetic-owner');

@@ -1,7 +1,7 @@
 'use strict';
 const express=require('express');
 const team=require('./team-invitations');
-function createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback=false}){
+function createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback=false,agentGuard=(req,res,next)=>require('../../middlewares/agent')(req,res,next)}){
   const owner=express.Router(),accept=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   function errorHandler(req,res,error){
@@ -10,7 +10,7 @@ function createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback=fal
   }
   owner.use(express.json({limit:'16kb',strict:true}));owner.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(req.get('Origin')!==origin||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(req.get('Origin')!==origin?403:400).json({success:false,code:req.get('Origin')!==origin?'ORIGIN_DENIED':'INVALID_BODY'});next();});owner.use(userGuard);
   owner.get('/sidebar-access',wrap(async(req,res)=>res.json({success:true,data:await team.sidebarAccess(pool,req.decode.uid)})));
-  owner.get('/conversation-access',wrap(async(req,res)=>{
+  const conversationAccess=wrap(async(req,res)=>{
     const chatId=req.query.chatId;
     if(typeof chatId!=='string'||!chatId||chatId.length>255)return res.status(400).json({success:false,code:'INVALID_CONVERSATION'});
     const access=require('./team-inbox-scope');
@@ -19,7 +19,8 @@ function createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback=fal
     if(!scope.assignedOnly)return res.json({success:true,data:{allowed:true,assignedOnly:false}});
     const rows=await query('SELECT assigned_agent FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1',[scope.uid,chatId]);
     res.json({success:true,data:{allowed:rows.length===1&&access.filterAssignedChats(rows,scope).length===1,assignedOnly:true}});
-  }));
+  });
+  owner.get('/conversation-access',conversationAccess);
   owner.get('/',wrap(async(req,res)=>res.json({success:true,data:await team.list(pool,req.decode.uid)})));
   function setAccountCookie(res,result){
     res.cookie(insecureLoopback?'salemax_dev_session':'__Host-salemax_session',result.cookieToken,
@@ -43,6 +44,7 @@ function createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback=fal
   owner.use((error,req,res,next)=>{if(res.headersSent)return next(error);errorHandler(req,res,error);});
 
   accept.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(req.method!=='POST')return next();if(req.get('Origin')!==origin)return res.status(403).json({success:false,code:'ORIGIN_DENIED'});next();});
+  accept.get('/conversation-access',agentGuard,conversationAccess);
   accept.get('/preview/:token',wrap(async(req,res)=>res.json({success:true,data:await team.preview(pool,req.params.token)})));
   accept.post('/accept',express.json({limit:'8kb',strict:true}),wrap(async(req,res)=>res.status(201).json({success:true,data:await team.accept(pool,req.body||{})})));
   accept.use((error,req,res,next)=>{if(res.headersSent)return next(error);errorHandler(req,res,error);});
