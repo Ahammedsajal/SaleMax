@@ -12,6 +12,8 @@ if(!Number.isSafeInteger(interval)||interval<5000||interval>300000)throw new Err
 let stopping=false,timer=null;
 async function tick(){
   const result=await runner.tick(pool,{workerId,limit:10});
+  const registrationDelivery=await require('../modules/platform/training-registration-delivery').tick(pool);
+  if(registrationDelivery.processed)console.log(JSON.stringify({registrationDelivery}));
   const delivery=await deliveryWorker.tick(pool,{workerId:`${workerId.slice(0,88)}-delivery`,limit:10});
   if(result.queued||result.processed.length||delivery.claimed)console.log(JSON.stringify({queued:result.queued,duplicatePeriods:result.duplicatePeriods,processed:result.processed.map(item=>({status:item.status,errorCode:item.errorCode||undefined,deliveriesQueued:item.deliveriesQueued})),delivery:{claimed:delivery.claimed,accepted:delivery.accepted,failed:delivery.failed,retrying:delivery.retrying,unknown:delivery.unknown},externallySent:delivery.externallySent,externalWrites:delivery.externalWrites}));
 }

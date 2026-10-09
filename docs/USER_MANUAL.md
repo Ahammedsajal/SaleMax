@@ -254,3 +254,8 @@ The **Platform staff** panel also shows overall user and order totals, each acti
 Chat Widget, customer REST/Meta API access, webhooks and WhatsApp Warmer are disabled and hidden by default in the training-center deployment. Existing plan flags alone cannot enable them. This does not disable internal APIs used by Courses, Finance, Forms or the existing inbox.
 
 In **Admin → Manage Users**, choose **Optional features** on the customer's row. An administrator with `plans.read` and `plans.assign`, a verified platform MFA session and access to that customer's portfolio can enable or disable each switch independently. Save the settings; the customer's sidebar updates on refresh. Every saved change is audited, stale edits are rejected, and users cannot enable their own switches. Disabling a switch also blocks its legacy routes, widget delivery, incoming webhook execution or warmer eligibility. Enabling a switch does not bypass plan limits or enable disconnected providers.
+
+
+## Student registration and lead import
+
+See [Student registration](TRAINING_REGISTRATION.md) for source-based lead search, optional profile import, course prefixes, digital signatures, pending approval, provisional invoices, issued invoice notifications and provider configuration.

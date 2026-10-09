@@ -10,7 +10,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 test('training-center profile exposes a responsive bilingual logo upload in the existing workspace', () => {
   const screen = read('client/public/training-courses.js');
   const shell = read('client/public/index.html');
-  assert.match(shell, /training-courses\.js\?v=20261008-prerequisites-edit2/);
+  assert.match(shell, /training-courses\.js\?v=20261009-registration1/);
   assert.match(screen, /field\('crNumber'/);
   assert.match(screen, /field\('invoicePrefix'/);
   assert.match(screen, /id="sx-profile-logo-file" type="file" accept="image\/jpeg,image\/png,image\/webp"/);

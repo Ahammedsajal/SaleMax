@@ -876,7 +876,7 @@ function normalizeQualification(value) {
     payerRelationship: ["self", "parent_guardian", "employer", "company", "other"],
     followUpUrgency: ["today", "this_week", "this_month", "flexible"],
   };
-  const textLimits = { courseInterest: 180, preferredSchedule: 255, learningGoal: 500, payerName: 255, referralSource: 255 };
+  const textLimits = { courseInterest: 180, preferredSchedule: 255, learningGoal: 500, payerName: 255, referralSource: 255, certificate_name:255,qid:11,nationality:120,phone_res:40,address:255,city:120,social_contact:255,emergency_phone:40,local_address:255,city_state:120,birth_date:10,gender:20,graduated:10,source:40,referral_name:255 };
   const result = {};
   for (const [key, choices] of Object.entries(enums)) {
     const raw = value[key]; if (raw === undefined || raw === null || raw === "") continue;
@@ -1126,6 +1126,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
         for (const linked of linkedLeads) await addActivity(connection, uidHash, linked.id, "contact_profile_updated", "Shared contact profile updated", { fields }, actorType, actorId);
       }
     }
+    if(input.qualificationData!==undefined)add("qualification_data",JSON.stringify(normalizeQualification(input.qualificationData)));
     if (input.priority !== undefined) {
       if (!["low", "normal", "high", "urgent"].includes(input.priority)) { const error = new Error("Invalid lead priority."); error.status = 400; throw error; }
       add("priority", input.priority);

@@ -6,7 +6,7 @@
   const tenantSlug = parts[1];
   const formSlug = parts[3];
   const query = new URLSearchParams(location.search);
-  const staffCapture = query.get('mode') === 'staff';
+  const staffCapture = query.get('mode') === 'staff' || (formSlug === 'student-registration' && Boolean(localStorage.getItem('wacrm_agent') || localStorage.getItem('wacrm_user')));
   const storageKey = `sx-form-token:${tenantSlug}:${formSlug}:${staffCapture ? 'staff' : 'public'}`;
   let data = null;
   let selectedLead = null;
@@ -75,7 +75,7 @@
       <div id="form-message" role="status" aria-live="polite"></div><form id="enquiry-form" novalidate autocomplete="off">
       ${staffCapture ? `<section class="lead-prefill" aria-label="${tr('Find an existing lead','البحث عن عميل محتمل موجود')}"><label for="lead-search">${tr('Find existing lead by name, phone or email','ابحث عن عميل محتمل بالاسم أو الهاتف أو البريد الإلكتروني')}</label><input id="lead-search" type="search" autocomplete="off" placeholder="${tr('Type at least 2 characters','اكتب حرفين على الأقل')}"/><div id="lead-search-results" role="listbox" aria-live="polite"></div><p id="lead-selected" class="lead-selected" role="status"></p></section>` : ''}
       <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-      ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture, data.tenant) : schema.fields.filter(field => field.key !== 'consent').map(field => {
+      ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture, data.tenant, data) : schema.fields.filter(field => field.key !== 'consent').map(field => {
         const [labelEn, labelAr, type, autocomplete] = fields[field.key];
         const label = isArabic ? field.labelAr || labelAr : field.labelEn || labelEn;
         if (field.key === 'course_id') return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="course_id" ${field.required ? 'required' : ''}><option value="">${tr('Choose a course', 'اختر دورة')}</option>${data.courses.map(course => `<option value="${esc(course.id)}">${esc(isArabic ? course.nameAr : course.nameEn)}</option>`).join('')}</select></label>`;
@@ -84,7 +84,7 @@
       ${isRegistration ? '' : `<label class="consent"><input type="checkbox" name="consent" required><span>${esc(isArabic ? schema.consentTextAr : schema.consentTextEn)}</span></label>`}
       ${!staffCapture && data.botChallenge ? `<div class="bot-challenge"><p>${tr('Complete the security check to send this enquiry.', 'أكمل التحقق الأمني لإرسال هذا الاستفسار.')}</p><div id="turnstile-widget"></div><div id="turnstile-status" role="status" aria-live="polite">${tr('Loading security check…', 'جارٍ تحميل التحقق الأمني…')}</div></div>` : ''}
       <button id="submit-button" class="submit-button" type="submit">${isRegistration ? tr('Submit registration', 'إرسال طلب التسجيل') : tr(staffCapture ? 'Save enquiry' : 'Send enquiry', staffCapture ? 'حفظ الاستفسار' : 'إرسال الاستفسار')}</button>
-      <p class="privacy-note">${isRegistration ? tr('Submitting this form records your application. It does not issue an invoice or payment receipt or confirm a course seat.', 'إرسال هذا النموذج يسجل طلبك. ولا يصدر فاتورة أو إيصال دفع ولا يؤكد حجز مقعد في الدورة.') : tr('Your details will be used to respond to this enquiry. This does not register you or reserve a seat.', 'ستُستخدم بياناتك للرد على هذا الاستفسار. لا يُعد هذا تسجيلًا أو حجزًا لمقعد.')}</p></form></section><footer>${tr('Powered by SaleMaX', 'مدعوم من SaleMaX')}</footer>`;
+      <p class="privacy-note">${isRegistration ? tr('Submitting creates a student pending approval and a provisional invoice. A course seat is confirmed after approval.', 'ينشئ الإرسال طالبًا بانتظار الموافقة وفاتورة مبدئية. يتم تأكيد المقعد بعد الموافقة.') : tr('Your details will be used to respond to this enquiry. This does not register you or reserve a seat.', 'ستُستخدم بياناتك للرد على هذا الاستفسار. لا يُعد هذا تسجيلًا أو حجزًا لمقعد.')}</p></form></section><footer>${tr('Powered by SaleMaX', 'مدعوم من SaleMaX')}</footer>`;
 
     for (const [name, value] of Object.entries(prior)) {
       const control = root.querySelector(`#enquiry-form [name="${name}"]`);
@@ -96,7 +96,9 @@
       root.querySelector('h1')?.focus();
     };
     root.querySelector('#enquiry-form').onsubmit = submit;
+    if(isRegistration)window.__sxRegistrationControls=window.SXTrainingRegistration.wire(root.querySelector('#enquiry-form'),data,language);
     if(staffCapture) wireLeadSearch();
+    if(isRegistration){const source=root.querySelector('[name="source"]'),heading=root.querySelector('.registration-capture > .reg-two-col');let lookup=root.querySelector('.lead-prefill');if(!lookup){lookup=document.createElement('section');lookup.className='lead-prefill';lookup.innerHTML='<p>'+tr('Sign in as staff to search and import an existing lead.','سجّل الدخول كموظف للبحث واستيراد عميل محتمل موجود.')+'</p><a class="form-action" href="'+location.pathname+'?mode=staff">'+tr('Open staff capture','فتح تسجيل الموظف')+'</a>';}heading.insertAdjacentElement('afterend',lookup);const original=source.onchange;const toggle=focus=>{lookup.hidden=source.value!=='Lead';if(focus&&!lookup.hidden)lookup.querySelector('input')?.focus();if(lookup.hidden){selectedLead=null;const selected=lookup.querySelector('#lead-selected');if(selected)selected.textContent='';}};source.onchange=()=>{original?.();toggle(true);};toggle(false);}
     if (!staffCapture && data.botChallenge) mountTurnstile();
   }
 
@@ -113,12 +115,12 @@
         try{
           const response=await fetch(`/api/pipeline/training-forms/${encodeURIComponent(formSlug)}/leads?search=${encodeURIComponent(term)}`,{cache:'no-store',credentials:'same-origin',headers:{Authorization:`Bearer ${actorToken()}`}});
           const body=await response.json();if(!response.ok||!body.success)throw Error(body.code||'LOOKUP_FAILED');
-          if(!body.data.length){results.innerHTML=`<p>${tr('No matching leads found.','لم يتم العثور على عملاء محتملين مطابقين.')}</p>`;return;}
+          if(input.value.trim()!==term)return;if(!body.data.length){results.innerHTML=`<p>${tr('No matching leads found.','لم يتم العثور على عملاء محتملين مطابقين.')}</p>`;return;}
           results.innerHTML=body.data.map(lead=>`<button type="button" class="lead-result" role="option" data-lead-id="${esc(lead.id)}"><strong>${esc(lead.contactName||lead.learnerName||tr('Unnamed lead','عميل محتمل بلا اسم'))}</strong><span>${[lead.phone,lead.email].filter(Boolean).map(esc).join(' · ')}</span></button>`).join('');
           results.querySelectorAll('[data-lead-id]').forEach(button=>button.addEventListener('click',()=>{
             selectedLead=body.data.find(lead=>lead.id===button.dataset.leadId)||null;if(!selectedLead)return;
-            const form=root.querySelector('#enquiry-form');const fill=(name,value)=>{const control=form.elements[name];if(control&&value!==null&&value!==undefined&&value!=='')control.value=value;};
-            fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);
+            const form=root.querySelector('#enquiry-form');const fill=(name,value)=>{const control=form.elements[name];if(control)control.value=value??'';};
+            fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);for(const key of ['certificate_name','qid','nationality','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','referral_name']){const value=selectedLead.qualificationData?.[key]||'';const c=form.elements[key];if(c?.tagName==='SELECT'&&value&&!Array.from(c.options).some(o=>o.value===value))c.add(new Option(value,value));fill(key,value);}fill('source','Lead');window.__sxRegistrationControls?.refresh();
             selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. You can edit the form details.` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. يمكنك تعديل بيانات النموذج.`);
             results.innerHTML='';input.value='';
           }));
@@ -194,6 +196,7 @@
     const message = root.querySelector('#form-message');
     message.textContent = '';
     if (!form.reportValidity()) return;
+    if(data.form.schema.templateKey==='procatalyst-registration-v1'&&!form.elements.student_signature.value){message.textContent=tr('Please draw the student signature.','يرجى رسم توقيع الطالب.');form.querySelector('#reg-signature').focus();return;}
     if (!staffCapture && data.botChallenge && !challengeToken) {
       message.innerHTML = `<p class="error-message" role="alert" tabindex="-1">${tr('Complete the security check before sending.', 'أكمل التحقق الأمني قبل الإرسال.')}</p>`;
       message.querySelector('[role="alert"]')?.focus();
@@ -227,16 +230,16 @@
       if (!response.ok || body.success !== true) throw Error(body.code || 'SUBMISSION_FAILED');
       sessionStorage.removeItem(storageKey);
       selectedLead=null;
-      const reference = esc(body.data.referenceCode);
+      const reference = esc(body.data.referenceCode);const registrationResult=body.data.studentNumber?`<p>${tr('Student ID','رقم الطالب')}: <strong>${esc(body.data.studentNumber)}</strong></p><p>${tr('Provisional invoice','فاتورة مبدئية')}: ${esc(body.data.provisionalInvoiceNumber)} · QAR ${(Number(body.data.totalMinor)/100).toFixed(2)}</p>`:'';
       const isRegistration = data.form.schema.templateKey === 'procatalyst-registration-v1';
       const successHeading = isRegistration ? tr('Registration application received', 'تم استلام طلب التسجيل') : staffCapture ? tr('Enquiry saved', 'تم حفظ الاستفسار') : tr('Thank you, we’ll be in touch.', 'شكرًا لك، سنتواصل معك.');
       const successDetail = isRegistration
-        ? tr('Your application was recorded. The training center will follow up about the invoice, payment, and course start.', 'تم تسجيل طلبك. سيتواصل معك مركز التدريب بخصوص الفاتورة والدفع وبدء الدورة.')
+        ? tr('Your student registration is pending approval. A provisional invoice and notification requests were created.', 'تسجيلك بانتظار الموافقة. تم إنشاء فاتورة مبدئية وطلبات إشعار.')
         : staffCapture
         ? tr('The lead was added to your workspace and attributed to your signed-in account.', 'أُضيف العميل المحتمل إلى مساحة العمل ونُسب إلى حسابك المسجّل.')
         : tr('This confirms receipt of your enquiry only. It is not an invoice, payment receipt or confirmed course seat.', 'هذا تأكيد لاستلام الاستفسار فقط، وليس فاتورة أو إيصال دفع أو مقعدًا مؤكدًا في الدورة.');
-      root.querySelector('.form-card').innerHTML = `<div class="success-mark" aria-hidden="true">✓</div><p class="eyebrow">${isRegistration ? tr('APPLICATION RECEIVED', 'تم استلام الطلب') : staffCapture ? tr('STAFF CAPTURE COMPLETE', 'اكتمل تسجيل الموظف') : tr('ENQUIRY RECEIVED', 'تم استلام الاستفسار')}</p><h1 tabindex="-1">${successHeading}</h1><p class="description">${tr(isRegistration ? 'Application reference' : 'Enquiry reference', isRegistration ? 'رقم مرجع الطلب' : 'رقم مرجع الاستفسار')}: <strong>${reference}</strong></p><p class="privacy-note">${successDetail}</p>${staffCapture ? `<button id="new-enquiry" class="secondary-button" type="button">${tr(isRegistration ? 'Capture next registration' : 'Capture next enquiry', isRegistration ? 'تسجيل الطلب التالي' : 'تسجيل الاستفسار التالي')}</button>` : ''}`;
-      root.querySelector('.form-card h1')?.focus();
+      root.querySelector('.form-card').innerHTML = `<div class="success-mark" aria-hidden="true">✓</div><p class="eyebrow">${isRegistration ? tr('APPLICATION RECEIVED', 'تم استلام الطلب') : staffCapture ? tr('STAFF CAPTURE COMPLETE', 'اكتمل تسجيل الموظف') : tr('ENQUIRY RECEIVED', 'تم استلام الاستفسار')}</p><h1 tabindex="-1">${successHeading}</h1><p class="description">${tr(isRegistration ? 'Application reference' : 'Enquiry reference', isRegistration ? 'رقم مرجع الطلب' : 'رقم مرجع الاستفسار')}: <strong>${reference}</strong></p><p class="privacy-note">${successDetail}</p>${registrationResult}${body.data.studentNumber?'<button type="button" id="reg-success-invoice" class="secondary-button">'+tr('Print provisional invoice','طباعة الفاتورة المبدئية')+'</button>':''}${staffCapture ? `<button id="new-enquiry" class="secondary-button" type="button">${tr(isRegistration ? 'Capture next registration' : 'Capture next enquiry', isRegistration ? 'تسجيل الطلب التالي' : 'تسجيل الاستفسار التالي')}</button>` : ''}`;
+      root.querySelector('.form-card h1')?.focus();root.querySelector('#reg-success-invoice')?.addEventListener('click',()=>window.SXTrainingRegistration.printInvoice(body.data,values,{nameEn:data.tenant.centerNameEn||data.tenant.name}));
       root.querySelector('#new-enquiry')?.addEventListener('click', () => {
         sessionStorage.removeItem(storageKey);
         render();
@@ -244,7 +247,7 @@
       });
     } catch (error) {
       const challengeError = String(error.message || '').startsWith('BOT_CHALLENGE');
-      const text = error.message === 'AUTH_REQUIRED' ? tr('Sign in with your staff account, then reopen this capture link.', 'سجّل الدخول بحساب الموظف ثم افتح رابط التسجيل مجددًا.')
+      const text = ['INVALID_SIGNATURE','REGISTRATION_DETAILS_REQUIRED','REFERRAL_NAME_REQUIRED','INVALID_QID','INVALID_STAFF_ATTENDED','INVALID_PAYMENT_PLAN','INVALID_REGISTRATION_SOURCE'].includes(error.message)?tr('Check the course, payment plan, QID, referral and signature details.','تحقق من الدورة وخطة الدفع والبطاقة والإحالة والتوقيع.') : error.message === 'AUTH_REQUIRED' ? tr('Sign in with your staff account, then reopen this capture link.', 'سجّل الدخول بحساب الموظف ثم افتح رابط التسجيل مجددًا.')
         : error.message === 'FORM_RATE_LIMITED' ? tr('Please wait a little before trying again.', 'يرجى الانتظار قليلًا قبل المحاولة مجددًا.')
           : challengeError ? tr('The security check expired or could not be verified. Complete it again and retry.', 'انتهت صلاحية التحقق الأمني أو تعذر التحقق منه. أكمله مجددًا ثم أعد المحاولة.')
             : tr('We could not save this enquiry. Check your connection and try again.', 'تعذر حفظ الاستفسار. تحقق من الاتصال وحاول مجددًا.');
