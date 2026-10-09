@@ -46,9 +46,10 @@ function processSocketEvent({
   getAllSocketData,
 }) {
   socket.on("message", async ({ type, payload }) => {
-    const { isAgent, uid } = socket?.userData || {};
+    const { isAgent, uid: actorUid } = socket?.userData || {};
 
     try {
+      const uid = isAgent ? actorUid : await require('../../modules/platform/team-inbox-scope').resolveInboxUid(query, socket.userData, type);
       switch (type) {
         case "get_chat_list":
           const {
