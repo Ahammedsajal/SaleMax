@@ -796,7 +796,7 @@
           : tr('Assign and activate a bot on a connected number first.','اربط روبوتًا وفعّله على رقم متصل أولاً.');
       }).catch(error => {
         if (!control.isConnected || control.dataset.conversationId !== id) return;
-        if (error.message === 'TENANT_PERMISSION_DENIED') {
+        if (['PERMISSION_DENIED', 'TEAM_ROLE_PERMISSION_DENIED'].includes(error.message)) {
           inboxBotControlsDenied = true;
           control.remove();
           return;
@@ -844,7 +844,7 @@
         : value.mode === 'paused' ? tr('Paused for this chat','متوقف لهذه المحادثة') : tr('Bot replies enabled','ردود الروبوت مفعلة');
     } catch (error) {
       control.remove();
-      if (error.message === 'TENANT_PERMISSION_DENIED') inboxBotControlsDenied = true;
+      if (['PERMISSION_DENIED', 'TEAM_ROLE_PERMISSION_DENIED'].includes(error.message)) inboxBotControlsDenied = true;
       if (error.message === 'CONVERSATION_NOT_FOUND' && manuallySelectedChatChannels.has(id)) {
         manuallySelectedChatChannels.delete(id);
         renderActiveChatControl({ id, scope:null });
