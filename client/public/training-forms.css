@@ -163,3 +163,69 @@
   .sx-app-pages{justify-content:space-between;gap:8px}
   .sx-app-pages button{min-height:42px}
 }
+
+/* Candidate Applications setup and review layout */
+#sx-forms-screen .sx-form-page-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:4px 0 18px}
+#sx-forms-screen .sx-form-page-heading h1{margin:4px 0 0}
+#sx-forms-screen .sx-form-page-heading p{margin:6px 0 0;max-width:700px}
+#sx-forms-screen .sx-form-eyebrow{display:block;color:#8a3856;font-size:11px;font-weight:800;letter-spacing:.12em}
+#sx-forms-screen .sx-form-management{padding:24px}
+#sx-forms-screen .sx-form-management .sx-form-toolbar{padding-bottom:18px;border-bottom:1px solid #e8edf1}
+#sx-forms-screen .sx-form-management .sx-form-toolbar p{margin:5px 0 0}
+#sx-forms-screen .sx-form-list{display:grid;gap:12px;margin-top:16px}
+#sx-forms-screen .sx-form-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:20px;padding:18px;border:1px solid #e1e7ed;border-radius:12px;background:#fbfcfe}
+#sx-forms-screen .sx-form-row-main{min-width:0}
+#sx-forms-screen .sx-form-title-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#sx-forms-screen .sx-form-title-line strong{font-size:15px;color:#243442}
+#sx-forms-screen .sx-form-badge{margin:0}
+#sx-forms-screen .sx-form-badge-draft{background:#eef2f6;color:#526476}
+#sx-forms-screen .sx-public-link{display:flex;align-items:center;gap:8px;min-width:0;margin-top:12px}
+#sx-forms-screen .sx-public-link>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#526476;font-size:12px}
+#sx-forms-screen .sx-form-copy-link{flex:none}
+#sx-forms-screen .sx-form-row-actions{display:flex;justify-content:flex-end}
+#sx-forms-screen .sx-form-edit{min-width:174px}
+#sx-forms-screen .sx-app-table tbody tr[data-app-row]{cursor:pointer}
+#sx-forms-screen .sx-app-table tbody tr[data-app-row]:hover{background:#f7f9fc}
+#sx-forms-screen .sx-app-table tbody tr[data-app-row]:focus-visible{outline:3px solid #a8003b55;outline-offset:-3px}
+#sx-forms-screen .sx-app-detail>section{width:min(980px,100%);padding:26px}
+#sx-forms-screen .sx-app-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:16px;border-bottom:1px solid #e5eaf0}
+#sx-forms-screen .sx-app-detail-header h2{margin:5px 0;font-size:24px;color:#182d41}
+#sx-forms-screen .sx-app-detail-header p{margin:0;font-size:13px}
+#sx-forms-screen .sx-app-detail-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+#sx-forms-screen .sx-app-detail-actions button{white-space:nowrap}
+#sx-forms-screen .sx-app-detail-meta{display:flex;gap:10px 18px;flex-wrap:wrap;padding:13px 0;color:#526476;font-size:13px}
+#sx-forms-screen .sx-app-detail-section{padding:16px 0;border-top:1px solid #e8edf1}
+#sx-forms-screen .sx-app-detail-section h3{margin:0;color:#243442;font-size:16px}
+#sx-forms-screen .sx-app-detail-section>p{margin:8px 0 0}
+#sx-forms-screen .sx-app-detail-data{margin:10px 0 0}
+#sx-forms-screen .sx-app-detail-data>div{display:grid;grid-template-columns:minmax(150px, .8fr) minmax(0,1.5fr);align-items:start;border:0;border-bottom:1px solid #edf0f3;padding:10px 4px}
+#sx-forms-screen .sx-app-detail-data strong{color:#526476;font-size:13px;text-transform:capitalize}
+#sx-forms-screen .sx-app-detail-data span{white-space:pre-wrap;overflow-wrap:anywhere;color:#243442}
+@media(max-width:720px){
+ #sx-forms-screen .sx-form-page-heading{align-items:stretch;flex-direction:column}
+ #sx-forms-screen .sx-form-management{padding:16px}
+ #sx-forms-screen .sx-form-row{grid-template-columns:minmax(0,1fr);gap:12px;padding:14px}
+ #sx-forms-screen .sx-form-row-actions{justify-content:stretch}
+ #sx-forms-screen .sx-form-edit{width:100%;min-height:44px}
+ #sx-forms-screen .sx-public-link{align-items:stretch;flex-wrap:wrap}
+ #sx-forms-screen .sx-public-link>span{flex:1 1 100%}
+ #sx-forms-screen .sx-public-link>*:not(span){flex:1}
+ #sx-forms-screen .sx-app-detail-header{flex-direction:column}
+ #sx-forms-screen .sx-app-detail-actions{width:100%;justify-content:stretch}
+ #sx-forms-screen .sx-app-detail-actions button{flex:1}
+ #sx-forms-screen .sx-app-detail-data>div{grid-template-columns:1fr;gap:4px}
+}
+@media print{
+ body.sx-print-app>:not(.sx-app-detail){display:none!important}
+ body.sx-print-app .sx-app-detail{position:static;display:block;inset:auto;padding:0;background:white;color:#111}
+ body.sx-print-app .sx-app-detail>section{width:100%;max-height:none;overflow:visible;padding:0;border:0;border-radius:0;box-shadow:none}
+ body.sx-print-app .sx-app-detail-actions,body.sx-print-app .sx-app-detail-meta a{display:none!important}
+ body.sx-print-app .sx-app-detail-header{display:block}
+ body.sx-print-app .sx-app-detail-header h2{font-size:21px}
+ body.sx-print-app .sx-app-detail-data>div{break-inside:avoid}
+ body.sx-print-app .sx-app-attribution{break-inside:avoid}
+}
+#sx-forms-screen .sx-app-hint{margin:-4px 0 8px;font-size:12px}
+#sx-forms-screen .sx-applicant-open{border:0;background:transparent;padding:0;color:#174ea6;text-align:start;text-decoration:underline;font:inherit;font-weight:700;cursor:pointer}
+#sx-forms-screen .sx-applicant-open:focus-visible{outline:3px solid #a8003b55;outline-offset:3px;border-radius:3px}
+@media print{body.sx-print-app .sx-applicant-open{color:#111;text-decoration:none}}
