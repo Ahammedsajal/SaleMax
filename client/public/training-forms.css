@@ -279,3 +279,19 @@
  .sx-app-detail{padding:10px}
  .sx-app-detail>section{max-height:calc(100dvh - 20px);padding:16px}
 }
+
+/* Consistent button sizing and alignment for form cards and the application dialog. */
+#sx-forms-screen .sx-form-management .sx-form-toolbar button{min-height:48px}
+#sx-forms-screen .sx-form-row{grid-template-columns:minmax(0,1fr)}
+#sx-forms-screen .sx-public-link{display:grid;grid-template-columns:minmax(120px,1fr) repeat(5,minmax(96px,120px));align-items:stretch;gap:8px;min-width:0}
+#sx-forms-screen .sx-public-link>span{grid-column:1;align-self:center;min-width:0}
+#sx-forms-screen .sx-public-link>button,
+#sx-forms-screen .sx-public-link>a{box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;height:48px;min-height:48px;max-height:48px;min-width:0;margin:0;padding:8px 10px;text-align:center;line-height:1.2;white-space:normal;overflow-wrap:anywhere}
+#sx-forms-screen .sx-public-link .sx-form-edit{min-width:0;width:100%}
+.sx-app-detail .sx-app-detail-actions{align-items:stretch}
+.sx-app-detail .sx-app-detail-actions>button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:48px;min-height:48px;max-height:48px;min-width:126px;margin:0;padding:8px 12px;line-height:1.2}
+@media(max-width:900px){
+ #sx-forms-screen .sx-public-link{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #sx-forms-screen .sx-public-link>span{grid-column:1/-1}
+ .sx-app-detail .sx-app-detail-actions>button{flex:1 1 0;min-width:0}
+}
