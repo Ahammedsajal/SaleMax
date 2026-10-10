@@ -1,0 +1,9 @@
+[Unit]
+Description=Check SaleMaX tenant CRM DNS ownership and routing records
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec salemax-app-1 node /app/scripts/tenant-crm-domain-ops.cjs audit-active-dns
+TimeoutStartSec=60

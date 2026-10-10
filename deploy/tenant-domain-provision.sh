@@ -106,6 +106,7 @@ fi
 if [[ ! -e $hook ]]; then install -m 0755 "$current/deploy/reload-nginx-after-renewal.sh" "$hook"; fi
 systemctl reload nginx
 trap - ERR
+"$current/deploy/install-tenant-domain-dns-audit.sh"
 if ! "${compose[@]}" exec -T app node /app/scripts/tenant-crm-domain-ops.cjs activate-tls "$host"; then
   echo 'TLS proxy is installed; tenant routing remains closed until the verified activation command succeeds.' >&2
   exit 1

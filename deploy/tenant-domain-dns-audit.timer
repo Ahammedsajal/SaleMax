@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic SaleMaX tenant CRM DNS audit
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+RandomizedDelaySec=2min
+Persistent=true
+Unit=tenant-domain-dns-audit.service
+
+[Install]
+WantedBy=timers.target

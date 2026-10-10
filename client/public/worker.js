@@ -1,4 +1,4 @@
-var CACHE_NAME = "salemax-20261010"; // Increment version to force update
+var CACHE_NAME = "salemax-20261010-tenantcrm2"; // Increment version to force update
 var PLATFORM_HOST = "crm.salemax.qa";
 var urlsToCache = ["/", "/completed"];
 

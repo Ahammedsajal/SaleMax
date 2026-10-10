@@ -66,9 +66,9 @@ function initializeSocket(server) {
       let hostname=null;try{hostname=domainService.normalizeHostname(String(socket.handshake.headers.host||'').replace(/:\d+$/,''));}catch{}
       if(hostname&&hostname!==domainService.ROOT_HOST){
         const origins=['https://'+hostname];if(!origins.includes(socket.handshake.headers.origin))return next(new Error('Origin denied'));
-        const [domains]=await query("SELECT tenant_id AS tenantId,status,tls_ready_at AS tlsReadyAt FROM sx_tenant_crm_domains WHERE hostname=? LIMIT 1",[hostname]);
+        const [domains]=await query("SELECT d.tenant_id AS tenantId,d.status,d.tls_ready_at AS tlsReadyAt,d.dns_health_status AS dnsHealthStatus,t.status AS tenantStatus FROM sx_tenant_crm_domains d JOIN sx_tenants t ON t.id=d.tenant_id WHERE d.hostname=? LIMIT 1",[hostname]);
         if(!domains?.length)return next(new Error('CRM domain unavailable'));
-        if(domains[0].status!=='active'||!domains[0].tlsReadyAt)return next(new Error('CRM domain inactive'));
+        if(domains[0].status!=='active'||!domains[0].tlsReadyAt||domains[0].tenantStatus!=='active'||domains[0].dnsHealthStatus==='stale')return next(new Error('CRM domain inactive'));
         socket.crmTenantDomain={hostname,tenantId:domains[0].tenantId};
       }
       socket.decodedToken = decoded;
@@ -96,8 +96,7 @@ function initializeSocket(server) {
       }
       if(socket.crmTenantDomain){
         const sourceTable=isAgent?'agents':'user';
-        const [ownership]=await query('SELECT tenant_id AS tenantId FROM sx_legacy_ownership WHERE source_table=? AND source_id=? LIMIT 2',[sourceTable,String(userData.id)]);
-        if(ownership.length!==1||ownership[0].tenantId!==socket.crmTenantDomain.tenantId)throw new Error('CRM domain tenant mismatch');
+        await require('./modules/platform/tenant-crm-domains').assertLegacyHost(query,socket,sourceTable,userData.id);
       }
 
       // Store user data on socket

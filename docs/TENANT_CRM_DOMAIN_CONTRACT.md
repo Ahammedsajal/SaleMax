@@ -8,7 +8,9 @@ This contract adds tenant-owned CRM hostnames and a separate CRM logo inside the
 - A hostname must be a normalized public subdomain outside `salemax.qa`. Apex/root domains and `*.salemax.qa` are rejected.
 - Host ownership requires a unique 256-bit TXT challenge and a direct CNAME to `crm.salemax.qa`. The raw challenge is returned only when issued or refreshed; only its SHA-256 hash is stored.
 - DNS verification sets the row to `verified`. It never grants access. The hostname reaches `active` only after the SaleMaX operator provisions and validates HTTPS.
-- The Host header selects a candidate tenant. Canonical session tenant ID, reviewed legacy ownership mapping, identity, membership and role permissions still authorize each operation.
+- The Host header selects a candidate tenant. Canonical session tenant ID, reviewed legacy ownership mapping, active identity, active membership, active tenant and role permissions still authorize each operation. Suspended tenants and inactive memberships fail closed on their custom host.
+- Customer-triggered DNS checks are serialized and limited to one per domain every 30 seconds. The challenge expires after 24 hours; an owner can rotate an expired pending challenge.
+- An installed 15-minute host timer checks TXT ownership and CNAME for active domains. It records `healthy` or `stale`; a stale domain stops serving CRM routes. The owner can correct DNS and recheck it from the canonical CRM settings page. Restored DNS reactivates host routing without deleting the domain history.
 - Existing user and agent login/middleware and Socket.IO handshakes enforce the custom hostname's tenant binding. Platform administration, public forms and public website pages are not routed through custom tenant hostnames.
 - CRM logos are stored outside `client/public` under a persistent private directory. Logo reads require the active mapped hostname or a matching canonical tenant session. Training Center public-profile logos remain independent.
 - Authenticated business API responses are excluded from service-worker caches. Tenant CRM origins do not persist dashboard or login responses offline.
@@ -24,7 +26,7 @@ All owner settings are served inside `/api/crm` and the current `/user?page=crm-
 | `GET /api/crm/tenant-context` | Minimal business name/logo for a verified custom-domain sign-in page | Active custom hostname only |
 | `POST /api/crm/domains` | Start a DNS challenge | Tenant owner, CSRF protected |
 | `POST /api/crm/domains/:id/challenge` | Rotate an expired/lost pending challenge | Tenant owner, CSRF protected |
-| `POST /api/crm/domains/:id/verify` | Check TXT and CNAME records, transition pending to verified | Tenant owner, CSRF protected |
+| `POST /api/crm/domains/:id/verify` | Check TXT and CNAME records; verify a pending domain or recover stale DNS for an active domain | Tenant owner, CSRF protected, 30-second DNS-check throttle |
 | `DELETE /api/crm/domains/:id` | Disable routing and preserve history | Tenant owner, CSRF protected |
 | `PUT /api/crm/branding` | Upload/replace/remove the separate CRM logo | Tenant owner, CSRF protected |
 | `GET /api/crm/logos/:tenantId/:filename` | Read an uploaded CRM logo | Matching active hostname or matching canonical tenant session |
@@ -36,17 +38,17 @@ Logo uploads accept JPEG, PNG, or WebP, check file signatures, and are limited t
 1. Owner enters a subdomain in CRM Appearance. SaleMaX issues a TXT value and displays a CNAME target.
 2. Owner adds the TXT record at `_salemax-verification.<hostname>` and the CNAME `<hostname> → crm.salemax.qa`.
 3. Owner selects **Check DNS records**. TXT hash and CNAME are checked; on success the state is `verified`.
-4. A SaleMaX operator runs `sudo /opt/salemax/current/deploy/tenant-domain-provision.sh <hostname>`. The script requires a verified database row, creates a hostname-specific HTTP challenge site, obtains a Let's Encrypt certificate, validates and reloads Nginx, and then marks TLS ready. The custom Nginx site proxies only to the existing CRM application. The app rejects `/admin`, public forms, and other public-website routes on this hostname.
+4. A SaleMaX operator runs `sudo /opt/salemax/current/deploy/tenant-domain-provision.sh <hostname>`. The script requires a verified database row and still-valid live DNS records, creates a hostname-specific HTTP challenge site, obtains a Let's Encrypt certificate, validates and reloads Nginx, and then marks TLS ready. The custom Nginx site proxies only to the existing CRM application. The app rejects `/admin`, public forms, public website routes, and health diagnostics on this hostname. Provisioning enables the 15-minute DNS audit timer.
 5. The host middleware serves the existing CRM shell. The custom login is tenant-forced; users and agents must have active reviewed ownership for that tenant. Every canonical API request repeats the tenant/session check.
-6. Owner removes the hostname in CRM Appearance to disable database routing immediately. Keep the HTTPS site/certificate while the customer's DNS still points to SaleMaX so visits receive a valid-TLS inactive response. After the customer removes the CNAME, an operator runs `sudo /opt/salemax/current/deploy/tenant-domain-retire.sh <hostname>` to remove the Nginx site and certificate.
+6. Owner removes the hostname in CRM Appearance to disable database routing immediately. Keep the HTTPS site/certificate while the customer's DNS still points to SaleMaX so visits receive a valid-TLS inactive response. After the customer removes the CNAME, an operator runs `sudo /opt/salemax/current/deploy/tenant-domain-retire.sh <hostname>`. The script requires the DB row to be disabled and public DNS to confirm the SaleMaX CNAME is absent; it checks that the Nginx marker and certificate references are owned by this domain, backs up the site config in a mode-0700 directory, removes the mapping, reloads Nginx, and deletes only the certificate named `salemax-<hostname>`.
 
 Let's Encrypt renewal uses its saved webroot authenticator. Provisioning installs a safe Nginx reload deploy hook if none exists and refuses to overwrite a different existing hook.
 
 ## Migration and rollback
 
-Migration `20261124_tenant_crm_domains.sql` adds hostname lifecycle/history and separate CRM branding storage. Its generated unique key allows only one current hostname per tenant while retaining any number of disabled historical rows.
+Migration `20261124_tenant_crm_domains.sql` adds hostname lifecycle/history and separate CRM branding storage. Migration `20261125_tenant_crm_dns_rate_limit.sql` adds the persistent DNS-check throttle and health state. A nullable unique tenant key allows only one current hostname per tenant while retaining disabled historical rows.
 
-Database rollback is intentionally not an automated `DROP TABLE`: preserve disabled and active tenant-domain history. Application rollback disables the UI/routes; keep the migration and private logo volume. If a custom hostname must be taken out of service, disable it through the owner workflow first, then retire its Nginx site/certificate only after DNS no longer targets SaleMaX.
+Database rollback is intentionally not an automated `DROP TABLE`: preserve disabled and active tenant-domain history. Application rollback disables the UI/routes; keep the migration and private logo volume. If a custom hostname must be taken out of service, disable it through the owner workflow first, then retire its Nginx site/certificate only after DNS no longer targets SaleMaX. The retirement script refuses an active database mapping, unresolved/still-pointing DNS, or an Nginx/certificate reference it cannot prove is managed.
 
 Production needs `/opt/salemax/shared/crm-tenant-logos` owned by the app container UID/GID (`1000:1000`) with mode `0700`, mounted as `/app/private/crm-tenant-logos`. Do not put these files in Git or the public media directory.
 

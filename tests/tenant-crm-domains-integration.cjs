@@ -10,6 +10,9 @@ module.exports=async function tenantCrmDomainsIntegration(db,{t1,i1,m1,t2,i2}){
  await domains.activateAfterTls(db,'crm.synthetic-example.qa');
  assert.equal((await domains.findHost(db,'crm.synthetic-example.qa')).status,'active');
  await domains.assertTenantHost(db,{crmTenantDomain:{hostname:'crm.synthetic-example.qa',tenantId:t1}},t1);
+ const stale=await domains.auditActiveDns(db,{resolveTxt:async()=>[],resolveCname:async()=>[]});assert.equal(stale.stale,1);assert.equal((await domains.findHost(db,'crm.synthetic-example.qa')).dnsHealthStatus,'stale');
+ await assert.rejects(domains.assertTenantHost(db,{crmTenantDomain:{hostname:'crm.synthetic-example.qa',tenantId:t1}},t1),{code:'CRM_DOMAIN_INACTIVE'});
+ await domains.verifyDomain(db,ctx,start.id,{resolveTxt:async()=>[[start.txtValue]],resolveCname:async()=>['crm.salemax.qa.']});assert.equal((await domains.findHost(db,'crm.synthetic-example.qa')).dnsHealthStatus,'healthy');
  await assert.rejects(domains.assertTenantHost(db,{crmTenantDomain:{hostname:'crm.synthetic-example.qa',tenantId:t1}},t2),{code:'CRM_DOMAIN_TENANT_MISMATCH'});
  const [[claimed]]=await db.query('SELECT verification_token_hash AS tokenHash,status FROM sx_tenant_crm_domains WHERE id=?',[start.id]);
  assert.equal(claimed.status,'active');assert.equal(claimed.tokenHash,crypto.createHash('sha256').update(start.txtValue.slice('salemax-domain-verification='.length)).digest('hex'));
@@ -19,7 +22,9 @@ module.exports=async function tenantCrmDomainsIntegration(db,{t1,i1,m1,t2,i2}){
  await assert.rejects(domains.requestDomain(db,ctx,{hostname:'crm.claimed-example.qa'}),{code:'HOSTNAME_ALREADY_CLAIMED'});
  const replacement=await domains.requestDomain(db,ctx,{hostname:'crm.replacement-example.qa'});
  const refreshed=await domains.rotateDomainChallenge(db,ctx,replacement.id);assert.equal(refreshed.hostname,replacement.hostname);assert.notEqual(refreshed.txtValue,replacement.txtValue);
+ await assert.rejects(domains.verifyDomain(db,ctx,replacement.id,{resolveTxt:async()=>[['salemax-domain-verification=incorrect']],resolveCname:async()=>['crm.salemax.qa.']}),{code:'DOMAIN_TXT_NOT_VERIFIED'});
+ await assert.rejects(domains.verifyDomain(db,ctx,replacement.id,{resolveTxt:async()=>[[refreshed.txtValue]],resolveCname:async()=>['crm.salemax.qa.']}),{code:'DOMAIN_DNS_RATE_LIMITED'});
  const [history]=await db.query('SELECT hostname,status FROM sx_tenant_crm_domains WHERE tenant_id=?',[t1]);
  assert.deepEqual(history.map(r=>[r.hostname,r.status]).sort((a,b)=>a[0].localeCompare(b[0])),[['crm.replacement-example.qa','pending'],['crm.synthetic-example.qa','disabled']]);
- return {tenantCrmDomainVerification:true,tenantHostBinding:true,tenantDomainHistoryAndReplacement:true,domainOwnershipTokenHashOnly:true};
+ return {tenantCrmDomainVerification:true,tenantHostBinding:true,tenantDomainHistoryAndReplacement:true,domainOwnershipTokenHashOnly:true,domainDnsCheckRateLimited:true,staleDnsDetectionAndRecovery:true};
 };
