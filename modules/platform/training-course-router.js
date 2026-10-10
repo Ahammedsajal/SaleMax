@@ -124,6 +124,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard })
   router.post('/:id/batches', contextGuard, wrap(async (req, res) => res.status(201).json({ success: true, data: await withConnection(courses.addBatch)(req.courseContext, req.params.id, req.body) })));
   router.put('/:id/batches/:batchId', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.updateBatch)(req.courseContext, req.params.id, req.params.batchId, req.body) })));
   router.post('/:id/publish', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.publish)(req.courseContext, req.params.id, req.body.expectedRevision) })));
+  router.post('/:id/restore-and-publish', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.restoreAndPublish)(req.courseContext, req.params.id, req.body.expectedRevision) })));
   router.post('/:id/retire', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.retire)(req.courseContext, req.params.id, req.body.expectedRevision) })));
 
   router.use(async (error, req, res, next) => {
