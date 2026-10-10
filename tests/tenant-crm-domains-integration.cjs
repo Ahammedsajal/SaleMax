@@ -7,7 +7,7 @@ module.exports=async function tenantCrmDomainsIntegration(db,{t1,i1,m1,t2,i2}){
  await assert.rejects(domains.requestDomain(db,ctx,{hostname:'other.synthetic-example.qa'}),{code:'DOMAIN_ALREADY_CONFIGURED'});
  const verified=await domains.verifyDomain(db,ctx,start.id,{resolveTxt:async name=>{assert.equal(name,'_salemax-verification.crm.synthetic-example.qa');return [[start.txtValue]];},resolveCname:async host=>{assert.equal(host,'crm.synthetic-example.qa');return ['crm.salemax.qa.'];}});
  assert.equal(verified.status,'verified');assert.equal(verified.tlsReady,false);
- await domains.activateAfterTls(db,'crm.synthetic-example.qa');
+ await domains.activateAfterTls(db,'crm.synthetic-example.qa',{resolveTxt:async()=>[[start.txtValue]],resolveCname:async()=>['crm.salemax.qa.']});
  assert.equal((await domains.findHost(db,'crm.synthetic-example.qa')).status,'active');
  await domains.assertTenantHost(db,{crmTenantDomain:{hostname:'crm.synthetic-example.qa',tenantId:t1}},t1);
  const stale=await domains.auditActiveDns(db,{resolveTxt:async()=>[],resolveCname:async()=>[]});assert.equal(stale.stale,1);assert.equal((await domains.findHost(db,'crm.synthetic-example.qa')).dnsHealthStatus,'stale');
