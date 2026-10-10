@@ -12,7 +12,7 @@ CREATE TABLE sx_tenant_crm_domains (
   created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  active_tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin AS (CASE WHEN status IN ('pending','verified','active') THEN tenant_id ELSE NULL END) PERSISTENT,
+  active_tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_sx_tenant_crm_domains_one_current (active_tenant_id),
   UNIQUE KEY uq_sx_tenant_crm_domains_hostname (hostname),
