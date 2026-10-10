@@ -5,7 +5,7 @@
   const ar=()=>{const l=(localStorage.getItem('language')||'').toLowerCase();return l.startsWith('ar')||l.includes('arabic');};
   const tr=(en,arabic)=>ar()?arabic:en, esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function readableData(value,summary=false){
-    const empty=v=>v==null||v===''||(Array.isArray(v)&&!v.length)||(v&&typeof v==='object'&&!Array.isArray(v)&&!Object.keys(v).length),label=k=>String(k).replace(/([a-z])([A-Z])/g,'$1 $2').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
+    const empty=v=>v==null||v===''||(Array.isArray(v)&&!v.length)||(v&&typeof v==='object'&&!Array.isArray(v)&&Object.values(v).every(empty)),label=k=>String(k).replace(/([a-z])([A-Z])/g,'$1 $2').replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
     if(empty(value))return `<span class="sx-st-muted">${tr('Not provided','غير متوفر')}</span>`;
     if(typeof value==='string'&&/^[\[{]/.test(value.trim())){try{const parsed=JSON.parse(value);if(parsed&&typeof parsed==='object')return readableData(parsed,summary);}catch{}}
     if(typeof value==='boolean')return tr(value?'Yes':'No',value?'نعم':'لا');

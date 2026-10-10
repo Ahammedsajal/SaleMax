@@ -258,3 +258,6 @@
 .sx-app-field-value{min-width:0;overflow-wrap:anywhere;color:#243442}.sx-readable-dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0}.sx-readable-dl>div{min-width:0;padding:8px 10px;background:#f8fafc;border:1px solid #e8edf2;border-radius:8px}.sx-readable-dl dt{font-size:12px;color:#667085}.sx-readable-dl dd{margin:3px 0 0;overflow-wrap:anywhere}.sx-readable-table-wrap{overflow:auto;max-width:100%}.sx-readable-table{width:100%;border-collapse:collapse;font-size:13px}.sx-readable-table th,.sx-readable-table td{padding:8px;border-bottom:1px solid #e8edf2;text-align:start;vertical-align:top}.sx-readable-table th{background:#f8fafc;color:#526476}.sx-readable-list{margin:0;padding-inline-start:22px}.sx-readable-empty{color:#7a8793;font-style:italic}
 @media(max-width:720px){.sx-readable-dl{grid-template-columns:1fr}.sx-app-detail-data>div{grid-template-columns:1fr!important;gap:5px}}
 @media print{.sx-readable-dl>div{break-inside:avoid}.sx-readable-table tr{break-inside:avoid}}
+
+.sx-app-detail-data>div.sx-app-field-complex{grid-column:1/-1}.sx-app-field-complex .sx-readable-table{table-layout:auto;min-width:560px}.sx-app-field-complex .sx-readable-dl{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:720px){.sx-app-field-complex .sx-readable-dl{grid-template-columns:1fr}}
