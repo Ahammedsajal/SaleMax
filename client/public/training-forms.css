@@ -229,3 +229,27 @@
 #sx-forms-screen .sx-applicant-open{border:0;background:transparent;padding:0;color:#174ea6;text-align:start;text-decoration:underline;font:inherit;font-weight:700;cursor:pointer}
 #sx-forms-screen .sx-applicant-open:focus-visible{outline:3px solid #a8003b55;outline-offset:3px;border-radius:3px}
 @media print{body.sx-print-app .sx-applicant-open{color:#111;text-decoration:none}}
+
+/* The detail dialog is appended to body so its modal actions need unscoped rules. */
+.sx-app-detail>section{width:min(980px,100%);padding:26px}
+.sx-app-detail .sx-app-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:16px;border-bottom:1px solid #e5eaf0}
+.sx-app-detail .sx-app-detail-header h2{margin:5px 0;font-size:24px;color:#182d41}
+.sx-app-detail .sx-app-detail-header p{margin:0;font-size:13px}
+.sx-app-detail .sx-app-detail-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.sx-app-detail .sx-app-detail-actions>button{border:1px solid #ccd6df;border-radius:8px;background:#fff;padding:9px 14px;color:#314757;font:inherit;cursor:pointer;white-space:nowrap}
+.sx-app-detail .sx-app-detail-actions>button[data-print]{background:#a8003b;color:#fff;border-color:#a8003b}
+.sx-app-detail .sx-app-detail-meta{display:flex;gap:10px 18px;flex-wrap:wrap;padding:13px 0;color:#526476;font-size:13px}
+.sx-app-detail .sx-app-detail-section{padding:16px 0;border-top:1px solid #e8edf1}
+.sx-app-detail .sx-app-detail-section h3{margin:0;color:#243442;font-size:16px}
+.sx-app-detail .sx-app-detail-section>p{margin:8px 0 0}
+.sx-app-detail .sx-app-detail-data{margin:10px 0 0}
+.sx-app-detail .sx-app-detail-data>div{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(0,1.5fr);align-items:start;border:0;border-bottom:1px solid #edf0f3;padding:10px 4px}
+.sx-app-detail .sx-app-detail-data strong{color:#526476;font-size:13px;text-transform:capitalize}
+.sx-app-detail .sx-app-detail-data span{white-space:pre-wrap;overflow-wrap:anywhere;color:#243442}
+@media(max-width:720px){
+ .sx-app-detail>section{padding:16px}
+ .sx-app-detail .sx-app-detail-header{flex-direction:column}
+ .sx-app-detail .sx-app-detail-actions{width:100%;justify-content:stretch}
+ .sx-app-detail .sx-app-detail-actions>button{flex:1}
+ .sx-app-detail .sx-app-detail-data>div{grid-template-columns:1fr;gap:4px}
+}
