@@ -261,3 +261,21 @@
 
 .sx-app-detail-data>div.sx-app-field-complex{grid-column:1/-1}.sx-app-field-complex .sx-readable-table{table-layout:auto;min-width:560px}.sx-app-field-complex .sx-readable-dl{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:720px){.sx-app-field-complex .sx-readable-dl{grid-template-columns:1fr}}
+
+
+/* Keep the submitted-application dialog and its title/actions inside narrow viewports. */
+.sx-app-detail{box-sizing:border-box;min-width:0}
+.sx-app-detail>section{box-sizing:border-box;width:min(980px,100%);min-width:0}
+.sx-app-detail .sx-app-detail-header>div:first-child{min-width:0;flex:1 1 320px}
+.sx-app-detail .sx-app-detail-header h2{overflow-wrap:anywhere}
+.sx-app-detail .sx-app-detail-actions{min-width:0;flex:0 1 auto}
+@media(max-width:900px){
+ .sx-app-detail>section{width:100%}
+ .sx-app-detail .sx-app-detail-header{flex-direction:column}
+ .sx-app-detail .sx-app-detail-actions{width:100%;justify-content:stretch}
+ .sx-app-detail .sx-app-detail-actions>button{flex:1 1 auto}
+}
+@media(max-width:720px){
+ .sx-app-detail{padding:10px}
+ .sx-app-detail>section{max-height:calc(100dvh - 20px);padding:16px}
+}
