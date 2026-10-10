@@ -1,5 +1,9 @@
 # SaleMaX implementation status
 
+## Restore and publish retired courses — production, 10 October 2026
+
+The existing Courses detail dialog now has a bilingual Restore & publish action. Its tenant-scoped API requires the course to remain retired, checks the expected revision and a current active price offer, then sets the course active and writes an audit event in the same transaction. Course, offer and batch history are preserved. Source commit `4bd95f7b889e978a2f43accea65aab426b63fd01` is live in `/opt/salemax/releases/course-restore-publish-4bd95f7-20261010`. JavaScript syntax checks and production health/asset hash verification passed. No test suite or authenticated English/Arabic browser acceptance was run; no production course was changed during verification. The user-specific retired course still needs acceptance in the live UI.
+
 ## Lead detail page — local source increment, 9 October 2026
 
 Lead selections in the existing Pipeline now navigate to a deep-linkable full-page view (`?lead=<id>&view=detail`) while retaining the existing authenticated lead record, assignments, follow-up, application, sale-review, conversation and activity controls. Saving an edit refreshes the same lead page; the Back to leads control returns to the list. Focused lead-page and related pipeline tests pass 16/16, and the browser script passes `node --check`. This is local source only: no live UI, authenticated browser, deployment, or production data verification has been completed. The SaleMaX category, product/service catalogue, requirement form and imported-lead workflow remain open.
