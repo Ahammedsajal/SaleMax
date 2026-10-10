@@ -52,6 +52,8 @@ const validateAgent = async (req, res, next) => {
         }
 
         if (getAgent[0].role === "agent") {
+          try { await require('../modules/platform/tenant-crm-domains').assertLegacyHost(query,req,'agents',getAgent[0].id); }
+          catch (error) { return res.status(error.status||403).json({success:false,code:error.code||'CRM_DOMAIN_TENANT_MISMATCH'}); }
           req.owner = getOwner[0];
           req.decode = decode;
           req.decode.userData = getAgent[0];

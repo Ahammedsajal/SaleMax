@@ -18,9 +18,10 @@ async function withConnection(pool,work){const db=await pool.getConnection();try
 // Called only after the existing legacy login has verified this exact password.
 // The old stored hash is never copied; the submitted password is freshly hashed
 // with the canonical cost before the tenant session is created.
-async function issueForVerifiedLegacyAccount({kind,legacyId,legacyUid,legacyEmail,password,address,origin,expectedOrigin,pool,key,local}={}){
+async function issueForVerifiedLegacyAccount({kind,legacyId,legacyUid,legacyEmail,password,address,origin,tenantHost,expectedOrigin,pool,key,local}={}){
   const config=configuration({pool,key,expectedOrigin,local});if(!config)return null;
-  if(!origin||origin!==config.origin)return null;
+  const customOrigin=typeof tenantHost==='string'&&origin===`https://${tenantHost}`;
+  if(!origin||(origin!==config.origin&&!customOrigin))return null;
   const source=kind==='user'?'user':kind==='agent'?'agents':null;
   const expectedRoles=kind==='user'?['owner','accountant','manager']:kind==='agent'?['agent']:null;
   if(!source||!expectedRoles||!Number.isSafeInteger(Number(legacyId))||Number(legacyId)<1||typeof legacyUid!=='string'||!legacyUid||email(legacyEmail)===''||typeof password!=='string')return null;
@@ -36,6 +37,7 @@ async function issueForVerifiedLegacyAccount({kind,legacyId,legacyUid,legacyEmai
     if(!rows.length){await db.commit();return null;}
     if(rows.length!==1)throw Object.assign(new Error('BUSINESS_LINK_INVALID'),{code:'BUSINESS_LINK_INVALID'});
     const mapping=rows[0];
+    if(customOrigin)await require('./tenant-crm-domains').assertTenantHost(db,{crmTenantDomain:{hostname:tenantHost,tenantId:mapping.tenantId}},mapping.tenantId);
     if(mapping.legacyUidHash!==uidHash(legacyUid)||email(mapping.email)!==email(legacyEmail)||!expectedRoles.includes(mapping.role)||mapping.membershipStatus!=='active'||mapping.identityStatus!=='active'||mapping.tenantStatus!=='active'||mapping.categoryKey!=='training_center'||Number(mapping.categoryVersion)!==1){
       throw Object.assign(new Error('BUSINESS_ACCESS_INACTIVE'),{code:'BUSINESS_ACCESS_INACTIVE'});
     }

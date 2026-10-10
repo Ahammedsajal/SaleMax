@@ -13,7 +13,10 @@ const {createAsteriskRouter}=require('./asterisk-router');
 const {createCallCenterRouter}=require('./call-center-router');
 const {createTaskRouter}=require('./task-router');
 const {createTaskContext}=require('./training-task-context');
+const {createTenantCrmRouter}=require('./tenant-crm-router');
 function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacyGuard,userGuard=require('../../middlewares/user')}){
+  const tenantCrmDomains=require('./tenant-crm-domains');
+  app.use(tenantCrmDomains.middleware(pool));
   const boundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'platform'});
   const businessBoundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'tenant'});
   // Existing /admin panel only: no separate catalogue, login page or application shell.
@@ -21,6 +24,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   // Business sessions use the existing /user API surface and never accept the
   // separate platform-admin audience.
   app.use('/api/user/business-auth',businessBoundary.router);
+  app.use('/api/crm',createTenantCrmRouter({pool,canonicalGuard:businessBoundary.guard}));
   app.use('/api/admin/plan-contracts',createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard:boundary.guard}));
   app.use('/api/admin/business-contracts',createExistingBusinessRouter({pool,legacyGuard,canonicalGuard:boundary.guard}));
   const access=createExistingPlatformAccessRouters({pool,origin});
@@ -46,7 +50,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   return boundary;
 }
 function mountConfiguredUpgrade(app){
-  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/user/team-invitations','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/call-center','/api/public/training/forms','/api/public/training/documents','/api/public/training/reminder-preferences','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
+  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/crm','/api/user/team-invitations','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/call-center','/api/public/training/forms','/api/public/training/documents','/api/public/training/reminder-preferences','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
   const secret=process.env.SALEMAX_PLATFORM_KEY_BASE64;
   if(typeof secret!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(secret))throw new Error('PLATFORM_KEY_REQUIRED');
   const key=Buffer.from(secret,'base64');if(key.length!==32||key.toString('base64')!==secret)throw new Error('PLATFORM_KEY_INVALID');

@@ -1,4 +1,5 @@
-var CACHE_NAME = "salemax-20260930"; // Increment version to force update
+var CACHE_NAME = "salemax-20261010"; // Increment version to force update
+var PLATFORM_HOST = "crm.salemax.qa";
 var urlsToCache = ["/", "/completed"];
 
 // Install a service worker
@@ -8,7 +9,7 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 
   event.waitUntil(
-    caches
+    (self.location.hostname !== PLATFORM_HOST ? Promise.resolve() : caches
       .open(CACHE_NAME)
       .then(function (cache) {
         console.log("Service Worker: Opened cache");
@@ -16,12 +17,23 @@ self.addEventListener("install", (event) => {
       })
       .catch((err) => {
         console.log("Service Worker: Cache failed", err);
-      }),
+      })),
   );
 });
 
 // Cache and return requests - NETWORK FIRST STRATEGY
 self.addEventListener("fetch", (event) => {
+  // Tenant domains are CRM-only origins. Do not persist tenant login pages,
+  // tenant branding, or CRM responses in an offline cache on those origins.
+  if (self.location.hostname !== PLATFORM_HOST) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+  // Authenticated business APIs can contain account-scoped information.
+  if (new URL(event.request.url).pathname.startsWith("/api/")) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
   event.respondWith(
     fetch(event.request)
       .then(function (response) {
@@ -61,7 +73,7 @@ self.addEventListener("fetch", (event) => {
 // Update a service worker
 self.addEventListener("activate", (event) => {
   console.log("Service Worker: Activating...");
-  var cacheWhitelist = ["salemax-20260930"]; // Update this with new version
+  var cacheWhitelist = ["salemax-20261010"]; // Update this with new version
 
   event.waitUntil(
     caches
@@ -82,4 +94,3 @@ self.addEventListener("activate", (event) => {
       }),
   );
 });
-

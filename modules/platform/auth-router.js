@@ -20,17 +20,20 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudienc
   async function connection(fn){const db=await pool.getConnection();try{return await fn(db);}finally{db.release();}}
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   const audienceMatches=context=>!!context&&(allowedAudience==='any'||context.audience===allowedAudience);
-  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&req.get('Origin')!==origin)return res.status(403).json({code:'ORIGIN_DENIED'});next();});
+  const sameOrigin=require('./request-origin').matches;
+  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&!sameOrigin(req,origin))return res.status(403).json({code:'ORIGIN_DENIED'});next();});
   router.use(express.json({limit:'8kb',strict:true}));
   router.post('/login',wrap(async(req,res)=>{
     if(allowedAudience!=='any'&&req.body?.audience!==allowedAudience)return res.status(400).json({code:'AUTH_INVALID'});
-    const result=await connection(db=>auth.login(db,req.body,req.socket.remoteAddress));
+    const loginInput={...req.body};if(req.crmTenantDomain){if(loginInput.audience!=='tenant')return res.status(401).json({code:'AUTH_INVALID'});delete loginInput.tenantSlug;loginInput.tenantId=req.crmTenantDomain.tenantId;}
+    const result=await connection(db=>auth.login(db,loginInput,req.socket.remoteAddress));
     res.cookie(cookieName,result.token,{...cookie,maxAge:result.maxAgeSeconds*1000});
     res.json({context:result.context,csrfToken:result.csrfToken,mfaRequired:result.mfaRequired});
   }));
   router.get('/me',wrap(async(req,res)=>{
     const raw=token(req),context=await connection(db=>loadSession(db,raw));
     if(!audienceMatches(context))return res.status(401).json({code:'AUTH_REQUIRED'});
+    if(req.crmTenantDomain&&context.audience==='tenant'&&context.tenant.id!==req.crmTenantDomain.tenantId)return res.status(403).json({code:'CRM_DOMAIN_TENANT_MISMATCH'});
     res.json({context,csrfToken:auth.csrf(raw),mfaRequired:context.audience==='platform'&&!context.mfaVerified});
   }));
   // The existing administrator screen first validates its legacy account. It
@@ -77,9 +80,10 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudienc
   }
   async function requireContext(req,res){
     const raw=token(req);
-    if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(req.get('Origin')!==origin||!auth.validCsrf(raw,req.get('X-CSRF-Token'))))return res.status(403).json({code:'CSRF_DENIED'});
+    if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(!sameOrigin(req,origin)||!auth.validCsrf(raw,req.get('X-CSRF-Token'))))return res.status(403).json({code:'CSRF_DENIED'});
     const context=await connection(db=>contextFor(db,raw));
     if(!audienceMatches(context))return res.status(401).json({code:'AUTH_REQUIRED'});
+    if(req.crmTenantDomain&&context.audience==='tenant'&&context.tenant.id!==req.crmTenantDomain.tenantId)return res.status(403).json({code:'CRM_DOMAIN_TENANT_MISMATCH'});
     if(context.audience==='platform'&&!context.mfaVerified)return res.status(403).json({code:'MFA_REQUIRED'});
     req.businessContext=context;
     return true;

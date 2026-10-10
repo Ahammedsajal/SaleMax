@@ -27,6 +27,7 @@ services:
     env_file: /opt/salemax/shared/runtime.env
     environment:
       SALEMAX_LICENSE_FILE: /app/license-store/license.json
+      SALEMAX_CRM_LOGO_ROOT: /app/private/crm-tenant-logos
     extra_hosts:
       - "crm.salemax.qa:host-gateway"
     ports: ["127.0.0.1:3011:3010"]
@@ -39,6 +40,7 @@ services:
     volumes:
       - /opt/salemax/shared/license:/app/license-store
       - /opt/salemax/shared/media:/app/client/public/media
+      - /opt/salemax/shared/crm-tenant-logos:/app/private/crm-tenant-logos
       - /opt/salemax/shared/course-media:/app/database/local-runtime/course-media
       - /opt/salemax/shared/meta-media:/app/client/public/meta-media
       - /opt/salemax/shared/sessions:/app/sessions

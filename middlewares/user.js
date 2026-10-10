@@ -32,6 +32,8 @@ const validateUser = async (req, res, next) => {
           });
         }
         if (getUser[0].role === "user") {
+          try { await require('../modules/platform/tenant-crm-domains').assertLegacyHost(query,req,'user',getUser[0].id); }
+          catch (error) { return res.status(error.status||403).json({success:false,code:error.code||'CRM_DOMAIN_TENANT_MISMATCH'}); }
           req.decode = decode;
           req.decode.userData = getUser[0];
           const roleGuard = require('../modules/platform/team-role-request-guard');

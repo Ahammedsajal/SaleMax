@@ -429,7 +429,10 @@ router.post("/login", async (req, res) => {
 
     if(Number(agentFind[0].is_active)!==1)return res.status(403).json({success:false,msg:"This agent account is inactive."});
 
-    const businessSession = await issueForVerifiedLegacyAccount({kind:'agent',legacyId:Number(agentFind[0].id),legacyUid:agentFind[0].uid,legacyEmail:agentFind[0].email,password,address:req.socket.remoteAddress,origin:req.get('Origin')});
+    try { await require('../modules/platform/tenant-crm-domains').assertLegacyHost(query,req,'agents',agentFind[0].id); }
+    catch (error) { return res.status(error.status||403).json({success:false,code:error.code||'CRM_DOMAIN_TENANT_MISMATCH'}); }
+
+    const businessSession = await issueForVerifiedLegacyAccount({kind:'agent',legacyId:Number(agentFind[0].id),legacyUid:agentFind[0].uid,legacyEmail:agentFind[0].email,password,address:req.socket.remoteAddress,origin:req.get('Origin'),tenantHost:req.crmTenantDomain?.hostname});
 
     // Generate token
     const token = sign(

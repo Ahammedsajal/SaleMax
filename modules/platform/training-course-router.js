@@ -21,7 +21,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard })
   router.use((req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
-    if (req.get('Origin') !== origin) return res.status(403).json({ success: false, code: 'ORIGIN_DENIED' });
+    if (!require('./request-origin').matches(req,origin)) return res.status(403).json({ success: false, code: 'ORIGIN_DENIED' });
     if (req.is('multipart/form-data')) return next();
     if (req.method === 'DELETE' && !req.body) return next();
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ success: false, code: 'INVALID_BODY' });

@@ -18,7 +18,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   router.use((req,res,next)=>{
     res.setHeader('Cache-Control','no-store');
     if(!['GET','HEAD','OPTIONS'].includes(req.method)){
-      if(!origin||req.get('Origin')!==origin)return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
+      if(!origin||!require('./request-origin').matches(req,origin))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
       if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))return res.status(400).json({success:false,code:'INVALID_BODY'});
     }
     next();

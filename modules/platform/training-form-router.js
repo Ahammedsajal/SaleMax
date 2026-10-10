@@ -13,7 +13,7 @@ function publicFormMetadata(data,publicUrl,language='en'){
 function createTrainingFormRouter({pool,origin,userGuard}){
   const router=express.Router();const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   router.use(express.json({limit:'32kb',strict:true}));
-  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(req.get('Origin')!==origin||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(req.get('Origin')!==origin?403:400).json({success:false,code:req.get('Origin')!==origin?'ORIGIN_DENIED':'INVALID_BODY'});next();});
+  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(!require('./request-origin').matches(req,origin)||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(!require('./request-origin').matches(req,origin)?403:400).json({success:false,code:!require('./request-origin').matches(req,origin)?'ORIGIN_DENIED':'INVALID_BODY'});next();});
   router.use(userGuard);
   router.use((req,res,next)=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.formContext=ctx;next();}).catch(next));
   const connection=fn=>async(...args)=>{const db=await pool.getConnection();try{return await fn(db,...args);}finally{db.release();}};
@@ -33,7 +33,7 @@ function createPublicTrainingFormRouter({app,pool,rateKey,origin,turnstile}){
   router.get('/:tenantSlug/:formSlug',async(req,res,next)=>{res.setHeader('Cache-Control','no-store');try{const data=await forms.publicForm(pool,req.params.tenantSlug,req.params.formSlug);if(!data)return res.status(404).json({success:false,code:'FORM_NOT_FOUND'});return res.json({success:true,data:{...data,botChallenge:challenge.publicConfig}});}catch(error){return next(error);}});
   router.post('/:tenantSlug/:formSlug/submissions',async(req,res,next)=>{
     res.setHeader('Cache-Control','no-store');
-    if(req.get('Origin')!==origin)return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
+    if(!require('./request-origin').matches(req,origin))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
     try{
       if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values','website','challengeToken','campaignAttribution'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
       if(typeof req.body.website==='string'&&req.body.website.trim())return res.status(201).json({success:true,data:{referenceCode:crypto.randomBytes(6).toString('hex').toUpperCase()}});

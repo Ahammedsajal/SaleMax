@@ -289,7 +289,9 @@ router.post("/login", async (req, res) => {
     if (!compare) {
       return res.json({ msg: "Invalid credentials" });
     } else {
-      const businessSession = await issueForVerifiedLegacyAccount({kind:'user',legacyId:Number(userFind[0].id),legacyUid:userFind[0].uid,legacyEmail:userFind[0].email,password,address:req.socket.remoteAddress,origin:req.get('Origin')});
+      try { await require('../modules/platform/tenant-crm-domains').assertLegacyHost(query,req,'user',userFind[0].id); }
+      catch (error) { return res.status(error.status||403).json({success:false,code:error.code||'CRM_DOMAIN_TENANT_MISMATCH'}); }
+      const businessSession = await issueForVerifiedLegacyAccount({kind:'user',legacyId:Number(userFind[0].id),legacyUid:userFind[0].uid,legacyEmail:userFind[0].email,password,address:req.socket.remoteAddress,origin:req.get('Origin'),tenantHost:req.crmTenantDomain?.hostname});
       const token = sign(
         {
           uid: userFind[0].uid,

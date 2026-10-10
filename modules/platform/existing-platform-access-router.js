@@ -56,7 +56,7 @@ function createExistingPlatformAccessRouters({pool,origin}){
   accept.use((req,res,next)=>{
     res.setHeader('Cache-Control','no-store');
     if(req.method!=='POST')return next();
-    if(req.get('Origin')!==origin)return res.status(403).json({code:'ORIGIN_DENIED'});
+    if(!require('./request-origin').matches(req,origin))return res.status(403).json({code:'ORIGIN_DENIED'});
     next();
   });
   accept.use(express.json({limit:'8kb',strict:true}));
