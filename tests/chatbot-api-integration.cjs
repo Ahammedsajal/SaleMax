@@ -397,8 +397,8 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(overviewFallbackResult.sent, true, 'a provider error during a known course overview uses its published-facts fallback');
     assert.equal(overviewFallbackResult.route, 'facts');
     assert.match(sentMessages.at(-1).content.text.body, /Approved synthetic outline/);
-    const [[overviewFallbackControl]] = await connection.query('SELECT mode FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND conversation_id=?', [t1, hybridConversation]);
-    assert.equal(overviewFallbackControl.mode, 'inherit', 'a safe course-summary fallback does not trigger handover');
+    const [overviewFallbackControls] = await connection.query('SELECT mode FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND conversation_id=?', [t1, hybridConversation]);
+    assert.ok(!overviewFallbackControls.length || overviewFallbackControls[0].mode === 'inherit', 'a safe course-summary fallback does not trigger handover');
 
     invalidNextOverviewSource = true;
     const ungroundedOverviewInbound = {
