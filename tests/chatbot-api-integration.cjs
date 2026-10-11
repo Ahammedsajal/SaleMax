@@ -17,7 +17,8 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       failNextProvider = false;
       throw Object.assign(new Error('synthetic malformed provider output'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
     }
-    return { canAnswer: true, confidence: 0.96, reply: 'Our approved course information is available.', inputTokens: 31, outputTokens: 14 };
+    const sourceIds = JSON.parse(request.user).approvedKnowledgeAndLiveCatalog.map(item => item.sourceId).filter(Boolean).slice(0, 2);
+    return { canAnswer: true, sourceIds, confidence: 0.96, reply: 'Our approved course information is available.', inputTokens: 31, outputTokens: 14 };
   };
 
   const express = require('express');
@@ -204,7 +205,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       name: 'Synthetic Training FAQ · revised', engine: 'ai', config: {
         instructions: 'Use the latest approved Training Center facts.', confidenceThreshold: 0.72,
         aiDataProcessingConfirmed: true,
-        knowledgeEntries: [{ questionEn: 'What changed?', answerEn: 'The live profile was safely updated.', questionAr: 'ما الذي تغير؟', answerAr: 'تم تحديث إعدادات الروبوت النشط بأمان.' }],
+        knowledgeEntries: [{ questionEn: 'What changed?', answerEn: 'The live profile was safely updated.', questionAr: 'ما الذي تغير؟', answerAr: 'تم تحديث إعدادات الروبوت النشط بأمان.' }, { questionEn: 'When are classes?', answerEn: faqAnswer }],
       }, expectedRevision: 3,
     });
     assert.equal(activeEdit.status, 200, 'a live bot profile can be atomically edited without pausing its runtime');
@@ -307,7 +308,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       name: 'Synthetic Training Hybrid', engine: 'hybrid', config: {
         guidedMode: 'domain_default', aiFallback: true,
         instructions: 'Use only approved training-center facts.', confidenceThreshold: 0.72,
-        aiDataProcessingConfirmed: true, knowledgeEntries: [],
+        aiDataProcessingConfirmed: true, knowledgeEntries: [{questionEn:'Can you explain your refund policy?',answerEn:'Our approved course information is available.'}],
       },
     });
     assert.equal(hybrid.status, 201);

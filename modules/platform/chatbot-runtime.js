@@ -12,6 +12,9 @@ const { getDomainPack } = require('./chatbot-domain-packs');
 const { isGuidedChoice, hybridTurnPlan, supportsAiPreview } = require('./chatbot-config');
 const { channelFor } = require('./chatbot-channels');
 const { buildAiPrompt } = require('./chatbot-ai-prompt');
+const businessContext = require('./chatbot-business-context');
+const replyCache = new Map();
+const CACHE_MAX = 250;
 const { recipientAllowed } = require('./chatbot-audience');
 let nextGuidedSessionPruneAt = 0;
 let guidedSessionPrunePromise = null;
@@ -156,7 +159,7 @@ async function loadDomainGuidedSession({ ctx, profile, chatId, channelKind, chan
   try { return typeof rows[0].state === 'string' ? JSON.parse(rows[0].state) : rows[0].state; } catch { return null; }
 }
 
-async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId }) {
+async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent = null }) {
   const channelKind = channelFor(origin);
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   if (!channelKind || !pack.guidedReply) return false;
@@ -177,7 +180,8 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     let priorState = null;
     if (row && new Date(row.expiresAt).getTime() <= Date.now()) priorState = null;
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
-    reply = pack.guidedReply({ message: textOf(message), state: priorState, facts, config: profile.config?.guidedContent });
+    if (profile.engine !== 'guided' && priorState) priorState.language = businessContext.languageFor(intent || textOf(message), priorState);
+    reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: profile.config?.guidedContent });
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
       return false;
@@ -190,7 +194,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     throw error;
   } finally { db.release(); }
 
-  if (!recipientAllowed(profile.config, message?.senderMobile) || await shouldPause(uid, chatId, channelKind, sessionId)) return false;
+  if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return false;
   const { sendWaMessage } = require('../../automation/functions');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: reply.reply } } });
   if (!sentId) return false;
@@ -227,57 +231,93 @@ async function settleTokens(ctx, reservation, used) {
   await query(`UPDATE sx_chatbot_usage_daily SET reserved_tokens=GREATEST(0,reserved_tokens-?),consumed_tokens=consumed_tokens+? WHERE tenant_id=? AND usage_date=?`, [reservation.amount, actual, ctx.tenant.id, reservation.qatarDate]);
 }
 
-async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null }) {
+async function saveConversationalState({ ctx, profile, chatId, channelKind, channelRef, state }) {
+  await query(`INSERT INTO sx_chatbot_guided_sessions(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,conversation_hash,state,expires_at)
+    VALUES (?,?,?,?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR))
+    ON DUPLICATE KEY UPDATE state=VALUES(state),expires_at=VALUES(expires_at)`,
+  [crypto.randomUUID(), ctx.tenant.id, profile.id, channelKind, channelRef, chatId, guidedConversationHash(chatId), JSON.stringify(state)]);
+}
+
+async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message }) {
+  const current = await profileFor(ctx, uid, origin, sessionId);
+  return current?.id === profile.id && Number(current.revision) === Number(profile.revision)
+    && recipientAllowed(current.config, message?.senderMobile)
+    && !await shouldPause(uid, chatId, channelFor(origin), sessionId);
+}
+
+async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null }) {
   const [settings] = await query(`SELECT provider,model,key_ciphertext,key_iv,key_auth_tag,daily_token_limit FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]);
   if (!settings) return { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
-  let facts = [...(profile.config?.knowledgeEntries || [])];
-  if (pack.requiresDatabase) {
+  const loadFacts = async () => {
+    if (!pack.requiresDatabase) return [];
     const db = await dbPool.getConnection();
-    try { facts = facts.concat(await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN })); }
+    try { return await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN }); }
     finally { db.release(); }
+  };
+  const facts = await loadFacts();
+  const session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
+  const context = businessContext.retrieveContext({ facts, knowledgeEntries: profile.config?.knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
+  const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
+  if (profile.engine === 'hybrid') {
+    const simple = businessContext.simpleFactualReply(customerMessage, context);
+    if (simple) return { canAnswer: true, confidence: 1, reply: simple.reply, state: nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
   }
-  const history = uid && chatId
-    ? await query(`SELECT type,msgContext,route FROM beta_conversation WHERE uid=? AND chat_id=? ORDER BY timestamp DESC LIMIT 8`, [uid, chatId])
-    : [];
-  const historySafe = history.reverse().map(item => {
-    let content; try { content = typeof item.msgContext === 'string' ? JSON.parse(item.msgContext) : item.msgContext; } catch { content = null; }
-    const text = item.type === 'text' ? content?.text?.body : content?.interactive?.button_reply?.title || content?.interactive?.list_reply?.title;
-    return typeof text === 'string' ? { role: item.route === 'OUTGOING' ? 'assistant' : 'user', text: text.slice(0, 500) } : null;
-  }).filter(Boolean);
-  const { system, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage, facts, history: historySafe });
-  if (inputBytes > 18000) return { handedOff: true, code: 'CONTEXT_LIMIT' };
+  const historySafe = Array.isArray(session.recentConversation) ? session.recentConversation.slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
+  const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode });
+  const cached = replyCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0 } };
+  const { system, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: context.evidence, history: historySafe });
+  if (inputBytes > 12000) return { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification' };
   const prompt = `${system}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
   const reservation = await reserveTokens(ctx, settings, estimate);
   if (!reservation) return { handedOff: true, code: 'DAILY_TOKEN_LIMIT' };
+  const providerStarted = Date.now();
   let response;
   let succeeded = false;
   try {
     const apiKey = secrets.decrypt(settings);
-    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, maxOutputTokens: 350 });
+    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, maxOutputTokens: 250 });
     succeeded = true;
   } finally {
     await settleTokens(ctx, reservation, succeeded ? (response?.inputTokens || 0) + (response?.outputTokens || 0) : null);
   }
+  const metrics = { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0, cacheHit: false, latencyMs: Date.now() - providerStarted, sources: context.sources, provider: settings.provider, model: settings.model };
+  const validation = businessContext.validateAnswer(response, context);
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);
-  if (!response.canAnswer || response.confidence < threshold || !response.reply) return { handedOff: true, code: 'LOW_CONFIDENCE', confidence: response.confidence || 0 };
-  return { canAnswer: true, confidence: response.confidence, reply: response.reply };
+  if (!validation.valid || response.confidence < threshold) {
+    const language = context.language;
+    const msg = profile.config?.guidedContent?.messages?.unavailableMessage;
+    return { canAnswer: true, confidence: 0, reply: context.explicitCourses ? (msg?.[language] || businessContext.clarification(profile.config, language)) : businessContext.clarification(profile.config, language), state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
+  }
+  // Re-read live facts after the model call; never deliver a price or date
+  // generated from data that changed while the provider was working.
+  const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: profile.config?.knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
+  if (fresh.revision !== context.revision) return { canAnswer: true, confidence: 0, reply: businessContext.clarification(profile.config, context.language), state: nextState, route: 'clarification', reason: 'BUSINESS_DATA_CHANGED', metrics };
+  const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
+  if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;
+  const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai', metrics };
+  // Cache only answers without customer history or contact/private identifiers.
+  if (!historySafe.length && customerMessage.length <= 180 && /fee|price|duration|schedule|centre|center|location|address|رسوم|سعر|مدة|عنوان|موقع/i.test(customerMessage) && !/[0-9]{7,}|@|my name|اسمي/i.test(customerMessage)) {
+    if (replyCache.size >= CACHE_MAX) replyCache.delete(replyCache.keys().next().value);
+    replyCache.set(key, { expiresAt: Date.now() + 5 * 60 * 1000, answer });
+  }
+  return answer;
 }
 
 async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId }) {
   if (profile.engine === 'hybrid' && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
-  if (profile.engine === 'hybrid' && profile.config.guidedMode === 'domain_default') {
+  if (profile.config.guidedMode === 'domain_default' || (profile.engine === 'ai' && ctx.category.key === 'training_center')) {
     const channelKind = channelFor(origin);
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
-    const pack = getDomainPack(ctx.category.key, ctx.category.version);
     const incoming = textOf(message);
-    const plan = hybridTurnPlan({ hasSession: !!session, isChoice: isGuidedChoice(incoming), shouldStartGuided: pack.isGuidedIntent?.(incoming) === true || Boolean(require('./chatbot-keyword-replies').keywordReply(incoming, profile.config?.guidedContent?.keywordReplies)), domainDefault: true, aiFallback: profile.config.aiFallback });
-    if (plan.runGuided) {
-      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId });
-      if (dispatched || !plan.allowAiFallback) return dispatched ? { flowDispatched: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
+    const route = businessContext.controlRoute(incoming, profile.config, session || {});
+    if (route !== 'answer' || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
+      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
+      return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   } else if (profile.engine === 'hybrid' && profile.config.flowId) {
     const [session] = await query(`SELECT id FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1`, [uid, executionFlowId(profile), message.senderMobile]);
@@ -290,7 +330,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   }
   const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId });
   if (answer.handedOff || answer.paused) return answer;
-  if (!recipientAllowed(profile.config, message?.senderMobile) || await shouldPause(uid, chatId, channelFor(origin), sessionId)) return { paused: true };
+  if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return { paused: true };
   const { sendWaMessage } = require('../../automation/functions');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: answer.reply } } });
   if (!sentId) return { handedOff: true, code: 'CHANNEL_SEND_FAILED' };
@@ -298,10 +338,11 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: answer.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
-  return { sent: true };
+  if (answer.state) await saveConversationalState({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId, state: { ...answer.state, recentConversation: [...(answer.state.recentConversation || []), { role: 'user', text: textOf(message).slice(0, 400) }, { role: 'assistant', text: answer.reply.slice(0, 500) }].slice(-4) } });
+  return { sent: true, route: answer.route, metrics: answer.metrics };
 }
 
-async function previewConfiguredBot({ ctx, profile, uid, message }) {
+async function previewConfiguredBot({ ctx, profile, uid, message, state = null }) {
   if (!supportsAiPreview(profile?.engine, profile?.config)) return { canAnswer: false, confidence: 0, reply: '', wouldHandoff: true, reason: 'AI_FALLBACK_DISABLED' };
   if (profile.engine === 'hybrid') {
     if (profile.config?.guidedMode !== 'domain_default') {
@@ -310,9 +351,21 @@ async function previewConfiguredBot({ ctx, profile, uid, message }) {
     }
   }
   if (profile.config?.aiDataProcessingConfirmed !== true) return { canAnswer: false, confidence: 0, reply: '', wouldHandoff: true, reason: 'AI_DATA_PROCESSING_ACK_REQUIRED' };
-  const answer = await generateAiAnswer({ ctx, profile, uid: null, customerMessage: message });
+  const prior = businessContext.previewState(state);
+  prior.language = businessContext.languageFor(message, prior);
+  const pack = getDomainPack(ctx.category.key, ctx.category.version);
+  const route = businessContext.controlRoute(message, profile.config, prior);
+  if (pack.guidedReply && route !== 'answer') {
+    const db = await dbPool.getConnection();
+    let facts;
+    try { facts = await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN }); } finally { db.release(); }
+    const result = pack.guidedReply({ message: route === 'human' ? (businessContext.languageFor(message, prior) === 'ar' ? 'موظف' : 'agent') : message, state: prior, facts, config: profile.config.guidedContent });
+    return { canAnswer: true, confidence: 1, reply: result.reply, wouldHandoff: !!result.handoff, reason: result.handoff ? 'customer-requested-human' : null, route, state: result.state, metrics: { inputTokens: 0, outputTokens: 0 } };
+  }
+  const answer = await generateAiAnswer({ ctx, profile, uid: null, customerMessage: message, state: prior });
+  if (answer.state) answer.state.recentConversation = [...(prior.recentConversation || []), { role: 'user', text: message.slice(0, 400) }, { role: 'assistant', text: (answer.reply || '').slice(0, 500) }].slice(-4);
   if (answer.handedOff) return { canAnswer: false, confidence: answer.confidence || 0, reply: '', wouldHandoff: true, reason: answer.code || 'LOW_CONFIDENCE' };
-  return { canAnswer: true, confidence: answer.confidence, reply: answer.reply, wouldHandoff: false, reason: null };
+  return { canAnswer: true, confidence: answer.confidence, reply: answer.reply, wouldHandoff: false, reason: answer.reason || null, route: answer.route, state: answer.state, metrics: answer.metrics };
 }
 
 async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId }) {
@@ -342,6 +395,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     let result;
     if (profile.engine === 'guided') result = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId }) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId });
+    if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, ...result.metrics }), crypto.randomUUID()]);
     if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {

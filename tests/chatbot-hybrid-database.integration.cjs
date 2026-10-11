@@ -1,0 +1,113 @@
+// Uses a fresh synthetic database only, never the imported training database.
+require('dotenv').config({ quiet: true });
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const mysql = require('mysql2/promise');
+const bcrypt = require('bcrypt');
+const { bootstrap: bootstrapSuperAdmin } = require('../modules/platform/bootstrap-super-admin');
+const { discover, applyMigrations } = require('../database/migration-runner');
+async function main() {
+  if (process.env.LOCAL_ONLY_MODE !== 'true' || !['127.0.0.1', 'localhost', '::1'].includes(process.env.DBHOST)) throw new Error('LOCAL_DATABASE_ONLY');
+  const suppliedDb=process.env.SALEMAX_TEST_DATABASE||null;
+  if(suppliedDb&&!/^salemax_migration_test_[a-z0-9_]{1,40}$/.test(suppliedDb))throw new Error('INVALID_SYNTHETIC_TEST_DATABASE');
+  const socketPath=process.env.SALEMAX_TEST_DB_SOCKET||null;
+  if(socketPath&&(!path.isAbsolute(socketPath)||!fs.lstatSync(socketPath,{throwIfNoEntry:false})?.isSocket()))throw new Error('INVALID_LOCAL_TEST_DB_SOCKET');
+  const db = suppliedDb||'salemax_migration_test_' + crypto.randomBytes(6).toString('hex');
+  const config = { host: process.env.DBHOST, port: Number(process.env.DBPORT), user: process.env.DBUSER, password: process.env.DBPASS === '__EMPTY__' ? '' : process.env.DBPASS,...(socketPath?{socketPath}:{}) };
+  const admin = suppliedDb?null:await mysql.createConnection(config);
+  let connection, other, pool, created = false;
+  try {
+    if(admin){await admin.query(`CREATE DATABASE \`${db}\``);created = true;}
+    // Ensure modules that use the legacy mysql pool bind to this disposable DB,
+    // never the application name retained in the local .env file.
+    process.env.DBNAME=db;
+    // Chatbot runtime modules may be loaded before the synthetic schema is selected.
+    const configPath = require.resolve('../database/config');
+    const runtimePool = require.cache[configPath]?.exports;
+    if (runtimePool) await runtimePool.promise().end();
+    delete require.cache[configPath];
+    delete require.cache[require.resolve('../database/dbpromise')];
+    delete require.cache[require.resolve('../modules/platform/chatbot-runtime')];
+    connection = await mysql.createConnection({ ...config, database: db });
+    other = await mysql.createConnection({ ...config, database: db });
+    pool = mysql.createPool({ ...config, database: db, connectionLimit: 5 });
+    if(suppliedDb){
+      const [[account]]=await connection.query('SELECT CURRENT_USER() AS userName,DATABASE() AS databaseName');
+      assert.equal(account.databaseName,db);
+      assert.equal(String(account.userName).split('@')[0],config.user);
+      const [grants]=await connection.query('SHOW GRANTS');
+      const grantText=grants.map(row=>String(Object.values(row)[0])).join('\n');
+      assert.match(grantText,new RegExp('ON `'+db.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'`\\.\\*'));
+      assert.doesNotMatch(grantText,/GRANT\s+(?!USAGE\b)[\s\S]*?ON\s+\*\.\*/i);
+      const [tables]=await connection.query('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=?',[db]);
+      await connection.query('SET FOREIGN_KEY_CHECKS=0');
+      for(const row of tables)await connection.query(`DROP TABLE IF EXISTS \`${String(row.TABLE_NAME).replace(/`/g,'``')}\``);
+      await connection.query('SET FOREIGN_KEY_CHECKS=1');
+    }
+    await connection.query('CREATE TABLE instance (id INT PRIMARY KEY, status VARCHAR(20))');
+    await connection.query("INSERT INTO instance VALUES (1, 'INACTIVE')");
+    const migrations = discover(path.join(__dirname, '../database/migrations'));
+    const result = await applyMigrations(connection, migrations);
+    assert.equal(result.applied.length, migrations.length);
+    assert.equal((await applyMigrations(connection, migrations)).skipped.length, migrations.length);
+    const [[instance]] = await connection.query('SELECT inactiveSince FROM instance WHERE id=1');
+    assert.ok(instance.inactiveSince);
+    await connection.query("INSERT INTO pipeline_settings(uid_hash, uid) VALUES (?, ?)", ['1'.repeat(64), 'synthetic-owner']);
+    await applyMigrations(connection, migrations);
+    const [[count]] = await connection.query('SELECT COUNT(*) AS n FROM pipeline_settings');
+    assert.equal(count.n, 1);
+    await connection.query('CREATE TABLE admin (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999) NOT NULL,email VARCHAR(254) NOT NULL,password VARCHAR(255) NOT NULL,role VARCHAR(20) NOT NULL DEFAULT \'admin\') ENGINE=InnoDB');
+    const ownerPassword=['Synthetic-Owner','-Password-97'].join(''),ownerUid='verified-synthetic-owner-uid';
+    const [legacyOwner]=await connection.query('INSERT INTO admin(uid,email,password) VALUES (?,?,?)',[ownerUid,'a@example.invalid',await bcrypt.hash(ownerPassword,10)]);
+    await assert.rejects(bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:'wrong-synthetic-uid',password:ownerPassword,confirmation:'BOOTSTRAP PRODUCT OWNER'}),{code:'LEGACY_ADMIN_UID_MISMATCH'});
+    await assert.rejects(bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:ownerUid,password:['wrong-synthetic','-password'].join(''),confirmation:'BOOTSTRAP PRODUCT OWNER'}),{code:'LEGACY_ADMIN_CREDENTIALS_INVALID'});
+    const bootstrapped=await bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:ownerUid,password:ownerPassword,confirmation:'BOOTSTRAP PRODUCT OWNER'});
+    const i1=bootstrapped.identityId,t1=crypto.randomUUID(),t2=crypto.randomUUID(),i2=crypto.randomUUID(),m1=crypto.randomUUID(),m2=crypto.randomUUID();
+    assert.equal(bootstrapped.email,'a@example.invalid');
+    const [[ownerLink]]=await connection.query('SELECT legacy_uid,legacy_uid_hash,identity_id,status FROM sx_legacy_admin_identities WHERE legacy_admin_id=?',[legacyOwner.insertId]);
+    assert.equal(ownerLink.legacy_uid,ownerUid);assert.equal(ownerLink.legacy_uid_hash,crypto.createHash('sha256').update(ownerUid).digest('hex'));assert.equal(ownerLink.identity_id,i1);assert.equal(ownerLink.status,'active');
+    await assert.rejects(bootstrapSuperAdmin(connection,{legacyAdminId:legacyOwner.insertId,legacyUid:ownerUid,password:ownerPassword,confirmation:'BOOTSTRAP PRODUCT OWNER'}),{code:'PLATFORM_ALREADY_PROVISIONED'});
+    for (const [id,slug] of [[t1,'synthetic-a'],[t2,'synthetic-b']]) await connection.query('INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,?,?,?,?,?)',[id,slug,slug,'training_center',1,'active']);
+    await connection.query('INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,?,?)',[i2,'b@example.invalid','Synthetic','active']);
+    for (const [id,tenant,identity] of [[m1,t1,i1],[m2,t2,i2]]) await connection.query('INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES (?,?,?,?)',[id,tenant,identity,'owner']);
+    await assert.rejects(connection.query('INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES (?,?,?,?)',[crypto.randomUUID(),t1,i2,'owner']), {code:'ER_DUP_ENTRY'});
+    const sessionSql='INSERT INTO sx_sessions(id,token_hash,identity_id,audience,tenant_id,membership_id,credential_version,authenticated_at,expires_at) VALUES (?,?,?,?,?,?,1,NOW(),DATE_ADD(NOW(),INTERVAL 1 DAY))';
+    await connection.query(sessionSql,[crypto.randomUUID(),'a'.repeat(64),i1,'tenant',t1,m1]);
+    await assert.rejects(connection.query(sessionSql,[crypto.randomUUID(),'b'.repeat(64),i2,'tenant',t1,m2]), {code:'ER_NO_REFERENCED_ROW_2'});
+    await assert.rejects(connection.query(sessionSql,[crypto.randomUUID(),'c'.repeat(64),i2,'tenant',t1,m1]), {code:'ER_NO_REFERENCED_ROW_2'});
+    await assert.rejects(connection.query('INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,verified_at) VALUES (?,?,?,?,NOW())',['agents','1',t1,m2]), {code:'ER_NO_REFERENCED_ROW_2'});
+    await assert.rejects(connection.query('INSERT INTO sx_platform_memberships(identity_id,role) VALUES (?,?)',[i2,'super_admin']), {code:'ER_DUP_ENTRY'});
+    await require('./plan-integration.cjs')(connection,other,{t1,i1,m1});
+    await connection.query("CREATE TABLE user (id INT AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999),name VARCHAR(200),plan LONGTEXT,plan_expire VARCHAR(80),role VARCHAR(20)) ENGINE=InnoDB");
+    const schemaEvidence=await require('./chatbot-migration-integration.cjs')(connection,{t1,t2,i1,i2});
+    const runtimeEvidence=await require('./chatbot-api-integration.cjs')(connection,pool,{t1,t2,i1,i2,m1,m2});
+    console.log(JSON.stringify({disposableDatabase:true,migrations:migrations.length,...schemaEvidence,...runtimeEvidence}));
+  } catch(error) {
+    if(connection) {
+      try {
+        const [rows]=await connection.query('SELECT migration_name, status, statements_completed, error_code FROM salemax_schema_migrations WHERE status <> ?', ['applied']);
+        console.error(JSON.stringify({syntheticMigrationDiagnostics:rows}));
+      } catch(_) {}
+    }
+    throw error;
+  } finally {
+    if (other) await other.end();
+    if (pool) await pool.end();
+    const legacyPoolPath=require.resolve('../database/config');
+    if(require.cache[legacyPoolPath])await require(legacyPoolPath).end();
+    if(connection&&suppliedDb){
+      try{
+        const [tables]=await connection.query('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=?',[db]);
+        await connection.query('SET FOREIGN_KEY_CHECKS=0');
+        for(const row of tables)await connection.query(`DROP TABLE IF EXISTS \`${String(row.TABLE_NAME).replace(/`/g,'``')}\``);
+        await connection.query('SET FOREIGN_KEY_CHECKS=1');
+      }catch(cleanupError){console.error('Synthetic test schema cleanup failed:',cleanupError.code||'ERROR');}
+    }
+    if (connection) await connection.end();
+    try { if (created) await admin.query(`DROP DATABASE IF EXISTS \`${db}\``); }
+    finally { if(admin)await admin.end(); }
+  }
+}
+main().catch(error => { console.error('Migration integration failed:', error.code || 'ERROR', error.stack || error.message); process.exitCode=1; });

@@ -414,9 +414,7 @@ router.post("/change_instance_status", validateUser, async (req, res) => {
 // POST endpoint handler
 router.post("/rest/send_message", async (req, res) => {
   try {
-    console.log({
-      body: req.body,
-    });
+    // Authentication tokens and message bodies must stay out of request logs.
     // Validate required parameters
     const requiredParams = [
       "messageType",
@@ -462,7 +460,7 @@ router.post("/rest/send_message", async (req, res) => {
 // GET endpoint handler
 router.get("/rest/send_message", async (req, res) => {
   try {
-    console.log(req.query);
+    // Authentication tokens and message bodies must stay out of request logs.
     // Validate required parameters
     // Trim 'from' and 'to' if they exist
     if (req.query.from) req.query.from = req.query.from.trim();

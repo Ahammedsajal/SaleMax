@@ -99,6 +99,8 @@ const TRAINING_CENTER_GUIDED_DEFAULTS = {
     courseDetailsPrompt: { en: 'Reply 1 for courses · form to enquire · agent for our team', ar: '1 للدورات · نموذج للاستفسار · موظف لفريقنا' },
     invalidSelection: { en: 'Please choose a course number from this list.', ar: 'يرجى اختيار رقم دورة من هذه القائمة.' },
     handoffMessage: { en: 'I’ll leave this with our team so they can help you personally.', ar: 'سأترك المحادثة لفريقنا ليتمكن من مساعدتك مباشرة.' },
+    clarificationMessage: { en: 'Happy to help — which course are you interested in? If you’d prefer our team, just type agent.', ar: 'حتى أساعدك بشكل أدق، أي دورة تهمك؟ وإذا أردت التحدث مع فريقنا، اكتب موظف.' },
+    unavailableMessage: { en: 'I can’t confirm that from our published details yet. Type agent if you’d like our team to check it for you.', ar: 'لا أستطيع تأكيد ذلك من معلوماتنا المنشورة حالياً. اكتب موظف إذا أردت أن يتحقق فريقنا لك.' },
     fallbackMessage: { en: 'Could you try one of these options? Type agent if you’d like our team’s help.', ar: 'هل يمكنك اختيار أحد الخيارات؟ اكتب موظف إذا أردت مساعدة فريقنا.' },
   },
   display: { maxCourses: 9, showFees: true, showDescription: true, showDuration: true, showDelivery: true, showRegistrationFee: true, showUpcomingBatches: true, showEnquiryForm: true },
@@ -143,6 +145,8 @@ const TRAINING_CENTER_GUIDED_SCHEMA = {
       localizedField('messages.courseDetailsPrompt', 'Course detail instructions', 'تعليمات تفاصيل الدورة'),
     ] },
     { id: 'support', title: { en: 'Fallback and staff handoff', ar: 'الرد البديل والتحويل للموظفين' }, fields: [
+      localizedField('messages.clarificationMessage', 'Course clarification message', 'رسالة توضيح الدورة'),
+      localizedField('messages.unavailableMessage', 'Unpublished information message', 'رسالة المعلومات غير المنشورة'),
       localizedField('messages.invalidSelection', 'Invalid selection message', 'رسالة الاختيار غير الصحيح'),
       localizedField('messages.fallbackMessage', 'Fallback message', 'الرد عند عدم فهم الرسالة'),
       localizedField('messages.handoffMessage', 'Human handoff message', 'رسالة التحويل للموظف'),
@@ -220,10 +224,10 @@ function normalizeOffer(raw) {
 async function trainingCenterFacts({ db, tenantId, platformOrigin }) {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Qatar', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const [courses] = await db.query(`SELECT c.id,c.code,c.name_en AS nameEn,c.name_ar AS nameAr,c.description_en AS descriptionEn,c.description_ar AS descriptionAr,
-      c.outcomes_en AS outcomesEn,c.outcomes_ar AS outcomesAr,c.duration_value AS durationValue,c.duration_unit AS durationUnit,c.delivery_mode AS deliveryMode,
+      c.outcomes_en AS outcomesEn,c.outcomes_ar AS outcomesAr,c.revision AS revision,c.updated_at AS updatedAt,c.duration_value AS durationValue,c.duration_unit AS durationUnit,c.delivery_mode AS deliveryMode,
       (SELECT JSON_OBJECT('currency',o.currency,'priceMinor',o.price_minor,'registrationFeeMinor',o.registration_fee_minor)
         FROM sx_training_offers o WHERE o.tenant_id=c.tenant_id AND o.course_id=c.id AND o.status='active' AND (o.valid_from IS NULL OR o.valid_from<=?) AND (o.valid_until IS NULL OR o.valid_until>=?) ORDER BY o.version DESC LIMIT 1) AS offer
-    FROM sx_training_courses c WHERE c.tenant_id=? AND c.status='active' ORDER BY c.updated_at DESC LIMIT 30`, [today,today,tenantId]);
+    FROM sx_training_courses c WHERE c.tenant_id=? AND c.status='active' ORDER BY c.updated_at DESC LIMIT 500`, [today,today,tenantId]);
   let batches = [];
   if (courses.length) {
     [batches] = await db.query(`WITH ranked_batches AS (
@@ -261,6 +265,8 @@ async function trainingCenterFacts({ db, tenantId, platformOrigin }) {
     WHERE f.tenant_id=? AND f.status='published' AND f.published_version IS NOT NULL LIMIT 1`, [tenantId]);
   const url = form && publicFormUrl(platformOrigin, form.tenantSlug, form.formSlug);
   if (url) facts.push({ kind: 'published_enquiry_form', url });
+  const [[business]] = await db.query(`SELECT display_name_en AS nameEn,display_name_ar AS nameAr,website_url AS website,email,phone,address_en AS addressEn,address_ar AS addressAr,google_maps_url AS mapsUrl,opening_hours AS openingHours,about_en AS aboutEn,about_ar AS aboutAr,revision,updated_at AS updatedAt FROM sx_training_center_profiles WHERE tenant_id=?`, [tenantId]);
+  if (business) facts.push({ kind: 'business_profile', ...business });
   return facts;
 }
 

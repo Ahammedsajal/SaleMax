@@ -151,7 +151,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
       return { ...row, config: typeof row.config === 'string' ? JSON.parse(row.config) : row.config };
     });
     const uid = await withDb(db => legacyUidFor(db, req, ctx));
-    const result = await require('../platform/chatbot-runtime').previewConfiguredBot({ ctx, profile, uid, message: req.body.message.trim() });
+    const result = await require('../platform/chatbot-runtime').previewConfiguredBot({ ctx, profile, uid, message: req.body.message.trim(), state: req.body.state });
     await withDb(db => audit(db, ctx, 'chatbot.preview-tested', req.params.id, { engine: profile.engine, revision: Number(profile.revision), inputCharacters: req.body.message.trim().length, outcome: result.canAnswer ? 'answer' : 'handoff', reason: result.reason || null }));
     res.json({ success: true, data: result });
   }));

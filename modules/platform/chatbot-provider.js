@@ -59,7 +59,7 @@ async function generate({ provider, model, apiKey, system, user, maxOutputTokens
     let parsed;
     try { parsed = JSON.parse(text); } catch { throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT' }); }
     if (typeof parsed.reply !== 'string' || parsed.reply.length > 1600 || typeof parsed.can_answer !== 'boolean' || !Number.isFinite(parsed.confidence) || parsed.confidence < 0 || parsed.confidence > 1) throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
-    return { canAnswer: parsed.can_answer, confidence: parsed.confidence, reply: parsed.reply.trim(), inputTokens: Number(payload?.usage?.prompt_tokens ?? payload?.usageMetadata?.promptTokenCount ?? 0), outputTokens: Number(payload?.usage?.completion_tokens ?? payload?.usageMetadata?.candidatesTokenCount ?? 0) };
+    return { ...(Array.isArray(parsed.source_ids) ? { sourceIds: parsed.source_ids.filter(id => typeof id === 'string' && id.length <= 100).slice(0, 8) } : {}), canAnswer: parsed.can_answer, confidence: parsed.confidence, reply: parsed.reply.trim(), inputTokens: Number(payload?.usage?.prompt_tokens ?? payload?.usageMetadata?.promptTokenCount ?? 0), outputTokens: Number(payload?.usage?.completion_tokens ?? payload?.usageMetadata?.candidatesTokenCount ?? 0) };
   } catch (error) {
     if (error.name === 'AbortError') throw Object.assign(new Error('AI_PROVIDER_TIMEOUT'), { code: 'AI_PROVIDER_TIMEOUT' });
     if (['AI_PROVIDER_REQUEST_FAILED', 'AI_PROVIDER_INVALID_OUTPUT'].includes(error.code)) throw error;
