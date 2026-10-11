@@ -26,5 +26,5 @@ test('report time-zone selector is loaded before its renderer and uses the repor
   assert.ok(html.indexOf('timezone-options.js?v=1')<html.indexOf('reports.js?v=21'));
   assert.match(renderer,/<select name="timezone" required>/);
   assert.match(css,/\.report-schedule-card input:not\(\[type=checkbox\]\),\.report-schedule-card select/);
-  assert.match(html,/pipeline\.css\?v=13/);
+  assert.match(html,/pipeline\.css\?v=14/);
 });

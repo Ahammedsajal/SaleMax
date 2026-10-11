@@ -2,7 +2,7 @@
 
 Generated 2026-10-11 by `node scripts/audit-form-controls.cjs`.
 
-The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **62 static form templates** and **340 static controls**. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
+The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **62 static form templates** and **343 static controls**. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
 
 ## File-by-file inventory
 
@@ -83,12 +83,12 @@ The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and 
 
 ### `client/public/pipeline/pipeline.js`
 
-  - Line 55 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [text], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], input:unlabelled [text], button:unlabelled
-  - Line 75 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
-  - Line 87 · **settingsForm** · 10 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, input:interestKeywords [text], button:addMetaAdsMessage, button:unlabelled, button:unlabelled
-  - Line 87 · **newStage** · 2 control(s): input:title [text], button:unlabelled
-  - Line 97 · **sale-review-form** · 17 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], input:price [text], input:registrationFee [text], input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:unlabelled, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:unlabelled
-  - Line 108 · **sale-review-decision** · 3 control(s): input:reason [text], button:unlabelled, button:unlabelled
+  - Line 58 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [text], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], input:unlabelled [text], button:unlabelled
+  - Line 78 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
+  - Line 90 · **settingsForm** · 13 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, select:unlabelled, button:unlabelled, input:unlabelled [text], button:unlabelled, button:addMetaAdsMessage, button:unlabelled, button:unlabelled
+  - Line 90 · **newStage** · 2 control(s): input:title [text], button:unlabelled
+  - Line 100 · **sale-review-form** · 17 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], input:price [text], input:registrationFee [text], input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:unlabelled, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:unlabelled
+  - Line 111 · **sale-review-decision** · 3 control(s): input:reason [text], button:unlabelled, button:unlabelled
 
 ### `client/public/pipeline/reports.js`
 
@@ -180,5 +180,6 @@ The supplied current-run screenshot documents the Finance invoice builder before
 - Manual customer entry stays available, and shared native form controls receive consistent sizing and visible keyboard focus.
 - Installment reminders use a guided offset picker spanning the server-approved range (-30 through +90 days), with removable selected-date chips and the server limit of eight dates; staff no longer type comma-separated values.
 - Scheduled report time zones are chosen from the complete browser IANA list, with Qatar and nearby Gulf locations at the top; the selected value is styled to match adjacent form controls.
+- Pipeline intent keywords use bilingual suggested choices and removable chips with an optional custom phrase; the existing backend array contract and 30-phrase limit are preserved.
 
 Remaining source forms should be reviewed page by page using this inventory; deploy and visual acceptance must follow release evidence in `DEPLOYMENT.md`.
