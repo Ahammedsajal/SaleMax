@@ -62,13 +62,14 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   const forms = facts.filter(item => item.kind === 'published_enquiry_form');
   const formPurpose = /enquir|inquir|contact|استفسار|تواصل/i.test(message) ? 'enquiry' : 'registration';
   const selectedForm = forms.find(item => item.purpose === formPurpose) || forms[0];
+  const courseInterest = selected.length === 1 && /\b(?:interested|would like to join|want to join|want to study|like to enrol|like to enroll)\b|مهتم|ارغب في التسجيل/i.test(message);
   facts.filter(item => item.kind === 'business_profile' || item === selectedForm).forEach(item => {
     if (item.kind === 'business_profile') add('business:profile', item, {
       kind: item.kind, name: local(item, 'name', language), about: String(local(item, 'about', language)).slice(0, 450),
       address: local(item, 'address', language), phone: item.phone, email: item.email,
       website: item.website, mapsUrl: item.mapsUrl, openingHours: item.openingHours,
     });
-    else if (/enquir|inquir|enrol|enroll|register|registration|apply|join|form|sign up|تسجيل|سجل|نموذج|اشتراك/i.test(message)) add('form:enquiry', item, { kind: item.kind, purpose: item.purpose || 'enquiry', name: local(item, 'name', language), url: item.url });
+    else if (courseInterest || /enquir|inquir|enrol|enroll|register|registration|apply|join|form|sign up|تسجيل|سجل|نموذج|اشتراك/i.test(message)) add('form:enquiry', item, { kind: item.kind, purpose: item.purpose || 'enquiry', name: local(item, 'name', language), url: item.url });
   });
   const faqs = knowledgeEntries.map((item, index) => ({ item, index, score: score(message, item.questionEn + ' ' + item.questionAr) })).filter(row => row.score >= 3 && (/refund|استرداد|استرجاع/i.test(row.item.questionEn + ' ' + row.item.questionAr) || !/price|fee|cost|discount|seat|batch|start date|رسوم|سعر|خصم|مقاعد|موعد|تاريخ/i.test(row.item.questionEn + ' ' + row.item.questionAr))).sort((a, b) => b.score - a.score).slice(0, 2);
   faqs.forEach(({ item, index }) => add('faq:' + index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer: local(item, 'answer', language) }));
@@ -115,6 +116,11 @@ function simpleFactualReply(message, context, config = {}) {
   const course = courses[0];
   const asksDuration = /how long|duration|مدة|مدتها/i.test(message);
   const asksFee = /\b(?:fee|fees|price|cost|how much)\b|رسوم|سعر|تكلفة/i.test(message);
+  const registrationForm = context.evidence.find(item => item.kind === 'published_enquiry_form' && item.purpose === 'registration');
+  const courseInterest = /\b(?:interested|would like to join|want to join|want to study|like to enrol|like to enroll)\b|مهتم|ارغب في التسجيل/i.test(message);
+  const applicationOffer = courseInterest && registrationForm
+    ? config.guidedContent?.messages?.applicationOfferMessage?.[ar ? 'ar' : 'en'] || (ar ? 'إذا رغبت، يمكنني إرسال نموذج التسجيل لك.' : 'If you’d like, I can send you the registration form.')
+    : '';
   if (asksDuration && asksFee) {
     const feeTemplate = config.guidedContent?.messages?.simpleFeeMessage?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم {course} حالياً {fee}.{registration}' : '{course} is currently {fee}.{registration}');
     const durationTemplate = config.guidedContent?.messages?.durationUnavailable?.[ar ? 'ar' : 'en'] || (ar ? 'مدة {course} غير منشورة حالياً. يمكن لفريقنا تأكيدها لك.' : 'The duration for {course} isn’t published yet. Our team can confirm it for you.');
@@ -124,7 +130,7 @@ function simpleFactualReply(message, context, config = {}) {
     const duration = course.duration
       ? (config.guidedContent?.messages?.simpleDurationMessage?.[ar ? 'ar' : 'en'] || (ar ? 'مدة {course} هي {duration}.' : '{course} takes {duration}.')).replaceAll('{course}', course.name).replaceAll('{duration}', course.duration)
       : durationTemplate.replaceAll('{course}', course.name);
-    return { reply: `${fee} ${duration}`, sourceIds: [course.sourceId] };
+    return { reply: [fee, duration, applicationOffer].filter(Boolean).join(' '), sourceIds: [course.sourceId, ...(applicationOffer ? [registrationForm.sourceId] : [])] };
   }
   if (asksDuration) {
     if (!course.duration && /\d+\s*(?:[–-]\s*\d+)?\s*(?:weeks?|days?|hours?|months?|أسابيع|اسابيع|أسبوع|اسبوع|ساعات|شهور|أشهر|ايام|أيام)/iu.test(course.description || '')) return null;
