@@ -294,6 +294,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(controlRead.data.channelRef, channelRef);
     const testCourseId=crypto.randomUUID();
     await connection.query("INSERT INTO sx_training_courses(id,tenant_id,code,name_en,name_ar,description_en,description_ar,duration_value,duration_unit,delivery_mode,status,created_by_identity_id,updated_by_identity_id) VALUES (?,?,?,?,?,?,?,4,'weeks','online','active',?,?)",[testCourseId,t1,'SYN-EXCEL','Synthetic Excel','إكسل للاختبار','Approved synthetic outline.','وصف للاختبار.',i1,i1]);
+    await connection.query("INSERT INTO sx_training_offers(id,tenant_id,course_id,version,currency,price_minor,registration_fee_minor,inclusions,status,created_by_identity_id) VALUES (?,?,?,1,'QAR',32500,0,JSON_ARRAY(),'active',?)",[crypto.randomUUID(),t1,testCourseId,i1]);
     await connection.query('UPDATE pipeline_settings SET enabled=0,auto_capture_qr=0 WHERE uid_hash=?',[crypto.createHash('sha256').update(legacyUid).digest('hex')]);
     const pausedInbound = { ...inbound, metaChatId: `synthetic-paused-${crypto.randomUUID()}`,msgContext:{type:'text',text:{body:'My name is Adam Saleh and I am interested in Synthetic Excel. Weekend classes please.'}} };
     const pausedRuntime = await runtime.runConfiguredBot({ uid: legacyUid, message: pausedInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: conversationId });
@@ -362,6 +363,18 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(greetingResult.flowDispatched, true);
     assert.match(sentMessages.at(-1).content.text.body, /^Welcome from the updated Training Center guide\./);
     assert.equal(providerCalls, 2, 'Hybrid greeting is answered by the deterministic guide without a provider call');
+
+    const courseOverviewInbound = {
+      ...greetingInbound, metaChatId: `synthetic-hybrid-course-overview-${crypto.randomUUID()}`,
+      msgContext: { type: 'text', text: { body: 'What about Synthetic Excel?' } },
+    };
+    const courseOverviewResult = await runtime.runConfiguredBot({ uid: legacyUid, message: courseOverviewInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
+    assert.equal(courseOverviewResult.sent, true);
+    assert.equal(courseOverviewResult.route, 'facts');
+    assert.equal(providerCalls, 2, 'a named-course overview uses published facts without an AI call');
+    assert.match(sentMessages.at(-1).content.text.body, /Synthetic Excel: Approved synthetic outline\./);
+    assert.match(sentMessages.at(-1).content.text.body, /325\.00 QAR/);
+    assert.match(sentMessages.at(-1).content.text.body, /Would you like to know anything else about this course\?/);
 
     const hybridQuestion = {
       ...greetingInbound, metaChatId: `synthetic-hybrid-question-${crypto.randomUUID()}`,

@@ -147,6 +147,23 @@ function simpleFactualReply(message, context, config = {}) {
     const template = config.guidedContent?.messages?.simpleFeeMessage?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم {course} حالياً {fee}.{registration}' : '{course} is currently {fee}.{registration}');
     return { reply: template.replaceAll('{course}', course.name).replaceAll('{fee}', fee).replaceAll('{registration}', extra), sourceIds: [course.sourceId] };
   }
+  const overviewIntent = /\bwhat about\b|\btell me (?:more|about)\b|\bmore about\b|\bdetails? (?:on|about|for)\b|\bcourse overview\b|\bwhat (?:does|will) (?:i|we|you) learn\b|\bwhat is (?:in|covered in) (?:this|the) course\b|\bsyllabus\b|\btopics\b|ماذا عن|اخبرني المزيد|أخبرني المزيد|تفاصيل (?:عن|حول)|محتوى الدورة|ماذا سنتعلم|ماذا سأتعلم/i.test(message);
+  if (overviewIntent) {
+    const description = String(course.description || '').replace(/\s+/g, ' ').trim();
+    const boundary = description.search(/[.!؟](?=\s|$)/u);
+    const summary = boundary >= 45 && boundary <= 320
+      ? description.slice(0, boundary + 1)
+      : description.length > 320
+        ? description.slice(0, 317).replace(/\s+\S*$/, '') + '…'
+        : description;
+    if (!summary) return null;
+    const fee = course.offer?.priceAmount != null && course.offer?.currency
+      ? (ar ? `الرسوم الحالية ${course.offer.priceAmount} ${course.offer.currency}.` : `The current fee is ${course.offer.priceAmount} ${course.offer.currency}.`)
+      : '';
+    const prompt = applicationOffer || config.guidedContent?.messages?.courseDetailsPrompt?.[ar ? 'ar' : 'en']
+      || (ar ? 'هل تود معرفة شيء آخر عن هذه الدورة؟' : 'Would you like to know anything else about this course?');
+    return { reply: [`${course.name}: ${summary}`, fee, prompt].filter(Boolean).join(' '), sourceIds: [course.sourceId, ...(applicationOffer ? [registrationForm.sourceId] : [])] };
+  }
   return null;
 }
 

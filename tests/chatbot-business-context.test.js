@@ -49,6 +49,32 @@ test('a plain how much question uses the selected live fee without AI',()=>{cons
 
 test('a combined course-interest question gives published facts and offers the real registration form by consent',()=>{const message='I am interested in Excel Essentials. What is the fee and duration?';const source=[...facts.slice(0,-1),{kind:'published_enquiry_form',purpose:'registration',nameEn:'Student registration',url:'https://example.test/p/test/forms/student-registration'}];const c=retrieveContext({facts:source,message});const result=simpleFactualReply(message,c);assert.match(result.reply,/250.00 QAR/);assert.match(result.reply,/duration .*isn’t published/);assert.match(result.reply,/If you’d like, I can send you the registration form/);assert.equal(result.sourceIds.length,2);assert.equal(result.nextStep,'course_detail');});
 
+test('a natural what-about question answers from the explicitly named course facts without repeating a generic fallback',()=>{
+ const source=[{courseId:'preprimary',code:'PREPRIMARY',nameEn:'Pre & Primary Teacher Training',nameAr:'تدريب معلمات رياض الأطفال والمرحلة الابتدائية',descriptionEn:'A structured teacher-training programme for aspiring early-years and primary teachers. It covers lesson planning, child development and classroom practice.',descriptionAr:'برنامج تدريبي منظم للمعلمات الراغبات في تدريس مرحلتي الطفولة المبكرة والابتدائية. ويشمل تخطيط الدروس ونمو الطفل والتطبيق الصفي.',offer:{priceAmount:'1450.00',currency:'QAR'}}];
+ const message='what about for Pre primary';
+ const context=retrieveContext({facts:source,message,state:{selectedCourseCode:'ENG'}});
+ assert.equal(context.selectedCourseCode,'PREPRIMARY');
+ const result=simpleFactualReply(message,context);
+ assert.ok(result);
+ assert.match(result.reply,/Pre & Primary Teacher Training: A structured teacher-training programme/);
+ assert.match(result.reply,/1450\.00 QAR/);
+ assert.match(result.reply,/Would you like to know anything else about this course\?/);
+ assert.doesNotMatch(result.reply,/I can’t confirm that|which course are you interested in/);
+ assert.deepEqual(result.sourceIds,['course:preprimary']);
+});
+
+test('natural course-overview follow-ups use the previously selected course and localize the response',()=>{
+ const message='tell me more about this course';
+ const context=retrieveContext({facts,message,state:{selectedCourseCode:'ENG',language:'en'}});
+ const result=simpleFactualReply(message,context);
+ assert.match(result.reply,/Business English: English communication for work and presentations/);
+ assert.match(result.reply,/350\.00 QAR/);
+ const ar=retrieveContext({facts,message:'ماذا عن دورة الإنجليزية للأعمال؟',state:{language:'ar'}});
+ const localized=simpleFactualReply('ماذا عن دورة الإنجليزية للأعمال؟',ar);
+ assert.match(localized.reply,/الإنجليزية للأعمال/);
+ assert.match(localized.reply,/٣٥٠|350\.00 QAR/);
+});
+
 test('general policy questions omit unrelated courses and retain approved refund FAQs',()=>{const c=retrieveContext({facts,message:'What is your refund fees policy?',knowledgeEntries:[{questionEn:'What is your refund fees policy?',answerEn:'Contact the centre before cancelling.'}]});assert.equal(c.evidence.filter(x=>x.kind==='course').length,0);assert.equal(c.evidence.filter(x=>x.kind==='approved_faq').length,1);});
 
 test('registration and enquiry requests cite the corresponding published form purpose',()=>{const source=[...facts,{kind:'published_enquiry_form',purpose:'registration',nameEn:'Student registration',url:'https://example.test/p/test/forms/student-registration',publishedVersion:2}];const c=retrieveContext({facts:source,message:'Can I register for Business English?'});const form=c.evidence.find(x=>x.kind==='published_enquiry_form');assert.equal(form.purpose,'registration');assert.match(form.url,/student-registration/);const enquiry=retrieveContext({facts:source,message:'Can I enquire about Business English?'});assert.equal(enquiry.evidence.find(x=>x.kind==='published_enquiry_form').purpose,'enquiry');const changed=structuredClone(source);changed.at(-1).publishedVersion++;assert.notEqual(retrieveContext({facts:changed,message:'Can I register?'}).revision,c.revision);});
