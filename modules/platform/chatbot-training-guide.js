@@ -1,5 +1,7 @@
 'use strict';
 
+const { keywordReply } = require('./chatbot-keyword-replies');
+
 function clean(value, max = 240) {
   if (typeof value !== 'string') return '';
   const text = value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -24,9 +26,8 @@ function mergeDefaults(defaults, value) {
 
 function copy(settings, key, language, fallback = '') {
   const value = settings.messages?.[key];
-  const selected=typeof value==='string'?value:value&&typeof value==='object'?(value[language]||value[language==='ar'?'en':'ar']):fallback;
-  if(key==='handoffMessage')return String(selected||fallback).split(/\r?\n/).map(line=>clean(line,90)).filter(Boolean).slice(0,4).join('\n');
-  return clean(selected, /Label$/.test(key)?40:100) || fallback;
+  const selected = typeof value === 'string' ? value : value?.[language] || value?.[language === 'ar' ? 'en' : 'ar'];
+  return typeof selected === 'string' ? selected.trim() : fallback;
 }
 
 function languageFor(message, state, config) {
@@ -45,7 +46,8 @@ function menuText(facts = [], settings = {}, language = 'en', { includeGreeting 
   if (form && settings.display?.showEnquiryForm !== false) {
     lines.push(`[2] ${copy(settings, 'enquiryLabel', language, language === 'ar' ? 'نموذج الاستفسار' : 'Enquiry form')}`);
   }
-  lines.push((language === 'ar' ? '[3] التحدث مع فريق القبول' : '[3] Speak to admissions') + ` · [0] ${copy(settings, 'mainMenuLabel', language, 'Menu')}`);
+  lines.push(`[3] ${copy(settings, 'admissionsLabel', language)}` + ` · [0] ${copy(settings, 'mainMenuLabel', language, 'Menu')}`);
+  lines[lines.length - 1] += ` · ${copy(settings, 'menuPrompt', language)}`;
   return lines.join('\n');
 }
 
@@ -110,7 +112,7 @@ function formatCourseList(courses, settings = {}, language = 'en', page = 0) {
     if (settings.display?.showFees !== false && course.offer?.priceAmount != null && course.offer?.currency) line += ` — ${course.offer.priceAmount} ${course.offer.currency}`;
     lines.push(line);
   });
-  lines.push(language === 'ar' ? 'رقم الدورة للتفاصيل · التالي / السابق · 0 القائمة' : 'Course number for details · next / previous · 0 menu');
+  lines.push(copy(settings, 'courseListPrompt', language));
   return lines.join('\n');
 }
 
@@ -146,13 +148,13 @@ function formatCourseDetails(course, formUrl, settings = {}, language = 'en') {
           ? `${date}${batchLanguage ? ` · ${batchLanguage}` : ''} · ${copy(settings, 'batchSeatsLabel', language, 'المقاعد المتاحة')}: ${seats}`
           : `${date}${batchLanguage ? ` · ${batchLanguage}` : ''} · ${seats} ${copy(settings, 'batchSeatsLabel', language, 'seats available')}`);
       }
-    }
+    } else lines.push(copy(settings, 'noUpcomingBatches', language));
   }
   const batchLine = lines.splice(batchIndex).join(' · ');
   const heading = lines.shift();
   const summary = description && settings.display?.showDescription !== false ? lines.shift() : null;
   const factsLine = lines.join(' · ');
-  const prompt = (batchLine ? batchLine + ' · ' : '') + (language === 'ar' ? '1 الدورات · form التسجيل · agent موظف' : 'Reply 1 to browse courses · form to enquire · agent for staff');
+  const prompt = (batchLine ? batchLine + ' · ' : '') + copy(settings, 'courseDetailsPrompt', language);
   return [heading, summary, factsLine, prompt].filter(Boolean).join('\n');
 }
 
@@ -185,6 +187,8 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
       : copy(settings, 'enquiryUnavailable', language, language === 'ar' ? 'لم يتم نشر نموذج استفسار بعد.' : 'An enquiry form is not published yet.'),
     state: nextState('menu') };
   }
+  const customReply = /^\d+$/.test(text) ? null : keywordReply(message, config?.keywordReplies, language);
+  if (customReply) return { reply: customReply, state: { ...(state || {}), language, step: step || 'menu' }, customReply: true };
   const namedCourse = courses.find(course => [course.nameEn, course.nameAr, course.code].some(name => {
     const normalized = clean(name, 100).toLowerCase();
     return normalized.length >= 3 && text.includes(normalized);
@@ -218,14 +222,14 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
     const code = Array.isArray(state.courseCodes) ? state.courseCodes[index] : null;
     const course = courses.find(item => item.code === code);
     if (course) return { reply: formatCourseDetails(course, formUrl, settings, language), state: nextState('course_detail', { courseCodes: state.courseCodes.slice(0, courseLimit(settings)), selectedCourseCode: course.code }) };
-    return { reply: formatCourseList(courses, settings, language), state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
+    return { reply: `${copy(settings, 'invalidSelection', language)} ${formatCourseList(courses, settings, language)}`, state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
   }
   if (step === 'course_list') return { reply: formatCourseList(courses, settings, language), state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
 
   const greeting = /^(?:hi|hello|hey|good morning|good afternoon|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(text);
   if (!step || greeting) return { reply: menuText(facts, settings, language, { includeGreeting: !state?.greeted }), state: nextState('menu') };
   const fallback = copy(settings, 'fallbackMessage', language, language === 'ar' ? 'أعتذر، لم أفهم الاختيار.' : 'I did not understand that selection.');
-  return { reply: menuText(facts, settings, language, { includeGreeting: false }), state: nextState('menu') };
+  return { reply: `${fallback}\n${menuText(facts, settings, language, { includeGreeting: false })}`, state: nextState('menu') };
 }
 
 function trainingCenterGuidedReply({ message, state, facts, config, defaults }) {
@@ -238,7 +242,7 @@ function trainingCenterGuidedReply({ message, state, facts, config, defaults }) 
   }
   result.state = { ...(result.state || {}), greeted: true };
   const selected = facts.find(course => course.code === result.state.selectedCourseCode);
-  if (!result.handoff && result.state.step === 'course_detail' && selected && (state?.selectedCourseCode !== selected.code || /brochure|catalog(?:ue)?|pdf|photo|image|بروشور|كتالوج|صورة/i.test(message))) {
+  if (!result.handoff && !result.customReply && result.state.step === 'course_detail' && selected && (state?.selectedCourseCode !== selected.code || /brochure|catalog(?:ue)?|pdf|photo|image|بروشور|كتالوج|صورة/i.test(message))) {
     const files = Array.isArray(selected.media) ? selected.media : [];
     result.media = ['image', 'document'].map(kind => files.find(file => file.kind === kind)).filter(Boolean)
       .map(file => ({ ...file, courseId: selected.courseId }));

@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261009-staff-controls2';
+    chatbotScript.src = '/chatbot-admin.js?v=20261011-guided-wording1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }

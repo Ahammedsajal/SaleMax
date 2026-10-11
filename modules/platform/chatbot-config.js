@@ -58,7 +58,30 @@ function normalizeGuidedContent(value, pack) {
     if (source != null && (typeof source !== 'object' || Array.isArray(source))) throw Object.assign(new Error('INVALID_GUIDED_CONTENT'), { code: 'INVALID_GUIDED_CONTENT' });
     return Object.fromEntries(Object.entries(fallback).map(([key, child]) => [key, visit(source?.[key], child, path ? `${path}.${key}` : key)]));
   }
-  return visit(value, defaults, '');
+  const content = visit(value, defaults, '');
+  content.keywordReplies = normalizeKeywordReplies(value?.keywordReplies);
+  return content;
+}
+
+function normalizeKeywordReplies(value = []) {
+  const invalid = () => { throw Object.assign(new Error('INVALID_KEYWORD_REPLIES'), { code: 'INVALID_KEYWORD_REPLIES' }); };
+  if (!Array.isArray(value) || value.length > 30) invalid();
+  return value.map(rule => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule) || !Array.isArray(rule.keywords) || !rule.keywords.length || rule.keywords.length > 20) invalid();
+    const keywords = rule.keywords.map(word => {
+      if (typeof word !== 'string' || !require('./chatbot-keyword-replies').normalize(word) || word.length > 100) invalid();
+      return word.trim();
+    });
+    if (!['contains', 'exact', 'all'].includes(rule.match || 'contains')) invalid();
+    if (rule.enabled != null && typeof rule.enabled !== 'boolean') invalid();
+    const reply = {};
+    for (const language of ['en', 'ar']) {
+      if (rule.reply?.[language] != null && (typeof rule.reply[language] !== 'string' || rule.reply[language].length > 1600)) invalid();
+      reply[language] = cleanText(rule.reply?.[language], 1600, 'INVALID_KEYWORD_REPLIES');
+    }
+    if (!reply.en && !reply.ar) invalid();
+    return { enabled: rule.enabled !== false, match: rule.match || 'contains', keywords, reply };
+  });
 }
 
 function botInput(input, categoryKey, categoryVersion = 1) {
@@ -66,7 +89,7 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   if (typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 120) throw Object.assign(new Error('INVALID_BOT_NAME'), { code: 'INVALID_BOT_NAME' });
   if (!ENGINES.has(input.engine)) throw Object.assign(new Error('INVALID_BOT_ENGINE'), { code: 'INVALID_BOT_ENGINE' });
   const source = input.config;
-  if (!source || typeof source !== 'object' || Array.isArray(source) || Buffer.byteLength(JSON.stringify(source)) > 32000) throw Object.assign(new Error('INVALID_BOT_CONFIG'), { code: 'INVALID_BOT_CONFIG' });
+  if (!source || typeof source !== 'object' || Array.isArray(source) || Buffer.byteLength(JSON.stringify(source)) > 128000) throw Object.assign(new Error('INVALID_BOT_CONFIG'), { code: 'INVALID_BOT_CONFIG' });
   const config = { domainPack: categoryKey, language: ['en', 'ar', 'en_ar'].includes(source.language) ? source.language : 'en_ar' };
   const audience = normalizeAudience(source.allowedRecipientPhones);
   if (audience !== undefined) config.allowedRecipientPhones = audience;
@@ -114,4 +137,4 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   return { name: input.name.trim(), engine: input.engine, config };
 }
 
-module.exports = { ENGINES, botInput, cleanText, botRequirements, supportsAiPreview, isGuidedChoice, hybridTurnPlan, normalizeGuidedContent };
+module.exports = { ENGINES, botInput, cleanText, botRequirements, supportsAiPreview, isGuidedChoice, hybridTurnPlan, normalizeGuidedContent, normalizeKeywordReplies };

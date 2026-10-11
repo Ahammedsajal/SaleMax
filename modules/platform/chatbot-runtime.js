@@ -274,7 +274,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
     const pack = getDomainPack(ctx.category.key, ctx.category.version);
     const incoming = textOf(message);
-    const plan = hybridTurnPlan({ hasSession: !!session, isChoice: isGuidedChoice(incoming), shouldStartGuided: pack.isGuidedIntent?.(incoming) === true, domainDefault: true, aiFallback: profile.config.aiFallback });
+    const plan = hybridTurnPlan({ hasSession: !!session, isChoice: isGuidedChoice(incoming), shouldStartGuided: pack.isGuidedIntent?.(incoming) === true || Boolean(require('./chatbot-keyword-replies').keywordReply(incoming, profile.config?.guidedContent?.keywordReplies)), domainDefault: true, aiFallback: profile.config.aiFallback });
     if (plan.runGuided) {
       const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId });
       if (dispatched || !plan.allowAiFallback) return dispatched ? { flowDispatched: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
