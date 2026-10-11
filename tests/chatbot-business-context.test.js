@@ -34,3 +34,9 @@ test('context fingerprint includes tenant facts and profile revision',()=>assert
 
 test('anaphoric follow-up keeps the selected course even when distractor descriptions match generic words',()=>{const noisy=[...facts,{code:'OTHER',nameEn:'Other programme',descriptionEn:'How long does the course take? Choose this course for training.'}];const c=retrieveContext({facts:noisy,message:'How long does that course take?',state:{selectedCourseCode:'EXCEL'}});assert.equal(c.selectedCourseCode,'EXCEL');assert.deepEqual(c.evidence.filter(x=>x.kind==='course').map(x=>x.code),['EXCEL']);});
 test('an explicit new course alias overrides the previous course',()=>{const c=retrieveContext({facts,message:'When is Excel?',state:{selectedCourseCode:'ENG'}});assert.equal(c.selectedCourseCode,'EXCEL');});
+
+test('a duration follow-up states missing published data and spends no AI tokens',()=>{const missing=structuredClone(facts);missing[0].durationValue=null;const c=retrieveContext({facts:missing,message:'How long does that course take?',state:{selectedCourseCode:'ENG'}});const result=simpleFactualReply('How long does that course take?',c);assert.match(result.reply,/isn’t published/);assert.doesNotMatch(result.reply,/which course/);});
+
+test('a plain how much question uses the selected live fee without AI',()=>{const c=retrieveContext({facts,message:'How much is Business English?'});assert.match(simpleFactualReply('How much is Business English?',c).reply,/350.00 QAR/);});
+
+test('general policy questions omit unrelated courses and retain approved refund FAQs',()=>{const c=retrieveContext({facts,message:'What is your refund fees policy?',knowledgeEntries:[{questionEn:'What is your refund fees policy?',answerEn:'Contact the centre before cancelling.'}]});assert.equal(c.evidence.filter(x=>x.kind==='course').length,0);assert.equal(c.evidence.filter(x=>x.kind==='approved_faq').length,1);});

@@ -15,7 +15,7 @@ async function boundedJson(response, maxBytes = 65536) {
   try { return JSON.parse(text); } catch { throw Object.assign(new Error('PROVIDER_INVALID_RESPONSE'), { code: 'PROVIDER_INVALID_RESPONSE' }); }
 }
 
-async function generate({ provider, model, apiKey, system, user, maxOutputTokens = 350, fetchImpl = fetch }) {
+async function generate({ provider, model, apiKey, system, user, requireSources = false, maxOutputTokens = 350, fetchImpl = fetch }) {
   const spec = PROVIDERS[provider];
   if (!spec) throw Object.assign(new Error('AI_PROVIDER_UNSUPPORTED'), { code: 'AI_PROVIDER_UNSUPPORTED' });
   if (typeof model !== 'string' || !/^[A-Za-z0-9._:-]{1,80}$/.test(model)) throw Object.assign(new Error('AI_MODEL_INVALID'), { code: 'AI_MODEL_INVALID' });
@@ -28,6 +28,13 @@ async function generate({ provider, model, apiKey, system, user, maxOutputTokens
       headers.Authorization = `Bearer ${apiKey}`;
       const tokenLimit = Math.min(Math.max(maxOutputTokens, 64), 700);
       body = { model, temperature: 0.1, max_tokens: tokenLimit, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] };
+      if (requireSources && provider === 'openai' && /^gpt-(?:4o|[5-9])/.test(model)) body.response_format = {
+        type: 'json_schema', json_schema: { name: 'business_reply', strict: true, schema: {
+          type: 'object', additionalProperties: false,
+          properties: { can_answer: { type: 'boolean' }, confidence: { type: 'number' }, reply: { type: 'string' }, source_ids: { type: 'array', items: { type: 'string' } } },
+          required: ['can_answer', 'confidence', 'reply', 'source_ids'],
+        } },
+      };
       if (/^gpt-6(?:\.|-)/.test(model)) {
         // Current reasoning models use max_completion_tokens. Non-none reasoning
         // effort also rejects temperature, so use low effort for capable models.
@@ -55,10 +62,12 @@ async function generate({ provider, model, apiKey, system, user, maxOutputTokens
       throw error;
     }
     const text = spec.style === 'openai' ? payload?.choices?.[0]?.message?.content : payload?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('');
-    if (typeof text !== 'string' || !text.trim() || text.length > 12000) throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
+    const tokensUsed = Number(payload?.usage?.prompt_tokens ?? payload?.usageMetadata?.promptTokenCount ?? 0) + Number(payload?.usage?.completion_tokens ?? payload?.usageMetadata?.candidatesTokenCount ?? 0) + Number(payload?.usageMetadata?.thoughtsTokenCount ?? 0);
+    const invalidOutput = () => Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT', ...(Number.isSafeInteger(tokensUsed) && tokensUsed > 0 ? { tokensUsed } : {}) });
+    if (typeof text !== 'string' || !text.trim() || text.length > 12000) throw invalidOutput();
     let parsed;
-    try { parsed = JSON.parse(text); } catch { throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT' }); }
-    if (typeof parsed.reply !== 'string' || parsed.reply.length > 1600 || typeof parsed.can_answer !== 'boolean' || !Number.isFinite(parsed.confidence) || parsed.confidence < 0 || parsed.confidence > 1) throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
+    try { parsed = JSON.parse(text); } catch { throw invalidOutput(); }
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.reply !== 'string' || parsed.reply.length > 1600 || typeof parsed.can_answer !== 'boolean' || !Number.isFinite(parsed.confidence) || parsed.confidence < 0 || parsed.confidence > 1 || (requireSources && (!Array.isArray(parsed.source_ids) || parsed.source_ids.length > 8 || parsed.source_ids.some(id => typeof id !== 'string' || id.length > 100)))) throw invalidOutput();
     return { ...(Array.isArray(parsed.source_ids) ? { sourceIds: parsed.source_ids.filter(id => typeof id === 'string' && id.length <= 100).slice(0, 8) } : {}), canAnswer: parsed.can_answer, confidence: parsed.confidence, reply: parsed.reply.trim(), inputTokens: Number(payload?.usage?.prompt_tokens ?? payload?.usageMetadata?.promptTokenCount ?? 0), outputTokens: Number(payload?.usage?.completion_tokens ?? payload?.usageMetadata?.candidatesTokenCount ?? 0) };
   } catch (error) {
     if (error.name === 'AbortError') throw Object.assign(new Error('AI_PROVIDER_TIMEOUT'), { code: 'AI_PROVIDER_TIMEOUT' });

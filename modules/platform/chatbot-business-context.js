@@ -7,6 +7,7 @@ const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
 const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const durationUnit = (unit, amount, language) => { const ar = {hours:['ساعة','ساعتان','ساعات'],days:['يوم','يومان','أيام'],weeks:['أسبوع','أسبوعان','أسابيع'],months:['شهر','شهران','أشهر']}; return language === 'ar' && ar[unit] ? ar[unit][Number(amount) === 2 ? 1 : Number(amount) >= 3 && Number(amount) <= 10 ? 2 : 0] : Number(amount) === 1 ? String(unit).replace(/s$/, '') : unit; };
 const local = (item, field, language) => item[field + (language === 'ar' ? 'Ar' : 'En')] || item[field + (language === 'ar' ? 'En' : 'Ar')] || '';
 
 function languageFor(message, state = {}) {
@@ -41,7 +42,8 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     || [...nameWords.get(item.code)].some(word => tokens(message).includes(word) && courses.filter(other => nameWords.get(other.code).has(word)).length === 1));
   const ranked = courses.map(item => ({ item, score: score(message, [item.code, item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.outcomesEn, item.outcomesAr].join(' ')) }))
     .sort((a, b) => b.score - a.score);
-  let selected = direct.length ? direct.slice(0, 3) : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
+  const generalBusinessQuestion = /where|location|address|refund|policy|discount|اين|عنوان|موقع|استرداد|استرجاع|سياسة|خصم/i.test(message);
+  let selected = direct.length ? direct.slice(0, 3) : generalBusinessQuestion ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
   const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ/i.test(message);
   if (!direct.length && followUp && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (!selected.length && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
@@ -54,7 +56,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     kind: 'course', code: course.code, name: local(course, 'name', language),
     description: String(local(course, 'description', language)).slice(0, 350),
     outcomes: String(local(course, 'outcomes', language)).slice(0, 250),
-    duration: course.durationValue ? `${course.durationValue} ${course.durationUnit}` : null,
+    duration: course.durationValue ? `${course.durationValue} ${durationUnit(course.durationUnit, course.durationValue, language)}` : null,
     delivery: course.deliveryMode, offer: course.offer, batches: course.batches?.slice(0, 2),
   }));
   facts.filter(item => item.kind === 'business_profile' || item.kind === 'published_enquiry_form').forEach(item => {
@@ -65,7 +67,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     });
     else if (/enrol|enroll|register|registration|apply|join|form|sign up|تسجيل|سجل|نموذج|اشتراك/i.test(message)) add('form:enquiry', item, { kind: item.kind, url: item.url });
   });
-  const faqs = knowledgeEntries.map((item, index) => ({ item, index, score: score(message, item.questionEn + ' ' + item.questionAr) })).filter(row => row.score >= 3 && !/price|fee|cost|discount|seat|batch|start date|رسوم|سعر|خصم|مقاعد|موعد|تاريخ/i.test(row.item.questionEn + ' ' + row.item.questionAr)).sort((a, b) => b.score - a.score).slice(0, 2);
+  const faqs = knowledgeEntries.map((item, index) => ({ item, index, score: score(message, item.questionEn + ' ' + item.questionAr) })).filter(row => row.score >= 3 && (/refund|استرداد|استرجاع/i.test(row.item.questionEn + ' ' + row.item.questionAr) || !/price|fee|cost|discount|seat|batch|start date|رسوم|سعر|خصم|مقاعد|موعد|تاريخ/i.test(row.item.questionEn + ' ' + row.item.questionAr))).sort((a, b) => b.score - a.score).slice(0, 2);
   faqs.forEach(({ item, index }) => add('faq:' + index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer: local(item, 'answer', language) }));
   // Names are a discovery index, never evidence for unpublished prices/policies.
   add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
@@ -108,7 +110,13 @@ function simpleFactualReply(message, context, config = {}) {
   const courses = context.evidence.filter(item => item.kind === 'course');
   if (courses.length !== 1 || /compare|recommend|difference|best|better|cheaper|and|مقارن|افضل|الفرق|تنصح/.test(text)) return null;
   const course = courses[0];
-  if (/^(?:what is |what s |how much is |how much does |tell me |please |كم |ما |اريد معرفة )?(?:the )?(?:fee|fees|price|cost|رسوم|سعر|تكلفة)/.test(text) || /^(?:how much|كم السعر|كم الرسوم)$/.test(text)) {
+  if (/how long|duration|مدة|مدتها/i.test(message)) {
+    const key = course.duration ? 'simpleDurationMessage' : 'durationUnavailable';
+    const fallback = course.duration ? (ar ? 'مدة {course} هي {duration}.' : '{course} takes {duration}.') : (ar ? 'مدة {course} غير منشورة حالياً. يمكن لفريقنا تأكيدها لك.' : 'The duration for {course} isn’t published yet. Our team can confirm it for you.');
+    const template = config.guidedContent?.messages?.[key]?.[ar ? 'ar' : 'en'] || fallback;
+    return { reply: template.replaceAll('{course}', course.name).replaceAll('{duration}', course.duration || ''), sourceIds: [course.sourceId] };
+  }
+  if (/^(?:what is |what s |how much is |how much does |tell me |please |كم |ما |اريد معرفة )?(?:the )?(?:fee|fees|price|cost|رسوم|سعر|تكلفة)/.test(text) || /^(?:how much(?: is| does)?\b|كم السعر|كم الرسوم)/.test(text)) {
     if (!course.offer?.priceAmount) return null;
     const fee = `${course.offer.priceAmount} ${course.offer.currency}`;
     const label = config.guidedContent?.messages?.registrationFeeLabel?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم التسجيل' : 'Registration fee');

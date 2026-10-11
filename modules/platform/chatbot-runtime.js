@@ -270,7 +270,9 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode });
   const cached = replyCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0 } };
-  const { system, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: context.evidence, history: historySafe });
+  const sourceAliases = new Map();
+  const compactEvidence = context.evidence.map((item, index) => { const alias = 's' + index; sourceAliases.set(alias, item.sourceId); return { ...item, sourceId: alias }; });
+  const { system, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe });
   if (inputBytes > 12000) return { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification' };
   const prompt = `${system}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
@@ -279,20 +281,26 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const providerStarted = Date.now();
   let response;
   let succeeded = false;
+  let failedUsage = null;
   try {
     const apiKey = secrets.decrypt(settings);
-    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, maxOutputTokens: 250 });
+    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, requireSources: true, maxOutputTokens: 250 });
+    if (Array.isArray(response.sourceIds)) response.sourceIds = response.sourceIds.map(id => sourceAliases.get(id) || 'invalid:' + id);
     succeeded = true;
+  } catch (error) {
+    if (Number.isSafeInteger(error.tokensUsed)) failedUsage = error.tokensUsed;
+    else if (Number.isInteger(error.status)) failedUsage = 0;
+    throw error;
   } finally {
-    await settleTokens(ctx, reservation, succeeded ? (response?.inputTokens || 0) + (response?.outputTokens || 0) : null);
+    await settleTokens(ctx, reservation, succeeded ? ((response?.inputTokens || 0) + (response?.outputTokens || 0) || null) : failedUsage);
   }
   const metrics = { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0, cacheHit: false, latencyMs: Date.now() - providerStarted, sources: context.sources, provider: settings.provider, model: settings.model };
   const validation = businessContext.validateAnswer(response, context);
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);
   if (!validation.valid || response.confidence < threshold) {
     const language = context.language;
-    const msg = profile.config?.guidedContent?.messages?.unavailableMessage;
-    return { canAnswer: true, confidence: 0, reply: context.explicitCourses ? (msg?.[language] || businessContext.clarification(profile.config, language)) : businessContext.clarification(profile.config, language), state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
+    const msg = profile.config?.guidedContent?.messages?.unavailableMessage || pack.guidedContentDefaults?.messages?.unavailableMessage;
+    return { canAnswer: true, confidence: 0, reply: (context.explicitCourses || session.selectedCourseCode || /policy|refund|discount|guarantee|accredit|سياسة|استرداد|خصم|ضمان|اعتماد/i.test(customerMessage)) ? (msg?.[language] || businessContext.clarification(profile.config, language)) : businessContext.clarification(profile.config, language), state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
   }
   // Re-read live facts after the model call; never deliver a price or date
   // generated from data that changed while the provider was working.
@@ -340,7 +348,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
   if (answer.state) await saveConversationalState({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId, state: { ...answer.state, recentConversation: [...(answer.state.recentConversation || []), { role: 'user', text: textOf(message).slice(0, 400) }, { role: 'assistant', text: answer.reply.slice(0, 500) }].slice(-4) } });
-  return { sent: true, route: answer.route, metrics: answer.metrics };
+  return { sent: true, route: answer.route, reason: answer.reason, metrics: answer.metrics };
 }
 
 async function previewConfiguredBot({ ctx, profile, uid, message, state = null }) {
@@ -398,7 +406,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     let result;
     if (profile.engine === 'guided') result = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId }) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId });
-    if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, ...result.metrics }), crypto.randomUUID()]);
+    if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, reason: result.reason || null, ...result.metrics }), crypto.randomUUID()]);
     if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {

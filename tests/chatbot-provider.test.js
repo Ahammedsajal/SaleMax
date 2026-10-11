@@ -59,3 +59,17 @@ test('provider errors, oversized responses and invalid confidence fail closed', 
   await assert.rejects(generate({ provider: 'openai', model: 'gpt-test', apiKey: 'secret-provider-key-012345', system: 's', user: 'u', fetchImpl: async () => response('{}', { contentLength: '70000' }) }), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
   await assert.rejects(generate({ provider: 'openai', model: 'gpt-test', apiKey: 'secret-provider-key-012345', system: 's', user: 'u', fetchImpl: async () => response({ choices: [{ message: { content: JSON.stringify({ can_answer: true, confidence: 1.1, reply: 'Unsafe' }) } }] }) }), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
 });
+
+ test('grounded OpenAI requests require strict source schema and account for truncated output', async () => {
+  let body;
+  const args = {provider:'openai',model:'gpt-6-luna',apiKey:'test-only-key',system:'Rules',user:'Question',requireSources:true,maxOutputTokens:250};
+  const result = await generate({...args,fetchImpl:async (_url,options)=>{body=JSON.parse(options.body);return response({choices:[{message:{content:JSON.stringify({can_answer:true,confidence:0.9,reply:'Published answer',source_ids:['s0']})}}],usage:{prompt_tokens:700,completion_tokens:30}});}});
+  assert.equal(body.response_format.type,'json_schema');
+  assert.equal(body.response_format.json_schema.strict,true);
+  assert.deepEqual(body.response_format.json_schema.schema.required,['can_answer','confidence','reply','source_ids']);
+  assert.equal(body.response_format.json_schema.schema.additionalProperties,false);
+  assert.equal(body.max_completion_tokens,250);
+  assert.deepEqual(result.sourceIds,['s0']);
+  await assert.rejects(generate({...args,fetchImpl:async()=>response({choices:[{message:{content:'{"can_answer":true,'}}],usage:{prompt_tokens:700,completion_tokens:250}})}),{code:'AI_PROVIDER_INVALID_OUTPUT',tokensUsed:950});
+  for(const content of ['null',JSON.stringify({can_answer:true,confidence:0.9,reply:'Missing references'})]) await assert.rejects(generate({...args,fetchImpl:async()=>response({choices:[{message:{content}}]})}),{code:'AI_PROVIDER_INVALID_OUTPUT'});
+ });
