@@ -178,5 +178,6 @@ The supplied current-run screenshot documents the Finance invoice builder before
 - Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, and focus return to the opener.
 - The lead/contact details stay hidden until a valid contact is selected; changing the search clears the previous contact identity so an old selection cannot silently be invoiced.
 - Manual customer entry stays available, and shared native form controls receive consistent sizing and visible keyboard focus.
+- Production visual review caught oversized radio buttons caused by Finance's existing full-width control rule; the customer-source radios now have fixed 18px sizing and the focused test guards that alignment.
 
 Remaining source forms should be reviewed page by page using this inventory; deploy and visual acceptance must follow release evidence in `DEPLOYMENT.md`.

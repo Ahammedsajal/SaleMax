@@ -36,7 +36,7 @@ test('invoice builder is a polished accessible modal and never uses stale contac
   assert.match(ui,/invoiceForm.dataset.customerId='';customerFields.hidden=invoiceForm.elements.customerType.value!=='manual';select.value=''/);
   assert.match(ui,/const row=select.value\?customerRows\[Number\(select.value\)\]:null/);
   assert.match(ui,/const queryVersion=\+\+customerQueryVersion/);assert.match(ui,/queryVersion!==customerQueryVersion/);assert.match(ui,/event\.key==='Tab'/);
-  assert.match(css,/#sx-invoice-create-workspace:not\(\[hidden\]\).*place-items:center/s);assert.match(css,/max-height:calc\(100dvh - 32px\)/);
+  assert.match(css,/#sx-invoice-create-workspace:not\(\[hidden\]\).*place-items:center/s);assert.match(css,/max-height:calc\(100dvh - 32px\)/);assert.match(css,/#sx-finance-screen #sx-generator-invoice \.actions input\[type="radio"\].*width:18px/);
 });
 test('approved-sale invoice queue rejects roles outside owner/accountant before database access',async()=>{
   const ctx=context('agent'),pool={getConnection(){throw Error('unauthorized role must be rejected before database access')}};
