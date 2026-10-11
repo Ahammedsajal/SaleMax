@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { trainingCenterGuidedReply } = require('../modules/platform/chatbot-training-guide');
 const { getDomainPack } = require('../modules/platform/chatbot-domain-packs');
+const { polishGuidedReply } = require('../modules/platform/chatbot-business-context');
 
 const defaults = getDomainPack('training_center', 1).guidedContentDefaults;
 const facts = [
@@ -16,6 +17,13 @@ test('first greeting feels welcoming, offers numbered choices and does not ask f
   for (const choice of ['[1]', '[2]', '[3]', '[0]']) assert.ok(result.reply.includes(choice));
   assert.doesNotMatch(result.reply, /May I have your name\?/);
   assert.equal(result.state.greeted, true);
+});
+
+test('Hybrid greeting polishing preserves the numbered welcome menu', () => {
+  const result = trainingCenterGuidedReply({ message: 'Hi', state: null, facts, config: {}, defaults });
+  polishGuidedReply({ result, profile: { engine: 'hybrid', config: {} }, message: 'Hi', state: null, defaults });
+  assert.ok(result.reply.includes('[1]'));
+  assert.ok(result.reply.includes('[3]'));
 });
 
 test('a first course question receives the greeting and menu after its answer', () => {

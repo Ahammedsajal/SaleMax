@@ -150,7 +150,7 @@ function redactCustomerText(value) {
 }
 
 function polishGuidedReply({ result, profile, message, state, defaults }) {
-  if (profile.engine !== 'guided' && /^(?:hi|hello|hey|good morning|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(message)) {
+  if (profile.engine !== 'guided' && !result.reply?.includes('[1]') && /^(?:hi|hello|hey|good morning|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(message)) {
     const language = languageFor(message, state || {});
     result.reply = profile.config?.guidedContent?.messages?.greeting?.[language] || defaults.messages.greeting[language];
   }
