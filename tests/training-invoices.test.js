@@ -28,6 +28,16 @@ test('invoice register and detail are connected to the existing finance workspac
   assert.match(read('docs/API_DOCUMENTATION.md'),/Training invoice register and detail/);
   assert.match(read('docs/USER_MANUAL.md'),/Issued invoices/);
 });
+test('invoice builder is a polished accessible modal and never uses stale contact matches',()=>{
+  const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'..','client/public/training-finance.js'),'utf8'),css=fs.readFileSync(path.join(__dirname,'..','client/public/salemax-brand.css'),'utf8');
+  assert.match(ui,/role="dialog" aria-modal="true" aria-labelledby="sx-invoice-create-title" tabindex="-1"/);
+  assert.match(ui,/id="sx-invoice-create-title"/);assert.match(ui,/event.key==='Escape'/);assert.match(ui,/returnFocus.focus()/);assert.match(ui,/dialog.focus()/);
+  assert.match(ui,/id="sx-generator-customer-fields" hidden/);assert.match(ui,/customerFields.hidden=!manual&&!invoiceForm.dataset.customerId/);
+  assert.match(ui,/invoiceForm.dataset.customerId='';customerFields.hidden=invoiceForm.elements.customerType.value!=='manual';select.value=''/);
+  assert.match(ui,/const row=select.value\?customerRows\[Number\(select.value\)\]:null/);
+  assert.match(ui,/const queryVersion=\+\+customerQueryVersion/);assert.match(ui,/queryVersion!==customerQueryVersion/);assert.match(ui,/event\.key==='Tab'/);
+  assert.match(css,/#sx-invoice-create-workspace:not\(\[hidden\]\).*place-items:center/s);assert.match(css,/max-height:calc\(100dvh - 32px\)/);
+});
 test('approved-sale invoice queue rejects roles outside owner/accountant before database access',async()=>{
   const ctx=context('agent'),pool={getConnection(){throw Error('unauthorized role must be rejected before database access')}};
   await assert.rejects(saleReviews.listApprovedForInvoice(pool,ctx,{uid:'agent-uid'}),{code:'PERMISSION_DENIED'});
