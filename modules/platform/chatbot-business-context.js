@@ -59,13 +59,16 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     duration: course.durationValue ? `${course.durationValue} ${durationUnit(course.durationUnit, course.durationValue, language)}` : null,
     delivery: course.deliveryMode, offer: course.offer, batches: course.batches?.slice(0, 2),
   }));
-  facts.filter(item => item.kind === 'business_profile' || item.kind === 'published_enquiry_form').forEach(item => {
+  const forms = facts.filter(item => item.kind === 'published_enquiry_form');
+  const formPurpose = /enquir|inquir|contact|استفسار|تواصل/i.test(message) ? 'enquiry' : 'registration';
+  const selectedForm = forms.find(item => item.purpose === formPurpose) || forms[0];
+  facts.filter(item => item.kind === 'business_profile' || item === selectedForm).forEach(item => {
     if (item.kind === 'business_profile') add('business:profile', item, {
       kind: item.kind, name: local(item, 'name', language), about: String(local(item, 'about', language)).slice(0, 450),
       address: local(item, 'address', language), phone: item.phone, email: item.email,
       website: item.website, mapsUrl: item.mapsUrl, openingHours: item.openingHours,
     });
-    else if (/enrol|enroll|register|registration|apply|join|form|sign up|تسجيل|سجل|نموذج|اشتراك/i.test(message)) add('form:enquiry', item, { kind: item.kind, url: item.url });
+    else if (/enquir|inquir|enrol|enroll|register|registration|apply|join|form|sign up|تسجيل|سجل|نموذج|اشتراك/i.test(message)) add('form:enquiry', item, { kind: item.kind, purpose: item.purpose || 'enquiry', name: local(item, 'name', language), url: item.url });
   });
   const faqs = knowledgeEntries.map((item, index) => ({ item, index, score: score(message, item.questionEn + ' ' + item.questionAr) })).filter(row => row.score >= 3 && (/refund|استرداد|استرجاع/i.test(row.item.questionEn + ' ' + row.item.questionAr) || !/price|fee|cost|discount|seat|batch|start date|رسوم|سعر|خصم|مقاعد|موعد|تاريخ/i.test(row.item.questionEn + ' ' + row.item.questionAr))).sort((a, b) => b.score - a.score).slice(0, 2);
   faqs.forEach(({ item, index }) => add('faq:' + index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer: local(item, 'answer', language) }));

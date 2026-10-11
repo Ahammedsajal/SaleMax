@@ -265,12 +265,14 @@ async function trainingCenterFacts({ db, tenantId, platformOrigin }) {
       batches: batchesByCourse.get(String(id)) || [],
     };
   });
-  const [[form]] = await db.query(`SELECT t.slug AS tenantSlug,v.slug AS formSlug
+  const [forms] = await db.query(`SELECT t.slug AS tenantSlug,v.slug AS formSlug,f.id AS formId,v.version AS publishedVersion,v.name_en AS nameEn,v.name_ar AS nameAr,JSON_UNQUOTE(JSON_EXTRACT(v.schema_json,'$.templateKey')) AS templateKey
     FROM sx_training_forms f JOIN sx_training_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version
     JOIN sx_tenants t ON t.id=f.tenant_id
-    WHERE f.tenant_id=? AND f.status='published' AND f.published_version IS NOT NULL LIMIT 1`, [tenantId]);
-  const url = form && publicFormUrl(platformOrigin, form.tenantSlug, form.formSlug);
-  if (url) facts.push({ kind: 'published_enquiry_form', url });
+    WHERE f.tenant_id=? AND f.status='published' AND f.published_version IS NOT NULL ORDER BY f.updated_at DESC,f.id LIMIT 10`, [tenantId]);
+  for (const form of forms) {
+    const url = publicFormUrl(platformOrigin, form.tenantSlug, form.formSlug);
+    if (url) facts.push({ kind: 'published_enquiry_form', url, formId: form.formId, publishedVersion: form.publishedVersion, nameEn: form.nameEn, nameAr: form.nameAr, purpose: form.templateKey === 'procatalyst-registration-v1' || form.formSlug === 'student-registration' ? 'registration' : 'enquiry' });
+  }
   const [[business]] = await db.query(`SELECT display_name_en AS nameEn,display_name_ar AS nameAr,website_url AS website,email,phone,address_en AS addressEn,address_ar AS addressAr,google_maps_url AS mapsUrl,opening_hours AS openingHours,about_en AS aboutEn,about_ar AS aboutAr,revision,updated_at AS updatedAt FROM sx_training_center_profiles WHERE tenant_id=?`, [tenantId]);
   if (business) facts.push({ kind: 'business_profile', ...business });
   return facts;
@@ -281,7 +283,7 @@ registerDomainPack({
     version: 1,
     title: 'Training center',
     requiresDatabase: true,
-  systemGuidance: 'Use only tenant-approved FAQs and the live course, offer, batch, and published enquiry-form facts supplied in context. You may share the published enquiry form link when someone asks to enquire, enrol, register, or leave contact details; sharing it does not create a lead or enrolment. Never invent fees, dates, seat counts, discounts, certificates, admissions, invoices, or payment state.',
+  systemGuidance: 'Use only tenant-approved FAQs and the live course, offer, batch, and published form facts supplied in context. Describe each form using its supplied purpose and name: registration and enquiry are different. Sharing a form link alone does not submit it or confirm enrolment. Do not speculate about what submitting it does. Never invent fees, dates, seat counts, discounts, certificates, admissions, invoices, or payment state.',
   loadFacts: trainingCenterFacts,
   guidedContentDefaults: TRAINING_CENTER_GUIDED_DEFAULTS,
   guidedContentSchema: TRAINING_CENTER_GUIDED_SCHEMA,
