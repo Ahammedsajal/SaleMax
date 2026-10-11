@@ -395,7 +395,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     if (routed) sendToUid(uid, { chatId }, 'request_update_chat_list');
   }
   const channelKind = channelFor(origin);
-  if (await shouldPause(uid, chatId, channelKind, sessionId)) return { handled: true, paused: true };
+  const testReset = require('./chatbot-test-reset').isTestReset(profile.config, message?.senderMobile, textOf(message));
+  if (!testReset && await shouldPause(uid, chatId, channelKind, sessionId)) return { handled: true, paused: true };
   const turn = await claimTurn(ctx, profile, message, chatId);
   if (!turn) {
     await handoffConversation(ctx, chatId, channelKind, sessionId, 'inbound-message-id-unavailable', profile, uid);
@@ -403,6 +404,12 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
   if (turn.duplicate) return { handled: true, duplicate: true };
   try {
+    if (testReset) {
+      const db = await dbPool.getConnection();
+      try { await require('./chatbot-test-reset').resetTestConversation(db, { ctx, profile, uid, chatId, origin, sender: message.senderMobile, turnId: turn.id }); }
+      finally { db.release(); }
+      message = { ...message, msgContext: { text: { body: 'Hi' } } };
+    }
     let result;
     if (profile.engine === 'guided') result = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId }) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId });
@@ -415,6 +422,10 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     return { handled: true, ...result };
   } catch (error) {
+    if (error.code === 'TEST_RESET_BUSY') {
+      await finishTurn(turn, 'failed', 'test-reset-busy');
+      return { handled: true, code: error.code };
+    }
     const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code) ? error.code : 'runtime-error';
     await handoffConversation(ctx, chatId, channelKind, sessionId, failure, profile, uid).catch(() => {});
     await finishTurn(turn, 'handed_off', failure).catch(() => {});

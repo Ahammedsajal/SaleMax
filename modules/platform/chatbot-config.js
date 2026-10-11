@@ -93,6 +93,11 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   const config = { domainPack: categoryKey, language: ['en', 'ar', 'en_ar'].includes(source.language) ? source.language : 'en_ar' };
   const audience = normalizeAudience(source.allowedRecipientPhones);
   if (audience !== undefined) config.allowedRecipientPhones = audience;
+  if (source.testRecipientPhone != null && source.testRecipientPhone !== '') {
+    const phone = require('./chatbot-audience').recipientPhone(source.testRecipientPhone);
+    if (!phone || (audience !== undefined && !audience.includes(phone))) throw Object.assign(new Error('INVALID_TEST_PHONE'), { code: 'INVALID_TEST_PHONE' });
+    config.testRecipientPhone = phone;
+  }
   if (source.sharedInboxRouting != null) {
     if (typeof source.sharedInboxRouting !== 'boolean') throw Object.assign(new Error('INVALID_SHARED_INBOX_ROUTING'), { code: 'INVALID_SHARED_INBOX_ROUTING' });
     config.sharedInboxRouting = source.sharedInboxRouting;
