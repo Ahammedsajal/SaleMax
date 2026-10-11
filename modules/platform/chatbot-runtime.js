@@ -267,7 +267,6 @@ async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, messag
 
 async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null }) {
   const [settings] = await query(`SELECT provider,model,key_ciphertext,key_iv,key_auth_tag,daily_token_limit FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]);
-  if (!settings) return { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -281,34 +280,42 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
   const context = businessContext.retrieveContext({ facts, knowledgeEntries: profile.config?.knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
   const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
+  const courseOverview = profile.engine === 'hybrid' && profile.config?.aiFallback !== false && businessContext.isCourseOverviewRequest(customerMessage, context);
+  const factualOverviewFallback = sourceContext => {
+    const simple = businessContext.simpleFactualReply(customerMessage, sourceContext, profile.config);
+    return simple ? { canAnswer: true, confidence: 1, reply: simple.reply, state: nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: sourceContext.sources } } : null;
+  };
   if (profile.engine === 'hybrid') {
     const simple = businessContext.simpleFactualReply(customerMessage, context, profile.config);
-    if (simple) return { canAnswer: true, confidence: 1, reply: simple.reply, state: simple.nextStep ? { ...nextState, step: simple.nextStep } : nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+    if (simple && !courseOverview) return { canAnswer: true, confidence: 1, reply: simple.reply, state: simple.nextStep ? { ...nextState, step: simple.nextStep } : nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+    if (courseOverview && !settings) return factualOverviewFallback(context) || { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
   }
+  if (!settings) return { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
   const historySafe = Array.isArray(session.recentConversation) ? session.recentConversation.slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
   const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode });
   const cached = replyCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0 } };
   const sourceAliases = new Map();
   const compactEvidence = context.evidence.map((item, index) => { const alias = 's' + index; sourceAliases.set(alias, item.sourceId); return { ...item, sourceId: alias }; });
-  const { system, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe });
-  if (inputBytes > 12000) return { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification' };
+  const { system, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, courseOverview });
+  if (inputBytes > 12000) return factualOverviewFallback(context) || { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification' };
   const prompt = `${system}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
   const reservation = await reserveTokens(ctx, settings, estimate);
-  if (!reservation) return { handedOff: true, code: 'DAILY_TOKEN_LIMIT' };
+  if (!reservation) return factualOverviewFallback(context) || { handedOff: true, code: 'DAILY_TOKEN_LIMIT' };
   const providerStarted = Date.now();
   let response;
   let succeeded = false;
   let failedUsage = null;
   try {
     const apiKey = secrets.decrypt(settings);
-    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, requireSources: true, maxOutputTokens: 250 });
+    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, requireSources: true, maxOutputTokens: courseOverview ? 90 : 250 });
     if (Array.isArray(response.sourceIds)) response.sourceIds = response.sourceIds.map(id => sourceAliases.get(id) || 'invalid:' + id);
     succeeded = true;
   } catch (error) {
     if (Number.isSafeInteger(error.tokensUsed)) failedUsage = error.tokensUsed;
     else if (Number.isInteger(error.status)) failedUsage = 0;
+    if (courseOverview) return factualOverviewFallback(context) || { handedOff: true, code: error.code || 'AI_PROVIDER_ERROR' };
     throw error;
   } finally {
     await settleTokens(ctx, reservation, succeeded ? ((response?.inputTokens || 0) + (response?.outputTokens || 0) || null) : failedUsage);
@@ -317,6 +324,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const validation = businessContext.validateAnswer(response, context);
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);
   if (!validation.valid || response.confidence < threshold) {
+    if (courseOverview) return factualOverviewFallback(context) || { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
     const language = context.language;
     const msg = profile.config?.guidedContent?.messages?.unavailableMessage || pack.guidedContentDefaults?.messages?.unavailableMessage;
     return { canAnswer: true, confidence: 0, reply: (context.explicitCourses || session.selectedCourseCode || /policy|refund|discount|guarantee|accredit|سياسة|استرداد|خصم|ضمان|اعتماد/i.test(customerMessage)) ? (msg?.[language] || businessContext.clarification(profile.config, language)) : businessContext.clarification(profile.config, language), state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
@@ -324,7 +332,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   // Re-read live facts after the model call; never deliver a price or date
   // generated from data that changed while the provider was working.
   const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: profile.config?.knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
-  if (fresh.revision !== context.revision) return { canAnswer: true, confidence: 0, reply: businessContext.clarification(profile.config, context.language), state: nextState, route: 'clarification', reason: 'BUSINESS_DATA_CHANGED', metrics };
+  if (fresh.revision !== context.revision) return factualOverviewFallback(fresh) || { canAnswer: true, confidence: 0, reply: businessContext.clarification(profile.config, context.language), state: nextState, route: 'clarification', reason: 'BUSINESS_DATA_CHANGED', metrics };
   const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
   if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;
   const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai', metrics };

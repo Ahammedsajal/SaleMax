@@ -1,5 +1,12 @@
 # SaleMaX live deployment — 30 September 2026
 
+## AI-written Hybrid course replies — 11 October 2026
+
+- A clear follow-up about one matched course now uses the configured AI only to phrase a short, natural answer. The model receives that course's approved live business facts, gets at most 90 output tokens, and must cite the matched course source; the existing answer validator checks citations, prices, numbers, links and commitments before delivery. Menus and exact fee/duration replies remain deterministic and token-free.
+- If AI is unconfigured, over budget, errors, or returns an ungrounded/low-confidence answer, the bot replies from the published course description and current fee rather than repeating the generic fallback or handing over a known answer. The normal handover behavior remains in place for other questions.
+- Integration coverage verifies AI-written course wording, provider-error fallback, rejection of an unsupported job-guarantee claim, and unchanged handover for an AI failure on a non-course question. Focused chatbot suite: 238 tests.
+- Deployment verification pending until candidate image and database integration are built and checked.
+
 ## Natural answers to course-overview questions — 11 October 2026
 
 - Source commits `5db448c` and `80c6f6d` are pushed to `Ahammedsajal/SaleMax` `main`. Hybrid now answers clear course-overview prompts such as “What about Pre primary?” directly from the matched published description and current offer. It returns the first concise course-description sentence, the published fee when available, then the existing editable course-details prompt (or the registration offer when the customer expresses interest). It does not invoke the AI provider for this path, so a rejected model response can no longer replace a known course answer with the repeated generic fallback.

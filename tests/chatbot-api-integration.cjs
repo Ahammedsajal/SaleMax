@@ -10,6 +10,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
   let providerCalls = 0;
   let previewInput = '';
   let failNextProvider = false;
+  let invalidNextOverviewSource = false;
   provider.generate = async request => {
     providerCalls++;
     previewInput = request.user;
@@ -17,7 +18,18 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       failNextProvider = false;
       throw Object.assign(new Error('synthetic malformed provider output'), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
     }
-    const sourceIds = JSON.parse(request.user).approvedKnowledgeAndLiveCatalog.map(item => item.sourceId).filter(Boolean).slice(0, 2);
+    const parsed = JSON.parse(request.user);
+    const sourceIds = parsed.approvedKnowledgeAndLiveCatalog.map(item => item.sourceId).filter(Boolean).slice(0, 2);
+    if (/what about synthetic excel/i.test(parsed.customerMessage)) {
+      const course = parsed.approvedKnowledgeAndLiveCatalog.find(item => item.kind === 'course');
+      assert.equal(request.maxOutputTokens, 90, 'course overview wording uses a small output budget');
+      assert.match(request.system, /helpful admissions adviser in an ongoing chat/i);
+      if (invalidNextOverviewSource) {
+        invalidNextOverviewSource = false;
+        return { canAnswer: true, sourceIds: ['unapproved-course-fact'], confidence: 0.99, reply: 'The course guarantees you a job.', inputTokens: 31, outputTokens: 12 };
+      }
+      return { canAnswer: true, sourceIds: [course.sourceId], confidence: 0.96, reply: 'Synthetic Excel gives you a practical introduction to spreadsheets. Would you like to see the course outline?', inputTokens: 31, outputTokens: 22 };
+    }
     return { canAnswer: true, sourceIds, confidence: 0.96, reply: 'Our approved course information is available.', inputTokens: 31, outputTokens: 14 };
   };
 
@@ -370,11 +382,34 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     };
     const courseOverviewResult = await runtime.runConfiguredBot({ uid: legacyUid, message: courseOverviewInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
     assert.equal(courseOverviewResult.sent, true);
-    assert.equal(courseOverviewResult.route, 'facts');
-    assert.equal(providerCalls, 2, 'a named-course overview uses published facts without an AI call');
-    assert.match(sentMessages.at(-1).content.text.body, /Synthetic Excel: Approved synthetic outline\./);
-    assert.match(sentMessages.at(-1).content.text.body, /325\.00 QAR/);
+    assert.equal(courseOverviewResult.route, 'ai');
+    assert.equal(providerCalls, 3, 'a named-course overview uses one compact AI wording call');
+    assert.match(sentMessages.at(-1).content.text.body, /Synthetic Excel gives you a practical introduction to spreadsheets\./);
+    assert.doesNotMatch(sentMessages.at(-1).content.text.body, /I don’t have a confirmed answer|I don't have a confirmed answer/);
     assert.match(sentMessages.at(-1).content.text.body, /May I have your name\?/);
+
+    failNextProvider = true;
+    const overviewFallbackInbound = {
+      ...greetingInbound, metaChatId: `synthetic-hybrid-overview-fallback-${crypto.randomUUID()}`,
+      msgContext: { type: 'text', text: { body: 'Tell me more about Synthetic Excel' } },
+    };
+    const overviewFallbackResult = await runtime.runConfiguredBot({ uid: legacyUid, message: overviewFallbackInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
+    assert.equal(overviewFallbackResult.sent, true, 'a provider error during a known course overview uses its published-facts fallback');
+    assert.equal(overviewFallbackResult.route, 'facts');
+    assert.match(sentMessages.at(-1).content.text.body, /Approved synthetic outline/);
+    const [[overviewFallbackControl]] = await connection.query('SELECT mode FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND conversation_id=?', [t1, hybridConversation]);
+    assert.equal(overviewFallbackControl.mode, 'inherit', 'a safe course-summary fallback does not trigger handover');
+
+    invalidNextOverviewSource = true;
+    const ungroundedOverviewInbound = {
+      ...greetingInbound, metaChatId: `synthetic-hybrid-ungrounded-overview-${crypto.randomUUID()}`,
+      msgContext: { type: 'text', text: { body: 'What about Synthetic Excel?' } },
+    };
+    const ungroundedOverviewResult = await runtime.runConfiguredBot({ uid: legacyUid, message: ungroundedOverviewInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
+    assert.equal(ungroundedOverviewResult.sent, true);
+    assert.equal(ungroundedOverviewResult.route, 'facts', 'an ungrounded model answer is replaced by the published-facts summary');
+    assert.match(sentMessages.at(-1).content.text.body, /Approved synthetic outline/);
+    assert.doesNotMatch(sentMessages.at(-1).content.text.body, /guarantees you a job/i);
 
     const hybridQuestion = {
       ...greetingInbound, metaChatId: `synthetic-hybrid-question-${crypto.randomUUID()}`,
@@ -383,7 +418,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     const hybridQuestionResult = await runtime.runConfiguredBot({ uid: legacyUid, message: hybridQuestion, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: hybridConversation });
     assert.equal(hybridQuestionResult.handled, true);
     assert.equal(hybridQuestionResult.sent, true);
-    assert.equal(providerCalls, 3, 'Hybrid sends an ordinary follow-up to the configured AI fallback');
+    assert.equal(providerCalls, 6, 'Hybrid sends an ordinary follow-up to the configured AI fallback');
     assert.match(sentMessages.at(-1).content.text.body, /^Our approved course information is available\./);
     const sentCountBeforeFailure = sentMessages.length;
     failNextProvider = true;

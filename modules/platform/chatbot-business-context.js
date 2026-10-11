@@ -109,6 +109,11 @@ function clarification(config, language) {
   return text?.[language] || (language === 'ar' ? 'حتى أساعدك بشكل أدق، أي دورة تهمك؟ وإذا أردت التحدث مع فريقنا، اكتب موظف.' : 'Happy to help — which course are you interested in? If you’d prefer our team, just type agent.');
 }
 
+function isCourseOverviewRequest(message, context) {
+  return context.evidence.filter(item => item.kind === 'course').length === 1
+    && /\bwhat about\b|\btell me (?:more|about)\b|\bmore about\b|\bdetails? (?:on|about|for)\b|\bcourse overview\b|\bwhat (?:does|will) (?:i|we|you) learn\b|\bwhat is (?:in|covered in) (?:this|the) course\b|\bsyllabus\b|\btopics\b|ماذا عن|اخبرني المزيد|أخبرني المزيد|تفاصيل (?:عن|حول)|محتوى الدورة|ماذا سنتعلم|ماذا سأتعلم/i.test(message);
+}
+
 function simpleFactualReply(message, context, config = {}) {
   const text = normalized(message), ar = context.language === 'ar';
   const courses = context.evidence.filter(item => item.kind === 'course');
@@ -147,8 +152,7 @@ function simpleFactualReply(message, context, config = {}) {
     const template = config.guidedContent?.messages?.simpleFeeMessage?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم {course} حالياً {fee}.{registration}' : '{course} is currently {fee}.{registration}');
     return { reply: template.replaceAll('{course}', course.name).replaceAll('{fee}', fee).replaceAll('{registration}', extra), sourceIds: [course.sourceId] };
   }
-  const overviewIntent = /\bwhat about\b|\btell me (?:more|about)\b|\bmore about\b|\bdetails? (?:on|about|for)\b|\bcourse overview\b|\bwhat (?:does|will) (?:i|we|you) learn\b|\bwhat is (?:in|covered in) (?:this|the) course\b|\bsyllabus\b|\btopics\b|ماذا عن|اخبرني المزيد|أخبرني المزيد|تفاصيل (?:عن|حول)|محتوى الدورة|ماذا سنتعلم|ماذا سأتعلم/i.test(message);
-  if (overviewIntent) {
+  if (isCourseOverviewRequest(message, context)) {
     const description = String(course.description || '').replace(/\s+/g, ' ').trim();
     const boundary = description.search(/[.!؟](?=\s|$)/u);
     const summary = boundary >= 45 && boundary <= 320
@@ -193,4 +197,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, simpleFactualReply, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
