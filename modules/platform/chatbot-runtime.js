@@ -283,7 +283,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
   if (profile.engine === 'hybrid') {
     const simple = businessContext.simpleFactualReply(customerMessage, context, profile.config);
-    if (simple) return { canAnswer: true, confidence: 1, reply: simple.reply, state: nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+    if (simple) return { canAnswer: true, confidence: 1, reply: simple.reply, state: simple.nextStep ? { ...nextState, step: simple.nextStep } : nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
   }
   const historySafe = Array.isArray(session.recentConversation) ? session.recentConversation.slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
   const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode });

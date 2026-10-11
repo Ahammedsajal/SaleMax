@@ -130,7 +130,7 @@ function simpleFactualReply(message, context, config = {}) {
     const duration = course.duration
       ? (config.guidedContent?.messages?.simpleDurationMessage?.[ar ? 'ar' : 'en'] || (ar ? 'مدة {course} هي {duration}.' : '{course} takes {duration}.')).replaceAll('{course}', course.name).replaceAll('{duration}', course.duration)
       : durationTemplate.replaceAll('{course}', course.name);
-    return { reply: [fee, duration, applicationOffer].filter(Boolean).join(' '), sourceIds: [course.sourceId, ...(applicationOffer ? [registrationForm.sourceId] : [])] };
+    return { reply: [fee, duration, applicationOffer].filter(Boolean).join(' '), sourceIds: [course.sourceId, ...(applicationOffer ? [registrationForm.sourceId] : [])], nextStep: applicationOffer ? 'course_detail' : null };
   }
   if (asksDuration) {
     if (!course.duration && /\d+\s*(?:[–-]\s*\d+)?\s*(?:weeks?|days?|hours?|months?|أسابيع|اسابيع|أسبوع|اسبوع|ساعات|شهور|أشهر|ايام|أيام)/iu.test(course.description || '')) return null;
