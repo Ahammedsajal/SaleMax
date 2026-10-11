@@ -14,6 +14,14 @@ test('tenant offsets are bounded, unique, normalized and default scheduling is d
   assert.equal(reminders.parseResourceOffset(reminders.resourceType(-3)),-3);assert.equal(reminders.parseResourceOffset(reminders.resourceType(0)),0);assert.equal(reminders.parseResourceOffset(reminders.resourceType(7)),7);
 });
 
+test('Finance reminder offsets use a guided multi-date picker without comma entry',()=>{
+  const ui=fs.readFileSync(path.join(__dirname,'..','client/public/training-finance.js'),'utf8');
+  const css=fs.readFileSync(path.join(__dirname,'..','client/public/salemax-brand.css'),'utf8');
+  assert.match(ui,/sx-reminder-offset-picker/);assert.match(ui,/Array\.from\(\{length:121\},\(_,index\)=>index-30\)/);
+  assert.match(ui,/selectedOffsets\.size>8/);assert.match(ui,/data-remove-offset/);assert.doesNotMatch(ui,/Use comma-separated day offsets/);
+  assert.match(css,/sx-reminder-offset-chip/);assert.match(css,/sx-reminder-offset-picker\{grid-column:1\/-1/);
+});
+
 test('tenant settings require owner/accountant authority, expected revision and audited updates',async()=>{
   const actor=ctx(),queries=[];let old=null;
   const db={async beginTransaction(){},async commit(){},async rollback(){},async query(sql,params){queries.push({sql,params});if(sql.includes('SELECT enabled,offsets_json,revision')&&sql.includes('FOR UPDATE'))return [[old]];if(sql.startsWith('INSERT INTO sx_training_reminder_settings')){old={enabled:params[1],offsets_json:params[2],revision:params[3]};return [{affectedRows:1}];}return [{affectedRows:1}];}};
@@ -59,5 +67,5 @@ test('reminder mail has an independent SMTP flag and is wired into the existing 
 
 test('Finance reminder checkbox layout loads the updated cache-busted script',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
-  assert.match(html,/training-finance\.js\?v=20261011-form-ux1/);
+  assert.match(html,/training-finance\.js\?v=20261011-reminder-offset-picker1/);
 });

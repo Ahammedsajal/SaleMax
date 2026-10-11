@@ -85,9 +85,10 @@ const output = [
   '',
   '## Work completed in this audit increment',
   '',
-  '- Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, and focus return to the opener.',
+  '- Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, focus trapping, and focus return to the opener.',
   '- The lead/contact details stay hidden until a valid contact is selected; changing the search clears the previous contact identity so an old selection cannot silently be invoiced.',
   '- Manual customer entry stays available, and shared native form controls receive consistent sizing and visible keyboard focus.',
+  '- Installment reminders use a guided offset picker spanning the server-approved range (-30 through +90 days), with removable selected-date chips and the server limit of eight dates; staff no longer type comma-separated values.',
   '',
   'Remaining source forms should be reviewed page by page using this inventory; deploy and visual acceptance must follow release evidence in \`DEPLOYMENT.md\`.',
 ];

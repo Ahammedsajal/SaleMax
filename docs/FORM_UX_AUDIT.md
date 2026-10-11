@@ -132,21 +132,21 @@ The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and 
 ### `client/public/training-finance.js`
 
   - Line 91 · **sx-invoice-filter** · 3 control(s): input:q [text], select:status, button:unlabelled
-  - Line 97 · **sx-reminder-settings-form** · 3 control(s): input:enabled [checkbox], input:offsetsDays [text], button:unlabelled
-  - Line 113 · **sx-generator-settings** · 7 control(s): input:companyName [hidden], input:crNumber [hidden], input:address [hidden], input:invoicePrefix [hidden], textarea:footer, button:sx-generator-add-plan, button:unlabelled
-  - Line 113 · **sx-generator-invoice** · 11 control(s): input:customerType [radio], input:customerType [radio], input:sx-generator-search [text], select:sx-generator-customer-select, input:customerName [text], input:customerPhone [text], input:customerEmail [email], textarea:customerAddress, select:courseId, select:paymentPlan, button:unlabelled
-  - Line 145 · **sx-aging-filter** · 6 control(s): input:from [date], input:to [date], select:bucket, input:q [text], button:unlabelled, button:sx-aging-clear
-  - Line 179 · **sx-payment-form** · 6 control(s): input:amount [text], select:method, input:receivedAt [datetime-local], input:reference [text], input:note [text], button:unlabelled
-  - Line 205 · **sx-schedule-change-form** · 5 control(s): input:dueDate [date], input:amount [text], button:sx-schedule-add-row, textarea:reason, button:unlabelled
-  - Line 212 · **sx-credit-form** · 3 control(s): input:amount [text], textarea:reason, button:unlabelled
-  - Line 249 · **unnamed form** · 3 control(s): textarea:reason, button:decision, button:decision
-  - Line 249 · **unnamed form** · 5 control(s): select:method, input:reference [text], input:completedAt [datetime-local], input:confirmed [checkbox], button:unlabelled
-  - Line 249 · **unnamed form** · 4 control(s): select:paymentId, input:amount [text], textarea:reason, button:unlabelled
-  - Line 264 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
-  - Line 264 · **unnamed form** · 5 control(s): select:paymentId, input:amount [text], input:reference [text], textarea:reason, button:unlabelled
-  - Line 272 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
+  - Line 102 · **sx-reminder-settings-form** · 3 control(s): input:enabled [checkbox], select:unlabelled, button:unlabelled
+  - Line 132 · **sx-generator-settings** · 7 control(s): input:companyName [hidden], input:crNumber [hidden], input:address [hidden], input:invoicePrefix [hidden], textarea:footer, button:sx-generator-add-plan, button:unlabelled
+  - Line 132 · **sx-generator-invoice** · 11 control(s): input:customerType [radio], input:customerType [radio], input:sx-generator-search [text], select:sx-generator-customer-select, input:customerName [text], input:customerPhone [text], input:customerEmail [email], textarea:customerAddress, select:courseId, select:paymentPlan, button:unlabelled
+  - Line 164 · **sx-aging-filter** · 6 control(s): input:from [date], input:to [date], select:bucket, input:q [text], button:unlabelled, button:sx-aging-clear
+  - Line 198 · **sx-payment-form** · 6 control(s): input:amount [text], select:method, input:receivedAt [datetime-local], input:reference [text], input:note [text], button:unlabelled
+  - Line 224 · **sx-schedule-change-form** · 5 control(s): input:dueDate [date], input:amount [text], button:sx-schedule-add-row, textarea:reason, button:unlabelled
+  - Line 231 · **sx-credit-form** · 3 control(s): input:amount [text], textarea:reason, button:unlabelled
+  - Line 268 · **unnamed form** · 3 control(s): textarea:reason, button:decision, button:decision
+  - Line 268 · **unnamed form** · 5 control(s): select:method, input:reference [text], input:completedAt [datetime-local], input:confirmed [checkbox], button:unlabelled
+  - Line 268 · **unnamed form** · 4 control(s): select:paymentId, input:amount [text], textarea:reason, button:unlabelled
+  - Line 283 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
+  - Line 283 · **unnamed form** · 5 control(s): select:paymentId, input:amount [text], input:reference [text], textarea:reason, button:unlabelled
+  - Line 291 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
 
-  Runtime field builders: line 167 createElement(input); line 175 createElement(input).
+  Runtime field builders: line 186 createElement(input); line 194 createElement(input).
 
 ### `client/public/training-forms.js`
 
@@ -175,9 +175,9 @@ The supplied current-run screenshot documents the Finance invoice builder before
 
 ## Work completed in this audit increment
 
-- Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, and focus return to the opener.
+- Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, focus trapping, and focus return to the opener.
 - The lead/contact details stay hidden until a valid contact is selected; changing the search clears the previous contact identity so an old selection cannot silently be invoiced.
 - Manual customer entry stays available, and shared native form controls receive consistent sizing and visible keyboard focus.
-- Production visual review caught oversized radio buttons caused by Finance's existing full-width control rule; the customer-source radios now have fixed 18px sizing and the focused test guards that alignment.
+- Installment reminders use a guided offset picker spanning the server-approved range (-30 through +90 days), with removable selected-date chips and the server limit of eight dates; staff no longer type comma-separated values.
 
 Remaining source forms should be reviewed page by page using this inventory; deploy and visual acceptance must follow release evidence in `DEPLOYMENT.md`.
