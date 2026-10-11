@@ -25,12 +25,12 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       assert.equal(parsed.approvedKnowledgeAndLiveCatalog.length, 1, 'the overview prompt receives only the selected course fact card');
       assert.equal(Object.hasOwn(course, 'batches'), false, 'unasked batch details are excluded to save tokens');
       assert.equal(request.maxOutputTokens, 90, 'course overview wording uses a small output budget');
-      assert.match(request.system, /helpful admissions adviser in an ongoing chat/i);
+      assert.match(request.system, /Do not add a follow-up question when the request is already answered/i);
       if (invalidNextOverviewSource) {
         invalidNextOverviewSource = false;
         return { canAnswer: true, sourceIds: ['unapproved-course-fact'], confidence: 0.99, reply: 'The course guarantees you a job.', inputTokens: 31, outputTokens: 12 };
       }
-      return { canAnswer: true, sourceIds: [course.sourceId], confidence: 0.96, reply: 'Synthetic Excel gives you a practical introduction to spreadsheets. Would you like to see the course outline?', inputTokens: 31, outputTokens: 22 };
+      return { canAnswer: true, sourceIds: [course.sourceId], confidence: 0.96, reply: 'The Synthetic Excel course covers spreadsheet formulas and cell formatting.', inputTokens: 31, outputTokens: 12 };
     }
     return { canAnswer: true, sourceIds, confidence: 0.96, reply: 'Our approved course information is available.', inputTokens: 31, outputTokens: 14 };
   };
@@ -307,7 +307,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     const controlRead = await call(controlPath);
     assert.equal(controlRead.data.channelRef, channelRef);
     const testCourseId=crypto.randomUUID();
-    await connection.query("INSERT INTO sx_training_courses(id,tenant_id,code,name_en,name_ar,description_en,description_ar,duration_value,duration_unit,delivery_mode,status,created_by_identity_id,updated_by_identity_id) VALUES (?,?,?,?,?,?,?,4,'weeks','online','active',?,?)",[testCourseId,t1,'SYN-EXCEL','Synthetic Excel','إكسل للاختبار','Approved synthetic outline.','وصف للاختبار.',i1,i1]);
+    await connection.query("INSERT INTO sx_training_courses(id,tenant_id,code,name_en,name_ar,description_en,description_ar,duration_value,duration_unit,delivery_mode,status,created_by_identity_id,updated_by_identity_id) VALUES (?,?,?,?,?,?,?,4,'weeks','online','active',?,?)",[testCourseId,t1,'SYN-EXCEL','Synthetic Excel','إكسل للاختبار','Approved synthetic outline covering spreadsheet formulas and cell formatting.','وصف للاختبار.',i1,i1]);
     await connection.query("INSERT INTO sx_training_offers(id,tenant_id,course_id,version,currency,price_minor,registration_fee_minor,inclusions,status,created_by_identity_id) VALUES (?,?,?,1,'QAR',32500,0,JSON_ARRAY(),'active',?)",[crypto.randomUUID(),t1,testCourseId,i1]);
     await connection.query('UPDATE pipeline_settings SET enabled=0,auto_capture_qr=0 WHERE uid_hash=?',[crypto.createHash('sha256').update(legacyUid).digest('hex')]);
     const pausedInbound = { ...inbound, metaChatId: `synthetic-paused-${crypto.randomUUID()}`,msgContext:{type:'text',text:{body:'My name is Adam Saleh and I am interested in Synthetic Excel. Weekend classes please.'}} };
@@ -386,7 +386,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(courseOverviewResult.sent, true);
     assert.equal(courseOverviewResult.route, 'ai');
     assert.equal(providerCalls, 3, 'a named-course overview uses one compact AI wording call');
-    assert.match(sentMessages.at(-1).content.text.body, /Synthetic Excel gives you a practical introduction to spreadsheets\./);
+    assert.match(sentMessages.at(-1).content.text.body, /Synthetic Excel course covers spreadsheet formulas and cell formatting\./);
     assert.doesNotMatch(sentMessages.at(-1).content.text.body, /I don’t have a confirmed answer|I don't have a confirmed answer/);
     assert.match(sentMessages.at(-1).content.text.body, /May I have your name\?/);
 
