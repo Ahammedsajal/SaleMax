@@ -52,9 +52,10 @@
   }
 
   function render() {
+    const priorCourses=root.querySelector('[data-course-row]')?window.__sxRegistrationControls?.selections():undefined;
     const prior = {};
     root.querySelectorAll('#enquiry-form [name]').forEach(control => {
-      prior[control.name] = control.type === 'checkbox' ? control.checked : control.value;
+      prior[control.name] = control.multiple?Array.from(control.selectedOptions,o=>o.value):control.type === 'checkbox' ? control.checked : control.value;
     });
     if (turnstileWidgetId && window.turnstile?.remove) {
       try { window.turnstile.remove(turnstileWidgetId); } catch {}
@@ -78,7 +79,7 @@
       ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture, data.tenant, data) : schema.fields.filter(field => field.key !== 'consent').map(field => {
         const [labelEn, labelAr, type, autocomplete] = fields[field.key];
         const label = isArabic ? field.labelAr || labelAr : field.labelEn || labelEn;
-        if (field.key === 'course_id') return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="course_id" ${field.required ? 'required' : ''}><option value="">${tr('Choose a course', 'اختر دورة')}</option>${data.courses.map(course => `<option value="${esc(course.id)}">${esc(isArabic ? course.nameAr : course.nameEn)}</option>`).join('')}</select></label>`;
+        if (field.key === 'course_id') return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="course_ids" multiple size="5" ${field.required ? 'required' : ''}>${data.courses.map(course => `<option value="${esc(course.id)}">${esc(isArabic ? course.nameAr : course.nameEn)}</option>`).join('')}</select><small>${tr('You may select more than one course.','يمكنك اختيار أكثر من دورة.')}</small></label>`;
         return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<input name="${field.key}" type="${type}" autocomplete="${staffCapture ? 'off' : autocomplete || 'off'}" ${staffCapture ? 'autocapitalize="off" spellcheck="false"' : ''} ${field.key === 'phone' ? 'inputmode="tel" placeholder="+974 …"' : ''} maxlength="${field.key === 'email' ? 254 : field.key === 'phone' ? 40 : 255}" ${field.required ? 'required' : ''}></label>`;
       }).join('')}
       ${isRegistration ? '' : `<label class="consent"><input type="checkbox" name="consent" required><span>${esc(isArabic ? schema.consentTextAr : schema.consentTextEn)}</span></label>`}
@@ -88,7 +89,7 @@
 
     for (const [name, value] of Object.entries(prior)) {
       const control = root.querySelector(`#enquiry-form [name="${name}"]`);
-      if (control) control.type === 'checkbox' ? control.checked = Boolean(value) : control.value = value;
+      if (control){if(control.multiple){for(const option of control.options)option.selected=value.includes(option.value);}else control.type === 'checkbox' ? control.checked = Boolean(value) : control.value = value;}
     }
     root.querySelector('#language-toggle').onclick = () => {
       language = language === 'ar' ? 'en' : 'ar';
@@ -96,7 +97,7 @@
       root.querySelector('h1')?.focus();
     };
     root.querySelector('#enquiry-form').onsubmit = submit;
-    if(isRegistration)window.__sxRegistrationControls=window.SXTrainingRegistration.wire(root.querySelector('#enquiry-form'),data,language);
+    if(isRegistration)window.__sxRegistrationControls=window.SXTrainingRegistration.wire(root.querySelector('#enquiry-form'),data,language,priorCourses);
     if(staffCapture) wireLeadSearch();
     if(isRegistration){const source=root.querySelector('[name="source"]'),heading=root.querySelector('.registration-capture > .reg-two-col');let lookup=root.querySelector('.lead-prefill');if(!lookup){lookup=document.createElement('section');lookup.className='lead-prefill';lookup.innerHTML='<p>'+tr('Sign in as staff to search and import an existing lead.','سجّل الدخول كموظف للبحث واستيراد عميل محتمل موجود.')+'</p><a class="form-action" href="'+location.pathname+'?mode=staff">'+tr('Open staff capture','فتح تسجيل الموظف')+'</a>';}heading.insertAdjacentElement('afterend',lookup);const original=source.onchange;const toggle=focus=>{lookup.hidden=source.value!=='Lead';if(focus&&!lookup.hidden)lookup.querySelector('input')?.focus();if(lookup.hidden){selectedLead=null;const selected=lookup.querySelector('#lead-selected');if(selected)selected.textContent='';}};source.onchange=()=>{original?.();toggle(true);};toggle(false);}
     if (!staffCapture && data.botChallenge) mountTurnstile();
@@ -206,6 +207,7 @@
     if(data.form.schema.templateKey==='procatalyst-registration-v1')Object.assign(values,window.SXTrainingRegistration.valuesFromForm(form,data.form.schema));
     else for (const field of data.form.schema.fields) {
       if (field.key === 'consent') { values.consent = form.elements.consent.checked; continue; }
+      if(field.key==='course_id'){const selected=Array.from(form.elements.course_ids?.selectedOptions||[],o=>o.value);if(selected.length)values.course_ids=selected;continue;}
       const control = form.elements[field.key];
       if (control?.value) values[field.key] = control.value.trim();
     }
@@ -230,7 +232,7 @@
       if (!response.ok || body.success !== true) throw Error(body.code || 'SUBMISSION_FAILED');
       sessionStorage.removeItem(storageKey);
       selectedLead=null;
-      const reference = esc(body.data.referenceCode);const registrationResult=body.data.studentNumber?`<p>${tr('Student ID','رقم الطالب')}: <strong>${esc(body.data.studentNumber)}</strong></p><p>${tr('Provisional invoice','فاتورة مبدئية')}: ${esc(body.data.provisionalInvoiceNumber)} · QAR ${(Number(body.data.totalMinor)/100).toFixed(2)}</p>`:'';
+      const reference = esc(body.data.referenceCode);const registrationResult=body.data.studentNumber?'<p>'+tr('Total','الإجمالي')+': QAR '+(Number(body.data.totalMinor)/100).toFixed(2)+'</p>'+ (body.data.registrations||[body.data]).map(r=>'<p><strong>'+esc(language==='ar'?r.courseNameAr:r.courseNameEn)+'</strong><br>'+tr('Student ID','رقم الطالب')+': '+esc(r.studentNumber)+'<br>'+tr('Provisional invoice','فاتورة مبدئية')+': '+esc(r.provisionalInvoiceNumber)+' · QAR '+(Number(r.totalMinor)/100).toFixed(2)+'</p>').join(''):'';
       const isRegistration = data.form.schema.templateKey === 'procatalyst-registration-v1';
       const successHeading = isRegistration ? tr('Registration application received', 'تم استلام طلب التسجيل') : staffCapture ? tr('Enquiry saved', 'تم حفظ الاستفسار') : tr('Thank you, we’ll be in touch.', 'شكرًا لك، سنتواصل معك.');
       const successDetail = isRegistration
@@ -247,7 +249,7 @@
       });
     } catch (error) {
       const challengeError = String(error.message || '').startsWith('BOT_CHALLENGE');
-      const text = ['INVALID_SIGNATURE','REGISTRATION_DETAILS_REQUIRED','REFERRAL_NAME_REQUIRED','INVALID_QID','INVALID_STAFF_ATTENDED','INVALID_PAYMENT_PLAN','INVALID_REGISTRATION_SOURCE'].includes(error.message)?tr('Check the course, payment plan, QID, referral and signature details.','تحقق من الدورة وخطة الدفع والبطاقة والإحالة والتوقيع.') : error.message === 'AUTH_REQUIRED' ? tr('Sign in with your staff account, then reopen this capture link.', 'سجّل الدخول بحساب الموظف ثم افتح رابط التسجيل مجددًا.')
+      const text = ['INVALID_COURSE','INVALID_COURSE_SELECTIONS','DUPLICATE_REGISTRATION_COURSE','INVALID_BATCH','INVALID_SIGNATURE','REGISTRATION_DETAILS_REQUIRED','REFERRAL_NAME_REQUIRED','INVALID_QID','INVALID_STAFF_ATTENDED','INVALID_PAYMENT_PLAN','INVALID_REGISTRATION_SOURCE'].includes(error.message)?tr('Check the course, payment plan, QID, referral and signature details.','تحقق من الدورة وخطة الدفع والبطاقة والإحالة والتوقيع.') : error.message === 'AUTH_REQUIRED' ? tr('Sign in with your staff account, then reopen this capture link.', 'سجّل الدخول بحساب الموظف ثم افتح رابط التسجيل مجددًا.')
         : error.message === 'FORM_RATE_LIMITED' ? tr('Please wait a little before trying again.', 'يرجى الانتظار قليلًا قبل المحاولة مجددًا.')
           : challengeError ? tr('The security check expired or could not be verified. Complete it again and retry.', 'انتهت صلاحية التحقق الأمني أو تعذر التحقق منه. أكمله مجددًا ثم أعد المحاولة.')
             : tr('We could not save this enquiry. Check your connection and try again.', 'تعذر حفظ الاستفسار. تحقق من الاتصال وحاول مجددًا.');

@@ -1,6 +1,8 @@
 'use strict';
 const crypto=require('node:crypto');
 const plan=require('./training-offer-plan');
+const selections=require('./training-registration-selections');
+const pipeline=require('../../helper/pipeline/leadPipeline');
 const fail=code=>{throw Object.assign(new Error(code),{code,status:400});};
 const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
 const profileKeys=['certificate_name','qid','nationality','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','source','referral_name'];
@@ -22,7 +24,7 @@ async function staffOptions(db,tenantId,uid){
  const [agents]=await db.query("SELECT id,name FROM agents WHERE owner_uid=? AND is_active=1",[uid]);
  return [...members,...agents.map(a=>({id:'agent:'+a.id,name:a.name}))];
 }
-async function create(db,{tenantId,uid,submissionId,leadId,data,actor,referenceCode}){
+async function createCourse(db,{tenantId,uid,submissionId,leadId,data,actor,referenceCode,coursePosition=1}){
  if(!data.course_id||!data.email||!data.student_signature)fail('REGISTRATION_DETAILS_REQUIRED');
  signature(data.student_signature);
  if(!['Lead','Walk-In','Student Referral'].includes(data.source))fail('INVALID_REGISTRATION_SOURCE');
@@ -53,13 +55,25 @@ async function create(db,{tenantId,uid,submissionId,leadId,data,actor,referenceC
  await db.query(`INSERT INTO sx_training_sale_reviews(id,tenant_id,legacy_uid_hash,legacy_uid,lead_id,application_submission_id,request_key,request_hash,course_id,offer_id,batch_id,course_name_en,course_name_ar,offer_version,currency,price_minor,registration_fee_minor,discount_minor,net_minor,learner_name,payer_name,payer_email,payer_phone,invoice_email,terms_snapshot,installments,lead_updated_at_snapshot,submitted_by_type,submitted_by_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'QAR',?,?,0,?,?,?,?,?,?,?,?,?,?,?)`,[reviewId,tenantId,uidHash,uid,leadId,submissionId,crypto.randomUUID(),sha(JSON.stringify({submissionId,courseId:course.id})),course.id,course.offerId,data.batch_id||null,course.nameEn,course.nameAr,course.offerVersion,course.priceMinor,course.registrationFeeMinor,total,data.certificate_name||data.contact_name,data.contact_name,data.email,data.phone||null,data.email,terms.slice(0,2000),JSON.stringify(installments),revision.updated_at,actor?.actorType||'user',actor?.actorId||uid]);
  data.student_id=studentNumber;data.tuition_qar=(total/100).toFixed(2);data.courses=[{courseName:course.nameEn,level:data.level||course.difficultyLevel,classDay:data.class_day||'',timing:data.class_time||'',terms:data.enrollment_terms||''}];
  data.payment_plan=installments.map(p=>({date:p.dueDate,billNo:provisionalInvoiceNumber,amount:(p.amountMinor/100).toFixed(2),officeSignature:'',studentSignature:''}));
- const snapshot={referenceCode,studentNumber,provisionalInvoiceNumber,status:'pending_approval',currency:'QAR',totalMinor:total,courseNameEn:course.nameEn,courseNameAr:course.nameAr,installments,staffAttended:staff.find(s=>s.id===data.staff_attended)?.name||null};
- await db.query('INSERT INTO sx_training_registrations(id,tenant_id,submission_id,sale_review_id,student_number,provisional_invoice_number,snapshot_json) VALUES (?,?,?,?,?,?,?)',[id,tenantId,submissionId,reviewId,studentNumber,provisionalInvoiceNumber,JSON.stringify(snapshot)]);
- await db.query('UPDATE sx_training_form_submissions SET submission_data=? WHERE tenant_id=? AND id=?',[JSON.stringify(data),tenantId,submissionId]);
+ const snapshot={referenceCode,studentNumber,provisionalInvoiceNumber,status:'pending_approval',currency:'QAR',totalMinor:total,courseId:course.id,courseNameEn:course.nameEn,courseNameAr:course.nameAr,installments,leadId,registrationId:id,saleReviewId:reviewId,staffAttended:staff.find(s=>s.id===data.staff_attended)?.name||null};
+ await db.query('INSERT INTO sx_training_registrations(id,tenant_id,submission_id,sale_review_id,student_number,provisional_invoice_number,snapshot_json,course_id,course_position) VALUES (?,?,?,?,?,?,?,?,?)',[id,tenantId,submissionId,reviewId,studentNumber,provisionalInvoiceNumber,JSON.stringify(snapshot),course.id,coursePosition]);
  const [members]=await db.query("SELECT m.identity_id,m.role FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id AND i.status='active' WHERE m.tenant_id=? AND m.status='active' AND m.role IN ('owner','accountant')",[tenantId]);
  if(!members.some(m=>m.role==='accountant'))members.push({role:'accountant',identity_id:'unassigned'});for(const recipient of [{role:'candidate',identity_id:'candidate'},...members])for(const channel of ['email','whatsapp'])await db.query('INSERT INTO sx_training_registration_deliveries(id,tenant_id,registration_id,recipient_kind,recipient_id,channel) VALUES (?,?,?,?,?,?)',[crypto.randomUUID(),tenantId,id,recipient.role,recipient.identity_id,channel]);
  await db.query("INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,actor_id,activity_type,summary,details) VALUES (?,?,'system',NULL,'registration_submitted','Student registration pending approval',?)",[uidHash,leadId,JSON.stringify({registrationId:id,studentNumber,saleReviewId:reviewId,provisionalInvoiceNumber,stageFrom:lead.stage_key,stageTo:'training_registration_pending'})]);
  return {...snapshot,registrationId:id,saleReviewId:reviewId,notifications:'queued'};
+}
+async function create(db,args){
+ const rows=selections.normalize(args.data),items=[],details=[];
+ const [[primary]]=await db.query('SELECT contact_id,owner_agent_id FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? FOR UPDATE',[sha(args.uid),args.uid,args.leadId]);
+ if(!primary)fail('LEAD_NOT_OPEN');
+ for(const [index,row] of rows.entries()){
+  let leadId=args.leadId;
+  if(index){const lead=await pipeline.createManualLead({uid:args.uid,actorType:args.actor?.actorType||'system',actorId:args.actor?.actorId||null,agentId:args.actor?.agentId,role:args.actor?.role||'owner',connection:db,input:{title:args.data.contact_name+' · '+(index+1),contactId:primary.contact_id,contactName:args.data.contact_name,learnerName:args.data.certificate_name||args.data.contact_name,mobile:args.data.phone,email:args.data.email,ownerAgentId:primary.owner_agent_id,sourceType:args.actor?'staff_form':'public_form'}});leadId=lead.id;}
+  const data={...args.data,...row},item=await createCourse(db,{...args,data,leadId,coursePosition:index+1});items.push(item);details.push({...data.courses[0],courseId:item.courseId,studentNumber:item.studentNumber,provisionalInvoiceNumber:item.provisionalInvoiceNumber,totalMinor:item.totalMinor});
+ }
+ const result=selections.summary(items),data={...args.data,course_selections:rows,courses:details,student_id:result.studentNumber,tuition_qar:(result.totalMinor/100).toFixed(2),payment_plan:result.installments.map(p=>({date:p.dueDate,billNo:p.billNo,amount:(p.amountMinor/100).toFixed(2),officeSignature:'',studentSignature:''}))};delete data.consent_text;
+ await db.query('UPDATE sx_training_form_submissions SET submission_data=? WHERE tenant_id=? AND id=?',[JSON.stringify(data),args.tenantId,args.submissionId]);
+ return result;
 }
 async function queueInvoice(db,tenantId,saleReviewId){
  const [[registration]]=await db.query('SELECT id FROM sx_training_registrations WHERE tenant_id=? AND sale_review_id=?',[tenantId,saleReviewId]);if(!registration)return;
