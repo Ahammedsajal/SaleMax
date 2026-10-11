@@ -4,18 +4,17 @@ const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const conversion=require('../modules/platform/training-sale-conversion');
 const {trainingCenter}=require('../modules/platform/categories');
-const basePolicy={taxMode:'no_tax',taxRateBps:null};
-test('sale conversion computes deterministic QAR minor-unit tax totals',()=>{
-  assert.deepEqual(conversion.totals(285000,{...basePolicy}),{subtotalMinor:285000,taxMinor:0,totalMinor:285000,taxRateBps:null});
-  assert.deepEqual(conversion.totals(10001,{taxMode:'exclusive',taxRateBps:750}),{subtotalMinor:10001,taxMinor:750,totalMinor:10751,taxRateBps:750});
-  assert.deepEqual(conversion.totals(10751,{taxMode:'inclusive',taxRateBps:750}),{subtotalMinor:10001,taxMinor:750,totalMinor:10751,taxRateBps:750});
-  assert.throws(()=>conversion.totals(Number.MAX_SAFE_INTEGER,{taxMode:'exclusive',taxRateBps:10000}),{code:'INVALID_INVOICE_AMOUNT'});
-  assert.throws(()=>conversion.totals(100,{taxMode:'unset',taxRateBps:null}),{code:'FINANCE_POLICY_INCOMPLETE'});
+test('sale conversion issues the agreed QAR amount without tax or a finance policy',()=>{
+  const expected={subtotalMinor:285000,taxMinor:0,totalMinor:285000,taxRateBps:null};
+  assert.deepEqual(conversion.totals(285000),expected);
+  assert.deepEqual(conversion.totals(285000,{taxMode:'exclusive',taxRateBps:750}),expected,'legacy tax settings do not affect new invoices');
+  assert.throws(()=>conversion.totals(0),{code:'INVALID_INVOICE_AMOUNT'});
+  assert.throws(()=>conversion.totals(Number.MAX_SAFE_INTEGER+1),{code:'INVALID_INVOICE_AMOUNT'});
 });
-test('tax is apportioned across installments without changing their date order',()=>{
-  const schedule=conversion.invoiceInstallments([{dueDate:'2026-11-01',amountMinor:5000},{dueDate:'2026-12-01',amountMinor:5000}],10000,10751);
-  assert.deepEqual(schedule,[{dueDate:'2026-11-01',amountMinor:5376},{dueDate:'2026-12-01',amountMinor:5375}]);
-  assert.equal(schedule.reduce((sum,row)=>sum+row.amountMinor,0),10751);
+test('invoice installments keep the exact agreed amount and date order',()=>{
+  const schedule=[{dueDate:'2026-11-01',amountMinor:5000},{dueDate:'2026-12-01',amountMinor:5000}];
+  assert.deepEqual(conversion.invoiceInstallments(schedule,10000,10000),schedule);
+  assert.throws(()=>conversion.invoiceInstallments(schedule,10000,10751),{code:'INVALID_INVOICE_AMOUNT'});
 });
 test('invoice issue requires current tenant finance authority and selected issuer role',()=>{
   const tenantId=crypto.randomUUID(),ctx={audience:'tenant',identity:{id:crypto.randomUUID()},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:crypto.randomUUID(),tenantId,role:'owner',status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:['training.enrollments','finance.invoices']}};

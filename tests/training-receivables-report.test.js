@@ -20,7 +20,7 @@ test('finance report labels settled and partial invoices separately and can clea
   const index=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   assert.match(screen,/Settled \/ part-settled/);assert.match(screen,/partialInvoiceCount/);
   assert.match(screen,/Clear filters/);assert.match(screen,/bucket='all';q='';from='';to='';page=1;render\(\)/);
-  assert.match(index,/training-finance\.js\?v=20261009-owner-report1/);
+  assert.match(index,/training-finance\.js\?v=[^"']+/);
   assert.match(screen,/Cash received in range/);assert.match(screen,/Refunds paid in range/);assert.match(screen,/Credits issued in range/);
 });
 
