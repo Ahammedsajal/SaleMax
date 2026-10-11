@@ -24,7 +24,7 @@
     ],
   });
   const state = { tab: 'legacy', bots: [], channels: [], flows: [], categoryKey: 'training_center', categoryTitle: null, categoryVersion: 1, guidedContentDefaults: null, guidedContentSchema: null, provider: { configured: false, revision: 0 }, csrf: null, mounted: false, assignmentPage: true };
-  const ar = () => (localStorage.getItem('language') || '').toLowerCase().startsWith('ar') || document.documentElement.dir === 'rtl';
+  const ar = () => /^(?:ar)|arab/i.test(localStorage.getItem('language') || '') || document.documentElement.dir === 'rtl';
   const tr = (en, arabic) => ar() ? arabic : en;
   function modelChoices(provider, selected) {
     const choices = providerModels[provider] || providerModels.openai;
