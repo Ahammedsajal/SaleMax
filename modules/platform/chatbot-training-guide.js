@@ -168,8 +168,9 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   const courses = facts.filter(item => item && typeof item.code === 'string' && item.code.length <= 80);
   const settings = mergeDefaults(defaults || {}, config || {});
   const language = languageFor(message, state, config);
-  const form = facts.find(item => item?.kind === 'published_enquiry_form');
-  const registrationFormUrl = form?.purpose === 'registration' ? form.url : null;
+  const forms = facts.filter(item => item?.kind === 'published_enquiry_form');
+  const form = forms.find(item => item.purpose === 'registration') || forms[0];
+  const registrationFormUrl = forms.find(item => item.purpose === 'registration')?.url || null;
   const showForm = settings.display?.showEnquiryForm !== false;
   const formUrl = showForm && typeof form?.url === 'string' ? form.url : null;
   const step = state?.step;

@@ -48,6 +48,14 @@ test('natural yes please send it wording is treated as registration-form consent
   assert.equal(result.state.step, 'application_shared');
 });
 
+test('registration consent selects the published registration form when a newer enquiry form is also present', () => {
+  const mixedFacts = [{ kind: 'published_enquiry_form', purpose: 'enquiry', url: 'https://example.invalid/enquiry' }, ...facts];
+  const result = trainingCenterGuidedReply({ message: 'Yes, please send it', state: { greeted: true, step: 'course_detail', selectedCourseCode: 'EXCEL' }, facts: mixedFacts, config: {}, defaults });
+  assert.match(result.reply, /https:\/\/example\.invalid\/student-registration/);
+  assert.doesNotMatch(result.reply, /https:\/\/example\.invalid\/enquiry/);
+  assert.equal(result.state.step, 'application_shared');
+});
+
 test('an enquiry form is not misrepresented as a registration application', () => {
   const enquiryFacts = facts.map(item => item.kind === 'published_enquiry_form' ? { ...item, purpose: 'enquiry' } : item);
   const detail = trainingCenterGuidedReply({ message: 'Advanced Excel', state: null, facts: enquiryFacts, config: {}, defaults });
