@@ -269,7 +269,10 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(sentMessages.length, 1);
     assert.equal(sentMessages[0].sessionId, channelRef);
     assert.equal(sentMessages[0].chatId, conversationId);
-    assert.equal(sentMessages[0].content.text.body, 'Our approved course information is available.\n\nMay I have your name?');
+    assert.match(sentMessages[0].content.text.body, /Welcome to Pro Catalyst Training Center/);
+    assert.match(sentMessages[0].content.text.body, /Our approved course information is available/);
+    assert.match(sentMessages[0].content.text.body, /\[1\]/);
+    assert.doesNotMatch(sentMessages[0].content.text.body, /May I have your name\?/);
     const duplicateResult = await runtime.runConfiguredBot({ uid: legacyUid, message: inbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: conversationId });
     assert.equal(duplicateResult.duplicate, true);
     assert.equal(sentMessages.length, 1, 'retry does not send a second customer reply');
@@ -395,8 +398,11 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal((await call(`/${guideId}/status`,'PUT',{status:'live',expectedRevision:2})).status,200);
     const guideConversation='synthetic-guide-'+crypto.randomUUID();await connection.query('INSERT INTO beta_chats(uid,chat_id) VALUES (?,?)',[legacyUid,guideConversation]);
     const guideTurn=async body=>runtime.runConfiguredBot({uid:legacyUid,user:{uid:legacyUid},origin:'qr',sessionId:channelRef,chatId:guideConversation,message:{...greetingInbound,senderMobile:'+97455000005',metaChatId:crypto.randomUUID(),msgContext:{type:'text',text:{body}}}});
+    assert.equal(require('../modules/platform/chatbot-lead-capture').customerName('more',true),null);
     const callsBeforeGuide=providerCalls;
-    assert.equal((await guideTurn('Hi')).sent,true);assert.match(sentMessages.at(-1).content.text.body,/May I have your name/);
+    assert.equal((await guideTurn('Hi')).sent,true);assert.match(sentMessages.at(-1).content.text.body,/\[1\]/);assert.doesNotMatch(sentMessages.at(-1).content.text.body,/May I have your name/);
+    const [[welcomeState]]=await connection.query('SELECT state FROM sx_chatbot_guided_sessions WHERE tenant_id=? AND profile_id=? AND conversation_id=?',[t1,guideId,guideConversation]);
+    const welcomeData=typeof welcomeState.state==='string'?JSON.parse(welcomeState.state):welcomeState.state;assert.equal(welcomeData.greeted,true,'welcome state is remembered before asking for a name');
     assert.equal((await guideTurn('Adam Test')).sent,true);assert.match(sentMessages.at(-1).content.text.body,/Which course/);
     assert.equal((await guideTurn('courses')).sent,true);
     assert.equal((await guideTurn('1')).sent,true);assert.equal(sentMedia.at(-1),pdfId);

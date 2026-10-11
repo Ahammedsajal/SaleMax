@@ -10,7 +10,7 @@ test('English and Arabic names are captured from declarations or a requested nam
   assert.equal(customerName('Adam Saleh',true),'Adam Saleh');
   assert.equal(customerName('أحمد علي',true),'أحمد علي');
   assert.equal(customerName('Adam Saleh'),null);
-  for(const text of ['How much','Good evening','I am interested in nursing','Advanced Excel','yes please','97450000001','My name is '+ 'word '.repeat(9)]) assert.equal(customerName(text,true),null);
+  for(const text of ['How much','Good evening','I am interested in nursing','Advanced Excel','yes please','more','details','97450000001','My name is '+ 'word '.repeat(9)]) assert.equal(customerName(text,true),null);
 });
 test('useful contact preferences are captured without asking for identity or payment details',()=>{
  const data=qualificationFromText('I want to improve reporting. Weekend classes please. My email is learner@example.invalid');
