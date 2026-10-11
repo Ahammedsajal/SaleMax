@@ -374,7 +374,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(providerCalls, 2, 'a named-course overview uses published facts without an AI call');
     assert.match(sentMessages.at(-1).content.text.body, /Synthetic Excel: Approved synthetic outline\./);
     assert.match(sentMessages.at(-1).content.text.body, /325\.00 QAR/);
-    assert.match(sentMessages.at(-1).content.text.body, /Would you like to know anything else about this course\?/);
+    assert.match(sentMessages.at(-1).content.text.body, /May I have your name\?/);
 
     const hybridQuestion = {
       ...greetingInbound, metaChatId: `synthetic-hybrid-question-${crypto.randomUUID()}`,
