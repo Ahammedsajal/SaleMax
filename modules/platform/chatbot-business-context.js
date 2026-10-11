@@ -114,6 +114,7 @@ function simpleFactualReply(message, context, config = {}) {
   if (courses.length !== 1 || /compare|recommend|difference|best|better|cheaper|and|مقارن|افضل|الفرق|تنصح/.test(text)) return null;
   const course = courses[0];
   if (/how long|duration|مدة|مدتها/i.test(message)) {
+    if (!course.duration && /\d+\s*(?:[–-]\s*\d+)?\s*(?:weeks?|days?|hours?|months?|أسابيع|اسابيع|أسبوع|اسبوع|ساعات|شهور|أشهر|ايام|أيام)/iu.test(course.description || '')) return null;
     const key = course.duration ? 'simpleDurationMessage' : 'durationUnavailable';
     const fallback = course.duration ? (ar ? 'مدة {course} هي {duration}.' : '{course} takes {duration}.') : (ar ? 'مدة {course} غير منشورة حالياً. يمكن لفريقنا تأكيدها لك.' : 'The duration for {course} isn’t published yet. Our team can confirm it for you.');
     const template = config.guidedContent?.messages?.[key]?.[ar ? 'ar' : 'en'] || fallback;

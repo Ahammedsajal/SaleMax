@@ -304,7 +304,7 @@ async function maybeApplyIntentRule(connection, { uidHash, lead, stage, settings
   return targetKey;
 }
 
-async function captureInbound({ uid, origin, chatId, senderMobile, senderName, message, normalizedMessage, providerMessageId, timestamp, referral }) {
+async function captureInbound({ uid, origin, chatId, senderMobile, senderName, message, normalizedMessage, providerMessageId, timestamp, referral, botCapture = false, pool:sourcePool }) {
   if (!uid || !["qr", "meta"].includes(origin)) return { skipped: true };
   if (origin === "qr" && (normalizedMessage?.route || message?.route) !== "INCOMING") return { skipped: true };
   const phone = normalizePhone(senderMobile || message?.from || message?.key?.remoteJid);
@@ -325,7 +325,7 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
 
   return inTransaction(async (connection) => {
     const { settings } = await ensureWorkspace(connection, uidValue);
-    if (!settings.enabled || (origin === "qr" && !settings.auto_capture_qr) || (origin === "meta" && !settings.auto_capture_meta)) {
+    if (!botCapture && (!settings.enabled || (origin === "qr" && !settings.auto_capture_qr) || (origin === "meta" && !settings.auto_capture_meta))) {
       return { skipped: true, reason: "capture_disabled" };
     }
     const [adMessageRules] = origin === "qr"
@@ -488,7 +488,7 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
       [lead.id, uidHash, eventKey],
     );
     return { leadId: lead.id, created, duplicate: false, metaAdsAttributed: adReferral, metaAdsMessageMatched: messageMatchedAd, metaAdsClassified: isMetaAds, stageKey: lead.stage_key };
-  });
+  },sourcePool);
 }
 
 async function captureMetaWebhook({ uid, body }) {
@@ -1197,6 +1197,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
 }
 
 module.exports = {
+  captureBotInbound: input => captureInbound({ ...input, botCapture: true }),
   DEFAULT_STAGES,
   normalizePhone,
   normalizeEmail,

@@ -98,6 +98,12 @@ function botInput(input, categoryKey, categoryVersion = 1) {
     if (!phone || (audience !== undefined && !audience.includes(phone))) throw Object.assign(new Error('INVALID_TEST_PHONE'), { code: 'INVALID_TEST_PHONE' });
     config.testRecipientPhone = phone;
   }
+  if (source.testRecipientPhones !== undefined) {
+    const phones = normalizeAudience(source.testRecipientPhones);
+    if (!phones || phones.length > 10 || (audience !== undefined && phones.some(phone => !audience.includes(phone)))) throw Object.assign(new Error('INVALID_TEST_PHONE'), { code: 'INVALID_TEST_PHONE' });
+    config.testRecipientPhones = phones;
+    delete config.testRecipientPhone;
+  }
   if (source.sharedInboxRouting != null) {
     if (typeof source.sharedInboxRouting !== 'boolean') throw Object.assign(new Error('INVALID_SHARED_INBOX_ROUTING'), { code: 'INVALID_SHARED_INBOX_ROUTING' });
     config.sharedInboxRouting = source.sharedInboxRouting;

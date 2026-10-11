@@ -5,7 +5,8 @@ const { executionFlowId } = require('./chatbot-profile-utils');
 
 function isTestReset(config, sender, text) {
   const phone = recipientPhone(sender);
-  return !!phone && !!config?.testRecipientPhone && phone === config.testRecipientPhone
+  const testers = Array.isArray(config?.testRecipientPhones) ? config.testRecipientPhones : [config?.testRecipientPhone];
+  return !!phone && testers.includes(phone)
     && recipientAllowed(config, sender) && /^(?:reset bot|restart bot|إعادة ضبط الروبوت)$/iu.test(String(text || '').trim());
 }
 

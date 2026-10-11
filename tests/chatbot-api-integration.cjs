@@ -40,7 +40,13 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
   const sendModulePath = require.resolve('../automation/functions');
   const previousSendModule = require.cache[sendModulePath];
   const sentMessages = [];
+  const mediaModule = require('../modules/platform/chatbot-course-media');
+  const originalMediaSend = mediaModule.sendCourseMedia;
+  const sentMedia = [];
+  mediaModule.sendCourseMedia = async input => { assert.equal(await input.valid(),true);sentMedia.push(input.media[0].id);return ['synthetic-pdf-'+sentMedia.length]; };
   try {
+    await connection.query('CREATE TABLE IF NOT EXISTS phonebook(id INT AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999),name VARCHAR(255))');
+    await connection.query('CREATE TABLE IF NOT EXISTS contact(id INT AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999),phonebook_id INT,phonebook_name VARCHAR(255),name VARCHAR(255),mobile VARCHAR(64),var1 TEXT,var2 TEXT,var3 TEXT,var4 TEXT,var5 TEXT,createdAt DATETIME(3))');
     const [columns] = await connection.query('SHOW COLUMNS FROM instance');
     const columnNames = new Set(columns.map(column => column.Field));
     for (const [name, definition] of [['uid', 'VARCHAR(999) NULL'], ['uniqueId', 'VARCHAR(160) NULL'], ['number', 'VARCHAR(80) NULL']]) {
@@ -263,7 +269,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(sentMessages.length, 1);
     assert.equal(sentMessages[0].sessionId, channelRef);
     assert.equal(sentMessages[0].chatId, conversationId);
-    assert.equal(sentMessages[0].content.text.body, 'Our approved course information is available.');
+    assert.equal(sentMessages[0].content.text.body, 'Our approved course information is available.\n\nMay I have your name?');
     const duplicateResult = await runtime.runConfiguredBot({ uid: legacyUid, message: inbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: conversationId });
     assert.equal(duplicateResult.duplicate, true);
     assert.equal(sentMessages.length, 1, 'retry does not send a second customer reply');
@@ -283,12 +289,25 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(Number(control.revision), 1);
     const controlRead = await call(controlPath);
     assert.equal(controlRead.data.channelRef, channelRef);
-    const pausedInbound = { ...inbound, metaChatId: `synthetic-paused-${crypto.randomUUID()}` };
+    const testCourseId=crypto.randomUUID();
+    await connection.query("INSERT INTO sx_training_courses(id,tenant_id,code,name_en,name_ar,description_en,description_ar,duration_value,duration_unit,delivery_mode,status,created_by_identity_id,updated_by_identity_id) VALUES (?,?,?,?,?,?,?,4,'weeks','online','active',?,?)",[testCourseId,t1,'SYN-EXCEL','Synthetic Excel','إكسل للاختبار','Approved synthetic outline.','وصف للاختبار.',i1,i1]);
+    await connection.query('UPDATE pipeline_settings SET enabled=0,auto_capture_qr=0 WHERE uid_hash=?',[crypto.createHash('sha256').update(legacyUid).digest('hex')]);
+    const pausedInbound = { ...inbound, metaChatId: `synthetic-paused-${crypto.randomUUID()}`,msgContext:{type:'text',text:{body:'My name is Adam Saleh and I am interested in Synthetic Excel. Weekend classes please.'}} };
     const pausedRuntime = await runtime.runConfiguredBot({ uid: legacyUid, message: pausedInbound, user: { uid: legacyUid }, sessionId: channelRef, origin: 'qr', chatId: conversationId });
     assert.equal(pausedRuntime.handled, true);
     assert.equal(pausedRuntime.paused, true);
     assert.equal(providerCalls, 2, 'a per-chat pause prevents another AI-provider request');
     assert.equal(sentMessages.length, 1, 'a per-chat pause prevents another channel send');
+    const [[capturedLead]]=await connection.query('SELECT learner_name,qualification_data FROM pipeline_leads WHERE uid=? AND mobile=?',[legacyUid,'+97455000002']);
+    assert.equal(capturedLead.learner_name,'Adam Saleh');
+    const qualification=typeof capturedLead.qualification_data==='string'?JSON.parse(capturedLead.qualification_data):capturedLead.qualification_data;
+    assert.equal(qualification.courseInterest,'Synthetic Excel');
+    assert.match(qualification.preferredSchedule,/Weekend/);
+    assert.equal(qualification.botCapture.nameConfirmed,true);
+    const leadCapture=require('../modules/platform/chatbot-lead-capture');
+    await Promise.all(Array.from({length:8},()=>leadCapture.captureLead(pool,{ctx:contextFor(t1,i1,m1),profile:{id:botId,config:{}},uid:legacyUid,chatId:conversationId,origin:'qr',message:pausedInbound,facts:[{courseId:testCourseId,code:'SYN-EXCEL',nameEn:'Synthetic Excel'}]})));
+    const [[leadCount]]=await connection.query('SELECT COUNT(*) AS n FROM pipeline_leads WHERE uid=? AND mobile=?',[legacyUid,'+97455000002']);
+    assert.equal(Number(leadCount.n),1,'concurrent bot capture reuses the existing phone lead');
     const resumedChat = await call(controlPath, 'PUT', { channelKind: 'whatsapp_qr', channelRef, mode: 'inherit', expectedRevision: 1 });
     assert.equal(resumedChat.status, 200);
     const [[resumedControl]] = await connection.query('SELECT mode,revision FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND conversation_id=?', [t1, conversationId]);
@@ -349,7 +368,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(hybridQuestionResult.handled, true);
     assert.equal(hybridQuestionResult.sent, true);
     assert.equal(providerCalls, 3, 'Hybrid sends an ordinary follow-up to the configured AI fallback');
-    assert.equal(sentMessages.at(-1).content.text.body, 'Our approved course information is available.');
+    assert.match(sentMessages.at(-1).content.text.body, /^Our approved course information is available\./);
     const sentCountBeforeFailure = sentMessages.length;
     failNextProvider = true;
     const invalidOutputInbound = { ...hybridQuestion, metaChatId: `synthetic-hybrid-invalid-output-${crypto.randomUUID()}` };
@@ -368,8 +387,34 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(hybridPaused.status, 200);
     assert.equal((await call(`/${hybridId}`, 'DELETE', {})).status, 200);
 
+    const pdfId=crypto.randomUUID();
+    await connection.query("INSERT INTO sx_training_course_media(id,tenant_id,course_id,media_kind,mime_type,original_name,storage_key,file_size_bytes,sha256_hex,created_by_identity_id) VALUES (?,?,?,'document','application/pdf','synthetic-outline.pdf',?,100,?,?)",[pdfId,t1,testCourseId,crypto.randomUUID(),'a'.repeat(64),i1]);
+    const guide=await call('/','POST',{name:'Synthetic Guided Lead Collector',engine:'guided',config:{guidedMode:'domain_default',testRecipientPhones:['97455000005'],allowedRecipientPhones:['97455000005']}});
+    assert.equal(guide.status,201);const guideId=guide.data.id;
+    assert.equal((await call(`/${guideId}/channels`,'PUT',{expectedRevision:1,channels:[{kind:'whatsapp_qr',reference:channelRef}]})).status,200);
+    assert.equal((await call(`/${guideId}/status`,'PUT',{status:'live',expectedRevision:2})).status,200);
+    const guideConversation='synthetic-guide-'+crypto.randomUUID();await connection.query('INSERT INTO beta_chats(uid,chat_id) VALUES (?,?)',[legacyUid,guideConversation]);
+    const guideTurn=async body=>runtime.runConfiguredBot({uid:legacyUid,user:{uid:legacyUid},origin:'qr',sessionId:channelRef,chatId:guideConversation,message:{...greetingInbound,senderMobile:'+97455000005',metaChatId:crypto.randomUUID(),msgContext:{type:'text',text:{body}}}});
+    const callsBeforeGuide=providerCalls;
+    assert.equal((await guideTurn('Hi')).sent,true);assert.match(sentMessages.at(-1).content.text.body,/May I have your name/);
+    assert.equal((await guideTurn('Adam Test')).sent,true);assert.match(sentMessages.at(-1).content.text.body,/Which course/);
+    assert.equal((await guideTurn('courses')).sent,true);
+    assert.equal((await guideTurn('1')).sent,true);assert.equal(sentMedia.at(-1),pdfId);
+    const countAfterSelection=sentMedia.length;
+    assert.equal((await guideTurn('more')).sent,true);assert.equal(sentMedia.length,countAfterSelection);
+    assert.equal((await guideTurn('Synthetic Excel PDF')).sent,true);assert.equal(sentMedia.length,countAfterSelection+1);
+    const [[guideLead]]=await connection.query('SELECT learner_name,qualification_data FROM pipeline_leads WHERE uid=? AND mobile=?',[legacyUid,'+97455000005']);
+    assert.equal(guideLead.learner_name,'Adam Test');const guideData=typeof guideLead.qualification_data==='string'?JSON.parse(guideLead.qualification_data):guideLead.qualification_data;assert.equal(guideData.courseInterest,'Synthetic Excel');
+    assert.equal(providerCalls,callsBeforeGuide,'guided name collection, numeric selection and PDF sharing use no AI calls');
+    assert.equal((await guideTurn('agent')).sent,true);
+    assert.equal((await guideTurn('reset bot')).sent,true);
+    const [[guideControl]]=await connection.query('SELECT mode FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND conversation_id=?',[t1,guideConversation]);assert.equal(guideControl.mode,'inherit');
+    assert.equal((await call(`/${guideId}/status`,'PUT',{status:'paused',expectedRevision:3})).status,200);
+
     return {
       profileCrudAndRevisionConflicts: true, tenantIsolationAndPermissionChecks: true,
+      botLeadNameCourseAndScheduleCaptureWhilePaused: true, concurrentBotLeadReuse: true, botCaptureDoesNotEnableGlobalPipelineSettings: true,
+      guidedNameAndNumericCourseSavedToLead: true, coursePdfOnceAndExplicitResend: true, testResetAfterGuidedHandover: true,
       providerKeyMaskedAndEncrypted: true, savedFactAiPreviewWithoutWhatsAppTurn: true,
       connectedNumberAssignmentAndActivation: true, perConversationPauseResume: true,
       liveInboundAiResponseWithFakeChannelTransport: true, inboundRetryIdempotency: true,
@@ -379,6 +424,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       guidedFlowOptionsAndRuntimeLookup: true, guidedPreviewUsesTenantPublishedFactsWithoutWritesOrProviderCalls: true,
     };
   } finally {
+    mediaModule.sendCourseMedia = originalMediaSend;
     if (server) await new Promise(resolve => server.close(resolve));
     provider.generate = originalGenerate;
     if (previousKey === undefined) delete process.env.SALEMAX_PLATFORM_KEY_BASE64;

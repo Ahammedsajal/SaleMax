@@ -123,8 +123,8 @@ async function loadGuidedFlow(uid, flowId) {
   return rows.length === 1 ? parseGuidedFlow(rows[0]) : null;
 }
 
-async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId }) {
-  if (profile.config?.guidedMode === 'domain_default') return trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId });
+async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) {
+  if (profile.config?.guidedMode === 'domain_default') return trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo });
   const flow = await loadGuidedFlow(uid, profile.config?.flowId);
   if (!flow) return false;
   const { processFlow } = require('../../automation/automation');
@@ -159,7 +159,17 @@ async function loadDomainGuidedSession({ ctx, profile, chatId, channelKind, chan
   try { return typeof rows[0].state === 'string' ? JSON.parse(rows[0].state) : rows[0].state; } catch { return null; }
 }
 
-async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent = null }) {
+async function sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media, state }) {
+  const module = require('./chatbot-course-media');
+  const recorded = [...(state?.sentCoursePdfIds || [])];
+  for (const item of [...media].sort((a,b) => Number(b.kind === 'document') - Number(a.kind === 'document')).slice(0, 2)) {
+    const ids = await module.sendCourseMedia({ pool: dbPool, ctx, profile, uid, chatId, sessionId, message, origin, media: [item], valid: () => canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message }) });
+    if (ids.length && item.kind === 'document' && !recorded.includes(item.id)) recorded.push(item.id);
+  }
+  await query(`UPDATE sx_chatbot_guided_sessions SET state=JSON_SET(state,'$.sentCoursePdfIds',JSON_EXTRACT(?,'$')) WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`, [JSON.stringify(recorded.slice(-20)), ctx.tenant.id, profile.id, channelFor(origin), sessionId, chatId]);
+}
+
+async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent = null, leadInfo }) {
   const channelKind = channelFor(origin);
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   if (!channelKind || !pack.guidedReply) return false;
@@ -167,9 +177,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   const db = await dbPool.getConnection();
   let reply = null;
   try {
-    const facts = pack.requiresDatabase
+    const facts = leadInfo?.facts || (pack.requiresDatabase
       ? await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN })
-      : [];
+      : []);
     await db.beginTransaction();
     await db.query(`INSERT IGNORE INTO sx_chatbot_guided_sessions(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,conversation_hash,state,expires_at)
       VALUES (?,?,?,?,?,?,?,JSON_OBJECT(),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR))`,
@@ -182,11 +192,16 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
     if (profile.engine !== 'guided' && priorState) priorState.language = businessContext.languageFor(intent || textOf(message), priorState);
     reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: profile.config?.guidedContent });
+    if (leadInfo?.nameOnly) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
       return false;
     }
     reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
+    if (!reply.handoff) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, leadInfo, profile.config, pack.guidedContentDefaults);
+    reply.state.sentCoursePdfIds = priorState?.sentCoursePdfIds || [];
+    const pdfs = require('./chatbot-course-media').coursePdfs(facts, reply.state.selectedCourseCode, textOf(message), reply.state.sentCoursePdfIds);
+    reply.media = [...(reply.media || []).filter(item => item.kind !== 'document'), ...pdfs];
     const nextState = JSON.stringify(reply.state || {});
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
     await db.commit();
@@ -204,9 +219,10 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: reply.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
+  if (!reply.handoff) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
   if (!reply.handoff && reply.media?.length) {
     try {
-      await require('./chatbot-course-media').sendCourseMedia({ pool: dbPool, ctx, profile, uid, chatId, sessionId, message, origin, media: reply.media });
+      await sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media: reply.media, state: reply.state });
     } catch (error) { console.warn('[chatbot] course attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'); }
   }
   return true;
@@ -246,7 +262,7 @@ async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, messag
     && !await shouldPause(uid, chatId, channelFor(origin), sessionId);
 }
 
-async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null }) {
+async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null }) {
   const [settings] = await query(`SELECT provider,model,key_ciphertext,key_iv,key_auth_tag,daily_token_limit FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]);
   if (!settings) return { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
@@ -258,7 +274,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     try { return await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN }); }
     finally { db.release(); }
   };
-  const facts = await loadFacts();
+  const facts = factsOverride || await loadFacts();
   const session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
   const context = businessContext.retrieveContext({ facts, knowledgeEntries: profile.config?.knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
   const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
@@ -317,15 +333,15 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   return answer;
 }
 
-async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId }) {
+async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) {
   if (profile.engine === 'hybrid' && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
   if (profile.config.guidedMode === 'domain_default' || (profile.engine === 'ai' && ctx.category.key === 'training_center')) {
     const channelKind = channelFor(origin);
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
     const incoming = textOf(message);
     const route = businessContext.controlRoute(incoming, profile.config, session || {});
-    if (route !== 'answer' || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
-      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
+    if (route !== 'answer' || leadInfo?.nameOnly || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
+      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   } else if (profile.engine === 'hybrid' && profile.config.flowId) {
@@ -333,12 +349,14 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const incoming = textOf(message);
     const plan = hybridTurnPlan({ hasSession: !!session, isChoice: isGuidedChoice(incoming), aiFallback: profile.config.aiFallback });
     if (plan.runGuided) {
-      const dispatched = await guidedTurn({ profile, uid, message, user, sessionId, origin, chatId });
+      const dispatched = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
       if (dispatched || !plan.allowAiFallback) return dispatched ? { flowDispatched: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   }
-  const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId });
+  const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId, factsOverride: leadInfo?.facts });
   if (answer.handedOff || answer.paused) return answer;
+  const pack = getDomainPack(ctx.category.key, ctx.category.version);
+  answer.reply = require('./chatbot-lead-capture').addQuestion(answer.reply, leadInfo, profile.config, pack.guidedContentDefaults);
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return { paused: true };
   const { sendWaMessage } = require('../../automation/functions');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: answer.reply } } });
@@ -348,6 +366,9 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
   if (answer.state) await saveConversationalState({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId, state: { ...answer.state, recentConversation: [...(answer.state.recentConversation || []), { role: 'user', text: textOf(message).slice(0, 400) }, { role: 'assistant', text: answer.reply.slice(0, 500) }].slice(-4) } });
+  await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
+  const media = require('./chatbot-course-media').coursePdfs(leadInfo?.facts || [], answer.state?.selectedCourseCode, textOf(message), answer.state?.sentCoursePdfIds || []);
+  if (media.length) await sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media, state: answer.state }).catch(error => console.warn('[chatbot] course attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'));
   return { sent: true, route: answer.route, reason: answer.reason, metrics: answer.metrics };
 }
 
@@ -386,6 +407,19 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   if (!profile) return { handled: false };
   // A restricted chat is handled silently so it cannot fall through to legacy bots.
   if (!recipientAllowed(profile.config, message?.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
+  let leadInfo = null;
+  if (ctx.tenant.categoryKey === 'training_center') {
+    try {
+      const db = await dbPool.getConnection();
+      let facts;
+      try { facts = await getDomainPack(ctx.category.key, ctx.category.version).loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN }); }
+      finally { db.release(); }
+      leadInfo = await require('./chatbot-lead-capture').captureLead(dbPool, { ctx, profile, uid, chatId, origin, message, facts });
+    } catch (error) {
+      await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => {});
+      return { handled: true, handedOff: true, code: 'LEAD_CAPTURE_UNAVAILABLE' };
+    }
+  }
 
   if (profile.config?.sharedInboxRouting === true) {
     const { getConnectedUsers, sendToUid } = require('../../socket');
@@ -411,8 +445,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       message = { ...message, msgContext: { text: { body: 'Hi' } } };
     }
     let result;
-    if (profile.engine === 'guided') result = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId }) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
-    else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId });
+    if (profile.engine === 'guided') result = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
+    else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
     if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, reason: result.reason || null, ...result.metrics }), crypto.randomUUID()]);
     if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');

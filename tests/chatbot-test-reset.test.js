@@ -17,6 +17,13 @@ test('test number validation preserves restrictions and permits disabling', () =
   for (const phone of ['97450000002', '500', '97450000001@lid']) assert.throws(() => botInput({ ...input, config: { ...config, testRecipientPhone: phone } }, 'training_center'), { code: 'INVALID_TEST_PHONE' });
   assert.equal(botInput({ ...input, config: { ...config, testRecipientPhone: '' } }, 'training_center').config.testRecipientPhone, undefined);
 });
+test('several configured testers can reset while other allowed customers cannot',()=>{
+ const restricted={allowedRecipientPhones:['97450000001','97450000002','97450000003'],testRecipientPhones:['97450000001','97450000002']};
+ for(const phone of restricted.testRecipientPhones)assert.equal(isTestReset(restricted,phone,'reset bot'),true);
+ assert.equal(isTestReset(restricted,'97450000003','reset bot'),false);
+ assert.deepEqual(botInput({name:'Guide',engine:'guided',config:restricted},'training_center').config.testRecipientPhones,restricted.testRecipientPhones);
+ assert.throws(()=>botInput({name:'Guide',engine:'guided',config:{...restricted,testRecipientPhones:['97450000004']}},'training_center'),{code:'INVALID_TEST_PHONE'});
+});
 test('reset clears only scoped bot state, resumes control, and retains message history', async () => {
   const calls = [];
   const profile = { id: 'p', revision: 2, channelKind: 'whatsapp_qr', channelRef: 'channel', engine: 'ai', config };

@@ -35,7 +35,7 @@ test('attachment adapter enforces recipient, tenant course, pause and file limit
     assert.equal(sends[0].sessionId,'qr-a');
     assert.deepEqual(sends[0].content.document,bytes);
     sends.length=0;
-    for(const override of [{message:{senderMobile:'97450000002'}},{paused:async()=>true},{origin:'meta'}]) assert.deepEqual(await sendCourseMedia({...input,...override}),[]);
+    for(const override of [{message:{senderMobile:'97450000002'}},{paused:async()=>true},{origin:'meta'},{valid:async()=>false}]) assert.deepEqual(await sendCourseMedia({...input,...override}),[]);
     published=false;
     assert.deepEqual(await sendCourseMedia(input),[]);
     assert.equal(sends.length,0);

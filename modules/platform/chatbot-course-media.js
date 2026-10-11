@@ -3,14 +3,22 @@ const fs = require('node:fs/promises');
 const courseMedia = require('./training-course-media');
 const { recipientAllowed } = require('./chatbot-audience');
 
+function coursePdfs(facts, courseCode, message, sentIds = []) {
+  const course = facts.find(item => item.code === courseCode);
+  if (!course) return [];
+  const repeat = /pdf|brochure|outline|syllabus|بروشور|ملف|منهج/i.test(message);
+  return (course.media || []).filter(item => item.kind === 'document' && item.mimeType === 'application/pdf' && (repeat || !sentIds.includes(item.id)))
+    .slice(0, 1).map(item => ({ ...item, courseId: course.courseId }));
+}
+
 // Resolve every attachment through the tenant/course media store immediately
 // before sending. Customer text never supplies a file path or remote URL.
-async function sendCourseMedia({ pool, ctx, profile, uid, chatId, sessionId, message, origin, media, send = null, paused = null, getFile = courseMedia.getFile }) {
+async function sendCourseMedia({ pool, ctx, profile, uid, chatId, sessionId, message, origin, media, send = null, paused = null, valid = null, getFile = courseMedia.getFile }) {
   if (origin !== 'qr' || !Array.isArray(media) || !media.length) return [];
   const pauseCheck = paused || require('./chatbot-conversation-control').shouldPause;
   const sentIds = [];
   for (const item of media.slice(0, 2)) {
-    if (!recipientAllowed(profile.config, message.senderMobile) || await pauseCheck(uid, chatId, 'whatsapp_qr', sessionId)) break;
+    if (!recipientAllowed(profile.config, message.senderMobile) || await pauseCheck(uid, chatId, 'whatsapp_qr', sessionId) || (valid && !await valid())) break;
     const db = await pool.getConnection();
     let file;
     try {
@@ -22,7 +30,7 @@ async function sendCourseMedia({ pool, ctx, profile, uid, chatId, sessionId, mes
     const bytes = await fs.readFile(file.path);
     if (bytes.length !== file.sizeBytes) throw Object.assign(new Error('COURSE_MEDIA_SIZE_MISMATCH'), { code: 'COURSE_MEDIA_SIZE_MISMATCH' });
     // Recheck after disk I/O so an operator pause prevents the next attachment.
-    if (!recipientAllowed(profile.config, message.senderMobile) || await pauseCheck(uid, chatId, 'whatsapp_qr', sessionId)) break;
+    if (!recipientAllowed(profile.config, message.senderMobile) || await pauseCheck(uid, chatId, 'whatsapp_qr', sessionId) || (valid && !await valid())) break;
     const content = { [file.kind]: bytes, mimetype: file.mimeType, fileName: file.originalName, caption: file.originalName };
     let id;
     if (send) id = await send({ content, sessionId, recipient: message.senderMobile });
@@ -40,4 +48,4 @@ async function sendCourseMedia({ pool, ctx, profile, uid, chatId, sessionId, mes
   return sentIds;
 }
 
-module.exports = { sendCourseMedia };
+module.exports = { sendCourseMedia, coursePdfs };
