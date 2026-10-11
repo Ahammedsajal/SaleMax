@@ -1,8 +1,8 @@
 # SaleMaX implementation status
 
-## AI-written Hybrid course replies — implementation in progress
+## AI-written Hybrid course replies — production, 11 October 2026
 
-Hybrid course overviews now let AI write the customer-facing wording while the backend provides the single matched course's published facts as the only evidence. The prompt emphasizes a short, warm continuation without a repeated greeting/menu, caps output at 90 tokens, and retains source validation for every claim. Menus and exact fee/duration answers still avoid provider calls. When AI is unavailable or fails validation, the backend uses the published course summary and current fee; unsupported claims never reach the customer. Local focused suite: 238/238 chatbot tests. Candidate deployment and disposable database integration are pending.
+Hybrid course overviews now let AI write customer-facing wording while the backend provides only the selected course's compact live fact card. The model gets a short style/safety prompt and a 90-token output cap; structured source IDs are validated and any internal `[s0]` marker is stripped before delivery. Menus and exact fee/duration replies remain deterministic and token-free. If AI is unavailable or its answer fails validation, the backend uses the published course summary and current fee; unsupported claims never reach the customer. Commits `832fe6a`, `65f4eb9`, `027fbb1` and `bac1d92` are live in `/opt/salemax/releases/hybrid-ai-writing-bac1d92-20261011`; all 239 focused tests and the disposable 73-migration MariaDB integration pass. A live-data AI preview answered “What about for Pre primary?” with a short course summary and current `1,450 QAR` fee in 741 total tokens, without sending a WhatsApp message. The profile remains live at revision 16, unchanged on its assigned WhatsApp channel with approved testers `50313785`, `51167872` and `50119041`. A real-message review from an approved test number remains needed to evaluate delivery phrasing. See DEPLOYMENT.md.
 
 ## Natural answers to course-overview questions — production, 11 October 2026
 
