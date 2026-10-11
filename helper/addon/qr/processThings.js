@@ -226,7 +226,7 @@ function getChatId({ instanceNumber, senderMobile, uid }) {
 
 async function saveMessageToConversation({ uid, chatId, messageData }) {
   try {
-    await query(`INSERT INTO beta_conversation SET ?`, {
+    await require('../../../modules/platform/chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: {
       type: messageData.type,
       metaChatId: messageData.metaChatId,
       msgContext: JSON.stringify(messageData.msgContext),
@@ -240,7 +240,7 @@ async function saveMessageToConversation({ uid, chatId, messageData }) {
       origin: messageData.origin,
       uid,
       chat_id: chatId,
-    });
+    } });
     return true;
   } catch (err) {
     console.log("Error saving message to conversation:", err);

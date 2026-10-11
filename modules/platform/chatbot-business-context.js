@@ -36,10 +36,14 @@ function score(query, text) {
 function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0 }) {
   const language = languageFor(message, state);
   const courses = facts.filter(item => item.code && !item.kind);
-  const direct = courses.filter(item => [item.code, item.nameEn, item.nameAr].some(name => name && normalized(message).includes(normalized(name))));
+  const nameWords = new Map(courses.map(item => [item.code, new Set(tokens([item.nameEn, item.nameAr].join(' ')).filter(word => word.length >= 4))]));
+  const direct = courses.filter(item => [item.code, item.nameEn, item.nameAr].some(name => name && normalized(message).includes(normalized(name)))
+    || [...nameWords.get(item.code)].some(word => tokens(message).includes(word) && courses.filter(other => nameWords.get(other.code).has(word)).length === 1));
   const ranked = courses.map(item => ({ item, score: score(message, [item.code, item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.outcomesEn, item.outcomesAr].join(' ')) }))
     .sort((a, b) => b.score - a.score);
   let selected = direct.length ? direct.slice(0, 3) : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
+  const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ/i.test(message);
+  if (!direct.length && followUp && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (!selected.length && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   const recommendation = /recommend|compare|difference|best|improve|career|beginner|توصي|تنصح|افضل|مقارن|الفرق|مبتدئ/i.test(message);
   if (!selected.length && recommendation) selected = ranked.slice(0, 3).map(row => row.item);
@@ -99,7 +103,7 @@ function clarification(config, language) {
   return text?.[language] || (language === 'ar' ? 'حتى أساعدك بشكل أدق، أي دورة تهمك؟ وإذا أردت التحدث مع فريقنا، اكتب موظف.' : 'Happy to help — which course are you interested in? If you’d prefer our team, just type agent.');
 }
 
-function simpleFactualReply(message, context) {
+function simpleFactualReply(message, context, config = {}) {
   const text = normalized(message), ar = context.language === 'ar';
   const courses = context.evidence.filter(item => item.kind === 'course');
   if (courses.length !== 1 || /compare|recommend|difference|best|better|cheaper|and|مقارن|افضل|الفرق|تنصح/.test(text)) return null;
@@ -107,8 +111,10 @@ function simpleFactualReply(message, context) {
   if (/^(?:what is |what s |how much is |how much does |tell me |please |كم |ما |اريد معرفة )?(?:the )?(?:fee|fees|price|cost|رسوم|سعر|تكلفة)/.test(text) || /^(?:how much|كم السعر|كم الرسوم)$/.test(text)) {
     if (!course.offer?.priceAmount) return null;
     const fee = `${course.offer.priceAmount} ${course.offer.currency}`;
-    const extra = Number(course.offer.registrationFeeAmount) > 0 ? (ar ? ` ورسوم التسجيل ${course.offer.registrationFeeAmount} ${course.offer.currency}.` : ` Registration is ${course.offer.registrationFeeAmount} ${course.offer.currency}.`) : '';
-    return { reply: ar ? `رسوم ${course.name} حالياً ${fee}.${extra}` : `${course.name} is currently ${fee}.${extra}`, sourceIds: [course.sourceId] };
+    const label = config.guidedContent?.messages?.registrationFeeLabel?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم التسجيل' : 'Registration fee');
+    const extra = Number(course.offer.registrationFeeAmount) > 0 ? ` ${label}: ${course.offer.registrationFeeAmount} ${course.offer.currency}.` : '';
+    const template = config.guidedContent?.messages?.simpleFeeMessage?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم {course} حالياً {fee}.{registration}' : '{course} is currently {fee}.{registration}');
+    return { reply: template.replaceAll('{course}', course.name).replaceAll('{fee}', fee).replaceAll('{registration}', extra), sourceIds: [course.sourceId] };
   }
   return null;
 }
@@ -131,4 +137,12 @@ function redactCustomerText(value) {
     .replace(/(?:password|otp|one.time code|كلمة المرور|رمز التحقق)\s*[:=]?\s*\S+/gi, '[sensitive detail omitted]');
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, simpleFactualReply, previewState, redactCustomerText };
+function polishGuidedReply({ result, profile, message, state, defaults }) {
+  if (profile.engine !== 'guided' && /^(?:hi|hello|hey|good morning|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(message)) {
+    const language = languageFor(message, state || {});
+    result.reply = profile.config?.guidedContent?.messages?.greeting?.[language] || defaults.messages.greeting[language];
+  }
+  return result;
+}
+
+module.exports = { normalized, fingerprint, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, simpleFactualReply, previewState, redactCustomerText, polishGuidedReply };

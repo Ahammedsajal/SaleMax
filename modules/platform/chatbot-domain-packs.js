@@ -99,6 +99,7 @@ const TRAINING_CENTER_GUIDED_DEFAULTS = {
     courseDetailsPrompt: { en: 'Reply 1 for courses · form to enquire · agent for our team', ar: '1 للدورات · نموذج للاستفسار · موظف لفريقنا' },
     invalidSelection: { en: 'Please choose a course number from this list.', ar: 'يرجى اختيار رقم دورة من هذه القائمة.' },
     handoffMessage: { en: 'I’ll leave this with our team so they can help you personally.', ar: 'سأترك المحادثة لفريقنا ليتمكن من مساعدتك مباشرة.' },
+    simpleFeeMessage: { en: '{course} is currently {fee}.{registration}', ar: 'رسوم {course} حالياً {fee}.{registration}' },
     clarificationMessage: { en: 'Happy to help — which course are you interested in? If you’d prefer our team, just type agent.', ar: 'حتى أساعدك بشكل أدق، أي دورة تهمك؟ وإذا أردت التحدث مع فريقنا، اكتب موظف.' },
     unavailableMessage: { en: 'I can’t confirm that from our published details yet. Type agent if you’d like our team to check it for you.', ar: 'لا أستطيع تأكيد ذلك من معلوماتنا المنشورة حالياً. اكتب موظف إذا أردت أن يتحقق فريقنا لك.' },
     fallbackMessage: { en: 'Could you try one of these options? Type agent if you’d like our team’s help.', ar: 'هل يمكنك اختيار أحد الخيارات؟ اكتب موظف إذا أردت مساعدة فريقنا.' },
@@ -145,6 +146,7 @@ const TRAINING_CENTER_GUIDED_SCHEMA = {
       localizedField('messages.courseDetailsPrompt', 'Course detail instructions', 'تعليمات تفاصيل الدورة'),
     ] },
     { id: 'support', title: { en: 'Fallback and staff handoff', ar: 'الرد البديل والتحويل للموظفين' }, fields: [
+      localizedField('messages.simpleFeeMessage', 'Short Hybrid fee reply: {course}, {fee}, {registration}', 'رد الرسوم الهجين المختصر: {course}, {fee}, {registration}'),
       localizedField('messages.clarificationMessage', 'Course clarification message', 'رسالة توضيح الدورة'),
       localizedField('messages.unavailableMessage', 'Unpublished information message', 'رسالة المعلومات غير المنشورة'),
       localizedField('messages.invalidSelection', 'Invalid selection message', 'رسالة الاختيار غير الصحيح'),

@@ -186,6 +186,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       await db.rollback();
       return false;
     }
+    reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
     const nextState = JSON.stringify(reply.state || {});
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
     await db.commit();
@@ -201,7 +202,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, 'customer-requested-human', profile, uid);
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: reply.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
-  await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
+  await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
   if (!reply.handoff && reply.media?.length) {
     try {
@@ -262,7 +263,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const context = businessContext.retrieveContext({ facts, knowledgeEntries: profile.config?.knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
   const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
   if (profile.engine === 'hybrid') {
-    const simple = businessContext.simpleFactualReply(customerMessage, context);
+    const simple = businessContext.simpleFactualReply(customerMessage, context, profile.config);
     if (simple) return { canAnswer: true, confidence: 1, reply: simple.reply, state: nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
   }
   const historySafe = Array.isArray(session.recentConversation) ? session.recentConversation.slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
@@ -360,6 +361,7 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
     let facts;
     try { facts = await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN }); } finally { db.release(); }
     const result = pack.guidedReply({ message: route === 'human' ? (businessContext.languageFor(message, prior) === 'ar' ? 'موظف' : 'agent') : message, state: prior, facts, config: profile.config.guidedContent });
+    businessContext.polishGuidedReply({ result, profile, message, state: prior, defaults: pack.guidedContentDefaults });
     return { canAnswer: true, confidence: 1, reply: result.reply, wouldHandoff: !!result.handoff, reason: result.handoff ? 'customer-requested-human' : null, route, state: result.state, metrics: { inputTokens: 0, outputTokens: 0 } };
   }
   const answer = await generateAiAnswer({ ctx, profile, uid: null, customerMessage: message, state: prior });
@@ -374,6 +376,9 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   if (!ctx) return { handled: false };
   const profile = await profileFor(ctx, uid, origin, sessionId);
   if (!profile) return { handled: false };
+  // A restricted chat is handled silently so it cannot fall through to legacy bots.
+  if (!recipientAllowed(profile.config, message?.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
+
   if (profile.config?.sharedInboxRouting === true) {
     const { getConnectedUsers, sendToUid } = require('../../socket');
     const routed = await require('./team-conversation-assignment').routeIncomingConversation(dbPool, {
@@ -381,8 +386,6 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     });
     if (routed) sendToUid(uid, { chatId }, 'request_update_chat_list');
   }
-  // A restricted chat is handled silently so it cannot fall through to legacy bots.
-  if (!recipientAllowed(profile.config, message?.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   const channelKind = channelFor(origin);
   if (await shouldPause(uid, chatId, channelKind, sessionId)) return { handled: true, paused: true };
   const turn = await claimTurn(ctx, profile, message, chatId);
