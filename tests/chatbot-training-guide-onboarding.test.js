@@ -42,6 +42,12 @@ test('an interested learner receives the published application link only after a
   assert.equal(result.state.step, 'application_shared');
 });
 
+test('natural yes please send it wording is treated as registration-form consent', () => {
+  const result = trainingCenterGuidedReply({ message: 'Yes, please send it', state: { greeted: true, step: 'course_detail', selectedCourseCode: 'EXCEL' }, facts, config: {}, defaults });
+  assert.match(result.reply, /https:\/\/example\.invalid\/student-registration/);
+  assert.equal(result.state.step, 'application_shared');
+});
+
 test('an enquiry form is not misrepresented as a registration application', () => {
   const enquiryFacts = facts.map(item => item.kind === 'published_enquiry_form' ? { ...item, purpose: 'enquiry' } : item);
   const detail = trainingCenterGuidedReply({ message: 'Advanced Excel', state: null, facts: enquiryFacts, config: {}, defaults });

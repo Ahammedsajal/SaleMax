@@ -343,7 +343,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
     const incoming = textOf(message);
     const route = businessContext.controlRoute(incoming, profile.config, session || {});
-    const applicationAccepted = session?.step === 'course_detail' && /^(?:yes[,.! ]*(?:please|send it|send me|share it)?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
+    const applicationAccepted = session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
     if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };

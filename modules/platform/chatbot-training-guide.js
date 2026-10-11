@@ -175,7 +175,7 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   const step = state?.step;
   const nextState = (nextStep, extra = {}) => ({ ...extra, step: nextStep, language });
 
-  if (step === 'course_detail' && registrationFormUrl && /^(?:yes[,.! ]*(?:please|send it|send me|share it)?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(text)) {
+  if (step === 'course_detail' && registrationFormUrl && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(text)) {
     return { reply: `${copy(settings, 'applicationLinkIntro', language)}\n${registrationFormUrl}`, state: nextState('application_shared', { ...(state || {}) }) };
   }
 
