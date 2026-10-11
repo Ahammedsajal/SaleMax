@@ -235,7 +235,11 @@
     const topbar = [...document.querySelectorAll('.MuiBox-root')].filter(el => {
       const r = el.getBoundingClientRect(); return visible(el) && r.y <= 5 && r.height >= 30 && r.height < 100 && r.width > innerWidth * .5;
     }).sort((a, b) => a.getBoundingClientRect().height - b.getBoundingClientRect().height)[0];
-    return { left: Math.max(0, drawer?.getBoundingClientRect().right || 260), right: 0, top: Math.max(0, topbar?.getBoundingClientRect().bottom || 68) };
+    const rect = drawer?.getBoundingClientRect();
+    const reserveDrawer = innerWidth > 760 && rect && rect.width < innerWidth / 2;
+    return { left: reserveDrawer && rect.left < innerWidth / 2 ? Math.max(0, rect.right) : 0,
+      right: reserveDrawer && rect.left >= innerWidth / 2 ? Math.max(0, innerWidth - rect.left) : 0,
+      top: Math.max(0, topbar?.getBoundingClientRect().bottom || 68) };
   }
   function addStyle() {
     if (document.getElementById('sx-chatbot-admin-style')) return;
@@ -405,6 +409,7 @@
     const pos = bounds(); let tabs = document.getElementById('sx-chatbot-tabs');
     if (!tabs) { tabs = document.createElement('nav'); tabs.id = 'sx-chatbot-tabs'; document.body.append(tabs); }
     tabs.style.left = `${pos.left + 24}px`; tabs.style.top = `${pos.top + 14}px`;
+    tabs.style.width = `${Math.min(790, Math.max(0, innerWidth - pos.left - pos.right - 48))}px`;
     const definitions = [
       ['legacy', tr('Automation Flows','تدفقات الأتمتة'), `<span class="sx-legacy-tag">${tr('Legacy','قديم')}</span>`],
       ['guided', tr('Guided Chatbot','روبوت موجّه'), ''], ['hybrid', tr('Hybrid AI','ذكاء هجين'), ''], ['ai', tr('AI Chatbot','روبوت ذكاء اصطناعي'), '']
@@ -454,7 +459,7 @@
     if (state.tab === 'legacy') return;
     let panel = document.getElementById('sx-chatbot-panel');
     if (!panel) { panel = document.createElement('main'); panel.id = 'sx-chatbot-panel'; document.body.append(panel); }
-    const pos = bounds(); panel.style.left = `${pos.left}px`; panel.style.top = `${pos.top + 72}px`; panel.style.width = `${Math.max(0, innerWidth-pos.left)}px`; panel.style.height = `${Math.max(0, innerHeight-pos.top-72)}px`;
+    const pos = bounds(); panel.style.left = `${pos.left}px`; panel.style.top = `${pos.top + 72}px`; panel.style.width = `${Math.max(0, innerWidth-pos.left-pos.right)}px`; panel.style.height = `${Math.max(0, innerHeight-pos.top-72)}px`;
     panel.innerHTML = `<div class="sx-muted" id="sx-chatbot-loading">${esc(tr('Loading bots…','جارٍ تحميل الروبوتات…'))}</div>`;
     refresh().then(() => {
       if (!panel.isConnected || state.tab === 'legacy') return;
