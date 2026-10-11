@@ -1,5 +1,12 @@
 # SaleMaX implementation status
 
+## Editable guided bot wording and keyword replies — production, 11 October 2026
+
+The existing Automation → Guided Chatbot editor now lists and uses every canned bilingual message and label, preserves complete configured wording, and offers polished suggested text. Ordered keyword replies support any/all/exact phrase matching, bilingual answers, enable/disable, reorder/remove and unsaved previews. Published course facts remain catalogue-backed; recipient restrictions, numeric course navigation and manager handover remain intact. The existing Pro Catalyst profile is polished and live at revision 16 with no synthetic test rules remaining.
+
+Source `34b9ed9` is deployed at `/opt/salemax/releases/guided-wording-34b9ed9-20261011`. All 66 focused tests pass locally and in production Linux. Synthetic browser save/reopen checks and fresh authenticated live English/Arabic checks pass at 1440px and 390px; an authenticated 78 KB unsaved keyword catalogue previews successfully. App health and release/container/public asset hashes are verified. No real WhatsApp message was sent; device/provider acceptance for these texts remains untested. See DEPLOYMENT.md for protected rollback and inherited production-index details. This increment does not complete the broader implementation plan.
+
+
 ## Restore and publish retired courses — production, 10 October 2026
 
 The existing Courses detail dialog now has a bilingual Restore & publish action. Its tenant-scoped API requires the course to remain retired, checks the expected revision and a current active price offer, then sets the course active and writes an audit event in the same transaction. Course, offer and batch history are preserved. Source commit `4bd95f7b889e978a2f43accea65aab426b63fd01` is live in `/opt/salemax/releases/course-restore-publish-4bd95f7-20261010`. JavaScript syntax checks and production health/asset hash verification passed. No test suite or authenticated English/Arabic browser acceptance was run; no production course was changed during verification. The user-specific retired course still needs acceptance in the live UI.
