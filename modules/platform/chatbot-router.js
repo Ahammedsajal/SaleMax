@@ -22,7 +22,7 @@ function authorize(ctx) {
 function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   const router = express.Router();
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
-  router.use(express.json({ limit: '40kb', strict: true }));
+  router.use(express.json({ limit: '160kb', strict: true }));
   router.use((req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
