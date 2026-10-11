@@ -176,6 +176,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   await pruneExpiredGuidedSessions();
   const db = await dbPool.getConnection();
   let reply = null;
+  let deferLeadQuestion = false;
   try {
     const facts = leadInfo?.facts || (pack.requiresDatabase
       ? await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN })
@@ -191,6 +192,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     if (row && new Date(row.expiresAt).getTime() <= Date.now()) priorState = null;
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
     if (profile.engine !== 'guided' && priorState) priorState.language = businessContext.languageFor(intent || textOf(message), priorState);
+    deferLeadQuestion = !priorState?.greeted;
     reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: profile.config?.guidedContent });
     if (leadInfo?.nameOnly) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
@@ -198,7 +200,8 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       return false;
     }
     reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
-    if (!reply.handoff) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, leadInfo, profile.config, pack.guidedContentDefaults);
+    const questionLeadInfo = deferLeadQuestion ? { ...leadInfo, questionKey: null } : leadInfo;
+    if (!reply.handoff) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
     reply.state.sentCoursePdfIds = priorState?.sentCoursePdfIds || [];
     const pdfs = require('./chatbot-course-media').coursePdfs(facts, reply.state.selectedCourseCode, textOf(message), reply.state.sentCoursePdfIds);
     reply.media = [...(reply.media || []).filter(item => item.kind !== 'document'), ...pdfs];
@@ -219,7 +222,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: reply.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
-  if (!reply.handoff) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
+  if (!reply.handoff && !deferLeadQuestion) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
   if (!reply.handoff && reply.media?.length) {
     try {
       await sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media: reply.media, state: reply.state });
@@ -340,7 +343,8 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
     const incoming = textOf(message);
     const route = businessContext.controlRoute(incoming, profile.config, session || {});
-    if (route !== 'answer' || leadInfo?.nameOnly || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
+    const applicationAccepted = session?.step === 'course_detail' && /^(?:yes[,.! ]*(?:please|send it|send me|share it)?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
+    if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
@@ -356,7 +360,17 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId, factsOverride: leadInfo?.facts });
   if (answer.handedOff || answer.paused) return answer;
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
-  answer.reply = require('./chatbot-lead-capture').addQuestion(answer.reply, leadInfo, profile.config, pack.guidedContentDefaults);
+  const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;
+  const questionLeadInfo = onboarding ? { ...leadInfo, questionKey: null } : leadInfo;
+  if (onboarding && pack.guidedContentDefaults?.messages) {
+    const language = businessContext.languageFor(textOf(message), answer.state || {});
+    const messages = profile.config?.guidedContent?.messages || {};
+    const greeting = messages.greeting?.[language] || pack.guidedContentDefaults.messages.greeting[language];
+    const menu = require('./chatbot-training-guide').menuText(leadInfo?.facts || [], profile.config?.guidedContent || {}, language, { includeGreeting: false });
+    answer.reply = `${greeting}\n\n${answer.reply}\n\n${menu}`;
+    answer.state = { ...(answer.state || {}), greeted: true };
+  }
+  answer.reply = require('./chatbot-lead-capture').addQuestion(answer.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return { paused: true };
   const { sendWaMessage } = require('../../automation/functions');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: answer.reply } } });
@@ -366,7 +380,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
   if (answer.state) await saveConversationalState({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId, state: { ...answer.state, recentConversation: [...(answer.state.recentConversation || []), { role: 'user', text: textOf(message).slice(0, 400) }, { role: 'assistant', text: answer.reply.slice(0, 500) }].slice(-4) } });
-  await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
+  if (!onboarding) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
   const media = require('./chatbot-course-media').coursePdfs(leadInfo?.facts || [], answer.state?.selectedCourseCode, textOf(message), answer.state?.sentCoursePdfIds || []);
   if (media.length) await sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media, state: answer.state }).catch(error => console.warn('[chatbot] course attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'));
   return { sent: true, route: answer.route, reason: answer.reason, metrics: answer.metrics };
