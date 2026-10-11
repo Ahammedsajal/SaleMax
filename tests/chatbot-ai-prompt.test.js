@@ -41,5 +41,6 @@ test('course overview prompt stays concise and avoids unnecessary closing questi
   });
   assert.match(prompt.system, /single supplied course fact card/i);
   assert.match(prompt.system, /Do not add a follow-up question when the request is already answered/i);
+  assert.match(prompt.system, /never in the customer-facing reply/i);
   assert.doesNotMatch(prompt.system, /complete course_index|comparisons should fit/i);
 });

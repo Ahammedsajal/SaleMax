@@ -320,6 +320,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     const apiKey = secrets.decrypt(settings);
     response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, requireSources: true, maxOutputTokens: courseOverview ? 90 : 250 });
     if (Array.isArray(response.sourceIds)) response.sourceIds = response.sourceIds.map(id => sourceAliases.get(id) || 'invalid:' + id);
+    if (courseOverview && typeof response.reply === 'string') response.reply = response.reply.replace(/\s*\[s\d+\]/gi, '').trim();
     succeeded = true;
   } catch (error) {
     if (Number.isSafeInteger(error.tokensUsed)) failedUsage = error.tokensUsed;

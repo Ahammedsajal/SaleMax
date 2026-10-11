@@ -30,7 +30,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
         invalidNextOverviewSource = false;
         return { canAnswer: true, sourceIds: ['unapproved-course-fact'], confidence: 0.99, reply: 'The course guarantees you a job.', inputTokens: 31, outputTokens: 12 };
       }
-      return { canAnswer: true, sourceIds: [course.sourceId], confidence: 0.96, reply: 'The Synthetic Excel course covers spreadsheet formulas and cell formatting.', inputTokens: 31, outputTokens: 12 };
+      return { canAnswer: true, sourceIds: [course.sourceId], confidence: 0.96, reply: 'The Synthetic Excel course covers spreadsheet formulas and cell formatting. [s0]', inputTokens: 31, outputTokens: 12 };
     }
     return { canAnswer: true, sourceIds, confidence: 0.96, reply: 'Our approved course information is available.', inputTokens: 31, outputTokens: 14 };
   };
@@ -387,6 +387,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(courseOverviewResult.route, 'ai');
     assert.equal(providerCalls, 3, 'a named-course overview uses one compact AI wording call');
     assert.match(sentMessages.at(-1).content.text.body, /Synthetic Excel course covers spreadsheet formulas and cell formatting\./);
+    assert.doesNotMatch(sentMessages.at(-1).content.text.body, /\[s\d+\]/i, 'internal evidence aliases are never shown to the customer');
     assert.doesNotMatch(sentMessages.at(-1).content.text.body, /I don’t have a confirmed answer|I don't have a confirmed answer/);
     assert.match(sentMessages.at(-1).content.text.body, /May I have your name\?/);
 
