@@ -30,3 +30,16 @@ test('tenant preferences are bounded before the provider request is built', () =
   });
   assert.equal(JSON.parse(prompt.user).businessPreferences.length, 3000);
 });
+
+test('course overview prompt stays concise and avoids unnecessary closing questions', () => {
+  const prompt = buildAiPrompt({
+    pack: { title: 'Training center', systemGuidance: 'Use published course facts only.' },
+    profile: { config: { instructions: 'Use a friendly tone.' } },
+    customerMessage: 'What about this course?',
+    facts: [{ kind: 'course', sourceId: 's0', name: 'Synthetic course' }],
+    history: [], courseOverview: true,
+  });
+  assert.match(prompt.system, /single supplied course fact card/i);
+  assert.match(prompt.system, /Do not add a follow-up question when the request is already answered/i);
+  assert.doesNotMatch(prompt.system, /complete course_index|comparisons should fit/i);
+});
