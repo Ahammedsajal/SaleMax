@@ -12,33 +12,30 @@ test('custom greetings and handover preserve the complete configured wording',()
   const handover=pack.guidedReply({message:'agent',facts,config});assert.equal(handover.reply.split('\n').length,3);assert.match(handover.reply,/\*Admissions handover\*/);
 });
 
-test('English and Arabic menus, details and recovery replies stay concise with editable recovery messages', () => {
+test('English and Arabic menus, details and recovery replies stay readable with editable recovery messages', () => {
   for (const language of ['en', 'ar']) {
     let state;
     for (const message of [language === 'ar' ? 'مرحبا' : 'hello', '1', '999', '1', 'more', '0', 'unknown', 'form', 'agent']) {
       const result = run(message, state);
-      assert.ok(result.reply.split('\n').length <= 5, result.reply);
+      assert.ok(result.reply.split('\n').length <= 12, result.reply);
       assert.ok(result.reply.length < 700, result.reply);
       state = result.state;
     }
   }
 });
 
-test('paged lists retain stable course numbers, support both languages and clamp page boundaries', () => {
+test('course lists show every configured course at once and support both languages', () => {
   let result = run('courses');
   assert.match(result.reply, /1\. Program 1/);
-  assert.doesNotMatch(result.reply, /Program 3/);
-  result = run('next', result.state);
-  assert.match(result.reply, /3\. Program 3/);
-  result = run('التالي', result.state);
-  assert.match(result.reply, /5\. برنامج 5/);
-  result = run('previous', result.state);
-  assert.equal(result.state.page, 1);
+  assert.match(result.reply, /9\. Program 9/);
+  assert.match(result.reply, /Reply with a course number/);
+  assert.ok(result.reply.split('\n').length <= 15, result.reply);
   const selected = run('3', result.state);
   assert.equal(selected.state.selectedCourseCode, 'C3');
   assert.equal(selected.handoff, undefined);
-  for (let i = 0; i < 8; i++) result = run('next', result.state);
-  assert.equal(result.state.page, 4);
-  assert.match(result.reply, /9\./);
-  assert.equal(result.reply.split('\n').length, 3);
+
+  const arabic = run('الدورات', undefined);
+  assert.match(arabic.reply, /1\. برنامج 1/);
+  assert.match(arabic.reply, /9\. برنامج 9/);
+  assert.match(arabic.reply, /أرسل رقم الدورة/);
 });

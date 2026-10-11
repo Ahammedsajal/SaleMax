@@ -86,7 +86,7 @@ const TRAINING_CENTER_GUIDED_DEFAULTS = {
     mainMenuLabel: { en: 'Main menu', ar: 'القائمة الرئيسية' },
     courseListHeading: { en: 'Available courses', ar: 'الدورات المتاحة' },
     courseListEmpty: { en: 'Our course list is being updated. Type agent and our team will help you.', ar: 'نعمل على تحديث قائمة الدورات. اكتب موظف وسيساعدك فريقنا.' },
-    courseListPrompt: { en: 'Send a course number for details · next / previous · 0 menu', ar: 'أرسل رقم الدورة للتفاصيل · التالي / السابق · 0 القائمة' },
+    courseListPrompt: { en: 'Reply with a course number to see details, or send 0 for the menu.', ar: 'أرسل رقم الدورة لعرض التفاصيل، أو أرسل 0 للقائمة.' },
     feeUnavailable: { en: 'Our team can confirm the fee for you.', ar: 'يمكن لفريقنا تأكيد الرسوم لك.' },
     durationLabel: { en: 'Duration', ar: 'المدة' },
     deliveryLabel: { en: 'Delivery', ar: 'طريقة الدراسة' },

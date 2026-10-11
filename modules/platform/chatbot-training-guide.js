@@ -102,16 +102,15 @@ function localizedBatchDate(value, language) {
   } catch { return date; }
 }
 
-function formatCourseList(courses, settings = {}, language = 'en', page = 0) {
-  const start = Math.max(0, page) * 2;
-  const visible = courses.slice(0, courseLimit(settings)).slice(start, start + 2);
+function formatCourseList(courses, settings = {}, language = 'en') {
+  const visible = courses.slice(0, courseLimit(settings));
   if (!visible.length) {
     return copy(settings, 'courseListEmpty', language, language === 'ar' ? 'لا توجد دورات منشورة متاحة حالياً. أرسل 0 للقائمة الرئيسية.' : 'There are no published courses available right now. Reply 0 for the main menu.');
   }
   const lines = [`*${copy(settings, 'courseListHeading', language, language === 'ar' ? 'الدورات المتاحة' : 'Available courses')}*`];
   visible.forEach((course, index) => {
     const name = clean(language === 'ar' ? (course.nameAr || course.nameEn || course.code) : (course.nameEn || course.nameAr || course.code), 100);
-    let line = `${start + index + 1}. ${name}`;
+    let line = `${index + 1}. ${name}`;
     if (settings.display?.showFees !== false && course.offer?.priceAmount != null && course.offer?.currency) line += ` — ${course.offer.priceAmount} ${course.offer.currency}`;
     lines.push(line);
   });
@@ -180,12 +179,6 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
     return { reply: `${copy(settings, 'applicationLinkIntro', language)}\n${registrationFormUrl}`, state: nextState('application_shared', { ...(state || {}) }) };
   }
 
-  if (step === 'course_list' && /^(next|previous|prev|التالي|السابق)$/.test(text)) {
-    const listed = (state.courseCodes || []).map(code => courses.find(course => course.code === code)).filter(Boolean);
-    const direction = /^(next|التالي)$/.test(text) ? 1 : -1;
-    const page = Math.max(0, Math.min((state.page || 0) + direction, Math.max(0, Math.ceil(listed.length / 2) - 1)));
-    return { reply: formatCourseList(listed, settings, language, page), state: nextState('course_list', { courseCodes: listed.map(course => course.code), page }) };
-  }
   if ((text === '3' && step !== 'course_list') || /\b(?:human|person|someone|agent|staff|advisor|representative)\b|موظف|شخص|مستشار|خدمة العملاء|فريق القبول/i.test(text)) {
     return { reply: copy(settings, 'handoffMessage', language, language === 'ar' ? 'تم إيقاف الردود الآلية مؤقتاً ليتمكن فريق العمل من مساعدتك.' : 'I have paused the automated replies so the team can help you.'), state: nextState(step || 'menu', state || {}), handoff: true };
   }
