@@ -283,7 +283,7 @@ registerDomainPack({
     version: 1,
     title: 'Training center',
     requiresDatabase: true,
-  systemGuidance: 'Use only tenant-approved FAQs and the live course, offer, batch, and published form facts supplied in context. Describe each form using its supplied purpose and name: registration and enquiry are different. Sharing a form link alone does not submit it or confirm enrolment. Do not speculate about what submitting it does. Never invent fees, dates, seat counts, discounts, certificates, admissions, invoices, or payment state.',
+  systemGuidance: 'Use only tenant-approved FAQs and the live course, offer, batch, and published form facts supplied in context. Describe each form using its supplied purpose and name: registration and enquiry are different. Never claim enrolment or form submission is already completed. Do not speculate about what submitting a form does. Never invent fees, dates, seat counts, discounts, certificates, admissions, invoices, or payment state.',
   loadFacts: trainingCenterFacts,
   guidedContentDefaults: TRAINING_CENTER_GUIDED_DEFAULTS,
   guidedContentSchema: TRAINING_CENTER_GUIDED_SCHEMA,
