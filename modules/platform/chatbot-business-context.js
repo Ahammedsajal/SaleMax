@@ -111,9 +111,22 @@ function clarification(config, language) {
 function simpleFactualReply(message, context, config = {}) {
   const text = normalized(message), ar = context.language === 'ar';
   const courses = context.evidence.filter(item => item.kind === 'course');
-  if (courses.length !== 1 || /compare|recommend|difference|best|better|cheaper|and|مقارن|افضل|الفرق|تنصح/.test(text)) return null;
+  if (courses.length !== 1 || /\b(?:compare|recommend|difference|best|better|cheaper)\b|مقارن|افضل|الفرق|تنصح/.test(text)) return null;
   const course = courses[0];
-  if (/how long|duration|مدة|مدتها/i.test(message)) {
+  const asksDuration = /how long|duration|مدة|مدتها/i.test(message);
+  const asksFee = /\b(?:fee|fees|price|cost|how much)\b|رسوم|سعر|تكلفة/i.test(message);
+  if (asksDuration && asksFee) {
+    const feeTemplate = config.guidedContent?.messages?.simpleFeeMessage?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم {course} حالياً {fee}.{registration}' : '{course} is currently {fee}.{registration}');
+    const durationTemplate = config.guidedContent?.messages?.durationUnavailable?.[ar ? 'ar' : 'en'] || (ar ? 'مدة {course} غير منشورة حالياً. يمكن لفريقنا تأكيدها لك.' : 'The duration for {course} isn’t published yet. Our team can confirm it for you.');
+    const fee = course.offer?.priceAmount != null && course.offer?.currency
+      ? feeTemplate.replaceAll('{course}', course.name).replaceAll('{fee}', `${course.offer.priceAmount} ${course.offer.currency}`).replaceAll('{registration}', Number(course.offer.registrationFeeAmount) > 0 ? ` ${config.guidedContent?.messages?.registrationFeeLabel?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم التسجيل' : 'Registration fee')}: ${course.offer.registrationFeeAmount} ${course.offer.currency}.` : '')
+      : (config.guidedContent?.messages?.feeUnavailable?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم الدورة غير منشورة.' : 'The fee for this course isn’t published yet.'));
+    const duration = course.duration
+      ? (config.guidedContent?.messages?.simpleDurationMessage?.[ar ? 'ar' : 'en'] || (ar ? 'مدة {course} هي {duration}.' : '{course} takes {duration}.')).replaceAll('{course}', course.name).replaceAll('{duration}', course.duration)
+      : durationTemplate.replaceAll('{course}', course.name);
+    return { reply: `${fee} ${duration}`, sourceIds: [course.sourceId] };
+  }
+  if (asksDuration) {
     if (!course.duration && /\d+\s*(?:[–-]\s*\d+)?\s*(?:weeks?|days?|hours?|months?|أسابيع|اسابيع|أسبوع|اسبوع|ساعات|شهور|أشهر|ايام|أيام)/iu.test(course.description || '')) return null;
     const key = course.duration ? 'simpleDurationMessage' : 'durationUnavailable';
     const fallback = course.duration ? (ar ? 'مدة {course} هي {duration}.' : '{course} takes {duration}.') : (ar ? 'مدة {course} غير منشورة حالياً. يمكن لفريقنا تأكيدها لك.' : 'The duration for {course} isn’t published yet. Our team can confirm it for you.');
