@@ -4,7 +4,7 @@ const { normalizeDigits } = require('./chatbot-training-guide');
 const { keywordReply } = require('./chatbot-keyword-replies');
 
 const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
+const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions شهادة الشهادة شهادات احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
 const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const durationUnit = (unit, amount, language) => { const ar = {hours:['ساعة','ساعتان','ساعات'],days:['يوم','يومان','أيام'],weeks:['أسبوع','أسبوعان','أسابيع'],months:['شهر','شهران','أشهر']}; return language === 'ar' && ar[unit] ? ar[unit][Number(amount) === 2 ? 1 : Number(amount) >= 3 && Number(amount) <= 10 ? 2 : 0] : Number(amount) === 1 ? String(unit).replace(/s$/, '') : unit; };
@@ -54,7 +54,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   const add = (id, raw, data) => { sources.push({ id, revision: fingerprint(raw) }); evidence.push({ sourceId: id, ...data }); };
   selected.forEach(course => add('course:' + (course.courseId || course.code), course, {
     kind: 'course', code: course.code, name: local(course, 'name', language),
-    description: String(local(course, 'description', language)).slice(0, 350),
+    description: String(local(course, 'description', language)).slice(0, 900),
     outcomes: String(local(course, 'outcomes', language)).slice(0, 250),
     duration: course.durationValue ? `${course.durationValue} ${durationUnit(course.durationUnit, course.durationValue, language)}` : null,
     delivery: course.deliveryMode, offer: course.offer, batches: course.batches?.slice(0, 2),

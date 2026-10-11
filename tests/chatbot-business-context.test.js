@@ -9,6 +9,14 @@ const facts = [
  { kind:'published_enquiry_form',url:'https://example.test/p/test/forms/enquiry' }
 ];
 const config = { guidedContent: { keywordReplies:[{enabled:true,match:'exact',keywords:['opening time','اوقات الدوام'],reply:{en:'Published opening time.',ar:'وقت الدوام المنشور.'}}] } };
+test('certificate enquiry does not select a different course with certificate in its title',()=>{
+ const courses=[{courseId:'excel',code:'ADV-EXCEL',nameEn:'Advanced Excel Professional Training',descriptionEn:'Corporate spreadsheet training. '+ 'Practical workplace exercises. '.repeat(12)+'The outline states 6–7 weeks and a certificate of completion.',batches:[]},{courseId:'care',code:'CARE',nameEn:'Certificate in Nursing Assistance or Caregiver',descriptionEn:'Caregiver training',batches:[]}];
+ const c=retrieveContext({facts:courses,message:'Advanced Excel sounds like what I need. I work full time. Can I study online and receive a certificate?'});
+ assert.equal(c.selectedCourseCode,'ADV-EXCEL');
+ assert.deepEqual(c.evidence.filter(x=>x.kind==='course').map(x=>x.code),['ADV-EXCEL']);
+ assert.match(c.evidence[0].description,/6–7 weeks and a certificate of completion/);
+ assert.equal(validateAnswer({canAnswer:true,reply:'The outline states 6–7 weeks and a certificate of completion.',sourceIds:['course:excel']},c).valid,true);
+});
 const routing = {
  guided:['hello','hi','hey','good morning','good evening','salam','مرحبا','أهلاً','السلام عليكم','صباح الخير','مساء الخير','menu','back','القائمة','رجوع','0','courses','course list','show courses','available courses','what courses do you have','الدورات','دورات','عرض الدورات','قائمة الدورات','next','previous','التالي','السابق','form','enquiry form','registration form','نموذج','نموذج التسجيل','English','عربي'],
  human:['agent','human','staff','person','talk to a human','موظف','أريد موظف','ابي موظف','Please connect me to an advisor','Can I speak to your team','اريد التحدث مع موظف','اريد التواصل مع الفريق'],
