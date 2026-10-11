@@ -93,7 +93,7 @@ The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and 
 ### `client/public/pipeline/reports.js`
 
   - Line 90 · **reportFilters** · 3 control(s): select:period, input:at [date], button:unlabelled
-  - Line 109 · **report-schedule-card** · 8 control(s): input:period [hidden], input:expectedRevision [hidden], input:timezone [text], input:localTime [time], input:emailEnabled [checkbox], input:whatsappEnabled [checkbox], input:paused [checkbox], button:unlabelled
+  - Line 109 · **report-schedule-card** · 8 control(s): input:period [hidden], input:expectedRevision [hidden], select:timezone, input:localTime [time], input:emailEnabled [checkbox], input:whatsappEnabled [checkbox], input:paused [checkbox], button:unlabelled
   - Line 248 · **taskFilters** · 2 control(s): select:period, button:unlabelled
   - Line 252 · **followup-reschedule** · 2 control(s): input:at [datetime-local], button:unlabelled
 
@@ -179,5 +179,6 @@ The supplied current-run screenshot documents the Finance invoice builder before
 - The lead/contact details stay hidden until a valid contact is selected; changing the search clears the previous contact identity so an old selection cannot silently be invoiced.
 - Manual customer entry stays available, and shared native form controls receive consistent sizing and visible keyboard focus.
 - Installment reminders use a guided offset picker spanning the server-approved range (-30 through +90 days), with removable selected-date chips and the server limit of eight dates; staff no longer type comma-separated values.
+- Scheduled report time zones are chosen from the complete browser IANA list, with Qatar and nearby Gulf locations at the top; the selected value is styled to match adjacent form controls.
 
 Remaining source forms should be reviewed page by page using this inventory; deploy and visual acceptance must follow release evidence in `DEPLOYMENT.md`.

@@ -1,0 +1,30 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const test=require('node:test');
+const moment=require('moment-timezone');
+const timezones=require('../client/public/pipeline/timezone-options');
+const root=path.resolve(__dirname,'..');
+test('report time-zone choices are selectable IANA zones accepted by the schedule service',()=>{
+  const zones=timezones.getTimeZones();
+  assert.ok(zones.length>=400);
+  assert.ok(['Asia/Qatar','Asia/Riyadh','Asia/Dubai','Asia/Kuwait','Asia/Bahrain','Asia/Muscat','UTC'].every(zone=>zones.includes(zone)));
+  assert.deepEqual(zones.filter(zone=>!moment.tz.zone(zone)),[]);
+  const html=timezones.options('Asia/Qatar','Choose a time zone');
+  assert.match(html,/value="Asia\/Qatar" selected/);
+  assert.match(html,/Common destinations/);
+  assert.match(html,/America/);
+  assert.match(html,/Choose a time zone/);
+  const legacy=timezones.options('Etc/GMT+3','Choose a time zone');
+  assert.match(legacy,/value="Etc\/GMT\+3" selected/);
+});
+test('report time-zone selector is loaded before its renderer and uses the report card control layout',()=>{
+  const html=fs.readFileSync(path.join(root,'client/public/pipeline/index.html'),'utf8');
+  const renderer=fs.readFileSync(path.join(root,'client/public/pipeline/reports.js'),'utf8');
+  const css=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8');
+  assert.ok(html.indexOf('timezone-options.js?v=1')<html.indexOf('reports.js?v=21'));
+  assert.match(renderer,/<select name="timezone" required>/);
+  assert.match(css,/\.report-schedule-card input:not\(\[type=checkbox\]\),\.report-schedule-card select/);
+  assert.match(html,/pipeline\.css\?v=13/);
+});
