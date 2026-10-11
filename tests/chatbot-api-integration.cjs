@@ -22,6 +22,8 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     const sourceIds = parsed.approvedKnowledgeAndLiveCatalog.map(item => item.sourceId).filter(Boolean).slice(0, 2);
     if (/what about synthetic excel/i.test(parsed.customerMessage)) {
       const course = parsed.approvedKnowledgeAndLiveCatalog.find(item => item.kind === 'course');
+      assert.equal(parsed.approvedKnowledgeAndLiveCatalog.length, 1, 'the overview prompt receives only the selected course fact card');
+      assert.equal(Object.hasOwn(course, 'batches'), false, 'unasked batch details are excluded to save tokens');
       assert.equal(request.maxOutputTokens, 90, 'course overview wording uses a small output budget');
       assert.match(request.system, /helpful admissions adviser in an ongoing chat/i);
       if (invalidNextOverviewSource) {

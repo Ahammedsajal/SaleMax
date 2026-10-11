@@ -296,7 +296,16 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const cached = replyCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0 } };
   const sourceAliases = new Map();
-  const compactEvidence = context.evidence.map((item, index) => { const alias = 's' + index; sourceAliases.set(alias, item.sourceId); return { ...item, sourceId: alias }; });
+  const aiEvidence = courseOverview
+    ? context.evidence.filter(item => item.kind === 'course').map(item => ({
+      kind: item.kind, code: item.code, name: item.name,
+      description: String(item.description || '').slice(0, 520),
+      outcomes: String(item.outcomes || '').slice(0, 180),
+      duration: item.duration || null, delivery: item.delivery || null, offer: item.offer || null,
+      sourceId: item.sourceId,
+    }))
+    : context.evidence;
+  const compactEvidence = aiEvidence.map((item, index) => { const alias = 's' + index; sourceAliases.set(alias, item.sourceId); return { ...item, sourceId: alias }; });
   const { system, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, courseOverview });
   if (inputBytes > 12000) return factualOverviewFallback(context) || { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification' };
   const prompt = `${system}\n\n${input}`;
