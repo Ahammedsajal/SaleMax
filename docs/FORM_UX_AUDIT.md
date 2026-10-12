@@ -2,7 +2,7 @@
 
 Inventory refreshed 2026-10-12 by `node scripts/audit-form-controls.cjs`.
 
-The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. The current inventory script found **62 static form templates** and **345 static controls**. Runtime-built controls, including the course batch-language select and optional custom-code input, are listed separately by source line. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances. The inventory captures static button labels and translated labels when available. Read-only markers and output controls are identified in the inventory so derived values are not confused with fields staff can edit.
+The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. The current inventory script found **62 static form templates**, **346 controls inside those templates**, **109 input/select/textarea fragments outside literal forms**, and **zero static fields without an explicit accessible label**. Runtime-built controls are listed by source line, and generated fragments still need live checks. The inventory captures field names/ids, translated accessible labels, button labels and read-only/output markers so derived values are not mistaken for editable controls. Dynamic loops and catalogue options need runtime checks because static scans cannot count rendered instances.
 
 ## Latest popup review — course creation
 
@@ -499,6 +499,12 @@ Add Lead now suggests every active, non-removed course belonging to the signed-i
 ## Student profile — trainer and attendance controls
 
 The student profile’s trainer assignment is a native select populated from distinct trainer names already saved on enrollments for the current tenant, with an explicit unassigned choice and an “Add another trainer” path for genuinely new names. Existing assignments remain selectable even if no longer present in the current tenant list. The existing trainer update API and stored string value are unchanged. Attendance dates use the Qatar-local calendar date, avoiding a UTC date mismatch during the first three hours of the Qatar day. The trainer and attendance forms use aligned desktop columns, collapse cleanly on smaller screens, and explicitly hide the custom-name input until selected. Focused tests cover tenant scoping, choices, custom entry, date behavior and responsive rules. Authenticated production profile interaction and English/Arabic visual review remain open because the current production session has no valid business-auth token or naturally available student profile; no student record was created or changed for testing.
+
+## Lead Pipeline form labels and nationality catalogue — production, 12 October 2026
+
+The static-label scan exposed visible captions that were not programmatically associated with controls in Add Lead, edit lead, pipeline settings and sale review. The forms now generate unique input IDs with matching `label for` references; the rescheduler and Tasks chat composer also expose localized accessible names. The Leads page still uses dropdowns for its finite stage, priority, owner, contact outcome, course, batch, city, gender, graduation and source values; names, phone numbers, email, addresses, terms and notes remain editable.
+
+The production Add Lead form previously rendered only a short hard-coded nationality list. It now reuses the registration form’s complete bilingual catalogue: 250 country/territory choices plus the prompt, with canonical English values retained for saved lead records. The live production form exposed 250 options and named each input in the accessibility tree. The blank Add Lead form was canceled without creating a lead. Focused Pipeline, reports, Tasks and form-scan checks pass 45/45. The checked Tasks page reported an expired session, so task-chat behavior received source/test and asset-hash verification only. Deployment, live release hashes and rollback details are in `DEPLOYMENT.md`.
 
 ## Automation → Hybrid AI bot list — mobile width and row actions
 
