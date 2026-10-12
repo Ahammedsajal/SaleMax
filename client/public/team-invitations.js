@@ -3,7 +3,7 @@
   if (window.__sxTeamInvites) return;
   window.__sxTeamInvites = true;
 
-  const isArabic = () => (localStorage.getItem('language') || localStorage.getItem('salemax-language') || '').toLowerCase().startsWith('ar');
+  const isArabic = () => { const language=(localStorage.getItem('language')||localStorage.getItem('salemax-language')||'').trim().toLowerCase().replace(/^lang[-_ ]/,''); return language==='ar'||language.startsWith('arabic'); };
   const label = (en, ar) => isArabic() ? ar : en;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const route = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'team-invitations';
