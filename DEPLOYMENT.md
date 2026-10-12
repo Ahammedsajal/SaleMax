@@ -1,5 +1,11 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Automation Flows mobile navigation and bot-panel resize — production, 12 October 2026
+
+- Source commits `51c95a0` and `fdf9ca4` are pushed to `Ahammedsajal/SaleMax` `main`. Mobile Automation Flows now uses an accessible mode select and reserves canvas space so the native toolbar remains tappable. Hybrid/AI panels recalculate their bounds after viewport resize.
+- Active release `/opt/salemax/releases/automation-flow-panel-resize-fdf9ca4-20261012` on `carsqatar-prod-01`; rollback directory `/opt/salemax/shared/rollback-automation-flow-panel-resize-fdf9ca4-20261012` is mode 0700 and holds the prior release/container assets. Index, sidebar script and chatbot script SHA-256 values are `a9bd8439f2072c6e009e37f7d97ec0df69fae04ae3bf8bee9c17b07b2aad2016`, `3e013ca933a6a5307a2e7e5aa30a6c69ac70382f9e7f4a6c651b7c1ad823b744` and `9d86a791561804e3f41577121fcbc0f1e04b3a825cfdc400843380be49fb7933`. Release, container and public HTTPS asset hashes match; `/healthz` returns `success:true,status:ok`.
+- Static-only rollout; the app container remained running with zero restarts and no database change. Focused chatbot UI/prompt/profile tests pass 29/29. Authenticated browser verification passed at 390×844 and 1440×900, including mode selection, Node Menu access, Hybrid panel resizing and Arabic/RTL width. The browser console still reports unrelated 409 `call-center/status` and 401 `business-auth/me` responses.
+
 ## Invoice settings mobile alignment — production, 12 October 2026
 
 - Source commits `c33f6c373e19cdd232b4be95c8ec336b28798242` and `b0a6647f792d397e1a48ec552c06d2019162966c` are pushed to `Ahammedsajal/SaleMax` `main`. At phone widths, saved plan names use the full card width, payment count and interval remain side by side, Remove is right aligned below, and Add/Save settings become full-width stacked actions. Desktop plan rows keep their existing four-column layout.

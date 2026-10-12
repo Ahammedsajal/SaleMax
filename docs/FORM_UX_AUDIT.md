@@ -374,3 +374,9 @@ The connected-number page’s Manual Setup view is a 342 px wide, vertically ali
 ## WhatsApp device connections — production, 12 October 2026
 
 The correct “Add WhatsApp by QR” route is `?page=wa-qr-connect`; the similarly named `?page=whatsapp-qr` route opens the dashboard. The device page at 390×844 fits within the 366 px content card and reports “No devices yet.” It has no visible data-entry controls or device rows, only How to? and Add Device actions. The two DOM inputs are off-canvas navigation search controls; no select or textarea belongs to this page. I did not activate Add Device because that action can create a new linked-device session/QR. The connection form can be reviewed after a safe existing test device is available or when the owner authorizes creating one.
+
+## Automation Flows builder navigation and responsive bot panel — production, 12 October 2026
+
+At 390×844, the four mode tabs covered the flow title and Save, New, Import, Flows and Node Menu controls. Mobile now uses a labeled native mode select and reserves a dedicated row above the React Flow canvas; the native canvas toolbar moves below that row. The desktop segmented tabs remain unchanged. On production, the selector occupies a 366×53 px strip, the canvas begins at y=124, and Node Menu opens its node picker from the visible toolbar. No flow was changed or saved.
+
+The Hybrid AI panel previously retained its mobile width after resizing to desktop. Its bounds now update on viewport changes without reloading its data. The panel measured 1,376 px at 1440×900, returned to 390 px at 390×844, and the document stayed within 390 px. Arabic/RTL mode and labels were also checked at 390×844 with no horizontal overflow; English/LTR was restored after review.
