@@ -4,6 +4,14 @@ const assert=require('node:assert/strict');
 const students=require('../modules/platform/training-students');
 const {trainingCenter}=require('../modules/platform/categories');
 const context={audience:'tenant',identity:{id:'39bb978e-cf93-4b72-a5f9-211669cc4c67'},tenant:{id:'05cf4e43-7b6f-4dd9-9fa2-e153a7c08358',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member',tenantId:'05cf4e43-7b6f-4dd9-9fa2-e153a7c08358',role:'owner',status:'active',delegatedPermissions:[]},category:trainingCenter,subscription:{status:'active',capabilities:['training.courses']},runtimeReady:{}};
+test('attendance date picker uses Qatar local date at UTC day rollover',()=>{
+  const fs=require('node:fs'),vm=require('node:vm'),source=fs.readFileSync(require('node:path').join(__dirname,'../client/public/training-students.js'),'utf8');
+  const start=source.indexOf('function todayInQatar()'),end=source.indexOf('\n  function readableData',start),helper=source.slice(start,end).trim();assert.ok(helper.startsWith('function todayInQatar()'),'Qatar-local date helper is present');
+  class FixedDate extends Date{constructor(...args){super(...(args.length?args:['2026-10-11T22:30:00.000Z']));}}
+  const result=vm.runInNewContext('(()=>{'+helper+';return todayInQatar();})()',{Intl,Date:FixedDate});
+  assert.equal(result,'2026-10-12');
+  assert.match(source,/max="\$\{todayInQatar\(\)\}"/);
+});
 test('student directory bounds pagination, search and status filters',()=>{
   assert.deepEqual(students.input({page:'2',limit:'40',search:'  +974 555  ','status':'started'}),{page:2,limit:40,search:'+974 555',status:'started'});
   assert.throws(()=>students.input({page:'-1'}),{code:'INVALID_STUDENT_PAGE'});
