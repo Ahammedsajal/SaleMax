@@ -79,6 +79,21 @@
     const selectedSummary = picker.querySelector('[data-course-selected]');
     const empty = picker.querySelector('[data-course-empty]');
     const error = picker.querySelector('[data-course-required-message]');
+    const positionPanel = () => {
+      if (!details.open) {
+        details.removeAttribute('data-opens-upward');
+        return;
+      }
+      const bounds = details.getBoundingClientRect();
+      const panelHeight = details.querySelector('.course-picker-panel').getBoundingClientRect().height;
+      const spaceBelow = window.innerHeight - bounds.bottom - 12;
+      const spaceAbove = bounds.top - 12;
+      details.toggleAttribute('data-opens-upward', panelHeight > spaceBelow && spaceAbove > spaceBelow);
+    };
+    details.addEventListener('toggle', () => {
+      if (details.open) requestAnimationFrame(positionPanel);
+      else details.removeAttribute('data-opens-upward');
+    });
     const update = () => {
       const selected = options.filter(option => option.querySelector('input').checked);
       count.textContent = selected.length
