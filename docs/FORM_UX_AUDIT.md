@@ -245,3 +245,9 @@ The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (abo
 - Source recovery was checked against the available remote branches and tracked files: this checkout has no matching source map or React application source, and `client/src` contains only the SIP adapter. The 5.2 MB generated bundle remains outside reliable field-by-field edits until its supported source/build inputs are recovered.
 
 Remaining source forms should be reviewed page by page using this inventory; deploy and visual acceptance must follow release evidence in `DEPLOYMENT.md`.
+
+## Candidate Applications editor — production, 12 October 2026
+
+The existing course-enquiry form has 26 configurable field rows, a link slug, and bilingual name, headline, description and consent-copy controls. Its field checklist is configuration, so those rows stay checkboxes rather than becoming text inputs or catalogue selects; the bilingual copy remains editable. Before this change, the editor card was about 1,369 px tall in a 906 px viewport and its actions sat below the screen. Release `form-editor-scroll-a80b665-20261012` bounds the editor card to the available height, scrolls the form internally, keeps Save/Publish/Preview sticky and hides the repeated Candidate Applications heading only while editing.
+
+Production review opened the published course-enquiry draft in English and Arabic and canceled it unchanged. At 1036×906 and 390×844, the card and actions remained within the viewport; all 26 field rows remained available; scrolling reached both consent-copy fields while the actions stayed visible; and the page had no horizontal overflow. The authenticated form and submission-list GET requests returned 200. No draft was saved or published. The editor asset hashes, release and rollback details are recorded in `DEPLOYMENT.md`.
