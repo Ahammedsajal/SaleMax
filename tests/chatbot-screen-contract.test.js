@@ -18,6 +18,17 @@ test('existing Automation Flows canvas remains the first pill tab', () => {
   assert.ok(definitions.indexOf("['legacy'") < definitions.indexOf("['guided'") );
 });
 
+test('mobile Automation Flows uses a mode selector and reserves a clear builder row', () => {
+  assert.match(admin, /const mobileTabs = innerWidth <= 760/);
+  assert.match(admin, /class="sx-mobile-tab-select" aria-label=/);
+  assert.match(admin, /\.react-flow\[data-sx-chatbot-mobile-inset="true"\]\{position:absolute!important;inset:56px 0 0!important/);
+  assert.match(admin, /button\[aria-label="Node Menu"\]/);
+  assert.match(admin, /translateY\(56px\)/);
+  assert.match(admin, /function syncMobileFlowLayout\(enabled\)/);
+  assert.match(admin, /syncMobileFlowLayout\(false\)/);
+  assert.match(admin, /button\[aria-selected=true\]/);
+});
+
 test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', () => {
   assert.match(admin, /if \(isAssignmentPage\(\)\) \{ state\.mounted = false; closeViews\(\); addStyle\(\); mountNativeAssignmentButton\(\); mountNativeProfileList\(\); return false; \}/);
   assert.match(admin, /Keep the existing WA Chatbot page and Add Chatbot layout/);

@@ -241,6 +241,29 @@
       right: reserveDrawer && rect.left >= innerWidth / 2 ? Math.max(0, innerWidth - rect.left) : 0,
       top: Math.max(0, topbar?.getBoundingClientRect().bottom || 68) };
   }
+  function syncMobileFlowLayout(enabled) {
+    const flow = document.querySelector('.react-flow');
+    const toolbar = document.querySelector('button[aria-label="Node Menu"]')?.parentElement;
+    document.querySelectorAll('[data-sx-chatbot-mobile-toolbar="true"]').forEach(previous => {
+      if (!enabled || previous !== toolbar) {
+        previous.style.transform = previous.dataset.sxChatbotOriginalTransform || '';
+        delete previous.dataset.sxChatbotMobileToolbar;
+        delete previous.dataset.sxChatbotOriginalTransform;
+      }
+    });
+    if (toolbar && enabled && toolbar.dataset.sxChatbotMobileToolbar !== 'true') {
+      toolbar.dataset.sxChatbotOriginalTransform = toolbar.style.transform || '';
+      toolbar.dataset.sxChatbotMobileToolbar = 'true';
+      toolbar.style.transform = 'translateY(56px)';
+    }
+    if (!flow) return;
+    if (!enabled) {
+      delete flow.dataset.sxChatbotMobileInset;
+      for (const property of ['position', 'top', 'right', 'bottom', 'left', 'width', 'height']) flow.style.removeProperty(property);
+      return;
+    }
+    flow.dataset.sxChatbotMobileInset = 'true';
+  }
   function addStyle() {
     if (document.getElementById('sx-chatbot-admin-style')) return;
     const style = document.createElement('style'); style.id = 'sx-chatbot-admin-style';
@@ -352,11 +375,12 @@
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-secondary{background:#20232c;border-color:#444955;color:#e4e7ec}
       html[data-sx-chatbot-theme="dark"] #sx-chatbot-dialog .sx-error{color:#ff9daf}
       html[data-sx-chatbot-theme="dark"] [data-sx-chatbot-control]{background:#3b1728;border-color:#593047;color:#ffb5ce}
-      @media(max-width:760px){#sx-chatbot-tabs{width:calc(100vw - 20px);left:10px!important;overflow:auto}#sx-chatbot-tabs button{font-size:12px;padding:10px 9px}#sx-chatbot-panel{padding:18px 14px 30px}#sx-chatbot-dialog .sx-form-grid{grid-template-columns:1fr}#sx-chatbot-dialog label.sx-full{grid-column:auto}#sx-chatbot-dialog .sx-guide-content{grid-column:auto}#sx-chatbot-dialog .sx-language-pair{grid-template-columns:1fr}}
+      @media(max-width:760px){#sx-chatbot-tabs{width:calc(100vw - 24px);left:12px!important;overflow:visible;border-radius:14px;padding:6px}#sx-chatbot-tabs button{font-size:12px;padding:10px 9px}#sx-chatbot-tabs .sx-mobile-tab-select{width:100%;height:40px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#273142;padding:0 12px;font:600 14px Roboto,Arial,sans-serif}#root .react-flow[data-sx-chatbot-mobile-inset="true"]{position:absolute!important;inset:56px 0 0!important;width:100%!important;height:auto!important}#sx-chatbot-panel{padding:18px 14px 30px}#sx-chatbot-dialog .sx-form-grid{grid-template-columns:1fr}#sx-chatbot-dialog label.sx-full{grid-column:auto}#sx-chatbot-dialog .sx-guide-content{grid-column:auto}#sx-chatbot-dialog .sx-language-pair{grid-template-columns:1fr}}
+      @media(max-width:760px){html[data-sx-chatbot-theme="dark"] #sx-chatbot-tabs .sx-mobile-tab-select{background:#191b22;border-color:#444955;color:#e4e7ec}}
     `;
     document.head.append(style);
   }
-  function closeViews() { document.getElementById('sx-chatbot-tabs')?.remove(); document.getElementById('sx-chatbot-panel')?.remove(); }
+  function closeViews() { document.getElementById('sx-chatbot-tabs')?.remove(); document.getElementById('sx-chatbot-panel')?.remove(); syncMobileFlowLayout(false); }
   function renderAssignments() {
     syncChatbotTheme(); addStyle();
     const pos = bounds(); let panel = document.getElementById('sx-chatbot-panel');
@@ -408,18 +432,32 @@
     addStyle();
     const pos = bounds(); let tabs = document.getElementById('sx-chatbot-tabs');
     if (!tabs) { tabs = document.createElement('nav'); tabs.id = 'sx-chatbot-tabs'; document.body.append(tabs); }
-    tabs.style.left = `${pos.left + 24}px`; tabs.style.top = `${pos.top + 14}px`;
-    tabs.style.width = `${Math.min(790, Math.max(0, innerWidth - pos.left - pos.right - 48))}px`;
+    const mobileTabs = innerWidth <= 760;
+    tabs.style.left = `${mobileTabs ? 12 : pos.left + 24}px`; tabs.style.top = `${pos.top + (mobileTabs ? 8 : 14)}px`;
+    tabs.style.width = `${mobileTabs ? Math.max(0, innerWidth - 24) : Math.min(790, Math.max(0, innerWidth - pos.left - pos.right - 48))}px`;
+    syncMobileFlowLayout(mobileTabs);
     const definitions = [
       ['legacy', tr('Automation Flows','تدفقات الأتمتة'), `<span class="sx-legacy-tag">${tr('Legacy','قديم')}</span>`],
       ['guided', tr('Guided Chatbot','روبوت موجّه'), ''], ['hybrid', tr('Hybrid AI','ذكاء هجين'), ''], ['ai', tr('AI Chatbot','روبوت ذكاء اصطناعي'), '']
     ];
-    const labels = [...tabs.querySelectorAll('button')].map(button => button.dataset.label);
-    if (labels.join('|') !== definitions.map(item => item[1]).join('|')) {
-      tabs.innerHTML = definitions.map(([id, label, tag]) => `<button type="button" data-tab="${id}" data-label="${esc(label)}">${esc(label)}${tag}</button>`).join('');
-      tabs.querySelectorAll('button').forEach(button => button.onclick = () => { state.tab = button.dataset.tab; render(); });
+    const labelSignature = definitions.map(item => item[1]).join('|');
+    if (mobileTabs) {
+      let select = tabs.querySelector('select.sx-mobile-tab-select');
+      if (!select || tabs.dataset.labelSignature !== labelSignature) {
+        tabs.innerHTML = `<select class="sx-mobile-tab-select" aria-label="${esc(tr('Choose automation mode','اختر وضع الأتمتة'))}">${definitions.map(([id, label]) => `<option value="${id}">${esc(id === 'legacy' ? tr('Automation Flows (Legacy)','تدفقات الأتمتة (قديم)') : label)}</option>`).join('')}</select>`;
+        tabs.dataset.labelSignature = labelSignature;
+        select = tabs.querySelector('select');
+        select.onchange = () => { state.tab = select.value; render(); };
+      }
+      select.value = state.tab;
+    } else {
+      const labels = [...tabs.querySelectorAll('button')].map(button => button.dataset.label);
+      if (labels.join('|') !== labelSignature) {
+        tabs.innerHTML = definitions.map(([id, label, tag]) => `<button type="button" data-tab="${id}" data-label="${esc(label)}">${esc(label)}${tag}</button>`).join('');
+        tabs.querySelectorAll('button').forEach(button => button.onclick = () => { state.tab = button.dataset.tab; render(); });
+      }
+      tabs.querySelectorAll('button').forEach(button => button.setAttribute('aria-selected', String(state.tab === button.dataset.tab)));
     }
-    tabs.querySelectorAll('button').forEach(button => button.setAttribute('aria-selected', String(state.tab === button.dataset.tab)));
     state.mounted = true;
     if (state.tab === 'legacy') { document.getElementById('sx-chatbot-panel')?.remove(); return true; }
     return true;
