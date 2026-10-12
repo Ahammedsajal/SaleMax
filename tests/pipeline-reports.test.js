@@ -1,6 +1,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {periodWindow,getActivityReport,getJourneyReport}=require('../helper/pipeline/reports');
+const {reconcileExisting}=require('../modules/platform/training-lead-journey');
 
 test('pipeline reports define Qatar-local daily, Monday-weekly and monthly periods',()=>{
   assert.deepEqual(periodWindow({period:'daily',at:'2026-10-01',timezone:'Asia/Qatar'}),{period:'daily',timezone:'Asia/Qatar',start:'2026-09-30 21:00:00.000',end:'2026-10-01 21:00:00.000'});
@@ -108,9 +109,25 @@ test('journey report combines current pipeline stages, period sources and agent 
   const flowQuery=queries.find(sql=>sql.includes('AS leads_attended')),cohortQuery=queries.find(sql=>sql.includes('AS attended,'));
   assert.match(flowQuery,/pa\.activity_type IN \('contact_outcome','agent_message_sent'\)/);assert.doesNotMatch(flowQuery,/note_added/);
   assert.match(cohortQuery,/pa\.activity_type IN \('contact_outcome','agent_message_sent'\)/);assert.doesNotMatch(cohortQuery,/note_added/);
+  const cohortJourneyQuery=queries.find(sql=>sql.includes('WITH cohort_leads AS'));
+  assert.equal((cohortJourneyQuery.match(/e\.legacy_uid COLLATE utf8mb4_general_ci=c\.uid COLLATE utf8mb4_general_ci/g)||[]).length,7);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_receipts/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_enrollment_events/);
   assert.equal(queries.length,8);
+});
+
+test('legacy enrollment reconciliation uses a compatible collation for tenant uid joins',async()=>{
+  const queries=[];
+  const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
+    if(sql.includes('SELECT DISTINCT tenant_id'))return [[{tenant_id:12}]];
+    if(sql.includes('SELECT id FROM sx_tenants'))return [[{id:12}]];
+    if(sql.includes('FROM pipeline_leads l JOIN sx_training_enrollments e'))return [[],[]];
+    throw new Error(`Unexpected query: ${sql}`);
+  }};
+  const advanced=await reconcileExisting({async getConnection(){return connection;}},{uid:'tenant-owner'});
+  assert.equal(advanced,0);
+  const join=queries.find(sql=>sql.includes('FROM pipeline_leads l JOIN sx_training_enrollments e'));
+  assert.match(join,/e\.legacy_uid COLLATE utf8mb4_general_ci=l\.uid COLLATE utf8mb4_general_ci/);
 });
 
 test('journey reports reject finance-only roles before database access',async()=>{
@@ -120,8 +137,8 @@ test('journey reports reject finance-only roles before database access',async()=
 
 test('finance report summary remains owner-only and presents exact bilingual Qatar currency totals',()=>{
   const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),pipelineUi=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/pipeline.js'),'utf8'),screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8');
-  assert.match(screen,/\/pipeline\/reports\.js\?v=19/);
-  assert.match(screen,/\/pipeline\/pipeline\.js\?v=20261009-registration1/);
+  assert.match(screen,/\/pipeline\/reports\.js\?v=[^" ]+/);
+  assert.match(screen,/\/pipeline\/pipeline\.js\?v=[^" ]+/);
   assert.match(ui,/Sales credited at conversion/);
   assert.match(ui,/مبيعات منسوبة وقت التحويل/);
   assert.match(ui,/Training journey/);

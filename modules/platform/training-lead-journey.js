@@ -58,7 +58,7 @@ async function reconcileExisting(pool,{uid}){
             FROM sx_training_payment_allocation_reversals ar WHERE ar.tenant_id=a.tenant_id AND ar.allocation_id=a.id),0) AS DECIMAL(65,0)))
             FROM sx_training_payment_allocations a JOIN sx_training_payments p ON p.tenant_id=a.tenant_id AND p.id=a.payment_id AND p.status='posted'
             WHERE a.tenant_id=i.tenant_id AND a.invoice_id=i.id),0) AS paid_minor
-        FROM pipeline_leads l JOIN sx_training_enrollments e ON e.legacy_uid_hash=l.uid_hash AND e.legacy_uid=l.uid AND e.lead_id=l.id
+        FROM pipeline_leads l JOIN sx_training_enrollments e ON e.legacy_uid_hash=l.uid_hash AND e.legacy_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci AND e.lead_id=l.id
         JOIN sx_training_invoices i ON i.tenant_id=e.tenant_id AND i.enrollment_id=e.id AND i.status='issued'
         LEFT JOIN sx_training_certificates cert ON cert.tenant_id=e.tenant_id AND cert.enrollment_id=e.id
         WHERE e.tenant_id=? AND l.uid_hash=? AND l.uid=? AND l.status='won' AND l.stage_key='won'
