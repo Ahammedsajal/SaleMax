@@ -1,3 +1,11 @@
+## Public product metadata and share preview — production, 12 October 2026
+
+- Source commit `c1f71f77ebe663e8ab8088bf3eeb956714c6d936` is pushed to `Ahammedsajal/SaleMax` `main`. Updated the public page title, meta description, Open Graph title and description, Twitter summary card metadata, and installable-app name to describe SaleMaX as CRM, WhatsApp campaigns, chatbots, customer conversations, sales pipelines and invoicing in one business automation platform.
+- Active release `/opt/salemax/releases/share-metadata-20261012` on `carsqatar-prod-01`; previous release `/opt/salemax/releases/chatbot-test-controls-top-4a9702e-20261012`. No database migration or business-data write.
+- Protected rollback directory `/opt/salemax/shared/rollback-share-metadata-20261012` (mode 0700) stores the previous index and manifest, active-release pointer and container baseline. Roll back by restoring the previous `current` symlink and copying the saved index and manifest to `salemax-app-1:/app/client/public/`; no restart is required.
+- Active release and running-container SHA-256 match: index `71ae08ad69a79da87c5250ae57eac1f530e6bb2fe90bef2a9a50e05256377fcd`; manifest `30129076b7af75d9d412a660d8d68fcc90537307cb93934280307b0e68dbc261`. Public HTML and manifest serve the new metadata; `/healthz` reports `success:true,status:ok`. The app container ID, image, start time and zero restart count are unchanged.
+- Authenticated social-network crawler card rendering was not checked; the Open Graph and Twitter tags are present in the public HTML.
+
 
 ## Hybrid bot editor keeps actions visible — production, 12 October 2026
 
