@@ -38,7 +38,7 @@ test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', (
   const picker = admin.slice(admin.indexOf('async function openNativeAssignmentDialog('), admin.indexOf('function isInboxPage('));
   assert.match(picker, /Select Automation Flow/);
   assert.match(picker, /Search flows\.\.\./);
-  assert.match(picker, /Enter webhook title\.\.\./);
+  assert.match(picker, /Select a bot to see its title/);
   assert.match(picker, /bots\.filter\(bot =>/);
   assert.match(picker, /data-bot-option/);
   assert.match(picker, /renderBotOptions\(true\)/);
@@ -79,6 +79,16 @@ test('bot editor keeps save actions visible while its long form scrolls', () => 
   assert.match(admin, /\.sx-bot-editor-scroll\{flex:1;min-height:0;overflow:auto;/);
   assert.match(admin, /\.sx-bot-editor-dialog \.sx-footer\{flex:0 0 auto;/);
   assert.match(admin, /html\[data-sx-chatbot-theme="dark"\] #sx-chatbot-dialog \.sx-bot-editor-dialog \.sx-footer\{background:#191c24/);
+});
+
+test('Hybrid bot test recipients are entered as validated removable phone chips', () => {
+  assert.match(admin, /data-test-number-list role="list"/);
+  assert.match(admin, /type="tel" inputmode="tel" autocomplete="tel" maxlength="24" data-test-number-entry/);
+  assert.match(admin, /data-test-number-add/);
+  assert.match(admin, /data-test-phone-remove/);
+  assert.match(admin, /testPhoneFail\(tr\('Enter a valid international number/);
+  assert.match(admin, /current\.length >= 10/);
+  assert.match(admin, /testRecipientPhones:String\(data\.get\('testRecipientPhone'\)\|\|''\)\.split/);
 });
 
 test('AI provider, model, usage limit, and confidence use curated dropdown choices', () => {
