@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 107825)
-Total output lines: 1405
-
 # SaleMaX live deployment — 30 September 2026
 
 ## Invoice settings mobile alignment — production, 12 October 2026
