@@ -23,6 +23,15 @@ test('public form controls support finite course-profile dropdowns and unknown p
   assert.ok(nationalities.some(([value])=>value==='Western Sahara'));
   assert.ok(Array.from(api.optionsForField('nationality','ar')).some(([,label])=>label==='أوغندا'));
   assert.ok(Array.from(api.optionsForField('nationality','ar')).some(([,label])=>label==='الصحراء الغربية'));
+  const registrationEn=api.capture({consentTextEn:'Consent',consentTextAr:'موافقة'},'en',false,{},{});
+  const registrationAr=api.capture({consentTextEn:'Consent',consentTextAr:'موافقة'},'ar',false,{},{});
+  assert.match(registrationEn,/<option value="Western Sahara">Western Sahara<\/option>/);
+  assert.match(registrationAr,/<option value="Western Sahara">الصحراء الغربية<\/option>/);
+  assert.doesNotMatch(registrationEn,/<option value="EH">/);
+  const nationalitySelect=registrationEn.match(/<select name="nationality"[^>]*>([\s\S]*?)<\/select>/)?.[1]||'';
+  const registrationOptions=Array.from(nationalitySelect.matchAll(/<option value="([^"]+)">/g),match=>match[1]).filter(value=>value!=='');
+  assert.equal(registrationOptions.length,250,'registration capture renders every nationality');
+  assert.equal(registrationOptions.filter(value=>/^[A-Z]{2}$/.test(value)).length,0,'registration capture never exposes unresolved region codes');
   assert.equal(api.optionsForField('address'),null);
   const screen=fs.readFileSync(require('node:path').join(__dirname,'../client/public/training-public-form.js'),'utf8');
   assert.match(screen,/fields\[field\.key\] \|\| \[field\.key\.replace/);
