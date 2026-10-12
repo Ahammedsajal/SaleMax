@@ -28,6 +28,8 @@ Pipeline Automation settings were also opened in the authenticated production wo
 
 The Students page was visually checked at desktop width. Its search field, enrollment-status selector, actions and empty state are aligned; the live directory contains zero enrollments, so student-profile, attendance and trainer forms are not reachable from live records without creating synthetic business data. The form-level audit for those workflows remains open.
 
+Student-profile trainer assignment now uses distinct existing trainer names from the same tenant as native select options, while “Add another trainer…” reveals a required custom-name field for new staff and outside instructors. The existing endpoint and stored trainer-name value remain unchanged. Unit checks cover tenant scoping and the custom-entry branch. Production release is recorded in `DEPLOYMENT.md`; authenticated production still has zero enrollments, so the profile select awaits a naturally available record for live visual acceptance. Attendance and the other student-profile controls still need separate field and layout review.
+
 ## File-by-file inventory
 
 ### `client/public/admin-actions.js`
