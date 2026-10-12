@@ -15,7 +15,7 @@ function withHtml(html,run){
 test('pipeline asset bump updates one loader reference and is repeatable',()=>withHtml('<script src="/pipeline/pipeline.js?v=previous"></script>',file=>{
   const first=spawnSync(process.execPath,[script,file],{encoding:'utf8'});
   assert.equal(first.status,0,first.stderr);
-  assert.equal(fs.readFileSync(file,'utf8'),'<script src="/pipeline/pipeline.js?v=20261012-sale-price-output1"></script>');
+  assert.equal(fs.readFileSync(file,'utf8'),'<script src="/pipeline/pipeline.js?v=20261012-course-interest1"></script>');
   const second=spawnSync(process.execPath,[script,file],{encoding:'utf8'});
   assert.equal(second.status,0,second.stderr);
 }));

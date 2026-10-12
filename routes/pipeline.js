@@ -188,6 +188,11 @@ router.get('/sale-options',async(req,res)=>{
   catch(error){fail(res,error);}
 });
 
+router.get('/course-options',async(req,res)=>{
+  try{const ctx=await saleContext(req.pipelineActor);res.setHeader('Cache-Control','no-store');res.json({success:true,data:await trainingCourses.intakeOptions(require('../database/config.js').promise(),ctx)});}
+  catch(error){fail(res,error);}
+});
+
 router.get("/reports/activity", async (req,res)=>{
   try{
     const data=await pipelineReports.getActivityReport({
