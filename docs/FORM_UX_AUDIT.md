@@ -2,7 +2,7 @@
 
 Inventory refreshed 2026-10-12 by `node scripts/audit-form-controls.cjs`.
 
-The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. The current inventory script found **62 static form templates** and **345 static controls**. Runtime-built controls, including the course batch-language select and optional custom-code input, are listed separately by source line. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances. Read-only markers and output controls are identified in the inventory so derived values are not confused with fields staff can edit.
+The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. The current inventory script found **62 static form templates** and **345 static controls**. Runtime-built controls, including the course batch-language select and optional custom-code input, are listed separately by source line. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances. The inventory captures static button labels and translated labels when available. Read-only markers and output controls are identified in the inventory so derived values are not confused with fields staff can edit.
 
 ## Latest popup review — course creation
 
@@ -82,33 +82,33 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/admin-actions.js`
 
-  - Line 27 · **unnamed form** · 2 control(s): button:unlabelled, button:unlabelled
+  - Line 27 · **unnamed form** · 2 control(s): button:Cancel, button:unlabelled
 
 ### `client/public/admin-asterisk.js`
 
-  - Line 73 · **unnamed form** · 14 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:gatewayHost [text], input:gatewaySipPort [number], output:${tr('SIP transport','نقل SIP')}, input:enabled [checkbox], button:data-save-ports, textarea:data-preview-config [readonly], button:data-preview, button:data-apply-gateway, button:data-test, button:data-close, button:unlabelled
+  - Line 73 · **unnamed form** · 14 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:gatewayHost [text], input:gatewaySipPort [number], output:SIP transport, input:enabled [checkbox], button:data-save-ports, textarea:data-preview-config [readonly], button:data-preview, button:data-apply-gateway, button:data-test, button:data-close, button:Save setup
 
   Runtime field builders: line 101 form/control helper creates select; line 105 form/control helper creates input; line 106 form/control helper creates select.
 
 ### `client/public/admin-plan-contracts.js`
 
-  - Line 39 · **unnamed form** · 3 control(s): input:email [email], input:password [password], button:unlabelled
-  - Line 46 · **unnamed form** · 3 control(s): input:code [text], input:recoveryCode [text], button:unlabelled
-  - Line 52 · **unnamed form** · 2 control(s): input:saved [checkbox], button:unlabelled
-  - Line 63 · **unnamed form** · 5 control(s): output:${t('Business category','فئة النشاط')}, input:${role} [number], input:capability [checkbox], button:unlabelled, button:data-cancel-edit
-  - Line 67 · **unnamed form** · 1 control(s): button:unlabelled
+  - Line 39 · **unnamed form** · 3 control(s): input:email [email], input:password [password], button:Verify access
+  - Line 46 · **unnamed form** · 3 control(s): input:code [text], input:recoveryCode [text], button:Confirm verification
+  - Line 52 · **unnamed form** · 2 control(s): input:saved [checkbox], button:Continue
+  - Line 63 · **unnamed form** · 5 control(s): output:Business category, input:${role} [number], input:capability [checkbox], button:Create contract draft, button:data-cancel-edit
+  - Line 67 · **unnamed form** · 1 control(s): button:Publish reviewed version
 
 ### `client/public/admin-plan-editor.js`
 
-  - Line 60 · **unnamed form** · 5 control(s): textarea:short_description, select:is_trial, input:${name} [checkbox], button:data-cancel, button:unlabelled
+  - Line 60 · **unnamed form** · 5 control(s): textarea:short_description, select:is_trial, input:${name} [checkbox], button:data-cancel, button:Save plan
 
 ### `client/public/admin-platform-staff.js`
 
-  - Line 80 · **unnamed form** · 4 control(s): input:name [text], input:password [password], input:confirm [password], button:unlabelled
-  - Line 96 · **sx-staff-card sx-staff-fields** · 4 control(s): input:email [email], input:password [password], button:data-back, button:unlabelled
-  - Line 107 · **sx-staff-card** · 4 control(s): input:code [text], input:recoveryCode [text], button:data-back, button:unlabelled
-  - Line 125 · **unnamed form** · 4 control(s): input:email [email], select:platformRole, select:reportsToIdentityId, button:unlabelled
-  - Line 135 · **sx-staff-card** · 2 control(s): input:active [checkbox], button:unlabelled
+  - Line 80 · **unnamed form** · 4 control(s): input:name [text], input:password [password], input:confirm [password], button:Activate staff access
+  - Line 96 · **sx-staff-card sx-staff-fields** · 4 control(s): input:email [email], input:password [password], button:data-back, button:Verify and continue
+  - Line 107 · **sx-staff-card** · 4 control(s): input:code [text], input:recoveryCode [text], button:data-back, button:Verify MFA
+  - Line 125 · **unnamed form** · 4 control(s): input:email [email], select:platformRole, select:reportsToIdentityId, button:Create invitation
+  - Line 135 · **sx-staff-card** · 2 control(s): input:active [checkbox], button:Save staff access
 
   Runtime field builders: line 121 form/control helper creates textarea.
 
@@ -120,14 +120,14 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/admin-telephony.js`
 
-  - Line 47 · **unnamed form** · 6 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:enabled [checkbox], button:unlabelled, button:data-test
-  - Line 74 · **unnamed form** · 7 control(s): input:name [text], input:host [text], input:port [number], output:${tr('Transport','النقل')}, input:enabled [checkbox], button:unlabelled, button:data-apply-peer
+  - Line 47 · **unnamed form** · 6 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:enabled [checkbox], button:Save Asterisk settings, button:data-test
+  - Line 74 · **unnamed form** · 7 control(s): input:name [text], input:host [text], input:port [number], output:Transport, input:enabled [checkbox], button:Save business gateway, button:data-apply-peer
 
 ### `client/public/admin-user-plans.js`
 
-  - Line 43 · **unnamed form** · 5 control(s): input:businessName [text], output:${t('Business category','فئة النشاط')}, input:${role} [number], button:data-back, button:unlabelled
-  - Line 58 · **unnamed form** · 5 control(s): select:version, input:${role} [number], button:data-back, button:data-reload, button:unlabelled
-  - Line 120 · **unnamed form** · 4 control(s): select:planId, button:data-back, button:data-refresh, button:unlabelled
+  - Line 43 · **unnamed form** · 5 control(s): input:businessName [text], output:Business category, input:${role} [number], button:data-back, button:Review setup
+  - Line 58 · **unnamed form** · 5 control(s): select:version, input:${role} [number], button:data-back, button:data-reload, button:Review business assignment
+  - Line 120 · **unnamed form** · 4 control(s): select:planId, button:data-back, button:data-refresh, button:Review assignment
 
 ### `client/public/agent-transfer-controls.js`
 
@@ -157,19 +157,19 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/pipeline/pipeline.js`
 
-  - Line 55 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [text], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], output:Source, button:unlabelled
-  - Line 75 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
-  - Line 87 · **settingsForm** · 10 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, input:interestKeywords [text], button:addMetaAdsMessage, button:unlabelled, button:unlabelled
-  - Line 87 · **newStage** · 2 control(s): input:title [text], button:unlabelled
-  - Line 97 · **sale-review-form** · 17 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], output:data-sale-course-price, output:data-sale-registration-fee, input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:unlabelled, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:unlabelled
+  - Line 55 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [text], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], output:Source, button:save
+  - Line 75 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:cancel, button:saveLead
+  - Line 87 · **settingsForm** · 10 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, input:interestKeywords [text], button:addMetaAdsMessage, button:cancel, button:save
+  - Line 87 · **newStage** · 2 control(s): input:title [text], button:createStage
+  - Line 97 · **sale-review-form** · 17 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], output:data-sale-course-price, output:data-sale-registration-fee, input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:remove, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:requestApproval
   - Line 108 · **sale-review-decision** · 3 control(s): input:reason [text], button:data-decision, button:data-decision
 
 ### `client/public/pipeline/reports.js`
 
-  - Line 88 · **reportFilters** · 3 control(s): select:period, input:at [date], button:unlabelled
-  - Line 113 · **report-schedule-card** · 8 control(s): input:period [hidden], input:expectedRevision [hidden], select:timezone, input:localTime [time], input:emailEnabled [checkbox], input:whatsappEnabled [checkbox], input:paused [checkbox], button:unlabelled
-  - Line 263 · **taskFilters** · 2 control(s): select:period, button:unlabelled
-  - Line 267 · **followup-reschedule** · 2 control(s): input:at [datetime-local], button:unlabelled
+  - Line 88 · **reportFilters** · 3 control(s): select:period, input:at [date], button:apply
+  - Line 113 · **report-schedule-card** · 8 control(s): input:period [hidden], input:expectedRevision [hidden], select:timezone, input:localTime [time], input:emailEnabled [checkbox], input:whatsappEnabled [checkbox], input:paused [checkbox], button:saveSchedule
+  - Line 263 · **taskFilters** · 2 control(s): select:period, button:apply
+  - Line 267 · **followup-reschedule** · 2 control(s): input:at [datetime-local], button:saveTask
 
   Runtime field builders: line 221 form/control helper creates textarea.
 
@@ -180,7 +180,7 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/tasks/tasks.js`
 
-  - Line 1 · **chatForm** · 2 control(s): input:body [text], button:unlabelled
+  - Line 1 · **chatForm** · 2 control(s): input:body [text], button:➤
 
 ### `client/public/team-invitations.js`
 
@@ -190,42 +190,42 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/training-courses.js`
 
-  - Line 102 · **sx-course-create** · 13 control(s): input:studentIdPrefix [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, input:price [number], input:registrationFee [number], textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-cancel
-  - Line 156 · **sx-batch-edit** · 7 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], select:status, button:unlabelled, button:sx-batch-cancel-edit
-  - Line 156 · **sx-course-edit** · 12 control(s): input:studentIdPrefix [text], input:expectedRevision [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-publish
-  - Line 156 · **sx-course-offer** · 3 control(s): input:price [number], input:registrationFee [number], button:unlabelled
-  - Line 156 · **sx-course-batch** · 5 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], button:unlabelled
-  - Line 192 · **sx-center-profile** · 10 control(s): input:revision [hidden], input:sx-profile-logo-file [file], button:sx-profile-logo-choose, button:sx-profile-logo-remove, textarea:aboutEn, textarea:aboutAr, select:reportChannel, input:reportDestination [email], button:sx-report-recipient-add, button:unlabelled
+  - Line 102 · **sx-course-create** · 13 control(s): input:studentIdPrefix [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, input:price [number], input:registrationFee [number], textarea:descriptionEn, textarea:descriptionAr, button:Save draft, button:sx-course-cancel
+  - Line 156 · **sx-batch-edit** · 7 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], select:status, button:Save batch, button:sx-batch-cancel-edit
+  - Line 156 · **sx-course-edit** · 12 control(s): input:studentIdPrefix [text], input:expectedRevision [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, textarea:descriptionEn, textarea:descriptionAr, button:Save course details, button:sx-course-publish
+  - Line 156 · **sx-course-offer** · 3 control(s): input:price [number], input:registrationFee [number], button:Add offer version
+  - Line 156 · **sx-course-batch** · 5 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], button:Save batch
+  - Line 192 · **sx-center-profile** · 10 control(s): input:revision [hidden], input:sx-profile-logo-file [file], button:sx-profile-logo-choose, button:sx-profile-logo-remove, textarea:aboutEn, textarea:aboutAr, select:reportChannel, input:reportDestination [email], button:sx-report-recipient-add, button:Save profile
 
   Runtime field builders: line 41 form/control helper creates select; line 41 field name difficultyLevel; line 41 form/control helper creates textarea.
 
 ### `client/public/training-faqs.js`
 
-  - Line 37 · **sx-faq-form** · 7 control(s): button:data-close, input:questionEn [text], textarea:answerEn, input:questionAr [text], textarea:answerAr, button:data-close, button:unlabelled
+  - Line 37 · **sx-faq-form** · 7 control(s): button:data-close, input:questionEn [text], textarea:answerEn, input:questionAr [text], textarea:answerAr, button:data-close, button:Save FAQ
 
 ### `client/public/training-finance.js`
 
-  - Line 93 · **sx-invoice-filter** · 3 control(s): input:q [text], select:status, button:unlabelled
-  - Line 104 · **sx-generator-settings** · 7 control(s): input:companyName [hidden], input:crNumber [hidden], input:address [hidden], input:invoicePrefix [hidden], textarea:footer, button:sx-generator-add-plan, button:unlabelled
-  - Line 104 · **sx-reminder-settings-form** · 3 control(s): input:enabled [checkbox], select:data-offset-choice, button:unlabelled
+  - Line 93 · **sx-invoice-filter** · 3 control(s): input:q [text], select:status, button:Apply filters
+  - Line 104 · **sx-generator-settings** · 7 control(s): input:companyName [hidden], input:crNumber [hidden], input:address [hidden], input:invoicePrefix [hidden], textarea:footer, button:sx-generator-add-plan, button:Save invoice defaults
+  - Line 104 · **sx-reminder-settings-form** · 3 control(s): input:enabled [checkbox], select:data-offset-choice, button:Save reminder settings
   - Line 127 · **sx-generator-invoice** · 11 control(s): input:customerType [radio], input:customerType [radio], input:sx-generator-search [search], input:customerName [text], input:customerPhone [tel], input:customerEmail [email], textarea:customerAddress, select:courseId, select:paymentPlan, input:replacementReason [text], button:unlabelled
-  - Line 153 · **sx-aging-filter** · 6 control(s): input:from [date], input:to [date], select:bucket, input:q [text], button:unlabelled, button:sx-aging-clear
-  - Line 187 · **sx-payment-form** · 6 control(s): input:amount [number], select:method, input:receivedAt [datetime-local], input:reference [text], input:note [text], button:unlabelled
-  - Line 213 · **sx-schedule-change-form** · 5 control(s): input:dueDate [date], input:amount [number], button:sx-schedule-add-row, textarea:reason, button:unlabelled
-  - Line 220 · **sx-credit-form** · 3 control(s): input:amount [number], textarea:reason, button:unlabelled
+  - Line 153 · **sx-aging-filter** · 6 control(s): input:from [date], input:to [date], select:bucket, input:q [text], button:Apply filters, button:sx-aging-clear
+  - Line 187 · **sx-payment-form** · 6 control(s): input:amount [number], select:method, input:receivedAt [datetime-local], input:reference [text], input:note [text], button:Record payment for verification
+  - Line 213 · **sx-schedule-change-form** · 5 control(s): input:dueDate [date], input:amount [number], button:sx-schedule-add-row, textarea:reason, button:Submit schedule change for approval
+  - Line 220 · **sx-credit-form** · 3 control(s): input:amount [number], textarea:reason, button:Request credit for accountant review
   - Line 257 · **unnamed form** · 3 control(s): textarea:reason, button:decision, button:decision
-  - Line 257 · **unnamed form** · 5 control(s): select:method, input:reference [text], input:completedAt [datetime-local], input:confirmed [checkbox], button:unlabelled
-  - Line 257 · **unnamed form** · 4 control(s): select:paymentId, input:amount [number], textarea:reason, button:unlabelled
-  - Line 272 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
-  - Line 272 · **unnamed form** · 5 control(s): select:paymentId, input:amount [number], input:reference [text], textarea:reason, button:unlabelled
-  - Line 280 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
+  - Line 257 · **unnamed form** · 5 control(s): select:method, input:reference [text], input:completedAt [datetime-local], input:confirmed [checkbox], button:Record completed return
+  - Line 257 · **unnamed form** · 4 control(s): select:paymentId, input:amount [number], textarea:reason, button:Request return
+  - Line 272 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:Record outcome
+  - Line 272 · **unnamed form** · 5 control(s): select:paymentId, input:amount [number], input:reference [text], textarea:reason, button:Record dispute
+  - Line 280 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:Record outcome
 
   Runtime field builders: line 175 form/control helper creates input; line 183 form/control helper creates input.
 
 ### `client/public/training-forms.js`
 
-  - Line 60 · **sx-app-filter** · 4 control(s): input:search [search], input:from [date], input:to [date], button:unlabelled
-  - Line 64 · **sx-form-editor** · 16 control(s): input:id [hidden], input:revision [hidden], input:slug [text], input:nameEn [text], input:nameAr [text], input:titleEn [text], input:titleAr [text], textarea:descriptionEn, textarea:descriptionAr, input:${key} [checkbox], input:data-required [checkbox], textarea:consentTextEn, textarea:consentTextAr, button:unlabelled, button:sx-form-publish, button:sx-form-preview
+  - Line 60 · **sx-app-filter** · 4 control(s): input:search [search], input:from [date], input:to [date], button:Filter
+  - Line 64 · **sx-form-editor** · 16 control(s): input:id [hidden], input:revision [hidden], input:slug [text], input:nameEn [text], input:nameAr [text], input:titleEn [text], input:titleAr [text], textarea:descriptionEn, textarea:descriptionAr, input:${key} [checkbox], input:data-required [checkbox], textarea:consentTextEn, textarea:consentTextAr, button:Save draft, button:sx-form-publish, button:sx-form-preview
 
 ### `client/public/training-public-form.js`
 
@@ -233,8 +233,8 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/training-students.js`
 
-  - Line 36 · **sx-st-trainer-form** · 2 control(s): input:trainerName [text], button:unlabelled
-  - Line 36 · **sx-st-attendance-form** · 4 control(s): input:sessionDate [date], select:status, input:note [text], button:unlabelled
+  - Line 36 · **sx-st-trainer-form** · 2 control(s): input:trainerName [text], button:Save trainer
+  - Line 36 · **sx-st-attendance-form** · 4 control(s): input:sessionDate [date], select:status, input:note [text], button:Save attendance
 
 ### `client/workspace-src/signin.js`
 

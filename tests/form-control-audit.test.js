@@ -9,5 +9,6 @@ test('form inventory includes read-only outputs and marks read-only controls',()
   assert.match(inventory,/output:data-sale-course-price/);
   assert.match(inventory,/output:data-sale-registration-fee/);
   assert.match(inventory,/textarea:data-preview-config \[readonly\]/);
+  assert.match(inventory,/button:Verify access/);
 });
 

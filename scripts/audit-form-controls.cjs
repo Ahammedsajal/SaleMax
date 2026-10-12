@@ -26,6 +26,23 @@ function esc(value) {
   return String(value).replaceAll('|', '\\|').replaceAll('\n', ' ').replaceAll('`', '\\`');
 }
 
+function buttonLabel(markup, control, tag) {
+  const start = control.index + tag.length;
+  const end = markup.indexOf('</button>', start);
+  if (end < 0) return '';
+  const body = markup.slice(start, end);
+  const translated = body.match(/\$\{(?:t|tr|text)\('([^']+)'/);
+  if (translated) return translated[1];
+  if (body.includes('${')) return '';
+  return body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function humanAttribute(tag, name) {
+  const value = attr(tag, name);
+  if (!value) return '';
+  return value.match(/\$\{(?:t|tr|text)\('([^']+)'/)?.[1] || value;
+}
+
 const files = roots.flatMap(relative => [...walk(path.join(root, relative))]);
 const records = [];
 let totalForms = 0;
@@ -44,7 +61,7 @@ for (const absolute of files.sort()) {
       const tag = control[0];
       const kind = control[1].toLowerCase();
       const marker = tag.match(/\b(data-[a-z0-9_-]+)(?:\s*=|\s|\/|>)/i)?.[1];
-      const identity = attr(tag, 'name') || attr(tag, 'id') || attr(tag, 'data-field') || marker || attr(tag, 'aria-label') || attr(tag, 'placeholder') || 'unlabelled';
+      const identity = attr(tag, 'name') || attr(tag, 'id') || attr(tag, 'data-field') || marker || humanAttribute(tag, 'aria-label') || humanAttribute(tag, 'placeholder') || (kind === 'button' ? buttonLabel(match[2], control, tag) : '') || 'unlabelled';
       const readonly = /\sreadonly(?:\s|=|\/|>)/i.test(tag) ? ', readonly' : '';
       return `${kind}:${identity}${kind === 'input' ? ` [${attr(tag, 'type') || 'text'}${readonly}]` : readonly ? ' [readonly]' : ''}`;
     });
