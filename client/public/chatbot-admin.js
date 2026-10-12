@@ -819,7 +819,7 @@
     if (control.dataset.conversationId === id && control.dataset.channelScope === scopeKey && control.dataset.loading !== 'true') return;
     control.dataset.conversationId = id; control.dataset.channelScope = scopeKey; control.dataset.loading = 'true';
     if (!scope) {
-      body.innerHTML = `<strong data-sx-chatbot-mobile-heading>${esc(tr('Chat info','معلومات المحادثة'))}</strong><label><span>${esc(tr('Bot number','رقم الروبوت'))}</span><select data-sx-chatbot-channel aria-label="${esc(tr('WhatsApp number for this chat','رقم واتساب لهذه المحادثة'))}"><option value="">${esc(tr('Loading connected bot numbers…','جارٍ تحميل أرقام الروبوتات المتصلة…'))}</option></select></label><span data-sx-chatbot-state aria-live="polite">${esc(tr('Choose the number this conversation uses.','اختر الرقم المستخدم في هذه المحادثة.'))}</span>`;
+      body.innerHTML = `<strong data-sx-chatbot-mobile-heading>${esc(tr('Chat info','معلومات المحادثة'))}</strong><label><span>${esc(tr('Bot number','رقم الروبوت'))}</span><select data-sx-chatbot-channel aria-label="${esc(tr('WhatsApp number for this chat','رقم واتساب لهذه المحادثة'))}"><option value="">${esc(tr('Loading connected bot numbers…','جارٍ تحميل أرقام الروبوتات المتصلة…'))}</option></select></label><span data-sx-chatbot-state aria-live="polite">${esc(tr('Choose a number for this chat.','اختر رقمًا لهذه المحادثة.'))}</span>`;
       control.dataset.loading = 'false';
       const select = control.querySelector('[data-sx-chatbot-channel]');
       select.addEventListener('change', () => {
@@ -833,10 +833,10 @@
       });
       inboxBotChannelOptions().then(options => {
         if (!control.isConnected || control.dataset.conversationId !== id || control.dataset.channelScope !== '') return;
-        select.innerHTML = `<option value="">${esc(options.length ? tr('Choose a connected bot number','اختر رقم روبوت متصلًا') : tr('No active bot numbers found','لا توجد أرقام روبوت نشطة'))}</option>` + options.map(option => `<option value="${esc(`${option.kind}|${option.reference}`)}">${esc(option.label)}</option>`).join('');
+        select.innerHTML = `<option value="">${esc(options.length ? tr('Choose bot number','اختر رقم الروبوت') : tr('No active bot numbers found','لا توجد أرقام روبوت نشطة'))}</option>` + options.map(option => `<option value="${esc(`${option.kind}|${option.reference}`)}">${esc(option.label)}</option>`).join('');
         select.disabled = options.length === 0;
         control.querySelector('[data-sx-chatbot-state]').textContent = options.length
-          ? tr('Choose the number this conversation uses.','اختر الرقم المستخدم في هذه المحادثة.')
+          ? tr('Choose a number for this chat.','اختر رقمًا لهذه المحادثة.')
           : tr('Assign and activate a bot on a connected number first.','اربط روبوتًا وفعّله على رقم متصل أولاً.');
       }).catch(error => {
         if (!control.isConnected || control.dataset.conversationId !== id) return;
