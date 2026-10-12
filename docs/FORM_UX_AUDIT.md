@@ -308,6 +308,8 @@ The published test-tenant course enquiry and student registration forms were che
 
 The registration form displayed its nine active courses and 251 nationality select options (250 country/territory entries plus the prompt) in both locales. Source, gender, Qatar city, graduation, course, batch, payment plan, level, class-day and class-time fields are selections; mobile and home/emergency phone fields use `tel`, email uses `email`, and date and numeric-ID values use their matching browser input types. Adding a second course creates a complete second set of course, batch, payment, level, day, time and terms fields; the two course groups and controls stayed within the mobile layout. No applicant data was entered and no form was submitted. This verifies only the published test-tenant configurations; other tenants may publish different field combinations and still require review.
 
+Fresh browser checks on the test tenant at 390×844 confirmed one-column mobile layout, 375 px document width, no visible control overflow, all nine course choices, and a bilingual searchable 250-country catalogue (251 options including the prompt). Arabic searches for Egypt and Ethiopia each matched one country, a no-match query showed localized guidance, and clearing restored all options. Separately, both previously reviewed Pro Catalyst public form URLs currently return HTTP 404 / `FORM_NOT_FOUND`; a production read-only query found no form rows for tenant `pro-catalyst-05f1f2b34f`. No form or business data was restored or changed; owner direction is needed to determine whether the links were intentionally removed or should be republished.
+
 
 ## Searchable nationality selection — production, 12 October 2026
 
