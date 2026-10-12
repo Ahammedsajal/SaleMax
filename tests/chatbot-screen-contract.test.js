@@ -72,6 +72,15 @@ test('bot editor renders editable bilingual training-center guide fields', () =>
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:ar/);
 });
 
+test('bot editor keeps save actions visible while its long form scrolls', () => {
+  assert.match(admin, /class="sx-dialog sx-bot-editor-dialog"[\s\S]*?<form><div class="sx-bot-editor-scroll"><div class="sx-form-grid">/);
+  assert.match(admin, /<div class="sx-error" role="alert"><\/div><\/div><div class="sx-footer">[\s\S]*?Save bot/);
+  assert.match(admin, /\.sx-bot-editor-dialog form\{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden\}/);
+  assert.match(admin, /\.sx-bot-editor-scroll\{flex:1;min-height:0;overflow:auto;/);
+  assert.match(admin, /\.sx-bot-editor-dialog \.sx-footer\{flex:0 0 auto;/);
+  assert.match(admin, /html\[data-sx-chatbot-theme="dark"\] #sx-chatbot-dialog \.sx-bot-editor-dialog \.sx-footer\{background:#191c24/);
+});
+
 test('AI provider, model, usage limit, and confidence use curated dropdown choices', () => {
   assert.match(admin, /<select name="provider"/);
   assert.match(admin, /value="openai"/);
