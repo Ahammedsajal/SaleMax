@@ -263,6 +263,7 @@ The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (abo
 - Lead source in the Pipeline editor is shown as a labelled, styled output rather than a disabled text box; the existing source value remains read-only.
 - Manage Users business setup now presents the fixed Training Center category as a labelled output instead of a disabled text input; account limits and business name remain editable.
 - The enforced TLS outputs in platform Asterisk setup, business gateway settings, and plan contracts now carry explicit English/Arabic accessible labels; the inventory identifies those fields individually.
+- Chatbot assignment now shows the selected bot name in a labelled preview output instead of a readonly title input; bot and connected-number selection stay unchanged.
 
 - Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, focus trapping, and focus return to the opener.
 - The lead/contact details stay hidden until a valid contact is selected; changing the search clears the previous contact identity so an old selection cannot silently be invoiced.
