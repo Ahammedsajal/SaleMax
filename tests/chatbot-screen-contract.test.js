@@ -31,6 +31,14 @@ test('mobile Automation Flows uses a mode selector and reserves a clear builder 
   assert.match(admin, /if\(active&&panel\)positionPanel\(panel\)/);
 });
 
+test('Hybrid bot list becomes labelled cards on mobile instead of an 850px table', () => {
+  assert.match(admin, /@media\(max-width:760px\)\{#sx-chatbot-panel \.sx-table-wrap\{overflow:visible/);
+  assert.match(admin, /#sx-chatbot-panel table\{display:block;width:100%;min-width:0\}/);
+  for (const label of ["Bot Name", "Type", "Status", "Actions"]) {
+    assert.ok(admin.includes(`data-label="\${esc(tr('${label}'`), `missing mobile bot-list label: ${label}`);
+  }
+});
+
 test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', () => {
   assert.match(admin, /if \(isAssignmentPage\(\)\) \{ state\.mounted = false; closeViews\(\); addStyle\(\); mountNativeAssignmentButton\(\); mountNativeProfileList\(\); return false; \}/);
   assert.match(admin, /Keep the existing WA Chatbot page and Add Chatbot layout/);

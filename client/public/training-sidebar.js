@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261012-test-phone-chips2';
+    chatbotScript.src = '/chatbot-admin.js?v=20261012-mobile-bot-cards1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
