@@ -11,6 +11,14 @@ test('training enquiry form validates bilingual names, public slug, fields and e
   for(const invalidValues of [{contact_name:'Learner',phone:'+97450000102',consent:false},{contact_name:'Learner',phone:'+97450000102',consent:true,tenant_id:'another-tenant'},{contact_name:'Learner',phone:'bad',consent:true}])assert.throws(()=>forms.cleanSubmission(parsed.schema,invalidValues));
   for(const invalid of [{...valid,slug:'../admin'},{...valid,schema:{...valid.schema,fields:[...valid.schema.fields,{key:'tenant_id',labelEn:'Tenant',labelAr:'مستأجر',required:false}]}},{...valid,schema:{...valid.schema,fields:valid.schema.fields.map(f=>f.key==='phone'?{...f,required:false}:f)}},{...valid,schema:{...valid.schema,fields:valid.schema.fields.filter(f=>f.key!=='consent')}},{...valid,schema:{...valid.schema,fields:[...valid.schema.fields,{...valid.schema.fields[0]}]}}])assert.throws(()=>forms.formInput(invalid));
 });
+test('new enquiry form suggests a readable URL slug and preserves a staff-edited slug',()=>{
+  const fs=require('node:fs'),vm=require('node:vm'),screen=fs.readFileSync(require('node:path').join(__dirname,'../client/public/training-forms.js'),'utf8');
+  const helpers=screen.match(/function formSlugFromName\([\s\S]*?(?=function stable\()/)?.[0];assert.ok(helpers,'slug suggestion helpers stay available to test');
+  const {formSlugFromName,bindFormSlugSuggestion}=vm.runInNewContext(`(()=>{${helpers};return {formSlugFromName,bindFormSlugSuggestion};})()`);
+  assert.equal(formSlugFromName('Pre & Primary / Teacher Training'),'pre-primary-teacher-training');assert.equal(formSlugFromName('A'),'a-form');assert.equal(formSlugFromName('استفسار عن دورة'),'course-enquiry');
+  const field=value=>({value,handlers:{},addEventListener(type,fn){this.handlers[type]=fn;},input(next){this.value=next;this.handlers.input?.({target:this});}}),name=field('Course enquiry'),slug=field('course-enquiry'),root={querySelector(selector){return selector==='[name="nameEn"]'?name:selector==='[name="slug"]'?slug:null;}};
+  bindFormSlugSuggestion(root);name.input('Diploma in Business Management');assert.equal(slug.value,'diploma-in-business-management');slug.input('business-diploma');name.input('Advanced Business Diploma');assert.equal(slug.value,'business-diploma');
+});
 test('public form controls support finite course-profile dropdowns and unknown published fields safely',()=>{
   const fs=require('node:fs'),vm=require('node:vm'),controls=fs.readFileSync(require('node:path').join(__dirname,'../client/public/training-registration-controls.js'),'utf8'),api={definitions:[],valuesFromForm(){return {};},formPayload(){return {schema:{fields:[]}};}};
   vm.runInNewContext(controls,{window:{SXTrainingRegistration:api},Intl});
