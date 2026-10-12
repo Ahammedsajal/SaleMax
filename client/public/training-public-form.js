@@ -69,10 +69,55 @@
     root.querySelector('h1')?.focus();
   }
 
+  function wireCoursePicker(form) {
+    const picker = form.querySelector('[data-course-picker]');
+    if (!picker) return;
+    const details = picker.querySelector('details');
+    const search = picker.querySelector('[data-course-search]');
+    const options = [...picker.querySelectorAll('[data-course-option]')];
+    const count = picker.querySelector('[data-course-count]');
+    const selectedSummary = picker.querySelector('[data-course-selected]');
+    const empty = picker.querySelector('[data-course-empty]');
+    const error = picker.querySelector('[data-course-required-message]');
+    const update = () => {
+      const selected = options.filter(option => option.querySelector('input').checked);
+      count.textContent = selected.length
+        ? tr(`${selected.length} course${selected.length === 1 ? '' : 's'} selected`, `تم اختيار ${selected.length} دورات`)
+        : tr('Choose courses', 'اختر الدورات');
+      const names = selected.map(option => option.querySelector('span').textContent.trim());
+      selectedSummary.textContent = names.length > 2
+        ? `${names.slice(0, 2).join(', ')} ${tr(`+ ${names.length - 2} more`, `و ${names.length - 2} أخرى`)}`
+        : names.join(', ');
+      if (selected.length) {
+        error.hidden = true;
+        error.textContent = '';
+      }
+    };
+    const filter = () => {
+      const term = search.value.trim().toLocaleLowerCase(language);
+      let visible = 0;
+      for (const option of options) {
+        const matches = !term || option.dataset.courseSearchText.toLocaleLowerCase(language).includes(term);
+        option.hidden = !matches;
+        if (matches) visible += 1;
+      }
+      empty.hidden = visible > 0;
+    };
+    search.oninput = filter;
+    options.forEach(option => option.querySelector('input').addEventListener('change', update));
+    update();
+    filter();
+  }
+
   function render() {
     const priorCourses=root.querySelector('[data-course-row]')?window.__sxRegistrationControls?.selections():undefined;
     const prior = {};
     root.querySelectorAll('#enquiry-form [name]').forEach(control => {
+      if (control.name === 'course_ids') {
+        prior.course_ids ||= [];
+        if (control.checked) prior.course_ids.push(control.value);
+        return;
+      }
       prior[control.name] = control.multiple?Array.from(control.selectedOptions,o=>o.value):control.type === 'checkbox' ? control.checked : control.value;
     });
     if (turnstileWidgetId && window.turnstile?.remove) {
@@ -97,7 +142,7 @@
       ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture, data.tenant, data) : schema.fields.filter(field => field.key !== 'consent').map(field => {
         const [labelEn, labelAr, type, autocomplete] = fields[field.key] || [field.key.replace(/_/g, ' ').replace(/^./, char => char.toUpperCase()), field.key.replace(/_/g, ' '), field.key.endsWith('_date') ? 'date' : 'text', 'off'];
         const label = isArabic ? field.labelAr || labelAr : field.labelEn || labelEn;
-        if (field.key === 'course_id') return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="course_ids" multiple size="5" ${field.required ? 'required' : ''}>${data.courses.map(course => `<option value="${esc(course.id)}">${esc(isArabic ? course.nameAr : course.nameEn)}</option>`).join('')}</select><small>${tr('You may select more than one course.','يمكنك اختيار أكثر من دورة.')}</small></label>`;
+        if (field.key === 'course_id') return `<fieldset class="form-field course-choice" data-course-picker data-course-required="${field.required ? 'true' : 'false'}"><legend>${esc(label)}${field.required ? ' *' : ''}</legend><details class="course-picker"><summary><span data-course-count>${tr('Choose courses','اختر الدورات')}</span><span aria-hidden="true">⌄</span></summary><div class="course-picker-panel"><label class="course-picker-search">${tr('Search courses','ابحث عن دورة')}<input type="search" data-course-search autocomplete="off" placeholder="${tr('Type a course name','اكتب اسم الدورة')}" /></label><div class="course-option-list" role="group" aria-label="${tr('Available courses','الدورات المتاحة')}">${data.courses.map(course => { const name = isArabic ? course.nameAr : course.nameEn; return `<label class="course-option" data-course-option data-course-search-text="${esc(`${course.nameEn} ${course.nameAr}`)}"><input type="checkbox" name="course_ids" value="${esc(course.id)}"><span>${esc(name)}</span></label>`; }).join('')}<p class="course-picker-empty" data-course-empty hidden>${tr('No courses match that search.','لا توجد دورات تطابق البحث.')}</p></div></div></details><p class="course-selected-summary" data-course-selected aria-live="polite"></p><p class="course-picker-error" data-course-required-message role="alert" hidden></p><small>${tr('Choose one or more courses you’d like to hear about.','اختر دورة واحدة أو أكثر لمعرفة المزيد عنها.')}</small></fieldset>`;
         const choices = window.SXTrainingRegistration?.optionsForField?.(field.key, language);
         if (choices) return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="${esc(field.key)}" ${field.required ? 'required' : ''}><option value="">${tr('Choose an option…','اختر خيارًا…')}</option>${choices.map(([value, text]) => `<option value="${esc(value)}">${esc(text)}</option>`).join('')}</select></label>`;
         return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<input name="${field.key}" type="${type}" autocomplete="${staffCapture ? 'off' : autocomplete || 'off'}" ${staffCapture ? 'autocapitalize="off" spellcheck="false"' : ''} ${field.key === 'phone' ? 'inputmode="tel" placeholder="+974 …"' : ''} maxlength="${field.key === 'email' ? 254 : field.key === 'phone' ? 40 : 255}" ${field.required ? 'required' : ''}></label>`;
@@ -108,6 +153,10 @@
       <p class="privacy-note">${isRegistration ? tr('Submitting creates a student pending approval and a provisional invoice. A course seat is confirmed after approval.', 'ينشئ الإرسال طالبًا بانتظار الموافقة وفاتورة مبدئية. يتم تأكيد المقعد بعد الموافقة.') : tr('Your details will be used to respond to this enquiry. This does not register you or reserve a seat.', 'ستُستخدم بياناتك للرد على هذا الاستفسار. لا يُعد هذا تسجيلًا أو حجزًا لمقعد.')}</p></form></section><footer>${tr('Powered by SaleMaX', 'مدعوم من SaleMaX')}</footer>`;
 
     for (const [name, value] of Object.entries(prior)) {
+      if (name === 'course_ids') {
+        root.querySelectorAll('#enquiry-form [name="course_ids"]').forEach(control => { control.checked = value.includes(control.value); });
+        continue;
+      }
       const control = root.querySelector(`#enquiry-form [name="${name}"]`);
       if (control){if(control.multiple){for(const option of control.options)option.selected=value.includes(option.value);}else control.type === 'checkbox' ? control.checked = Boolean(value) : control.value = value;}
     }
@@ -117,6 +166,7 @@
       root.querySelector('h1')?.focus();
     };
     root.querySelector('#enquiry-form').onsubmit = submit;
+    wireCoursePicker(root.querySelector('#enquiry-form'));
     if(isRegistration)window.__sxRegistrationControls=window.SXTrainingRegistration.wire(root.querySelector('#enquiry-form'),data,language,priorCourses);
     if(staffCapture) wireLeadSearch();
     if(isRegistration){const source=root.querySelector('[name="source"]'),heading=root.querySelector('.registration-capture > .reg-two-col');let lookup=root.querySelector('.lead-prefill');if(!lookup){lookup=document.createElement('section');lookup.className='lead-prefill';lookup.innerHTML='<p>'+tr('Sign in as staff to search and import an existing lead.','سجّل الدخول كموظف للبحث واستيراد عميل محتمل موجود.')+'</p><a class="form-action" href="'+location.pathname+'?mode=staff">'+tr('Open staff capture','فتح تسجيل الموظف')+'</a>';}heading.insertAdjacentElement('afterend',lookup);const original=source.onchange;const toggle=focus=>{lookup.hidden=source.value!=='Lead';if(focus&&!lookup.hidden)lookup.querySelector('input')?.focus();if(lookup.hidden){selectedLead=null;const selected=lookup.querySelector('#lead-selected');if(selected)selected.textContent='';}};source.onchange=()=>{original?.();toggle(true);};toggle(false);}
@@ -216,6 +266,16 @@
     const button = root.querySelector('#submit-button');
     const message = root.querySelector('#form-message');
     message.textContent = '';
+    const requiredCoursePicker = form.querySelector('[data-course-picker][data-course-required="true"]');
+    if (requiredCoursePicker && !requiredCoursePicker.querySelector('[name="course_ids"]:checked')) {
+      const details = requiredCoursePicker.querySelector('details');
+      const error = requiredCoursePicker.querySelector('[data-course-required-message]');
+      error.textContent = tr('Choose at least one course so we can send the right information.','اختر دورة واحدة على الأقل لنتمكن من إرسال المعلومات المناسبة.');
+      error.hidden = false;
+      details.open = true;
+      requiredCoursePicker.querySelector('[data-course-search]').focus();
+      return;
+    }
     if (!form.reportValidity()) return;
     if(data.form.schema.templateKey==='procatalyst-registration-v1'&&!form.elements.student_signature.value){message.textContent=tr('Please draw the student signature.','يرجى رسم توقيع الطالب.');form.querySelector('#reg-signature').focus();return;}
     if (!staffCapture && data.botChallenge && !challengeToken) {
@@ -227,7 +287,7 @@
     if(data.form.schema.templateKey==='procatalyst-registration-v1')Object.assign(values,window.SXTrainingRegistration.valuesFromForm(form,data.form.schema));
     else for (const field of data.form.schema.fields) {
       if (field.key === 'consent') { values.consent = form.elements.consent.checked; continue; }
-      if(field.key==='course_id'){const selected=Array.from(form.elements.course_ids?.selectedOptions||[],o=>o.value);if(selected.length)values.course_ids=selected;continue;}
+      if(field.key==='course_id'){const selected=Array.from(form.querySelectorAll('[name="course_ids"]:checked'),control=>control.value);if(selected.length)values.course_ids=selected;continue;}
       const control = form.elements[field.key];
       if (control?.value) values[field.key] = control.value.trim();
     }
