@@ -157,7 +157,7 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/pipeline/pipeline.js`
 
-  - Line 55 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [text], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], input:unlabelled [text], button:unlabelled
+  - Line 55 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [text], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], output:Source, button:unlabelled
   - Line 75 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
   - Line 87 · **settingsForm** · 10 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, input:interestKeywords [text], button:addMetaAdsMessage, button:unlabelled, button:unlabelled
   - Line 87 · **newStage** · 2 control(s): input:title [text], button:unlabelled
@@ -260,6 +260,7 @@ The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (abo
 - Protected plan-contract drafts now show the fixed Training Center category as read-only text instead of a dropdown with one possible value; draft submissions continue to send the API-required `training_center` category. Role limits and finite feature checkboxes remain editable.
 - Business gateway settings now display mandatory SIP TLS as read-only with a short explanation; the form continues sending the API-required `tls` value. The per-channel business and queue selectors, individual DID input, routing controls, and gateway address/port remain unchanged.
 - Sale-review course price and registration fee now use accessible, non-editable output fields updated from the selected published offer; the review request continues to use catalog-derived minor-unit amounts. Discount, installment schedule, payer details and terms remain editable for this individual sale.
+- Lead source in the Pipeline editor is shown as a labelled, styled output rather than a disabled text box; the existing source value remains read-only.
 
 - Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, focus trapping, and focus return to the opener.
 - The lead/contact details stay hidden until a valid contact is selected; changing the search clears the previous contact identity so an old selection cannot silently be invoiced.
