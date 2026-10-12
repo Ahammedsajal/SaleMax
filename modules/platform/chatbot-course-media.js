@@ -22,7 +22,7 @@ async function sendCourseMedia({ pool, ctx, profile, uid, chatId, sessionId, mes
     const db = await pool.getConnection();
     let file;
     try {
-      const [[course]] = await db.query("SELECT id FROM sx_training_courses WHERE tenant_id=? AND id=? AND status='active'", [ctx.tenant.id, item.courseId]);
+      const [[course]] = await db.query("SELECT id FROM sx_training_courses WHERE tenant_id=? AND id=? AND status='active' AND deleted_at IS NULL", [ctx.tenant.id, item.courseId]);
       if (!course) continue;
       file = await getFile(db, ctx.tenant.id, item.courseId, item.id);
     } finally { db.release(); }
