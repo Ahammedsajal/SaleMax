@@ -15,12 +15,15 @@
 #root form button{max-width:100%;min-height:40px;border-radius:9px}
 #root form :disabled{cursor:not-allowed}
 #sx-finance-screen #sx-invoice-create-workspace:not([hidden]){position:fixed!important;z-index:1600!important;inset:0!important;display:grid!important;place-items:center;padding:clamp(12px,3vw,32px);box-sizing:border-box;background:rgba(16,24,40,.58);backdrop-filter:blur(4px)}
+#sx-finance-screen #sx-invoice-create-workspace[hidden],#sx-finance-screen [hidden]{display:none!important}
 #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{width:min(100%,960px);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;margin:0;padding:clamp(18px,3vw,32px);border:1px solid #e4e7ec;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(16,24,40,.25)}
 #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create[role="dialog"]:focus{outline:none}
 #sx-finance-screen #sx-generator-invoice{display:grid;gap:18px}
 #sx-finance-screen #sx-generator-invoice fieldset{display:grid;gap:14px;min-width:0;margin:0;padding:18px;border:1px solid #e4e7ec;border-radius:14px;background:#fff}
 #sx-finance-screen #sx-generator-invoice legend{padding:0 8px;font-weight:700;color:#344054}
-#sx-finance-screen #sx-generator-invoice .actions label{display:flex;align-items:center;gap:8px}
+#sx-finance-screen #sx-generator-invoice .actions label{display:flex;align-items:center;gap:10px;min-height:50px;padding:10px 14px;border:1px solid #e4e7ec;border-radius:12px;background:#f8fafc;cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
+#sx-finance-screen #sx-generator-invoice .actions label:has(input:checked){border-color:#d88ca7;background:#fff5f8;box-shadow:0 0 0 2px rgba(168,0,59,.08)}
+#sx-finance-screen #sx-generator-invoice .actions label:focus-within{outline:2px solid #a8003b;outline-offset:2px}
 #sx-finance-screen #sx-generator-invoice .actions input[type="radio"]{flex:0 0 18px;width:18px;height:18px;min-height:18px;margin:0;padding:0}
 #sx-finance-screen #sx-generator-invoice .sx-invoice-customer-fields{margin-top:12px}
 #sx-finance-screen #sx-reminder-settings-form .sx-reminder-offset-picker{grid-column:1/-1;display:grid;gap:10px;min-width:0;padding:16px;border:1px solid #e4e7ec;border-radius:14px;background:#f8fafc}
