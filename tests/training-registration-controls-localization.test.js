@@ -13,10 +13,9 @@ test('staff registration capture uses translated Qatar city labels and stable En
     formPayload: () => ({ schema: { fields: [] } }),
   };
   const context = { window: { SXTrainingRegistration: api }, Intl, URL };
-  vm.runInNewContext(
-    fs.readFileSync(path.join(__dirname, '../client/public/training-registration-controls.js'), 'utf8'),
-    context,
-  );
+  const controlsSource = fs.readFileSync(path.join(__dirname, '../client/public/training-registration-controls.js'), 'utf8');
+  const publicTemplate = fs.readFileSync(path.join(__dirname, '../client/public/training-form.html'), 'utf8');
+  vm.runInNewContext(controlsSource, context);
 
   const arabic = api.capture({ consentTextAr: 'أوافق' }, 'ar', true, {}, { courses: [], staff: [] });
   const english = api.capture({ consentTextEn: 'I agree' }, 'en', true, {}, { courses: [], staff: [] });
@@ -26,4 +25,8 @@ test('staff registration capture uses translated Qatar city labels and stable En
   assert.match(arabic, /<option value="Other">أخرى<\/option>/);
   assert.match(english, /<option value="Doha">Doha<\/option>/);
   assert.match(english, /<option value="Al Rayyan">Al Rayyan<\/option>/);
+  assert.match(controlsSource, /control\.disabled=!enabled/);
+  assert.match(controlsSource, /No active batches are available/);
+  assert.match(controlsSource, /Choose a course first/);
+  assert.match(publicTemplate, /training-registration-controls\.js\?v=20261012-nationalities5/);
 });
