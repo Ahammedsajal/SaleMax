@@ -1,0 +1,26 @@
+/* Keep the long field editor usable in shorter desktop and mobile viewports. */
+#sx-forms-screen:has(#sx-form-editor) .sx-form-page-heading{display:none}
+#sx-form-content:has(#sx-form-editor)>.sx-form-card{
+  display:flex;
+  flex-direction:column;
+  max-height:calc(100vh - var(--sx-forms-top-inset,0px) - 74px);
+  max-height:calc(100dvh - var(--sx-forms-top-inset,0px) - 74px);
+  min-height:0;
+  overflow:hidden;
+}
+#sx-form-editor{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  overscroll-behavior:contain;
+  padding-inline:2px;
+}
+#sx-form-editor .sx-form-toolbar:last-child{
+  position:sticky;
+  bottom:0;
+  z-index:2;
+  padding:12px 0 max(12px,env(safe-area-inset-bottom));
+  background:#fff;
+  border-top:1px solid #e5eaf0;
+  box-shadow:0 -8px 14px #fff;
+}

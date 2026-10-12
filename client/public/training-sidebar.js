@@ -11,6 +11,13 @@
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
+  if (!window.__sxTrainingFormsEditorLayoutLoader) {
+    window.__sxTrainingFormsEditorLayoutLoader = true;
+    const formsEditorStyle = document.createElement('link');
+    formsEditorStyle.rel = 'stylesheet';
+    formsEditorStyle.href = '/training-forms-editor.css?v=20261012-editor-scroll1';
+    document.head.append(formsEditorStyle);
+  }
   if (!window.__sxFaqManagerLoader) {
     window.__sxFaqManagerLoader = true;
     const faqStyle = document.createElement('link'); faqStyle.rel = 'stylesheet'; faqStyle.href = '/training-faqs.css?v=20261012-faq-library5'; document.head.append(faqStyle);
