@@ -16,7 +16,10 @@ test('public form controls support finite course-profile dropdowns and unknown p
   vm.runInNewContext(controls,{window:{SXTrainingRegistration:api},Intl});
   assert.deepEqual(Array.from(api.optionsForField('gender')).map(([value])=>value),['Male','Female']);
   assert.deepEqual(Array.from(api.optionsForField('graduated')).map(([value])=>value),['Yes','No']);
-  assert.ok(api.optionsForField('nationality').length>=70);
+  const nationalities=Array.from(api.optionsForField('nationality'));
+  assert.equal(nationalities.length,250,'include every ISO 3166-1 alpha-2 area plus Kosovo');
+  assert.ok(nationalities.some(([value])=>value==='Uganda'));
+  assert.ok(Array.from(api.optionsForField('nationality','ar')).some(([,label])=>label==='أوغندا'));
   assert.equal(api.optionsForField('address'),null);
   const screen=fs.readFileSync(require('node:path').join(__dirname,'../client/public/training-public-form.js'),'utf8');
   assert.match(screen,/fields\[field\.key\] \|\| \[field\.key\.replace/);

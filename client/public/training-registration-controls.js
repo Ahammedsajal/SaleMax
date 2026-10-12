@@ -1,7 +1,9 @@
 (() => {
  'use strict';
  const api=window.SXTrainingRegistration,esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const countries='AF AL DZ AD AO AR AM AU AT AZ BH BD BE BR BG KH CM CA CL CN CO HR CU CY CZ DK EC EG ET FI FR GE DE GH GR HK HU IN ID IR IQ IE IT JP JO KZ KE KW LB LY MY MV MT MX MA NP NL NZ NG NO OM PK PS PE PH PL PT QA RO RU SA SN SG ZA KR ES LK SD SE CH SY TW TZ TH TN TR UA AE GB US UZ VN YE ZM ZW'.split(' ');
+ // ISO 3166-1 alpha-2 country and territory codes (plus XK for Kosovo).
+ // Keep saved values as familiar English names for existing lead/application records.
+ const countries='AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW'.split(' ');
  const extras=[['course_id','Course','الدورة'],['batch_id','Batch','المجموعة'],['payment_plan_id','Payment plan','خطة الدفع'],['staff_attended','Staff attended','الموظف المسؤول'],['level','Level','المستوى'],['class_day','Class days','أيام الدراسة'],['class_time','Class time','وقت الدراسة'],['enrollment_terms','Enrollment terms and remarks','شروط وملاحظات التسجيل']];
 
  const paymentScheduleLabel=(count,interval,lang)=>{const tr=(en,ar)=>lang==='ar'?ar:en,n=Math.max(1,Number(count)||1);if(n===1||interval==='once')return tr('One payment','دفعة واحدة');const cadence=interval==='weekly'?tr('weekly','أسبوعية'):tr('monthly','شهرية');return lang==='ar'?`${n} دفعات ${cadence}`:`${n} ${cadence} payments`;};
