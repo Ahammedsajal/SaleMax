@@ -1,5 +1,12 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Invoice settings mobile alignment — production, 12 October 2026
+
+- Source commits `c33f6c373e19cdd232b4be95c8ec336b28798242` and `b0a6647f792d397e1a48ec552c06d2019162966c` are pushed to `Ahammedsajal/SaleMax` `main`. At phone widths, saved plan names use the full card width, payment count and interval remain side by side, Remove is right aligned below, and Add/Save settings become full-width stacked actions. Desktop plan rows keep their existing four-column layout.
+- Active release `/opt/salemax/releases/invoice-mobile-plans-b0a6647-20261012` on `carsqatar-prod-01`; stylesheet key `20261012-mobile-plan-rows2`. App container `56918d445c78aa258416dc3e077f19562537bedf2d0e0d001443a39e5746cdfc`, image `sha256:00a6c758a24a2913845e74c32db8639a27062246cdb9c8333e2612d64c316433`, stayed running with zero restarts. Index SHA-256 `1d1e0ddbf64a9150c058e792e67a872910ad562576f2bfba70a29c73b7f4fd1b`; CSS SHA-256 `e3876cb9520eb8c2c42bd8ba7ee709e6df3b4b9304960fc77bd13237fd3ddf1e`. Release/container hashes match, the public index and cache-busted stylesheet return HTTP 200, and `/healthz` reports `success:true,status:ok`.
+- Protected rollback directory `/opt/salemax/shared/rollback-invoice-mobile-plans-b0a6647-20261012` is mode 0700 and keeps the prior index, stylesheet and release state. Previous release `/opt/salemax/releases/invoice-mobile-plans-c33f6c3-20261012` remains available. This was a static asset update only; app, database and report-worker containers were not restarted, and no invoice settings were saved.
+- Validation: Finance invoice/reminder checks pass 16/16. The live 390×844 invoice dialog stayed within the 390 px viewport (document width 382 px); plan names were 266 px wide, numeric controls 128 px each, Remove aligned to the card edge, and both settings actions spanned the 319 px content width. At 1440×900 the original four-column plan row remains intact. The blank invoice dialog was closed without saving.
+
 ## Searchable nationality picker count fix — production, 12 October 2026
 
 - Source commit `47edd757ec06fc7709460d12b83ec7afbad8745c` is pushed to `Ahammedsajal/SaleMax` `main`. The bilingual nationality search now reports only actual matches; keeping a previously selected country in the filtered dropdown no longer inflates the result count. Clearing the search restores the full 250-country/territory catalogue, and submitted country values remain canonical English names.
