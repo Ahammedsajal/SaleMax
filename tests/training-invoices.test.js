@@ -38,7 +38,7 @@ test('invoice builder is a polished accessible modal and never uses stale contac
   assert.match(ui,/results.querySelectorAll\('\[data-customer-index\]'\).forEach\(button=>button.onclick=\(\)=>\{const row=customerRows\[Number\(button.dataset.customerIndex\)\]/);
   assert.match(ui,/const queryVersion=\+\+customerQueryVersion/);assert.match(ui,/queryVersion!==customerQueryVersion/);assert.match(ui,/event\.key==='Tab'/);
   assert.match(css,/#sx-invoice-create-workspace:not\(\[hidden\]\).*place-items:center/s);assert.match(css,/#sx-finance-screen \[hidden\]\{display:none!important\}/);assert.match(css,/max-height:calc\(100dvh - 32px\)/);assert.match(css,/#sx-finance-screen #sx-generator-invoice \.actions input\[type="radio"\].*width:18px/);assert.match(css,/\.actions label:has\(input:checked\)/);
-  assert.match(css,/sx-invoice-submit-bar\{position:sticky;bottom:calc\(-1 \* var\(--sx-invoice-dialog-padding\)\)/);assert.match(css,/sx-invoice-submit-bar>button\[type="submit"\]\{width:100%;min-height:46px/);
+  assert.match(css,/sx-invoice-submit-bar\{position:sticky;bottom:calc\(-1 \* var\(--sx-invoice-dialog-padding\)\)/);assert.match(css,/sx-invoice-submit-bar>button\[type="submit"\]\{width:100%;min-height:46px/);assert.match(css,/@media\(max-width:360px\),\(max-height:700px\)\{#sx-finance-screen #sx-generator-invoice \.sx-invoice-submit-bar\{position:static;bottom:auto;z-index:auto\}\}/);
   assert.match(ui,/\.filter\(item=>!item\.hidden&&!item\.closest\('\[hidden\]'\)&&!item\.closest\('details:not\(\[open\]\)'\)\)/);
 });
 test('invoice payment-plan rows keep names readable on phone widths',()=>{
@@ -46,7 +46,7 @@ test('invoice payment-plan rows keep names readable on phone widths',()=>{
   assert.match(css,/@media\(max-width:760px\)\{#sx-finance-screen #sx-generator-plans \.sx-invoice-plan\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\);gap:10px\}#sx-finance-screen #sx-generator-plans \.sx-invoice-plan>label:first-child\{grid-column:1\/-1\}/);
   assert.match(css,/#sx-finance-screen #sx-generator-plans \.sx-invoice-plan \[data-remove-plan\]\{grid-column:1\/-1;justify-self:end;min-width:96px;min-height:40px\}/);
   assert.match(css,/#sx-finance-screen #sx-generator-settings>#sx-generator-add-plan,#sx-finance-screen #sx-generator-settings>button\.primary\{grid-column:1\/-1;justify-self:stretch;width:100%;min-height:44px\}/);
-  assert.match(index,/training-finance\.js\?v=20261012-invoice-modal-sticky1/);assert.match(index,/salemax-brand\.css\?v=20261012-invoice-modal-sticky1/);
+  assert.match(index,/training-finance\.js\?v=20261012-invoice-modal-sticky1/);assert.match(index,/salemax-brand\.css\?v=20261012-invoice-modal-small-viewport1/);
 });
 test('approved-sale invoice queue rejects roles outside owner/accountant before database access',async()=>{
   const ctx=context('agent'),pool={getConnection(){throw Error('unauthorized role must be rejected before database access')}};

@@ -36,6 +36,7 @@
 #sx-finance-screen #sx-reminder-settings-form [data-offset-choice]{max-width:460px}
 #sx-finance-screen #sx-generator-invoice [hidden]{display:none!important}
 @media(max-width:600px){#sx-finance-screen #sx-invoice-create-workspace:not([hidden]){padding:10px}#sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{--sx-invoice-dialog-padding:16px;max-height:calc(100dvh - 20px);padding:var(--sx-invoice-dialog-padding);border-radius:14px}#sx-finance-screen #sx-generator-invoice fieldset{padding:14px}}
+@media(max-width:360px),(max-height:700px){#sx-finance-screen #sx-generator-invoice .sx-invoice-submit-bar{position:static;bottom:auto;z-index:auto}}
 
 /* Keep saved invoice plans compact and legible inside the scrollable invoice dialog. */
 #sx-finance-screen #sx-generator-settings{display:grid;gap:12px;min-width:0}
