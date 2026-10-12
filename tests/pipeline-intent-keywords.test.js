@@ -29,10 +29,12 @@ test('pipeline settings expose bilingual suggested keyword choices and post sele
   const pipeline = fs.readFileSync(path.join(__dirname, '../client/public/pipeline/pipeline.js'), 'utf8');
   const html = fs.readFileSync(path.join(__dirname, '../client/public/pipeline/index.html'), 'utf8');
   assert.match(pipeline, /intentSuggestions=\{en:/);
+  assert.match(pipeline, /const intentKeywordTools = window\.salemaxIntentKeywords/);
   assert.match(pipeline, /ar:\['دورة'/);
   assert.match(pipeline, /interestKeywords:keywords/);
   assert.match(pipeline, /data-keyword-suggestion/);
   assert.match(pipeline, /data-keyword-custom/);
   assert.doesNotMatch(pipeline, /interestKeywords:String\(get\('interestKeywords'\)\)\.split\(','\)/);
   assert.match(html, /pipeline\/intent-keywords\.js\?v=1/);
+  assert.match(html, /pipeline\/pipeline\.js\?v=20261012-full-nationalities2/);
 });

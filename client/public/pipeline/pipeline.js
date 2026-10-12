@@ -1,6 +1,7 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const intentKeywordTools = window.salemaxIntentKeywords;
   const token = () => localStorage.getItem('wacrm_user') || localStorage.getItem('wacrm_agent');
   const appHome = () => localStorage.getItem('wacrm_agent') ? '/agent' : '/user';
   const initialQuery = new URLSearchParams(location.search);
