@@ -205,6 +205,8 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   }) : [];
   if (matches.length === 1) return { reply: formatCourseDetails(matches[0], formUrl, settings, language, !!registrationFormUrl), state: nextState('course_detail', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code), selectedCourseCode: matches[0].code }) };
   if (matches.length > 1) return { reply: formatCourseList(matches, settings, language), state: nextState('course_list', { courseCodes: matches.slice(0, courseLimit(settings)).map(course => course.code) }) };
+  const faq = require('./chatbot-faq').findApprovedFaq(message, config?.knowledgeEntries, language);
+  if (faq) return { reply: faq.answer, state: { ...(state || {}), language, step: step || 'menu' }, approvedFaq: true };
   if (step === 'course_detail') {
     if (/^(?:1|courses?|course list|another|other course|الدورات|عرض الدورات|دورة أخرى)$/i.test(text)) {
       const visible = courses.slice(0, courseLimit(settings));

@@ -80,6 +80,12 @@ test('training-center bot validation produces a bounded reusable category profil
   assert.deepEqual(botRequirements('ai'), { requiresGuidedFlow: false, requiresAi: true });
 });
 
+test('guided bot validation retains bilingual approved FAQs', () => {
+  const bot = botInput({ name: 'Guide', engine: 'guided', config: { knowledgeEntries: [{ questionEn: 'Opening hours', answerEn: '9 AM to 5 PM', questionAr: 'ساعات العمل', answerAr: 'من التاسعة إلى الخامسة' }] } }, 'training_center');
+  assert.equal(bot.config.knowledgeEntries[0].answerEn, '9 AM to 5 PM');
+  assert.equal(bot.config.knowledgeEntries[0].answerAr, 'من التاسعة إلى الخامسة');
+});
+
 test('chatbot category access is enabled by the category registry capability contract', () => {
   assert.equal(supportsBusinessCapability(trainingCenter, 'automation.chatbot'), true);
   assert.equal(supportsBusinessCapability(restaurantFixture, 'automation.chatbot'), false);

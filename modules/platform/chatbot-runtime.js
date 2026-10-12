@@ -24,6 +24,22 @@ const textOf = message => {
   const body = message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title;
   return typeof body === 'string' ? body.trim().slice(0, 2000) : '';
 };
+function mergeKnowledgeEntries(...groups) {
+  const seen = new Set();
+  return groups.flat().filter(item => item && typeof item === 'object').filter(item => {
+    const key = `${businessContext.normalized(item.questionEn)}|${businessContext.normalized(item.questionAr)}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
+async function loadApprovedFaqs(tenantId) {
+  const db = await dbPool.getConnection();
+  try {
+    const [rows] = await db.query(`SELECT question_en AS questionEn,answer_en AS answerEn,question_ar AS questionAr,answer_ar AS answerAr
+      FROM sx_chatbot_faqs WHERE tenant_id=? AND is_active=1 ORDER BY position,created_at,id LIMIT 60`, [tenantId]);
+    return rows;
+  } finally { db.release(); }
+}
 
 async function resolveTenant(uid) {
   const uidHash = crypto.createHash('sha256').update(uid).digest('hex');
@@ -181,6 +197,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     const facts = leadInfo?.facts || (pack.requiresDatabase
       ? await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN })
       : []);
+    const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
     await db.beginTransaction();
     await db.query(`INSERT IGNORE INTO sx_chatbot_guided_sessions(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,conversation_hash,state,expires_at)
       VALUES (?,?,?,?,?,?,?,JSON_OBJECT(),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR))`,
@@ -193,7 +210,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
     if (profile.engine !== 'guided' && priorState) priorState.language = businessContext.languageFor(intent || textOf(message), priorState);
     deferLeadQuestion = !priorState?.greeted;
-    reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: profile.config?.guidedContent });
+    reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
     if (leadInfo?.nameOnly) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
@@ -278,7 +295,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   };
   const facts = factsOverride || await loadFacts();
   const session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
-  const context = businessContext.retrieveContext({ facts, knowledgeEntries: profile.config?.knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
+  const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
+  const context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
   const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
   const courseOverview = profile.engine === 'hybrid' && profile.config?.aiFallback !== false && businessContext.isCourseOverviewRequest(customerMessage, context);
   const factualOverviewFallback = sourceContext => {
@@ -286,6 +304,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     return simple ? { canAnswer: true, confidence: 1, reply: simple.reply, state: nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: sourceContext.sources } } : null;
   };
   if (profile.engine === 'hybrid') {
+    const faq = require('./chatbot-faq').findApprovedFaq(customerMessage, knowledgeEntries, context.language, { hasCourse: context.evidence.some(item => item.kind === 'course') });
+    if (faq) return { canAnswer: true, confidence: 1, reply: faq.answer, state: nextState, route: 'approved_faq', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
     const simple = businessContext.simpleFactualReply(customerMessage, context, profile.config);
     if (simple && !courseOverview) return { canAnswer: true, confidence: 1, reply: simple.reply, state: simple.nextStep ? { ...nextState, step: simple.nextStep } : nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
     if (courseOverview && !settings) return factualOverviewFallback(context) || { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
@@ -336,12 +356,11 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (!validation.valid || response.confidence < threshold) {
     if (courseOverview) return factualOverviewFallback(context) || { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
     const language = context.language;
-    const msg = profile.config?.guidedContent?.messages?.unavailableMessage || pack.guidedContentDefaults?.messages?.unavailableMessage;
-    return { canAnswer: true, confidence: 0, reply: (context.explicitCourses || session.selectedCourseCode || /policy|refund|discount|guarantee|accredit|سياسة|استرداد|خصم|ضمان|اعتماد/i.test(customerMessage)) ? (msg?.[language] || businessContext.clarification(profile.config, language)) : businessContext.clarification(profile.config, language), state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
+    return { canAnswer: true, confidence: 0, reply: businessContext.unavailableReply(customerMessage, profile.config, language), state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
   }
   // Re-read live facts after the model call; never deliver a price or date
   // generated from data that changed while the provider was working.
-  const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: profile.config?.knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
+  const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id)), message: customerMessage, state: session, profileRevision: profile.revision });
   if (fresh.revision !== context.revision) return factualOverviewFallback(fresh) || { canAnswer: true, confidence: 0, reply: businessContext.clarification(profile.config, context.language), state: nextState, route: 'clarification', reason: 'BUSINESS_DATA_CHANGED', metrics };
   const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
   if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;

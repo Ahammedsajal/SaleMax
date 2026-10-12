@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -76,6 +76,20 @@ test('natural course-overview follow-ups use the previously selected course and 
 });
 
 test('general policy questions omit unrelated courses and retain approved refund FAQs',()=>{const c=retrieveContext({facts,message:'What is your refund fees policy?',knowledgeEntries:[{questionEn:'What is your refund fees policy?',answerEn:'Contact the centre before cancelling.'}]});assert.equal(c.evidence.filter(x=>x.kind==='course').length,0);assert.equal(c.evidence.filter(x=>x.kind==='approved_faq').length,1);});
+
+test('approved FAQs match two meaningful question words and remain ambiguous-safe',()=>{
+ const faqs=[{questionEn:'What are your opening hours?',answerEn:'We open from 9 AM.',questionAr:'ما هي ساعات العمل؟',answerAr:'نفتح الساعة التاسعة.'}];
+ assert.equal(retrieveContext({facts,message:'opening hours please',knowledgeEntries:faqs}).evidence.find(x=>x.kind==='approved_faq').answer,'We open from 9 AM.');
+ assert.ok(!retrieveContext({facts,message:'opening please',knowledgeEntries:faqs}).evidence.some(x=>x.kind==='approved_faq'));
+ assert.ok(!retrieveContext({facts,message:'Business English price',knowledgeEntries:[{questionEn:'Business English price',answerEn:'1 QAR'}]}).evidence.some(x=>x.kind==='approved_faq'));
+});
+test('unavailable Hybrid answers explain the missing business topic and handover route',()=>{
+ const demo=unavailableReply('Can I attend a demo section?',{},'en');
+ assert.match(demo,/demo or free-class policy/); assert.match(demo,/Type agent/);
+ const history=unavailableReply('How long you are operating?',{},'en');
+ assert.match(history,/start date or operating history/); assert.match(history,/Type agent/);
+ assert.match(unavailableReply('هل يوجد حصص مجانية؟',{},'ar'),/الحصص التجريبية أو المجانية/);
+});
 
 test('registration and enquiry requests cite the corresponding published form purpose',()=>{const source=[...facts,{kind:'published_enquiry_form',purpose:'registration',nameEn:'Student registration',url:'https://example.test/p/test/forms/student-registration',publishedVersion:2}];const c=retrieveContext({facts:source,message:'Can I register for Business English?'});const form=c.evidence.find(x=>x.kind==='published_enquiry_form');assert.equal(form.purpose,'registration');assert.match(form.url,/student-registration/);const enquiry=retrieveContext({facts:source,message:'Can I enquire about Business English?'});assert.equal(enquiry.evidence.find(x=>x.kind==='published_enquiry_form').purpose,'enquiry');const changed=structuredClone(source);changed.at(-1).publishedVersion++;assert.notEqual(retrieveContext({facts:changed,message:'Can I register?'}).revision,c.revision);});
 

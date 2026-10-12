@@ -135,6 +135,16 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(created.data.status, 'draft');
     const botId = created.data.id;
 
+    const faqCreate = await call('/faqs', 'POST', { questionEn:'Do you offer evening classes?',answerEn:'Evening classes are available in selected batches.',questionAr:'هل تتوفر حصص مسائية؟',answerAr:'تتوفر الحصص المسائية في بعض الدفعات.' });
+    assert.equal(faqCreate.status, 201);
+    assert.equal(faqCreate.data.active, true);
+    const faqId = faqCreate.data.id;
+    assert.equal((await call('/faqs', 'POST', { questionEn:'Evening?',answerEn:'Ask the centre.' })).code, 'FAQ_QUESTION_NEEDS_TWO_WORDS');
+    assert.equal((await call('/faqs', 'GET', undefined, { 'X-Test-Tenant': t2 })).data.items.some(item => item.id === faqId), false);
+    const faqListed = await call('/faqs'); assert.equal(faqListed.data.items.some(item => item.id === faqId), true);
+    const guideFaqPreview = await call('/guided-preview', 'POST', { message:'evening classes please', guidedContent:{} });
+    assert.equal(guideFaqPreview.status, 200); assert.match(guideFaqPreview.data.reply,/Evening classes are available in selected batches\./);
+
     const listed = await call('/');
     assert.equal(listed.status, 200);
     assert.equal(listed.data.items.some(bot => bot.id === botId && bot.engine === 'ai' && bot.status === 'draft'), true);
@@ -171,6 +181,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(preview.data.reply, 'Our approved course information is available.');
     assert.equal(providerCalls, 1);
     assert.ok(previewInput.includes(faqAnswer));
+    assert.ok(previewInput.includes('Evening classes are available in selected batches.'));
     const [[turnCount]] = await connection.query('SELECT COUNT(*) AS count FROM sx_chatbot_turns WHERE tenant_id=?', [t1]);
     assert.equal(Number(turnCount.count), 0, 'preview does not create inbound WhatsApp turns');
 

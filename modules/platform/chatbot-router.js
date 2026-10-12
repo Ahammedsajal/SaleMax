@@ -9,6 +9,7 @@ const { ENGINES, botInput, cleanText, botRequirements } = require('./chatbot-con
 const { previewGuidedTurn } = require('./chatbot-guide-preview');
 const { getDomainPack } = require('./chatbot-domain-packs');
 const { SUPPORTED_CHANNEL_KINDS } = require('./chatbot-channels');
+const { validateFaqInput } = require('./chatbot-faq');
 
 // Until the other adapters have inbound and outbound coverage, expose only
 // WhatsApp channels supported by the current inbox dispatch path.
@@ -114,7 +115,10 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   router.post('/guided-preview', wrap(async (req, res) => {
     const ctx = context(req);
     const pack = getDomainPack(ctx.category.key, ctx.category.version);
-    const result = await withDb(db => previewGuidedTurn({ body: req.body, pack, db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN }));
+    const result = await withDb(async db => {
+      const [knowledgeEntries] = await db.query(`SELECT question_en AS questionEn,answer_en AS answerEn,question_ar AS questionAr,answer_ar AS answerAr FROM sx_chatbot_faqs WHERE tenant_id=? AND is_active=1 ORDER BY position,created_at,id LIMIT 60`, [ctx.tenant.id]);
+      return previewGuidedTurn({ body: req.body, pack, db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, knowledgeEntries });
+    });
     res.json({ success: true, data: result });
   }));
 
@@ -137,6 +141,60 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         guidedContentSchema: pack.guidedContentSchema,
         items: bots,
       };
+    });
+    res.json({ success: true, data });
+  }));
+
+  router.get('/faqs', wrap(async (req, res) => {
+    const ctx = context(req);
+    const data = await withDb(async db => {
+      const [items] = await db.query(`SELECT id,question_en AS questionEn,answer_en AS answerEn,question_ar AS questionAr,answer_ar AS answerAr,
+        is_active AS active,position,revision,updated_at AS updatedAt FROM sx_chatbot_faqs WHERE tenant_id=? ORDER BY is_active DESC,position,created_at,id`, [ctx.tenant.id]);
+      return { items: items.map(item => ({ ...item, active: !!item.active, position: Number(item.position), revision: Number(item.revision) })) };
+    });
+    res.json({ success: true, data });
+  }));
+  router.post('/faqs', wrap(async (req, res) => {
+    const ctx = context(req); const faq = validateFaqInput(req.body);
+    const data = await withDb(async db => {
+      await db.beginTransaction(); try {
+        const [[position]] = await db.query(`SELECT COALESCE(MAX(position),0)+1 AS nextPosition FROM sx_chatbot_faqs WHERE tenant_id=?`, [ctx.tenant.id]);
+        if (Number(position.nextPosition) > 60) fail('FAQ_LIMIT_REACHED');
+        const id = uuid();
+        await db.query(`INSERT INTO sx_chatbot_faqs(id,tenant_id,question_en,answer_en,question_ar,answer_ar,position,created_by_identity_id,updated_by_identity_id)
+          VALUES (?,?,?,?,?,?,?,?,?)`, [id, ctx.tenant.id, faq.questionEn, faq.answerEn, faq.questionAr, faq.answerAr, position.nextPosition, ctx.identity.id, ctx.identity.id]);
+        await audit(db, ctx, 'chatbot.faq-created', id, { languages: [faq.questionEn && faq.answerEn ? 'en' : null, faq.questionAr && faq.answerAr ? 'ar' : null].filter(Boolean) });
+        await db.commit(); return { id, ...faq, active: true, position: Number(position.nextPosition), revision: 1 };
+      } catch (error) { await db.rollback(); throw error; }
+    });
+    res.status(201).json({ success: true, data });
+  }));
+  router.put('/faqs/:id', wrap(async (req, res) => {
+    const ctx = context(req); const faq = validateFaqInput(req.body); const expectedRevision = req.body.expectedRevision;
+    const nextActive = req.body.active == null ? null : req.body.active === true ? 1 : req.body.active === false ? 0 : fail('INVALID_FAQ');
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.id) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1) fail('INVALID_REVISION');
+    const data = await withDb(async db => {
+      await db.beginTransaction(); try {
+        const [[row]] = await db.query(`SELECT revision,is_active AS active,position FROM sx_chatbot_faqs WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
+        if (!row) fail('FAQ_NOT_FOUND'); if (Number(row.revision) !== expectedRevision) fail('STALE_REVISION');
+        await db.query(`UPDATE sx_chatbot_faqs SET question_en=?,answer_en=?,question_ar=?,answer_ar=?,is_active=COALESCE(?,is_active),revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=?`, [faq.questionEn, faq.answerEn, faq.questionAr, faq.answerAr, nextActive, ctx.identity.id, ctx.tenant.id, req.params.id]);
+        await audit(db, ctx, 'chatbot.faq-updated', req.params.id, { revision: expectedRevision + 1, active: nextActive == null ? !!row.active : !!nextActive }); await db.commit();
+        return { id: req.params.id, ...faq, active: nextActive == null ? !!row.active : !!nextActive, position: Number(row.position), revision: expectedRevision + 1 };
+      } catch (error) { await db.rollback(); throw error; }
+    });
+    res.json({ success: true, data });
+  }));
+  router.delete('/faqs/:id', wrap(async (req, res) => {
+    const ctx = context(req); const expectedRevision = Number(req.body.expectedRevision);
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.id) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1) fail('INVALID_REVISION');
+    const data = await withDb(async db => {
+      await db.beginTransaction(); try {
+        const [[row]] = await db.query(`SELECT revision,is_active AS active FROM sx_chatbot_faqs WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
+        if (!row) fail('FAQ_NOT_FOUND'); if (Number(row.revision) !== expectedRevision) fail('STALE_REVISION');
+        await db.query(`UPDATE sx_chatbot_faqs SET is_active=0,revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=?`, [ctx.identity.id, ctx.tenant.id, req.params.id]);
+        await audit(db, ctx, 'chatbot.faq-archived', req.params.id, { active: false, revision: expectedRevision + 1 }); await db.commit();
+        return { id: req.params.id, active: false, revision: expectedRevision + 1 };
+      } catch (error) { await db.rollback(); throw error; }
     });
     res.json({ success: true, data });
   }));
@@ -336,7 +394,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   router.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const code = error.code || 'CHATBOT_UNAVAILABLE';
-    const status = ['PERMISSION_DENIED'].includes(code) ? 403 : ['TENANT_CONTEXT_REQUIRED','VERIFIED_BUSINESS_OWNER_REQUIRED'].includes(code) ? 403 : ['BOT_NOT_FOUND','CONVERSATION_NOT_FOUND'].includes(code) ? 404 : ['STALE_REVISION','LIVE_BOT_MUST_BE_PAUSED','CATEGORY_UNAVAILABLE','CATEGORY_GUIDED_FLOW_UNAVAILABLE','FEATURE_UNAVAILABLE','ER_DUP_ENTRY','BOT_CHANNEL_REQUIRED','CONNECTED_CHANNEL_NOT_FOUND','GUIDED_FLOW_REQUIRED','GUIDED_FLOW_UNAVAILABLE','AI_PROVIDER_NOT_CONFIGURED','PROVIDER_KEY_REQUIRED','AI_DATA_PROCESSING_ACK_REQUIRED'].includes(code) ? 409 : code.startsWith('INVALID_') || code === 'DUPLICATE_CHANNEL' ? 400 : 503;
+    const status = ['PERMISSION_DENIED'].includes(code) ? 403 : ['TENANT_CONTEXT_REQUIRED','VERIFIED_BUSINESS_OWNER_REQUIRED'].includes(code) ? 403 : ['BOT_NOT_FOUND','CONVERSATION_NOT_FOUND','FAQ_NOT_FOUND'].includes(code) ? 404 : ['STALE_REVISION','LIVE_BOT_MUST_BE_PAUSED','CATEGORY_UNAVAILABLE','CATEGORY_GUIDED_FLOW_UNAVAILABLE','FEATURE_UNAVAILABLE','ER_DUP_ENTRY','BOT_CHANNEL_REQUIRED','CONNECTED_CHANNEL_NOT_FOUND','GUIDED_FLOW_REQUIRED','GUIDED_FLOW_UNAVAILABLE','AI_PROVIDER_NOT_CONFIGURED','PROVIDER_KEY_REQUIRED','AI_DATA_PROCESSING_ACK_REQUIRED','FAQ_LIMIT_REACHED'].includes(code) ? 409 : code.startsWith('INVALID_') || ['DUPLICATE_CHANNEL','FAQ_QUESTION_AND_ANSWER_REQUIRED','FAQ_QUESTION_NEEDS_TWO_WORDS'].includes(code) ? 400 : 503;
     res.status(status).json({ success: false, code: status >= 500 ? 'CHATBOT_UNAVAILABLE' : code === 'ER_DUP_ENTRY' ? 'CHANNEL_ALREADY_ASSIGNED' : code });
   });
   return router;

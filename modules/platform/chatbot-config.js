@@ -10,6 +10,13 @@ function cleanText(value, max, code) {
   return value.trim();
 }
 
+function normalizeKnowledgeEntries(entries = []) {
+  return entries.map(entry => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw Object.assign(new Error('INVALID_KNOWLEDGE_ENTRY'), { code: 'INVALID_KNOWLEDGE_ENTRY' });
+    return { questionEn: cleanText(entry.questionEn, 400, 'INVALID_KNOWLEDGE_ENTRY'), questionAr: cleanText(entry.questionAr, 400, 'INVALID_KNOWLEDGE_ENTRY'), answerEn: cleanText(entry.answerEn, 1600, 'INVALID_KNOWLEDGE_ENTRY'), answerAr: cleanText(entry.answerAr, 1600, 'INVALID_KNOWLEDGE_ENTRY') };
+  });
+}
+
 function botRequirements(engine, config = {}) {
   return {
     requiresGuidedFlow: (engine === 'guided' || engine === 'hybrid') && config.guidedMode !== 'domain_default',
@@ -118,16 +125,15 @@ function botInput(input, categoryKey, categoryVersion = 1) {
     config.guidedMode = config.flowId ? 'automation_flow' : (source.guidedMode === 'domain_default' ? 'domain_default' : null);
     config.welcomeMessage = cleanText(source.welcomeMessage, 1200, 'INVALID_WELCOME_MESSAGE');
     config.fallbackMessage = cleanText(source.fallbackMessage, 1200, 'INVALID_FALLBACK_MESSAGE');
+    if (!Array.isArray(source.knowledgeEntries ?? []) || (source.knowledgeEntries ?? []).length > 60) throw Object.assign(new Error('INVALID_KNOWLEDGE_ENTRIES'), { code: 'INVALID_KNOWLEDGE_ENTRIES' });
+    config.knowledgeEntries = normalizeKnowledgeEntries(source.knowledgeEntries);
   } else {
     config.instructions = cleanText(source.instructions, 4000, 'INVALID_INSTRUCTIONS');
     config.confidenceThreshold = source.confidenceThreshold == null ? 0.72 : Number(source.confidenceThreshold);
     if (!Number.isFinite(config.confidenceThreshold) || config.confidenceThreshold < 0.5 || config.confidenceThreshold > 0.95) throw Object.assign(new Error('INVALID_CONFIDENCE_THRESHOLD'), { code: 'INVALID_CONFIDENCE_THRESHOLD' });
     config.handoff = source.handoff !== false;
     if (!Array.isArray(source.knowledgeEntries ?? []) || (source.knowledgeEntries ?? []).length > 60) throw Object.assign(new Error('INVALID_KNOWLEDGE_ENTRIES'), { code: 'INVALID_KNOWLEDGE_ENTRIES' });
-    config.knowledgeEntries = (source.knowledgeEntries ?? []).map(entry => {
-      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw Object.assign(new Error('INVALID_KNOWLEDGE_ENTRY'), { code: 'INVALID_KNOWLEDGE_ENTRY' });
-      return { questionEn: cleanText(entry.questionEn, 400, 'INVALID_KNOWLEDGE_ENTRY'), questionAr: cleanText(entry.questionAr, 400, 'INVALID_KNOWLEDGE_ENTRY'), answerEn: cleanText(entry.answerEn, 1600, 'INVALID_KNOWLEDGE_ENTRY'), answerAr: cleanText(entry.answerAr, 1600, 'INVALID_KNOWLEDGE_ENTRY') };
-    });
+    config.knowledgeEntries = normalizeKnowledgeEntries(source.knowledgeEntries);
     config.aiDataProcessingConfirmed = source.aiDataProcessingConfirmed === true;
     config.flowId = null;
     if (input.engine === 'hybrid') {

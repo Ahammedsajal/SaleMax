@@ -26,6 +26,14 @@ test('Hybrid greeting polishing preserves the numbered welcome menu', () => {
   assert.ok(result.reply.includes('[3]'));
 });
 
+test('guided FAQs answer after two meaningful question words match', () => {
+  const config = { knowledgeEntries: [{ questionEn: 'What are your opening hours?', answerEn: 'We open from 9 AM.', questionAr: 'ما هي ساعات العمل؟', answerAr: 'نفتح الساعة التاسعة.' }] };
+  const matched = trainingCenterGuidedReply({ message: 'opening hours please', state: { greeted: true }, facts, config, defaults });
+  assert.equal(matched.reply, 'We open from 9 AM.');
+  const partial = trainingCenterGuidedReply({ message: 'opening please', state: { greeted: true }, facts, config, defaults });
+  assert.doesNotMatch(partial.reply, /We open from 9 AM/);
+});
+
 test('a first course question receives the greeting and menu after its answer', () => {
   const result = trainingCenterGuidedReply({ message: 'Advanced Excel', state: null, facts, config: {}, defaults });
   assert.match(result.reply, /Welcome to Pro Catalyst Training Center/);

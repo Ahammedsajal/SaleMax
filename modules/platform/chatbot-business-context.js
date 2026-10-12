@@ -2,6 +2,7 @@
 const crypto = require('node:crypto');
 const { normalizeDigits } = require('./chatbot-training-guide');
 const { keywordReply } = require('./chatbot-keyword-replies');
+const { findApprovedFaq } = require('./chatbot-faq');
 
 const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions شهادة الشهادة شهادات احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
@@ -71,8 +72,11 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     });
     else if (courseInterest || /enquir|inquir|enrol|enroll|register|registration|apply|join|form|sign up|تسجيل|سجل|نموذج|اشتراك/i.test(message)) add('form:enquiry', item, { kind: item.kind, purpose: item.purpose || 'enquiry', name: local(item, 'name', language), url: item.url });
   });
-  const faqs = knowledgeEntries.map((item, index) => ({ item, index, score: score(message, item.questionEn + ' ' + item.questionAr) })).filter(row => row.score >= 3 && (/refund|استرداد|استرجاع/i.test(row.item.questionEn + ' ' + row.item.questionAr) || !/price|fee|cost|discount|seat|batch|start date|رسوم|سعر|خصم|مقاعد|موعد|تاريخ/i.test(row.item.questionEn + ' ' + row.item.questionAr))).sort((a, b) => b.score - a.score).slice(0, 2);
-  faqs.forEach(({ item, index }) => add('faq:' + index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer: local(item, 'answer', language) }));
+  const matchedFaq = findApprovedFaq(message, knowledgeEntries, language, { hasCourse: selected.length > 0 });
+  if (matchedFaq) {
+    const item = knowledgeEntries[matchedFaq.index];
+    add('faq:' + matchedFaq.index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer: matchedFaq.answer });
+  }
   // Names are a discovery index, never evidence for unpublished prices/policies.
   if (!direct.length) add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
   return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length };
@@ -107,6 +111,27 @@ function validateAnswer(response, context) {
 function clarification(config, language) {
   const text = config?.guidedContent?.messages?.clarificationMessage;
   return text?.[language] || (language === 'ar' ? 'حتى أساعدك بشكل أدق، أي دورة تهمك؟ وإذا أردت التحدث مع فريقنا، اكتب موظف.' : 'Happy to help — which course are you interested in? If you’d prefer our team, just type agent.');
+}
+
+function unavailableReply(message, config, language) {
+  const text = normalized(message);
+  const templates = language === 'ar'
+    ? [
+      [/تجرب|تجريبي|مجاني|حصة مجانية/, 'لا تتوفر لدي معلومات معتمدة عن الحصص التجريبية أو المجانية حالياً. اكتب «موظف» للتواصل مع فريق القبول.'],
+      [/منذ متى|تاريخ التأسيس|تأسس|تعملون منذ/, 'لا تتوفر لدي معلومات معتمدة عن تاريخ بدء المعهد حالياً. اكتب «موظف» ليؤكدها فريق القبول.'],
+      [/خصم|تخفيض/, 'لا تتوفر لدي تفاصيل معتمدة عن الخصومات حالياً. اكتب «موظف» للتأكد من فريق القبول.'],
+      [/مواعيد|جدول|تبدأ|دفعة/, 'لا تتوفر لدي مواعيد معتمدة لهذه الدورة حالياً. اكتب «موظف» ليتأكد فريق القبول.'],
+    ]
+    : [
+      [/demo|trial|free class|free session/, 'I don’t have an approved demo or free-class policy saved yet. Type agent and admissions can confirm it.'],
+      [/how long.*(?:operate|running)|operating|established|founded|history/, 'I don’t have the institute’s approved start date or operating history saved yet. Type agent and admissions can confirm it.'],
+      [/discount|promotion/, 'I don’t have approved discount details for this enquiry. Type agent and admissions can confirm current offers.'],
+      [/schedule|batch|start date|when does/, 'I don’t have a published schedule for that question yet. Type agent and admissions can confirm the current dates.'],
+    ];
+  const found = templates.find(([pattern]) => pattern.test(text));
+  if (found) return found[1];
+  const configured = config?.guidedContent?.messages?.unavailableMessage;
+  return configured?.[language] || (language === 'ar' ? 'لا تتوفر لدي معلومات معتمدة عن هذا الموضوع حالياً. اكتب «موظف» للتواصل مع فريق القبول.' : 'I don’t have approved details for that yet. Type agent to reach admissions.');
 }
 
 function isCourseOverviewRequest(message, context) {
@@ -197,4 +222,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };

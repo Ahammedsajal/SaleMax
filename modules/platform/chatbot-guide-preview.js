@@ -24,10 +24,10 @@ function previewInput(body, pack) {
   return { message: message.trim(), state, guidedContent: normalizeGuidedContent(body?.guidedContent, pack) };
 }
 
-async function previewGuidedTurn({ body, pack, db, tenantId, platformOrigin }) {
+async function previewGuidedTurn({ body, pack, db, tenantId, platformOrigin, knowledgeEntries = [] }) {
   const input = previewInput(body, pack);
   const facts = pack.requiresDatabase ? await pack.loadFacts({ db, tenantId, platformOrigin }) : [];
-  const result = pack.guidedReply({ message: input.message, state: input.state, facts, config: input.guidedContent });
+  const result = pack.guidedReply({ message: input.message, state: input.state, facts, config: { ...input.guidedContent, knowledgeEntries } });
   if (!result || typeof result.reply !== 'string' || !result.reply.trim()) throw Object.assign(new Error('GUIDED_FLOW_UNAVAILABLE'), { code: 'GUIDED_FLOW_UNAVAILABLE' });
   return { reply: result.reply, state: result.state || null, handoff: result.handoff === true };
 }
