@@ -120,10 +120,10 @@ The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and 
 
 ### `client/public/training-courses.js`
 
-  - Line 101 · **sx-course-create** · 13 control(s): input:studentIdPrefix [text], input:code [text], input:durationValue [number], select:durationUnit, input:nameEn [text], input:nameAr [text], select:deliveryMode, input:price [text], input:registrationFee [text], textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-cancel
+  - Line 101 · **sx-course-create** · 13 control(s): input:studentIdPrefix [text], input:code [text], input:durationValue [number], select:durationUnit, input:nameEn [text], input:nameAr [text], select:deliveryMode, input:price [number], input:registrationFee [number], textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-cancel
   - Line 152 · **sx-batch-edit** · 7 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], select:status, button:unlabelled, button:sx-batch-cancel-edit
   - Line 148 · **sx-course-edit** · 12 control(s): input:studentIdPrefix [text], input:expectedRevision [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-publish
-  - Line 148 · **sx-course-offer** · 3 control(s): input:price [text], input:registrationFee [text], button:unlabelled
+  - Line 148 · **sx-course-offer** · 3 control(s): input:price [number], input:registrationFee [number], button:unlabelled
   - Line 152 · **sx-course-batch** · 5 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], button:unlabelled
   - Line 184 · **sx-center-profile** · 10 control(s): input:revision [hidden], input:sx-profile-logo-file [file], button:sx-profile-logo-choose, button:sx-profile-logo-remove, textarea:aboutEn, textarea:aboutAr, select:reportChannel, input:reportDestination [text], button:sx-report-recipient-add, button:unlabelled
 
@@ -188,6 +188,8 @@ The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (abo
 - Course batch creation and editing now use a bilingual language select for common Qatar training-center languages, with an “Other” option that preserves existing valid locale codes and reveals a validated custom-code field. API payloads keep the existing `language` contract. Focused UI-contract tests cover common/custom selections and both create/edit submission paths.
 
 - Course setup now gives the student ID prefix and course code distinct labels. Batch scheduling no longer displays the unrelated student ID prefix field that its API ignored, preventing staff from entering data that would be silently discarded.
+
+- Course create and offer-edit prices and registration fees use bounded QAR decimal number inputs (`min=0`, `max=999999999.99`, `step=0.01`). Creating a draft may still omit its price; the active-offer editor still requires one. This aligns browser input with the existing `moneyMinor` parser and server minor-unit limit without changing the API contract.
 
 - Lead creation and manual invoice entry now use telephone-optimized controls (`type="tel"`, telephone input hints and browser autofill) while retaining the same editable phone values and backend payloads. The invoice field keeps its 40-character limit. Production acceptance verified the active release, healthy app and deployed asset hashes; no lead or invoice was submitted during this check.
 
