@@ -2,7 +2,7 @@
 
 Inventory refreshed 2026-10-12 by `node scripts/audit-form-controls.cjs`.
 
-The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. The current inventory script found **62 static form templates** and **344 static controls**. Runtime-built controls, including the course batch-language select and optional custom-code input, are listed separately by source line. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
+The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. The current inventory script found **62 static form templates** and **343 static controls**. Runtime-built controls, including the course batch-language select and optional custom-code input, are listed separately by source line. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
 
 ## Latest popup review — course creation
 
@@ -52,7 +52,7 @@ The maintained registration control now offers all 249 ISO 3166-1 alpha-2 countr
 
 The supplied Finance screenshot showed the manual customer fields while “Choose from Leads & Contacts” was selected, oversized radio controls, and a form that did not read as a focused popup. The runtime Finance stylesheet sets `.grid` to `display:grid`, which overrides the browser’s default hidden display behavior. The invoice modal stylesheet now explicitly honors hidden elements, radio choice labels have selected and keyboard-focus states, the focus trap skips controls inside hidden sections, and the customer fieldset’s extra closing tag is removed. This fix is deployed in release `invoice-builder-modal-e0057fa-20261012`; the served CSS and JavaScript hashes are recorded in `DEPLOYMENT.md`.
 
-The focused source checks and authenticated English Finance browser check pass: manual fields stay hidden in contact mode and appear only after choosing manual entry; Escape closes the modal. No invoice or payment was created. The current scan has 62 static form templates and 347 static controls. Each still needs page-by-page layout review and field-level decisions about dropdowns, searchable options, sensible defaults, and fields that must remain free text.
+The focused source checks and authenticated English Finance browser check pass: manual fields stay hidden in contact mode and appear only after choosing manual entry; Escape closes the modal. No invoice or payment was created. The current scan has 62 static form templates and 343 static controls. Each still needs page-by-page layout review and field-level decisions about dropdowns, searchable options, sensible defaults, and fields that must remain free text.
 
 ## Lead Pipeline Add Lead and Student directory — production review, 12 October 2026
 
@@ -86,20 +86,16 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/admin-asterisk.js`
 
-  - Line 72 · **unnamed form** · 13 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:gatewayHost [text], input:gatewaySipPort [number], input:enabled [checkbox], button:unlabelled, textarea:PJSIP configuration preview, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled
+  - Line 73 · **unnamed form** · 13 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:gatewayHost [text], input:gatewaySipPort [number], input:enabled [checkbox], button:unlabelled, textarea:PJSIP configuration preview, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled
 
-  Runtime field builders: line 100 builds a business selector; line 104 captures the inbound DID; line 105 builds the tenant-scoped inbound queue selector; line 107 builds channel-policy checkboxes.
-
-## Telephony setup popup — field choices and limits
-
-The ARI URL, username, gateway host, and port remain editable because each installation supplies its own connection values; the ARI password stays masked and blank preserves the encrypted saved credential. SIP transport is enforced as TLS by the server, so the UI now displays TLS as read-only instead of presenting a dropdown with one possible value. For each GSM channel, business and inbound queue are populated from eligible tenant-owned records, and enable/inbound/outbound are explicit switches. The inbound DID remains a telephone input because it is a tenant-specific number rather than a finite catalogue value. The ARI and Asterisk setup popup requires platform-admin authentication; this checkout has not yet verified its live visual rendering.
+  Runtime field builders: line 101 form/control helper creates select; line 105 form/control helper creates input; line 106 form/control helper creates select.
 
 ### `client/public/admin-plan-contracts.js`
 
   - Line 39 · **unnamed form** · 3 control(s): input:email [email], input:password [password], button:unlabelled
   - Line 46 · **unnamed form** · 3 control(s): input:code [text], input:recoveryCode [text], button:unlabelled
   - Line 52 · **unnamed form** · 2 control(s): input:saved [checkbox], button:unlabelled
-  - Line 63 · **unnamed form** · 5 control(s): select:category, input:${role} [number], input:capability [checkbox], button:unlabelled, button:unlabelled
+  - Line 63 · **unnamed form** · 4 control(s): input:${role} [number], input:capability [checkbox], button:unlabelled, button:unlabelled
   - Line 67 · **unnamed form** · 1 control(s): button:unlabelled
 
 ### `client/public/admin-plan-editor.js`
@@ -260,6 +256,8 @@ The supplied current-run screenshot documents the Finance invoice builder before
 The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (about 5.2 MB), but this checkout has no matching source map or React application source tree; `client/src` currently contains only the SIP call-center adapter. The bundle is minified and builds controls through generated runtime code, so it cannot be reliably audited or maintained field by field from this artifact alone. Recover the original React source/build input before claiming the entire application has received a field-by-field audit.
 
 ## Work completed in this audit increment
+
+- Protected plan-contract drafts now show the fixed Training Center category as read-only text instead of a dropdown with one possible value; draft submissions continue to send the API-required `training_center` category. Role limits and finite feature checkboxes remain editable.
 
 - Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, focus trapping, and focus return to the opener.
 - The lead/contact details stay hidden until a valid contact is selected; changing the search clears the previous contact identity so an old selection cannot silently be invoiced.
