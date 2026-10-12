@@ -125,7 +125,7 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/admin-user-plans.js`
 
-  - Line 43 · **unnamed form** · 5 control(s): input:businessName [text], input:unlabelled [text], input:${role} [number], button:data-back, button:unlabelled
+  - Line 43 · **unnamed form** · 5 control(s): input:businessName [text], output:${t('Business category','فئة النشاط')}, input:${role} [number], button:data-back, button:unlabelled
   - Line 58 · **unnamed form** · 5 control(s): select:version, input:${role} [number], button:data-back, button:data-reload, button:unlabelled
   - Line 120 · **unnamed form** · 4 control(s): select:planId, button:data-back, button:data-refresh, button:unlabelled
 
@@ -261,6 +261,7 @@ The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (abo
 - Business gateway settings now display mandatory SIP TLS as read-only with a short explanation; the form continues sending the API-required `tls` value. The per-channel business and queue selectors, individual DID input, routing controls, and gateway address/port remain unchanged.
 - Sale-review course price and registration fee now use accessible, non-editable output fields updated from the selected published offer; the review request continues to use catalog-derived minor-unit amounts. Discount, installment schedule, payer details and terms remain editable for this individual sale.
 - Lead source in the Pipeline editor is shown as a labelled, styled output rather than a disabled text box; the existing source value remains read-only.
+- Manage Users business setup now presents the fixed Training Center category as a labelled output instead of a disabled text input; account limits and business name remain editable.
 
 - Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, focus trapping, and focus return to the opener.
 - The lead/contact details stay hidden until a valid contact is selected; changing the search clears the previous contact identity so an old selection cannot silently be invoiced.
