@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261012-mobile-bot-cards1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261012-test-list-empty1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }

@@ -12,5 +12,11 @@ test('chatbot assignment shows the selected bot title as a labelled preview',()=
   assert.match(ui,/<output data-title aria-label="\$\{esc\(tr\('Title','العنوان'\)\)\}"/);
   assert.match(ui,/titleOutput\.textContent = bot\?\.name \|\| tr\('Select a bot to see its title'/);
   assert.doesNotMatch(ui,/<input data-title readonly/);
-  assert.match(loader,/chatbot-admin\.js\?v=20261012-mobile-bot-cards1/);
+  assert.match(loader,/chatbot-admin\.js\?v=20261012-test-list-empty1/);
+});
+
+test('empty test-number list does not reserve a blank row in the bot editor',()=>{
+  assert.match(ui,/\.sx-test-number-list:empty\{display:none\}/);
+  assert.match(ui,/\.sx-test-number-list\{display:flex;flex-wrap:wrap/);
+  assert.match(ui,/data-test-number-list role="list"/);
 });

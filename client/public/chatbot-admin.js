@@ -296,7 +296,7 @@
       #sx-chatbot-dialog label{display:grid;gap:6px;color:#344054;font-weight:600} #sx-chatbot-dialog label.sx-full{grid-column:1/-1}
       #sx-chatbot-dialog input,#sx-chatbot-dialog select,#sx-chatbot-dialog textarea{width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:10px 11px;font:14px Roboto,Arial,sans-serif;color:#182230;background:#fff}
       #sx-chatbot-dialog textarea{min-height:78px;resize:vertical} #sx-chatbot-dialog .sx-checks{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-      #sx-chatbot-dialog .sx-test-number-list{display:flex;flex-wrap:wrap;gap:7px;min-height:38px;padding:7px;border:1px solid #eaecf0;border-radius:9px;background:#f9fafb}
+      #sx-chatbot-dialog .sx-test-number-list{display:flex;flex-wrap:wrap;gap:7px;min-height:38px;padding:7px;border:1px solid #eaecf0;border-radius:9px;background:#f9fafb}#sx-chatbot-dialog .sx-test-number-list:empty{display:none}
       #sx-chatbot-dialog .sx-test-number-chip{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:5px 7px 5px 10px;border:1px solid #f0c6d5;border-radius:999px;background:#fff;color:#344054;font-size:13px;overflow-wrap:anywhere}
       #sx-chatbot-dialog .sx-test-number-chip button{flex:0 0 auto;width:23px;height:23px;border:0;border-radius:50%;background:#fff0f5;color:#a8003b;font-size:16px;line-height:1;cursor:pointer}
       #sx-chatbot-dialog .sx-test-number-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
