@@ -20,6 +20,12 @@ The supplied Finance screenshot showed the manual customer fields while “Choos
 
 The focused source checks and authenticated English Finance browser check pass: manual fields stay hidden in contact mode and appear only after choosing manual entry; Escape closes the modal. No invoice or payment was created. The refreshed scan has 63 templates and 348 controls. Each still needs page-by-page layout review and field-level decisions about dropdowns, searchable options, sensible defaults, and fields that must remain free text.
 
+## Lead Pipeline Add Lead and Student directory — production review, 12 October 2026
+
+The Add Lead modal was visually checked in the authenticated English workspace. Its centered, internally scrollable dialog keeps the title full width and pairs contact/learner and phone/email fields; optional student details and qualification fields remain grouped in collapsible sections. Contact matching, pipeline stage, assigned agent, course interest, nationality, Qatar city, gender, graduation, enquiry purpose, contact preferences, start window, experience, payer relationship and follow-up urgency are finite selections. Applicant names, phone, email, QID, addresses, schedule, learning goal and referral details remain editable because they are individual or explanatory information. The nationality field previously had only about 60 choices. It now shares the complete 250-country/territory bilingual list used by registration, preserving the established English saved value and any legacy stored choice. Production displayed Egypt, Ethiopia, Western Sahara and the full catalogue after release; the Add Lead form was cancelled without creating a lead.
+
+The Students page was visually checked at desktop width. Its search field, enrollment-status selector, actions and empty state are aligned; the live directory contains zero enrollments, so student-profile, attendance and trainer forms are not reachable from live records without creating synthetic business data. The form-level audit for those workflows remains open.
+
 ## File-by-file inventory
 
 ### `client/public/admin-actions.js`
