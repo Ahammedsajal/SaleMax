@@ -136,14 +136,14 @@ The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and 
   - Line 132 · **sx-generator-settings** · 7 control(s): input:companyName [hidden], input:crNumber [hidden], input:address [hidden], input:invoicePrefix [hidden], textarea:footer, button:sx-generator-add-plan, button:unlabelled
   - Line 132 · **sx-generator-invoice** · 11 control(s): input:customerType [radio], input:customerType [radio], input:sx-generator-search [text], select:sx-generator-customer-select, input:customerName [text], input:customerPhone [text], input:customerEmail [email], textarea:customerAddress, select:courseId, select:paymentPlan, button:unlabelled
   - Line 164 · **sx-aging-filter** · 6 control(s): input:from [date], input:to [date], select:bucket, input:q [text], button:unlabelled, button:sx-aging-clear
-  - Line 198 · **sx-payment-form** · 6 control(s): input:amount [text], select:method, input:receivedAt [datetime-local], input:reference [text], input:note [text], button:unlabelled
-  - Line 224 · **sx-schedule-change-form** · 5 control(s): input:dueDate [date], input:amount [text], button:sx-schedule-add-row, textarea:reason, button:unlabelled
-  - Line 231 · **sx-credit-form** · 3 control(s): input:amount [text], textarea:reason, button:unlabelled
+  - Line 198 · **sx-payment-form** · 6 control(s): input:amount [number], select:method, input:receivedAt [datetime-local], input:reference [text], input:note [text], button:unlabelled
+  - Line 224 · **sx-schedule-change-form** · 5 control(s): input:dueDate [date], input:amount [number], button:sx-schedule-add-row, textarea:reason, button:unlabelled
+  - Line 231 · **sx-credit-form** · 3 control(s): input:amount [number], textarea:reason, button:unlabelled
   - Line 268 · **unnamed form** · 3 control(s): textarea:reason, button:decision, button:decision
   - Line 268 · **unnamed form** · 5 control(s): select:method, input:reference [text], input:completedAt [datetime-local], input:confirmed [checkbox], button:unlabelled
-  - Line 268 · **unnamed form** · 4 control(s): select:paymentId, input:amount [text], textarea:reason, button:unlabelled
+  - Line 268 · **unnamed form** · 4 control(s): select:paymentId, input:amount [number], textarea:reason, button:unlabelled
   - Line 283 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
-  - Line 283 · **unnamed form** · 5 control(s): select:paymentId, input:amount [text], input:reference [text], textarea:reason, button:unlabelled
+  - Line 283 · **unnamed form** · 5 control(s): select:paymentId, input:amount [number], input:reference [text], textarea:reason, button:unlabelled
   - Line 291 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
 
   Runtime field builders: line 186 createElement(input); line 194 createElement(input).
@@ -190,6 +190,8 @@ The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (abo
 - Course setup now gives the student ID prefix and course code distinct labels. Batch scheduling no longer displays the unrelated student ID prefix field that its API ignored, preventing staff from entering data that would be silently discarded.
 
 - Lead creation and manual invoice entry now use telephone-optimized controls (`type="tel"`, telephone input hints and browser autofill) while retaining the same editable phone values and backend payloads. The invoice field keeps its 40-character limit. Production acceptance verified the active release, healthy app and deployed asset hashes; no lead or invoice was submitted during this check.
+
+- Finance payment, installment, credit, refund and dispute amounts now use positive QAR decimal number controls with a 0.01 step; the credit field retains its balance-derived maximum. This covers all six rendered `amount` inputs in the existing Finance flows while leaving references, dates, methods and explanatory notes in their appropriate text, date/time or select controls. API payload parsing and server validation are unchanged.
 
 - Public course enquiries now render the supported scalar field catalogue safely instead of assuming every field has a hard-coded label. City, nationality, gender, graduation, enquiry source, course level, preferred study days and class time use bilingual native selects; registration-only student, signature, payment-plan and staff fields stay tied to the registration template for new forms. Existing selected fields remain available for removal while editing.
 - The live enquiry form was checked in English and Arabic: name and mobile remain typed fields, while Courses of interest is a multi-select with all nine active courses and consent is a checkbox. The registration form was checked without submission: source, staff, nationality, gender, city, graduation, course, batch, payment plan, level, class days and class time are selections; student ID and level preview update from the selected course. Names, contact details, QID and addresses stay editable because they are individual applicant information.
