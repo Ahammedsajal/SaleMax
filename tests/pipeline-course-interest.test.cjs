@@ -29,9 +29,13 @@ test('Add Lead offers localized course suggestions while preserving free-form an
   const screen=fs.readFileSync(require.resolve('../client/public/pipeline/pipeline.js'),'utf8');
   assert.match(route,/router\.get\('\/course-options'/);
   assert.match(route,/trainingCourses\.intakeOptions/);
-  assert.match(screen,/name="qualification_courseInterest" list="course-interest-catalog" maxlength="180"/);
+  assert.match(screen,/select id="course-interest-choice" aria-labelledby="course-interest-label"/);
+  assert.match(screen,/id="course-interest-value" name="qualification_courseInterest" maxlength="180"/);
   assert.match(screen,/api\('\/course-options'\)/);
-  assert.match(screen,/escape\(ar\?course\.nameAr:course\.nameEn\)/);
+  assert.match(screen,/const name=ar\?course\.nameAr:course\.nameEn/);
+  assert.match(screen,/More than one course or another course/);
+  assert.match(screen,/courseValue\.hidden=true/);
+  assert.match(screen,/courseValue\.hidden=false/);
   assert.match(screen,/\$\{courseInterest\(\)\}\$\{textInput\('preferredSchedule'/);
   assert.doesNotMatch(screen,/qualification_courseInterest"[^>]*readonly|qualification_courseInterest"[^>]*required/);
 });
