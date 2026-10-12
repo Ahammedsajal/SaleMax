@@ -34,3 +34,18 @@
 #sx-finance-screen #sx-reminder-settings-form [data-offset-choice]{max-width:460px}
 #sx-finance-screen #sx-generator-invoice [hidden]{display:none!important}
 @media(max-width:600px){#sx-finance-screen #sx-invoice-create-workspace:not([hidden]){padding:10px}#sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{max-height:calc(100dvh - 20px);padding:16px;border-radius:14px}#sx-finance-screen #sx-generator-invoice fieldset{padding:14px}}
+
+/* Keep saved invoice plans compact and legible inside the scrollable invoice dialog. */
+#sx-finance-screen #sx-generator-settings{display:grid;gap:12px;min-width:0}
+#sx-finance-screen #sx-generator-settings>.notice{margin:0;padding:12px 14px;border-radius:10px}
+#sx-finance-screen #sx-generator-settings>label.full{display:grid;gap:6px;min-width:0}
+#sx-finance-screen #sx-generator-settings>label.full textarea{width:100%;min-height:76px;resize:vertical}
+#sx-finance-screen #sx-generator-settings h4{margin:4px 0 0;color:#344054}
+#sx-finance-screen #sx-generator-plans{display:grid;gap:10px;min-width:0}
+#sx-finance-screen #sx-generator-plans .sx-invoice-plan{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(100px,.7fr) minmax(130px,.8fr) auto;align-items:end;gap:10px;min-width:0;padding:12px;border:1px solid #e4e7ec;border-radius:12px;background:#f8fafc}
+#sx-finance-screen #sx-generator-plans .sx-invoice-plan label{display:grid;gap:6px;min-width:0;color:#344054;font-size:13px;font-weight:600}
+#sx-finance-screen #sx-generator-plans .sx-invoice-plan input{box-sizing:border-box;width:100%;min-width:0}
+#sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{width:auto;min-width:76px;min-height:40px;padding:8px 12px;align-self:end}
+#sx-finance-screen #sx-generator-settings>#sx-generator-add-plan{justify-self:start;min-height:40px}
+#sx-finance-screen #sx-generator-settings>button.primary{justify-self:end;min-height:42px}
+@media(max-width:760px){#sx-finance-screen #sx-generator-plans .sx-invoice-plan{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{justify-self:start}}
