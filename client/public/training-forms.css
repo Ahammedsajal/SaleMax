@@ -259,6 +259,49 @@
 @media(max-width:720px){.sx-readable-dl{grid-template-columns:1fr}.sx-app-detail-data>div{grid-template-columns:1fr!important;gap:5px}}
 @media print{.sx-readable-dl>div{break-inside:avoid}.sx-readable-table tr{break-inside:avoid}}
 
+/* Keep the bilingual form editor's paired content aligned instead of flowing
+   English and Arabic copies into unrelated rows. */
+#sx-form-editor .sx-form-grid:has([name="slug"]){
+  direction:ltr;
+  grid-template-areas:"slug slug" "name-en name-ar" "title-en title-ar" "description-en description-ar";
+  align-items:start;
+}
+#sx-form-editor .sx-form-grid:has([name="slug"]) label:has([name="slug"]){grid-area:slug}
+#sx-form-editor .sx-form-grid:has([name="slug"]) label:has([name="nameEn"]){grid-area:name-en}
+#sx-form-editor .sx-form-grid:has([name="slug"]) label:has([name="nameAr"]){grid-area:name-ar}
+#sx-form-editor .sx-form-grid:has([name="slug"]) label:has([name="titleEn"]){grid-area:title-en}
+#sx-form-editor .sx-form-grid:has([name="slug"]) label:has([name="titleAr"]){grid-area:title-ar}
+#sx-form-editor .sx-form-grid:has([name="slug"]) label:has([name="descriptionEn"]){grid-area:description-en}
+#sx-form-editor .sx-form-grid:has([name="slug"]) label:has([name="descriptionAr"]){grid-area:description-ar}
+#sx-form-editor .sx-form-fields{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  padding:14px;
+  background:#f8fafc;
+}
+#sx-form-editor .sx-form-fields legend{grid-column:1/-1;padding:0 8px}
+#sx-form-editor .sx-form-field-row{
+  min-width:0;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:start;
+  gap:8px;
+  padding:10px;
+  border:1px solid #e5eaf0;
+  border-radius:9px;
+  background:#fff;
+}
+#sx-form-editor .sx-form-field-row label{min-width:0;line-height:1.4}
+#sx-form-editor .sx-form-field-row label:last-child{white-space:nowrap;color:#657684;font-size:12px}
+#sx-form-editor input:focus-visible,
+#sx-form-editor textarea:focus-visible,
+#sx-form-editor button:focus-visible{outline:3px solid #a8003b55;outline-offset:2px}
+@media(max-width:650px){
+  #sx-form-editor .sx-form-grid:has([name="slug"]){grid-template-areas:"slug" "name-en" "name-ar" "title-en" "title-ar" "description-en" "description-ar"}
+  #sx-form-editor .sx-form-fields{grid-template-columns:minmax(0,1fr)}
+  #sx-form-editor .sx-form-fields legend{grid-column:1}
+}
+
 .sx-app-detail-data>div.sx-app-field-complex{grid-column:1/-1}.sx-app-field-complex .sx-readable-table{table-layout:auto;min-width:560px}.sx-app-field-complex .sx-readable-dl{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:720px){.sx-app-field-complex .sx-readable-dl{grid-template-columns:1fr}}
 
