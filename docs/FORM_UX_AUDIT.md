@@ -303,6 +303,10 @@ The supplied current-run screenshot documents the Finance invoice builder before
 
 The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (about 5.2 MB), but this checkout has no matching source map or React application source tree; `client/src` currently contains only the SIP call-center adapter. The bundle is minified and builds controls through generated runtime code, so it cannot be reliably audited or maintained field by field from this artifact alone. Recover the original React source/build input before claiming the entire application has received a field-by-field audit.
 
+## Registration location entry — source refinement, 12 October 2026
+
+The published student registration form already uses a finite Qatar city dropdown. Its optional City/State text field duplicated that choice for typical local applicants, so the field is now shown only when the applicant selects “Other” or when an existing saved value needs to be retained. An empty hidden field is disabled and omitted from submission; a non-empty value remains visible and is preserved if the city selection changes. The wrapper remains part of the existing responsive two-column grid when visible. Focused registration, shared-control, public-form, Pipeline and form-inventory tests pass 23/23. Production interaction verification remains pending.
+
 ## Work completed in this audit increment
 
 - Protected plan-contract drafts now show the fixed Training Center category as read-only text instead of a dropdown with one possible value; draft submissions continue to send the API-required `training_center` category. Role limits and finite feature checkboxes remain editable.

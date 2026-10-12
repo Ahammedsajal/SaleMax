@@ -22,7 +22,7 @@ test('Lead Pipeline reuses the full bilingual nationality catalogue from its sha
   assert.equal(arabic.find(([value])=>value==='Qatar')[1],'قطر');
   assert.equal(Array.from(english.find(([value])=>value==='Western Sahara')).join('|'),'Western Sahara|Western Sahara');
   assert.equal(Array.from(arabic.find(([value])=>value==='Western Sahara')).join('|'),'Western Sahara|الصحراء الغربية');
-  assert.match(pipelinePage,/training-registration-controls\.js\?v=20261012-full-nationalities1/);
+  assert.match(pipelinePage,/training-registration-controls\.js\?v=20261012-city-state-conditional1/);
   assert.match(pipeline,/SXTrainingNationalities\?\.choices\(ar\?'ar':'en'\)/);
   assert.match(pipeline,/if\(value&&!entries\.some\(\(\[name\]\)=>name===value\)\)entries\.push\(\[value,value\]\)/);
 
