@@ -13,6 +13,24 @@
  const originalValues=api.valuesFromForm;
  api.valuesFromForm=(form,schema)=>{const values=originalValues(form,{...schema,fields:schema.fields.filter(f=>f.key!=='course_selections')});values.course_selections=Array.from(form.querySelectorAll('[data-course-row]'),row=>Object.fromEntries(courseKeys.map(k=>[k,row.querySelector('[data-course-key="'+k+'"]').value.trim()])));Object.assign(values,values.course_selections[0]);return values;};
  api.definitions.push(...extras);
+ api.optionsForField=(key,lang='en')=>{
+  const ar=lang==='ar',tr=(en,a)=>ar?a:en;
+  const fixed={
+   gender:[['Male',tr('Male','ذكر')],['Female',tr('Female','أنثى')]],
+   graduated:[['Yes',tr('Yes','نعم')],['No',tr('No','لا')]],
+   source:[['Website',tr('Website','الموقع الإلكتروني')],['Google search',tr('Google search','بحث Google')],['Social media',tr('Social media','وسائل التواصل الاجتماعي')],['Friend or family',tr('Friend or family','صديق أو أحد أفراد العائلة')],['Other',tr('Other','أخرى')]],
+   level:[['beginner',tr('Beginner','مبتدئ')],['intermediate',tr('Intermediate','متوسط')],['advanced',tr('Advanced','متقدم')],['all_levels',tr('All levels','كل المستويات')]],
+   class_day:[['weekdays',tr('Weekdays','أيام الأسبوع')],['weekends',tr('Weekends','نهاية الأسبوع')],['sun-tue-thu',tr('Sunday / Tuesday / Thursday','الأحد / الثلاثاء / الخميس')],['mon-wed',tr('Monday / Wednesday','الاثنين / الأربعاء')],['flexible',tr('Flexible','مرن')]],
+   class_time:[['morning',tr('Morning','صباحًا')],['afternoon',tr('Afternoon','بعد الظهر')],['evening',tr('Evening','مساءً')],['flexible',tr('Flexible','مرن')]],
+   city:['Doha','Al Rayyan','Al Wakrah','Al Khor','Lusail','Umm Salal','Al Shamal','Dukhan','Mesaieed','Other'].map((value)=>[value,ar?({'Doha':'الدوحة','Al Rayyan':'الريان','Al Wakrah':'الوكرة','Al Khor':'الخور','Lusail':'لوسيل','Umm Salal':'أم صلال','Al Shamal':'الشمال','Dukhan':'دخان','Mesaieed':'مسيعيد','Other':'أخرى'}[value]):value]),
+  };
+  if(fixed[key])return fixed[key];
+  if(key==='nationality'){
+   const regions=new Intl.DisplayNames(['en'],{type:'region'}),localized=new Intl.DisplayNames([lang],{type:'region'});
+   return countries.map(code=>[regions.of(code),localized.of(code)]).sort((a,b)=>a[1].localeCompare(b[1],lang));
+  }
+  return null;
+ };
  const oldPayload=api.formPayload;
  api.formPayload=()=>{const p=oldPayload(),required=new Set(['contact_name','phone','email','course_id','source','payment_plan_id','student_signature','consent']);p.schema.fields=p.schema.fields.filter(f=>!['courses','payment_plan','student_id','tuition_qar','representative_signature','representative_signature_date'].includes(f.key)).map(f=>({...f,required:required.has(f.key)}));p.schema.fields.push({key:'course_selections',labelEn:'Selected courses',labelAr:'الدورات المختارة',required:false});return p;};
  api.capture=(schema,lang,staff,business={},catalogue={})=>{

@@ -21,6 +21,24 @@
     phone: ['WhatsApp number', 'رقم واتساب', 'tel', 'tel'],
     email: ['Email address', 'البريد الإلكتروني', 'email', 'email'],
     nationality: ['Nationality', 'الجنسية', 'text', 'country-name'],
+    certificate_name: ['Name for certificate', 'الاسم على الشهادة', 'text', 'name'],
+    qid: ['Qatar ID number', 'رقم البطاقة الشخصية القطرية', 'text', 'off'],
+    phone_res: ['Home phone number', 'رقم هاتف المنزل', 'tel', 'tel'],
+    address: ['Address', 'العنوان', 'text', 'street-address'],
+    city: ['City', 'المدينة', 'select', 'address-level2'],
+    social_contact: ['Social media contact', 'حساب التواصل الاجتماعي', 'text', 'off'],
+    emergency_phone: ['Emergency contact number', 'رقم الاتصال في حالات الطوارئ', 'tel', 'tel'],
+    local_address: ['Local address', 'العنوان المحلي', 'text', 'street-address'],
+    city_state: ['City or state', 'المدينة أو الولاية', 'text', 'address-level1'],
+    birth_date: ['Date of birth', 'تاريخ الميلاد', 'date', 'bday'],
+    gender: ['Gender', 'الجنس', 'select', 'off'],
+    graduated: ['Have you graduated from high school?', 'هل تخرجت من المدرسة الثانوية؟', 'select', 'off'],
+    source: ['How did you hear about us?', 'كيف سمعت عنا؟', 'select', 'off'],
+    referral_name: ['Referrer name', 'اسم الشخص الذي أحالك', 'text', 'name'],
+    level: ['Course level', 'مستوى الدورة', 'select', 'off'],
+    class_day: ['Preferred study days', 'أيام الدراسة المفضلة', 'select', 'off'],
+    class_time: ['Preferred study time', 'وقت الدراسة المفضل', 'select', 'off'],
+    enrollment_terms: ['Additional details', 'تفاصيل إضافية', 'text', 'off'],
     course_id: ['Course of interest', 'الدورة المطلوبة', 'select', ''],
     preferred_date: ['Preferred start date', 'تاريخ البدء المفضل', 'date', ''],
   };
@@ -77,9 +95,11 @@
       ${staffCapture ? `<section class="lead-prefill" aria-label="${tr('Find an existing lead','البحث عن عميل محتمل موجود')}"><label for="lead-search">${tr('Find existing lead by name, phone or email','ابحث عن عميل محتمل بالاسم أو الهاتف أو البريد الإلكتروني')}</label><input id="lead-search" type="search" autocomplete="off" placeholder="${tr('Type at least 2 characters','اكتب حرفين على الأقل')}"/><div id="lead-search-results" role="listbox" aria-live="polite"></div><p id="lead-selected" class="lead-selected" role="status"></p></section>` : ''}
       <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
       ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture, data.tenant, data) : schema.fields.filter(field => field.key !== 'consent').map(field => {
-        const [labelEn, labelAr, type, autocomplete] = fields[field.key];
+        const [labelEn, labelAr, type, autocomplete] = fields[field.key] || [field.key.replace(/_/g, ' ').replace(/^./, char => char.toUpperCase()), field.key.replace(/_/g, ' '), field.key.endsWith('_date') ? 'date' : 'text', 'off'];
         const label = isArabic ? field.labelAr || labelAr : field.labelEn || labelEn;
         if (field.key === 'course_id') return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="course_ids" multiple size="5" ${field.required ? 'required' : ''}>${data.courses.map(course => `<option value="${esc(course.id)}">${esc(isArabic ? course.nameAr : course.nameEn)}</option>`).join('')}</select><small>${tr('You may select more than one course.','يمكنك اختيار أكثر من دورة.')}</small></label>`;
+        const choices = window.SXTrainingRegistration?.optionsForField?.(field.key, language);
+        if (choices) return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="${esc(field.key)}" ${field.required ? 'required' : ''}><option value="">${tr('Choose an option…','اختر خيارًا…')}</option>${choices.map(([value, text]) => `<option value="${esc(value)}">${esc(text)}</option>`).join('')}</select></label>`;
         return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<input name="${field.key}" type="${type}" autocomplete="${staffCapture ? 'off' : autocomplete || 'off'}" ${staffCapture ? 'autocapitalize="off" spellcheck="false"' : ''} ${field.key === 'phone' ? 'inputmode="tel" placeholder="+974 …"' : ''} maxlength="${field.key === 'email' ? 254 : field.key === 'phone' ? 40 : 255}" ${field.required ? 'required' : ''}></label>`;
       }).join('')}
       ${isRegistration ? '' : `<label class="consent"><input type="checkbox" name="consent" required><span>${esc(isArabic ? schema.consentTextAr : schema.consentTextEn)}</span></label>`}
