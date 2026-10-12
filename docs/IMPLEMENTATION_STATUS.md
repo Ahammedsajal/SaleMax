@@ -1152,3 +1152,8 @@ Validation: 217 focused checks and dedicated disposable MariaDB/73-migration pro
 ## AI mode and repeatable tester conversations — production, 11 October 2026
 
 Training AI BOT is live using the existing shared API key, on connected 55160323 with only recipient 50313785 enabled. Existing Automation settings now include a test number. That number can send reset bot after handover to clear scoped bot state, resume and receive the welcome again; message history and staff tasks stay intact. Other numbers retain handover behavior. Source bf7854d is deployed with 222 focused checks and authenticated bilingual desktop/mobile proof. The actual paused WhatsApp reset delivered its welcome and used no AI tokens. See DEPLOYMENT.md for releases, rollback and the earlier pure-AI fee/registration/handover evidence. English conversational tone review remains in progress.
+
+
+## Invoice builder usability update — production, 12 October 2026
+
+The existing Finance invoice builder now puts customer/course/payment details first and its saved plan/footer configuration below. Lead search and selection use one searchable dropdown, and saved plans render one schedule row per payment. “Generate invoice” replaces the A4-specific button label; the resulting PDF remains A4. Production release `/opt/salemax/releases/finance-invoice-ui-d92f3f9-20261012` is active. Container syntax, release/container/served asset hashes and health checks passed. No migration or financial record was written. Authenticated browser and synthetic invoice issuance acceptance remain open; release and rollback evidence is in `DEPLOYMENT.md`.
