@@ -27,7 +27,7 @@ test('new course workflow is mounted in existing user shell with bilingual scree
   const fs=require('node:fs'),path=require('node:path');
   const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
   const html=read('client/public/index.html'),screen=read('client/public/training-courses.js'),mount=read('modules/platform/mount-existing-upgrade.js');
-  assert.match(html,/training-courses\.js\?v=/);assert.match(screen,/\?page=courses/);assert.match(screen,/الدورات/);assert.match(screen,/priceMinor/);assert.match(screen,/Publish course/);assert.match(screen,/Schedule a batch/);assert.match(screen,/Retire course/);assert.match(screen,/data-edit-batch/);
+  assert.match(html,/training-courses\.js\?v=20261012-course-batch-language1/);assert.match(screen,/\?page=courses/);assert.match(screen,/الدورات/);assert.match(screen,/priceMinor/);assert.match(screen,/Publish course/);assert.match(screen,/Schedule a batch/);assert.match(screen,/Retire course/);assert.match(screen,/data-edit-batch/);
   assert.match(screen,/Learning outcomes/);assert.match(screen,/Prerequisites/);assert.match(screen,/addLearningInfo/);
   assert.match(screen,/prerequisitesEn:f\.get\('prerequisitesEn'\)/);assert.match(screen,/prerequisitesAr:f\.get\('prerequisitesAr'\)/);
   assert.match(screen,/area\.dir=rtl\?'rtl':'ltr'/);assert.match(screen,/help\.dir=field\.endsWith\('Ar'\)\?'rtl':'ltr'/);
@@ -35,4 +35,28 @@ test('new course workflow is mounted in existing user shell with bilingual scree
   assert.equal((screen.match(/prerequisitesAr:f\.get\('prerequisitesAr'\)/g)||[]).length,2,'create and edit must both persist Arabic prerequisites');
   assert.match(screen,/business-auth\/me/);assert.match(screen,/canonicalCsrf/);assert.match(mount,/canonicalGuard:businessBoundary\.guard/);
   assert.match(mount,/\/api\/user\/training\/courses/);assert.match(read('docs/API_DOCUMENTATION.md'),/Training-center course catalogue/);assert.match(read('docs/USER_MANUAL.md'),/Training courses/);
+});
+test('batch language controls prefer common choices while preserving custom locale codes',()=>{
+  const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+  const screen=fs.readFileSync(path.join(__dirname,'..','client/public/training-courses.js'),'utf8');
+  const start=screen.indexOf('  const batchLanguageOptions='),end=screen.indexOf('  function editBatch(',start);
+  assert.ok(start>=0&&end>start,'batch language helpers are present before the editor');
+  let onChange;
+  const context={tr:english=>english,esc:value=>String(value).replaceAll('&','&amp;'),document:{addEventListener:(name,handler)=>{if(name==='change')onChange=handler;}}};
+  vm.runInNewContext(screen.slice(start,end),context);
+  const arabic=context.batchLanguageField('ar');
+  assert.match(arabic,/select name="languageChoice"/);assert.match(arabic,/Arabic \(ar\)/);assert.match(arabic,/value="ar" selected/);
+  const existingCustom=context.batchLanguageField('zh-CN');
+  assert.match(existingCustom,/value="__other__" selected/);assert.match(existingCustom,/name="languageCustom" value="zh-cn"/);assert.match(existingCustom,/required/);
+  assert.equal(context.batchLanguageValue({get:name=>({languageChoice:'en',languageCustom:'ignored'}[name])}),'en');
+  assert.equal(context.batchLanguageValue({get:name=>({languageChoice:'__other__',languageCustom:'pt-BR'}[name])}),'pt-br');
+  const custom={hidden:true,disabled:true,required:false,value:'old'};
+  const select={value:'__other__',form:{querySelector:()=>custom}};
+  onChange({target:{closest:()=>select}});assert.equal(custom.hidden,false);assert.equal(custom.disabled,false);assert.equal(custom.required,true);
+  select.value='ar';onChange({target:{closest:()=>select}});assert.equal(custom.hidden,true);assert.equal(custom.disabled,true);assert.equal(custom.required,false);assert.equal(custom.value,'');
+  assert.equal((screen.match(/language:batchLanguageValue\(f\)/g)||[]).length,2,'batch create and edit both submit the selected language code');
+  assert.match(screen,/<label>\$\{tr\('Student ID prefix','بادئة رقم الطالب'\)[\s\S]*?<\/label><label>\$\{tr\('Course code','رمز الدورة'\)/,'course code and student ID prefix are separate labeled fields');
+  assert.match(screen,/fields:\['studentIdPrefix','code','nameEn','nameAr'/,'course creation keeps both labeled identifier fields in the visible Course information section');
+  const batchForm=screen.match(/<form id="sx-course-batch">([\s\S]*?)<\/form>/)?.[1];
+  assert.ok(batchForm,'batch scheduling form exists');assert.doesNotMatch(batchForm,/studentIdPrefix/,'batch form must not offer the unused field that its API discards');
 });

@@ -1,8 +1,8 @@
 # Source-maintained form and control audit
 
-Generated 2026-10-11 by `node scripts/audit-form-controls.cjs`.
+Inventory refreshed 2026-10-12 by `node scripts/audit-form-controls.cjs`.
 
-The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **62 static form templates** and **343 static controls**. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
+The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **62 static form templates** and **341 static controls**. The course batch-language field now comes from a shared runtime builder, so its language select and optional custom-code input are listed separately below. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
 
 ## File-by-file inventory
 
@@ -121,13 +121,13 @@ The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and 
 ### `client/public/training-courses.js`
 
   - Line 101 · **sx-course-create** · 13 control(s): input:studentIdPrefix [text], input:code [text], input:durationValue [number], select:durationUnit, input:nameEn [text], input:nameAr [text], select:deliveryMode, input:price [text], input:registrationFee [text], textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-cancel
-  - Line 148 · **sx-batch-edit** · 8 control(s): input:code [text], input:language [text], input:startsOn [date], input:endsOn [date], input:capacity [number], select:status, button:unlabelled, button:sx-batch-cancel-edit
+  - Line 152 · **sx-batch-edit** · 7 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], select:status, button:unlabelled, button:sx-batch-cancel-edit
   - Line 148 · **sx-course-edit** · 12 control(s): input:studentIdPrefix [text], input:expectedRevision [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-publish
   - Line 148 · **sx-course-offer** · 3 control(s): input:price [text], input:registrationFee [text], button:unlabelled
-  - Line 148 · **sx-course-batch** · 7 control(s): input:studentIdPrefix [text], input:code [text], input:language [text], input:startsOn [date], input:endsOn [date], input:capacity [number], button:unlabelled
+  - Line 152 · **sx-course-batch** · 5 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], button:unlabelled
   - Line 184 · **sx-center-profile** · 10 control(s): input:revision [hidden], input:sx-profile-logo-file [file], button:sx-profile-logo-choose, button:sx-profile-logo-remove, textarea:aboutEn, textarea:aboutAr, select:reportChannel, input:reportDestination [text], button:sx-report-recipient-add, button:unlabelled
 
-  Runtime field builders: line 41 createElement(select); line 41 field name difficultyLevel; line 41 createElement(textarea).
+  Runtime field builders: line 41 createElement(select); line 41 field name difficultyLevel; line 148 `batchLanguageField()` for both batch forms; line 41 createElement(textarea). The language builder offers Arabic, English, Hindi, Urdu, Malayalam, Bengali, Nepali, Filipino, Tamil and French; “Other” preserves existing valid locale codes and reveals a validated custom-code field. Create and edit keep the existing server `language` contract.
 
 ### `client/public/training-finance.js`
 
@@ -173,6 +173,8 @@ The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and 
 
 The supplied current-run screenshot documents the Finance invoice builder before its modal and alignment update. The source inventory is broad but does not prove the rendered appearance of every screen, role, viewport or language. The hash-bundled primary React application is intentionally excluded from source edits; shared styling can improve it, while field-by-field changes there require recoverable source or a supported build input.
 
+The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (about 5.2 MB), but this checkout has no matching source map or React application source tree; `client/src` currently contains only the SIP call-center adapter. The bundle is minified and builds controls through generated runtime code, so it cannot be reliably audited or maintained field by field from this artifact alone. Recover the original React source/build input before claiming the entire application has received a field-by-field audit.
+
 ## Work completed in this audit increment
 
 - Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, focus trapping, and focus return to the opener.
@@ -183,7 +185,11 @@ The supplied current-run screenshot documents the Finance invoice builder before
 - Pipeline intent keywords use bilingual suggested choices and removable chips with an optional custom phrase; the existing backend array contract and 30-phrase limit are preserved.
 - Candidate Applications was visually checked in the authenticated business workspace. The editor had English and Arabic name/title/description fields flowing into mismatched rows, and its long field checklist consumed excess vertical space. The editor now pairs each English and Arabic copy side by side on desktop, stacks them in order on phones, and presents selectable fields as a responsive two-column card grid with clearer focus outlines. Catalogue-backed course, batch and payment-plan choices remain selects; free-form personal details remain editable.
 
+- Course batch creation and editing now use a bilingual language select for common Qatar training-center languages, with an “Other” option that preserves existing valid locale codes and reveals a validated custom-code field. API payloads keep the existing `language` contract. Focused UI-contract tests cover common/custom selections and both create/edit submission paths.
+
+- Course setup now gives the student ID prefix and course code distinct labels. Batch scheduling no longer displays the unrelated student ID prefix field that its API ignored, preventing staff from entering data that would be silently discarded.
+
 - Public course enquiries now render the supported scalar field catalogue safely instead of assuming every field has a hard-coded label. City, nationality, gender, graduation, enquiry source, course level, preferred study days and class time use bilingual native selects; registration-only student, signature, payment-plan and staff fields stay tied to the registration template for new forms. Existing selected fields remain available for removal while editing.
-- Remaining work includes visual acceptance of enquiry forms with optional field combinations, structured support or safe migration guidance for any legacy generic form containing registration-only array fields, and page-by-page review of all remaining listed forms.
+- Remaining work includes recovering the main React app source before field-level changes there, visual acceptance of enquiry forms with optional field combinations, structured support or safe migration guidance for any legacy generic form containing registration-only array fields, and page-by-page review of all remaining listed forms.
 
 Remaining source forms should be reviewed page by page using this inventory; deploy and visual acceptance must follow release evidence in `DEPLOYMENT.md`.
