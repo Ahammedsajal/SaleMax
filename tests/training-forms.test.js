@@ -18,8 +18,11 @@ test('public form controls support finite course-profile dropdowns and unknown p
   assert.deepEqual(Array.from(api.optionsForField('graduated')).map(([value])=>value),['Yes','No']);
   const nationalities=Array.from(api.optionsForField('nationality'));
   assert.equal(nationalities.length,250,'include every ISO 3166-1 alpha-2 area plus Kosovo');
+  assert.equal(nationalities.filter(([value])=>/^[A-Z]{2}$/.test(value)).length,0,'never show an unresolved region code');
   assert.ok(nationalities.some(([value])=>value==='Uganda'));
+  assert.ok(nationalities.some(([value])=>value==='Western Sahara'));
   assert.ok(Array.from(api.optionsForField('nationality','ar')).some(([,label])=>label==='أوغندا'));
+  assert.ok(Array.from(api.optionsForField('nationality','ar')).some(([,label])=>label==='الصحراء الغربية'));
   assert.equal(api.optionsForField('address'),null);
   const screen=fs.readFileSync(require('node:path').join(__dirname,'../client/public/training-public-form.js'),'utf8');
   assert.match(screen,/fields\[field\.key\] \|\| \[field\.key\.replace/);

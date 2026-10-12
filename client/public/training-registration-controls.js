@@ -31,7 +31,8 @@
   if(fixed[key])return fixed[key];
   if(key==='nationality'){
    const regions=new Intl.DisplayNames(['en'],{type:'region'}),localized=new Intl.DisplayNames([lang],{type:'region'});
-   return countries.map(code=>[regions.of(code),localized.of(code)]).sort((a,b)=>a[1].localeCompare(b[1],lang));
+   const displayNames={EH:['Western Sahara','الصحراء الغربية']};
+   return countries.map(code=>displayNames[code]||[regions.of(code),localized.of(code)]).sort((a,b)=>a[1].localeCompare(b[1],lang));
   }
   return null;
  };
