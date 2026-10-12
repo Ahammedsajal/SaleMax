@@ -8,7 +8,7 @@ The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and 
 
 The supplied Finance screenshot showed the manual customer fields while “Choose from Leads & Contacts” was selected, oversized radio controls, and a form that did not read as a focused popup. The runtime Finance stylesheet sets `.grid` to `display:grid`, which overrides the browser’s default hidden display behavior. The invoice modal stylesheet now explicitly honors hidden elements, radio choice labels have selected and keyboard-focus states, the focus trap skips controls inside hidden sections, and the customer fieldset’s extra closing tag is removed. This fix is deployed in release `invoice-builder-modal-e0057fa-20261012`; the served CSS and JavaScript hashes are recorded in `DEPLOYMENT.md`.
 
-The focused source checks pass. An authenticated browser visual check of Finance remains outstanding. The broader scan still has 62 templates and 341 controls requiring page-by-page layout review and field-level decisions about dropdowns, searchable options, sensible defaults, and fields that must remain free text.
+The focused source checks and authenticated English Finance browser check pass: manual fields stay hidden in contact mode and appear only after choosing manual entry; Escape closes the modal. No invoice or payment was created. The broader scan still has 62 templates and 341 controls requiring page-by-page layout review and field-level decisions about dropdowns, searchable options, sensible defaults, and fields that must remain free text.
 
 ## File-by-file inventory
 
