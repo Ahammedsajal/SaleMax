@@ -27,6 +27,8 @@ test('mobile Automation Flows uses a mode selector and reserves a clear builder 
   assert.match(admin, /function syncMobileFlowLayout\(enabled\)/);
   assert.match(admin, /syncMobileFlowLayout\(false\)/);
   assert.match(admin, /button\[aria-selected=true\]/);
+  assert.match(admin, /function positionPanel\(panel\)/);
+  assert.match(admin, /if\(active&&panel\)positionPanel\(panel\)/);
 });
 
 test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', () => {

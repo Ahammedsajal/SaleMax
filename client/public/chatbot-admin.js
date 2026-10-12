@@ -497,12 +497,18 @@
     if (state.tab === 'legacy') return;
     let panel = document.getElementById('sx-chatbot-panel');
     if (!panel) { panel = document.createElement('main'); panel.id = 'sx-chatbot-panel'; document.body.append(panel); }
-    const pos = bounds(); panel.style.left = `${pos.left}px`; panel.style.top = `${pos.top + 72}px`; panel.style.width = `${Math.max(0, innerWidth-pos.left-pos.right)}px`; panel.style.height = `${Math.max(0, innerHeight-pos.top-72)}px`;
+    positionPanel(panel);
     panel.innerHTML = `<div class="sx-muted" id="sx-chatbot-loading">${esc(tr('Loading bots…','جارٍ تحميل الروبوتات…'))}</div>`;
     refresh().then(() => {
       if (!panel.isConnected || state.tab === 'legacy') return;
       panel.innerHTML = panelMarkup(state.tab); bindPanel(panel, state.tab);
       }).catch(error => { if (panel.isConnected) panel.innerHTML = `<h1>${esc(tr('Chatbot & Automation','الروبوتات والأتمتة'))}</h1><div role="alert" class="sx-alert">${esc(errorLabel(error.message))}</div><button class="sx-secondary" id="sx-chatbot-retry">${esc(tr('Retry','إعادة المحاولة'))}</button>`; panel.querySelector('#sx-chatbot-retry')?.addEventListener('click', render); });
+  }
+  function positionPanel(panel) {
+    const pos = bounds();
+    panel.style.left = `${pos.left}px`; panel.style.top = `${pos.top + 72}px`;
+    panel.style.width = `${Math.max(0, innerWidth-pos.left-pos.right)}px`;
+    panel.style.height = `${Math.max(0, innerHeight-pos.top-72)}px`;
   }
   function bindPanel(panel, engine) {
     panel.querySelector('#sx-open-assignments')?.addEventListener('click', () => { location.href = '/user?page=wa-chatbot'; });
@@ -942,7 +948,7 @@
     renderActiveChatControl(activeConversation());
   }
   let scheduled=false;
-  function update() { if (scheduled) return; scheduled=true; requestAnimationFrame(()=>{scheduled=false;const active=mountTabs();if(active&&state.tab!=='legacy'&&!document.getElementById('sx-chatbot-panel'))render();syncChatControls();}); }
+  function update() { if (scheduled) return; scheduled=true; requestAnimationFrame(()=>{scheduled=false;const active=mountTabs();const panel=document.getElementById('sx-chatbot-panel');if(active&&panel)positionPanel(panel);if(active&&state.tab!=='legacy'&&!panel)render();syncChatControls();}); }
   new MutationObserver(update).observe(document.documentElement,{childList:true,subtree:true});
   window.addEventListener('resize',update); window.addEventListener('popstate',update); window.addEventListener('storage',update); update();
   window.setInterval(() => { if (isInboxPage()) { const conversation = activeConversation(); if (conversation?.id && conversation.scope) loadActiveChatControl(conversation.id, conversation.scope); } }, 30000);
