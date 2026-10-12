@@ -358,3 +358,9 @@ The Phonebook grid previously squeezed ten columns into the phone viewport, maki
 ## Students directory — mobile search and status filters, production, 12 October 2026
 
 At 390×844, the student search, six-state enrollment select, Search and Clear controls stack at full width and remain within the 348 px content card. The four enrollment counters form a two-column grid. Arabic at the same size localizes the filters and empty state, mirrors the layout for RTL, and keeps all controls within the 382 px page; English/LTR was restored after review. No student records exist, so profile, attendance and payment popups remain unreviewed against live records. No search that changes data or record action was submitted.
+
+The same mobile review found the Students screen's fixed layer sat above the navigation drawer, allowing the drawer to open but blocking its menu items. Its stacking level is now below the drawer. After deployment and reload, opening the drawer and selecting Courses navigated successfully at 390 px. The student screen stays above the app content and below the drawer.
+
+## Courses — catalogue and Add course popup, production, 12 October 2026
+
+The mobile catalogue shows all 15 courses as readable single-column cards, with search and management actions inside the 356 px page. The Add course popup fills the 390×844 viewport, scrolls its long sections internally, keeps Close and Save draft/Cancel actions available, and stays within the document width. The modal retains catalogue-backed delivery mode, course level and payment frequency selects; course names, bilingual descriptions, learning outcomes and prerequisites remain editable content. Number and duration fields use their matching numeric controls, while brochure, image and video uploads stay optional typed files. The blank draft was closed without saving.
