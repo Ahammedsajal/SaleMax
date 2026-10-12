@@ -2,7 +2,7 @@
 
 Inventory refreshed 2026-10-12 by `node scripts/audit-form-controls.cjs`.
 
-The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **63 static form templates** and **348 static controls**. The course batch-language field now comes from a shared runtime builder, so its language select and optional custom-code input are listed separately below. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
+The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. The current inventory script found **62 static form templates** and **346 static controls**. Runtime-built controls, including the course batch-language select and optional custom-code input, are listed separately by source line. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
 
 ## Latest popup review — course creation
 
@@ -316,3 +316,7 @@ The published registration form now has a bilingual search control for its 250-c
 ## Finance Reports — mobile search layout, 12 October 2026
 
 The receivables-aging search field now occupies a full-width row on phones, with Apply and Clear below it, so the search prompt and entered text have enough room. At a 390×844 production viewport, the input is 316.7 px wide, the action buttons sit on the next row, and the document remains 382 px wide inside the viewport. The versioned stylesheet loaded from the deployed release. The report was viewed without applying filters or changing financial data; details and release hashes are in `DEPLOYMENT.md`.
+
+## PBX gateway forms — inbound DID entry, 12 October 2026
+
+The tenant gateway editor’s inbound Direct Inward Dial number is a variable phone number, so it remains editable rather than becoming an incomplete dropdown. It now uses a telephone input with a phone keypad hint and telephone autofill. The Asterisk configuration suite passes 19/19. The new versioned asset and app health were verified in production; direct visual acceptance remains pending because this browser session redirects `/admin?page=pbx-telephony` to the platform sign-in page.
