@@ -64,6 +64,10 @@ The sale-review form was opened from an existing synthetic QA lead without submi
 
 The Students page was visually checked at desktop width. Its search field, enrollment-status selector, actions and empty state are aligned; the live directory contains zero enrollments, so student-profile, attendance and trainer forms are not reachable from live records without creating synthetic business data. The form-level audit for those workflows remains open.
 
+## Lead Pipeline existing-lead editor — phone input, production, 12 October 2026
+
+The existing-lead editor now marks the mobile number as a telephone field and supplies telephone input, autofill and keyboard hints. The saved value, contact-linked/agent disabled rules and API payload are unchanged. The static inventory was corrected from `input:mobile [text]` to `input:mobile [tel]`. Production has zero leads, so I verified the deployed cache-busted asset and opened the Add Lead dialog without saving; the existing-lead editor itself remains unverified against a live record. No lead was created or changed.
+
 Student-profile trainer assignment now uses distinct existing trainer names from the same tenant as native select options, while “Add another trainer…” reveals a required custom-name field for new staff and outside instructors. The existing endpoint and stored trainer-name value remain unchanged. Unit checks cover tenant scoping and the custom-entry branch. Production release is recorded in `DEPLOYMENT.md`; authenticated production still has zero enrollments, so the profile select awaits a naturally available record for live visual acceptance. Attendance and the other student-profile controls still need separate field and layout review.
 
 ## Student profile trainer and attendance forms — production CSS verification, 12 October 2026
@@ -157,7 +161,7 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/pipeline/pipeline.js`
 
-  - Line 55 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [text], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], output:Source, button:save
+  - Line 55 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [tel], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], output:Source, button:save
   - Line 75 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:cancel, button:saveLead
   - Line 87 · **settingsForm** · 10 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, input:interestKeywords [text], button:addMetaAdsMessage, button:cancel, button:save
   - Line 87 · **newStage** · 2 control(s): input:title [text], button:createStage
