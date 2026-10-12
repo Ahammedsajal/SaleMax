@@ -86,7 +86,7 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/admin-asterisk.js`
 
-  - Line 73 · **unnamed form** · 14 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:gatewayHost [text], input:gatewaySipPort [number], output:unlabelled, input:enabled [checkbox], button:data-save-ports, textarea:data-preview-config [readonly], button:data-preview, button:data-apply-gateway, button:data-test, button:data-close, button:unlabelled
+  - Line 73 · **unnamed form** · 14 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:gatewayHost [text], input:gatewaySipPort [number], output:${tr('SIP transport','نقل SIP')}, input:enabled [checkbox], button:data-save-ports, textarea:data-preview-config [readonly], button:data-preview, button:data-apply-gateway, button:data-test, button:data-close, button:unlabelled
 
   Runtime field builders: line 101 form/control helper creates select; line 105 form/control helper creates input; line 106 form/control helper creates select.
 
@@ -95,7 +95,7 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
   - Line 39 · **unnamed form** · 3 control(s): input:email [email], input:password [password], button:unlabelled
   - Line 46 · **unnamed form** · 3 control(s): input:code [text], input:recoveryCode [text], button:unlabelled
   - Line 52 · **unnamed form** · 2 control(s): input:saved [checkbox], button:unlabelled
-  - Line 63 · **unnamed form** · 5 control(s): output:unlabelled, input:${role} [number], input:capability [checkbox], button:unlabelled, button:data-cancel-edit
+  - Line 63 · **unnamed form** · 5 control(s): output:${t('Business category','فئة النشاط')}, input:${role} [number], input:capability [checkbox], button:unlabelled, button:data-cancel-edit
   - Line 67 · **unnamed form** · 1 control(s): button:unlabelled
 
 ### `client/public/admin-plan-editor.js`
@@ -121,7 +121,7 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 ### `client/public/admin-telephony.js`
 
   - Line 47 · **unnamed form** · 6 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:enabled [checkbox], button:unlabelled, button:data-test
-  - Line 74 · **unnamed form** · 7 control(s): input:name [text], input:host [text], input:port [number], output:unlabelled, input:enabled [checkbox], button:unlabelled, button:data-apply-peer
+  - Line 74 · **unnamed form** · 7 control(s): input:name [text], input:host [text], input:port [number], output:${tr('Transport','النقل')}, input:enabled [checkbox], button:unlabelled, button:data-apply-peer
 
 ### `client/public/admin-user-plans.js`
 
@@ -262,6 +262,7 @@ The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (abo
 - Sale-review course price and registration fee now use accessible, non-editable output fields updated from the selected published offer; the review request continues to use catalog-derived minor-unit amounts. Discount, installment schedule, payer details and terms remain editable for this individual sale.
 - Lead source in the Pipeline editor is shown as a labelled, styled output rather than a disabled text box; the existing source value remains read-only.
 - Manage Users business setup now presents the fixed Training Center category as a labelled output instead of a disabled text input; account limits and business name remain editable.
+- The enforced TLS outputs in platform Asterisk setup, business gateway settings, and plan contracts now carry explicit English/Arabic accessible labels; the inventory identifies those fields individually.
 
 - Finance invoice creation is presented as a centered, constrained modal with a dimmed backdrop, keyboard Escape close, initial focus, focus trapping, and focus return to the opener.
 - The lead/contact details stay hidden until a valid contact is selected; changing the search clears the previous contact identity so an old selection cannot silently be invoiced.
