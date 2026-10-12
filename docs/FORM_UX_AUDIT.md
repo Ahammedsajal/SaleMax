@@ -312,3 +312,7 @@ The registration form displayed its nine active courses and 251 nationality sele
 ## Searchable nationality selection — production, 12 October 2026
 
 The published registration form now has a bilingual search control for its 250-country/territory catalogue. Search matches both canonical English country names and the current locale label; the saved value remains the canonical English name. A selected country stays available while filtering, while the result message counts only real matches. English and Arabic production checks passed at 390×844, including a no-match query, matching country queries in both languages, selected-value retention and restoration of all 251 select entries (prompt plus catalogue). The page stayed within the phone viewport and no application was submitted. Generic enquiry forms use the same helper when their published schema includes nationality; the reviewed enquiry form has no nationality field.
+
+## Finance Reports — mobile search layout, 12 October 2026
+
+The receivables-aging search field now occupies a full-width row on phones, with Apply and Clear below it, so the search prompt and entered text have enough room. At a 390×844 production viewport, the input is 316.7 px wide, the action buttons sit on the next row, and the document remains 382 px wide inside the viewport. The versioned stylesheet loaded from the deployed release. The report was viewed without applying filters or changing financial data; details and release hashes are in `DEPLOYMENT.md`.
