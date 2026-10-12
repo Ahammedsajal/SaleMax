@@ -192,7 +192,8 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   assert.match(gatewayPorts,/module\.exports = \{[^}]*\blistQueues\b/);
   assert.match(migration,/CREATE TABLE sx_telephony_gateways/);
   assert.match(migration,/PRIMARY KEY \(tenant_id,gateway_id,channel_no\)/);
-  assert.match(index,/admin-telephony\.js\?v=20261007-sidebar-layout1/);
+  assert.match(telephony,/<input type="tel" inputmode="tel" autocomplete="tel" data-did/);
+  assert.match(index,/admin-telephony\.js\?v=20261012-did-input1/);
   assert.match(ui,/VERIFIED_ADMIN_LINK_REQUIRED:tr\(/);
 });
 
