@@ -13,8 +13,8 @@
   }
   if (!window.__sxFaqManagerLoader) {
     window.__sxFaqManagerLoader = true;
-    const faqStyle = document.createElement('link'); faqStyle.rel = 'stylesheet'; faqStyle.href = '/training-faqs.css?v=20261012-faq-library2'; document.head.append(faqStyle);
-    const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261012-faq-library2'; faqScript.defer = true; document.head.append(faqScript);
+    const faqStyle = document.createElement('link'); faqStyle.rel = 'stylesheet'; faqStyle.href = '/training-faqs.css?v=20261012-faq-library4'; document.head.append(faqStyle);
+    const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261012-faq-library4'; faqScript.defer = true; document.head.append(faqScript);
   }
   const groups = [
     ['Overview', 'نظرة عامة', ['Dashboard']],
