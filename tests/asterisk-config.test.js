@@ -240,7 +240,10 @@ test('Call Center status reports call readiness only with live Asterisk and endp
   assert.match(client,/لا يستقبل SaleMaX أحداث المكالمات من أستريسك/);
   assert.match(client,/calls\/\$\{encodeURIComponent\(call\.callId\)\}\/end/);
   assert.match(client,/text\('End call','إنهاء المكالمة'\)/);
-  assert.match(page,/call-center\.js\?v=20261005-call-control1/);
+  assert.match(client,/node\('outgoingSection'\)\.hidden=true/);
+  assert.match(client,/node\('extensionsSection'\)\.hidden=true/);
+  assert.match(client,/node\('queuesSection'\)\.hidden=true/);
+  assert.match(page,/call-center\.js\?v=20261012-entitlement-hide1/);
   assert.match(page,/call-center\.css\?v=20261005-call-control1/);
 });
 
