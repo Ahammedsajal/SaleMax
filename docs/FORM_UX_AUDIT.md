@@ -68,6 +68,14 @@ Student-profile trainer assignment now uses distinct existing trainer names from
 
 The custom trainer-name label uses the HTML `hidden` attribute, but a more-specific `.sx-st-form label { display:grid }` rule overrides the browser's default hidden styling. The CSS now explicitly hides `[hidden]` controls, so the manual trainer-name field stays out of view until “Add another trainer…” is selected. Trainer assignment remains a saved-name select with an explicit custom-name path for new instructors. The attendance form now puts its three fields and Save action in one aligned desktop row, two columns on tablet, and a single column on phones; the trainer form similarly aligns its select and action, adapting when the custom-name field appears. The attendance note stays free text because it records a case-specific explanation. Regression checks cover the hidden-state rule, catalogue select/custom branch, and responsive layouts. A production-browser fixture loaded the deployed script's actual CSS and confirmed that the custom-name field is hidden then appears on explicit reveal, attendance uses four columns at 1440px, two at 768px and one at 390px, and the RTL phone layout has no horizontal overflow. The business-auth and student-list APIs returned 401; no live enrollment was available to open, and no student record was changed. Authenticated profile/attendance interaction remains pending a naturally available enrollment and normal business sign-in.
 
+## Workspace sign-in and public customer actions — source audit
+
+The maintained workspace sign-in builds its fields through a shared helper, which the old static scanner missed. It has a workspace slug, email and password at login; a six-digit authenticator code or recovery code in the challenge step; and a checkbox confirming recovery codes were saved. The tenant/platform audience is already a two-button choice. These values are credentials or identity inputs, so converting them to business-data dropdowns would be inappropriate; the password show/hide and correct email, numeric-code, and one-time-code hints are retained. This sign-in source is used by the isolated authentication lab; production replacement and real account acceptance remain open per `AUTHENTICATION_CONTRACT.md`.
+
+The current production `/admin/login` is the compiled React page, not that maintained workspace sign-in. A 390×844 read-only review showed the email and password fields fit the viewport, but both are outside a native `<form>` and have no `name` or `autocomplete` attributes; the browser console reports the password-outside-form warning. Browser autofill was active in this session, so the populated values came from the browser, not the page source; no sign-in was submitted. The shipped 5.2 MB React bundle has no source map and its component source/build input is not present in this checkout. Correcting the login semantics safely requires recovering the supported React source/build, rather than patching the minified bundle as if it were maintained source.
+
+The customer reminder-preference page has two explicit opt-in/opt-out actions and no text field. The customer document page displays invoice or receipt details without editable fields or dropdowns. Neither page benefits from a dropdown; their actions are deliberate yes/no choices or read-only document viewing.
+
 ## File-by-file inventory
 
 ### `client/public/admin-actions.js`
@@ -78,14 +86,14 @@ The custom trainer-name label uses the HTML `hidden` attribute, but a more-speci
 
   - Line 72 · **unnamed form** · 14 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:gatewayHost [text], input:gatewaySipPort [number], select:gatewaySipTransport, input:enabled [checkbox], button:unlabelled, textarea:PJSIP configuration preview, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled
 
-  Runtime field builders: line 100 createElement(select); line 104 createElement(input); line 105 createElement(select).
+  Runtime field builders: line 100 form/control helper creates select; line 104 form/control helper creates input; line 105 form/control helper creates select.
 
 ### `client/public/admin-plan-contracts.js`
 
   - Line 39 · **unnamed form** · 3 control(s): input:email [email], input:password [password], button:unlabelled
   - Line 46 · **unnamed form** · 3 control(s): input:code [text], input:recoveryCode [text], button:unlabelled
   - Line 52 · **unnamed form** · 2 control(s): input:saved [checkbox], button:unlabelled
-  - Line 63 · **unnamed form** · 4 control(s): select:category, input:${role} [number], button:unlabelled, button:unlabelled
+  - Line 63 · **unnamed form** · 5 control(s): select:category, input:${role} [number], input:capability [checkbox], button:unlabelled, button:unlabelled
   - Line 67 · **unnamed form** · 1 control(s): button:unlabelled
 
 ### `client/public/admin-plan-editor.js`
@@ -100,13 +108,13 @@ The custom trainer-name label uses the HTML `hidden` attribute, but a more-speci
   - Line 125 · **unnamed form** · 4 control(s): input:email [email], select:platformRole, select:reportsToIdentityId, button:unlabelled
   - Line 135 · **sx-staff-card** · 2 control(s): input:active [checkbox], button:unlabelled
 
-  Runtime field builders: line 121 createElement(textarea).
+  Runtime field builders: line 121 form/control helper creates textarea.
 
 ### `client/public/admin-signin-mfa.js`
 
   - No literal form template; controls are created at runtime.
 
-  Runtime field builders: line 51 createElement(input); line 63 createElement(form); line 63 createElement(input); line 63 field name code.
+  Runtime field builders: line 51 form/control helper creates input; line 63 form/control helper creates form; line 63 form/control helper creates input; line 63 field name code.
 
 ### `client/public/admin-telephony.js`
 
@@ -115,7 +123,7 @@ The custom trainer-name label uses the HTML `hidden` attribute, but a more-speci
 
 ### `client/public/admin-user-plans.js`
 
-  - Line 43 · **unnamed form** · 5 control(s): input:businessName [text], select:categoryKey, input:${role} [number], button:unlabelled, button:unlabelled
+  - Line 43 · **unnamed form** · 5 control(s): input:businessName [text], input:unlabelled [text], input:${role} [number], button:unlabelled, button:unlabelled
   - Line 58 · **unnamed form** · 5 control(s): select:version, input:${role} [number], button:unlabelled, button:unlabelled, button:unlabelled
   - Line 120 · **unnamed form** · 4 control(s): select:planId, button:unlabelled, button:unlabelled, button:unlabelled
 
@@ -123,13 +131,13 @@ The custom trainer-name label uses the HTML `hidden` attribute, but a more-speci
 
   - No literal form template; controls are created at runtime.
 
-  Runtime field builders: line 23 createElement(form); line 26 createElement(select).
+  Runtime field builders: line 23 form/control helper creates form; line 26 form/control helper creates select.
 
 ### `client/public/call-center/call-center.js`
 
   - No literal form template; controls are created at runtime.
 
-  Runtime field builders: line 32 createElement(input); line 70 createElement(input); line 71 createElement(select); line 72 createElement(input); line 73 createElement(input); line 75 createElement(input); line 155 createElement(input).
+  Runtime field builders: line 32 form/control helper creates input; line 70 form/control helper creates input; line 71 form/control helper creates select; line 72 form/control helper creates input; line 73 form/control helper creates input; line 75 form/control helper creates input; line 158 form/control helper creates input.
 
 ### `client/public/call-center/index.html`
 
@@ -137,31 +145,31 @@ The custom trainer-name label uses the HTML `hidden` attribute, but a more-speci
 
 ### `client/public/chatbot-admin.js`
 
-  - Line 560 · **unnamed form** · 5 control(s): input:name [text], select:aiFallback, input:aiDataProcessingConfirmed [checkbox], button:unlabelled, button:unlabelled
+  - Line 604 · **unnamed form** · 5 control(s): input:name [text], select:aiFallback, input:aiDataProcessingConfirmed [checkbox], button:unlabelled, button:unlabelled
 
 ### `client/public/optional-features.js`
 
   - No literal form template; controls are created at runtime.
 
-  Runtime field builders: line 40 createElement(form); line 41 createElement(input).
+  Runtime field builders: line 40 form/control helper creates form; line 41 form/control helper creates input.
 
 ### `client/public/pipeline/pipeline.js`
 
-  - Line 60 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [tel], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], input:unlabelled [text], button:unlabelled
-  - Line 81 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
-  - Line 96 · **settingsForm** · 13 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, select:unlabelled, button:unlabelled, input:unlabelled [text], button:unlabelled, button:addMetaAdsMessage, button:unlabelled, button:unlabelled
-  - Line 96 · **newStage** · 2 control(s): input:title [text], button:unlabelled
-  - Line 107 · **sale-review-form** · 15 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:unlabelled, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:unlabelled; 2 read-only values: output:data-sale-course-price, output:data-sale-registration-fee
-  - Line 117 · **sale-review-decision** · 3 control(s): input:reason [text], button:unlabelled, button:unlabelled
+  - Line 61 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [tel], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], input:unlabelled [text], button:unlabelled
+  - Line 82 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
+  - Line 97 · **settingsForm** · 13 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, select:unlabelled, button:unlabelled, input:unlabelled [text], button:unlabelled, button:addMetaAdsMessage, button:unlabelled, button:unlabelled
+  - Line 97 · **newStage** · 2 control(s): input:title [text], button:unlabelled
+  - Line 107 · **sale-review-form** · 15 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:unlabelled, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:unlabelled
+  - Line 118 · **sale-review-decision** · 3 control(s): input:reason [text], button:unlabelled, button:unlabelled
 
 ### `client/public/pipeline/reports.js`
 
-  - Line 90 · **reportFilters** · 3 control(s): select:period, input:at [date], button:unlabelled
-  - Line 109 · **report-schedule-card** · 8 control(s): input:period [hidden], input:expectedRevision [hidden], select:timezone, input:localTime [time], input:emailEnabled [checkbox], input:whatsappEnabled [checkbox], input:paused [checkbox], button:unlabelled
-  - Line 248 · **taskFilters** · 2 control(s): select:period, button:unlabelled
-  - Line 252 · **followup-reschedule** · 2 control(s): input:at [datetime-local], button:unlabelled
+  - Line 88 · **reportFilters** · 3 control(s): select:period, input:at [date], button:unlabelled
+  - Line 113 · **report-schedule-card** · 8 control(s): input:period [hidden], input:expectedRevision [hidden], select:timezone, input:localTime [time], input:emailEnabled [checkbox], input:whatsappEnabled [checkbox], input:paused [checkbox], button:unlabelled
+  - Line 263 · **taskFilters** · 2 control(s): select:period, button:unlabelled
+  - Line 267 · **followup-reschedule** · 2 control(s): input:at [datetime-local], button:unlabelled
 
-  Runtime field builders: line 217 createElement(textarea).
+  Runtime field builders: line 221 form/control helper creates textarea.
 
 ### `client/public/tasks/index.html`
 
@@ -176,11 +184,7 @@ The custom trainer-name label uses the HTML `hidden` attribute, but a more-speci
 
   - Line 156 · **sx-role-form** · 6 control(s): input:id [hidden], input:name [text], select:seatRole, input:description [text], button:unlabelled, button:sx-role-reset
   - Line 156 · **sx-team-form** · 6 control(s): input:email [email], select:assignment, input:temporaryPassword [password], input:displayName [text], input:mobile [tel], button:unlabelled
-  - Line 337 · **sx-accept-form** · 4 control(s): input:displayName [text], input:mobile [tel], input:password [password], button:unlabelled
-
-### `client/public/training-center-profile.js`
-
-  - Line 19 · **sx-center-profile** · 4 control(s): input:revision [hidden], textarea:aboutEn, textarea:aboutAr, button:unlabelled
+  - Line 339 · **sx-accept-form** · 4 control(s): input:displayName [text], input:mobile [tel], input:password [password], button:unlabelled
 
 ### `client/public/training-courses.js`
 
@@ -189,9 +193,9 @@ The custom trainer-name label uses the HTML `hidden` attribute, but a more-speci
   - Line 156 · **sx-course-edit** · 12 control(s): input:studentIdPrefix [text], input:expectedRevision [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-publish
   - Line 156 · **sx-course-offer** · 3 control(s): input:price [number], input:registrationFee [number], button:unlabelled
   - Line 156 · **sx-course-batch** · 5 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], button:unlabelled
-  - Line 192 · **sx-center-profile** · 10 control(s): input:revision [hidden], input:sx-profile-logo-file [file], button:sx-profile-logo-choose, button:sx-profile-logo-remove, textarea:aboutEn, textarea:aboutAr, select:reportChannel, input:reportDestination [text], button:sx-report-recipient-add, button:unlabelled
+  - Line 192 · **sx-center-profile** · 10 control(s): input:revision [hidden], input:sx-profile-logo-file [file], button:sx-profile-logo-choose, button:sx-profile-logo-remove, textarea:aboutEn, textarea:aboutAr, select:reportChannel, input:reportDestination [email], button:sx-report-recipient-add, button:unlabelled
 
-  Runtime field builders: line 41 createElement(select); line 41 field name difficultyLevel; line 41 createElement(textarea).
+  Runtime field builders: line 41 form/control helper creates select; line 41 field name difficultyLevel; line 41 form/control helper creates textarea.
 
 ### `client/public/training-faqs.js`
 
@@ -199,22 +203,22 @@ The custom trainer-name label uses the HTML `hidden` attribute, but a more-speci
 
 ### `client/public/training-finance.js`
 
-  - Line 91 · **sx-invoice-filter** · 3 control(s): input:q [text], select:status, button:unlabelled
-  - Line 102 · **sx-reminder-settings-form** · 3 control(s): input:enabled [checkbox], select:unlabelled, button:unlabelled
-  - Line 132 · **sx-generator-settings** · 7 control(s): input:companyName [hidden], input:crNumber [hidden], input:address [hidden], input:invoicePrefix [hidden], textarea:footer, button:sx-generator-add-plan, button:unlabelled
-  - Line 132 · **sx-generator-invoice** · 11 control(s): input:customerType [radio], input:customerType [radio], input:sx-generator-search [text], select:sx-generator-customer-select, input:customerName [text], input:customerPhone [tel], input:customerEmail [email], textarea:customerAddress, select:courseId, select:paymentPlan, button:unlabelled
-  - Line 164 · **sx-aging-filter** · 6 control(s): input:from [date], input:to [date], select:bucket, input:q [text], button:unlabelled, button:sx-aging-clear
-  - Line 198 · **sx-payment-form** · 6 control(s): input:amount [number], select:method, input:receivedAt [datetime-local], input:reference [text], input:note [text], button:unlabelled
-  - Line 224 · **sx-schedule-change-form** · 5 control(s): input:dueDate [date], input:amount [number], button:sx-schedule-add-row, textarea:reason, button:unlabelled
-  - Line 231 · **sx-credit-form** · 3 control(s): input:amount [number], textarea:reason, button:unlabelled
-  - Line 268 · **unnamed form** · 3 control(s): textarea:reason, button:decision, button:decision
-  - Line 268 · **unnamed form** · 5 control(s): select:method, input:reference [text], input:completedAt [datetime-local], input:confirmed [checkbox], button:unlabelled
-  - Line 268 · **unnamed form** · 4 control(s): select:paymentId, input:amount [number], textarea:reason, button:unlabelled
-  - Line 283 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
-  - Line 283 · **unnamed form** · 5 control(s): select:paymentId, input:amount [number], input:reference [text], textarea:reason, button:unlabelled
-  - Line 291 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
+  - Line 93 · **sx-invoice-filter** · 3 control(s): input:q [text], select:status, button:unlabelled
+  - Line 104 · **sx-generator-settings** · 7 control(s): input:companyName [hidden], input:crNumber [hidden], input:address [hidden], input:invoicePrefix [hidden], textarea:footer, button:sx-generator-add-plan, button:unlabelled
+  - Line 104 · **sx-reminder-settings-form** · 3 control(s): input:enabled [checkbox], select:unlabelled, button:unlabelled
+  - Line 127 · **sx-generator-invoice** · 11 control(s): input:customerType [radio], input:customerType [radio], input:sx-generator-search [search], input:customerName [text], input:customerPhone [tel], input:customerEmail [email], textarea:customerAddress, select:courseId, select:paymentPlan, input:replacementReason [text], button:unlabelled
+  - Line 153 · **sx-aging-filter** · 6 control(s): input:from [date], input:to [date], select:bucket, input:q [text], button:unlabelled, button:sx-aging-clear
+  - Line 187 · **sx-payment-form** · 6 control(s): input:amount [number], select:method, input:receivedAt [datetime-local], input:reference [text], input:note [text], button:unlabelled
+  - Line 213 · **sx-schedule-change-form** · 5 control(s): input:dueDate [date], input:amount [number], button:sx-schedule-add-row, textarea:reason, button:unlabelled
+  - Line 220 · **sx-credit-form** · 3 control(s): input:amount [number], textarea:reason, button:unlabelled
+  - Line 257 · **unnamed form** · 3 control(s): textarea:reason, button:decision, button:decision
+  - Line 257 · **unnamed form** · 5 control(s): select:method, input:reference [text], input:completedAt [datetime-local], input:confirmed [checkbox], button:unlabelled
+  - Line 257 · **unnamed form** · 4 control(s): select:paymentId, input:amount [number], textarea:reason, button:unlabelled
+  - Line 272 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
+  - Line 272 · **unnamed form** · 5 control(s): select:paymentId, input:amount [number], input:reference [text], textarea:reason, button:unlabelled
+  - Line 280 · **unnamed form** · 3 control(s): select:decision, textarea:reason, button:unlabelled
 
-  Runtime field builders: line 186 createElement(input); line 194 createElement(input).
+  Runtime field builders: line 175 form/control helper creates input; line 183 form/control helper creates input.
 
 ### `client/public/training-forms.js`
 
@@ -223,12 +227,18 @@ The custom trainer-name label uses the HTML `hidden` attribute, but a more-speci
 
 ### `client/public/training-public-form.js`
 
-  - Line 139 · **enquiry-form** · 8 control(s): input:lead-search [search], input:website [text], input:search [search], input:course_ids [checkbox], select:${esc(field.key)}, input:${field.key} [${type}], input:consent [checkbox], button:submit-button
+  - Line 154 · **enquiry-form** · 10 control(s): input:lead-search [search], input:website [text], input:${tr('Type a course name','اكتب اسم الدورة')} [search], input:course_ids [checkbox], input:public-nationality-search [search], select:${esc(field.key)}, select:${esc(field.key)}, input:${field.key} [${type}], input:consent [checkbox], button:submit-button
 
 ### `client/public/training-students.js`
 
-  - Line 36 · **sx-st-trainer-form** · 2 control(s): input:trainerName [text], button:unlabelled
-  - Line 36 · **sx-st-attendance-form** · 4 control(s): input:sessionDate [date], select:status, input:note [text], button:unlabelled
+  - Line 37 · **sx-st-trainer-form** · 3 control(s): select:trainerChoice, input:trainerName [text], button:unlabelled
+  - Line 37 · **sx-st-attendance-form** · 4 control(s): input:sessionDate [date], select:status, input:note [text], button:unlabelled
+
+### `client/workspace-src/signin.js`
+
+  - No literal form template; controls are created at runtime.
+
+  Runtime field builders: line 12 field(form, key); line 20 form/control helper creates form; line 20 field(form, 'workspace'); line 21 field(form, 'email'); line 22 field(form, 'password'); line 26 form/control helper creates form; line 26 field(form, recovery?'recovery':'code').
 
 ## Review rules for dropdown conversion
 

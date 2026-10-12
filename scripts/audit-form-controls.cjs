@@ -34,7 +34,7 @@ for (const absolute of files.sort()) {
   const source = fs.readFileSync(absolute, 'utf8');
   const relative = path.relative(root, absolute).replaceAll(path.sep, '/');
   const forms = [...source.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form\s*>/gi)];
-  if (!forms.length && !/createElement\(['"](?:form|input|select|textarea)['"]\)/.test(source)) continue;
+  if (!forms.length && !/(?:createElement|el|add)\(\s*['"](?:form|input|select|textarea)['"]\)/.test(source)) continue;
   const lineOf = offset => source.slice(0, offset).split('\n').length;
   const lines = [];
   for (const match of forms) {
@@ -50,7 +50,7 @@ for (const absolute of files.sort()) {
     totalControls += controls.length;
     lines.push(`  - Line ${lineOf(match.index)} · **${esc(name)}** · ${controls.length} control(s): ${controls.length ? controls.map(esc).join(', ') : 'none detected in static markup'}`);
   }
-  const dynamic = [...source.matchAll(/createElement\(['"](form|input|select|textarea)['"]\)|\.name\s*=\s*['"]([^'"]+)['"]/g)].map(match => ({ line: lineOf(match.index), text: match[1] ? `createElement(${match[1]})` : `field name ${match[2]}` }));
+  const dynamic = [...source.matchAll(/(?:createElement|el|add)\(\s*['"](form|input|select|textarea)['"]\)|\.name\s*=\s*['"]([^'"]+)['"]|\bfield\(\s*form\s*,\s*([^,)]+)/g)].map(match => ({ line: lineOf(match.index), text: match[1] ? `form/control helper creates ${match[1]}` : match[2] ? `field name ${match[2]}` : `field(form, ${esc(match[3].trim())})` }));
   if (forms.length || dynamic.length) {
     records.push({ relative, lines, dynamic });
   }
