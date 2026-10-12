@@ -26,5 +26,5 @@ test('task selectors remain catalogue-backed and popup accessibility labels foll
   assert.match(source, /\$\('#statusFilter'\)\.setAttribute\('aria-label',tr\('Status filter','تصفية الحالة'\)\)/);
   assert.match(source, /\$\('#refresh'\)\.setAttribute\('aria-label',tr\('Refresh','تحديث'\)\)/);
   assert.match(source, /querySelectorAll\('\.close'\)\.forEach\(button=>button\.setAttribute\('aria-label',tr\('Close','إغلاق'\)\)\)/);
-  assert.match(html, /tasks\.js\?v=19/);
+  assert.match(html, /tasks\.js\?v=20261012-chat-label1/);
 });

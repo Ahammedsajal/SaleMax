@@ -55,6 +55,7 @@ const records = [];
 let totalForms = 0;
 let totalControls = 0;
 let totalStandaloneFields = 0;
+let totalUnlabelledFields = 0;
 for (const absolute of files.sort()) {
   const source = fs.readFileSync(absolute, 'utf8');
   const relative = path.relative(root, absolute).replaceAll(path.sep, '/');
@@ -62,6 +63,7 @@ for (const absolute of files.sort()) {
   if (!forms.length && !/(?:createElement|el|add)\(\s*['"](?:form|input|select|textarea)['"]\)/.test(source) && !/<(?:input|select|textarea)\b/i.test(source)) continue;
   const lineOf = offset => source.slice(0, offset).split('\n').length;
   const lines = [];
+  const unlabelled = [];
   for (const match of forms) {
     const opening = `<form ${match[1]}>`;
     const name = attr(opening, 'id') || attr(opening, 'data-form') || attr(opening, 'class') || 'unnamed form';
@@ -69,6 +71,16 @@ for (const absolute of files.sort()) {
       const tag = control[0];
       const kind = control[1].toLowerCase();
       if (kind === 'button') return `button:${humanAttribute(tag, 'aria-label') || buttonLabel(match[2], control, tag) || attr(tag, 'data-testid') || 'unlabelled'}`;
+      if (['input', 'select', 'textarea'].includes(kind) && (kind !== 'input' || !['hidden', 'submit', 'reset', 'button', 'image'].includes((attr(tag, 'type') || 'text').toLowerCase()))) {
+        const id = attr(tag, 'id');
+        const openingLabel = match[2].lastIndexOf('<label', control.index);
+        const previousClosingLabel = match[2].lastIndexOf('</label>', control.index);
+        const closingLabel = match[2].indexOf('</label>', control.index + tag.length);
+        const wrapped = openingLabel > previousClosingLabel && closingLabel >= 0;
+        const explicit = id && new RegExp(`<label\\b[^>]*\\bfor\\s*=\\s*(?:"${id.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}"|'${id.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}'|${id.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}(?=[\\s>]))`, 'i').test(match[2]);
+        const named = ['aria-label', 'aria-labelledby', 'title'].some(name => Boolean(attr(tag, name)));
+        if (!wrapped && !explicit && !named) unlabelled.push({ line: lineOf(match.index + control.index), field: fieldLabel(tag, kind) });
+      }
       return fieldLabel(tag, kind);
     });
     totalForms += 1;
@@ -82,9 +94,13 @@ for (const absolute of files.sort()) {
   const standaloneLines = standalone.length
     ? [`  Control fragments outside literal <form> markup (${standalone.length}; some are interpolated into generated forms): ${standalone.map(item => `line ${item.line} ${esc(item.label)}`).join('; ')}`]
     : [];
+  totalUnlabelledFields += unlabelled.length;
+  const unlabelledLines = unlabelled.length
+    ? [`  Controls missing an explicit accessible label (${unlabelled.length}): ${unlabelled.map(item => `line ${item.line} ${esc(item.field)}`).join('; ')}`]
+    : [];
   const dynamic = [...source.matchAll(/(?:createElement|el|add)\(\s*['"](form|input|select|textarea)['"]\)|\.name\s*=\s*['"]([^'"]+)['"]|\bfield\(\s*form\s*,\s*([^,)]+)/g)].map(match => ({ line: lineOf(match.index), text: match[1] ? `form/control helper creates ${match[1]}` : match[2] ? `field name ${match[2]}` : `field(form, ${esc(match[3].trim())})` }));
   if (forms.length || dynamic.length || standalone.length) {
-    records.push({ relative, lines, standaloneLines, dynamic });
+    records.push({ relative, lines, standaloneLines, unlabelledLines, dynamic });
   }
 }
 
@@ -93,7 +109,7 @@ const output = [
   '',
   `Generated ${new Date().toISOString().slice(0, 10)} by \`node scripts/audit-form-controls.cjs\`.`,
   '',
-  `The scan covers maintained HTML/JavaScript/TypeScript under \`client/public\` and \`client/workspace-src\`, excluding the hash-bundled React assets. It found **${totalForms} static form templates**, **${totalControls} controls inside those templates**, and **${totalStandaloneFields} input/select/textarea template fragments** outside literal form blocks. Some fragments are interpolated into generated forms, so this third count is an inventory aid rather than an additive total of rendered controls. Runtime form builders are listed by source line. Dynamic loops and generated catalogue options still need browser checks because static scans cannot count their rendered instances.`,
+  `The scan covers maintained HTML/JavaScript/TypeScript under \`client/public\` and \`client/workspace-src\`, excluding the hash-bundled React assets. It found **${totalForms} static form templates**, **${totalControls} controls inside those templates**, and **${totalStandaloneFields} input/select/textarea template fragments** outside literal form blocks. It also flagged **${totalUnlabelledFields} static fields without an explicit accessible label** (wrapping/for labels, ARIA names and title attributes are recognized; generated fragments and runtime DOM associations still require browser review). Some fragments are interpolated into generated forms, so the third count is an inventory aid rather than an additive total of rendered controls. Runtime form builders are listed by source line. Dynamic loops and generated catalogue options still need browser checks because static scans cannot count their rendered instances.`,
   '',
   '## File-by-file inventory',
   '',
@@ -102,6 +118,7 @@ const output = [
     '',
     ...(record.lines.length ? record.lines : ['  - No literal form template; controls are created at runtime.']),
     ...record.standaloneLines,
+    ...record.unlabelledLines,
     ...(record.dynamic.length ? ['', `  Runtime field builders: ${record.dynamic.map(item => `line ${item.line} ${item.text}`).join('; ')}.`] : []),
     '',
   ]),
