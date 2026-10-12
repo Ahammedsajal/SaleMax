@@ -31,7 +31,7 @@ function buttonLabel(markup, control, tag) {
   const end = markup.indexOf('</button>', start);
   if (end < 0) return '';
   const body = markup.slice(start, end);
-  const translated = body.match(/\$\{(?:t|tr|text)\('([^']+)'/);
+  const translated = body.match(/(?:t|tr|text)\('([^']+)'/);
   if (translated) return translated[1];
   if (body.includes('${')) return '';
   return body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -43,15 +43,23 @@ function humanAttribute(tag, name) {
   return value.match(/\$\{(?:t|tr|text)\('([^']+)'/)?.[1] || value;
 }
 
+function fieldLabel(tag, kind) {
+  const marker = tag.match(/\b(data-[a-z0-9_-]+)(?:\s*=|\s|\/|>)/i)?.[1];
+  const identity = attr(tag, 'name') || attr(tag, 'id') || attr(tag, 'data-field') || marker || humanAttribute(tag, 'aria-label') || humanAttribute(tag, 'placeholder') || 'unlabelled';
+  const readonly = /\sreadonly(?:\s|=|\/|>)/i.test(tag) ? ', readonly' : '';
+  return `${kind}:${identity}${kind === 'input' ? ` [${attr(tag, 'type') || 'text'}${readonly}]` : readonly ? ' [readonly]' : ''}`;
+}
+
 const files = roots.flatMap(relative => [...walk(path.join(root, relative))]);
 const records = [];
 let totalForms = 0;
 let totalControls = 0;
+let totalStandaloneFields = 0;
 for (const absolute of files.sort()) {
   const source = fs.readFileSync(absolute, 'utf8');
   const relative = path.relative(root, absolute).replaceAll(path.sep, '/');
   const forms = [...source.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form\s*>/gi)];
-  if (!forms.length && !/(?:createElement|el|add)\(\s*['"](?:form|input|select|textarea)['"]\)/.test(source)) continue;
+  if (!forms.length && !/(?:createElement|el|add)\(\s*['"](?:form|input|select|textarea)['"]\)/.test(source) && !/<(?:input|select|textarea)\b/i.test(source)) continue;
   const lineOf = offset => source.slice(0, offset).split('\n').length;
   const lines = [];
   for (const match of forms) {
@@ -60,18 +68,23 @@ for (const absolute of files.sort()) {
     const controls = [...match[2].matchAll(/<(input|select|textarea|output|button)\b[^>]*>/gi)].map(control => {
       const tag = control[0];
       const kind = control[1].toLowerCase();
-      const marker = tag.match(/\b(data-[a-z0-9_-]+)(?:\s*=|\s|\/|>)/i)?.[1];
-      const identity = attr(tag, 'name') || attr(tag, 'id') || attr(tag, 'data-field') || marker || humanAttribute(tag, 'aria-label') || humanAttribute(tag, 'placeholder') || (kind === 'button' ? buttonLabel(match[2], control, tag) : '') || 'unlabelled';
-      const readonly = /\sreadonly(?:\s|=|\/|>)/i.test(tag) ? ', readonly' : '';
-      return `${kind}:${identity}${kind === 'input' ? ` [${attr(tag, 'type') || 'text'}${readonly}]` : readonly ? ' [readonly]' : ''}`;
+      if (kind === 'button') return `button:${humanAttribute(tag, 'aria-label') || buttonLabel(match[2], control, tag) || attr(tag, 'data-testid') || 'unlabelled'}`;
+      return fieldLabel(tag, kind);
     });
     totalForms += 1;
     totalControls += controls.length;
     lines.push(`  - Line ${lineOf(match.index)} · **${esc(name)}** · ${controls.length} control(s): ${controls.length ? controls.map(esc).join(', ') : 'none detected in static markup'}`);
   }
+  const standalone = [...source.matchAll(/<(input|select|textarea)\b[^>]*>/gi)]
+    .filter(control => !forms.some(form => control.index > form.index && control.index < form.index + form[0].length))
+    .map(control => ({ line: lineOf(control.index), label: fieldLabel(control[0], control[1].toLowerCase()) }));
+  totalStandaloneFields += standalone.length;
+  const standaloneLines = standalone.length
+    ? [`  Control fragments outside literal <form> markup (${standalone.length}; some are interpolated into generated forms): ${standalone.map(item => `line ${item.line} ${esc(item.label)}`).join('; ')}`]
+    : [];
   const dynamic = [...source.matchAll(/(?:createElement|el|add)\(\s*['"](form|input|select|textarea)['"]\)|\.name\s*=\s*['"]([^'"]+)['"]|\bfield\(\s*form\s*,\s*([^,)]+)/g)].map(match => ({ line: lineOf(match.index), text: match[1] ? `form/control helper creates ${match[1]}` : match[2] ? `field name ${match[2]}` : `field(form, ${esc(match[3].trim())})` }));
-  if (forms.length || dynamic.length) {
-    records.push({ relative, lines, dynamic });
+  if (forms.length || dynamic.length || standalone.length) {
+    records.push({ relative, lines, standaloneLines, dynamic });
   }
 }
 
@@ -80,7 +93,7 @@ const output = [
   '',
   `Generated ${new Date().toISOString().slice(0, 10)} by \`node scripts/audit-form-controls.cjs\`.`,
   '',
-  `The scan covers maintained HTML/JavaScript/TypeScript under \`client/public\` and \`client/workspace-src\`, excluding the hash-bundled React assets. It found **${totalForms} static form templates** and **${totalControls} static controls**. Each listed field is identified by its \`name\`, \`id\`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.`,
+  `The scan covers maintained HTML/JavaScript/TypeScript under \`client/public\` and \`client/workspace-src\`, excluding the hash-bundled React assets. It found **${totalForms} static form templates**, **${totalControls} controls inside those templates**, and **${totalStandaloneFields} input/select/textarea template fragments** outside literal form blocks. Some fragments are interpolated into generated forms, so this third count is an inventory aid rather than an additive total of rendered controls. Runtime form builders are listed by source line. Dynamic loops and generated catalogue options still need browser checks because static scans cannot count their rendered instances.`,
   '',
   '## File-by-file inventory',
   '',
@@ -88,6 +101,7 @@ const output = [
     `### \`${record.relative}\``,
     '',
     ...(record.lines.length ? record.lines : ['  - No literal form template; controls are created at runtime.']),
+    ...record.standaloneLines,
     ...(record.dynamic.length ? ['', `  Runtime field builders: ${record.dynamic.map(item => `line ${item.line} ${item.text}`).join('; ')}.`] : []),
     '',
   ]),
