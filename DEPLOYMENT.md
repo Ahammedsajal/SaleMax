@@ -1,5 +1,12 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Searchable nationality picker count fix — production, 12 October 2026
+
+- Source commit `47edd757ec06fc7709460d12b83ec7afbad8745c` is pushed to `Ahammedsajal/SaleMax` `main`. The bilingual nationality search now reports only actual matches; keeping a previously selected country in the filtered dropdown no longer inflates the result count. Clearing the search restores the full 250-country/territory catalogue, and submitted country values remain canonical English names.
+- Active release `/opt/salemax/releases/nationality-search-accuracy-47edd75-20261012` on `carsqatar-prod-01`. App container `56918d445c78aa258416dc3e077f19562537bedf2d0e0d001443a39e5746cdfc`, image `sha256:00a6c758a24a2913845e74c32db8639a27062246cdb9c8333e2612d64c316433`, remains running with zero restarts. Template SHA-256 `7bf50d29519106dab480f0fef50fc541fd69794c92923bd39aab7439798b44e7`; registration-controls SHA-256 `1f00134984f7bed589971574bd5f517b66ea9687d2603d305a5fc1676bd9007b`. Release, container and public responses match; `/healthz` returns HTTP 200.
+- Protected rollback directory `/opt/salemax/shared/rollback-nationality-search-accuracy-47edd75-20261012` is mode 0700 and retains the previous HTML and script plus release/container state. Previous release: `/opt/salemax/releases/finance-reminder-popup-eba6cd8-20261012`. This static asset release did not restart the app, database or report worker; their IDs and start times remain unchanged. No migration or business-data write occurred.
+- Validation: focused form/localization/Turnstile checks pass 18/18. At 390×844 on the published registration form, English “Ethiopia” and Arabic “مصر” each return one matching country; an unmatched query shows the localized zero-results message, and a previously selected Egypt remains selected through filtering. Clearing search restores all 251 select entries including the prompt. Page width remains 375 px inside the 390 px viewport; the form was not submitted.
+
 ## Invoice PDF popup payment-plan layout — production, 12 October 2026
 
 - Source commit `33ddedd17a3a1bfb804cf7f926db1708328f3de3` is pushed to `Ahammedsajal/SaleMax` `main`. Saved payment plan names, payment counts, spacing intervals and removal actions now form compact aligned rows in the invoice settings popup, with a two-column layout at narrower CSS breakpoints. Invoice, contact, course and plan data contracts are unchanged.
