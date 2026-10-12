@@ -2,13 +2,17 @@
 
 Inventory refreshed 2026-10-12 by `node scripts/audit-form-controls.cjs`.
 
-The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **62 static form templates** and **341 static controls**. The course batch-language field now comes from a shared runtime builder, so its language select and optional custom-code input are listed separately below. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
+The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **63 static form templates** and **348 static controls**. The course batch-language field now comes from a shared runtime builder, so its language select and optional custom-code input are listed separately below. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
+
+## Latest popup review — course creation
+
+The production Add Course dialog was visually checked at desktop width. Its constrained centered shell, aligned field grid, internal scrolling and persistent action bar remained intact. Course names now lead the first section; an optional student ID prefix no longer adds a duplicate manual entry. Static format, level and payment choices remain native selects, while learner names and bilingual course copy remain editable. Production interaction confirmed a suggested course code, preserved a manually edited code across later name changes, and closed the form without saving. The catalogue still showed 15 courses afterward.
 
 ## Latest visual defect review — invoice builder
 
 The supplied Finance screenshot showed the manual customer fields while “Choose from Leads & Contacts” was selected, oversized radio controls, and a form that did not read as a focused popup. The runtime Finance stylesheet sets `.grid` to `display:grid`, which overrides the browser’s default hidden display behavior. The invoice modal stylesheet now explicitly honors hidden elements, radio choice labels have selected and keyboard-focus states, the focus trap skips controls inside hidden sections, and the customer fieldset’s extra closing tag is removed. This fix is deployed in release `invoice-builder-modal-e0057fa-20261012`; the served CSS and JavaScript hashes are recorded in `DEPLOYMENT.md`.
 
-The focused source checks and authenticated English Finance browser check pass: manual fields stay hidden in contact mode and appear only after choosing manual entry; Escape closes the modal. No invoice or payment was created. The broader scan still has 62 templates and 341 controls requiring page-by-page layout review and field-level decisions about dropdowns, searchable options, sensible defaults, and fields that must remain free text.
+The focused source checks and authenticated English Finance browser check pass: manual fields stay hidden in contact mode and appear only after choosing manual entry; Escape closes the modal. No invoice or payment was created. The refreshed scan has 63 templates and 348 controls. Each still needs page-by-page layout review and field-level decisions about dropdowns, searchable options, sensible defaults, and fields that must remain free text.
 
 ## File-by-file inventory
 
@@ -89,12 +93,12 @@ The focused source checks and authenticated English Finance browser check pass: 
 
 ### `client/public/pipeline/pipeline.js`
 
-  - Line 58 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [text], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], input:unlabelled [text], button:unlabelled
-  - Line 78 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
-  - Line 90 · **settingsForm** · 13 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, select:unlabelled, button:unlabelled, input:unlabelled [text], button:unlabelled, button:addMetaAdsMessage, button:unlabelled, button:unlabelled
-  - Line 90 · **newStage** · 2 control(s): input:title [text], button:unlabelled
-  - Line 100 · **sale-review-form** · 17 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], input:price [text], input:registrationFee [text], input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:unlabelled, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:unlabelled
-  - Line 111 · **sale-review-decision** · 3 control(s): input:reason [text], button:unlabelled, button:unlabelled
+  - Line 60 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [tel], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], input:unlabelled [text], button:unlabelled
+  - Line 81 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
+  - Line 96 · **settingsForm** · 13 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, select:unlabelled, button:unlabelled, input:unlabelled [text], button:unlabelled, button:addMetaAdsMessage, button:unlabelled, button:unlabelled
+  - Line 96 · **newStage** · 2 control(s): input:title [text], button:unlabelled
+  - Line 106 · **sale-review-form** · 17 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], input:price [text], input:registrationFee [text], input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:unlabelled, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:unlabelled
+  - Line 117 · **sale-review-decision** · 3 control(s): input:reason [text], button:unlabelled, button:unlabelled
 
 ### `client/public/pipeline/reports.js`
 
@@ -126,21 +130,25 @@ The focused source checks and authenticated English Finance browser check pass: 
 
 ### `client/public/training-courses.js`
 
-  - Line 101 · **sx-course-create** · 13 control(s): input:studentIdPrefix [text], input:code [text], input:durationValue [number], select:durationUnit, input:nameEn [text], input:nameAr [text], select:deliveryMode, input:price [number], input:registrationFee [number], textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-cancel
-  - Line 152 · **sx-batch-edit** · 7 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], select:status, button:unlabelled, button:sx-batch-cancel-edit
-  - Line 148 · **sx-course-edit** · 12 control(s): input:studentIdPrefix [text], input:expectedRevision [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-publish
-  - Line 148 · **sx-course-offer** · 3 control(s): input:price [number], input:registrationFee [number], button:unlabelled
-  - Line 152 · **sx-course-batch** · 5 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], button:unlabelled
-  - Line 184 · **sx-center-profile** · 10 control(s): input:revision [hidden], input:sx-profile-logo-file [file], button:sx-profile-logo-choose, button:sx-profile-logo-remove, textarea:aboutEn, textarea:aboutAr, select:reportChannel, input:reportDestination [text], button:sx-report-recipient-add, button:unlabelled
+  - Line 102 · **sx-course-create** · 13 control(s): input:studentIdPrefix [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, input:price [number], input:registrationFee [number], textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-cancel
+  - Line 156 · **sx-batch-edit** · 7 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], select:status, button:unlabelled, button:sx-batch-cancel-edit
+  - Line 156 · **sx-course-edit** · 12 control(s): input:studentIdPrefix [text], input:expectedRevision [hidden], input:nameEn [text], input:nameAr [text], input:code [text], input:durationValue [number], select:durationUnit, select:deliveryMode, textarea:descriptionEn, textarea:descriptionAr, button:unlabelled, button:sx-course-publish
+  - Line 156 · **sx-course-offer** · 3 control(s): input:price [number], input:registrationFee [number], button:unlabelled
+  - Line 156 · **sx-course-batch** · 5 control(s): input:code [text], input:startsOn [date], input:endsOn [date], input:capacity [number], button:unlabelled
+  - Line 192 · **sx-center-profile** · 10 control(s): input:revision [hidden], input:sx-profile-logo-file [file], button:sx-profile-logo-choose, button:sx-profile-logo-remove, textarea:aboutEn, textarea:aboutAr, select:reportChannel, input:reportDestination [text], button:sx-report-recipient-add, button:unlabelled
 
-  Runtime field builders: line 41 createElement(select); line 41 field name difficultyLevel; line 148 `batchLanguageField()` for both batch forms; line 41 createElement(textarea). The language builder offers Arabic, English, Hindi, Urdu, Malayalam, Bengali, Nepali, Filipino, Tamil and French; “Other” preserves existing valid locale codes and reveals a validated custom-code field. Create and edit keep the existing server `language` contract.
+  Runtime field builders: line 41 createElement(select); line 41 field name difficultyLevel; line 41 createElement(textarea).
+
+### `client/public/training-faqs.js`
+
+  - Line 37 · **sx-faq-form** · 7 control(s): button:${tr('Close','إغلاق')}, input:questionEn [text], textarea:answerEn, input:questionAr [text], textarea:answerAr, button:unlabelled, button:unlabelled
 
 ### `client/public/training-finance.js`
 
   - Line 91 · **sx-invoice-filter** · 3 control(s): input:q [text], select:status, button:unlabelled
   - Line 102 · **sx-reminder-settings-form** · 3 control(s): input:enabled [checkbox], select:unlabelled, button:unlabelled
   - Line 132 · **sx-generator-settings** · 7 control(s): input:companyName [hidden], input:crNumber [hidden], input:address [hidden], input:invoicePrefix [hidden], textarea:footer, button:sx-generator-add-plan, button:unlabelled
-  - Line 132 · **sx-generator-invoice** · 11 control(s): input:customerType [radio], input:customerType [radio], input:sx-generator-search [text], select:sx-generator-customer-select, input:customerName [text], input:customerPhone [text], input:customerEmail [email], textarea:customerAddress, select:courseId, select:paymentPlan, button:unlabelled
+  - Line 132 · **sx-generator-invoice** · 11 control(s): input:customerType [radio], input:customerType [radio], input:sx-generator-search [text], select:sx-generator-customer-select, input:customerName [text], input:customerPhone [tel], input:customerEmail [email], textarea:customerAddress, select:courseId, select:paymentPlan, button:unlabelled
   - Line 164 · **sx-aging-filter** · 6 control(s): input:from [date], input:to [date], select:bucket, input:q [text], button:unlabelled, button:sx-aging-clear
   - Line 198 · **sx-payment-form** · 6 control(s): input:amount [number], select:method, input:receivedAt [datetime-local], input:reference [text], input:note [text], button:unlabelled
   - Line 224 · **sx-schedule-change-form** · 5 control(s): input:dueDate [date], input:amount [number], button:sx-schedule-add-row, textarea:reason, button:unlabelled
@@ -156,12 +164,12 @@ The focused source checks and authenticated English Finance browser check pass: 
 
 ### `client/public/training-forms.js`
 
-  - Line 59 · **sx-app-filter** · 4 control(s): input:search [search], input:from [date], input:to [date], button:unlabelled
-  - Line 63 · **sx-form-editor** · 16 control(s): input:id [hidden], input:revision [hidden], input:slug [text], input:nameEn [text], input:nameAr [text], input:titleEn [text], input:titleAr [text], textarea:descriptionEn, textarea:descriptionAr, input:${key} [checkbox], input:unlabelled [checkbox], textarea:consentTextEn, textarea:consentTextAr, button:unlabelled, button:sx-form-publish, button:sx-form-preview
+  - Line 60 · **sx-app-filter** · 4 control(s): input:search [search], input:from [date], input:to [date], button:unlabelled
+  - Line 64 · **sx-form-editor** · 16 control(s): input:id [hidden], input:revision [hidden], input:slug [text], input:nameEn [text], input:nameAr [text], input:titleEn [text], input:titleAr [text], textarea:descriptionEn, textarea:descriptionAr, input:${key} [checkbox], input:unlabelled [checkbox], textarea:consentTextEn, textarea:consentTextAr, button:unlabelled, button:sx-form-publish, button:sx-form-preview
 
 ### `client/public/training-public-form.js`
 
-  - Line 76 · **enquiry-form** · 6 control(s): input:lead-search [search], input:website [text], select:course_ids, input:${field.key} [${type}], input:consent [checkbox], button:submit-button
+  - Line 94 · **enquiry-form** · 7 control(s): input:lead-search [search], input:website [text], select:course_ids, select:${esc(field.key)}, input:${field.key} [${type}], input:consent [checkbox], button:submit-button
 
 ### `client/public/training-students.js`
 
@@ -193,7 +201,7 @@ The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (abo
 
 - Course batch creation and editing now use a bilingual language select for common Qatar training-center languages, with an “Other” option that preserves existing valid locale codes and reveals a validated custom-code field. API payloads keep the existing `language` contract. Focused UI-contract tests cover common/custom selections and both create/edit submission paths.
 
-- Course setup now gives the student ID prefix and course code distinct labels. Batch scheduling no longer displays the unrelated student ID prefix field that its API ignored, preventing staff from entering data that would be silently discarded.
+- Course creation now requests learner-facing English and Arabic names before the course code. The code is suggested from the English name with a collision-reducing suffix and remains editable; later name edits do not overwrite a manually edited code. The create screen no longer asks for the optional student ID prefix, which defaults to the course code during registration. Existing course editing still allows staff to change that prefix. The authenticated production popup verified both generated suggestions and manual override behavior without saving a draft.
 
 - Course create and offer-edit prices and registration fees use bounded QAR decimal number inputs (`min=0`, `max=999999999.99`, `step=0.01`). Creating a draft may still omit its price; the active-offer editor still requires one. This aligns browser input with the existing `moneyMinor` parser and server minor-unit limit without changing the API contract.
 
