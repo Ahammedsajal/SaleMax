@@ -55,6 +55,14 @@ test('only the Meta Access Token field is masked on manual Meta setup', () => {
   assert.equal(appId.type, 'text');
 });
 
+test('the Arabic Meta access-token label is masked as well', () => {
+  const token = field('رمز وصول Meta');
+  const businessAccount = field('معرف حساب واتساب للأعمال');
+  run('wa-meta-manual', [token, businessAccount]);
+  assert.equal(token.type, 'password');
+  assert.equal(businessAccount.type, 'text');
+});
+
 test('other pages and unrelated credentials keep their original input types', () => {
   const token = field('Meta Access Token');
   const otherSecret = field('SMTP password');
@@ -73,7 +81,7 @@ test('late-rendered token inputs are masked by the DOM observer', () => {
 });
 
 test('the app shell loads the maintained hook before the React screen bundle', () => {
-  const hook = index.indexOf('/meta-credential-controls.js?v=20261012-token-mask1');
+  const hook = index.indexOf('/meta-credential-controls.js?v=20261012-token-mask2');
   const app = index.indexOf('/static/js/main.73648acf.js');
   assert.notEqual(hook, -1);
   assert.ok(app > hook);

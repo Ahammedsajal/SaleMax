@@ -2,7 +2,7 @@
   'use strict';
 
   const targetPage = 'wa-meta-manual';
-  const metaTokenLabel = /^meta access token$/i;
+  const metaTokenLabel = /^(?:meta access token|رمز وصول meta)$/i;
 
   function maskTokenField() {
     if (new URLSearchParams(window.location.search).get('page') !== targetPage) return;
