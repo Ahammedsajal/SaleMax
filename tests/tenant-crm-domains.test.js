@@ -97,7 +97,8 @@ test('tenant CRM logo storage is private and the appearance UI keeps the existin
   assert.match(media,/CRM_LOGO_SIGNATURE_INVALID/);
   assert.match(router,/canonicalGuard/);
   assert.match(router,/sendLogo/);
-  assert.match(shell,/tenant-crm-appearance\.js\?v=20261010-tenant-crm2/);
+  assert.match(shell,/tenant-crm-appearance\.js\?v=20261012-hostname-input1/);
+  assert.match(ui,/<input data-hostname type="text" inputmode="url" autocapitalize="none" spellcheck="false" maxlength="253" placeholder="crm\.yourcompany\.qa" autocomplete="off">/);
   assert.match(ui,/These settings do not change your public website/);
   assert.match(ui,/separately from the logo used on your public forms and documents/);
   assert.match(worker,/Tenant domains are CRM-only origins/);
