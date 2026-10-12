@@ -322,3 +322,7 @@ The receivables-aging search field now occupies a full-width row on phones, with
 ## PBX gateway forms — inbound DID entry, 12 October 2026
 
 The tenant gateway editor’s inbound Direct Inward Dial number is a variable phone number, so it remains editable rather than becoming an incomplete dropdown. It now uses a telephone input with a phone keypad hint and telephone autofill. The Asterisk configuration suite passes 19/19. The new versioned asset and app health were verified in production; direct visual acceptance remains pending because this browser session redirects `/admin?page=pbx-telephony` to the platform sign-in page.
+
+## Call Center outgoing-call form — entitlement failure state, 12 October 2026
+
+The outgoing-call form previously stayed visible and enabled when telephony status returned `FEATURE_UNAVAILABLE` or another access/status error, despite the page saying the plan did not include Call Center. The error path now hides outgoing calls and extension/queue management until a successful refresh confirms access. Production review at 390×844 verified the entitlement message, hidden call form, and 375 px page width; no call was placed. Release evidence is in `DEPLOYMENT.md`.

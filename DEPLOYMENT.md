@@ -1307,3 +1307,11 @@ Test commands reset bot, restart bot and إعادة ضبط الروبوت are ac
 - Active release: `/opt/salemax/releases/telephony-did-input-c8c1860-20261012`; previous release: `/opt/salemax/releases/finance-report-search-58745ad-r1-20261012`. Protected rollback files are in mode-0700 directory `/opt/salemax/shared/rollback-telephony-did-input-c8c1860-20261012`.
 - Production asset hashes: index `e5c61ef8397bb094660eba0d277689925ac78b6ea6d3837ac3115ee7cb927393`; `admin-telephony.js` `1ecae227f051826cfd2b6b57becfa1169046c9adbb1745afb3647ba48cb08095`. Release, running app container and served script hashes match. The app stayed on the same container with zero restarts; no database or business setting changed.
 - Verification: Asterisk configuration tests pass 19/19, the script passes `node --check`, production health and the versioned script return HTTP 200. Browser visual acceptance is pending a normal platform-admin sign-in; the available session redirected the admin page to `/admin/login`. No PBX setting or phone number was saved.
+
+
+## Call Center entitlement form state — production, 12 October 2026
+
+- Source commit `87580ff` is pushed to `Ahammedsajal/SaleMax` `main`. When call-status loading fails with a sign-in, permission or plan error, the page now hides the outgoing-call controls and extension/queue management. A successful refresh still reveals only the controls permitted by the returned access state.
+- Active release: `/opt/salemax/releases/call-center-entitlement-87580ff-20261012`; previous release: `/opt/salemax/releases/telephony-did-input-c8c1860-20261012`. Protected rollback files are in mode-0700 directory `/opt/salemax/shared/rollback-call-center-entitlement-87580ff-20261012`.
+- Production asset hashes: Call Center HTML `0dcdc469920f6ab79a438696ef2604610fdfa09f6a2de24547f16cd236241fff`; `call-center.js` `5a366a2cb055d36f87ad723d2e1ba592bf1b76cf1c799e399bbf81201a6cd0c3`. Release, running app container and served script hashes match. App container stayed on the same image and has zero restarts. No database or call configuration changed.
+- Verification: Asterisk configuration tests pass 19/19, JavaScript syntax and `git diff --check` pass, and production health/versioned script return HTTP 200. At 390×844, the “not included in your active plan” state hides the call form and controls; page width is 375 px. No call was placed.
