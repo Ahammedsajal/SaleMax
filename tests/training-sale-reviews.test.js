@@ -28,5 +28,7 @@ test('sale options use the Qatar-local calendar date without MariaDB timezone ta
 });
 test('sale review API and bilingual screen are integrated into the existing pipeline drawer',()=>{
   const fs=require('node:fs'),path=require('node:path'),root=path.join(__dirname,'..');const ui=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.js'),'utf8'),router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8'),css=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8');
+  const html=fs.readFileSync(path.join(root,'client/public/pipeline/index.html'),'utf8');
   assert.match(ui,/sale-review-area/);assert.match(ui,/saleReviewDescription/);assert.match(ui,/مراجعة البيع/);assert.match(ui,/installmentTotalMismatch/);assert.match(ui,/financeBlocker/);assert.match(router,/\/sale-options/);assert.match(router,/sale-reviews\/\:reviewId\/decision/);assert.match(css,/sale-review-form/);
+  assert.match(ui,/data-sale-course-price/);assert.match(ui,/data-sale-registration-fee/);assert.doesNotMatch(ui,/<input name="price"[^>]*readonly/);assert.doesNotMatch(ui,/<input name="registrationFee"[^>]*readonly/);assert.match(ui,/form\.querySelector\('\[data-sale-course-price\]'\)\.textContent=minorText\(base\)/);assert.match(css,/\.sale-review-money\{/);assert.match(html,/pipeline\.css\?v=15/);assert.match(html,/pipeline\.js\?v=20261012-sale-price-output1/);
 });
