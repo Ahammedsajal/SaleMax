@@ -27,6 +27,7 @@ test('public form controls support finite course-profile dropdowns and unknown p
   const arabicNationalities=Array.from(api.optionsForField('nationality','ar'));
   assert.deepEqual(Array.from(api.filterNationalityChoices(arabicNationalities,'مصر')).map(([value])=>value),['Egypt'],'Arabic search preserves the canonical English value');
   assert.deepEqual(Array.from(api.filterNationalityChoices(nationalities,'no matching country','Qatar')).map(([value])=>value),['Qatar'],'searching after selection does not discard the chosen value');
+  assert.equal(api.matchingNationalityChoices(nationalities,'no matching country').length,0,'the visible match count excludes a preserved selection that does not match');
   const registrationEn=api.capture({consentTextEn:'Consent',consentTextAr:'موافقة'},'en',false,{},{});
   const registrationAr=api.capture({consentTextEn:'Consent',consentTextAr:'موافقة'},'ar',false,{},{});
   assert.match(registrationEn,/<option value="Western Sahara">Western Sahara<\/option>/);

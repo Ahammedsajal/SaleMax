@@ -28,5 +28,5 @@ test('staff registration capture uses translated Qatar city labels and stable En
   assert.match(controlsSource, /control\.disabled=!enabled/);
   assert.match(controlsSource, /No active batches are available/);
   assert.match(controlsSource, /Choose a course first/);
-  assert.match(publicTemplate, /training-registration-controls\.js\?v=20261012-nationality-search1/);
+  assert.match(publicTemplate, /training-registration-controls\.js\?v=20261012-nationality-search2/);
 });
