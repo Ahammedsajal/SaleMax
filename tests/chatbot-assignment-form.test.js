@@ -12,5 +12,5 @@ test('chatbot assignment shows the selected bot title as a labelled preview',()=
   assert.match(ui,/<output data-title aria-label="\$\{esc\(tr\('Title','العنوان'\)\)\}"/);
   assert.match(ui,/titleOutput\.textContent = bot\?\.name \|\| tr\('Select a bot to see its title'/);
   assert.doesNotMatch(ui,/<input data-title readonly/);
-  assert.match(loader,/chatbot-admin\.js\?v=20261012-test-phone-chips1/);
+  assert.match(loader,/chatbot-admin\.js\?v=20261012-test-phone-chips2/);
 });

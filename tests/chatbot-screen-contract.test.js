@@ -89,6 +89,7 @@ test('Hybrid bot test recipients are entered as validated removable phone chips'
   assert.match(admin, /testPhoneFail\(tr\('Enter a valid international number/);
   assert.match(admin, /current\.length >= 10/);
   assert.match(admin, /testRecipientPhones:String\(data\.get\('testRecipientPhone'\)\|\|''\)\.split/);
+  assert.match(admin, /\$\{audienceNotice\}\$\{testSettings\}\$\{flowField\}/);
 });
 
 test('AI provider, model, usage limit, and confidence use curated dropdown choices', () => {
