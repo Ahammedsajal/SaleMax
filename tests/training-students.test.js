@@ -29,3 +29,31 @@ test('student directory queries are tenant scoped and bounded',async()=>{
 test('student profile rejects invalid IDs before querying',async()=>{
   let called=false;await assert.rejects(()=>students.profile({query:async()=>{called=true;}},context,'not-an-id'),{code:'INVALID_STUDENT_ID'});assert.equal(called,false);
 });
+test('student profile returns tenant-scoped saved trainer choices for the assignment select',async()=>{
+  const id='e4a72fc5-6242-45c6-a363-98fba2e43d9a',queries=[];
+  const student={id,leadId:'lead-1',invoiceId:'invoice-1',totalMinor:'100',paidMinor:'0',creditedMinor:'0',subtotalMinor:'100',taxMinor:'0'};
+  const db={query:async(sql,params)=>{
+    queries.push({sql,params});
+    if(sql.includes('FROM sx_training_enrollments e JOIN sx_training_invoices i'))return [[student],[]];
+    if(sql.includes('SELECT DISTINCT TRIM(trainer_name)'))return [[{name:'Alex'},{name:'Mina'}],[]];
+    if(sql.includes('FROM sx_training_form_submissions fs'))return [[],[]];
+    if(sql.includes('FROM sx_training_student_attendance'))return [[],[]];
+    if(sql.includes('FROM sx_training_enrollment_events'))return [[],[]];
+    if(sql.includes('SELECT (SELECT COALESCE(SUM(x.amount_minor)'))return [[{scheduledMinor:'0',installmentCount:0}],[]];
+    if(sql.includes('FROM sx_training_installments'))return [[],[]];
+    if(sql.includes('FROM sx_training_payments p'))return [[],[]];
+    if(sql.includes('FROM sx_training_invoice_lines'))return [[],[]];
+    if(sql.includes('FROM sx_training_receipts'))return [[],[]];
+    if(sql.includes('FROM sx_tenants t LEFT JOIN sx_training_center_profiles'))return [[{tenantName:'Training Center'}],[]];
+    throw new Error(`Unexpected query: ${sql}`);
+  }};
+  const result=await students.profile(db,context,id);
+  assert.deepEqual(result.trainerNames,['Alex','Mina']);
+  const trainerQuery=queries.find(({sql})=>sql.includes('SELECT DISTINCT TRIM(trainer_name)'));
+  assert.deepEqual(trainerQuery.params,[context.tenant.id]);
+  assert.match(trainerQuery.sql,/tenant_id=\?/);
+  const client=require('node:fs').readFileSync(require('node:path').join(__dirname,'../client/public/training-students.js'),'utf8');
+  assert.match(client,/name="trainerChoice"/);
+  assert.match(client,/__sx_add_trainer__/);
+  assert.match(client,/const trainerName=trainerChoice\.value==='__sx_add_trainer__'\?customTrainerInput\.value:trainerChoice\.value/);
+});
