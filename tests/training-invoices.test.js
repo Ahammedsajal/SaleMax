@@ -44,7 +44,7 @@ test('invoice payment-plan rows keep names readable on phone widths',()=>{
   assert.match(css,/@media\(max-width:760px\)\{#sx-finance-screen #sx-generator-plans \.sx-invoice-plan\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\);gap:10px\}#sx-finance-screen #sx-generator-plans \.sx-invoice-plan>label:first-child\{grid-column:1\/-1\}/);
   assert.match(css,/#sx-finance-screen #sx-generator-plans \.sx-invoice-plan \[data-remove-plan\]\{grid-column:1\/-1;justify-self:end;min-width:96px;min-height:40px\}/);
   assert.match(css,/#sx-finance-screen #sx-generator-settings>#sx-generator-add-plan,#sx-finance-screen #sx-generator-settings>button\.primary\{grid-column:1\/-1;justify-self:stretch;width:100%;min-height:44px\}/);
-  assert.match(index,/salemax-brand\.css\?v=20261012-mobile-plan-rows2/);
+  assert.match(index,/salemax-brand\.css\?v=20261012-finance-report-search1/);
 });
 test('approved-sale invoice queue rejects roles outside owner/accountant before database access',async()=>{
   const ctx=context('agent'),pool={getConnection(){throw Error('unauthorized role must be rejected before database access')}};
