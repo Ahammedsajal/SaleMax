@@ -7,6 +7,7 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'client/public/meta-credential-controls.js'), 'utf8');
+const index = fs.readFileSync(path.join(root, 'client/public/index.html'), 'utf8');
 
 function run(page, fields) {
   let observerCallback;
@@ -69,4 +70,11 @@ test('late-rendered token inputs are masked by the DOM observer', () => {
   fields.push(lateToken);
   callback();
   assert.equal(lateToken.type, 'password');
+});
+
+test('the app shell loads the maintained hook before the React screen bundle', () => {
+  const hook = index.indexOf('/meta-credential-controls.js?v=20261012-token-mask1');
+  const app = index.indexOf('/static/js/main.73648acf.js');
+  assert.notEqual(hook, -1);
+  assert.ok(app > hook);
 });
