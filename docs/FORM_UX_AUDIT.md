@@ -20,6 +20,10 @@ The settings disclosure initially revealed a long form with plan inputs wrapping
 
 Finance Reports uses date controls for invoice issue range, a five-option aging-period select, and a free-text search for matching invoice/learner/payer details. Apply and Clear actions stay in the same aligned filter row at desktop width. The rendered report totals, aging table and empty-state loaded successfully; no filters or finance data were changed. Search remains text because it matches several independent identifiers.
 
+## Students directory — production, 12 October 2026
+
+The enrolled-student dashboard has a single search for name, phone, email or invoice, a six-state enrollment-status select, Search/Clear actions and Refresh. Its filter controls are aligned in one row at desktop width, while status is selected from the finite enrollment lifecycle rather than typed manually. Production currently has zero enrollments, so student detail, attendance and payment-profile forms could not be opened for live review; source-maintained fields remain in the static inventory above. No student or finance records were changed.
+
 ## FAQ library — bilingual Add/Edit popup, production, 12 October 2026
 
 The authenticated FAQ Add FAQ dialog previously placed all four bilingual fields in one vertical column and inherited a global dialog rule that pinned it to the top-left corner. English and Arabic question/answer pairs now sit in separate language panels on desktop and stack on phones. The dialog is explicitly centered, constrained to the viewport, scrollable when needed, and keeps its actions visible. English controls use left-to-right direction; Arabic controls use right-to-left direction. The four question/answer fields remain free text because these are business-authored, open-ended words rather than values from a finite catalogue. Existing field names and FAQ API payloads are unchanged.
