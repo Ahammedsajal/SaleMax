@@ -1157,3 +1157,10 @@ Training AI BOT is live using the existing shared API key, on connected 55160323
 ## Invoice builder usability update — production, 12 October 2026
 
 The existing Finance invoice builder now puts customer/course/payment details first and its saved plan/footer configuration below. Lead search and selection use one searchable dropdown, and saved plans render one schedule row per payment. “Generate invoice” replaces the A4-specific button label; the resulting PDF remains A4. Production release `/opt/salemax/releases/finance-invoice-ui-d92f3f9-20261012` is active. Container syntax, release/container/served asset hashes and health checks passed. No migration or financial record was written. Authenticated browser and synthetic invoice issuance acceptance remain open; release and rollback evidence is in `DEPLOYMENT.md`.
+
+
+## Industry-wide SaleMaX homepage messaging — production, 12 October 2026
+
+The existing public homepage now positions SaleMaX as customizable CRM, WhatsApp business messaging and automation for all industries, with named categories for real estate, training centers, healthcare, clinics, retail, restaurants, hospitality, fitness, beauty, automotive, education and professional services. The existing layout and styles are unchanged. Training Center invoicing is presented as a category-specific capability.
+
+Source commit `3724675717a4502eea8ca8862b7de281e319350b` is deployed in `/opt/salemax/releases/salemax-industries-3724675-20261012`. English and Arabic live-page copy, public assets, release/container hashes and `/healthz` were verified; no migration or customer-data write occurred. The React source for the generated public page is unavailable, so an exact-text DOM adapter updates the maintained script instead. Future shell/component text changes require selector and bilingual verification. See `DEPLOYMENT.md` for rollback and release evidence. This increment does not complete the 42-ticket upgrade.
