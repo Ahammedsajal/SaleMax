@@ -64,11 +64,12 @@ test('student form hides custom trainer entry and aligns attendance actions acro
   const tablet=client.slice(client.indexOf('@media(max-width:780px)'),client.indexOf('@media(max-width:440px)'));
   const mobile=client.slice(client.indexOf('@media(max-width:440px)'));
   assert.match(client,/#\$\{rootId\} \[hidden\]\{display:none!important\}/);
+  assert.match(client,/#\$\{rootId\}\{position:fixed;z-index:1199;/);
   assert.match(client,/#\$\{rootId\} #sx-st-attendance-form\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\}/);
   assert.match(client,/#\$\{rootId\} #sx-st-trainer-form\{grid-template-columns:minmax\(0,1fr\) auto\}/);
   assert.match(tablet,/#\$\{rootId\} #sx-st-attendance-form\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
   assert.match(tablet,/#\$\{rootId\} #sx-st-trainer-form\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
   assert.match(mobile,/#\$\{rootId\} #sx-st-attendance-form\{grid-template-columns:1fr\}/);
   assert.match(mobile,/#\$\{rootId\} #sx-st-trainer-form\{grid-template-columns:1fr\}/);
-  assert.match(loader,/training-students\.js\?v=20261012-student-form-grid1/);
+  assert.match(loader,/training-students\.js\?v=20261012-student-nav-layer1/);
 });
