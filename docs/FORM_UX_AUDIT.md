@@ -2,7 +2,7 @@
 
 Inventory refreshed 2026-10-12 by `node scripts/audit-form-controls.cjs`.
 
-The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **63 static form templates** and **347 static controls**. The course batch-language field now comes from a shared runtime builder, so its language select and optional custom-code input are listed separately below. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
+The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **63 static form templates** and **348 static controls**. The course batch-language field now comes from a shared runtime builder, so its language select and optional custom-code input are listed separately below. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
 
 ## Latest popup review — course creation
 
@@ -187,7 +187,7 @@ Student-profile trainer assignment now uses distinct existing trainer names from
 
 ### `client/public/training-public-form.js`
 
-  - Line 94 · **enquiry-form** · 7 control(s): input:lead-search [search], input:website [text], select:course_ids, select:${esc(field.key)}, input:${field.key} [${type}], input:consent [checkbox], button:submit-button
+  - Line 139 · **enquiry-form** · 8 control(s): input:lead-search [search], input:website [text], input:search [search], input:course_ids [checkbox], select:${esc(field.key)}, input:${field.key} [${type}], input:consent [checkbox], button:submit-button
 
 ### `client/public/training-students.js`
 
@@ -232,6 +232,7 @@ The core UI bundle is tracked at `client/public/static/js/main.73648acf.js` (abo
 - The live enquiry form was checked in English and Arabic: name and mobile remain typed fields, while Courses of interest is a multi-select with all nine active courses and consent is a checkbox. The registration form was checked without submission: source, staff, nationality, gender, city, graduation, course, batch, payment plan, level, class days and class time are selections; student ID and level preview update from the selected course. Names, contact details, QID and addresses stay editable because they are individual applicant information.
 - Registration review found the one-time payment option repeated the cadence awkwardly and duplicated “Pay in full.” Payment wording is now bilingual and natural, single-payment offers show only one choice, and the live summary reads “One payment.” The updated public registration form and app shell both load the cache-busted controls.
 - The staff registration capture now shares the same 250-country nationality helper as generic public forms. Country values remain canonical English names, labels follow the selected language, and Western Sahara is explicitly localized in both languages to avoid the raw `EH` region code. The cache-busted `20261012-nationalities3` release was checked live in English and Arabic; all nine active courses remained available, the public page and asset returned successfully, and no form was submitted. Focused coverage asserts the complete nationality list in both generic and staff-capture paths. Deployment hashes and rollback details are recorded in `DEPLOYMENT.md`.
+- Public course enquiry interest uses a searchable, collapsible multi-select with all nine active courses, clear selected-count/name feedback, and regular-sized checkboxes. Production checks selected two courses and confirmed their names and count without entering personal details or submitting the form. Focused form/registration checks pass 16/16; release and rollback evidence are in `DEPLOYMENT.md`.
 - Student attendance now caps its date picker using Qatar local time (`Asia/Qatar`) instead of the browser’s UTC date, so the date input agrees with the existing server validation after UTC midnight near the Qatar day boundary. A regression test exercises that rollover with a fixed clock. The cache-busted Courses loader and student script were byte-verified from production and pass syntax checks; no attendance record was submitted. Full in-session entry testing remains part of the page-by-page review.
 - Remaining work includes recovering the main React app source before field-level changes there, visual acceptance of enquiry forms with optional field combinations, structured support or safe migration guidance for legacy generic forms containing registration-only array fields, and page-by-page field/layout review of the remaining listed forms and roles/viewports.
 
