@@ -1,3 +1,11 @@
+## Aged cache and backup cleanup — production maintenance, 12 October 2026
+
+- Maintenance performed on `carsqatar-prod-01` with active SaleMaX release `/opt/salemax/releases/salemax-industries-3724675-20261012` (homepage source commit `3724675717a4502eea8ca8862b7de281e319350b`). No application files, database files, customer data, schema, containers, images or volumes were removed or changed.
+- Before cleanup root storage was 98% used with 1.2 GB free. Docker reported 8.44 GB build cache, with 4.853 GB reclaimable. `docker builder prune --all --filter until=48h` reclaimed 3.654 GB and retained cache newer than 48 hours.
+- Removed 148 SaleMaX `rollback-*` snapshot directories older than 48 hours (205.8 MiB total), plus five files older than 48 hours under `/opt/salemax/shared/backups`. Recent rollback snapshots and backups, the active release, all release directories, MySQL storage, external database state, and the CarsQatar deployment backups were retained. `apt-get clean` also removed downloaded package-cache files.
+- After cleanup root storage was 92% used with 4.3 GB free. Docker reported 4.786 GB build cache remaining, of which 2.968 GB was reclaimable but retained because it was newer than the age cutoff. The app container stayed running and `https://crm.salemax.qa/healthz` returned `success:true,status:ok`.
+- This was host maintenance only; no application deploy or migration occurred. Deleted aged rollback snapshots cannot be restored. The active release and newer rollback snapshots remain available. Remaining large areas include Docker images (24.99 GB reported), SaleMaX releases (7.1 GB), and the separate CarsQatar app/deployment-backup tree; those were preserved.
+
 ## Industry-wide SaleMaX homepage copy — production, 12 October 2026
 
 - Source commit `3724675717a4502eea8ca8862b7de281e319350b` is pushed to `Ahammedsajal/SaleMax` `main`. The public homepage now describes SaleMaX as customizable CRM, WhatsApp messaging and business automation for teams across industries. It names real estate, training centers, healthcare, clinics, retail, restaurants, hospitality, fitness, beauty, automotive, education and professional services. No UI structure or styles changed. Invoicing is described specifically for Training Center accounts.
