@@ -189,7 +189,7 @@
       ['[data-sx-team-nav]', 'team-invitations']
     ];
     if(!list.querySelector('[data-sx-faq-nav]')){
-      const source=[...list.children].find(row=>row.tagName==='LI'&&aliases[label(row)]==='WA Chatbot');
+      const source=[...list.children].find(row=>row.tagName==='LI'&&(aliases[label(row)]||label(row))==='WA Chatbot');
       if(source){
         const copy=source.cloneNode(true);copy.dataset.sxFaqNav='1';copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
         const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('FAQs','الأسئلة الشائعة');
