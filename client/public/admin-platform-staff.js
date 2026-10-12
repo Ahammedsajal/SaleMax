@@ -25,7 +25,7 @@
     .sx-staff-table-wrap{overflow:auto}.sx-staff-table{width:100%;border-collapse:collapse;text-align:start}.sx-staff-table td,.sx-staff-table th{padding:10px;border-bottom:1px solid #eaecf0;text-align:start;vertical-align:top}
     .sx-staff-empty{padding:18px;text-align:center;color:#667085;background:#f9fafb;border-radius:8px}.sx-staff-muted{font-size:12px;color:#667085}
     .sx-staff-invite-overlay{position:fixed;z-index:2147483100;inset:0;background:#101828a8;display:grid;place-items:center;padding:18px;overflow:auto}
-    .sx-staff-invite-card{width:min(480px,100%);background:#fff;border-radius:16px;padding:24px;box-shadow:0 20px 70px #10182855;box-sizing:border-box;font:14px/1.5 Roboto,Arial,sans-serif;color:#17212f}
+    .sx-staff-invite-card{width:min(480px,100%);max-height:calc(100vh - 36px);max-height:calc(100dvh - 36px);overflow:auto;overscroll-behavior:contain;background:#fff;border-radius:16px;padding:24px;box-shadow:0 20px 70px #10182855;box-sizing:border-box;font:14px/1.5 Roboto,Arial,sans-serif;color:#17212f}
     .sx-staff-invite-card button{font:600 14px Roboto,Arial,sans-serif;min-height:42px;padding:9px 14px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;cursor:pointer}
     .sx-staff-invite-card button.primary{background:#a8003b;border-color:#a8003b;color:#fff}
     .sx-staff-invite-card h1{font-size:22px;margin:0 0 6px}.sx-staff-invite-card form{display:grid;gap:14px}.sx-staff-invite-card input{box-sizing:border-box;width:100%;min-height:44px;padding:10px;border:1px solid #cfd5dd;border-radius:8px;font:14px Roboto,Arial,sans-serif}
