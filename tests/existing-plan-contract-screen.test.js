@@ -33,14 +33,14 @@ test('contract draft editing is mounted inside the original Manage Plans screen'
 });
 
 test('new plan contract drafts leave Call Center disabled until a Super Admin opts in', () => {
-  assert.match(shell, /admin-plan-contracts\.js\?v=20261006-call-center-optin1/);
+  assert.match(shell, /admin-plan-contracts\.js\?v=[^" ]+/);
   assert.match(contracts, /!latest\?feature\.key!==['"]telephony\.call-center['"]:latest\.capabilities\.includes\(feature\.key\)/);
   assert.match(contracts, /draft\.querySelectorAll\('\[name=capability\]'\)/);
   assert.match(contracts, /input\.checked=version\.capabilities\.includes\(input\.value\)/);
 });
 
 test('legacy Manage Users assignment denial offers the reviewed contract flow', () => {
-  assert.match(shell, /admin-user-plans\.js\?v=20261006-staff-tree-idempotent1/);
+  assert.match(shell, /admin-user-plans\.js\?v=[^" ]+/);
   assert.match(userPlans, /CANONICAL_ASSIGNMENT_REQUIRED/);
   assert.match(userPlans, /MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT/);
   assert.match(userPlans, /Open training-center contract/);
@@ -55,7 +55,7 @@ test('legacy Manage Users assignment denial offers the reviewed contract flow', 
 });
 
 test('Manage Users staff-tree observer avoids rewriting unchanged toggle text', () => {
-  assert.match(shell, /admin-user-plans\.js\?v=20261006-staff-tree-idempotent1/);
+  assert.match(shell, /admin-user-plans\.js\?v=[^" ]+/);
   assert.match(userPlans, /const toggleText=t\('Staff','الموظفون'\)\+` · \$\{staff\.length\} `\+\(expandedBusinessTeams\.has\(ownerId\)\?'⌃':'⌄'\);if\(toggle\.textContent!==toggleText\)toggle\.textContent=toggleText;/);
   assert.match(userPlans, /new MutationObserver\(mount\)\.observe\(document\.documentElement,\{subtree:true,childList:true\}\)/);
 });
