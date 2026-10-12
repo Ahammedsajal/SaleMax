@@ -33,8 +33,8 @@ test('invoice builder is a polished accessible modal and never uses stale contac
   assert.match(ui,/role="dialog" aria-modal="true" aria-labelledby="sx-invoice-create-title" tabindex="-1"/);
   assert.match(ui,/id="sx-invoice-create-title"/);assert.match(ui,/event.key==='Escape'/);assert.match(ui,/returnFocus.focus()/);assert.match(ui,/dialog.focus()/);
   assert.match(ui,/id="sx-generator-customer-fields" hidden/);assert.match(ui,/id="sx-generator-customer-fields" hidden>.*?<\/div><\/fieldset><fieldset/s);assert.match(ui,/customerFields.hidden=!manual&&!invoiceForm.dataset.customerId/);
-  assert.match(ui,/invoiceForm.dataset.customerId='';customerFields.hidden=invoiceForm.elements.customerType.value!=='manual';select.value=''/);
-  assert.match(ui,/const row=select.value\?customerRows\[Number\(select.value\)\]:null/);
+  assert.match(ui,/invoiceForm\.dataset\.customerSource='';invoiceForm\.dataset\.customerId='';customerFields\.hidden=invoiceForm\.elements\.customerType\.value!=='manual';results\.hidden=true/);
+  assert.match(ui,/results.querySelectorAll\('\[data-customer-index\]'\).forEach\(button=>button.onclick=\(\)=>\{const row=customerRows\[Number\(button.dataset.customerIndex\)\]/);
   assert.match(ui,/const queryVersion=\+\+customerQueryVersion/);assert.match(ui,/queryVersion!==customerQueryVersion/);assert.match(ui,/event\.key==='Tab'/);
   assert.match(css,/#sx-invoice-create-workspace:not\(\[hidden\]\).*place-items:center/s);assert.match(css,/#sx-finance-screen \[hidden\]\{display:none!important\}/);assert.match(css,/max-height:calc\(100dvh - 32px\)/);assert.match(css,/#sx-finance-screen #sx-generator-invoice \.actions input\[type="radio"\].*width:18px/);assert.match(css,/\.actions label:has\(input:checked\)/);
   assert.match(ui,/\.filter\(item=>!item\.hidden&&!item\.closest\('\[hidden\]'\)&&!item\.closest\('details:not\(\[open\]\)'\)\)/);
