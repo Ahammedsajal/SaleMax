@@ -16,9 +16,11 @@
 #root form :disabled{cursor:not-allowed}
 #sx-finance-screen #sx-invoice-create-workspace:not([hidden]){position:fixed!important;z-index:1600!important;inset:0!important;display:grid!important;place-items:center;padding:clamp(12px,3vw,32px);box-sizing:border-box;background:rgba(16,24,40,.58);backdrop-filter:blur(4px)}
 #sx-finance-screen #sx-invoice-create-workspace[hidden],#sx-finance-screen [hidden]{display:none!important}
-#sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{width:min(100%,960px);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;margin:0;padding:clamp(18px,3vw,32px);border:1px solid #e4e7ec;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(16,24,40,.25)}
+#sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{--sx-invoice-dialog-padding:clamp(18px,3vw,32px);width:min(100%,960px);max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;margin:0;padding:var(--sx-invoice-dialog-padding);border:1px solid #e4e7ec;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(16,24,40,.25)}
 #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create[role="dialog"]:focus{outline:none}
 #sx-finance-screen #sx-generator-invoice{display:grid;gap:18px}
+#sx-finance-screen #sx-generator-invoice .sx-invoice-submit-bar{position:sticky;bottom:calc(-1 * var(--sx-invoice-dialog-padding));z-index:3;display:grid;gap:8px;margin:0 calc(-1 * var(--sx-invoice-dialog-padding)) calc(-1 * var(--sx-invoice-dialog-padding));padding:12px var(--sx-invoice-dialog-padding) var(--sx-invoice-dialog-padding);border-top:1px solid #e4e7ec;background:rgba(255,255,255,.97);backdrop-filter:blur(10px)}
+#sx-finance-screen #sx-generator-invoice .sx-invoice-submit-bar>button[type="submit"]{width:100%;min-height:46px;font-weight:700;box-shadow:0 4px 12px rgba(168,0,59,.16)}
 #sx-finance-screen #sx-generator-invoice fieldset{display:grid;gap:14px;min-width:0;margin:0;padding:18px;border:1px solid #e4e7ec;border-radius:14px;background:#fff}
 #sx-finance-screen #sx-generator-invoice legend{padding:0 8px;font-weight:700;color:#344054}
 #sx-finance-screen #sx-generator-invoice .actions label{display:flex;align-items:center;gap:10px;min-height:50px;padding:10px 14px;border:1px solid #e4e7ec;border-radius:12px;background:#f8fafc;cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
@@ -33,7 +35,7 @@
 #sx-finance-screen #sx-reminder-settings-form .sx-reminder-offset-chip button{display:grid;place-items:center;width:24px;min-height:24px;padding:0;border:0;border-radius:50%;background:#fce7ed;color:#7a1537;font-size:18px;line-height:1}
 #sx-finance-screen #sx-reminder-settings-form [data-offset-choice]{max-width:460px}
 #sx-finance-screen #sx-generator-invoice [hidden]{display:none!important}
-@media(max-width:600px){#sx-finance-screen #sx-invoice-create-workspace:not([hidden]){padding:10px}#sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{max-height:calc(100dvh - 20px);padding:16px;border-radius:14px}#sx-finance-screen #sx-generator-invoice fieldset{padding:14px}}
+@media(max-width:600px){#sx-finance-screen #sx-invoice-create-workspace:not([hidden]){padding:10px}#sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{--sx-invoice-dialog-padding:16px;max-height:calc(100dvh - 20px);padding:var(--sx-invoice-dialog-padding);border-radius:14px}#sx-finance-screen #sx-generator-invoice fieldset{padding:14px}}
 
 /* Keep saved invoice plans compact and legible inside the scrollable invoice dialog. */
 #sx-finance-screen #sx-generator-settings{display:grid;gap:12px;min-width:0}
