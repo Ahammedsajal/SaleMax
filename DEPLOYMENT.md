@@ -1315,3 +1315,14 @@ Test commands reset bot, restart bot and إعادة ضبط الروبوت are ac
 - Active release: `/opt/salemax/releases/call-center-entitlement-87580ff-20261012`; previous release: `/opt/salemax/releases/telephony-did-input-c8c1860-20261012`. Protected rollback files are in mode-0700 directory `/opt/salemax/shared/rollback-call-center-entitlement-87580ff-20261012`.
 - Production asset hashes: Call Center HTML `0dcdc469920f6ab79a438696ef2604610fdfa09f6a2de24547f16cd236241fff`; `call-center.js` `5a366a2cb055d36f87ad723d2e1ba592bf1b76cf1c799e399bbf81201a6cd0c3`. Release, running app container and served script hashes match. App container stayed on the same image and has zero restarts. No database or call configuration changed.
 - Verification: Asterisk configuration tests pass 19/19, JavaScript syntax and `git diff --check` pass, and production health/versioned script return HTTP 200. At 390×844, the “not included in your active plan” state hides the call form and controls; page width is 375 px. No call was placed.
+
+
+## Invoice schedule editing and shared invoice defaults — 2026-10-12
+
+- Source commit: `acc1a62609be17879bd8c872591e9024280ca55d` (editable installment rows, invoice defaults in Finance Settings, and refreshed asset cache key).
+- Deployed release: `/opt/salemax/releases/finance-schedule-edit-9798eb0-20261012`; previous release for rollback: `/opt/salemax/releases/call-center-entitlement-87580ff-20261012`.
+- Change: saved payment plans remain choices in the invoice builder, and their generated installments now show editable due dates and amounts. Amounts start evenly split (minor-unit remainder assigned deterministically) and must still total the selected course price. Removed the plan editor and footer field from invoice creation; moved both to the Finance Settings popup. The default footer is saved with tenant invoice settings and copied into each newly generated invoice snapshot.
+- Migrations: none.
+- Rollback: atomically point `/opt/salemax/current` to the previous release above, then copy its `client/public/training-finance.js` and `client/public/index.html` into `salemax-app-1:/app/client/public/`.
+- Verification: app container syntax check passed; release and container asset SHA-256 values matched; public HTML references `20261012-invoice-schedule-defaults1`; public script includes the editable schedule and default footer settings; `/healthz` returned success. No invoice was created and no payment/reminder was sent.
+- Remaining gates: authenticated browser visual review and owner/accountant role review were not performed; no test suite was run.
