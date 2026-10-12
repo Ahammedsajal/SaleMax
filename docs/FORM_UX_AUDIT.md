@@ -8,6 +8,12 @@ The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and 
 
 The production Add Course dialog was visually checked at desktop width. Its constrained centered shell, aligned field grid, internal scrolling and persistent action bar remained intact. Course names now lead the first section; an optional student ID prefix no longer adds a duplicate manual entry. Static format, level and payment choices remain native selects, while learner names and bilingual course copy remain editable. Production interaction confirmed a suggested course code, preserved a manually edited code across later name changes, and closed the form without saving. The catalogue still showed 15 courses afterward.
 
+## Course editor — production, 12 October 2026
+
+The existing-course editor keeps bilingual names/descriptions, outcomes and prerequisites editable; the student ID prefix and course code are prefilled. Duration unit, delivery mode, course level, offer payment frequency and batch language are catalogue-backed selects. Prices, term counts, duration and seat capacity use numeric controls; batch dates use date pickers; supporting files use type-specific upload controls. The centered editor scrolls internally, bilingual fields align in two columns and section labels are clear. It was closed without saving.
+
+This review found a source-data mismatch in the selected course: its description says the duration is 8–10 weeks, a QAR 250 starting payment and the balance in installments, while the structured fields leave duration unset and the active offer is QAR 850 as one payment with no registration fee. The editor cannot safely resolve that narrative/structured conflict automatically; confirm the course’s authoritative duration and payment terms before changing the record or using it as an AI answer source.
+
 ## Lead Reports filters and report schedules — production, 12 October 2026
 
 The authenticated Lead Reports page was reviewed after fixing its production journey-report failure. The report filter keeps period as a three-option select, the report date as a date control, and the Run report action aligned in one row. Schedule forms use the IANA timezone catalogue and native time, delivery-option and pause controls. The visible period and date controls are compact and aligned; no free-text fields are needed for these choices. The journey overview, cohort funnel, agent performance and finance summary rendered successfully. No report or schedule settings were changed. The backend UID join fix and runtime proof are recorded in `DEPLOYMENT.md`.
