@@ -123,6 +123,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard })
   router.get('/:id/batches', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.batches(pool, req.courseContext, req.params.id) })));
   router.post('/:id/batches', contextGuard, wrap(async (req, res) => res.status(201).json({ success: true, data: await withConnection(courses.addBatch)(req.courseContext, req.params.id, req.body) })));
   router.put('/:id/batches/:batchId', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.updateBatch)(req.courseContext, req.params.id, req.params.batchId, req.body) })));
+  router.delete('/:id', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.remove)(req.courseContext, req.params.id) })));
   router.post('/:id/publish', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.publish)(req.courseContext, req.params.id, req.body.expectedRevision) })));
   router.post('/:id/restore-and-publish', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.restoreAndPublish)(req.courseContext, req.params.id, req.body.expectedRevision) })));
   router.post('/:id/retire', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.retire)(req.courseContext, req.params.id, req.body.expectedRevision) })));
@@ -137,7 +138,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard })
         : code === 'COURSE_MEDIA_UPLOAD_BUSY' ? 429
         : code === 'PERMISSION_DENIED' ? 403
           : ['VERIFIED_BUSINESS_OWNER_REQUIRED', 'BUSINESS_LINK_INVALID', 'COURSE_NOT_FOUND', 'BATCH_NOT_FOUND', 'ENROLLMENT_NOT_FOUND', 'COURSE_MEDIA_NOT_FOUND'].includes(code) ? 404
-          : ['STALE_REVISION', 'COURSE_RETIRED', 'ACTIVE_OFFER_REQUIRED', 'BATCH_HAS_RESERVATIONS', 'CAPACITY_BELOW_RESERVED', 'ER_DUP_ENTRY', 'FULL_PAYMENT_REQUIRED', 'ENROLLMENT_CANNOT_START', 'ENROLLMENT_MUST_BE_STARTED', 'ENROLLMENT_MUST_BE_COMPLETED', 'COURSE_MEDIA_LIMIT_REACHED', 'COURSE_MEDIA_QUOTA_EXCEEDED'].includes(code) ? 409
+          : ['STALE_REVISION', 'COURSE_RETIRED', 'COURSE_HAS_HISTORY', 'ACTIVE_OFFER_REQUIRED', 'BATCH_HAS_RESERVATIONS', 'CAPACITY_BELOW_RESERVED', 'ER_DUP_ENTRY', 'FULL_PAYMENT_REQUIRED', 'ENROLLMENT_CANNOT_START', 'ENROLLMENT_MUST_BE_STARTED', 'ENROLLMENT_MUST_BE_COMPLETED', 'COURSE_MEDIA_LIMIT_REACHED', 'COURSE_MEDIA_QUOTA_EXCEEDED'].includes(code) ? 409
               : code === 'COURSE_MEDIA_TOO_LARGE' ? 413
                 : ['COURSE_MEDIA_TYPE_NOT_ALLOWED', 'COURSE_MEDIA_SIGNATURE_INVALID'].includes(code) ? 415
                   : code.startsWith('INVALID_') ? 400
