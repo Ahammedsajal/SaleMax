@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261012-inbox-bot-picker-copy1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261012-inbox-bot-picker-copy2';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
