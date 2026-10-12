@@ -2,7 +2,7 @@
 
 Inventory refreshed 2026-10-12 by `node scripts/audit-form-controls.cjs`.
 
-The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. The current inventory script found **62 static form templates** and **347 static controls**. Runtime-built controls, including the course batch-language select and optional custom-code input, are listed separately by source line. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
+The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. The current inventory script found **62 static form templates** and **344 static controls**. Runtime-built controls, including the course batch-language select and optional custom-code input, are listed separately by source line. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
 
 ## Latest popup review — course creation
 
@@ -86,9 +86,13 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/admin-asterisk.js`
 
-  - Line 72 · **unnamed form** · 14 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:gatewayHost [text], input:gatewaySipPort [number], select:gatewaySipTransport, input:enabled [checkbox], button:unlabelled, textarea:PJSIP configuration preview, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled
+  - Line 72 · **unnamed form** · 13 control(s): input:ariBaseUrl [url], input:ariUsername [text], input:ariPassword [password], input:gatewayHost [text], input:gatewaySipPort [number], input:enabled [checkbox], button:unlabelled, textarea:PJSIP configuration preview, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled, button:unlabelled
 
-  Runtime field builders: line 100 form/control helper creates select; line 104 form/control helper creates input; line 105 form/control helper creates select.
+  Runtime field builders: line 100 builds a business selector; line 104 captures the inbound DID; line 105 builds the tenant-scoped inbound queue selector; line 107 builds channel-policy checkboxes.
+
+## Telephony setup popup — field choices and limits
+
+The ARI URL, username, gateway host, and port remain editable because each installation supplies its own connection values; the ARI password stays masked and blank preserves the encrypted saved credential. SIP transport is enforced as TLS by the server, so the UI now displays TLS as read-only instead of presenting a dropdown with one possible value. For each GSM channel, business and inbound queue are populated from eligible tenant-owned records, and enable/inbound/outbound are explicit switches. The inbound DID remains a telephone input because it is a tenant-specific number rather than a finite catalogue value. The ARI and Asterisk setup popup requires platform-admin authentication; this checkout has not yet verified its live visual rendering.
 
 ### `client/public/admin-plan-contracts.js`
 
@@ -147,7 +151,7 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/chatbot-admin.js`
 
-  - Line 604 · **unnamed form** · 5 control(s): input:name [text], select:aiFallback, input:aiDataProcessingConfirmed [checkbox], button:unlabelled, button:unlabelled
+  - Line 609 · **unnamed form** · 5 control(s): input:name [text], select:aiFallback, input:aiDataProcessingConfirmed [checkbox], button:unlabelled, button:unlabelled
 
 ### `client/public/optional-features.js`
 
@@ -157,12 +161,12 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/pipeline/pipeline.js`
 
-  - Line 61 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [tel], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], input:unlabelled [text], button:unlabelled
-  - Line 82 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
-  - Line 97 · **settingsForm** · 13 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, select:unlabelled, button:unlabelled, input:unlabelled [text], button:unlabelled, button:addMetaAdsMessage, button:unlabelled, button:unlabelled
-  - Line 97 · **newStage** · 2 control(s): input:title [text], button:unlabelled
-  - Line 107 · **sale-review-form** · 15 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:unlabelled, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:unlabelled
-  - Line 118 · **sale-review-decision** · 3 control(s): input:reason [text], button:unlabelled, button:unlabelled
+  - Line 55 · **editLead** · 13 control(s): input:title [text], input:contactName [text], input:contactEmail [email], input:mobile [text], select:stageKey, select:priority, select:ownerAgentId, input:nextFollowUpAt [datetime-local], select:contactOutcome, input:followUpRequired [checkbox], input:expectedValue [number], input:unlabelled [text], button:unlabelled
+  - Line 75 · **newLead** · 5 control(s): select:contactId, select:stageKey, select:ownerAgentId, button:unlabelled, button:unlabelled
+  - Line 87 · **settingsForm** · 10 control(s): input:enabled [checkbox], input:autoCaptureQr [checkbox], input:autoCaptureMeta [checkbox], select:qrEntryStage, select:metaEntryStage, select:interestedStage, input:interestKeywords [text], button:addMetaAdsMessage, button:unlabelled, button:unlabelled
+  - Line 87 · **newStage** · 2 control(s): input:title [text], button:unlabelled
+  - Line 97 · **sale-review-form** · 17 control(s): select:offerId, select:batchId, input:learnerName [text], input:payerName [text], input:payerEmail [email], input:payerPhone [tel], input:invoiceEmail [email], input:price [text], input:registrationFee [text], input:discount [number], textarea:terms, input:dueDate [date], input:installmentAmount [number], button:unlabelled, button:sale-installment-add, input:confirmCurrentOfferAndPayer [checkbox], button:unlabelled
+  - Line 108 · **sale-review-decision** · 3 control(s): input:reason [text], button:unlabelled, button:unlabelled
 
 ### `client/public/pipeline/reports.js`
 
@@ -233,8 +237,8 @@ The customer reminder-preference page has two explicit opt-in/opt-out actions an
 
 ### `client/public/training-students.js`
 
-  - Line 37 · **sx-st-trainer-form** · 3 control(s): select:trainerChoice, input:trainerName [text], button:unlabelled
-  - Line 37 · **sx-st-attendance-form** · 4 control(s): input:sessionDate [date], select:status, input:note [text], button:unlabelled
+  - Line 36 · **sx-st-trainer-form** · 2 control(s): input:trainerName [text], button:unlabelled
+  - Line 36 · **sx-st-attendance-form** · 4 control(s): input:sessionDate [date], select:status, input:note [text], button:unlabelled
 
 ### `client/workspace-src/signin.js`
 
