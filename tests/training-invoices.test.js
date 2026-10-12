@@ -39,6 +39,12 @@ test('invoice builder is a polished accessible modal and never uses stale contac
   assert.match(css,/#sx-invoice-create-workspace:not\(\[hidden\]\).*place-items:center/s);assert.match(css,/#sx-finance-screen \[hidden\]\{display:none!important\}/);assert.match(css,/max-height:calc\(100dvh - 32px\)/);assert.match(css,/#sx-finance-screen #sx-generator-invoice \.actions input\[type="radio"\].*width:18px/);assert.match(css,/\.actions label:has\(input:checked\)/);
   assert.match(ui,/\.filter\(item=>!item\.hidden&&!item\.closest\('\[hidden\]'\)&&!item\.closest\('details:not\(\[open\]\)'\)\)/);
 });
+test('invoice payment-plan rows keep names readable on phone widths',()=>{
+  const fs=require('node:fs'),path=require('node:path'),css=fs.readFileSync(path.join(__dirname,'..','client/public/salemax-brand.css'),'utf8'),index=fs.readFileSync(path.join(__dirname,'..','client/public/index.html'),'utf8');
+  assert.match(css,/@media\(max-width:760px\)\{#sx-finance-screen #sx-generator-plans \.sx-invoice-plan\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\);gap:10px\}#sx-finance-screen #sx-generator-plans \.sx-invoice-plan>label:first-child\{grid-column:1\/-1\}/);
+  assert.match(css,/#sx-finance-screen #sx-generator-plans \.sx-invoice-plan \[data-remove-plan\]\{grid-column:1\/-1;justify-self:end;min-width:96px;min-height:40px\}/);
+  assert.match(index,/salemax-brand\.css\?v=20261012-mobile-plan-rows1/);
+});
 test('approved-sale invoice queue rejects roles outside owner/accountant before database access',async()=>{
   const ctx=context('agent'),pool={getConnection(){throw Error('unauthorized role must be rejected before database access')}};
   await assert.rejects(saleReviews.listApprovedForInvoice(pool,ctx,{uid:'agent-uid'}),{code:'PERMISSION_DENIED'});

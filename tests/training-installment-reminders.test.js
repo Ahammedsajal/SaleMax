@@ -67,5 +67,5 @@ test('reminder mail has an independent SMTP flag and is wired into the existing 
 
 test('Finance reminder checkbox layout loads the updated cache-busted script',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
-  assert.match(html,/training-finance\.js\?v=20261012-invoice-ui1/);
+  assert.match(html,/training-finance\.js\?v=20261012-reminder-settings-popup1/);
 });

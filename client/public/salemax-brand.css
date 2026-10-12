@@ -48,4 +48,4 @@
 #sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{width:auto;min-width:76px;min-height:40px;padding:8px 12px;align-self:end}
 #sx-finance-screen #sx-generator-settings>#sx-generator-add-plan{justify-self:start;min-height:40px}
 #sx-finance-screen #sx-generator-settings>button.primary{justify-self:end;min-height:42px}
-@media(max-width:760px){#sx-finance-screen #sx-generator-plans .sx-invoice-plan{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{justify-self:start}}
+@media(max-width:760px){#sx-finance-screen #sx-generator-plans .sx-invoice-plan{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#sx-finance-screen #sx-generator-plans .sx-invoice-plan>label:first-child{grid-column:1/-1}#sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{grid-column:1/-1;justify-self:end;min-width:96px;min-height:40px}}
