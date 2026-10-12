@@ -3,6 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const workflow=require('../modules/platform/training-registration-workflow'),schema=require('../modules/platform/training-registration-schema');
 const selections=require('../modules/platform/training-registration-selections');
 const crypto=require('node:crypto');
+const registrationControls=require('node:fs').readFileSync(require('node:path').join(__dirname,'../client/public/training-registration-controls.js'),'utf8');
 test('digital signature rejects empty, tiny, malformed and out-of-bounds drawings',()=>{
  for(const input of ['Student name','[]','[[[0,0]]]','[[[0,0],[2,1]]]','[[["x",0]]]'])assert.throws(()=>workflow.signature(input),{code:'INVALID_SIGNATURE'});
  const signature=JSON.stringify([Array.from({length:12},(_,i)=>[i/15,0.2+i/20])]);assert.equal(workflow.signature(signature),signature);
@@ -31,4 +32,10 @@ test('a multi-course response includes every separate registration and the exact
 test('enquiry applications accept multiple course interests without requiring registration payment plans',()=>{
  const forms=require('../modules/platform/training-forms'),ids=[crypto.randomUUID(),crypto.randomUUID()],fields=['contact_name','phone','consent','course_id'].map(key=>({key,required:true}));
  const result=forms.cleanSubmission({fields},{contact_name:'Synthetic',phone:'+97450000999',consent:true,course_ids:ids});assert.deepEqual(result.course_ids,ids);assert.equal(result.course_id,ids[0]);assert.throws(()=>forms.cleanSubmission({fields},{contact_name:'Synthetic',phone:'+97450000999',consent:true,course_ids:[ids[0],ids[0]]}),{code:'INVALID_COURSE_SELECTIONS'});
+});
+test('registration payment choices use clear bilingual cadence wording and avoid duplicate one-payment plans',()=>{
+ assert.match(registrationControls,/One payment/);assert.match(registrationControls,/دفعة واحدة/);
+ assert.match(registrationControls,/\$\{n\} \$\{cadence\} payments/);assert.match(registrationControls,/\$\{n\} دفعات \$\{cadence\}/);
+ assert.match(registrationControls,/count===1\?\[\['full',tr\('Pay in full'/);
+ assert.doesNotMatch(registrationControls,/c\.paymentInterval\+' installments'/);
 });
