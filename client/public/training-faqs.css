@@ -39,3 +39,14 @@
 .sx-faq-error{min-height:20px;color:#aa1c36;font-size:13px}
 .sx-faq-form footer{display:flex;justify-content:flex-end;gap:10px;padding-top:4px}
 @media(max-width:700px){#sx-faqs-screen{padding:16px}.sx-faqs-heading{display:grid;gap:14px}.sx-faqs-heading h1{font-size:26px}.sx-faqs-heading>.sx-faqs-primary{justify-self:start}.sx-faq-languages{grid-template-columns:minmax(0,1fr)}.sx-faq-card{padding:15px}.sx-faq-card-head{align-items:flex-start}.sx-faq-form{padding:18px}}
+/* FAQ editor: group the paired translations so staff can compare both languages at a glance. */
+.sx-faq-dialog{max-height:calc(100dvh - 28px);overflow-y:auto;overscroll-behavior:contain}
+.sx-faq-form{max-height:calc(100dvh - 28px);overflow-y:auto;overscroll-behavior:contain}
+.sx-faq-locale-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.sx-faq-locale{display:grid;align-content:start;gap:12px;min-width:0;padding:15px;border:1px solid #e7eaf0;border-radius:12px;background:linear-gradient(180deg,#fff 0%,#fafbfc 100%)}
+.sx-faq-locale h3{margin:0;padding-bottom:8px;border-bottom:1px solid #edf0f3;color:#8a3856;font-size:13px;letter-spacing:.04em}
+.sx-faq-locale label{min-width:0}
+.sx-faq-locale textarea{min-height:104px;resize:vertical}
+.sx-faq-form input:focus-visible,.sx-faq-form textarea:focus-visible,.sx-faq-form button:focus-visible{outline:3px solid rgba(168,0,59,.2);outline-offset:2px;border-color:#a8003b}
+.sx-faq-form footer{position:sticky;bottom:-24px;z-index:1;margin:0 -24px -24px;padding:12px 24px 18px;border-top:1px solid #edf0f3;background:rgba(255,255,255,.96);backdrop-filter:blur(10px)}
+@media(max-width:700px){.sx-faq-locale-grid{grid-template-columns:minmax(0,1fr)}.sx-faq-locale{padding:13px}.sx-faq-locale textarea{min-height:88px}.sx-faq-form footer{bottom:-18px;margin:0 -18px -18px;padding:10px 18px 14px}}
