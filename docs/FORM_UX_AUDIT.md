@@ -4,6 +4,12 @@ Inventory refreshed 2026-10-12 by `node scripts/audit-form-controls.cjs`.
 
 The scan covers maintained HTML/JavaScript/TypeScript under `client/public` and `client/workspace-src`, excluding the hash-bundled React assets. It found **62 static form templates** and **341 static controls**. The course batch-language field now comes from a shared runtime builder, so its language select and optional custom-code input are listed separately below. Each listed field is identified by its `name`, `id`, data-field, accessible label or placeholder; controls created at runtime are listed separately by source line. Dynamic loops and generated catalogue options need runtime checks because static scans cannot count their rendered instances.
 
+## Latest visual defect review — invoice builder
+
+The supplied Finance screenshot showed the manual customer fields while “Choose from Leads & Contacts” was selected, oversized radio controls, and a form that did not read as a focused popup. The runtime Finance stylesheet sets `.grid` to `display:grid`, which overrides the browser’s default hidden display behavior. The invoice modal stylesheet now explicitly honors hidden elements, radio choice labels have selected and keyboard-focus states, the focus trap skips controls inside hidden sections, and the customer fieldset’s extra closing tag is removed. This fix is deployed in release `invoice-builder-modal-e0057fa-20261012`; the served CSS and JavaScript hashes are recorded in `DEPLOYMENT.md`.
+
+The focused source checks pass. An authenticated browser visual check of Finance remains outstanding. The broader scan still has 62 templates and 341 controls requiring page-by-page layout review and field-level decisions about dropdowns, searchable options, sensible defaults, and fields that must remain free text.
+
 ## File-by-file inventory
 
 ### `client/public/admin-actions.js`
