@@ -1,5 +1,12 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Public course picker cache fix — production, 12 October 2026
+
+- Source commit `ad29991` is pushed to `Ahammedsajal/SaleMax` `main`; the picker overlay source remains at `aaf5bc56e93ed3ca21b5c97410c22345c5b003bd`. The public form shell now uses `training-public-form.js?v=20261012-course-picker-overlay1`, so browsers cannot reuse the earlier script URL that lacked adaptive placement.
+- Active release `/opt/salemax/releases/public-course-picker-cachefix-ad29991-20261012` on `carsqatar-prod-01`. The template SHA-256 is `208198356f94c1fc68b719754275d382e9a4aa4593695c8be8a9fed6f5a90a8d`; CSS and JS remain `24a864b6dc91150c926df8a317c894d6c44dc3c88e62cf8100f86665ebf325cf` and `61f7dc6e3d9d73b8ec00551570a56c3b9381af86d2df2cf7d38d57c7b8cfe585`. Release and running-container hashes match. `/healthz` and both versioned CSS/JS URLs return HTTP 200.
+- Protected rollback directory `/opt/salemax/shared/rollback-public-course-picker-cachefix-ad29991-20261012` is mode 0700 and contains the prior template, Compose file, prior release path and container baseline. Previous release: `/opt/salemax/releases/public-course-picker-overlay-aaf5bc5-20261012`. The app container `56918d445c78aa258416dc3e077f19562537bedf2d0e0d001443a39e5746cdfc` remained on image `sha256:00a6c758a24a2913845e74c32db8639a27062246cdb9c8333e2612d64c316433` with zero restarts and its original start time; no schema or business-data change occurred.
+- Focused form checks pass 11/11; public-form JS syntax and `git diff --check` pass. Fresh production Arabic enquiry checks at 320×640 and 390×844 displayed all nine course choices, no horizontal overflow, and no selected courses or submitted data. At 320 px the panel opened above the trigger and stayed within the viewport; at 390 px it opened below without changing the 463.5 px form height.
+
 ## Finance invoice modal sticky actions — production, 12 October 2026
 
 - Source commit `a612f1ee4b7275376feb60854f6da9ac6be34768` is pushed to `Ahammedsajal/SaleMax` `main`. The Create invoice dialog now keeps its error/status area and full-width Generate/Update action in a sticky footer while the customer, course and payment schedule content scrolls. The production-generated HTML shell was preserved; only the Finance JS and brand CSS cache keys advanced to `20261012-invoice-modal-sticky1`.
