@@ -110,7 +110,10 @@ test('Inbox bot control requires explicit number selection when channel scope is
   assert.match(admin, /data-sx-chatbot-channel/);
   assert.match(admin, /inboxBotChannelOptions\(\)/);
   assert.match(admin, /filter\(channel => assigned\.has/);
-  assert.match(admin, /Select a number below\./);
+  assert.match(admin, /data-sx-chatbot-state aria-live="polite" hidden/);
+  assert.match(admin, /state\.hidden = options\.length > 0/);
+  assert.match(admin, /state\.hidden = false/);
+  assert.match(admin, /Assign and activate a bot on a connected number first\./);
   assert.match(admin, /tr\('Choose bot number','اختر رقم الروبوت'\)/);
   assert.match(admin, /\/conversations\/\$\{encodeURIComponent\(id\)\}\/bot-control/);
   assert.match(admin, /manuallySelectedChatChannels\.set\(id, selectedScope\)/);

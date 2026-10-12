@@ -819,7 +819,7 @@
     if (control.dataset.conversationId === id && control.dataset.channelScope === scopeKey && control.dataset.loading !== 'true') return;
     control.dataset.conversationId = id; control.dataset.channelScope = scopeKey; control.dataset.loading = 'true';
     if (!scope) {
-      body.innerHTML = `<strong data-sx-chatbot-mobile-heading>${esc(tr('Chat info','معلومات المحادثة'))}</strong><label><span>${esc(tr('Bot number','رقم الروبوت'))}</span><select data-sx-chatbot-channel aria-label="${esc(tr('WhatsApp number for this chat','رقم واتساب لهذه المحادثة'))}"><option value="">${esc(tr('Loading connected bot numbers…','جارٍ تحميل أرقام الروبوتات المتصلة…'))}</option></select></label><span data-sx-chatbot-state aria-live="polite">${esc(tr('Select a number below.','اختر الرقم أدناه.'))}</span>`;
+      body.innerHTML = `<strong data-sx-chatbot-mobile-heading>${esc(tr('Chat info','معلومات المحادثة'))}</strong><label><span>${esc(tr('Bot number','رقم الروبوت'))}</span><select data-sx-chatbot-channel aria-label="${esc(tr('WhatsApp number for this chat','رقم واتساب لهذه المحادثة'))}"><option value="">${esc(tr('Loading connected bot numbers…','جارٍ تحميل أرقام الروبوتات المتصلة…'))}</option></select></label><span data-sx-chatbot-state aria-live="polite" hidden></span>`;
       control.dataset.loading = 'false';
       const select = control.querySelector('[data-sx-chatbot-channel]');
       select.addEventListener('change', () => {
@@ -835,9 +835,9 @@
         if (!control.isConnected || control.dataset.conversationId !== id || control.dataset.channelScope !== '') return;
         select.innerHTML = `<option value="">${esc(options.length ? tr('Choose bot number','اختر رقم الروبوت') : tr('No active bot numbers found','لا توجد أرقام روبوت نشطة'))}</option>` + options.map(option => `<option value="${esc(`${option.kind}|${option.reference}`)}">${esc(option.label)}</option>`).join('');
         select.disabled = options.length === 0;
-        control.querySelector('[data-sx-chatbot-state]').textContent = options.length
-          ? tr('Select a number below.','اختر الرقم أدناه.')
-          : tr('Assign and activate a bot on a connected number first.','اربط روبوتًا وفعّله على رقم متصل أولاً.');
+        const state = control.querySelector('[data-sx-chatbot-state]');
+        state.textContent = options.length ? '' : tr('Assign and activate a bot on a connected number first.','اربط روبوتًا وفعّله على رقم متصل أولاً.');
+        state.hidden = options.length > 0;
       }).catch(error => {
         if (!control.isConnected || control.dataset.conversationId !== id) return;
         if (['PERMISSION_DENIED', 'TEAM_ROLE_PERMISSION_DENIED'].includes(error.message)) {
@@ -847,7 +847,9 @@
         }
         select.innerHTML = `<option value="">${esc(errorLabel(error.message))}</option>`;
         select.disabled = true;
-        control.querySelector('[data-sx-chatbot-state]').textContent = tr('Could not load bot numbers. Refresh and try again.','تعذر تحميل أرقام الروبوتات. حدّث الصفحة وحاول مجددًا.');
+        const state = control.querySelector('[data-sx-chatbot-state]');
+        state.textContent = tr('Could not load bot numbers. Refresh and try again.','تعذر تحميل أرقام الروبوتات. حدّث الصفحة وحاول مجددًا.');
+        state.hidden = false;
       });
       return;
     }
