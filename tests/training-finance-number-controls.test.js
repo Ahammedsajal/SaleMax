@@ -23,4 +23,6 @@ test('Finance follows the workspace direction for desktop layout and overlays', 
   assert.doesNotMatch(financeUi, /node\.dir\s*=/);
   assert.match(financeUi, /#sx-finance-screen:dir\(rtl\)\{inset-inline:250px 0\}/);
   assert.match(financeUi, /#sx-finance-screen:dir\(rtl\) #sx-reminder-settings\{inset-inline:250px 0\}/);
+  assert.match(financeUi, /#sx-finance-screen:dir\(rtl\)\{inset-inline:0;top:56px;padding:14px\}/);
+  assert.match(financeUi, /#sx-finance-screen:dir\(rtl\) #sx-reminder-settings\{inset:56px 0 0;padding:12px\}/);
 });
