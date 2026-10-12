@@ -14,10 +14,10 @@ test('training student asset bump updates exactly one loader reference and is re
     fs.writeFileSync(file,"script.src='/training-students.js?v=previous';\n");
     const first=spawnSync(process.execPath,[script,file],{encoding:'utf8'});
     assert.equal(first.status,0,first.stderr);
-    assert.equal(fs.readFileSync(file,'utf8'),"script.src='/training-students.js?v=20261012-trainer-picker1';\n");
+    assert.equal(fs.readFileSync(file,'utf8'),"script.src='/training-students.js?v=20261012-trainer-picker2';\n");
     const second=spawnSync(process.execPath,[script,file],{encoding:'utf8'});
     assert.equal(second.status,0,second.stderr);
-    assert.equal(fs.readFileSync(file,'utf8'),"script.src='/training-students.js?v=20261012-trainer-picker1';\n");
+    assert.equal(fs.readFileSync(file,'utf8'),"script.src='/training-students.js?v=20261012-trainer-picker2';\n");
   }finally{const file=path.join(dir,'training-courses.js');if(fs.existsSync(file))fs.unlinkSync(file);if(fs.existsSync(dir))fs.rmdirSync(dir);}
 });
 
