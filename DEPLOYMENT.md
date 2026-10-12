@@ -1,5 +1,12 @@
 # SaleMaX live deployment — 30 September 2026
 
+## Invoice submit action on compact phones — production, 12 October 2026
+
+- Source commit `2e7f54c` is pushed to `Ahammedsajal/SaleMax` `main`. On viewports up to 360 px wide or 700 px high, the invoice action bar now follows the form fields in the modal's scroll flow instead of covering the payment-plan select; standard phone and desktop layouts keep the sticky action bar.
+- Active release `/opt/salemax/releases/invoice-small-viewport-2e7f54c-20261012` on `carsqatar-prod-01`; the generated production index shell was preserved and only its brand stylesheet cache key advanced to `20261012-invoice-modal-small-viewport1`. Index SHA-256 `29f1a400077832c0a55185806986a4804d362a0ab0742ebcff1decb22d351f6e`; brand CSS SHA-256 `38c1b6db303d510a83de61327921482d706a034a155d65c0abe756ac109f90b0`. Release and running-container hashes match; `/healthz` and the versioned CSS asset return HTTP 200.
+- Protected rollback directory `/opt/salemax/shared/rollback-invoice-small-viewport-2e7f54c-20261012` is mode 0700 and contains the prior generated index, brand CSS, Compose file, release pointer and app baseline. Previous release: `/opt/salemax/releases/public-course-picker-cachefix-ad29991-20261012`. The app container remained `56918d445c78aa258416dc3e077f19562537bedf2d0e0d001443a39e5746cdfc` on image `sha256:00a6c758a24a2913845e74c32db8639a27062246cdb9c8333e2612d64c316433`, with zero restarts and its original start time. No invoice, payment, migration or business-data write occurred.
+- Focused Finance checks pass 9/9 and `git diff --check` passes. Production at 320×640 uses a static-flow action bar; the payment-plan selector sits fully above it without overlap, and scrolling to the bottom leaves the selector and Generate button visible. At 390×844 the action bar remains sticky and the payment-plan field stays clear. The dialog was closed without creating an invoice.
+
 ## Public course picker cache fix — production, 12 October 2026
 
 - Source commit `ad29991` is pushed to `Ahammedsajal/SaleMax` `main`; the picker overlay source remains at `aaf5bc56e93ed3ca21b5c97410c22345c5b003bd`. The public form shell now uses `training-public-form.js?v=20261012-course-picker-overlay1`, so browsers cannot reuse the earlier script URL that lacked adaptive placement.
