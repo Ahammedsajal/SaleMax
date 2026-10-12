@@ -54,7 +54,7 @@ The maintained registration control now offers all 249 ISO 3166-1 alpha-2 countr
 
 ## CRM Appearance — logo and custom-domain entry review, 12 October 2026
 
-Source review found two runtime-built controls. The CRM logo picker already limits uploads to JPEG, PNG or WebP and explains the 5 MB limit. The CRM hostname remains free text because each business supplies a unique subdomain; the backend rejects arbitrary URLs, ports and reserved hosts, so a shared dropdown would offer invalid choices. The text field now requests the mobile URL keyboard and disables automatic capitalization and spellchecking. The authenticated production settings request returned 401 in the current browser session, so its saved settings, dialog/card appearance and owner-only workflow could not be visually checked live; no setting was changed. Source and validation details are recorded in the tenant CRM domain tests.
+Source review found two runtime-built controls. The CRM logo picker already limits uploads to JPEG, PNG or WebP and explains the 5 MB limit. The CRM hostname remains free text because each business supplies a unique subdomain; the backend rejects arbitrary URLs, ports and reserved hosts, so a shared dropdown would offer invalid choices. The text field now requests the mobile URL keyboard and disables automatic capitalization and spellchecking. The cache-busted production asset loaded successfully, but the authenticated production settings request returned 401 in the current browser session, so its saved settings, dialog/card appearance and owner-only workflow could not be visually checked live; no setting was changed. Source and validation details are recorded in the tenant CRM domain tests.
 
 ## Latest visual defect review — invoice builder
 
