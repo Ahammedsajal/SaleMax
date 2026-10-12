@@ -40,11 +40,13 @@ for (const absolute of files.sort()) {
   for (const match of forms) {
     const opening = `<form ${match[1]}>`;
     const name = attr(opening, 'id') || attr(opening, 'data-form') || attr(opening, 'class') || 'unnamed form';
-    const controls = [...match[2].matchAll(/<(input|select|textarea|button)\b[^>]*>/gi)].map(control => {
+    const controls = [...match[2].matchAll(/<(input|select|textarea|output|button)\b[^>]*>/gi)].map(control => {
       const tag = control[0];
       const kind = control[1].toLowerCase();
-      const identity = attr(tag, 'name') || attr(tag, 'id') || attr(tag, 'data-field') || attr(tag, 'aria-label') || attr(tag, 'placeholder') || 'unlabelled';
-      return `${kind}:${identity}${kind === 'input' ? ` [${attr(tag, 'type') || 'text'}]` : ''}`;
+      const marker = tag.match(/\b(data-[a-z0-9_-]+)(?:\s*=|\s|\/|>)/i)?.[1];
+      const identity = attr(tag, 'name') || attr(tag, 'id') || attr(tag, 'data-field') || marker || attr(tag, 'aria-label') || attr(tag, 'placeholder') || 'unlabelled';
+      const readonly = /\sreadonly(?:\s|=|\/|>)/i.test(tag) ? ', readonly' : '';
+      return `${kind}:${identity}${kind === 'input' ? ` [${attr(tag, 'type') || 'text'}${readonly}]` : readonly ? ' [readonly]' : ''}`;
     });
     totalForms += 1;
     totalControls += controls.length;
