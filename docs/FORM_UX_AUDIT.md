@@ -380,3 +380,9 @@ The correct “Add WhatsApp by QR” route is `?page=wa-qr-connect`; the similar
 At 390×844, the four mode tabs covered the flow title and Save, New, Import, Flows and Node Menu controls. Mobile now uses a labeled native mode select and reserves a dedicated row above the React Flow canvas; the native canvas toolbar moves below that row. The desktop segmented tabs remain unchanged. On production, the selector occupies a 366×53 px strip, the canvas begins at y=124, and Node Menu opens its node picker from the visible toolbar. No flow was changed or saved.
 
 The Hybrid AI panel previously retained its mobile width after resizing to desktop. Its bounds now update on viewport changes without reloading its data. The panel measured 1,376 px at 1440×900, returned to 390 px at 390×844, and the document stayed within 390 px. Arabic/RTL mode and labels were also checked at 390×844 with no horizontal overflow; English/LTR was restored after review.
+
+## Finance defaults, business invoice identity and collection labels — production, 12 October 2026
+
+At 390×844, the Finance Settings dialog contains invoice footer and saved payment-plan defaults plus installment reminders; it does not show the old “Invoice policy and approval” submission, tax treatment, or special invoice-approval form. It links center identity to the Training Center Profile. That profile has Commercial registration (CR) number, Invoice number prefix, and English/Arabic address fields. The profile was inspected without saving.
+
+The live invoice register currently has no issued invoices. Its empty state directs staff to create invoices from approved sales, and the attention queue calls issued balances “Invoices awaiting collection.” This separates sales that still need an invoice from issued invoices with payment due. `?page=finance` falls back to the dashboard; `?page=finance-settings` is the live invoice register route. No financial record or settings were changed during review.
