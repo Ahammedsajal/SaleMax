@@ -57,3 +57,18 @@ test('student profile returns tenant-scoped saved trainer choices for the assign
   assert.match(client,/__sx_add_trainer__/);
   assert.match(client,/const trainerName=trainerChoice\.value==='__sx_add_trainer__'\?customTrainerInput\.value:trainerChoice\.value/);
 });
+test('student form hides custom trainer entry and aligns attendance actions across breakpoints',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const client=fs.readFileSync(path.join(__dirname,'../client/public/training-students.js'),'utf8');
+  const loader=fs.readFileSync(path.join(__dirname,'../client/public/training-courses.js'),'utf8');
+  const tablet=client.slice(client.indexOf('@media(max-width:780px)'),client.indexOf('@media(max-width:440px)'));
+  const mobile=client.slice(client.indexOf('@media(max-width:440px)'));
+  assert.match(client,/#\$\{rootId\} \[hidden\]\{display:none!important\}/);
+  assert.match(client,/#\$\{rootId\} #sx-st-attendance-form\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\}/);
+  assert.match(client,/#\$\{rootId\} #sx-st-trainer-form\{grid-template-columns:minmax\(0,1fr\) auto\}/);
+  assert.match(tablet,/#\$\{rootId\} #sx-st-attendance-form\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+  assert.match(tablet,/#\$\{rootId\} #sx-st-trainer-form\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+  assert.match(mobile,/#\$\{rootId\} #sx-st-attendance-form\{grid-template-columns:1fr\}/);
+  assert.match(mobile,/#\$\{rootId\} #sx-st-trainer-form\{grid-template-columns:1fr\}/);
+  assert.match(loader,/training-students\.js\?v=20261012-student-form-grid1/);
+});

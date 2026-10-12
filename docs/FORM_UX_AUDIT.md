@@ -60,6 +60,10 @@ The Students page was visually checked at desktop width. Its search field, enrol
 
 Student-profile trainer assignment now uses distinct existing trainer names from the same tenant as native select options, while “Add another trainer…” reveals a required custom-name field for new staff and outside instructors. The existing endpoint and stored trainer-name value remain unchanged. Unit checks cover tenant scoping and the custom-entry branch. Production release is recorded in `DEPLOYMENT.md`; authenticated production still has zero enrollments, so the profile select awaits a naturally available record for live visual acceptance. Attendance and the other student-profile controls still need separate field and layout review.
 
+## Student profile trainer and attendance forms — source review, 12 October 2026
+
+The custom trainer-name label uses the HTML `hidden` attribute, but a more-specific `.sx-st-form label { display:grid }` rule overrides the browser's default hidden styling. The CSS now explicitly hides `[hidden]` controls, so the manual trainer-name field stays out of view until “Add another trainer…” is selected. Trainer assignment remains a saved-name select with an explicit custom-name path for new instructors. The attendance form now puts its three fields and Save action in one aligned desktop row, two columns on tablet, and a single column on phones; the trainer form similarly aligns its select and action, adapting when the custom-name field appears. The attendance note stays free text because it records a case-specific explanation. Regression checks cover the hidden-state rule, catalogue select/custom branch, and responsive layouts. Production contains no enrollments after the documented cleanup, so no student record was opened or changed; live profile acceptance is still pending a naturally available enrollment.
+
 ## File-by-file inventory
 
 ### `client/public/admin-actions.js`
