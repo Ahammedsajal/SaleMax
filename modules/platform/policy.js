@@ -96,6 +96,13 @@ function decision(context, { capability, permission, resource, external = false 
   if (!Object.hasOwn(capabilities, capability) || !capabilities[capability].includes(permission)) return { allowed: false, code: 'CAPABILITY_PERMISSION_INVALID' };
   if (!category || category.key !== tenant.categoryKey || category.version !== tenant.categoryVersion || !Array.isArray(category.capabilities) || !category.capabilities.includes(capability)) return { allowed: false, code: 'CATEGORY_UNAVAILABLE' };
   if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || !subscription.capabilities.includes(capability)) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
+  // Internal SaleMaX accountants work from Finance and payout records. The
+  // legacy Sales Lead Pipeline does not provide the finance-only detail view.
+  // Keep Training Center billing-linked lead access unchanged.
+  if (category.key === 'salemax_sales' && membership.role === 'accountant' &&
+      ['leads.read', 'contacts.read'].includes(permission)) {
+    return { allowed: false, code: 'PERMISSION_DENIED' };
+  }
   const scope = category.key==='salemax_sales'&&membership.role==='manager'&&permission==='team.invite'?'tenant':scopeFor(membership, permission);
   if (!scope) return { allowed: false, code: 'PERMISSION_DENIED' };
   // Once an owner has configured a member's sidebar, that assignment also
