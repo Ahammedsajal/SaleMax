@@ -2,9 +2,10 @@
 require('dotenv').config({quiet:true});
 const os=require('node:os');
 const delivery=require('../modules/platform/training-receipt-delivery');
-const receiptsEnabled=delivery.enabled(process.env),remindersEnabled=delivery.reminderEmailEnabled(process.env);
+const receiptsEnabled=delivery.enabled(process.env),remindersEmailEnabled=delivery.reminderEmailEnabled(process.env),remindersWhatsAppEnabled=require('../modules/platform/training-installment-reminders').whatsappEnabled(process.env),remindersEnabled=remindersEmailEnabled||remindersWhatsAppEnabled;
 if(!receiptsEnabled&&!remindersEnabled)throw new Error('TRAINING_EMAIL_WORKER_DISABLED');
-const settings=delivery.smtpConfig(process.env);
+if(remindersWhatsAppEnabled)require('../modules/platform/training-installment-reminders').whatsappConfig(process.env);
+const settings=receiptsEnabled||remindersEmailEnabled?delivery.smtpConfig(process.env):null;
 const nodemailer=require('nodemailer');
 const plans=require('../modules/platform/plans');
 const outbox=require('../modules/platform/training-outbox');
@@ -14,7 +15,8 @@ const pool=require('../database/config').promise();
 const workerId=process.env.SALEMAX_RECEIPT_WORKER_ID||`training-email-${os.hostname().replace(/[^A-Za-z0-9._:-]/g,'-').slice(0,45)}-${process.pid}`;
 const once=process.argv.includes('--once'),interval=Number(process.env.SALEMAX_RECEIPT_WORKER_INTERVAL_MS||10000);
 if(!Number.isSafeInteger(interval)||interval<5000||interval>300000)throw new Error('INVALID_RECEIPT_WORKER_INTERVAL');
-const transport=nodemailer.createTransport({host:settings.host,port:settings.port,secure:settings.secure,requireTLS:!settings.secure,auth:settings.auth,tls:{minVersion:'TLSv1.2'},connectionTimeout:15000,greetingTimeout:15000,socketTimeout:30000});
+const emailTransport=settings?nodemailer.createTransport({host:settings.host,port:settings.port,secure:settings.secure,requireTLS:!settings.secure,auth:settings.auth,tls:{minVersion:'TLSv1.2'},connectionTimeout:15000,greetingTimeout:15000,socketTimeout:30000}):null;
+const transport={sendMail:emailTransport?(message=>emailTransport.sendMail(message)):undefined,sendWhatsApp:async({tenantId,to,template,language,version,parameters})=>{const meta=await require('../modules/platform/training-report-delivery').tenantMetaCredentials(pool,tenantId);if(!meta)throw Object.assign(new Error(),{code:'WHATSAPP_ACCOUNT_UNAVAILABLE'});const response=await require('axios').post(`https://graph.facebook.com/${version}/${meta.phoneId}/messages`,{messaging_product:'whatsapp',to:String(to).replace(/^\+/,''),type:'template',template:{name:template,language:{code:language},components:[{type:'body',parameters:parameters.map(text=>({type:'text',text:String(text)}))}]}},{headers:{Authorization:`Bearer ${meta.token}`},timeout:15000});const messageId=response?.data?.messages?.[0]?.id;if(typeof messageId!=='string'||!messageId)throw Object.assign(new Error(),{code:'WHATSAPP_ACCEPTANCE_UNCONFIRMED'});return {messageId};}};
 let stopping=false,timer=null;
 async function tenantContexts(){
   const [rows]=await pool.query(`SELECT DISTINCT t.id AS tenantId,m.id AS membershipId,m.identity_id AS identityId,t.status AS tenantStatus
@@ -31,17 +33,17 @@ async function tenantContexts(){
 function enabledEventTypes(){return [...(receiptsEnabled?['finance.receipt.issued']:[]),...(remindersEnabled?['finance.installment.reminder']:[])];}
 async function processTenant(ctx){
   const db=await pool.getConnection();let claimed;
-  try{if(remindersEnabled)await reminders.scheduleDue(db,ctx);claimed=await outbox.claim(db,ctx,{workerId,limit:10,leaseSeconds:300,eventTypes:enabledEventTypes()});}
+  try{if(remindersEnabled)await reminders.scheduleDue(db,ctx,{channels:[...(remindersEmailEnabled?['email']:[]),...(remindersWhatsAppEnabled?['whatsapp']:[])]});claimed=await outbox.claim(db,ctx,{workerId,limit:10,leaseSeconds:300,eventTypes:enabledEventTypes()});}
   finally{db.release();}
   let completed=0,failed=0,suppressed=0;
   for(const event of claimed.items){const current=await pool.getConnection();try{
     if(event.eventType==='finance.receipt.issued'){
       if(event.payload.resourceType!=='receipt'||!event.payload.resourceId)throw Object.assign(new Error(),{code:'INVALID_RECEIPT_EVENT'});
-      await delivery.sendPending(current,{tenantId:ctx.tenant.id,receiptId:event.payload.resourceId,workerId,transport,from:settings.from});
+      await delivery.sendPending(current,{tenantId:ctx.tenant.id,receiptId:event.payload.resourceId,workerId,transport:emailTransport,from:settings.from});
       const done=await outbox.finish(current,ctx,{eventId:event.id,workerId,leaseVersion:event.leaseVersion,outcome:'delivered'});if(done.status!=='delivered')throw Object.assign(new Error(),{code:'OUTBOX_ACK_FAILED'});completed++;
     }else if(event.eventType==='finance.installment.reminder'){
-      const offset=reminders.parseResourceOffset(event.payload.resourceType);
-      const result=await reminders.dispatch(current,{tenantId:ctx.tenant.id,installmentId:event.payload.resourceId,scheduleVersion:event.payload.revision,offset,transport,from:settings.from});
+      const {offset,channel}=reminders.parseResourceEvent(event.payload.resourceType);
+      const result=await reminders.dispatch(current,{tenantId:ctx.tenant.id,installmentId:event.payload.resourceId,scheduleVersion:event.payload.revision,offset,channel,transport,from:settings?.from});
       const done=result.status==='suppressed'?await outbox.finish(current,ctx,{eventId:event.id,workerId,leaseVersion:event.leaseVersion,outcome:'suppressed',errorCode:result.reason}):await outbox.finish(current,ctx,{eventId:event.id,workerId,leaseVersion:event.leaseVersion,outcome:'delivered'});
       if(done.status==='suppressed')suppressed++;else if(done.status==='delivered')completed++;else throw Object.assign(new Error(),{code:'OUTBOX_ACK_FAILED'});
     }else throw Object.assign(new Error(),{code:'UNKNOWN_TRAINING_EMAIL_EVENT'});
@@ -51,7 +53,7 @@ async function processTenant(ctx){
   return {claimed:claimed.items.length,completed,failed,suppressed};
 }
 async function tick(){const contexts=await tenantContexts();let totals={tenants:contexts.length,claimed:0,completed:0,failed:0,suppressed:0};for(const ctx of contexts){const result=await processTenant(ctx);for(const key of ['claimed','completed','failed','suppressed'])totals[key]+=result[key];}if(totals.claimed)console.log(JSON.stringify(totals));return totals;}
-async function stop(){if(stopping)return;stopping=true;if(timer)clearTimeout(timer);await transport.close();await pool.end();}
+async function stop(){if(stopping)return;stopping=true;if(timer)clearTimeout(timer);if(emailTransport)await emailTransport.close();await pool.end();}
 async function loop(){if(stopping)return;try{await tick();}catch(error){console.error(JSON.stringify({workerError:/^[A-Z0-9_]{2,100}$/.test(error.code||'')?error.code:'TRAINING_EMAIL_WORKER_FAILED'}));}if(!once&&!stopping)timer=setTimeout(loop,interval);else await stop();}
 process.once('SIGINT',()=>stop().then(()=>process.exit(0)));
 process.once('SIGTERM',()=>stop().then(()=>process.exit(0)));

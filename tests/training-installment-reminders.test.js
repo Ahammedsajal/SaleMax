@@ -8,18 +8,17 @@ const reminders=require('../modules/platform/training-installment-reminders');
 const uuid=()=>crypto.randomUUID();
 function ctx(){const tenantId=uuid();return {audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{tenantId,status:'active',role:'owner'},identity:{id:uuid()},category:{key:'training_center',version:1,capabilities:['finance.invoices']},subscription:{status:'active',capabilities:['finance.invoices']}};}
 
-test('tenant offsets are bounded, unique, normalized and default scheduling is disabled',()=>{
-  assert.deepEqual(reminders.DEFAULT_OFFSETS,[-3,0,3,7]);assert.deepEqual(reminders.shape(null),{enabled:false,offsetsDays:[-3,0,3,7],revision:0});assert.deepEqual(reminders.validateOffsets([7,-3,0]),[-3,0,7]);
+test('tenant offsets are bounded, unique, normalized and default scheduling is enabled',()=>{
+  assert.deepEqual(reminders.DEFAULT_OFFSETS,[-3,0,3,7]);assert.deepEqual(reminders.shape(null),{enabled:true,offsetsDays:[-3,0,3,7],revision:0});assert.deepEqual(reminders.validateOffsets([7,-3,0]),[-3,0,7]);
   for(const value of [[],Array(9).fill(1),[1,1],[-31],[91],[1.5],null])assert.throws(()=>reminders.validateOffsets(value),{code:'INVALID_REMINDER_OFFSETS'});
   assert.equal(reminders.parseResourceOffset(reminders.resourceType(-3)),-3);assert.equal(reminders.parseResourceOffset(reminders.resourceType(0)),0);assert.equal(reminders.parseResourceOffset(reminders.resourceType(7)),7);
 });
 
-test('Finance reminder offsets use a guided multi-date picker without comma entry',()=>{
+test('Finance reminder offsets retain the established comma-separated editor',()=>{
   const ui=fs.readFileSync(path.join(__dirname,'..','client/public/training-finance.js'),'utf8');
   const css=fs.readFileSync(path.join(__dirname,'..','client/public/salemax-brand.css'),'utf8');
-  assert.match(ui,/sx-reminder-offset-picker/);assert.match(ui,/Array\.from\(\{length:121\},\(_,index\)=>index-30\)/);
-  assert.match(ui,/selectedOffsets\.size>8/);assert.match(ui,/data-remove-offset/);assert.doesNotMatch(ui,/Use comma-separated day offsets/);
-  assert.match(css,/sx-reminder-offset-chip/);assert.match(css,/sx-reminder-offset-picker\{grid-column:1\/-1/);
+  assert.match(ui,/name="offsetsDays" maxlength="32"/);assert.match(ui,/split\(','\)/);
+  assert.match(ui,/Use comma-separated day offsets/);assert.match(css,/sx-reminder-offset-picker/);
 });
 
 test('tenant settings require owner/accountant authority, expected revision and audited updates',async()=>{
@@ -62,10 +61,24 @@ test('suppression is a terminal outbox outcome with a reason, distinct from deli
 test('reminder mail has an independent SMTP flag and is wired into the existing worker and Finance settings UI',()=>{
   const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8'),delivery=read('modules/platform/training-receipt-delivery.js'),runtime=read('modules/platform/training-receipt-worker-runtime.js'),worker=read('scripts/training-receipt-worker.cjs'),router=read('modules/platform/training-finance-router.js'),screen=read('client/public/training-finance.js'),migration=read('database/migrations/20261122_training_reminder_preferences.sql');
   const transport={SALEMAX_SMTP_HOST:'smtp.example.invalid',SALEMAX_SMTP_PORT:'587',SALEMAX_SMTP_USER:'mailer@example.invalid',SALEMAX_SMTP_PASS:'synthetic-secret',SALEMAX_RECEIPT_FROM:'receipts@example.invalid',SALEMAX_PLATFORM_KEY_BASE64:Buffer.alloc(32,1).toString('base64')};assert.equal(require('../modules/platform/training-receipt-delivery').reminderEmailEnabled({...transport,SALEMAX_INSTALLMENT_REMINDER_EMAIL_ENABLED:'true'}),true);assert.equal(require('../modules/platform/training-receipt-delivery').reminderEmailEnabled({...transport,SALEMAX_INSTALLMENT_REMINDER_EMAIL_ENABLED:'true',SALEMAX_PLATFORM_KEY_BASE64:''}),false);
-  assert.match(delivery,/SALEMAX_INSTALLMENT_REMINDER_EMAIL_ENABLED/);assert.match(runtime,/reminderEmailEnabled/);assert.match(worker,/finance\.installment\.reminder/);assert.match(worker,/e\.event_type IN \(\?\)/);assert.match(worker,/enabledEventTypes\(\)/);assert.match(router,/reminders\/settings/);assert.match(screen,/class="reminder-enabled-setting"/);assert.match(screen,/align-self:start;gap:10px/);assert.match(screen,/width:18px;height:18px;min-height:18px/);assert.match(migration,/suppressed/);assert.match(migration,/offsets_json JSON/);
+  assert.match(delivery,/SALEMAX_INSTALLMENT_REMINDER_EMAIL_ENABLED/);assert.match(runtime,/reminderEmailEnabled/);assert.match(worker,/finance\.installment\.reminder/);assert.match(worker,/e\.event_type IN \(\?\)/);assert.match(worker,/enabledEventTypes\(\)/);assert.match(router,/reminders\/settings/);assert.match(screen,/class="reminder-enabled-setting"/);assert.match(screen,/name="enabled" type="checkbox"/);assert.match(migration,/suppressed/);assert.match(migration,/offsets_json JSON/);
 });
 
 test('Finance reminder checkbox layout loads the updated cache-busted script',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
-  assert.match(html,/training-finance\.js\?v=20261012-finance-rtl2/);
+  assert.match(html,/training-finance\.js\?v=20261013-reminder-whatsapp1/);
+});
+test('WhatsApp reminder events require separate consent and carry their channel in the event type',async()=>{
+  assert.deepEqual(reminders.parseResourceEvent(reminders.resourceType(-3,'whatsapp')),{offset:-3,channel:'whatsapp'});
+  const actor=ctx(),installmentId=uuid(),invoiceId=uuid(),phone='+97450000000',phoneHash=crypto.createHash('sha256').update(phone).digest('hex'),events=[];
+  const row={installment_id:installmentId,invoice_id:invoiceId,due_date:'2026-10-08',amount_minor:10000,installment_status:'pending',schedule_version:2,invoice_status:'issued',invoice_email:'payer@example.qa',recipient_hash:'x'.repeat(64),preference_status:'pending',whatsapp_status:'opted_in',whatsapp_recipient_hash:phoneHash,payer_phone:phone,enrollment_status:'confirmed',paid_minor:0,credited_minor:0,dispute_open:0};
+  const db={async query(sql,params){if(sql.includes('FROM sx_training_reminder_settings'))return [[{enabled:1,offsets_json:'[0]',revision:1}]];if(sql.includes('FROM sx_training_installments x JOIN'))return [[row]];if(sql.startsWith('INSERT INTO sx_training_outbox_events')){events.push(params);return [{affectedRows:1}];}throw Error(`Unexpected SQL: ${sql}`);}};
+  const result=await reminders.scheduleDue(db,actor,{now:new Date('2026-10-08T08:00:00.000Z'),channels:['whatsapp']});assert.deepEqual(result,{scheduled:1,eligible:1});assert.equal(events.length,1);assert.equal(events[0][2],`installment-reminder:${installmentId}:v2:d0:whatsapp`);assert.equal(JSON.parse(events[0][4]).resourceType,'installment-reminder-on-due-date-whatsapp');
+});
+test('WhatsApp dispatch uses only its own opt-in and approved template configuration',async()=>{
+  const tenantId=uuid(),installmentId=uuid(),phone='+97450000000',hash=crypto.createHash('sha256').update(phone).digest('hex'),env={SALEMAX_PLATFORM_KEY_BASE64:Buffer.alloc(32,2).toString('base64'),SALEMAX_PUBLIC_BASE_URL:'https://crm.example.qa',SALEMAX_INSTALLMENT_REMINDER_WHATSAPP_ENABLED:'true',SALEMAX_INSTALLMENT_REMINDER_WHATSAPP_TEMPLATE:'installment_due_reminder',SALEMAX_INSTALLMENT_REMINDER_WHATSAPP_LANGUAGE:'en_US'},sealed=require('../modules/platform/training-reminder-preferences').encryptToken(Buffer.alloc(32,5).toString('base64url'),env);let row={id:installmentId,invoice_id:uuid(),due_date:'2026-10-08',amount_minor:10000,installment_status:'partial',schedule_version:2,invoice_status:'issued',invoice_number:'TC-2026-001',currency:'QAR',invoice_email:'payer@example.qa',preference_status:'opted_in',recipient_hash:'x'.repeat(64),whatsapp_status:'pending',whatsapp_recipient_hash:hash,payer_phone:phone,token_hash:sealed.tokenHash,token_ciphertext:sealed.ciphertext,token_iv:sealed.iv,token_tag:sealed.tag,enabled:1,offsets_json:'[0]',enrollment_status:'confirmed',paid_minor:2500,credited_minor:1500,dispute_open:0};
+  const db={async query(sql){if(sql.includes('FROM sx_training_installments x JOIN'))return [[row]];throw Error(`Unexpected SQL: ${sql}`);}};let sent;
+  const transport={async sendWhatsApp(message){sent=message;return {messageId:'wamid.test-message'};}};
+  assert.deepEqual(await reminders.dispatch(db,{tenantId,installmentId,scheduleVersion:2,offset:0,channel:'whatsapp',transport,env,now:new Date('2026-10-08T08:00:00.000Z')}),{status:'suppressed',reason:'CUSTOMER_OPTED_OUT'});assert.equal(sent,undefined);
+  row={...row,whatsapp_status:'opted_in'};const result=await reminders.dispatch(db,{tenantId,installmentId,scheduleVersion:2,offset:0,channel:'whatsapp',transport,env,now:new Date('2026-10-08T08:00:00.000Z')});assert.equal(result.status,'sent');assert.equal(sent.tenantId,tenantId);assert.equal(sent.to,phone);assert.equal(sent.template,'installment_due_reminder');assert.equal(sent.parameters[0],'TC-2026-001');assert.match(sent.parameters[3],/customer-reminders#/);
 });
