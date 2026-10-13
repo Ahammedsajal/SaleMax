@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const navigation=require('../modules/platform/navigation');
+const legacyRoleGuard=require('../modules/platform/team-role-request-guard');
 const {salemaxSales}=require('../modules/platform/categories');
 const salesReportCsv=require('../client/public/sales-workspace/sales-report-csv');
 
@@ -41,7 +42,17 @@ test('Sales workspace exposes only each role assigned sections and keeps account
   const expected={owner:['sales-deals','sales-commissions','sales-targets','sales-finance'],manager:['sales-deals','sales-commissions','sales-targets','sales-finance'],team_leader:['sales-deals','sales-commissions','sales-targets'],agent:['sales-deals','sales-commissions','sales-targets'],accountant:['sales-commissions','sales-finance']};
   for(const [role,keys] of Object.entries(expected)){const actual=navigation.navigationFor(context(role)).map(item=>item.key);for(const key of keys)assert.ok(actual.includes(key),`${role} should retain ${key}`);}
   const accountant=navigation.navigationFor(context('accountant')).map(item=>item.key);
+  assert.deepEqual(accountant,['sales-commissions','sales-finance']);
   for(const key of ['sales-deals','sales-targets','sales-organization','sales-audit','commission-policy'])assert.ok(!accountant.includes(key),`accountant should not receive ${key}`);
+});
+
+test('default SaleMaX Sales Accountant membership is limited to existing shell bootstrap on legacy APIs',()=>{
+  const row={categoryKey:'salemax_sales',role:'accountant',roleProfileId:null};
+  const request=(method,path,baseUrl='/api/user')=>({method,path,baseUrl});
+  for(const path of ['/get_me','/fetch_profile','/get_plan_details','/optional-features','/get_fcm_data'])
+    assert.equal(legacyRoleGuard.authorizeLegacyMembership(request('GET',path),row).allowed,true,path);
+  for(const req of [request('GET','/get_dashboard'),request('GET','/get_contact'),request('POST','/update_profile'),request('GET','/get_me','/api/phonebook')])
+    assert.deepEqual(legacyRoleGuard.authorizeLegacyMembership(req,row),{allowed:false,code:'PERMISSION_DENIED'});
 });
 
 test('Sales workspace loads permissions before section APIs, hides unauthorized tabs and blocks direct unauthorized sections',()=>{
