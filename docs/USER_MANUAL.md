@@ -259,3 +259,9 @@ In **Admin → Manage Users**, choose **Optional features** on the customer's ro
 ## Student registration and lead import
 
 See [Student registration](TRAINING_REGISTRATION.md) for source-based lead search, optional profile import, course prefixes, digital signatures, pending approval, provisional invoices, issued invoice notifications and provider configuration.
+
+## Create, open, edit and delete invoices
+
+Open Invoices & Payments and use Create invoice. Choose a lead/contact or enter customer details manually, then add one or more courses. Each course has its own discount type: No discount, Percentage (%), or Fixed amount (QAR). The form shows each course price, discount and net amount, plus the overall subtotal, discount and total. Choose a saved payment plan or enter payment dates whose amounts match the discounted total.
+
+Click an invoice number, its row, or Open invoice to view it in a new tab. Printing happens only when you click Print / Save as PDF in that tab. Edit opens the populated invoice form with all courses and discount choices. Review current course prices and payment dates before saving; the invoice number stays unchanged. Delete asks for confirmation and removes the generated document from the list while preserving its history. Documents already linked to posted invoices or replaced by another document are locked; payment and enrollment records are not removed by this action.

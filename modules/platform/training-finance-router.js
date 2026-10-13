@@ -1,17 +1,22 @@
 'use strict';
 const express=require('express');
+const fileUpload=require('express-fileupload');
+const fs=require('node:fs/promises');
 const courses=require('./training-courses');
 const policies=require('./training-finance-policies');
 const invoices=require('./training-invoices');
 const saleReviews=require('./training-sale-reviews');
 const receivablesReport=require('./training-receivables-report');
 const payments=require('./training-payments');
+const paymentProofs=require('./training-payment-proofs');
 const schedules=require('./training-installment-schedules');
 const credits=require('./training-credits');
 const refunds=require('./training-refunds');
 const disputes=require('./training-disputes');
 const invoiceGenerator=require('./invoice-generator');
+const invoiceEditor=require('./invoice-generator-editor');
 const documentGrants=require('./training-document-grants');
+const documentDelivery=require('./training-document-delivery');
 const reminderPreferences=require('./training-reminder-preferences');
 const installmentReminders=require('./training-installment-reminders');
 function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
@@ -19,7 +24,9 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   const withConnection=fn=>async(...args)=>{const db=await pool.getConnection();try{return await fn(db,...args);}finally{db.release();}};
   router.use(express.json({limit:'180kb',strict:true}));
-  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(!require('./request-origin').matches(req,origin)||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(!require('./request-origin').matches(req,origin)?403:400).json({success:false,code:!require('./request-origin').matches(req,origin)?'ORIGIN_DENIED':'INVALID_BODY'});next();});
+  router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(['GET','HEAD','OPTIONS'].includes(req.method))return next();if(!require('./request-origin').matches(req,origin))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});if(req.is('multipart/form-data'))return next();if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))return res.status(400).json({success:false,code:'INVALID_BODY'});next();});
+  const parsePaymentProof=(req,res,next)=>{if(!req.is('multipart/form-data'))return res.status(400).json({success:false,code:'PAYMENT_PROOF_FILE_REQUIRED'});fileUpload({useTempFiles:true,tempFileDir:require('node:os').tmpdir(),limits:{fileSize:paymentProofs.LIMIT,files:1,fields:0},abortOnLimit:false})(req,res,error=>{if(error)return res.status(error.status===413||error.code==='LIMIT_FILE_SIZE'?413:400).json({success:false,code:error.code==='LIMIT_FILE_SIZE'?'PAYMENT_PROOF_TOO_LARGE':'INVALID_PAYMENT_PROOF'});next();});};
+  const openPaymentProof=contextName=>wrap(async(req,res,next)=>{const proof=await withConnection(paymentProofs.get)(req[contextName],req.params.id);res.setHeader('Content-Type',proof.mimeType);res.setHeader('Content-Length',String(proof.bytes));res.setHeader('Content-Disposition','inline');res.setHeader('X-Content-Type-Options','nosniff');res.sendFile(proof.filePath,{dotfiles:'deny'},error=>{if(error&&!res.headersSent)next(error);});});
   const ownerContext=(req,res,next)=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.financeContext=ctx;next();}).catch(next);
   const tenantLegacyOwnerUid=async tenantId=>{const [rows]=await pool.query(`SELECT u.uid FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR) WHERE o.tenant_id=? ORDER BY u.id LIMIT 2`,[tenantId]);if(rows.length!==1)throw Object.assign(new Error('BUSINESS_LINK_INVALID'),{code:'BUSINESS_LINK_INVALID'});return rows[0].uid;};
   router.get('/current',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.get)(req.financeContext)})));
@@ -31,6 +38,7 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.put('/canonical/draft',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.saveDraft)(req.businessContext,req.body)})));
   router.post('/canonical/:id/submit',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.submit)(req.businessContext,{id:req.params.id,expectedRevision:req.body?.expectedRevision})})));
   router.get('/invoices',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.list)(req.financeContext,req.query)})));
+  router.get('/invoices/summary',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.summary)(req.financeContext,req.query)})));
   router.get('/sales/approved-for-invoice',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await saleReviews.listApprovedForInvoice(pool,req.financeContext,{uid:req.decode.uid})})));
   router.get('/accountant/sales/approved-for-invoice',canonicalGuard,wrap(async(req,res)=>{const uid=await tenantLegacyOwnerUid(req.businessContext.tenant.id);res.json({success:true,data:await saleReviews.listApprovedForInvoice(pool,req.businessContext,{uid})});}));
   router.post('/accountant/sales/:leadId/reviews/:reviewId/convert',canonicalGuard,wrap(async(req,res)=>{const uid=await tenantLegacyOwnerUid(req.businessContext.tenant.id),db=await pool.getConnection();try{const conversion=require('./training-sale-conversion'),data=await conversion.convert(db,req.businessContext,{uid,leadId:req.params.leadId,saleReviewId:req.params.reviewId,requestKey:req.body?.requestKey,actorRole:req.businessContext.membership.role,actorType:'identity',actorId:String(req.businessContext.identity.id)});res.status(data.repeated?200:201).json({success:true,data});}finally{db.release();}}));
@@ -39,21 +47,28 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.put('/generator/settings',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.saveSettings)(req.financeContext,req.body)})));
   router.get('/generator/courses',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.courses)(req.financeContext)})));
   router.get('/generator/customers',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.customers)(req.financeContext,{uid:req.decode.uid,q:req.query.q||''})})));
-  router.get('/generator/invoices',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.list)(req.financeContext)})));
+  router.get('/generator/invoices/:id/conversion-options',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await invoiceGenerator.conversionOptions(pool,req.financeContext,{uid:req.decode.uid,documentId:req.params.id})})));
+  router.post('/generator/invoices/:id/convert',userGuard,ownerContext,wrap(async(req,res)=>{const db=await pool.getConnection();try{const data=await require('./training-sale-conversion').convert(db,req.financeContext,{uid:req.decode.uid,leadId:req.body?.leadId,saleReviewId:req.body?.saleReviewId,requestKey:req.body?.requestKey,generatedDocumentId:req.params.id,actorRole:req.financeContext.membership.role,actorType:'identity',actorId:String(req.financeContext.identity.id)});res.status(data.repeated?200:201).json({success:true,data});}finally{db.release();}}));
+  router.get('/generator/invoices',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.list)(req.financeContext,req.query)})));
   router.get('/generator/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.detail)(req.financeContext,req.params.id)})));
   router.post('/generator/invoices',userGuard,ownerContext,wrap(async(req,res)=>{const data=await withConnection(invoiceGenerator.create)(req.financeContext,{uid:req.decode.uid,input:req.body});res.status(data.repeated?200:201).json({success:true,data});}));
-  router.put('/generator/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>{const {replacementReason,...input}=req.body||{},data=await withConnection(invoiceGenerator.create)(req.financeContext,{uid:req.decode.uid,input,replacesId:req.params.id,replacementReason});res.status(data.repeated?200:201).json({success:true,data});}));
+  router.put('/generator/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.update)(req.financeContext,{uid:req.decode.uid,id:req.params.id,input:req.body})})));
+  router.delete('/generator/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.remove)(req.financeContext,{id:req.params.id,input:req.body})})));
   router.get('/accountant/invoices',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.list)(req.businessContext,req.query)})));
+  router.get('/accountant/invoices/summary',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.summary)(req.businessContext,req.query)})));
   router.get('/accountant/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.detail)(req.businessContext,req.params.id)})));
   const canonicalGeneratorUid=async req=>tenantLegacyOwnerUid(req.businessContext.tenant.id);
   router.get('/accountant/generator/settings',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.getSettings)(req.businessContext)})));
   router.put('/accountant/generator/settings',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.saveSettings)(req.businessContext,req.body)})));
   router.get('/accountant/generator/courses',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.courses)(req.businessContext)})));
   router.get('/accountant/generator/customers',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.customers)(req.businessContext,{uid:await canonicalGeneratorUid(req),q:req.query.q||''})})));
-  router.get('/accountant/generator/invoices',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.list)(req.businessContext)})));
+  router.get('/accountant/generator/invoices/:id/conversion-options',canonicalGuard,wrap(async(req,res)=>{const uid=await canonicalGeneratorUid(req);res.json({success:true,data:await invoiceGenerator.conversionOptions(pool,req.businessContext,{uid,documentId:req.params.id})});}));
+  router.post('/accountant/generator/invoices/:id/convert',canonicalGuard,wrap(async(req,res)=>{const uid=await canonicalGeneratorUid(req),db=await pool.getConnection();try{const data=await require('./training-sale-conversion').convert(db,req.businessContext,{uid,leadId:req.body?.leadId,saleReviewId:req.body?.saleReviewId,requestKey:req.body?.requestKey,generatedDocumentId:req.params.id,actorRole:req.businessContext.membership.role,actorType:'identity',actorId:String(req.businessContext.identity.id)});res.status(data.repeated?200:201).json({success:true,data});}finally{db.release();}}));
+  router.get('/accountant/generator/invoices',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.list)(req.businessContext,req.query)})));
   router.get('/accountant/generator/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.detail)(req.businessContext,req.params.id)})));
   router.post('/accountant/generator/invoices',canonicalGuard,wrap(async(req,res)=>{const uid=await canonicalGeneratorUid(req),data=await withConnection(invoiceGenerator.create)(req.businessContext,{uid,input:req.body});res.status(data.repeated?200:201).json({success:true,data});}));
-  router.put('/accountant/generator/invoices/:id',canonicalGuard,wrap(async(req,res)=>{const uid=await canonicalGeneratorUid(req),{replacementReason,...input}=req.body||{},data=await withConnection(invoiceGenerator.create)(req.businessContext,{uid,input,replacesId:req.params.id,replacementReason});res.status(data.repeated?200:201).json({success:true,data});}));
+  router.put('/accountant/generator/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.update)(req.businessContext,{uid:await canonicalGeneratorUid(req),id:req.params.id,input:req.body})})));
+  router.delete('/accountant/generator/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.remove)(req.businessContext,{id:req.params.id,input:req.body})})));
   router.get('/reports/receivables-aging',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(receivablesReport.list)(req.financeContext,req.query)})));
   router.get('/accountant/reports/receivables-aging',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(receivablesReport.list)(req.businessContext,req.query)})));
   router.post('/invoices/:id/schedule-changes',userGuard,ownerContext,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(schedules.request)(req.financeContext,req.params.id,req.body)})));
@@ -64,6 +79,10 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.post('/accountant/invoices/:id/payments',canonicalGuard,wrap(async(req,res)=>{
     const data=await withConnection(payments.record)(req.businessContext,req.params.id,req.body);res.status(201).json({success:true,data});
   }));
+  router.post('/invoices/:id/payments/:paymentId/proof',userGuard,ownerContext,parsePaymentProof,wrap(async(req,res)=>{const file=req.files?.proof;if(!file||Array.isArray(file))return res.status(400).json({success:false,code:'PAYMENT_PROOF_FILE_REQUIRED'});try{const data=await withConnection(paymentProofs.upload)(req.financeContext,req.params.paymentId,file,{invoiceId:req.params.id});res.status(data.repeated?200:201).json({success:true,data});}finally{if(file.tempFilePath)await fs.rm(file.tempFilePath,{force:true}).catch(()=>{});}}));
+  router.post('/accountant/invoices/:id/payments/:paymentId/proof',canonicalGuard,parsePaymentProof,wrap(async(req,res)=>{const file=req.files?.proof;if(!file||Array.isArray(file))return res.status(400).json({success:false,code:'PAYMENT_PROOF_FILE_REQUIRED'});try{const data=await withConnection(paymentProofs.upload)(req.businessContext,req.params.paymentId,file,{invoiceId:req.params.id});res.status(data.repeated?200:201).json({success:true,data});}finally{if(file.tempFilePath)await fs.rm(file.tempFilePath,{force:true}).catch(()=>{});}}));
+  router.get('/payments/:id/proof',userGuard,ownerContext,openPaymentProof('financeContext'));
+  router.get('/accountant/payments/:id/proof',canonicalGuard,openPaymentProof('businessContext'));
   router.get('/accountant/payments/pending',canonicalGuard,wrap(async(req,res)=>{
     const data=await withConnection(payments.pending)(req.businessContext,req.query);res.json({success:true,data});
   }));
@@ -91,6 +110,7 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   }));
   for(const canonical of [false,true]){
     const prefix=canonical?'/accountant':'',guards=canonical?[canonicalGuard]:[userGuard,ownerContext],ctx=req=>canonical?req.businessContext:req.financeContext;
+    router.post(`${prefix}/documents/:type/:id/deliveries`,...guards,wrap(async(req,res)=>{const data=await withConnection(documentDelivery.deliver)(ctx(req),{type:req.params.type,id:req.params.id,channel:req.body?.channel,requestKey:req.body?.requestKey,origin,env:process.env});res.json({success:true,data});}));
     router.get(`${prefix}/reminders/settings`,...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(installmentReminders.getSettings)(ctx(req))})));
     router.put(`${prefix}/reminders/settings`,...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(installmentReminders.saveSettings)(ctx(req),req.body)})));
     router.post(`${prefix}/documents/:type/:id/link`,...guards,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(documentGrants.issue)(ctx(req),req.params.type,req.params.id,{origin})})));
@@ -118,6 +138,8 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.post('/:id/decision',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.decide)(req.businessContext,{id:req.params.id,expectedRevision:req.body?.expectedRevision,decision:req.body?.decision,reason:req.body?.reason})})));
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);const code=error.code||'FINANCE_POLICY_UNAVAILABLE';
+    const documentStatus={STALE_INVOICE_REVISION:409,STALE_COURSE_PRICE:409,INVOICE_LINKED_READ_ONLY:409,INVOICE_REPLACED_READ_ONLY:409,INVOICE_DELETED:410,DISCOUNT_EXCEEDS_COURSE_PRICE:400};
+    if(documentStatus[code])return res.status(documentStatus[code]).json({success:false,code});
     if(code.startsWith('REFUND_'))return res.status(code==='REFUND_NOT_FOUND'?404:409).json({success:false,code});
     if(code.startsWith('DOCUMENT_LINK_')||code.startsWith('REMINDER_LINK_')||code==='DOCUMENT_NOT_FOUND'||code==='DOCUMENT_RECIPIENT_UNAVAILABLE')return res.status(404).json({success:false,code:'DOCUMENT_LINK_UNAVAILABLE'});
     if(code.startsWith('DISPUTE_'))return res.status(code==='DISPUTE_NOT_FOUND'?404:code==='DISPUTE_BALANCE_OUT_OF_SYNC'?503:409).json({success:false,code});
@@ -139,6 +161,7 @@ function createPublicTrainingReminderRouter({pool,origin}){
   router.use((req,res,next)=>{res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Pragma','no-cache');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Content-Type-Options','nosniff');next();});
   router.post('/resolve',async(req,res)=>{if((req.get('Origin')&&!require('./request-origin').matches(req,origin))||!req.body||typeof req.body.token!=='string'||Object.keys(req.body).some(key=>key!=='token'))return res.status(404).json({success:false,code:'REMINDER_LINK_UNAVAILABLE'});const db=await pool.getConnection();try{const data=await reminderPreferences.resolve(db,req.body.token);res.json({success:true,data});}catch{res.status(404).json({success:false,code:'REMINDER_LINK_UNAVAILABLE'});}finally{db.release();}});
   router.post('/update',async(req,res)=>{if(!require('./request-origin').matches(req,origin)||!req.body||typeof req.body.token!=='string'||typeof req.body.optIn!=='boolean'||Object.keys(req.body).some(key=>!['token','optIn'].includes(key)))return res.status(404).json({success:false,code:'REMINDER_LINK_UNAVAILABLE'});const db=await pool.getConnection();try{const data=await reminderPreferences.update(db,req.body.token,req.body.optIn);res.json({success:true,data});}catch{res.status(404).json({success:false,code:'REMINDER_LINK_UNAVAILABLE'});}finally{db.release();}});
+  router.post('/update-whatsapp',async(req,res)=>{if(!require('./request-origin').matches(req,origin)||!req.body||typeof req.body.token!=='string'||typeof req.body.optIn!=='boolean'||Object.keys(req.body).some(key=>!['token','optIn'].includes(key)))return res.status(404).json({success:false,code:'REMINDER_LINK_UNAVAILABLE'});const db=await pool.getConnection();try{const data=await reminderPreferences.updateWhatsApp(db,req.body.token,req.body.optIn);res.json({success:true,data});}catch{res.status(404).json({success:false,code:'REMINDER_LINK_UNAVAILABLE'});}finally{db.release();}});
   return router;
 }
 module.exports={createTrainingFinanceRouter,createPublicTrainingDocumentRouter,createPublicTrainingReminderRouter};

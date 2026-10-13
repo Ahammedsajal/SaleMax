@@ -519,3 +519,16 @@ The existing Candidate Applications page also reads `GET /api/user/training/form
 
 
 Custom role permissions are intersected with the selected seat type, training-center category and current plan capabilities. Canonical API decisions and mapped legacy API routes enforce those grants; an unmapped legacy route is denied for custom-role members. The existing Agent Login remains the agent entry point. Migration `20261113_team_role_profiles.sql` adds tenant-scoped role profiles and nullable role links for invitations and memberships.
+
+## Generated invoice editing and per-course discounts
+
+The existing owner and canonical owner/accountant generator routes now support:
+- POST /generator/invoices (or /accountant/generator/invoices): create a document.
+- PUT /generator/invoices/:id (or /accountant/generator/invoices/:id): edit an unlinked generated document without changing its ID, invoice number or issue date.
+- DELETE /generator/invoices/:id (or /accountant/generator/invoices/:id): archive the document from the register and authenticated detail endpoint while retaining its snapshot and audit history.
+
+Create/edit accepts courseLines (1–10 unique active courses). Each line contains courseId, discountType (none, percent or fixed), discountValue (at most two decimal places; fixed values are QAR), and expectedOfferVersion from the catalogue. Percent discounts range from 0 to 100 and use half-up cent rounding. Fixed discounts cannot exceed their course price. The server reads current course prices, calculates each line and the invoice total, and validates that payment installments equal the discounted total. A positive overall invoice total is required. Existing single-course courseId payloads remain compatible.
+
+Edit additionally requires expectedRevision and a UUID requestKey. Delete requires those two fields. Mutations are tenant-scoped, idempotent and serialized with conversion through the existing tenant lock. Stale revisions/prices return 409. Generated documents linked to posted invoices, or prior documents already replaced, return 409 and remain read-only. Historical versions and deletion metadata live in the additive generated-invoice editing tables. Multi-course generated documents are not implicitly converted into the existing single-course enrollment/posting workflow.
+
+Opening a document uses a new browser tab and never starts printing automatically. Printing remains available through an explicit action in the document tab. The existing invoice creation form supports multiple courses and retains each course's independent discount when opened for editing. Edit reviews current catalogue prices; existing manual dates are retained and must balance after any changes.
