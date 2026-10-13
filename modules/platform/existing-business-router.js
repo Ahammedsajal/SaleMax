@@ -7,6 +7,7 @@ const legacy=require('./legacy-plan-assignment');
 const {platformDecision}=require('./policy');
 const portfolio=require('./user-portfolio');
 const optional=require('./optional-features');
+const ownerActivation=require('./business-owner-activation');
 const {salemaxSales}=require('./categories');
 const jsonValue=value=>typeof value==='string'?JSON.parse(value):value;
 function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
@@ -60,6 +61,11 @@ function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
     if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_ASSIGNMENT'});
     const data=await use(async db=>{await requirePortfolio(db,req.businessContext,Number(req.params.userId));return provisioning.provision(db,req.businessContext,{...req.body,userId:Number(req.params.userId)});});res.status(201).json({success:true,data});
   }));
+  router.post('/:userId/owner-activation',wrap(async(req,res)=>{
+    if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_USER_ID'});
+    const invitation=await use(db=>ownerActivation.create(db,req.businessContext,Number(req.params.userId)));
+    res.status(201).json({success:true,data:invitation});
+  }));
   router.post('/:userId/preview',wrap(async(req,res)=>{
     if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_ASSIGNMENT'});
     const data=await use(async db=>{await requirePortfolio(db,req.businessContext,Number(req.params.userId));return assignment.preview(db,req.businessContext,{...req.body,userId:Number(req.params.userId)});});res.json({success:true,data});
@@ -70,7 +76,7 @@ function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
   }));
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
-    const code=error.code||'',status=['PERMISSION_DENIED','PLATFORM_REQUIRED','VERIFIED_ADMIN_LINK_REQUIRED','PORTFOLIO_ACCESS_DENIED'].includes(code)?403:['USER_NOT_FOUND'].includes(code)?404:['STALE_FEATURE_SETTINGS','STALE_ASSIGNMENT','STALE_PROVISION','PUBLISHED_PLAN_IMMUTABLE','IDEMPOTENCY_CONFLICT','AMBIGUOUS_BUSINESS_LINK','AMBIGUOUS_USER','VERIFIED_BUSINESS_LINK_REQUIRED','BUSINESS_ALREADY_PROVISIONED','BUSINESS_IDENTITY_EXISTS','PUBLISHED_CONTRACT_REQUIRED','CONTRACT_NOT_FOR_CURRENT_PLAN','MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT'].includes(code)?409:code.startsWith('INVALID_')||['ONE_OWNER_REQUIRED','CATEGORY_UNAVAILABLE','ACCOUNT_INACTIVE','PLAN_LIMIT_EXCEEDED','SEATS_IN_USE','BUSINESS_PLAN_REQUIRED','BUSINESS_EMAIL_INVALID','BUSINESS_NAME_INVALID','STORED_CONTRACT_INVALID'].includes(code)?400:error.type==='entity.parse.failed'?400:error.type==='entity.too.large'?413:503;
+    const code=error.code||'',status=['PERMISSION_DENIED','PLATFORM_REQUIRED','VERIFIED_ADMIN_LINK_REQUIRED','PORTFOLIO_ACCESS_DENIED'].includes(code)?403:['USER_NOT_FOUND'].includes(code)?404:['STALE_FEATURE_SETTINGS','STALE_ASSIGNMENT','PUBLISHED_PLAN_IMMUTABLE','IDEMPOTENCY_CONFLICT','AMBIGUOUS_BUSINESS_LINK','AMBIGUOUS_USER','VERIFIED_BUSINESS_LINK_REQUIRED','BUSINESS_ALREADY_PROVISIONED','BUSINESS_IDENTITY_EXISTS','PUBLISHED_CONTRACT_REQUIRED','CONTRACT_NOT_FOR_CURRENT_PLAN','MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT','SALES_OWNER_NOT_READY','OWNER_ALREADY_ACTIVATED','DESIGNATED_OWNER_REQUIRED'].includes(code)?409:['STALE_PROVISION'].includes(code)?409:code.startsWith('INVALID_')||['ONE_OWNER_REQUIRED','CATEGORY_UNAVAILABLE','ACCOUNT_INACTIVE','PLAN_LIMIT_EXCEEDED','SEATS_IN_USE','BUSINESS_PLAN_REQUIRED','BUSINESS_EMAIL_INVALID','BUSINESS_NAME_INVALID','STORED_CONTRACT_INVALID'].includes(code)?400:error.type==='entity.parse.failed'?400:error.type==='entity.too.large'?413:503;
     const body={code:status===503?'ASSIGNMENT_UNAVAILABLE':error.type==='entity.parse.failed'?'INVALID_JSON':error.type==='entity.too.large'?'BODY_TOO_LARGE':code};
     if(!['GET','HEAD'].includes(req.method)&&req.businessContext?.identity?.id){
       use(db=>db.query("INSERT INTO sx_audit_events(id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,'identity','business-contract.request-rejected','business-account',?,?,?)",[crypto.randomUUID(),req.businessContext.identity.id,req.params.userId||'unknown',JSON.stringify(body),crypto.randomUUID()])).then(()=>res.status(status).json(body)).catch(()=>res.status(503).json({code:'AUDIT_UNAVAILABLE'}));

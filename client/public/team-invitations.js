@@ -20,12 +20,15 @@
     agent: ['Agent seats', 'مقاعد الوكلاء']
   };
   let inviteToken = window.__sxTeamInviteToken || sessionStorage.getItem('sx_team_invite_token') || '';
+  let ownerSetupToken = window.__sxBusinessOwnerSetupToken || sessionStorage.getItem('sx_business_owner_setup_token') || '';
   let currentTeamData = null;
   const permissionModules={tenant:['Business settings','إعدادات النشاط'],channels:['WhatsApp connections','اتصالات واتساب'],automation:['Automation','الأتمتة'],campaigns:['Campaigns','الحملات'],conversations:['Inbox','صندوق الوارد'],leads:['Lead pipeline','مسار العملاء المحتملين'],contacts:['Phonebook','دليل الهاتف'],courses:['Courses','الدورات'],sales:['Enrollments','التسجيلات'],invoices:['Invoices','الفواتير'],payments:['Payments','المدفوعات'],receipts:['Receipts','الإيصالات'],credits:['Credits and refunds','الإشعارات الدائنة والاسترداد'],reports:['Reports','التقارير'],forms:['Lead forms','نماذج العملاء المحتملين'],tasks:['Tasks','المهام'],calls:['Call center','مركز الاتصال'],team:['Team','الفريق'],templates:['Templates','القوالب']};
   const permissionActions={read:['View','عرض'],manage:['Manage','إدارة'],reply:['Reply','الرد'],configure:['Configure','إعداد'],send:['Send','إرسال'],assign:['Assign','تعيين'],request:['Request','طلب'],approve:['Approve','اعتماد'],issue:['Issue','إصدار'],verify:['Verify','تحقق'],prepare:['Prepare','إعداد'],schedule:['Schedule','جدولة'],capture:['Capture','إدخال']};
   try { delete window.__sxTeamInviteToken; sessionStorage.removeItem('sx_team_invite_token'); } catch (_) {}
+  try { delete window.__sxBusinessOwnerSetupToken; } catch (_) {}
   if (!inviteToken && route()) inviteToken = new URLSearchParams(location.hash.slice(1)).get('team-invite') || '';
   if (inviteToken) history.replaceState(null, '', location.pathname + location.search);
+  if (ownerSetupToken) history.replaceState(null, '', location.pathname + location.search);
 
   const css = document.createElement('style');
   css.textContent = `#sx-team-screen{position:fixed;z-index:1200;inset:64px 0 0 250px;background:#f5f7fa;overflow:auto;padding:24px;box-sizing:border-box;font:14px/1.5 Roboto,Arial,sans-serif;color:#17212f}#sx-team-screen[dir=rtl]{inset-inline:250px 0}#sx-team-screen[data-accept="1"]{z-index:2147483000;inset:0!important;padding:24px!important}#sx-team-screen .wrap{max-width:1100px;margin:auto}#sx-team-screen h1{font-size:24px;margin:0 0 6px}#sx-team-screen h2{font-size:18px;margin:0 0 12px}#sx-team-screen p{color:#667085}#sx-team-screen .card{background:#fff;border:1px solid #e4e7ec;border-radius:12px;padding:18px;margin:16px 0;box-shadow:0 3px 12px #1018280a}#sx-team-screen form{display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end}#sx-team-screen label{display:grid;gap:6px;font-weight:600}#sx-team-screen input,#sx-team-screen select{min-height:42px;border:1px solid #cfd5dd;border-radius:8px;padding:8px 10px;font:inherit;background:white;color:inherit}#sx-team-screen button{min-height:40px;padding:8px 13px;border:1px solid #d0d5dd;border-radius:8px;background:white;cursor:pointer;color:inherit;font:inherit}#sx-team-screen button.primary{background:#a8003b;border-color:#a8003b;color:white}#sx-team-screen button:disabled{opacity:.55;cursor:not-allowed}#sx-team-screen .row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #eaecf0;padding:13px 0}#sx-team-screen .actions{display:flex;gap:8px;flex-wrap:wrap}#sx-team-screen .notice{padding:12px;border-radius:8px;background:#ecfdf3;overflow-wrap:anywhere}#sx-team-screen .error{background:#fff1f0;color:#b42318;padding:12px;border-radius:8px}#sx-team-screen .muted{font-size:12px;color:#667085}#sx-team-screen .seat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}#sx-team-screen .seat-card{border:1px solid #e4e7ec;border-radius:10px;padding:14px}#sx-team-screen .seat-card strong{display:block;margin-bottom:8px}#sx-team-screen .seat-metrics{display:flex;flex-wrap:wrap;gap:6px 14px;color:#475467;font-size:12px}#sx-team-screen .member-card{border:1px solid #e4e7ec;border-radius:10px;padding:16px;margin:12px 0}#sx-team-screen .member-head{display:flex;justify-content:space-between;gap:12px;align-items:center}#sx-team-screen .nav-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0}#sx-team-screen .nav-option{display:flex;align-items:flex-start;gap:9px;padding:9px;border:1px solid #eaecf0;border-radius:8px;font-weight:400}#sx-team-screen .nav-option input{min-height:18px;width:18px;margin:2px 0 0;accent-color:#a8003b}#sx-team-screen .nav-group{grid-column:1/-1;margin:8px 0 0;color:#667085;font-size:12px;font-weight:700}#sx-team-screen code{overflow-wrap:anywhere}#sx-team-screen .accept-meta{padding:12px;background:#f8f9fc;border-radius:8px;margin:12px 0}#sx-team-screen .accept-form{grid-template-columns:1fr!important;max-width:560px}#sx-team-screen :focus-visible{outline:3px solid #7b2cbf;outline-offset:2px}@media(max-width:1000px){#sx-team-screen .nav-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){#sx-team-screen,#sx-team-screen[dir=rtl]{inset-inline:0;top:56px;padding:16px}#sx-team-screen[data-accept="1"]{inset:0!important;padding:16px!important}#sx-team-screen form{grid-template-columns:1fr}#sx-team-screen .row{align-items:flex-start;flex-direction:column}#sx-team-screen .seat-grid{grid-template-columns:1fr}#sx-team-screen .nav-grid{grid-template-columns:1fr}#sx-team-screen .member-head{align-items:flex-start;flex-direction:column}}`;
@@ -421,6 +424,17 @@
       const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = label('Check link again','التحقق من الرابط مجدداً'); retry.onclick = () => accept(); preview.append(retry);
     }
   }
+  async function activateBusinessOwner(){
+    if(!ownerSetupToken)return;
+    const node=screen();node.dataset.accept='1';
+    node.innerHTML=`<div class="wrap"><div class="card"><h1>${label('Activate your SaleMaX Sales Business Admin account','تفعيل حساب مسؤول مبيعات SaleMaX')}</h1><p>${label('Set your name and a private password to activate the Business Admin account. This one-time link expires after 72 hours.','أدخل اسمك وكلمة مرور خاصة لتفعيل حساب مسؤول النشاط. تنتهي صلاحية هذا الرابط لمرة واحدة بعد 72 ساعة.')}</p><div id="sx-owner-setup-msg" role="status" aria-live="polite"></div><form id="sx-owner-setup-form" class="accept-form"><label>${label('Full name','الاسم الكامل')}<input name="name" required minlength="2" maxlength="200" autocomplete="name"></label><label>${label('Create password (12 characters minimum)','إنشاء كلمة مرور (12 حرفاً على الأقل)')}<input name="password" type="password" required minlength="12" maxlength="72" autocomplete="new-password"></label><label>${label('Confirm password','تأكيد كلمة المرور')}<input name="confirm" type="password" required minlength="12" maxlength="72" autocomplete="new-password"></label><p class="muted">${label('Use at least 12 characters and no more than 72 UTF-8 bytes.','استخدم 12 حرفاً على الأقل ولا تتجاوز 72 بايت UTF-8.')}</p><button class="primary" type="submit">${label('Activate Business Admin account','تفعيل حساب مسؤول النشاط')}</button></form></div></div>`;
+    const form=node.querySelector('#sx-owner-setup-form'),message=node.querySelector('#sx-owner-setup-msg');
+    form.onsubmit=async event=>{event.preventDefault();const button=event.submitter,values=new FormData(form),password=values.get('password');if(password!==values.get('confirm')){message.innerHTML=`<div class="error" role="alert">${label('Passwords do not match.','كلمتا المرور غير متطابقتين.')}</div>`;return;}button.disabled=true;
+      try{await api('/api/admin/staff-invitations/business-owner/accept',{public:true,method:'POST',body:{token:ownerSetupToken,name:values.get('name'),password}});ownerSetupToken='';sessionStorage.removeItem('sx_business_owner_setup_token');message.innerHTML=`<div class="notice" role="status">${label('Your owner account is active. Continue to the existing business sign-in.','تم تفعيل حساب المالك. تابع إلى تسجيل دخول النشاط الحالي.')}</div>`;form.remove();const link=document.createElement('a');link.href='/user/login';link.textContent=label('Continue to business sign-in','المتابعة إلى تسجيل دخول النشاط');node.querySelector('.card').append(link);}
+      catch(error){if(error.message==='INVITE_INVALID'){ownerSetupToken='';sessionStorage.removeItem('sx_business_owner_setup_token');}message.innerHTML=`<div class="error" role="alert">${esc(errorText(error.message))}</div>`;}
+      finally{if(button.isConnected)button.disabled=false;}
+    };
+  }
   function addNav() {
     if (location.pathname.replace(/\/$/,'') !== '/user') return;
     const item = [...document.querySelectorAll('[role="button"],button,a')].find(node => ['Agent Login','تسجيل دخول الوكيل','دخول الوكيل'].includes((node.innerText || '').trim()));
@@ -438,6 +452,7 @@
   function update() {
     accountBanner();
     addNav();
+    if(ownerSetupToken){activateBusinessOwner();return;}
     if (route()) { if (inviteToken) accept(); else if (!document.getElementById('sx-team-screen')) load(); }
     else if (!inviteToken) document.getElementById('sx-team-screen')?.remove();
   }
@@ -447,5 +462,5 @@
   const observer = new MutationObserver(addNav);
   observer.observe(document.documentElement,{childList:true,subtree:true});
   window.addEventListener('popstate',update);
-  if (inviteToken) accept(); else update();
+  if(ownerSetupToken)activateBusinessOwner();else if (inviteToken) accept(); else update();
 })();

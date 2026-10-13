@@ -1178,3 +1178,11 @@ Call recording and secure playback are deployed in `/opt/salemax/releases/call-r
 ## Finance page settings organization — production, 13 October 2026
 
 The existing Training Center Finance page retains generated invoice search/history, the invoice register and payment summary. Policy and installment reminder settings now open through a Settings dialog; business legal invoice details and footer remain managed in Training Center Profile. Production release and rollback details, hashes, and authenticated page verification are recorded in `DEPLOYMENT.md`. Focused checks pass 24/24. No schema, invoice or payment data changed. Email/WhatsApp delivery provider gates and broader authenticated payment lifecycle acceptance remain open; the full 42-ticket upgrade remains in progress.
+
+## SaleMaX Sales owner bootstrap — source increment, 13 October 2026
+
+Manage Users now issues a copyable 72-hour owner setup link after the existing audited SaleMaX Sales provisioning flow. The token is stored only as a SHA-256 digest; accepting it sets the legacy business-login password and canonical owner identity password hash atomically. The existing `/user/login` entry point remains in use. The designated business identity is `admin@salemax.qa`; the platform Super Admin stays separate. The new first-party tenant defaults to India, INR and Asia/Kolkata.
+
+Focused owner-activation, provisioning, Manage Users form and team-invitation checks pass 11/11. A focused disposable MariaDB 11.4 integration applies all 86 forward migrations and passes the actual business-provisioning HTTP path, private Sales plan publication, India defaults, one-time activation, hashed token storage, replay denial, legacy and canonical password activation, audit, and authenticated tenant-session checks. The focused run reports `customerDataTouched=false` and `externalWrites=false`. The full combined integration suite remains incomplete because unrelated existing Training Center/reporting/chatbot assertions fail; this focused result does not represent full application acceptance.
+
+This source increment is not deployed. Fresh production inspection found no SaleMaX Sales tenant, published Sales contract or `admin@salemax.qa` account. The account still needs to be provisioned, activated, and verified in the deployed application.

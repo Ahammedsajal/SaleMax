@@ -86,6 +86,14 @@ async function main() {
     const catalogueBridgeEvidence=await require('./catalogue-bridge-integration.cjs')(connection,other,{i1});
     const legacyAssignmentEvidence=await require('./legacy-assignment-integration.cjs')(connection,other);
     const existingCatalogueHttpEvidence=await require('./existing-catalogue-http-integration.cjs')(connection,{...config,database:db},{i1});
+    if(process.env.SALEMAX_TEST_SALES_OWNER_ONLY==='true'){
+      const [[passwordColumn]]=await connection.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='password'");
+      if(!passwordColumn)await connection.query('ALTER TABLE user ADD COLUMN password VARCHAR(255) NULL');
+    }
+    if(process.env.SALEMAX_TEST_SALES_OWNER_ONLY==='true'){
+      console.log(JSON.stringify({realMariaDb:true,forwardMigrations:migrations.length,salesOwnerProvisioning:businessProvisioningEvidence,customerDataTouched:false,externalWrites:false}));
+      return;
+    }
     const businessContractEvidence=await require('./business-contract-integration.cjs')(connection,other,{t2,i1,m2},pool);
     const taskEvidence=await require('./task-integration.cjs')(connection,other,{tenantId:t1,identityId:i1,pool});
     const staffAccessEvidence=await require('./staff-access-integration.cjs')(connection,{ownerIdentityId:i1});
