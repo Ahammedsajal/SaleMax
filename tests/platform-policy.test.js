@@ -33,6 +33,20 @@ test('accountants can verify payments but only read billing-linked leads',()=>{
   assert.equal(decision(c,{capability:'crm.leads',permission:'leads.read',resource:{tenantId:'tenant-a',billingLinked:false}}).allowed,false);
   assert.equal(decision(c,{capability:'crm.leads',permission:'leads.read',resource:{tenantId:'tenant-a',billingLinked:true}}).scope,'billing');
 });
+test('SaleMaX Sales accountants are finance-only while Training Center billing-linked lead access remains compatible',()=>{
+  const c=context('accountant');
+  c.category=salemaxSales;c.tenant.categoryKey=salemaxSales.key;c.tenant.categoryVersion=salemaxSales.version;
+  c.subscription.capabilities=[...salemaxSales.capabilities];
+  c.membership.assignedNavigation=['leads','contacts','sales-finance','sales-commissions','reports'];
+  for(const [capability,permission] of [['crm.leads','leads.read'],['crm.contacts','contacts.read']]){
+    assert.equal(decision(c,{capability,permission,resource:{tenantId:'tenant-a',billingLinked:true}}).code,'PERMISSION_DENIED');
+  }
+  assert.equal(decision(c,{capability:'sales.finance',permission:'sales.finance.read'}).scope,'finance');
+  assert.equal(decision(c,{capability:'sales.commissions',permission:'commissions.read'}).scope,'finance');
+  assert.equal(decision(c,{capability:'reports.read',permission:'reports.read'}).scope,'finance');
+  assert.equal(navigationFor(c).some(item=>['leads','contacts'].includes(item.key)),false);
+  assert.equal(decision(context('accountant'),{capability:'crm.leads',permission:'leads.read',resource:{tenantId:'tenant-a',billingLinked:true}}).scope,'billing');
+});
 test('manager delegations cannot become financial or owner authority',()=>{
   const c=context('manager'); c.membership.delegatedPermissions=['payments.verify','credits.approve','channels.configure'];
   assert.equal(decision(c,{capability:'finance.payments',permission:'payments.verify'}).allowed,false);
