@@ -529,3 +529,9 @@ The 390×844 production create dialog keeps the lengthy bilingual wording editor
 A stale independent app_direction setting explained the mixed English/RTL shell, while extension hooks inferred Arabic from RTL containers. The early locale initializer synchronizes direction when language changes; extension labels respect language independently of a deliberate direction toggle. Finance bounds follow the visible sidebar edge/width and header instead of a fixed left gutter. This corrects the exposed dashboard strip beside a right-hand sidebar. Optional customer email/phone placeholders omit literal null strings.
 
 Five regression tests pass. Synthetic browser checks verify English/Arabic switching, expanded/collapsed sidebar geometry and a narrow responsive layout. The browser clamped the requested 390 px viewport to 520 px, so 390 px rendered proof and authenticated production owner acceptance remain open. Twelve deployed assets match reviewed hashes and return 200; the app stayed healthy without restart. Existing full-suite failures remain unchanged. See DEPLOYMENT.md for source, image, rollback and verification limits.
+
+
+## Compact clickable invoice register — 13 October 2026
+
+The existing invoice list now uses one visible heading, a right/end-aligned Create invoice action, compact filters with content-width wrapping, and tighter table rows. Invoice numbers are native buttons for keyboard access, and non-interactive row areas open the same PDF while preserving text selection and avoiding double opens. English/Arabic synthetic checks and three PDF-open interactions pass. The two live assets match reviewed hashes; authenticated owner invoice opening remains unverified. See DEPLOYMENT.md for source, verification, durable image and rollback.
+
