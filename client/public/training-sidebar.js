@@ -368,6 +368,14 @@
       drawer.setAttribute('data-sx-sidebar-collapsed', '');
     }
   }, true);
+  function clearLateSidebarEmail(drawer, attempt = 0) {
+    setTimeout(() => {
+      if (new URLSearchParams(location.search).get('page') !== 'agent-login') return;
+      const input = drawer?.querySelector('input');
+      if (input && /@/.test(input.value)) clearSidebarSearch(drawer);
+      if (attempt < 11) clearLateSidebarEmail(drawer, attempt + 1);
+    }, 250);
+  }
   function clearSidebarSearch(drawer) {
     const input = drawer?.querySelector('input');
     if (!input || !input.value) return;
@@ -416,16 +424,7 @@
       agentLoginSearchResetForRoute = true;
       // Browser autofill can arrive after React mounts the controlled search
       // input. Clear that late value briefly while the Agent Login route settles.
-      let attempts = 0;
-      const clearLateAutofill = () => {
-        if (new URLSearchParams(location.search).get('page') !== 'agent-login') return;
-        document.querySelectorAll('.MuiDrawer-paper').forEach(drawer => {
-          const input = drawer.querySelector('input');
-          if (input && /@/.test(input.value)) clearSidebarSearch(drawer);
-        });
-        if (++attempts < 12) setTimeout(clearLateAutofill, 250);
-      };
-      setTimeout(clearLateAutofill, 250);
+      drawers.forEach(drawer => clearLateSidebarEmail(drawer));
     } else if (active !== 'agent-login') {
       agentLoginSearchResetForRoute = false;
     }
