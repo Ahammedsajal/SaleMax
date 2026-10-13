@@ -37,6 +37,12 @@ const items = [
 ].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr } }));
 function navigationFor(context) {
   if (context?.audience !== 'tenant' || context.tenant?.status !== 'active' || context.membership?.status !== 'active' || context.membership?.tenantId !== context.tenant?.id) return [];
-  return items.filter(item => decision(context, item).allowed).map(item => ({ ...item, scope: decision(context, item).scope }));
+  // Internal Sales accountants work from finance and payout workspaces only.
+  // Finance overview, invoices, reconciliation and finance reports are views
+  // inside Sales Finance; commission payouts are a separate workspace.
+  const visible = context.category?.key === 'salemax_sales' && context.membership.role === 'accountant'
+    ? items.filter(item => ['sales-finance', 'sales-commissions'].includes(item.key))
+    : items;
+  return visible.filter(item => decision(context, item).allowed).map(item => ({ ...item, scope: decision(context, item).scope }));
 }
 module.exports = { items, navigationFor };
