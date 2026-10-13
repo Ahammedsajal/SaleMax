@@ -1,3 +1,11 @@
+## SaleMaX Sales workspace visual consistency — production, 14 October 2026
+
+The Sales Overview, Organization, Commission Policy, Sales Finance and Audit Trail now use shared SaleMaX design tokens. Their content width, panel and control sizing are aligned while keeping the existing burgundy theme, individual page behavior, and `/user` shell. Shared keyboard focus and reduced-motion styles were added.
+
+PR #52 merged as `76758cba4d6fa6ab4dbbf26d5d374a0c379edbcb` and is live in `/opt/salemax/releases/sales-ui-76758cb-20261014`. Focused design/navigation/organization/audit/finance checks pass 15/15; release assets match source, container and public HTTPS. No migration or customer/tenant record was changed. See `DEPLOYMENT.md` for rollback and runtime evidence.
+
+Authenticated Business Admin, Manager, Team Leader, Agent and Accountant visual acceptance remains open until the first-party tenant and owner/staff accounts are provisioned. Production Asterisk remains inactive, so live call and recording behavior is unverified. The full 42-ticket objective remains in progress.
+
 ## SaleMaX Sales Business Admin Audit Trail — production, 14 October 2026
 
 The existing `/user` shell now has an owner-only Audit Trail screen for the private SaleMaX Sales workspace. It reads the existing `sx_audit_events` table, filters by date and exact action code, paginates with a bounded keyset cursor, and limits every query to the authenticated tenant. Secret-shaped change fields are omitted from returned detail data. The screen is bilingual, responsive, uses the existing burgundy theme, and has no schema migration.
