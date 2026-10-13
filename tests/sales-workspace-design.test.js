@@ -20,7 +20,7 @@ test('first-party Sales screens load the shared design tokens before section sty
   for (const { directory, style } of sections) {
     const html = fs.readFileSync(path.join(root, `client/public/${directory}/index.html`), 'utf8');
     const sharedIndex = html.indexOf('/sales-design-tokens.css?v=20261014-sales-ui1');
-    const sectionIndex = html.search(new RegExp(`/${directory}/${style}\\?v=20261014-(?:sales-ui1|followups1)`));
+    const sectionIndex = html.search(new RegExp(`/${directory}/${style}\\?v=20261014-(?:sales-ui1|followups1|overview-alerts1)`));
     assert.ok(sharedIndex >= 0, `${directory} should load the shared token stylesheet`);
     assert.ok(sectionIndex > sharedIndex, `${directory} styles should load after shared tokens`);
   }
