@@ -26,6 +26,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 | Finance Reports | The tested URL still rendered the invoice register. Route behavior needs a separate functional audit. | Not assessed for report layout |
 | Tasks | Header, owner filter, status filter, refresh and paging fit the viewport. | Pass at reviewed viewport |
 | Team Access | Role editor, permissions and member sections stack in a single column. | Pass at reviewed viewport |
+| Agent Login / Add Agent | At 320px, the Add Agent form stays within the viewport. The Agent list grid is 1015px wide inside a 295px horizontal scroller; the page itself stays 320px wide. | Usable at reviewed viewport; agent grid requires internal horizontal scroll; no agent created |
 | WA Chatbot | Bot card and Add/Assign actions fit the viewport. | Pass at reviewed viewport |
 | FAQs | Text and empty-state actions fit the viewport. | Pass at reviewed viewport |
 | Automation Flows | Builder toolbar and canvas fit; small canvas nodes rely on the existing zoom controls. | Partial review |
@@ -64,9 +65,10 @@ Re-authenticate the business and platform accounts in their respective tabs befo
 Business screens still to review:
 
 - Add WhatsApp by QR, Link Meta WhatsApp, later Create Meta Template steps, and the Web Notifications control.
-- Agent Login, Agent Task, Courses/Students, form creation/editor and submitted-application detail/print screens, plus Finance sub-screens beyond the invoice register.
+- Agent Task, course creation/edit screens beyond the reviewed form editor, student profiles/attendance/payment details (no enrolled profile was available), form creation flow and application print output, plus Finance sub-screens beyond the invoice register.
 - Public training-form/staff-capture pages, customer document pages, and installment-reminder preference pages.
 - Lead Reports at smaller widths, Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states.
+- Sales Overview navigation redirected this business account to Dashboard, so sales-only screens need an account with the required role/access before mobile review.
 - Inbox conversation pane and actions, once an approach is confirmed that does not change message read state.
 
 Admin screens still to review:
