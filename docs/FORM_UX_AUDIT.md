@@ -523,3 +523,9 @@ A read-only production browser inspection at 390×844 showed that the Hybrid bot
 ## Hybrid bot editor — compact empty tester list on mobile
 
 The 390×844 production create dialog keeps the lengthy bilingual wording editor and AI controls inside its own vertical scroll region while the Cancel/Save footer remains visible. The empty tester-chip list used to show a blank bordered row before the phone input; it is now hidden only while empty and reappears naturally when tester chips are present. The fresh mobile browser check measured the document at exactly 390px wide, the empty list at `display:none`/0px, and the scroll area at 4248px content within 609px. I canceled the unsaved dialog. The available business session still returns 401 for private APIs, so saved bot fields and authenticated edit mode remain unverified.
+
+## Workspace language and Finance positioning — 13 October 2026
+
+A stale independent app_direction setting explained the mixed English/RTL shell, while extension hooks inferred Arabic from RTL containers. The early locale initializer synchronizes direction when language changes; extension labels respect language independently of a deliberate direction toggle. Finance bounds follow the visible sidebar edge/width and header instead of a fixed left gutter. This corrects the exposed dashboard strip beside a right-hand sidebar. Optional customer email/phone placeholders omit literal null strings.
+
+Five regression tests pass. Synthetic browser checks verify English/Arabic switching, expanded/collapsed sidebar geometry and a narrow responsive layout. The browser clamped the requested 390 px viewport to 520 px, so 390 px rendered proof and authenticated production owner acceptance remain open. Twelve deployed assets match reviewed hashes and return 200; the app stayed healthy without restart. Existing full-suite failures remain unchanged. See DEPLOYMENT.md for source, image, rollback and verification limits.
