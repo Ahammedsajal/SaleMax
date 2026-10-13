@@ -51,7 +51,7 @@ test('Sales Overview is integrated into existing navigation, refreshes scoped AP
   assert.match(shell,/\['overview','deals','commissions','targets','reports'\]/);
   assert.match(page,/id="overviewSection"/);
   assert.match(page,/sales-report-csv\.js\?v=20261013-report2/);
-  assert.match(page,/sales-workspace\.js\?v=20261014-followups1/);
+  assert.match(page,/sales-workspace\.js\?v=20261014-followups2/);
   assert.match(page,/sales-workspace-reports\.css\?v=20261013-report2/);
   assert.match(client,/\/api\/user\/team-invitations\/sidebar-access/);
   assert.match(client,/\/follow-ups\?period=all/);
@@ -72,6 +72,8 @@ test('Sales Overview shows scoped priority follow-ups and opens the real follow-
   assert.match(page,/timezone-datetime\.js/);
   assert.match(client,/\/follow-ups\?period=all&page=1&limit=8/);
   assert.match(client,/renderPriorityFollowups\(hasNav\('leads'\)\)/);
+  assert.ok(client.indexOf("renderPriorityFollowups(hasNav('leads'))")<client.indexOf("if(role==='accountant')"),'hide the Leads panel before the Finance-only accountant overview returns');
+  assert.match(client,/panel\.hidden=!allowed/);
   assert.match(client,/item\.next_follow_up_at/);
   assert.match(client,/item\.due_revision|item\.lead_id/);
   assert.match(shell,/pipelineView\(\)/);
