@@ -117,6 +117,7 @@
     [data-sx-sidebar-list] .MuiListItemIcon-root svg{display:block!important;width:20px!important;height:20px!important;flex:0 0 20px!important}
     [data-sx-sidebar-list] svg[data-sx-training-icon]{fill:none!important;stroke:currentColor!important;stroke-width:1.8px!important;stroke-linecap:round!important;stroke-linejoin:round!important}
     [data-sx-search-hidden],[data-sx-nav-section][hidden]{display:none!important}
+    .MuiDrawer-paper input[data-sx-search-empty]:-webkit-autofill{-webkit-text-fill-color:transparent!important;caret-color:transparent!important}
     [data-sx-sidebar-brand]{min-width:0!important;background:none!important;display:flex!important;align-items:center}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
     [data-sx-sidebar-logo]{display:block!important;width:156px!important;max-width:100%!important;height:44px!important;object-fit:contain!important;background:transparent!important}
@@ -262,6 +263,7 @@
         if (searchInput.type !== 'search') searchInput.type = 'search';
         if (searchInput.autocomplete !== 'new-password') searchInput.setAttribute('autocomplete', 'new-password');
         if (searchInput.name !== 'salemax-navigation-query') searchInput.setAttribute('name', 'salemax-navigation-query');
+        searchInput.toggleAttribute('data-sx-search-empty', !searchInput.value);
       }
       syncInjectedRows(list);
       list.dataset.sxSidebarList = '1';
