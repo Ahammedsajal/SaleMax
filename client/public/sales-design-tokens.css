@@ -1,0 +1,58 @@
+/* Shared visual tokens for the first-party Sales workspace screens. */
+:root {
+  --sx-brand: #a8003b;
+  --sx-brand-dark: #85002f;
+  --sx-brand-soft: #fff3f7;
+  --sx-ink: #17212f;
+  --sx-muted: #596579;
+  --sx-subtle: #667085;
+  --sx-label: #344054;
+  --sx-border: #e4e7ec;
+  --sx-control-border: #cfd5dd;
+  --sx-canvas: #f5f7fa;
+  --sx-surface: #ffffff;
+  --sx-success: #027a48;
+  --sx-warning: #934f00;
+  --sx-danger: #b42318;
+  --sx-content-width: 1280px;
+  --sx-panel-radius: 12px;
+  --sx-control-radius: 8px;
+  font-family: Roboto, Arial, sans-serif;
+  color: var(--sx-ink);
+  background: var(--sx-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: var(--sx-canvas);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgb(168 0 59 / 28%);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
