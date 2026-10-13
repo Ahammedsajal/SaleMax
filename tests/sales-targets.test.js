@@ -62,6 +62,47 @@ test('manager performance uses historical deal and call attribution across team 
   assert.deepEqual(managerRow.targets.salesByCurrency,[{currency:'INR',actualMinor:'50000',targetMinor:null},{currency:'QAR',actualMinor:'100000',targetMinor:null}]);
 });
 
+test('monthly manager reports add commission status totals for the historical team scope',async()=>{
+  const manager='10000000-0000-4000-8000-000000000002',agent='10000000-0000-4000-8000-000000000003';
+  const ctx=context('manager',{category:{key:'salemax_sales',version:1,capabilities:['sales.targets','sales.commissions']},subscription:{status:'active',capabilities:['sales.targets','sales.commissions','team.members']}});
+  ctx.membership.id=manager;
+  const db=fakeDb(sql=>{
+    if(sql.includes('SELECT m.id AS membershipId'))return [[{membershipId:manager,role:'manager',displayName:'Manager'},{membershipId:agent,role:'agent',displayName:'Agent',managerMembershipId:manager}],[]];
+    if(sql.includes('SELECT CAST(? AS DATE)'))return [[{starts_at:'2026-10-01',ends_at:'2026-11-01'}],[]];
+    if(sql.includes('FROM sx_sales_targets'))return [[],[]];
+    if(sql.includes('FROM sx_sales_deals'))return [[],[]];
+    if(sql.includes('FROM sx_telephony_calls'))return [[],[]];
+    if(sql.includes('FROM sx_sales_commissions'))return [[
+      {recipientMembershipId:agent,managerMembershipId:manager,teamLeaderMembershipId:null,currency:'INR',draftMinor:'100',approvedMinor:'50',paidMinor:'20'},
+      {recipientMembershipId:'10000000-0000-4000-8000-000000000008',managerMembershipId:manager,teamLeaderMembershipId:null,currency:'INR',draftMinor:'25',approvedMinor:'10',paidMinor:'5'},
+    ],[]];
+    throw Error(`Unexpected query: ${sql}`);
+  });
+  const result=await targets.list(db,ctx,'2026-10');
+  assert.equal(result.commissionReportEnabled,true);
+  assert.match(db.calls.find(call=>call.sql.includes('FROM sx_sales_commissions')).sql,/AND d\.manager_membership_id=\?/);
+  assert.equal(db.calls.find(call=>call.sql.includes('FROM sx_sales_commissions')).params.at(-1),manager);
+  assert.deepEqual(result.members.find(row=>row.membershipId===agent).commissionsByCurrency,[{currency:'INR',draftMinor:'100',approvedMinor:'50',paidMinor:'20'}]);
+  assert.deepEqual(result.members.find(row=>row.membershipId===manager).commissionsByCurrency,[{currency:'INR',draftMinor:'125',approvedMinor:'60',paidMinor:'25'}]);
+});
+
+test('reports omit commission amounts when the commission capability is not assigned',async()=>{
+  const agent='10000000-0000-4000-8000-000000000003';let commissionQuery=false;
+  const db=fakeDb(sql=>{
+    if(sql.includes('SELECT m.id AS membershipId'))return [[{membershipId:agent,role:'agent',displayName:'Agent'}],[]];
+    if(sql.includes('SELECT CAST(? AS DATE)'))return [[{starts_at:'2026-10-01',ends_at:'2026-11-01'}],[]];
+    if(sql.includes('FROM sx_sales_targets'))return [[],[]];
+    if(sql.includes('FROM sx_sales_deals'))return [[],[]];
+    if(sql.includes('FROM sx_telephony_calls'))return [[],[]];
+    if(sql.includes('FROM sx_sales_commissions'))commissionQuery=true;
+    throw Error(`Unexpected query: ${sql}`);
+  });
+  const result=await targets.list(db,context('agent'),'2026-10');
+  assert.equal(result.commissionReportEnabled,false);
+  assert.equal(commissionQuery,false);
+  assert.deepEqual(result.members[0].commissionsByCurrency,[]);
+});
+
 test('agents can view their scoped targets but cannot change them',async()=>{
   const agent='10000000-0000-4000-8000-000000000001';
   const db=fakeDb(sql=>{

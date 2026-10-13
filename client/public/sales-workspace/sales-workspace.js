@@ -151,20 +151,21 @@ async function loadTargets(){
   const bearer=token(),period=el('targetPeriod').value,response=await fetch(`/api/user/sales-targets?period=${encodeURIComponent(period)}`,{credentials:'same-origin',headers:{Accept:'application/json',...(bearer?{Authorization:'Bearer '+bearer}:{})}}),body=await response.json().catch(()=>({}));
   if(!response.ok||!body.success)throw Object.assign(Error(body.code||'REQUEST_FAILED'),{code:body.code,status:response.status});
   if(period!==el('targetPeriod').value)return;
-  state.targetsPeriod=period;state.targets=body.data.members||[];state.permissions={canManage:body.data.canManage===true};renderTargets();
+  state.targetsPeriod=period;state.targets=body.data.members||[];state.permissions={canManage:body.data.canManage===true,canReadCommissions:body.data.commissionReportEnabled===true};renderTargets();
 }
 function renderSalesReport(){
   const period=el('reportPeriod').value;
   el('exportSalesReport').disabled=state.targetsPeriod!==period;
-  if(state.targetsPeriod!==period){el('reportRows').innerHTML=`<tr><td class="report-empty" colspan="7">${tr('Loading the selected month…','جارٍ تحميل الشهر المحدد…')}</td></tr>`;return;}
+  if(state.targetsPeriod!==period){el('reportRows').innerHTML=`<tr><td class="report-empty" colspan="10">${tr('Loading the selected month…','جارٍ تحميل الشهر المحدد…')}</td></tr>`;return;}
   const rows=window.SaleMaXSalesReportCsv.rowsFor(period,state.targets);
-  const labels={member:'Team member',role:'Role',calls:'Connected calls',callTarget:'Call target',currency:'Currency',sales:'Approved sales',salesTarget:'Sales target'};
-  const ids={member:'reportMemberHeading',role:'reportRoleHeading',calls:'reportCallsHeading',callTarget:'reportCallTargetHeading',currency:'reportCurrencyHeading',sales:'reportSalesHeading',salesTarget:'reportSalesTargetHeading'};
-  const arabic={member:'عضو الفريق',role:'الدور',calls:'المكالمات المتصلة',callTarget:'هدف المكالمات',currency:'العملة',sales:'المبيعات المعتمدة',salesTarget:'هدف المبيعات'};
+  const labels={member:'Team member',role:'Role',calls:'Connected calls',callTarget:'Call target',currency:'Currency',sales:'Approved sales',salesTarget:'Sales target',commissionDraft:'Commission draft',commissionApproved:'Approved commission',commissionPaid:'Paid commission'};
+  const ids={member:'reportMemberHeading',role:'reportRoleHeading',calls:'reportCallsHeading',callTarget:'reportCallTargetHeading',currency:'reportCurrencyHeading',sales:'reportSalesHeading',salesTarget:'reportSalesTargetHeading',commissionDraft:'reportCommissionDraftHeading',commissionApproved:'reportCommissionApprovedHeading',commissionPaid:'reportCommissionPaidHeading'};
+  const arabic={member:'عضو الفريق',role:'الدور',calls:'المكالمات المتصلة',callTarget:'هدف المكالمات',currency:'العملة',sales:'المبيعات المعتمدة',salesTarget:'هدف المبيعات',commissionDraft:'عمولة قيد المراجعة',commissionApproved:'عمولة معتمدة',commissionPaid:'عمولة مدفوعة'};
   for(const key of Object.keys(ids))el(ids[key]).textContent=tr(labels[key],arabic[key]);
+  for(const key of ['commissionDraft','commissionApproved','commissionPaid'])el(ids[key]).hidden=!state.permissions.canReadCommissions;
   const body=el('reportRows');
-  body.innerHTML=rows.length?rows.map(row=>`<tr><td>${escape(row[1]||tr('Team member','عضو الفريق'))}</td><td>${escape(roleLabel(row[2]))}</td><td class="numeric">${Number(row[3]).toLocaleString()}</td><td class="numeric">${row[4]?Number(row[4]).toLocaleString():'—'}</td><td>${escape(row[5]||'—')}</td><td class="numeric">${row[5]?escape(row[5]+' '+row[6]):'—'}</td><td class="numeric">${row[5]&&row[7]?escape(row[5]+' '+row[7]):'—'}</td></tr>`).join(''):`<tr><td class="report-empty" colspan="7">${tr('No team members are in your current reporting scope.','لا يوجد أعضاء فريق ضمن نطاقك الحالي.')}</td></tr>`;
-  el('reportsIntro').textContent=tr(`India · ${period} · Includes only members visible to your account.`,`الهند · ${period} · يشمل فقط الأعضاء الظاهرين لحسابك.`);
+  body.innerHTML=rows.length?rows.map(row=>`<tr><td>${escape(row[1]||tr('Team member','عضو الفريق'))}</td><td>${escape(roleLabel(row[2]))}</td><td class="numeric">${Number(row[3]).toLocaleString()}</td><td class="numeric">${row[4]?Number(row[4]).toLocaleString():'—'}</td><td>${escape(row[5]||'—')}</td><td class="numeric">${row[5]?escape(row[5]+' '+row[6]):'—'}</td><td class="numeric">${row[5]&&row[7]?escape(row[5]+' '+row[7]):'—'}</td>${state.permissions.canReadCommissions?`<td class="numeric">${row[5]?escape(row[5]+' '+row[8]):'—'}</td><td class="numeric">${row[5]?escape(row[5]+' '+row[9]):'—'}</td><td class="numeric">${row[5]?escape(row[5]+' '+row[10]):'—'}</td>`:''}</tr>`).join(''):`<tr><td class="report-empty" colspan="${state.permissions.canReadCommissions?10:7}">${tr('No team members are in your current reporting scope.','لا يوجد أعضاء فريق ضمن نطاقك الحالي.')}</td></tr>`;
+  el('reportsIntro').textContent=tr(`India · ${period} · Includes only members visible to your account. Commission columns show each sale’s current commission status, even if it changed after this month.`,`الهند · ${period} · يشمل فقط الأعضاء الظاهرين لحسابك. تعرض أعمدة العمولات حالتها الحالية حتى لو تغيرت بعد هذا الشهر.`);
 }
 function downloadSalesReport(){
   const period=el('reportPeriod').value;

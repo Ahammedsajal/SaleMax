@@ -50,9 +50,9 @@ test('Sales Overview is integrated into existing navigation, refreshes scoped AP
   assert.match(shell,/requestedSection=.*section/);
   assert.match(shell,/\['overview','deals','commissions','targets','reports'\]/);
   assert.match(page,/id="overviewSection"/);
-  assert.match(page,/sales-report-csv\.js\?v=20261013-report2/);
-  assert.match(page,/sales-workspace\.js\?v=20261014-payout-batches1/);
-  assert.match(page,/sales-workspace-reports\.css\?v=20261013-report2/);
+  assert.match(page,/sales-report-csv\.js\?v=20261014-commission-breakdown1/);
+  assert.match(page,/sales-workspace\.js\?v=20261014-commission-breakdown1/);
+  assert.match(page,/sales-workspace-reports\.css\?v=20261014-commissions1/);
   assert.match(client,/\/api\/user\/team-invitations\/sidebar-access/);
   assert.match(client,/\/follow-ups\?period=all/);
   assert.match(client,/\/api\/user\/sales-targets\?period=/);
@@ -90,6 +90,7 @@ test('Sales Reports reuse the scoped monthly target entitlement and parent-panel
   const index=fs.readFileSync(path.join(root,'client/public/index.html'),'utf8');
   const page=fs.readFileSync(path.join(root,'client/public/sales-workspace/index.html'),'utf8');
   const client=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace.js'),'utf8');
+  const reportCss=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace-reports.css'),'utf8');
   assert.match(sidebar,/\['Sales Reports','تقارير المبيعات','sales-targets','reports'\]/);
   assert.match(sidebar,/reports:'sales-targets'/);
   assert.match(shell,/reports:\['تقارير المبيعات','Sales Reports'\]/);
@@ -101,18 +102,29 @@ test('Sales Reports reuse the scoped monthly target entitlement and parent-panel
   assert.match(client,/\/api\/user\/sales-targets\?period=/);
   assert.match(client,/SaleMaXSalesReportCsv\.toCsv/);
   assert.match(client,/state\.targetsPeriod!==period/);
+  assert.match(page,/id="reportCommissionPaidHeading"/);
+  assert.match(client,/commissionReportEnabled/);
+  assert.match(client,/reportCommissionApproved/);
+  assert.match(reportCss,/position:\s*sticky/);
+  assert.match(reportCss,/var\(--sx-brand-soft\)/);
 });
 
 test('monthly sales CSV keeps multiple currencies exact, quotes data, and neutralizes spreadsheet formulas',()=>{
   const csv=salesReportCsv.toCsv('2026-10',[{displayName:'=HYPERLINK("x","agent"), A',role:'agent',actual:{connectedCalls:8},targets:{connectedCalls:'12',salesByCurrency:[
     {currency:'INR',actualMinor:'15750',targetMinor:'20000'},
     {currency:'JPY',actualMinor:'900',targetMinor:null},
-  ]}}]);
+  ]},commissionsByCurrency:[
+    {currency:'INR',draftMinor:'1250',approvedMinor:'500',paidMinor:'750'},
+    {currency:'JPY',draftMinor:'0',approvedMinor:'0',paidMinor:'0'},
+  ]}]);
   assert.ok(csv.startsWith('\uFEFF"report_month","team_member","role"'));
+  assert.match(csv,/"commission_draft","commission_approved","commission_paid"/);
   assert.match(csv,/'=HYPERLINK\(""x"",""agent""\), A/);
   assert.match(csv,/"2026-10","'=HYPERLINK/);
   assert.match(csv,/"INR","157\.50","200\.00"/);
-  assert.match(csv,/"JPY","900",""/);
+  assert.match(csv,/"INR","157\.50","200\.00","12\.50","5\.00","7\.50"/);
+  assert.match(csv,/"JPY","900","","0","0","0"/);
+  assert.deepEqual(salesReportCsv.rowsFor('2026-10',[{displayName:'A',role:'agent',actual:{connectedCalls:0},targets:{salesByCurrency:[]},commissionsByCurrency:[{currency:'USD',draftMinor:'125',approvedMinor:'0',paidMinor:'0'}]}])[0].slice(8),['1.25','0.00','0.00']);
   assert.equal((csv.match(/\r\n/g)||[]).length,3);
   assert.throws(()=>salesReportCsv.toCsv('2026-13',[]),/Invalid report period/);
   assert.throws(()=>salesReportCsv.toCsv('2026-10',[{actual:{connectedCalls:'=2'}}]),/Invalid connected calls/);
