@@ -32,3 +32,13 @@ test('invoice conversion is exposed by the existing pipeline and documented as a
   assert.match(read('docs/API_DOCUMENTATION.md'),/Transactional sale conversion and invoices/);
   assert.match(read('client/public/pipeline/pipeline.js'),/convertApprovedSale/);
 });
+test('generated PDF conversion requires an exact approved customer, course, price, currency and installment match',()=>{
+  const leadId=crypto.randomUUID(),contactId=crypto.randomUUID(),courseId=crypto.randomUUID(),review={course_id:courseId,currency:'QAR',net_minor:10000,learner_name:'Learner One',payer_name:'Payer One',payer_email:'payer@example.invalid',invoice_email:'billing@example.invalid',payer_phone:'+97450000000',installments:[{dueDate:'2026-11-01',amountMinor:5000},{dueDate:'2026-12-01',amountMinor:5000}]};
+  const doc={customer_type:'contact',customer_id:contactId,customer_name:'Payer One',course_id:courseId,amount_minor:10000};
+  const snapshot={currency:'QAR',customer:{email:'billing@example.invalid',phone:'+974 5000 0000'},installments:[{dueDate:'2026-11-01',amountMinor:5000},{dueDate:'2026-12-01',amountMinor:5000}]};
+  assert.equal(conversion.generatedDocumentMatches(doc,snapshot,{id:leadId,contact_id:contactId},review),true);
+  assert.equal(conversion.generatedDocumentMatches({...doc,amount_minor:9999},snapshot,{id:leadId,contact_id:contactId},review),false);
+  assert.equal(conversion.generatedDocumentMatches(doc,{...snapshot,currency:'USD'},{id:leadId,contact_id:contactId},review),false);
+  assert.equal(conversion.generatedDocumentMatches(doc,{...snapshot,installments:[{dueDate:'2026-11-02',amountMinor:5000},{dueDate:'2026-12-01',amountMinor:5000}]},{id:leadId,contact_id:contactId},review),false);
+  assert.equal(conversion.generatedDocumentMatches({...doc,customer_type:'manual',customer_id:null},snapshot,{id:leadId,contact_id:contactId},review),false);
+});
