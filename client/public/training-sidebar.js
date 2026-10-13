@@ -257,6 +257,12 @@
       if (!observed.has(drawer)) { observed.add(drawer); resizeObserver.observe(drawer); }
       const list = drawer.querySelector('ul');
       if (!list) return;
+      const searchInput = drawer.querySelector('input');
+      if (searchInput) {
+        if (searchInput.type !== 'search') searchInput.type = 'search';
+        if (searchInput.autocomplete !== 'new-password') searchInput.setAttribute('autocomplete', 'new-password');
+        if (searchInput.name !== 'salemax-navigation-query') searchInput.setAttribute('name', 'salemax-navigation-query');
+      }
       syncInjectedRows(list);
       list.dataset.sxSidebarList = '1';
       const expanded = sidebarExpandedOverride.get(drawer);
@@ -399,8 +405,8 @@
       drawers.forEach(drawer => {
         const input = drawer.querySelector('input');
         if (input) {
-          input.setAttribute('autocomplete', 'off');
-          input.setAttribute('name', 'salemax-menu-search');
+          input.setAttribute('autocomplete', 'new-password');
+          input.setAttribute('name', 'salemax-navigation-query');
         }
         clearSidebarSearch(drawer);
       });
@@ -418,8 +424,8 @@
       document.querySelectorAll('.MuiDrawer-paper').forEach(drawer => {
         const input = drawer.querySelector('input');
         if (input) {
-          input.setAttribute('autocomplete', 'off');
-          input.setAttribute('name', 'salemax-menu-search');
+          input.setAttribute('autocomplete', 'new-password');
+          input.setAttribute('name', 'salemax-navigation-query');
         }
         clearSidebarSearch(drawer);
       });
