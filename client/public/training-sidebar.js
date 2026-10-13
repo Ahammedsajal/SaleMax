@@ -344,7 +344,7 @@
   let inboxRetryTimers = [];
   function scheduleInboxRecovery() {
     const params = new URLSearchParams(location.search);
-    const route = location.pathname.replace(/\\/$/, '') === '/user' && params.get('page') === 'inbox' ? '/user?page=inbox' : '';
+    const route = location.pathname.replace(/\/$/, '') === '/user' && params.get('page') === 'inbox' ? '/user?page=inbox' : '';
     if (route === inboxRetryRoute) return;
     inboxRetryTimers.forEach(clearTimeout);
     inboxRetryTimers = [];
