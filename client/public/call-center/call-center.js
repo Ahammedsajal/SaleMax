@@ -6,6 +6,7 @@
   const node=id=>document.getElementById(id);
   let browserSipState='disconnected';
   let linkedLeadId='';
+  let tenantTimezone='Asia/Qatar';
   function notice(kind,message){const target=node('notice');target.dataset.kind=kind||'';target.textContent=message;}
   function bearer(){return localStorage.getItem('wacrm_user');}
   async function request(path,method='GET',body){
@@ -91,11 +92,12 @@
       const row=document.createElement('article');row.className='call-row';
       const main=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('small');
       title.textContent=`${call.direction==='inbound'?text('Incoming','واردة'):text('Outgoing','صادرة')} · ${call.queueName||text('No queue','بلا قائمة')}`;
-      const started=call.startedAt?new Date(call.startedAt).toLocaleString(isArabic()?'ar-QA':'en-QA',{timeZone:'Asia/Qatar'}):'';
+      const started=call.startedAt?new Date(call.startedAt).toLocaleString(isArabic()?'ar-IN':'en-IN',{timeZone:tenantTimezone}):'';
       meta.textContent=`${started}${started?' · ':''}${text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`)}`;main.append(title,meta);
       const state=document.createElement('span');state.className='call-status';const labels={ringing:text('Ringing','يرن'),connected:text('Connected','متصل'),ended:text('Ended','انتهت'),failed:text('Failed','فشلت')};state.textContent=labels[call.status]||call.status;
       row.append(main,state);
       if(call.leadId){const leadLink=document.createElement('a');leadLink.href=`/user?page=lead-pipeline&lead=${encodeURIComponent(call.leadId)}&view=detail`;leadLink.target='_top';leadLink.textContent=text('Open linked lead','فتح العميل المحتمل المرتبط');row.append(leadLink);}
+      if(call.leadId&&['ended','failed'].includes(call.status))row.append(createLeadOutcomeForm(call));
       if(call.canListenRecording){const listen=document.createElement('button');listen.type='button';listen.className='recording-play';listen.textContent=text('Listen to recording','استمع إلى التسجيل');listen.addEventListener('click',()=>playRecording(call.callId,listen,row));row.append(listen);}
       if(call.canCoach||call.canViewCoaching){
         const review=document.createElement('details');review.className='call-coaching';
@@ -111,7 +113,7 @@
             for(const note of notes){
               const article=document.createElement('article');article.className='coaching-note';
               const heading=document.createElement('strong');heading.textContent=`${note.agentName} · ${({effective:text('Effective','فعّال'),needs_improvement:text('Needs improvement','يحتاج إلى تحسين'),follow_up_required:text('Follow-up required','يتطلب متابعة')})[note.quality]||note.quality}`;
-              const author=document.createElement('small');author.textContent=`${text('Coach','المدرّب')}: ${note.coachName} · ${new Date(note.createdAt).toLocaleString(isArabic()?'ar-QA':'en-QA',{timeZone:'Asia/Kolkata'})}`;
+              const author=document.createElement('small');author.textContent=`${text('Coach','المدرّب')}: ${note.coachName} · ${new Date(note.createdAt).toLocaleString(isArabic()?'ar-IN':'en-IN',{timeZone:tenantTimezone})}`;
               const feedback=document.createElement('p');feedback.textContent=note.feedback;
               article.append(heading,author,feedback);
               if(note.nextAction){const action=document.createElement('p');action.className='coaching-action';action.textContent=`${text('Next action','الإجراء التالي')}: ${note.nextAction}`;article.append(action);}
@@ -131,7 +133,7 @@
               form.append(agentLabel,qualityLabel,feedbackLabel,nextLabel,visibilityLabel,save,state);
               form.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;state.textContent=text('Saving…','جارٍ الحفظ…');try{const saved=await request(`/calls/${encodeURIComponent(call.callId)}/coaching`,'POST',{agentMembershipId:agent.value,quality:quality.value,feedback:feedback.value,nextAction:next.value,visibleToAgent:visible.checked});
                 const article=document.createElement('article');article.className='coaching-note';const heading=document.createElement('strong');heading.textContent=`${agent.options[agent.selectedIndex]?.textContent||''} · ${({effective:text('Effective','فعّال'),needs_improvement:text('Needs improvement','يحتاج إلى تحسين'),follow_up_required:text('Follow-up required','يتطلب متابعة')})[saved.quality]||saved.quality}`;
-                const author=document.createElement('small');author.textContent=`${text('Coach','المدرّب')}: ${text('You','أنت')} · ${new Date(saved.createdAt).toLocaleString(isArabic()?'ar-QA':'en-QA',{timeZone:'Asia/Kolkata'})}`;
+                const author=document.createElement('small');author.textContent=`${text('Coach','المدرّب')}: ${text('You','أنت')} · ${new Date(saved.createdAt).toLocaleString(isArabic()?'ar-IN':'en-IN',{timeZone:tenantTimezone})}`;
                 const noteText=document.createElement('p');noteText.textContent=saved.feedback;article.append(heading,author,noteText);if(saved.nextAction){const action=document.createElement('p');action.className='coaching-action';action.textContent=`${text('Next action','الإجراء التالي')}: ${saved.nextAction}`;article.append(action);}content.insertBefore(article,form);form.reset();visible.checked=true;state.textContent=text('Coaching note saved.','تم حفظ ملاحظة التوجيه.');
               }catch(error){state.textContent=error.code==='PERMISSION_DENIED'?text('You cannot add coaching notes for this call.','لا يمكنك إضافة ملاحظات توجيه لهذه المكالمة.'):text('Could not save the note. Refresh and check team access.','تعذر حفظ الملاحظة. حدّث الصفحة وتحقق من صلاحية الفريق.');}finally{save.disabled=false;}});
               if(!(data.agents||[]).length){agent.disabled=true;save.disabled=true;state.textContent=text('No active in-scope agent participated in this call.','لم يشارك وكيل نشط ضمن نطاقك في هذه المكالمة.');}
@@ -148,6 +150,29 @@
       }
       host.append(row);
     }
+  }
+  function createLeadOutcomeForm(call){
+    const details=document.createElement('details');details.className='call-outcome';
+    const summary=document.createElement('summary');summary.textContent=text('Log call outcome','تسجيل نتيجة المكالمة');details.append(summary);
+    const form=document.createElement('form');form.className='call-outcome-form';
+    const outcomeLabel=document.createElement('label');outcomeLabel.textContent=text('Contact outcome','نتيجة التواصل');
+    const outcome=document.createElement('select');outcome.name='outcome';outcome.required=true;
+    const choices=[['no_answer','No answer','لا يوجد رد'],['connected','Connected','تم التواصل'],['interested','Interested','مهتم'],['not_interested','Not interested','غير مهتم'],['follow_up_scheduled','Follow-up scheduled','تم تحديد متابعة'],['wrong_number','Wrong number','رقم غير صحيح'],['requested_call','Requested another call','طلب معاودة الاتصال'],['sale_requested','Sale submitted for review','تم إرسال البيع للمراجعة']];
+    for(const [value,en,ar] of choices){const option=document.createElement('option');option.value=value;option.textContent=text(en,ar);outcome.append(option);}outcomeLabel.append(outcome);
+    const followLabel=document.createElement('label');followLabel.className='call-outcome-follow';const follow=document.createElement('input');follow.type='checkbox';follow.name='followUpRequired';follow.checked=['follow_up_scheduled','requested_call'].includes(outcome.value);const followText=document.createElement('span');followText.textContent=text('Schedule a follow-up','تحديد موعد متابعة');followLabel.append(follow,followText);
+    const dueLabel=document.createElement('label');dueLabel.textContent=text('Next follow-up (business timezone)','موعد المتابعة (توقيت النشاط)');const due=document.createElement('input');due.type='datetime-local';due.name='nextFollowUpAt';due.required=follow.checked;dueLabel.append(due);
+    const noteLabel=document.createElement('label');noteLabel.textContent=text('Call notes (optional)','ملاحظات المكالمة (اختياري)');const note=document.createElement('textarea');note.name='note';note.rows=3;note.maxLength=2000;noteLabel.append(note);
+    const save=document.createElement('button');save.type='submit';save.className='recording-play';save.textContent=text('Save to lead activity','حفظ في سجل العميل');const state=document.createElement('small');state.className='call-outcome-state';state.setAttribute('role','status');state.setAttribute('aria-live','polite');
+    const syncFollow=()=>{if(['follow_up_scheduled','requested_call'].includes(outcome.value))follow.checked=true;due.required=follow.checked;due.disabled=!follow.checked;dueLabel.hidden=!follow.checked;};
+    outcome.addEventListener('change',syncFollow);follow.addEventListener('change',syncFollow);syncFollow();
+    form.append(outcomeLabel,followLabel,dueLabel,noteLabel,save,state);details.append(form);
+    form.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;state.dataset.kind='';state.textContent=text('Saving call outcome…','جارٍ حفظ نتيجة المكالمة…');
+      try{const body={outcome:outcome.value,note:note.value.trim(),...(follow.checked?{followUpRequired:true,nextFollowUpAt:window.SaleMaXDateTime.fromInput(due.value,tenantTimezone)}:{})};
+        await request(`/calls/${encodeURIComponent(call.callId)}/lead-outcome`,'POST',body);
+        state.dataset.kind='success';state.textContent=text('Outcome and next step saved to the lead activity.','تم حفظ النتيجة والخطوة التالية في سجل العميل.');save.disabled=true;outcome.disabled=true;follow.disabled=true;due.disabled=true;note.disabled=true;
+      }catch(error){save.disabled=false;state.dataset.kind='error';state.textContent=error.code==='PERMISSION_DENIED'?text('Your access to this lead has changed. Open the lead to check its current assignment.','تغيرت صلاحيتك للوصول إلى العميل. افتح سجل العميل للتحقق من الإسناد الحالي.'):error.code==='AUTH_REQUIRED'?text('Your session has expired. Sign in again, then retry.','انتهت جلستك. سجل الدخول مجددًا ثم أعد المحاولة.'):error.code==='STALE_LEAD'?text('This lead changed elsewhere. Refresh the call list before retrying.','تم تغيير سجل العميل في مكان آخر. حدّث قائمة المكالمات قبل إعادة المحاولة.'):text('Could not save the outcome. Check the follow-up time and try again.','تعذر حفظ النتيجة. تحقق من موعد المتابعة وحاول مجددًا.');}
+    });
+    return details;
   }
   async function loadCalls(){
     const host=node('callList');
@@ -192,13 +217,14 @@
       let result;try{result=await response.json();}catch(_){result={};}
       if(!response.ok||!result.success){const code=result.code||'CALL_CENTER_UNAVAILABLE';throw Object.assign(new Error(code),{code,status:response.status});}
       const data=result.data||{};
+      tenantTimezone=data.timezone||'Asia/Qatar';
       node('outgoingSection').hidden=!data.permissions?.controlCalls;
       if(data.permissions?.manageRecordings)await loadRecordingPolicy();else node('recordingPolicySection').hidden=true;
       await loadCalls();
       const health=data.asterisk?.health||'not_configured';
       node('asteriskState').textContent=health==='success'?(data.asterisk.enabled?text('Connected','متصل'):text('Tested · Disabled','تم الاختبار · معطل')):health==='failed'?text('Connection failed','فشل الاتصال'):data.asterisk?.configured?text('Setup saved','تم حفظ الإعداد'):text('Not configured','غير مُعد');
       const eventReady=!!data.asterisk?.events?.ready,eventStatus=data.asterisk?.events?.status||'not_started';
-      node('asteriskDetail').textContent=data.asterisk?.configured?text(`Revision ${data.asterisk.revision}${!data.asterisk.enabled?' · Disabled':''}${data.asterisk.version?' · Asterisk '+data.asterisk.version:''}${data.asterisk.lastTestedAt?' · Checked '+new Date(data.asterisk.lastTestedAt).toLocaleString('en-QA',{timeZone:'Asia/Qatar'}):' · Not tested'} · Call events ${eventReady?'connected':eventStatus}`,`الإصدار ${data.asterisk.revision}${!data.asterisk.enabled?' · معطل':''}${data.asterisk.version?' · أستريسك '+data.asterisk.version:''}${data.asterisk.lastTestedAt?' · تم التحقق '+new Date(data.asterisk.lastTestedAt).toLocaleString('ar-QA',{timeZone:'Asia/Qatar'}):' · لم يتم الاختبار'} · أحداث المكالمات ${eventReady?'متصلة':eventStatus}`):text('Contact your platform administrator.','تواصل مع مسؤول المنصة.');
+      node('asteriskDetail').textContent=data.asterisk?.configured?text(`Revision ${data.asterisk.revision}${!data.asterisk.enabled?' · Disabled':''}${data.asterisk.version?' · Asterisk '+data.asterisk.version:''}${data.asterisk.lastTestedAt?' · Checked '+new Date(data.asterisk.lastTestedAt).toLocaleString('en-IN',{timeZone:tenantTimezone}):' · Not tested'} · Call events ${eventReady?'connected':eventStatus}`,`الإصدار ${data.asterisk.revision}${!data.asterisk.enabled?' · معطل':''}${data.asterisk.version?' · أستريسك '+data.asterisk.version:''}${data.asterisk.lastTestedAt?' · تم التحقق '+new Date(data.asterisk.lastTestedAt).toLocaleString('ar-IN',{timeZone:tenantTimezone}):' · لم يتم الاختبار'} · أحداث المكالمات ${eventReady?'متصلة':eventStatus}`):text('Contact your platform administrator.','تواصل مع مسؤول المنصة.');
       const peerState=data.gateway?.liveEndpointStatus||data.gateway?.endpointStatus||'not_tested',ports=data.gateway?.channelPolicy||{assignedChannels:0,inboundChannels:0,outboundChannels:0},capacity=text('4 channels','٤ قنوات');const channelSuffix=text(`${ports.assignedChannels}/4 assigned · ${data.calls?.inboundAvailable?'inbound signaling ready':'inbound not ready'} · ${data.calls?.outboundAvailable?'outbound signaling ready':'outbound not ready'}`,`${ports.assignedChannels}/٤ مخصصة · ${data.calls?.inboundAvailable?'إشارة الوارد جاهزة':'الوارد غير جاهز'} · ${data.calls?.outboundAvailable?'إشارة الصادر جاهزة':'الصادر غير جاهز'}`);const peerText=peerState==='online'?text('PJSIP peer online','نظير PJSIP متصل'):peerState==='offline'?text('PJSIP peer offline','نظير PJSIP غير متصل'):peerState==='not_configured'?text('PJSIP peer not configured on Asterisk','نظير PJSIP غير مُعد في أستريسك'):data.gateway?.settingsConfigured?text('SIP settings saved · peer not verified','حُفظت إعدادات SIP · لم يتم التحقق من النظير'):text('SIP peer not configured','لم يتم إعداد نظير SIP');node('gatewayDetail').textContent=`${capacity} · ${peerText} · ${channelSuffix}`;
       node('inboundState').textContent=data.calls?.inboundAvailable?text('Available','متاح'):text('Not ready','غير جاهز');
       node('outboundState').textContent=data.calls?.outboundAvailable?text('Available','متاح'):text('Not ready','غير جاهز');

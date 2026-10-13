@@ -3,6 +3,7 @@
 const express=require('express');
 const {decision}=require('./policy');
 const courses=require('./training-courses');
+const legacyPipelineActor=require('./legacy-pipeline-actor');
 const extensions=require('./telephony-extensions');
 const queues=require('./telephony-queues');
 const {AsteriskCallControl}=require('./asterisk-call-control');
@@ -11,6 +12,7 @@ const asteriskSecrets=require('./asterisk-secrets');
 const gatewayPorts=require('./asterisk-gateway-ports');
 const callRecordings=require('./telephony-recordings');
 const callCoaching=require('./telephony-call-coaching');
+const {createTelephonyCallOutcomes}=require('./telephony-call-outcomes');
 const {Readable,Transform}=require('node:stream');
 const {pipeline}=require('node:stream/promises');
 
@@ -18,6 +20,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   const router=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   const withDb=async fn=>{const db=await pool.getConnection();try{return await fn(db);}finally{db.release();}};
+  const callOutcomes=createTelephonyCallOutcomes(pool);
   router.use(express.json({limit:'16kb',strict:true}));
   router.use((req,res,next)=>{
     res.setHeader('Cache-Control','no-store');
@@ -27,8 +30,14 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     }
     next();
   });
-  async function legacyContext(uid){
-    const context=await courses.legacyOwnerContext(pool,uid);
+  async function legacyContext(uid,userData){
+    let context;
+    if(userData){
+      const actor=await legacyPipelineActor.resolve(pool,userData);
+      if(actor?.denied)throw Object.assign(new Error(actor.code),{code:actor.code});
+      if(actor?.categoryKey==='salemax_sales'&&actor.canonicalContext){context=actor.canonicalContext;context.timezone=actor.timezone||context.tenant.timezone||'Asia/Kolkata';}
+    }
+    if(!context)context=await courses.legacyOwnerContext(pool,uid);
     try{
       const [[row]]=await withDb(db=>db.query('SELECT assigned_navigation AS assignedNavigation FROM sx_memberships WHERE id=? AND tenant_id=?',[context.membership.id,context.tenant.id]));
       if(row?.assignedNavigation!==null&&row?.assignedNavigation!==undefined){
@@ -40,7 +49,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   }
   router.use((req,res,next)=>{
     if(/^Bearer\s+/i.test(req.get('Authorization')||'')){
-      return userGuard(req,res,()=>legacyContext(req.decode.uid).then(ctx=>{req.callCenterContext=ctx;next();}).catch(next));
+      return userGuard(req,res,()=>legacyContext(req.decode.uid,req.decode.userData).then(ctx=>{req.callCenterContext=ctx;next();}).catch(next));
     }
     return canonicalGuard(req,res,()=>{req.callCenterContext=req.businessContext;next();});
   });
@@ -74,6 +83,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   });
   router.get('/calls/:callId/coaching',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>callCoaching.list(db,req.callCenterContext,req.params.callId))})));
   router.post('/calls/:callId/coaching',wrap(async(req,res)=>res.status(201).json({success:true,data:await withDb(db=>callCoaching.create(db,req.callCenterContext,req.params.callId,req.body))})));
+  router.post('/calls/:callId/lead-outcome',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>callOutcomes.log(db,req.callCenterContext,req.params.callId,req.body))})));
   router.post('/calls/:callId/end',wrap(async(req,res)=>{
     const result=await new AsteriskCallControl({pool}).endCall(req.callCenterContext,req.params.callId);
     res.json({success:true,data:result});
@@ -126,6 +136,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const decisionResult=decision(context,{capability:'telephony.call-center',permission:'calls.read'});
     if(!decisionResult.allowed)throw Object.assign(new Error(decisionResult.code),{code:decisionResult.code});
     const callControlAccess=decision(context,{capability:'telephony.call-center',permission:'calls.control'});
+    const [[tenantSettings]]=await withDb(db=>db.query('SELECT timezone FROM sx_tenants WHERE id=? LIMIT 1',[context.tenant.id]));
     const [[pbx]]=await withDb(db=>db.query(`SELECT enabled,ari_base_url,ari_username,gateway_host,gateway_sip_port,gateway_sip_transport,gateway_endpoint_status,gateway_endpoint_tested_at,credential_ciphertext,credential_iv,credential_auth_tag,revision,last_tested_at,last_test_status,last_test_version
       FROM sx_platform_asterisk_config WHERE id=1`));
     const [[eventRuntime]]=await withDb(db=>db.query(`SELECT status,updated_at,
@@ -193,6 +204,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
           :!['mobile','browser'].some(type=>ownEndpointState(type)==='online')?'AGENT_ENDPOINT_NOT_REGISTERED':null;
     res.json({success:true,data:{
       tenantId:context.tenant.id,
+      timezone:tenantSettings?.timezone||context.timezone||context.tenant.timezone||'Asia/Qatar',
       membershipRole:context.membership.role,
       asterisk:{configured,enabled:!!pbx?.enabled,revision:configured?Number(pbx.revision):0,health:configured?pbx.last_test_status||'unknown':'not_configured',lastTestedAt:pbx.last_tested_at||null,version:pbx.last_test_version||null,
         events:{status:eventRuntime?.status||'not_started',ready:Number(eventRuntime?.heartbeat_fresh)===1,lastHeartbeatAt:eventRuntime?.updated_at||null}},
@@ -215,9 +227,9 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
     const code=error.code||'CALL_CENTER_UNAVAILABLE';
-    const status=code==='PERMISSION_DENIED'?403:['FEATURE_UNAVAILABLE','CATEGORY_UNAVAILABLE','ACCOUNT_INACTIVE'].includes(code)?409
-      :['TEAM_MEMBER_NOT_FOUND','TELEPHONY_QUEUE_NOT_FOUND','SIP_ENDPOINT_NOT_PROVISIONED','CALL_NOT_FOUND'].includes(code)?404:code==='OUTBOUND_CALL_RATE_LIMITED'?429:['OUTBOUND_CALL_ALREADY_ACTIVE','OUTBOUND_CHANNEL_UNAVAILABLE','OUTBOUND_EXTENSION_NOT_READY','OUTBOUND_TENANT_NOT_ELIGIBLE','ASTERISK_CONTROL_NOT_READY','ASTERISK_EVENTS_NOT_READY','ASTERISK_CONFIG_CHANGED','GATEWAY_ENDPOINT_NOT_READY','STALE_ENDPOINT_CREDENTIAL'].includes(code)?409:['STALE_EXTENSION_ASSIGNMENT','EXTENSION_ALREADY_ASSIGNED','STALE_TELEPHONY_QUEUE','TELEPHONY_QUEUE_NAME_EXISTS','TELEPHONY_QUEUE_MEMBER_EXTENSION_REQUIRED','TELEPHONY_QUEUE_MEMBERS_REQUIRED','EXTENSION_QUEUE_MUST_BE_DISABLED','TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'].includes(code)?409
-        :['INVALID_COACHING_AGENT','INVALID_COACHING_QUALITY','INVALID_COACHING_FEEDBACK','INVALID_COACHING_ACTION','INVALID_COACHING_VISIBILITY','INVALID_CALL_ID'].includes(code)?400
+    const status=['PERMISSION_DENIED','BUSINESS_LINK_INVALID'].includes(code)?403:['FEATURE_UNAVAILABLE','CATEGORY_UNAVAILABLE','ACCOUNT_INACTIVE'].includes(code)?409
+      :['TEAM_MEMBER_NOT_FOUND','TELEPHONY_QUEUE_NOT_FOUND','SIP_ENDPOINT_NOT_PROVISIONED','CALL_NOT_FOUND','CALL_LEAD_NOT_LINKED'].includes(code)?404:code==='OUTBOUND_CALL_RATE_LIMITED'?429:['OUTBOUND_CALL_ALREADY_ACTIVE','OUTBOUND_CHANNEL_UNAVAILABLE','OUTBOUND_EXTENSION_NOT_READY','OUTBOUND_TENANT_NOT_ELIGIBLE','ASTERISK_CONTROL_NOT_READY','ASTERISK_EVENTS_NOT_READY','ASTERISK_CONFIG_CHANGED','GATEWAY_ENDPOINT_NOT_READY','STALE_ENDPOINT_CREDENTIAL','CALL_NOT_FINISHED'].includes(code)?409:['STALE_EXTENSION_ASSIGNMENT','EXTENSION_ALREADY_ASSIGNED','STALE_TELEPHONY_QUEUE','TELEPHONY_QUEUE_NAME_EXISTS','TELEPHONY_QUEUE_MEMBER_EXTENSION_REQUIRED','TELEPHONY_QUEUE_MEMBERS_REQUIRED','EXTENSION_QUEUE_MUST_BE_DISABLED','TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'].includes(code)?409
+        :['INVALID_COACHING_AGENT','INVALID_COACHING_QUALITY','INVALID_COACHING_FEEDBACK','INVALID_COACHING_ACTION','INVALID_COACHING_VISIBILITY','INVALID_CALL_ID','INVALID_CALL_OUTCOME'].includes(code)?400
         :code.startsWith('INVALID_')?400:503;
     const finalStatus=error.type==='entity.too.large'?413:error.type==='entity.parse.failed'?400:status;
     if(code==='OUTBOUND_CALL_RATE_LIMITED')res.setHeader('Retry-After','60');
