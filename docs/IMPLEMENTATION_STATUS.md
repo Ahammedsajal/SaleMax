@@ -1,3 +1,11 @@
+## SaleMaX Sales category labels in Team Tasks — production, 14 October 2026
+
+The shared Tasks screen now uses authenticated workspace category context to label first-party SaleMaX Sales work as a Sales workspace and describe leads, calls, deals and team actions. Existing Training Center labels remain unchanged for other categories. No task permissions, API behavior, database schema or task/customer data changed.
+
+PR #72 merged as `305d808f0478d28147e9ea1c7d60eaa99d0ec17f`; active release `/opt/salemax/releases/sales-task-category-305d808-20261014`. The production app is healthy with zero restarts; database and report-worker containers were unchanged. Focused task/screen contract tests pass 28/28; JavaScript syntax and diff checks pass. Release, container and public HTTPS hashes match. No migration or business-data write occurred.
+
+The first-party tenant and staff accounts are still not provisioned, so authenticated role-by-role visual acceptance remains open. Asterisk is inactive, so genuine calling and recording playback remain unverified. Production disk remains 97% used with about 1.8 GB available. The full 42-ticket upgrade remains in progress; see `DEPLOYMENT.md` for rollback and detailed evidence.
+
 ## SaleMaX Sales Overview alerts and actions — production, 14 October 2026
 
 The existing role-scoped Sales Overview now shows alerts for overdue follow-ups and pending deals, linking to the existing work queues. It also points users to Call Center or Pipeline when those data sources are unavailable. Accountant view hides the sales alerts. The screen uses the existing Sales Workspace, APIs and burgundy theme; no new shell or migration was added.
