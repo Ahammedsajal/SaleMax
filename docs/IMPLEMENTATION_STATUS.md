@@ -1,3 +1,11 @@
+## SaleMaX Sales pipeline follow-up timezone — production, 14 October 2026
+
+The existing Lead Pipeline follow-up queue now displays due times and converts rescheduled local times using the business timezone returned by the tenant-scoped API. The old hard-coded Qatar timezone and `+03:00` reschedule offset incorrectly shifted India follow-ups. The existing pipeline route and hierarchy scope remain unchanged.
+
+PR #54 merged as `d21bd259d2be4e9794ef8db13a19fb46094ff25f` and is live in `/opt/salemax/releases/pipeline-timezone-d21bd25-20261014`. India/Qatar conversion tests and existing team-scope/navigation checks pass 16/16. Source, release, container and public asset hashes match. No migration or business data changed. See `DEPLOYMENT.md` for rollback evidence.
+
+Authenticated first-party Sales acceptance remains open because the tenant and owner account are not provisioned. The full 42-ticket objective remains in progress.
+
 ## SaleMaX Sales workspace visual consistency — production, 14 October 2026
 
 The Sales Overview, Organization, Commission Policy, Sales Finance and Audit Trail now use shared SaleMaX design tokens. Their content width, panel and control sizing are aligned while keeping the existing burgundy theme, individual page behavior, and `/user` shell. Shared keyboard focus and reduced-motion styles were added.
