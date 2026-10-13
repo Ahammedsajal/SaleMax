@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#A8003B">
+  <title>Organization · SaleMaX</title>
+  <link rel="stylesheet" href="/sales-organization/sales-organization.css?v=20261013-org2">
+</head>
+<body>
+  <main class="workspace" id="organization">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow" data-en="SALES · PEOPLE" data-ar="المبيعات · الفريق">SALES · PEOPLE</p>
+        <h1 id="pageTitle">Organization</h1>
+        <p id="intro" class="intro">See reporting lines and move team leaders or agents within your permitted scope.</p>
+      </div>
+      <div class="header-actions">
+        <a id="teamAccess" class="button secondary" href="/user?page=team-invitations">Team access</a>
+        <button id="refresh" type="button">Refresh</button>
+      </div>
+    </header>
+
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
+    <section id="summary" class="summary-grid" aria-label="Organization summary"></section>
+
+    <section class="panel" aria-labelledby="teamHeading">
+      <div class="section-heading">
+        <div>
+          <h2 id="teamHeading">Reporting structure</h2>
+          <p id="scopeNote" class="muted">Team information is limited to your assigned scope.</p>
+        </div>
+        <div class="filters">
+          <label><span id="searchLabel">Search people</span><input id="search" type="search" autocomplete="off" maxlength="120"></label>
+          <label><span id="roleLabel">Role</span><select id="roleFilter"><option value="all">All roles</option></select></label>
+        </div>
+      </div>
+      <div id="orgTree" class="org-tree" aria-live="polite"></div>
+    </section>
+
+    <dialog id="moveDialog" aria-labelledby="moveTitle">
+      <form id="moveForm" method="dialog">
+        <div class="dialog-header">
+          <div><p class="eyebrow" id="moveEyebrow">TEAM CHANGE</p><h2 id="moveTitle">Move team member</h2></div>
+          <button id="closeMove" class="icon-button" type="button" aria-label="Close">×</button>
+        </div>
+        <p id="moveDescription" class="muted"></p>
+        <input name="membershipId" type="hidden">
+        <label><span id="managerLabel">Sales Manager</span><select name="managerMembershipId" required></select></label>
+        <label id="teamLeaderField"><span id="teamLeaderLabel">Team Leader</span><select name="teamLeaderMembershipId" required></select></label>
+        <label><span id="reasonLabel">Reason for change</span><textarea name="reason" rows="3" minlength="3" maxlength="1000" required></textarea></label>
+        <div class="dialog-actions"><button id="cancelMove" class="secondary" type="button">Cancel</button><button id="saveMove" type="submit">Save assignment</button></div>
+      </form>
+    </dialog>
+  </main>
+  <script src="/sales-organization/sales-organization.js?v=20261013-org2"></script>
+</body>
+</html>

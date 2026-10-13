@@ -70,14 +70,14 @@ async function reassign(db,ctx,membershipId,input){
       followers=rows;
       if(ctx.membership.role==='manager'&&followers.length&&current.managerMembershipId!==ctx.membership.id)fail('PERMISSION_DENIED');
     }
-    if(current)await db.query('UPDATE sx_sales_org_history SET ended_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL',[ctx.tenant.id,target.id]);
+    if(current)await db.query('UPDATE sx_sales_org_history SET ended_at=GREATEST(UTC_TIMESTAMP(3),started_at) WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL',[ctx.tenant.id,target.id]);
     const assignmentId=crypto.randomUUID();
     await db.query(`INSERT INTO sx_sales_org_history(id,tenant_id,membership_id,manager_membership_id,team_leader_membership_id,assigned_by_identity_id,reason)
       VALUES (?,?,?,?,?,?,?)`,[assignmentId,ctx.tenant.id,target.id,manager.id,nextLeaderId,ctx.identity.id,why]);
     for(const follower of followers){
       const [[followerCurrent]]=await db.query(`SELECT team_leader_membership_id AS teamLeaderMembershipId FROM sx_sales_org_history WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL FOR UPDATE`,[ctx.tenant.id,follower.membershipId]);
       if(!followerCurrent)continue;
-      await db.query('UPDATE sx_sales_org_history SET ended_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL',[ctx.tenant.id,follower.membershipId]);
+      await db.query('UPDATE sx_sales_org_history SET ended_at=GREATEST(UTC_TIMESTAMP(3),started_at) WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL',[ctx.tenant.id,follower.membershipId]);
       await db.query(`INSERT INTO sx_sales_org_history(id,tenant_id,membership_id,manager_membership_id,team_leader_membership_id,assigned_by_identity_id,reason)
         VALUES (?,?,?,?,?,?,?)`,[crypto.randomUUID(),ctx.tenant.id,follower.membershipId,manager.id,followerCurrent.teamLeaderMembershipId,ctx.identity.id,why]);
     }
