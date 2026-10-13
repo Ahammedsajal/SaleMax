@@ -10,6 +10,7 @@ const asteriskConfig=require('./asterisk-config');
 const asteriskSecrets=require('./asterisk-secrets');
 const gatewayPorts=require('./asterisk-gateway-ports');
 const callRecordings=require('./telephony-recordings');
+const callCoaching=require('./telephony-call-coaching');
 const {Readable,Transform}=require('node:stream');
 const {pipeline}=require('node:stream/promises');
 
@@ -71,6 +72,8 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
       await pipeline(Readable.fromWeb(file.body),limit,res);
     }catch(error){if(res.headersSent){res.destroy(error);return;}next(error);}
   });
+  router.get('/calls/:callId/coaching',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>callCoaching.list(db,req.callCenterContext,req.params.callId))})));
+  router.post('/calls/:callId/coaching',wrap(async(req,res)=>res.status(201).json({success:true,data:await withDb(db=>callCoaching.create(db,req.callCenterContext,req.params.callId,req.body))})));
   router.post('/calls/:callId/end',wrap(async(req,res)=>{
     const result=await new AsteriskCallControl({pool}).endCall(req.callCenterContext,req.params.callId);
     res.json({success:true,data:result});
@@ -111,6 +114,8 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
         recordingState:row.recordingState||'not_recorded',canListenRecording:row.recordingState==='ready'&&new Date(row.recordingExpiresAt).getTime()>Date.now()&&decision(context,{capability:'telephony.call-center',permission:'calls.recording.listen'}).allowed,
+        canCoach:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.write'}).allowed,
+        canViewCoaching:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.read'}).allowed,
         canControl:context.membership.role==='owner'||context.membership.role==='manager'||salesTeam||row.startedByMembershipId===context.membership.id
           ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1}));
     });
@@ -212,6 +217,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const code=error.code||'CALL_CENTER_UNAVAILABLE';
     const status=code==='PERMISSION_DENIED'?403:['FEATURE_UNAVAILABLE','CATEGORY_UNAVAILABLE','ACCOUNT_INACTIVE'].includes(code)?409
       :['TEAM_MEMBER_NOT_FOUND','TELEPHONY_QUEUE_NOT_FOUND','SIP_ENDPOINT_NOT_PROVISIONED','CALL_NOT_FOUND'].includes(code)?404:code==='OUTBOUND_CALL_RATE_LIMITED'?429:['OUTBOUND_CALL_ALREADY_ACTIVE','OUTBOUND_CHANNEL_UNAVAILABLE','OUTBOUND_EXTENSION_NOT_READY','OUTBOUND_TENANT_NOT_ELIGIBLE','ASTERISK_CONTROL_NOT_READY','ASTERISK_EVENTS_NOT_READY','ASTERISK_CONFIG_CHANGED','GATEWAY_ENDPOINT_NOT_READY','STALE_ENDPOINT_CREDENTIAL'].includes(code)?409:['STALE_EXTENSION_ASSIGNMENT','EXTENSION_ALREADY_ASSIGNED','STALE_TELEPHONY_QUEUE','TELEPHONY_QUEUE_NAME_EXISTS','TELEPHONY_QUEUE_MEMBER_EXTENSION_REQUIRED','TELEPHONY_QUEUE_MEMBERS_REQUIRED','EXTENSION_QUEUE_MUST_BE_DISABLED','TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'].includes(code)?409
+        :['INVALID_COACHING_AGENT','INVALID_COACHING_QUALITY','INVALID_COACHING_FEEDBACK','INVALID_COACHING_ACTION','INVALID_COACHING_VISIBILITY','INVALID_CALL_ID'].includes(code)?400
         :code.startsWith('INVALID_')?400:503;
     const finalStatus=error.type==='entity.too.large'?413:error.type==='entity.parse.failed'?400:status;
     if(code==='OUTBOUND_CALL_RATE_LIMITED')res.setHeader('Retry-After','60');
