@@ -107,3 +107,6 @@
 
 /* Give Finance actions comfortable tap targets on phone-sized screens. */
 @media(max-width:600px){#sx-finance-screen button{min-height:44px!important}}
+
+/* Keep narrow MUI tab groups horizontally reachable without widening the page. */
+@media(max-width:380px){#root .MuiTabs-scroller:has([role="tab"]){overflow-x:auto!important;overscroll-behavior-inline:contain;scrollbar-width:thin;-webkit-overflow-scrolling:touch}}

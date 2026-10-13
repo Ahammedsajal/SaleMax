@@ -30,7 +30,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 | WA Chatbot | Bot card and Add/Assign actions fit the viewport. | Pass at reviewed viewport |
 | FAQs | Text and empty-state actions fit the viewport. | Pass at reviewed viewport |
 | Automation Flows | Builder toolbar and canvas fit; small canvas nodes rely on the existing zoom controls. | Partial review |
-| Campaign Dashboard | Summary cards use two columns without clipping. | Pass at reviewed viewport |
+| Campaign Dashboard | At 320px, the overview cards stack without page overflow, but the All Campaigns tab extended beyond its fixed tab viewport. Narrow MUI tab groups now scroll horizontally within their own scroller; both tabs are reachable without widening the page. At 430px the tabs already fit. | Fixed and production-verified at 320px and 430px |
 | Send Campaign | Template search, status selector, refresh and setup warning stack within the screen. No campaign was sent. | Pass at reviewed viewport |
 | Create Meta Template | Wizard choices stack in one column and remain readable. Later steps not inspected. | Partial review |
 | Admin Manage Plans | Plan cards stack and Edit/Delete actions span the card width. | Pass at reviewed viewport |
