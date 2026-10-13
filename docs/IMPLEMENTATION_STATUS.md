@@ -1,3 +1,11 @@
+## SaleMaX Sales Accountant finance-only boundary — production, 14 October 2026
+
+SaleMaX Sales Accountant access now follows the finance-only role definition: Lead Pipeline and Phonebook reads are denied in the category-aware server policy and disappear from generated role navigation, including when assigned navigation requests those entries. Finance, commission payouts and finance-scoped reports remain available. Training Center accountant access to billing-linked leads is unchanged.
+
+PR #82 merged as `a5d546f7f0b00837190689b0eabbb2b40c48afac`; release `sales-accountant-scope-a5d546f-20261014` is active. Policy, navigation, team-role guard and provisioning checks pass 29/29, and a synthetic decision check against the deployed app image confirms the boundary. No migration or business-data write occurred. See `DEPLOYMENT.md` for the rollback reference and release evidence.
+
+Production currently has zero first-party `salemax_sales` tenants and zero `admin@salemax.qa` identities, so authenticated role acceptance remains open. Asterisk is inactive; live call/recording acceptance is still open. The complete 42-ticket implementation remains in progress.
+
 ## SaleMaX Sales category labels in Team Tasks — production, 14 October 2026
 
 The shared Tasks screen now uses authenticated workspace category context to label first-party SaleMaX Sales work as a Sales workspace and describe leads, calls, deals and team actions. Existing Training Center labels remain unchanged for other categories. No task permissions, API behavior, database schema or task/customer data changed.
