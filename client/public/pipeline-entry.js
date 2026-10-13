@@ -4,6 +4,8 @@
 
   const isArabic = () => { const language = (localStorage.getItem('language') || '').toLowerCase(); return language === 'ar' || language.includes('arabic'); };
   const isLeadReportsRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'lead-reports';
+  const pipelineView = () => isLeadReportsRoute()?'reports':(['board','list','followups'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'');
+  const pipelineSource = () => '/pipeline/?embed=1'+(pipelineView()?'&view='+encodeURIComponent(pipelineView()):'')+(new URLSearchParams(location.search).get('lead')?'&lead='+encodeURIComponent(new URLSearchParams(location.search).get('lead')):'');
   const isTasksRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'tasks';
   const isCallCenterRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'call-center';
   const isCommissionPolicyRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'commission-policy';
@@ -112,11 +114,11 @@
       workspace = document.createElement('iframe');
       workspace.id = 'salemax-pipeline-workspace';
       workspace.title = pipelineLabel();
-      workspace.src = '/pipeline/?embed=1'+(isLeadReportsRoute()?'&view=reports':'')+(new URLSearchParams(location.search).get('lead')?'&lead='+encodeURIComponent(new URLSearchParams(location.search).get('lead')):'');
+      workspace.src = pipelineSource();
       workspace.style.cssText = 'position:fixed;z-index:1100;border:0;background:#f5f7fa;display:block;';
       document.body.appendChild(workspace);
     }
-    const expectedSrc='/pipeline/?embed=1'+(isLeadReportsRoute()?'&view=reports':'')+(new URLSearchParams(location.search).get('lead')?'&lead='+encodeURIComponent(new URLSearchParams(location.search).get('lead')):'');
+    const expectedSrc=pipelineSource();
     if(workspace.getAttribute('src')!==expectedSrc)workspace.src=expectedSrc;
     workspace.style.left = `${left}px`;
     workspace.style.top = `${top}px`;

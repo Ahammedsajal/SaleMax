@@ -256,6 +256,7 @@
   followupButton.textContent=arabic()?'المتابعات':'Follow-ups';
   followupButton.setAttribute('aria-label',followupButton.textContent);
   followupButton.onclick=()=>setView('followups');
+  if(new URLSearchParams(location.search).get('view')==='followups')setView('followups');
   window.salemaxPipelineReports={load,setView,loadFollowUps};
 
   function fmtTaskDate(value){return window.SaleMaXDateTime.format(value,state.taskTimezone,arabic()?'ar':'en');}
