@@ -12,6 +12,7 @@ function normalizeInput(input){
   if(input.followUpRequired!==undefined&&typeof input.followUpRequired!=='boolean')fail('INVALID_CALL_OUTCOME');
   if(input.followUpRequired&&typeof input.nextFollowUpAt!=='string')fail('INVALID_CALL_OUTCOME');
   if(input.nextFollowUpAt!==undefined&&input.nextFollowUpAt!==null&&typeof input.nextFollowUpAt!=='string')fail('INVALID_CALL_OUTCOME');
+  if(input.followUpRequired!==true&&input.nextFollowUpAt!==undefined&&input.nextFollowUpAt!==null)fail('INVALID_CALL_OUTCOME');
   if(input.note!==undefined&&typeof input.note!=='string')fail('INVALID_CALL_OUTCOME');
   const note=String(input.note||'').trim();if(note.length>2000)fail('INVALID_CALL_OUTCOME');
   return {outcome:input.outcome,note,

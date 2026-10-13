@@ -46,6 +46,7 @@ test('Sales follow-up entry treats typed time as Asia/Kolkata local time',()=>{
 test('outcome input rejects unsupported dispositions, invalid follow-up types and oversized notes',()=>{
   assert.throws(()=>normalizeInput({outcome:'forged',followUpRequired:false}),{code:'INVALID_CALL_OUTCOME'});
   assert.throws(()=>normalizeInput({outcome:'connected',followUpRequired:'false'}),{code:'INVALID_CALL_OUTCOME'});
+  assert.throws(()=>normalizeInput({outcome:'connected',nextFollowUpAt:'2026-10-15T04:30:00.000Z'}),{code:'INVALID_CALL_OUTCOME'});
   assert.throws(()=>normalizeInput({outcome:'connected',followUpRequired:false,note:'x'.repeat(2001)}),{code:'INVALID_CALL_OUTCOME'});
 });
 
