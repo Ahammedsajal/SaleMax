@@ -1241,3 +1241,9 @@ Authenticated production visual acceptance for Business Admin, Manager and Team 
 ## Finance screen reduction — production, 13 October 2026
 
 The initial Finance screen now shows only invoice creation and the generated invoice list, with existing search/filter and Open PDF controls. Payment summary/register, policy, reminders, queues and reports are no longer mounted on this screen. Existing data and backend capabilities remain intact. Authenticated production screen verification and 24/24 focused checks passed. Invoice issuance/PDF opening and provider delivery remain open gates. Full 42-ticket work remains in progress; see `DEPLOYMENT.md` for release hashes and rollback.
+
+## Sales daily priorities and finance-role boundary — production, 14 October 2026
+
+Sales Overview and Agent My Day now show up to eight scoped priority follow-ups, with India-local due times and links to the existing lead and follow-up queue. A follow-up fix also ensures the Accountant's finance-only overview hides the Leads panel before its early return. PRs #56 and #58 are merged and deployed; release identifiers, asset hashes, rollback and production checks are in `DEPLOYMENT.md`. Focused navigation, timezone and design checks pass 15/15. No migration or business-data write occurred.
+
+First-party Sales tenant/user provisioning and authenticated Owner/Manager/Team Leader/Agent/Accountant acceptance remain open. The available production browser session is unrelated and was not used. Asterisk remains inactive, so real call capture/recording playback is unverified. The full 42-ticket objective remains in progress.
