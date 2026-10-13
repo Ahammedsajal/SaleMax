@@ -29,7 +29,7 @@ test('legacy finance-policy APIs remain separate from the simplified Finance scr
   const router=read('modules/platform/training-finance-router.js'),mount=read('modules/platform/mount-existing-upgrade.js'),ui=read('client/public/training-finance.js'),html=read('client/public/index.html'),sidebar=read('client/public/training-sidebar.js');
   assert.match(router,/\/accountant\/current/);assert.match(router,/\/canonical\/draft/);assert.match(router,/\/canonical\/\:id\/submit/);assert.match(router,/canonicalGuard/);assert.match(router,/\/decision/);
   assert.match(mount,/\/api\/user\/training\/finance-policies/);assert.match(mount,/businessBoundary\.guard/);
-  assert.match(html,/training-finance\.js\?v=/);assert.match(ui,/finance-settings/);assert.match(ui,/المالية/);assert.doesNotMatch(ui,/loadFinancePolicy\(node,mode,csrf\)/);assert.doesNotMatch(ui,/Save and submit for accountant review/);assert.doesNotMatch(ui,/Approve policy/);assert.doesNotMatch(ui,/Reject policy/);assert.doesNotMatch(ui,/data-policy-form/);assert.match(ui,/Invoices awaiting collection/);assert.match(ui,/X-CSRF-Token/);assert.match(ui,/Loading finance settings/);
+  assert.match(html,/training-finance\.js\?v=/);assert.match(ui,/finance-settings/);assert.match(ui,/المالية/);assert.match(ui,/loadFinancePolicy\(node,mode,csrf\)/);assert.match(ui,/data-policy-form/);assert.match(ui,/Approve policy/);assert.match(ui,/Reject policy/);assert.doesNotMatch(ui,/<label[^>]*>[^<]*(?:Legal name|Registration number|Legal address|Invoice number prefix)[\s\S]{0,160}<input[^>]*name=\"(?:legalName|legalRegistrationNumber|legalAddress|invoicePrefix)\"/i);assert.match(ui,/Invoice name, address, CR number and prefix are taken from the Training Center Profile/);assert.match(ui,/Approved sales awaiting invoice/);assert.match(ui,/X-CSRF-Token/);assert.match(ui,/Loading finance policy/);
   assert.match(ui,/Finance Reports/);assert.match(ui,/data-sx-finance-report-nav/);assert.match(ui,/billedMinor/);assert.match(ui,/creditedInvoiceCount/);assert.match(ui,/name="from"/);assert.match(ui,/name="to"/);
   assert.match(sidebar,/finance-settings&section=reports/);assert.match(sidebar,/Lead Reports/);assert.match(sidebar,/Leads & Reports/);
   assert.match(read('docs/API_DOCUMENTATION.md'),/Training Center finance policy for sale conversion/);assert.match(read('docs/USER_MANUAL.md'),/Center details on invoices/);
@@ -38,5 +38,5 @@ test('mobile Finance aging search gets its own full-width row',()=>{
   const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8'),css=read('client/public/salemax-brand.css'),html=read('client/public/index.html');
   assert.match(css,/#sx-finance-screen #sx-aging-filter label:has\(input\[name="q"\]\)\{flex:1 0 100%;min-width:0\}/);
   assert.match(css,/#sx-finance-screen #sx-aging-filter label:has\(input\[name="q"\]\) input\{width:100%\}/);
-  assert.match(html,/salemax-brand\.css\?v=20261012-finance-report-search1/);
+  assert.match(html,/salemax-brand\.css\?v=20261012-phonebook-grid-mobile1/);
 });

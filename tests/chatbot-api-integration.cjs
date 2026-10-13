@@ -181,7 +181,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(preview.data.reply, 'Our approved course information is available.');
     assert.equal(providerCalls, 1);
     assert.ok(previewInput.includes(faqAnswer));
-    assert.ok(previewInput.includes('Evening classes are available in selected batches.'));
+    assert.ok(!previewInput.includes('Evening classes are available in selected batches.'), 'unrelated saved FAQs are not added to the provider prompt');
     const [[turnCount]] = await connection.query('SELECT COUNT(*) AS count FROM sx_chatbot_turns WHERE tenant_id=?', [t1]);
     assert.equal(Number(turnCount.count), 0, 'preview does not create inbound WhatsApp turns');
 
