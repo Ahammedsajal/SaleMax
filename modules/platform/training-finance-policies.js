@@ -52,9 +52,9 @@ async function history(db,ctx){
   requireAccess(ctx,'read');const [rows]=await db.query(`SELECT ${fields} FROM sx_training_finance_policies WHERE tenant_id=? ORDER BY version DESC LIMIT 50`,[ctx.tenant.id]);return rows.map(shape);
 }
 async function saveDraft(db,ctx,{expectedPolicyId=null,expectedRevision=0,input}){
-  requireAccess(ctx,'configure');if(expectedPolicyId!==null&&(typeof expectedPolicyId!=='string'||!/^[0-9a-f-]{36}$/i.test(expectedPolicyId)))fail('INVALID_FINANCE_POLICY_REVISION');if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)fail('INVALID_FINANCE_POLICY_REVISION');const data=normalize(input);
+  requireAccess(ctx,'configure');if(expectedPolicyId!==null&&(typeof expectedPolicyId!=='string'||!/^[0-9a-f-]{36}$/i.test(expectedPolicyId)))fail('INVALID_FINANCE_POLICY_REVISION');if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)fail('INVALID_FINANCE_POLICY_REVISION');let data=normalize(input);
   await db.beginTransaction();try{
-    await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[ctx.tenant.id]);const [rows]=await db.query(`SELECT id,version,revision,status FROM sx_training_finance_policies WHERE tenant_id=? ORDER BY version DESC LIMIT 1 FOR UPDATE`,[ctx.tenant.id]);const latest=rows[0]||null;
+    await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[ctx.tenant.id]);const [[profile]]=await db.query('SELECT display_name_en,legal_name,cr_number,address_en,invoice_prefix FROM sx_training_center_profiles WHERE tenant_id=? FOR UPDATE',[ctx.tenant.id]);if(!profile)fail('INVOICE_SETTINGS_REQUIRED');data={...data,legalName:profile.legal_name||profile.display_name_en,legalRegistrationNumber:profile.cr_number||null,legalAddress:profile.address_en||null,invoicePrefix:profile.invoice_prefix||''};const [rows]=await db.query(`SELECT id,version,revision,status FROM sx_training_finance_policies WHERE tenant_id=? ORDER BY version DESC LIMIT 1 FOR UPDATE`,[ctx.tenant.id]);const latest=rows[0]||null;
     if((latest?.id||null)!==expectedPolicyId||Number(latest?.revision||0)!==expectedRevision)fail('STALE_FINANCE_POLICY');
     if(latest?.status==='pending_accountant')fail('FINANCE_POLICY_REVIEW_PENDING');
     let id,version,revision;

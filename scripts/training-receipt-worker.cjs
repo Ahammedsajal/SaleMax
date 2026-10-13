@@ -21,7 +21,7 @@ async function tenantContexts(){
     FROM sx_tenants t JOIN sx_memberships m ON m.tenant_id=t.id AND m.role='owner' AND m.status='active'
     JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
     WHERE t.status='active' AND t.category_key='training_center' AND t.category_version=1 AND (
-      ${remindersEnabled?`EXISTS(SELECT 1 FROM sx_training_reminder_settings s WHERE s.tenant_id=t.id AND s.enabled=1)`:'FALSE'}
+      ${remindersEnabled?`(EXISTS(SELECT 1 FROM sx_training_reminder_settings s WHERE s.tenant_id=t.id AND s.enabled=1) OR NOT EXISTS(SELECT 1 FROM sx_training_reminder_settings s WHERE s.tenant_id=t.id))`:'FALSE'}
       OR EXISTS(SELECT 1 FROM sx_training_outbox_events e WHERE e.tenant_id=t.id AND e.event_type IN (?) AND ((e.status='ready' AND e.available_at<=UTC_TIMESTAMP(3)) OR (e.status='leased' AND e.lease_expires_at<=UTC_TIMESTAMP(3))))
     ) ORDER BY t.id LIMIT 100`,[enabledEventTypes()]);
   const contexts=[];
