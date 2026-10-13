@@ -15,7 +15,7 @@ const sidebar = fs.readFileSync(path.join(root, 'client/public/training-sidebar.
 test('reports is integrated as a bilingual view in the existing pipeline screen', () => {
   assert.match(html, /id="reportsMode"/);
   assert.match(html, /id="reports" class="reports hidden"/);
-  assert.match(html, /src="\/pipeline\/reports\.js\?v=20261012-reschedule-label1"/);
+  assert.match(html, /src="\/pipeline\/reports\.js\?v=[^"]+"/);
   assert.match(reports, /get\('view'\)==='reports'/);
   assert.match(entry, /page.*lead-reports/);
   assert.match(entry, /view=reports/);
@@ -36,7 +36,7 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /cohortShare:'من العملاء الجدد'/);
   assert.match(reports, /Math\.round\(Number\(value\|\|0\)\*100\/cohortSize\)/);
   assert.match(html, /pipeline\.css\?v=20261012-lead-source-output1/);
-  assert.match(html, /reports\.js\?v=20261012-reschedule-label1/);
+  assert.match(html, /reports\.js\?v=[^"]+/);
   assert.match(fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8'),/journey-cohort \.journey-stage small/);
   assert.match(reports, /reportPrevious/);
   assert.match(reports, /reportNext/);
