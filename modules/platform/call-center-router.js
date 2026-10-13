@@ -9,6 +9,9 @@ const {AsteriskCallControl}=require('./asterisk-call-control');
 const asteriskConfig=require('./asterisk-config');
 const asteriskSecrets=require('./asterisk-secrets');
 const gatewayPorts=require('./asterisk-gateway-ports');
+const callRecordings=require('./telephony-recordings');
+const {Readable,Transform}=require('node:stream');
+const {pipeline}=require('node:stream/promises');
 
 function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=globalThis.fetch}){
   const router=express.Router();
@@ -47,12 +50,27 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   router.post('/webrtc-config',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>asteriskConfig.ownBrowserEndpoint(db,req.callCenterContext))})));
   router.post('/sip-config',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>asteriskConfig.ownMobileEndpoint(db,req.callCenterContext))})));
   router.put('/queues',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>queues.save(db,req.callCenterContext,req.body))})));
+  router.get('/recording-policy',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>callRecordings.getPolicy(db,req.callCenterContext))})));
+  router.put('/recording-policy',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>callRecordings.savePolicy(db,req.callCenterContext,req.body))})));
   router.post('/calls',wrap(async(req,res)=>{
     const access=decision(req.callCenterContext,{capability:'telephony.call-center',permission:'calls.control'});
     if(!access.allowed)throw Object.assign(new Error(access.code),{code:access.code});
     const result=await new AsteriskCallControl({pool}).originateOutbound(req.callCenterContext,req.body);
     res.status(202).json({success:true,data:result});
   }));
+  router.get('/calls/:callId/recording',async(req,res,next)=>{
+    try{
+      const recording=await withDb(db=>callRecordings.openRecording(db,req.callCenterContext,req.params.callId));
+      const client=await new AsteriskCallControl({pool}).client();
+      const file=await client.getStoredRecordingFile(recording.recordingName);
+      res.status(200);res.setHeader('Content-Type','audio/wav');res.setHeader('Content-Disposition','inline; filename="call-recording.wav"');
+      res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('X-Content-Type-Options','nosniff');
+      if(file.contentLength)res.setHeader('Content-Length',String(file.contentLength));
+      let size=0;
+      const limit=new Transform({transform(chunk,encoding,callback){size+=chunk.length;if(size>file.maxBytes)return callback(Object.assign(new Error('RECORDING_SIZE_LIMIT'),{code:'RECORDING_SIZE_LIMIT'}));callback(null,chunk);}});
+      await pipeline(Readable.fromWeb(file.body),limit,res);
+    }catch(error){if(res.headersSent){res.destroy(error);return;}next(error);}
+  });
   router.post('/calls/:callId/end',wrap(async(req,res)=>{
     const result=await new AsteriskCallControl({pool}).endCall(req.callCenterContext,req.params.callId);
     res.json({success:true,data:result});
@@ -79,9 +97,11 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
           q.queue_name AS queueName,c.started_at AS startedAt,c.answered_at AS answeredAt,c.ended_at AS endedAt,
           IF(c.answered_at IS NULL,NULL,IF(c.ended_at IS NULL,TIMESTAMPDIFF(SECOND,c.answered_at,UTC_TIMESTAMP(3)),c.duration_seconds)) AS durationSeconds,
           c.answered_by_membership_id AS answeredByMembershipId,c.started_by_membership_id AS startedByMembershipId,
+          r.state AS recordingState,r.expires_at AS recordingExpiresAt,
           EXISTS(SELECT 1 FROM sx_telephony_call_legs l WHERE l.tenant_id=c.tenant_id AND l.call_id=c.id AND l.membership_id=?
             AND l.status IN ('originating','ringing','connected')) AS hasAssignedActiveLeg
         FROM sx_telephony_calls c LEFT JOIN sx_telephony_queues q ON q.tenant_id=c.tenant_id AND q.id=c.inbound_queue_id
+        LEFT JOIN sx_telephony_call_recordings r ON r.tenant_id=c.tenant_id AND r.call_id=c.id
         WHERE c.tenant_id=? AND (?=0 OR c.started_by_membership_id=? OR c.answered_by_membership_id=? OR EXISTS(
           SELECT 1 FROM sx_telephony_queue_members qm WHERE qm.tenant_id=c.tenant_id AND qm.queue_id=c.inbound_queue_id AND qm.membership_id=?))
           ${teamFilter}
@@ -90,6 +110,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
       return items.map(row=>({callId:row.id,direction:row.direction,status:row.status,gatewayChannelNo:Number(row.gatewayChannelNo),
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
+        recordingState:row.recordingState||'not_recorded',canListenRecording:row.recordingState==='ready'&&new Date(row.recordingExpiresAt).getTime()>Date.now()&&decision(context,{capability:'telephony.call-center',permission:'calls.recording.listen'}).allowed,
         canControl:context.membership.role==='owner'||context.membership.role==='manager'||salesTeam||row.startedByMembershipId===context.membership.id
           ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1}));
     });
@@ -181,7 +202,8 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         browserWebRtc:{ready:ownEndpointState('browser')==='online',registrationStatus:ownEndpointState('browser'),provisioned:provisioned.has('browser'),reason:!provisioned.has('browser')?'WEBRTC_ENDPOINT_NOT_PROVISIONED':ownEndpointState('browser')!=='online'?'WEBRTC_ENDPOINT_NOT_REGISTERED':null},
       },
       member:{extension:extension.extension,extensionAssigned:extension.assigned,extensionProvisioned:provisioned.size>0},
-      permissions:{manageExtensions:['owner','manager'].includes(context.membership.role),controlCalls:callControlAccess.allowed},
+      permissions:{manageExtensions:['owner','manager'].includes(context.membership.role),controlCalls:callControlAccess.allowed,
+        manageRecordings:decision(context,{capability:'telephony.call-center',permission:'calls.recording.manage'}).allowed},
       feature:{enabled:true,scope:decisionResult.scope}
     }});
   }));

@@ -180,6 +180,32 @@ test('ARI client applies only bounded dynamic PJSIP object types and accepts con
   }finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;}
 });
 
+test('ARI recording controls use safe UUID-derived names, beep on bridge capture, and stream bounded stored WAV files', async()=>{
+  const {Readable}=require('node:stream');
+  const oldKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='pbx.example.com';
+  const credential=secrets.encrypt('test-password-that-is-long-enough'),requests=[];
+  const client=createAriClient({ari_base_url:'https://pbx.example.com:8089/ari',ari_username:'salemax-admin',credential_ciphertext:credential.ciphertext,
+    credential_iv:credential.iv,credential_auth_tag:credential.authTag,enabled:1,revision:3},{fetchImpl:async(url,options)=>{
+      const parsed=new URL(url);requests.push({url:parsed,options});
+      if(parsed.pathname.endsWith('/record'))return{ok:true,status:200,headers:new Headers({'content-type':'application/json'}),async text(){return JSON.stringify({name:parsed.searchParams.get('name')});}};
+      if(parsed.pathname.endsWith('/file'))return{ok:true,status:200,headers:new Headers({'content-type':'audio/wav','content-length':'4'}),body:new ReadableStream({start(controller){controller.enqueue(new Uint8Array([1,2,3,4]));controller.close();}})};
+      return{ok:true,status:204,headers:new Headers(),async text(){return '';}};
+    }});
+  const bridgeId=crypto.randomUUID(),recordingName=`salemax_${crypto.randomBytes(16).toString('hex')}`;
+  try{
+    assert.deepEqual(await client.recordBridge(bridgeId,recordingName),{name:recordingName});
+    const file=await client.getStoredRecordingFile(recordingName),chunks=[];
+    for await(const chunk of Readable.fromWeb(file.body))chunks.push(chunk);
+    assert.deepEqual(Buffer.concat(chunks),Buffer.from([1,2,3,4]));
+    await client.stopLiveRecording(recordingName);await client.deleteStoredRecording(recordingName);
+    assert.equal(requests[0].url.pathname,`/ari/bridges/${bridgeId}/record`);assert.equal(requests[0].url.searchParams.get('beep'),'true');
+    assert.equal(requests[0].url.searchParams.get('format'),'wav');assert.equal(requests[0].url.searchParams.get('ifExists'),'fail');
+    assert.equal(requests[1].url.pathname,`/ari/recordings/stored/${recordingName}/file`);
+    await assert.rejects(client.recordBridge(bridgeId,'../../etc/passwd'),{code:'INVALID_ARI_RECORDING'});
+  }finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;}
+});
+
 test('ARI channel snapshot validates channel IDs and response bounds for reconnect recovery', async () => {
   const oldKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
   process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='pbx.example.com';
