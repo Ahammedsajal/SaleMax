@@ -3,7 +3,7 @@ const ar=()=>String(localStorage.getItem('language')||'').toLowerCase().includes
 const tr=(en,arabic)=>ar()?arabic:en;
 const token=()=>localStorage.getItem('wacrm_user')||localStorage.getItem('wacrm_agent');
 const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-const state={section:['overview','commissions','targets','deals'].includes(new URLSearchParams(location.search).get('section'))?new URLSearchParams(location.search).get('section'):'overview',deals:[],commissions:[],products:[],leads:[],targets:[],permissions:{},overview:{},role:null,roleNavigation:[],assignedNavigation:null};
+const state={section:['overview','commissions','targets','deals','reports'].includes(new URLSearchParams(location.search).get('section'))?new URLSearchParams(location.search).get('section'):'overview',deals:[],commissions:[],products:[],leads:[],targets:[],targetsPeriod:null,permissions:{},overview:{},role:null,roleNavigation:[],assignedNavigation:null};
 const el=id=>document.getElementById(id);
 const notice=el('notice');
 function message(kind,value){notice.dataset.kind=kind||'';notice.textContent=value||'';}
@@ -19,7 +19,28 @@ function minorInput(minor,currency){const places=decimals(currency),base=10n**Bi
 function statusLabel(value){return ({pending_approval:tr('Pending approval','بانتظار الاعتماد'),approved:tr('Approved','معتمد'),rejected:tr('Rejected','مرفوض'),draft:tr('Needs review','بانتظار المراجعة'),paid:tr('Paid','مدفوع'),void:tr('Voided','ملغي')})[value]||value;}
 function roleLabel(value){return ({manager:tr('Sales Manager','مدير المبيعات'),team_leader:tr('Team Leader','قائد الفريق'),agent:tr('Sales Agent','وكيل المبيعات'),owner:tr('Business Admin','مسؤول النشاط')})[value]||value;}
 function callStatusLabel(value){return ({starting:tr('Starting','جارٍ البدء'),ringing:tr('Ringing','يرن'),connected:tr('Connected','متصلة'),ended:tr('Ended','انتهت'),failed:tr('Failed','فشلت')})[value]||value;}
-function renderTabs(){document.querySelectorAll('[data-tab]').forEach(button=>{const selected=button.dataset.tab===state.section;button.setAttribute('aria-selected',String(selected));button.onclick=()=>{const parentUrl=new URL(window.top.location.href);parentUrl.searchParams.set('page','sales-workspace');parentUrl.searchParams.set('section',button.dataset.tab);window.top.history.pushState({},'',parentUrl);window.top.dispatchEvent(new window.top.Event('popstate'));};});el('overviewSection').hidden=state.section!=='overview';el('dealsSection').hidden=state.section!=='deals';el('commissionsSection').hidden=state.section!=='commissions';el('targetsSection').hidden=state.section!=='targets';const titles={overview:['Sales overview','نظرة عامة على المبيعات'],deals:['Sales deals','صفقات المبيعات'],targets:['Targets & performance','الأهداف والأداء'],commissions:['Commissions & payouts','العمولات والمدفوعات']},intros={overview:['A current, permission-scoped view of your team’s leads, follow-ups and results.','عرض محدث ومقيد بالصلاحيات للعملاء والمتابعات والنتائج.'],deals:['Submit sales for review and track decisions for your team.','أرسل المبيعات للمراجعة وتابع القرارات الخاصة بفريقك.'],targets:['Set monthly call and approved-sales targets, then compare actual performance by currency.','حدد أهداف المكالمات والمبيعات المعتمدة شهريًا، ثم قارن الأداء الفعلي حسب العملة.'],commissions:['Review commission statements and record payouts with an independent approval trail.','راجع كشوف العمولات وسجل المدفوعات بسجل اعتماد مستقل.']};el('title').textContent=tr(...titles[state.section]);el('intro').textContent=tr(...intros[state.section]);}
+function renderTabs(){
+  document.querySelectorAll('[data-tab]').forEach(button=>{
+    const selected=button.dataset.tab===state.section;
+    button.setAttribute('aria-selected',String(selected));
+    button.onclick=()=>{
+      const parentUrl=new URL(window.top.location.href);
+      parentUrl.searchParams.set('page','sales-workspace');
+      parentUrl.searchParams.set('section',button.dataset.tab);
+      window.top.history.pushState({},'',parentUrl);
+      window.top.dispatchEvent(new window.top.Event('popstate'));
+    };
+  });
+  el('overviewSection').hidden=state.section!=='overview';
+  el('dealsSection').hidden=state.section!=='deals';
+  el('commissionsSection').hidden=state.section!=='commissions';
+  el('targetsSection').hidden=state.section!=='targets';
+  el('reportsSection').hidden=state.section!=='reports';
+  const titles={overview:['Sales overview','نظرة عامة على المبيعات'],deals:['Sales deals','صفقات المبيعات'],targets:['Targets & performance','الأهداف والأداء'],reports:['Monthly sales report','تقرير المبيعات الشهري'],commissions:['Commissions & payouts','العمولات والمدفوعات']};
+  const intros={overview:['A current, permission-scoped view of your team’s leads, follow-ups and results.','عرض محدث ومقيد بالصلاحيات للعملاء والمتابعات والنتائج.'],deals:['Submit sales for review and track decisions for your team.','أرسل المبيعات للمراجعة وتابع القرارات الخاصة بفريقك.'],targets:['Set monthly call and approved-sales targets, then compare actual performance by currency.','حدد أهداف المكالمات والمبيعات المعتمدة شهريًا، ثم قارن الأداء الفعلي حسب العملة.'],reports:['Review and export monthly call and approved-sales performance for the people in your current reporting scope.','راجع وصدّر أداء المكالمات والمبيعات المعتمدة شهريًا للأشخاص ضمن نطاق تقاريرك الحالي.'],commissions:['Review commission statements and record payouts with an independent approval trail.','راجع كشوف العمولات وسجل المدفوعات بسجل اعتماد مستقل.']};
+  el('title').textContent=tr(...titles[state.section]);
+  el('intro').textContent=tr(...intros[state.section]);
+}
 function moneyLines(rows){return rows.map(item=>`<div class="currency-line"><span>${escape(item.currency)}</span><strong>${amountOnly(item.actualMinor,item.currency)}${item.targetMinor?` / ${amountOnly(item.targetMinor,item.currency)}`:''}</strong></div>`).join('')||`<span class="summary-meta">${tr('No approved sales yet this month','لا توجد مبيعات معتمدة هذا الشهر')}</span>`;}
 function scopedAgents(){const rows=state.overview.targets?.members||[];if(state.role==='agent')return rows.filter(row=>row.role==='agent');return rows.filter(row=>row.role==='agent');}
 function progressBar(actual,target){const value=Number(actual)||0,goal=Number(target)||0,percent=goal?Math.min(100,Math.round(value/goal*100)):0;return `<div class="metric-line"><div class="metric-line-title"><span>${tr('Connected calls','المكالمات المتصلة')}</span><strong>${value.toLocaleString()}${goal?` / ${goal.toLocaleString()}`:''}</strong></div><div class="progress-track" role="progressbar" aria-label="${tr('Connected calls target progress','التقدم نحو هدف المكالمات المتصلة')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><div class="progress-fill" style="width:${percent}%"></div></div></div>`;}
@@ -102,15 +123,68 @@ function renderTargets(){
 async function loadTargets(){
   const bearer=token(),period=el('targetPeriod').value,response=await fetch(`/api/user/sales-targets?period=${encodeURIComponent(period)}`,{credentials:'same-origin',headers:{Accept:'application/json',...(bearer?{Authorization:'Bearer '+bearer}:{})}}),body=await response.json().catch(()=>({}));
   if(!response.ok||!body.success)throw Object.assign(Error(body.code||'REQUEST_FAILED'),{code:body.code,status:response.status});
-  state.targets=body.data.members||[];state.permissions={canManage:body.data.canManage===true};renderTargets();
+  if(period!==el('targetPeriod').value)return;
+  state.targetsPeriod=body.data.period;state.targets=body.data.members||[];state.permissions={canManage:body.data.canManage===true};renderTargets();
 }
-function mapError(code){return ({SALE_LEAD_NOT_OPEN:tr('The lead is no longer open. Refresh and check its latest status.','لم يعد العميل المحتمل مفتوحًا. حدّث الصفحة وتحقق من حالته.'),SALE_ALREADY_REPORTED:tr('A pending or approved sale already exists for this lead.','توجد عملية بيع معلقة أو معتمدة لهذا العميل.'),COMMISSION_POLICY_REQUIRED:tr('The owner must approve a commission policy before sales can be approved.','يجب على المالك اعتماد سياسة عمولات قبل اعتماد المبيعات.'),COMMISSION_PRODUCT_POLICY_REQUIRED:tr('The active policy has no rate for this product. Ask the owner to publish a complete policy.','لا تحتوي السياسة النشطة على نسبة لهذا المنتج. اطلب من المالك نشر سياسة مكتملة.'),PAYOUT_SEPARATION_REQUIRED:tr('The accountant who approved this commission cannot record its payout.','لا يمكن للمحاسب الذي اعتمد العمولة تسجيل دفعها.'),PERMISSION_DENIED:tr('Your role does not have access to this action.','لا يملك دورك صلاحية هذا الإجراء.'),CATEGORY_UNAVAILABLE:tr('This workspace is unavailable for the current business category.','مساحة العمل غير متاحة لفئة النشاط الحالية.')})[code]||tr('The request could not be completed. Refresh and try again.','تعذر إكمال الطلب. حدّث الصفحة ثم أعد المحاولة.');}
+function renderSalesReport(){
+  const period=el('reportPeriod').value;
+  el('exportSalesReport').disabled=state.targetsPeriod!==period;
+  if(state.targetsPeriod!==period){el('reportRows').innerHTML=`<tr><td class="report-empty" colspan="7">${tr('Loading the selected month…','جارٍ تحميل الشهر المحدد…')}</td></tr>`;return;}
+  const rows=window.SaleMaXSalesReportCsv.rowsFor(period,state.targets);
+  const headers={member:'Team member',role:'Role',calls:'Connected calls',callTarget:'Call target',currency:'Currency',sales:'Approved sales',salesTarget:'Sales target'};
+  for(const [key,id] of Object.entries({member:'reportMemberHeading',role:'reportRoleHeading',calls:'reportCallsHeading',callTarget:'reportCallTargetHeading',currency:'reportCurrencyHeading',sales:'reportSalesHeading',salesTarget:'reportSalesTargetHeading'}))el(id).textContent=tr(headers[key],({member:'عضو الفريق',role:'الدور',calls:'المكالمات المتصلة',callTarget:'هدف المكالمات',currency:'العملة',sales:'المبيعات المعتمدة',salesTarget:'هدف المبيعات'})[key]);
+  const body=el('reportRows');
+  body.innerHTML=rows.length?rows.map(row=>`<tr><td>${escape(row[1]||tr('Team member','عضو الفريق'))}</td><td>${escape(roleLabel(row[2]))}</td><td class="numeric">${Number(row[3]).toLocaleString()}</td><td class="numeric">${row[4]?Number(row[4]).toLocaleString():'—'}</td><td>${escape(row[5]||'—')}</td><td class="numeric">${row[5]?escape(row[5]+' '+row[6]):'—'}</td><td class="numeric">${row[5]&&row[7]?escape(row[5]+' '+row[7]):'—'}</td></tr>`).join(''):`<tr><td class="report-empty" colspan="7">${tr('No team members are in your current reporting scope.','لا يوجد أعضاء فريق ضمن نطاقك الحالي.')}</td></tr>`;
+  el('reportsIntro').textContent=tr(`India · ${period} · Includes only members visible to your account.`,`الهند · ${period} · يشمل فقط الأعضاء الظاهرين لحسابك.`);
+}
+function downloadSalesReport(){
+  const period=el('reportPeriod').value;
+  const content=window.SaleMaXSalesReportCsv.toCsv(period,state.targets);
+  const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
+  const link=document.createElement('a');link.href=url;link.download=`salemax-sales-report-${period}.csv`;link.hidden=true;
+  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  message('success',tr('Monthly report downloaded. It contains only the members and figures in your current scope.','تم تنزيل التقرير الشهري. يتضمن فقط الأعضاء والبيانات ضمن نطاقك الحالي.'));
+}
 function renderLeads(){const select=el('saleForm').elements.leadId,open=state.leads.filter(lead=>lead.status==='open'&&lead.owner_agent_id);select.innerHTML=`<option value="">${tr('Choose an assigned open lead','اختر عميلاً مفتوحًا معينًا')}</option>`+open.map(lead=>`<option value="${escape(lead.id)}" data-currency="${escape(lead.currency||'QAR')}">${escape(lead.title||lead.contact_name||lead.mobile||lead.id)} · ${escape(lead.currency||'QAR')}</option>`).join('');}
 async function loadProductsAndLeads(){try{const [productData,board]=await Promise.all([api('/products'),pipeline('/board?limit=100&page=1')]);state.products=(productData.products||[]).filter(item=>Number(item.active));state.leads=board.leads||[];el('saleForm').elements.productId.innerHTML=`<option value="">${tr('Choose a product','اختر منتجًا')}</option>`+state.products.map(product=>`<option value="${escape(product.id)}">${escape(product.name)}</option>`).join('');renderLeads();el('submitPanel').hidden=!state.products.length;el('saleForm').elements.leadId.addEventListener('change',event=>{const currency=event.target.selectedOptions[0]?.dataset.currency;if(currency)el('saleForm').elements.currency.value=currency;});}catch{el('submitPanel').hidden=true;}}
-async function load(){message('',tr('Loading…','جارٍ التحميل…'));try{if(state.section==='overview'){await loadOverview();}else if(state.section==='targets'){await loadTargets();el('targetIntro').textContent=state.permissions.canManage?tr('Set individual monthly targets for your reporting scope. Approved sales totals stay separated by currency; call counts include connected calls answered by each member.','حدد أهدافًا شهرية لكل عضو ضمن نطاقك. تبقى المبيعات المعتمدة منفصلة حسب العملة، وتشمل المكالمات المكالمات المتصلة التي أجاب عنها كل عضو.'):tr('Performance and assigned monthly targets are limited to your current reporting scope.','الأداء والأهداف الشهرية المعينة تقتصر على نطاق تقاريرك الحالي.');}else if(state.section==='deals'){const status=el('dealFilter').value;const data=await api(`/deals?status=${encodeURIComponent(status)}&limit=100`);state.deals=data.items||[];state.permissions=data.permissions||{};el('submitPanel').hidden=!state.permissions.canSubmit;renderDeals();if(state.permissions.canSubmit)await loadProductsAndLeads();}else{const status=el('commissionFilter').value;const data=await api(`/commissions?status=${encodeURIComponent(status)}&limit=200`);state.commissions=data.items||[];state.permissions=data.permissions||{};renderCommissions();el('separationNote').textContent=state.permissions.canApprove?tr('Commission approval and payout posting are separate. A different accountant must record each approved payout.','اعتماد العمولة وتسجيل الدفع منفصلان. يجب أن يسجل محاسب آخر كل دفعة معتمدة.'):tr('Your commission view follows your role and current team scope.','يعرض سجل العمولات نطاق دورك وفريقك الحالي.');}message('', '');}catch(error){message('error',mapError(error.code));if(error.status===403){el('submitPanel').hidden=true;el('dealList').innerHTML='';el('commissionList').innerHTML='';el('targetList').innerHTML='';el('overviewCards').innerHTML=`<div class="empty">${tr('Your account does not have permission to view this workspace.','لا يملك حسابك صلاحية عرض مساحة العمل هذه.')}</div>`;}}}
+async function load(){
+  message('',tr('Loading…','جارٍ التحميل…'));
+  try{
+    if(state.section==='overview')await loadOverview();
+    else if(state.section==='targets'){
+      await loadTargets();
+      el('targetIntro').textContent=state.permissions.canManage?tr('Set individual monthly targets for your reporting scope. Approved sales totals stay separated by currency; call counts include connected calls answered by each member.','حدد أهدافًا شهرية لكل عضو ضمن نطاقك. تبقى المبيعات المعتمدة منفصلة حسب العملة، وتشمل المكالمات المكالمات المتصلة التي أجاب عنها كل عضو.'):tr('Performance and assigned monthly targets are limited to your current reporting scope.','الأداء والأهداف الشهرية المعينة تقتصر على نطاق تقاريرك الحالي.');
+    }else if(state.section==='reports'){
+      el('targetPeriod').value=el('reportPeriod').value;
+      await loadTargets();
+      renderSalesReport();
+    }else if(state.section==='deals'){
+      const status=el('dealFilter').value,data=await api(`/deals?status=${encodeURIComponent(status)}&limit=100`);
+      state.deals=data.items||[];state.permissions=data.permissions||{};el('submitPanel').hidden=!state.permissions.canSubmit;renderDeals();
+      if(state.permissions.canSubmit)await loadProductsAndLeads();
+    }else{
+      const status=el('commissionFilter').value,data=await api(`/commissions?status=${encodeURIComponent(status)}&limit=200`);
+      state.commissions=data.items||[];state.permissions=data.permissions||{};renderCommissions();
+      el('separationNote').textContent=state.permissions.canApprove?tr('Commission approval and payout posting are separate. A different accountant must record each approved payout.','اعتماد العمولة وتسجيل الدفع منفصلان. يجب أن يسجل محاسب آخر كل دفعة معتمدة.'):tr('Your commission view follows your role and current team scope.','يعرض سجل العمولات نطاق دورك وفريقك الحالي.');
+    }
+    message('', '');
+  }catch(error){
+    message('error',mapError(error.code));
+    if(error.status===403){el('submitPanel').hidden=true;el('dealList').innerHTML='';el('commissionList').innerHTML='';el('targetList').innerHTML='';el('reportRows').innerHTML=`<tr><td class="report-empty" colspan="7">${tr('Your account does not have permission to view this report.','لا يملك حسابك صلاحية عرض هذا التقرير.')}</td></tr>`;el('overviewCards').innerHTML=`<div class="empty">${tr('Your account does not have permission to view this workspace.','لا يملك حسابك صلاحية عرض مساحة العمل هذه.')}</div>`;}
+  }
+}
 function renderView(){renderTabs();}
-document.querySelectorAll('[data-tab]').forEach(button=>button.textContent=button.dataset.tab==='overview'?tr('Overview','نظرة عامة'):button.dataset.tab==='deals'?tr('Deals','الصفقات'):button.dataset.tab==='targets'?tr('Targets & performance','الأهداف والأداء'):tr('Commissions & payouts','العمولات والمدفوعات'));
+document.querySelectorAll('[data-tab]').forEach(button=>{
+  const labels={overview:['Overview','نظرة عامة'],deals:['Deals','الصفقات'],targets:['Targets & performance','الأهداف والأداء'],reports:['Sales reports','تقارير المبيعات'],commissions:['Commissions & payouts','العمولات والمدفوعات']};
+  button.textContent=tr(...labels[button.dataset.tab]);
+});
 el('dealFilterLabel').textContent=tr('Status','الحالة');el('commissionFilterLabel').textContent=tr('Status','الحالة');el('dealFilter').querySelector('[value="all"]').textContent=tr('All','الكل');el('dealFilter').querySelector('[value="pending_approval"]').textContent=tr('Pending approval','بانتظار الاعتماد');el('dealFilter').querySelector('[value="approved"]').textContent=tr('Approved','معتمد');el('dealFilter').querySelector('[value="rejected"]').textContent=tr('Rejected','مرفوض');el('commissionFilter').querySelector('[value="all"]').textContent=tr('All','الكل');el('commissionFilter').querySelector('[value="draft"]').textContent=tr('Needs review','بانتظار المراجعة');el('commissionFilter').querySelector('[value="approved"]').textContent=tr('Approved for payout','معتمد للدفع');el('commissionFilter').querySelector('[value="paid"]').textContent=tr('Paid','مدفوع');el('dealsTitle').textContent=tr('Sales deals','صفقات المبيعات');el('commissionTitle').textContent=tr('Commission ledger','سجل العمولات');el('submitTitle').textContent=tr('Submit a sale','إرسال عملية بيع');el('leadLabel').textContent=tr('Assigned lead','العميل المحتمل المعين');el('productLabel').textContent=tr('Product or service','المنتج أو الخدمة');el('amountLabel').textContent=tr('Sale amount','مبلغ البيع');el('currencyLabel').textContent=tr('Currency','العملة');el('referenceLabel').textContent=tr('Sale reference (optional)','مرجع البيع (اختياري)');el('noteLabel').textContent=tr('Note (optional)','ملاحظة (اختيارية)');el('submitSale').textContent=tr('Submit for approval','إرسال للاعتماد');el('refresh').textContent=tr('Refresh','تحديث');
 el('saleForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,button=el('submitSale'),currency=form.elements.currency.value.trim().toUpperCase();let amountMinor;try{if(!/^[A-Z]{3}$/.test(currency))throw Error();amountMinor=toMinor(form.elements.amount.value,currency);}catch{message('error',tr('Enter a valid amount using the currency’s decimal places.','أدخل مبلغًا صحيحًا وفق المنازل العشرية للعملة.'));return;}button.disabled=true;try{await api('/deals',{method:'POST',body:JSON.stringify({leadId:form.elements.leadId.value,productId:form.elements.productId.value,amountMinor,currency,saleReference:form.elements.saleReference.value||undefined,sellerNote:form.elements.sellerNote.value||undefined,idempotencyKey:crypto.randomUUID()})});form.elements.saleReference.value='';form.elements.sellerNote.value='';form.elements.amount.value='';message('success',tr('Sale submitted for approval.','تم إرسال عملية البيع للاعتماد.'));await load();}catch(error){message('error',mapError(error.code));}finally{button.disabled=false;}});
-el('targetPeriod').value=indiaPeriod();el('targetsTitle').textContent=tr('Targets & performance','الأهداف والأداء');el('periodLabel').textContent=tr('Month','الشهر');el('targetPeriod').addEventListener('change',()=>state.section==='targets'&&load());el('dealFilter').addEventListener('change',load);el('commissionFilter').addEventListener('change',load);el('refresh').addEventListener('click',load);document.documentElement.lang=ar()?'ar':'en';document.documentElement.dir=ar()?'rtl':'ltr';renderView();load();
+el('targetPeriod').value=indiaPeriod();el('reportPeriod').value=el('targetPeriod').value;
+ el('targetsTitle').textContent=tr('Targets & performance','الأهداف والأداء');el('periodLabel').textContent=tr('Month','الشهر');el('reportPeriodLabel').textContent=tr('Report month','شهر التقرير');
+ el('targetPeriod').addEventListener('change',()=>state.section==='targets'&&load());
+ el('reportPeriod').addEventListener('change',()=>{if(state.section==='reports')load();});
+ el('exportSalesReport').textContent=tr('Download CSV','تنزيل CSV');el('exportSalesReport').addEventListener('click',()=>{try{downloadSalesReport();}catch(error){message('error',tr('The report could not be exported. Refresh and try again.','تعذر تصدير التقرير. حدّث الصفحة وحاول مرة أخرى.'));}});
+ el('dealFilter').addEventListener('change',load);el('commissionFilter').addEventListener('change',load);el('refresh').addEventListener('click',load);
+ document.documentElement.lang=ar()?'ar':'en';document.documentElement.dir=ar()?'rtl':'ltr';renderView();load();
 })();

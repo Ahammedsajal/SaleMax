@@ -5,6 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const navigation=require('../modules/platform/navigation');
 const {salemaxSales}=require('../modules/platform/categories');
+const salesReportCsv=require('../client/public/sales-workspace/sales-report-csv');
 
 function context(role,customPermissions){
   return {audience:'tenant',tenant:{id:'tenant-1',status:'active',categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version},
@@ -47,15 +48,52 @@ test('Sales Overview is integrated into existing navigation, refreshes scoped AP
   assert.match(sidebar,/section=overview/);
   assert.match(shell,/overview:\['نظرة عامة على المبيعات','Sales Overview'\]/);
   assert.match(shell,/requestedSection=.*section/);
-  assert.match(shell,/\['overview','deals','commissions','targets'\]/);
+  assert.match(shell,/\['overview','deals','commissions','targets','reports'\]/);
   assert.match(page,/id="overviewSection"/);
-  assert.match(page,/sales-workspace\.js\?v=20261013-overview1/);
+  assert.match(page,/sales-report-csv\.js\?v=20261013-report1/);
+  assert.match(page,/sales-workspace\.js\?v=20261013-report1/);
   assert.match(client,/\/api\/user\/team-invitations\/sidebar-access/);
   assert.match(client,/\/follow-ups\?period=all/);
   assert.match(client,/\/api\/user\/sales-targets\?period=/);
   assert.match(client,/\/api\/user\/call-center\/calls/);
   assert.match(client,/window\.top\.history\.pushState/);
   assert.match(client,/moneyLines\(member\.targets\?\.salesByCurrency/);
+});
+
+test('Sales Reports reuse the scoped monthly target entitlement and parent-panel navigation',()=>{
+  for(const role of ['owner','manager','team_leader','agent'])assert.ok(navigation.navigationFor(context(role)).some(item=>item.key==='sales-targets'));
+  const root=path.join(__dirname,'..');
+  const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
+  const shell=fs.readFileSync(path.join(root,'client/public/pipeline-entry.js'),'utf8');
+  const index=fs.readFileSync(path.join(root,'client/public/index.html'),'utf8');
+  const page=fs.readFileSync(path.join(root,'client/public/sales-workspace/index.html'),'utf8');
+  const client=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace.js'),'utf8');
+  assert.match(sidebar,/\['Sales Reports','تقارير المبيعات','sales-targets','reports'\]/);
+  assert.match(sidebar,/reports:'sales-targets'/);
+  assert.match(shell,/reports:\['تقارير المبيعات','Sales Reports'\]/);
+  assert.match(index,/training-sidebar\.js\?v=20261013-sales-report1/);
+  assert.match(index,/pipeline-entry\.js\?v=20261013-sales-report1/);
+  assert.match(page,/id="reportsSection"/);
+  assert.match(page,/id="reportPeriod"/);
+  assert.match(client,/state\.section==='reports'/);
+  assert.match(client,/\/api\/user\/sales-targets\?period=/);
+  assert.match(client,/SaleMaXSalesReportCsv\.toCsv/);
+  assert.match(client,/state\.targetsPeriod!==period/);
+});
+
+test('monthly sales CSV keeps multiple currencies exact, quotes data, and neutralizes spreadsheet formulas',()=>{
+  const csv=salesReportCsv.toCsv('2026-10',[{displayName:'=HYPERLINK("x","agent"), A',role:'agent',actual:{connectedCalls:8},targets:{connectedCalls:'12',salesByCurrency:[
+    {currency:'INR',actualMinor:'15750',targetMinor:'20000'},
+    {currency:'JPY',actualMinor:'900',targetMinor:null},
+  ]}}]);
+  assert.ok(csv.startsWith('\uFEFF"report_month","team_member","role"'));
+  assert.match(csv,/'=HYPERLINK\(""x"",""agent""\), A/);
+  assert.match(csv,/"2026-10","'=HYPERLINK/);
+  assert.match(csv,/"INR","157\.50","200\.00"/);
+  assert.match(csv,/"JPY","900",""/);
+  assert.equal((csv.match(/\r\n/g)||[]).length,3);
+  assert.throws(()=>salesReportCsv.toCsv('2026-13',[]),/Invalid report period/);
+  assert.throws(()=>salesReportCsv.toCsv('2026-10',[{actual:{connectedCalls:'=2'}}]),/Invalid connected calls/);
 });
 
 test('Organization is connected to the existing user shell and the tenant-scoped Sales API',()=>{
