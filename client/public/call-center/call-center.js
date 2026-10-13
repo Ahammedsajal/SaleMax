@@ -5,6 +5,7 @@
   const text=(en,ar)=>isArabic()?ar:en;
   const node=id=>document.getElementById(id);
   let browserSipState='disconnected';
+  let linkedLeadId='';
   function notice(kind,message){const target=node('notice');target.dataset.kind=kind||'';target.textContent=message;}
   function bearer(){return localStorage.getItem('wacrm_user');}
   async function request(path,method='GET',body){
@@ -94,6 +95,7 @@
       meta.textContent=`${started}${started?' · ':''}${text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`)}`;main.append(title,meta);
       const state=document.createElement('span');state.className='call-status';const labels={ringing:text('Ringing','يرن'),connected:text('Connected','متصل'),ended:text('Ended','انتهت'),failed:text('Failed','فشلت')};state.textContent=labels[call.status]||call.status;
       row.append(main,state);
+      if(call.leadId){const leadLink=document.createElement('a');leadLink.href=`/user?page=lead-pipeline&lead=${encodeURIComponent(call.leadId)}&view=detail`;leadLink.target='_top';leadLink.textContent=text('Open linked lead','فتح العميل المحتمل المرتبط');row.append(leadLink);}
       if(call.canListenRecording){const listen=document.createElement('button');listen.type='button';listen.className='recording-play';listen.textContent=text('Listen to recording','استمع إلى التسجيل');listen.addEventListener('click',()=>playRecording(call.callId,listen,row));row.append(listen);}
       if(call.canCoach||call.canViewCoaching){
         const review=document.createElement('details');review.className='call-coaching';
@@ -220,10 +222,23 @@
     button.disabled=true;state.textContent=text('Requesting call…','جارٍ طلب المكالمة…');
     const clientType=node('callClientType').value;
     if(clientType==='browser'&&!window.SaleMaXSip?.browserSipConnected?.()){state.textContent=text('Connect browser audio before selecting it.','وصّل صوت المتصفح قبل اختياره.');button.disabled=false;return;}
-    try{const result=await request('/calls','POST',{destination,clientType});field.value='';state.textContent=clientType==='browser'?text(`Call request accepted (${result.callId}). This browser should connect the call.`,`تم قبول طلب المكالمة (${result.callId}). من المفترض أن يتصل هذا المتصفح بالمكالمة.`):text(`Call request accepted (${result.callId}). Your mobile SIP app should ring.`,`تم قبول طلب المكالمة (${result.callId}). من المفترض أن يرن تطبيق SIP للهاتف.`);await loadCalls();}
+    try{const result=await request('/calls','POST',{destination,clientType,...(linkedLeadId?{leadId:linkedLeadId}:{})});field.value='';state.textContent=clientType==='browser'?text(`Call request accepted (${result.callId}). This browser should connect the call.`,`تم قبول طلب المكالمة (${result.callId}). من المفترض أن يتصل هذا المتصفح بالمكالمة.`):text(`Call request accepted (${result.callId}). Your mobile SIP app should ring.`,`تم قبول طلب المكالمة (${result.callId}). من المفترض أن يرن تطبيق SIP للهاتف.`);await loadCalls();}
     catch(error){const messages={PERMISSION_DENIED:text('Your account cannot place calls.','حسابك غير مخوّل لإجراء المكالمات.'),FEATURE_UNAVAILABLE:text('Call Center is not included in your active plan.','مركز الاتصال غير مشمول في خطتك الحالية.'),OUTBOUND_EXTENSION_NOT_READY:text('Assign and provision your mobile SIP extension first.','عيّن رقم SIP للهاتف وأكمل تهيئته أولًا.'),OUTBOUND_CHANNEL_UNAVAILABLE:text('No outbound GSM channel is available for your business right now.','لا توجد قناة GSM صادرة متاحة لنشاطك حاليًا.'),OUTBOUND_CALL_ALREADY_ACTIVE:text('End your active outbound call before starting another.','أنه المكالمة الصادرة الحالية قبل بدء مكالمة أخرى.'),OUTBOUND_CALL_RATE_LIMITED:text('Too many call attempts. Wait one minute before trying again.','محاولات اتصال كثيرة. انتظر دقيقة قبل المحاولة مرة أخرى.'),GATEWAY_ENDPOINT_NOT_READY:text('The GSM gateway is not verified as online. Ask your administrator to check it.','لم يتم التحقق من اتصال بوابة GSM. اطلب من المسؤول التحقق منها.'),ASTERISK_CONTROL_NOT_READY:text('Asterisk call control is not enabled. Ask your administrator to finish PBX setup.','التحكم في مكالمات أستريسك غير مفعّل. اطلب من المسؤول إكمال إعداد المقسم.'),ASTERISK_EVENTS_NOT_READY:text('SaleMaX is disconnected from Asterisk call events. Ask your administrator to restore PBX event control.','انقطع اتصال SaleMaX بأحداث المكالمات في أستريسك. اطلب من المسؤول استعادة التحكم بأحداث المقسم.')};state.textContent=messages[error.code]||text('Call request failed. Check the mobile endpoint and telephony setup, then try again.','فشل طلب المكالمة. تحقق من نقطة اتصال الهاتف وإعداد الاتصالات ثم حاول مجددًا.');await loadCalls();}
     finally{button.disabled=false;}
   }
+  async function loadLinkedLead(){
+    const id=new URLSearchParams(location.search).get('lead');if(!id)return;
+    linkedLeadId=id;node('leadCallContext').hidden=false;node('leadCallState').textContent=text('Checking lead access…','جارٍ التحقق من صلاحية الوصول…');
+    node('returnToLead').href=`/user?page=lead-pipeline&lead=${encodeURIComponent(id)}&view=detail`;
+    try{const token=localStorage.getItem('wacrm_user')||localStorage.getItem('wacrm_agent');if(!token)throw new Error('AUTH_REQUIRED');
+      const response=await fetch(`/api/pipeline/leads/${encodeURIComponent(id)}`,{credentials:'same-origin',headers:{Accept:'application/json',Authorization:`Bearer ${token}`}}),result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.success)throw new Error(result.code||'LEAD_UNAVAILABLE');const lead=result.data,phone=String(lead.mobile||'').trim();
+      node('leadCallName').textContent=lead.relationship_name||lead.contact_name||lead.title||text('Lead','عميل محتمل');
+      if(!/^\+[1-9][0-9]{7,14}$/.test(phone)){node('leadCallState').textContent=text('This lead needs a valid international phone number (E.164). Update the lead before calling.','يحتاج هذا العميل إلى رقم دولي صحيح بتنسيق E.164. حدّث السجل قبل الاتصال.');node('placeCall').disabled=true;return;}
+      node('destination').value=phone;node('destination').readOnly=true;node('leadCallState').textContent=text('The number is loaded from the authorized lead record. This call will be linked to the lead.','تم تحميل الرقم من سجل العميل المصرح به. سيتم ربط هذه المكالمة بسجل العميل.');
+    }catch(_){linkedLeadId='';node('leadCallState').textContent=text('This lead is unavailable to your account. Return to the lead list and open a lead you can access.','هذا العميل غير متاح لحسابك. ارجع إلى قائمة العملاء وافتح سجلًا يمكنك الوصول إليه.');node('placeCall').disabled=true;}
+  }
+  node('clearLeadCall').addEventListener('click',()=>{linkedLeadId='';node('leadCallContext').hidden=true;node('destination').readOnly=false;node('destination').value='';node('placeCall').disabled=false;});
   node('showMobileSip').addEventListener('click',async()=>{
     const button=node('showMobileSip'),host=node('mobileSipSetup');
     if(!host.hidden){host.hidden=true;host.replaceChildren();button.textContent=text('Show my mobile SIP settings','عرض إعداد SIP لهاتفي');return;}
@@ -260,7 +275,7 @@
   });
   node('browserSipHangup').addEventListener('click',async()=>{try{await window.SaleMaXSip?.hangupBrowserCall?.();}catch(_){setBrowserState('call-failed');}});
   window.addEventListener('pagehide',()=>{node('mobileSipSetup').replaceChildren();window.SaleMaXSip?.disconnectBrowserSip?.();});
-  applyLanguage();node('refresh').addEventListener('click',refresh);node('outgoingForm').addEventListener('submit',placeOutboundCall);refresh();
+  applyLanguage();node('refresh').addEventListener('click',refresh);node('outgoingForm').addEventListener('submit',placeOutboundCall);loadLinkedLead();refresh();
   window.setInterval(()=>{if(!document.hidden)loadCalls();},10000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadCalls();});
 })();
