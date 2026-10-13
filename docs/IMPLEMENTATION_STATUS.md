@@ -1,3 +1,9 @@
+## Sales Finance reconciliation dialogs — production, 14 October 2026
+
+Accountants can allocate a received payment through an in-page invoice selector rather than typing an invoice number into a browser prompt. The selector is limited to outstanding invoices in the receipt currency, and its amount field is capped to the remaining receipt and selected invoice balance. Reversals require a reason in a bilingual in-page dialog. Server-side transaction and over-allocation checks remain authoritative. The Sales Finance cache keys were refreshed and the existing burgundy theme retained.
+
+PR #48 (`162f488`) is merged as `536b381` and live in `/opt/salemax/releases/sales-finance-dialogs-536b381-20261014`. Focused UI, navigation, organization, provisioning, commissions, targets and recording policy tests pass 34/34; asset hashes match staged release, running app and public HTTPS. No app restart, migration, or business-data write occurred. Authenticated accountant workflow and English/Arabic browser acceptance remain open because the first-party tenant and owner account are not provisioned. Production Asterisk is inactive. See `DEPLOYMENT.md` for release and rollback evidence.
+
 ## SaleMaX Sales call coaching — production, 13 October 2026
 
 The existing Call Center now supports append-only coaching notes for calls involving active Sales agents. Owner, manager and team leader access follows their tenant/current-team scopes; coaching notes can be shared explicitly with the agent. Audit events retain metadata while omitting feedback text. The existing Call Center UI includes bilingual review, outcome, feedback, next-action and sharing controls using the current burgundy theme.
