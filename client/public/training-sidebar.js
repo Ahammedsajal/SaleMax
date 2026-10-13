@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 10176)
+Total output lines: 530
+
 (() => {
   'use strict';
   if (window.__sxTrainingSidebar) return;
@@ -35,7 +38,7 @@
     ['API & Integrations', 'واجهات البرمجة والتكامل', ['Chat Widget', 'REST API', 'Conversational API', 'Template API', 'API Dashboard']],
     ['Webhooks', 'الويب هوك', ['Manage Webhooks', 'Webhook Automation', 'Webhook Logs']],
     ['WhatsApp Warmer', 'تهيئة واتساب', ['WhatsApp Warmer']],
-    ['Sales Operations', 'عمليات المبيعات', ['Sales Targets','Sales Deals','My Commissions','Commission Payouts','Commission Policy']],
+    ['Sales Operations', 'عمليات المبيعات', ['Organization','Sales Targets','Sales Deals','My Commissions','Commission Payouts','Commission Policy']],
     ['More Tools', 'أدوات أخرى', []]
   ];
   const aliases = {
@@ -45,7 +48,7 @@
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Agent Login',
     'دخول الوكيل': 'Agent Login', 'Rest API': 'REST API', 'Web Notificaion': 'Web Notification',
     'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard', 'المهام': 'Tasks', 'مركز الاتصال': 'Call Center',
-    'سياسة العمولات':'Commission Policy','صفقات المبيعات':'Sales Deals','أهداف المبيعات':'Sales Targets','عمولاتي':'My Commissions','مدفوعات العمولات':'Commission Payouts','مالية المبيعات':'Sales Finance'
+    'سياسة العمولات':'Commission Policy','صفقات المبيعات':'Sales Deals','أهداف المبيعات':'Sales Targets','عمولاتي':'My Commissions','مدفوعات العمولات':'Commission Payouts','مالية المبيعات':'Sales Finance','الهيكل التنظيمي':'Organization'
   };
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
@@ -53,11 +56,12 @@
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Agent Login':'agent-login',
     'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', Courses:'courses', Students:'enrollments', 'Center profile':'enrollments', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
     'Finance Reports':'reports', 'Team access':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance',
-    'Business Settings':'settings', Settings:'settings'
+    'Business Settings':'settings', Settings:'settings', Organization:'sales-organization'
   };
   let assignedNavigation = null;
   let roleNavigation = null;
   let membershipRole = null;
+  let membershipCategoryKey = null;
   let optionalFeatures = {};
   let navigationLoaded = false;
   let navigationChecksPending = 2;
@@ -83,6 +87,7 @@
         const value=data?.data?.assignedNavigation;
         const allowedByRole=data?.data?.roleNavigation;
         membershipRole=data?.data?.role||null;
+        membershipCategoryKey=data?.data?.categoryKey||null;
         if(Array.isArray(value))assignedNavigation=new Set(value);
         if(Array.isArray(allowedByRole))roleNavigation=new Set(allowedByRole);
       }
@@ -166,6 +171,7 @@
       FAQs:['M5 3h14v18H5z','M8 8h8','M8 12h6','M9 16h.01','M15 16h.01'],
       'Team access':['M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2','M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8','M20 8v6','M17 11h6'],
       Tasks:['M9 6h11','M9 12h11','M9 18h11','M4 6l1 1 2-2','M4 12l1 1 2-2','M4 18l1 1 2-2'],
+      Organization:['M12 3 3 8v13h18V8z','M8 21v-7h8v7','M7 10h.01','M12 10h.01','M17 10h.01'],
       'Agent Login':['M15 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2','M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8','M18 8v6','M15 11h6'],
       'Agent Task':['M9 6h11','M9 12h11','M9 18h11','M4 6l1 1 2-2','M4 12l1 1 2-2','M4 18l1 1 2-2'],
       'Chat Widget':['M4 5h16v12H9l-5 4z','M8 9h8','M8 13h5'],
@@ -249,16 +255,16 @@
       list.append(copy);
     }
     if(window.__sxCallCenterAllowed&&pipelineSource&&!list.querySelector('[data-sx-call-center-nav]')){
-      const copy=pipelineSource.cloneNode(true);copy.dataset.sxCallCenterNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
-      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Call Center','مركز الاتصال');
-      copy.setAttribute('aria-label',tr('Call Center','مركز الاتصال'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
-      button.onclick=event=>{event.preventDefault();location.href='/user?page=call-center';};list.append(copy);
-    }
-    if(membershipCategoryKey==='salemax_sales'&&membershipRole==='owner'&&pipelineSource&&!list.querySelector('[data-sx-commission-policy-nav]')){
-      const copy=pipelineSource.cloneNode(true);copy.dataset.sxCommissionPolicyNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const copy=pipelineSource.cloneNode(true);copy.dataset.sxCallCenterNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.remove…176 tokens truncated…ute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
       const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Commission Policy','سياسة العمولات');
       copy.setAttribute('aria-label',tr('Commission Policy','سياسة العمولات'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
       button.onclick=event=>{event.preventDefault();location.href='/user?page=commission-policy';};list.append(copy);
+    }
+    if(membershipCategoryKey==='salemax_sales'&&roleNavigation?.has('sales-organization')&&(assignedNavigation===null||assignedNavigation.has('sales-organization'))&&pipelineSource&&!list.querySelector('[data-sx-sales-organization-nav]')){
+      const copy=pipelineSource.cloneNode(true);copy.dataset.sxSalesOrganizationNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Organization','الهيكل التنظيمي');
+      copy.setAttribute('aria-label',tr('Organization','الهيكل التنظيمي'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.setAttribute('aria-label',tr('Organization','الهيكل التنظيمي'));button.onclick=event=>{event.preventDefault();location.href='/user?page=sales-organization';};list.append(copy);
     }
     if(membershipCategoryKey==='salemax_sales'&&pipelineSource){
       const commissionLabel=membershipRole==='accountant'?'Commission Payouts':'My Commissions',commissionArabic=membershipRole==='accountant'?'مدفوعات العمولات':'عمولاتي';
@@ -362,7 +368,7 @@
       if (rows.some((row, index) => row !== ordered[index])) ordered.forEach(row => list.append(row));
     });
     const page=new URLSearchParams(location.search).get('page');
-    const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'chatbot','commission-policy':'commission-policy','sales-workspace':new URLSearchParams(location.search).get('section')==='commissions'?'sales-commissions':'sales-deals','sales-finance':'sales-finance'};
+    const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'chatbot','commission-policy':'commission-policy','sales-workspace':new URLSearchParams(location.search).get('section')==='commissions'?'sales-commissions':'sales-deals','sales-finance':'sales-finance','sales-organization':'sales-organization'};
     const required=routeKeys[page];
     const salesOrganisationAccess=membershipCategoryKey==='salemax_sales'&&['owner','manager','team_leader'].includes(membershipRole);
     if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(roleNavigation!==null&&required&&!roleNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'&&!salesOrganisationAccess))location.replace('/user?page=dashboard');

@@ -18,6 +18,7 @@ const items = [
   ['sales-commissions', 'sales.commissions', 'commissions.read', 'My Commissions', 'عمولاتي', 'Sales', 'المبيعات'],
   ['sales-finance', 'sales.finance', 'sales.finance.read', 'Sales Finance', 'مالية المبيعات', 'Finance', 'المالية'],
   ['sales-targets', 'sales.targets', 'targets.read', 'Sales Targets', 'أهداف المبيعات', 'Sales', 'المبيعات'],
+  ['sales-organization', 'team.members', 'team.read', 'Organization', 'الهيكل التنظيمي', 'Sales', 'المبيعات'],
   ['commission-policy', 'sales.commissions', 'commission.policy.manage', 'Commission Policy', 'سياسة العمولات', 'Administration', 'الإدارة'],
   ['courses', 'training.courses', 'courses.read', 'Courses', 'الدورات', 'Training', 'التدريب'],
   ['batches', 'training.batches', 'courses.read', 'Batches', 'المجموعات', 'Training', 'التدريب'],
