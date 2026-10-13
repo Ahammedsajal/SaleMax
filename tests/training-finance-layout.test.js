@@ -36,3 +36,15 @@ test('generated invoice history loads as the first Finance section before the is
   assert.match(source,/loadGeneratedInvoices\(card,mode,csrf\)/);
   assert.match(source,/Generated invoice PDFs/);
 });
+
+test('invoice policy and reminder controls open from Settings without taking space on the invoice page',()=>{
+  const fs=require('node:fs'),path=require('node:path'),source=fs.readFileSync(path.join(__dirname,'../client/public/training-finance.js'),'utf8');
+  const start=source.indexOf('async function loadInvoiceRegister'),end=source.indexOf('async function loadReminderSettings',start),register=source.slice(start,end);
+  assert.match(register,/id="sx-finance-settings-open"/);
+  assert.match(register,/id="sx-finance-settings" hidden/);
+  assert.doesNotMatch(register,/loadReminderSettings\(card,mode,csrf\)\]\)/);
+  assert.match(register,/openSettings\.onclick=\(\)=>\{[\s\S]*?loadFinancePolicy\(node,mode,csrf\);loadReminderSettings\(card,mode,csrf\)/);
+  assert.match(source,/id="sx-finance-settings-policy"/);
+  assert.match(source,/Invoice footer is managed in the Training Center Profile/);
+  assert.doesNotMatch(source,/Default invoice footer/);
+});
