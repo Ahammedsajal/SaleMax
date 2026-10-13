@@ -94,7 +94,7 @@ test('Sales Reports reuse the scoped monthly target entitlement and parent-panel
   assert.match(sidebar,/reports:'sales-targets'/);
   assert.match(shell,/reports:\['تقارير المبيعات','Sales Reports'\]/);
   assert.match(index,/training-sidebar\.js\?v=20261014-sales-audit1/);
-  assert.match(index,/pipeline-entry\.js\?v=20261014-followups1/);
+  assert.match(index,/pipeline-entry\.js\?v=20261014-lead-click-call1/);
   assert.match(page,/id="reportsSection"/);
   assert.match(page,/id="reportPeriod"/);
   assert.match(client,/state\.section==='reports'/);
