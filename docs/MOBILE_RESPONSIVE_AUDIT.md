@@ -12,6 +12,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 | --- | --- | --- |
 | Business Dashboard | Summary cards stack cleanly; refresh and date-range controls remain visible. | Pass at reviewed viewport |
 | Inbox | Chat list fits the phone width and the navigation opens as a drawer. Conversation pane not opened. | Partial review |
+| Business Sign-In | Form fields and primary action span the phone width; a stray `0` is visible between the subtitle and email field. Browser-saved credentials were not submitted. | Needs source recovery for the login component; checkout contains only the compiled app bundle and no source map |
 | Courses | Catalogue cards stack in one column; search and course actions remain within the viewport. | Pass at reviewed viewport |
 | Candidate Applications | “Back to workspace” inherited a 180px flex basis when the mobile heading changed to a column. | Fixed and production-verified: full-width button with a 44px minimum height |
 | Lead Pipeline | Embedded screen reserved 260px for the closed desktop drawer, leaving only a narrow strip of the viewport for the board. | Fixed and production-verified: full-width workspace and no background-page scrollbar |
