@@ -278,7 +278,7 @@
         button.setAttribute('aria-label',tr(label,arabic));button.onclick=event=>{event.preventDefault();location.href='/user?page=sales-workspace&section=overview';};list.append(copy);
       }
       const commissionLabel=membershipRole==='accountant'?'Commission Payouts':'My Commissions',commissionArabic=membershipRole==='accountant'?'مدفوعات العمولات':'عمولاتي';
-      const salesLinks=[['Sales Targets','أهداف المبيعات','sales-targets','targets'],['Sales Deals','صفقات المبيعات','sales-deals','deals'],[commissionLabel,commissionArabic,'sales-commissions','commissions']];
+      const salesLinks=[['Sales Targets','أهداف المبيعات','sales-targets','targets'],['Sales Reports','تقارير المبيعات','sales-targets','reports'],['Sales Deals','صفقات المبيعات','sales-deals','deals'],[commissionLabel,commissionArabic,'sales-commissions','commissions']];
       for(const [label,arabic,key,section] of salesLinks){
         if(roleNavigation&&!roleNavigation.has(key))continue;if(assignedNavigation!==null&&!assignedNavigation.has(key))continue;
         const marker=`data-sx-${key}-nav`;if(list.querySelector(`[${marker}]`))continue;
@@ -325,7 +325,7 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
+      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
@@ -333,7 +333,7 @@
         const tooltip = name === 'Web Notification' ? tr('Web Notifications', 'إشعارات الويب') : text;
         if (Object.values(routes).includes(active)) {
           const button = row.querySelector('.MuiListItemButton-root');
-          if (button) { const selected = name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : name==='Sales Deals' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='deals' : name==='Sales Targets' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='targets' : ['My Commissions','Commission Payouts'].includes(name) ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='commissions' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
+          if (button) { const selected = name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : name==='Sales Reports' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Sales Deals' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='deals' : name==='Sales Targets' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='targets' : ['My Commissions','Commission Payouts'].includes(name) ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='commissions' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
         }
         const captions = {Dashboard:['Dashboard','لوحة التحكم'], 'Web Notification':['Web Notifications','إشعارات الويب'], 'Create Meta Template':['Create Meta Template','إنشاء قالب Meta']};
         const leaf = [...row.querySelectorAll('.MuiListItemText-primary span')].at(-1);
@@ -378,7 +378,7 @@
       if (rows.some((row, index) => row !== ordered[index])) ordered.forEach(row => list.append(row));
     });
     const page=new URLSearchParams(location.search).get('page');
-    const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
+    const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
     const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'chatbot','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
     const required=routeKeys[page];
     const salesOrganisationAccess=membershipCategoryKey==='salemax_sales'&&['owner','manager','team_leader'].includes(membershipRole);
