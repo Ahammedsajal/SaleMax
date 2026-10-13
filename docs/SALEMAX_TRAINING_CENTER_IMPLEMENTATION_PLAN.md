@@ -920,3 +920,12 @@ Recording storage and playback must be tenant-scoped, private, access-audited an
 5. Verify with disposable internal-category fixtures, concurrency and scope tests, authenticated role-by-role English/Arabic browser flows, and production release evidence. Do not use real employee credentials, customer leads, calls or payments as test fixtures.
 
 This addendum is an extension of the existing 42-ticket objective, not a replacement for it. The new organization, target and performance, commission, and recording work remains open until it passes the requirements above and is recorded with its own source commit, production release, migration/rollback, live evidence and remaining gates.
+
+
+## First-party SaleMaX Sales call coaching update — production, 13 October 2026
+
+The existing Call Center now stores immutable coaching reviews against a call and an active participating Sales Agent. The Owner can review across the tenant; Managers and Team Leaders are limited to their current organization scope. Agents can see only notes explicitly shared with them. Each review records a quality outcome, coaching feedback and optional next action; the audit event captures metadata without duplicating the feedback text. The UI uses the existing Call Center surface and English/Arabic labels.
+
+PR #44 is merged as `8ae4e57a2f7c9bb3ea394ce3ef4deec6a85aa840`; the production release is `/opt/salemax/releases/sales-call-coaching-8ae4e57-20261013`. The additive `20261128_telephony_call_coaching.sql` migration is applied; production MariaDB 11.4.13 reports 87/87 applied entries. Focused tests pass 31/31, and the disposable telephony database workflow verifies shared/private visibility, tenant isolation and audit minimization.
+
+Authenticated role review and live-call coaching remain open because the internal Sales tenant/staff are not provisioned and Asterisk is inactive. This increment does not complete the 42-ticket upgrade or the remaining Sales workspace screens and operational setup.
