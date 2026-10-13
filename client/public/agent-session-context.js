@@ -2,6 +2,31 @@
   'use strict';
   if (window.__sxAgentSessionContext) return;
   window.__sxAgentSessionContext = true;
+  const isAgentArea = () => /^\/agent(?:\/|$)/.test(location.pathname);
+
+  // The legacy app's shared 401 handler always redirects non-admin sessions
+  // to /user, including requests made from the agent panel. Keep that redirect
+  // inside the agent entry point and preserve any separate business session.
+  const originalRemoveItem = Storage.prototype.removeItem;
+  Storage.prototype.removeItem = function(key) {
+    if (key === 'wacrm_user' && isAgentArea()) return;
+    return originalRemoveItem.call(this, key);
+  };
+  for (const method of ['pushState', 'replaceState']) {
+    const original = history[method].bind(history);
+    history[method] = function(state, title, url) {
+      if (isAgentArea() && typeof url === 'string') {
+        try {
+          const target = new URL(url, location.href);
+          if (target.origin === location.origin && target.pathname.replace(/\/$/, '') === '/user') {
+            url = '/agent/login';
+          }
+        } catch {}
+      }
+      return original(state, title, url);
+    };
+  }
+
   const agentPage = () => /^\/agent(?:\/login)?\/?$/.test(location.pathname);
   const originalOpen = XMLHttpRequest.prototype.open;
   const originalHeader = XMLHttpRequest.prototype.setRequestHeader;
