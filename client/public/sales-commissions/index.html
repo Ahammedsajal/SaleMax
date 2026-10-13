@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7fa"><title>Commission Policy · SaleMaX</title>
+  <link rel="stylesheet" href="/sales-commissions/sales-commissions.css?v=20261013-product-policy1">
+</head>
+<body>
+  <main class="workspace">
+    <header><div><p class="eyebrow" data-en="SALES · GOVERNANCE" data-ar="المبيعات · الحوكمة">SALES · GOVERNANCE</p><h1 data-en="Products & commissions" data-ar="المنتجات والعمولات">Products & commissions</h1><p class="intro" data-en="Configure products and versioned commission rates by product and role. Rates take effect only after the policy draft is approved." data-ar="أعدّ المنتجات ونسب العمولات المؤرخة حسب المنتج والدور. لا تسري النسب إلا بعد اعتماد مسودة السياسة.">Configure products and versioned commission rates by product and role.</p></div><button id="refresh" type="button" data-en="Refresh" data-ar="تحديث">Refresh</button></header>
+    <div id="notice" class="notice" role="status" aria-live="polite" data-en="Loading commission policy…" data-ar="جارٍ تحميل سياسة العمولات…">Loading commission policy…</div>
+    <section class="panel"><h2 data-en="Sales products and services" data-ar="منتجات وخدمات المبيعات">Sales products and services</h2><p class="muted" data-en="Products are selected when an agent submits a sale. Deactivating a product keeps its history and prevents new submissions." data-ar="يختار الوكيل المنتج عند إرسال عملية بيع. يؤدي إلغاء تنشيط المنتج إلى حفظ سجله ومنع الإرسالات الجديدة.">Products are selected when an agent submits a sale. Deactivating a product keeps its history and prevents new submissions.</p><div id="productList"></div><form id="productForm" class="product-form"><label><span data-en="Product code" data-ar="رمز المنتج">Product code</span><input name="code" maxlength="64" required></label><label><span data-en="Product or service name" data-ar="اسم المنتج أو الخدمة">Product or service name</span><input name="name" maxlength="191" required></label><button type="submit" data-en="Add product" data-ar="إضافة منتج">Add product</button></form></section>
+    <section class="panel" aria-labelledby="activeTitle"><h2 id="activeTitle" data-en="Current approved policy" data-ar="السياسة المعتمدة الحالية">Current approved policy</h2><div id="activePolicy"></div></section>
+    <section class="panel"><h2 data-en="Policy versions" data-ar="إصدارات السياسة">Policy versions</h2><div id="policyList"></div></section>
+    <section class="panel" id="draftPanel" hidden><h2 data-en="Create a policy draft" data-ar="إنشاء مسودة سياسة">Create a policy draft</h2><p class="muted" data-en="Set each role's share for every active product. The combined split for each product cannot exceed 100%. A draft does not affect any sale until approved." data-ar="حدد حصة كل دور لكل منتج نشط. لا يمكن أن يتجاوز مجموع النسب لكل منتج ١٠٠٪. لا تؤثر المسودة على أي عملية بيع حتى اعتمادها.">Set each role's share for every active product. The combined split for each product cannot exceed 100%.</p><form id="draftForm"><div id="productRates" class="product-rates"></div><button id="createDraft" type="submit" data-en="Save policy draft" data-ar="حفظ مسودة السياسة">Save policy draft</button></form></section>
+  </main>
+  <script src="/sales-commissions/sales-commissions.js?v=20261013-product-policy1"></script>
+</body>
+</html>

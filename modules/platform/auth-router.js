@@ -2,7 +2,7 @@ const express=require('express');
 const {loadSession}=require('./sessions');
 const {createAuthentication}=require('./authentication');
 const {loadEntitlements}=require('./plans');
-const {trainingCenter}=require('./categories');
+const {getCategory}=require('./categories');
 const {createMfa}=require('./mfa');
 const qrcode=require('qrcode');
 function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudience='any'}){
@@ -73,8 +73,14 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudienc
   async function contextFor(db,raw){
     const ctx=await loadSession(db,raw);if(!ctx)return null;
     if(ctx.audience==='tenant'){
-      if(ctx.tenant.categoryKey!==trainingCenter.key||ctx.tenant.categoryVersion!==trainingCenter.version)return null;
-      ctx.category=trainingCenter;ctx.subscription=await loadEntitlements(db,ctx.tenant.id);ctx.runtimeReady={};
+      // Resolve the authenticated tenant's registered category instead of
+      // silently hard-coding every business login to Training Center. Private
+      // first-party categories remain non-public; they are reachable only if
+      // an audited platform operation has provisioned a tenant and the
+      // category's capability policy grants the requested operation.
+      ctx.category=getCategory(ctx.tenant.categoryKey,ctx.tenant.categoryVersion);
+      if(!ctx.category)return null;
+      ctx.subscription=await loadEntitlements(db,ctx.tenant.id);ctx.runtimeReady={};
     }
     return ctx;
   }

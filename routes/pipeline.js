@@ -16,6 +16,7 @@ const crypto = require('node:crypto');
 const {createTaskRouter}=require('../modules/platform/task-router');
 
 async function saleContext(actor) {
+  if(actor.categoryKey==='salemax_sales'&&actor.canonicalContext)return {...actor.canonicalContext,uid:actor.uid,uidHash:crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex'),role:actor.role,actorType:actor.actorType,actorId:String(actor.actorId),agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,scopeIdentityIds:actor.scopeIdentityIds};
   const ctx=await trainingCourses.legacyOwnerContext(require('../database/config.js').promise(),actor.uid);
   if(actor.role==='manager'){
     ctx.identity={id:actor.identityId};
@@ -60,7 +61,7 @@ async function pipelineAuth(req, res, next) {
       if(process.env.SALEMAX_PLATFORM_ENABLED==='true'){
         const linkedActor=await legacyPipelineActor.resolve(require('../database/config.js').promise(),users[0]);
         if(linkedActor?.denied)return res.status(linkedActor.code==='AUTH_REQUIRED'?401:403).json({success:false,code:linkedActor.code});
-        if(linkedActor?.role==='manager'){
+        if(['owner','manager','team_leader'].includes(linkedActor?.role)&&linkedActor?.categoryKey==='salemax_sales'){
           req.pipelineActor=linkedActor;
           return next();
         }
@@ -70,7 +71,7 @@ async function pipelineAuth(req, res, next) {
     }
 
     const agents = await query(
-      "SELECT id, uid, owner_uid, role, is_active FROM agents WHERE email = ? AND password = ? LIMIT 1",
+      "SELECT id, uid, owner_uid, email, role, is_active FROM agents WHERE email = ? AND password = ? LIMIT 1",
       [decoded.email, decoded.password],
     );
     const agent = agents[0];
@@ -79,6 +80,14 @@ async function pipelineAuth(req, res, next) {
     }
     const owners = await query("SELECT uid, timezone FROM user WHERE uid = ? LIMIT 1", [agent.owner_uid]);
     if (!owners.length) return res.status(403).json({ success: false, message: "The agent workspace could not be found." });
+    if(process.env.SALEMAX_PLATFORM_ENABLED==='true'){
+      const linkedAgent=await legacyPipelineActor.resolveAgent(require('../database/config.js').promise(),agent);
+      if(linkedAgent?.denied)return res.status(403).json({success:false,code:linkedAgent.code});
+      if(linkedAgent?.categoryKey==='salemax_sales'){
+        req.pipelineActor=linkedAgent;
+        return next();
+      }
+    }
     req.pipelineActor = { uid: owners[0].uid, role: "agent", actorType: "agent", actorId: String(agent.id), agentId: Number(agent.id), timezone: owners[0].timezone || "Asia/Qatar" };
     req.pipelineActor.agentUid = agent.uid;
     return next();
@@ -139,6 +148,7 @@ router.get("/board", async (req, res) => {
       uid: req.pipelineActor.uid,
       role: req.pipelineActor.role,
       agentId: req.pipelineActor.agentId,
+      scopeAgentIds: req.pipelineActor.scopeAgentIds,
       filters: {
         search: req.query.search,
         stage: req.query.stage,
@@ -156,7 +166,7 @@ router.get("/board", async (req, res) => {
 router.get("/follow-ups", async (req, res) => {
   try {
     const data = await pipeline.getFollowUps({
-      uid: req.pipelineActor.uid, role: req.pipelineActor.role, agentId: req.pipelineActor.agentId,
+      uid: req.pipelineActor.uid, role: req.pipelineActor.role, agentId: req.pipelineActor.agentId, scopeAgentIds:req.pipelineActor.scopeAgentIds,
       period: req.query.period || "all", page: req.query.page === undefined ? 1 : Number(req.query.page),
       limit: req.query.limit === undefined ? 20 : Number(req.query.limit),
     });
@@ -175,7 +185,7 @@ router.get("/settings", async (req, res) => {
 router.get("/contacts/matches", async (req, res) => {
   try {
     const data = await pipeline.findContactMatches({
-      uid: req.pipelineActor.uid, role: req.pipelineActor.role, agentId: req.pipelineActor.agentId,
+      uid: req.pipelineActor.uid, role: req.pipelineActor.role, agentId: req.pipelineActor.agentId, scopeAgentIds:req.pipelineActor.scopeAgentIds,
       phone: req.query.phone, email: req.query.email,
     });
     res.setHeader("Cache-Control", "no-store");
@@ -197,7 +207,7 @@ router.get("/reports/activity", async (req,res)=>{
   try{
     const data=await pipelineReports.getActivityReport({
       pool:require("../database/config.js").promise(),uid:req.pipelineActor.uid,
-      role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,
+      role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,
       period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,
       page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit),
     });
@@ -206,7 +216,7 @@ router.get("/reports/activity", async (req,res)=>{
 });
 
 router.get('/reports/journey',async(req,res)=>{
-  try{const pool=require('../database/config.js').promise();await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  try{const pool=require('../database/config.js').promise();if(req.pipelineActor.categoryKey!=='salemax_sales')await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){fail(res,error);}
 });
 
@@ -281,6 +291,7 @@ router.post("/leads", async (req, res) => {
       actorType: req.pipelineActor.actorType,
       actorId: req.pipelineActor.actorId,
       agentId: req.pipelineActor.agentId,
+      scopeAgentIds:req.pipelineActor.scopeAgentIds,
       role: req.pipelineActor.role,
       input: req.body || {},
     });
@@ -290,7 +301,7 @@ router.post("/leads", async (req, res) => {
 
 async function authorizeLead(req, res, next) {
   try {
-    const lead = await pipeline.getLead(req.pipelineActor.uid, req.params.id,{role:req.pipelineActor.role,agentId:req.pipelineActor.agentId});
+    const lead = await pipeline.getLead(req.pipelineActor.uid, req.params.id,{role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds});
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found." });
     if (req.pipelineActor.role === "agent" && !pipelineAccess.canAgentAccessLead(req.pipelineActor.agentId, lead.owner_agent_id)) {
       return res.status(403).json({ success: false, message: "This lead is assigned to another agent." });
@@ -307,6 +318,7 @@ router.post("/leads/:id/follow-up/:action", authorizeLead, async (req, res) => {
       at: req.body?.nextFollowUpAt, expectedDueAt: req.body?.expectedDueAt,
       actorType: req.pipelineActor.actorType, actorId: req.pipelineActor.actorId,
       role: req.pipelineActor.role, agentId: req.pipelineActor.agentId,
+      scopeAgentIds:req.pipelineActor.scopeAgentIds,
     });
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }
@@ -350,6 +362,7 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
       actorId: req.pipelineActor.actorId,
       role: req.pipelineActor.role,
       agentId: req.pipelineActor.agentId,
+      scopeAgentIds:req.pipelineActor.scopeAgentIds,
     });
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }
@@ -365,6 +378,7 @@ router.post("/leads/:id/move", authorizeLead, async (req, res) => {
       actorId: req.pipelineActor.actorId,
       role: req.pipelineActor.role,
       agentId: req.pipelineActor.agentId,
+      scopeAgentIds:req.pipelineActor.scopeAgentIds,
     });
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }

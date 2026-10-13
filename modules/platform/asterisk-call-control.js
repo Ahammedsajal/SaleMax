@@ -206,7 +206,21 @@ class AsteriskCallControl {
       [context.tenant.id,callId]);
       if (!row) fail('CALL_NOT_FOUND');
       call=row;
-      if (!['owner','manager'].includes(context.membership.role)
+      const salesTeamRole=context.tenant.categoryKey==='salemax_sales'&&['manager','team_leader'].includes(context.membership.role);
+      if (salesTeamRole) {
+        const teamColumn=context.membership.role==='manager'?'manager_membership_id':'team_leader_membership_id';
+        const [members]=await db.query(`SELECT id AS membershipId FROM sx_memberships WHERE tenant_id=? AND id=? AND status='active'
+          UNION SELECT h.membership_id AS membershipId FROM sx_sales_org_history h
+            JOIN sx_memberships m ON m.tenant_id=h.tenant_id AND m.id=h.membership_id AND m.status='active'
+          WHERE h.tenant_id=? AND h.${teamColumn}=? AND h.ended_at IS NULL`,
+        [context.tenant.id,context.membership.id,context.tenant.id,context.membership.id]);
+        const teamMembershipIds=[...new Set(members.map(member=>member.membershipId))];
+        const ownsCall=teamMembershipIds.length>0&&(teamMembershipIds.includes(row.started_by_membership_id)
+          ||teamMembershipIds.includes(row.answered_by_membership_id));
+        const [teamLegs]=teamMembershipIds.length?await db.query(`SELECT id FROM sx_telephony_call_legs
+          WHERE tenant_id=? AND call_id=? AND membership_id IN (?) LIMIT 1`,[context.tenant.id,callId,teamMembershipIds]):[[]];
+        if (!ownsCall&&!teamLegs.length) fail('PERMISSION_DENIED');
+      } else if (!['owner','manager'].includes(context.membership.role)
         && row.started_by_membership_id!==context.membership.id && row.answered_by_membership_id!==context.membership.id) {
         const [[leg]] = await db.query(`SELECT id FROM sx_telephony_call_legs WHERE tenant_id=? AND call_id=? AND membership_id=?
           AND status IN ('originating','ringing','connected') LIMIT 1`,[context.tenant.id,callId,context.membership.id]);

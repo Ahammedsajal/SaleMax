@@ -62,6 +62,19 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const access=decision(context,{capability:'telephony.call-center',permission:'calls.read'});
     if(!access.allowed)throw Object.assign(new Error(access.code),{code:access.code});
     const rows=await withDb(async db=>{
+      const salesTeam=['manager','team_leader'].includes(context.membership.role)&&context.tenant.categoryKey==='salemax_sales';
+      let teamMembershipIds=[];
+      if(salesTeam){
+        const teamColumn=context.membership.role==='manager'?'manager_membership_id':'team_leader_membership_id';
+        const [members]=await db.query(`SELECT id AS membershipId FROM sx_memberships WHERE tenant_id=? AND id=? AND status='active'
+          UNION SELECT h.membership_id AS membershipId FROM sx_sales_org_history h
+            JOIN sx_memberships m ON m.tenant_id=h.tenant_id AND m.id=h.membership_id AND m.status='active'
+          WHERE h.tenant_id=? AND h.${teamColumn}=? AND h.ended_at IS NULL`,
+        [context.tenant.id,context.membership.id,context.tenant.id,context.membership.id]);
+        teamMembershipIds=[...new Set(members.map(row=>row.membershipId))];
+      }
+      const teamFilter=salesTeam?(teamMembershipIds.length?` AND (c.started_by_membership_id IN (?) OR c.answered_by_membership_id IN (?) OR EXISTS(
+        SELECT 1 FROM sx_telephony_call_legs scoped_leg WHERE scoped_leg.tenant_id=c.tenant_id AND scoped_leg.call_id=c.id AND scoped_leg.membership_id IN (?)))`:' AND 1=0'):'';
       const [items]=await db.query(`SELECT c.id,c.direction,c.status,c.gateway_channel_no AS gatewayChannelNo,
           q.queue_name AS queueName,c.started_at AS startedAt,c.answered_at AS answeredAt,c.ended_at AS endedAt,
           IF(c.answered_at IS NULL,NULL,IF(c.ended_at IS NULL,TIMESTAMPDIFF(SECOND,c.answered_at,UTC_TIMESTAMP(3)),c.duration_seconds)) AS durationSeconds,
@@ -71,12 +84,13 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         FROM sx_telephony_calls c LEFT JOIN sx_telephony_queues q ON q.tenant_id=c.tenant_id AND q.id=c.inbound_queue_id
         WHERE c.tenant_id=? AND (?=0 OR c.started_by_membership_id=? OR c.answered_by_membership_id=? OR EXISTS(
           SELECT 1 FROM sx_telephony_queue_members qm WHERE qm.tenant_id=c.tenant_id AND qm.queue_id=c.inbound_queue_id AND qm.membership_id=?))
+          ${teamFilter}
         ORDER BY c.started_at DESC,c.id DESC LIMIT 100`,[context.membership.id,context.tenant.id,access.scope==='assigned'?1:0,
-        context.membership.id,context.membership.id,context.membership.id]);
+        context.membership.id,context.membership.id,context.membership.id,...(salesTeam&&teamMembershipIds.length?[teamMembershipIds,teamMembershipIds,teamMembershipIds]:[])]);
       return items.map(row=>({callId:row.id,direction:row.direction,status:row.status,gatewayChannelNo:Number(row.gatewayChannelNo),
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
-        canControl:context.membership.role==='owner'||context.membership.role==='manager'||row.startedByMembershipId===context.membership.id
+        canControl:context.membership.role==='owner'||context.membership.role==='manager'||salesTeam||row.startedByMembershipId===context.membership.id
           ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1}));
     });
     res.json({success:true,data:{items:rows,hasMore:rows.length===100}});
@@ -126,7 +140,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         JOIN sx_memberships m ON m.tenant_id=qm.tenant_id AND m.id=qm.membership_id AND m.status='active'
         JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
         JOIN sx_telephony_extensions x ON x.tenant_id=m.tenant_id AND x.membership_id=m.id AND x.extension REGEXP '^[0-9]{3,8}$'
-        WHERE p.tenant_id=? AND p.gateway_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did REGEXP '^[+][1-9][0-9]{7,14}$' AND m.role IN ('owner','manager','agent')`,
+          WHERE p.tenant_id=? AND p.gateway_id=? AND p.enabled=1 AND p.inbound_enabled=1 AND p.inbound_did REGEXP '^[+][1-9][0-9]{7,14}$' AND m.role IN ('owner','manager','team_leader','agent')`,
       [context.tenant.id,tenantGateway?.id||null]);
       return rows.map(row=>String(row.extension));
     }):[];

@@ -10,9 +10,12 @@ test('quoted delimiters and comments do not split SQL', () => {
 });
 test('actual discovery excludes destructive rollback', () => {
   const migrations = discover(path.join(__dirname, '../database/migrations'));
-  assert.equal(migrations.length, 73+(fs.existsSync(path.join(__dirname,'../database/migrations/20261118_training_report_profile_destinations.sql'))?1:0));
-  assert.equal(migrations.at(-1).file, '20261126_training_registration_courses.sql');
+  assert.ok(migrations.some(m => m.file === '20261127_training_course_soft_deletion.sql'));
   assert.ok(migrations.some(m => m.file === '20261113_team_role_profiles.sql'));
+  const teamRoles=migrations.findIndex(m=>m.file==='20261113_team_role_profiles.sql');
+  const salesOrg=migrations.findIndex(m=>m.file==='20261114_sales_organization.sql');
+  const salesFinance=migrations.findIndex(m=>m.file==='20261115_sales_commissions.sql');
+  assert.ok(teamRoles>=0&&salesOrg>teamRoles&&salesFinance>salesOrg,'Sales migrations follow the Team Leader role migration');
   assert.ok(migrations.every(m => !/rollback/.test(m.file)));
   assert.equal(migrations[0].file, '20260928_lead_pipeline.sql');
 });

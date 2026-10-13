@@ -15,6 +15,11 @@ function periodWindow({period='daily',at,timezone='Asia/Qatar',cutoffAt}){
   return {start:start.clone().utc().format('YYYY-MM-DD HH:mm:ss.SSS'),end:end.clone().utc().format('YYYY-MM-DD HH:mm:ss.SSS'),timezone,period};
 }
 function parseDetails(value){if(!value)return null;try{return typeof value==='string'?JSON.parse(value):value;}catch(_){return null;}}
+function teamAgentScope(role,agentId,scopeAgentIds,{alias='l',column='owner_agent_id'}={}){
+  if(role==='agent')return {sql:` AND ${alias}.${column}=?`,args:[agentId]};
+  if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds))return scopeAgentIds.length?{sql:` AND ${alias}.${column} IN (?)`,args:[scopeAgentIds]}:{sql:' AND 1=0',args:[]};
+  return {sql:'',args:[]};
+}
 async function getFinanceSummary(connection,uid,window,cutoffAt){
   const asOfMoment=cutoffAt?moment.utc(cutoffAt):moment.utc();if(!asOfMoment.isValid())fail('Report cutoff must be a valid timestamp.');const asOf=asOfMoment.format('YYYY-MM-DD HH:mm:ss.SSS');
   const tables=['sx_legacy_ownership','sx_tenants','sx_memberships','sx_training_invoices','sx_training_installments','sx_training_payment_allocations','sx_training_payments','sx_training_payment_allocation_reversals','sx_training_refunds','sx_training_payment_disputes','sx_training_credit_notes','sx_training_credit_allocations','sx_training_journal_entries','sx_training_journal_lines'];
@@ -88,9 +93,9 @@ async function getFinanceSummary(connection,uid,window,cutoffAt){
     receivablesAsOf:moment.utc(asOf).toISOString(),allOutstandingMinor:String(receivable.outstanding_minor||0),overdueReceivablesMinor:Object.entries(aging).filter(([key])=>key!=='current').reduce((sum,[,value])=>sum+BigInt(value.outstandingMinor),0n).toString(),receivablesAging:aging,reconciliation:{status:Number(totals.mismatched||0)+Number(receivable.mismatch_count||0)>0?'attention':'clear',
       periodIssuedInvoiceMismatchCount:Number(totals.mismatched||0),allInvoiceMismatchCount:Number(receivable.mismatch_count||0)}};
 }
-async function getActivityReport({pool,uid,role='owner',agentId,period='daily',at,timezone='Asia/Qatar',cutoffAt,page=1,limit=50}){
+async function getActivityReport({pool,uid,role='owner',agentId,scopeAgentIds,period='daily',at,timezone='Asia/Qatar',cutoffAt,page=1,limit=50}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
-  if(!['owner','manager','agent'].includes(role))fail('This role cannot view the legacy lead activity report.',403);
+  if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view the legacy lead activity report.',403);
   if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
   const currentPage=Number(page),pageSize=Number(limit);
   if(!Number.isSafeInteger(currentPage)||currentPage<1||currentPage>10000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)fail('Report page or page size is invalid.');
@@ -98,28 +103,28 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
   const connection=await db.getConnection();
   try{
     await connection.beginTransaction();
-    const agentScope=role==='agent'?' AND l.owner_agent_id=?':'';
-    const [[created]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${agentScope}`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
+    const agentScope=teamAgentScope(role,agentId,scopeAgentIds);
+    const [[created]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${agentScope.sql}`,[uidHash,window.start,window.end,...agentScope.args]);
     const [[counts]]=await connection.query(`SELECT
       SUM(pa.activity_type='contact_outcome') AS outcomes,
       SUM(pa.activity_type='note_added') AS notes,
       SUM(pa.activity_type='agent_message_sent') AS agent_replies,
       COUNT(DISTINCT pa.lead_id) AS leads_touched
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
-      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${agentScope}`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
+      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${agentScope.sql}`,[uidHash,window.start,window.end,...agentScope.args]);
     const [[cohortContact]]=await connection.query(`SELECT COUNT(DISTINCT l.id) AS contacted FROM pipeline_leads l
       JOIN pipeline_activity pa ON pa.uid_hash=l.uid_hash AND pa.lead_id=l.id AND pa.created_at>=? AND pa.created_at<?
         AND pa.activity_type IN ('contact_outcome','agent_message_sent')
-      WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${agentScope}`,[window.start,window.end,uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
+      WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${agentScope.sql}`,[window.start,window.end,uidHash,window.start,window.end,...agentScope.args]);
     const [outcomeRows]=await connection.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.outcome')) AS outcome,COUNT(*) AS total
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
-      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'${agentScope}
-      GROUP BY outcome ORDER BY total DESC,outcome`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
-    const [[followups]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at>=? AND l.next_follow_up_at<? AND l.status='open'${agentScope}`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
+      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'${agentScope.sql}
+      GROUP BY outcome ORDER BY total DESC,outcome`,[uidHash,window.start,window.end,...agentScope.args]);
+    const [[followups]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at>=? AND l.next_follow_up_at<? AND l.status='open'${agentScope.sql}`,[uidHash,window.start,window.end,...agentScope.args]);
     const [[followupsRequired]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
       WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'
-      AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.followUpRequired'))='true'${agentScope}`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[])]);
-    const [[overdue]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at<COALESCE(?,UTC_TIMESTAMP(3)) AND l.status='open'${agentScope}`,[uidHash,cutoffAt?moment.utc(cutoffAt).format('YYYY-MM-DD HH:mm:ss.SSS'):null,...(role==='agent'?[agentId]:[])]);
+      AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.followUpRequired'))='true'${agentScope.sql}`,[uidHash,window.start,window.end,...agentScope.args]);
+    const [[overdue]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at<COALESCE(?,UTC_TIMESTAMP(3)) AND l.status='open'${agentScope.sql}`,[uidHash,cutoffAt?moment.utc(cutoffAt).format('YYYY-MM-DD HH:mm:ss.SSS'):null,...agentScope.args]);
     const finance=role==='owner'?await getFinanceSummary(connection,uid,window,cutoffAt):null;
     const offset=(currentPage-1)*pageSize;
     const [events]=await connection.query(`SELECT pa.id,pa.lead_id AS leadId,pa.actor_type AS actorType,
@@ -130,8 +135,8 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
       LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
       LEFT JOIN agents a ON pa.actor_type='agent' AND a.id=CAST(IF(pa.actor_id REGEXP '^[0-9]+$',pa.actor_id,'0') AS UNSIGNED)
         AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
-      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${agentScope}
-      ORDER BY pa.created_at DESC,pa.id DESC LIMIT ? OFFSET ?`,[uidHash,window.start,window.end,...(role==='agent'?[agentId]:[]),pageSize,offset]);
+      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${agentScope.sql}
+      ORDER BY pa.created_at DESC,pa.id DESC LIMIT ? OFFSET ?`,[uidHash,window.start,window.end,...agentScope.args,pageSize,offset]);
     const total=Number(counts?.outcomes||0)+Number(counts?.notes||0)+Number(counts?.agent_replies||0);
     await connection.commit();
     return {period:window.period,timezone:window.timezone,from:window.start,to:window.end,...(cutoffAt?{cutoffAt:moment.utc(cutoffAt).toISOString()}:{}),page:currentPage,limit:pageSize,total,hasMore:offset+events.length<total,
@@ -141,10 +146,12 @@ async function getActivityReport({pool,uid,role='owner',agentId,period='daily',a
   }catch(error){try{await connection.rollback();}catch(_){}throw error;}
   finally{connection.release();}
 }
-async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at,timezone='Asia/Qatar'}){
+async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,period='daily',at,timezone='Asia/Qatar'}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
-  if(!['owner','manager','agent'].includes(role))fail('This role cannot view the lead journey report.',403);
+  if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view the lead journey report.',403);
   if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
+  if(categoryKey==='salemax_sales')return getSalesJourneyReport({pool,uid,role,agentId,scopeAgentIds,period,at,timezone});
+  if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds))fail('The team-scoped journey report is not available yet.',403);
   const window=periodWindow({period,at,timezone}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool,connection=await db.getConnection();
   try{
     await connection.beginTransaction();
@@ -257,6 +264,54 @@ async function getJourneyReport({pool,uid,role='owner',agentId,period='daily',at
       learnerJourney:{enrolled:Number(learnerJourney.enrolled||0),courseStarted:Number(learnerJourney.course_started||0),courseCompleted:Number(learnerJourney.course_completed||0),fullyPaid:Number(learnerJourney.fully_paid||0),certificatesIssued:Number(learnerJourney.certificates_issued||0)},
       stages:mappedStages,sources:sources.map(row=>({...row,total:Number(row.total)})),stageTransitions:transitions.map(row=>({...row,total:Number(row.total)})),agents:mappedAgents};
     await connection.commit();return report;
+  }catch(error){try{await connection.rollback();}catch(_){}throw error;}finally{connection.release();}
+}
+
+async function getSalesJourneyReport({pool,uid,role,agentId,scopeAgentIds,period,at,timezone}){
+  const window=periodWindow({period,at,timezone}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool,connection=await db.getConnection();
+  if(role==='manager'||role==='team_leader')scopeAgentIds=Array.isArray(scopeAgentIds)?scopeAgentIds:[];
+  const agentIds=role==='agent'?[Number(agentId)]:(['manager','team_leader'].includes(role)?scopeAgentIds:undefined);
+  const leadFilter=agentIds===undefined?'':agentIds.length?' AND l.owner_agent_id IN (?)':' AND 1=0';
+  const agentFilter=agentIds===undefined?'':agentIds.length?' AND a.id IN (?)':' AND 1=0';
+  const scopeArgs=agentIds===undefined?[]:[agentIds];
+  try{
+    await connection.beginTransaction();
+    const [stages]=await connection.query(`SELECT ps.stage_key AS stageKey,ps.title,ps.stage_type AS stageType,ps.position,COUNT(l.id) AS total,
+      COUNT(CASE WHEN l.created_at>=? AND l.created_at<? THEN l.id END) AS cohortTotal
+      FROM pipeline_stages ps LEFT JOIN pipeline_leads l ON l.uid_hash=ps.uid_hash AND l.uid=ps.uid AND l.stage_key=ps.stage_key${leadFilter}
+      WHERE ps.uid_hash=? AND ps.uid=? GROUP BY ps.stage_key,ps.title,ps.stage_type,ps.position ORDER BY ps.position,ps.stage_key`,[window.start,window.end,...scopeArgs,uidHash,uid]);
+    const [sources]=await connection.query(`SELECT l.source_type AS sourceType,l.primary_origin AS origin,COUNT(*) AS total FROM pipeline_leads l
+      WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadFilter} GROUP BY l.source_type,l.primary_origin ORDER BY total DESC,l.source_type`,[uidHash,uid,window.start,window.end,...scopeArgs]);
+    const [[flow]]=await connection.query(`SELECT
+      (SELECT COUNT(*) FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadFilter}) AS new_leads,
+      SUM(pa.activity_type='stage_changed') AS stage_changes,SUM(pa.activity_type='sale_converted') AS sales_converted,
+      SUM(pa.activity_type='sale_converted' AND pa.actor_type='agent') AS sales_closed_by_agents,
+      COUNT(DISTINCT CASE WHEN pa.activity_type IN ('contact_outcome','agent_message_sent') THEN pa.lead_id END) AS leads_attended
+      FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
+      WHERE pa.uid_hash=? AND l.uid=? AND pa.created_at>=? AND pa.created_at<?${leadFilter}`,
+      [uidHash,uid,window.start,window.end,...scopeArgs,uidHash,uid,window.start,window.end,...scopeArgs]);
+    const [agentRows]=await connection.query(`SELECT a.id AS agentId,a.name AS agentName,a.is_active AS active,COUNT(DISTINCT l.id) AS assignedLeads,
+      COUNT(DISTINCT CASE WHEN l.created_at>=? AND l.created_at<? THEN l.id END) AS newLeads,
+      COUNT(DISTINCT CASE WHEN l.next_follow_up_at>=? AND l.next_follow_up_at<? AND l.status='open' THEN l.id END) AS followUpsDue,
+      COUNT(DISTINCT CASE WHEN l.next_follow_up_at<? AND l.status='open' THEN l.id END) AS followUpsOverdue,
+      COUNT(DISTINCT CASE WHEN pa.activity_type IN ('contact_outcome','agent_message_sent') THEN pa.lead_id END) AS attendedLeads,
+      SUM(pa.activity_type='agent_message_sent') AS agentReplies,
+      SUM(pa.activity_type='sale_converted') AS salesAttributed,SUM(pa.activity_type='sale_converted' AND pa.actor_type='agent' AND pa.actor_id=CAST(a.id AS CHAR)) AS salesClosedByAgent
+      FROM agents a LEFT JOIN pipeline_leads l ON l.uid_hash=? AND l.uid=? AND l.owner_agent_id=a.id
+      LEFT JOIN pipeline_activity pa ON pa.uid_hash=l.uid_hash AND pa.lead_id=l.id AND pa.created_at>=? AND pa.created_at<?
+      WHERE a.owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci AND a.role='agent'${agentFilter}
+      GROUP BY a.id,a.name,a.is_active ORDER BY salesClosedByAgent DESC,salesAttributed DESC,attendedLeads DESC,newLeads DESC,a.name`,
+      [window.start,window.end,window.start,window.end,window.end,uidHash,uid,window.start,window.end,uid,...scopeArgs]);
+    const [transitions]=await connection.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.stageTo')) AS stageKey,COUNT(*) AS total
+      FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
+      WHERE pa.uid_hash=? AND l.uid=? AND pa.activity_type='stage_changed' AND pa.created_at>=? AND pa.created_at<?${leadFilter}
+      GROUP BY stageKey ORDER BY total DESC,stageKey`,[uidHash,uid,window.start,window.end,...scopeArgs]);
+    const mappedStages=stages.map(row=>({...row,total:Number(row.total),cohortTotal:Number(row.cohortTotal||0)}));
+    const agents=agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),newLeads:Number(row.newLeads),attendedLeads:Number(row.attendedLeads||0),agentReplies:Number(row.agentReplies||0),followUpsDue:Number(row.followUpsDue||0),followUpsOverdue:Number(row.followUpsOverdue||0),salesAttributed:Number(row.salesAttributed||0),salesClosedByAgent:Number(row.salesClosedByAgent||0)}));
+    await connection.commit();
+    return {categoryKey:'salemax_sales',period:window.period,timezone:window.timezone,from:window.start,to:window.end,asOf:new Date().toISOString(),
+      summary:{newLeads:Number(flow.new_leads||0),leadsAttended:Number(flow.leads_attended||0),stageChanges:Number(flow.stage_changes||0),salesConverted:Number(flow.sales_converted||0),salesClosedByAgents:Number(flow.sales_closed_by_agents||0),openLeads:mappedStages.filter(row=>row.stageType==='open').reduce((sum,row)=>sum+row.total,0),wonLeads:mappedStages.filter(row=>row.stageType==='won').reduce((sum,row)=>sum+row.total,0),lostLeads:mappedStages.filter(row=>row.stageType==='lost').reduce((sum,row)=>sum+row.total,0)},
+      stages:mappedStages,sources:sources.map(row=>({...row,total:Number(row.total)})),stageTransitions:transitions.map(row=>({...row,total:Number(row.total)})),agents,cohortFunnel:null,journeyActivity:null,learnerJourney:null};
   }catch(error){try{await connection.rollback();}catch(_){}throw error;}finally{connection.release();}
 }
 module.exports={periodWindow,getActivityReport,getJourneyReport};

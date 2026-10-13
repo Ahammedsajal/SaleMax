@@ -1,7 +1,7 @@
 'use strict';
 const crypto=require('node:crypto');
 const plans=require('./plans');
-const {trainingCenter}=require('./categories');
+const {getCategory}=require('./categories');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 const required=['user','agents','sx_legacy_ownership','sx_tenants','sx_memberships','sx_plan_versions','sx_plan_assignments','sx_team_invites'];
@@ -36,7 +36,8 @@ async function activeAgentCounts(db,ownerUid,tenantId){
   used.agent+=Number(legacy.n);return used;
 }
 async function entitlement(db,tenant){
-  if(tenant.status!=='active'||tenant.category_key!==trainingCenter.key||tenant.category_version!==trainingCenter.version)fail('BUSINESS_INACTIVE');
+  const category=getCategory(tenant.category_key,Number(tenant.category_version));
+  if(tenant.status!=='active'||!category)fail('BUSINESS_INACTIVE');
   const current=await plans.loadEntitlements(db,tenant.id);
   if(!current||!['active','trial','grace'].includes(current.status)||current.categoryKey!==tenant.category_key||current.categoryVersion!==tenant.category_version||!current.capabilities.includes('team.members'))fail('TEAM_FEATURE_UNAVAILABLE');
   return current;
