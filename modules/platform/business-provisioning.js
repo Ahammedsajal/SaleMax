@@ -75,7 +75,8 @@ async function provision(db,ctx,input){
     if(currentState!==data.expectedState)fail('STALE_PROVISION');
     for(const role of Object.keys(data.roleLimits)){if(data.roleLimits[role]>base.version.roleLimits[role])fail('PLAN_LIMIT_EXCEEDED');if(role==='owner'&&data.roleLimits[role]!==1)fail('ONE_OWNER_REQUIRED');}
     const tenantId=crypto.randomUUID(),identityId=crypto.randomUUID(),membershipId=crypto.randomUUID();
-    await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,country_code,currency,timezone,status) VALUES (?,?,?,?,?,'QA','QAR','Asia/Qatar','active')",[tenantId,slug(data.businessName,tenantId),data.category.key,data.category.version]);
+    const locale=data.category.key==='salemax_sales'?{country:'IN',currency:'INR',timezone:'Asia/Kolkata'}:{country:'QA',currency:'QAR',timezone:'Asia/Qatar'};
+    await db.query('INSERT INTO sx_tenants(id,slug,name,category_key,category_version,country_code,currency,timezone,status) VALUES (?,?,?,?,?,?,?,?,?)',[tenantId,slug(data.businessName,tenantId),data.businessName,data.category.key,data.category.version,locale.country,locale.currency,locale.timezone,'active']);
     await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,?,NULL,'active')",[identityId,base.normalizedEmail,String(base.user.name||data.businessName).trim().slice(0,200)||data.businessName]);
     await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active')",[membershipId,tenantId,identityId]);
     await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(base.user.id),tenantId,membershipId,hash(base.user.uid)]);

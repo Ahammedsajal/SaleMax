@@ -5,6 +5,8 @@ const bcrypt=require('bcrypt');
 const express=require('express');
 const http=require('node:http');
 const provisioning=require('../modules/platform/business-provisioning');
+const catalogue=require('../modules/platform/catalogue-bridge');
+const {salemaxSales}=require('../modules/platform/categories');
 module.exports=async(db,other,{i1},pool)=>{
   const [[emailColumn]]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='email'");
   if(!emailColumn)await db.query('ALTER TABLE user ADD COLUMN email VARCHAR(999) NULL');
@@ -23,8 +25,11 @@ module.exports=async(db,other,{i1},pool)=>{
   const app=express();
   const router=require('../modules/platform/existing-business-router').createExistingBusinessRouter({pool:{getConnection:async()=>db},legacyGuard:(req,res,next)=>{req.legacyAdminId=legacyAdminId;req.decode={uid:legacyAdminUid};next();},canonicalGuard:(req,res,next)=>{req.businessContext=actor;next();}});
   app.use('/api/admin/business-contracts',router);
+  const publicAccess=require('../modules/platform/existing-platform-access-router').createExistingPlatformAccessRouters({pool:{getConnection:async()=>db},origin:'http://127.0.0.1:3010'});
+  app.use('/api/admin/staff-invitations',publicAccess.accept);
   const server=http.createServer(app);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  const request=async(path,body)=>{const response=await fetch(`http://127.0.0.1:${server.address().port}/api/admin/business-contracts/${path}`,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});return {status:response.status,body:await response.json()};};
+  const request=async(path,body,origin)=>{const response=await fetch(`http://127.0.0.1:${server.address().port}/api/admin/business-contracts/${path}`,{method:body?'POST':'GET',headers:{...(body?{'Content-Type':'application/json'}:{}),...(origin?{Origin:origin}:{})},body:body?JSON.stringify(body):undefined});return {status:response.status,body:await response.json()};};
+  const publicRequest=async(path,body)=>{const response=await fetch(`http://127.0.0.1:${server.address().port}/api/admin/staff-invitations/${path}`,{method:'POST',headers:{'Content-Type':'application/json',Origin:'http://127.0.0.1:3010'},body:JSON.stringify(body)});return {status:response.status,body:await response.json()};};
   const requestId=crypto.randomUUID(),businessName='Synthetic Training Centre QA';
   try {
   const options=await request(`${user.insertId}/provision-options`);assert.equal(options.status,200);assert.equal(options.body.data.user.id,user.insertId);assert.equal(options.body.data.contract.id,contract.version_id);
@@ -44,6 +49,26 @@ module.exports=async(db,other,{i1},pool)=>{
   await assert.rejects(provisioning.options(db,actor,user.insertId),{code:'BUSINESS_ALREADY_PROVISIONED'});
   const denied={...actor,mfaVerified:false};await assert.rejects(provisioning.options(db,denied,user.insertId),{code:'PERMISSION_DENIED'});
   const [[audit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE tenant_id=? AND action='business.tenant-provisioned'",[result.tenantId]);assert.equal(Number(audit.n),1);
+
+  // Exercise the first-party Sales bootstrap against the same existing catalogue,
+  // then verify that the setup link activates the legacy and canonical login
+  // credentials atomically without storing the bearer token in the database.
+  const salesLimits={owner:1,accountant:4,manager:10,team_leader:40,agent:500};
+  const salesDraft=await catalogue.createDraft(db,actor,{legacyPlanId:Number(contract.legacy_plan_id),requestId:crypto.randomUUID(),categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version,capabilities:[...salemaxSales.capabilities],roleLimits:salesLimits});
+  await catalogue.publish(db,actor,{legacyPlanId:Number(contract.legacy_plan_id),versionId:salesDraft.id,revision:1});
+  const salesEmail='admin@salemax.qa',salesUid='sales-owner-'+crypto.randomUUID(),temporaryPassword='Synthetic-Temporary-Owner-62',temporaryHash=await bcrypt.hash(temporaryPassword,10);
+  const [salesUser]=await db.query('INSERT INTO user(uid,name,email,password,plan,plan_expire) VALUES (?,?,?,?,?,?)',[salesUid,'Synthetic SaleMaX Admin',salesEmail,temporaryHash,JSON.stringify(commercial),expiry]);
+  const salesRequestId=crypto.randomUUID(),salesBusinessName='Synthetic SaleMaX Sales';
+  const salesOptions=await request(`${salesUser.insertId}/provision-options?categoryKey=salemax_sales`);assert.equal(salesOptions.status,200);assert.equal(salesOptions.body.data.contract.id,salesDraft.id);
+  const salesPreview=(await request(`${salesUser.insertId}/provision-preview`,{categoryKey:'salemax_sales',businessName:salesBusinessName,planVersionId:salesDraft.id,roleLimits:salesLimits,requestId:salesRequestId})).body.data;assert.equal(salesPreview.canProvision,true);
+  const salesProvisioned=await request(`${salesUser.insertId}/provision`,{categoryKey:'salemax_sales',businessName:salesBusinessName,planVersionId:salesDraft.id,roleLimits:salesLimits,requestId:salesRequestId,expectedState:salesPreview.expectedState});assert.equal(salesProvisioned.status,201);
+  const [[salesTenant]]=await db.query('SELECT country_code,currency,timezone FROM sx_tenants WHERE id=?',[salesProvisioned.body.data.tenantId]);assert.equal(salesTenant.country_code,'IN');assert.equal(salesTenant.currency,'INR');assert.equal(salesTenant.timezone,'Asia/Kolkata');
+  const setupLink=await request(`${salesUser.insertId}/owner-activation`,{});assert.equal(setupLink.status,201);assert.equal(setupLink.body.data.email,salesEmail);assert.equal(setupLink.body.data.expiresInHours,72);
+  const [inviteTokenRows]=await db.query('SELECT token_hash FROM sx_business_owner_invites WHERE id=?',[setupLink.body.data.id]);assert.equal(inviteTokenRows.length,1);assert.notEqual(inviteTokenRows[0].token_hash,setupLink.body.data.token);assert.equal(inviteTokenRows[0].token_hash,crypto.createHash('sha256').update(setupLink.body.data.token).digest('hex'));
+  const accepted=await publicRequest('business-owner/accept',{token:setupLink.body.data.token,name:'SaleMaX Business Admin',password:'Synthetic-Sales-Owner-Password-63'});assert.equal(accepted.status,201);assert.equal(accepted.body.data.email,salesEmail);
+  const [[activatedUser]]=await db.query('SELECT name,password FROM user WHERE id=?',[salesUser.insertId]);assert.equal(activatedUser.name,'SaleMaX Business Admin');assert.equal(await bcrypt.compare('Synthetic-Sales-Owner-Password-63',activatedUser.password),true);
+  const [[activatedIdentity]]=await db.query('SELECT i.display_name,i.password_hash,v.status FROM sx_identities i JOIN sx_business_owner_invites v ON v.identity_id=i.id WHERE v.id=?',[setupLink.body.data.id]);assert.equal(activatedIdentity.display_name,'SaleMaX Business Admin');assert.equal(await bcrypt.compare('Synthetic-Sales-Owner-Password-63',activatedIdentity.password_hash),true);assert.equal(activatedIdentity.status,'accepted');
+  const replayActivation=await publicRequest('business-owner/accept',{token:setupLink.body.data.token,name:'Duplicate Activation',password:'Synthetic-Sales-Owner-Password-64'});assert.equal(replayActivation.status,410);assert.equal(replayActivation.body.code,'INVITE_INVALID');
   const legacyPassword='Synthetic-Legacy-Password-61',legacyHash=await bcrypt.hash(legacyPassword,10);
   const [[passwordColumn]]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='password'");if(!passwordColumn)await db.query('ALTER TABLE user ADD COLUMN password VARCHAR(255) NULL');
   await db.query('UPDATE user SET password=? WHERE id=?',[legacyHash,user.insertId]);
@@ -63,6 +88,6 @@ module.exports=async(db,other,{i1},pool)=>{
     const [[storedSession]]=await db.query('SELECT token_hash FROM sx_sessions WHERE id=?',[session.context.sessionId]);
     assert.equal(storedSession.token_hash,crypto.createHash('sha256').update(session.token).digest('hex'));
   }finally{for(const [key,value]of Object.entries(saved)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
-  return {existingBusinessProvisionHttpWorkflow:true,existingUserProvisionedInPlace:true,trainingCategoryAndQatarDefaults:true,publishedPlanAssignedAtomically:true,provisionPreviewStalenessEnforced:true,provisionIdempotency:true,reviewedLegacyOwnerLinkCreated:true,provisioningAudited:true,legacyOwnerLoginCreatesTenantSession:true,legacyPasswordRehashedNotCopied:true,canonicalSessionRetryDoesNotRehash:true,foreignOriginDoesNotCreateTenantSession:true,canonicalSessionTokenOnlyStoredAsHash:true,unauthorizedProvisionDenied:true};
+  return {existingBusinessProvisionHttpWorkflow:true,existingUserProvisionedInPlace:true,trainingCategoryAndQatarDefaults:true,salesOwnerProvisionedInPlace:true,salesTenantIndiaDefaults:true,oneTimeOwnerActivationTokenHashed:true,legacyAndCanonicalOwnerPasswordsActivatedAtomically:true,ownerInviteCannotBeReplayed:true,publishedPlanAssignedAtomically:true,provisionPreviewStalenessEnforced:true,provisionIdempotency:true,reviewedLegacyOwnerLinkCreated:true,provisioningAudited:true,legacyOwnerLoginCreatesTenantSession:true,legacyPasswordRehashedNotCopied:true,canonicalSessionRetryDoesNotRehash:true,foreignOriginDoesNotCreateTenantSession:true,canonicalSessionTokenOnlyStoredAsHash:true,unauthorizedProvisionDenied:true};
   } finally {await new Promise(resolve=>server.close(resolve));}
 };
