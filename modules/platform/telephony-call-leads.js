@@ -30,11 +30,22 @@ async function resolveLeadLink(db,context,leadId){
       WHERE h.tenant_id=? AND h.ended_at IS NULL AND h.${scopeColumn}=?`,[ownerUid,context.tenant.id,context.membership.id]);
     allowedAgentIds=agents.filter(row=>row.legacyUidHash===crypto.createHash('sha256').update(String(row.uid),'utf8').digest('hex')).map(row=>Number(row.id));
   }else if(context.membership.role!=='owner')fail('PERMISSION_DENIED',403);
-  const [leads]=await db.query(`SELECT id,owner_agent_id FROM pipeline_leads
+  const [leads]=await db.query(`SELECT id,owner_agent_id,mobile FROM pipeline_leads
     WHERE uid_hash=? AND id=? LIMIT 1 FOR UPDATE`,[uidHash,leadId]);
   const lead=leads[0];
   if(!lead||(allowedAgentIds!==null&&(!lead.owner_agent_id||!allowedAgentIds.includes(Number(lead.owner_agent_id)))))fail('CALL_LEAD_NOT_ACCESSIBLE',404);
-  return {leadId:lead.id,leadUidHash:uidHash};
+  const destination=String(lead.mobile||'').trim();
+  if(!/^\+[1-9][0-9]{7,14}$/.test(destination))fail('CALL_LEAD_PHONE_INVALID',409);
+  return {leadId:lead.id,leadUidHash:uidHash,destination};
 }
 
-module.exports={resolveLeadLink};
+async function resolveOutboundRecipient(db,context,input){
+  const sales=context?.tenant?.categoryKey==='salemax_sales';
+  if(sales&&!input?.leadId)fail('OUTBOUND_LEAD_REQUIRED',400);
+  const leadLink=input?.leadId?await resolveLeadLink(db,context,input.leadId):null;
+  const destination=sales?leadLink.destination:input?.destination;
+  if(typeof destination!=='string'||!/^\+[1-9][0-9]{7,14}$/.test(destination))fail('INVALID_OUTBOUND_CALL',400);
+  return {leadLink,destination};
+}
+
+module.exports={resolveLeadLink,resolveOutboundRecipient};
