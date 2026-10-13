@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const ar=()=>document.documentElement.dir==='rtl'||[...document.querySelectorAll('h5')].some(node=>node.textContent.trim()==='إدارة المستخدمين');
+  const ar=()=>window.SaleMaxLocale?.isArabic() ?? /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || document.documentElement.lang || 'en');
   const t=(en,arabic)=>ar()?arabic:en;
   const permissions={
     'tenants.read':['View businesses','عرض الأنشطة'],'tenants.create':['Create businesses','إنشاء الأنشطة'],'tenants.manage':['Manage business accounts','إدارة حسابات الأنشطة'],

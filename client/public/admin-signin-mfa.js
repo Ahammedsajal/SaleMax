@@ -7,7 +7,7 @@
   let activeCsrf = '';
   const english = () => {
     const language = String(localStorage.getItem('language') || document.documentElement.lang || 'en').toLowerCase();
-    return !language.startsWith('ar') && language !== 'arabic' && document.documentElement.dir !== 'rtl';
+    return !(window.SaleMaxLocale?.isArabic() ?? /^(ar(?:[-_]|$)|arabic)/i.test(language));
   };
   const tr = (en, ar) => english() ? en : ar;
   const token = () => localStorage.getItem('wacrm_admin') || '';

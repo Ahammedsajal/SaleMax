@@ -2,7 +2,7 @@
   'use strict';
   if (window.__sxAsteriskAdmin) return;
   window.__sxAsteriskAdmin = true;
-  const isArabic=()=>document.documentElement.dir==='rtl'||[...document.querySelectorAll('h5')].some(n=>n.textContent.trim()==='إدارة المستخدمين');
+  const isArabic=()=>window.SaleMaxLocale?.isArabic() ?? /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || document.documentElement.lang || 'en');
   const tr=(en,ar)=>isArabic()?ar:en;
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let checked=false,trigger;

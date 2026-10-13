@@ -2,7 +2,7 @@
   'use strict';
   if (window.__sxAdminTelephony) return;
   window.__sxAdminTelephony = true;
-  const ar=()=>document.documentElement.dir==='rtl';
+  const ar=()=>window.SaleMaxLocale?.isArabic() ?? /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || document.documentElement.lang || 'en');
   const tr=(en,arabic)=>ar()?arabic:en;
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const token=()=>localStorage.getItem('wacrm_admin');

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const arabic = () => document.documentElement.lang?.startsWith('ar') || document.documentElement.dir === 'rtl' || document.querySelector('[dir="rtl"]') !== null || [...document.querySelectorAll('h5')].some(node => node.textContent.trim() === 'إدارة الخطط');
+  const arabic = () => window.SaleMaxLocale?.isArabic() ?? /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || document.documentElement.lang || 'en');
   const text = (en, ar) => arabic() ? ar : en;
   const flags = [['allow_tag','Chat tags','وسوم المحادثة'],['allow_note','Chat notes','ملاحظات المحادثة'],['allow_chatbot','WhatsApp chatbot','روبوت محادثة واتساب'],['allow_api','Cloud API','واجهة Cloud API'],['wa_warmer','WhatsApp Warmer','تهيئة واتساب'],['rest_api_qr','QR REST API','واجهة QR REST API']];
   let editor, hidden = [], previousFocus, requestClose = () => true;

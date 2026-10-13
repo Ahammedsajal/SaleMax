@@ -2,12 +2,12 @@
   'use strict';
   if (window.__sxTrainingSidebar) return;
   window.__sxTrainingSidebar = true;
-  const ar = () => (localStorage.getItem('language') || '').toLowerCase().includes('arab') || document.documentElement.dir === 'rtl';
+  const ar = () => window.SaleMaxLocale?.isArabic() ?? /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || document.documentElement.lang || 'en');
   const tr = (en, arabic) => ar() ? arabic : en;
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261012-test-list-empty1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261013-language-layout1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
@@ -21,7 +21,7 @@
   if (!window.__sxFaqManagerLoader) {
     window.__sxFaqManagerLoader = true;
     const faqStyle = document.createElement('link'); faqStyle.rel = 'stylesheet'; faqStyle.href = '/training-faqs.css?v=20261012-faq-library5'; document.head.append(faqStyle);
-    const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261012-faq-library5'; faqScript.defer = true; document.head.append(faqScript);
+    const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261013-language-layout1'; faqScript.defer = true; document.head.append(faqScript);
   }
   const groups = [
     ['Overview', 'نظرة عامة', ['Dashboard']],

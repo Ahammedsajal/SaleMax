@@ -4,7 +4,7 @@
   window.__sxTrainingFaqs = true;
   const base = '/api/user/chatbots/faqs';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const isAr = () => document.documentElement.dir === 'rtl' || (localStorage.getItem('language') || '').toLowerCase().startsWith('ar');
+  const isAr = () => window.SaleMaxLocale?.isArabic() ?? /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || document.documentElement.lang || 'en');
   const tr = (en, ar) => isAr() ? ar : en;
   const active = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'faqs';
   let items = [], loading = false, errorText = '';
