@@ -6,6 +6,13 @@ PR #65 merged as `130c11bb8654f3c6fa1f4d008c61b0c131de51da`; active release `/op
 
 Authenticated Business Admin, Manager, Team Leader, Agent and Accountant acceptance remains open because the first-party tenant/accounts are not provisioned. Asterisk remains inactive, so genuine call recording and playback remain unverified. Production disk reached 97% used after the build; further image/cache growth requires space review. The complete 42-ticket upgrade remains in progress.
 
+## Commission payout batches — implementation in progress
+
+The existing Accountant commission ledger is being extended to record a single external bank transfer against up to 100 approved commissions in one currency. A batch stores its reference, currency, exact total and item count; linked commission rows and per-item audit events update atomically. The existing single-commission payout API remains compatible and now records a one-item batch. The UI shows a live selection total, prevents selecting mixed currencies, requires a bank reference and states clearly that recording a batch does not initiate a transfer. New migration: `20261205_sales_commission_payout_batches.sql`.
+
+This change is not merged or deployed. A synthetic MariaDB integration scenario now covers multi-row totals, duplicate references, mixed-currency rejection, accountant separation of duties and concurrent payout attempts. It has not been run in this environment. Before release, run it against the disposable loopback-only database, review the additive migration, and complete authenticated Accountant acceptance. Production disk was last observed at 97% used; review space before any image build or migration deployment. The full 42-ticket upgrade remains in progress.
+
+
 ## SaleMaX Sales lead-linked outbound calls — production, 14 October 2026
 
 The existing Pipeline lead detail now opens the existing Call Center with the selected lead. Call Center reads the phone from the authenticated Pipeline API, requires E.164, and links the outbound call to the lead after the server checks tenant and current organization scope. Call history links back to that lead so staff can record the outcome in the existing lead workflow. No parallel CRM or login was introduced.
