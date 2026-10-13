@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 10716)
-Total output lines: 336
-
 'use strict';
 
 require('dotenv').config({quiet:true});
@@ -156,7 +153,27 @@ async function main(){
     const originatedBeforeSpoof=originated.length,foreignGatewayChannel='synthetic-pjsip-foreign-did';
     await assert.rejects(callControl.handle({type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550002'],channel:{id:foreignGatewayChannel,name:`PJSIP/salemax_gw_${tenantGatewayId.replace(/-/g,'')}-0003`}}),{code:'INBOUND_GATEWAY_IDENTITY_MISMATCH'});
     assert.equal(originated.length,originatedBeforeSpoof,'a gateway cannot claim another tenant gateway DID');
-    const [[spoofedCall]]=await db.query('SELECT COUNT(*) AS…716 tokens truncated…ECT COUNT(*) AS total FROM sx_audit_events WHERE resource_type='telephony-endpoint' AND action='telephony.endpoint-credential-accessed'");
+    const [[spoofedCall]]=await db.query('SELECT COUNT(*) AS total FROM sx_telephony_calls WHERE inbound_channel_id=?',[foreignGatewayChannel]);
+    assert.equal(Number(spoofedCall.total),0,'foreign DID events create no tenant call or channel lease');
+    const rotated=await extensions.rotateEndpointCredential(db,tenantContext,{membershipId:ownerMembership,clientType:'browser',expectedCredentialRevision:1});
+    assert.equal(rotated.credentialRevision,2);
+    await assert.rejects(extensions.rotateEndpointCredential(db,tenantContext,{membershipId:ownerMembership,clientType:'browser',expectedCredentialRevision:1}),{code:'STALE_ENDPOINT_CREDENTIAL'});
+    await db.query("UPDATE sx_platform_asterisk_config SET enabled=1,gateway_endpoint_status='online' WHERE id=1");
+    const oldEndpointEnv={key:process.env.SALEMAX_PLATFORM_KEY_BASE64,hosts:process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS,ws:process.env.SALEMAX_ASTERISK_WS_URL,mobile:process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST};
+    process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='crm.example.invalid,sip.example.invalid';process.env.SALEMAX_ASTERISK_WS_URL='wss://crm.example.invalid/ws';process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST='sip.example.invalid';
+    try{
+      const agentEndpointWrites=[];const endpointClientFactory=async()=>({async upsertPjsipObject(type,id,fields){agentEndpointWrites.push({type,id,fields});return{attributes:fields.length};}});
+      const browserCredentials=await asteriskConfig.ownBrowserEndpoint(db,tenantContext,endpointClientFactory),mobileCredentials=await asteriskConfig.ownMobileEndpoint(db,tenantContext,endpointClientFactory);
+      assert.equal(browserCredentials.authorizationUsername,'7401-browser');assert.equal(mobileCredentials.username,'7401-mobile');
+      assert.notEqual(browserCredentials.authorizationPassword,mobileCredentials.password);
+      assert.equal(browserCredentials.authorizationPassword,asteriskSecrets.endpointCredential({tenantId,membershipId:ownerMembership,extension:'7401',clientType:'browser',revision:2}));
+      assert.equal(agentEndpointWrites.length,6,'opening SIP settings applies auth, AOR and endpoint objects for mobile and browser');
+      const [[provisionAudits]]=await db.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE action IN ('telephony.endpoint-provision-requested','telephony.endpoint-provisioned')");
+      assert.equal(Number(provisionAudits.total),4,'each member endpoint apply attempt and success is audited without secrets');
+      const priorWriteCount=agentEndpointWrites.length;
+      await asteriskConfig.ownBrowserEndpoint(db,tenantContext,endpointClientFactory);
+      assert.equal(agentEndpointWrites.length,priorWriteCount,'unchanged browser credentials reuse the provisioned profile without rewriting a live endpoint');
+      const [[credentialAudits]]=await db.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE resource_type='telephony-endpoint' AND action='telephony.endpoint-credential-accessed'");
       assert.equal(Number(credentialAudits.total),4,'admin preview and each member credential read are audited without storing passwords');
     }finally{for(const [name,value] of [['SALEMAX_PLATFORM_KEY_BASE64',oldEndpointEnv.key],['SALEMAX_ASTERISK_ALLOWED_HOSTS',oldEndpointEnv.hosts],['SALEMAX_ASTERISK_WS_URL',oldEndpointEnv.ws],['SALEMAX_ASTERISK_MOBILE_SIP_HOST',oldEndpointEnv.mobile]])if(value===undefined)delete process.env[name];else process.env[name]=value;}
     const statusPassword='synthetic-status-ari-password',statusCredential=asteriskSecrets.encrypt(statusPassword),oldAriHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;
