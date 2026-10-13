@@ -104,4 +104,4 @@ async function main(){
     console.log(JSON.stringify({success:true,migrations:migrations.length,sale:'approved',commissionPolicy:'product-and-role snapshot',commissionRows:commissionList.items.length,payout:'separation enforced',invoice:'issued idempotently',receipt:'recorded idempotently',reconciliation:'partial allocation and reversal',lead:'won',auditEvents:Number(auditCount.n),http:httpEvidence}));
   }finally{await db.end();}
 }
-main().catch(error=>{console.error('Sales workflow integration failed:',error.code||error.message,error.sqlMessage||'');process.exitCode=1;});
+main().catch(error=>{console.error('Sales workflow integration failed:',error.code||error.message,error.sqlMessage||'',error.stack||'');process.exitCode=1;});

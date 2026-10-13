@@ -13,6 +13,14 @@ function assertContext(ctx,permission='sales.finance.read'){
 function parseAmount(value){if((typeof value!=='string'&&typeof value!=='number')||!/^[1-9]\d{0,14}$/.test(String(value)))fail('INVALID_FINANCE_AMOUNT');return String(value);}
 function optional(value,max,code='INVALID_FINANCE_INPUT'){if(value===undefined||value===null||value==='')return null;if(typeof value!=='string'||value.trim().length>max)fail(code);return value.trim();}
 function dateValue(value,{optional:allowEmpty=false}={}){if((value===undefined||value===null||value==='')&&allowEmpty)return null;if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)||Number.isNaN(Date.parse(value+'T00:00:00Z'))||new Date(value+'T00:00:00Z').toISOString().slice(0,10)!==value)fail('INVALID_FINANCE_DATE');return value;}
+function storedDateTimeMillis(value){
+  // MySQL DATETIME has no timezone. mysql2 materializes it as a Date using
+  // the client timezone, so compare its wall-clock fields as UTC to the
+  // normalized UTC instant that was stored.
+  if(value instanceof Date)return Date.UTC(value.getFullYear(),value.getMonth(),value.getDate(),value.getHours(),value.getMinutes(),value.getSeconds(),value.getMilliseconds());
+  if(typeof value==='string')return Date.parse(value.trim().replace(' ','T').replace(/(?:Z|[+-]\d{2}:?\d{2})$/,'')+'Z');
+  return NaN;
+}
 async function audit(db,ctx,action,type,id,reason,changes){await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,reason,changes,correlation_id)
   VALUES (?,?,?,'identity',?,?,?,?,?,?)`,[crypto.randomUUID(),ctx.tenant.id,ctx.identity.id,action,type,id,reason||null,JSON.stringify(changes||{}),crypto.randomUUID()]);}
 function ownerOrAccountant(ctx){if(!['owner','accountant'].includes(ctx.membership.role))fail('PERMISSION_DENIED');}
@@ -48,7 +56,7 @@ async function recordReceipt(db,ctx,input){
   await db.beginTransaction();try{
     const [[tenant]]=await db.query('SELECT id FROM sx_tenants WHERE id=? AND status=\'active\' FOR UPDATE',[ctx.tenant.id]);if(!tenant)fail('CATEGORY_UNAVAILABLE');
     const [[repeat]]=await db.query(`SELECT id,amount_minor AS amountMinor,currency,payment_method AS paymentMethod,external_reference AS externalReference,payer_name AS payerName,received_at AS receivedAt,note,status FROM sx_sales_receipts WHERE tenant_id=? AND idempotency_key=? FOR UPDATE`,[ctx.tenant.id,input.idempotencyKey]);
-    if(repeat){if(String(repeat.amountMinor)!==amount||repeat.currency!==currency||repeat.paymentMethod!==input.paymentMethod||repeat.externalReference!==externalReference||repeat.payerName!==payerName||new Date(repeat.receivedAt).getTime()!==receivedDate.getTime()||repeat.note!==note)fail('IDEMPOTENCY_CONFLICT');await db.commit();return {...repeat,repeated:true};}
+    if(repeat){if(String(repeat.amountMinor)!==amount||repeat.currency!==currency||repeat.paymentMethod!==input.paymentMethod||repeat.externalReference!==externalReference||repeat.payerName!==payerName||storedDateTimeMillis(repeat.receivedAt)!==receivedDate.getTime()||repeat.note!==note)fail('IDEMPOTENCY_CONFLICT');await db.commit();return {...repeat,repeated:true};}
     const id=crypto.randomUUID();await db.query(`INSERT INTO sx_sales_receipts(id,tenant_id,idempotency_key,external_reference,payment_method,payer_name,amount_minor,currency,received_at,note,recorded_by_identity_id)
       VALUES(?,?,?,?,?,?,?,?,?,?,?)`,[id,ctx.tenant.id,input.idempotencyKey,externalReference,input.paymentMethod,payerName,amount,currency,receivedDate.toISOString().slice(0,23).replace('T',' '),note,ctx.identity.id]);
     await audit(db,ctx,'sales.receipt.recorded','sales_receipt',id,null,{externalReference,paymentMethod:input.paymentMethod,amountMinor:amount,currency,receivedAt:receivedDate.toISOString()});
