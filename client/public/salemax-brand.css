@@ -80,6 +80,13 @@
 
 /* Full-width mobile workspaces must not reserve the closed desktop sidebar. */
 @media(max-width:760px){
+  body:has(#salemax-pipeline-workspace),
+  body:has(#salemax-call-center-workspace),
+  body:has(#salemax-commission-policy-workspace),
+  body:has(#salemax-sales-workspace),
+  body:has(#salemax-sales-finance-workspace),
+  body:has(#salemax-sales-organization-workspace),
+  body:has(#salemax-tasks-workspace){overflow:hidden!important}
   #salemax-pipeline-workspace,
   #salemax-call-center-workspace,
   #salemax-commission-policy-workspace,
