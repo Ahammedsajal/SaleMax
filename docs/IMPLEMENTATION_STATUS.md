@@ -1,3 +1,8 @@
+## Sales Overview dashboard — production, 13 October 2026
+
+The existing business panel now includes a role-aware Sales Overview entry point. Owners see business-level pipeline, targets, pending deal reviews, follow-ups and Call Center activity; managers and team leaders see their permitted team scope; agents see their own daily work. The dashboard uses existing APIs and the existing Call Center playback path. Arabic labels and right-to-left layout were corrected in PR #43 after synthetic preview.
+
+PR #42 (`674dde877b2af7e7ec2bdd384eec809997c601f5`) and PR #43 (`e84e362a5634476fc98f93580da336ee33e881d6`) are merged. Current production release: `/opt/salemax/releases/sales-overview-e84e362-20261013`, image `sha256:4781502ca3fe621c3ae6b0d6ae0568d19445d8f90bad57f08932b5fd50ab83a1`; rollback snapshot: `/opt/salemax/shared/rollback-sales-overview-e84e362-20261013`. Focused tests passed 16/16; JavaScript syntax and diff checks passed; synthetic English and Arabic previews passed. Live app health and login routes passed, but role-authenticated acceptance remains open pending internal tenant/account provisioning. Asterisk is inactive, so real recording/playback acceptance remains open. This increment does not complete the full 42-ticket objective.
 # SaleMaX implementation status
 
 ## AI-written Hybrid course replies — production, 11 October 2026
