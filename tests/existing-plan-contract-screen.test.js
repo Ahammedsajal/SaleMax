@@ -54,6 +54,14 @@ test('legacy Manage Users assignment denial offers the reviewed contract flow', 
   assert.match(userPlans, /إنشاء النشاط وتعيين الخطة/);
 });
 
+test('Manage Users links missing SaleMaX Sales contracts to the existing Manage Plans screen', () => {
+  assert.match(shell, /admin-user-plans\.js\?v=20261014-sales-contract-link1/);
+  assert.match(userPlans, /No published SaleMaX Sales contracts are available/);
+  assert.match(userPlans, /Open Manage Plans to publish a SaleMaX Sales contract/);
+  assert.match(userPlans, /href="\/admin\?page=manage-plans"/);
+  assert.match(userPlans, /افتح إدارة الخطط لنشر عقد مبيعات SaleMaX/);
+});
+
 test('Manage Users staff-tree observer avoids rewriting unchanged toggle text', () => {
   assert.match(shell, /admin-user-plans\.js\?v=[^" ]+/);
   assert.match(userPlans, /const toggleText=t\('Staff','الموظفون'\)\+` · \$\{staff\.length\} `\+\(expandedBusinessTeams\.has\(ownerId\)\?'⌃':'⌄'\);if\(toggle\.textContent!==toggleText\)toggle\.textContent=toggleText;/);
