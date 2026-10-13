@@ -1,3 +1,9 @@
+## SaleMaX Sales Accountant legacy route boundary — production, 14 October 2026
+
+The Accountant sidebar is now limited to Sales Finance and Commission Payouts, which contain the requested Finance Overview, Invoices & Collections, Reconciliation, Finance Reports, and payout workflows. The legacy API guard also enforces this finance-only scope for default memberships without custom role profiles, preserving only the identity/bootstrap reads used by the existing `/user` shell.
+
+PR #84 merged as `3c9e31bc2eac7a39efa1497613303df41fba42ad` and is deployed at `/opt/salemax/releases/sales-acct-legacy-3c9e31b-20261014`. Targeted Sales navigation and role checks pass 12/12, and in-image runtime assertions pass. The full suite remains red at 719/742 with 23 failures; see `DEPLOYMENT.md`. No migration or business data changed. Authenticated Accountant acceptance remains open because first-party Sales staff sessions are not provisioned. Disk usage is 98%; the full 42-ticket upgrade remains in progress.
+
 ## SaleMaX Sales Accountant finance-only boundary — production, 14 October 2026
 
 SaleMaX Sales Accountant access now follows the finance-only role definition: Lead Pipeline and Phonebook reads are denied in the category-aware server policy and disappear from generated role navigation, including when assigned navigation requests those entries. Finance, commission payouts and finance-scoped reports remain available. Training Center accountant access to billing-linked leads is unchanged.
