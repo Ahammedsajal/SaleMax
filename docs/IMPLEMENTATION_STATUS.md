@@ -1284,3 +1284,11 @@ Commission payout batches are deployed in the existing `/user` Sales Finance wor
 The 42 focused Sales checks pass, and disposable MariaDB integration validated all 90 migrations plus payout concurrency, totals, mixed currencies, duplicate references, role boundaries and related deal/invoice/receipt/reconciliation workflows. Production health/login/workspace routes and assets return HTTP 200, served assets match the deployed release, and anonymous commission/call APIs return 401. Release image, backup, rollback and verification details are recorded in `DEPLOYMENT.md`.
 
 Authenticated first-party Admin/Accountant browser acceptance remains open because no Sales business session was available. Asterisk remains inactive, so real calls and recording playback are not verified. Production logs also report that the existing CRM account-sync worker cannot find `crm_user_sync_queue`; it is recorded for separate investigation. Disk remains at 97% usage. The full 42-ticket upgrade remains in progress.
+
+## SaleMaX Sales commission breakdown in monthly reports — production, 14 October 2026
+
+The existing monthly Sales report now shows draft, approved and paid commission totals by team member and currency, alongside connected calls, targets and approved sales. Commission fields follow the existing `commissions.read` permission and owner/manager/team-leader/agent scope. CSV export includes the same fields. The report clearly distinguishes the selected sale-approval month from each commission's current status, and the layout uses the shared SaleMaX tokens with sticky headings and horizontal scrolling.
+
+PR #69 merged as `05ecd5c09de8b0fd5feaf07b159140c3c4a5d1c4`; production release `/opt/salemax/releases/sales-report-commissions-05ecd5c-20261014` is healthy. The focused report/navigation suite passes 17/17 and read-only production SQL plans were checked for all four sales roles. No migration or data write occurred. See `DEPLOYMENT.md` for image, hash, rollback and route evidence.
+
+Live authenticated role and CSV acceptance remains open because the first-party Sales tenant/staff sessions are not provisioned. Asterisk remains inactive, so real call/recording playback is unverified. Production startup continues to log the separate missing `crm_user_sync_queue` table warning; disk remains 97% used. The full 42-ticket upgrade remains in progress.
