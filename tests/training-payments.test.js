@@ -8,6 +8,7 @@ function context(role='owner',capabilities=['finance.invoices','finance.payments
 test('manual payment capture validates QAR amounts, method, timestamp and bounded reference',()=>{
   const id=crypto.randomUUID(),requestKey=crypto.randomUUID(),valid={requestKey,method:'bank_transfer',amountMinor:10000,receivedAt:'2026-10-02T10:00:00+03:00',reference:'BANK-001',note:'Counter deposit'};
   const normalized=payments.normalizeRecord(id,valid);assert.equal(normalized.amountMinor,10000);assert.equal(normalized.reference,'BANK-001');assert.equal(normalized.receivedAt.toISOString(),'2026-10-02T07:00:00.000Z');
+  for(const method of ['cash','bank_transfer','fawran','pos','cheque','other'])assert.equal(payments.normalizeRecord(id,{...valid,method}).method,method);
   for(const input of [{...valid,amountMinor:0},{...valid,amountMinor:1.1},{...valid,method:'crypto'},{...valid,receivedAt:'2026-02-30T10:00:00Z'},{...valid,reference:'x'.repeat(201)}])assert.throws(()=>payments.normalizeRecord(id,input));
 });
 test('payment review role gate admits owners and accountants while rejecting other roles',()=>{
@@ -27,6 +28,7 @@ test('manual payments and receipts use the existing bilingual Finance screen and
   const router=read('modules/platform/training-finance-router.js'),ui=read('client/public/training-finance.js'),service=read('modules/platform/training-payments.js');
   assert.match(router,/accountant\/payments\/pending/);assert.match(router,/payments\/pending/);assert.match(router,/payments\.verify/);assert.match(router,/payments\.receipt/);
   assert.match(ui,/Record payment/);assert.match(ui,/Verify and issue receipt/);assert.match(ui,/Receipt/);assert.match(ui,/data-print-receipt/);assert.match(ui,/renderReceiptPrint/);assert.match(ui,/Print \/ Save receipt as PDF/);assert.match(service,/businessIdentity/);assert.match(service,/legal_name_snapshot/);
+  assert.match(ui,/Fawran/);assert.match(ui,/POS terminal/);assert.match(ui,/data-proof-field/);assert.match(router,/payments\/:paymentId\/proof/);assert.match(ui,/View transfer proof/);
   assert.match(read('docs/API_DOCUMENTATION.md'),/Manual payment recording, verification and receipts/);
   assert.match(read('docs/USER_MANUAL.md'),/Record and verify a manual payment/);
 });

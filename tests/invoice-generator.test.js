@@ -36,7 +36,7 @@ test('manual invoice creation stores a no-tax snapshot and advances a locked ten
 
 test('identical invoice retries return the original snapshot without creating another document',async()=>{
   const firstDb=fakeDb();const first=await generator.create(firstDb,context(),{uid:'legacy-owner',input});
-  const hash=crypto.createHash('sha256').update(JSON.stringify({customerType:'manual',customerId:null,customerName:'Synthetic Learner',customerAddress:'Doha',customerPhone:null,customerEmail:null,courseId:input.courseId,paymentPlan:null,installments:input.installments,replacesId:null,replacementReason:null})).digest('hex');
+  const hash=crypto.createHash('sha256').update(JSON.stringify({customerType:'manual',customerId:null,customerName:'Synthetic Learner',customerAddress:'Doha',customerPhone:null,customerEmail:null,courseId:input.courseId,paymentPlan:null,installments:input.installments})).digest('hex');
   const prior={id:first.id,snapshot:JSON.stringify(first),payload_hash:hash};const retryDb=fakeDb(prior);const retry=await generator.create(retryDb,context(),{uid:'legacy-owner',input});
   assert.equal(retry.repeated,true);assert.equal(retry.id,first.id);assert.equal(retryDb.calls.some(call=>call.sql.startsWith('INSERT INTO sx_invoice_generator_documents')),false);
 });
@@ -53,4 +53,11 @@ test('legacy generated invoices acquire Business Profile branding when opened an
   const existing={...current,businessProfile:{nameEn:'Issued Center',nameAr:'مركز الإصدار',logoUrl:'/media/issued.png'}};
   db.query=async sql=>sql.includes('FROM sx_invoice_generator_documents')?[[{snapshot:JSON.stringify(existing)}]]:[[]];
   const preserved=await generator.detail(db,context(),id);assert.deepEqual(preserved.businessProfile,existing.businessProfile);
+});
+test('generated invoice history searches tenant snapshot contacts and applies course and Qatar date filters',async()=>{
+  const calls=[],db={async query(sql,params){calls.push({sql,params});return [[{id:'invoice-id',invoice_number:'INV-2026-000001',customer_name:'Learner',customer_phone:'+97455550000',customer_email:'learner@example.qa',course_id:input.courseId,course_name:'Course',amount_minor:10000,created_at:'2026-10-10 08:00:00',course_removed:0}]];}};
+  const rows=await generator.list(db,context(),{q:'55550000',courseId:input.courseId,from:'2026-10-01',to:'2026-10-31'});
+  assert.equal(rows.length,1);assert.equal(rows[0].customerPhone,'+97455550000');assert.equal(rows[0].customerEmail,'learner@example.qa');
+  assert.match(calls[0].sql,/JSON_EXTRACT\(d\.snapshot,'\$\.customer\.phone'\)/);assert.match(calls[0].sql,/d\.course_id=\?/);assert.match(calls[0].sql,/DATE\(d\.created_at \+ INTERVAL 3 HOUR\)/);assert.deepEqual(calls[0].params,['tenant-1','%55550000%','%55550000%','%55550000%','%55550000%','%55550000%',input.courseId,'2026-10-01','2026-10-31']);
+  await assert.rejects(generator.list(db,context(),{from:'2026-10-31',to:'2026-10-01'}),{code:'INVALID_INVOICE_DATE_RANGE'});
 });

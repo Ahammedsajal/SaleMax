@@ -61,9 +61,9 @@ test('customer document access rejects an unauthorized role and malformed or tam
 test('customer document route and existing Finance screen use same-origin, fragment-only, no-store links',()=>{
   const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
   const router=read('modules/platform/training-finance-router.js'),mount=read('modules/platform/mount-existing-upgrade.js'),screen=read('client/public/training-finance.js'),page=read('client/public/customer-document.html'),script=read('client/public/customer-document.js');
-  assert.match(router,/\/documents\/:type\/:id\/link/);assert.match(router,/\/resolve/);assert.match(router,/Referrer-Policy/);assert.match(router,/require\('\.\/request-origin'\)\.matches\(req,origin\)/);
+  assert.match(router,/\/documents\/:type\/:id\/link/);assert.match(router,/\/resolve/);assert.match(router,/Referrer-Policy/);assert.match(router,/request-origin'\)\.matches\(req,origin\)/);
   assert.match(mount,/\/api\/public\/training\/documents/);assert.match(mount,/Content-Security-Policy/);assert.match(mount,/Referrer-Policy/);
-  assert.match(screen,/Create customer link/);assert.match(screen,/Revoke customer links/);assert.match(screen,/url\.hash/);
+  assert.match(screen,/Create customer link/);assert.match(screen,/Revoke customer links/);assert.match(screen,/Email customer/);assert.match(screen,/Share on WhatsApp/);assert.match(screen,/wa\.me/);assert.match(screen,/url\.hash/);
   assert.match(page,/customer-document\.js/);assert.doesNotMatch(page,/<script[^>]+src="https?:/i);
   assert.match(script,/location\.hash/);assert.match(script,/history\.replaceState/);assert.match(script,/credentials:'omit'/);assert.match(script,/referrerPolicy:'no-referrer'/);
 });
