@@ -22,7 +22,7 @@
     if(!response.ok||!result.success)throw Object.assign(new Error(result.code||'CALL_CENTER_UNAVAILABLE'),{code:result.code||'CALL_CENTER_UNAVAILABLE',status:response.status});
     return result.data;
   }
-  const roleLabel=role=>({owner:text('Owner','المالك'),manager:text('Manager','المدير'),agent:text('Agent','الوكيل')}[role]||role);
+  const roleLabel=role=>({owner:text('Owner','المالك'),manager:text('Manager','المدير'),team_leader:text('Team Leader','قائد الفريق'),agent:text('Agent','الوكيل')}[role]||role);
   function renderExtensions(items){
     const section=node('extensionsSection'),host=node('extensionList');section.hidden=false;host.replaceChildren();
     if(!items.length){const empty=document.createElement('p');empty.className='extension-state';empty.textContent=text('No active calling team members are available.','لا يوجد أعضاء فريق نشطون متاحون للمكالمات.');host.append(empty);return;}
@@ -95,6 +95,50 @@
       const state=document.createElement('span');state.className='call-status';const labels={ringing:text('Ringing','يرن'),connected:text('Connected','متصل'),ended:text('Ended','انتهت'),failed:text('Failed','فشلت')};state.textContent=labels[call.status]||call.status;
       row.append(main,state);
       if(call.canListenRecording){const listen=document.createElement('button');listen.type='button';listen.className='recording-play';listen.textContent=text('Listen to recording','استمع إلى التسجيل');listen.addEventListener('click',()=>playRecording(call.callId,listen,row));row.append(listen);}
+      if(call.canCoach||call.canViewCoaching){
+        const review=document.createElement('details');review.className='call-coaching';
+        const summary=document.createElement('summary');summary.textContent=text('Call coaching','مراجعة المكالمة');review.append(summary);
+        const content=document.createElement('div');content.className='call-coaching-content';content.textContent=text('Open to review coaching notes.','افتح لمراجعة ملاحظات التوجيه.');review.append(content);
+        let loaded=false;
+        review.addEventListener('toggle',async()=>{
+          if(!review.open||loaded)return;loaded=true;content.textContent=text('Loading coaching notes…','جارٍ تحميل ملاحظات التوجيه…');
+          try{
+            const data=await request(`/calls/${encodeURIComponent(call.callId)}/coaching`);content.replaceChildren();
+            const notes=data.items||[];
+            if(!notes.length){const empty=document.createElement('p');empty.className='call-empty';empty.textContent=text('No coaching notes yet.','لا توجد ملاحظات توجيه بعد.');content.append(empty);}
+            for(const note of notes){
+              const article=document.createElement('article');article.className='coaching-note';
+              const heading=document.createElement('strong');heading.textContent=`${note.agentName} · ${({effective:text('Effective','فعّال'),needs_improvement:text('Needs improvement','يحتاج إلى تحسين'),follow_up_required:text('Follow-up required','يتطلب متابعة')})[note.quality]||note.quality}`;
+              const author=document.createElement('small');author.textContent=`${text('Coach','المدرّب')}: ${note.coachName} · ${new Date(note.createdAt).toLocaleString(isArabic()?'ar-QA':'en-QA',{timeZone:'Asia/Kolkata'})}`;
+              const feedback=document.createElement('p');feedback.textContent=note.feedback;
+              article.append(heading,author,feedback);
+              if(note.nextAction){const action=document.createElement('p');action.className='coaching-action';action.textContent=`${text('Next action','الإجراء التالي')}: ${note.nextAction}`;article.append(action);}
+              content.append(article);
+            }
+            if(call.canCoach){
+              const form=document.createElement('form');form.className='coaching-form';
+              const agentLabel=document.createElement('label');agentLabel.textContent=text('Agent on this call','الوكيل في هذه المكالمة');const agent=document.createElement('select');agent.name='agentMembershipId';agent.required=true;
+              const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent=text('Select agent','اختر الوكيل');agent.append(placeholder);
+              for(const person of data.agents||[]){const option=document.createElement('option');option.value=person.membershipId;option.textContent=person.displayName;agent.append(option);}agentLabel.append(agent);
+              const qualityLabel=document.createElement('label');qualityLabel.textContent=text('Review result','نتيجة المراجعة');const quality=document.createElement('select');quality.name='quality';quality.required=true;
+              for(const [value,en,ar] of [['effective','Effective','فعّال'],['needs_improvement','Needs improvement','يحتاج إلى تحسين'],['follow_up_required','Follow-up required','يتطلب متابعة']]){const option=document.createElement('option');option.value=value;option.textContent=text(en,ar);quality.append(option);}qualityLabel.append(quality);
+              const feedbackLabel=document.createElement('label');feedbackLabel.textContent=text('Coaching feedback','ملاحظات التوجيه');const feedback=document.createElement('textarea');feedback.name='feedback';feedback.minLength=5;feedback.maxLength=3000;feedback.required=true;feedback.rows=3;feedbackLabel.append(feedback);
+              const nextLabel=document.createElement('label');nextLabel.textContent=text('Next action (optional)','الإجراء التالي (اختياري)');const next=document.createElement('input');next.name='nextAction';next.maxLength=500;nextLabel.append(next);
+              const visibilityLabel=document.createElement('label');visibilityLabel.className='coaching-visibility';const visible=document.createElement('input');visible.type='checkbox';visible.name='visibleToAgent';visible.checked=true;const visibleText=document.createElement('span');visibleText.textContent=text('Share this feedback with the agent','مشاركة هذه الملاحظات مع الوكيل');visibilityLabel.append(visible,visibleText);
+              const save=document.createElement('button');save.type='submit';save.textContent=text('Save coaching note','حفظ ملاحظة التوجيه');const state=document.createElement('small');state.setAttribute('role','status');state.setAttribute('aria-live','polite');
+              form.append(agentLabel,qualityLabel,feedbackLabel,nextLabel,visibilityLabel,save,state);
+              form.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;state.textContent=text('Saving…','جارٍ الحفظ…');try{const saved=await request(`/calls/${encodeURIComponent(call.callId)}/coaching`,'POST',{agentMembershipId:agent.value,quality:quality.value,feedback:feedback.value,nextAction:next.value,visibleToAgent:visible.checked});
+                const article=document.createElement('article');article.className='coaching-note';const heading=document.createElement('strong');heading.textContent=`${agent.options[agent.selectedIndex]?.textContent||''} · ${({effective:text('Effective','فعّال'),needs_improvement:text('Needs improvement','يحتاج إلى تحسين'),follow_up_required:text('Follow-up required','يتطلب متابعة')})[saved.quality]||saved.quality}`;
+                const author=document.createElement('small');author.textContent=`${text('Coach','المدرّب')}: ${text('You','أنت')} · ${new Date(saved.createdAt).toLocaleString(isArabic()?'ar-QA':'en-QA',{timeZone:'Asia/Kolkata'})}`;
+                const noteText=document.createElement('p');noteText.textContent=saved.feedback;article.append(heading,author,noteText);if(saved.nextAction){const action=document.createElement('p');action.className='coaching-action';action.textContent=`${text('Next action','الإجراء التالي')}: ${saved.nextAction}`;article.append(action);}content.insertBefore(article,form);form.reset();visible.checked=true;state.textContent=text('Coaching note saved.','تم حفظ ملاحظة التوجيه.');
+              }catch(error){state.textContent=error.code==='PERMISSION_DENIED'?text('You cannot add coaching notes for this call.','لا يمكنك إضافة ملاحظات توجيه لهذه المكالمة.'):text('Could not save the note. Refresh and check team access.','تعذر حفظ الملاحظة. حدّث الصفحة وتحقق من صلاحية الفريق.');}finally{save.disabled=false;}});
+              if(!(data.agents||[]).length){agent.disabled=true;save.disabled=true;state.textContent=text('No active in-scope agent participated in this call.','لم يشارك وكيل نشط ضمن نطاقك في هذه المكالمة.');}
+              content.append(form);
+            }
+          }catch(error){loaded=false;content.textContent=error.code==='PERMISSION_DENIED'?text('You cannot review coaching for this call.','لا يمكنك مراجعة التوجيه لهذه المكالمة.'):text('Coaching notes are unavailable. Refresh and try again.','ملاحظات التوجيه غير متاحة. حدّث الصفحة وحاول مجددًا.');}
+        });
+        row.append(review);
+      }
       if(call.canControl&&['ringing','connected'].includes(call.status)){
         const end=document.createElement('button');end.type='button';end.className='call-end';end.textContent=text('End call','إنهاء المكالمة');end.setAttribute('aria-label',text('End this call','إنهاء هذه المكالمة'));
         end.addEventListener('click',async()=>{end.disabled=true;end.textContent=text('Ending…','جارٍ الإنهاء…');try{await request(`/calls/${encodeURIComponent(call.callId)}/end`,'POST',{});await loadCalls();}catch(error){end.disabled=false;end.textContent=text('Retry ending call','إعادة محاولة إنهاء المكالمة');end.title=error.code==='PERMISSION_DENIED'?text('You cannot control this call.','لا يمكنك التحكم بهذه المكالمة.'):text('Asterisk could not confirm call termination. Retry or ask your administrator.','تعذر على أستريسك تأكيد إنهاء المكالمة. أعد المحاولة أو تواصل مع المسؤول.');}});
