@@ -124,16 +124,27 @@ async function decide(db,ctx,id,input){
 async function listCommissions(db,ctx,{status='all',limit=100}={}){
   assertCategory(ctx);const access=decision(ctx,{capability:'sales.commissions',permission:'commissions.read'});if(!access.allowed)fail(access.code);
   if(!['all','draft','approved','paid','void'].includes(status))fail('INVALID_COMMISSION_FILTER');limit=Math.max(1,Math.min(200,Number(limit)||100));
-  let scope='',args=[ctx.tenant.id];if(ctx.membership.role==='manager'){scope=' AND d.manager_membership_id=?';args.push(ctx.membership.id);}else if(ctx.membership.role==='team_leader'){scope=' AND d.team_leader_membership_id=?';args.push(ctx.membership.id);}else if(ctx.membership.role==='agent'){scope=' AND c.recipient_membership_id=?';args.push(ctx.membership.id);}
+  let scope='',scopeArgs=[ctx.tenant.id];if(ctx.membership.role==='manager'){scope=' AND d.manager_membership_id=?';scopeArgs.push(ctx.membership.id);}else if(ctx.membership.role==='team_leader'){scope=' AND d.team_leader_membership_id=?';scopeArgs.push(ctx.membership.id);}else if(ctx.membership.role==='agent'){scope=' AND c.recipient_membership_id=?';scopeArgs.push(ctx.membership.id);}
+  const args=[...scopeArgs];
   let state='';if(status!=='all'){state=' AND c.status=?';args.push(status);}args.push(limit);
   const [items]=await db.query(`SELECT c.id,c.deal_id AS dealId,d.product_id AS productId,d.product_name_snapshot AS productName,d.lead_id AS leadId,
-      c.recipient_membership_id AS recipientMembershipId,c.recipient_role AS recipientRole,c.rate_bps AS rateBps,c.basis_amount_minor AS basisAmountMinor,
+      c.recipient_membership_id AS recipientMembershipId,ri.display_name AS recipientName,c.recipient_role AS recipientRole,c.rate_bps AS rateBps,c.basis_amount_minor AS basisAmountMinor,
       c.amount_minor AS amountMinor,c.currency,c.status,c.approved_by_identity_id AS approvedByIdentityId,c.approved_at AS approvedAt,
       c.paid_by_identity_id AS paidByIdentityId,c.paid_at AS paidAt,c.payout_reference AS payoutReference,c.payout_batch_id AS payoutBatchId,p.version AS policyVersion
     FROM sx_sales_commissions c JOIN sx_sales_deals d ON d.tenant_id=c.tenant_id AND d.id=c.deal_id
     JOIN sx_sales_commission_policies p ON p.tenant_id=c.tenant_id AND p.id=c.policy_id
+    JOIN sx_memberships rm ON rm.tenant_id=c.tenant_id AND rm.id=c.recipient_membership_id
+    JOIN sx_identities ri ON ri.id=rm.identity_id
     WHERE c.tenant_id=?${scope}${state} ORDER BY (c.status='draft') DESC,c.paid_at DESC,c.id DESC LIMIT ?`,args);
-  return {items,permissions:{canApprove:ctx.membership.role==='accountant',canPay:ctx.membership.role==='accountant'}};
+  const [summaryByCurrency]=await db.query(`SELECT c.currency,
+      COALESCE(SUM(CASE WHEN c.status='draft' THEN c.amount_minor ELSE 0 END),0) AS draftMinor,
+      COALESCE(SUM(CASE WHEN c.status='approved' THEN c.amount_minor ELSE 0 END),0) AS approvedMinor,
+      COALESCE(SUM(CASE WHEN c.status='paid' THEN c.amount_minor ELSE 0 END),0) AS paidMinor,
+      SUM(c.status='draft') AS draftCount,SUM(c.status='approved') AS approvedCount,
+      SUM(c.status='paid') AS paidCount,SUM(c.status='void') AS voidCount
+    FROM sx_sales_commissions c JOIN sx_sales_deals d ON d.tenant_id=c.tenant_id AND d.id=c.deal_id
+    WHERE c.tenant_id=?${scope} GROUP BY c.currency ORDER BY c.currency`,scopeArgs);
+  return {items,summaryByCurrency,permissions:{canApprove:ctx.membership.role==='accountant',canPay:ctx.membership.role==='accountant'}};
 }
 async function commissionAction(db,ctx,id,action,input={}){
   if(action==='pay'){const batch=await createCommissionPayoutBatch(db,ctx,{commissionIds:[id],reference:input.reference});return {id,status:'paid',payoutBatchId:batch.id,reference:batch.reference,currency:batch.currency,totalMinor:batch.totalMinor,commissionCount:batch.commissionCount};}
