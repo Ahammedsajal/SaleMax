@@ -77,3 +77,14 @@
   #root .MuiDataGrid-root:has(.MuiDataGrid-columnHeader[data-field="phonebook_name"]) .MuiDataGrid-row{width:1140px!important;min-width:1140px!important}
 }
 @media(max-width:760px){#sx-finance-screen #sx-generator-plans .sx-invoice-plan{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#sx-finance-screen #sx-generator-plans .sx-invoice-plan>label:first-child{grid-column:1/-1}#sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{grid-column:1/-1;justify-self:end;min-width:96px;min-height:40px}#sx-finance-screen #sx-generator-settings>#sx-generator-add-plan,#sx-finance-screen #sx-generator-settings>button.primary{grid-column:1/-1;justify-self:stretch;width:100%;min-height:44px}#sx-finance-screen #sx-aging-filter label:has(input[name="q"]){flex:1 0 100%;min-width:0}#sx-finance-screen #sx-aging-filter label:has(input[name="q"]) input{width:100%}}
+
+/* Full-width mobile workspaces must not reserve the closed desktop sidebar. */
+@media(max-width:760px){
+  #salemax-pipeline-workspace,
+  #salemax-call-center-workspace,
+  #salemax-commission-policy-workspace,
+  #salemax-sales-workspace,
+  #salemax-sales-finance-workspace,
+  #salemax-sales-organization-workspace,
+  #salemax-tasks-workspace{left:0!important;width:100vw!important;max-width:100vw!important}
+}

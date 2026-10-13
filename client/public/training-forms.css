@@ -215,6 +215,9 @@
  #sx-forms-screen .sx-app-detail-actions button{flex:1}
  #sx-forms-screen .sx-app-detail-data>div{grid-template-columns:1fr;gap:4px}
 }
+@media(max-width:720px){
+ #sx-forms-screen .sx-form-page-heading #sx-form-exit{flex:0 0 auto;width:100%;min-height:44px}
+}
 @media print{
  body.sx-print-app>:not(.sx-app-detail){display:none!important}
  body.sx-print-app .sx-app-detail{position:static;display:block;inset:auto;padding:0;background:white;color:#111}
