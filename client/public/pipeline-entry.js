@@ -163,8 +163,8 @@
     const drawer=[...document.querySelectorAll('.MuiDrawer-paper')].find(visible);
     const topbar=[...document.querySelectorAll('.MuiBox-root')].filter(el=>{const r=el.getBoundingClientRect();return visible(el)&&r.y<=5&&r.height>=30&&r.height<100&&r.width>window.innerWidth*.5;}).sort((a,b)=>a.getBoundingClientRect().height-b.getBoundingClientRect().height)[0];
     const drawerRect=drawer?.getBoundingClientRect(),topRect=topbar?.getBoundingClientRect(),left=Math.max(0,drawerRect?.right||260),top=Math.max(0,topRect?.bottom||60);
-    const section=['commissions','targets'].includes(new URLSearchParams(location.search).get('section'))?new URLSearchParams(location.search).get('section'):'deals';
-    const labels={deals:['صفقات المبيعات','Sales Deals'],targets:['الأهداف والأداء','Targets & Performance'],commissions:['العمولات والمدفوعات','Commissions & Payouts']};
+    const requestedSection=new URLSearchParams(location.search).get('section'),section=['overview','deals','commissions','targets'].includes(requestedSection)?requestedSection:'overview';
+    const labels={overview:['نظرة عامة على المبيعات','Sales Overview'],deals:['صفقات المبيعات','Sales Deals'],targets:['الأهداف والأداء','Targets & Performance'],commissions:['العمولات والمدفوعات','Commissions & Payouts']};
     if(topbar){const crumb=[...topbar.querySelectorAll('*')].find(el=>el.childElementCount===0&&['Dashboard','لوحة التحكم'].includes((el.textContent||'').trim()));if(crumb)crumb.textContent=isArabic()?labels[section][0]:labels[section][1];}
     const expected='/sales-workspace/?embed=1&section='+section;
     let frame=existing;if(!frame){frame=document.createElement('iframe');frame.id='salemax-sales-workspace';frame.title=isArabic()?labels[section][0]:labels[section][1];frame.src=expected;frame.style.cssText='position:fixed;z-index:1100;border:0;background:#f5f7fa;display:block;';document.body.append(frame);}else if(frame.getAttribute('src')!==expected)frame.src=expected;
