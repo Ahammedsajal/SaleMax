@@ -129,6 +129,7 @@
   `;
   document.head.append(style);
   const observed = new WeakSet();
+  const sidebarExpandedOverride = new WeakMap();
   const resizeObserver = new ResizeObserver(schedule);
   function label(row) {
     const spans = [...row.querySelectorAll('.MuiListItemText-primary span')];
@@ -258,7 +259,8 @@
       if (!list) return;
       syncInjectedRows(list);
       list.dataset.sxSidebarList = '1';
-      const collapsed = drawer.getBoundingClientRect().width < 110;
+      const expanded = sidebarExpandedOverride.get(drawer);
+      const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === 'SaleMaX' && !p.closest('ul'));
       const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
@@ -342,10 +344,19 @@
     if (!button) return;
     const action = [button.getAttribute('aria-label'), button.getAttribute('title'), button.textContent]
       .filter(Boolean).join(' ').trim();
+    const drawer = button.closest('.MuiDrawer-paper');
     if (/\bexpand\b/i.test(action)) {
-      // The collapsed CSS pins the measured paper to 72px. Remove that state
-      // before React handles Expand so ResizeObserver can see the new width.
-      button.closest('.MuiDrawer-paper')?.removeAttribute('data-sx-sidebar-collapsed');
+      // The collapsed CSS pins the paper to 72px; keep explicit state so the
+      // resize observer cannot infer the old width and collapse it again.
+      if (drawer) sidebarExpandedOverride.set(drawer, true);
+      drawer?.removeAttribute('data-sx-sidebar-collapsed');
+      return;
+    }
+    const buttonRect = button.getBoundingClientRect();
+    const drawerRect = drawer?.getBoundingClientRect();
+    if (drawerRect && buttonRect.top < drawerRect.top + 64 && buttonRect.right > drawerRect.right - 60) {
+      sidebarExpandedOverride.set(drawer, false);
+      drawer.setAttribute('data-sx-sidebar-collapsed', '');
     }
   }, true);
   function clearSidebarSearch(drawer) {
@@ -363,7 +374,14 @@
     if (active === 'agent-login' && !agentLoginSearchResetForRoute) {
       const drawers = [...document.querySelectorAll('.MuiDrawer-paper')];
       if (!drawers.some(drawer => drawer.querySelector('input'))) return;
-      drawers.forEach(clearSidebarSearch);
+      drawers.forEach(drawer => {
+        const input = drawer.querySelector('input');
+        if (input) {
+          input.setAttribute('autocomplete', 'off');
+          input.setAttribute('name', 'salemax-menu-search');
+        }
+        clearSidebarSearch(drawer);
+      });
       agentLoginSearchResetForRoute = true;
     } else if (active !== 'agent-login') {
       agentLoginSearchResetForRoute = false;
@@ -375,7 +393,14 @@
     const title = button.querySelector('.MuiListItemText-primary')?.textContent?.trim() || button.textContent.trim();
     const name = aliases[title] || window.salemaxSidebarAliases?.[title] || title;
     if (name === 'Agent Login') {
-      document.querySelectorAll('.MuiDrawer-paper').forEach(clearSidebarSearch);
+      document.querySelectorAll('.MuiDrawer-paper').forEach(drawer => {
+        const input = drawer.querySelector('input');
+        if (input) {
+          input.setAttribute('autocomplete', 'off');
+          input.setAttribute('name', 'salemax-menu-search');
+        }
+        clearSidebarSearch(drawer);
+      });
     }
   }, true);
   // Observe permission flags too: restoring a feature must restore its group heading.
