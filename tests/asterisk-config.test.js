@@ -243,8 +243,8 @@ test('Call Center status reports call readiness only with live Asterisk and endp
   assert.match(client,/node\('outgoingSection'\)\.hidden=true/);
   assert.match(client,/node\('extensionsSection'\)\.hidden=true/);
   assert.match(client,/node\('queuesSection'\)\.hidden=true/);
-  assert.match(page,/call-center\.js\?v=20261012-entitlement-hide1/);
-  assert.match(page,/call-center\.css\?v=20261005-call-control1/);
+  assert.match(page,/call-center\.js\?v=20261013-call-recordings1/);
+  assert.match(page,/call-center\.css\?v=20261013-call-recordings1/);
 });
 
 test('Call Center queue UI exposes only the ring behavior implemented by the ARI caller', () => {

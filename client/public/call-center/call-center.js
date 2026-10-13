@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 10226)
+Total output lines: 222
+
 (() => {
   'use strict';
   const isArabic=()=>{const value=(localStorage.getItem('language')||'').toLowerCase();return value==='ar'||value.includes('arab');};
@@ -94,6 +97,7 @@
       meta.textContent=`${started}${started?' · ':''}${text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`)}`;main.append(title,meta);
       const state=document.createElement('span');state.className='call-status';const labels={ringing:text('Ringing','يرن'),connected:text('Connected','متصل'),ended:text('Ended','انتهت'),failed:text('Failed','فشلت')};state.textContent=labels[call.status]||call.status;
       row.append(main,state);
+      if(call.canListenRecording){const listen=document.createElement('button');listen.type='button';listen.className='recording-play';listen.textContent=text('Listen to recording','استمع إلى التسجيل');listen.addEventListener('click',()=>playRecording(call.callId,listen,row));row.append(listen);}
       if(call.canControl&&['ringing','connected'].includes(call.status)){
         const end=document.createElement('button');end.type='button';end.className='call-end';end.textContent=text('End call','إنهاء المكالمة');end.setAttribute('aria-label',text('End this call','إنهاء هذه المكالمة'));
         end.addEventListener('click',async()=>{end.disabled=true;end.textContent=text('Ending…','جارٍ الإنهاء…');try{await request(`/calls/${encodeURIComponent(call.callId)}/end`,'POST',{});await loadCalls();}catch(error){end.disabled=false;end.textContent=text('Retry ending call','إعادة محاولة إنهاء المكالمة');end.title=error.code==='PERMISSION_DENIED'?text('You cannot control this call.','لا يمكنك التحكم بهذه المكالمة.'):text('Asterisk could not confirm call termination. Retry or ask your administrator.','تعذر على أستريسك تأكيد إنهاء المكالمة. أعد المحاولة أو تواصل مع المسؤول.');}});
@@ -107,6 +111,28 @@
     try{const data=await request('/calls');renderCalls(data.items||[]);}
     catch(error){host.textContent=error.code==='FEATURE_UNAVAILABLE'?text('Call Center is not included in this plan.','مركز الاتصال غير مشمول في هذه الخطة.'):text('Call list is unavailable. Confirm the telephony migration and access permissions.','قائمة المكالمات غير متاحة. تحقق من ترحيل الاتصالات وصلاحيات الوصول.');}
   }
+  async function playRecording(callId,button,row){
+    button.disabled=true;button.textContent=text('Loading recording…','جارٍ تحميل التسجيل…');
+    try{
+      const token=bearer(),headers={Accept:'audio/wav',...(token?{Authorization:'Bearer '+token}:{})};
+      const response=await fetch(`/api/user/call-center/calls/${encodeURIComponent(callId)}/recording`,{credentials:'same-origin',headers});
+      if(!response.ok){let body={};try{body=await response.json();}catch(_){}throw Object.assign(new Error(body.code||'RECORDING_UNAVAILABLE'),{code:body.code||'RECORDING_UNAVAILABLE'});}
+      const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.setAttribute('aria-label',text('Call recording playback','تشغيل تسجيل المكالمة'));
+      const url=URL.createObjectURL(await response.blob());audio.src=url;audio.addEventListener('ended',()=>URL.revokeObjectURL(url),{once:true});audio.addEventListener('error',()=>URL.revokeObjectURL(url),{once:true});
+      row.querySelector('audio')?.remove();row.append(audio);button.textContent=text('Recording ready','التسجيل جاهز');
+    }catch(error){button.disabled=false;button.textContent=error.code==='PER…226 tokens truncated…cordingPolicyState').textContent=policy.enabled?text(`Recording is enabled · retain for ${policy.retentionDays} days.`,`التسجيل مفعّل · الاحتفاظ لمدة ${policy.retentionDays} يومًا.`):text('Recording is off. No calls are being recorded.','التسجيل متوقف. لا يتم تسجيل المكالمات.');
+    }catch(error){if(error.code==='PERMISSION_DENIED'||error.code==='CATEGORY_UNAVAILABLE')return;node('recordingPolicyState').textContent=text('Recording policy is unavailable. Confirm the latest telephony migration is installed.','سياسة التسجيل غير متاحة. تحقق من تثبيت أحدث ترحيل للاتصالات.');}
+  }
+  node('saveRecordingPolicy').addEventListener('click',async()=>{
+    const button=node('saveRecordingPolicy'),state=node('recordingPolicyState');button.disabled=true;state.textContent=text('Saving policy…','جارٍ حفظ السياسة…');
+    const raw=node('recordingRetentionDays').value.trim();
+    try{
+      const saved=await request('/recording-policy','PUT',{enabled:node('recordingEnabled').checked,noticeConfirmed:node('recordingNoticeConfirmed').checked,
+        retentionDays:raw?Number(raw):null,expectedRevision:Number(node('recordingPolicySection').dataset.revision||0)});
+      node('recordingPolicySection').dataset.revision=String(saved.revision);state.textContent=saved.enabled?text(`Recording enabled · retain for ${saved.retentionDays} days.`,`تم تفعيل التسجيل · الاحتفاظ لمدة ${saved.retentionDays} يومًا.`):text('Recording is off.','التسجيل متوقف.');
+    }catch(error){state.textContent=error.code==='RECORDING_POLICY_PREREQUISITES_REQUIRED'?text('Confirm the notice and choose a retention period before enabling recordings.','أكّد الإشعار وحدد مدة الاحتفاظ قبل تفعيل التسجيلات.'):error.code==='STALE_RECORDING_POLICY'?text('Policy changed in another session. Refresh and try again.','تغيرت السياسة في جلسة أخرى. حدّث الصفحة وحاول مجددًا.'):text('Could not save the recording policy.','تعذر حفظ سياسة التسجيل.');}
+    finally{button.disabled=false;}
+  });
   async function refresh(){
     const button=node('refresh');button.disabled=true;notice('',text('Loading telephony status…','جارٍ تحميل حالة الاتصالات…'));
     try{
@@ -115,6 +141,7 @@
       if(!response.ok||!result.success){const code=result.code||'CALL_CENTER_UNAVAILABLE';throw Object.assign(new Error(code),{code,status:response.status});}
       const data=result.data||{};
       node('outgoingSection').hidden=!data.permissions?.controlCalls;
+      if(data.permissions?.manageRecordings)await loadRecordingPolicy();else node('recordingPolicySection').hidden=true;
       await loadCalls();
       const health=data.asterisk?.health||'not_configured';
       node('asteriskState').textContent=health==='success'?(data.asterisk.enabled?text('Connected','متصل'):text('Tested · Disabled','تم الاختبار · معطل')):health==='failed'?text('Connection failed','فشل الاتصال'):data.asterisk?.configured?text('Setup saved','تم حفظ الإعداد'):text('Not configured','غير مُعد');

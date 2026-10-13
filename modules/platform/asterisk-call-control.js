@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const ari = require('./asterisk-ari-client');
 const gatewayPorts = require('./asterisk-gateway-ports');
+const callRecordings = require('./telephony-recordings');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CHANNEL_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
@@ -50,6 +51,7 @@ class AsteriskCallControl {
     this.ariClientFactory = ariClientFactory;
     this.log = log;
     this.events = null;
+    this.recordingCleanupTimer = null;
     this.listener = event => this.handle(event).catch(error => {
       this.log({ ariCallControl: 'event_failed', code: /^[A-Z0-9_]{2,80}$/.test(error.code || '') ? error.code : 'ARI_CALL_CONTROL_FAILED' });
     });
@@ -63,12 +65,18 @@ class AsteriskCallControl {
     this.events = events;
     events.on('ariEvent', this.listener);
     events.on('connected', this.connectedListener);
+    this.recordingCleanupTimer = setInterval(() => callRecordings.expireRecordings(this.pool, this.ariClientFactory).catch(error => {
+      this.log({ ariCallControl: 'recording_retention_failed', code: /^[A-Z0-9_]{2,80}$/.test(error.code || '') ? error.code : 'RECORDING_RETENTION_FAILED' });
+    }), 60 * 60 * 1000);
+    this.recordingCleanupTimer.unref?.();
   }
 
   stop() {
     if (!this.events) return;
     this.events.off('ariEvent', this.listener);
     this.events.off('connected', this.connectedListener);
+    if (this.recordingCleanupTimer) clearInterval(this.recordingCleanupTimer);
+    this.recordingCleanupTimer = null;
     this.events = null;
   }
 
@@ -112,6 +120,7 @@ class AsteriskCallControl {
   }
 
   async handle(event) {
+    if (event?.type === 'RecordingFinished') return callRecordings.handleFinished(this.pool, this.ariClientFactory, event);
     if (!event || event.application !== ari.APP_NAME || !CHANNEL_ID.test(event.channel?.id || '')) return false;
     if (event.type === 'StasisStart') {
       const incoming = inboundArgs(event.args);
@@ -310,7 +319,12 @@ class AsteriskCallControl {
         WHERE tenant_id=? AND id=? AND status='starting'`,[row.tenant_id,row.id]);
       call={tenantId:row.tenant_id,id:row.id,bridgeId:row.bridge_id};await db.commit();
     }catch(error){try{await db.rollback();}catch(_){}throw error;}finally{db.release();}
-    try{await(await this.client()).addToBridge(call.bridgeId,[channelId]);return true;}
+    try{
+      await(await this.client()).addToBridge(call.bridgeId,[channelId]);
+      try { await callRecordings.startForCall(this.pool, this.ariClientFactory, call.tenantId, call.id, call.bridgeId); }
+      catch (error) { await this.finishCall(call.tenantId,call.id,'failed','RECORDING_START_FAILED');throw error; }
+      return true;
+    }
     catch(error){await this.finishCall(call.tenantId,call.id,'failed','OUTBOUND_BRIDGE_FAILED');throw error;}
   }
 
@@ -458,6 +472,8 @@ class AsteriskCallControl {
     if (decision.action === 'bridge') {
       try {
         await client.addToBridge(decision.bridgeId, [channelId]);
+        try { await callRecordings.startForCall(this.pool, this.ariClientFactory, decision.tenantId, decision.callId, decision.bridgeId); }
+        catch (error) { await this.finishCall(decision.tenantId,decision.callId,'failed','RECORDING_START_FAILED');throw error; }
         for (const otherChannel of decision.otherChannels) {
           try { await client.hangup(otherChannel); } catch (_) {}
         }
