@@ -1,3 +1,11 @@
+## SaleMaX Sales lead-linked outbound calls — production, 14 October 2026
+
+The existing Pipeline lead detail now opens the existing Call Center with the selected lead. Call Center reads the phone from the authenticated Pipeline API, requires E.164, and links the outbound call to the lead after the server checks tenant and current organization scope. Call history links back to that lead so staff can record the outcome in the existing lead workflow. No parallel CRM or login was introduced.
+
+PR #60 merged as `1ef74ca6337b827b84019e2c99b544168f881f7c`; active release `/opt/salemax/releases/sales-lead-calls-9508a71-20261014`. Migration `20261204_telephony_call_lead_links.sql` is applied; the production ledger is 89/89. Focused call-scope/coaching/link tests pass 12/12 and disposable telephony database integration passes. Production health, login, Call Center and Pipeline routes return 200; the anonymous Call Center API returns 401. Backup, rollback, image and served-asset evidence are in `DEPLOYMENT.md`.
+
+The confirmed Business Admin identity remains `admin@salemax.qa`; no tenant or owner account was provisioned in this release. Authenticated role-by-role browser acceptance is still open. Asterisk is disabled and its event worker stopped, so live calls and recording/playback are still unverified. The full unit suite has 29 existing failures outside the new call-link coverage (692/721 pass); the complete 42-ticket upgrade remains in progress.
+
 ## SaleMaX Sales pipeline follow-up timezone — production, 14 October 2026
 
 The existing Lead Pipeline follow-up queue now displays due times and converts rescheduled local times using the business timezone returned by the tenant-scoped API. The old hard-coded Qatar timezone and `+03:00` reschedule offset incorrectly shifted India follow-ups. The existing pipeline route and hierarchy scope remain unchanged.
