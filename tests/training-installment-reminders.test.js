@@ -66,7 +66,7 @@ test('reminder mail has an independent SMTP flag and is wired into the existing 
 
 test('Finance reminder checkbox layout loads the updated cache-busted script',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
-  assert.match(html,/training-finance\.js\?v=20261013-invoice-settings-dialog1/);
+  assert.match(html,/training-finance\.js\?v=20261013-invoice-list-only1/);
 });
 test('WhatsApp reminder events require separate consent and carry their channel in the event type',async()=>{
   assert.deepEqual(reminders.parseResourceEvent(reminders.resourceType(-3,'whatsapp')),{offset:-3,channel:'whatsapp'});

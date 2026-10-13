@@ -29,22 +29,24 @@ test('Finance invoice and receipt share controls call the authenticated delivery
   assert.match(router,/documents\/:type\/:id\/deliveries/);assert.match(router,/canonicalGuard/);
 });
 
-test('generated invoice history loads as the first Finance section before the issued invoice register',()=>{
+test('Finance screen shows only invoice creation and the generated invoice list',()=>{
   const source=fs.readFileSync(path.join(__dirname,'../client/public/training-finance.js'),'utf8');
   assert.match(source,/id='sx-generated-invoice-history'/);
-  assert.match(source,/generatedArea\.insertAdjacentElement\('afterend',card\)/);
+  assert.match(source,/id="sx-invoice-create"/);
   assert.match(source,/loadGeneratedInvoices\(card,mode,csrf\)/);
-  assert.match(source,/Generated invoice PDFs/);
+  assert.match(source,/Invoice list/);
+  const start=source.indexOf('function render(node,data'),end=source.indexOf('\n  function mountRefundSection',start),screen=source.slice(start,end);
+  assert.doesNotMatch(screen,/sx-finance-attention|sx-finance-queues|sx-invoice-summary|mountReceivablesReport|loadPendingPayments|loadPendingSchedules|loadPendingDisputes/);
+  const workspace=source.slice(source.indexOf('async function loadInvoiceRegister'),source.indexOf('async function loadReminderSettings'));
+  assert.doesNotMatch(workspace,/Settings|sx-invoice-filter|sx-invoice-summary|sx-invoice-results|loadInvoiceCourseOptions|fetchInvoiceSummary/);
 });
 
-test('invoice policy and reminder controls open from Settings without taking space on the invoice page',()=>{
+test('Finance page does not mount invoice policy or reminder controls',()=>{
   const fs=require('node:fs'),path=require('node:path'),source=fs.readFileSync(path.join(__dirname,'../client/public/training-finance.js'),'utf8');
   const start=source.indexOf('async function loadInvoiceRegister'),end=source.indexOf('async function loadReminderSettings',start),register=source.slice(start,end);
-  assert.match(register,/id="sx-finance-settings-open"/);
-  assert.match(register,/id="sx-finance-settings" hidden/);
-  assert.doesNotMatch(register,/loadReminderSettings\(card,mode,csrf\)\]\)/);
-  assert.match(register,/openSettings\.onclick=\(\)=>\{[\s\S]*?loadFinancePolicy\(node,mode,csrf\);loadReminderSettings\(card,mode,csrf\)/);
-  assert.match(source,/id="sx-finance-settings-policy"/);
+  assert.doesNotMatch(register,/sx-finance-settings|sx-reminder-settings|loadReminderSettings|loadFinancePolicy/);
+  assert.doesNotMatch(source,/id="sx-finance-settings-open"/);
+  assert.doesNotMatch(source,/id="sx-finance-settings-policy"/);
   assert.match(source,/Invoice footer is managed in the Training Center Profile/);
   assert.doesNotMatch(source,/Default invoice footer/);
 });
