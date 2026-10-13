@@ -58,6 +58,21 @@ test('Sales workspace loads permissions before section APIs, hides unauthorized 
   assert.match(page,/id="accessDeniedReturn"/);
 });
 
+test('only first-party Sales receives role-specific sidebar labels and grouped navigation',()=>{
+  const root=path.join(__dirname,'..');
+  const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
+  const shell=fs.readFileSync(path.join(root,'client/public/index.html'),'utf8');
+  assert.match(sidebar,/overview:\{owner:\['Business Overview','نظرة عامة على الأعمال'\]/);
+  assert.match(sidebar,/organization:\{owner:\['Organization','الهيكل التنظيمي'\],manager:\['My Teams','فرقي'\],team_leader:\['My Team','فريقي'\]/);
+  assert.match(sidebar,/calls:\{owner:\['Calls & Recordings','المكالمات والتسجيلات'\],manager:\['Call Review','مراجعة المكالمات'\],team_leader:\['Call Coaching','تدريب المكالمات'\]/);
+  assert.match(sidebar,/deals:\{owner:\['Sales Deals','صفقات المبيعات'\],manager:\['Team Deals','صفقات الفريق'\],team_leader:\['Team Deals','صفقات الفريق'\],agent:\['My Deals','صفقاتي'\]/);
+  assert.match(sidebar,/commissions:\{owner:\['Sales Commissions','عمولات المبيعات'\],manager:\['Team Commissions','عمولات الفريق'\],team_leader:\['Team Commissions','عمولات الفريق'\],agent:\['My Commission','عمولتي'\],accountant:\['Commission Payouts'/);
+  assert.match(sidebar,/membershipCategoryKey==='salemax_sales'\?\(salesNavLabels\.calls/);
+  assert.match(sidebar,/if\(membershipCategoryKey==='salemax_sales'\)applySalesRoleAliases\(\)/);
+  assert.match(sidebar,/membershipCategoryKey==='salemax_sales'&&index===11\?/);
+  assert.match(shell,/training-sidebar\.js\?v=20261014-role-nav1/);
+});
+
 test('Sales Overview is integrated into existing navigation, refreshes scoped APIs and keeps nested routes in the parent URL',()=>{
   const root=path.join(__dirname,'..');
   const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
@@ -65,7 +80,7 @@ test('Sales Overview is integrated into existing navigation, refreshes scoped AP
   const page=fs.readFileSync(path.join(root,'client/public/sales-workspace/index.html'),'utf8');
   const client=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace.js'),'utf8');
   assert.match(sidebar,/data-sx-sales-overview-nav/);
-  assert.match(sidebar,/membershipRole\]\|\|\['Sales Overview'/);
+  assert.match(sidebar,/salesNavLabels\.overview\[membershipRole\]/);
   assert.match(sidebar,/section=overview/);
   assert.match(shell,/overview:\['نظرة عامة على المبيعات','Sales Overview'\]/);
   assert.match(shell,/requestedSection=.*section/);
@@ -112,10 +127,10 @@ test('Sales Reports reuse the scoped monthly target entitlement and parent-panel
   const page=fs.readFileSync(path.join(root,'client/public/sales-workspace/index.html'),'utf8');
   const client=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace.js'),'utf8');
   const reportCss=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace-reports.css'),'utf8');
-  assert.match(sidebar,/\['Sales Reports','تقارير المبيعات','sales-targets','reports'\]/);
+  assert.match(sidebar,/\['reports','sales-targets','reports'\]/);
   assert.match(sidebar,/reports:'sales-targets'/);
   assert.match(shell,/reports:\['تقارير المبيعات','Sales Reports'\]/);
-  assert.match(index,/training-sidebar\.js\?v=20261014-sales-audit1/);
+  assert.match(index,/training-sidebar\.js\?v=20261014-role-nav1/);
   assert.match(index,/pipeline-entry\.js\?v=20261014-lead-click-call1/);
   assert.match(page,/id="reportsSection"/);
   assert.match(page,/id="reportPeriod"/);
