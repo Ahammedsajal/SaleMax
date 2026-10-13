@@ -110,3 +110,10 @@
 
 /* Keep narrow MUI tab groups horizontally reachable without widening the page. */
 @media(max-width:380px){#root .MuiTabs-scroller:has([role="tab"]){overflow-x:auto!important;overscroll-behavior-inline:contain;scrollbar-width:thin;-webkit-overflow-scrolling:touch}}
+
+/* Keep native chatbot dialog actions large enough to tap on phone screens. */
+@media(max-width:600px){
+  #sx-chatbot-dialog .sx-dialog button{min-height:44px!important}
+  #sx-chatbot-dialog .sx-dialog button[data-close]{width:44px!important;min-width:44px!important;height:44px!important}
+  #sx-chatbot-dialog .sx-dialog .sx-footer button.sx-secondary{min-width:64px!important;flex:0 0 64px!important}
+}
