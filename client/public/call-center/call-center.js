@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 10226)
-Total output lines: 222
-
 (() => {
   'use strict';
   const isArabic=()=>{const value=(localStorage.getItem('language')||'').toLowerCase();return value==='ar'||value.includes('arab');};
@@ -120,7 +117,16 @@ Total output lines: 222
       const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.setAttribute('aria-label',text('Call recording playback','تشغيل تسجيل المكالمة'));
       const url=URL.createObjectURL(await response.blob());audio.src=url;audio.addEventListener('ended',()=>URL.revokeObjectURL(url),{once:true});audio.addEventListener('error',()=>URL.revokeObjectURL(url),{once:true});
       row.querySelector('audio')?.remove();row.append(audio);button.textContent=text('Recording ready','التسجيل جاهز');
-    }catch(error){button.disabled=false;button.textContent=error.code==='PER…226 tokens truncated…cordingPolicyState').textContent=policy.enabled?text(`Recording is enabled · retain for ${policy.retentionDays} days.`,`التسجيل مفعّل · الاحتفاظ لمدة ${policy.retentionDays} يومًا.`):text('Recording is off. No calls are being recorded.','التسجيل متوقف. لا يتم تسجيل المكالمات.');
+    }catch(error){button.disabled=false;button.textContent=error.code==='PERMISSION_DENIED'?text('Playback not permitted','التشغيل غير مسموح'):text('Recording unavailable','التسجيل غير متاح');button.title=error.code==='RECORDING_NOT_READY'?text('The recording is not ready or has expired.','التسجيل غير جاهز أو انتهت مدة الاحتفاظ به.'):text('Could not retrieve this recording.','تعذر استرجاع هذا التسجيل.');return;}
+    button.disabled=false;
+  }
+  async function loadRecordingPolicy(){
+    const section=node('recordingPolicySection');section.hidden=true;
+    try{
+      const policy=await request('/recording-policy');
+      section.hidden=false;node('recordingEnabled').checked=policy.enabled;node('recordingNoticeConfirmed').checked=policy.noticeConfirmed;
+      node('recordingRetentionDays').value=policy.retentionDays||'';section.dataset.revision=String(policy.revision);
+      node('recordingPolicyState').textContent=policy.enabled?text(`Recording is enabled · retain for ${policy.retentionDays} days.`,`التسجيل مفعّل · الاحتفاظ لمدة ${policy.retentionDays} يومًا.`):text('Recording is off. No calls are being recorded.','التسجيل متوقف. لا يتم تسجيل المكالمات.');
     }catch(error){if(error.code==='PERMISSION_DENIED'||error.code==='CATEGORY_UNAVAILABLE')return;node('recordingPolicyState').textContent=text('Recording policy is unavailable. Confirm the latest telephony migration is installed.','سياسة التسجيل غير متاحة. تحقق من تثبيت أحدث ترحيل للاتصالات.');}
   }
   node('saveRecordingPolicy').addEventListener('click',async()=>{
