@@ -123,6 +123,8 @@
     [data-sx-sidebar-logo]{display:block!important;width:156px!important;max-width:100%!important;height:44px!important;object-fit:contain!important;background:transparent!important}
     [data-sx-sidebar-collapsed] [data-sx-nav-section]{display:none!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{width:32px!important;height:32px!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemText-root,
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiTypography-root{display:none!important}
     @media(min-width:701px){
       .MuiDrawer-root.MuiDrawer-docked:has(>.MuiDrawer-paper[data-sx-sidebar-collapsed]){box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;flex:0 0 72px!important}
       .MuiDrawer-paper[data-sx-sidebar-collapsed]{box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;overflow-x:hidden!important}
@@ -337,6 +339,35 @@
     const required=routeKeys[page];
     if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(roleNavigation!==null&&required&&!roleNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'))location.replace('/user?page=dashboard');
   }
+  let inboxRetryRoute = '';
+  let inboxRetryCount = 0;
+  let inboxRetryTimers = [];
+  function scheduleInboxRecovery() {
+    const params = new URLSearchParams(location.search);
+    const route = location.pathname.replace(/\\/$/, '') === '/user' && params.get('page') === 'inbox' ? '/user?page=inbox' : '';
+    if (route === inboxRetryRoute) return;
+    inboxRetryTimers.forEach(clearTimeout);
+    inboxRetryTimers = [];
+    inboxRetryRoute = route;
+    inboxRetryCount = 0;
+    if (!route) return;
+    [1600, 4200].forEach(delay => inboxRetryTimers.push(setTimeout(() => retryInboxIfEmpty(route), delay)));
+  }
+  function retryInboxIfEmpty(route) {
+    if (route !== inboxRetryRoute || inboxRetryCount >= 2) return;
+    const emptyState = [...document.querySelectorAll('body *')].find(node =>
+      node.children.length === 0 && /^(No conversations found|لم يتم العثور على محادثات)$/i.test((node.textContent || '').trim())
+    );
+    if (!emptyState) return;
+    const search = document.querySelector('input[placeholder*="Search" i]');
+    if (search?.value?.trim()) return;
+    const chips = [...document.querySelectorAll('button,[role="button"]')].filter(node => /^(All|Unread|Read|الكل|غير المقروءة|المقروءة)$/i.test((node.textContent || '').trim()));
+    const active = chips.find(node => /MuiChip-filledPrimary|Mui-selected/.test(String(node.className)) || node.getAttribute('aria-pressed') === 'true');
+    const refresh = active || chips.find(node => /^(All|الكل)$/i.test((node.textContent || '').trim()));
+    if (!refresh) return;
+    inboxRetryCount++;
+    refresh.click();
+  }
   let queued = false;
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; update(); }); }
   document.addEventListener('click', event => {
@@ -456,4 +487,7 @@
   loadOptionalNavigation();
   loadCallCenterAccess();
   schedule();
+  scheduleInboxRecovery();
+  window.addEventListener('popstate', scheduleInboxRecovery);
+  window.addEventListener('hashchange', scheduleInboxRecovery);
 })();
