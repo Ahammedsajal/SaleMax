@@ -356,6 +356,7 @@
       // resize observer cannot infer the old width and collapse it again.
       if (drawer) sidebarExpandedOverride.set(drawer, true);
       drawer?.removeAttribute('data-sx-sidebar-collapsed');
+      clearSidebarSearch(drawer);
       return;
     }
     const buttonRect = button.getBoundingClientRect();
@@ -411,6 +412,18 @@
         clearSidebarSearch(drawer);
       });
       agentLoginSearchResetForRoute = true;
+      // Browser autofill can arrive after React mounts the controlled search
+      // input. Clear that late value briefly while the Agent Login route settles.
+      let attempts = 0;
+      const clearLateAutofill = () => {
+        if (new URLSearchParams(location.search).get('page') !== 'agent-login') return;
+        document.querySelectorAll('.MuiDrawer-paper').forEach(drawer => {
+          const input = drawer.querySelector('input');
+          if (input && /@/.test(input.value)) clearSidebarSearch(drawer);
+        });
+        if (++attempts < 12) setTimeout(clearLateAutofill, 250);
+      };
+      setTimeout(clearLateAutofill, 250);
     } else if (active !== 'agent-login') {
       agentLoginSearchResetForRoute = false;
     }
