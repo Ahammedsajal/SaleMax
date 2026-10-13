@@ -59,7 +59,8 @@ Re-authenticate the business and platform accounts in their respective tabs befo
 Business screens still to review:
 
 - Add WhatsApp by QR, Link Meta WhatsApp, later Create Meta Template steps, and the Web Notifications control.
-- Agent Login, Agent Task, Courses/Students/Forms details, and Finance sub-screens beyond the invoice register.
+- Agent Login, Agent Task, Courses/Students, form creation/editor and submitted-application detail/print screens, plus Finance sub-screens beyond the invoice register.
+- Public training-form/staff-capture pages, customer document pages, and installment-reminder preference pages.
 - Lead Reports at smaller widths, Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states.
 - Inbox conversation pane and actions, once an approach is confirmed that does not change message read state.
 
