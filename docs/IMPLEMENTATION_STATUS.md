@@ -1,3 +1,11 @@
+## SaleMaX Sales Overview alerts and actions — production, 14 October 2026
+
+The existing role-scoped Sales Overview now shows alerts for overdue follow-ups and pending deals, linking to the existing work queues. It also points users to Call Center or Pipeline when those data sources are unavailable. Accountant view hides the sales alerts. The screen uses the existing Sales Workspace, APIs and burgundy theme; no new shell or migration was added.
+
+PR #65 merged as `130c11bb8654f3c6fa1f4d008c61b0c131de51da`; active release `/opt/salemax/releases/sales-overview-alerts-130c11b-20261014`, image `sha256:04cf80e7520db6540a8ebe6b8bc3670973a94df350f85eb0a78fea4a25a5c88b`. Focused Sales suite passed 75/75. Production health, login and workspace assets return 200; anonymous Sales and Call Center APIs return 401. Served asset hashes match the release and running container. No migration or business-data write occurred. See `DEPLOYMENT.md` for release, rollback and verification details.
+
+Authenticated Business Admin, Manager, Team Leader, Agent and Accountant acceptance remains open because the first-party tenant/accounts are not provisioned. Asterisk remains inactive, so genuine call recording and playback remain unverified. Production disk reached 97% used after the build; further image/cache growth requires space review. The complete 42-ticket upgrade remains in progress.
+
 ## SaleMaX Sales lead-linked outbound calls — production, 14 October 2026
 
 The existing Pipeline lead detail now opens the existing Call Center with the selected lead. Call Center reads the phone from the authenticated Pipeline API, requires E.164, and links the outbound call to the lead after the server checks tenant and current organization scope. Call history links back to that lead so staff can record the outcome in the existing lead workflow. No parallel CRM or login was introduced.
