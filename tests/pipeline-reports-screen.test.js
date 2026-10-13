@@ -18,7 +18,8 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(html, /src="\/pipeline\/reports\.js\?v=[^"]+"/);
   assert.match(reports, /get\('view'\)==='reports'/);
   assert.match(entry, /page.*lead-reports/);
-  assert.match(entry, /view=reports/);
+  assert.match(entry, /get\('page'\)\s*===\s*'lead-reports'/);
+  assert.match(entry, /pipelineView\(\)\?'&view='/);
   assert.match(sidebar, /Lead Reports/);
   assert.match(html, /id="followupsMode"/);
   assert.match(html, /id="followups" class="reports hidden"/);
