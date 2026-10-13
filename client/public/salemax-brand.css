@@ -117,3 +117,29 @@
   #sx-chatbot-dialog .sx-dialog button[data-close]{width:44px!important;min-width:44px!important;height:44px!important}
   #sx-chatbot-dialog .sx-dialog .sx-footer button.sx-secondary{min-width:64px!important;flex:0 0 64px!important}
 }
+
+/* Use the SaleMaX brand mark in the compact app bar instead of the WhatsApp glyph. */
+@media(max-width:600px){
+  .MuiAppBar-root .MuiToolbar-root>.MuiBox-root:nth-child(2){
+    width:28px!important;height:28px!important;flex:0 0 28px!important;
+    border-radius:4px!important;background-color:transparent!important;
+    background-image:url('/media/salemax-logo.png')!important;
+    background-size:132px 44px!important;background-position:left center!important;background-repeat:no-repeat!important
+  }
+  .MuiAppBar-root .MuiToolbar-root>.MuiBox-root:nth-child(2)>svg{display:none!important}
+}
+
+/* Keep the automation-flow toolbar inside the canvas and enlarge its touch targets. */
+@media(max-width:600px){
+  #root [data-sx-chatbot-mobile-toolbar="true"]{
+    left:0!important;right:0!important;width:auto!important;max-width:100%!important;
+    box-sizing:border-box!important;gap:3px!important;padding:4px!important;
+    flex-wrap:wrap!important;align-items:center!important;transform:translateY(30px)!important
+  }
+  #root [data-sx-chatbot-mobile-toolbar="true"] input[placeholder="Flow title…"]{width:96px!important}
+  #root [data-sx-chatbot-mobile-toolbar="true"]>button{
+    width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;flex:0 0 44px!important
+  }
+  #root .MuiBox-root:has(>.react-flow)>.react-flow{top:108px!important}
+}
+@media(max-width:380px){#root .MuiBox-root:has(>.react-flow)>.react-flow{top:156px!important}}
