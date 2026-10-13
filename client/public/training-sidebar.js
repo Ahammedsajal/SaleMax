@@ -359,6 +359,7 @@
       if (drawer) sidebarExpandedOverride.set(drawer, true);
       drawer?.removeAttribute('data-sx-sidebar-collapsed');
       clearSidebarSearch(drawer);
+      clearLateSidebarEmail(drawer);
       return;
     }
     const buttonRect = button.getBoundingClientRect();
