@@ -362,10 +362,19 @@
   function clearSidebarSearch(drawer) {
     const input = drawer?.querySelector('input');
     if (!input || !input.value) return;
+    // React keeps a separate controlled value. Deleting through the browser's
+    // editing command emits the trusted input event its onChange handler needs.
+    input.focus({ preventScroll: true });
+    input.select();
+    try { document.execCommand('delete'); } catch (_) {}
+    input.blur();
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    if (setter) setter.call(input, '');
-    else input.value = '';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    if (input.value && setter) setter.call(input, '');
+    else if (input.value) input.value = '';
+    const event = typeof InputEvent === 'function'
+      ? new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null })
+      : new Event('input', { bubbles: true });
+    input.dispatchEvent(event);
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }
   let agentLoginSearchResetForRoute = false;
