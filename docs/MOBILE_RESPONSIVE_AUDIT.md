@@ -29,6 +29,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 | Send Campaign | Template search, status selector, refresh and setup warning stack within the screen. No campaign was sent. | Pass at reviewed viewport |
 | Create Meta Template | Wizard choices stack in one column and remain readable. Later steps not inspected. | Partial review |
 | Admin Manage Plans | Plan cards stack and Edit/Delete actions span the card width. | Pass at reviewed viewport |
+| Admin Sign-In | Admin card, email/password fields, password visibility control and primary action fit within the phone width. | Pass at reviewed viewport; saved browser credentials were not submitted |
 | Admin Add Plan | Fields stack vertically; Back and Save remain side by side at the bottom. | Pass at reviewed viewport; form closed without saving |
 | Admin Manage Users | The data grid keeps its wide columns in an internal horizontal scroller; the scrollbar is visible and actions remain reachable. | Usable at reviewed viewport; horizontal table scroll required |
 | Admin Add User | Modal stays inside the viewport and its footer buttons remain reachable after scrolling the form. | Pass at reviewed viewport; form closed without creating an account |
@@ -53,4 +54,18 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 
 ## Remaining inventory
 
-Review the remaining screens exposed by each role, including Social Login, remaining admin settings, QR/Meta connection setup, later template steps, notification controls, and optional sales modules. Credential/pairing screens and the notification permission control were not opened during this pass. Resume production review after the business/admin sessions are authenticated again; the sessions expired during navigation to some settings. Repeat critical screens at narrower phone widths. The Finance Reports menu currently lands on the invoice register at `section=reports`; its separate report layout was therefore unavailable for this mobile review. The shared embedded-workspace fix also covers Call Center, commission, sales finance, organization and task frames; only Lead Pipeline/Reports and Tasks were visually reviewed.
+Re-authenticate the business and platform accounts in their respective tabs before continuing interactive production review. The browser offered a saved identifier that did not match the account shown in the earlier session, so it was not submitted. The session expired during navigation to some settings.
+
+Business screens still to review:
+
+- Add WhatsApp by QR, Link Meta WhatsApp, later Create Meta Template steps, and the Web Notifications control.
+- Agent Login, Agent Task, Courses/Students/Forms details, and Finance sub-screens beyond the invoice register.
+- Lead Reports at smaller widths, Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states.
+- Inbox conversation pane and actions, once an approach is confirmed that does not change message read state.
+
+Admin screens still to review:
+
+- Social Login, Flow Builder Template create/detail states, Theme Settings edit/create states, full Site Settings and SMTP form scrolling, Payment Gateway expanded states, and all remaining settings.
+- QR/Meta credential setup, Web Notification and Manual Web Push (currently marked PRO add-on required), Telegram Config (PRO add-on required), and platform-staff/Asterisk screens.
+
+Repeat critical screens at narrower phone widths and in Arabic/RTL. The Finance Reports menu currently lands on the invoice register at `section=reports`; its separate report layout was therefore unavailable for this mobile review. The shared embedded-workspace fix also covers Call Center, commission, sales finance, organization and task frames; only Lead Pipeline/Reports and Tasks were visually reviewed. The sign-in implementation is present only in the compiled app bundle in this checkout; there is no source map or maintained source file available to fix the stray `0` without recovering source first.
