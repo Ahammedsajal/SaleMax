@@ -37,6 +37,27 @@ test('Sales Overview uses the monthly target entitlement for sales roles and exc
   assert.ok(!navigation.navigationFor(context('manager',['leads.read'])).some(item=>item.key==='sales-targets'));
 });
 
+test('Sales workspace exposes only each role assigned sections and keeps accountants out of sales reporting tabs',()=>{
+  const expected={owner:['sales-deals','sales-commissions','sales-targets','sales-finance'],manager:['sales-deals','sales-commissions','sales-targets','sales-finance'],team_leader:['sales-deals','sales-commissions','sales-targets'],agent:['sales-deals','sales-commissions','sales-targets'],accountant:['sales-commissions','sales-finance']};
+  for(const [role,keys] of Object.entries(expected)){const actual=navigation.navigationFor(context(role)).map(item=>item.key);for(const key of keys)assert.ok(actual.includes(key),`${role} should retain ${key}`);}
+  const accountant=navigation.navigationFor(context('accountant')).map(item=>item.key);
+  for(const key of ['sales-deals','sales-targets','sales-organization','sales-audit','commission-policy'])assert.ok(!accountant.includes(key),`accountant should not receive ${key}`);
+});
+
+test('Sales workspace loads permissions before section APIs, hides unauthorized tabs and blocks direct unauthorized sections',()=>{
+  const root=path.join(__dirname,'..');
+  const client=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace.js'),'utf8');
+  const page=fs.readFileSync(path.join(root,'client/public/sales-workspace/index.html'),'utf8');
+  assert.match(client,/sectionPermissions=\{overview:\['sales-targets','sales-finance'\],deals:\['sales-deals'\],targets:\['sales-targets'\],reports:\['sales-targets'\],commissions:\['sales-commissions'\]\}/);
+  assert.match(client,/button\.hidden=!allowed/);
+  assert.match(client,/if\(!canViewSection\(state\.section\)\)\{showAccessDenied\(\);message\('error'/);
+  assert.match(client,/state\.assignedNavigation===null\|\|state\.assignedNavigation\.includes\(key\)/);
+  assert.ok(client.indexOf('const access=await salesAccess()')<client.indexOf('api(`/deals?status='),'role navigation must load before protected section requests');
+  assert.match(client,/showAccessDenied\(\);el\('overviewAlertsPanel'\)\.hidden=true/);
+  assert.match(page,/id="accessDeniedSection"[^>]+role="region"/);
+  assert.match(page,/id="accessDeniedReturn"/);
+});
+
 test('Sales Overview is integrated into existing navigation, refreshes scoped APIs and keeps nested routes in the parent URL',()=>{
   const root=path.join(__dirname,'..');
   const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
@@ -51,7 +72,7 @@ test('Sales Overview is integrated into existing navigation, refreshes scoped AP
   assert.match(shell,/\['overview','deals','commissions','targets','reports'\]/);
   assert.match(page,/id="overviewSection"/);
   assert.match(page,/sales-report-csv\.js\?v=20261014-commission-breakdown1/);
-  assert.match(page,/sales-workspace\.js\?v=20261014-commission-breakdown1/);
+  assert.match(page,/sales-workspace\.js\?v=20261014-role-sections1/);
   assert.match(page,/sales-workspace-reports\.css\?v=20261014-commissions1/);
   assert.match(client,/\/api\/user\/team-invitations\/sidebar-access/);
   assert.match(client,/\/follow-ups\?period=all/);
