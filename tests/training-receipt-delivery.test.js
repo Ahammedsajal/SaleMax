@@ -3,6 +3,33 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const path=require('node:path');
 const delivery=require('../modules/platform/training-receipt-delivery');
+const documentDelivery=require('../modules/platform/training-document-delivery');
+
+test('document delivery requires an approved WhatsApp template and only renders customer document links',()=>{
+  assert.throws(()=>documentDelivery.whatsappConfig({}),{code:'RECEIPT_WHATSAPP_NOT_CONFIGURED'});
+  const config=documentDelivery.whatsappConfig({SALEMAX_RECEIPT_WHATSAPP_ENABLED:'true',SALEMAX_RECEIPT_WHATSAPP_TEMPLATE:'customer_invoice_link',SALEMAX_RECEIPT_WHATSAPP_LANGUAGE:'en_US',SALEMAX_META_GRAPH_VERSION:'v24.0'});
+  assert.equal(config.template,'customer_invoice_link');assert.equal(config.language,'en_US');
+  assert.throws(()=>documentDelivery.whatsappConfig({SALEMAX_RECEIPT_WHATSAPP_ENABLED:'true',SALEMAX_RECEIPT_WHATSAPP_TEMPLATE:'bad-name'}),{code:'RECEIPT_WHATSAPP_NOT_CONFIGURED'});
+  const rendered=documentDelivery.content({type:'invoice',number:'INV<&',url:'https://crm.example.invalid/customer-document#opaque',from:'billing@example.invalid',to:'customer@example.invalid'});
+  assert.equal(rendered.to,'customer@example.invalid');assert.match(rendered.html,/INV&lt;&amp;/);assert.match(rendered.text,/customer-document#opaque/);
+});
+
+test('document sending records tenant-scoped idempotency and provider acceptance before returning',async()=>{
+  const uuid='019c6e27-e55b-43d1-87d8-4e01f1f75043',queries=[],sent=[];
+  const db={async query(sql,params){queries.push({sql,params});if(sql.startsWith('SELECT id,document_type'))return [[]];if(sql.startsWith('SELECT COUNT(*)'))return [[{sends:0}]];return [{affectedRows:1}];}};
+  const env={SALEMAX_RECEIPT_EMAIL_ENABLED:'true',SALEMAX_SMTP_HOST:'smtp.example.invalid',SALEMAX_SMTP_PORT:'587',SALEMAX_SMTP_USER:'mailer@example.invalid',SALEMAX_SMTP_PASS:'synthetic-secret',SALEMAX_RECEIPT_FROM:'receipts@example.invalid'};
+  const ctx={tenant:{id:'tenant-1'},identity:{id:'identity-1'}};
+  const result=await documentDelivery.deliver(db,ctx,{type:'receipt',id:uuid,channel:'email',requestKey:uuid,origin:'https://crm.example.invalid',env,sendMail:async message=>{sent.push(message);return {accepted:[message.to],messageId:'smtp-id'};}},{issueGrant:async(_db,_ctx,_type,_id,options)=>{assert.equal(options.preserveExisting,true);return {recipientEmail:'customer@example.invalid',recipientPhone:'+97455555555',url:'https://crm.example.invalid/customer-document#opaque',documentNumber:'RCT-100'};}});
+  assert.equal(result.status,'accepted');assert.equal(result.providerMessageId,'smtp-id');assert.equal(sent.length,1);assert.match(sent[0].text,/customer-document#opaque/);assert.match(queries[2].sql,/INSERT INTO sx_training_document_deliveries/);assert.match(queries[3].sql,/SET status=\?/);assert.equal(queries[4].params[3],'training.document-email-accepted');
+});
+
+test('WhatsApp document delivery sends the approved template to the document phone',async()=>{
+  const uuid='019c6e27-e55b-43d1-87d8-4e01f1f75043',requests=[];
+  const db={async query(sql){if(sql.startsWith('SELECT id,document_type'))return [[]];if(sql.startsWith('SELECT COUNT(*)'))return [[{sends:0}]];return [{affectedRows:1}];}};
+  const env={SALEMAX_RECEIPT_WHATSAPP_ENABLED:'true',SALEMAX_RECEIPT_WHATSAPP_TEMPLATE:'customer_invoice_link',SALEMAX_RECEIPT_WHATSAPP_LANGUAGE:'en_US',SALEMAX_META_GRAPH_VERSION:'v24.0'};
+  const result=await documentDelivery.deliver(db,{tenant:{id:'tenant-1'},identity:{id:'identity-1'}},{type:'invoice',id:uuid,channel:'whatsapp',requestKey:uuid,origin:'https://crm.example.invalid',env,http:{async post(url,body,options){requests.push({url,body,options});return {data:{messages:[{id:'wamid.test'}]}};}}},{issueGrant:async()=>({recipientEmail:'customer@example.invalid',recipientPhone:'+97455555555',url:'https://crm.example.invalid/customer-document#opaque',documentNumber:'INV-100'}),tenantMetaCredentials:async(_db,tenantId)=>{assert.equal(tenantId,'tenant-1');return {token:'mock-token',phoneId:'1234567890'};}});
+  assert.equal(result.status,'accepted');assert.equal(result.providerMessageId,'wamid.test');assert.equal(requests.length,1);assert.equal(requests[0].body.to,'97455555555');assert.deepEqual(requests[0].body.template.components[0].parameters.map(item=>item.text),['INV-100','https://crm.example.invalid/customer-document#opaque']);assert.equal(requests[0].options.headers.Authorization,'Bearer mock-token');
+});
 
 test('receipt email stays off until its dedicated opt-in and complete SMTP configuration are supplied',()=>{
   assert.throws(()=>delivery.config({}),{code:'RECEIPT_DELIVERY_DISABLED'});

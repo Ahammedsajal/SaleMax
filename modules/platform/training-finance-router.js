@@ -15,6 +15,7 @@ const refunds=require('./training-refunds');
 const disputes=require('./training-disputes');
 const invoiceGenerator=require('./invoice-generator');
 const documentGrants=require('./training-document-grants');
+const documentDelivery=require('./training-document-delivery');
 const reminderPreferences=require('./training-reminder-preferences');
 const installmentReminders=require('./training-installment-reminders');
 function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
@@ -100,6 +101,7 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   }));
   for(const canonical of [false,true]){
     const prefix=canonical?'/accountant':'',guards=canonical?[canonicalGuard]:[userGuard,ownerContext],ctx=req=>canonical?req.businessContext:req.financeContext;
+    router.post(`${prefix}/documents/:type/:id/deliveries`,...guards,wrap(async(req,res)=>{const data=await withConnection(documentDelivery.deliver)(ctx(req),{type:req.params.type,id:req.params.id,channel:req.body?.channel,requestKey:req.body?.requestKey,origin,env:process.env});res.json({success:true,data});}));
     router.get(`${prefix}/reminders/settings`,...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(installmentReminders.getSettings)(ctx(req))})));
     router.put(`${prefix}/reminders/settings`,...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(installmentReminders.saveSettings)(ctx(req),req.body)})));
     router.post(`${prefix}/documents/:type/:id/link`,...guards,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(documentGrants.issue)(ctx(req),req.params.type,req.params.id,{origin})})));

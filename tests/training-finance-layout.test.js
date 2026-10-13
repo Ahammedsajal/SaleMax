@@ -21,3 +21,10 @@ test('Phonebook mobile headers stay readable inside the grid horizontal scroller
   assert.match(css,/\.MuiDataGrid-virtualScrollerContent,\s*#root \.MuiDataGrid-root:has\(\.MuiDataGrid-columnHeader\[data-field="phonebook_name"\]\) \.MuiDataGrid-virtualScrollerRenderZone,\s*#root \.MuiDataGrid-root:has\(\.MuiDataGrid-columnHeader\[data-field="phonebook_name"\]\) \.MuiDataGrid-row\{width:1140px!important/s);
   assert.match(html,/salemax-brand\.css\?v=[^"]+/);
 });
+
+test('Finance invoice and receipt share controls call the authenticated delivery endpoint',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../client/public/training-finance.js'),'utf8');
+  const router=fs.readFileSync(path.join(__dirname,'../modules/platform/training-finance-router.js'),'utf8');
+  assert.match(source,/data-send-document="email"/);assert.match(source,/data-send-document="whatsapp"/);assert.match(source,/\/documents\/\$\{type\}\/\$\{encodeURIComponent\(id\)\}\/deliveries/);
+  assert.match(router,/documents\/:type\/:id\/deliveries/);assert.match(router,/canonicalGuard/);
+});
