@@ -95,3 +95,12 @@
   #salemax-sales-organization-workspace,
   #salemax-tasks-workspace{left:0!important;width:100vw!important;max-width:100vw!important}
 }
+
+/* Keep the compact app bar controls and account menu inside narrow phone viewports. */
+@media(max-width:380px){
+  header .MuiToolbar-root:has([aria-label="Account menu"]){gap:2px!important;padding-inline:8px!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>button:first-child{width:36px!important;margin-left:-4px!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>p{font-size:.875rem!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>button:nth-of-type(2){min-width:0!important;padding-inline:6px!important;font-size:.75rem!important;white-space:nowrap!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{width:42px!important;min-width:42px!important;flex:0 0 42px!important;padding:0!important}
+}
