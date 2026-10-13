@@ -1,3 +1,12 @@
+## Inbox recovery and collapsed sidebar — production, 13 October 2026
+
+- Source commits: `dda0c36580a8736d7bdc9c08d4aa1310e57cfe14` (maintained `training-sidebar.js`: bounded inbox refresh after socket startup gaps and stronger collapsed-label hiding) and `9cb57226f11b8740fd7c2238cf54b47c74e0bce2` (shell cache reference).
+- Deployed release: `/opt/salemax/releases/inbox-retry-dda0c36-20261013`; previous release: `/opt/salemax/releases/agent-auth-redirect-52ec411-20261013`.
+- Change: limited automatic retries use the currently selected All/Unread/Read chip and never clear the search or filters. Collapsed navigation hides fallback typography labels. The generated React bundle was not changed. No database writes or migrations were performed; the app container was not restarted.
+- Rollback: switch `/opt/salemax/current` to the previous release and copy the saved `index.html` and `training-sidebar.js` from `/opt/salemax/shared/rollback-inbox-retry-dda0c36-20261013` into `salemax-app-1:/app/client/public/`.
+- Verification: production health endpoint returned `success=true`, `status=ok`; app container remained healthy; the updated script URL returned HTTP 200; release/container SHA-256 matched for both changed assets. Authenticated browser loaded the new cache key, connected to the inbox socket, and received the server's empty result. Current account query found 0 rows in `beta_chats`, `chats`, and `beta_conversation`. The existing 12 October production record documents the authorized Pro Catalyst operational-data purge.
+- Remaining gates: conversations cannot be repopulated by this UI fix. The inbox will stay empty until new WhatsApp conversations arrive or a user-authorized, tenant-scoped recovery is selected. The current browser does not demonstrate a populated conversation list; the sidebar is icon-only while collapsed and no labels clip at the verified desktop viewport.
+
 ## Agent login 401 redirect — production, 13 October 2026
 
 - Source commit `52ec41188f9a6075be3750efca77890ecda72dc4` and shell cache-reference commit `372d17cc0d5c06a9d24926d3b262c108095e0133` are pushed to `Ahammedsajal/SaleMax` `main`. The maintained early browser adapter now keeps a 401 redirect initiated within `/agent` or `/agent/login` on the Agent sign-in route, and preserves any separate `wacrm_user` session. It does not alter the generated React bundle.
