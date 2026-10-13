@@ -10,7 +10,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 
 | Screen | Mobile observation | Status |
 | --- | --- | --- |
-| Business Dashboard | Summary cards stack cleanly; refresh and date-range controls remain visible. | Pass at reviewed viewport |
+| Business Dashboard | At 320px, the page and cards stay within the 312px layout viewport; summary cards and chart sections stack vertically, Refresh and both date-range controls remain reachable, and the page has no horizontal overflow. | Pass at 320px and prior 430px review |
 | Inbox | At 320px, the chat list fits within the viewport and scrolls internally. The toolbar's account menu extended from x=320 to x=370, clipping it completely; a scoped compact-header rule reduces the toolbar spacing and control sizes so all header controls end within x=312 at 320px and x=352 at 360px. At 430px the original spacing remains and the account menu ends at x=418. Conversation pane not opened. | Fixed and production-verified at 320px, 360px, and 430px |
 | Business Sign-In | Form fields and primary action span the phone width; a stray `0` is visible between the subtitle and email field. Browser-saved credentials were not submitted. | Needs source recovery for the login component; checkout contains only the compiled app bundle and no source map |
 | Courses | Catalogue cards stack in one column; search and course actions remain within the viewport. | Pass at reviewed viewport |
@@ -22,8 +22,8 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 | Lead Pipeline | Embedded workspace fills the screen. At 320px, summary cards and the 2356px board use internal scrollers with no page-level overflow; view tabs now use a two-by-two grid so all four buttons are fully visible and their labels fit. At 430px all four tabs remain visible. | Fixed and production-verified at 320px and 430px; board columns require internal horizontal scroll |
 | Lead Reports | At 320px, embedded document width is 305px with no horizontal overflow. All four tabs fit in a two-by-two grid; filter controls are 216px wide inside the 245px panel, and Run report is 216px by 41px. Report/schedule GET endpoints returned 200, but the report stayed on its loading message and no results table rendered. | Controls fit at 320px; report output remains unverified |
 | Phonebook | Wide contact catalogue uses an internal horizontal scroll area; its scrollbar is visible and the page controls remain reachable. | Usable at reviewed viewport; horizontal table scroll required |
-| Invoices & Payments | At 430px, search/course/date filters and the Create invoice action fit. The 640px invoice table is inside a 359px horizontal scroller; the page itself has no horizontal overflow. | Usable at reviewed viewport; invoice table requires internal horizontal scroll |
-| Finance Reports | The tested URL still rendered the invoice register. Route behavior needs a separate functional audit. | Not assessed for report layout |
+| Invoices & Payments | At 320px, the 243px Create invoice action, 219px search/course/date filters, and Apply/Clear buttons fit the panel; the 640px invoice table stays inside a 241px horizontal scroller. The invoice builder fits a 292px dialog and scrolls vertically within its 780px viewport; key Finance buttons have a 44px minimum height at 320px and 430px. The page has no horizontal overflow. | Fixed and production-verified at 320px and 430px; table and invoice builder use internal scrolling |
+| Finance Reports | At 320px, `/user?page=finance-settings&section=reports` still renders the invoice register; no distinct report layout is exposed. | Invoice register reviewed; standalone report layout remains unavailable through this route |
 | Tasks | Header, owner filter, status filter, refresh and paging fit the viewport. | Pass at reviewed viewport |
 | Team Access | Role editor, permissions and member sections stack in a single column. | Pass at reviewed viewport |
 | Agent Login / Add Agent | At 320px, the Add Agent form stays within the viewport. The Agent list grid is 1015px wide inside a 295px horizontal scroller; the page itself stays 320px wide. | Usable at reviewed viewport; agent grid requires internal horizontal scroll; no agent created |
@@ -55,7 +55,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 | Admin App Update | Current/latest version cards and Update Now stack vertically; changelog continues below. | Pass at reviewed viewport; update not triggered |
 | Admin QR Plugin Settings | Storage choices render as cards; restart warning and Save action are visible. | Pass at reviewed viewport; storage option unchanged |
 | Admin WA Embed Login | Settings fields stack; the long webhook URL wraps within its card. | Pass at reviewed viewport; credentials/settings unchanged |
-| Business navigation drawer | Search and close controls are visible; the grouped menu scrolls vertically inside the drawer. | Pass at reviewed viewport |
+| Business navigation drawer | At 320px, the drawer is 260px wide; its 205px search field and close control fit, and the 1475px menu list scrolls within a 641px viewport above the pinned footer. | Pass at 320px and prior reviewed viewport |
 | Public installment reminder preferences | Action buttons stack full-width with a 48px minimum height at phone widths. Release/container/served hashes match; valid reminder-link visual review remains open. | Fixed and production asset-verified; visual review pending |
 
 ## Remaining inventory

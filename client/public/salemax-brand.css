@@ -104,3 +104,6 @@
   header .MuiToolbar-root:has([aria-label="Account menu"])>button:nth-of-type(2){min-width:0!important;padding-inline:6px!important;font-size:.75rem!important;white-space:nowrap!important}
   header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{width:42px!important;min-width:42px!important;flex:0 0 42px!important;padding:0!important}
 }
+
+/* Give Finance actions comfortable tap targets on phone-sized screens. */
+@media(max-width:600px){#sx-finance-screen button{min-height:44px!important}}
