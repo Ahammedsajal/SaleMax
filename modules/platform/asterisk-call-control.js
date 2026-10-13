@@ -163,6 +163,7 @@ class AsteriskCallControl {
         || !/^[0-9]{3,8}$/.test(member.extension || '')) fail('OUTBOUND_EXTENSION_NOT_READY');
       if (!(await gatewayPorts.eligible(db, { id: context.tenant.id, status: member.tenant_status,
         category_key: member.category_key, category_version: member.category_version }))) fail('OUTBOUND_TENANT_NOT_ELIGIBLE');
+      const leadLink=input.leadId?await require('./telephony-call-leads').resolveLeadLink(db,context,input.leadId):null;
       const [[memberCallLimits]] = await db.query(`SELECT
           COALESCE(SUM(status IN ('starting','ringing','connected')),0) AS active_calls,
           COALESCE(SUM(started_at>=UTC_TIMESTAMP(3)-INTERVAL 60 SECOND),0) AS recent_attempts
@@ -177,8 +178,8 @@ class AsteriskCallControl {
           AND NOT EXISTS(SELECT 1 FROM sx_telephony_calls c WHERE c.gateway_id=p.gateway_id AND c.leased_channel_no=p.channel_no)
         ORDER BY p.channel_no LIMIT 1 FOR UPDATE`, [context.tenant.id,gateway.id]);
       if (!port) fail('OUTBOUND_CHANNEL_UNAVAILABLE');
-      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_lease_scope,gateway_channel_no,leased_channel_no,started_by_membership_id)
-        VALUES(?,?,'outbound','starting',?,?,?,?,?)`, [context.tenant.id,callId,gateway.id,gateway.id,port.channel_no,port.channel_no,context.membership.id]);
+      await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_lease_scope,gateway_channel_no,leased_channel_no,started_by_membership_id,lead_uid_hash,lead_id)
+        VALUES(?,?,'outbound','starting',?,?,?,?,?,?,?)`, [context.tenant.id,callId,gateway.id,gateway.id,port.channel_no,port.channel_no,context.membership.id,leadLink?.leadUidHash||null,leadLink?.leadId||null]);
       await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
         VALUES(?,?,?,?,'agent',?,?, 'originating')`, [context.tenant.id,crypto.randomUUID(),callId,agentChannelId,input.clientType,context.membership.id]);
       reservation = { tenantId: context.tenant.id, callId, channelNo: Number(port.channel_no), gatewayEndpoint: gatewayEndpoint(gateway.id), agentChannelId,

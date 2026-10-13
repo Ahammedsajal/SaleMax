@@ -96,7 +96,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
       }
       const teamFilter=salesTeam?(teamMembershipIds.length?` AND (c.started_by_membership_id IN (?) OR c.answered_by_membership_id IN (?) OR EXISTS(
         SELECT 1 FROM sx_telephony_call_legs scoped_leg WHERE scoped_leg.tenant_id=c.tenant_id AND scoped_leg.call_id=c.id AND scoped_leg.membership_id IN (?)))`:' AND 1=0'):'';
-      const [items]=await db.query(`SELECT c.id,c.direction,c.status,c.gateway_channel_no AS gatewayChannelNo,
+      const [items]=await db.query(`SELECT c.id,c.direction,c.status,c.lead_id AS leadId,c.gateway_channel_no AS gatewayChannelNo,
           q.queue_name AS queueName,c.started_at AS startedAt,c.answered_at AS answeredAt,c.ended_at AS endedAt,
           IF(c.answered_at IS NULL,NULL,IF(c.ended_at IS NULL,TIMESTAMPDIFF(SECOND,c.answered_at,UTC_TIMESTAMP(3)),c.duration_seconds)) AS durationSeconds,
           c.answered_by_membership_id AS answeredByMembershipId,c.started_by_membership_id AS startedByMembershipId,
@@ -110,7 +110,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
           ${teamFilter}
         ORDER BY c.started_at DESC,c.id DESC LIMIT 100`,[context.membership.id,context.tenant.id,access.scope==='assigned'?1:0,
         context.membership.id,context.membership.id,context.membership.id,...(salesTeam&&teamMembershipIds.length?[teamMembershipIds,teamMembershipIds,teamMembershipIds]:[])]);
-      return items.map(row=>({callId:row.id,direction:row.direction,status:row.status,gatewayChannelNo:Number(row.gatewayChannelNo),
+      return items.map(row=>({callId:row.id,direction:row.direction,status:row.status,leadId:row.leadId||null,gatewayChannelNo:Number(row.gatewayChannelNo),
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
         recordingState:row.recordingState||'not_recorded',canListenRecording:row.recordingState==='ready'&&new Date(row.recordingExpiresAt).getTime()>Date.now()&&decision(context,{capability:'telephony.call-center',permission:'calls.recording.listen'}).allowed,
