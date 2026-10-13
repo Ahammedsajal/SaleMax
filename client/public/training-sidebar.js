@@ -251,6 +251,7 @@
   }
   function update() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return;
+    resetAgentLoginSearch();
     document.querySelectorAll('.MuiDrawer-paper').forEach(drawer => {
       if (!observed.has(drawer)) { observed.add(drawer); resizeObserver.observe(drawer); }
       const list = drawer.querySelector('ul');
@@ -335,6 +336,47 @@
     const name = aliases[title] || window.salemaxSidebarAliases?.[title] || title;
     if (name !== 'WA Chatbot') return;
     event.preventDefault(); event.stopImmediatePropagation(); location.href = '/user?page=wa-chatbot';
+  }, true);
+  document.addEventListener('click', event => {
+    const button = event.target.closest('.MuiDrawer-paper button, .MuiDrawer-paper [role="button"]');
+    if (!button) return;
+    const action = [button.getAttribute('aria-label'), button.getAttribute('title'), button.textContent]
+      .filter(Boolean).join(' ').trim();
+    if (/\bexpand\b/i.test(action)) {
+      // The collapsed CSS pins the measured paper to 72px. Remove that state
+      // before React handles Expand so ResizeObserver can see the new width.
+      button.closest('.MuiDrawer-paper')?.removeAttribute('data-sx-sidebar-collapsed');
+    }
+  }, true);
+  function clearSidebarSearch(drawer) {
+    const input = drawer?.querySelector('input');
+    if (!input || !input.value) return;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (setter) setter.call(input, '');
+    else input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  let agentLoginSearchResetForRoute = false;
+  function resetAgentLoginSearch() {
+    const active = new URLSearchParams(location.search).get('page');
+    if (active === 'agent-login' && !agentLoginSearchResetForRoute) {
+      const drawers = [...document.querySelectorAll('.MuiDrawer-paper')];
+      if (!drawers.some(drawer => drawer.querySelector('input'))) return;
+      drawers.forEach(clearSidebarSearch);
+      agentLoginSearchResetForRoute = true;
+    } else if (active !== 'agent-login') {
+      agentLoginSearchResetForRoute = false;
+    }
+  }
+  document.addEventListener('click', event => {
+    const button = event.target.closest('.MuiListItemButton-root');
+    if (!button) return;
+    const title = button.querySelector('.MuiListItemText-primary')?.textContent?.trim() || button.textContent.trim();
+    const name = aliases[title] || window.salemaxSidebarAliases?.[title] || title;
+    if (name === 'Agent Login') {
+      document.querySelectorAll('.MuiDrawer-paper').forEach(clearSidebarSearch);
+    }
   }, true);
   // Observe permission flags too: restoring a feature must restore its group heading.
   new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['data-sx-optional-hidden']});
