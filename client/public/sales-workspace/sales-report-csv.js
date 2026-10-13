@@ -36,12 +36,16 @@
       const calls=integer(member?.actual?.connectedCalls??0,'connected calls');
       const callTarget=integer(member?.targets?.connectedCalls,'call target',{optional:true});
       const sales=Array.isArray(member?.targets?.salesByCurrency)?member.targets.salesByCurrency:[];
-      const currencyRows=sales.length?sales:[{currency:'',actualMinor:'',targetMinor:''}];
+      const commissions=Array.isArray(member?.commissionsByCurrency)?member.commissionsByCurrency:[];
+      const byCurrency=new Map(sales.map(row=>[String(row.currency||'').toUpperCase(),row]));
+      for(const row of commissions){const code=String(row.currency||'').toUpperCase();if(!byCurrency.has(code))byCurrency.set(code,{currency:code,actualMinor:'',targetMinor:''});}
+      const currencyRows=byCurrency.size?[...byCurrency.values()].sort((left,right)=>String(left.currency).localeCompare(String(right.currency))):[{currency:'',actualMinor:'',targetMinor:''}];
       for(const sale of currencyRows){
         const code=String(sale.currency||'').toUpperCase();
         if(code&&!/^[A-Z]{3}$/.test(code))throw new TypeError('Invalid report currency');
         const actual=sale.actualMinor===''?'':decimalAmount(sale.actualMinor,code);
         const target=sale.targetMinor==null||sale.targetMinor===''?'':decimalAmount(sale.targetMinor,code);
+        const commission=commissions.find(row=>String(row.currency||'').toUpperCase()===code);
         rows.push([
           period,
           String(member.displayName||''),
@@ -51,6 +55,9 @@
           code,
           actual,
           target,
+          commission?decimalAmount(commission.draftMinor,code):'',
+          commission?decimalAmount(commission.approvedMinor,code):'',
+          commission?decimalAmount(commission.paidMinor,code):'',
         ]);
       }
     }
@@ -58,7 +65,7 @@
   }
 
   function toCsv(period,members){
-    const header=['report_month','team_member','role','connected_calls','monthly_call_target','currency','approved_sales','monthly_sales_target'];
+    const header=['report_month','team_member','role','connected_calls','monthly_call_target','currency','approved_sales','monthly_sales_target','commission_draft','commission_approved','commission_paid'];
     const lines=[header.map(value=>csvCell(value)).join(',')];
     for(const row of rowsFor(period,members)){
       lines.push(row.map((value,index)=>csvCell(value,{text:index===1||index===2})).join(','));

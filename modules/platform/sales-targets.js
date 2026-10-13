@@ -39,7 +39,7 @@ async function list(db,ctx,periodValue){
   targetAccess(ctx);
   const period=parsePeriod(periodValue);
   const members=await visibleMembers(db,ctx);
-  if(!members.length)return {period:period.period,canManage:false,members:[]};
+  if(!members.length)return {period:period.period,canManage:false,members:[],commissionReportEnabled:false};
   const ids=members.map(row=>row.membershipId);
   const [[range]]=await db.query(`SELECT CAST(? AS DATE) AS starts_at,DATE_ADD(CAST(? AS DATE),INTERVAL 1 MONTH) AS ends_at`,[period.start,period.end]);
   const [targetRows]=await db.query(`SELECT membership_id AS membershipId,metric,currency,target_value AS targetValue
@@ -55,18 +55,43 @@ async function list(db,ctx,periodValue){
       AND h.started_at<=c.answered_at AND (h.ended_at IS NULL OR h.ended_at>c.answered_at)
     WHERE c.tenant_id=? AND c.answered_at>=? AND c.answered_at<? AND (c.answered_by_membership_id IN (?) OR h.manager_membership_id IN (?) OR h.team_leader_membership_id IN (?))
     GROUP BY c.answered_by_membership_id,h.manager_membership_id,h.team_leader_membership_id`,[ctx.tenant.id,range.starts_at,range.ends_at,ids,ids,ids]);
+  const commissionReportEnabled=decision(ctx,{capability:'sales.commissions',permission:'commissions.read'}).allowed;
+  let commissionRows=[];
+  if(commissionReportEnabled){
+    const commissionScope=ctx.membership.role==='manager'?' AND d.manager_membership_id=?':
+      ctx.membership.role==='team_leader'?' AND d.team_leader_membership_id=?':
+        ctx.membership.role==='agent'?' AND c.recipient_membership_id=?':'';
+    const commissionArgs=[ctx.tenant.id,range.starts_at,range.ends_at];
+    if(commissionScope)commissionArgs.push(ctx.membership.id);
+    [commissionRows]=await db.query(`SELECT c.recipient_membership_id AS recipientMembershipId,
+        d.manager_membership_id AS managerMembershipId,d.team_leader_membership_id AS teamLeaderMembershipId,c.currency,
+        SUM(CASE WHEN c.status='draft' THEN c.amount_minor ELSE 0 END) AS draftMinor,
+        SUM(CASE WHEN c.status='approved' THEN c.amount_minor ELSE 0 END) AS approvedMinor,
+        SUM(CASE WHEN c.status='paid' THEN c.amount_minor ELSE 0 END) AS paidMinor
+      FROM sx_sales_commissions c JOIN sx_sales_deals d ON d.tenant_id=c.tenant_id AND d.id=c.deal_id
+      WHERE c.tenant_id=? AND d.status='approved' AND d.decided_at>=? AND d.decided_at<? AND c.status<>'void'${commissionScope}
+      GROUP BY c.recipient_membership_id,d.manager_membership_id,d.team_leader_membership_id,c.currency`,commissionArgs);
+  }
   const targets=new Map(targetRows.map(row=>[`${row.membershipId}:${row.metric}:${row.currency}`,String(row.targetValue)]));
   const canManage=['owner','manager'].includes(ctx.membership.role)&&decision(ctx,{capability:'sales.targets',permission:'targets.manage'}).allowed;
   return {period:period.period,canManage,members:members.map(member=>{
     const actualByCurrency=new Map();
     const belongs=row=>row.membershipId===member.membershipId||member.role==='manager'&&row.managerMembershipId===member.membershipId||member.role==='team_leader'&&row.teamLeaderMembershipId===member.membershipId;
     for(const row of dealRows)if(belongs(row))actualByCurrency.set(row.currency,(actualByCurrency.get(row.currency)||0n)+BigInt(row.actualMinor||0));
-    const currencySet=new Set([...targetRows.filter(row=>row.membershipId===member.membershipId&&row.metric==='sales_amount').map(row=>row.currency),...actualByCurrency.keys()]);
+    const commissionByCurrency=new Map();
+    for(const row of commissionRows){
+      if(!belongs({...row,membershipId:row.recipientMembershipId}))continue;
+      const totals=commissionByCurrency.get(row.currency)||{draftMinor:0n,approvedMinor:0n,paidMinor:0n};
+      totals.draftMinor+=BigInt(row.draftMinor||0);totals.approvedMinor+=BigInt(row.approvedMinor||0);totals.paidMinor+=BigInt(row.paidMinor||0);
+      commissionByCurrency.set(row.currency,totals);
+    }
+    const currencySet=new Set([...targetRows.filter(row=>row.membershipId===member.membershipId&&row.metric==='sales_amount').map(row=>row.currency),...actualByCurrency.keys(),...commissionByCurrency.keys()]);
     return {membershipId:member.membershipId,role:member.role,displayName:member.displayName||'',managerMembershipId:member.managerMembershipId||null,teamLeaderMembershipId:member.teamLeaderMembershipId||null,
       targets:{connectedCalls:targets.get(`${member.membershipId}:connected_calls:---`)||null,
         salesByCurrency:[...currencySet].sort().map(currency=>({currency,actualMinor:(actualByCurrency.get(currency)||0n).toString(),targetMinor:targets.get(`${member.membershipId}:sales_amount:${currency}`)||null}))},
+      commissionsByCurrency:commissionReportEnabled?[...currencySet].sort().map(currency=>{const totals=commissionByCurrency.get(currency)||{draftMinor:0n,approvedMinor:0n,paidMinor:0n};return {currency,draftMinor:totals.draftMinor.toString(),approvedMinor:totals.approvedMinor.toString(),paidMinor:totals.paidMinor.toString()};}):[],
       actual:{connectedCalls:callRows.reduce((sum,row)=>sum+(belongs(row)?Number(row.actualCalls||0):0),0)}};
-  })};
+  }),commissionReportEnabled};
 }
 async function save(db,ctx,membershipId,input){
   targetAccess(ctx);
