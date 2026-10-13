@@ -1,8 +1,10 @@
-## SaleMaX Sales Business Admin Audit Trail — local source increment, 14 October 2026
+## SaleMaX Sales Business Admin Audit Trail — production, 14 October 2026
 
 The existing `/user` shell now has an owner-only Audit Trail screen for the private SaleMaX Sales workspace. It reads the existing `sx_audit_events` table, filters by date and exact action code, paginates with a bounded keyset cursor, and limits every query to the authenticated tenant. Secret-shaped change fields are omitted from returned detail data. The screen is bilingual, responsive, uses the existing burgundy theme, and has no schema migration.
 
-The source API is `GET /api/user/sales-audit/events`. Focused audit and Sales navigation tests pass 12/12; related Finance/organization/provisioning and commission/target groups pass 23/23; JavaScript syntax and diff checks pass. This increment is not yet merged or deployed. Production authenticated owner access and English/Arabic screen review remain open because the internal tenant and owner account are not provisioned. See `docs/API_DOCUMENTATION.md` for the API contract.
+The source API is `GET /api/user/sales-audit/events`. PR #50 merged as `2fb6570b30d1d121eb392509c6ef258603e737fc`; active release `/opt/salemax/releases/sales-audit-2fb6570-20261014`, image `sha256:16b8ebaf7fda196118a2182ba5ff7e21d59aa644aae36d0881f4f91522755c1b`. Focused audit/navigation tests passed 12/12; related Finance/organization/provisioning and commission/target groups passed 23/23; JavaScript syntax and diff checks passed. Production health, login and audit page/assets returned 200; anonymous audit API returned 401. Staged release and running-container hashes match. No migration, tenant/account provisioning or business-data write occurred. See `DEPLOYMENT.md` for release and rollback evidence and `docs/API_DOCUMENTATION.md` for the API contract.
+
+Production authenticated owner access and English/Arabic screen review remain open because the internal tenant and owner account are not provisioned. Asterisk remains inactive, so genuine call recording and playback are not verified. The complete 42-ticket upgrade remains in progress.
 
 ## Sales Finance reconciliation dialogs — production, 14 October 2026
 
