@@ -56,7 +56,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 | Admin App Update | Current/latest version cards and Update Now stack vertically; changelog continues below. | Pass at reviewed viewport; update not triggered |
 | Admin QR Plugin Settings | Storage choices render as cards; restart warning and Save action are visible. | Pass at reviewed viewport; storage option unchanged |
 | Admin WA Embed Login | Settings fields stack; the long webhook URL wraps within its card. | Pass at reviewed viewport; credentials/settings unchanged |
-| Business navigation drawer | At 320px, the drawer is 260px wide; its 205px search field and close control fit, and the 1475px menu list scrolls within a 641px viewport above the pinned footer. | Pass at 320px and prior reviewed viewport |
+| Business navigation drawer | At 320px, the drawer previously showed only a 64px icon rail inside a 260px panel, hiding labels and leaving most of the panel blank. It now uses the full drawer width with visible labels and the SaleMaX mark; the list scrolls above its pinned footer. At 430px it remains inside the page width. In RTL at 320px the drawer mirrors to the right without horizontal overflow. | Fixed and production-verified at 320px and 430px, LTR and RTL |
 | Public installment reminder preferences | Action buttons stack full-width with a 48px minimum height at phone widths. Release/container/served hashes match; valid reminder-link visual review remains open. | Fixed and production asset-verified; visual review pending |
 
 ## Remaining inventory

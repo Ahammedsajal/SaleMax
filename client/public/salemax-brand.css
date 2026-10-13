@@ -143,3 +143,19 @@
   #root .MuiBox-root:has(>.react-flow)>.react-flow{top:108px!important}
 }
 @media(max-width:380px){#root .MuiBox-root:has(>.react-flow)>.react-flow{top:156px!important}}
+
+/* Expand the mobile navigation drawer and restore visible, readable labels. */
+@media(max-width:600px){
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root{width:100%!important;min-width:0!important;max-width:100%!important}
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:first-child,
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:nth-child(2),
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:last-child{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper .MuiBox-root:has(>img[alt="SaleMaX"]){width:156px!important;min-width:156px!important;max-width:156px!important;height:44px!important;flex:0 0 156px!important;overflow:visible!important}
+  .MuiDrawer-modal .MuiDrawer-paper img[alt="SaleMaX"]{width:156px!important;height:44px!important;max-width:156px!important;flex:0 0 156px!important;object-fit:contain!important;overflow:visible!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list]{width:100%!important;min-width:100%!important;max-width:100%!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list]>li{width:100%!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list]>li[data-sx-nav-section]{display:block!important;width:100%!important;margin:12px 0 4px!important;padding:4px 18px!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list] .MuiListItemButton-root{width:100%!important;box-sizing:border-box!important;justify-content:flex-start!important;padding-inline:12px!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list] .MuiListItemIcon-root{flex:0 0 34px!important;width:34px!important;min-width:34px!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list] .MuiListItemButton-root:not(:has(.MuiListItemText-root))::after{content:attr(aria-label);display:block;margin-inline-start:8px;min-width:0;white-space:normal;overflow-wrap:anywhere;font-size:14px}
+}
