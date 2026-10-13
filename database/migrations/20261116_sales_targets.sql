@@ -1,0 +1,22 @@
+CREATE TABLE sx_sales_targets (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  membership_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  period_start DATE NOT NULL,
+  metric ENUM('sales_amount','connected_calls') NOT NULL,
+  currency CHAR(3) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT '---',
+  target_value BIGINT UNSIGNED NOT NULL,
+  created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_sx_sales_target_scope (tenant_id,membership_id,period_start,metric,currency),
+  KEY idx_sx_sales_target_period (tenant_id,period_start,metric),
+  CONSTRAINT fk_sx_sales_target_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_sx_sales_target_member FOREIGN KEY (tenant_id,membership_id) REFERENCES sx_memberships(tenant_id,id),
+  CONSTRAINT fk_sx_sales_target_creator FOREIGN KEY (created_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT fk_sx_sales_target_updater FOREIGN KEY (updated_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT chk_sx_sales_target_positive CHECK (target_value>0),
+  CONSTRAINT chk_sx_sales_target_currency CHECK ((metric='sales_amount' AND currency REGEXP '^[A-Z]{3}$') OR (metric='connected_calls' AND currency='---'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

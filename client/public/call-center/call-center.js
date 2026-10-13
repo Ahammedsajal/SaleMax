@@ -22,7 +22,7 @@
     if(!response.ok||!result.success)throw Object.assign(new Error(result.code||'CALL_CENTER_UNAVAILABLE'),{code:result.code||'CALL_CENTER_UNAVAILABLE',status:response.status});
     return result.data;
   }
-  const roleLabel=role=>({owner:text('Owner','المالك'),manager:text('Manager','المدير'),agent:text('Agent','الوكيل')}[role]||role);
+  const roleLabel=role=>({owner:text('Owner','المالك'),manager:text('Manager','المدير'),team_leader:text('Team Leader','قائد الفريق'),agent:text('Agent','الوكيل')}[role]||role);
   function renderExtensions(items){
     const section=node('extensionsSection'),host=node('extensionList');section.hidden=false;host.replaceChildren();
     if(!items.length){const empty=document.createElement('p');empty.className='extension-state';empty.textContent=text('No active calling team members are available.','لا يوجد أعضاء فريق نشطون متاحون للمكالمات.');host.append(empty);return;}
@@ -94,6 +94,51 @@
       meta.textContent=`${started}${started?' · ':''}${text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`)}`;main.append(title,meta);
       const state=document.createElement('span');state.className='call-status';const labels={ringing:text('Ringing','يرن'),connected:text('Connected','متصل'),ended:text('Ended','انتهت'),failed:text('Failed','فشلت')};state.textContent=labels[call.status]||call.status;
       row.append(main,state);
+      if(call.canListenRecording){const listen=document.createElement('button');listen.type='button';listen.className='recording-play';listen.textContent=text('Listen to recording','استمع إلى التسجيل');listen.addEventListener('click',()=>playRecording(call.callId,listen,row));row.append(listen);}
+      if(call.canCoach||call.canViewCoaching){
+        const review=document.createElement('details');review.className='call-coaching';
+        const summary=document.createElement('summary');summary.textContent=text('Call coaching','مراجعة المكالمة');review.append(summary);
+        const content=document.createElement('div');content.className='call-coaching-content';content.textContent=text('Open to review coaching notes.','افتح لمراجعة ملاحظات التوجيه.');review.append(content);
+        let loaded=false;
+        review.addEventListener('toggle',async()=>{
+          if(!review.open||loaded)return;loaded=true;content.textContent=text('Loading coaching notes…','جارٍ تحميل ملاحظات التوجيه…');
+          try{
+            const data=await request(`/calls/${encodeURIComponent(call.callId)}/coaching`);content.replaceChildren();
+            const notes=data.items||[];
+            if(!notes.length){const empty=document.createElement('p');empty.className='call-empty';empty.textContent=text('No coaching notes yet.','لا توجد ملاحظات توجيه بعد.');content.append(empty);}
+            for(const note of notes){
+              const article=document.createElement('article');article.className='coaching-note';
+              const heading=document.createElement('strong');heading.textContent=`${note.agentName} · ${({effective:text('Effective','فعّال'),needs_improvement:text('Needs improvement','يحتاج إلى تحسين'),follow_up_required:text('Follow-up required','يتطلب متابعة')})[note.quality]||note.quality}`;
+              const author=document.createElement('small');author.textContent=`${text('Coach','المدرّب')}: ${note.coachName} · ${new Date(note.createdAt).toLocaleString(isArabic()?'ar-QA':'en-QA',{timeZone:'Asia/Kolkata'})}`;
+              const feedback=document.createElement('p');feedback.textContent=note.feedback;
+              article.append(heading,author,feedback);
+              if(note.nextAction){const action=document.createElement('p');action.className='coaching-action';action.textContent=`${text('Next action','الإجراء التالي')}: ${note.nextAction}`;article.append(action);}
+              content.append(article);
+            }
+            if(call.canCoach){
+              const form=document.createElement('form');form.className='coaching-form';
+              const agentLabel=document.createElement('label');agentLabel.textContent=text('Agent on this call','الوكيل في هذه المكالمة');const agent=document.createElement('select');agent.name='agentMembershipId';agent.required=true;
+              const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent=text('Select agent','اختر الوكيل');agent.append(placeholder);
+              for(const person of data.agents||[]){const option=document.createElement('option');option.value=person.membershipId;option.textContent=person.displayName;agent.append(option);}agentLabel.append(agent);
+              const qualityLabel=document.createElement('label');qualityLabel.textContent=text('Review result','نتيجة المراجعة');const quality=document.createElement('select');quality.name='quality';quality.required=true;
+              for(const [value,en,ar] of [['effective','Effective','فعّال'],['needs_improvement','Needs improvement','يحتاج إلى تحسين'],['follow_up_required','Follow-up required','يتطلب متابعة']]){const option=document.createElement('option');option.value=value;option.textContent=text(en,ar);quality.append(option);}qualityLabel.append(quality);
+              const feedbackLabel=document.createElement('label');feedbackLabel.textContent=text('Coaching feedback','ملاحظات التوجيه');const feedback=document.createElement('textarea');feedback.name='feedback';feedback.minLength=5;feedback.maxLength=3000;feedback.required=true;feedback.rows=3;feedbackLabel.append(feedback);
+              const nextLabel=document.createElement('label');nextLabel.textContent=text('Next action (optional)','الإجراء التالي (اختياري)');const next=document.createElement('input');next.name='nextAction';next.maxLength=500;nextLabel.append(next);
+              const visibilityLabel=document.createElement('label');visibilityLabel.className='coaching-visibility';const visible=document.createElement('input');visible.type='checkbox';visible.name='visibleToAgent';visible.checked=true;const visibleText=document.createElement('span');visibleText.textContent=text('Share this feedback with the agent','مشاركة هذه الملاحظات مع الوكيل');visibilityLabel.append(visible,visibleText);
+              const save=document.createElement('button');save.type='submit';save.textContent=text('Save coaching note','حفظ ملاحظة التوجيه');const state=document.createElement('small');state.setAttribute('role','status');state.setAttribute('aria-live','polite');
+              form.append(agentLabel,qualityLabel,feedbackLabel,nextLabel,visibilityLabel,save,state);
+              form.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;state.textContent=text('Saving…','جارٍ الحفظ…');try{const saved=await request(`/calls/${encodeURIComponent(call.callId)}/coaching`,'POST',{agentMembershipId:agent.value,quality:quality.value,feedback:feedback.value,nextAction:next.value,visibleToAgent:visible.checked});
+                const article=document.createElement('article');article.className='coaching-note';const heading=document.createElement('strong');heading.textContent=`${agent.options[agent.selectedIndex]?.textContent||''} · ${({effective:text('Effective','فعّال'),needs_improvement:text('Needs improvement','يحتاج إلى تحسين'),follow_up_required:text('Follow-up required','يتطلب متابعة')})[saved.quality]||saved.quality}`;
+                const author=document.createElement('small');author.textContent=`${text('Coach','المدرّب')}: ${text('You','أنت')} · ${new Date(saved.createdAt).toLocaleString(isArabic()?'ar-QA':'en-QA',{timeZone:'Asia/Kolkata'})}`;
+                const noteText=document.createElement('p');noteText.textContent=saved.feedback;article.append(heading,author,noteText);if(saved.nextAction){const action=document.createElement('p');action.className='coaching-action';action.textContent=`${text('Next action','الإجراء التالي')}: ${saved.nextAction}`;article.append(action);}content.insertBefore(article,form);form.reset();visible.checked=true;state.textContent=text('Coaching note saved.','تم حفظ ملاحظة التوجيه.');
+              }catch(error){state.textContent=error.code==='PERMISSION_DENIED'?text('You cannot add coaching notes for this call.','لا يمكنك إضافة ملاحظات توجيه لهذه المكالمة.'):text('Could not save the note. Refresh and check team access.','تعذر حفظ الملاحظة. حدّث الصفحة وتحقق من صلاحية الفريق.');}finally{save.disabled=false;}});
+              if(!(data.agents||[]).length){agent.disabled=true;save.disabled=true;state.textContent=text('No active in-scope agent participated in this call.','لم يشارك وكيل نشط ضمن نطاقك في هذه المكالمة.');}
+              content.append(form);
+            }
+          }catch(error){loaded=false;content.textContent=error.code==='PERMISSION_DENIED'?text('You cannot review coaching for this call.','لا يمكنك مراجعة التوجيه لهذه المكالمة.'):text('Coaching notes are unavailable. Refresh and try again.','ملاحظات التوجيه غير متاحة. حدّث الصفحة وحاول مجددًا.');}
+        });
+        row.append(review);
+      }
       if(call.canControl&&['ringing','connected'].includes(call.status)){
         const end=document.createElement('button');end.type='button';end.className='call-end';end.textContent=text('End call','إنهاء المكالمة');end.setAttribute('aria-label',text('End this call','إنهاء هذه المكالمة'));
         end.addEventListener('click',async()=>{end.disabled=true;end.textContent=text('Ending…','جارٍ الإنهاء…');try{await request(`/calls/${encodeURIComponent(call.callId)}/end`,'POST',{});await loadCalls();}catch(error){end.disabled=false;end.textContent=text('Retry ending call','إعادة محاولة إنهاء المكالمة');end.title=error.code==='PERMISSION_DENIED'?text('You cannot control this call.','لا يمكنك التحكم بهذه المكالمة.'):text('Asterisk could not confirm call termination. Retry or ask your administrator.','تعذر على أستريسك تأكيد إنهاء المكالمة. أعد المحاولة أو تواصل مع المسؤول.');}});
@@ -107,6 +152,37 @@
     try{const data=await request('/calls');renderCalls(data.items||[]);}
     catch(error){host.textContent=error.code==='FEATURE_UNAVAILABLE'?text('Call Center is not included in this plan.','مركز الاتصال غير مشمول في هذه الخطة.'):text('Call list is unavailable. Confirm the telephony migration and access permissions.','قائمة المكالمات غير متاحة. تحقق من ترحيل الاتصالات وصلاحيات الوصول.');}
   }
+  async function playRecording(callId,button,row){
+    button.disabled=true;button.textContent=text('Loading recording…','جارٍ تحميل التسجيل…');
+    try{
+      const token=bearer(),headers={Accept:'audio/wav',...(token?{Authorization:'Bearer '+token}:{})};
+      const response=await fetch(`/api/user/call-center/calls/${encodeURIComponent(callId)}/recording`,{credentials:'same-origin',headers});
+      if(!response.ok){let body={};try{body=await response.json();}catch(_){}throw Object.assign(new Error(body.code||'RECORDING_UNAVAILABLE'),{code:body.code||'RECORDING_UNAVAILABLE'});}
+      const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.setAttribute('aria-label',text('Call recording playback','تشغيل تسجيل المكالمة'));
+      const url=URL.createObjectURL(await response.blob());audio.src=url;audio.addEventListener('ended',()=>URL.revokeObjectURL(url),{once:true});audio.addEventListener('error',()=>URL.revokeObjectURL(url),{once:true});
+      row.querySelector('audio')?.remove();row.append(audio);button.textContent=text('Recording ready','التسجيل جاهز');
+    }catch(error){button.disabled=false;button.textContent=error.code==='PERMISSION_DENIED'?text('Playback not permitted','التشغيل غير مسموح'):text('Recording unavailable','التسجيل غير متاح');button.title=error.code==='RECORDING_NOT_READY'?text('The recording is not ready or has expired.','التسجيل غير جاهز أو انتهت مدة الاحتفاظ به.'):text('Could not retrieve this recording.','تعذر استرجاع هذا التسجيل.');return;}
+    button.disabled=false;
+  }
+  async function loadRecordingPolicy(){
+    const section=node('recordingPolicySection');section.hidden=true;
+    try{
+      const policy=await request('/recording-policy');
+      section.hidden=false;node('recordingEnabled').checked=policy.enabled;node('recordingNoticeConfirmed').checked=policy.noticeConfirmed;
+      node('recordingRetentionDays').value=policy.retentionDays||'';section.dataset.revision=String(policy.revision);
+      node('recordingPolicyState').textContent=policy.enabled?text(`Recording is enabled · retain for ${policy.retentionDays} days.`,`التسجيل مفعّل · الاحتفاظ لمدة ${policy.retentionDays} يومًا.`):text('Recording is off. No calls are being recorded.','التسجيل متوقف. لا يتم تسجيل المكالمات.');
+    }catch(error){if(error.code==='PERMISSION_DENIED'||error.code==='CATEGORY_UNAVAILABLE')return;node('recordingPolicyState').textContent=text('Recording policy is unavailable. Confirm the latest telephony migration is installed.','سياسة التسجيل غير متاحة. تحقق من تثبيت أحدث ترحيل للاتصالات.');}
+  }
+  node('saveRecordingPolicy').addEventListener('click',async()=>{
+    const button=node('saveRecordingPolicy'),state=node('recordingPolicyState');button.disabled=true;state.textContent=text('Saving policy…','جارٍ حفظ السياسة…');
+    const raw=node('recordingRetentionDays').value.trim();
+    try{
+      const saved=await request('/recording-policy','PUT',{enabled:node('recordingEnabled').checked,noticeConfirmed:node('recordingNoticeConfirmed').checked,
+        retentionDays:raw?Number(raw):null,expectedRevision:Number(node('recordingPolicySection').dataset.revision||0)});
+      node('recordingPolicySection').dataset.revision=String(saved.revision);state.textContent=saved.enabled?text(`Recording enabled · retain for ${saved.retentionDays} days.`,`تم تفعيل التسجيل · الاحتفاظ لمدة ${saved.retentionDays} يومًا.`):text('Recording is off.','التسجيل متوقف.');
+    }catch(error){state.textContent=error.code==='RECORDING_POLICY_PREREQUISITES_REQUIRED'?text('Confirm the notice and choose a retention period before enabling recordings.','أكّد الإشعار وحدد مدة الاحتفاظ قبل تفعيل التسجيلات.'):error.code==='STALE_RECORDING_POLICY'?text('Policy changed in another session. Refresh and try again.','تغيرت السياسة في جلسة أخرى. حدّث الصفحة وحاول مجددًا.'):text('Could not save the recording policy.','تعذر حفظ سياسة التسجيل.');}
+    finally{button.disabled=false;}
+  });
   async function refresh(){
     const button=node('refresh');button.disabled=true;notice('',text('Loading telephony status…','جارٍ تحميل حالة الاتصالات…'));
     try{
@@ -115,6 +191,7 @@
       if(!response.ok||!result.success){const code=result.code||'CALL_CENTER_UNAVAILABLE';throw Object.assign(new Error(code),{code,status:response.status});}
       const data=result.data||{};
       node('outgoingSection').hidden=!data.permissions?.controlCalls;
+      if(data.permissions?.manageRecordings)await loadRecordingPolicy();else node('recordingPolicySection').hidden=true;
       await loadCalls();
       const health=data.asterisk?.health||'not_configured';
       node('asteriskState').textContent=health==='success'?(data.asterisk.enabled?text('Connected','متصل'):text('Tested · Disabled','تم الاختبار · معطل')):health==='failed'?text('Connection failed','فشل الاتصال'):data.asterisk?.configured?text('Setup saved','تم حفظ الإعداد'):text('Not configured','غير مُعد');
@@ -130,6 +207,9 @@
       if(data.permissions?.manageExtensions){const team=await loadExtensions();await loadQueues(team);}else{node('extensionsSection').hidden=true;node('queuesSection').hidden=true;}
       notice(data.calls?.inboundAvailable&&data.calls?.outboundAvailable?'success':'',data.calls?.inboundAvailable&&data.calls?.outboundAvailable?text('Call signaling is ready. Place a test call and confirm two-way audio before launch.','إشارات الاتصال جاهزة. أجرِ مكالمة اختبار وتحقق من الصوت في الاتجاهين قبل الإطلاق.'):data.calls?.reason==='ASTERISK_EVENTS_NOT_READY'?text('SaleMaX is not receiving Asterisk call events. Ask your administrator to restore PBX event control.','لا يستقبل SaleMaX أحداث المكالمات من أستريسك. اطلب من المسؤول استعادة التحكم بأحداث المقسم.'):data.calls?.reason==='AGENT_ENDPOINT_NOT_REGISTERED'||data.calls?.reason==='INBOUND_QUEUE_ENDPOINT_NOT_REGISTERED'?text('Register your mobile SIP app or connect browser audio.','سجّل تطبيق SIP للهاتف أو اتصل بصوت المتصفح.'):data.calls?.reason==='GATEWAY_ENDPOINT_NOT_READY'?text('The GSM gateway is not online in Asterisk. Ask your administrator to verify the gateway trunk.','بوابة GSM غير متصلة في أستريسك. اطلب من المسؤول التحقق من جذع البوابة.'):text('Call setup is in progress. Availability depends on verified routes, live endpoint registration, and a successful media test.','إعداد الاتصال قيد التنفيذ. تعتمد الإتاحة على التحقق من المسارات وتسجيل نقاط الاتصال المباشرة ونجاح اختبار الوسائط.'));
     }catch(error){
+      node('outgoingSection').hidden=true;
+      node('extensionsSection').hidden=true;
+      node('queuesSection').hidden=true;
       const messages={AUTH_REQUIRED:text('Sign in to your SaleMaX business account to use Call Center.','سجّل الدخول إلى حساب الأعمال في SaleMaX لاستخدام مركز الاتصال.'),PERMISSION_DENIED:text('Your account does not have Call Center access. Contact your business owner.','لا يملك حسابك صلاحية الوصول إلى مركز الاتصال. تواصل مع مالك النشاط.'),FEATURE_UNAVAILABLE:text('Call Center is not included in your active plan. Contact your business owner.','مركز الاتصال غير مشمول في خطتك الحالية. تواصل مع مالك النشاط.'),CATEGORY_UNAVAILABLE:text('Call Center is not available for this business category.','مركز الاتصال غير متاح لفئة هذا النشاط.'),CONNECTION_FAILED:text('Could not contact SaleMaX. Check your connection and retry.','تعذر الاتصال بـ SaleMaX. تحقق من اتصالك وحاول مجددًا.')};
       notice('error',messages[error.code]||text('Telephony status is unavailable. Ask your administrator to finish PBX setup.','حالة الاتصالات غير متاحة. اطلب من المسؤول إكمال إعداد المقسم.'));
     }finally{button.disabled=false;}

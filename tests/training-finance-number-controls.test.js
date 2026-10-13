@@ -18,3 +18,11 @@ test('all QAR amount fields use bounded decimal number controls', () => {
   }
   assert.match(financeUi, /name="amount" type="number" min="0\.01" step="0\.01" inputmode="decimal" max="\$\{/);
 });
+
+test('Finance follows the workspace direction for desktop layout and overlays', () => {
+  assert.match(financeUi, /node\.dir=tr\('ltr','rtl'\)/);
+  assert.match(financeUi, /#sx-finance-screen\[dir=rtl\]\{inset-inline:250px 0\}/);
+  assert.match(financeUi, /#sx-finance-screen\[dir=rtl\] #sx-reminder-settings\{inset-inline:250px 0\}/);
+  assert.match(financeUi, /#sx-finance-screen,#sx-finance-screen\[dir=rtl\]\{inset-inline:0;top:56px;padding:14px\}/);
+  assert.match(financeUi, /#sx-finance-screen #sx-reminder-settings,#sx-finance-screen\[dir=rtl\] #sx-reminder-settings\{inset:56px 0 0;padding:12px\}/);
+});

@@ -24,7 +24,7 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
   const authorization = `Basic ${Buffer.from(`${row.ari_username}:${password}`, 'utf8').toString('base64')}`;
   const revision = Number(row.revision);
 
-  async function request(method, path, query = {}, body = undefined) {
+  async function request(method, path, query = {}, body = undefined, binary = false) {
     if (!['GET', 'POST', 'PUT', 'DELETE'].includes(method) || typeof path !== 'string'
       || path.startsWith('/') || path.includes('..') || path.includes('?') || path.includes('#')) fail('INVALID_ARI_REQUEST');
     if (pool) {
@@ -50,6 +50,12 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
       if (response.status === 409) fail('ARI_CONFLICT');
       if (!response.ok) fail('ARI_UNAVAILABLE');
       if (response.status === 204) return null;
+      if (binary) {
+        const contentType = String(response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        const length = Number(response.headers.get('content-length') || 0), maxBytes = 1024 * 1024 * 1024;
+        if (!['audio/wav','audio/x-wav','application/octet-stream'].includes(contentType) || length > maxBytes || !response.body) fail('ARI_INVALID_RECORDING_FILE');
+        return { body: response.body, contentType, contentLength: length || null, maxBytes };
+      }
       const raw = await response.text();
       if (raw.length > 1024 * 1024) fail('ARI_INVALID_RESPONSE');
       let result;
@@ -57,7 +63,7 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
       if (!result || typeof result !== 'object') fail('ARI_INVALID_RESPONSE');
       return result;
     } catch (error) {
-      const known = ['ARI_AUTH_REJECTED', 'ARI_RESOURCE_NOT_FOUND', 'ARI_CONFLICT', 'ARI_UNAVAILABLE', 'ARI_INVALID_RESPONSE', 'INVALID_ARI_REQUEST'];
+      const known = ['ARI_AUTH_REJECTED', 'ARI_RESOURCE_NOT_FOUND', 'ARI_CONFLICT', 'ARI_UNAVAILABLE', 'ARI_INVALID_RESPONSE', 'ARI_INVALID_RECORDING_FILE', 'INVALID_ARI_REQUEST'];
       if (known.includes(error.code)) throw error;
       fail(error.name === 'AbortError' ? 'ARI_TIMEOUT' : 'ARI_UNREACHABLE');
     } finally {
@@ -124,6 +130,32 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
     async destroyBridge(bridgeId) {
       if (!UUID.test(bridgeId || '')) fail('INVALID_ARI_BRIDGE_ID');
       await request('DELETE', `bridges/${encodeURIComponent(bridgeId)}`);
+    },
+    async recordBridge(bridgeId, recordingName) {
+      if (!UUID.test(bridgeId || '') || !/^salemax_[a-f0-9]{32}$/.test(recordingName || '')) fail('INVALID_ARI_RECORDING');
+      const recording = await request('POST', `bridges/${encodeURIComponent(bridgeId)}/record`, {
+        name: recordingName, format: 'wav', ifExists: 'fail', beep: 'true', maxDurationSeconds: '0', terminateOn: 'none',
+      });
+      if (recording?.name !== recordingName) fail('ARI_INVALID_RESPONSE');
+      return { name: recording.name };
+    },
+    async getStoredRecording(recordingName) {
+      if (!/^salemax_[a-f0-9]{32}$/.test(recordingName || '')) fail('INVALID_ARI_RECORDING');
+      return request('GET', `recordings/stored/${encodeURIComponent(recordingName)}`);
+    },
+    async getStoredRecordingFile(recordingName) {
+      if (!/^salemax_[a-f0-9]{32}$/.test(recordingName || '')) fail('INVALID_ARI_RECORDING');
+      return request('GET', `recordings/stored/${encodeURIComponent(recordingName)}/file`, {}, undefined, true);
+    },
+    async deleteStoredRecording(recordingName) {
+      if (!/^salemax_[a-f0-9]{32}$/.test(recordingName || '')) fail('INVALID_ARI_RECORDING');
+      try { await request('DELETE', `recordings/stored/${encodeURIComponent(recordingName)}`); return true; }
+      catch (error) { if (error.code === 'ARI_RESOURCE_NOT_FOUND') return false; throw error; }
+    },
+    async stopLiveRecording(recordingName) {
+      if (!/^salemax_[a-f0-9]{32}$/.test(recordingName || '')) fail('INVALID_ARI_RECORDING');
+      try { await request('POST', `recordings/live/${encodeURIComponent(recordingName)}/stop`); return true; }
+      catch (error) { if (error.code === 'ARI_RESOURCE_NOT_FOUND') return false; throw error; }
     },
     async upsertPjsipObject(objectType, objectId, fields) {
       if (!['aor', 'auth', 'endpoint', 'identify'].includes(objectType)

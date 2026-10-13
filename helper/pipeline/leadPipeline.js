@@ -33,7 +33,7 @@ function normalizeEmail(value) {
   return email;
 }
 
-async function findContactMatches({ uid, phone, email, role = "owner", agentId, pool: sourcePool }) {
+async function findContactMatches({ uid, phone, email, role = "owner", agentId, scopeAgentIds, pool: sourcePool }) {
   const uidHash = sha(uid);
   const normalizedPhone = phone ? normalizePhone(phone) : null;
   const normalizedEmail = email ? normalizeEmail(email) : null;
@@ -47,6 +47,11 @@ async function findContactMatches({ uid, phone, email, role = "owner", agentId, 
     visibility = ` AND EXISTS (SELECT 1 FROM pipeline_leads l
       WHERE l.uid_hash = pipeline_contacts.uid_hash AND l.contact_id = pipeline_contacts.id AND l.owner_agent_id = ?)`;
     values.push(Number(agentId));
+  } else if (['manager','team_leader'].includes(role) && Array.isArray(scopeAgentIds)) {
+    if(!scopeAgentIds.length)return [];
+    visibility = ` AND EXISTS (SELECT 1 FROM pipeline_leads l
+      WHERE l.uid_hash = pipeline_contacts.uid_hash AND l.contact_id = pipeline_contacts.id AND l.owner_agent_id IN (?))`;
+    values.push(scopeAgentIds);
   } else if (!['owner','manager'].includes(role)) {
     const error = new Error("You do not have access to contact suggestions."); error.status = 403; throw error;
   }
@@ -554,15 +559,12 @@ async function captureQrMessage({ uid, chatId, message, normalizedMessage }) {
   throw lastError;
 }
 
-async function getBoard({ uid, role, agentId, filters = {}, pool:sourcePool }) {
+async function getBoard({ uid, role, agentId, scopeAgentIds, filters = {}, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const conditions = ["l.uid_hash = ?"];
     const values = [uidHash];
-    if (role === "agent") {
-      conditions.push("l.owner_agent_id = ?");
-      values.push(agentId);
-    }
+    appendAssignmentScope(conditions,values,role,agentId,scopeAgentIds);
     if (filters.stage) { conditions.push("l.stage_key = ?"); values.push(text(filters.stage, 64)); }
     if (filters.origin && ["qr", "meta", "manual"].includes(filters.origin)) { conditions.push("l.primary_origin = ?"); values.push(filters.origin); }
     const requestedSource = text(filters.sourceType, 64);
@@ -611,10 +613,12 @@ async function getBoard({ uid, role, agentId, filters = {}, pool:sourcePool }) {
        WHERE ${conditions.join(" AND ")}`,
       values,
     );
-    const [agents] = await connection.query(
-      "SELECT id, name, email, is_active FROM agents WHERE owner_uid = ? AND is_active = 1 ORDER BY name ASC",
-      [uid],
-    );
+    const agentConditions=['owner_uid = ?','is_active = 1'],agentValues=[uid];
+    if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds)){
+      if(scopeAgentIds.length){agentConditions.push('id IN (?)');agentValues.push(scopeAgentIds);}
+      else agentConditions.push('1=0');
+    }
+    const [agents] = await connection.query(`SELECT id, name, email, is_active FROM agents WHERE ${agentConditions.join(' AND ')} ORDER BY name ASC`,agentValues);
     const grouped = stages.map((stage) => ({ ...stage, leads: leads.filter((lead) => lead.stage_key === stage.stage_key) }));
     return { stages: grouped, leads, agents, total: Number(countRows[0]?.total || 0), page, limit };
   },sourcePool);
@@ -786,7 +790,7 @@ async function deleteStage(uid, stageKey, targetStage) {
   });
 }
 
-async function createManualLead({ uid, actorType, actorId, agentId, role, input, connection:existingConnection, pool:sourcePool }) {
+async function createManualLead({ uid, actorType, actorId, agentId, scopeAgentIds, role, input, connection:existingConnection, pool:sourcePool }) {
   const work=async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const title = text(input.title, 180);
@@ -807,6 +811,9 @@ async function createManualLead({ uid, actorType, actorId, agentId, role, input,
       const [agents] = await connection.query("SELECT id FROM agents WHERE id = ? AND owner_uid = ? AND is_active = 1 LIMIT 1", [Number(input.ownerAgentId), uid]);
       if (!agents.length) { const error = new Error("Choose an active agent in this workspace."); error.status = 400; throw error; }
       owner = Number(agents[0].id);
+    }
+    if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds)){
+      if(owner===null||!scopeAgentIds.includes(owner)){const error=new Error('Assign this lead to an active agent in your reporting team.');error.status=403;error.code='PERMISSION_DENIED';throw error;}
     }
     let contactId = text(input.contactId, 36);
     if (contactId) {
@@ -909,10 +916,11 @@ function summarizeCampaignAttribution(applications){
   return {trackedTouchCount:tracked.length,firstTouch:touch(tracked.at(-1)),latestTouch:touch(tracked[0])};
 }
 
-async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
+async function getLead(uid, id, {role,agentId,scopeAgentIds,pool:sourcePool}={}) {
   const uidHash = sha(uid);
   return inTransaction(async(connection)=>{
-    const scoped=role==='agent'?' AND l.owner_agent_id=?':'';
+    const conditions=['l.uid_hash = ?','l.id = ?'],values=[uidHash,id];
+    appendAssignmentScope(conditions,values,role,agentId,scopeAgentIds);
     const [leads] = await connection.query(
       `SELECT l.*, a.name AS owner_name, c.display_name AS relationship_name,
          c.normalized_email AS contact_email, c.preferred_language AS contact_language
@@ -920,8 +928,8 @@ async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
        LEFT JOIN agents a ON a.id = l.owner_agent_id
          AND a.owner_uid COLLATE utf8mb4_general_ci = l.uid COLLATE utf8mb4_general_ci
        LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
-       WHERE l.uid_hash = ? AND l.id = ?${scoped} LIMIT 1 FOR UPDATE`,
-      role==='agent'?[uidHash,id,agentId]:[uidHash,id],
+       WHERE ${conditions.join(' AND ')} LIMIT 1 FOR UPDATE`,
+      values,
     );
     if (!leads.length) return null;
     const [activities] = await connection.query(
@@ -970,22 +978,22 @@ async function getLead(uid, id, {role,agentId,pool:sourcePool}={}) {
   },sourcePool);
 }
 
-async function getFollowUps({ uid, role, agentId, period = "all", page = 1, limit = 20, pool: sourcePool }) {
-  if (!['owner', 'manager', 'agent'].includes(role)) { const error = new Error("You do not have access to pipeline follow-ups."); error.status = 403; throw error; }
+async function getFollowUps({ uid, role, agentId, scopeAgentIds, period = "all", page = 1, limit = 20, pool: sourcePool }) {
+  if (!['owner', 'manager', 'team_leader', 'agent'].includes(role)) { const error = new Error("You do not have access to pipeline follow-ups."); error.status = 403; throw error; }
   const pageNumber = Number(page), pageSize = Number(limit);
   if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > 10000 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
     const error = new Error("Choose a valid follow-up page and page size."); error.status = 400; throw error;
   }
   if (!['all', 'overdue', 'upcoming'].includes(period)) { const error = new Error("Choose all, overdue, or upcoming follow-ups."); error.status = 400; throw error; }
   const uidHash = sha(uid), conditions = ["l.uid_hash = ?", "l.status = 'open'", "l.next_follow_up_at IS NOT NULL"], values = [uidHash];
-  if (role === 'agent') { conditions.push("l.owner_agent_id = ?"); values.push(agentId); }
+  appendAssignmentScope(conditions,values,role,agentId,scopeAgentIds);
   if (period === 'overdue') conditions.push("l.next_follow_up_at < UTC_TIMESTAMP(3)");
   if (period === 'upcoming') conditions.push("l.next_follow_up_at >= UTC_TIMESTAMP(3)");
   const where = conditions.join(' AND '), pool = getPromisePool(sourcePool);
   const [[count]] = await pool.query(`SELECT COUNT(*) AS total FROM pipeline_leads l WHERE ${where}`, values);
   const summaryConditions = ["l.uid_hash = ?", "l.status = 'open'", "l.next_follow_up_at IS NOT NULL"];
   const summaryValues = [uidHash];
-  if (role === 'agent') { summaryConditions.push("l.owner_agent_id = ?"); summaryValues.push(agentId); }
+  appendAssignmentScope(summaryConditions,summaryValues,role,agentId,scopeAgentIds);
   const [[summary]] = await pool.query(
     `SELECT COUNT(*) AS total,
        SUM(l.next_follow_up_at < UTC_TIMESTAMP(3)) AS overdue,
@@ -1009,7 +1017,7 @@ async function getFollowUps({ uid, role, agentId, period = "all", page = 1, limi
     summary: { total: Number(summary.total || 0), overdue: Number(summary.overdue || 0), upcoming: Number(summary.upcoming || 0) }, period, role };
 }
 
-async function resolveFollowUp({ uid, id, action, at, expectedDueAt, actorType, actorId, role, agentId, pool: sourcePool }) {
+async function resolveFollowUp({ uid, id, action, at, expectedDueAt, actorType, actorId, role, agentId, scopeAgentIds, pool: sourcePool }) {
   if (!['complete', 'reschedule'].includes(action)) { const error = new Error("Choose complete or reschedule."); error.status = 400; throw error; }
   if (typeof expectedDueAt !== 'string' || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$/.test(expectedDueAt)) {
     const error = new Error("Refresh this follow-up and try again."); error.status = 400; throw error;
@@ -1023,7 +1031,7 @@ async function resolveFollowUp({ uid, id, action, at, expectedDueAt, actorType, 
        FROM pipeline_leads l WHERE l.uid_hash = ? AND l.id = ? LIMIT 1 FOR UPDATE`, [uidHash, id],
     );
     if (!rows.length) { const error = new Error("Lead not found."); error.status = 404; throw error; }
-    const lead = rows[0]; assertAssignedAgent(role, agentId, lead);
+    const lead = rows[0]; assertLeadScope(role, agentId, scopeAgentIds, lead);
     if (lead.status !== 'open' || !lead.next_follow_up_at) { const error = new Error("This follow-up is already completed or no longer active."); error.status = 409; throw error; }
     if (lead.due_revision !== expectedDueAt) { const error = new Error("This follow-up changed after you opened it. Refresh before updating."); error.status = 409; throw error; }
     const now = dbDate(new Date());
@@ -1033,18 +1041,28 @@ async function resolveFollowUp({ uid, id, action, at, expectedDueAt, actorType, 
   }, sourcePool);
 }
 
-function assertAssignedAgent(role,agentId,lead){
+function appendAssignmentScope(conditions,values,role,agentId,scopeAgentIds,alias='l'){
+  if(role==='agent'){conditions.push(`${alias}.owner_agent_id = ?`);values.push(agentId);return;}
+  if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds)){
+    if(scopeAgentIds.length){conditions.push(`${alias}.owner_agent_id IN (?)`);values.push(scopeAgentIds);}
+    else conditions.push('1=0');
+  }
+}
+function assertLeadScope(role,agentId,scopeAgentIds,lead){
   if(role==='agent'&&!require('./access').canAgentAccessLead(agentId,lead.owner_agent_id)){
     const error=new Error('This lead is not assigned to this agent.');error.status=403;throw error;
   }
+  if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds)&&!scopeAgentIds.includes(Number(lead.owner_agent_id))){
+    const error=new Error('This lead is outside your reporting team.');error.status=403;error.code='PERMISSION_DENIED';throw error;
+  }
 }
 
-async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, pool:sourcePool }) {
+async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, scopeAgentIds, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const [leads] = await connection.query("SELECT * FROM pipeline_leads WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE", [uidHash, id]);
     if (!leads.length) { const error = new Error("Lead not found."); error.status = 404; throw error; }
-    assertAssignedAgent(role,agentId,leads[0]);
+    assertLeadScope(role,agentId,scopeAgentIds,leads[0]);
     const target = await stageExists(connection, uidHash, stageKey);
     if (!target) { const error = new Error("Choose an existing stage."); error.status = 400; throw error; }
     const lead = leads[0];
@@ -1066,13 +1084,13 @@ async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, 
   },sourcePool);
 }
 
-async function updateLead({ uid, id, input, actorType, actorId, role, agentId, pool:sourcePool }) {
+async function updateLead({ uid, id, input, actorType, actorId, role, agentId, scopeAgentIds, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const [rows] = await connection.query("SELECT * FROM pipeline_leads WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE", [uidHash, id]);
     if (!rows.length) { const error = new Error("Lead not found."); error.status = 404; throw error; }
     const lead = rows[0];
-    assertAssignedAgent(role,agentId,lead);
+    assertLeadScope(role,agentId,scopeAgentIds,lead);
     if(role==='agent'&&input.ownerAgentId!==undefined){const error=new Error('Agents cannot reassign leads.');error.status=403;error.code='PERMISSION_DENIED';throw error;}
     const changes = [];
     const values = [];
@@ -1165,6 +1183,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, p
         if (!agents.length) { const error = new Error("Choose an active agent in this workspace."); error.status = 400; throw error; }
         owner = Number(agents[0].id);
       }
+      if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds)&&(owner===null||!scopeAgentIds.includes(owner))){const error=new Error('You can assign leads only within your reporting team.');error.status=403;error.code='PERMISSION_DENIED';throw error;}
       if ((lead.owner_agent_id == null ? null : Number(lead.owner_agent_id)) !== owner) {
         const [previousAgents] = lead.owner_agent_id == null ? [[]] : await connection.query("SELECT name FROM agents WHERE id = ? AND owner_uid COLLATE utf8mb4_general_ci = ? COLLATE utf8mb4_general_ci LIMIT 1", [lead.owner_agent_id, uid]);
         const [nextAgents] = owner == null ? [[]] : await connection.query("SELECT name FROM agents WHERE id = ? AND owner_uid COLLATE utf8mb4_general_ci = ? COLLATE utf8mb4_general_ci LIMIT 1", [owner, uid]);

@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261012-inbox-bot-picker-copy3';
+    chatbotScript.src = '/chatbot-admin.js?v=20261012-test-list-empty1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
@@ -28,13 +28,14 @@
     ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Candidate Applications']],
     ['Leads & Reports', 'العملاء المحتملون والتقارير', ['Lead Pipeline', 'Lead Reports']],
     ['Contacts & Conversations', 'جهات الاتصال والمحادثات', ['Inbox', 'Phonebook', 'Call Center']],
-    ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports']],
+    ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports', 'Sales Finance']],
     ['WhatsApp & Campaigns', 'واتساب والحملات', ['Add WhatsApp by QR', 'Link Meta WhatsApp', 'Create Meta Template', 'Send Campaign', 'Campaign Dashboard', 'Web Notification']],
     ['Automation & Bots', 'الأتمتة والروبوتات', ['Automation Flows', 'WA Chatbot', 'FAQs']],
     ['Team & Tasks', 'الفريق والمهام', ['Team access', 'Tasks', 'Agent Login', 'Agent Task']],
     ['API & Integrations', 'واجهات البرمجة والتكامل', ['Chat Widget', 'REST API', 'Conversational API', 'Template API', 'API Dashboard']],
     ['Webhooks', 'الويب هوك', ['Manage Webhooks', 'Webhook Automation', 'Webhook Logs']],
     ['WhatsApp Warmer', 'تهيئة واتساب', ['WhatsApp Warmer']],
+    ['Sales Operations', 'عمليات المبيعات', ['Organization','Sales Targets','Sales Deals','My Commissions','Commission Payouts','Commission Policy']],
     ['More Tools', 'أدوات أخرى', []]
   ];
   const aliases = {
@@ -43,19 +44,21 @@
     'الفواتير والمدفوعات': 'Invoices & Payments', 'تقارير المالية': 'Finance Reports',
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Agent Login',
     'دخول الوكيل': 'Agent Login', 'Rest API': 'REST API', 'Web Notificaion': 'Web Notification',
-    'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard', 'المهام': 'Tasks', 'مركز الاتصال': 'Call Center'
+    'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard', 'المهام': 'Tasks', 'مركز الاتصال': 'Call Center',
+    'سياسة العمولات':'Commission Policy','صفقات المبيعات':'Sales Deals','أهداف المبيعات':'Sales Targets','عمولاتي':'My Commissions','مدفوعات العمولات':'Commission Payouts','مالية المبيعات':'Sales Finance','الهيكل التنظيمي':'Organization'
   };
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'chatbot', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Agent Login':'agent-login',
     'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', Courses:'courses', Students:'enrollments', 'Center profile':'enrollments', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
-    'Finance Reports':'reports', 'Team access':'team', 'Team and Roles':'team',
-    'Business Settings':'settings', Settings:'settings'
+    'Finance Reports':'reports', 'Team access':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance',
+    'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets'
   };
   let assignedNavigation = null;
   let roleNavigation = null;
   let membershipRole = null;
+  let membershipCategoryKey = null;
   let optionalFeatures = {};
   let navigationLoaded = false;
   let navigationChecksPending = 2;
@@ -81,6 +84,7 @@
         const value=data?.data?.assignedNavigation;
         const allowedByRole=data?.data?.roleNavigation;
         membershipRole=data?.data?.role||null;
+        membershipCategoryKey=data?.data?.categoryKey||null;
         if(Array.isArray(value))assignedNavigation=new Set(value);
         if(Array.isArray(allowedByRole))roleNavigation=new Set(allowedByRole);
       }
@@ -113,17 +117,26 @@
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list]>li{box-sizing:border-box!important;width:100%!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemButton-root{box-sizing:border-box!important;justify-content:center!important;padding-inline:0!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemIcon-root{flex:1 1 100%!important;width:100%!important;min-width:100%!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemText-root{display:none!important}
     [data-sx-sidebar-list] .MuiListItemIcon-root svg{display:block!important;width:20px!important;height:20px!important;flex:0 0 20px!important}
     [data-sx-sidebar-list] svg[data-sx-training-icon]{fill:none!important;stroke:currentColor!important;stroke-width:1.8px!important;stroke-linecap:round!important;stroke-linejoin:round!important}
     [data-sx-search-hidden],[data-sx-nav-section][hidden]{display:none!important}
+    .MuiDrawer-paper input[data-sx-search-empty]:-webkit-autofill{-webkit-text-fill-color:transparent!important;caret-color:transparent!important}
     [data-sx-sidebar-brand]{min-width:0!important;background:none!important;display:flex!important;align-items:center}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
     [data-sx-sidebar-logo]{display:block!important;width:156px!important;max-width:100%!important;height:44px!important;object-fit:contain!important;background:transparent!important}
     [data-sx-sidebar-collapsed] [data-sx-nav-section]{display:none!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{width:32px!important;height:32px!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemText-root,
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiTypography-root{display:none!important}
+    @media(min-width:701px){
+      .MuiDrawer-root.MuiDrawer-docked:has(>.MuiDrawer-paper[data-sx-sidebar-collapsed]){box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;flex:0 0 72px!important}
+      .MuiDrawer-paper[data-sx-sidebar-collapsed]{box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;overflow-x:hidden!important}
+    }
   `;
   document.head.append(style);
   const observed = new WeakSet();
+  const sidebarExpandedOverride = new WeakMap();
   const resizeObserver = new ResizeObserver(schedule);
   function label(row) {
     const spans = [...row.querySelectorAll('.MuiListItemText-primary span')];
@@ -155,6 +168,7 @@
       FAQs:['M5 3h14v18H5z','M8 8h8','M8 12h6','M9 16h.01','M15 16h.01'],
       'Team access':['M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2','M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8','M20 8v6','M17 11h6'],
       Tasks:['M9 6h11','M9 12h11','M9 18h11','M4 6l1 1 2-2','M4 12l1 1 2-2','M4 18l1 1 2-2'],
+      Organization:['M12 3 3 8v13h18V8z','M8 21v-7h8v7','M7 10h.01','M12 10h.01','M17 10h.01'],
       'Agent Login':['M15 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2','M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8','M18 8v6','M15 11h6'],
       'Agent Task':['M9 6h11','M9 12h11','M9 18h11','M4 6l1 1 2-2','M4 12l1 1 2-2','M4 18l1 1 2-2'],
       'Chat Widget':['M4 5h16v12H9l-5 4z','M8 9h8','M8 13h5'],
@@ -243,16 +257,62 @@
       copy.setAttribute('aria-label',tr('Call Center','مركز الاتصال'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
       button.onclick=event=>{event.preventDefault();location.href='/user?page=call-center';};list.append(copy);
     }
+    if(membershipCategoryKey==='salemax_sales'&&membershipRole==='owner'&&pipelineSource&&!list.querySelector('[data-sx-commission-policy-nav]')){
+      const copy=pipelineSource.cloneNode(true);copy.dataset.sxCommissionPolicyNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Commission Policy','سياسة العمولات');
+      copy.setAttribute('aria-label',tr('Commission Policy','سياسة العمولات'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.onclick=event=>{event.preventDefault();location.href='/user?page=commission-policy';};list.append(copy);
+    }
+    if(membershipCategoryKey==='salemax_sales'&&roleNavigation?.has('sales-organization')&&(assignedNavigation===null||assignedNavigation.has('sales-organization'))&&pipelineSource&&!list.querySelector('[data-sx-sales-organization-nav]')){
+      const copy=pipelineSource.cloneNode(true);copy.dataset.sxSalesOrganizationNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Organization','الهيكل التنظيمي');
+      copy.setAttribute('aria-label',tr('Organization','الهيكل التنظيمي'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.setAttribute('aria-label',tr('Organization','الهيكل التنظيمي'));button.onclick=event=>{event.preventDefault();location.href='/user?page=sales-organization';};list.append(copy);
+    }
+    if(membershipCategoryKey==='salemax_sales'&&pipelineSource){
+      if(roleNavigation?.has('sales-targets')&&(assignedNavigation===null||assignedNavigation.has('sales-targets'))&&!list.querySelector('[data-sx-sales-overview-nav]')){
+        const labels={owner:['Business Overview','نظرة عامة على الأعمال'],manager:['Team Overview','نظرة عامة على الفريق'],team_leader:['Team Overview','نظرة عامة على الفريق'],agent:['My Day','مهامي اليوم']};const [label,arabic]=labels[membershipRole]||['Sales Overview','نظرة عامة على المبيعات'];
+        const copy=pipelineSource.cloneNode(true);copy.dataset.sxSalesOverviewNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+        const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr(label,arabic);
+        copy.setAttribute('aria-label',tr(label,arabic));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+        button.setAttribute('aria-label',tr(label,arabic));button.onclick=event=>{event.preventDefault();location.href='/user?page=sales-workspace&section=overview';};list.append(copy);
+      }
+      const commissionLabel=membershipRole==='accountant'?'Commission Payouts':'My Commissions',commissionArabic=membershipRole==='accountant'?'مدفوعات العمولات':'عمولاتي';
+      const salesLinks=[['Sales Targets','أهداف المبيعات','sales-targets','targets'],['Sales Deals','صفقات المبيعات','sales-deals','deals'],[commissionLabel,commissionArabic,'sales-commissions','commissions']];
+      for(const [label,arabic,key,section] of salesLinks){
+        if(roleNavigation&&!roleNavigation.has(key))continue;if(assignedNavigation!==null&&!assignedNavigation.has(key))continue;
+        const marker=`data-sx-${key}-nav`;if(list.querySelector(`[${marker}]`))continue;
+        const copy=pipelineSource.cloneNode(true);copy.setAttribute(marker,'1');copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+        const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr(label,arabic);
+        copy.setAttribute('aria-label',tr(label,arabic));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+        button.setAttribute('aria-label',tr(label,arabic));button.onclick=event=>{event.preventDefault();location.href=`/user?page=sales-workspace&section=${section}`;};list.append(copy);
+      }
+      if((!roleNavigation||roleNavigation.has('sales-finance'))&&(assignedNavigation===null||assignedNavigation.has('sales-finance'))&&!list.querySelector('[data-sx-sales-finance-nav]')){
+        const copy=pipelineSource.cloneNode(true);copy.dataset.sxSalesFinanceNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+        const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Sales Finance','مالية المبيعات');
+        copy.setAttribute('aria-label',tr('Sales Finance','مالية المبيعات'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+        button.setAttribute('aria-label',tr('Sales Finance','مالية المبيعات'));button.onclick=event=>{event.preventDefault();location.href='/user?page=sales-finance&view=overview';};list.append(copy);
+      }
+    }
   }
   function update() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return;
+    resetAgentLoginSearch();
     document.querySelectorAll('.MuiDrawer-paper').forEach(drawer => {
       if (!observed.has(drawer)) { observed.add(drawer); resizeObserver.observe(drawer); }
       const list = drawer.querySelector('ul');
       if (!list) return;
+      const searchInput = drawer.querySelector('input');
+      if (searchInput) {
+        if (searchInput.type !== 'search') searchInput.type = 'search';
+        if (searchInput.autocomplete !== 'new-password') searchInput.setAttribute('autocomplete', 'new-password');
+        if (searchInput.name !== 'salemax-navigation-query') searchInput.setAttribute('name', 'salemax-navigation-query');
+        searchInput.toggleAttribute('data-sx-search-empty', !searchInput.value);
+      }
       syncInjectedRows(list);
       list.dataset.sxSidebarList = '1';
-      const collapsed = drawer.getBoundingClientRect().width < 110;
+      const expanded = sidebarExpandedOverride.get(drawer);
+      const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === 'SaleMaX' && !p.closest('ul'));
       const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
@@ -265,7 +325,7 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs'};
+      const routes = {Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
@@ -273,7 +333,7 @@
         const tooltip = name === 'Web Notification' ? tr('Web Notifications', 'إشعارات الويب') : text;
         if (Object.values(routes).includes(active)) {
           const button = row.querySelector('.MuiListItemButton-root');
-          if (button) { const selected = name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
+          if (button) { const selected = name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : name==='Sales Deals' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='deals' : name==='Sales Targets' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='targets' : ['My Commissions','Commission Payouts'].includes(name) ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='commissions' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
         }
         const captions = {Dashboard:['Dashboard','لوحة التحكم'], 'Web Notification':['Web Notifications','إشعارات الويب'], 'Create Meta Template':['Create Meta Template','إنشاء قالب Meta']};
         const leaf = [...row.querySelectorAll('.MuiListItemText-primary span')].at(-1);
@@ -288,7 +348,8 @@
         const order = String(group * 100 + 1 + (rank < 0 ? index : rank));
         if (row.style.order !== order) row.style.order = order;
         const navKey=navigationKeys[name]||navigationKeys[text];
-        const hiddenByOwner=(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(roleNavigation!==null&&navKey&&!roleNavigation.has(navKey))||(name==='Team access'&&membershipRole&&membershipRole!=='owner');
+        const salesOrganisationAccess=membershipCategoryKey==='salemax_sales'&&['owner','manager','team_leader'].includes(membershipRole);
+        const hiddenByOwner=(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(roleNavigation!==null&&navKey&&!roleNavigation.has(navKey))||(name==='Team access'&&membershipRole&&membershipRole!=='owner'&&!salesOrganisationAccess);
         const optionalFeature=window.salemaxOptionalLabels?.[text]||window.salemaxOptionalLabels?.[name];
         const hiddenByFeature=!!optionalFeature&&optionalFeatures[optionalFeature]!==true;
         if(hiddenByFeature)row.setAttribute('data-sx-optional-hidden','1');
@@ -317,9 +378,40 @@
       if (rows.some((row, index) => row !== ordered[index])) ordered.forEach(row => list.append(row));
     });
     const page=new URLSearchParams(location.search).get('page');
-    const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'chatbot'};
+    const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
+    const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'chatbot','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
     const required=routeKeys[page];
-    if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(roleNavigation!==null&&required&&!roleNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'))location.replace('/user?page=dashboard');
+    const salesOrganisationAccess=membershipCategoryKey==='salemax_sales'&&['owner','manager','team_leader'].includes(membershipRole);
+    if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(roleNavigation!==null&&required&&!roleNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'&&!salesOrganisationAccess))location.replace('/user?page=dashboard');
+  }
+  let inboxRetryRoute = '';
+  let inboxRetryCount = 0;
+  let inboxRetryTimers = [];
+  function scheduleInboxRecovery() {
+    const params = new URLSearchParams(location.search);
+    const route = location.pathname.replace(/\/$/, '') === '/user' && params.get('page') === 'inbox' ? '/user?page=inbox' : '';
+    if (route === inboxRetryRoute) return;
+    inboxRetryTimers.forEach(clearTimeout);
+    inboxRetryTimers = [];
+    inboxRetryRoute = route;
+    inboxRetryCount = 0;
+    if (!route) return;
+    [1600, 4200].forEach(delay => inboxRetryTimers.push(setTimeout(() => retryInboxIfEmpty(route), delay)));
+  }
+  function retryInboxIfEmpty(route) {
+    if (route !== inboxRetryRoute || inboxRetryCount >= 2) return;
+    const emptyState = [...document.querySelectorAll('body *')].find(node =>
+      node.children.length === 0 && /^(No conversations found|لم يتم العثور على محادثات)$/i.test((node.textContent || '').trim())
+    );
+    if (!emptyState) return;
+    const search = document.querySelector('input[placeholder*="Search" i]');
+    if (search?.value?.trim()) return;
+    const chips = [...document.querySelectorAll('button,[role="button"]')].filter(node => /^(All|Unread|Read|الكل|غير المقروءة|المقروءة)$/i.test((node.textContent || '').trim()));
+    const active = chips.find(node => /MuiChip-filledPrimary|Mui-selected/.test(String(node.className)) || node.getAttribute('aria-pressed') === 'true');
+    const refresh = active || chips.find(node => /^(All|الكل)$/i.test((node.textContent || '').trim()));
+    if (!refresh) return;
+    inboxRetryCount++;
+    refresh.click();
   }
   let queued = false;
   function schedule() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; update(); }); }
@@ -331,6 +423,105 @@
     if (name !== 'WA Chatbot') return;
     event.preventDefault(); event.stopImmediatePropagation(); location.href = '/user?page=wa-chatbot';
   }, true);
+  document.addEventListener('click', event => {
+    const button = event.target.closest('.MuiDrawer-paper button, .MuiDrawer-paper [role="button"]');
+    if (!button) return;
+    const action = [button.getAttribute('aria-label'), button.getAttribute('title'), button.textContent]
+      .filter(Boolean).join(' ').trim();
+    const drawer = button.closest('.MuiDrawer-paper');
+    if (/\bexpand\b/i.test(action)) {
+      // The collapsed CSS pins the paper to 72px; keep explicit state so the
+      // resize observer cannot infer the old width and collapse it again.
+      if (drawer) sidebarExpandedOverride.set(drawer, true);
+      drawer?.removeAttribute('data-sx-sidebar-collapsed');
+      clearSidebarSearch(drawer);
+      clearLateSidebarEmail(drawer);
+      return;
+    }
+    const buttonRect = button.getBoundingClientRect();
+    const drawerRect = drawer?.getBoundingClientRect();
+    if (drawerRect && buttonRect.top < drawerRect.top + 64 && buttonRect.right > drawerRect.right - 60) {
+      sidebarExpandedOverride.set(drawer, false);
+      drawer.setAttribute('data-sx-sidebar-collapsed', '');
+    }
+  }, true);
+  function clearLateSidebarEmail(drawer, attempt = 0) {
+    setTimeout(() => {
+      if (new URLSearchParams(location.search).get('page') !== 'agent-login') return;
+      const input = drawer?.querySelector('input');
+      if (input && /@/.test(input.value)) clearSidebarSearch(drawer);
+      if (attempt < 11) clearLateSidebarEmail(drawer, attempt + 1);
+    }, 250);
+  }
+  function clearSidebarSearch(drawer) {
+    const input = drawer?.querySelector('input');
+    if (!input || !input.value) return;
+    // Use the search component's own clear button so React updates its
+    // controlled value instead of restoring browser autofill on the next render.
+    const inputRect = input.getBoundingClientRect();
+    const clearButton = [...drawer.querySelectorAll('button,[role="button"]')]
+      .filter(button => {
+        const rect = button.getBoundingClientRect();
+        return rect.width && rect.height && rect.top < inputRect.bottom && rect.bottom > inputRect.top
+          && Math.abs(rect.right - inputRect.right) < 28;
+      })
+      .sort((a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right)[0];
+    if (clearButton) {
+      clearButton.click();
+      return;
+    }
+    // Keep a fallback for layouts where the search component has no clear control.
+    input.focus({ preventScroll: true });
+    input.select();
+    try { document.execCommand('delete'); } catch (_) {}
+    input.blur();
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (input.value && setter) setter.call(input, '');
+    else if (input.value) input.value = '';
+    const event = typeof InputEvent === 'function'
+      ? new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward', data: null })
+      : new Event('input', { bubbles: true });
+    input.dispatchEvent(event);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  let agentLoginSearchResetForRoute = false;
+  function resetAgentLoginSearch() {
+    const active = new URLSearchParams(location.search).get('page');
+    if (active === 'agent-login' && !agentLoginSearchResetForRoute) {
+      const drawers = [...document.querySelectorAll('.MuiDrawer-paper')];
+      if (!drawers.some(drawer => drawer.querySelector('input'))) return;
+      drawers.forEach(drawer => {
+        const input = drawer.querySelector('input');
+        if (input) {
+          input.setAttribute('autocomplete', 'new-password');
+          input.setAttribute('name', 'salemax-navigation-query');
+        }
+        clearSidebarSearch(drawer);
+      });
+      agentLoginSearchResetForRoute = true;
+      // Browser autofill can arrive after React mounts the controlled search
+      // input. Clear that late value briefly while the Agent Login route settles.
+      drawers.forEach(drawer => clearLateSidebarEmail(drawer));
+    } else if (active !== 'agent-login') {
+      agentLoginSearchResetForRoute = false;
+    }
+  }
+  document.addEventListener('click', event => {
+    const button = event.target.closest('.MuiListItemButton-root');
+    if (!button) return;
+    const title = button.querySelector('.MuiListItemText-primary')?.textContent?.trim() || button.textContent.trim();
+    const name = aliases[title] || window.salemaxSidebarAliases?.[title] || title;
+    if (name === 'Agent Login') {
+      document.querySelectorAll('.MuiDrawer-paper').forEach(drawer => {
+        const input = drawer.querySelector('input');
+        if (input) {
+          input.setAttribute('autocomplete', 'new-password');
+          input.setAttribute('name', 'salemax-navigation-query');
+        }
+        clearSidebarSearch(drawer);
+      });
+    }
+  }, true);
   // Observe permission flags too: restoring a feature must restore its group heading.
   new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['data-sx-optional-hidden']});
   document.addEventListener('input', schedule);
@@ -341,4 +532,7 @@
   loadOptionalNavigation();
   loadCallCenterAccess();
   schedule();
+  scheduleInboxRecovery();
+  window.addEventListener('popstate', scheduleInboxRecovery);
+  window.addEventListener('hashchange', scheduleInboxRecovery);
 })();

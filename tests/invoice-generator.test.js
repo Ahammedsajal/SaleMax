@@ -36,7 +36,7 @@ test('manual invoice creation stores a no-tax snapshot and advances a locked ten
 
 test('identical invoice retries return the original snapshot without creating another document',async()=>{
   const firstDb=fakeDb();const first=await generator.create(firstDb,context(),{uid:'legacy-owner',input});
-  const hash=crypto.createHash('sha256').update(JSON.stringify({customerType:'manual',customerId:null,customerName:'Synthetic Learner',customerAddress:'Doha',customerPhone:null,customerEmail:null,courseId:input.courseId,paymentPlan:null,installments:input.installments})).digest('hex');
+  const hash=crypto.createHash('sha256').update(JSON.stringify({customerType:'manual',customerId:null,customerName:'Synthetic Learner',customerAddress:'Doha',customerPhone:null,customerEmail:null,courseId:input.courseId,paymentPlan:null,installments:input.installments,replacesId:null,replacementReason:null})).digest('hex');
   const prior={id:first.id,snapshot:JSON.stringify(first),payload_hash:hash};const retryDb=fakeDb(prior);const retry=await generator.create(retryDb,context(),{uid:'legacy-owner',input});
   assert.equal(retry.repeated,true);assert.equal(retry.id,first.id);assert.equal(retryDb.calls.some(call=>call.sql.startsWith('INSERT INTO sx_invoice_generator_documents')),false);
 });

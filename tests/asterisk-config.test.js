@@ -192,7 +192,8 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   assert.match(gatewayPorts,/module\.exports = \{[^}]*\blistQueues\b/);
   assert.match(migration,/CREATE TABLE sx_telephony_gateways/);
   assert.match(migration,/PRIMARY KEY \(tenant_id,gateway_id,channel_no\)/);
-  assert.match(index,/admin-telephony\.js\?v=20261007-sidebar-layout1/);
+  assert.match(telephony,/<input type="tel" inputmode="tel" autocomplete="tel" data-did/);
+  assert.match(index,/admin-telephony\.js\?v=20261012-did-input1/);
   assert.match(ui,/VERIFIED_ADMIN_LINK_REQUIRED:tr\(/);
 });
 
@@ -239,8 +240,11 @@ test('Call Center status reports call readiness only with live Asterisk and endp
   assert.match(client,/لا يستقبل SaleMaX أحداث المكالمات من أستريسك/);
   assert.match(client,/calls\/\$\{encodeURIComponent\(call\.callId\)\}\/end/);
   assert.match(client,/text\('End call','إنهاء المكالمة'\)/);
-  assert.match(page,/call-center\.js\?v=20261005-call-control1/);
-  assert.match(page,/call-center\.css\?v=20261005-call-control1/);
+  assert.match(client,/node\('outgoingSection'\)\.hidden=true/);
+  assert.match(client,/node\('extensionsSection'\)\.hidden=true/);
+  assert.match(client,/node\('queuesSection'\)\.hidden=true/);
+  assert.match(page,/call-center\.js\?v=20261013-call-recordings1/);
+  assert.match(page,/call-center\.css\?v=20261013-call-recordings1/);
 });
 
 test('Call Center queue UI exposes only the ring behavior implemented by the ARI caller', () => {

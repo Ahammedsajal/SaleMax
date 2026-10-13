@@ -262,7 +262,7 @@ async function trainingCenterFacts({ db, tenantId, platformOrigin }) {
   if (courses.length) {
     [media] = await db.query(`SELECT m.id,m.course_id AS courseId,m.media_kind AS kind,m.mime_type AS mimeType,m.original_name AS filename,m.file_size_bytes AS sizeBytes
       FROM sx_training_course_media m JOIN sx_training_courses c ON c.tenant_id=m.tenant_id AND c.id=m.course_id
-      WHERE m.tenant_id=? AND c.status='active' AND m.deleted_at IS NULL
+      WHERE m.tenant_id=? AND c.status='active' AND c.deleted_at IS NULL AND m.deleted_at IS NULL
         AND ((m.media_kind='image' AND m.file_size_bytes<=5242880) OR (m.mime_type='application/pdf' AND m.file_size_bytes<=20971520))
       ORDER BY m.created_at DESC,m.id`, [tenantId]);
   }

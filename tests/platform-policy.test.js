@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { decision, platformDecision, capabilities } = require('../modules/platform/policy');
-const { trainingCenter, restaurantFixture } = require('../modules/platform/categories');
+const { trainingCenter, salemaxSales, restaurantFixture } = require('../modules/platform/categories');
 const { navigationFor } = require('../modules/platform/navigation');
 const { canAgentAccessLead } = require('../helper/pipeline/access');
 function context(role='owner') {
@@ -59,6 +59,28 @@ test('navigation reflects backend decisions and future category fixture excludes
   const fixture=context(); fixture.category=restaurantFixture; fixture.tenant.categoryKey=restaurantFixture.key;
   assert.ok(!navigationFor(fixture).some(i=>i.key==='courses'));
   const stale=context(); stale.membership.tenantId='tenant-b'; assert.deepEqual(navigationFor(stale),[]);
+});
+test('SaleMaX Sales team leaders receive team-scoped sales, call, task and report navigation',()=>{
+  const sales={...context('team_leader'),category:salemaxSales};
+  sales.tenant.categoryKey=salemaxSales.key;
+  sales.subscription.capabilities=[...salemaxSales.capabilities];
+  const items=navigationFor(sales);
+  for(const key of ['leads','contacts','tasks','call-center','reports','team'])assert.ok(items.some(item=>item.key===key),key);
+  assert.ok(!items.some(item=>['dashboard','courses','invoices','payments','settings'].includes(item.key)));
+  assert.equal(decision(sales,{capability:'crm.leads',permission:'leads.read'}).scope,'team');
+  assert.equal(decision(sales,{capability:'telephony.call-center',permission:'calls.read'}).scope,'team');
+  assert.equal(decision(sales,{capability:'reports.read',permission:'reports.read'}).scope,'team');
+});
+test('SaleMaX Sales deal and commission permissions follow role boundaries and stay outside Training Center',()=>{
+  const roleContext=role=>{const sales={...context(role),category:salemaxSales};sales.tenant.categoryKey=salemaxSales.key;sales.subscription.capabilities=[...salemaxSales.capabilities];return sales;};
+  assert.equal(decision(roleContext('owner'),{capability:'sales.deals',permission:'deals.approve'}).allowed,true);
+  assert.equal(decision(roleContext('agent'),{capability:'sales.deals',permission:'deals.request'}).scope,'assigned');
+  assert.equal(decision(roleContext('team_leader'),{capability:'sales.deals',permission:'deals.read'}).scope,'team');
+  assert.equal(decision(roleContext('accountant'),{capability:'sales.commissions',permission:'commissions.read'}).scope,'finance');
+  assert.equal(decision(roleContext('accountant'),{capability:'sales.deals',permission:'deals.read'}).allowed,false);
+  assert.equal(decision(roleContext('accountant'),{capability:'sales.commissions',permission:'commission.policy.manage'}).allowed,false);
+  assert.equal(decision(roleContext('manager'),{capability:'sales.commissions',permission:'commission.payout.pay'}).allowed,false);
+  assert.equal(decision(context('owner'),{capability:'sales.deals',permission:'deals.approve'}).code,'CATEGORY_UNAVAILABLE');
 });
 test('member navigation assignment hides unselected sections and denies their canonical APIs',()=>{
   const c=context('agent');c.membership.assignedNavigation=['tasks'];

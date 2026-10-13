@@ -3,7 +3,7 @@ const crypto=require('node:crypto');
 const bcrypt=require('bcrypt');
 const plans=require('./plans');
 const seats=require('./legacy-agent-seats');
-const {trainingCenter}=require('./categories');
+const {trainingCenter,getCategory}=require('./categories');
 const navigation=require('./navigation');
 const policy=require('./policy');
 const {decision}=policy;
@@ -12,7 +12,7 @@ const fail=code=>{throw Object.assign(new Error(code),{code});};
 const digest=value=>crypto.createHash('sha256').update(value,'utf8').digest('hex');
 const uid=()=>crypto.randomBytes(24).toString('base64url');
 function email(value){const result=typeof value==='string'?value.trim().toLowerCase():'';if(!result||result.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result))fail('INVALID_EMAIL');return result;}
-const staffRoles=['accountant','manager','agent'];
+const staffRoles=['accountant','manager','team_leader','agent'];
 function role(value){if(!staffRoles.includes(value))fail('INVALID_ROLE');return value;}
 function invitationId(value){if(typeof value!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))fail('INVALID_ID');return value;}
 function roleName(value){const name=typeof value==='string'?value.trim():'';if(!name||Array.from(name).length>80)fail('INVALID_ROLE_NAME');return name;}
@@ -20,7 +20,10 @@ function roleDescription(value){const description=typeof value==='string'?value.
 function permissionsFor(seatRole,category=trainingCenter,subscription=null){
   const enabledCapabilities=new Set((category?.capabilities||[]).filter(capability=>subscription?.capabilities?.includes(capability)));
   const planPermissions=new Set(Object.entries(policy.capabilities).filter(([capability])=>enabledCapabilities.has(capability)).flatMap(([,items])=>items));
-  return Object.keys(policy.permissions).filter(key=>!['team.read','team.invite'].includes(key)&&policy.scopeFor({role:seatRole,delegatedPermissions:seatRole==='manager'?policy.delegationAllowlist:[]},key)&&planPermissions.has(key));
+  return Object.keys(policy.permissions).filter(key=>{
+    const allowed=policy.scopeFor({role:seatRole,delegatedPermissions:seatRole==='manager'?policy.delegationAllowlist:[]},key)||category?.key==='salemax_sales'&&seatRole==='manager'&&key==='team.invite';
+    return allowed&&planPermissions.has(key);
+  });
 }
 function rolePermissions(value,seatRole,allowed=permissionsFor(seatRole)){if(!Array.isArray(value)||value.length>Object.keys(policy.permissions).length||value.some(item=>typeof item!=='string')||new Set(value).size!==value.length||value.some(item=>!allowed.includes(item)))fail('INVALID_ROLE_PERMISSIONS');return [...value].sort();}
 async function tx(db,fn){await db.beginTransaction();try{const out=await fn();await db.commit();return out;}catch(error){await db.rollback();throw error;}}
@@ -44,17 +47,19 @@ async function ownerScope(db,ownerUid,{requireTeam=true}={}){
   if(rows.length!==1||rows[0].uidHash!==digest(ownerUid))fail('BUSINESS_LINK_INVALID');
   const value=rows[0];
   if(value.role!=='owner'||value.membershipStatus!=='active'||value.identityStatus!=='active')fail('PERMISSION_DENIED');
-  if(value.tenantStatus!=='active'||value.categoryKey!==trainingCenter.key||Number(value.categoryVersion)!==trainingCenter.version)fail('BUSINESS_INACTIVE');
+  const category=getCategory(value.categoryKey,Number(value.categoryVersion));
+  if(value.tenantStatus!=='active'||!category||!category.seatRoles?.includes('owner'))fail('BUSINESS_INACTIVE');
   const [[tenant]]=await db.query('SELECT id,status,category_key,category_version FROM sx_tenants WHERE id=? FOR UPDATE',[value.tenantId]);
   if(!tenant||tenant.status!=='active')fail('BUSINESS_INACTIVE');
   const entitlement=await plans.loadEntitlements(db,value.tenantId);
   if(requireTeam&&(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities.includes('team.members')))fail('TEAM_FEATURE_UNAVAILABLE');
-  return {...value,entitlement};
+  return {...value,category,entitlement};
 }
 async function createRole(pool,ownerUid,input){
   const name=roleName(input?.name),seatRole=role(input?.seatRole),description=roleDescription(input?.description),id=crypto.randomUUID();
   const db=await pool.getConnection();try{return await tx(db,async()=>{await storage(db);const scope=await ownerScope(db,ownerUid);
-    const permissions=rolePermissions(input?.permissions,seatRole,permissionsFor(seatRole,trainingCenter,scope.entitlement));
+    if(!scope.category.seatRoles.includes(seatRole))fail('INVALID_ROLE');
+    const permissions=rolePermissions(input?.permissions,seatRole,permissionsFor(seatRole,scope.category,scope.entitlement));
     await db.query('INSERT INTO sx_team_roles(id,tenant_id,name,description,seat_role,permissions,status,created_by_identity_id) VALUES (?,?,?,?,?,? ,\'active\',?)',[id,scope.tenantId,name,description,seatRole,JSON.stringify(permissions),scope.identityId]);
     await audit(db,scope.identityId,scope.tenantId,'team.role-created',id,{name,seatRole,permissions},'team-role');
     return {id,name,description,seatRole,permissions,status:'active'};
@@ -66,7 +71,7 @@ async function updateRole(pool,ownerUid,id,input){
     const [[current]]=await db.query('SELECT id,name,description,seat_role AS seatRole,permissions,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE',[scope.tenantId,id]);
     if(!current)fail('ROLE_NOT_FOUND');if(current.status!=='active')fail('ROLE_ARCHIVED');
     const previous=typeof current.permissions==='string'?JSON.parse(current.permissions):current.permissions;
-    const permissions=rolePermissions(input?.permissions,current.seatRole,permissionsFor(current.seatRole,trainingCenter,scope.entitlement));
+    const permissions=rolePermissions(input?.permissions,current.seatRole,permissionsFor(current.seatRole,scope.category,scope.entitlement));
     await db.query('UPDATE sx_team_roles SET name=?,description=?,permissions=? WHERE tenant_id=? AND id=?',[name,description,JSON.stringify(permissions),scope.tenantId,id]);
     await db.query('UPDATE sx_memberships SET permission_version=permission_version+1 WHERE tenant_id=? AND role_profile_id=? AND status=\'active\'',[scope.tenantId,id]);
     await audit(db,scope.identityId,scope.tenantId,'team.role-updated',id,{oldName:current.name,newName:name,oldPermissions:previous,newPermissions:permissions},'team-role');
@@ -97,6 +102,7 @@ async function create(pool,ownerUid,input){
     let profile=null,targetRole;
     if(profileId){const [[row]]=await db.query("SELECT id,name,seat_role AS seatRole,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE",[scope.tenantId,profileId]);if(!row||row.status!=='active')fail('ROLE_NOT_FOUND');profile=row;targetRole=role(row.seatRole);}
     else targetRole=role(input?.role??'agent');
+    if(!scope.category.seatRoles.includes(targetRole))fail('INVALID_ROLE');
     if(direct&&targetRole==='agent'&&!activation.mobile)fail('INVALID_MOBILE');
     const [[prior]]=await db.query('SELECT id,email_normalized,role,role_profile_id AS roleProfileId,status,token_hash FROM sx_team_invites WHERE tenant_id=? AND request_key=? FOR UPDATE',[scope.tenantId,requestKey]);
     if(prior){
@@ -130,7 +136,8 @@ async function list(pool,ownerUid){
     const [pendingRows]=await db.query("SELECT role,COUNT(*) AS n FROM sx_team_invites WHERE tenant_id=? AND status='pending' AND expires_at>UTC_TIMESTAMP(3) GROUP BY role",[scope.tenantId]);
     const pending=Object.fromEntries(pendingRows.map(row=>[row.role,Number(row.n)]));
     const teamEnabled=Boolean(scope.entitlement&&['active','trial','grace'].includes(scope.entitlement.status)&&scope.entitlement.capabilities.includes('team.members'));
-    const seatUsage=Object.fromEntries(staffRoles.map(key=>{const pendingCount=pending[key]||0,limit=scope.entitlement?.roleLimits?.[key]??null,total=Number(used[key]||0);return [key,{active:Math.max(0,total-pendingCount),pending:pendingCount,limit,available:!teamEnabled||limit===null?0:Math.max(0,limit-total)}];}));
+    const availableStaffRoles=scope.category.seatRoles.filter(key=>key!=='owner');
+    const seatUsage=Object.fromEntries(availableStaffRoles.map(key=>{const pendingCount=pending[key]||0,limit=scope.entitlement?.roleLimits?.[key]??null,total=Number(used[key]||0);return [key,{active:Math.max(0,total-pendingCount),pending:pendingCount,limit,available:!teamEnabled||limit===null?0:Math.max(0,limit-total)}];}));
     const [roles]=await db.query(`SELECT id,name,description,seat_role AS seatRole,permissions,status,created_at AS createdAt,updated_at AS updatedAt
       FROM sx_team_roles WHERE tenant_id=? ORDER BY FIELD(status,'active','archived'),name,id`,[scope.tenantId]);
     const normalizedRoles=roles.map(item=>({...item,permissions:typeof item.permissions==='string'?JSON.parse(item.permissions):item.permissions}));
@@ -140,21 +147,67 @@ async function list(pool,ownerUid){
     const [members]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,m.role_profile_id AS roleProfileId,r.name AS roleName,r.permissions AS rolePermissions,i.email_normalized AS email,i.display_name AS displayName,
         m.assigned_navigation AS assignedNavigation
       FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
-      WHERE m.tenant_id=? AND m.status='active' AND i.status='active' AND m.role IN ('accountant','manager','agent')
+      WHERE m.tenant_id=? AND m.status='active' AND i.status='active' AND m.role IN ('accountant','manager','team_leader','agent')
       ORDER BY i.display_name,i.email_normalized LIMIT 500`,[scope.tenantId]);
     const tenant={id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)};
     const navigationByRole=Object.fromEntries(staffRoles.map(memberRole=>{
-      const context={audience:'tenant',tenant,category:trainingCenter,subscription:scope.entitlement,
+      const context={audience:'tenant',tenant,category:scope.category,subscription:scope.entitlement,
         membership:{id:'preview',tenantId:scope.tenantId,role:memberRole,status:'active',delegatedPermissions:[]}};
       return [memberRole,navigation.navigationFor(context).map(item=>({key:item.key,label:item.label,group:item.group}))];
     }));
     const navigationByRoleProfile=Object.fromEntries(normalizedRoles.map(item=>{
-      const context={audience:'tenant',tenant,category:trainingCenter,subscription:scope.entitlement,
+      const context={audience:'tenant',tenant,category:scope.category,subscription:scope.entitlement,
         membership:{id:'preview',tenantId:scope.tenantId,role:item.seatRole,status:'active',delegatedPermissions:[],customPermissions:item.permissions}};
       return [item.id,navigation.navigationFor(context).map(entry=>({key:entry.key,label:entry.label,group:entry.group}))];
     }));
-    return {invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(staffRoles.map(key=>[key,permissionsFor(key,trainingCenter,scope.entitlement)])),navigationByRole,navigationByRoleProfile,availableRoles:staffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
+    return {categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
   });}finally{db.release();}
+}
+async function salesOrganization(pool,legacyUid){
+  if(typeof legacyUid!=='string'||!legacyUid)fail('AUTH_REQUIRED');
+  const db=await pool.getConnection();
+  try{
+    const [rows]=await db.query(`SELECT m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.role_profile_id AS roleProfileId,
+        r.permissions AS rolePermissions,m.assigned_navigation AS assignedNavigation,t.id AS tenantId,t.status AS tenantStatus,
+        t.category_key AS categoryKey,t.category_version AS categoryVersion,o.legacy_uid_hash AS uidHash
+      FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.tenant_id=t.id AND m.id=o.membership_id
+      LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
+      JOIN sx_identities i ON i.id=m.identity_id
+      WHERE u.uid=? AND i.status='active' LIMIT 2`,[legacyUid]);
+    if(rows.length!==1||rows[0].uidHash!==digest(legacyUid)||rows[0].membershipStatus!=='active'||rows[0].tenantStatus!=='active')fail('PERMISSION_DENIED');
+    const row=rows[0],category=getCategory(row.categoryKey,Number(row.categoryVersion));
+    if(!category)fail('CATEGORY_UNAVAILABLE');
+    if(category.key!=='salemax_sales')return {categoryKey:category.key,role:row.role,members:[],canReassign:false};
+    const subscription=await plans.loadEntitlements(db,row.tenantId);
+    const context={audience:'tenant',identity:{id:row.identityId},tenant:{id:row.tenantId,status:row.tenantStatus,categoryKey:row.categoryKey,categoryVersion:Number(row.categoryVersion)},
+      category,subscription,membership:{id:row.membershipId,tenantId:row.tenantId,role:row.role,status:row.membershipStatus,
+        customPermissions:row.roleProfileId?(typeof row.rolePermissions==='string'?JSON.parse(row.rolePermissions):row.rolePermissions):null,
+        assignedNavigation:parseNavigation(row.assignedNavigation),delegatedPermissions:[]}};
+    return {...await require('./sales-organization').list(db,context),categoryKey:category.key,role:row.role};
+  }finally{db.release();}
+}
+async function reassignSalesMember(pool,legacyUid,membershipId,input){
+  if(typeof legacyUid!=='string'||!legacyUid)fail('AUTH_REQUIRED');
+  const db=await pool.getConnection();
+  try{
+    const [rows]=await db.query(`SELECT m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.role_profile_id AS roleProfileId,
+        r.permissions AS rolePermissions,m.assigned_navigation AS assignedNavigation,t.id AS tenantId,t.status AS tenantStatus,
+        t.category_key AS categoryKey,t.category_version AS categoryVersion,o.legacy_uid_hash AS uidHash
+      FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.tenant_id=t.id AND m.id=o.membership_id
+      LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
+      JOIN sx_identities i ON i.id=m.identity_id
+      WHERE u.uid=? AND i.status='active' LIMIT 2`,[legacyUid]);
+    if(rows.length!==1||rows[0].uidHash!==digest(legacyUid)||rows[0].membershipStatus!=='active'||rows[0].tenantStatus!=='active')fail('PERMISSION_DENIED');
+    const row=rows[0],category=getCategory(row.categoryKey,Number(row.categoryVersion));
+    if(!category)fail('CATEGORY_UNAVAILABLE');
+    const context={audience:'tenant',identity:{id:row.identityId},tenant:{id:row.tenantId,status:row.tenantStatus,categoryKey:row.categoryKey,categoryVersion:Number(row.categoryVersion)},
+      category,subscription:await plans.loadEntitlements(db,row.tenantId),membership:{id:row.membershipId,tenantId:row.tenantId,role:row.role,status:row.membershipStatus,
+        customPermissions:row.roleProfileId?(typeof row.rolePermissions==='string'?JSON.parse(row.rolePermissions):row.rolePermissions):null,
+        assignedNavigation:parseNavigation(row.assignedNavigation),delegatedPermissions:[]}};
+    return await require('./sales-organization').reassign(db,context,membershipId,input);
+  }finally{db.release();}
 }
 async function sidebarAccess(pool,legacyUid){
   if(typeof legacyUid!=='string'||!legacyUid)fail('AUTH_REQUIRED');
@@ -172,9 +225,10 @@ async function sidebarAccess(pool,legacyUid){
     if(rows[0].roleProfileId&&!Array.isArray(customPermissions))fail('TEAM_ROLE_STORAGE_INVALID');
     const subscription=await plans.loadEntitlements(db,rows[0].tenantId);
     const tenant={id:rows[0].tenantId,status:rows[0].tenantStatus,categoryKey:rows[0].categoryKey,categoryVersion:Number(rows[0].categoryVersion)};
-    const context={audience:'tenant',tenant,category:trainingCenter,subscription,membership:{id:rows[0].id,tenantId:rows[0].tenantId,role:rows[0].role,status:'active',delegatedPermissions:[],customPermissions}};
+    const category=getCategory(rows[0].categoryKey,Number(rows[0].categoryVersion));if(!category)fail('CATEGORY_UNAVAILABLE');
+    const context={audience:'tenant',tenant,category,subscription,membership:{id:rows[0].id,tenantId:rows[0].tenantId,role:rows[0].role,status:'active',delegatedPermissions:[],customPermissions}};
     const roleNavigation=navigation.navigationFor(context).map(item=>item.key);
-    return {role:rows[0].role,roleProfileId:rows[0].roleProfileId||null,customPermissions,roleNavigation,assignedNavigation:parseNavigation(rows[0].assignedNavigation)};
+    return {categoryKey:rows[0].categoryKey,role:rows[0].role,roleProfileId:rows[0].roleProfileId||null,customPermissions,roleNavigation,assignedNavigation:parseNavigation(rows[0].assignedNavigation)};
   }finally{db.release();}
 }
 function parseNavigation(value){
@@ -189,11 +243,11 @@ async function updateMemberNavigation(pool,ownerUid,membershipId,input){
     await storage(db);const scope=await ownerScope(db,ownerUid);
     const [[member]]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,m.role_profile_id AS roleProfileId,r.permissions AS rolePermissions,m.assigned_navigation AS assignedNavigation
       FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
-      WHERE m.tenant_id=? AND m.id=? AND m.status='active' AND i.status='active' AND m.role IN ('accountant','manager','agent') FOR UPDATE`,[scope.tenantId,membershipId]);
+      WHERE m.tenant_id=? AND m.id=? AND m.status='active' AND i.status='active' AND m.role IN ('accountant','manager','team_leader','agent') FOR UPDATE`,[scope.tenantId,membershipId]);
     if(!member)fail('MEMBER_NOT_FOUND');
     const customPermissions=member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null;
     if(member.roleProfileId&&!Array.isArray(customPermissions))fail('TEAM_ROLE_STORAGE_INVALID');
-    const context={audience:'tenant',tenant:{id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)},category:trainingCenter,subscription:scope.entitlement,
+    const context={audience:'tenant',tenant:{id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)},category:scope.category,subscription:scope.entitlement,
       membership:{id:member.id,tenantId:scope.tenantId,role:member.role,status:'active',delegatedPermissions:[],customPermissions}};
     const allowed=new Set(navigation.navigationFor(context).map(item=>item.key));
     if(input.navigation.some(key=>!allowed.has(key)))fail('NAVIGATION_NOT_AVAILABLE');
@@ -226,7 +280,8 @@ async function preview(pool,token){
     await storage(db);
     const [[invite]]=await db.query(`SELECT v.email_normalized AS email,v.role,r.name AS roleName,v.role_profile_id AS roleProfileId,t.slug AS tenantSlug,t.name AS businessName,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,v.expires_at>UTC_TIMESTAMP(3) AS validNow
       FROM sx_team_invites v JOIN sx_tenants t ON t.id=v.tenant_id LEFT JOIN sx_team_roles r ON r.id=v.role_profile_id AND r.tenant_id=v.tenant_id WHERE v.token_hash=? AND v.status='pending' LIMIT 1`,[digest(token)]);
-    if(!invite||!invite.validNow||invite.tenantStatus!=='active'||invite.categoryKey!==trainingCenter.key||Number(invite.categoryVersion)!==trainingCenter.version)fail('INVITE_INVALID');
+    const category=getCategory(invite?.categoryKey,Number(invite?.categoryVersion));
+    if(!invite||!invite.validNow||invite.tenantStatus!=='active'||!category?.seatRoles?.includes(invite.role))fail('INVITE_INVALID');
     return {email:invite.email,role:invite.role,roleName:invite.roleName||null,businessName:invite.businessName,tenantSlug:invite.tenantSlug};
   }finally{db.release();}
 }
@@ -252,7 +307,8 @@ async function activate(db,input,creatorIdentityId=null){
     if(invite.roleProfileId&&invite.roleStatus!=='active')fail('INVITE_INVALID');
     if(invite.role==='agent'&&!mobile)fail('INVALID_MOBILE');
     const [[tenant]]=await db.query('SELECT id,status,category_key,category_version FROM sx_tenants WHERE id=? FOR UPDATE',[invite.tenantId]);
-    if(!tenant||tenant.status!=='active'||tenant.category_key!==trainingCenter.key||Number(tenant.category_version)!==trainingCenter.version)fail('INVITE_INVALID');
+    const category=getCategory(tenant?.category_key,Number(tenant?.category_version));
+    if(!tenant||tenant.status!=='active'||!category?.seatRoles?.includes(invite.role))fail('INVITE_INVALID');
     const [[owner]]=await db.query(`SELECT u.id,u.uid FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
       JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='owner' AND m.status='active'
       WHERE o.tenant_id=? FOR UPDATE`,[tenant.id]);
@@ -319,4 +375,4 @@ async function accountSession(pool,ownerUid,membershipId,{jwtKey,returning=false
     return {token:legacyToken,cookieToken:raw,sessionId:id,expiresInSeconds:seconds};
   });}finally{db.release();}
 }
-module.exports={accountSession,create,list,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};
+module.exports={accountSession,create,list,salesOrganization,reassignSalesMember,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};

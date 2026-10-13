@@ -1,3 +1,16 @@
+## SaleMaX Sales call coaching — production, 13 October 2026
+
+The existing Call Center now supports append-only coaching notes for calls involving active Sales agents. Owner, manager and team leader access follows their tenant/current-team scopes; coaching notes can be shared explicitly with the agent. Audit events retain metadata while omitting feedback text. The existing Call Center UI includes bilingual review, outcome, feedback, next-action and sharing controls using the current burgundy theme.
+
+Source PR #44 merged as `8ae4e57a2f7c9bb3ea394ce3ef4deec6a85aa840`; active release `/opt/salemax/releases/sales-call-coaching-8ae4e57-20261013`. Migration `20261128_telephony_call_coaching.sql` is applied; the production MariaDB 11.4.13 ledger is 87/87. The app is healthy with zero restarts, shell/login and assets return 200, and an anonymous coaching request returns 401. Focused tests pass 31/31 and disposable telephony integration passes.
+
+Authenticated role-by-role production acceptance remains open because the SaleMaX Sales tenant and staff are not provisioned. Production Asterisk is inactive, so real recording and call-coaching acceptance is still open. The local full-migration integration also stops on an existing first-migration parse error under MySQL 9.6; production MariaDB applied the new migration successfully. The full 42-ticket objective remains in progress.
+
+## Sales Overview dashboard — production, 13 October 2026
+
+The existing business panel now includes a role-aware Sales Overview entry point. Owners see business-level pipeline, targets, pending deal reviews, follow-ups and Call Center activity; managers and team leaders see their permitted team scope; agents see their own daily work. The dashboard uses existing APIs and the existing Call Center playback path. Arabic labels and right-to-left layout were corrected in PR #43 after synthetic preview.
+
+PR #42 (`674dde877b2af7e7ec2bdd384eec809997c601f5`) and PR #43 (`e84e362a5634476fc98f93580da336ee33e881d6`) are merged. Current production release: `/opt/salemax/releases/sales-overview-e84e362-20261013`, image `sha256:4781502ca3fe621c3ae6b0d6ae0568d19445d8f90bad57f08932b5fd50ab83a1`; rollback snapshot: `/opt/salemax/shared/rollback-sales-overview-e84e362-20261013`. Focused tests passed 16/16; JavaScript syntax and diff checks passed; synthetic English and Arabic previews passed. Live app health and login routes passed, but role-authenticated acceptance remains open pending internal tenant/account provisioning. Asterisk is inactive, so real recording/playback acceptance remains open. This increment does not complete the full 42-ticket objective.
 # SaleMaX implementation status
 
 ## AI-written Hybrid course replies — production, 11 October 2026
@@ -1152,3 +1165,49 @@ Validation: 217 focused checks and dedicated disposable MariaDB/73-migration pro
 ## AI mode and repeatable tester conversations — production, 11 October 2026
 
 Training AI BOT is live using the existing shared API key, on connected 55160323 with only recipient 50313785 enabled. Existing Automation settings now include a test number. That number can send reset bot after handover to clear scoped bot state, resume and receive the welcome again; message history and staff tasks stay intact. Other numbers retain handover behavior. Source bf7854d is deployed with 222 focused checks and authenticated bilingual desktop/mobile proof. The actual paused WhatsApp reset delivered its welcome and used no AI tokens. See DEPLOYMENT.md for releases, rollback and the earlier pure-AI fee/registration/handover evidence. English conversational tone review remains in progress.
+
+
+## Invoice builder usability update — production, 12 October 2026
+
+The existing Finance invoice builder now puts customer/course/payment details first and its saved plan/footer configuration below. Lead search and selection use one searchable dropdown, and saved plans render one schedule row per payment. “Generate invoice” replaces the A4-specific button label; the resulting PDF remains A4. Production release `/opt/salemax/releases/finance-invoice-ui-d92f3f9-20261012` is active. Container syntax, release/container/served asset hashes and health checks passed. No migration or financial record was written. Authenticated browser and synthetic invoice issuance acceptance remain open; release and rollback evidence is in `DEPLOYMENT.md`.
+
+
+## Industry-wide SaleMaX homepage messaging — production, 12 October 2026
+
+The existing public homepage now positions SaleMaX as customizable CRM, WhatsApp business messaging and automation for all industries, with named categories for real estate, training centers, healthcare, clinics, retail, restaurants, hospitality, fitness, beauty, automotive, education and professional services. The existing layout and styles are unchanged. Training Center invoicing is presented as a category-specific capability.
+
+Source commit `3724675717a4502eea8ca8862b7de281e319350b` is deployed in `/opt/salemax/releases/salemax-industries-3724675-20261012`. English and Arabic live-page copy, public assets, release/container hashes and `/healthz` were verified; no migration or customer-data write occurred. The React source for the generated public page is unavailable, so an exact-text DOM adapter updates the maintained script instead. Future shell/component text changes require selector and bilingual verification. See `DEPLOYMENT.md` for rollback and release evidence. This increment does not complete the 42-ticket upgrade.
+
+## Internal SaleMaX Sales workspace — first production increment, 13 October 2026
+
+The first SaleMaX Sales increment is deployed within the existing administration and business panels. The designated Business Admin identity is admin@salemax.qa; the platform Super Admin remains separate. The release adds private category and role provisioning, manager/team-leader/agent organisation history and audited moves, scoped leads/calls/deals, configurable product-and-role commissions, targets and performance, and Sales Finance. No production account, commission policy, sale, or customer record was created or changed.
+
+The isolated Sales workflow integration passes all 84 migrations on disposable MariaDB and verifies deal approval, commission policy snapshots, payout separation, idempotent invoice/receipt creation, partial receipt allocation/reversal, audit events, and HTTP role denials. Focused provisioning, organisation, call/pipeline scope, commission, target, invitation, and policy checks pass 43/43. The full JavaScript suite reports 651/670; the 19 failures overlap with the upstream baseline failures (620/640 with 20 failures).
+
+Source commit bcf015d36bb4247259baf074daf490e21fe996e7 introduced the first internal Sales workspace release through PR 37 at /opt/salemax/releases/sales-workspace-bcf015d-20261013. At that deployment, 81 historical migrations were checksum-verified and the three Sales migrations brought the ledger to 84 applied entries. That release was superseded by call-recordings release b48c15048477d9092fad79c334bab9890c148a22; the current 85-entry migration and production verification are recorded below and in DEPLOYMENT.md.
+
+Call recording and secure playback are deployed in `/opt/salemax/releases/call-recordings-b48c150-20261013` from source commit `b48c15048477d9092fad79c334bab9890c148a22`. The default-off policy, audible start beep, mixed-bridge capture, role-scoped playback endpoint, playback audit events, expiry worker, and Call Center controls are live. The additive migration is applied and the production ledger has 85/85 applied entries; focused ARI, policy, call-scope and playback tests pass 17/17, and the disposable telephony database workflow passes on local MySQL 9.6. Production Asterisk remains inactive, so real call capture and authenticated role-by-role browser playback acceptance are not verified. Recording remains off: the owner must confirm the caller/staff notice process and set retention before enabling it. Staff-account confirmation, initial commission rates and payout rules, and authenticated role-by-role browser acceptance remain open. The full 42-ticket upgrade remains in progress.
+
+## Finance page settings organization — production, 13 October 2026
+
+The existing Training Center Finance page retains generated invoice search/history, the invoice register and payment summary. Policy and installment reminder settings now open through a Settings dialog; business legal invoice details and footer remain managed in Training Center Profile. Production release and rollback details, hashes, and authenticated page verification are recorded in `DEPLOYMENT.md`. Focused checks pass 24/24. No schema, invoice or payment data changed. Email/WhatsApp delivery provider gates and broader authenticated payment lifecycle acceptance remain open; the full 42-ticket upgrade remains in progress.
+
+## SaleMaX Sales owner bootstrap — production, 13 October 2026
+
+Manage Users can issue a copyable 72-hour owner setup link after the audited SaleMaX Sales provisioning flow. The token is stored only as a SHA-256 digest; accepting it sets the legacy business-login password and canonical owner identity password hash atomically. The existing `/user/login` entry point remains in use. The designated business identity is `admin@salemax.qa`; the platform Super Admin stays separate. The first-party tenant defaults to India, INR and Asia/Kolkata.
+
+The feature was deployed with source commit `c5dd9bf` in `/opt/salemax/releases/salemax-sales-owner-activation-c5dd9bf-20261013`; the owner-invitation migration was applied. The code and migration are present in the current active release `/opt/salemax/releases/sales-overview-e84e362-20261013`, and a fresh read-only production query confirms migration status `applied`. Owner-activation, provisioning, Manage Users form and team-invitation checks passed 11/11; disposable MariaDB acceptance verified private Sales provisioning, India defaults, hashed one-time activation, replay denial, legacy and canonical password activation, audit, and tenant-session login.
+
+The workflow is deployed, but the internal workspace is not yet provisioned: a fresh production count returned zero `salemax_sales` tenants and zero `admin@salemax.qa` legacy accounts. No account, invite, commission policy, sale, or customer record was created. Provision the first-party tenant through the existing authenticated platform administration flow, generate the owner setup link for the confirmed identity, then verify activation and `/user/login`. The current browser is signed into an unrelated business tenant, so those authenticated steps remain open.
+## SaleMaX Sales Organization screen — production, 13 October 2026
+
+The existing SaleMaX business panel now exposes a responsive, bilingual Organization page with the manager → team leader → agent reporting tree and a separate Finance team group. Search and role filtering preserve a selected member's reporting context. Owners and managers can reassign team leaders or agents within their authorized scope; team leaders have read-only access. Team access shortcut visibility follows the owner role, and the screen uses the established SaleMaX burgundy palette.
+
+Production release `/opt/salemax/releases/sales-organization-931da2a-20261013` is active from merged source `931da2aab1f60e617190d37aa0754b04c76cbefb` (PR 41). No migration or business data changed. The code-only deployment has a mode-0700 rollback snapshot and saved prior app image; details and hashes are in `DEPLOYMENT.md`.
+
+Focused navigation, organization and target tests pass 14/14. The disposable MariaDB Sales integration applies all 86 migrations and verifies organization API role scope and reassignments over HTTP. It caught a same-millisecond history close/insert race; the timestamp update now clamps to the prior `started_at`. Production health and login/static routes return HTTP 200; the unauthenticated Organization API returns 401, and release/served asset hashes match.
+
+Authenticated production visual acceptance for Business Admin, Manager and Team Leader remains open because there is no active SaleMaX Sales tenant or `admin@salemax.qa` account. Agent and Accountant denial was confirmed through the synthetic HTTP integration, not a production login. Real call capture and recording playback remain unavailable while production Asterisk is inactive. The full 42-ticket upgrade remains in progress.
+## Finance screen reduction — production, 13 October 2026
+
+The initial Finance screen now shows only invoice creation and the generated invoice list, with existing search/filter and Open PDF controls. Payment summary/register, policy, reminders, queues and reports are no longer mounted on this screen. Existing data and backend capabilities remain intact. Authenticated production screen verification and 24/24 focused checks passed. Invoice issuance/PDF opening and provider delivery remain open gates. Full 42-ticket work remains in progress; see `DEPLOYMENT.md` for release hashes and rollback.

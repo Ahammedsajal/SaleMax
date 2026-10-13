@@ -3,6 +3,7 @@ const crypto=require('node:crypto');
 const express=require('express');
 const staff=require('./staff-access');
 const portfolios=require('./user-portfolio');
+const ownerActivation=require('./business-owner-activation');
 
 function createExistingPlatformAccessRouters({pool,origin}){
   const admin=express.Router(),accept=express.Router();
@@ -63,6 +64,10 @@ function createExistingPlatformAccessRouters({pool,origin}){
   accept.post('/accept',wrap(async(req,res)=>{
     if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))return res.status(400).json({code:'INVALID_BODY'});
     const data=await use(db=>staff.acceptInvite(db,req.body));res.status(201).json({success:true,data});
+  }));
+  accept.post('/business-owner/accept',wrap(async(req,res)=>{
+    if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))return res.status(400).json({code:'INVALID_BODY'});
+    const data=await use(db=>ownerActivation.accept(db,req.body));res.status(201).json({success:true,data});
   }));
   accept.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);

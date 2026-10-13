@@ -8,7 +8,7 @@ const http=require('node:http');
 const express=require('express');
 const mysql=require('mysql2/promise');
 const plans=require('../modules/platform/plans');
-const {trainingCenter}=require('../modules/platform/categories');
+const {trainingCenter,salemaxSales}=require('../modules/platform/categories');
 const queues=require('../modules/platform/telephony-queues');
 const extensions=require('../modules/platform/telephony-extensions');
 const gateway=require('../modules/platform/asterisk-gateway-ports');
@@ -16,6 +16,8 @@ const asteriskConfig=require('../modules/platform/asterisk-config');
 const asteriskSecrets=require('../modules/platform/asterisk-secrets');
 const {AsteriskCallControl}=require('../modules/platform/asterisk-call-control');
 const {createCallCenterRouter}=require('../modules/platform/call-center-router');
+const callRecordings=require('../modules/platform/telephony-recordings');
+const callCoaching=require('../modules/platform/telephony-call-coaching');
 
 async function main(){
   if(process.env.LOCAL_ONLY_MODE!=='true'||!['127.0.0.1','localhost','::1'].includes(process.env.DBHOST))throw new Error('LOCAL_DATABASE_ONLY');
@@ -33,7 +35,7 @@ async function main(){
     await db.query(`CREATE TABLE sx_tenants(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,slug VARCHAR(80) NOT NULL,name VARCHAR(120) NOT NULL,category_key VARCHAR(80) NOT NULL,category_version INT NOT NULL,status VARCHAR(20) NOT NULL) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_identities(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,email_normalized VARCHAR(254) NOT NULL,display_name VARCHAR(120) NOT NULL,status VARCHAR(20) NOT NULL) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_memberships(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,role VARCHAR(20) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'active',PRIMARY KEY(id),UNIQUE KEY uq_test_membership_tenant_id(tenant_id,id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),FOREIGN KEY(identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
-    await db.query(`CREATE TABLE sx_audit_events(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_kind VARCHAR(24) NOT NULL,action VARCHAR(100) NOT NULL,resource_type VARCHAR(100) NOT NULL,resource_id VARCHAR(120) NOT NULL,changes JSON NOT NULL,correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,FOREIGN KEY(actor_identity_id) REFERENCES sx_identities(id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id)) ENGINE=InnoDB`);
+    await db.query(`CREATE TABLE sx_audit_events(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_kind VARCHAR(24) NOT NULL,action VARCHAR(100) NOT NULL,resource_type VARCHAR(100) NOT NULL,resource_id VARCHAR(120) NOT NULL,reason VARCHAR(1000) NULL,changes JSON NOT NULL,correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,FOREIGN KEY(actor_identity_id) REFERENCES sx_identities(id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id)) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_platform_asterisk_config(id TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,gateway_endpoint_status VARCHAR(20) NULL,
       gateway_endpoint_tested_at DATETIME(3) NULL,gateway_host VARCHAR(253) NOT NULL DEFAULT '',gateway_sip_port SMALLINT UNSIGNED NOT NULL DEFAULT 5061,gateway_sip_transport VARCHAR(8) NOT NULL DEFAULT 'tls',
       ari_base_url VARCHAR(512) NOT NULL DEFAULT '',ari_username VARCHAR(128) NOT NULL DEFAULT '',credential_ciphertext VARBINARY(512) NULL,credential_iv BINARY(12) NULL,
@@ -41,7 +43,7 @@ async function main(){
     await db.query('INSERT INTO sx_platform_asterisk_config(id) VALUES(1)');
     await db.query(`CREATE TABLE sx_platform_asterisk_gateway_ports(channel_no TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,inbound_enabled TINYINT(1) NOT NULL DEFAULT 0,outbound_enabled TINYINT(1) NOT NULL DEFAULT 0,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,updated_at DATETIME(3) NULL,FOREIGN KEY(updated_by_identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
     await db.query('INSERT INTO sx_platform_asterisk_gateway_ports(channel_no) VALUES(1),(2),(3),(4)');
-    for(const name of ['20261106_tenant_telephony_extensions.sql','20261107_gateway_tenant_assignment.sql','20261108_telephony_queues.sql','20261109_gateway_inbound_queues.sql','20261110_asterisk_ari_runtime.sql','20261111_telephony_call_sessions.sql','20261112_asterisk_endpoint_credentials.sql','20261113_telephony_endpoint_provisioning.sql','20261114_tenant_asterisk_gateways.sql','20261115_tenant_gateway_call_leases.sql']){
+    for(const name of ['20261106_tenant_telephony_extensions.sql','20261107_gateway_tenant_assignment.sql','20261108_telephony_queues.sql','20261109_gateway_inbound_queues.sql','20261110_asterisk_ari_runtime.sql','20261111_telephony_call_sessions.sql','20261112_asterisk_endpoint_credentials.sql','20261113_telephony_endpoint_provisioning.sql','20261114_tenant_asterisk_gateways.sql','20261115_tenant_gateway_call_leases.sql','20261115_telephony_call_recordings.sql','20261128_telephony_call_coaching.sql']){
       const sql=fs.readFileSync(require('node:path').join(__dirname,'../database/migrations',name),'utf8');
       for(const statement of sql.split(';').map(part=>part.trim()).filter(Boolean))await db.query(statement);
     }
@@ -301,7 +303,42 @@ async function main(){
     assert.equal(emptyRecoveredCall.status,'failed');assert.equal(emptyRecoveredCall.leased_channel_no,null);assert.equal(emptyRecoveredCall.end_reason,'ARI_RECONNECT_NO_ACTIVE_CHANNELS');
     const [[runtime]]=await db.query('SELECT status,events_received,last_event_type FROM sx_platform_asterisk_runtime WHERE id=1');
     assert.equal(runtime.status,'connected');assert.equal(Number(runtime.events_received),1);assert.equal(runtime.last_event_type,'StasisStart');
-    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAnswerWins:true,tenantGatewayInboundIsolation:true,foreignGatewayCannotClaimTenantDid:true,oneActiveOutboundPerMember:true,outboundCallRateLimit:true,http429RetryAfter:true,tenantScopedCallTermination:true,oneActiveCallPerMemberControl:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,ariReconnectLeaseRecovery:true,missingActiveChannelReleasesSim:true,callWithoutLegsReleasesSim:true,syntheticOnly:true}));
+    const salesTenantId=crypto.randomUUID(),salesMembershipId=crypto.randomUUID(),salesAgentMembershipId=crypto.randomUUID(),salesCallId=crypto.randomUUID(),salesBridgeId=crypto.randomUUID();
+    await db.query(`INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES(?,?,?,'salemax_sales',1,'active')`,[salesTenantId,`synthetic-sales-${salesTenantId.slice(0,8)}`,'Synthetic internal sales']);
+    await db.query(`INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES(?,?,?,'owner'),(?,?,?,'agent')`,[salesMembershipId,salesTenantId,ownerId,salesAgentMembershipId,salesTenantId,agentId]);
+    await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,bridge_id,started_by_membership_id,answered_by_membership_id,answered_at)
+      VALUES(?,?,'outbound','connected',1,?,?,?,UTC_TIMESTAMP(3))`,[salesTenantId,salesCallId,salesBridgeId,salesAgentMembershipId,salesAgentMembershipId]);
+    await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
+      VALUES(?,?,?,'synthetic-sales-agent-leg','agent','mobile',?,'connected')`,[salesTenantId,crypto.randomUUID(),salesCallId,salesAgentMembershipId]);
+    const salesContext={audience:'tenant',identity:{id:ownerId},tenant:{id:salesTenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
+      membership:{id:salesMembershipId,tenantId:salesTenantId,role:'owner',status:'active'},category:salemaxSales,
+      subscription:{status:'active',capabilities:['telephony.call-center']}};
+    const sharedFeedback='Opened with discovery questions and confirmed the customer goal.',privateFeedback='Manager-only observation for the next coaching session.';
+    await callCoaching.create(db,salesContext,salesCallId,{agentMembershipId:salesAgentMembershipId,quality:'effective',feedback:sharedFeedback,nextAction:'Repeat this opening on the next call.',visibleToAgent:true});
+    await callCoaching.create(db,salesContext,salesCallId,{agentMembershipId:salesAgentMembershipId,quality:'follow_up_required',feedback:privateFeedback,visibleToAgent:false});
+    const salesAgentContext={...salesContext,identity:{id:agentId},membership:{id:salesAgentMembershipId,tenantId:salesTenantId,role:'agent',status:'active'}};
+    const visibleCoaching=await callCoaching.list(db,salesAgentContext,salesCallId);
+    assert.equal(visibleCoaching.items.length,1,'agents only receive coaching explicitly shared with them');
+    assert.equal(visibleCoaching.items[0].feedback,sharedFeedback);
+    await assert.rejects(callCoaching.list(db,salesContext,crypto.randomUUID()),{code:'CALL_NOT_FOUND'},'coaching never reveals a call from another tenant');
+    await assert.rejects(callCoaching.create(db,salesAgentContext,salesCallId,{agentMembershipId:salesAgentMembershipId,quality:'effective',feedback:'A self-authored coaching note.'}),{code:'PERMISSION_DENIED'});
+    const [[coachingAudit]]=await db.query("SELECT COUNT(*) AS total,MAX(changes) AS changes_json FROM sx_audit_events WHERE tenant_id=? AND action='telephony.call-coaching.created'",[salesTenantId]);
+    assert.equal(Number(coachingAudit.total),2);assert.equal(JSON.stringify(coachingAudit.changes_json).includes(sharedFeedback),false,'audit excludes coaching text');
+    const policy=await callRecordings.savePolicy(db,salesContext,{enabled:true,noticeConfirmed:true,retentionDays:30,expectedRevision:0});
+    assert.equal(policy.enabled,true);assert.equal(policy.revision,1);
+    let recordingsStarted=0;const recordingName=`salemax_${salesCallId.replace(/-/g,'')}`;
+    const recordingAriFactory=async()=>({async recordBridge(bridge,name){recordingsStarted++;assert.equal(bridge,salesBridgeId);assert.equal(name,recordingName);},
+      async deleteStoredRecording(name){assert.equal(name,recordingName);return true;},async stopLiveRecording(){return true;}});
+    const capture=await callRecordings.startForCall(pool,recordingAriFactory,salesTenantId,salesCallId,salesBridgeId);
+    assert.equal(capture.started,true);assert.equal(recordingsStarted,1);
+    assert.deepEqual(await callRecordings.startForCall(pool,recordingAriFactory,salesTenantId,salesCallId,salesBridgeId),{started:false},'duplicate reservation does not start another capture');
+    assert.equal(await callRecordings.handleFinished(pool,recordingAriFactory,{type:'RecordingFinished',recording:{name:recordingName,duration:64}}),true);
+    const opened=await callRecordings.openRecording(db,salesContext,salesCallId);assert.equal(opened.state,'ready');
+    await db.query("UPDATE sx_telephony_call_recordings SET expires_at=UTC_TIMESTAMP(3)-INTERVAL 1 SECOND WHERE tenant_id=? AND call_id=?",[salesTenantId,salesCallId]);
+    assert.equal(await callRecordings.expireRecordings(pool,recordingAriFactory),1);
+    const [[expired]]=await db.query('SELECT state FROM sx_telephony_call_recordings WHERE tenant_id=? AND call_id=?',[salesTenantId,salesCallId]);
+    assert.equal(expired.state,'expired');
+    console.log(JSON.stringify({telephonyDatabase:true,dbVersion:versionRows[0].version,queueRevisionRace:true,inboundQueueTenantLink:true,disabledQueueCannotReceiveInbound:true,activeQueueProtectsExtensions:true,activeInboundProtectsQueue:true,dinstarOutboundSimRoute:true,agentSipWebRtcEndpointPreview:true,inboundStasisQueueFlow:true,duplicateStasisIsIdempotent:true,firstAnswerWins:true,tenantGatewayInboundIsolation:true,foreignGatewayCannotClaimTenantDid:true,oneActiveOutboundPerMember:true,outboundCallRateLimit:true,http429RetryAfter:true,tenantScopedCallTermination:true,oneActiveCallPerMemberControl:true,outboundAgentFirstThenGateway:true,outboundCallEndReleasesSim:true,callSessionLeaseUnique:true,ariEventRuntimeState:true,ariReconnectLeaseRecovery:true,recordingPolicyAndLifecycle:true,recordingRetention:true,callCoachingTeamVisibility:true,callCoachingAuditExcludesNotes:true,missingActiveChannelReleasesSim:true,callWithoutLegsReleasesSim:true,syntheticOnly:true}));
   }finally{
     plans.loadEntitlements=originalEntitlements;
     if(originalSipKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalSipKey;

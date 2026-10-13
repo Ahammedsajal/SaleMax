@@ -21,6 +21,11 @@ test('training-center profile exposes a responsive bilingual logo upload in the 
   assert.match(screen, /حتى 5 ميجابايت/);
   assert.match(screen, /Uploading logo and saving profile/);
   assert.match(screen, /Remove logo/);
+  assert.match(screen, /data-report-destination-label/);
+  assert.match(screen, /updateReportDestination/);
+  assert.match(screen, /reportDestination.type=email\?'email':'tel'/);
+  assert.match(screen, /reportDestination.reportValidity\(\)/);
+  assert.match(screen, /autocomplete="one-time-code" pattern="\[0-9\]\{10\}" maxlength="10"/);
 });
 
 test('logo upload remains authenticated, signature-checked, bounded and on persistent public media storage', () => {

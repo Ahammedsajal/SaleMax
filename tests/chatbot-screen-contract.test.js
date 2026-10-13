@@ -18,6 +18,27 @@ test('existing Automation Flows canvas remains the first pill tab', () => {
   assert.ok(definitions.indexOf("['legacy'") < definitions.indexOf("['guided'") );
 });
 
+test('mobile Automation Flows uses a mode selector and reserves a clear builder row', () => {
+  assert.match(admin, /const mobileTabs = innerWidth <= 760/);
+  assert.match(admin, /class="sx-mobile-tab-select" aria-label=/);
+  assert.match(admin, /\.react-flow\[data-sx-chatbot-mobile-inset="true"\]\{position:absolute!important;inset:56px 0 0!important/);
+  assert.match(admin, /button\[aria-label="Node Menu"\]/);
+  assert.match(admin, /translateY\(56px\)/);
+  assert.match(admin, /function syncMobileFlowLayout\(enabled\)/);
+  assert.match(admin, /syncMobileFlowLayout\(false\)/);
+  assert.match(admin, /button\[aria-selected=true\]/);
+  assert.match(admin, /function positionPanel\(panel\)/);
+  assert.match(admin, /if\(active&&panel\)positionPanel\(panel\)/);
+});
+
+test('Hybrid bot list becomes labelled cards on mobile instead of an 850px table', () => {
+  assert.match(admin, /@media\(max-width:760px\)\{#sx-chatbot-panel \.sx-table-wrap\{overflow:visible/);
+  assert.match(admin, /#sx-chatbot-panel table\{display:block;width:100%;min-width:0\}/);
+  for (const label of ["Bot Name", "Type", "Status", "Actions"]) {
+    assert.ok(admin.includes(`data-label="\${esc(tr('${label}'`), `missing mobile bot-list label: ${label}`);
+  }
+});
+
 test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', () => {
   assert.match(admin, /if \(isAssignmentPage\(\)\) \{ state\.mounted = false; closeViews\(\); addStyle\(\); mountNativeAssignmentButton\(\); mountNativeProfileList\(\); return false; \}/);
   assert.match(admin, /Keep the existing WA Chatbot page and Add Chatbot layout/);
@@ -25,7 +46,7 @@ test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', (
   const picker = admin.slice(admin.indexOf('async function openNativeAssignmentDialog('), admin.indexOf('function isInboxPage('));
   assert.match(picker, /Select Automation Flow/);
   assert.match(picker, /Search flows\.\.\./);
-  assert.match(picker, /Enter webhook title\.\.\./);
+  assert.match(picker, /Select a bot to see its title/);
   assert.match(picker, /bots\.filter\(bot =>/);
   assert.match(picker, /data-bot-option/);
   assert.match(picker, /renderBotOptions\(true\)/);
@@ -57,6 +78,26 @@ test('bot editor renders editable bilingual training-center guide fields', () =>
   assert.match(admin, /العربية<textarea/);
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:en/);
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:ar/);
+});
+
+test('bot editor keeps save actions visible while its long form scrolls', () => {
+  assert.match(admin, /class="sx-dialog sx-bot-editor-dialog"[\s\S]*?<form><div class="sx-bot-editor-scroll"><div class="sx-form-grid">/);
+  assert.match(admin, /<div class="sx-error" role="alert"><\/div><\/div><div class="sx-footer">[\s\S]*?Save bot/);
+  assert.match(admin, /\.sx-bot-editor-dialog form\{display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden\}/);
+  assert.match(admin, /\.sx-bot-editor-scroll\{flex:1;min-height:0;overflow:auto;/);
+  assert.match(admin, /\.sx-bot-editor-dialog \.sx-footer\{flex:0 0 auto;/);
+  assert.match(admin, /html\[data-sx-chatbot-theme="dark"\] #sx-chatbot-dialog \.sx-bot-editor-dialog \.sx-footer\{background:#191c24/);
+});
+
+test('Hybrid bot test recipients are entered as validated removable phone chips', () => {
+  assert.match(admin, /data-test-number-list role="list"/);
+  assert.match(admin, /type="tel" inputmode="tel" autocomplete="tel" maxlength="24" data-test-number-entry/);
+  assert.match(admin, /data-test-number-add/);
+  assert.match(admin, /data-test-phone-remove/);
+  assert.match(admin, /testPhoneFail\(tr\('Enter a valid international number/);
+  assert.match(admin, /current\.length >= 10/);
+  assert.match(admin, /testRecipientPhones:String\(data\.get\('testRecipientPhone'\)\|\|''\)\.split/);
+  assert.match(admin, /\$\{audienceNotice\}\$\{testSettings\}\$\{flowField\}/);
 });
 
 test('AI provider, model, usage limit, and confidence use curated dropdown choices', () => {

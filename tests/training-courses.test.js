@@ -27,7 +27,7 @@ test('new course workflow is mounted in existing user shell with bilingual scree
   const fs=require('node:fs'),path=require('node:path');
   const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
   const html=read('client/public/index.html'),screen=read('client/public/training-courses.js'),mount=read('modules/platform/mount-existing-upgrade.js');
-  assert.match(html,/training-courses\.js\?v=20261012-course-batch-language1/);assert.match(screen,/\?page=courses/);assert.match(screen,/الدورات/);assert.match(screen,/priceMinor/);assert.match(screen,/Publish course/);assert.match(screen,/Schedule a batch/);assert.match(screen,/Retire course/);assert.match(screen,/data-edit-batch/);
+  assert.match(html,/training-courses\.js\?v=20261012-course-editor-details1/);assert.match(screen,/\?page=courses/);assert.match(screen,/الدورات/);assert.match(screen,/priceMinor/);assert.match(screen,/Publish course/);assert.match(screen,/Schedule a batch/);assert.match(screen,/Retire course/);assert.match(screen,/data-edit-batch/);
   assert.match(screen,/Learning outcomes/);assert.match(screen,/Prerequisites/);assert.match(screen,/addLearningInfo/);
   assert.match(screen,/prerequisitesEn:f\.get\('prerequisitesEn'\)/);assert.match(screen,/prerequisitesAr:f\.get\('prerequisitesAr'\)/);
   assert.match(screen,/area\.dir=rtl\?'rtl':'ltr'/);assert.match(screen,/help\.dir=field\.endsWith\('Ar'\)\?'rtl':'ltr'/);

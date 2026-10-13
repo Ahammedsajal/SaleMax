@@ -90,7 +90,7 @@ function filePath(tenantId, courseId, storageKey) {
 async function list(db, ctx, courseId) {
   courses.object(ctx, 'courses.read');
   safeId(courseId);
-  const [[course]] = await db.query('SELECT id FROM sx_training_courses WHERE tenant_id=? AND id=?', [ctx.tenant.id, courseId]);
+  const [[course]] = await db.query('SELECT id FROM sx_training_courses WHERE tenant_id=? AND id=? AND deleted_at IS NULL', [ctx.tenant.id, courseId]);
   if (!course) fail('COURSE_NOT_FOUND', 404);
   const [rows] = await db.query(`SELECT id,media_kind AS kind,mime_type AS mimeType,original_name AS originalName,file_size_bytes AS sizeBytes,created_at AS createdAt
     FROM sx_training_course_media WHERE tenant_id=? AND course_id=? AND deleted_at IS NULL ORDER BY created_at,id`, [ctx.tenant.id, courseId]);
@@ -111,7 +111,7 @@ async function attach(db, ctx, courseId, file) {
     await db.beginTransaction();
     const [[tenant]] = await db.query('SELECT id,status FROM sx_tenants WHERE id=? FOR UPDATE', [ctx.tenant.id]);
     if (!tenant || tenant.status !== 'active') fail('ACCOUNT_INACTIVE', 409);
-    const [[course]] = await db.query('SELECT id,status FROM sx_training_courses WHERE tenant_id=? AND id=? FOR UPDATE', [ctx.tenant.id, courseId]);
+    const [[course]] = await db.query('SELECT id,status FROM sx_training_courses WHERE tenant_id=? AND id=? AND deleted_at IS NULL FOR UPDATE', [ctx.tenant.id, courseId]);
     if (!course) fail('COURSE_NOT_FOUND', 404);
     if (course.status === 'retired') fail('COURSE_RETIRED', 409);
     const [[usage]] = await db.query(`SELECT COUNT(*) AS file_count,COALESCE(SUM(file_size_bytes),0) AS used_bytes FROM sx_training_course_media WHERE tenant_id=? AND deleted_at IS NULL`, [ctx.tenant.id]);
@@ -156,7 +156,7 @@ async function remove(db, ctx, courseId, mediaId) {
 async function getFile(db, tenantId, courseId, mediaId) {
   safeId(tenantId); safeId(courseId); safeId(mediaId);
   const [[row]] = await db.query(`SELECT media_kind AS kind,mime_type AS mimeType,original_name AS originalName,storage_key AS storageKey,file_size_bytes AS sizeBytes
-    FROM sx_training_course_media WHERE tenant_id=? AND course_id=? AND id=? AND deleted_at IS NULL`, [tenantId, courseId, mediaId]);
+    FROM sx_training_course_media m JOIN sx_training_courses c ON c.tenant_id=m.tenant_id AND c.id=m.course_id AND c.deleted_at IS NULL WHERE m.tenant_id=? AND m.course_id=? AND m.id=? AND m.deleted_at IS NULL`, [tenantId, courseId, mediaId]);
   if (!row) fail('COURSE_MEDIA_NOT_FOUND', 404);
   return { ...row, path: filePath(tenantId, courseId, row.storageKey), sizeBytes: Number(row.sizeBytes) };
 }

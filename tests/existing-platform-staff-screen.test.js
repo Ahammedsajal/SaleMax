@@ -20,6 +20,7 @@ test('platform staff and invite setup are integrated into the original administr
   assert.match(screen,/لا ترسل هذه الشاشة بريدًا إلكترونيًا/);
   assert.match(screen,/data-lang/);
   assert.match(screen,/setAttribute\('aria-modal','true'\)/);
+  assert.match(screen,/\.sx-staff-invite-card\{[^}]*max-height:calc\(100vh - 36px\);max-height:calc\(100dvh - 36px\);overflow:auto;overscroll-behavior:contain/);
   assert.match(screen,/navigator\.clipboard\.writeText/);
   assert.match(screen,/REAUTH_REQUIRED:t\('Your recent sign-in expired/);
   assert.match(screen,/Complete verification within five minutes of signing in/);
