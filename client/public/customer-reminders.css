@@ -2,3 +2,4 @@
 [data-reminder-actions] button{min-height:44px;border:1px solid #a8003b;border-radius:8px;padding:10px 16px;background:#a8003b;color:#fff;font:inherit;cursor:pointer}
 [data-reminder-actions] button.secondary{background:#fff;color:#344b5b;border-color:#cfd9e1}
 [data-reminder-actions] button:disabled{opacity:.6;cursor:wait}
+@media(max-width:480px){[data-reminder-actions]{gap:8px}[data-reminder-actions] button{flex:1 1 100%;width:100%;min-height:48px}}

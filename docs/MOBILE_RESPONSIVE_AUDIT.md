@@ -51,6 +51,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 | Admin QR Plugin Settings | Storage choices render as cards; restart warning and Save action are visible. | Pass at reviewed viewport; storage option unchanged |
 | Admin WA Embed Login | Settings fields stack; the long webhook URL wraps within its card. | Pass at reviewed viewport; credentials/settings unchanged |
 | Business navigation drawer | Search and close controls are visible; the grouped menu scrolls vertically inside the drawer. | Pass at reviewed viewport |
+| Public installment reminder preferences | Source review: action container wraps; on phone widths buttons now stack full-width at 48px minimum height. Runtime preference link and narrow-width visual review remain open. | Source adjustment; deployed and live review pending |
 
 ## Remaining inventory
 
