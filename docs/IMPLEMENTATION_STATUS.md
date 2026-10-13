@@ -1,3 +1,11 @@
+## SaleMaX Sales call coaching — production, 13 October 2026
+
+The existing Call Center now supports append-only coaching notes for calls involving active Sales agents. Owner, manager and team leader access follows their tenant/current-team scopes; coaching notes can be shared explicitly with the agent. Audit events retain metadata while omitting feedback text. The existing Call Center UI includes bilingual review, outcome, feedback, next-action and sharing controls using the current burgundy theme.
+
+Source PR #44 merged as `8ae4e57a2f7c9bb3ea394ce3ef4deec6a85aa840`; active release `/opt/salemax/releases/sales-call-coaching-8ae4e57-20261013`. Migration `20261128_telephony_call_coaching.sql` is applied; the production MariaDB 11.4.13 ledger is 87/87. The app is healthy with zero restarts, shell/login and assets return 200, and an anonymous coaching request returns 401. Focused tests pass 31/31 and disposable telephony integration passes.
+
+Authenticated role-by-role production acceptance remains open because the SaleMaX Sales tenant and staff are not provisioned. Production Asterisk is inactive, so real recording and call-coaching acceptance is still open. The local full-migration integration also stops on an existing first-migration parse error under MySQL 9.6; production MariaDB applied the new migration successfully. The full 42-ticket objective remains in progress.
+
 ## Sales Overview dashboard — production, 13 October 2026
 
 The existing business panel now includes a role-aware Sales Overview entry point. Owners see business-level pipeline, targets, pending deal reviews, follow-ups and Call Center activity; managers and team leaders see their permitted team scope; agents see their own daily work. The dashboard uses existing APIs and the existing Call Center playback path. Arabic labels and right-to-left layout were corrected in PR #43 after synthetic preview.
