@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const ari = require('./asterisk-ari-client');
 const gatewayPorts = require('./asterisk-gateway-ports');
 const callRecordings = require('./telephony-recordings');
+const callLeads = require('./telephony-call-leads');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CHANNEL_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
@@ -142,7 +143,9 @@ class AsteriskCallControl {
     const { decision } = require('./policy');
     const access = decision(context, { capability: 'telephony.call-center', permission: 'calls.control' });
     if (!access.allowed) fail(access.code);
-    if (!input || !/^\+[1-9][0-9]{7,14}$/.test(input.destination || '') || !CLIENT_TYPES.has(input.clientType)) fail('INVALID_OUTBOUND_CALL');
+    const salesLeadRequired=context?.tenant?.categoryKey==='salemax_sales';
+    if (!input || (!salesLeadRequired&&!/^\+[1-9][0-9]{7,14}$/.test(input.destination||'')) || !CLIENT_TYPES.has(input.clientType)) fail('INVALID_OUTBOUND_CALL');
+    if(salesLeadRequired&&!input.leadId)fail('OUTBOUND_LEAD_REQUIRED');
     const db = await connection(this.pool);
     const callId = crypto.randomUUID();
     const agentChannelId = crypto.randomUUID();
@@ -163,7 +166,8 @@ class AsteriskCallControl {
         || !/^[0-9]{3,8}$/.test(member.extension || '')) fail('OUTBOUND_EXTENSION_NOT_READY');
       if (!(await gatewayPorts.eligible(db, { id: context.tenant.id, status: member.tenant_status,
         category_key: member.category_key, category_version: member.category_version }))) fail('OUTBOUND_TENANT_NOT_ELIGIBLE');
-      const leadLink=input.leadId?await require('./telephony-call-leads').resolveLeadLink(db,context,input.leadId):null;
+      const recipient=await callLeads.resolveOutboundRecipient(db,context,input);
+      const leadLink=recipient.leadLink;
       const [[memberCallLimits]] = await db.query(`SELECT
           COALESCE(SUM(status IN ('starting','ringing','connected')),0) AS active_calls,
           COALESCE(SUM(started_at>=UTC_TIMESTAMP(3)-INTERVAL 60 SECOND),0) AS recent_attempts
@@ -183,7 +187,7 @@ class AsteriskCallControl {
       await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
         VALUES(?,?,?,?,'agent',?,?, 'originating')`, [context.tenant.id,crypto.randomUUID(),callId,agentChannelId,input.clientType,context.membership.id]);
       reservation = { tenantId: context.tenant.id, callId, channelNo: Number(port.channel_no), gatewayEndpoint: gatewayEndpoint(gateway.id), agentChannelId,
-        extension: member.extension, destination: input.destination, clientType: input.clientType };
+        extension: member.extension, destination: recipient.destination, clientType: input.clientType };
       await db.commit();
     } catch (error) {
       try { await db.rollback(); } catch (_) {}
