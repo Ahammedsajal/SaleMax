@@ -1,3 +1,9 @@
+## SaleMaX Sales contract setup link — production, 14 October 2026
+
+PR #87 (`de50b7de4f24011103c0a11065c9928ed0731e77`) is live. The existing Manage Users no-contract state links to Manage Plans in English and Arabic. Focused contract/provisioning checks pass 13/13; no migration or business-data write occurred. The full suite remains incomplete (721/742 passing with 21 failures); see `DEPLOYMENT.md`.
+
+Read-only readiness confirms there is still no first-party Sales tenant, Business Admin identity or published internal Sales contract. Internal plan terms and Business Admin identity details remain to be confirmed before provisioning. Asterisk is inactive, and authenticated role-by-role acceptance remains open. The full 42-ticket upgrade is still in progress.
+
 ## SaleMaX Sales Accountant legacy route boundary — production, 14 October 2026
 
 The Accountant sidebar is now limited to Sales Finance and Commission Payouts, which contain the requested Finance Overview, Invoices & Collections, Reconciliation, Finance Reports, and payout workflows. The legacy API guard also enforces this finance-only scope for default memberships without custom role profiles, preserving only the identity/bootstrap reads used by the existing `/user` shell.
