@@ -51,7 +51,7 @@ test('Sales Overview is integrated into existing navigation, refreshes scoped AP
   assert.match(shell,/\['overview','deals','commissions','targets','reports'\]/);
   assert.match(page,/id="overviewSection"/);
   assert.match(page,/sales-report-csv\.js\?v=20261013-report2/);
-  assert.match(page,/sales-workspace\.js\?v=20261013-overview2/);
+  assert.match(page,/sales-workspace\.js\?v=20261014-followups1/);
   assert.match(page,/sales-workspace-reports\.css\?v=20261013-report2/);
   assert.match(client,/\/api\/user\/team-invitations\/sidebar-access/);
   assert.match(client,/\/follow-ups\?period=all/);
@@ -59,6 +59,25 @@ test('Sales Overview is integrated into existing navigation, refreshes scoped AP
   assert.match(client,/\/api\/user\/call-center\/calls/);
   assert.match(client,/window\.top\.history\.pushState/);
   assert.match(client,/moneyLines\(member\.targets\?\.salesByCurrency/);
+});
+
+test('Sales Overview shows scoped priority follow-ups and opens the real follow-up queue',()=>{
+  const root=path.join(__dirname,'..');
+  const page=fs.readFileSync(path.join(root,'client/public/sales-workspace/index.html'),'utf8');
+  const client=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace.js'),'utf8');
+  const shell=fs.readFileSync(path.join(root,'client/public/pipeline-entry.js'),'utf8');
+  const pipeline=fs.readFileSync(path.join(root,'client/public/pipeline/reports.js'),'utf8');
+  const css=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace.css'),'utf8');
+  assert.match(page,/id="followupPrioritiesPanel"/);
+  assert.match(page,/timezone-datetime\.js/);
+  assert.match(client,/\/follow-ups\?period=all&page=1&limit=8/);
+  assert.match(client,/renderPriorityFollowups\(hasNav\('leads'\)\)/);
+  assert.match(client,/item\.next_follow_up_at/);
+  assert.match(client,/item\.due_revision|item\.lead_id/);
+  assert.match(shell,/pipelineView\(\)/);
+  assert.match(shell,/&view='\+encodeURIComponent\(pipelineView\(\)\)/);
+  assert.match(pipeline,/get\('view'\)==='followups'\)setView\('followups'\)/);
+  assert.match(css,/\.priority-row/);
 });
 
 test('Sales Reports reuse the scoped monthly target entitlement and parent-panel navigation',()=>{
@@ -73,7 +92,7 @@ test('Sales Reports reuse the scoped monthly target entitlement and parent-panel
   assert.match(sidebar,/reports:'sales-targets'/);
   assert.match(shell,/reports:\['تقارير المبيعات','Sales Reports'\]/);
   assert.match(index,/training-sidebar\.js\?v=20261014-sales-audit1/);
-  assert.match(index,/pipeline-entry\.js\?v=20261014-sales-audit1/);
+  assert.match(index,/pipeline-entry\.js\?v=20261014-followups1/);
   assert.match(page,/id="reportsSection"/);
   assert.match(page,/id="reportPeriod"/);
   assert.match(client,/state\.section==='reports'/);
