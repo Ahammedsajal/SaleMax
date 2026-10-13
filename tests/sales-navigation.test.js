@@ -51,7 +51,7 @@ test('Sales Overview is integrated into existing navigation, refreshes scoped AP
   assert.match(shell,/\['overview','deals','commissions','targets','reports'\]/);
   assert.match(page,/id="overviewSection"/);
   assert.match(page,/sales-report-csv\.js\?v=20261013-report2/);
-  assert.match(page,/sales-workspace\.js\?v=20261014-followups2/);
+  assert.match(page,/sales-workspace\.js\?v=20261014-overview-alerts1/);
   assert.match(page,/sales-workspace-reports\.css\?v=20261013-report2/);
   assert.match(client,/\/api\/user\/team-invitations\/sidebar-access/);
   assert.match(client,/\/follow-ups\?period=all/);
