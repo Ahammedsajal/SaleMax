@@ -7,6 +7,7 @@ const test = require('node:test');
 
 const source = fs.readFileSync(path.join(__dirname, '../client/public/tasks/tasks.js'), 'utf8');
 const html = fs.readFileSync(path.join(__dirname, '../client/public/tasks/index.html'), 'utf8');
+const context = fs.readFileSync(path.join(__dirname, '../client/public/tasks/tasks-context.js'), 'utf8');
 
 test('task chat retains its form reference across the asynchronous send', () => {
   const handler = source.match(/#chatForm'\)\.onsubmit=async ev=>\{([\s\S]*?)\};state\.chatAfter=/)?.[1];
@@ -27,4 +28,14 @@ test('task selectors remain catalogue-backed and popup accessibility labels foll
   assert.match(source, /\$\('#refresh'\)\.setAttribute\('aria-label',tr\('Refresh','تحديث'\)\)/);
   assert.match(source, /querySelectorAll\('\.close'\)\.forEach\(button=>button\.setAttribute\('aria-label',tr\('Close','إغلاق'\)\)\)/);
   assert.match(html, /tasks\.js\?v=20261012-chat-label1/);
+});
+
+test('shared Tasks screen uses authenticated category context for SaleMaX Sales labels', () => {
+  assert.match(html, /tasks-context\.js\?v=20261014-sales-category1/);
+  assert.match(context, /\/api\/user\/team-invitations\/sidebar-access/);
+  assert.match(context, /result\?\.data\?\.categoryKey!=='salemax_sales'/);
+  assert.match(context, /Shared work queue for leads, calls, deals and team actions\./);
+  assert.match(context, /SALES WORKSPACE/);
+  assert.match(context, /قائمة عمل مشتركة للعملاء والمكالمات والصفقات وإجراءات الفريق/);
+  assert.match(context, /element\.dataset\.en=en;[\s\S]*element\.dataset\.ar=ar/);
 });
