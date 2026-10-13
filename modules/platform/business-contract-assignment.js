@@ -32,7 +32,7 @@ async function userRow(db,userId,locked){
   const [matches]=await db.query('SELECT id,uid FROM user WHERE uid=?'+suffix,[user.uid]);
   if(matches.length!==1||matches[0].uid!==user.uid)fail('AMBIGUOUS_USER');return user;
 }
-async function load(db,user,data,locked){
+async function load(db,ctx,user,data,locked){
   const suffix=locked?' FOR UPDATE':'';
   const [[mapping]]=await db.query("SELECT tenant_id,membership_id,legacy_uid_hash FROM sx_legacy_ownership WHERE source_table='user' AND source_id=?"+suffix,[String(user.id)]);
   if(!mapping||!mapping.membership_id||mapping.legacy_uid_hash!==hash(user.uid))fail('VERIFIED_BUSINESS_LINK_REQUIRED');
@@ -47,6 +47,8 @@ async function load(db,user,data,locked){
   const [[version]]=await db.query('SELECT v.*,c.legacy_plan_id,c.commercial_snapshot FROM sx_plan_versions v JOIN sx_legacy_plan_contracts c ON c.version_id=v.id WHERE v.id=?'+suffix,[data.planVersionId]);
   if(!version||version.status!=='published')fail('PUBLISHED_PLAN_REQUIRED');
   const contract=plans.definition({categoryKey:version.category_key,categoryVersion:version.category_version,capabilities:parse(version.capabilities),roleLimits:parse(version.role_limits)});
+  plans.authorizeCategory(ctx,contract.category);
+  data.roleLimits=plans.limits(data.roleLimits,contract.category.seatRoles);
   const commercial=parse(version.commercial_snapshot),days=Number(commercial?.plan_duration_in_days);
   if(!commercial||commercial.id!==Number(version.legacy_plan_id)||Object.keys(normalize(commercial).errors).length||!Number.isSafeInteger(days)||days<1||days>3650)fail('INVALID_STORED_CONTRACT');
   const [[current]]=await db.query("SELECT id,plan_version_id,status,role_limits,DATE_FORMAT(expires_at,'%Y-%m-%d %H:%i:%s.%f') AS expires_at FROM sx_plan_assignments WHERE tenant_id=? AND current_tenant IS NOT NULL"+suffix,[tenant.id]);
@@ -64,7 +66,7 @@ async function load(db,user,data,locked){
 async function preview(db,ctx,body){
   const data=input(ctx,body);
   return transaction(db,async()=>{
-    const loaded=await load(db,await userRow(db,data.userId,false),data,false);
+    const loaded=await load(db,ctx,await userRow(db,data.userId,false),data,false);
     return {userId:data.userId,tenantId:loaded.tenant.id,businessName:loaded.tenant.name,planVersionId:data.planVersionId,version:loaded.version.version,
       categoryKey:loaded.contract.categoryKey,categoryVersion:loaded.contract.categoryVersion,commercial:loaded.commercial,durationDays:loaded.days,
       current:legacy.summary(loaded.user.plan),currentExpiresAt:loaded.user.plan_expire,currentLimits:loaded.currentEntitlement?.roleLimits||null,
@@ -86,7 +88,7 @@ async function assignInTransaction(db,ctx,body){
       if(prior.legacy_user_id!==data.userId||prior.actor_identity_id!==ctx.identity.id||prior.payload_hash!==payloadHash)fail('IDEMPOTENCY_CONFLICT');
       return {id:prior.assignment_id,legacyAssignmentId:prior.legacy_assignment_id,tenantId:prior.tenant_id,planVersionId:prior.plan_version_id,roleLimits:parse(prior.role_limits),status:prior.status,expiresAt:Number(prior.assigned_expiry),replayed:true};
     }
-    const loaded=await load(db,user,data,true);
+    const loaded=await load(db,ctx,user,data,true);
     if(data.expectedState!==loaded.token)fail('STALE_ASSIGNMENT');
     if(loaded.blockers.length)fail(loaded.blockers[0].split(':')[0]);
     // One database UTC instant supplies both DATETIME and epoch expiries.
@@ -104,6 +106,6 @@ async function assignInTransaction(db,ctx,body){
 }
 async function inspect(db,ctx,body,{locked=false}={}){
   const data=input(ctx,body,false),user=await userRow(db,data.userId,locked);
-  return {data,...await load(db,user,data,locked)};
+  return {data,...await load(db,ctx,user,data,locked)};
 }
 module.exports={input,preview,assign,assignInTransaction,inspect,transaction,userRow,load};

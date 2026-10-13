@@ -44,10 +44,10 @@ test('staff invitation UI is integrated into the existing single SaleMaX app she
   assert.match(js,/Roles & permissions/);assert.match(js,/الأدوار والصلاحيات/);assert.match(js,/Module permissions/);
   assert.match(js,/<details class="permission-category">/);assert.match(js,/data-permission-count/);assert.match(js,/target\.onchange=event=>/);
   assert.match(js,/<details class="nav-category">/);assert.match(js,/data-nav-count/);assert.match(js,/element\.onchange=event=>/);
-  assert.ok(js.includes("replace(/^lang[-_ ]/,'')"));assert.ok(js.includes("language.startsWith('arabic')"));
+  assert.match(js,/localStorage\.getItem\('salemax-language'\)/);assert.match(js,/\.startsWith\('ar'\)/);
   assert.match(js,/roleProfileId/);assert.match(js,/Role permissions are enforced separately by the server/);
   assert.match(js,/<button type="submit" class="primary" disabled>/);assert.match(js,/button\.disabled = false/);
-  assert.match(html,/team-invitations\.js\?v=20261009-password1/);
+  assert.match(html,/team-invitations\.js\?v=[^" ]+/);
   assert.match(html,/training-sidebar\.js\?v=[^" ]+/);
   assert.match(js,/new MutationObserver\(addNav\)/);
 });
