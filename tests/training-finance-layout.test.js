@@ -28,3 +28,11 @@ test('Finance invoice and receipt share controls call the authenticated delivery
   assert.match(source,/data-send-document="email"/);assert.match(source,/data-send-document="whatsapp"/);assert.match(source,/\/documents\/\$\{type\}\/\$\{encodeURIComponent\(id\)\}\/deliveries/);
   assert.match(router,/documents\/:type\/:id\/deliveries/);assert.match(router,/canonicalGuard/);
 });
+
+test('generated invoice history loads as the first Finance section before the issued invoice register',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../client/public/training-finance.js'),'utf8');
+  assert.match(source,/id='sx-generated-invoice-history'/);
+  assert.match(source,/generatedArea\.insertAdjacentElement\('afterend',card\)/);
+  assert.match(source,/loadGeneratedInvoices\(card,mode,csrf\)/);
+  assert.match(source,/Generated invoice PDFs/);
+});
