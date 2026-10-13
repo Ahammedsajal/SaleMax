@@ -681,7 +681,7 @@ router.get("/test", (req, res) => {
 
 router.post("/exchange-token", require("../middlewares/user.js"), async (req, res) => {
   const { code } = req.body;
-  if (process.env.LOCAL_ONLY_MODE === 'true' || !process.env.META_APP_ID || !process.env.META_APP_SECRET) {
+  if ((process.env.LOCAL_ONLY_MODE === 'true' && process.env.SALEMAX_META_OAUTH_ENABLED !== 'true') || !process.env.META_APP_ID || !process.env.META_APP_SECRET) {
     return res.status(503).json({ success: false, msg: 'Meta connection is not configured' });
   }
   if (typeof code !== 'string' || !code.trim() || code.length > 4096) {
