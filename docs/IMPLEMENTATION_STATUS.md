@@ -1,3 +1,9 @@
+## SaleMaX Sales Business Admin Audit Trail — local source increment, 14 October 2026
+
+The existing `/user` shell now has an owner-only Audit Trail screen for the private SaleMaX Sales workspace. It reads the existing `sx_audit_events` table, filters by date and exact action code, paginates with a bounded keyset cursor, and limits every query to the authenticated tenant. Secret-shaped change fields are omitted from returned detail data. The screen is bilingual, responsive, uses the existing burgundy theme, and has no schema migration.
+
+The source API is `GET /api/user/sales-audit/events`. Focused audit and Sales navigation tests pass 12/12; related Finance/organization/provisioning and commission/target groups pass 23/23; JavaScript syntax and diff checks pass. This increment is not yet merged or deployed. Production authenticated owner access and English/Arabic screen review remain open because the internal tenant and owner account are not provisioned. See `docs/API_DOCUMENTATION.md` for the API contract.
+
 ## Sales Finance reconciliation dialogs — production, 14 October 2026
 
 Accountants can allocate a received payment through an in-page invoice selector rather than typing an invoice number into a browser prompt. The selector is limited to outstanding invoices in the receipt currency, and its amount field is capped to the remaining receipt and selected invoice balance. Reversals require a reason in a bilingual in-page dialog. Server-side transaction and over-allocation checks remain authoritative. The Sales Finance cache keys were refreshed and the existing burgundy theme retained.

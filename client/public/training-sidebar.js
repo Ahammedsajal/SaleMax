@@ -35,7 +35,7 @@
     ['API & Integrations', 'واجهات البرمجة والتكامل', ['Chat Widget', 'REST API', 'Conversational API', 'Template API', 'API Dashboard']],
     ['Webhooks', 'الويب هوك', ['Manage Webhooks', 'Webhook Automation', 'Webhook Logs']],
     ['WhatsApp Warmer', 'تهيئة واتساب', ['WhatsApp Warmer']],
-    ['Sales Operations', 'عمليات المبيعات', ['Organization','Sales Targets','Sales Deals','My Commissions','Commission Payouts','Commission Policy']],
+    ['Sales Operations', 'عمليات المبيعات', ['Organization','Sales Targets','Sales Deals','My Commissions','Commission Payouts','Commission Policy','Audit Trail']],
     ['More Tools', 'أدوات أخرى', []]
   ];
   const aliases = {
@@ -45,7 +45,7 @@
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Agent Login',
     'دخول الوكيل': 'Agent Login', 'Rest API': 'REST API', 'Web Notificaion': 'Web Notification',
     'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard', 'المهام': 'Tasks', 'مركز الاتصال': 'Call Center',
-    'سياسة العمولات':'Commission Policy','صفقات المبيعات':'Sales Deals','أهداف المبيعات':'Sales Targets','عمولاتي':'My Commissions','مدفوعات العمولات':'Commission Payouts','مالية المبيعات':'Sales Finance','الهيكل التنظيمي':'Organization'
+    'سياسة العمولات':'Commission Policy','صفقات المبيعات':'Sales Deals','أهداف المبيعات':'Sales Targets','عمولاتي':'My Commissions','مدفوعات العمولات':'Commission Payouts','مالية المبيعات':'Sales Finance','الهيكل التنظيمي':'Organization','سجل التدقيق':'Audit Trail'
   };
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
@@ -53,7 +53,7 @@
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Agent Login':'agent-login',
     'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', Courses:'courses', Students:'enrollments', 'Center profile':'enrollments', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
     'Finance Reports':'reports', 'Team access':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance',
-    'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets'
+    'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit'
   };
   let assignedNavigation = null;
   let roleNavigation = null;
@@ -262,6 +262,12 @@
       const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Commission Policy','سياسة العمولات');
       copy.setAttribute('aria-label',tr('Commission Policy','سياسة العمولات'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
       button.onclick=event=>{event.preventDefault();location.href='/user?page=commission-policy';};list.append(copy);
+    }
+    if(membershipCategoryKey==='salemax_sales'&&roleNavigation?.has('sales-audit')&&(assignedNavigation===null||assignedNavigation.has('sales-audit'))&&pipelineSource&&!list.querySelector('[data-sx-sales-audit-nav]')){
+      const copy=pipelineSource.cloneNode(true);copy.dataset.sxSalesAuditNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Audit Trail','سجل التدقيق');
+      copy.setAttribute('aria-label',tr('Audit Trail','سجل التدقيق'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.setAttribute('aria-label',tr('Audit Trail','سجل التدقيق'));button.onclick=event=>{event.preventDefault();location.href='/user?page=sales-audit';};list.append(copy);
     }
     if(membershipCategoryKey==='salemax_sales'&&roleNavigation?.has('sales-organization')&&(assignedNavigation===null||assignedNavigation.has('sales-organization'))&&pipelineSource&&!list.querySelector('[data-sx-sales-organization-nav]')){
       const copy=pipelineSource.cloneNode(true);copy.dataset.sxSalesOrganizationNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));

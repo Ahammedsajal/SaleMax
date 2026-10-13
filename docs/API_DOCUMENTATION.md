@@ -31,6 +31,15 @@ Configuration is size-bounded and engine-specific. The AI runtime uses a version
 
 Legacy route families are mounted from `server.js`. TC35 will publish exact authenticated request/response/error schemas, role/capability requirements and tenant resource constraints before new domain endpoints are enabled. Training-center sale conversion, invoice register/detail, manual payment posting, accountant review and receipt-detail APIs are being added incrementally to the existing application; consult the ticket sections below for each live source contract and its remaining release gates.
 
+## First-party SaleMaX Sales APIs — source implementation
+
+The existing `/user` shell mounts the private `salemax_sales` workspace through the canonical tenant-session boundary. SaleMaX Sales APIs are tenant-scoped; platform administration remains on `/admin` and is not reused as the Business Admin login.
+
+- `GET /api/user/sales-audit/events` reads the current tenant's audit events for the Business Admin only. Optional `from` and `to` use `YYYY-MM-DD`, `action` filters an exact action code, `limit` is 1–100, and `before` is the opaque keyset cursor from the previous response. It returns actor, action, resource type, reason, redacted change details and event time; secret-shaped change keys are removed. The query is always constrained to the authenticated tenant.
+- A non-owner or a request without the active SaleMaX Sales tenant/settings entitlement is denied. Invalid date/action/cursor filters return 400; audit reads are `no-store`.
+
+This is the source API contract. Production authenticated role and browser acceptance must be recorded separately in `DEPLOYMENT.md` after deployment.
+
 ## Source route inventory
 
 `LEGACY_ROUTE_INVENTORY.json` records 20 mounted families, 369 statically declared router routes and four direct app routes, with source lines and declared middleware identifiers. Generated through Acorn AST parsing, it excludes commented-out handlers. It does not expose secrets or payload data. Router-global and inline guards still require review; the inventory is not an authorization guarantee or complete OpenAPI specification.
