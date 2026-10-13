@@ -362,8 +362,21 @@
   function clearSidebarSearch(drawer) {
     const input = drawer?.querySelector('input');
     if (!input || !input.value) return;
-    // React keeps a separate controlled value. Deleting through the browser's
-    // editing command emits the trusted input event its onChange handler needs.
+    // Use the search component's own clear button so React updates its
+    // controlled value instead of restoring browser autofill on the next render.
+    const inputRect = input.getBoundingClientRect();
+    const clearButton = [...drawer.querySelectorAll('button,[role="button"]')]
+      .filter(button => {
+        const rect = button.getBoundingClientRect();
+        return rect.width && rect.height && rect.top < inputRect.bottom && rect.bottom > inputRect.top
+          && Math.abs(rect.right - inputRect.right) < 28;
+      })
+      .sort((a, b) => b.getBoundingClientRect().right - a.getBoundingClientRect().right)[0];
+    if (clearButton) {
+      clearButton.click();
+      return;
+    }
+    // Keep a fallback for layouts where the search component has no clear control.
     input.focus({ preventScroll: true });
     input.select();
     try { document.execCommand('delete'); } catch (_) {}
