@@ -124,18 +124,30 @@ async function decide(db,ctx,id,input){
 async function listCommissions(db,ctx,{status='all',limit=100}={}){
   assertCategory(ctx);const access=decision(ctx,{capability:'sales.commissions',permission:'commissions.read'});if(!access.allowed)fail(access.code);
   if(!['all','draft','approved','paid','void'].includes(status))fail('INVALID_COMMISSION_FILTER');limit=Math.max(1,Math.min(200,Number(limit)||100));
-  let scope='',args=[ctx.tenant.id];if(ctx.membership.role==='manager'){scope=' AND d.manager_membership_id=?';args.push(ctx.membership.id);}else if(ctx.membership.role==='team_leader'){scope=' AND d.team_leader_membership_id=?';args.push(ctx.membership.id);}else if(ctx.membership.role==='agent'){scope=' AND c.recipient_membership_id=?';args.push(ctx.membership.id);}
+  let scope='',scopeArgs=[ctx.tenant.id];if(ctx.membership.role==='manager'){scope=' AND d.manager_membership_id=?';scopeArgs.push(ctx.membership.id);}else if(ctx.membership.role==='team_leader'){scope=' AND d.team_leader_membership_id=?';scopeArgs.push(ctx.membership.id);}else if(ctx.membership.role==='agent'){scope=' AND c.recipient_membership_id=?';scopeArgs.push(ctx.membership.id);}
+  const args=[...scopeArgs];
   let state='';if(status!=='all'){state=' AND c.status=?';args.push(status);}args.push(limit);
   const [items]=await db.query(`SELECT c.id,c.deal_id AS dealId,d.product_id AS productId,d.product_name_snapshot AS productName,d.lead_id AS leadId,
-      c.recipient_membership_id AS recipientMembershipId,c.recipient_role AS recipientRole,c.rate_bps AS rateBps,c.basis_amount_minor AS basisAmountMinor,
+      c.recipient_membership_id AS recipientMembershipId,ri.display_name AS recipientName,c.recipient_role AS recipientRole,c.rate_bps AS rateBps,c.basis_amount_minor AS basisAmountMinor,
       c.amount_minor AS amountMinor,c.currency,c.status,c.approved_by_identity_id AS approvedByIdentityId,c.approved_at AS approvedAt,
-      c.paid_by_identity_id AS paidByIdentityId,c.paid_at AS paidAt,c.payout_reference AS payoutReference,p.version AS policyVersion
+      c.paid_by_identity_id AS paidByIdentityId,c.paid_at AS paidAt,c.payout_reference AS payoutReference,c.payout_batch_id AS payoutBatchId,p.version AS policyVersion
     FROM sx_sales_commissions c JOIN sx_sales_deals d ON d.tenant_id=c.tenant_id AND d.id=c.deal_id
     JOIN sx_sales_commission_policies p ON p.tenant_id=c.tenant_id AND p.id=c.policy_id
+    JOIN sx_memberships rm ON rm.tenant_id=c.tenant_id AND rm.id=c.recipient_membership_id
+    JOIN sx_identities ri ON ri.id=rm.identity_id
     WHERE c.tenant_id=?${scope}${state} ORDER BY (c.status='draft') DESC,c.paid_at DESC,c.id DESC LIMIT ?`,args);
-  return {items,permissions:{canApprove:ctx.membership.role==='accountant',canPay:ctx.membership.role==='accountant'}};
+  const [summaryByCurrency]=await db.query(`SELECT c.currency,
+      COALESCE(SUM(CASE WHEN c.status='draft' THEN c.amount_minor ELSE 0 END),0) AS draftMinor,
+      COALESCE(SUM(CASE WHEN c.status='approved' THEN c.amount_minor ELSE 0 END),0) AS approvedMinor,
+      COALESCE(SUM(CASE WHEN c.status='paid' THEN c.amount_minor ELSE 0 END),0) AS paidMinor,
+      SUM(c.status='draft') AS draftCount,SUM(c.status='approved') AS approvedCount,
+      SUM(c.status='paid') AS paidCount,SUM(c.status='void') AS voidCount
+    FROM sx_sales_commissions c JOIN sx_sales_deals d ON d.tenant_id=c.tenant_id AND d.id=c.deal_id
+    WHERE c.tenant_id=?${scope} GROUP BY c.currency ORDER BY c.currency`,scopeArgs);
+  return {items,summaryByCurrency,permissions:{canApprove:ctx.membership.role==='accountant',canPay:ctx.membership.role==='accountant'}};
 }
 async function commissionAction(db,ctx,id,action,input={}){
+  if(action==='pay'){const batch=await createCommissionPayoutBatch(db,ctx,{commissionIds:[id],reference:input.reference});return {id,status:'paid',payoutBatchId:batch.id,reference:batch.reference,currency:batch.currency,totalMinor:batch.totalMinor,commissionCount:batch.commissionCount};}
   assertCategory(ctx);const permission=action==='approve'?'commission.payout.approve':'commission.payout.pay';const access=decision(ctx,{capability:'sales.commissions',permission});if(!access.allowed)fail(access.code);
   if(ctx.membership.role!=='accountant')fail('PERMISSION_DENIED');if(!uuid(id))fail('INVALID_COMMISSION_ID');
   const reference=action==='pay'?cleanOptional(input.reference,191):null;if(action==='pay'&&!reference)fail('PAYOUT_REFERENCE_REQUIRED');
@@ -153,4 +165,36 @@ async function commissionAction(db,ctx,id,action,input={}){
     await db.commit();return {id,status:action==='approve'?'approved':'paid'};
   }catch(error){await db.rollback();throw error;}
 }
-module.exports={submit,listDeals,decide,listCommissions,commissionAction};
+async function createCommissionPayoutBatch(db,ctx,input={}){
+  assertCategory(ctx);const access=decision(ctx,{capability:'sales.commissions',permission:'commission.payout.pay'});if(!access.allowed)fail(access.code);
+  if(ctx.membership.role!=='accountant')fail('PERMISSION_DENIED');
+  const rawIds=input.commissionIds;
+  if(!Array.isArray(rawIds)||rawIds.length<1||rawIds.length>100||rawIds.some(id=>!uuid(id))||new Set(rawIds).size!==rawIds.length)fail('INVALID_PAYOUT_BATCH');
+  const reference=cleanOptional(input.reference,191);if(!reference)fail('PAYOUT_REFERENCE_REQUIRED');
+  const ids=[...rawIds].sort();
+  await db.beginTransaction();
+  try{
+    const [rows]=await db.query(`SELECT id,status,currency,amount_minor AS amountMinor,approved_by_identity_id AS approvedByIdentityId
+      FROM sx_sales_commissions WHERE tenant_id=? AND id IN (${ids.map(()=>'?').join(',')}) ORDER BY id FOR UPDATE`,[ctx.tenant.id,...ids]);
+    if(rows.length!==ids.length)fail('COMMISSION_NOT_FOUND');
+    if(rows.some(row=>row.status!=='approved'))fail('COMMISSION_NOT_APPROVED');
+    if(rows.some(row=>row.approvedByIdentityId===ctx.identity.id))fail('PAYOUT_SEPARATION_REQUIRED');
+    const currencies=new Set(rows.map(row=>String(row.currency)));
+    if(currencies.size!==1)fail('PAYOUT_BATCH_CURRENCY_MISMATCH');
+    const [[existing]]=await db.query(`SELECT id FROM sx_sales_commission_payout_batches WHERE tenant_id=? AND payout_reference=? FOR UPDATE`,[ctx.tenant.id,reference]);
+    if(existing)fail('PAYOUT_REFERENCE_EXISTS');
+    const total=rows.reduce((sum,row)=>sum+BigInt(row.amountMinor),0n);
+    if(total>18446744073709551615n)fail('PAYOUT_BATCH_TOTAL_INVALID');
+    const batchId=crypto.randomUUID(),currency=[...currencies][0];
+    await db.query(`INSERT INTO sx_sales_commission_payout_batches(id,tenant_id,payout_reference,currency,total_amount_minor,commission_count,created_by_identity_id)
+      VALUES(?,?,?,?,?,?,?)`,[batchId,ctx.tenant.id,reference,currency,total.toString(),rows.length,ctx.identity.id]);
+    const [updated]=await db.query(`UPDATE sx_sales_commissions SET status='paid',paid_by_identity_id=?,paid_at=UTC_TIMESTAMP(3),payout_reference=?,payout_batch_id=?
+      WHERE tenant_id=? AND status='approved' AND id IN (${ids.map(()=>'?').join(',')})`,[ctx.identity.id,reference,batchId,ctx.tenant.id,...ids]);
+    if(Number(updated.affectedRows)!==ids.length)fail('COMMISSION_PAYOUT_BATCH_CONFLICT');
+    for(const row of rows)await audit(db,ctx,'sales.commission.paid','sales_commission',row.id,null,{reference,payoutBatchId:batchId});
+    await audit(db,ctx,'sales.commission.payout_batch.created','sales_commission_payout_batch',batchId,null,{reference,currency,totalMinor:total.toString(),commissionCount:rows.length});
+    await db.commit();
+    return {id:batchId,reference,currency,totalMinor:total.toString(),commissionCount:rows.length,status:'paid'};
+  }catch(error){await db.rollback();if(error.code==='ER_DUP_ENTRY')fail('PAYOUT_REFERENCE_EXISTS');throw error;}
+}
+module.exports={submit,listDeals,decide,listCommissions,commissionAction,createCommissionPayoutBatch};
