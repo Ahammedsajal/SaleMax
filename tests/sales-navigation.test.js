@@ -28,6 +28,36 @@ test('custom role restrictions can hide the Organization navigation entry withou
   assert.ok(!items.some(item=>item.key==='sales-organization'));
 });
 
+test('Sales Overview uses the monthly target entitlement for sales roles and excludes accountants',()=>{
+  for(const role of ['owner','manager','team_leader','agent']){
+    assert.ok(navigation.navigationFor(context(role)).some(item=>item.key==='sales-targets'),`${role} should have the scoped Overview data entitlement`);
+  }
+  assert.ok(!navigation.navigationFor(context('accountant')).some(item=>item.key==='sales-targets'));
+  assert.ok(!navigation.navigationFor(context('manager',['leads.read'])).some(item=>item.key==='sales-targets'));
+});
+
+test('Sales Overview is integrated into existing navigation, refreshes scoped APIs and keeps nested routes in the parent URL',()=>{
+  const root=path.join(__dirname,'..');
+  const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
+  const shell=fs.readFileSync(path.join(root,'client/public/pipeline-entry.js'),'utf8');
+  const page=fs.readFileSync(path.join(root,'client/public/sales-workspace/index.html'),'utf8');
+  const client=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace.js'),'utf8');
+  assert.match(sidebar,/data-sx-sales-overview-nav/);
+  assert.match(sidebar,/membershipRole\]\|\|\['Sales Overview'/);
+  assert.match(sidebar,/section=overview/);
+  assert.match(shell,/overview:\['نظرة عامة على المبيعات','Sales Overview'\]/);
+  assert.match(shell,/requestedSection=.*section/);
+  assert.match(shell,/\['overview','deals','commissions','targets'\]/);
+  assert.match(page,/id="overviewSection"/);
+  assert.match(page,/sales-workspace\.js\?v=20261013-overview1/);
+  assert.match(client,/\/api\/user\/team-invitations\/sidebar-access/);
+  assert.match(client,/\/follow-ups\?period=all/);
+  assert.match(client,/\/api\/user\/sales-targets\?period=/);
+  assert.match(client,/\/api\/user\/call-center\/calls/);
+  assert.match(client,/window\.top\.history\.pushState/);
+  assert.match(client,/moneyLines\(member\.targets\?\.salesByCurrency/);
+});
+
 test('Organization is connected to the existing user shell and the tenant-scoped Sales API',()=>{
   const root=path.join(__dirname,'..');
   const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
