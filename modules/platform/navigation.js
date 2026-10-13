@@ -17,6 +17,7 @@ const items = [
   ['sales-deals', 'sales.deals', 'deals.read', 'Sales Deals', 'صفقات المبيعات', 'Sales', 'المبيعات'],
   ['sales-commissions', 'sales.commissions', 'commissions.read', 'My Commissions', 'عمولاتي', 'Sales', 'المبيعات'],
   ['sales-finance', 'sales.finance', 'sales.finance.read', 'Sales Finance', 'مالية المبيعات', 'Finance', 'المالية'],
+  ['sales-audit', 'tenant.settings', 'tenant.manage', 'Audit Trail', 'سجل التدقيق', 'Administration', 'الإدارة'],
   ['sales-targets', 'sales.targets', 'targets.read', 'Sales Targets', 'أهداف المبيعات', 'Sales', 'المبيعات'],
   ['sales-organization', 'team.members', 'team.read', 'Organization', 'الهيكل التنظيمي', 'Sales', 'المبيعات'],
   ['commission-policy', 'sales.commissions', 'commission.policy.manage', 'Commission Policy', 'سياسة العمولات', 'Administration', 'الإدارة'],
