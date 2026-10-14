@@ -81,8 +81,8 @@ Business screens still to review:
 
 - Student profiles/attendance/payment details (no enrolled profile was available), form creation flow and application print output, plus Finance sub-screens beyond the invoice register.
 - Customer document tables and reminder preference actions need valid customer links for complete audit; public Student Registration staff capture was rechecked at 220px and 320px in English and Arabic/RTL.
-- Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states. On the current account, `?page=call-center` and `?page=commission-policy` resolve to Dashboard, and `?page=sales-organization` displays Dashboard content instead of Organization. Call Center is also absent from the navigation drawer. These target screens remain unverified until an account/access state can render them.
-- Sales Overview navigation redirected this business account to Dashboard, so sales-only screens need an account with the required role/access before mobile review.
+- Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states. On the current account, `?page=call-center` and `?page=commission-policy` resolve to Dashboard, `?page=sales-organization` displays Dashboard content instead of Organization, and a fresh authenticated in-app visit to `?page=sales-targets` also rendered Dashboard content. Call Center is absent from the navigation drawer. These target screens remain unverified until an account/access state can render them.
+- Sales Overview navigation and the direct Sales Targets route resolve to Dashboard for the current business account, so sales-only screens need an account with the required role/access before mobile review.
 - Inbox conversation pane and actions remain unverified because opening a conversation can change its read state; the list-only view has now been checked at 220px and 320px.
 
 Admin screens still to review:
