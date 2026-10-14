@@ -1,3 +1,10 @@
+## SaleMaX Phonebook DataGrid mobile toolbar — production, 14 October 2026
+
+- Source commit: `316043a` on branch `mobile-responsive-mainline-20261014` (draft PR #137). Shared mobile CSS wraps paired DataGrid toolbar groups so export actions do not leave narrow phone screens.
+- Active release: `/opt/salemax/releases/candidate-attending-staff-a83a148-20261014`; `salemax-app-1` remained running with zero restarts. Production-generated index SHA-256 is `4b52cb0e4003c160ca40134f0b0d1d58022e8a39dbf3ccc838203cb3fb54cb6e`. Stylesheet SHA-256 `4789642233f5b6bf44f2a34d405a29b20a94176265ab087f4f749166ea9b36bf` matches release, container and cache-busted public asset. The page references `20261014-mobile-compact17`; `/healthz` returns HTTP 200.
+- Rollback: `/opt/salemax/shared/backups/mobile-datagrid-toolbar-20261014` (mode 0700; files mode 0600) preserves prior release/container index and CSS. Restore `index.release.before` and `salemax-mobile.css.release.before` in the active release's `client/public/`, then copy into `/app/client/public/` in `salemax-app-1`; no restart or release-pointer change is needed.
+- Verification: authenticated Phonebook geometry at 220, 280, 320 and 390px. At 220px Export is fully visible at x=64–149 with 44px height; no non-scroller controls are offscreen. The 1,140px-wide grid is contained in a 179px horizontal scroller. No contact was opened/changed and no database or provider settings changed.
+
 ## SaleMaX Campaign Board extra-narrow tabs — production, 14 October 2026
 
 - Source commit: `b40e4db` on branch `mobile-responsive-mainline-20261014` (draft PR #137). The shared mobile CSS now constrains two-tab icon groups below 260px so the selected tab label remains fully visible; the sibling remains reachable in the existing horizontal tab scroller.
