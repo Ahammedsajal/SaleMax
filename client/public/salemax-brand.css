@@ -391,3 +391,42 @@
   }
   #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>p{display:none!important}
 }
+
+/* Apply the compact, touch-friendly app header and drawer across every MUI screen. */
+@media(max-width:600px){
+  #root header .MuiToolbar-root>button,
+  #root header .MuiToolbar-root>[aria-label="Account menu"]{
+    min-width:44px!important;width:44px!important;min-height:44px!important;height:44px!important;
+    box-sizing:border-box!important;flex:0 0 44px!important;margin:0!important
+  }
+  #root main .MuiChip-root[role="button"]{min-height:44px!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper{
+    width:100vw!important;max-width:100vw!important;box-sizing:border-box!important
+  }
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root,
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:last-child{
+    width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important
+  }
+  .MuiDrawer-modal .MuiDrawer-paper button,
+  .MuiDrawer-modal .MuiDrawer-paper input:not([type="hidden"]){
+    min-height:44px!important;box-sizing:border-box!important
+  }
+  .MuiDrawer-modal .MuiDrawer-paper button{min-width:44px!important;height:44px!important}
+}
+@media(min-width:301px) and (max-width:380px){
+  #root header .MuiToolbar-root{gap:2px!important;padding-inline:4px!important}
+  #root header .MuiToolbar-root>p{
+    flex:0 1 42px!important;width:42px!important;min-width:0!important;overflow:hidden!important;
+    text-overflow:ellipsis!important;white-space:nowrap!important
+  }
+}
+@media(max-width:300px){
+  #root header .MuiToolbar-root{
+    min-height:0!important;height:auto!important;flex-wrap:wrap!important;align-content:center!important;
+    gap:2px!important;padding:4px!important
+  }
+  #root header .MuiToolbar-root>.MuiBox-root:nth-child(2){
+    width:24px!important;height:24px!important;flex:0 0 24px!important;background-size:72px 24px!important
+  }
+  #root header .MuiToolbar-root>p{display:none!important}
+}
