@@ -680,3 +680,12 @@
   #sx-chatbot-dialog .sx-dialog .sx-footer button { min-height: 44px; box-sizing: border-box; }
 }
 
+/* Keep MUI autocomplete open/clear actions fully tappable on phone screens. */
+@media(max-width:600px){
+  #root main .MuiAutocomplete-popupIndicator,
+  #root main .MuiAutocomplete-clearIndicator{
+    box-sizing:border-box!important;width:44px!important;min-width:44px!important;
+    height:44px!important;min-height:44px!important;padding:0!important
+  }
+}
+
