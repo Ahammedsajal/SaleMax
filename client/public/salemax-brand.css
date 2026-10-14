@@ -298,3 +298,13 @@
   #root main .MuiCardActions-root{gap:8px!important;padding:8px 14px 12px!important}
   #root main .MuiTab-root{font-size:13px!important;min-height:44px!important}
 }
+
+/* Prevent the business sign-in card from forcing horizontal scrolling on very narrow phones. */
+@media(max-width:280px){
+  #root .MuiBox-root:has(input[type="password"]){
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+  }
+}
