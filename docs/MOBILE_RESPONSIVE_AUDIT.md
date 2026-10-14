@@ -161,3 +161,7 @@ At 220px, the Courses screen used a fixed top offset of 56px under a wrapped 99p
 ## Training Profile and Students fixed-screen header fit — 14 October 2026
 
 At 220px, the Profile screen began at 56px while the app header wrapped to 99px, covering its heading and top content. The Students layer began at 58px, covering its table header and first rows. Shared phone CSS now moves both fixed screens below the 99px header at widths up to 260px. Live version-12 checks show Profile starts at 99px with its heading at 114px and no offscreen controls; Students starts at 99px with no page overflow. Two Students row actions remain within the existing horizontal table scroller. At 320px, these screens keep their existing offset and fit within the 312px document width. No profile values or student rows were changed.
+
+## Team Invitations phone layout — 14 October 2026
+
+At 220px, the Team screen started at 56px under the 99px wrapped header, its text fields/selects measured 42px, and buttons measured 40px. Shared phone CSS now moves the fixed layer to 99px through 260px, uses a 20px title at those widths, and sizes text fields/selects/actions to at least 44px while retaining native checkbox dimensions. Production version 13 verification at 220px shows 212px document width, title at 20px, and no horizontally offscreen controls. At 320px, the screen is 312px wide with fields and buttons 44px high and no offscreen controls. No invitation was sent and no team data was changed.

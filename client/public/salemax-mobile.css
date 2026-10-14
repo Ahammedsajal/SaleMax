@@ -36,7 +36,9 @@
   #sx-course-screen{top:99px!important}
   #sx-course-screen h1{font-size:20px!important;line-height:1.2!important}
   #sx-training-profile-screen,
-  #sx-training-students-screen{top:99px!important}
+  #sx-training-students-screen,
+  #sx-team-screen{top:99px!important}
+  #sx-team-screen h1{font-size:20px!important;line-height:1.2!important}
 }
 
 /* Preserve a square tap target for the compact Dashboard refresh action. */
@@ -45,6 +47,10 @@
   #root main button[aria-label*="refresh" i]{
     width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important
   }
+  #sx-team-screen input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  #sx-team-screen select,
+  #sx-team-screen textarea{height:44px!important;min-height:44px!important;box-sizing:border-box!important}
+  #sx-team-screen button{height:auto!important;min-height:44px!important;box-sizing:border-box!important}
 }
 
 /* Give Finance actions comfortable tap targets on phone-sized screens. */
