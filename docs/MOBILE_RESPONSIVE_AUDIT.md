@@ -522,3 +522,7 @@ The authenticated Student Registrations screen was checked in Arabic/RTL at 390�
 ## Finance invoice register mobile recheck — production, 14 October 2026
 
 The authenticated Finance route (`/user?page=finance`) was checked in Arabic/RTL at 220×760, 320×760, and 390×844. Document/body widths were 212px, 312px, and 382px. All nine visible interactive controls stayed within the viewport and measured at least 44px high; there was no page-level horizontal overflow. No invoice was opened or changed, and no finance action was triggered.
+
+## Phonebook screen current-release recheck — production, 14 October 2026
+
+The authenticated Phonebook screen was checked at 220×760, 320×760, and 390×844. The page stayed within each viewport; all rendered controls remained in bounds and at least 44px high. The 1,140px grid remains contained in an internal horizontal scroller measuring 179px, 287px, and 357px wide respectively. No contact was opened or changed.
