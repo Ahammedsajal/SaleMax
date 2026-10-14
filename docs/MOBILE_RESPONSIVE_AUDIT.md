@@ -81,7 +81,7 @@ Business screens still to review:
 
 - Student profiles/attendance/payment details (no enrolled profile was available), form creation flow and application print output, plus Finance sub-screens beyond the invoice register.
 - Customer document tables and reminder preference actions need valid customer links for complete audit; public Student Registration staff capture was rechecked at 220px and 320px in English and Arabic/RTL.
-- Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states. The current account's `?page=call-center` route redirects to Dashboard and Call Center is absent from its navigation drawer; an account with the required access is needed to audit it.
+- Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states. On the current account, `?page=call-center` and `?page=commission-policy` resolve to Dashboard, and `?page=sales-organization` displays Dashboard content instead of Organization. Call Center is also absent from the navigation drawer. These target screens remain unverified until an account/access state can render them.
 - Sales Overview navigation redirected this business account to Dashboard, so sales-only screens need an account with the required role/access before mobile review.
 - Inbox conversation pane and actions, once an approach is confirmed that does not change message read state.
 
