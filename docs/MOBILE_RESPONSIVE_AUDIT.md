@@ -96,6 +96,10 @@ Repeat critical screens at narrower phone widths and in Arabic/RTL. The Finance 
 
 The authenticated Arabic Automation Flows screen fits at 220, 280, 320 and 390px, but its legacy toolbar actions measured 27×27px and React Flow zoom controls measured 26×27px. The mobile layout hook only recognized the English “Node Menu” aria label, so it did not mark the toolbar in the active Arabic UI. Source commit `4f46498` now recognizes the Arabic label, preserves the existing compact wrapped toolbar layout, and raises canvas zoom controls to 44×44px. An in-browser CSS preview confirms the five toolbar actions wrap within the viewport and the canvas starts below the toolbar at all four widths, with no page-level horizontal overflow. The source is pushed to draft PR #137; production deployment and authenticated post-deployment verification are pending. No flow was edited or saved.
 
+## Meta Template larger-phone density check — production, 14 October 2026
+
+The already-open authenticated Meta Template page was reviewed at 570px (the width in the supplied mobile screenshot) without reading or changing populated field values. The compact phone stylesheet is active: the page heading is 16px, supporting copy 12px, step label 12px, and visible navigation actions are at least 44px high. The three template-type cards stack within the page, and no visible controls extend beyond the content edge. A separate 320px screenshot shows the same compact card stack and 44px Back/Next actions. No template was submitted or saved.
+
 ## Training Center Profile stale-script regression — 14 October 2026
 
 A fresh audit at a 220px viewport found that the authenticated production page was still serving the earlier `training-courses.js` under cache key `20261014-profile-controls-compact3`, despite later deployment records describing the 44px field and narrow logo-upload fix. The served version measured ordinary inputs at 40px, the native report-channel selector at 17px, and the logo dropzone at 211px wide with its right edge 26px beyond the viewport. The page itself remained 212px wide. No profile fields or logo were edited.
