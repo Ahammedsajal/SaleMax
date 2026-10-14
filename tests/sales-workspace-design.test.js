@@ -13,6 +13,7 @@ const sections = [
   { directory: 'sales-finance', style: 'sales-finance.css' },
   { directory: 'sales-audit', style: 'sales-audit.css' },
   { directory: 'call-center', style: 'call-center.css' },
+  { directory: 'tasks', style: 'tasks.css' },
 ];
 const tokenFile = path.join(root, 'client/public/sales-design-tokens.css');
 const tokens = fs.readFileSync(tokenFile, 'utf8');
@@ -59,6 +60,16 @@ test('Call Center browser chrome and mobile spacing follow the shared Sales them
   assert.match(html, /theme-color" content="#A8003B"/i);
   assert.match(html, /call-center\/call-center\.css\?v=20261014-sales-ui2/);
   assert.match(css, /header\{align-items:flex-start\}/);
+  assert.match(css, /color:var\(--sx-brand\)/);
+  assert.match(css, /background:var\(--sx-canvas\)/);
+});
+
+test('Tasks page aligns its shared queue layout and browser theme to the Sales workspace', () => {
+  const html = fs.readFileSync(path.join(root, 'client/public/tasks/index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'client/public/tasks/tasks.css'), 'utf8');
+  assert.match(html, /theme-color" content="#A8003B"/i);
+  assert.match(html, /sales-design-tokens\.css[\s\S]*tasks\/tasks\.css/);
+  assert.match(css, /max-width:var\(--sx-content-width\)/);
   assert.match(css, /color:var\(--sx-brand\)/);
   assert.match(css, /background:var\(--sx-canvas\)/);
 });
