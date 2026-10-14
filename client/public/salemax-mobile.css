@@ -1,0 +1,459 @@
+#sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{--sx-invoice-dialog-padding:clamp(18px,3vw,32px);box-sizing:border-box!important;width:min(100%,960px);min-width:0;max-height:calc(100dvh - 32px);overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;margin:0;padding:var(--sx-invoice-dialog-padding);border:1px solid #e4e7ec;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(16,24,40,.25)}
+
+/* Full-width mobile workspaces must not reserve the closed desktop sidebar. */
+@media(max-width:760px){
+  body:has(#salemax-pipeline-workspace),
+  body:has(#salemax-call-center-workspace),
+  body:has(#salemax-commission-policy-workspace),
+  body:has(#salemax-sales-workspace),
+  body:has(#salemax-sales-finance-workspace),
+  body:has(#salemax-sales-organization-workspace),
+  body:has(#salemax-tasks-workspace){overflow:hidden!important}
+  #salemax-pipeline-workspace,
+  #salemax-call-center-workspace,
+  #salemax-commission-policy-workspace,
+  #salemax-sales-workspace,
+  #salemax-sales-finance-workspace,
+  #salemax-sales-organization-workspace,
+  #salemax-tasks-workspace{left:0!important;width:100vw!important;max-width:100vw!important}
+}
+
+/* Keep the compact app bar controls and account menu inside narrow phone viewports. */
+@media(max-width:380px){
+  header .MuiToolbar-root:has([aria-label="Account menu"]){gap:2px!important;padding-inline:8px!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>button:first-child{width:36px!important;margin-left:-4px!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>p{font-size:.875rem!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>button:nth-of-type(2){width:48px!important;min-width:48px!important;flex:0 0 48px!important;padding:0!important;font-size:.75rem!important;white-space:nowrap!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>button:nth-of-type(2)>span{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{width:42px!important;min-width:42px!important;flex:0 0 42px!important;padding:0!important}
+}
+
+/* Give Finance actions comfortable tap targets on phone-sized screens. */
+@media(max-width:600px){#sx-finance-screen button{min-height:44px!important}}
+
+/* Keep narrow MUI tab groups horizontally reachable without widening the page. */
+@media(max-width:380px){#root .MuiTabs-scroller:has([role="tab"]){overflow-x:auto!important;overscroll-behavior-inline:contain;scrollbar-width:thin;-webkit-overflow-scrolling:touch}}
+
+/* Keep native chatbot dialog actions large enough to tap on phone screens. */
+@media(max-width:600px){
+  #sx-chatbot-dialog .sx-dialog button{min-height:44px!important}
+  #sx-chatbot-dialog .sx-dialog button[data-close]{width:44px!important;min-width:44px!important;height:44px!important}
+  #sx-chatbot-dialog .sx-dialog .sx-footer button.sx-secondary{min-width:64px!important;flex:0 0 64px!important}
+}
+
+/* Keep the automation-flow toolbar inside the canvas and enlarge its touch targets. */
+@media(max-width:600px){
+  #root [data-sx-chatbot-mobile-toolbar="true"]{
+    left:0!important;right:0!important;width:auto!important;max-width:100%!important;
+    box-sizing:border-box!important;gap:3px!important;padding:4px!important;
+    flex-wrap:wrap!important;align-items:center!important;transform:translateY(30px)!important
+  }
+  #root [data-sx-chatbot-mobile-toolbar="true"] input[placeholder="Flow title…"]{width:96px!important}
+  #root [data-sx-chatbot-mobile-toolbar="true"]>button{
+    width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;flex:0 0 44px!important
+  }
+  #root .MuiBox-root:has(>.react-flow)>.react-flow{top:108px!important}
+}
+@media(max-width:380px){#root .MuiBox-root:has(>.react-flow)>.react-flow{top:156px!important}}
+
+/* Expand the mobile navigation drawer and restore visible, readable labels. */
+@media(max-width:600px){
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root{width:100%!important;min-width:0!important;max-width:100%!important}
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:first-child,
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:nth-child(2),
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:last-child{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper .MuiBox-root:has(>img[alt="SaleMaX"]){width:156px!important;min-width:156px!important;max-width:156px!important;height:44px!important;flex:0 0 156px!important;overflow:visible!important}
+  .MuiDrawer-modal .MuiDrawer-paper img[alt="SaleMaX"]{width:156px!important;height:44px!important;max-width:156px!important;flex:0 0 156px!important;object-fit:contain!important;overflow:visible!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list]{width:100%!important;min-width:100%!important;max-width:100%!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list]>li{width:100%!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list]>li[data-sx-nav-section]{display:block!important;width:100%!important;margin:12px 0 4px!important;padding:4px 18px!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list] .MuiListItemButton-root{width:100%!important;box-sizing:border-box!important;justify-content:flex-start!important;padding-inline:12px!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list] .MuiListItemIcon-root{flex:0 0 34px!important;width:34px!important;min-width:34px!important}
+  .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list] .MuiListItemButton-root:not(:has(.MuiListItemText-root))::after{content:attr(aria-label);display:block;margin-inline-start:8px;min-width:0;white-space:normal;overflow-wrap:anywhere;font-size:14px}
+}
+
+/* Give Meta Template wizard navigation controls comfortable mobile tap targets. */
+@media(max-width:600px){main .MuiPaper-root:has(.MuiMobileStepper-progress) button{min-height:44px!important}}
+
+/* Scale template typography smoothly across common mobile viewport widths. */
+@media(max-width:600px){
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h4{font-size:clamp(18px,3.8vw,22px)!important;line-height:1.2!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:clamp(16px,3.6vw,20px)!important;line-height:1.2!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body1,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:clamp(14px,2.55vw,15px)!important;line-height:1.35!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body2,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle2{font-size:clamp(12px,2.25vw,13px)!important;line-height:1.35!important}
+}
+
+/* Reduce wizard typography on narrow phones while retaining readable controls. */
+@media(max-width:380px){
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:16px!important;line-height:1.25!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body2{font-size:12px!important;line-height:1.35!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle2{font-size:12px!important;line-height:1.35!important}
+}
+
+/* Keep every compact header action accessible on extra-narrow phone viewports. */
+@media(max-width:260px){
+  header .MuiToolbar-root:has([aria-label="Account menu"]){gap:1px!important;padding-inline:6px!important;flex-wrap:nowrap!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>button:first-child{width:32px!important;min-width:32px!important;flex:0 0 32px!important;height:36px!important;margin:0!important;padding:4px!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>.MuiBox-root:nth-child(2){width:24px!important;height:24px!important;flex:0 0 24px!important;}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>p{display:none!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>button:nth-of-type(2){width:42px!important;min-width:42px!important;flex:0 0 42px!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>button[aria-label="Switch to RTL"]{width:30px!important;min-width:30px!important;flex:0 0 30px!important;height:32px!important;padding:2px!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>button:nth-of-type(4){width:28px!important;min-width:28px!important;flex:0 0 28px!important;height:30px!important;padding:2px!important}
+  header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{width:34px!important;min-width:34px!important;flex:0 0 34px!important;height:38px!important}
+}
+
+/* Enlarge primary actions in compact setup cards and paired mobile controls. */
+@media(max-width:600px){
+  main .MuiBox-root:has(> .MuiBox-root .MuiTypography-h5) button{min-height:44px!important}
+  main .MuiPaper-root:has(>button:nth-child(2))>button,
+  main .MuiStack-root:has(>button:nth-child(2))>button{min-height:44px!important}
+}
+
+/* Keep course catalogue actions comfortable to tap on phones. */
+@media(max-width:600px){#sx-course-screen button{min-height:44px!important}}
+
+/* Preserve readable invoice-builder controls on narrow phone viewports. */
+@media(max-width:430px){
+  #sx-finance-screen #sx-invoice-create-workspace:not([hidden]){padding:6px}
+  #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{--sx-invoice-dialog-padding:10px;max-height:calc(100dvh - 12px);border-radius:10px}
+  #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create>.toolbar{display:grid;grid-template-columns:minmax(0,1fr) 38px;align-items:start;gap:6px}
+  #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create>.toolbar>div{min-width:0}
+  #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create>.toolbar h3{margin:0;font-size:15px;line-height:1.2;white-space:nowrap;letter-spacing:-.2px}
+  #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create>.toolbar .muted{display:none}
+  #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create>.toolbar>button{grid-column:2;grid-row:1;width:38px;min-width:38px;min-height:44px;padding:4px}
+  #sx-finance-screen #sx-generator-invoice{gap:8px}
+  #sx-finance-screen #sx-generator-invoice fieldset{gap:8px;padding:8px}
+  #sx-finance-screen #sx-generator-invoice .sx-invoice-submit-bar{grid-template-columns:minmax(0,1fr)}
+  #sx-finance-screen #sx-generator-invoice .sx-invoice-submit-bar>button{width:100%;min-width:0;min-height:44px}
+  #sx-finance-screen #sx-generator-plans .sx-invoice-plan{grid-template-columns:minmax(0,1fr);gap:8px;padding:10px}
+  #sx-finance-screen #sx-generator-plans .sx-invoice-plan>label:first-child,
+  #sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{grid-column:1}
+  #sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{justify-self:stretch;width:100%;min-width:0;min-height:44px}
+}
+
+/* Keep the Meta Template introduction compact across regular phone widths. */
+@media(min-width:381px) and (max-width:600px){
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h4,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:20px!important;line-height:1.2!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body1,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:14px!important;line-height:1.35!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body2,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle2{font-size:13px!important;line-height:1.35!important}
+}
+
+/* Keep the Meta Template wizard comfortable on phones without oversized headings. */
+@media(max-width:600px){
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h4{font-size:18px!important;line-height:1.2!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:16px!important;line-height:1.25!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body1,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:13px!important;line-height:1.35!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body2,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle2{font-size:12px!important;line-height:1.35!important}
+}
+@media(max-width:380px){
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h4{font-size:16px!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:15px!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body1,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:12px!important}
+}
+
+/* Raise visible Meta Template fields to the same comfortable phone target as its buttons. */
+@media(max-width:600px){
+  #root main:has(.MuiMobileStepper-progress) .MuiInputBase-root,
+  #root main:has(.MuiMobileStepper-progress) .MuiSelect-select,
+  #root main:has(.MuiMobileStepper-progress) input:not([type="hidden"]):not(.MuiSelect-nativeInput),
+  #root main:has(.MuiMobileStepper-progress) textarea{
+    min-height:44px!important;box-sizing:border-box!important
+  }
+}
+
+/* Keep compact admin sign-in fields and password visibility usable on phones. */
+@media(max-width:600px){
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) .MuiInputBase-root,
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) input{min-height:44px!important;box-sizing:border-box!important}
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) .MuiInputAdornment-positionEnd button{width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important}
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) button{min-height:44px!important}
+}
+
+/* Keep business sign-in compact, remove its stray zero, and retain phone tap targets. */
+@media(max-width:600px){
+  #root .MuiBox-root:has(> .MuiStack-root input[type="password"]) .MuiInputBase-root,
+  #root .MuiBox-root:has(> .MuiStack-root input[type="password"]) input{min-height:44px!important;box-sizing:border-box!important}
+  #root .MuiBox-root:has(> .MuiStack-root input[type="password"]) .MuiInputAdornment-positionEnd button{width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important}
+  #root:has(input[type="password"]) button{min-height:44px!important}
+  #root:has(input[type="password"]) button[aria-label="Switch to dark mode"],
+  #root:has(input[type="password"]) button[aria-label="Switch to light mode"]{width:44px!important;min-width:44px!important;height:44px!important}
+}
+
+/* Keep mobile dialog fields and actions sized for touch across app screens. */
+@media(max-width:600px){
+  .MuiDialog-root .MuiDialog-paper input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  .MuiDialog-root .MuiDialog-paper select,
+  .MuiDialog-root .MuiDialog-paper textarea{min-height:44px!important;box-sizing:border-box!important}
+  .MuiDialog-root .MuiDialog-paper button{min-height:44px!important}
+  .MuiDialog-root .MuiDialog-paper .MuiDialogTitle-root .MuiIconButton-root{width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important}
+}
+@media(max-width:300px){
+  .MuiDialog-root .MuiDialog-paper .MuiStack-root:has(>button.MuiButton-root){flex-direction:column!important;align-items:stretch!important;gap:8px!important}
+  .MuiDialog-root .MuiDialog-paper .MuiStack-root:has(>button.MuiButton-root)>button{width:100%!important;min-width:0!important;margin:0!important}
+  #root:has(input[type="password"]) .MuiButton-containedPrimary{font-size:14px!important;line-height:1.2!important;white-space:nowrap!important;padding-inline:8px!important}
+}
+
+/* Shared compact density for existing app screens on phones; control heights stay touch-friendly. */
+@media(max-width:600px){
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h1{font-size:24px!important;line-height:1.2!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h2{font-size:22px!important;line-height:1.22!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h3{font-size:20px!important;line-height:1.25!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h4{font-size:18px!important;line-height:1.25!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h5{font-size:16px!important;line-height:1.3!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h6{font-size:15px!important;line-height:1.3!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-body1,
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-subtitle1{font-size:14px!important;line-height:1.4!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-body2,
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-subtitle2{font-size:13px!important;line-height:1.4!important}
+  #root main .MuiCardHeader-root{padding:12px 14px!important}
+  #root main .MuiCardContent-root{padding:14px!important}
+  #root main .MuiCardContent-root:last-child{padding-bottom:14px!important}
+  #root main .MuiCardActions-root{gap:8px!important;padding:8px 14px 12px!important}
+  #root main .MuiTab-root{font-size:13px!important;min-height:44px!important}
+}
+
+/* Prevent the business sign-in card from forcing horizontal scrolling on very narrow phones. */
+@media(max-width:280px){
+  #root .MuiBox-root:has(input[type="password"]){
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+  }
+}
+
+/* Keep the authenticated business header compact and fully reachable on very narrow phones. */
+@media(max-width:600px){
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>button,
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{
+    min-width:44px!important;min-height:44px!important;height:44px!important;
+    box-sizing:border-box!important
+  }
+  #root main .MuiChip-root[role="button"]{min-height:44px!important;box-sizing:border-box!important}
+}
+@media(min-width:301px) and (max-width:380px){
+  #root header .MuiToolbar-root:has([aria-label="Account menu"]){gap:2px!important;padding-inline:4px!important}
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>p{
+    flex:0 1 42px!important;width:42px!important;min-width:0!important;overflow:hidden!important;
+    text-overflow:ellipsis!important;white-space:nowrap!important
+  }
+}
+@media(max-width:300px){
+  #root header .MuiToolbar-root:has([aria-label="Account menu"]){
+    box-sizing:border-box!important;min-height:0!important;height:auto!important;
+    flex-wrap:wrap!important;align-content:center!important;gap:2px!important;
+    padding:4px!important;overflow:visible!important
+  }
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>button,
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{
+    min-width:44px!important;width:44px!important;min-height:44px!important;height:44px!important;
+    flex:0 0 44px!important;box-sizing:border-box!important;margin:0!important
+  }
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>button:first-child{padding:4px!important}
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>.MuiBox-root:nth-child(2){
+    width:24px!important;height:24px!important;flex:0 0 24px!important;
+  }
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>p{display:none!important}
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{padding:0!important}
+}
+
+/* Keep Inbox toolbar, filters and chat actions aligned and reachable on phones. */
+@media(max-width:600px){
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>button,
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>[aria-label="Account menu"]{
+    min-width:44px!important;min-height:44px!important;height:44px!important;box-sizing:border-box!important
+  }
+  #root:has(main button[aria-label="Start New Chat"]) main button,
+  #root:has(main button[aria-label="Start New Chat"]) main input:not([type="hidden"]),
+  #root:has(main button[aria-label="Start New Chat"]) main select,
+  #root:has(main button[aria-label="Start New Chat"]) main textarea,
+  #root:has(main button[aria-label="Start New Chat"]) main [role="button"]{
+    min-height:44px!important;box-sizing:border-box!important
+  }
+  #root:has(main button[aria-label="Start New Chat"]) main .MuiBox-root:has(>button[aria-label="Start New Chat"]){
+    flex-wrap:wrap!important;align-items:center!important;gap:4px!important
+  }
+  #root:has(main button[aria-label="Start New Chat"]) main .MuiBox-root:has(>button[aria-label="Start New Chat"]) .MuiFormControl-root{
+    flex:1 1 110px!important;min-width:110px!important
+  }
+}
+@media(min-width:301px) and (max-width:380px){
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root{gap:2px!important;padding-inline:4px!important}
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>p{
+    flex:0 1 42px!important;width:42px!important;min-width:0!important;overflow:hidden!important;
+    text-overflow:ellipsis!important;white-space:nowrap!important
+  }
+}
+@media(max-width:300px){
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root{
+    min-height:0!important;height:auto!important;flex-wrap:wrap!important;align-content:center!important;
+    gap:2px!important;padding:4px!important
+  }
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>.MuiBox-root:nth-child(2){
+    width:24px!important;height:24px!important;flex:0 0 24px!important;
+  }
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>p{display:none!important}
+}
+
+/* Apply the compact, touch-friendly app header and drawer across every MUI screen. */
+@media(max-width:600px){
+  #root header .MuiToolbar-root>button,
+  #root header .MuiToolbar-root>[aria-label="Account menu"]{
+    min-width:44px!important;width:44px!important;min-height:44px!important;height:44px!important;
+    box-sizing:border-box!important;flex:0 0 44px!important;margin:0!important
+  }
+  #root main .MuiChip-root[role="button"]{min-height:44px!important;box-sizing:border-box!important}
+  .MuiDrawer-modal .MuiDrawer-paper{
+    width:100vw!important;max-width:100vw!important;box-sizing:border-box!important
+  }
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root,
+  .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:last-child{
+    width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important
+  }
+  .MuiDrawer-modal .MuiDrawer-paper button,
+  .MuiDrawer-modal .MuiDrawer-paper input:not([type="hidden"]){
+    min-height:44px!important;box-sizing:border-box!important
+  }
+  .MuiDrawer-modal .MuiDrawer-paper button{min-width:44px!important;height:44px!important}
+}
+@media(min-width:301px) and (max-width:380px){
+  #root header .MuiToolbar-root{gap:2px!important;padding-inline:4px!important}
+  #root header .MuiToolbar-root>p{
+    flex:0 1 42px!important;width:42px!important;min-width:0!important;overflow:hidden!important;
+    text-overflow:ellipsis!important;white-space:nowrap!important
+  }
+}
+@media(max-width:300px){
+  #root header .MuiToolbar-root{
+    min-height:0!important;height:auto!important;flex-wrap:wrap!important;align-content:center!important;
+    gap:2px!important;padding:4px!important
+  }
+  #root header .MuiToolbar-root>.MuiBox-root:nth-child(2){
+    width:24px!important;height:24px!important;flex:0 0 24px!important;
+  }
+  #root header .MuiToolbar-root>p{display:none!important}
+}
+
+/* Keep Finance filters compact and reachable with phone-sized tap targets. */
+@media(max-width:600px){
+  #sx-finance-screen input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]),
+  #sx-finance-screen select,
+  #sx-finance-screen textarea{min-height:44px!important;box-sizing:border-box!important;font-size:13px!important}
+  #sx-finance-screen button{min-height:44px!important;box-sizing:border-box!important}
+  #sx-finance-screen .sx-reminder-offset-chip button{width:44px!important;height:44px!important;padding:0!important}
+}
+
+/* Compact the Training Center profile while keeping phone controls tappable. */
+@media(max-width:760px){
+  #sx-training-profile-screen,#sx-training-profile-screen[dir=rtl]{inset-inline:0;top:56px;padding:15px 13px}
+  #sx-training-profile-screen .profile-wrap,#sx-training-profile-screen .profile-grid,
+  #sx-training-profile-screen .profile-card,#sx-training-profile-screen label,
+  #sx-training-profile-screen .logo-upload,#sx-training-profile-screen .logo-upload>label,
+  #sx-training-profile-screen .logo-dropzone{min-width:0;max-width:100%;box-sizing:border-box}
+  #sx-training-profile-screen .profile-grid{grid-template-columns:minmax(0,1fr);gap:9px;margin-top:10px}
+  #sx-training-profile-screen .profile-card{padding:12px;margin:10px 0;border-radius:12px}
+  #sx-training-profile-screen .profile-actions button{width:100%;min-height:44px}
+  #sx-training-profile-screen .logo-upload,#sx-training-profile-screen .logo-upload>label{width:100%}
+  #sx-training-profile-screen .logo-dropzone{width:100%;min-height:90px;flex-direction:column}
+  #sx-training-profile-screen .logo-upload-actions button{flex:1;min-height:44px;padding:8px 12px}
+}
+@media(max-width:600px){
+  #sx-training-profile-screen h1{font-size:21px;line-height:1.2}
+  #sx-training-profile-screen h2{font-size:15px;line-height:1.25}
+  #sx-training-profile-screen .sub{font-size:13px;line-height:1.4;margin-bottom:12px}
+  #sx-training-profile-screen label{font-size:12px;gap:5px}
+  #sx-training-profile-screen input,#sx-training-profile-screen select{font-size:13px;min-height:44px!important;height:44px;box-sizing:border-box;padding:8px 10px}
+  #sx-training-profile-screen textarea{font-size:13px;min-height:78px;padding:8px 10px}
+  #sx-training-profile-screen button{min-height:44px;padding:8px 12px}
+}
+
+/* Reduce Training Center student-card bulk; keep controls and internal tables usable. */
+@media(max-width:600px){
+  #sx-training-students-screen{padding:12px 10px}
+  #sx-training-students-screen h1{font-size:22px;line-height:1.2}
+  #sx-training-students-screen h2{font-size:17px;line-height:1.25}
+  #sx-training-students-screen .sx-st-sub{font-size:13px;line-height:1.4;margin-bottom:12px}
+  #sx-training-students-screen .sx-st-card{padding:12px;border-radius:12px}
+  #sx-training-students-screen .sx-st-stats{gap:8px;margin:12px 0}
+  #sx-training-students-screen .sx-st-stat{padding:10px;gap:8px;border-radius:12px}
+  #sx-training-students-screen .sx-st-stat strong{font-size:18px}
+  #sx-training-students-screen .sx-st-toolbar{gap:8px;margin:12px 0}
+  #sx-training-students-screen input,#sx-training-students-screen select,#sx-training-students-screen textarea{min-height:44px;padding:8px 10px;font-size:14px}
+  #sx-training-students-screen button,#sx-training-students-screen a.sx-st-btn{min-height:44px;padding:8px 11px;font-size:13px}
+  #sx-training-students-screen th,#sx-training-students-screen td{padding:8px 7px;font-size:12px}
+  #sx-training-students-screen .sx-st-list{gap:8px;margin-top:12px}
+}
+@media(max-width:300px){
+  #sx-training-students-screen h1{font-size:20px}
+  #sx-training-students-screen .sx-st-card{padding:10px}
+  #sx-training-students-screen button,#sx-training-students-screen a.sx-st-btn{padding-inline:8px;font-size:12px}
+}
+
+/* Keep public registration and staff capture forms compact and within the viewport. */
+@media(max-width:760px){
+  #language-toggle,#reg-add-course,#reg-signature-clear,[data-remove-course]{min-height:44px!important;box-sizing:border-box}
+  #submit-button{min-height:50px!important}
+  .registration-capture input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  .registration-capture select,.registration-capture textarea{min-height:44px!important;box-sizing:border-box!important}
+}
+@media(max-width:600px){
+  .public-form{width:100%;min-width:0;padding:12px 10px}
+  .form-header{min-width:0;margin-bottom:12px}
+  .form-header button{min-height:44px;padding:7px 10px;font-size:14px}
+  .form-card{width:100%;min-width:0;max-width:100%;padding:18px 14px;border-radius:14px}
+  .form-card h1{font-size:22px;line-height:1.2;overflow-wrap:anywhere}
+  .description{font-size:14px;line-height:1.4;margin-bottom:16px}
+  .form-field{min-width:0;margin-top:13px;font-size:13px}
+  .form-field input,.form-field select{min-width:0;max-width:100%;min-height:44px;padding:8px 10px;font-size:14px}
+}
+@media(max-width:360px){.public-form{padding:10px 8px}.form-card{padding:14px 12px}.form-card h1{font-size:20px}.description{font-size:13px}}
+@media(max-width:280px){
+  .reg-capture-heading{gap:8px;min-width:0}
+  .reg-capture-title{flex:1 1 0;min-width:0}
+  .reg-capture-title strong,.reg-capture-title span{overflow-wrap:anywhere}
+  .reg-center-logo{max-width:56px;max-height:38px}
+  #reg-add-course{padding:8px 10px;font-size:13px;white-space:nowrap}
+}
+
+/* Compact FAQ lists and dialogs on narrow screens. */
+@media(max-width:700px){
+  #sx-faqs-screen{padding:12px}
+  .sx-faqs-heading{gap:10px;margin:6px 0 14px}
+  .sx-faqs-heading h1{font-size:22px;line-height:1.2}
+  .sx-faqs-heading p,.sx-faq-empty p{font-size:14px;line-height:1.4}
+  .sx-faqs-list{gap:10px}
+  .sx-faq-card,.sx-faq-empty{padding:12px;border-radius:10px}
+  .sx-faq-empty strong{font-size:16px}
+  .sx-faq-empty p{margin:6px auto 12px}
+  .sx-faqs-primary,.sx-faq-actions button,.sx-faq-form footer button{min-height:44px}
+  .sx-faq-form{gap:10px;padding:14px;max-height:calc(100dvh - 16px)}
+  .sx-faq-form input,.sx-faq-form textarea{min-height:44px;padding:8px 10px;font-size:14px}
+  .sx-faq-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}
+  .sx-faq-dialog-heading h2{font-size:17px}
+  .sx-faq-dialog-heading .sx-faq-close{width:44px;height:44px;min-width:44px;min-height:44px}
+  .sx-faq-form footer{bottom:-14px;margin:0 -14px -14px;padding:10px 14px 14px}
+}
+@media(max-width:300px){
+  .sx-faqs-heading>.sx-faqs-primary,.sx-faq-empty>.sx-faqs-primary{width:100%}
+  .sx-faq-actions{flex-wrap:wrap}
+  .sx-faq-actions button{flex:1 1 100px}
+  .sx-faq-form footer{flex-direction:column;align-items:stretch}
+  .sx-faq-form footer button{width:100%}
+}
+/* Preserve the existing WhatsApp mark in a smaller header slot; never substitute the SaleMaX logo. */
+@media(max-width:600px){
+  #root .MuiAppBar-root .MuiToolbar-root>.MuiBox-root:nth-child(2){
+    width:34px!important;height:48px!important;flex:0 0 34px!important;
+    border-radius:20px!important;background-color:#a8003b!important;
+    background-image:none!important;background-size:auto!important;background-position:initial!important;background-repeat:initial!important
+  }
+  #root .MuiAppBar-root .MuiToolbar-root>.MuiBox-root:nth-child(2)>svg{display:block!important}
+}
