@@ -604,3 +604,7 @@ The authenticated Campaign Dashboard was checked at 220×760 and 320×760 in Eng
 ## Student directory empty-state current-session check — production, 14 October 2026
 
 The authenticated Student Registrations screen was checked in English/LTR at 220×760 and 320×760. Document widths match the 212px/312px viewports, and all 12 controls visible in the first screen are at least 44px high and in bounds. Summary cards use a two-column layout and the page scrolls vertically. The directory shows zero enrollments, so no student detail, attendance, payment, or document screen can be opened with this account. No student record or action was accessed.
+
+## Navigation drawer scroll and target check — production, 14 October 2026
+
+At the narrow 220px phone viewport, the mobile navigation drawer uses its own vertical scroller and reaches the lower menu items without widening the page. Visible menu entries at the bottom (Automation Flows, WA Chatbot, FAQs, Team access, Tasks, Agent Task, and Agent Login) have 44px-high targets and remain within the drawer. No menu route was selected during this check.
