@@ -232,3 +232,7 @@ The authenticated FAQ screen was rechecked read-only at 220px and 320px. In LTR 
 ## Finance Create Invoice editor phone check — 14 October 2026
 
 The blank Create Invoice editor was opened after source inspection confirmed opening it performs GETs for finance configuration/catalogue and persistence occurs only on submit. At 220px and 320px LTR, the dialog fills the available width (212px/312px) and the editor scrolls internally. Text/select fields measure 44px, the textarea remains taller, radio choice labels have 67px tap rows, and visible action buttons are at least 44px. Temporary 220px RTL emulation also kept all 18 interactive controls inside the viewport with no page overflow. The editor was closed without searching for a customer or submitting an invoice. No invoice or customer data was changed.
+
+## CRM Appearance phone sizing — source fix, 14 October 2026
+
+The owner-accessible CRM Appearance screen was inspected without changing its settings. In production at 320px, the title was 27px, the file/text inputs 42px, and the Save/Connect buttons 40px. Source now adds a compact phone style (21px title/16px card headings, tighter card spacing, 44px inputs and buttons) with a 19px title and full-width actions below 260px. Browser CSS preview at 220px RTL, 320px LTR and 390px LTR shows the page fits its 212px/312px/382px content width; all visible actions are at least 44px and none extend past the viewport. The settings screen itself remains at its production sizing until this source update is deployed. No logo or CRM domain settings were changed.
