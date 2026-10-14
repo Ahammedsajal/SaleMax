@@ -572,3 +572,5 @@ The authenticated Candidate Applications route was checked at 220×760 in Arabic
 ## Business Settings and CRM Appearance access check — production, 14 October 2026
 
 The authenticated account's `/user?page=settings` route rendered the Dashboard, and searching the mobile navigation for “Settings” returned no results. `/user?page=crm-appearance` rendered its “settings unavailable” state at 220×760 and 320×760: page widths were 212px/312px, content remained within the page, and the CRM appearance API returned HTTP 401. This confirms the editable Settings screen cannot be audited with this account; no logo/domain values were read or changed. The Sales Workspace navigation source also exposes an Audit Trail route, which remains role-gated along with the other Sales screens.
+
+A direct 220px visit to the Sales Audit Trail alias (`?page=sales-audit`) rendered the Dashboard content for this account, so the audit-trail screen itself remains unverified pending Sales Workspace access.
