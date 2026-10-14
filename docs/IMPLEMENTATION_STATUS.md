@@ -1481,3 +1481,7 @@ The applicant name in each submitted application now opens its review and print 
 ## Candidate Applications whole-row open action — production, 14 October 2026
 
 A click anywhere on a submitted-application row now opens the application detail, with Enter/Space support when the row is focused. The applicant button still opens the same details, and the linked-lead link continues to navigate to the lead separately. PR #145 merged as `102afb14058be29a9d217d3a12ad5dde5b11be0d` and is live. Focused checks pass 14/14; release, container and public script hashes match; health is 200; authenticated browser checks confirmed both the row open and separate lead navigation. No migration, customer-data change or app restart occurred. Release and rollback evidence is recorded in `DEPLOYMENT.md`. Phone/tablet visual review, print acceptance, broader Candidate Applications gates and the full 42-ticket upgrade remain open.
+
+## Candidate Applications attending staff name — production, 14 October 2026
+
+The existing application detail now shows the saved attending staff name/account instead of the generic “Recorded” label. The name already existed in each registration snapshot; PR #147 makes it available in the tenant-scoped submissions response. The focused suite passes 14/14, production health is 200, release/container hashes match, and authenticated review confirms the actual saved staff name appears. No schema migration or customer-data write occurred. Only the app service was recreated. See `DEPLOYMENT.md` for image, release, rollback and hash details.
