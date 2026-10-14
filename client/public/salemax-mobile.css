@@ -457,3 +457,16 @@
   }
   #root .MuiAppBar-root .MuiToolbar-root>.MuiBox-root:nth-child(2)>svg{display:block!important}
 }
+
+/* Keep Training Center student search, filters, and actions at a 44px tap size. */
+@media(max-width:600px){
+  #sx-training-students-screen input:not([type="hidden"]),
+  #sx-training-students-screen select,
+  #sx-training-students-screen textarea{
+    height:44px!important;min-height:44px!important;box-sizing:border-box!important
+  }
+  #sx-training-students-screen button,
+  #sx-training-students-screen a.sx-st-btn{
+    height:44px!important;min-height:44px!important;box-sizing:border-box!important
+  }
+}
