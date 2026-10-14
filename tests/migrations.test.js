@@ -12,6 +12,7 @@ test('actual discovery excludes destructive rollback', () => {
   const migrations = discover(path.join(__dirname, '../database/migrations'));
   assert.ok(migrations.some(m => m.file === '20261127_training_course_soft_deletion.sql'));
   assert.ok(migrations.some(m => m.file === '20261113_team_role_profiles.sql'));
+  assert.ok(migrations.some(m => m.file === '20261206_legacy_crm_user_sync_queue.sql'));
   const teamRoles=migrations.findIndex(m=>m.file==='20261113_team_role_profiles.sql');
   const salesOrg=migrations.findIndex(m=>m.file==='20261114_sales_organization.sql');
   const salesFinance=migrations.findIndex(m=>m.file==='20261115_sales_commissions.sql');
