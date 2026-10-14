@@ -1,3 +1,11 @@
+## SaleMaX Sales People & Roles focus theme — production, 14 October 2026
+
+The existing People & Roles overlay now uses SaleMaX burgundy for keyboard focus in the first-party Sales workspace, while Training Center keeps its current appearance. PR #118 merged to `main` as `923b6541094c7d846b70b2d500798be3a6c0a6bf` and is live in `/opt/salemax/releases/sales-team-access-focus-d8fad80-20261014`. The production-generated app index was preserved; only the script cache reference changed.
+
+Focused navigation, design and owner-activation checks pass 24/24. Production health, login and app shell return 200, and the release, running-container and public HTTPS hashes match. The app alone was recreated; no database or business data changed. Rollback details are in `DEPLOYMENT.md`.
+
+The internal tenant and `admin@salemax.qa` identity are still absent, so authenticated role acceptance remains open. Asterisk is not installed/running on the application host, so live calling/recording remains unverified. The full Sales workspace and 42-ticket upgrade remain in progress.
+
 ## SaleMaX Sales Organization palette alignment — production, 14 October 2026
 
 The existing Organization screen now uses the shared SaleMaX burgundy/neutral palette for reporting hierarchy cards and all five role badges in both LTR and RTL. The previous blue, green and orange role colors are removed while text labels remain the source of role meaning. PR #117 merged to `main` as `c85291c055961d5cfb5ef0df9ed9c63f667e6ec8` and is live in `/opt/salemax/releases/sales-organization-role-colors-2b62162-20261014`.
