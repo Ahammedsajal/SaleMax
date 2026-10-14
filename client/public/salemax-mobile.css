@@ -690,3 +690,21 @@
   }
 }
 
+
+/* Keep the mobile flow editor title and mode selector reachable, and separate the minimap from zoom controls. */
+@media(max-width:600px){
+  #root [data-sx-chatbot-mobile-toolbar="true"] input[placeholder="Flow title…"]{
+    box-sizing:border-box!important;height:44px!important;min-height:44px!important;
+    padding:8px 10px!important;font-size:13px!important
+  }
+  .sx-mobile-tab-select{
+    box-sizing:border-box!important;height:44px!important;min-height:44px!important
+  }
+}
+@media(max-width:380px){
+  #root main:has(.react-flow) .react-flow__controls{bottom:16px!important}
+  #root main:has(.react-flow) .react-flow__minimap{
+    top:10px!important;right:10px!important;bottom:auto!important;
+    width:96px!important;height:64px!important
+  }
+}
