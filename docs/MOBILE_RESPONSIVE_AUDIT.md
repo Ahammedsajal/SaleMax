@@ -157,3 +157,7 @@ At 220px and 320px, the Dashboard remains inside its page width with no offscree
 ## Courses screen header fit — 14 October 2026
 
 At 220px, the Courses screen used a fixed top offset of 56px under a wrapped 99px app header, and its heading rendered at 24px. Shared phone CSS now moves the Courses layer to 99px and reduces its title to 20px at widths up to 260px. Live production verification at 220px shows a 212px document width, no offscreen controls, and the layer starts below the app header. At 320px the page is 312px wide, the 24px title remains readable, and controls stay within the viewport. No course data or actions were changed.
+
+## Training Profile and Students fixed-screen header fit — 14 October 2026
+
+At 220px, the Profile screen began at 56px while the app header wrapped to 99px, covering its heading and top content. The Students layer began at 58px, covering its table header and first rows. Shared phone CSS now moves both fixed screens below the 99px header at widths up to 260px. Live version-12 checks show Profile starts at 99px with its heading at 114px and no offscreen controls; Students starts at 99px with no page overflow. Two Students row actions remain within the existing horizontal table scroller. At 320px, these screens keep their existing offset and fit within the 312px document width. No profile values or student rows were changed.

@@ -35,6 +35,8 @@
   }
   #sx-course-screen{top:99px!important}
   #sx-course-screen h1{font-size:20px!important;line-height:1.2!important}
+  #sx-training-profile-screen,
+  #sx-training-students-screen{top:99px!important}
 }
 
 /* Preserve a square tap target for the compact Dashboard refresh action. */
