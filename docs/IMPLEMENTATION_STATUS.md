@@ -1,3 +1,11 @@
+## SaleMaX Sales Call Center agent attribution — production, 14 October 2026
+
+Managers and Team Leaders can now identify the staff member associated with each call in their existing scoped Call Center history. The API resolves started-by and answered-by names/roles through tenant-constrained membership joins; the screen shows the answerer, falling back to the initiator. No email or phone is exposed, and call/recording scope is unchanged.
+
+PR #108 merged as `8b181a5377d0256b871ccae97263c6060cbbb415` and is live in `/opt/salemax/releases/sales-call-agent-attribution-8b181a5-20261014`. Focused call scope/outcome tests pass 9/9; syntax and diff checks pass. Production query-plan, health, login, unauthorized API and source/release/container/HTTPS hash checks passed. No migration or business-data write occurred. See `DEPLOYMENT.md` for image and rollback details.
+
+Authenticated Sales-role acceptance remains open because the internal tenant and staff sessions are not provisioned. Asterisk remains inactive, so real calls and recording playback are unverified. The full Sales workspace objective remains in progress.
+
 ## SaleMaX shared Tasks screen theme and alignment — production, 14 October 2026
 
 The shared Tasks screen now loads the SaleMaX Sales design tokens and follows the existing workspace width, header alignment, mobile spacing and burgundy browser theme. Training Center and SaleMaX Sales category labels remain dynamic. PR #95 merged as `a08ef808c4ab6d5df4693c9ee2c9704b41d8395a` and is live in `/opt/salemax/releases/sales-tasks-ui-a08ef80-20261014`. Focused design, Tasks and notification checks pass 43/43. Live HTML/CSS hashes match the release and running app. The database/report worker were not restarted and no migration was applied. See `DEPLOYMENT.md` for rollback and evidence.
