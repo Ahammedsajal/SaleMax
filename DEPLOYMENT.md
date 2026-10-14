@@ -1,3 +1,10 @@
+## SaleMaX shared phone density refinement — production, 14 October 2026
+
+- Source commit: `c18e04b` on branch `mobile-responsive-mainline-20261014` (draft PR #137). The shared mobile stylesheet now reduces MUI phone typography, card spacing, button label size, and dialog padding across business/admin screens while preserving 44px touch targets.
+- Active release: `/opt/salemax/releases/candidate-attending-staff-a83a148-20261014`; active app container `salemax-app-1` remained running and healthy with zero restarts. The release and container index SHA-256 is `d5a2dd43eb024c8d50d511f2e5fa8fa52ae9333cb42a375ae8f810ebeaff4c30`; stylesheet SHA-256 is `4cb555f837810575c16902919e7480fc5ad358c74a257eb0a0c0d5e64b60f7a6`. The public page references `20261014-mobile-compact15`; downloaded public CSS hash matches release and container. `/healthz` returns HTTP 200.
+- Backup/rollback: `/opt/salemax/shared/backups/mobile-density-compact15-20261014` (mode 0700; files mode 0600) contains the exact pre-change release/container index and stylesheet copies. Restore `index.release.before` and `salemax-mobile.css.release.before` into the active release's `client/public/`, then copy those restored files to `/app/client/public/` in `salemax-app-1`; no app restart is required. The active release pointer was preserved.
+- No database, customer, account, or form data changed; no restart or migration occurred. Authenticated screen-by-screen visual acceptance remains open because the current in-app browser session is at `/admin/login`; the CSS cache/health/hash checks confirm delivery only, not all-screen rendering. Continue the route inventory after the business account session is available.
+
 ## SaleMaX Team Login route responsiveness — production, 14 October 2026
 
 - Source: PR #126 merge commit `665cbb40881ff834878c6545e0edcf9e3062b353` on `main` (PR head `8fec5a611df2eba3b491ba8291bc8a8c17630c66`).
