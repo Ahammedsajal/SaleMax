@@ -559,7 +559,7 @@ async function captureQrMessage({ uid, chatId, message, normalizedMessage }) {
   throw lastError;
 }
 
-async function getBoard({ uid, role, agentId, scopeAgentIds, filters = {}, pool:sourcePool }) {
+async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filters = {}, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const conditions = ["l.uid_hash = ?"];
@@ -607,6 +607,13 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, filters = {}, pool:
        ORDER BY l.last_activity_at DESC, l.created_at DESC LIMIT ? OFFSET ?`,
       [...values, limit, offset],
     );
+    if(categoryKey==='salemax_sales'&&leads.length){
+      const [suppressed]=await connection.query(`SELECT DISTINCT lead_id AS leadId FROM pipeline_activity
+        WHERE uid_hash=? AND lead_id IN (?) AND activity_type='contact_outcome' AND summary='Contact outcome: do_not_call'`,
+      [uidHash,leads.map(lead=>lead.id)]);
+      const suppressedIds=new Set(suppressed.map(row=>String(row.leadId)));
+      for(const lead of leads)lead.doNotCall=suppressedIds.has(String(lead.id));
+    }else for(const lead of leads)lead.doNotCall=false;
     const [countRows] = await connection.query(
       `SELECT COUNT(*) AS total FROM pipeline_leads l
        LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
