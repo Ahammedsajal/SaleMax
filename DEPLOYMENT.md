@@ -1,3 +1,12 @@
+## Legacy CRM account-sync queue schema repair — production, 14 October 2026
+
+- Source commit: PR #97 merge commit `d2ab565a93af756c40ac864cd5dd1e8c01417276` on `main`.
+- Deployed release: `/opt/salemax/releases/sales-sync-queue-d2ab565-20261014`; previous release: `/opt/salemax/releases/sales-tasks-ui-a08ef80-20261014`. The physical release contains the new forward migration; the existing app image was not rebuilt and no app/database/worker container was restarted.
+- Migration `20261206_legacy_crm_user_sync_queue.sql` applied successfully (1/1 statement; SHA-256 `54ac497b99948162b82ae9e4894cb3acec93ebd8c9acee335cfbf2c55394c2f7`). Production ledger is 91/91 applied. Preflight confirmed the queue table and migration record were absent; postflight confirms the six expected columns, the applied ledger row, and zero queued jobs. No account, plan, customer, or external CRM record was created or changed.
+- Rollback: protected baseline `/opt/salemax/shared/rollback-sales-sync-queue-d2ab565-20261014` (mode 0700) records the prior release pointer and app/database/worker baseline. The preflight queue table was absent, so it contained no jobs to back up. Restore `/opt/salemax/current` to `/opt/salemax/releases/sales-tasks-ui-a08ef80-20261014` if needed; leave the additive empty table and applied migration ledger in place because older app code safely ignores them and dropping a queue after rollout could discard jobs.
+- Verification: the running migration runner checked all 90 existing migration checksums, skipped those 90 and applied only the new migration. Focused disposable MySQL integration verified concurrent idempotent enqueue, retry scheduling and job cleanup; migration unit checks pass 7/7. Production `/healthz` returns `success:true,status:ok`; app, database and report-worker IDs/start times are unchanged, app restart count is zero, and no missing-queue error appeared in the two-minute postflight log window. Production disk is 98% used with about 986 MB free.
+- Open gates: external CRM provisioning was not invoked for verification. The first-party Sales tenant and `admin@salemax.qa` staff identity are not provisioned; contract terms and the Business Admin display name/mobile remain pending. Asterisk remains inactive, so live call and recording playback are unverified. Full authenticated role-by-role acceptance remains open.
+
 ## SaleMaX shared Tasks screen theme and alignment — production, 14 October 2026
 
 - Source commit: PR #95 merge commit `a08ef808c4ab6d5df4693c9ee2c9704b41d8395a` on `main`.
