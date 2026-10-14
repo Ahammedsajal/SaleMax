@@ -228,3 +228,7 @@ A 320px authenticated browser screenshot showed the SaleMaX wordmark truncated t
 ## FAQ phone and RTL recheck — 14 October 2026
 
 The authenticated FAQ screen was rechecked read-only at 220px and 320px. In LTR at both widths, the 22px page heading, empty state and content fit the 212px/312px app column without horizontal overflow; all nine visible controls are at least 44px high and remain in bounds. At 320px RTL, the same nine controls remain in bounds and at least 44px high, with no page overflow. RTL was emulated in the page DOM for measurement only; the account language/direction preference was not changed. No FAQ was created or edited.
+
+## Finance Create Invoice editor phone check — 14 October 2026
+
+The blank Create Invoice editor was opened after source inspection confirmed opening it performs GETs for finance configuration/catalogue and persistence occurs only on submit. At 220px and 320px LTR, the dialog fills the available width (212px/312px) and the editor scrolls internally. Text/select fields measure 44px, the textarea remains taller, radio choice labels have 67px tap rows, and visible action buttons are at least 44px. Temporary 220px RTL emulation also kept all 18 interactive controls inside the viewport with no page overflow. The editor was closed without searching for a customer or submitting an invoice. No invoice or customer data was changed.
