@@ -416,3 +416,7 @@ Production serves `/salemax-mobile.css?v=20261014-mobile-compact35`. CSS SHA-256
 ## WhatsApp Bot list-only check — production, 14 October 2026
 
 The authenticated WhatsApp Bot landing/list state was checked at 220px and 320px. Page width stays within the viewport, all six visible controls at 220px are at least 44px and in bounds, and at 320px no visible button/input/select/textarea is smaller than 44px or offscreen. An existing bot card was left unopened; no bot was created, edited, or assigned.
+
+## Inbox conversation pane access boundary — production, 14 October 2026
+
+The inbox list was checked at 390px in the authenticated business account. The document and body are 390px wide with no page-level horizontal overflow; the header, search, filter, selection, and new-conversation controls are at least 44px high. The All filter was restored after inspection. Read-filter rows still showed red unread-count badges, so no conversation was opened; the conversation pane and its actions remain unverified. No message or conversation state was changed.
