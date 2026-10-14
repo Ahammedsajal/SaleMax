@@ -99,6 +99,13 @@ test('task list reports whether another page exists and caps the page to the req
   assert.deepEqual(query.args.slice(-2),[3,2]);
 });
 
+test('task type filters scope scheduled Sales calls and cannot be used by other categories',async()=>{
+  let query;const db={query:async(sql,args)=>{query={sql,args};return [[],[]];}};
+  await tasks.list(db,{...ctx,tenant:{categoryKey:'salemax_sales'}},{scope:'mine',taskType:'sales_call'});
+  assert.match(query.sql,/t\.task_type=\?/);assert.ok(query.args.includes('sales_call'));
+  await assert.rejects(tasks.list(db,{...ctx,tenant:{categoryKey:'training_center'}},{scope:'mine',taskType:'sales_call'}),{code:'INVALID_TASK_FILTER'});
+});
+
 test('task detail resolves participant names without exposing their email addresses',async()=>{
   const taskId='88888888-8888-4888-8888-888888888888',task={id:taskId,revision:1,status:'open',lead_id:null};
   const participant={actorType:'agent',actorId:'7',role:'assignee',label:'Amina',addedAt:'2026-10-05 10:00:00'};
@@ -194,6 +201,16 @@ test('task lead lookup is constrained to the caller workspace and agent assignme
   const args=[];const db={query:async(sql,values)=>{args.push(values);return [[{id:'33333333-3333-4333-8333-333333333333',owner_agent_id:9}],[]];}};
   await assert.rejects(tasks._private.assertLead(db,{...ctx,role:'agent',agentId:4},'33333333-3333-4333-8333-333333333333'),{code:'PERMISSION_DENIED'});
   assert.deepEqual(args[0],[ctx.uidHash,'33333333-3333-4333-8333-333333333333']);
+});
+
+test('scheduled sales calls require Sales category, linked lead, time and agent assignee',()=>{
+  const validate=tasks._private.validateSalesCall,linked={leadId:'33333333-3333-4333-8333-333333333333'},due=new Date('2026-10-14T10:00:00Z'),agent=[{actorType:'agent',actorId:'7',role:'assignee'}];
+  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'sales_call',due,'lead',linked,agent),{code:'INVALID_TASK_TYPE',status:403});
+  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',due,null,null,agent),{code:'INVALID_SALES_CALL_LEAD'});
+  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',null,'lead',linked,agent),{code:'INVALID_SALES_CALL_DUE_DATE'});
+  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',due,'lead',linked,[{actorType:'identity',actorId:'member',role:'assignee'}]),{code:'TASK_ASSIGNEE_REQUIRED'});
+  assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',due,'lead',linked,agent));
+  assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'general',null,null,null,[]));
 });
 
 test('task capability is enforced by category, plan and role policy',()=>{

@@ -18,5 +18,9 @@
         element.dataset.ar=ar;
         element.textContent=arabic?ar:en;
       }
+      const type=document.querySelector('#taskForm [name="taskType"]');
+      if(type&&!type.querySelector('option[value="sales_call"]')){
+        const option=document.createElement('option');option.value='sales_call';option.dataset.en='Scheduled sales call';option.dataset.ar='مكالمة مبيعات مجدولة';option.textContent=arabic?option.dataset.ar:option.dataset.en;type.append(option);
+      }
     }).catch(()=>{});
 })();
