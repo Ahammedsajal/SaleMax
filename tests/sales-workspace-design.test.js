@@ -47,6 +47,16 @@ test('Sales section styles use only defined shared design variables', () => {
   }
 });
 
+test('Organization role badges use the shared burgundy and neutral palette', () => {
+  const css = fs.readFileSync(path.join(root, 'client/public/sales-organization/sales-organization.css'), 'utf8');
+  assert.match(css, /\.role-badge\.owner\{background:var\(--sx-brand\);color:var\(--sx-surface\)\}/);
+  assert.match(css, /\.role-badge\.manager\{background:var\(--sx-brand-pill-bg\);color:var\(--sx-brand-dark\)\}/);
+  assert.match(css, /\.role-badge\.team_leader\{background:var\(--sx-brand-soft\);color:var\(--sx-brand-dark\)\}/);
+  assert.match(css, /\.role-badge\.agent\{background:var\(--sx-surface\);color:var\(--sx-brand-dark\)/);
+  assert.match(css, /\.role-badge\.accountant\{background:var\(--sx-canvas\);color:var\(--sx-label\)/);
+  assert.doesNotMatch(css, /\.role-badge\.(?:manager|team_leader|agent|accountant)\{background:#/i);
+});
+
 test('shared Sales tokens retain the existing burgundy brand and accessibility focus treatment', () => {
   assert.match(tokens, /--sx-brand:\s*#a8003b/i);
   assert.match(tokens, /--sx-brand-dark:\s*#85002f/i);
@@ -76,7 +86,7 @@ test('Call Center browser chrome and mobile spacing follow the shared Sales them
   const html = fs.readFileSync(path.join(root, 'client/public/call-center/index.html'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'client/public/call-center/call-center.css'), 'utf8');
   assert.match(html, /theme-color" content="#A8003B"/i);
-  assert.match(html, /call-center\/call-center\.css\?v=20261014-sales-ui2/);
+  assert.match(html, /call-center\/call-center\.css\?v=20261014-sales-call-outcome-review1/);
   assert.match(css, /header\{align-items:flex-start\}/);
   assert.match(css, /color:var\(--sx-brand\)/);
   assert.match(css, /background:var\(--sx-canvas\)/);
