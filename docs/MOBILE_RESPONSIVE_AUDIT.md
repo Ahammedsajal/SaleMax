@@ -351,3 +351,6 @@ At 320px RTL, the sticky Save action overlapped the first contact input while th
 ## Dashboard narrow-width and Call Center route availability — production, 14 October 2026
 
 The authenticated Dashboard was checked at 220px and 320px in LTR. The document/main widths are 212px and 312px, with no page-level horizontal overflow or visible buttons outside the viewport; all visible buttons are at least 44px high. Direct navigation to `/user?page=call-center` returned to the Dashboard in this account, so the Call Center screen remains unavailable for this account's audit. No dashboard action was triggered and no call was placed.
+## CRM Appearance production RTL follow-up — 14 October 2026
+
+The live `/user?page=crm-appearance` screen was rechecked at 220px RTL and 320px LTR/RTL. Its four visible upload/domain inputs and action buttons are 44px high, stay inside the viewport, and the document remains 212px/312px wide with no horizontal overflow. At 220px, each action fills the 135px form column. RTL was measured with a temporary direction attribute and restored; no logo or domain control was activated and no setting changed.
