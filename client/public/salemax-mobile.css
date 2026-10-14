@@ -41,6 +41,11 @@
   header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{width:42px!important;min-width:42px!important;flex:0 0 42px!important;padding:0!important}
 }
 
+/* Keep the language control icon-only on larger phones so its label cannot wrap. */
+@media(min-width:381px) and (max-width:600px){
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>button:nth-of-type(2)>span{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+}
+
 /* Match the fixed-header spacer when the header wraps on extra-narrow phones. */
 @media(max-width:260px){
   #root main:has(>header.MuiAppBar-positionFixed)>.MuiBox-root:first-child{
