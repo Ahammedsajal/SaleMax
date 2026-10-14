@@ -354,3 +354,6 @@ The authenticated Dashboard was checked at 220px and 320px in LTR. The document/
 ## CRM Appearance production RTL follow-up — 14 October 2026
 
 The live `/user?page=crm-appearance` screen was rechecked at 220px RTL and 320px LTR/RTL. Its four visible upload/domain inputs and action buttons are 44px high, stay inside the viewport, and the document remains 212px/312px wide with no horizontal overflow. At 220px, each action fills the 135px form column. RTL was measured with a temporary direction attribute and restored; no logo or domain control was activated and no setting changed.
+## CRM Appearance wrapped-header overlap — production fix, 14 October 2026
+
+At 220px and 260px, the shared header wraps to 99px, but CRM Appearance began at 56px and its title overlapped the header's second row. The maintained script now offsets the screen to 99px below 260px. Production checks at 220px and 260px show the screen begins at the header bottom with no overlap, no page overflow, no offscreen controls, and all visible inputs/buttons at least 44px. At 280px the header is 56px and the screen remains at 56px with no overlap. No logo or domain setting was changed.
