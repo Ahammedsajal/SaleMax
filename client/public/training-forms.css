@@ -400,3 +400,21 @@
   #sx-forms-screen .sx-app-filter-actions button{flex:1}
   #sx-forms-screen .sx-app-table{min-width:0}
 }
+
+/* Keep the public URL and its actions in one compact, predictable row. */
+#sx-forms-screen .sx-public-link{display:flex;align-items:center;flex-wrap:nowrap;gap:8px}
+#sx-forms-screen .sx-public-link>span{flex:1 1 auto;grid-column:auto;min-width:0}
+#sx-forms-screen .sx-public-link>.sx-form-action-group{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px}
+#sx-forms-screen .sx-public-link .sx-form-action-group>button,
+#sx-forms-screen .sx-public-link .sx-form-action-group>a{display:inline-flex;width:auto;min-width:0;height:36px;min-height:36px;max-height:36px;padding:6px 10px;white-space:nowrap;overflow-wrap:normal}
+#sx-forms-screen .sx-public-link .sx-form-action-group .sx-form-edit{width:auto;min-width:0}
+@media(max-width:900px){
+  #sx-forms-screen .sx-public-link{align-items:stretch;flex-direction:column}
+  #sx-forms-screen .sx-public-link>span{width:100%;flex:0 1 auto}
+  #sx-forms-screen .sx-public-link>.sx-form-action-group{justify-content:flex-start}
+}
+@media(max-width:520px){
+  #sx-forms-screen .sx-public-link>.sx-form-action-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+  #sx-forms-screen .sx-public-link .sx-form-action-group>button,
+  #sx-forms-screen .sx-public-link .sx-form-action-group>a{width:100%;white-space:normal}
+}
