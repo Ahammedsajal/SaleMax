@@ -568,3 +568,7 @@ The same invoice-table scroller was checked at 220×760. The page remains 212px 
 ## Candidate Applications and form catalogue narrow RTL check — production, 14 October 2026
 
 The authenticated Candidate Applications route was checked at 220×760 in Arabic/RTL. The page is 212px wide with no horizontal overflow; the 28 rendered action controls are in bounds and at least 44px high. The workspace header wraps to two compact rows, and the form cards stack in one column with their links inside the card. One submitted request is present, but no applicant row was opened and no record or form was changed.
+
+## Business Settings and CRM Appearance access check — production, 14 October 2026
+
+The authenticated account's `/user?page=settings` route rendered the Dashboard, and searching the mobile navigation for “Settings” returned no results. `/user?page=crm-appearance` rendered its “settings unavailable” state at 220×760 and 320×760: page widths were 212px/312px, content remained within the page, and the CRM appearance API returned HTTP 401. This confirms the editable Settings screen cannot be audited with this account; no logo/domain values were read or changed. The Sales Workspace navigation source also exposes an Audit Trail route, which remains role-gated along with the other Sales screens.
