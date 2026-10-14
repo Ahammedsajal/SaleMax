@@ -2,6 +2,7 @@ const router = require("express").Router();
 const jwt = require("jsonwebtoken");
 const { query } = require("../database/dbpromise.js");
 const pipeline = require("../helper/pipeline/leadPipeline.js");
+const salesLeadImport = require('../modules/platform/sales-lead-import');
 const pipelineAccess = require("../helper/pipeline/access.js");
 const pipelineReports = require("../helper/pipeline/reports.js");
 const trainingCourses = require('../modules/platform/training-courses');
@@ -159,7 +160,7 @@ router.get("/board", async (req, res) => {
         limit: req.query.limit,
       },
     });
-    res.json({ success: true, data: { ...data, timezone: req.pipelineActor.timezone, role: req.pipelineActor.role } });
+    res.json({ success: true, data: { ...data, timezone: req.pipelineActor.timezone, role: req.pipelineActor.role, categoryKey: req.pipelineActor.categoryKey || null } });
   } catch (error) { fail(res, error); }
 });
 
@@ -178,7 +179,7 @@ router.get("/follow-ups", async (req, res) => {
 router.get("/settings", async (req, res) => {
   try {
     const data = await pipeline.getSettings(req.pipelineActor.uid);
-    res.json({ success: true, data: { ...data, timezone: req.pipelineActor.timezone, role: req.pipelineActor.role } });
+    res.json({ success: true, data: { ...data, timezone: req.pipelineActor.timezone, role: req.pipelineActor.role, categoryKey: req.pipelineActor.categoryKey || null } });
   } catch (error) { fail(res, error); }
 });
 
@@ -297,6 +298,20 @@ router.post("/leads", async (req, res) => {
     });
     res.status(201).json({ success: true, data });
   } catch (error) { fail(res, error); }
+});
+
+// Internal SaleMaX Sales lead imports are intentionally restricted to the
+// business owner. Validate the complete batch before writing, then create all
+// rows in one transaction so a bad row cannot leave a partial import behind.
+router.post('/leads/import', async (req,res) => {
+  try{
+    const pool=require('../database/config.js').promise();
+    const data=await salesLeadImport.importBatch({pool,pipeline,actor:req.pipelineActor,rows:req.body?.rows});
+    res.status(201).json({success:true,data});
+  }catch(error){
+    if(error.status)return res.status(error.status).json({success:false,code:error.code||'IMPORT_FAILED',...(error.row?{row:error.row}:{})});
+    return fail(res,error);
+  }
 });
 
 async function authorizeLead(req, res, next) {
