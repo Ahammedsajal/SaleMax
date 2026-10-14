@@ -1,3 +1,11 @@
+## SaleMaX Sales exact call outcome review — production, 14 October 2026
+
+The existing Call Center now displays a call's saved disposition, note and follow-up date beside that exact call. Saving a Sales outcome links the Pipeline activity to its originating call, so agents, Team Leaders and Sales Managers can distinguish outcomes when a lead has multiple calls. Follow-up dates use the tenant timezone; other categories keep their existing behavior. PR #116 merged to `main` as `b9e3b6462c9b608d3c73d9e9e86a7a430ce09aee` and is live in `/opt/salemax/releases/sales-call-outcome-review-c4e2860-20261014`.
+
+Focused Call Center, telephony, Sales navigation and report checks pass 54/54. In-container syntax, public health/login/Call Center routes, anonymous API rejection and release/container/public JS/CSS hashes were verified. The app alone was recreated; no schema or business-data changes occurred. Rollback and detailed hashes are in `DEPLOYMENT.md`.
+
+First-party tenant/staff provisioning and authenticated role-by-role English/Arabic acceptance remain open. Asterisk remains inactive and recording off by default, so real call capture/playback are unverified. The full Sales workspace and 42-ticket upgrade remain in progress.
+
 ## SaleMaX Sales agent-scoped call review — production, 14 October 2026
 
 The existing Call Center now lets Business Admins, Sales Managers and Team Leaders select an active agent and page through that agent’s calls, with an optional ready-recordings filter. The roster and call APIs enforce tenant and current organization scope; out-of-team agents are denied before call rows are queried. Existing playback and coaching flows are reused. No migration or business-data write occurred.
