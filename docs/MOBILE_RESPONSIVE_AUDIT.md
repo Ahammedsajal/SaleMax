@@ -552,3 +552,9 @@ The authenticated account's Add WhatsApp by QR screen shows its empty-device sta
 ## Meta Manual Setup current-account recheck — production, 14 October 2026
 
 The Link Meta WhatsApp menu item opens the existing Meta API Keys screen. Its Manual Setup panel was checked at the current 405×399 in-app viewport: document/body width is 397px, all 13 visible controls stay in bounds and at least 44px high, and the form scrolls vertically. The four setup fields were measured without reading their values. Copy, Save, and Fetch were not activated.
+
+## Lead Reports and Training Center Profile live-session recheck — production, 14 October 2026
+
+Lead Reports was checked in Arabic/RTL at 390×844 and 320×760. The outer page and embedded report stay within the viewport width; the report content is 375px/305px wide and scrolls vertically inside the iframe. Its visible date-range, refresh, report-view and filter actions remain inside the phone layout, with the primary report actions 44px high. The report itself was not run and no schedule was changed.
+
+Training Center Profile was checked in Arabic/RTL at 320×760. The fixed Profile panel is 312px wide below the 56px header, with no horizontal overflow; its sections stack in one column. The 2,403px content area scrolls vertically inside the panel, and the 44px Save profile action is reachable at the bottom (y=661 after scrolling). No field values were read or changed, and Save was not activated.
