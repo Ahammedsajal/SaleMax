@@ -1,3 +1,9 @@
+## SaleMaX Sales task notification branding — production, 14 October 2026
+
+The shared task worker now reads the tenant category and brands internal Sales email notifications as “SaleMaX Sales Workspace”; Training Center notification wording remains unchanged. PR #93 merged as `5f7d47b73a2f42aa2b60283b11e28a88a63e770b` and is live in `/opt/salemax/releases/sales-task-category-notifications-5f7d47b-20261014`. Focused Tasks tests pass 38/38 and the deployed runtime check confirms both category labels. No migration was applied; the database and report worker were not restarted. Task email is disabled and no WhatsApp task template is configured. See `DEPLOYMENT.md` for verification and rollback details.
+
+Authenticated role-by-role task acceptance remains open because the first-party Sales tenant and staff identities are not provisioned. Internal contract terms and the Business Admin display name/mobile remain pending. Asterisk is inactive, so real call and recording playback remain unverified. Production storage is 98% used with about 1.1 GB free. The complete Sales workspace objective remains in progress.
+
 ## SaleMaX Sales Call Center shared theme and layout — production, 14 October 2026
 
 The existing Call Center now follows the shared SaleMaX Sales burgundy theme, shared foundational color tokens, workspace padding and mobile header alignment. Its browser theme color now matches the brand. Existing call workflows and `/user` navigation are unchanged. PR #91 merged as `f116423cdbddc2c56fe3ba6d56d89fbf4726ee85` and is live in `/opt/salemax/releases/sales-callcenter-ui-f116423-20261014`. Focused Call Center/design checks pass 10/10. Served HTML/CSS hashes match source and runtime; no migration or business-data write occurred. See `DEPLOYMENT.md` for rollback and release evidence.
