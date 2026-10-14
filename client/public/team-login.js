@@ -48,14 +48,18 @@
       if(teamResult.status==='rejected'&&legacyResult.status==='rejected')throw teamResult.reason;
       const team=teamResult.status==='fulfilled'?teamResult.value:{members:[]};
       const legacy=legacyResult.status==='fulfilled'?legacyResult.value:{data:[]};
-      const mapped=(team.members||[]).map(member=>({key:'member:'+member.id,memberId:member.id,name:member.displayName,email:member.email,mobile:'',role:member.role,roleLabel:label(({accountant:'Accountant',manager:'Manager',team_leader:'Team Leader',agent:'Agent'})[member.role]||member.role,({accountant:'محاسب',manager:'مدير',team_leader:'قائد فريق',agent:'وكيل'})[member.role]||member.role),statusLabel:label('Active','نشط')}));
+      const mapped=(team.members||[]).map(member=>({key:'member:'+member.id,memberId:member.id,name:member.displayName,email:member.email,mobile:member.mobile||'',role:member.role,roleLabel:label(({accountant:'Accountant',manager:'Manager',team_leader:'Team Leader',agent:'Agent'})[member.role]||member.role,({accountant:'محاسب',manager:'مدير',team_leader:'قائد فريق',agent:'وكيل'})[member.role]||member.role),statusLabel:label('Active','نشط')}));
       const mappedEmails=new Set(mapped.map(item=>String(item.email).toLowerCase()));
       const unlinked=(legacy.data||[]).filter(item=>!mappedEmails.has(String(item.email).toLowerCase())).map(item=>({key:'agent:'+item.uid,uid:item.uid,name:item.name,email:item.email,mobile:item.mobile,role:'agent',roleLabel:label('Agent','وكيل'),statusLabel:Number(item.is_active)===1||item.is_active==null?label('Active','نشط'):label('Inactive','غير نشط')}));
       accounts=[...mapped,...unlinked].sort((a,b)=>String(a.name||a.email).localeCompare(String(b.name||b.email)));
       node.querySelector('[data-count]').textContent=`(${accounts.length})`;node.querySelector('[data-empty]').textContent=label('No team accounts found.','لم يتم العثور على حسابات للفريق.');render(node,node.querySelector('[data-search]').value);
     }catch(error){node.querySelector('[data-empty]').hidden=true;errorNode.innerHTML=`<div class="error" role="alert">${esc(message(error.message))} <button type="button" data-retry>${label('Retry','إعادة المحاولة')}</button></div>`;errorNode.hidden=false;errorNode.querySelector('[data-retry]').onclick=()=>load(node);}
   }
+  function normalizeBreadcrumb(){
+    const root=document.getElementById('root');if(!root)return;
+    for(const element of root.querySelectorAll('*'))if(!element.children.length&&element.textContent.trim().toLowerCase()==='agent-login')element.textContent=label('Team Login','تسجيل دخول الفريق');
+  }
   let lastRoute=false;
-  function sync(){const active=route();let node=document.getElementById('sx-team-login');if(!active){node?.remove();lastRoute=false;return;}if(!node){node=createScreen();load(node);}lastRoute=active;}
+  function sync(){const active=route();let node=document.getElementById('sx-team-login');if(!active){node?.remove();lastRoute=false;return;}if(!node){node=createScreen();load(node);}normalizeBreadcrumb();lastRoute=active;}
   addEventListener('popstate',sync);new MutationObserver(sync).observe(document.documentElement,{subtree:true,childList:true});setInterval(()=>{if(route()&&!document.getElementById('sx-team-login'))sync();},1200);sync();
 })();

@@ -144,11 +144,14 @@ async function list(pool,ownerUid){
     const [rows]=await db.query(`SELECT v.id,v.email_normalized AS email,v.role,v.role_profile_id AS roleProfileId,r.name AS roleName,v.status,DATE_FORMAT(v.expires_at,'%Y-%m-%dT%H:%i:%s.%fZ') AS expiresAt
       FROM sx_team_invites v LEFT JOIN sx_team_roles r ON r.id=v.role_profile_id AND r.tenant_id=v.tenant_id
       WHERE v.tenant_id=? AND v.token_hash IS NOT NULL ORDER BY v.created_at DESC,v.id LIMIT 200`,[scope.tenantId]);
-    const [members]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,m.role_profile_id AS roleProfileId,r.name AS roleName,r.permissions AS rolePermissions,i.email_normalized AS email,i.display_name AS displayName,
+    const [members]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,m.role_profile_id AS roleProfileId,r.name AS roleName,r.permissions AS rolePermissions,i.email_normalized AS email,i.display_name AS displayName,COALESCE(a.mobile,u.mobile_with_country_code,'') AS mobile,
         m.assigned_navigation AS assignedNavigation
       FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
+      LEFT JOIN sx_legacy_ownership lo ON lo.tenant_id=m.tenant_id AND lo.membership_id=m.id AND lo.source_table IN ('user','agents')
+      LEFT JOIN agents a ON lo.source_table='agents' AND CAST(lo.source_id AS UNSIGNED)=a.id AND a.owner_uid=?
+      LEFT JOIN user u ON lo.source_table='user' AND CAST(lo.source_id AS UNSIGNED)=u.id
       WHERE m.tenant_id=? AND m.status='active' AND i.status='active' AND m.role IN ('accountant','manager','team_leader','agent')
-      ORDER BY i.display_name,i.email_normalized LIMIT 500`,[scope.tenantId]);
+      ORDER BY i.display_name,i.email_normalized LIMIT 500`,[ownerUid,scope.tenantId]);
     const tenant={id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)};
     const navigationByRole=Object.fromEntries(staffRoles.map(memberRole=>{
       const context={audience:'tenant',tenant,category:scope.category,subscription:scope.entitlement,
