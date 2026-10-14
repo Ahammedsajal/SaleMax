@@ -544,3 +544,7 @@ The `/user?page=tasks` embed now loads in the current authenticated session; the
 The Finance Reports route previously rendered only the invoice register because its existing receivables-report renderer was no longer called after the Finance screen refactor. Source commits `6898555` and `4a26ec7` restore the report and make it the first content on the `section=reports` route; the invoice list is not fetched on that route. The report uses the existing tenant-scoped read API.
 
 The Arabic/RTL report was checked at 220×900, 320×900, and 390×900. Document widths were 212px, 312px, and 382px, with no horizontal page overflow. The report starts inside the visible Finance panel at all three widths; its KPI cards use one column at 220px/320px and two at 390px. Seven visible report controls remain in bounds and at least 44px high. The 640px-wide report table is in a 145px, 245px, and 315px internal scroller respectively, and Finance scrolls vertically. The existing report loaded without an error; no filters or invoice actions were activated, and report values were not copied into the audit record.
+
+## QR device screen current-account recheck — production, 14 October 2026
+
+The authenticated account's Add WhatsApp by QR screen shows its empty-device state. At 220px, 320px, and 390px, after the layout settled, document and body widths match the viewport; all nine visible controls are in bounds and at least 44px high. No QR session or device was started.
