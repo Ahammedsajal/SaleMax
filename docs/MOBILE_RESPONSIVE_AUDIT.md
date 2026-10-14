@@ -470,3 +470,7 @@ The authenticated Courses route and its overview, course-list, and learner-journ
 ## Lead Reports embedded view — production mobile check, 14 October 2026
 
 The Lead Reports route embeds `/pipeline/?embed=1&view=reports`. At 220px, the outer page/frame measured 220px and the embedded document/body measured 205px; at 320px, the frame measured 320px and embedded document/body 305px. In both views all nine visible interactive controls were at least 44px high and within bounds, with no horizontal overflow. No report filters or records were changed.
+
+## Send Campaign screen — production mobile check, 14 October 2026
+
+The authenticated Send Campaign route was checked in Arabic/RTL at 220×800px and 320×760px. Document/body widths stayed within the viewport. Its seven visible interactive controls, including custom select/search controls, measured at least 44px high and remained in bounds; the 19px native MUI select input is an aria-hidden internal control paired with a 44px visible combobox. No campaign was launched or edited.
