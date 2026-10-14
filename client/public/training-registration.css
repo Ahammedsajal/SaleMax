@@ -11,3 +11,12 @@
   #language-toggle,#reg-add-course,#reg-signature-clear,[data-remove-course]{min-height:44px!important;box-sizing:border-box}
   #submit-button{min-height:50px!important}
 }
+
+/* Prevent the registration logo and actions from widening very narrow phones. */
+@media(max-width:280px){
+  .reg-capture-heading{gap:8px;min-width:0}
+  .reg-capture-title{flex:1 1 0;min-width:0}
+  .reg-capture-title strong,.reg-capture-title span{overflow-wrap:anywhere}
+  .reg-center-logo{max-width:56px;max-height:38px}
+  #reg-add-course{padding:8px 10px;font-size:13px;white-space:nowrap}
+}
