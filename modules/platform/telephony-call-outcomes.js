@@ -58,7 +58,8 @@ function createTelephonyCallOutcomes(pool,{pipelineService=pipeline,scopeCall=ca
     const actor=await resolveActor(db,pool,context);
     const data=normalizeInput(input,{categoryKey:actor.categoryKey});
     await pipelineService.updateLead({uid:actor.uid,id:call.leadId,input:data,actorType:actor.actorType,
-      actorId:actor.actorId,role:actor.role,agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,categoryKey:actor.categoryKey},pool);
+      actorId:actor.actorId,role:actor.role,agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,categoryKey:actor.categoryKey,
+      sourceCallId:context.tenant.categoryKey==='salemax_sales'?callId:null},pool);
     return {callId,leadId:call.leadId,outcome:data.outcome,followUpRequired:data.followUpRequired===true};
   }};
 }

@@ -16,7 +16,7 @@ test('SaleMaX Sales managers and team leaders receive only calls belonging to cu
       if(sql.includes('SELECT c.id,c.direction,c.status'))return [[{id:'scoped-team-call',direction:'outbound',status:'connected',gatewayChannelNo:1,
         queueName:null,startedAt:'2026-10-13T09:00:00.000Z',answeredAt:'2026-10-13T09:00:05.000Z',endedAt:null,durationSeconds:12,
         answeredByMembershipId:'agent-membership-1',startedByMembershipId:'agent-membership-1',answeredByName:'Agent One',answeredByRole:'agent',
-        startedByName:'Agent One',startedByRole:'agent',hasAssignedActiveLeg:0}],[]];
+        startedByName:'Agent One',startedByRole:'agent',callOutcomeDetails:JSON.stringify({outcome:'interested',followUpRequired:true,nextFollowUpAt:'2026-10-16 10:00:00.000',note:'Asked for details'}),hasAssignedActiveLeg:0}],[]];
       throw new Error(`Unexpected Call Center query: ${sql}`);
     }};
     const context={audience:'tenant',identity:{id:`identity-${role}`},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
@@ -28,6 +28,7 @@ test('SaleMaX Sales managers and team leaders receive only calls belonging to cu
     assert.equal(response.status,200);assert.equal(body.data.items.length,1);assert.equal(body.data.items[0].canControl,true);
     assert.equal(body.data.items[0].answeredByName,'Agent One');assert.equal(body.data.items[0].answeredByRole,'agent');
     assert.equal(body.data.items[0].startedByName,'Agent One');assert.equal(body.data.items[0].startedByRole,'agent');
+    assert.deepEqual(body.data.items[0].outcome,{outcome:'interested',followUpRequired:true,nextFollowUpAt:'2026-10-16 10:00:00.000',note:'Asked for details'});
     const scopeQuery=calls.find(item=>item.sql.includes('FROM sx_sales_org_history h'));
     assert.match(scopeQuery.sql,role==='manager'?/manager_membership_id/ : /team_leader_membership_id/);
     const listQuery=calls.find(item=>item.sql.includes('SELECT c.id,c.direction,c.status'));
@@ -35,6 +36,7 @@ test('SaleMaX Sales managers and team leaders receive only calls belonging to cu
     assert.match(listQuery.sql,/c\.started_by_membership_id IN \(\?\)/);assert.match(listQuery.sql,/c\.answered_by_membership_id IN \(\?\)/);assert.match(listQuery.sql,/scoped_leg\.membership_id IN \(\?\)/);
     assert.match(listQuery.sql,/answered_member\.tenant_id=c\.tenant_id AND answered_member\.id=c\.answered_by_membership_id/);
     assert.match(listQuery.sql,/started_member\.tenant_id=c\.tenant_id AND started_member\.id=c\.started_by_membership_id/);
+    assert.match(listQuery.sql,/pa\.uid_hash=c\.lead_uid_hash/);assert.match(listQuery.sql,/CASE WHEN JSON_VALID\(pa\.details\) THEN JSON_UNQUOTE\(JSON_EXTRACT\(pa\.details,'\$\.sourceCallId'\)\) ELSE NULL END/);
     assert.deepEqual(listQuery.args.slice(-3),[teamIds,teamIds,teamIds]);
     const invalidFilter=await fetch(`http://127.0.0.1:${server.address().port}/call-center/calls?recordedOnly=yes`),invalidBody=await invalidFilter.json();
     assert.equal(invalidFilter.status,400);assert.equal(invalidBody.code,'INVALID_CALL_FILTER');
@@ -73,7 +75,7 @@ test('Call Center identifies the assigned staff member beside each call and reco
   assert.match(ui,/if\(callHistory\.recordingsOnly\)params\.set\('recordedOnly','1'\)/);
   assert.match(ui,/params\.set\('agentMembershipId',callHistory\.agentMembershipId\)/);
   assert.match(ui,/request\('\/calls\/agents'\)/);
-  assert.match(html,/call-center\.js\?v=20261014-agent-recording-filter1/);
+  assert.match(html,/call-center\.js\?v=20261014-call-outcome-review1/);
   assert.match(html,/id="recordingsOnly"/);
   assert.match(html,/id="agentReviewFilter"/);
 });

@@ -28,6 +28,14 @@ function parseCallCursor(value){
     typeof cursor.callId!=='string'||! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cursor.callId))fail();
   return cursor;
 }
+function shapeCallOutcome(value){
+  if(typeof value!=='string'||value.length>10000)return null;
+  let detail;try{detail=JSON.parse(value);}catch(_){return null;}
+  const outcomes=new Set(['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested','do_not_call']);
+  if(!detail||typeof detail!=='object'||!outcomes.has(detail.outcome))return null;
+  return {outcome:detail.outcome,followUpRequired:detail.followUpRequired===true,
+    nextFollowUpAt:typeof detail.nextFollowUpAt==='string'?detail.nextFollowUpAt:null,note:typeof detail.note==='string'?detail.note.slice(0,2000):''};
+}
 
 function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=globalThis.fetch}){
   const router=express.Router();
@@ -151,6 +159,10 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
           SELECT 1 FROM sx_telephony_call_legs selected_leg WHERE selected_leg.tenant_id=c.tenant_id AND selected_leg.call_id=c.id AND selected_leg.membership_id=?))`;
         agentFilterArgs=[agentMembershipId,agentMembershipId,agentMembershipId];
       }
+      const outcomeSelect=context.tenant.categoryKey==='salemax_sales'?`(SELECT pa.details FROM pipeline_activity pa WHERE c.lead_uid_hash IS NOT NULL AND pa.uid_hash=c.lead_uid_hash
+        AND pa.lead_id=c.lead_id AND pa.activity_type='contact_outcome'
+        AND (CASE WHEN JSON_VALID(pa.details) THEN JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.sourceCallId')) ELSE NULL END)=c.id
+        ORDER BY pa.created_at DESC,pa.id DESC LIMIT 1) AS callOutcomeDetails`:'NULL AS callOutcomeDetails';
       const [items]=await db.query(`SELECT c.id,c.direction,c.status,c.lead_id AS leadId,c.gateway_channel_no AS gatewayChannelNo,
           q.queue_name AS queueName,c.started_at AS startedAt,c.answered_at AS answeredAt,c.ended_at AS endedAt,
           DATE_FORMAT(c.started_at,'%Y-%m-%d %H:%i:%s.%f') AS cursorStartedAt,
@@ -159,6 +171,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
           answered_identity.display_name AS answeredByName,answered_member.role AS answeredByRole,
           started_identity.display_name AS startedByName,started_member.role AS startedByRole,
           r.state AS recordingState,r.expires_at AS recordingExpiresAt,
+          ${outcomeSelect},
           EXISTS(SELECT 1 FROM sx_telephony_call_legs l WHERE l.tenant_id=c.tenant_id AND l.call_id=c.id AND l.membership_id=?
             AND l.status IN ('originating','ringing','connected')) AS hasAssignedActiveLeg
         FROM sx_telephony_calls c LEFT JOIN sx_telephony_queues q ON q.tenant_id=c.tenant_id AND q.id=c.inbound_queue_id
@@ -179,6 +192,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
         answeredByName:row.answeredByName||'',answeredByRole:row.answeredByRole||'',startedByName:row.startedByName||'',startedByRole:row.startedByRole||'',
+        outcome:shapeCallOutcome(row.callOutcomeDetails),
         recordingState:row.recordingState||'not_recorded',canListenRecording:row.recordingState==='ready'&&new Date(row.recordingExpiresAt).getTime()>Date.now()&&decision(context,{capability:'telephony.call-center',permission:'calls.recording.listen'}).allowed,
         canCoach:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.write'}).allowed,
         canViewCoaching:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.read'}).allowed,

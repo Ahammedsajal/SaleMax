@@ -17,6 +17,7 @@ test('call outcome save is tenant scoped and delegates lead scope to the Sales P
   const result=await service.log(db,context(),'call-1',{outcome:'follow_up_scheduled',followUpRequired:true,nextFollowUpAt:'2026-10-15T04:30:00.000Z',note:'Send proposal'});
   assert.deepEqual(result,{callId:'call-1',leadId:'lead-1',outcome:'follow_up_scheduled',followUpRequired:true});
   assert.equal(writes.length,1);assert.equal(writes[0][0].uid,'owner-uid');assert.equal(writes[0][0].id,'lead-1');
+  assert.equal(writes[0][0].sourceCallId,'call-1');
   assert.equal(writes[0][0].input.nextFollowUpAt,'2026-10-15T04:30:00.000Z');assert.deepEqual(writes[0][0].scopeAgentIds,[12]);
 });
 
@@ -47,12 +48,14 @@ test('recording a Sales do-not-call outcome marks the linked lead through the ex
 
 test('call outcome form is in Call Center and uses the existing scoped outcome API and timezone helper',()=>{
   const root=path.join(__dirname,'..');const ui=fs.readFileSync(path.join(root,'client/public/call-center/call-center.js'),'utf8');
-  const html=fs.readFileSync(path.join(root,'client/public/call-center/index.html'),'utf8');const api=fs.readFileSync(path.join(root,'modules/platform/call-center-router.js'),'utf8');
+  const html=fs.readFileSync(path.join(root,'client/public/call-center/index.html'),'utf8');const api=fs.readFileSync(path.join(root,'modules/platform/call-center-router.js'),'utf8');const css=fs.readFileSync(path.join(root,'client/public/call-center/call-center.css'),'utf8');
   assert.match(ui,/Log call outcome/);assert.match(ui,/\/calls\/\$\{encodeURIComponent\(call\.callId\)\}\/lead-outcome/);
+  assert.match(ui,/Logged result/);assert.match(ui,/Call note/);assert.match(api,/callOutcomeDetails/);assert.match(api,/JSON_EXTRACT\(pa\.details,'\$\.sourceCallId'\)/);
   assert.match(ui,/SaleMaXDateTime\.fromInput\(due\.value,tenantTimezone\)/);assert.match(ui,/updateLeadFromCall|lead-outcome/);
   assert.match(ui,/salesCategory=data\.categoryKey==='salemax_sales'/);assert.match(ui,/salesCategory\?\[\['do_not_call'/);
   assert.match(ui,/\['do_not_call','Do not call again'/);assert.match(ui,/CALL_LEAD_DO_NOT_CALL/);
   assert.match(html,/sales-design-tokens\.css[\s\S]*call-center\.css/);assert.match(html,/timezone-datetime\.js[\s\S]*call-center\.js/);
+  assert.match(html,/call-center\.css\?v=20261014-sales-call-outcome-review1/);assert.match(css,/\.call-outcome-summary[^{]*\{[^}]*var\(--sx-brand\)/);
   assert.match(api,/calls\/:callId\/lead-outcome/);assert.match(api,/SELECT timezone FROM sx_tenants/);assert.match(api,/categoryKey:context\.tenant\.categoryKey/);assert.match(api,/CALL_LEAD_DO_NOT_CALL/);
 });
 
