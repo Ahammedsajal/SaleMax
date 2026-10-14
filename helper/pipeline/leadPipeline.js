@@ -1091,7 +1091,10 @@ async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, 
   },sourcePool);
 }
 
-async function updateLead({ uid, id, input, actorType, actorId, role, agentId, scopeAgentIds, categoryKey, pool:sourcePool }) {
+async function updateLead({ uid, id, input, actorType, actorId, role, agentId, scopeAgentIds, categoryKey, sourceCallId = null, pool:sourcePool }) {
+  if(sourceCallId!==null&&sourceCallId!==undefined&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sourceCallId)){
+    const error=new Error('Invalid source call.');error.status=400;error.code='INVALID_CALL_ID';throw error;
+  }
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const [rows] = await connection.query("SELECT * FROM pipeline_leads WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE", [uidHash, id]);
@@ -1208,7 +1211,9 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
       await addActivity(connection, uidHash, id, "lead_reassigned", assignmentChange.toAgentName ? `Reassigned to ${assignmentChange.toAgentName}` : "Lead unassigned", assignmentChange, actorType, actorId);
     }
     if(contactOutcome){
-      await addActivity(connection,uidHash,id,'contact_outcome',`Contact outcome: ${contactOutcome}`,{outcome:contactOutcome,followUpRequired,nextFollowUpAt:providedFollowUp||null},actorType,actorId);
+      const outcomeDetails={outcome:contactOutcome,followUpRequired,nextFollowUpAt:providedFollowUp||null};
+      if(sourceCallId){outcomeDetails.sourceCallId=sourceCallId;if(text(input.note,2000))outcomeDetails.note=text(input.note,2000);}
+      await addActivity(connection,uidHash,id,'contact_outcome',`Contact outcome: ${contactOutcome}`,outcomeDetails,actorType,actorId);
       if(!changes.length)await connection.query('UPDATE pipeline_leads SET last_activity_at=? WHERE uid_hash=? AND id=?',[activityAt,uidHash,id]);
     }
     if (input.note !== undefined && text(input.note, 2000)) {

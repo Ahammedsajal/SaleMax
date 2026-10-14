@@ -114,6 +114,14 @@
       meta.textContent=[started,text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`),attribution].filter(Boolean).join(' · ');main.append(title,meta);
       const state=document.createElement('span');state.className='call-status';const labels={ringing:text('Ringing','يرن'),connected:text('Connected','متصل'),ended:text('Ended','انتهت'),failed:text('Failed','فشلت')};state.textContent=labels[call.status]||call.status;
       row.append(main,state);
+      if(call.outcome){
+        const outcomes={no_answer:text('No answer','لا يوجد رد'),connected:text('Connected','تم التواصل'),interested:text('Interested','مهتم'),not_interested:text('Not interested','غير مهتم'),follow_up_scheduled:text('Follow-up scheduled','تم تحديد متابعة'),wrong_number:text('Wrong number','رقم غير صحيح'),requested_call:text('Call requested','طلب معاودة الاتصال'),sale_requested:text('Sale requested','طلب شراء'),do_not_call:text('Do not call','عدم الاتصال')};
+        const details=[`${text('Logged result','النتيجة المسجلة')}: ${outcomes[call.outcome.outcome]||call.outcome.outcome}`];
+        if(call.outcome.nextFollowUpAt){const raw=call.outcome.nextFollowUpAt,iso=/Z$|[+-]\d\d:\d\d$/i.test(raw)?raw:`${raw.replace(' ','T')}Z`,due=new Date(iso);details.push(`${text('Follow-up','المتابعة')}: ${Number.isNaN(due.getTime())?raw:due.toLocaleString(isArabic()?'ar-IN':'en-IN',{timeZone:tenantTimezone})}`);}
+        else if(call.outcome.outcome!=='do_not_call')details.push(text('No follow-up scheduled','لم يتم تحديد متابعة'));
+        const summary=document.createElement('p');summary.className='call-outcome-summary';summary.textContent=details.join(' · ');row.append(summary);
+        if(call.outcome.note){const note=document.createElement('p');note.className='call-outcome-note';note.textContent=`${text('Call note','ملاحظة المكالمة')}: ${call.outcome.note}`;row.append(note);}
+      }
       if(call.leadId){const leadLink=document.createElement('a');leadLink.href=`/user?page=lead-pipeline&lead=${encodeURIComponent(call.leadId)}&view=detail`;leadLink.target='_top';leadLink.textContent=text('Open linked lead','فتح العميل المحتمل المرتبط');row.append(leadLink);}
       if(call.leadId&&['ended','failed'].includes(call.status))row.append(createLeadOutcomeForm(call));
       if(call.canListenRecording){const listen=document.createElement('button');listen.type='button';listen.className='recording-play';listen.textContent=text('Listen to recording','استمع إلى التسجيل');listen.addEventListener('click',()=>playRecording(call.callId,listen,row));row.append(listen);}
