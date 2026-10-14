@@ -129,3 +129,7 @@ The shared stylesheet's version 3 fixes the FAQ primary buttons that measured 42
 ## Students title cascade correction — 14 October 2026
 
 A fresh 220px RTL Students check showed the page title remained 28px even though the shared mobile rule specified 20px. The page's later-loaded screen stylesheet won the cascade. The mobile title declarations now use `!important` at 600px (22px) and at 300px (20px); the shared stylesheet URL is versioned as `20261014-mobile-compact4`. After the production asset update and reload, the title measured 20px at 220px and 22px at 320px. Both widths had zero horizontal overflow; seven visible buttons at 220px and the nine visible buttons/fields/selects at 320px were all at least 44px tall. No student record was opened or changed.
+
+## Dashboard and Profile compactness recheck — 14 October 2026
+
+At 220px and 320px, Dashboard and Training Profile each fit within the viewport with no horizontal overflow. Dashboard section headings render at 20px and all visible controls stay within the viewport at 44px or taller. Training Profile's main heading is 21px; its visible inputs, select and buttons are 44px or taller, with no off-screen controls. Finance at 220px LTR also fits at 212px document width, with compact 18–20px section headings and 44px minimum visible form/action targets; the wide invoice grid continues to use its internal scroller. No records or form values were changed.
