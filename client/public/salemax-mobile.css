@@ -752,6 +752,14 @@
 }
 
 
+/* Keep links in the horizontally scrolling student table large enough to tap. */
+@media(max-width:600px){
+  .sx-st-table-wrap a{
+    display:inline-flex!important;align-items:center!important;min-height:44px!important;
+    box-sizing:border-box!important
+  }
+}
+
 /* Keep the mobile flow editor title and mode selector reachable, and separate the minimap from zoom controls. */
 @media(max-width:600px){
   #root [data-sx-chatbot-mobile-toolbar="true"] input[placeholder="Flow title…"]{

@@ -1488,7 +1488,7 @@ The Admin reset-password action and business login recovery, account creation, a
 
 ## Campaign Dashboard All Campaigns state — mobile recheck, 14 October 2026
 
-The All Campaigns state was checked at 220px, 320px, and 390px in Arabic/RTL. Search and filter fields plus Search, Export CSV and Refresh fit the viewport; action buttons and field wrappers meet the 44px target. The 24px native select input is contained within its 44px control wrapper. No campaign action was triggered. Production SSH is currently unavailable from this host because `carsqatar-prod-01` does not resolve; the reset-password CSS source is pushed but awaits deployment and a live post-deploy check.
+The All Campaigns state was checked at 220px, 320px, and 390px in Arabic/RTL. Search and filter fields plus Search, Export CSV and Refresh fit the viewport; action buttons and field wrappers meet the 44px target. The 24px native select input is contained within its 44px control wrapper. No campaign action was triggered. The documented SSH configuration is now available and the sign-in tap-target source/deployment is recorded in the later production entry; full route/role coverage remains open.
 
 ## Training Profile full-form mobile recheck — production, 14 October 2026
 
@@ -1501,3 +1501,7 @@ The main Dashboard was checked in Arabic/RTL at 390px, 320px, and 220px. Its pag
 ## Inbox list mobile recheck — production, 14 October 2026
 
 The authenticated Inbox list was checked at 390px, 320px, and 220px with no conversation opened. All 13 visible controls stayed in bounds and met the 44px height target; page width remained within the viewport. No message or read state changed. The iframe utility content remains outside this visual check.
+
+## Student Registrations table link target — source update pending production, 14 October 2026
+
+The authenticated Arabic/RTL Student Registrations screen fits 390px, 320px, and 220px widths, with its approximately 592–600px content table inside a horizontal scroller. One link in the table measured 33px high; a scoped mobile style preview raised it to 44px without page overflow. No student row or action was opened. The source update is pending production verification.
