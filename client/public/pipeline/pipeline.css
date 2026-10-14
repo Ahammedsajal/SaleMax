@@ -53,3 +53,12 @@
 
 @media(max-width:600px){.hero{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:12px}.hero>div:first-child{min-width:0}.hero-actions{display:grid;grid-template-columns:minmax(0,1fr);width:100%;gap:8px}.hero-actions button{width:100%;min-width:0;min-height:44px;box-sizing:border-box;padding:8px 10px;font-size:13px;line-height:1.25}}
 @media(max-width:600px){.hero h1{font-size:22px;line-height:1.2}}@media(max-width:260px){.hero h1{font-size:19px}}
+
+@media(max-width:600px){
+  .reports .report-filters{padding:10px;gap:8px}
+  .reports .report-filters label{width:100%;min-width:0}
+  .reports .report-filters select,.reports .report-filters input,.reports .report-filters button{
+    width:100%;min-width:0;min-height:44px;box-sizing:border-box
+  }
+}
+
