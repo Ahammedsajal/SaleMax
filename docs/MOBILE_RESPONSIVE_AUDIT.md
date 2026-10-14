@@ -482,3 +482,7 @@ The authenticated FAQs route was checked in Arabic/RTL at 220×800px and 320×76
 ## Agent Tasks screen — production mobile check, 14 October 2026
 
 The Agent Tasks route was checked in Arabic/RTL at 220×800px and 320×760px. Document/body widths stayed within the viewport; all seven visible interactive controls were at least 44px high and in bounds. No horizontal overflow was present. No task was opened or created.
+
+## Authenticated shell header — production mobile check, 14 October 2026
+
+After the compact language-control CSS was deployed, the authenticated header was reloaded at 550px. The toolbar measured 542×56px in the 550px viewport. Hamburger, language, RTL, theme, and account controls each measured 44×44px and remained in bounds; the logo/name also fit. The language label span measured 1×1px while its accessible name remained “Lang Arabic”. The production CSS and generated index matched their release/container copies, and `/healthz`, the CSS asset, and the authenticated user page returned HTTP 200. No app restart, release-pointer change, migration, or business-data change occurred. The shell displays its existing WhatsApp mark, while the drawer uses the SaleMaX wordmark asset; this is an existing branding inconsistency, not a change from this responsive fix. Full mobile route/state coverage and Admin/Sales role access remain open.

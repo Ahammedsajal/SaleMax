@@ -1,6 +1,14 @@
 Warning: truncated output (original token count: 119984)
 Total output lines: 1619
 
+## SaleMaX mobile header language control — production, 14 October 2026
+
+- Source commit: `7b6c8c71e9f8697fcfe062b4bf90aee7880e329e` on `mobile-responsive-mainline-20261014` (draft PR #137). At 550px, the language switch label wrapped inside its 44px control. The shared mobile stylesheet now clips that text visually from 381px through 600px while retaining the accessible “Lang Arabic” name; the existing SaleMaX shell and logo assets are unchanged. The stylesheet key is `20261014-mobile-compact37`.
+- Active release remains `/opt/salemax/releases/inbox-shared-qr-access-a880679-20261014`; the pointer was not changed. Production CSS SHA-256 is `7e26767914a2ac6bdf0e5aa403db2aa9d235c15f73c9a78ea9bd35799317af4b`. The production-generated index was preserved and only its stylesheet key was advanced; release/container index SHA-256 is `91ccb3056e369d639fbb9067420957f091672a40d753b72eecc8b657b1139421`. Release and container CSS/index hashes match.
+- Rollback: `/opt/salemax/shared/backups/mobile-header-language-compact37-20261014` (directory mode 0700; files mode 0600) contains exact release/container before-images for the CSS and generated index. Restore the saved release CSS/index under `client/public/`, then copy those files into `/app/client/public/` in `salemax-app-1`; no restart or release-pointer change is needed.
+- Verification: authenticated Create Meta Template header at 550px has a 56px toolbar; its 44px hamburger, language, RTL, theme and account controls and the logo/name fit in bounds. The language text span measures 1×1px and the accessible name remains “Lang Arabic”; document width is 542px in the 550px viewport. The cached CSS, user page and `/healthz` return HTTP 200. The app remains running with zero restarts. No template, provider setting, account data or database record changed; no migration occurred.
+- Remaining gates: full mobile route/state coverage remains open. Tasks’ embedded session is expired; Admin and Sales role screens still need the corresponding logins. The WhatsApp mark shown in the authenticated shell differs from the SaleMaX wordmark asset in the navigation drawer; this responsive fix leaves that existing branding difference unchanged.
+
 ## SaleMaX Phonebook DataGrid mobile toolbar — production, 14 October 2026
 
 - Source commit: `316043a` on branch `mobile-responsive-mainline-20261014` (draft PR #137). Shared mobile CSS wraps paired DataGrid toolbar groups so export actions do not leave narrow phone screens.
