@@ -612,3 +612,7 @@ At the narrow 220px phone viewport, the mobile navigation drawer uses its own ve
 ## Finance Reports route current-session availability recheck — production, 14 October 2026
 
 Opening Finance Reports from the authenticated business navigation changed the URL to `/user?page=finance-settings&section=reports`, but the screen remained at “Loading finance settings…” on repeated accessibility and screenshot observations. No report controls or report layout rendered, so this route cannot be accepted as mobile-responsive from this session; the earlier register view and route discrepancy remain unresolved. No report action or finance record was touched.
+
+## Business Dashboard current-session narrow LTR/RTL recheck — production, 14 October 2026
+
+The signed-in business Dashboard was measured at 220×760 and 320×760 CSS pixels in LTR, then RTL. Document/body widths stayed at 212px and 312px with no horizontal overflow. At 220px the header controls wrap into two rows; at 320px they fit across the header. Refresh and 7/30-day controls remain in bounds at 44px high. RTL mirrors the header and date controls without clipping; the KPI cards continue vertically. The viewport and direction were restored to their defaults after the review.
