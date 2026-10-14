@@ -470,3 +470,17 @@
     height:44px!important;min-height:44px!important;box-sizing:border-box!important
   }
 }
+
+/* Keep injected FAQ actions and dialog controls at reliable phone tap sizes. */
+@media(max-width:600px){
+  #sx-faqs-screen button,
+  #sx-faqs-screen .sx-faq-actions button,
+  #sx-faqs-screen .sx-faq-form footer button{
+    height:44px!important;min-height:44px!important;box-sizing:border-box!important
+  }
+  #sx-faqs-screen .sx-faq-form input,
+  #sx-faqs-screen .sx-faq-form select{
+    height:44px!important;min-height:44px!important;box-sizing:border-box!important
+  }
+  #sx-faqs-screen .sx-faq-form textarea{min-height:80px!important;height:auto!important;box-sizing:border-box!important}
+}
