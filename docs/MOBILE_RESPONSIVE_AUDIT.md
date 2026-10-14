@@ -466,3 +466,7 @@ The `/user?page=tasks` route opens an embedded Tasks page that displays “Your 
 ## Courses overview and list route — production mobile check, 14 October 2026
 
 The authenticated Courses route and its overview, course-list, and learner-journey regions were checked at 220px and 320px while displayed in Arabic/RTL. The document/body measured 212px at 220px and 312px at 320px; all 47 visible interactive controls were in bounds and at least 44px high. No page-level horizontal overflow or internal horizontal scroller was present. No course or learner record was opened or changed.
+
+## Lead Reports embedded view — production mobile check, 14 October 2026
+
+The Lead Reports route embeds `/pipeline/?embed=1&view=reports`. At 220px, the outer page/frame measured 220px and the embedded document/body measured 205px; at 320px, the frame measured 320px and embedded document/body 305px. In both views all nine visible interactive controls were at least 44px high and within bounds, with no horizontal overflow. No report filters or records were changed.
