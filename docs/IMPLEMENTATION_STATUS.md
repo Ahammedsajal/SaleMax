@@ -1497,3 +1497,7 @@ After layout settled, the Arabic/RTL Training Profile form was checked at 390px,
 ## Main Dashboard mobile recheck — production, 14 October 2026
 
 The main Dashboard was checked in Arabic/RTL at 390px, 320px, and 220px. Its page width stayed within the available mobile column and all nine visible interactive controls remained in bounds and at least 44px high. No dashboard data or action was changed; metrics were not copied.
+
+## Inbox list mobile recheck — production, 14 October 2026
+
+The authenticated Inbox list was checked at 390px, 320px, and 220px with no conversation opened. All 13 visible controls stayed in bounds and met the 44px height target; page width remained within the viewport. No message or read state changed. The iframe utility content remains outside this visual check.

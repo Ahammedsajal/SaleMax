@@ -510,3 +510,7 @@ The authenticated Arabic/RTL Training Profile form was measured after its layout
 ## Main Dashboard mobile recheck — production, 14 October 2026
 
 The authenticated main Dashboard (`/user?page=dashboard`) was measured in Arabic/RTL at 390×844, 320×760, and 220×760. Document/body widths were 382px, 312px, and 212px; all nine visible buttons and other interactive controls stayed in bounds and met the 44px height target. The page remains vertically scrollable. Account metrics were not copied; no dashboard action or record was changed.
+
+## Inbox list mobile recheck — production, 14 October 2026
+
+The authenticated Inbox list was rechecked at 390×844, 320×760, and 220×760 without opening any conversation. Document/body widths were 390/390px, 320/320px, and 212/212px; 13 visible interactive controls remained in bounds and at least 44px high at every width. No message or read state changed. The small auxiliary iframe is an existing 1px-high utility frame; its contents were not accessed.
