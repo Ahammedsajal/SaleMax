@@ -420,3 +420,7 @@ The authenticated WhatsApp Bot landing/list state was checked at 220px and 320px
 ## Inbox conversation pane access boundary — production, 14 October 2026
 
 The inbox list was checked at 390px in the authenticated business account. The document and body are 390px wide with no page-level horizontal overflow; the header, search, filter, selection, and new-conversation controls are at least 44px high. The All filter was restored after inspection. Read-filter rows still showed red unread-count badges, so no conversation was opened; the conversation pane and its actions remain unverified. No message or conversation state was changed.
+
+## CRM sign-in screen — production mobile check, 14 October 2026
+
+The `/user/login` form was checked at 220px, 320px, and 390px. Document/body widths matched the viewport at all three sizes, and visible fields and buttons were at least 44px high and in bounds. The existing prefilled form was left untouched and not submitted. This check covers the CRM user sign-in page; privileged Admin login and authenticated role-specific screens still require the corresponding authorized access.
