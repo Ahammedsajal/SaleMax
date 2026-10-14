@@ -112,6 +112,10 @@ The new course-enquiry editor was opened in the authenticated screen only after 
 
 The authenticated Courses screen was checked at 220, 320, 390 and 570px. Its 38 visible controls remain within the screen, all buttons/links are at least 44px high, and neither the screen nor its contents extend beyond the available page width. The page title scales to 20px at 220px. No course detail was opened or edited.
 
+## Finance Reports route mobile recheck — production, 14 October 2026
+
+The authenticated `/user?page=finance-settings&section=reports` route was checked at 220, 320 and 390px. Its visible controls stay within the page except for row actions contained in the horizontal table scroller; no action is shorter than 44px. The 660px-wide invoice table remains inside its 141px, 241px and 311px scroller at those viewport widths, respectively. Current source inspection confirms the Reports route still renders the invoice register; the separate receivables report renderer is not mounted, so that report screen is not available for a mobile audit. No invoice was opened and no financial record was changed.
+
 ## Training Center Profile stale-script regression — 14 October 2026
 
 A fresh audit at a 220px viewport found that the authenticated production page was still serving the earlier `training-courses.js` under cache key `20261014-profile-controls-compact3`, despite later deployment records describing the 44px field and narrow logo-upload fix. The served version measured ordinary inputs at 40px, the native report-channel selector at 17px, and the logo dropzone at 211px wide with its right edge 26px beyond the viewport. The page itself remained 212px wide. No profile fields or logo were edited.
