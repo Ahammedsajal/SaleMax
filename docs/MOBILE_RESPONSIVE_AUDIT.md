@@ -67,6 +67,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 | Admin WA Embed Login | Settings fields stack; the long webhook URL wraps within its card. | Pass at reviewed viewport; credentials/settings unchanged |
 | Business navigation drawer | At 320px, the drawer previously showed only a 64px icon rail inside a 260px panel, hiding labels and leaving most of the panel blank. It now uses the full drawer width with visible labels and the SaleMaX mark; the list scrolls above its pinned footer. At 430px it remains inside the page width. In RTL at 320px the drawer mirrors to the right without horizontal overflow. | Fixed and production-verified at 320px and 430px, LTR and RTL |
 | Public installment reminder preferences | Action buttons stack full-width with a 48px minimum height at phone widths. Release/container/served hashes match; valid reminder-link visual review remains open. | Fixed and production asset-verified; visual review pending |
+| Customer document and installment reminder public pages | Invalid/unavailable-link states were reviewed at 220px in LTR and RTL. Main content, heading, and status text remain inside the 220px viewport with no horizontal overflow. Valid document tables and reminder preference actions require an unexpired customer token; no token was available, so those data-bearing states were not opened or changed. | Error states pass at 220px LTR/RTL; valid-link content and actions remain unverified |
 
 ## Remaining inventory
 
@@ -75,7 +76,7 @@ Re-authenticate the business and platform accounts in their respective tabs befo
 Business screens still to review:
 
 - Student profiles/attendance/payment details (no enrolled profile was available), form creation flow and application print output, plus Finance sub-screens beyond the invoice register.
-- Public training-form/staff-capture pages, customer document pages, and installment-reminder preference pages.
+- Recheck public training-form/staff-capture pages; customer document tables and reminder preference actions need valid customer links for complete audit.
 - Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states. The current account's `?page=call-center` route redirects to Dashboard and Call Center is absent from its navigation drawer; an account with the required access is needed to audit it.
 - Sales Overview navigation redirected this business account to Dashboard, so sales-only screens need an account with the required role/access before mobile review.
 - Inbox conversation pane and actions, once an approach is confirmed that does not change message read state.
