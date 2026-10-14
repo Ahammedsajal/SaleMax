@@ -662,3 +662,7 @@ At 312px, the invoice register and its filter/action controls fit the viewport; 
 ## Paired-tab whole-word wrapping follow-up — production, 14 October 2026
 
 After the first typography adjustment, a rendered text-range check still found a campaign-tab word breaking mid-word at 212px. The follow-up rule preserves whole words; measured tab heights are now 53px at 212px with 11px labels and 45px at 312px with 13px labels. Both tabs fit the screen width and maintain their 44px minimum touch target.
+
+## Agent Login and team accounts — production, 14 October 2026
+
+The Agent Login screen was measured at 212px and 312px layout widths. The document stays within the viewport; the Agent List's wide 984px header/row content uses its own horizontal grid scroller, and the Team Login card remains within 204px/304px, scrolling vertically through the account list. Visible controls are at least 44px high. No Agent, team account, or active state was changed. The Auto Login control was attempted for Training Agent 1, but the header stayed on the Training Test account; the Sales-role screens therefore remain pending an actual Agent 1 session.
