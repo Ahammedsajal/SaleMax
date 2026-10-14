@@ -586,3 +586,7 @@ The authenticated Lead Pipeline was checked in Arabic/RTL at 220×760 and 320×7
 ## Course Enquiry Form Builder phone check — production, 14 October 2026
 
 The blank Course Enquiry editor was opened from the Forms screen without saving a draft. At 220×760 and 320×760 in Arabic/RTL, the editor occupies the phone drawer, stays within the 212px/312px viewport, and scrolls vertically. Visible text fields are 44px high; textareas are 78px; the field-toggle labels are at least 48×44px. Back, Save draft, and Preview controls are each at least 44px high and in bounds. No form content was entered or saved.
+
+## Finance invoices and receivables screen current-session recheck — production, 14 October 2026
+
+The current `/user?page=finance-settings` screen was checked in Arabic/RTL at 220×760 and 320×760. Document widths match the 212px/312px phone viewport, and all 17 visible controls stay in bounds at 44px or taller. The 660px invoice table and 640px receivables-aging table remain in separate 141px/116px (220px viewport) and 241px/216px (320px viewport) horizontal scrollers. The filter controls fit at 320px; the narrow 220px form labels flex beyond their inner row but remain within the page. No invoice, payment, or receivable row was opened, and no filters or finance actions were changed.
