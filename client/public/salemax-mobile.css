@@ -777,3 +777,13 @@
     width:96px!important;height:64px!important
   }
 }
+
+/* Keep Inbox quick-reply entry controls usable at phone widths. */
+@media(max-width:600px){
+  .MuiPopover-paper:has(input[placeholder="Message"]) input[placeholder="Message"]{
+    box-sizing:border-box!important;height:44px!important;min-height:44px!important
+  }
+  .MuiPopover-paper:has(input[placeholder="Message"]) button.MuiButton-root.MuiButton-sizeSmall{
+    box-sizing:border-box!important;height:44px!important;min-height:44px!important
+  }
+}
