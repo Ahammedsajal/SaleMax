@@ -574,3 +574,7 @@ The authenticated Candidate Applications route was checked at 220×760 in Arabic
 The authenticated account's `/user?page=settings` route rendered the Dashboard, and searching the mobile navigation for “Settings” returned no results. `/user?page=crm-appearance` rendered its “settings unavailable” state at 220×760 and 320×760: page widths were 212px/312px, content remained within the page, and the CRM appearance API returned HTTP 401. This confirms the editable Settings screen cannot be audited with this account; no logo/domain values were read or changed. The Sales Workspace navigation source also exposes an Audit Trail route, which remains role-gated along with the other Sales screens.
 
 A direct 220px visit to the Sales Audit Trail alias (`?page=sales-audit`) rendered the Dashboard content for this account, so the audit-trail screen itself remains unverified pending Sales Workspace access.
+
+## FAQs Add FAQ editor narrow-phone check — production, 14 October 2026
+
+The empty FAQs screen and its unsaved Add FAQ dialog were checked at 220×760 and 320×760. At 220px the dialog is 176px wide; its English and Arabic question/answer fields are 105px wide, each interactive target is at least 44px, and there is no horizontal overflow. The form scrolls internally (1,141px content in a 732px dialog), while Cancel and Save remain visible at the bottom. At 320px the page is 312px wide, the dialog is 276px wide, and all seven form controls remain in bounds and at least 44px high. The editor was closed without entering text or saving an FAQ.
