@@ -432,3 +432,7 @@ The blank Create Meta Template screen was rechecked at 220px and 320px after the
 ## Web Notification add-on state — production mobile check, 14 October 2026
 
 The authenticated Web Notification route was checked at 220px and 320px. At both widths, page/body width stays within the viewport and all six visible buttons/fields are at least 44px high and in bounds. A temporary RTL direction check at 220px had no overflow or offscreen controls, and the original direction was restored. The route remains in its existing add-on-required state; no notification setting was changed.
+
+## Agent Login list — production mobile check, 14 October 2026
+
+The authenticated Agent Login list was checked at 220px and 320px. The page/body stays within the viewport and visible controls meet the 44px minimum. At 320px, the 1,015px-wide data grid scrolls horizontally inside its 295px panel, while the outer page remains 320px wide; row switches in offscreen columns were not activated. No account or agent setting was changed.
