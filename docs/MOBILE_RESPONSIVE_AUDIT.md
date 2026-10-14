@@ -79,7 +79,7 @@ The Codex in-app browser tab is at `/admin/login`, while the Playwright audit co
 
 Business screens still to review:
 
-- Student profiles/attendance/payment details (no enrolled profile was available), form creation flow and application print output, plus Finance sub-screens beyond the invoice register.
+- Student profiles/attendance/payment details (no enrolled profile was available), form creation flow and application print output, plus Finance sub-screens beyond the invoice register and receivables report.
 - Customer document tables and reminder preference actions need valid customer links for complete audit; public Student Registration staff capture was rechecked at 220px and 320px in English and Arabic/RTL.
 - Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states. On the current account, `?page=call-center` and `?page=commission-policy` resolve to Dashboard, `?page=sales-organization` displays Dashboard content instead of Organization, and a fresh authenticated in-app visit to `?page=sales-targets` also rendered Dashboard content. Call Center is absent from the navigation drawer. These target screens remain unverified until an account/access state can render them.
 - Sales Overview navigation and the direct Sales Targets route resolve to Dashboard for the current business account, so sales-only screens need an account with the required role/access before mobile review.
@@ -90,7 +90,7 @@ Admin screens still to review:
 - Social Login, Flow Builder Template create/detail states, Theme Settings edit/create states, full Site Settings and SMTP form scrolling, Payment Gateway expanded states, and all remaining settings.
 - QR/Meta credential setup, Web Notification and Manual Web Push (currently marked PRO add-on required), Telegram Config (PRO add-on required), and platform-staff/Asterisk screens.
 
-Repeat critical screens at narrower phone widths and in Arabic/RTL. The Finance Reports menu currently lands on the invoice register at `section=reports`; its separate report layout was therefore unavailable for this mobile review. The shared embedded-workspace fix also covers Call Center, commission, sales finance, organization and task frames; only Lead Pipeline/Reports and Tasks were visually reviewed. The sign-in implementation is present only in the compiled app bundle in this checkout; there is no source map or maintained source file available to fix the stray `0` without recovering source first.
+Repeat critical screens at narrower phone widths and in Arabic/RTL. The Finance Reports renderer was restored to its route and is now mobile-reviewed below; invoice details and other finance sub-screens remain open. The shared embedded-workspace fix also covers Call Center, commission, sales finance, organization and task frames; only Lead Pipeline/Reports and Tasks were visually reviewed. The sign-in implementation is present only in the compiled app bundle in this checkout; there is no source map or maintained source file available to fix the stray `0` without recovering source first.
 
 ## Automation Flows phone controls — source update, 14 October 2026
 
@@ -538,3 +538,9 @@ The authenticated Candidate Applications list was rechecked at 220×760, 320×76
 ## Tasks embedded view current-session recheck — production, 14 October 2026
 
 The `/user?page=tasks` embed now loads in the current authenticated session; the prior session-expired message is gone. At 220×760, 320×760, and 390×844, the outer document and Tasks frame stayed within the viewport. The frame contained four visible controls, all in bounds and at least 44px high. Task text was not read, and no task was opened or changed.
+
+## Finance Reports route restored and mobile-verified — production, 14 October 2026
+
+The Finance Reports route previously rendered only the invoice register because its existing receivables-report renderer was no longer called after the Finance screen refactor. Source commits `6898555` and `4a26ec7` restore the report and make it the first content on the `section=reports` route; the invoice list is not fetched on that route. The report uses the existing tenant-scoped read API.
+
+The Arabic/RTL report was checked at 220×900, 320×900, and 390×900. Document widths were 212px, 312px, and 382px, with no horizontal page overflow. The report starts inside the visible Finance panel at all three widths; its KPI cards use one column at 220px/320px and two at 390px. Seven visible report controls remain in bounds and at least 44px high. The 640px-wide report table is in a 145px, 245px, and 315px internal scroller respectively, and Finance scrolls vertically. The existing report loaded without an error; no filters or invoice actions were activated, and report values were not copied into the audit record.
