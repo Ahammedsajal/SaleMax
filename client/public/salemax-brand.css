@@ -166,17 +166,17 @@
 
 /* Scale template typography smoothly across common mobile viewport widths. */
 @media(max-width:600px){
-  main:has(.MuiMobileStepper-progress) .MuiTypography-h4,
-  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:clamp(17px,4.3vw,24px)!important;line-height:1.2!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h4{font-size:clamp(18px,3.8vw,22px)!important;line-height:1.2!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:clamp(16px,3.6vw,20px)!important;line-height:1.2!important}
   main:has(.MuiMobileStepper-progress) .MuiTypography-body1,
-  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:clamp(14px,2.85vw,16px)!important;line-height:1.35!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:clamp(14px,2.55vw,15px)!important;line-height:1.35!important}
   main:has(.MuiMobileStepper-progress) .MuiTypography-body2,
-  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle2{font-size:clamp(12px,2.5vw,14px)!important;line-height:1.35!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle2{font-size:clamp(12px,2.25vw,13px)!important;line-height:1.35!important}
 }
 
 /* Reduce wizard typography on narrow phones while retaining readable controls. */
 @media(max-width:380px){
-  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:17px!important;line-height:1.25!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:16px!important;line-height:1.25!important}
   main:has(.MuiMobileStepper-progress) .MuiTypography-body2{font-size:12px!important;line-height:1.35!important}
   main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle2{font-size:12px!important;line-height:1.35!important}
 }

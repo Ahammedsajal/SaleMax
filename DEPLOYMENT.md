@@ -1081,3 +1081,11 @@ At narrow phone widths, saved payment-plan rows now stack Plan name, Number of p
 Applied to active release `/opt/salemax/releases/sales-layout-alignment-ede2458-20261014` and container `salemax-app-1`. Protected rollback: `/opt/salemax/shared/backups/mobile-finance-plans2-20261014` (mode 0700 directory; prior release/container files mode 0600). Release and container hashes match: `salemax-brand.css` `6b38cca34c644f92c1dda478301bd2166903140e5d7aa000310c4d4e22fa7f6a`; active release `index.html` `98f0008a7262c9cca15e4ad9c1bc28ae7063b33e576e6a28fe290125c953fd9c`. Cache key: `20261014-mobile-finance-plans2`. The served CSS hash matches; `/healthz` is healthy and the app container has zero restarts. No app restart was needed.
 
 Browser verification: the payment-plan dialog scrolls vertically, contains no horizontal scrollbar, and presents all plan fields and actions without changing any values.
+
+## Meta Template mobile type reduction — production, 14 October 2026
+
+The Create Meta Template screen now uses smaller mobile typography: its title is 16–20px, other wizard headings are capped at 22px, and supporting copy scales from 12–15px through 600px. Wizard controls retain their 44px tap targets. No template was created and no wizard data was saved.
+
+Applied to active release `/opt/salemax/releases/sales-layout-alignment-ede2458-20261014` and container `salemax-app-1`. Protected rollback: `/opt/salemax/shared/backups/mobile-meta-type3-20261014` (directory mode 0700; release/container copies mode 0600). Release and container hashes match: `salemax-brand.css` `2e864662048ce9e7eeab0e00252ecf221a6c7d042f3a0a57b0d4e1a52a4ec96c`; `index.html` `2c65a4b94114a387ceb28facd89c2cb74582b8eb837e7a784dcda5a04051b823`. CSS cache key: `20261014-mobile-meta-type3`. The served stylesheet hash matches; `/healthz` is healthy and the app container has zero restarts. No app restart was needed. Roll back by restoring the protected release and container copies from the backup directory.
+
+Browser verification at 320px and 390px: title is 16px, supporting/step copy is 12px, page-level horizontal overflow is zero, and Back/Next are each 44px high. At 560px, the title is 20px, supporting and step copy are 12.6px, page-level horizontal overflow is zero, and Back/Next remain 44px high. The shared brand assets were left unchanged.
