@@ -104,6 +104,10 @@ The already-open authenticated Meta Template page was reviewed at 570px (the wid
 
 The authenticated Candidate Applications list was checked at 220, 320 and 390px after the page finished loading. Its fixed screen and internal content widths remain within the available page width; all visible buttons and links are at least 44px high and in bounds. At 220px, the two date filters are 67×44px. No application was opened, and submission data was not changed.
 
+## Candidate Applications form editor touch sizing — source update, 14 October 2026
+
+The new course-enquiry editor was opened in the authenticated screen only after confirming its create action builds the form locally and persists only on submit. Its five text inputs measured 42px at 320px. Source commit `43ba768` sets mobile text inputs to 44px and preserves textarea height; a live-page CSS preview verifies all five inputs at 44px, four textareas at 78px, and Back/Save/Preview actions at 44px at 220, 320 and 390px. The editor stays within the page width, and no action was submitted. Production deployment and post-deployment verification are pending.
+
 ## Training Center Profile stale-script regression — 14 October 2026
 
 A fresh audit at a 220px viewport found that the authenticated production page was still serving the earlier `training-courses.js` under cache key `20261014-profile-controls-compact3`, despite later deployment records describing the 44px field and narrow logo-upload fix. The served version measured ordinary inputs at 40px, the native report-channel selector at 17px, and the logo dropzone at 211px wide with its right edge 26px beyond the viewport. The page itself remained 212px wide. No profile fields or logo were edited.
