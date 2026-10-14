@@ -331,8 +331,10 @@
     try {
       const organisation=await api('/api/user/team-invitations/sales-organization');
       if(organisation.categoryKey==='salemax_sales'){
+        if(organisation.role!=='owner'){location.replace('/user?page=sales-organization');return;}
+        const heading=node.querySelector('.wrap > h1');
+        if(heading)heading.textContent=label('People & Roles','الأشخاص والأدوار');
         renderSalesOrganisation(node,organisation);
-        if(organisation.role!=='owner')return;
       }else node.querySelector('#sx-sales-org-card')?.setAttribute('hidden','');
       const data = await api('/api/user/team-invitations/');
       currentTeamData=data;
