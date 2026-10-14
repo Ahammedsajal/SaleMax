@@ -1,3 +1,9 @@
+## SaleMaX Sales category contract setup — production, 14 October 2026
+
+PR #89 (`367107d1200086fd801d2ce35a48b4fcfc1e5474`) is live. The existing Manage Plans screen can now select the private SaleMaX Sales manifest, role limits and features. Category versions stay separated, and only platform category administrators may create, edit, list or publish the private contract. The Call Center entitlement is enabled by default for first Sales drafts; Asterisk readiness remains independently enforced. Focused checks pass 10/10. No migration or business-data write occurred; release and rollback evidence is in `DEPLOYMENT.md`.
+
+The full JS suite remains at 725/746 with 21 legacy failures, and the disposable migration integration fails before this change under local MySQL 9.6 on an existing MariaDB-specific migration. Production is healthy, but no authenticated Sales tenant or staff session exists yet. Commercial plan terms and the Business Admin name/mobile remain open; Asterisk is inactive, so live calling/recording remains unverified. The full 42-ticket upgrade remains in progress.
+
 ## SaleMaX Sales contract setup link — production, 14 October 2026
 
 PR #87 (`de50b7de4f24011103c0a11065c9928ed0731e77`) is live. The existing Manage Users no-contract state links to Manage Plans in English and Arabic. Focused contract/provisioning checks pass 13/13; no migration or business-data write occurred. The full suite remains incomplete (721/742 passing with 21 failures); see `DEPLOYMENT.md`.
