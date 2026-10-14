@@ -55,6 +55,13 @@ test('default SaleMaX Sales Accountant membership is limited to existing shell b
     assert.deepEqual(legacyRoleGuard.authorizeLegacyMembership(req,row),{allowed:false,code:'PERMISSION_DENIED'});
 });
 
+test('shared QR list is read with inbox permission while QR mutations still require channel management',()=>{
+  const request=(method,path)=>({method,path,baseUrl:'/api/qr'});
+  assert.equal(legacyRoleGuard.routePermission(request('GET','/get_all')),'conversations.read');
+  assert.equal(legacyRoleGuard.routePermission(request('POST','/delete')),'channels.configure');
+  assert.equal(legacyRoleGuard.routePermission(request('GET','/get_all_agent')),'channels.configure');
+});
+
 test('Sales workspace loads permissions before section APIs, hides unauthorized tabs and blocks direct unauthorized sections',()=>{
   const root=path.join(__dirname,'..');
   const client=fs.readFileSync(path.join(root,'client/public/sales-workspace/sales-workspace.js'),'utf8');
@@ -98,7 +105,7 @@ test('SaleMaX Sales owner gets one People & Roles entry while managers and team 
   assert.match(team,/node\.dataset\.salesCategory='salemax_sales'/);
   assert.match(team,/#sx-team-screen\[data-sales-category=\"salemax_sales\"\] :focus-visible\{outline-color:#a8003b\}/);
   assert.match(shell,/training-sidebar\.js\?v=20261014-sales-people-roles1/);
-  assert.match(shell,/team-invitations\.js\?v=20261014-sales-team-focus1/);
+  assert.match(shell,/team-invitations\.js\?v=20261207-qr-channel-share1/);
 });
 
 test('Sales Overview is integrated into existing navigation, refreshes scoped APIs and keeps nested routes in the parent URL',()=>{

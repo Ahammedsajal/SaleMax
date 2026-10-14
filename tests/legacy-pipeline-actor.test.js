@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
-const {resolve}=require('../modules/platform/legacy-pipeline-actor');
+const {resolve,canUsePipeline}=require('../modules/platform/legacy-pipeline-actor');
 const hash=value=>crypto.createHash('sha256').update(String(value),'utf8').digest('hex');
 
 function fixture(role='manager',changes={}){
@@ -21,6 +21,15 @@ test('linked manager resolves to the verified tenant owner pipeline with manager
   assert.equal(entitlementTenant,'tenant-1');
   assert.deepEqual(actor,{uid:'business-owner-uid',role:'manager',actorType:'user',actorId:'identity-manager',identityId:'identity-manager',membershipId:'member-manager',tenantId:'tenant-1',categoryKey:'training_center',legacyUserId:42,legacyUid:'staff-uid-42',timezone:'Asia/Qatar'});
   assert.equal(f.calls.length,2);
+});
+
+test('linked training center managers can open their shared owner pipeline',()=>{
+  assert.equal(canUsePipeline({role:'manager',categoryKey:'training_center'}),true);
+  assert.equal(canUsePipeline({role:'owner',categoryKey:'training_center'}),true);
+  assert.equal(canUsePipeline({role:'manager',categoryKey:'salemax_sales'}),true);
+  assert.equal(canUsePipeline({role:'agent',categoryKey:'training_center'}),false);
+  assert.equal(canUsePipeline({role:'accountant',categoryKey:'salemax_sales'}),false);
+  assert.equal(canUsePipeline({role:'manager',categoryKey:'training_center',denied:true}),false);
 });
 
 test('SaleMaX Sales managers and team leaders receive only currently assigned active agent ids',async()=>{

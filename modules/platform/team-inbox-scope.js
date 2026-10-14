@@ -13,7 +13,7 @@ const parse = value => { try { const list = typeof value === 'string' ? JSON.par
 
 async function resolveInboxScope(query, user, event) {
   const source=user.isAgent||user.role==='agent'?'agents':'user';
-  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
+  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
       i.status AS identityStatus,o.legacy_uid_hash AS uidHash,m.role_profile_id AS roleProfileId,
       m.delegated_permissions AS delegatedPermissions,r.permissions AS rolePermissions,r.seat_role AS seatRole,r.status AS roleStatus
     FROM sx_legacy_ownership o JOIN sx_tenants t ON t.id=o.tenant_id
@@ -42,7 +42,12 @@ async function resolveInboxScope(query, user, event) {
     WHERE m.tenant_id=? AND m.role='owner' AND m.status='active' AND i.status='active' AND u.role='user' LIMIT 2`, [row.tenantId]);
   if (owners.length !== 1 || owners[0].uidHash !== crypto.createHash('sha256').update(owners[0].uid).digest('hex')) fail();
   if(source==='agents'&&(user.is_active===0||user.owner_uid!==owners[0].uid))fail();
-  return { ...base, uid: owners[0].uid };
+  const sharedQrInstances = row.role === 'manager'
+    ? await query(`SELECT instance.id AS instanceId,instance.uniqueId,instance.number,instance.title,instance.status
+        FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=?
+        WHERE share.tenant_id=? AND share.membership_id=?`, [owners[0].uid,row.tenantId,row.membershipId])
+    : [];
+  return { ...base, uid: owners[0].uid, sharedQrInstances, sharedQrInstanceIds: sharedQrInstances.map(channel => Number(channel.instanceId)) };
 }
 
 async function resolveInboxUid(query, user, event) {
@@ -51,7 +56,16 @@ async function resolveInboxUid(query, user, event) {
 
 function filterAssignedChats(chats, scope) {
   const { ownsConversation } = require('./team-conversation-assignment');
-  return scope.assignedOnly ? chats.filter(chat => ownsConversation(chat.assigned_agent, scope.identityId)) : chats;
+  if (!scope.assignedOnly) return chats;
+  const channelIds = new Set((scope.sharedQrInstances || []).map(channel => String(channel.uniqueId)));
+  return chats.filter(chat => ownsConversation(chat.assigned_agent, scope.identityId) ||
+    (chat.origin === 'qr' && chat.origin_instance_unique_id && channelIds.has(String(chat.origin_instance_unique_id))));
+}
+
+function filterQrInstances(instances, scope) {
+  if (!scope?.canonical || scope.ctx?.membership?.role === 'owner') return instances;
+  const allowed = new Set((scope.sharedQrInstanceIds || []).map(Number));
+  return instances.filter(instance => allowed.has(Number(instance.id)));
 }
 
 async function authorizeInboxPayload(query, scope, event, payload) {
@@ -77,4 +91,4 @@ async function authorizeInboxPayload(query, scope, event, payload) {
   return payload;
 }
 
-module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, authorizeInboxPayload, EVENT_PERMISSIONS };
+module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, filterQrInstances, authorizeInboxPayload, EVENT_PERMISSIONS };

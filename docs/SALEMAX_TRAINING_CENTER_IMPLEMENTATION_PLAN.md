@@ -26,6 +26,8 @@ Start the plan work in the existing Manage Plans screen at /admin?page=manage-pl
 | Plans and role-seat limits | Existing Manage Plans and plan create/edit APIs | Category/features, account limits, draft/version/publication rules, impact review and preserved assignments |
 | Business accounts and plan assignment | Existing Manage Users and update_plan flow | Business category, canonical ownership, role accounts and explicit assigned limits |
 | Messaging and marketing | Existing inbox, QR, Meta, flows, chatbot, templates and campaigns | Scoped permissions, category/plan access and verified provider compatibility |
+
+**WhatsApp connection ownership and sharing:** Keep each QR session owned by the business account that paired it. The business owner assigns a specific connection to a Manager from Team Access; that grant controls which QR conversations the Manager can read and reply to without changing agent ownership. Future Manager/Agent self-pairing must create a separate connection under that member account, enforce owner-approved connection permissions and seat/plan limits, and retain tenant-scoped inbox and session authorization. Never copy QR auth keys or pairing credentials between accounts.
 | Leads and sales | Existing Lead Pipeline, Phonebook, Agent Login and Agent Task | Required lead fields, course interest, outcomes, notes, follow-up and controlled sale conversion |
 | Course catalogue | Add a Courses section to the existing /user panel | Course details, prices, offers, duration and enrollment links |
 | Finance | Add a Finance section to the existing /user panel | Invoice, receivable, installment, payment verification, receipt and correction workflows |

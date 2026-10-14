@@ -101,4 +101,8 @@ async function resolveAgent(pool,agent){
       identityId:linked.identityId,membershipId:linked.membershipId,canonicalContext,scopeAgentIds:undefined};
   }finally{db.release();}
 }
-module.exports={resolve,resolveAgent};
+function canUsePipeline(actor){
+  return Boolean(actor&&!actor.denied&&['owner','manager','team_leader'].includes(actor.role)&&
+    ['training_center',salemaxSales.key].includes(actor.categoryKey));
+}
+module.exports={resolve,resolveAgent,canUsePipeline};

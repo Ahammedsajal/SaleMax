@@ -11,11 +11,13 @@ const validateUser = require("../middlewares/user.js");
 const csv = require("csv-parser");
 const fs = require("fs");
 const { checkPlan, checkContactLimit } = require("../middlewares/plan.js");
+const phonebookOwnerScope=require('../modules/platform/phonebook-owner-scope').middleware({pool:require('../database/config.js').promise()});
 
 // add phonebook name
 router.post(
   "/add",
   validateUser,
+  phonebookOwnerScope,
   checkPlan,
   checkContactLimit,
   async (req, res) => {
@@ -55,7 +57,7 @@ router.post(
 );
 
 // get by uid
-router.get("/get_by_uid", validateUser, async (req, res) => {
+router.get("/get_by_uid", validateUser, phonebookOwnerScope, async (req, res) => {
   try {
     let data = await query(`SELECT * FROM phonebook WHERE uid = ?`, [
       req.decode.uid,
@@ -64,8 +66,8 @@ router.get("/get_by_uid", validateUser, async (req, res) => {
     data = await Promise.all(
       data.map(async (x) => {
         const [result] = await query(
-          `SELECT COUNT(*) AS count FROM contact WHERE phonebook_id = ?`,
-          [x.id]
+          `SELECT COUNT(*) AS count FROM contact WHERE phonebook_id = ? AND uid = ?`,
+          [x.id, req.decode.uid]
         );
         return { ...x, contactCount: result.count };
       })
@@ -79,8 +81,8 @@ router.get("/get_by_uid", validateUser, async (req, res) => {
 });
 
 // Edit Contact
-router.put("/edit_contact", validateUser, async (req, res) => {
-  const { contactId, name, mobile, var1, var2, var3, var4, var5 } = req.body;
+router.put("/edit_contact", validateUser, phonebookOwnerScope, async (req, res) => {
+  const { contactId, name, mobile, var1, var2, var3, var4, var5, var6 } = req.body;
 
   try {
     // Update contact in the database
@@ -112,15 +114,12 @@ router.put("/edit_contact", validateUser, async (req, res) => {
 });
 
 // del a phonebook
-router.post("/del_phonebook", validateUser, async (req, res) => {
+router.post("/del_phonebook", validateUser, phonebookOwnerScope, async (req, res) => {
   try {
     const { id } = req.body;
-
-    await query(`DELETE FROM phonebook WHERE id = ?`, [id]);
-    await query(`DELETE FROM contact WHERE phonebook_id = ? AND uid = ?`, [
-      id,
-      req.decode.uid,
-    ]);
+    const result = await query(`DELETE FROM phonebook WHERE id = ? AND uid = ?`, [id,req.decode.uid]);
+    if(!result.affectedRows)return res.status(404).json({success:false,code:'PHONEBOOK_NOT_FOUND'});
+    await query(`DELETE FROM contact WHERE phonebook_id = ? AND uid = ?`, [id,req.decode.uid]);
 
     res.json({ success: true, msg: "Phonebook was deleted" });
   } catch (err) {
@@ -167,6 +166,7 @@ function parseCSVFile(fileData) {
 router.post(
   "/import_contacts",
   validateUser,
+  phonebookOwnerScope,
   checkPlan,
   checkContactLimit,
   async (req, res) => {
@@ -176,6 +176,8 @@ router.post(
       }
 
       const { id, phonebook_name } = req.body;
+      const [phonebook] = await query(`SELECT id FROM phonebook WHERE id = ? AND uid = ? LIMIT 1`,[id,req.decode.uid]);
+      if(!phonebook)return res.status(404).json({success:false,code:'PHONEBOOK_NOT_FOUND'});
 
       const csvData = await parseCSVFile(req.files.file.data);
       if (!csvData) {
@@ -222,6 +224,7 @@ router.post(
 router.post(
   "/add_single_contact",
   validateUser,
+  phonebookOwnerScope,
   checkPlan,
   checkContactLimit,
   async (req, res) => {
@@ -232,6 +235,9 @@ router.post(
       if (!mobile) {
         return res.json({ success: false, msg: "Mobile number is required" });
       }
+
+      const [phonebook] = await query(`SELECT id FROM phonebook WHERE id = ? AND uid = ? LIMIT 1`,[id,req.decode.uid]);
+      if(!phonebook)return res.status(404).json({success:false,code:'PHONEBOOK_NOT_FOUND'});
 
       await query(
         `INSERT INTO contact (uid, phonebook_id, phonebook_name, name, mobile, var1, var2, var3, var4, var5) VALUES (?,?,?,?,?,?,?,?,?,?)`,
@@ -258,7 +264,7 @@ router.post(
 );
 
 // get contacts using uid
-router.get("/get_uid_contacts", validateUser, async (req, res) => {
+router.get("/get_uid_contacts", validateUser, phonebookOwnerScope, async (req, res) => {
   try {
     const data = await query(`SELECT * FROM contact WHERE uid = ?`, [
       req.decode.uid,
@@ -271,9 +277,11 @@ router.get("/get_uid_contacts", validateUser, async (req, res) => {
 });
 
 // dele contcats
-router.post("/del_contacts", validateUser, async (req, res) => {
+router.post("/del_contacts", validateUser, phonebookOwnerScope, async (req, res) => {
   try {
-    await query(`DELETE FROM contact WHERE id IN (?)`, [req.body.selected]);
+    const selected=req.body?.selected;
+    if(!Array.isArray(selected)||!selected.length||selected.length>500||selected.some(id=>!Number.isSafeInteger(Number(id))||Number(id)<1))return res.status(400).json({success:false,code:'INVALID_CONTACT_SELECTION'});
+    await query(`DELETE FROM contact WHERE id IN (?) AND uid = ?`, [selected,req.decode.uid]);
     res.json({ success: true, msg: "Contact(s) was deleted" });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong" });

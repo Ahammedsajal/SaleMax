@@ -22,6 +22,7 @@ function routePermission(req){
   if(['/api/chat_flow','/api/chatbot'].includes(mount))return 'automation.manage';
   if(mount==='/api/templet')return 'templates.manage';
   if(mount==='/api/broadcast')return 'campaigns.manage';
+  if(mount==='/api/qr'&&read&&path==='/get_all')return 'conversations.read';
   if(['/api/qr','/api/telegram','/api/webhook'].includes(mount))return 'channels.configure';
   if(mount==='/api/wa_call')return read||/^\/(get_|call_logs)/.test(path)?'calls.read':'calls.control';
   if(mount==='/api/agent'){
