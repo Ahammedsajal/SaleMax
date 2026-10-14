@@ -24,7 +24,7 @@
     if(!response.ok||!result.success)throw Object.assign(new Error(result.code||'CALL_CENTER_UNAVAILABLE'),{code:result.code||'CALL_CENTER_UNAVAILABLE',status:response.status});
     return result.data;
   }
-  const roleLabel=role=>({owner:text('Owner','المالك'),manager:text('Manager','المدير'),team_leader:text('Team Leader','قائد الفريق'),agent:text('Agent','الوكيل')}[role]||role);
+  const roleLabel=role=>({owner:text('Business Admin','مسؤول النشاط'),manager:text('Sales Manager','مدير المبيعات'),team_leader:text('Team Leader','قائد الفريق'),agent:text('Sales Agent','وكيل المبيعات'),accountant:text('Accountant','المحاسب')}[role]||role);
   function renderExtensions(items){
     const section=node('extensionsSection'),host=node('extensionList');section.hidden=false;host.replaceChildren();
     if(!items.length){const empty=document.createElement('p');empty.className='extension-state';empty.textContent=text('No active calling team members are available.','لا يوجد أعضاء فريق نشطون متاحون للمكالمات.');host.append(empty);return;}
@@ -93,7 +93,9 @@
       const main=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('small');
       title.textContent=`${call.direction==='inbound'?text('Incoming','واردة'):text('Outgoing','صادرة')} · ${call.queueName||text('No queue','بلا قائمة')}`;
       const started=call.startedAt?new Date(call.startedAt).toLocaleString(isArabic()?'ar-IN':'en-IN',{timeZone:tenantTimezone}):'';
-      meta.textContent=`${started}${started?' · ':''}${text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`)}`;main.append(title,meta);
+      const handler=call.answeredByName||call.startedByName,handlerRole=call.answeredByRole||call.startedByRole;
+      const attribution=handler?`${text('Handled by','المسؤول')}: ${handler}${handlerRole?` · ${roleLabel(handlerRole)}`:''}`:'';
+      meta.textContent=[started,text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`),attribution].filter(Boolean).join(' · ');main.append(title,meta);
       const state=document.createElement('span');state.className='call-status';const labels={ringing:text('Ringing','يرن'),connected:text('Connected','متصل'),ended:text('Ended','انتهت'),failed:text('Failed','فشلت')};state.textContent=labels[call.status]||call.status;
       row.append(main,state);
       if(call.leadId){const leadLink=document.createElement('a');leadLink.href=`/user?page=lead-pipeline&lead=${encodeURIComponent(call.leadId)}&view=detail`;leadLink.target='_top';leadLink.textContent=text('Open linked lead','فتح العميل المحتمل المرتبط');row.append(leadLink);}

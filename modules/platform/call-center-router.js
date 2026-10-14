@@ -110,10 +110,16 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
           q.queue_name AS queueName,c.started_at AS startedAt,c.answered_at AS answeredAt,c.ended_at AS endedAt,
           IF(c.answered_at IS NULL,NULL,IF(c.ended_at IS NULL,TIMESTAMPDIFF(SECOND,c.answered_at,UTC_TIMESTAMP(3)),c.duration_seconds)) AS durationSeconds,
           c.answered_by_membership_id AS answeredByMembershipId,c.started_by_membership_id AS startedByMembershipId,
+          answered_identity.display_name AS answeredByName,answered_member.role AS answeredByRole,
+          started_identity.display_name AS startedByName,started_member.role AS startedByRole,
           r.state AS recordingState,r.expires_at AS recordingExpiresAt,
           EXISTS(SELECT 1 FROM sx_telephony_call_legs l WHERE l.tenant_id=c.tenant_id AND l.call_id=c.id AND l.membership_id=?
             AND l.status IN ('originating','ringing','connected')) AS hasAssignedActiveLeg
         FROM sx_telephony_calls c LEFT JOIN sx_telephony_queues q ON q.tenant_id=c.tenant_id AND q.id=c.inbound_queue_id
+        LEFT JOIN sx_memberships answered_member ON answered_member.tenant_id=c.tenant_id AND answered_member.id=c.answered_by_membership_id
+        LEFT JOIN sx_identities answered_identity ON answered_identity.id=answered_member.identity_id
+        LEFT JOIN sx_memberships started_member ON started_member.tenant_id=c.tenant_id AND started_member.id=c.started_by_membership_id
+        LEFT JOIN sx_identities started_identity ON started_identity.id=started_member.identity_id
         LEFT JOIN sx_telephony_call_recordings r ON r.tenant_id=c.tenant_id AND r.call_id=c.id
         WHERE c.tenant_id=? AND (?=0 OR c.started_by_membership_id=? OR c.answered_by_membership_id=? OR EXISTS(
           SELECT 1 FROM sx_telephony_queue_members qm WHERE qm.tenant_id=c.tenant_id AND qm.queue_id=c.inbound_queue_id AND qm.membership_id=?))
@@ -123,6 +129,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
       return items.map(row=>({callId:row.id,direction:row.direction,status:row.status,leadId:row.leadId||null,gatewayChannelNo:Number(row.gatewayChannelNo),
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
+        answeredByName:row.answeredByName||'',answeredByRole:row.answeredByRole||'',startedByName:row.startedByName||'',startedByRole:row.startedByRole||'',
         recordingState:row.recordingState||'not_recorded',canListenRecording:row.recordingState==='ready'&&new Date(row.recordingExpiresAt).getTime()>Date.now()&&decision(context,{capability:'telephony.call-center',permission:'calls.recording.listen'}).allowed,
         canCoach:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.write'}).allowed,
         canViewCoaching:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.read'}).allowed,
