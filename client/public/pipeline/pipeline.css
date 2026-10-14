@@ -72,3 +72,8 @@
   .toolbar .viewtabs button{min-width:0;min-height:44px;padding:8px 6px;white-space:normal;border:1px solid #e1e8ec;border-radius:9px}
 }
 
+@media(max-width:380px){
+  .report-kpis{grid-template-columns:minmax(0,1fr)}
+  .reports{padding:10px;min-width:0}
+}
+
