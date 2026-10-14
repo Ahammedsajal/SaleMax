@@ -1,3 +1,11 @@
+## SaleMaX Sales Call Center history pagination — production, 14 October 2026
+
+The existing Call Center can now load older calls beyond the initial 100. It uses a stable time/ID cursor, validates it before querying, and rechecks the caller's existing tenant and team scope on every page. The bilingual control uses the current SaleMaX theme, with no separate call-history screen.
+
+PR #109 merged as `694acf7120d8e8e994421baff01f41eb268caa7c` and is live in `/opt/salemax/releases/sales-call-history-pages-694acf7-20261014`. Focused call scope/outcome tests pass 10/10; syntax, production query-plan, health, login, anonymous API rejection and deployment hash checks passed. No migration or business-data write occurred. See `DEPLOYMENT.md` for the image and rollback details.
+
+Authenticated Sales-role review remains open until the first-party tenant and staff accounts are provisioned. Asterisk remains inactive, so genuine calls and recording playback are unverified. The full Sales workspace objective remains in progress.
+
 ## SaleMaX Sales Call Center agent attribution — production, 14 October 2026
 
 Managers and Team Leaders can now identify the staff member associated with each call in their existing scoped Call Center history. The API resolves started-by and answered-by names/roles through tenant-constrained membership joins; the screen shows the answerer, falling back to the initiator. No email or phone is exposed, and call/recording scope is unchanged.
