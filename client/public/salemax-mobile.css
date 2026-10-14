@@ -551,6 +551,15 @@
   }
 }
 
+/* Show the complete SaleMaX wordmark at standard narrow-phone widths. */
+@media(min-width:320px) and (max-width:380px){
+  #root header .MuiToolbar-root:has([aria-label="Account menu"]){gap:0!important;padding-inline:0!important}
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>p{
+    flex:0 0 58px!important;width:58px!important;max-width:58px!important;min-width:58px!important;
+    overflow:visible!important;text-overflow:clip!important;white-space:nowrap!important
+  }
+}
+
 /* Keep compact two-tab screens fully readable at extra-narrow phone widths. */
 @media(max-width:260px){
   #root main .MuiTabs-list:has(>.MuiTab-root.MuiTab-labelIcon:nth-child(2):last-child)>.MuiTab-root{
