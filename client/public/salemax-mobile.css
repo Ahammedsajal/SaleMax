@@ -397,6 +397,25 @@
   #sx-training-students-screen button,#sx-training-students-screen a.sx-st-btn{padding-inline:8px;font-size:12px}
 }
 
+/* Keep the phone navigation drawer above fixed Training Center screens. */
+@media(max-width:760px){
+  #sx-training-profile-screen,#sx-training-students-screen{z-index:1199!important}
+}
+
+/* Restore full-width tap targets for the QR device card's icon actions. */
+@media(max-width:600px){
+  main:has(button[aria-label="Copy number"]) .MuiIconButton-sizeSmall,
+  main:has(button[aria-label="نسخ الرقم"]) .MuiIconButton-sizeSmall{box-sizing:border-box!important;width:44px!important;min-width:44px!important;max-width:44px!important;height:44px!important;min-height:44px!important;flex:0 0 44px!important}
+  main:has(button[aria-label="Copy number"]) .MuiPaper-root:has(button[aria-label*="Delete"])>.MuiStack-root:has(>.MuiStack-root>.MuiChip-root)>.MuiStack-root:first-child,
+  main:has(button[aria-label="نسخ الرقم"]) .MuiPaper-root:has(button[aria-label*="حذف"])>.MuiStack-root:has(>.MuiStack-root>.MuiChip-root)>.MuiStack-root:first-child{flex:1 1 auto!important;min-width:0!important}
+  main:has(button[aria-label="Copy number"]) .MuiPaper-root:has(button[aria-label*="Delete"])>.MuiStack-root:has(>.MuiStack-root>.MuiChip-root)>.MuiStack-root:first-child>.MuiBox-root:nth-child(2),
+  main:has(button[aria-label="نسخ الرقم"]) .MuiPaper-root:has(button[aria-label*="حذف"])>.MuiStack-root:has(>.MuiStack-root>.MuiChip-root)>.MuiStack-root:first-child>.MuiBox-root:nth-child(2){min-width:0!important}
+}
+@media(max-width:300px){
+  main:has(button[aria-label="Copy number"]) .MuiPaper-root:has(button[aria-label*="Delete"])>.MuiStack-root:has(>.MuiStack-root>.MuiChip-root),
+  main:has(button[aria-label="نسخ الرقم"]) .MuiPaper-root:has(button[aria-label*="حذف"])>.MuiStack-root:has(>.MuiStack-root>.MuiChip-root){flex-wrap:wrap!important;row-gap:4px!important}
+}
+
 /* Keep public registration and staff capture forms compact and within the viewport. */
 @media(max-width:760px){
   #language-toggle,#reg-add-course,#reg-signature-clear,[data-remove-course]{min-height:44px!important;box-sizing:border-box}
