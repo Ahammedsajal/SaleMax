@@ -150,6 +150,7 @@ router.get("/board", async (req, res) => {
       role: req.pipelineActor.role,
       agentId: req.pipelineActor.agentId,
       scopeAgentIds: req.pipelineActor.scopeAgentIds,
+      categoryKey: req.pipelineActor.categoryKey,
       filters: {
         search: req.query.search,
         stage: req.query.stage,
@@ -378,6 +379,7 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
       role: req.pipelineActor.role,
       agentId: req.pipelineActor.agentId,
       scopeAgentIds:req.pipelineActor.scopeAgentIds,
+      categoryKey:req.pipelineActor.categoryKey,
     });
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }
