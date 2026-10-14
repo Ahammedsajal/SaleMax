@@ -1489,3 +1489,7 @@ The clickable reset-password label measured 21px high on the live Admin sign-in 
 ## Campaign Dashboard All Campaigns state — mobile recheck, 14 October 2026
 
 The All Campaigns state was checked at 220px, 320px, and 390px in Arabic/RTL. Search and filter fields plus Search, Export CSV and Refresh fit the viewport; action buttons and field wrappers meet the 44px target. The 24px native select input is contained within its 44px control wrapper. No campaign action was triggered. Production SSH is currently unavailable from this host because `carsqatar-prod-01` does not resolve; the reset-password CSS source is pushed but awaits deployment and a live post-deploy check.
+
+## Training Profile full-form mobile recheck — production, 14 October 2026
+
+After layout settled, the Arabic/RTL Training Profile form was checked at 390px, 320px, and 220px. The document stayed within the mobile layout width at each size; all 33 visible controls remained in bounds and at least 44px high. No profile values were read or changed. The Training Profile screen is covered for its current form state; role-specific and nested states remain part of the overall audit.

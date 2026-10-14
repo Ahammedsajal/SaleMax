@@ -502,3 +502,7 @@ The live Admin sign-in reset-password action was rendered as a clickable 21px-hi
 ## Campaign Dashboard All Campaigns mobile recheck — production, 14 October 2026
 
 The All Campaigns tab was inspected in Arabic/RTL at 220px, 320px, and 390px. The page stayed within each viewport with no horizontal overflow. Paired tabs measured 81×76px at 220px, 135×45px at 320px, and 200×44px / 127×44px at 390px. The search field, filters, Search, Export CSV, and Refresh stayed in bounds; the visible actions measured 44px high, and the filter control with a 24px native input sits inside a 44px field. No campaign was searched, exported, refreshed, edited, or sent.
+
+## Training Profile full-form mobile recheck — production, 14 October 2026
+
+The authenticated Arabic/RTL Training Profile form was measured after its layout settled at 390×844, 320×760, and 220×760. Document/body widths were 382/382px, 312/312px, and 212/212px; all 33 visible buttons, fields, role buttons, and upload controls stayed within the viewport and measured at least 44px high. The long form remains vertically scrollable. No profile field values were read or changed, and no upload or save action was activated.
