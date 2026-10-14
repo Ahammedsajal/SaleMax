@@ -32,9 +32,26 @@ test('contract draft editing is mounted inside the original Manage Plans screen'
   assert.match(contracts, /امسح رمز QR الجديد/);
 });
 
-test('new plan contract drafts leave Call Center disabled until a Super Admin opts in', () => {
+test('Manage Plans contract editor offers the private SaleMaX Sales category from the authorized existing-plan API',()=>{
+  const router=fs.readFileSync(path.join(root,'modules/platform/existing-catalogue-router.js'),'utf8');
+  const bridge=fs.readFileSync(path.join(root,'modules/platform/catalogue-bridge.js'),'utf8');
+  assert.match(router,/const categories=availableCategories\(req\.businessContext\)/);
+  assert.match(router,/res\.json\(\{category:categories\[0\],categories/);
+  assert.match(router,/platformDecision\(ctx,'categories\.manage'\)/);
+  assert.match(router,/categoryFor\(req\.businessContext,categoryKey\)/);
+  assert.match(contracts,/context\.categories\.some/);
+  assert.match(contracts,/category\.features\.map/);
+  assert.match(bridge,/plans\.authorizeCategory\(ctx,definition\.category\)/);
+  assert.match(bridge,/v\.category_key=\? AND v\.category_version=\?/);
+  assert.match(bridge,/plans\.authorizeCategory\(ctx,category\)/);
+  assert.match(bridge,/plans\.authorizeCategory\(ctx,definition\.category\)/);
+  assert.match(contracts,/category\.key==='salemax_sales'\|\|feature\.key!=='telephony\.call-center'/);
+  assert.match(contracts,/category\.features\.find\(feature=>feature\.key===capability\)/);
+});
+
+test('new SaleMaX Sales contract drafts include the core Call Center capability by default', () => {
   assert.match(shell, /admin-plan-contracts\.js\?v=[^" ]+/);
-  assert.match(contracts, /!latest\?feature\.key!==['"]telephony\.call-center['"]:latest\.capabilities\.includes\(feature\.key\)/);
+  assert.match(contracts, /!latest\?\(category\.key==='salemax_sales'\|\|feature\.key!==['"]telephony\.call-center['"]\):latest\.capabilities\.includes\(feature\.key\)/);
   assert.match(contracts, /draft\.querySelectorAll\('\[name=capability\]'\)/);
   assert.match(contracts, /input\.checked=version\.capabilities\.includes\(input\.value\)/);
 });
