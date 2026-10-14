@@ -1,3 +1,9 @@
+## SaleMaX Sales shared page spacing and theme tokens — production, 14 October 2026
+
+PR #110 merged to `main` as `ede2458907870d684028ae11a3b8177659497af6` and is live in `/opt/salemax/releases/sales-layout-alignment-ede2458-20261014`. The five Sales-only workspaces now share consistent desktop/mobile gutters; focus rings and Commission Policy badge colors use shared SaleMaX tokens. Shared Training Center task and call-center styling was preserved. The 23 focused layout, organization, finance, commission and audit checks pass. Public asset hashes match source, release, running container and HTTPS; health and login are 200, the anonymous Sales Audit API is 401, and the app is healthy with zero restarts. No migration or business-data change occurred. Rollback and full asset hashes are in `DEPLOYMENT.md`.
+
+The first-party Sales tenant and staff accounts are still not provisioned, so authenticated role-by-role visual acceptance remains open. Asterisk is inactive, leaving genuine calling and recording/playback unverified. Production disk remains 97% used with 1.8 GB free. The full Sales workspace and 42-ticket objective remain in progress.
+
 ## SaleMaX Sales Call Center history pagination — production, 14 October 2026
 
 The existing Call Center can now load older calls beyond the initial 100. It uses a stable time/ID cursor, validates it before querying, and rechecks the caller's existing tenant and team scope on every page. The bilingual control uses the current SaleMaX theme, with no separate call-history screen.
