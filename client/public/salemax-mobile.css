@@ -90,6 +90,17 @@
 }
 @media(max-width:380px){#root .MuiBox-root:has(>.react-flow)>.react-flow{top:156px!important}}
 
+/* Keep canvas controls usable when the flow itself is zoomed to fit a phone. */
+@media(max-width:600px){
+  #root main:has(.react-flow) .react-flow__controls{gap:4px!important}
+  #root main:has(.react-flow) .react-flow__controls .react-flow__controls-button{
+    box-sizing:border-box!important;width:44px!important;min-width:44px!important;
+    height:44px!important;min-height:44px!important
+  }
+}
+/* Give the wrapped flow toolbar room above the canvas on extra-narrow phones. */
+@media(max-width:260px){#root .MuiBox-root:has(>.react-flow)>.react-flow{top:200px!important}}
+
 /* Expand the mobile navigation drawer and restore visible, readable labels. */
 @media(max-width:600px){
   .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root{width:100%!important;min-width:0!important;max-width:100%!important}

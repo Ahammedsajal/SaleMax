@@ -243,7 +243,7 @@
   }
   function syncMobileFlowLayout(enabled) {
     const flow = document.querySelector('.react-flow');
-    const toolbar = document.querySelector('button[aria-label="Node Menu"]')?.parentElement;
+    const toolbar = document.querySelector('button[aria-label="Node Menu"],button[aria-label="قائمة العقد"]')?.parentElement;
     document.querySelectorAll('[data-sx-chatbot-mobile-toolbar="true"]').forEach(previous => {
       if (!enabled || previous !== toolbar) {
         previous.style.transform = previous.dataset.sxChatbotOriginalTransform || '';
