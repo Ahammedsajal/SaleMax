@@ -221,3 +221,80 @@
   #sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{grid-column:1}
   #sx-finance-screen #sx-generator-plans .sx-invoice-plan [data-remove-plan]{justify-self:stretch;width:100%;min-width:0;min-height:44px}
 }
+
+/* Keep the Meta Template introduction compact across regular phone widths. */
+@media(min-width:381px) and (max-width:600px){
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h4,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:20px!important;line-height:1.2!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body1,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:14px!important;line-height:1.35!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body2,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle2{font-size:13px!important;line-height:1.35!important}
+}
+
+/* Keep the Meta Template wizard comfortable on phones without oversized headings. */
+@media(max-width:600px){
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h4{font-size:18px!important;line-height:1.2!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:16px!important;line-height:1.25!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body1,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:13px!important;line-height:1.35!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body2,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle2{font-size:12px!important;line-height:1.35!important}
+}
+@media(max-width:380px){
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h4{font-size:16px!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-h5{font-size:15px!important}
+  main:has(.MuiMobileStepper-progress) .MuiTypography-body1,
+  main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:12px!important}
+}
+
+/* Keep compact admin sign-in fields and password visibility usable on phones. */
+@media(max-width:600px){
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) .MuiInputBase-root,
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) input{min-height:44px!important;box-sizing:border-box!important}
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) .MuiInputAdornment-positionEnd button{width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important}
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) button{min-height:44px!important}
+}
+
+/* Keep business sign-in compact, remove its stray zero, and retain phone tap targets. */
+@media(max-width:600px){
+  #root .MuiBox-root:has(> .MuiStack-root input[type="password"]) .MuiInputBase-root,
+  #root .MuiBox-root:has(> .MuiStack-root input[type="password"]) input{min-height:44px!important;box-sizing:border-box!important}
+  #root .MuiBox-root:has(> .MuiStack-root input[type="password"]) .MuiInputAdornment-positionEnd button{width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important}
+  #root:has(input[type="password"]) button{min-height:44px!important}
+  #root:has(input[type="password"]) button[aria-label="Switch to dark mode"],
+  #root:has(input[type="password"]) button[aria-label="Switch to light mode"]{width:44px!important;min-width:44px!important;height:44px!important}
+}
+
+/* Keep mobile dialog fields and actions sized for touch across app screens. */
+@media(max-width:600px){
+  .MuiDialog-root .MuiDialog-paper input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  .MuiDialog-root .MuiDialog-paper select,
+  .MuiDialog-root .MuiDialog-paper textarea{min-height:44px!important;box-sizing:border-box!important}
+  .MuiDialog-root .MuiDialog-paper button{min-height:44px!important}
+  .MuiDialog-root .MuiDialog-paper .MuiDialogTitle-root .MuiIconButton-root{width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important}
+}
+@media(max-width:300px){
+  .MuiDialog-root .MuiDialog-paper .MuiStack-root:has(>button.MuiButton-root){flex-direction:column!important;align-items:stretch!important;gap:8px!important}
+  .MuiDialog-root .MuiDialog-paper .MuiStack-root:has(>button.MuiButton-root)>button{width:100%!important;min-width:0!important;margin:0!important}
+  #root:has(input[type="password"]) .MuiButton-containedPrimary{font-size:14px!important;line-height:1.2!important;white-space:nowrap!important;padding-inline:8px!important}
+}
+
+/* Shared compact density for existing app screens on phones; control heights stay touch-friendly. */
+@media(max-width:600px){
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h1{font-size:24px!important;line-height:1.2!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h2{font-size:22px!important;line-height:1.22!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h3{font-size:20px!important;line-height:1.25!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h4{font-size:18px!important;line-height:1.25!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h5{font-size:16px!important;line-height:1.3!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h6{font-size:15px!important;line-height:1.3!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-body1,
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-subtitle1{font-size:14px!important;line-height:1.4!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-body2,
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-subtitle2{font-size:13px!important;line-height:1.4!important}
+  #root main .MuiCardHeader-root{padding:12px 14px!important}
+  #root main .MuiCardContent-root{padding:14px!important}
+  #root main .MuiCardContent-root:last-child{padding-bottom:14px!important}
+  #root main .MuiCardActions-root{gap:8px!important;padding:8px 14px 12px!important}
+  #root main .MuiTab-root{font-size:13px!important;min-height:44px!important}
+}
