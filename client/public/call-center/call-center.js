@@ -7,6 +7,7 @@
   let browserSipState='disconnected';
   let linkedLeadId='';
   let tenantTimezone='Asia/Qatar';
+  const callHistory={items:[],nextCursor:null,loading:false};
   function notice(kind,message){const target=node('notice');target.dataset.kind=kind||'';target.textContent=message;}
   function bearer(){return localStorage.getItem('wacrm_user');}
   async function request(path,method='GET',body){
@@ -85,7 +86,7 @@
     const host=node('queueList');node('queuesSection').hidden=false;host.textContent=text('Loading queues…','جارٍ تحميل قوائم الانتظار…');
     try{renderQueues(await request('/queues'),team);}catch(_){host.textContent=text('Queue setup is unavailable. Confirm that the latest telephony migration is installed.','إعداد قوائم الانتظار غير متاح. تحقق من تثبيت أحدث ترحيل للاتصالات.');}
   }
-  function renderCalls(items){
+  function renderCalls(items,hasMore=false){
     const host=node('callList');host.replaceChildren();
     if(!items.length){const empty=document.createElement('p');empty.className='call-empty';empty.textContent=text('No calls are available for this account yet.','لا توجد مكالمات متاحة لهذا الحساب حتى الآن.');host.append(empty);return;}
     for(const call of items){
@@ -152,6 +153,10 @@
       }
       host.append(row);
     }
+    if(hasMore&&callHistory.nextCursor){
+      const more=document.createElement('button');more.type='button';more.className='secondary';more.textContent=text('Load older calls','تحميل المكالمات الأقدم');
+      more.addEventListener('click',()=>loadCalls({append:true}));host.append(more);
+    }
   }
   function createLeadOutcomeForm(call){
     const details=document.createElement('details');details.className='call-outcome';
@@ -176,10 +181,22 @@
     });
     return details;
   }
-  async function loadCalls(){
+  async function loadCalls({append=false}={}){
+    if(callHistory.loading)return;
+    if(append&&!callHistory.nextCursor)return;
+    callHistory.loading=true;
     const host=node('callList');
-    try{const data=await request('/calls');renderCalls(data.items||[]);}
-    catch(error){host.textContent=error.code==='FEATURE_UNAVAILABLE'?text('Call Center is not included in this plan.','مركز الاتصال غير مشمول في هذه الخطة.'):text('Call list is unavailable. Confirm the telephony migration and access permissions.','قائمة المكالمات غير متاحة. تحقق من ترحيل الاتصالات وصلاحيات الوصول.');}
+    try{
+      const cursor=append?callHistory.nextCursor:null,data=await request(`/calls${cursor?`?cursor=${encodeURIComponent(cursor)}`:''}`),items=data.items||[];
+      if(append){const known=new Set(callHistory.items.map(item=>item.callId));callHistory.items.push(...items.filter(item=>!known.has(item.callId)));}
+      else callHistory.items=items;
+      callHistory.nextCursor=data.nextCursor||null;renderCalls(callHistory.items,data.hasMore===true);
+    }catch(error){
+      const message=error.code==='INVALID_CALL_CURSOR'?text('Call history changed. Refresh to load the latest calls.','تغير سجل المكالمات. حدّث الصفحة لتحميل أحدث المكالمات.'):
+        error.code==='FEATURE_UNAVAILABLE'?text('Call Center is not included in this plan.','مركز الاتصال غير مشمول في هذه الخطة.'):
+          text('Call list is unavailable. Confirm the telephony migration and access permissions.','قائمة المكالمات غير متاحة. تحقق من ترحيل الاتصالات وصلاحيات الوصول.');
+      if(append){renderCalls(callHistory.items,true);const state=document.createElement('p');state.className='call-empty';state.textContent=message;host.append(state);}else host.textContent=message;
+    }finally{callHistory.loading=false;}
   }
   async function playRecording(callId,button,row){
     button.disabled=true;button.textContent=text('Loading recording…','جارٍ تحميل التسجيل…');

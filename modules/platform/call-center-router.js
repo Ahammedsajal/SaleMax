@@ -16,6 +16,19 @@ const {createTelephonyCallOutcomes}=require('./telephony-call-outcomes');
 const {Readable,Transform}=require('node:stream');
 const {pipeline}=require('node:stream/promises');
 
+function parseCallCursor(value){
+  if(value===undefined)return null;
+  const fail=()=>{throw Object.assign(new Error('INVALID_CALL_CURSOR'),{code:'INVALID_CALL_CURSOR',status:400});};
+  if(typeof value!=='string'||value.length>256)fail();
+  let cursor;
+  try{cursor=JSON.parse(Buffer.from(value,'base64url').toString('utf8'));}catch(_){fail();}
+  if(!cursor||typeof cursor!=='object'||Array.isArray(cursor)||typeof cursor.startedAt!=='string'||
+    !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$/.test(cursor.startedAt)||
+    Number.isNaN(Date.parse(cursor.startedAt.replace(' ','T')+'Z'))||
+    typeof cursor.callId!=='string'||! /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cursor.callId))fail();
+  return cursor;
+}
+
 function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=globalThis.fetch}){
   const router=express.Router();
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
@@ -92,6 +105,8 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const context=req.callCenterContext;
     const access=decision(context,{capability:'telephony.call-center',permission:'calls.read'});
     if(!access.allowed)throw Object.assign(new Error(access.code),{code:access.code});
+    const cursor=parseCallCursor(req.query.cursor);
+    const cursorFilter=cursor?' AND (c.started_at < ? OR (c.started_at = ? AND c.id < ?))':'';
     const rows=await withDb(async db=>{
       const salesTeam=['manager','team_leader'].includes(context.membership.role)&&context.tenant.categoryKey==='salemax_sales';
       let teamMembershipIds=[];
@@ -108,6 +123,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         SELECT 1 FROM sx_telephony_call_legs scoped_leg WHERE scoped_leg.tenant_id=c.tenant_id AND scoped_leg.call_id=c.id AND scoped_leg.membership_id IN (?)))`:' AND 1=0'):'';
       const [items]=await db.query(`SELECT c.id,c.direction,c.status,c.lead_id AS leadId,c.gateway_channel_no AS gatewayChannelNo,
           q.queue_name AS queueName,c.started_at AS startedAt,c.answered_at AS answeredAt,c.ended_at AS endedAt,
+          DATE_FORMAT(c.started_at,'%Y-%m-%d %H:%i:%s.%f') AS cursorStartedAt,
           IF(c.answered_at IS NULL,NULL,IF(c.ended_at IS NULL,TIMESTAMPDIFF(SECOND,c.answered_at,UTC_TIMESTAMP(3)),c.duration_seconds)) AS durationSeconds,
           c.answered_by_membership_id AS answeredByMembershipId,c.started_by_membership_id AS startedByMembershipId,
           answered_identity.display_name AS answeredByName,answered_member.role AS answeredByRole,
@@ -123,10 +139,13 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         LEFT JOIN sx_telephony_call_recordings r ON r.tenant_id=c.tenant_id AND r.call_id=c.id
         WHERE c.tenant_id=? AND (?=0 OR c.started_by_membership_id=? OR c.answered_by_membership_id=? OR EXISTS(
           SELECT 1 FROM sx_telephony_queue_members qm WHERE qm.tenant_id=c.tenant_id AND qm.queue_id=c.inbound_queue_id AND qm.membership_id=?))
-          ${teamFilter}
-        ORDER BY c.started_at DESC,c.id DESC LIMIT 100`,[context.membership.id,context.tenant.id,access.scope==='assigned'?1:0,
-        context.membership.id,context.membership.id,context.membership.id,...(salesTeam&&teamMembershipIds.length?[teamMembershipIds,teamMembershipIds,teamMembershipIds]:[])]);
-      return items.map(row=>({callId:row.id,direction:row.direction,status:row.status,leadId:row.leadId||null,gatewayChannelNo:Number(row.gatewayChannelNo),
+          ${cursorFilter}${teamFilter}
+        ORDER BY c.started_at DESC,c.id DESC LIMIT 101`,[context.membership.id,context.tenant.id,access.scope==='assigned'?1:0,
+        context.membership.id,context.membership.id,context.membership.id,...(cursor?[cursor.startedAt,cursor.startedAt,cursor.callId]:[]),
+        ...(salesTeam&&teamMembershipIds.length?[teamMembershipIds,teamMembershipIds,teamMembershipIds]:[])]);
+      const hasMore=items.length>100,page=items.slice(0,100),last=page[page.length-1];
+      const nextCursor=hasMore&&last?Buffer.from(JSON.stringify({startedAt:last.cursorStartedAt,callId:last.id})).toString('base64url'):null;
+      return {hasMore,nextCursor,items:page.map(row=>({callId:row.id,direction:row.direction,status:row.status,leadId:row.leadId||null,gatewayChannelNo:Number(row.gatewayChannelNo),
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
         answeredByName:row.answeredByName||'',answeredByRole:row.answeredByRole||'',startedByName:row.startedByName||'',startedByRole:row.startedByRole||'',
@@ -134,9 +153,9 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         canCoach:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.write'}).allowed,
         canViewCoaching:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.read'}).allowed,
         canControl:context.membership.role==='owner'||context.membership.role==='manager'||salesTeam||row.startedByMembershipId===context.membership.id
-          ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1}));
+          ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1}))};
     });
-    res.json({success:true,data:{items:rows,hasMore:rows.length===100}});
+    res.json({success:true,data:rows});
   }));
   router.get('/status',wrap(async(req,res)=>{
     const context=req.callCenterContext;
