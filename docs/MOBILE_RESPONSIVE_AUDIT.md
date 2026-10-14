@@ -564,3 +564,7 @@ Training Center Profile was checked in Arabic/RTL at 320×760. The fixed Profile
 The authenticated Finance screen was opened from the navigation drawer and checked at 320×760 in Arabic/RTL. The page content is 312px wide with no document-level horizontal overflow; the 660px invoice table remains inside its 243px internal scroller. The invoice create action, period controls, and Finance Reports navigation fit the panel. Row actions remain within the horizontally scrollable table and no invoice or payment detail was opened. No finance data was changed.
 
 The same invoice-table scroller was checked at 220×760. The page remains 212px wide without horizontal document overflow; its 660px table is contained in a 141px scroller. At the initial RTL scroll position the Open Invoice action is reachable; a horizontal pan exposes the Edit and Delete actions, each 44px or taller. The scroll position was restored and no row action was activated.
+
+## Candidate Applications and form catalogue narrow RTL check — production, 14 October 2026
+
+The authenticated Candidate Applications route was checked at 220×760 in Arabic/RTL. The page is 212px wide with no horizontal overflow; the 28 rendered action controls are in bounds and at least 44px high. The workspace header wraps to two compact rows, and the form cards stack in one column with their links inside the card. One submitted request is present, but no applicant row was opened and no record or form was changed.
