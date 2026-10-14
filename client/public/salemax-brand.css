@@ -343,3 +343,41 @@
   #root header .MuiToolbar-root:has([aria-label="Account menu"])>p{display:none!important}
   #root header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{padding:0!important}
 }
+
+/* Keep Inbox toolbar, filters and chat actions aligned and reachable on phones. */
+@media(max-width:600px){
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>button,
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>[aria-label="Account menu"]{
+    min-width:44px!important;min-height:44px!important;height:44px!important;box-sizing:border-box!important
+  }
+  #root:has(main button[aria-label="Start New Chat"]) main button,
+  #root:has(main button[aria-label="Start New Chat"]) main input:not([type="hidden"]),
+  #root:has(main button[aria-label="Start New Chat"]) main select,
+  #root:has(main button[aria-label="Start New Chat"]) main textarea,
+  #root:has(main button[aria-label="Start New Chat"]) main [role="button"]{
+    min-height:44px!important;box-sizing:border-box!important
+  }
+  #root:has(main button[aria-label="Start New Chat"]) main .MuiBox-root:has(>button[aria-label="Start New Chat"]){
+    flex-wrap:wrap!important;align-items:center!important;gap:4px!important
+  }
+  #root:has(main button[aria-label="Start New Chat"]) main .MuiBox-root:has(>button[aria-label="Start New Chat"]) .MuiFormControl-root{
+    flex:1 1 110px!important;min-width:110px!important
+  }
+}
+@media(min-width:301px) and (max-width:380px){
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root{gap:2px!important;padding-inline:4px!important}
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>p{
+    flex:0 1 42px!important;width:42px!important;min-width:0!important;overflow:hidden!important;
+    text-overflow:ellipsis!important;white-space:nowrap!important
+  }
+}
+@media(max-width:300px){
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root{
+    min-height:0!important;height:auto!important;flex-wrap:wrap!important;align-content:center!important;
+    gap:2px!important;padding:4px!important
+  }
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>.MuiBox-root:nth-child(2){
+    width:24px!important;height:24px!important;flex:0 0 24px!important;background-size:72px 24px!important
+  }
+  #root:has(main button[aria-label="Start New Chat"]) header .MuiToolbar-root>p{display:none!important}
+}
