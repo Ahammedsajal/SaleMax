@@ -167,14 +167,14 @@ async function list(pool,ownerUid){
   });}finally{db.release();}
 }
 async function updateMemberPassword(pool,ownerUid,memberId,input={}){
-  if(!/^\d{1,18}$/.test(String(memberId||'')))fail('INVALID_ID');
+  if(typeof memberId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(memberId))fail('INVALID_ID');
   if(typeof input.password!=='string'||Array.from(input.password).length<12||Buffer.byteLength(input.password,'utf8')>72)fail('INVALID_PASSWORD');
   const db=await pool.getConnection();
   try{return await tx(db,async()=>{
     await storage(db);const scope=await ownerScope(db,ownerUid);
     const [[member]]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,i.status AS identityStatus
       FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
-      WHERE m.tenant_id=? AND m.id=? AND m.status='active' FOR UPDATE`,[scope.tenantId,Number(memberId)]);
+      WHERE m.tenant_id=? AND m.id=? AND m.status='active' FOR UPDATE`,[scope.tenantId,memberId]);
     if(!member||member.identityStatus!=='active')fail('MEMBER_NOT_FOUND');
     const [links]=await db.query(`SELECT source_table AS sourceTable,source_id AS sourceId,legacy_uid_hash AS legacyUidHash FROM sx_legacy_ownership
       WHERE tenant_id=? AND membership_id=? AND source_table IN ('user','agents') FOR UPDATE`,[scope.tenantId,member.id]);
