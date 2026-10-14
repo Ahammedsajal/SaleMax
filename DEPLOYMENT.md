@@ -1257,3 +1257,11 @@ At 220px the FAQ screen had two primary actions measuring 42px. Mobile rules now
 Protected rollback copies are in `/opt/salemax/shared/backups/mobile-faq-compact-20261014` (directory mode 0700; original CSS, sidebar JS, and index copies mode 0600). Active release: `/opt/salemax/releases/team-login-final-c33b3e5-20261014`. Release/container CSS hashes match at `4efcb70cbfb374d6fceffac7273616c324724ef35a2f3a01efafac3dfe4cc6f8`; sidebar JS hashes match at `81ef6218e9cfe76a765b5b10b331653379d0f7f64fdb9249dde61550f6ffa016`; index hashes match at `b588904a814e7f4bcad53bf6ae40936ca670fc79410ea73b2087e2076edccb97`. Both served FAQ assets match the container hashes. The sidebar JS syntax check passed, `/healthz` returned 200, and restart count remained zero.
 
 Browser checks at 220px and 320px LTR/RTL found no page overflow or visible controls outside the viewport. The Add FAQ dialog was checked at 220px: seven visible controls were all 44px or taller. It was closed without saving.
+
+## Enrolled Students phone density and touch targets — production, 14 October 2026
+
+The custom student-management screen had 40px buttons, 42px filters, and a 28px title. It now uses 20px/22px phone headings, tighter card/stat spacing, and 44px fields and buttons. The existing wide approval table remains horizontally scrollable within its own panel. Student script key: `20261014-students-mobile-compact1`.
+
+Protected rollback copies are in `/opt/salemax/shared/backups/mobile-students-compact-20261014` (directory mode 0700; original copies mode 0600). Active release: `/opt/salemax/releases/team-login-final-c33b3e5-20261014`. Final release/container `training-students.js` hashes match at `8c421d921a53e70c2c507ded4b75ed90471e71d43752fd1791e8daaad6e49c31`; release/container `training-courses.js` hashes are `d032e0ea0fa2d79a5b0dc50894f002cb37603d12adf506a95954af4664387d2d` / `22b098318917c34e85d1164264c5adfc9f2ed218f0861abb500083df570f1f5e`. The served student script matches both copies. Both running-container JS syntax checks passed, `/healthz` returned 200, and restart count remained zero.
+
+Geometry checks at 220px LTR/RTL and 320px LTR/RTL found no page overflow, undersized controls, or offscreen non-table controls. The approval table's 674–685px content remains contained in a 157–259px internal scroller. No student profile was opened or changed.
