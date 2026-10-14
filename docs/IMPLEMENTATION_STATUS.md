@@ -1,3 +1,9 @@
+## SaleMaX Sales Call Center shared theme and layout — production, 14 October 2026
+
+The existing Call Center now follows the shared SaleMaX Sales burgundy theme, shared foundational color tokens, workspace padding and mobile header alignment. Its browser theme color now matches the brand. Existing call workflows and `/user` navigation are unchanged. PR #91 merged as `f116423cdbddc2c56fe3ba6d56d89fbf4726ee85` and is live in `/opt/salemax/releases/sales-callcenter-ui-f116423-20261014`. Focused Call Center/design checks pass 10/10. Served HTML/CSS hashes match source and runtime; no migration or business-data write occurred. See `DEPLOYMENT.md` for rollback and release evidence.
+
+Authenticated role-by-role English/Arabic visual acceptance remains open because no first-party Sales tenant or staff sessions are provisioned. Internal contract terms and the Business Admin display name/mobile remain pending. Asterisk is inactive, so genuine calls and recording playback are unverified. Production storage is 98% used with about 1.2 GB free. The full 42-ticket objective remains in progress.
+
 ## SaleMaX Sales category contract setup — production, 14 October 2026
 
 PR #89 (`367107d1200086fd801d2ce35a48b4fcfc1e5474`) is live. The existing Manage Plans screen can now select the private SaleMaX Sales manifest, role limits and features. Category versions stay separated, and only platform category administrators may create, edit, list or publish the private contract. The Call Center entitlement is enabled by default for first Sales drafts; Asterisk readiness remains independently enforced. Focused checks pass 10/10. No migration or business-data write occurred; release and rollback evidence is in `DEPLOYMENT.md`.
