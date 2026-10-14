@@ -629,3 +629,14 @@
   .MuiDialog-root .MuiDialogContent-root{padding:8px 16px 12px!important}
   .MuiDialog-root .MuiDialogActions-root{gap:6px!important;padding:8px 16px 14px!important}
 }
+/* Constrain fixed-width MUI fields inside narrow mobile cards and tabs. */
+@media(max-width:260px){
+  #root main .MuiFormControl-root,#root main .MuiTextField-root{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+  #root main .MuiFormControl-root .MuiInputBase-root,#root main .MuiTextField-root .MuiInputBase-root{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+  #root main .MuiFormControl-root .MuiInputBase-input,#root main .MuiTextField-root input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]){min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+}
+/* Keep visible MUI select controls aligned with phone touch targets. */
+@media(max-width:600px){
+  #root main .MuiSelect-select{min-height:44px!important;box-sizing:border-box!important;display:flex!important;align-items:center!important}
+  #root main .MuiInputBase-root:has(>.MuiSelect-select){min-height:44px!important;box-sizing:border-box!important}
+}
