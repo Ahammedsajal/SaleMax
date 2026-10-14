@@ -81,7 +81,22 @@ test('only first-party Sales receives role-specific sidebar labels and grouped n
   assert.match(sidebar,/membershipCategoryKey==='salemax_sales'\?\(salesNavLabels\.calls/);
   assert.match(sidebar,/if\(membershipCategoryKey==='salemax_sales'\)applySalesRoleAliases\(\)/);
   assert.match(sidebar,/membershipCategoryKey==='salemax_sales'&&index===11\?/);
-  assert.match(shell,/training-sidebar\.js\?v=20261014-role-nav1/);
+  assert.match(shell,/training-sidebar\.js\?v=20261014-sales-people-roles1/);
+});
+
+test('SaleMaX Sales owner gets one People & Roles entry while managers and team leaders use their scoped Organisation screen',()=>{
+  const root=path.join(__dirname,'..');
+  const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
+  const team=fs.readFileSync(path.join(root,'client/public/team-invitations.js'),'utf8');
+  const shell=fs.readFileSync(path.join(root,'client/public/index.html'),'utf8');
+  assert.match(sidebar,/membershipRole==='owner'\)\{\s*aliases\['Team access'\]='People & Roles'/);
+  assert.match(sidebar,/name==='People & Roles'\)group=11/);
+  assert.match(sidebar,/name==='Agent Login'\|\|\(name==='Team access'&&membershipRole!=='owner'\)/);
+  assert.match(sidebar,/'People & Roles':'team'/);
+  assert.match(team,/organisation\.role!=='owner'\)\{location\.replace\('\/user\?page=sales-organization'\);return;\}/);
+  assert.match(team,/label\('People & Roles','الأشخاص والأدوار'\)/);
+  assert.match(shell,/training-sidebar\.js\?v=20261014-sales-people-roles1/);
+  assert.match(shell,/team-invitations\.js\?v=20261014-sales-people-roles1/);
 });
 
 test('Sales Overview is integrated into existing navigation, refreshes scoped APIs and keeps nested routes in the parent URL',()=>{
@@ -141,7 +156,7 @@ test('Sales Reports reuse the scoped monthly target entitlement and parent-panel
   assert.match(sidebar,/\['reports','sales-targets','reports'\]/);
   assert.match(sidebar,/reports:'sales-targets'/);
   assert.match(shell,/reports:\['تقارير المبيعات','Sales Reports'\]/);
-  assert.match(index,/training-sidebar\.js\?v=20261014-role-nav1/);
+  assert.match(index,/training-sidebar\.js\?v=20261014-sales-people-roles1/);
   assert.match(index,/pipeline-entry\.js\?v=20261014-lead-click-call1/);
   assert.match(page,/id="reportsSection"/);
   assert.match(page,/id="reportPeriod"/);
