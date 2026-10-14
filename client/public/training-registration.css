@@ -12,6 +12,13 @@
   #submit-button{min-height:50px!important}
 }
 
+/* Keep student/staff registration fields comfortable to use on phone screens. */
+@media(max-width:760px){
+  .registration-capture input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  .registration-capture select,
+  .registration-capture textarea{min-height:44px!important;box-sizing:border-box!important}
+}
+
 /* Prevent the registration logo and actions from widening very narrow phones. */
 @media(max-width:280px){
   .reg-capture-heading{gap:8px;min-width:0}

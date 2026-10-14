@@ -34,3 +34,6 @@
 .course-picker[data-opens-upward][open] summary{border-radius:0 0 8px 8px}
 .course-picker[data-opens-upward] .course-picker-panel{border-top:1px solid #cbd6df;border-bottom:0;border-radius:8px 8px 0 0}
 .course-option-list{min-height:0;max-height:min(250px,calc(44vh - 110px))}
+
+/* Keep the off-screen spam honeypot from creating a wide RTL scroll area on phones. */
+@media(max-width:760px){.honeypot{position:fixed!important}}
