@@ -474,3 +474,7 @@ The Lead Reports route embeds `/pipeline/?embed=1&view=reports`. At 220px, the o
 ## Send Campaign screen — production mobile check, 14 October 2026
 
 The authenticated Send Campaign route was checked in Arabic/RTL at 220×800px and 320×760px. Document/body widths stayed within the viewport. Its seven visible interactive controls, including custom select/search controls, measured at least 44px high and remained in bounds; the 19px native MUI select input is an aria-hidden internal control paired with a 44px visible combobox. No campaign was launched or edited.
+
+## FAQs screen — production mobile check, 14 October 2026
+
+The authenticated FAQs route was checked in Arabic/RTL at 220×800px and 320×760px. The document/body measured 212px and 312px respectively; all 11 visible interactive controls were within the viewport and at least 44px high. No page-level horizontal overflow was present. No FAQ was created or edited.
