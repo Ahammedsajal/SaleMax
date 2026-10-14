@@ -6,7 +6,7 @@ test('existing Inbox integration clears a transferred staff chat but keeps owner
     const values=new Map([[agent?'wacrm_agent':'wacrm_user','synthetic-token'],['currentChat',JSON.stringify({chat_id:'shared-chat'})],['conversationArr','private-cache']]);
     let callback,replaced=null,cacheCleared=false;
     const storage={getItem:k=>values.get(k)||null,removeItem:k=>values.delete(k)};
-    const context={URLSearchParams,localStorage:storage,sessionStorage:{getItem:()=>null},location:{pathname:agent?'/agent':'/user',search,replace:url=>{replaced=url;}},
+    const context={URLSearchParams,history:{replaceState:()=>{}},localStorage:storage,sessionStorage:{getItem:()=>null},location:{pathname:agent?'/agent':'/user',search,replace:url=>{replaced=url;}},
       document:{head:{append:()=>{}},documentElement:{},createElement:()=>({}),querySelectorAll:()=>[],getElementById:()=>null},
       MutationObserver:class{observe(){}},window:{setInterval:fn=>{callback=fn;},addEventListener:()=>{}},
       fetch:async(url,options)=>{assert.match(url,/conversation-access\?chatId=shared-chat/);assert.equal(url.startsWith('/api/agent/'),agent);assert.equal(options.headers.Authorization,'Bearer synthetic-token');return {ok:true,json:async()=>({success:true,data:access})};},
