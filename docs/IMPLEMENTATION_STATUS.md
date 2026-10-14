@@ -1513,3 +1513,7 @@ The authenticated Finance route was checked in Arabic/RTL at 220px, 320px, and 3
 ## Phonebook current-release mobile recheck — production, 14 October 2026
 
 The authenticated Phonebook screen was checked at 220px, 320px, and 390px. All rendered controls were in bounds and at least 44px high; the 1,140px grid stays inside its horizontal scroller. No contact was opened or changed. The overall screen-by-screen audit remains active.
+
+## Staff-mode Student Registration mobile recheck — production, 14 October 2026
+
+At 220px, 320px, and 390px, the public staff-mode form stayed within the viewport and all 31 visible controls met the 44px target. The consent checkbox label provides the touch area; the invisible honeypot is excluded. No form value or file was supplied and the form was not submitted.

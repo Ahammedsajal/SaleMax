@@ -526,3 +526,7 @@ The authenticated Finance route (`/user?page=finance`) was checked in Arabic/RTL
 ## Phonebook screen current-release recheck — production, 14 October 2026
 
 The authenticated Phonebook screen was checked at 220×760, 320×760, and 390×844. The page stayed within each viewport; all rendered controls remained in bounds and at least 44px high. The 1,140px grid remains contained in an internal horizontal scroller measuring 179px, 287px, and 357px wide respectively. No contact was opened or changed.
+
+## Staff-mode Student Registration form mobile recheck — production, 14 October 2026
+
+The public staff-mode Student Registration form was checked at 220×760, 320×760, and 390×844. Document/body widths were 205px, 305px, and 375px, within each viewport. All 31 visible form controls remained in bounds and at least 44px high, counting the consent checkbox's full label as its touch area; the offscreen honeypot is excluded. The form remains vertically scrollable. No value was read or entered, and no upload or submit action was triggered.
