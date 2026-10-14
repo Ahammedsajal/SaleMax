@@ -600,3 +600,7 @@ The authenticated Courses route was checked in Arabic/RTL at 220×760 and 320×7
 ## Campaign Dashboard overview and All Campaigns current-session check — production, 14 October 2026
 
 The authenticated Campaign Dashboard was checked at 220×760 and 320×760 in English/LTR and Arabic/RTL. At 220px the page remains 212px wide; at 320px it remains within 312–320px. Overview KPI cards stack into a two-column phone layout and scroll vertically. The paired tabs wrap to 76–92px at 220px, then fit at 45px at 320px. All visible controls remain in bounds and at least 44px high; in the Arabic All Campaigns view, search and status filters are full-width, followed by 44px Search, Export, and Refresh controls. The hidden MUI select input and hidden menu button do not appear in the rendered viewport. The campaign list was empty; no campaign was opened, exported, or changed. Language, text direction, and temporary viewport overrides were restored after review.
+
+## Student directory empty-state current-session check — production, 14 October 2026
+
+The authenticated Student Registrations screen was checked in English/LTR at 220×760 and 320×760. Document widths match the 212px/312px viewports, and all 12 controls visible in the first screen are at least 44px high and in bounds. Summary cards use a two-column layout and the page scrolls vertically. The directory shows zero enrollments, so no student detail, attendance, payment, or document screen can be opened with this account. No student record or action was accessed.
