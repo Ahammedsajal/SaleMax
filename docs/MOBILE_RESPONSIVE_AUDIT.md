@@ -224,3 +224,7 @@ The authenticated Students route was checked at 220, 280, 320 and 390px on style
 ## SaleMaX header wordmark fit recheck — 14 October 2026
 
 A 320px authenticated browser screenshot showed the SaleMaX wordmark truncated to “Sal…”. Shared CSS version 18 now preserves the complete 58px wordmark and existing icon mark across widths 320–380px. At 320, 360 and 380px all five header controls are 44×44px, remain inside the viewport, and the document has no horizontal overflow. Branding assets were not changed. The ultranarrow 220px header retains its existing compact mark-only layout.
+
+## FAQ phone and RTL recheck — 14 October 2026
+
+The authenticated FAQ screen was rechecked read-only at 220px and 320px. In LTR at both widths, the 22px page heading, empty state and content fit the 212px/312px app column without horizontal overflow; all nine visible controls are at least 44px high and remain in bounds. At 320px RTL, the same nine controls remain in bounds and at least 44px high, with no page overflow. RTL was emulated in the page DOM for measurement only; the account language/direction preference was not changed. No FAQ was created or edited.
