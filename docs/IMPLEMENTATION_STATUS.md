@@ -1521,3 +1521,7 @@ At 220px, 320px, and 390px, the public staff-mode form stayed within the viewpor
 ## Candidate Applications list current-release recheck — production, 14 October 2026
 
 The authenticated Arabic/RTL applications list fits 220px, 320px, and 390px widths with all 28 visible controls in bounds and at least 44px high. The page scrolls vertically within its application section. No application was opened, printed, or changed.
+
+## Tasks embedded view current-session recheck — production, 14 October 2026
+
+The Tasks iframe now loads in the current authenticated session instead of showing the earlier expired-session state. At 220px, 320px, and 390px its frame fits the viewport and all four visible controls are in bounds and at least 44px high. No task content was read, and no task was opened or changed.
