@@ -1,3 +1,11 @@
+## SaleMaX Sales Organization palette alignment — production, 14 October 2026
+
+The existing Organization screen now uses the shared SaleMaX burgundy/neutral palette for reporting hierarchy cards and all five role badges in both LTR and RTL. The previous blue, green and orange role colors are removed while text labels remain the source of role meaning. PR #117 merged to `main` as `c85291c5e8507aaf3596a34c15bc4d420b1814bc` and is live in `/opt/salemax/releases/sales-organization-role-colors-2b62162-20261014`.
+
+Focused Organization, navigation, permission-boundary and design checks pass 24/24. Production health, login and Organization routes return 200; anonymous API access returns 401. Release, container and public stylesheet hashes match. No database or business data changed; the app alone was recreated. Rollback evidence is in `DEPLOYMENT.md`.
+
+Authenticated role-specific visual acceptance remains open because the first-party Sales tenant and staff are not provisioned. The complete internal workspace and 42-ticket upgrade remain in progress.
+
 ## SaleMaX Sales exact call outcome review — production, 14 October 2026
 
 The existing Call Center now displays a call's saved disposition, note and follow-up date beside that exact call. Saving a Sales outcome links the Pipeline activity to its originating call, so agents, Team Leaders and Sales Managers can distinguish outcomes when a lead has multiple calls. Follow-up dates use the tenant timezone; other categories keep their existing behavior. PR #116 merged to `main` as `b9e3b6462c9b608d3c73d9e9e86a7a430ce09aee` and is live in `/opt/salemax/releases/sales-call-outcome-review-c4e2860-20261014`.
