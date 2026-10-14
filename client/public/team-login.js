@@ -2,7 +2,7 @@
   'use strict';
   if (window.__sxTeamLogin) return;
   window.__sxTeamLogin = true;
-  const isArabic = () => /^(ar(?:[-_]|$)|arabic)/i.test(String(localStorage.getItem('language') || localStorage.getItem('salemax-language') || document.documentElement.lang || ''));
+  const isArabic = () => /^(ar(?:[-_]|$)|arabic)/i.test(String(localStorage.getItem('language') || localStorage.getItem('salemax-language') || document.documentElement.lang || '')) || document.documentElement.dir === 'rtl' || /[\u0600-\u06ff]/.test(document.getElementById('root')?.textContent || '');
   const label = (en, ar) => isArabic() ? ar : en;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const route = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'agent-login';
@@ -32,6 +32,7 @@
     let node=document.getElementById('sx-team-login');
     if(!node){node=document.createElement('section');node.id='sx-team-login';node.setAttribute('aria-live','polite');document.body.append(node);}
     node.dir=label('ltr','rtl');
+    node.dataset.locale=isArabic()?'ar':'en';
     node.innerHTML=`<div class="wrap"><h1>${label('Team Login','تسجيل دخول الفريق')}</h1><p>${label('Manage login accounts for your business team. Passwords are stored securely and never displayed.','إدارة حسابات تسجيل الدخول لفريق نشاطك. تُحفظ كلمات المرور بأمان ولا يتم عرضها.')}</p><div class="card"><div class="toolbar"><strong>${label('Team accounts','حسابات الفريق')} <span data-count></span></strong><input type="search" data-search placeholder="${label('Search name, email, mobile or role','ابحث بالاسم أو البريد أو الهاتف أو الدور')}" aria-label="${label('Search team accounts','البحث في حسابات الفريق')}"><button type="button" data-refresh>${label('Refresh','تحديث')}</button></div><div data-error hidden></div><div data-empty hidden>${label('No team accounts found.','لم يتم العثور على حسابات للفريق.')}</div><table><thead><tr><th>${label('Name','الاسم')}</th><th>${label('Email','البريد الإلكتروني')}</th><th>${label('Mobile','الهاتف')}</th><th>${label('Role','الدور')}</th><th>${label('Status','الحالة')}</th><th>${label('Actions','الإجراءات')}</th></tr></thead><tbody></tbody></table><div class="mobile-list"></div></div></div><dialog><form><h2>${label('Update team password','تحديث كلمة مرور الفريق')}</h2><p data-account></p><label>${label('New password','كلمة المرور الجديدة')}<input type="password" name="password" minlength="12" maxlength="72" autocomplete="new-password" required></label><label>${label('Confirm new password','تأكيد كلمة المرور')}<input type="password" name="confirmPassword" minlength="12" maxlength="72" autocomplete="new-password" required></label><div class="muted">${label('At least 12 characters. This immediately changes the account password.','12 حرفاً على الأقل. سيؤدي ذلك إلى تغيير كلمة مرور الحساب فوراً.')}</div><div data-dialog-message></div><div class="dialog-actions"><button type="button" data-close>${label('Cancel','إلغاء')}</button><button class="primary" type="submit">${label('Save password','حفظ كلمة المرور')}</button></div></form></dialog>`;
     const dialog=node.querySelector('dialog');let selected=null;
     node.querySelector('[data-search]').oninput=event=>render(node,event.target.value);
@@ -63,7 +64,7 @@
     }
   }
   let lastRoute=false;
-  function sync(){const active=route();let node=document.getElementById('sx-team-login');if(!active){node?.remove();lastRoute=false;return;}if(!node){node=createScreen();load(node);}normalizeBreadcrumb();lastRoute=active;}
-  addEventListener('salemax:languagechange',()=>{if(route()){document.getElementById('sx-team-login')?.remove();sync();}});
+  function sync(){const active=route();let node=document.getElementById('sx-team-login');if(!active){node?.remove();lastRoute=false;return;}const locale=isArabic()?'ar':'en';if(node&&node.dataset.locale!==locale){node.remove();node=null;}if(!node){node=createScreen();load(node);}normalizeBreadcrumb();lastRoute=active;}
+  addEventListener('salemax:languagechange',sync);
   addEventListener('popstate',sync);new MutationObserver(sync).observe(document.documentElement,{subtree:true,childList:true});setInterval(()=>{if(route()&&!document.getElementById('sx-team-login'))sync();},1200);sync();
 })();
