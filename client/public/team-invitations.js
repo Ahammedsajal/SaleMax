@@ -465,6 +465,22 @@
   // from the regular dashboard without first visiting that page.
   const observer = new MutationObserver(addNav);
   observer.observe(document.documentElement,{childList:true,subtree:true});
+  // Keep injected screens in sync with the application's SPA query routes. The
+  // legacy React shell changes routes with history.pushState, which does not
+  // emit popstate; without this, Team access can remain fixed over Inbox.
+  if (!window.__sxTeamRouteHistoryHook) {
+    window.__sxTeamRouteHistoryHook = true;
+    for (const method of ['pushState', 'replaceState']) {
+      const original = history[method];
+      history[method] = function (...args) {
+        const result = original.apply(this, args);
+        queueMicrotask(update);
+        return result;
+      };
+    }
+  }
   window.addEventListener('popstate',update);
+  window.addEventListener('hashchange',update);
+  window.addEventListener('pageshow',update);
   if(ownerSetupToken)activateBusinessOwner();else if (inviteToken) accept(); else update();
 })();
