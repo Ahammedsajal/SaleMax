@@ -193,3 +193,6 @@ The same active version was checked on FAQ, Team access, Tasks and Lead Reports 
 ## Student registrations phone recheck — 14 October 2026
 
 The authenticated Students route was checked at 220, 280, 320 and 390px on stylesheet version 17. The page fits its available width without page-level overflow; visible controls are in bounds and meet the 44px target. Three row actions remain reachable in the existing horizontal table scroller; no student row or profile was opened. No registration or customer data was changed.
+## SaleMaX header wordmark fit recheck — 14 October 2026
+
+A 320px authenticated browser screenshot showed the SaleMaX wordmark truncated to “Sal…”. Shared CSS version 18 now preserves the complete 58px wordmark and existing icon mark across widths 320–380px. At 320, 360 and 380px all five header controls are 44×44px, remain inside the viewport, and the document has no horizontal overflow. Branding assets were not changed. The ultranarrow 220px header retains its existing compact mark-only layout.
