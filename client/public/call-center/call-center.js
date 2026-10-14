@@ -1,14 +1,14 @@
 (() => {
   'use strict';
   const isArabic=()=>{const value=(localStorage.getItem('language')||'').toLowerCase();return value==='ar'||value.includes('arab');};
-  function applyLanguage(){const ar=isArabic();document.documentElement.lang=ar?'ar':'en';document.documentElement.dir=ar?'rtl':'ltr';document.querySelectorAll('[data-en][data-ar]').forEach(el=>el.textContent=ar?el.dataset.ar:el.dataset.en);}
+  function applyLanguage(){const ar=isArabic();document.documentElement.lang=ar?'ar':'en';document.documentElement.dir=ar?'rtl':'ltr';document.querySelectorAll('[data-en][data-ar]').forEach(el=>el.textContent=ar?el.dataset.ar:el.dataset.en);const filter=node('recordingsOnly');if(filter)filter.textContent=callHistory.recordingsOnly?text('Show all calls','عرض كل المكالمات'):text('Show recordings ready to review','عرض التسجيلات الجاهزة للمراجعة');}
   const text=(en,ar)=>isArabic()?ar:en;
   const node=id=>document.getElementById(id);
   let browserSipState='disconnected';
   let linkedLeadId='';
   let tenantTimezone='Asia/Qatar';
   let salesCategory=false;
-  const callHistory={items:[],nextCursor:null,loading:false};
+  const callHistory={items:[],nextCursor:null,loading:false,recordingsOnly:false};
   function notice(kind,message){const target=node('notice');target.dataset.kind=kind||'';target.textContent=message;}
   function bearer(){return localStorage.getItem('wacrm_user');}
   async function request(path,method='GET',body){
@@ -188,7 +188,7 @@
     callHistory.loading=true;
     const host=node('callList');
     try{
-      const cursor=append?callHistory.nextCursor:null,data=await request(`/calls${cursor?`?cursor=${encodeURIComponent(cursor)}`:''}`),items=data.items||[];
+      const cursor=append?callHistory.nextCursor:null,params=new URLSearchParams();if(callHistory.recordingsOnly)params.set('recordedOnly','1');if(cursor)params.set('cursor',cursor);const query=params.toString(),data=await request(`/calls${query?`?${query}`:''}`),items=data.items||[];
       if(append){const known=new Set(callHistory.items.map(item=>item.callId));callHistory.items.push(...items.filter(item=>!known.has(item.callId)));}
       else callHistory.items=items;
       callHistory.nextCursor=data.nextCursor||null;renderCalls(callHistory.items,data.hasMore===true);
@@ -322,6 +322,7 @@
   });
   node('browserSipHangup').addEventListener('click',async()=>{try{await window.SaleMaXSip?.hangupBrowserCall?.();}catch(_){setBrowserState('call-failed');}});
   window.addEventListener('pagehide',()=>{node('mobileSipSetup').replaceChildren();window.SaleMaXSip?.disconnectBrowserSip?.();});
+  node('recordingsOnly').addEventListener('click',event=>{callHistory.recordingsOnly=!callHistory.recordingsOnly;callHistory.items=[];callHistory.nextCursor=null;event.currentTarget.setAttribute('aria-pressed',String(callHistory.recordingsOnly));event.currentTarget.textContent=callHistory.recordingsOnly?text('Show all calls','عرض كل المكالمات'):text('Show recordings ready to review','عرض التسجيلات الجاهزة للمراجعة');loadCalls();});
   applyLanguage();node('refresh').addEventListener('click',refresh);node('outgoingForm').addEventListener('submit',placeOutboundCall);loadLinkedLead();refresh();
   window.setInterval(()=>{if(!document.hidden)loadCalls();},10000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadCalls();});

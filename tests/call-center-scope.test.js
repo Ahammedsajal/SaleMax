@@ -24,17 +24,20 @@ test('SaleMaX Sales managers and team leaders receive only calls belonging to cu
     const app=express();app.use('/call-center',createCallCenterRouter({pool:{async getConnection(){return db;}},userGuard(){throw new Error('legacy guard should not run')},canonicalGuard(req,_res,next){req.businessContext=context;next();},origin:'http://127.0.0.1'}));
     const server=http.createServer(app);await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
     t.after(()=>new Promise(resolve=>server.close(resolve)));
-    const response=await fetch(`http://127.0.0.1:${server.address().port}/call-center/calls`),body=await response.json();
+    const response=await fetch(`http://127.0.0.1:${server.address().port}/call-center/calls?recordedOnly=1`),body=await response.json();
     assert.equal(response.status,200);assert.equal(body.data.items.length,1);assert.equal(body.data.items[0].canControl,true);
     assert.equal(body.data.items[0].answeredByName,'Agent One');assert.equal(body.data.items[0].answeredByRole,'agent');
     assert.equal(body.data.items[0].startedByName,'Agent One');assert.equal(body.data.items[0].startedByRole,'agent');
     const scopeQuery=calls.find(item=>item.sql.includes('FROM sx_sales_org_history h'));
     assert.match(scopeQuery.sql,role==='manager'?/manager_membership_id/ : /team_leader_membership_id/);
     const listQuery=calls.find(item=>item.sql.includes('SELECT c.id,c.direction,c.status'));
+    assert.match(listQuery.sql,/r\.state='ready' AND r\.expires_at>UTC_TIMESTAMP\(3\)/);
     assert.match(listQuery.sql,/c\.started_by_membership_id IN \(\?\)/);assert.match(listQuery.sql,/c\.answered_by_membership_id IN \(\?\)/);assert.match(listQuery.sql,/scoped_leg\.membership_id IN \(\?\)/);
     assert.match(listQuery.sql,/answered_member\.tenant_id=c\.tenant_id AND answered_member\.id=c\.answered_by_membership_id/);
     assert.match(listQuery.sql,/started_member\.tenant_id=c\.tenant_id AND started_member\.id=c\.started_by_membership_id/);
     assert.deepEqual(listQuery.args.slice(-3),[teamIds,teamIds,teamIds]);
+    const invalidFilter=await fetch(`http://127.0.0.1:${server.address().port}/call-center/calls?recordedOnly=yes`),invalidBody=await invalidFilter.json();
+    assert.equal(invalidFilter.status,400);assert.equal(invalidBody.code,'INVALID_CALL_FILTER');
   }
 });
 
@@ -45,8 +48,10 @@ test('Call Center identifies the assigned staff member beside each call and reco
   assert.match(ui,/Handled by/);
   assert.match(ui,/call\.answeredByRole\|\|call\.startedByRole/);
   assert.match(ui,/Load older calls/);
-  assert.match(ui,/encodeURIComponent\(cursor\)/);
-  assert.match(html,/call-center\.js\?v=20261014-sales-do-not-call1/);
+  assert.match(ui,/params\.set\('cursor',cursor\)/);
+  assert.match(ui,/if\(callHistory\.recordingsOnly\)params\.set\('recordedOnly','1'\)/);
+  assert.match(html,/call-center\.js\?v=20261014-recording-review1/);
+  assert.match(html,/id="recordingsOnly"/);
 });
 
 test('Call Center call history loads older pages with a stable tenant-scoped cursor',async t=>{
