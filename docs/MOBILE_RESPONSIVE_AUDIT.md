@@ -444,3 +444,7 @@ The existing Student Registration form editor was opened read-only and checked a
 ## Admin sign-in password field — production mobile fix, 14 October 2026
 
 At 220px the Admin sign-in password field had only 28px of usable width because the visibility toggle and card padding consumed the row. The compact rule now reduces form side padding and lets the password field use remaining space. Live production checks at 220px, 260px, and 320px measured password widths of 51px, 91px, and 127px respectively; email width was 107px at 220px. LTR and temporary RTL checks had no page overflow or offscreen controls, and visible controls remained at least 44px high. No credentials were submitted.
+
+## Candidate Applications list and Course Enquiry editor — production, 14 October 2026
+
+The authenticated Candidate Applications screen was checked in Arabic/RTL at 220px and 320px. The document/body measured 212px/312px, with no horizontal overflow or offscreen controls. All 26 controls on the list view were at least 44px high. The unsaved Course Enquiry editor was then opened and checked at both widths; all 73 visible controls and checkbox labels were at least 44px high and remained within the viewport. Its field list scrolls vertically within the editor. The existing submission list was not opened, and the editor was closed with Back without saving or previewing. The Student Registration create action was not activated.
