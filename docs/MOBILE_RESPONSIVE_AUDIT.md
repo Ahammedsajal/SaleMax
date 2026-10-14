@@ -582,3 +582,7 @@ The empty FAQs screen and its unsaved Add FAQ dialog were checked at 220×760 an
 ## Lead Pipeline board, list, and follow-up views narrow-phone check — production, 14 October 2026
 
 The authenticated Lead Pipeline was checked in Arabic/RTL at 220×760 and 320×760. Board and List views keep document width within the 205px embedded workspace at 220px; the wide stage board and 760px list table scroll inside their own regions. The four view controls fit in a two-row grid and remain at least 44px high. The Follow-ups view exposed a narrow-phone overflow: its four-column KPI grid forced the embedded document to 300px wide. A targeted <=380px style now collapses those KPIs to one column; with that rule applied, the document returns to 205px and the KPI grid fits its 155px content area. At 320px the unmodified view was already within the 305px embedded document width. Only view controls were used; no lead was opened and no follow-up action or report was run.
+
+## Course Enquiry Form Builder phone check — production, 14 October 2026
+
+The blank Course Enquiry editor was opened from the Forms screen without saving a draft. At 220×760 and 320×760 in Arabic/RTL, the editor occupies the phone drawer, stays within the 212px/312px viewport, and scrolls vertically. Visible text fields are 44px high; textareas are 78px; the field-toggle labels are at least 48×44px. Back, Save draft, and Preview controls are each at least 44px high and in bounds. No form content was entered or saved.
