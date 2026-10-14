@@ -83,7 +83,7 @@ Business screens still to review:
 - Customer document tables and reminder preference actions need valid customer links for complete audit; public Student Registration staff capture was rechecked at 220px and 320px in English and Arabic/RTL.
 - Call Center, Commission Policy, Organization, Sales Overview, Sales Targets, Sales Deals, Commissions, Sales Finance, and all role-specific states. On the current account, `?page=call-center` and `?page=commission-policy` resolve to Dashboard, and `?page=sales-organization` displays Dashboard content instead of Organization. Call Center is also absent from the navigation drawer. These target screens remain unverified until an account/access state can render them.
 - Sales Overview navigation redirected this business account to Dashboard, so sales-only screens need an account with the required role/access before mobile review.
-- Inbox conversation pane and actions, once an approach is confirmed that does not change message read state.
+- Inbox conversation pane and actions remain unverified because opening a conversation can change its read state; the list-only view has now been checked at 220px and 320px.
 
 Admin screens still to review:
 
@@ -406,3 +406,9 @@ Production serves `/salemax-mobile.css?v=20261014-mobile-compact34`. CSS SHA-256
 ## Public Student Registration staff-capture recheck — production, 14 October 2026
 
 The blank Pro Catalyst staff-capture form was rechecked at 220px and 320px in English/LTR and Arabic/RTL. The page stayed within its 205px/305px layout width. All 26 real text/select/date fields measured 44px and remained in bounds; visible language, Add another course, and Clear signature actions measured 44px, Submit measured 50px, and the agreement target fit (134×72px at 220px; 234×48px at 320px). The 134×180px signature canvas fit at 220px. The offscreen anti-spam field was excluded from user control measurements. No form value was entered, no additional course was added, and no registration was submitted.
+
+## Phonebook selection controls — production fix, 14 October 2026
+
+The authenticated Phonebook list was reviewed without opening a contact or changing list data. At 320px, the page has no horizontal overflow, but its select-all and per-row checkboxes measured 42×42px. The compact35 mobile stylesheet raises all visible table-selection targets to 44×44px. At 220px and 320px, the page remains within the viewport; the list's own grid remains horizontally scrollable without adding page-level overflow. On the live page, all 11 rendered selection controls measured 44×44px at both widths, and no visible button/input/select/textarea was smaller than 44px. The document remained 212px wide within the 220px layout viewport and 320px wide at 320px. The Inbox list-only view was also checked at 220px and 320px with at least 44px toolbar controls and no page-level overflow. Unread conversations were not opened, so the conversation pane and actions remain unverified.
+
+Production serves `/salemax-mobile.css?v=20261014-mobile-compact35`. CSS SHA-256 is `a933550e10e3c2e0c05c4e8fbb2abb4d698947a35c1c09c30f86f901f97a08d9`; production-generated index SHA-256 is `25664c62ca1106bbd1905bd3b9b1bf4de8bcd69a9acc28b9200c2e8de7640142`. Release and container copies match; `/healthz` and the versioned CSS return HTTP 200. The active release stayed `/opt/salemax/releases/inbox-shared-qr-access-a880679-20261014`; `salemax-app-1` remained running with zero restarts. Protected before-images are under `/opt/salemax/shared/backups/mobile-phonebook-checkbox-20261014` (directory mode 700, files mode 600). No database, contact, conversation, or other business data changed.

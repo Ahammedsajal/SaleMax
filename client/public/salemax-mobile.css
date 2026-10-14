@@ -400,6 +400,17 @@
   #root header .MuiToolbar-root>p{display:none!important}
 }
 
+/* Expand compact MUI table-selection checkboxes to a reliable phone touch target. */
+@media(max-width:600px){
+  #root main:has(input[aria-label="Select all rows"]) .MuiCheckbox-root{
+    width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
+    box-sizing:border-box!important
+  }
+  #root main:has(input[aria-label="Select all rows"]) .MuiCheckbox-root .PrivateSwitchBase-input{
+    width:100%!important;height:100%!important
+  }
+}
+
 /* Keep Finance filters compact and reachable with phone-sized tap targets. */
 @media(max-width:600px){
   #sx-finance-screen input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]),
