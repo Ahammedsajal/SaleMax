@@ -503,3 +503,16 @@
   }
   #sx-faqs-screen .sx-faq-form textarea{min-height:80px!important;height:auto!important;box-sizing:border-box!important}
 }
+
+/* Bring standard app text fields up to a comfortable phone tap height. */
+@media(max-width:600px){
+  #root main .MuiTextField-root .MuiInputBase-root,
+  #root main .MuiTextField-root input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),
+  #root main .MuiTextField-root textarea{
+    min-height:44px!important;box-sizing:border-box!important
+  }
+  #root main:has(button[aria-label*="clipboard"]) .MuiStack-root .MuiIconButton-root,
+  #root main:has(button[aria-label*="الحافظة"]) .MuiStack-root .MuiIconButton-root{
+    width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important
+  }
+}
