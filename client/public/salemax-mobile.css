@@ -550,3 +550,26 @@
     width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important
   }
 }
+
+/* App-like phone density: reduce visual scale while keeping 44px touch targets. */
+@media(max-width:600px){
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h1{font-size:21px!important;line-height:1.2!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h2{font-size:19px!important;line-height:1.25!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h3{font-size:17px!important;line-height:1.3!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h4{font-size:16px!important;line-height:1.3!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h5{font-size:15px!important;line-height:1.35!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h6{font-size:14px!important;line-height:1.35!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-body1,
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-subtitle1{font-size:13px!important;line-height:1.4!important}
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-body2,
+  #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-subtitle2{font-size:12px!important;line-height:1.4!important}
+  #root main .MuiCardHeader-root{padding:10px 12px!important}
+  #root main .MuiCardContent-root{padding:12px!important}
+  #root main .MuiCardContent-root:last-child{padding-bottom:12px!important}
+  #root main .MuiCardActions-root{gap:6px!important;padding:6px 12px 10px!important}
+  #root main .MuiButton-root{font-size:13px!important;line-height:1.25!important;padding-inline:10px!important}
+  #root main .MuiInputBase-root{font-size:14px!important}
+  .MuiDialog-root .MuiDialogTitle-root{font-size:18px!important;line-height:1.3!important;padding:14px 16px 8px!important}
+  .MuiDialog-root .MuiDialogContent-root{padding:8px 16px 12px!important}
+  .MuiDialog-root .MuiDialogActions-root{gap:6px!important;padding:8px 16px 14px!important}
+}

@@ -175,3 +175,7 @@ The production pointer advanced from the prior mobile release to a newer applica
 ## Finance and FAQ fresh active-release recheck — 14 October 2026
 
 On the current active release, Finance Settings was checked at 220px and 320px in Arabic/RTL. Its fixed screen fits the page width, visible controls are at least 44px high, and the 660px invoice table remains within its 141px internal scroller; no invoice was opened. FAQ at 220px/320px has no horizontal overflow, a 22px heading, and visible actions at 44px. No finance or FAQ content was changed.
+
+## Shared phone density refinement — 14 October 2026
+
+The shared app stylesheet now uses smaller phone typography (21px main heading, 19px section heading, 17px third-level heading, and 12–14px supporting text), tighter card/dialog spacing, and compact button labels across MUI-backed business and admin screens. Existing 44px minimum touch targets remain. The original SaleMaX/WhatsApp branding and mobile header sizing are unchanged. This is a source change only; authenticated production verification and role-specific screen coverage remain open.
