@@ -163,6 +163,38 @@ async function list(pool,ownerUid){
     return {categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
   });}finally{db.release();}
 }
+async function updateMemberPassword(pool,ownerUid,memberId,input={}){
+  if(!/^\d{1,18}$/.test(String(memberId||'')))fail('INVALID_ID');
+  if(typeof input.password!=='string'||Array.from(input.password).length<12||Buffer.byteLength(input.password,'utf8')>72)fail('INVALID_PASSWORD');
+  const db=await pool.getConnection();
+  try{return await tx(db,async()=>{
+    await storage(db);const scope=await ownerScope(db,ownerUid);
+    const [[member]]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,i.status AS identityStatus
+      FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
+      WHERE m.tenant_id=? AND m.id=? AND m.status='active' FOR UPDATE`,[scope.tenantId,Number(memberId)]);
+    if(!member||member.identityStatus!=='active')fail('MEMBER_NOT_FOUND');
+    const [links]=await db.query(`SELECT source_table AS sourceTable,source_id AS sourceId,legacy_uid_hash AS legacyUidHash FROM sx_legacy_ownership
+      WHERE tenant_id=? AND membership_id=? AND source_table IN ('user','agents') FOR UPDATE`,[scope.tenantId,member.id]);
+    if(links.length!==1)fail('BUSINESS_LINK_INVALID');
+    const passwordHash=await bcrypt.hash(input.password,12);
+    const [identity]=await db.query(`UPDATE sx_identities SET password_hash=?,credential_version=credential_version+1
+      WHERE id=? AND status='active'`,[passwordHash,member.identityId]);
+    if(identity.affectedRows!==1)fail('MEMBER_NOT_FOUND');
+    let legacy;
+    if(links[0].sourceTable==='agents'){
+      const [[account]]=await db.query('SELECT uid FROM agents WHERE id=? AND owner_uid=? FOR UPDATE',[Number(links[0].sourceId),ownerUid]);
+      if(!account||digest(account.uid)!==links[0].legacyUidHash)fail('BUSINESS_LINK_INVALID');
+      [legacy]=await db.query('UPDATE agents SET password=? WHERE id=? AND owner_uid=?',[passwordHash,Number(links[0].sourceId),ownerUid]);
+    }else{
+      const [[account]]=await db.query('SELECT uid FROM user WHERE id=? FOR UPDATE',[Number(links[0].sourceId)]);
+      if(!account||digest(account.uid)!==links[0].legacyUidHash)fail('BUSINESS_LINK_INVALID');
+      [legacy]=await db.query('UPDATE user SET password=? WHERE id=?',[passwordHash,Number(links[0].sourceId)]);
+    }
+    if(legacy.affectedRows!==1)fail('BUSINESS_LINK_INVALID');
+    await audit(db,scope.identityId,scope.tenantId,'team.password-updated',member.id,{role:member.role,credentialVersionIncremented:true},'team-member');
+    return {memberId:String(member.id),updated:true};
+  });}finally{db.release();}
+}
 async function salesOrganization(pool,legacyUid){
   if(typeof legacyUid!=='string'||!legacyUid)fail('AUTH_REQUIRED');
   const db=await pool.getConnection();
@@ -375,4 +407,4 @@ async function accountSession(pool,ownerUid,membershipId,{jwtKey,returning=false
     return {token:legacyToken,cookieToken:raw,sessionId:id,expiresInSeconds:seconds};
   });}finally{db.release();}
 }
-module.exports={accountSession,create,list,salesOrganization,reassignSalesMember,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};
+module.exports={accountSession,create,list,updateMemberPassword,salesOrganization,reassignSalesMember,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};

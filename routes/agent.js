@@ -130,6 +130,25 @@ router.get("/get_my_agents", validateUser, async (req, res) => {
   }
 });
 
+router.put("/team-login/:agentUid/password", validateUser, async (req, res) => {
+  try {
+    const password = req.body?.password;
+    if (typeof password !== "string" || Array.from(password).length < 12 || Buffer.byteLength(password, "utf8") > 72) {
+      return res.status(400).json({ success: false, code: "INVALID_PASSWORD", msg: "Use a password with at least 12 characters." });
+    }
+    const hashPass = await bcrypt.hash(password, 12);
+    const result = await legacyAgentAccess.setOwnerPassword(require("../database/config.js").promise(), req.decode.uid, req.params.agentUid, hashPass);
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    if (legacyAgentAccess.messages[err.code]) {
+      const status = err.code === "AGENT_NOT_FOUND" ? 404 : err.code === "AGENT_LINKED_USE_TEAM_ACCOUNT" ? 409 : 400;
+      return res.status(status).json({ success: false, code: err.code, msg: legacyAgentAccess.messages[err.code] });
+    }
+    console.log(err);
+    return res.status(503).json({ success: false, code: "AGENT_PASSWORD_UPDATE_UNAVAILABLE" });
+  }
+});
+
 // change status mask number
 router.post("/change_status_mask", validateUser, async (req, res) => {
   try {
