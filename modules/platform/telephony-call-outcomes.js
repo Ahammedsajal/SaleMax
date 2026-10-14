@@ -4,10 +4,10 @@ const pipeline=require('../../helper/pipeline/leadPipeline');
 const pipelineActors=require('./legacy-pipeline-actor');
 const callCoaching=require('./telephony-call-coaching');
 const {decision}=require('./policy');
-const outcomes=new Set(['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested']);
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 
-function normalizeInput(input){
+function normalizeInput(input,{categoryKey}={}){
+  const outcomes=new Set(['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested',...(categoryKey==='salemax_sales'?['do_not_call']:[])]);
   if(!input||typeof input!=='object'||Array.isArray(input)||!outcomes.has(input.outcome))fail('INVALID_CALL_OUTCOME');
   if(input.followUpRequired!==undefined&&typeof input.followUpRequired!=='boolean')fail('INVALID_CALL_OUTCOME');
   if(input.followUpRequired&&typeof input.nextFollowUpAt!=='string')fail('INVALID_CALL_OUTCOME');
@@ -15,6 +15,10 @@ function normalizeInput(input){
   if(input.followUpRequired!==true&&input.nextFollowUpAt!==undefined&&input.nextFollowUpAt!==null)fail('INVALID_CALL_OUTCOME');
   if(input.note!==undefined&&typeof input.note!=='string')fail('INVALID_CALL_OUTCOME');
   const note=String(input.note||'').trim();if(note.length>2000)fail('INVALID_CALL_OUTCOME');
+  if(input.outcome==='do_not_call'){
+    if(input.followUpRequired===true||input.nextFollowUpAt!==undefined&&input.nextFollowUpAt!==null)fail('INVALID_CALL_OUTCOME');
+    return {outcome:input.outcome,note,followUpRequired:false,nextFollowUpAt:null};
+  }
   return {outcome:input.outcome,note,
     ...(input.followUpRequired===true?{followUpRequired:true,nextFollowUpAt:input.nextFollowUpAt}:{})};
 }
@@ -52,10 +56,10 @@ function createTelephonyCallOutcomes(pool,{pipelineService=pipeline,scopeCall=ca
     if(!call.leadId)fail('CALL_LEAD_NOT_LINKED');
     if(!['ended','failed'].includes(call.status))fail('CALL_NOT_FINISHED');
     const actor=await resolveActor(db,pool,context);
-    const data=normalizeInput(input);
+    const data=normalizeInput(input,{categoryKey:actor.categoryKey});
     await pipelineService.updateLead({uid:actor.uid,id:call.leadId,input:data,actorType:actor.actorType,
-      actorId:actor.actorId,role:actor.role,agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds},pool);
-    return {callId,leadId:call.leadId,outcome:data.outcome,followUpRequired:data.followUpRequired};
+      actorId:actor.actorId,role:actor.role,agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,categoryKey:actor.categoryKey},pool);
+    return {callId,leadId:call.leadId,outcome:data.outcome,followUpRequired:data.followUpRequired===true};
   }};
 }
 

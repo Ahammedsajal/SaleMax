@@ -1,3 +1,9 @@
+## SaleMaX Sales call opt-out suppression — source change under review, 14 October 2026
+
+The existing Sales Call Center can record a lead's explicit request not to receive further calls. That outcome is available only to the private SaleMaX Sales category, is saved through the existing tenant-scoped Pipeline activity, clears any follow-up, and blocks later outbound calls for that lead. The shared Call Center reports the tenant category so Training Center users do not see the Sales-only option. This is an internal calling suppression control; it does not by itself establish compliance with external calling preferences, registration, consent or carrier requirements.
+
+Focused outcome, lead-scope, call-scope and coaching checks pass 27/27 after the cache-key assertion update; syntax and diff checks pass. This source change is not deployed. Production Asterisk remains inactive and calling/recording provider acceptance is still open. No migration or production data change is required. The complete 42-ticket upgrade remains in progress.
+
 ## SaleMaX Sales shared page spacing and theme tokens — production, 14 October 2026
 
 PR #110 merged to `main` as `ede2458907870d684028ae11a3b8177659497af6` and is live in `/opt/salemax/releases/sales-layout-alignment-ede2458-20261014`. The five Sales-only workspaces now share consistent desktop/mobile gutters; focus rings and Commission Policy badge colors use shared SaleMaX tokens. Shared Training Center task and call-center styling was preserved. The 23 focused layout, organization, finance, commission and audit checks pass. Public asset hashes match source, release, running container and HTTPS; health and login are 200, the anonymous Sales Audit API is 401, and the app is healthy with zero restarts. No migration or business-data change occurred. Rollback and full asset hashes are in `DEPLOYMENT.md`.

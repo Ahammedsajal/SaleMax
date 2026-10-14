@@ -28,13 +28,32 @@ test('call outcomes cannot be saved for an unlinked or unfinished call',async()=
   }
 });
 
+test('Sales do-not-call outcomes clear follow-ups and cannot be selected by other categories',()=>{
+  assert.deepEqual(normalizeInput({outcome:'do_not_call',note:'Asked us not to call again'},{categoryKey:'salemax_sales'}),
+    {outcome:'do_not_call',note:'Asked us not to call again',followUpRequired:false,nextFollowUpAt:null});
+  assert.throws(()=>normalizeInput({outcome:'do_not_call'}),{code:'INVALID_CALL_OUTCOME'});
+  assert.throws(()=>normalizeInput({outcome:'do_not_call',followUpRequired:true,nextFollowUpAt:'2026-10-15T04:30:00.000Z'},{categoryKey:'salemax_sales'}),{code:'INVALID_CALL_OUTCOME'});
+});
+
+test('recording a Sales do-not-call outcome marks the linked lead through the existing scoped Pipeline service',async()=>{
+  const writes=[];
+  const db={async query(sql,args){assert.match(sql,/sx_telephony_calls/);assert.deepEqual(args,['tenant-sales','call-1']);return [[{leadId:'lead-1',status:'ended'}],[]];}};
+  const service=createTelephonyCallOutcomes({}, {scopeCall:async()=>{},resolveActor:async()=>({uid:'owner-uid',role:'agent',actorType:'agent',actorId:'agent-row-id',agentId:12,scopeAgentIds:[12],categoryKey:'salemax_sales'}),pipelineService:{async updateLead(...args){writes.push(args);}}});
+  const result=await service.log(db,context(),'call-1',{outcome:'do_not_call',note:'Customer asked us to stop calling.'});
+  assert.deepEqual(result,{callId:'call-1',leadId:'lead-1',outcome:'do_not_call',followUpRequired:false});
+  assert.deepEqual(writes[0][0].input,{outcome:'do_not_call',note:'Customer asked us to stop calling.',followUpRequired:false,nextFollowUpAt:null});
+  assert.equal(writes[0][0].categoryKey,'salemax_sales');
+});
+
 test('call outcome form is in Call Center and uses the existing scoped outcome API and timezone helper',()=>{
   const root=path.join(__dirname,'..');const ui=fs.readFileSync(path.join(root,'client/public/call-center/call-center.js'),'utf8');
   const html=fs.readFileSync(path.join(root,'client/public/call-center/index.html'),'utf8');const api=fs.readFileSync(path.join(root,'modules/platform/call-center-router.js'),'utf8');
   assert.match(ui,/Log call outcome/);assert.match(ui,/\/calls\/\$\{encodeURIComponent\(call\.callId\)\}\/lead-outcome/);
   assert.match(ui,/SaleMaXDateTime\.fromInput\(due\.value,tenantTimezone\)/);assert.match(ui,/updateLeadFromCall|lead-outcome/);
+  assert.match(ui,/salesCategory=data\.categoryKey==='salemax_sales'/);assert.match(ui,/salesCategory\?\[\['do_not_call'/);
+  assert.match(ui,/\['do_not_call','Do not call again'/);assert.match(ui,/CALL_LEAD_DO_NOT_CALL/);
   assert.match(html,/sales-design-tokens\.css[\s\S]*call-center\.css/);assert.match(html,/timezone-datetime\.js[\s\S]*call-center\.js/);
-  assert.match(api,/calls\/:callId\/lead-outcome/);assert.match(api,/SELECT timezone FROM sx_tenants/);
+  assert.match(api,/calls\/:callId\/lead-outcome/);assert.match(api,/SELECT timezone FROM sx_tenants/);assert.match(api,/categoryKey:context\.tenant\.categoryKey/);assert.match(api,/CALL_LEAD_DO_NOT_CALL/);
 });
 
 test('Sales follow-up entry treats typed time as Asia/Kolkata local time',()=>{

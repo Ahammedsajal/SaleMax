@@ -34,6 +34,9 @@ async function resolveLeadLink(db,context,leadId){
     WHERE uid_hash=? AND id=? LIMIT 1 FOR UPDATE`,[uidHash,leadId]);
   const lead=leads[0];
   if(!lead||(allowedAgentIds!==null&&(!lead.owner_agent_id||!allowedAgentIds.includes(Number(lead.owner_agent_id)))))fail('CALL_LEAD_NOT_ACCESSIBLE',404);
+  const [[suppression]]=await db.query(`SELECT id FROM pipeline_activity WHERE uid_hash=? AND lead_id=?
+    AND activity_type='contact_outcome' AND summary='Contact outcome: do_not_call' LIMIT 1`,[uidHash,lead.id]);
+  if(suppression)fail('CALL_LEAD_DO_NOT_CALL',409);
   const destination=String(lead.mobile||'').trim();
   if(!/^\+[1-9][0-9]{7,14}$/.test(destination))fail('CALL_LEAD_PHONE_INVALID',409);
   return {leadId:lead.id,leadUidHash:uidHash,destination};

@@ -13,12 +13,13 @@ const uidHash=crypto.createHash('sha256').update(ownerUid).digest('hex');
 function context(role='owner'){
   return {tenant:{id:tenantId,categoryKey:'salemax_sales'},membership:{id:`${role}-membership`,role}};
 }
-function dbFor(role,{ownerCount=1,agentCount=1,leadOwnerAgentId=41,leadMobile='+919876543210'}={}){
+function dbFor(role,{ownerCount=1,agentCount=1,leadOwnerAgentId=41,leadMobile='+919876543210',leadSuppressed=false}={}){
   return {async query(sql){
     if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[...Array(ownerCount)].map(()=>({uid:ownerUid,legacyUidHash:uidHash})),[]];
     if(sql.includes('SELECT a.id,a.uid,o.legacy_uid_hash'))return [[...Array(agentCount)].map((_,index)=>({id:41+index,uid:'agent-uid',legacyUidHash:crypto.createHash('sha256').update('agent-uid').digest('hex')})),[]];
     if(sql.includes('SELECT DISTINCT a.id,a.uid,o.legacy_uid_hash'))return [[{id:41,uid:'agent-uid',legacyUidHash:crypto.createHash('sha256').update('agent-uid').digest('hex')}],[]];
     if(sql.includes('SELECT id,owner_agent_id,mobile FROM pipeline_leads'))return [[{id:leadId,owner_agent_id:leadOwnerAgentId,mobile:leadMobile}],[]];
+    if(sql.includes('FROM pipeline_activity'))return [[...(leadSuppressed?[{id:1}]:[])],[]];
     throw new Error(`Unexpected lead authorization query: ${sql}`);
   }};
 }
@@ -41,6 +42,10 @@ test('Sales outbound calls require an accessible lead and use its server-side ph
   const recipient=await resolveOutboundRecipient(dbFor('agent'),context('agent'),{leadId,destination:'+919999999999'});
   assert.equal(recipient.destination,'+919876543210');
   assert.equal(recipient.leadLink.leadId,leadId);
+});
+
+test('Sales outbound calls are blocked after the lead has a recorded do-not-call outcome',async()=>{
+  await assert.rejects(resolveOutboundRecipient(dbFor('agent',{leadSuppressed:true}),context('agent'),{leadId}),{code:'CALL_LEAD_DO_NOT_CALL'});
 });
 
 test('Asterisk call origination rejects an unlinked SaleMaX Sales call before database or PBX work',async()=>{
