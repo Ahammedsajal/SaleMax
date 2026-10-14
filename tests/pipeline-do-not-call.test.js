@@ -40,8 +40,12 @@ test('other categories do not run the Sales suppression lookup',async()=>{
 test('Pipeline displays bilingual do-not-call status and only offers the disposition in SaleMaX Sales',()=>{
   const root=path.join(__dirname,'..');
   const screen=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.js'),'utf8');
+  const reports=fs.readFileSync(path.join(root,'client/public/pipeline/reports.js'),'utf8');
+  const html=fs.readFileSync(path.join(root,'client/public/pipeline/index.html'),'utf8');
   const router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8');
   assert.match(screen,/doNotCall:'Do not call'/);assert.match(screen,/doNotCall:'ممنوع الاتصال'/);
   assert.match(screen,/lead\.doNotCall/);assert.match(screen,/x\.doNotCall/);assert.match(screen,/state\.data\.categoryKey==='salemax_sales'/);
   assert.match(router,/categoryKey: req\.pipelineActor\.categoryKey/);assert.match(router,/categoryKey:req\.pipelineActor\.categoryKey/);
+  assert.match(reports,/do_not_call:'Do not call'/);assert.match(reports,/do_not_call:'عدم الاتصال'/);
+  assert.match(html,/reports\.js\?v=20261014-sales-do-not-call1/);
 });
