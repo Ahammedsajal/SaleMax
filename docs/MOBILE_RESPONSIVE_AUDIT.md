@@ -640,3 +640,25 @@ The signed-in Training Test account now loads the embedded Tasks app (supersedin
 The blank New task form was opened and inspected at both widths. Its dialog is 196px wide at 220px and 296px at 320px, contained within the viewport, and scrolls internally through its participant list. Title/date/select controls and Cancel/Save task are 44px high; Description is 80px. Assignee checkboxes sit inside larger 129px touch rows at 220px. Keyboard focus reaches the footer, with the 44px Cancel and Save task actions inside the scrolled dialog. The form was closed without saving.
 
 Notification preferences were inspected at 220px and 320px. Dialog widths are 204px and 304px respectively; the checkbox label row is 176×57px at 220px, and Cancel, Save preferences, and Close are 44px. At 220px, Cancel and Save stack; at 320px they fit side by side. The notification checkbox was not toggled and Save preferences was not used. The task list is empty, so task detail/edit states remain unavailable. The embedded Tasks UI stays English/LTR when the outer SaleMaX shell is switched to RTL; its controls remain within the embedded width.
+
+## Team Access forms extra-narrow phone fix — production, 14 October 2026
+
+The 220px Team Access screen had an internal horizontal overflow in both role-management forms: Add staff controls were 230px inside a 159px form, and role form content reached 179px. A targeted mobile style now sizes labels, fields, buttons and the permission fieldset to the available card width. The live Add staff and Create role forms measure 159px at 220px and 258px at 320px; all children fit. The screen scroll width equals its 204px/304px client width, with document widths 212px/312px, in both LTR and RTL. On the 220px page, buttons and text inputs remain at least 44px, navigation access rows at least 44px, and expanded role-permission rows 60px high. No role, invitation, or access value was changed. See `DEPLOYMENT.md` for hashes and rollback.
+
+The invitation list identifies the Sales role as `Agent`, with accounts `agent1@salemax.qa` through `agent7@salemax.qa`. “Login as” is available only for the Manager and Accountant, not Agents. Agent-only Sales screens still need the user to sign into an Agent account.
+
+## Narrow Campaign Dashboard tab density — production, 14 October 2026
+
+At the 212px layout viewport, the paired Campaign Dashboard tabs fit the page but their original 13px labels produced an overly tall tab row. The shared mobile stylesheet now reduces paired-tab labels to 11px below 260px while retaining the 44px minimum touch height. Production DOM measurement after deployment shows both tabs within the 220px document at 85×53px with whole words wrapping only at spaces; at 320px both remain 131×45px in a 312px document. The production stylesheet and generated index match the active release and container; `/healthz` reports healthy with zero container restarts. No campaign was changed or sent.
+
+## WhatsApp device and Meta connection screens — production, 14 October 2026
+
+At 212px and 320px layout widths, the WhatsApp Devices empty state has no document overflow; How to? and Add Device remain in bounds with 44px targets. No device was added. The Meta API Keys screen was checked at 212px with its Manual Setup panel open: all four credential fields and the visible action buttons are 44px and in bounds, and the document stays 212px wide. The webhook URL content was not copied or recorded; credential values were not read, and Save/Fetch were not activated. Embed Login was still loading during this review.
+
+## Invoice register and create form — production, 14 October 2026
+
+At 312px, the invoice register and its filter/action controls fit the viewport; all visible buttons are 44px. The blank Create invoice form was inspected without changing fields or saving: at 312px the dialog/document remain 312px wide, and at 212px they remain 212px wide. Text/select fields and actions are at least 44px; the two customer-source radio labels provide 67px click rows even though the underlying radio inputs are 40px. The long form remains vertically scrollable. The form was closed without creating an invoice; no invoice or payment data was changed.
+
+## Paired-tab whole-word wrapping follow-up — production, 14 October 2026
+
+After the first typography adjustment, a rendered text-range check still found a campaign-tab word breaking mid-word at 212px. The follow-up rule preserves whole words; measured tab heights are now 53px at 212px with 11px labels and 45px at 312px with 13px labels. Both tabs fit the screen width and maintain their 44px minimum touch target.
