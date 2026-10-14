@@ -430,3 +430,12 @@
   }
   #root header .MuiToolbar-root>p{display:none!important}
 }
+
+/* Keep Finance filters compact and reachable with phone-sized tap targets. */
+@media(max-width:600px){
+  #sx-finance-screen input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]),
+  #sx-finance-screen select,
+  #sx-finance-screen textarea{min-height:44px!important;box-sizing:border-box!important;font-size:13px!important}
+  #sx-finance-screen button{min-height:44px!important;box-sizing:border-box!important}
+  #sx-finance-screen .sx-reminder-offset-chip button{width:44px!important;height:44px!important;padding:0!important}
+}
