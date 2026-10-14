@@ -551,6 +551,14 @@
   }
 }
 
+/* Keep compact two-tab screens fully readable at extra-narrow phone widths. */
+@media(max-width:260px){
+  #root main .MuiTabs-list:has(>.MuiTab-root.MuiTab-labelIcon:nth-child(2):last-child)>.MuiTab-root{
+    min-width:0!important;max-width:calc(100vw - 60px)!important;height:auto!important;
+    padding-inline:6px!important;white-space:normal!important;line-height:1.2!important
+  }
+}
+
 /* App-like phone density: reduce visual scale while keeping 44px touch targets. */
 @media(max-width:600px){
   #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h1{font-size:21px!important;line-height:1.2!important}
