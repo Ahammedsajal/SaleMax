@@ -1,3 +1,11 @@
+## SaleMaX Sales agent-scoped call review — production, 14 October 2026
+
+The existing Call Center now lets Business Admins, Sales Managers and Team Leaders select an active agent and page through that agent’s calls, with an optional ready-recordings filter. The roster and call APIs enforce tenant and current organization scope; out-of-team agents are denied before call rows are queried. Existing playback and coaching flows are reused. No migration or business-data write occurred.
+
+PR #115 merged to `main` as `f206d79265059f8a1fa38b56534d2df8dbb2fc5d` and is live in `/opt/salemax/releases/sales-call-agent-review-f206d79-20261014`. Focused Call Center, call-outcome and Sales navigation checks pass 26/26. Production health/login/Call Center routes, anonymous API rejection, in-container syntax and release/container/public hashes were verified. The app alone was recreated; database and report worker were not. Full evidence and rollback instructions are in `DEPLOYMENT.md`.
+
+First-party tenant/staff provisioning and authenticated role acceptance remain open. Asterisk remains inactive and recording off by default, so real calls and playback remain unverified. The full workspace objective remains in progress.
+
 ## SaleMaX Sales Call Center recording review filter — production, 14 October 2026
 
 The existing Call Center now has a bilingual toggle for calls with recordings that are ready and within retention. The paginated endpoint validates the filter and applies it within the existing tenant, assigned-call and manager/team-leader organization scopes. Playback still goes through the existing audited, role-scoped endpoint; no recording policy was enabled or changed.
