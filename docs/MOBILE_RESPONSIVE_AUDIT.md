@@ -495,9 +495,9 @@ The authenticated Campaign Dashboard overview was rechecked in Arabic/RTL at 390
 
 The Arabic Admin sign-in screen was checked at 390×844, 320×760, and 220×760. Page width matched each viewport. The email/password controls and sign-in button remained in bounds and 44px high; the password visibility control measured 44×44px. At 220px, the editable password text area measured 51px wide beside the toggle, and the email text area measured 107px wide. The phone layout has no horizontal overflow. No sign-in, password visibility, reset, or other form action was activated.
 
-## Sign-in mobile link tap targets — source fix pending production, 14 October 2026
+## Sign-in mobile link tap targets — production, 14 October 2026
 
-The Admin reset-password link and the business login recovery, account-creation, Terms, and Privacy links were rendered below 44px on the live sign-in pages. The shared mobile stylesheet now expands these targets to 44px only on email/password sign-in screens up to 600px wide. Live-page previews at 220px, 320px, and 390px measured each visible business link at 44px with no page overflow; the Admin reset link and existing 44px form controls also remain in bounds. No login, visibility, recovery, or account-creation action was activated. Source deployment and final live recheck are pending.
+The Admin reset-password link and the business login recovery, account-creation, Terms, and Privacy links were rendered below 44px on the live sign-in pages. The shared mobile stylesheet expands these targets to 44px only on email/password sign-in screens up to 600px wide. After production deployment, authenticated Arabic/RTL browser checks at 220px, 320px, and 390px measured all four business login links at 44px with no page overflow; the Admin reset link and existing 44px form controls also remain in bounds at 220px. The deployed cache key is `20261014-mobile-compact40`. No login, visibility, recovery, or account-creation action was activated.
 
 ## Campaign Dashboard All Campaigns mobile recheck — production, 14 October 2026
 

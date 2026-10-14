@@ -1,6 +1,14 @@
 Warning: truncated output (original token count: 119984)
 Total output lines: 1619
 
+## SaleMaX sign-in mobile link tap targets — production, 14 October 2026
+
+- Source commit `81405ee` (`Improve mobile sign-in link targets`) is on `mobile-responsive-mainline-20261014` (draft PR #137). The shared mobile stylesheet expands password-recovery, business account-creation, Terms, and Privacy links to 44px on sign-in screens up to 600px. It is scoped to sign-in screens that contain a password input. No logo or branding asset changed.
+- Active release remains `/opt/salemax/releases/inbox-shared-qr-access-a880679-20261014`; the release pointer and app container were not changed. CSS SHA-256 is `be6b2d0f0c3d692050d1b4d8e143198f1c4f8a4f7613b269301e737a02e888fb`. The production-generated index was preserved and only its stylesheet reference advanced to `20261014-mobile-compact40`; its SHA-256 is `39f186dd57cb1d4b8a3a1ea3a5654e0b4a8369d2db4d93fd37c9c7c8b68c58f6`. Release, container, and served public stylesheet hashes match.
+- Protected before-images are in `/opt/salemax/shared/backups/mobile-signin-links-compact40-20261014` (directory mode 0700; files mode 0600). `release-css.before` and `container-css.before` have SHA-256 `7e26767914a2ac6bdf0e5aa403db2aa9d235c15f73c9a78ea9bd35799317af4b`; `release-index.before` and `container-index.before` have SHA-256 `91ccb3056e369d639fbb9067420957f091672a40d753b72eecc8b657b1139421`. For rollback, restore the corresponding `release-*` files into the active release's `client/public/`, then `docker cp` those files into `/app/client/public/` in `salemax-app-1`; no restart or release-pointer change is needed.
+- Verification: production `/healthz` returned `status: ok`; `salemax-app-1` remained healthy with restart count 0. The versioned stylesheet returned HTTP 200 and matched the release/container hash. Authenticated Arabic/RTL browser measurements at 220px, 320px, and 390px show all four business login links at 44px with no horizontal overflow. Admin reset, email/password controls, visibility, and submit controls measured 44px at 220px with no horizontal overflow. No login, recovery, account creation, or business data action was triggered. No migration or database change occurred.
+- Remaining gates: full mobile route/state coverage and Admin/Sales role screens remain open; Tasks' embedded session remains expired and the required platform-admin/Sales-role accounts are not yet available.
+
 ## SaleMaX mobile header language control — production, 14 October 2026
 
 - Source commit: `7b6c8c71e9f8697fcfe062b4bf90aee7880e329e` on `mobile-responsive-mainline-20261014` (draft PR #137). At 550px, the language switch label wrapped inside its 44px control. The shared mobile stylesheet now clips that text visually from 381px through 600px while retaining the accessible “Lang Arabic” name; the existing SaleMaX shell and logo assets are unchanged. The stylesheet key is `20261014-mobile-compact37`.
