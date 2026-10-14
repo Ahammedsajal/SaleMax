@@ -515,6 +515,6 @@ The authenticated main Dashboard (`/user?page=dashboard`) was measured in Arabic
 
 The authenticated Inbox list was rechecked at 390×844, 320×760, and 220×760 without opening any conversation. Document/body widths were 390/390px, 320/320px, and 212/212px; 13 visible interactive controls remained in bounds and at least 44px high at every width. No message or read state changed. The small auxiliary iframe is an existing 1px-high utility frame; its contents were not accessed.
 
-## Student Registrations table link target — source update, 14 October 2026
+## Student Registrations table link target — production, 14 October 2026
 
-The authenticated Student Registrations screen was checked in Arabic/RTL at 390×844, 320×760, and 220×760. Document/body widths remained 382px, 312px, and 212px. Its approximately 592–600px-wide table is contained in a 323px, 253px, and 157px horizontal scroller respectively; three offscreen row controls remain reachable by horizontal scrolling. One table link was 33px high. A narrowly scoped mobile style preview raised it to 44px without page overflow at all three widths. No student row or action was opened. Production rollout remains pending.
+The authenticated Student Registrations screen was checked in Arabic/RTL at 390×844, 320×760, and 220×760. Document/body widths remained 382px, 312px, and 212px. Its approximately 592–600px-wide table is contained in a 323px, 253px, and 157px horizontal scroller respectively; three row controls are reachable through that scroller. One table link was 33px high, so a scoped mobile rule raises it to 44px. The production cache key is `20261014-mobile-compact41`; live checks measured the link at 44px at all three widths with no page overflow. No student row or action was opened.

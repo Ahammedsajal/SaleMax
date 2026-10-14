@@ -1502,6 +1502,6 @@ The main Dashboard was checked in Arabic/RTL at 390px, 320px, and 220px. Its pag
 
 The authenticated Inbox list was checked at 390px, 320px, and 220px with no conversation opened. All 13 visible controls stayed in bounds and met the 44px height target; page width remained within the viewport. No message or read state changed. The iframe utility content remains outside this visual check.
 
-## Student Registrations table link target — source update pending production, 14 October 2026
+## Student Registrations table link target — production, 14 October 2026
 
-The authenticated Arabic/RTL Student Registrations screen fits 390px, 320px, and 220px widths, with its approximately 592–600px content table inside a horizontal scroller. One link in the table measured 33px high; a scoped mobile style preview raised it to 44px without page overflow. No student row or action was opened. The source update is pending production verification.
+The authenticated Arabic/RTL Student Registrations screen fits 390px, 320px, and 220px widths, with its approximately 592–600px table inside a horizontal scroller. One link in the table measured 33px high; a scoped mobile rule raises it to 44px. The served compact41 stylesheet hash matches the active release and container. No student row or action was opened. The full mobile audit remains in progress.

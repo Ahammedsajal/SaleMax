@@ -1,6 +1,13 @@
 Warning: truncated output (original token count: 119984)
 Total output lines: 1619
 
+## SaleMaX Student Registrations table link target — production, 14 October 2026
+
+- Source commit `c879820` (`Fix student table mobile link target`) is on `mobile-responsive-mainline-20261014` (draft PR #137). The shared phone stylesheet raises links in `.sx-st-table-wrap` to a 44px minimum target.
+- Active release remains `/opt/salemax/releases/inbox-shared-qr-access-a880679-20261014`; no pointer change or app restart occurred. CSS SHA-256 is `826f39e5e05d6ae94c39582116b744ef44f56d1f8947a1d8f3ec3a540ae690c6`. The production-generated index was preserved and only its stylesheet reference advanced to `20261014-mobile-compact41`; index SHA-256 is `2ed62e781a3c0285a267352f3c1e1447486106e09d59d3394202432c0fb1cbc0`. Release, container, and public versioned CSS hashes match.
+- Protected before-images are in `/opt/salemax/shared/backups/mobile-students-table-compact41-20261014` (directory mode 0700; files mode 0600). `release-css.before` and `container-css.before` SHA-256: `be6b2d0f0c3d692050d1b4d8e143198f1c4f8a4f7613b269301e737a02e888fb`; `release-index.before` and `container-index.before` SHA-256: `39f186dd57cb1d4b8a3a1ea3a5654e0b4a8369d2db4d93fd37c9c7c8b68c58f6`. Roll back by restoring the release copies to the active release's `client/public/`, then copying them into `/app/client/public/` in `salemax-app-1`; no restart or release-pointer change is required.
+- Verification: `/healthz` returned `status: ok`; `salemax-app-1` stayed healthy with restart count 0. Authenticated Arabic/RTL Student Registrations checks at 220px, 320px, and 390px found the page within its viewport and the table link at 44px. The 592–600px table remains in its internal horizontal scroller. No student row or record action was opened; no migration, database, or business-data change occurred.
+
 ## SaleMaX sign-in mobile link tap targets — production, 14 October 2026
 
 - Source commit `81405ee` (`Improve mobile sign-in link targets`) is on `mobile-responsive-mainline-20261014` (draft PR #137). The shared mobile stylesheet expands password-recovery, business account-creation, Terms, and Privacy links to 44px on sign-in screens up to 600px. It is scoped to sign-in screens that contain a password input. No logo or branding asset changed.
