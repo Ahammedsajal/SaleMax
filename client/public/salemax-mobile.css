@@ -655,3 +655,28 @@
   #sx-team-screen,#sx-team-screen[dir=rtl]{padding:10px!important}
   #sx-team-screen h1{font-size:20px!important}
 }
+@media (max-width: 600px) {
+  #sx-chatbot-dialog { padding: 12px !important; }
+  #sx-chatbot-dialog .sx-dialog {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 600px !important;
+    max-height: calc(100dvh - 24px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  #sx-chatbot-dialog .sx-dialog > header { padding: 10px !important; gap: 8px; }
+  #sx-chatbot-dialog .sx-dialog > header > div { min-width: 0; gap: 8px !important; }
+  #sx-chatbot-dialog .sx-dialog > header h2 { font-size: 15px !important; }
+  #sx-chatbot-dialog .sx-dialog > header [data-close] { flex: 0 0 44px; width: 44px !important; height: 44px !important; }
+  #sx-chatbot-dialog .sx-dialog > div { padding: 10px 12px 12px !important; }
+  #sx-chatbot-dialog .sx-dialog > div > div:first-child { gap: 10px !important; }
+  #sx-chatbot-dialog .sx-dialog [data-title],
+  #sx-chatbot-dialog .sx-dialog [data-origin],
+  #sx-chatbot-dialog .sx-dialog [data-search] { box-sizing: border-box; min-height: 44px !important; height: 44px !important; }
+  #sx-chatbot-dialog .sx-dialog [data-options] { position: static !important; max-height: 120px !important; margin-top: 4px; }
+  #sx-chatbot-dialog .sx-dialog [data-options] [role="option"] { min-height: 44px; box-sizing: border-box; }
+  #sx-chatbot-dialog .sx-dialog .sx-footer { flex-wrap: wrap; gap: 8px !important; padding-top: 10px !important; margin-top: 8px !important; }
+  #sx-chatbot-dialog .sx-dialog .sx-footer button { min-height: 44px; box-sizing: border-box; }
+}
+
