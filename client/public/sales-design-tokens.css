@@ -14,6 +14,11 @@
   --sx-success: #027a48;
   --sx-warning: #934f00;
   --sx-danger: #b42318;
+  --sx-page-padding: 26px 24px 44px;
+  --sx-page-padding-mobile: 17px 13px 28px;
+  --sx-brand-pill-bg: #fce7ef;
+  --sx-brand-pill-ink: #9c0037;
+  --sx-focus-ring: rgb(168 0 59 / 28%);
   --sx-content-width: 1280px;
   --sx-panel-radius: 12px;
   --sx-control-radius: 8px;
@@ -42,7 +47,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid rgb(168 0 59 / 28%);
+  outline: 3px solid var(--sx-focus-ring);
   outline-offset: 2px;
 }
 
