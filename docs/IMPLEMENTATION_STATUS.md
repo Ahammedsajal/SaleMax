@@ -1,3 +1,11 @@
+## SaleMaX Sales Call Center recording review filter — production, 14 October 2026
+
+The existing Call Center now has a bilingual toggle for calls with recordings that are ready and within retention. The paginated endpoint validates the filter and applies it within the existing tenant, assigned-call and manager/team-leader organization scopes. Playback still goes through the existing audited, role-scoped endpoint; no recording policy was enabled or changed.
+
+PR #114 merged to `main` as `5e32b5b9980808022d63b695d13fda74a7be152c` and is live in `/opt/salemax/releases/sales-call-recording-review-5e32b5b-20261014`. Focused Call Center, call-outcome and Sales navigation checks pass 25/25. Production health, login, Call Center routes, cache-busted script, anonymous API rejection, release/container/public asset hashes and app health were verified. No migration or business-data write occurred. Rollback details are in `DEPLOYMENT.md`.
+
+Authenticated role acceptance remains open because the first-party Sales tenant and staff are not provisioned. Asterisk is inactive and recording remains off by default, so real call capture and playback are unverified. Production disk remains at 97% with about 1.7 GB free. The complete Sales workspace objective remains in progress.
+
 ## SaleMaX Sales report do-not-call labels — production, 14 October 2026
 
 PR #113 merged to `main` as `701528a7b46ea9c4184b25f415161f6ece970738` and is live in `/opt/salemax/releases/sales-pipeline-outcome-labels-701528a-20261014`. Pipeline activity reports now display the do-not-call result in English and Arabic in outcome breakdowns and activity rows. Production health, login and public Pipeline routes return 200; anonymous Pipeline API access returns 401. The app is healthy with zero restarts, and report HTML/JS hashes match the release, running container and public HTTPS. Focused related checks pass 34/34. No migration or business-data write occurred. Asterisk remains inactive and first-party role acceptance remains open; the full workspace is still in progress.
