@@ -106,7 +106,10 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const access=decision(context,{capability:'telephony.call-center',permission:'calls.read'});
     if(!access.allowed)throw Object.assign(new Error(access.code),{code:access.code});
     const cursor=parseCallCursor(req.query.cursor);
+    const recordedOnly=req.query.recordedOnly===undefined?'0':req.query.recordedOnly;
+    if(!['0','1'].includes(recordedOnly))throw Object.assign(new Error('INVALID_CALL_FILTER'),{code:'INVALID_CALL_FILTER',status:400});
     const cursorFilter=cursor?' AND (c.started_at < ? OR (c.started_at = ? AND c.id < ?))':'';
+    const recordingFilter=recordedOnly==='1'?" AND r.state='ready' AND r.expires_at>UTC_TIMESTAMP(3)":'';
     const rows=await withDb(async db=>{
       const salesTeam=['manager','team_leader'].includes(context.membership.role)&&context.tenant.categoryKey==='salemax_sales';
       let teamMembershipIds=[];
@@ -139,7 +142,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         LEFT JOIN sx_telephony_call_recordings r ON r.tenant_id=c.tenant_id AND r.call_id=c.id
         WHERE c.tenant_id=? AND (?=0 OR c.started_by_membership_id=? OR c.answered_by_membership_id=? OR EXISTS(
           SELECT 1 FROM sx_telephony_queue_members qm WHERE qm.tenant_id=c.tenant_id AND qm.queue_id=c.inbound_queue_id AND qm.membership_id=?))
-          ${cursorFilter}${teamFilter}
+          ${cursorFilter}${teamFilter}${recordingFilter}
         ORDER BY c.started_at DESC,c.id DESC LIMIT 101`,[context.membership.id,context.tenant.id,access.scope==='assigned'?1:0,
         context.membership.id,context.membership.id,context.membership.id,...(cursor?[cursor.startedAt,cursor.startedAt,cursor.callId]:[]),
         ...(salesTeam&&teamMembershipIds.length?[teamMembershipIds,teamMembershipIds,teamMembershipIds]:[])]);
