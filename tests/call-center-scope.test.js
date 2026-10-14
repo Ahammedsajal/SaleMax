@@ -41,6 +41,27 @@ test('SaleMaX Sales managers and team leaders receive only calls belonging to cu
   }
 });
 
+test('call review roster and per-agent history remain limited to current manager teams',async t=>{
+  const tenantId='11111111-1111-4111-8111-111111111111',managerId='22222222-2222-4222-8222-222222222222',agentId='33333333-3333-4333-8333-333333333333',otherAgentId='44444444-4444-4444-8444-444444444444',queries=[];
+  const db={release(){},async query(sql,args=[]){queries.push({sql,args});
+    if(sql.includes('SELECT id AS membershipId FROM sx_memberships'))return [[{membershipId:managerId},{membershipId:agentId}],[]];
+    if(sql.includes('SELECT m.id AS membershipId,i.display_name AS displayName'))return [[{membershipId:agentId,displayName:'Scoped Agent'}],[]];
+    if(sql.includes('SELECT id FROM sx_memberships WHERE tenant_id=? AND id=? AND role=\'agent\''))return [[{id:agentId}],[]];
+    if(sql.includes('SELECT c.id,c.direction,c.status'))return [[{id:'55555555-5555-4555-8555-555555555555',direction:'outbound',status:'ended',gatewayChannelNo:1,startedAt:'2026-10-14T09:00:00.000Z',answeredAt:null,endedAt:null,durationSeconds:20,startedByMembershipId:agentId,answeredByMembershipId:agentId,startedByName:'Scoped Agent',startedByRole:'agent',answeredByName:'Scoped Agent',answeredByRole:'agent',recordingState:'ready',recordingExpiresAt:new Date(Date.now()+86400000),hasAssignedActiveLeg:0}],[]];
+    throw new Error(`Unexpected call review query: ${sql}`);
+  }};
+  const context={audience:'tenant',identity:{id:'identity-manager'},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},membership:{id:managerId,tenantId,role:'manager',status:'active'},category:getCategory('salemax_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
+  const app=express();app.use('/call-center',createCallCenterRouter({pool:{async getConnection(){return db;}},userGuard(){throw new Error('legacy guard should not run')},canonicalGuard(req,_res,next){req.businessContext=context;next();},origin:'http://127.0.0.1'}));
+  const server=http.createServer(app);await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const base=`http://127.0.0.1:${server.address().port}/call-center`;
+  const rosterResponse=await fetch(`${base}/calls/agents`),roster=await rosterResponse.json();assert.equal(rosterResponse.status,200);assert.deepEqual(roster.data.agents,[{membershipId:agentId,displayName:'Scoped Agent'}]);
+  const rosterQuery=queries.find(item=>item.sql.includes('SELECT m.id AS membershipId,i.display_name AS displayName'));assert.match(rosterQuery.sql,/h\.manager_membership_id=\?/);assert.deepEqual(rosterQuery.args,[tenantId,managerId]);
+  const filteredResponse=await fetch(`${base}/calls?agentMembershipId=${agentId}&recordedOnly=1`),filtered=await filteredResponse.json();assert.equal(filteredResponse.status,200);assert.equal(filtered.data.items.length,1);
+  const historyQuery=queries.find(item=>item.sql.includes('SELECT c.id,c.direction,c.status'));assert.match(historyQuery.sql,/selected_leg\.membership_id=\?/);assert.deepEqual(historyQuery.args.slice(-3),[agentId,agentId,agentId]);
+  const beforeDenied=queries.length,deniedResponse=await fetch(`${base}/calls?agentMembershipId=${otherAgentId}`),denied=await deniedResponse.json();assert.equal(deniedResponse.status,403);assert.equal(denied.code,'PERMISSION_DENIED');assert.equal(queries.length,beforeDenied+1,'out-of-team agent is denied before querying call records');
+  const invalidFilter=await fetch(`${base}/calls?agentMembershipId=${agentId}&agentMembershipId=${otherAgentId}`),invalidFilterBody=await invalidFilter.json();assert.equal(invalidFilter.status,400);assert.equal(invalidFilterBody.code,'INVALID_CALL_FILTER');
+});
+
 test('Call Center identifies the assigned staff member beside each call and recording controls',()=>{
   const fs=require('node:fs'),path=require('node:path');
   const root=path.join(__dirname,'..'),ui=fs.readFileSync(path.join(root,'client/public/call-center/call-center.js'),'utf8'),html=fs.readFileSync(path.join(root,'client/public/call-center/index.html'),'utf8');
@@ -50,8 +71,11 @@ test('Call Center identifies the assigned staff member beside each call and reco
   assert.match(ui,/Load older calls/);
   assert.match(ui,/params\.set\('cursor',cursor\)/);
   assert.match(ui,/if\(callHistory\.recordingsOnly\)params\.set\('recordedOnly','1'\)/);
-  assert.match(html,/call-center\.js\?v=20261014-recording-review1/);
+  assert.match(ui,/params\.set\('agentMembershipId',callHistory\.agentMembershipId\)/);
+  assert.match(ui,/request\('\/calls\/agents'\)/);
+  assert.match(html,/call-center\.js\?v=20261014-agent-recording-filter1/);
   assert.match(html,/id="recordingsOnly"/);
+  assert.match(html,/id="agentReviewFilter"/);
 });
 
 test('Call Center call history loads older pages with a stable tenant-scoped cursor',async t=>{

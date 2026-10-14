@@ -81,6 +81,23 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const result=await new AsteriskCallControl({pool}).originateOutbound(req.callCenterContext,req.body);
     res.status(202).json({success:true,data:result});
   }));
+  router.get('/calls/agents',wrap(async(req,res)=>{
+    const context=req.callCenterContext;
+    const access=decision(context,{capability:'telephony.call-center',permission:'calls.read'});
+    if(context.tenant.categoryKey!=='salemax_sales'||!access.allowed||!['owner','manager','team_leader'].includes(context.membership.role))
+      throw Object.assign(new Error('PERMISSION_DENIED'),{code:'PERMISSION_DENIED'});
+    const agents=await withDb(async db=>{
+      const role=context.membership.role;
+      const scope=role==='owner'?'':role==='manager'?' AND EXISTS(SELECT 1 FROM sx_sales_org_history h WHERE h.tenant_id=m.tenant_id AND h.membership_id=m.id AND h.manager_membership_id=? AND h.ended_at IS NULL)':' AND EXISTS(SELECT 1 FROM sx_sales_org_history h WHERE h.tenant_id=m.tenant_id AND h.membership_id=m.id AND h.team_leader_membership_id=? AND h.ended_at IS NULL)';
+      const args=[context.tenant.id,...(role==='owner'?[]:[context.membership.id])];
+      const [rows]=await db.query(`SELECT m.id AS membershipId,i.display_name AS displayName
+        FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
+        WHERE m.tenant_id=? AND m.status='active' AND m.role='agent'${scope}
+        ORDER BY i.display_name,m.id LIMIT 500`,args);
+      return rows.map(row=>({membershipId:row.membershipId,displayName:row.displayName||'Sales Agent'}));
+    });
+    res.json({success:true,data:{agents}});
+  }));
   router.get('/calls/:callId/recording',async(req,res,next)=>{
     try{
       const recording=await withDb(db=>callRecordings.openRecording(db,req.callCenterContext,req.params.callId));
@@ -107,7 +124,8 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     if(!access.allowed)throw Object.assign(new Error(access.code),{code:access.code});
     const cursor=parseCallCursor(req.query.cursor);
     const recordedOnly=req.query.recordedOnly===undefined?'0':req.query.recordedOnly;
-    if(!['0','1'].includes(recordedOnly))throw Object.assign(new Error('INVALID_CALL_FILTER'),{code:'INVALID_CALL_FILTER',status:400});
+    const agentMembershipId=req.query.agentMembershipId;
+    if(!['0','1'].includes(recordedOnly)||agentMembershipId!==undefined&&(typeof agentMembershipId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(agentMembershipId)||context.tenant.categoryKey!=='salemax_sales'))throw Object.assign(new Error('INVALID_CALL_FILTER'),{code:'INVALID_CALL_FILTER',status:400});
     const cursorFilter=cursor?' AND (c.started_at < ? OR (c.started_at = ? AND c.id < ?))':'';
     const recordingFilter=recordedOnly==='1'?" AND r.state='ready' AND r.expires_at>UTC_TIMESTAMP(3)":'';
     const rows=await withDb(async db=>{
@@ -124,6 +142,15 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
       }
       const teamFilter=salesTeam?(teamMembershipIds.length?` AND (c.started_by_membership_id IN (?) OR c.answered_by_membership_id IN (?) OR EXISTS(
         SELECT 1 FROM sx_telephony_call_legs scoped_leg WHERE scoped_leg.tenant_id=c.tenant_id AND scoped_leg.call_id=c.id AND scoped_leg.membership_id IN (?)))`:' AND 1=0'):'';
+      let agentFilter='',agentFilterArgs=[];
+      if(agentMembershipId!==undefined){
+        if(!['owner','manager','team_leader'].includes(context.membership.role)||salesTeam&&!teamMembershipIds.includes(agentMembershipId))throw Object.assign(new Error('PERMISSION_DENIED'),{code:'PERMISSION_DENIED'});
+        const [[agent]]=await db.query(`SELECT id FROM sx_memberships WHERE tenant_id=? AND id=? AND role='agent' AND status='active'`,[context.tenant.id,agentMembershipId]);
+        if(!agent)throw Object.assign(new Error('PERMISSION_DENIED'),{code:'PERMISSION_DENIED'});
+        agentFilter=` AND (c.started_by_membership_id=? OR c.answered_by_membership_id=? OR EXISTS(
+          SELECT 1 FROM sx_telephony_call_legs selected_leg WHERE selected_leg.tenant_id=c.tenant_id AND selected_leg.call_id=c.id AND selected_leg.membership_id=?))`;
+        agentFilterArgs=[agentMembershipId,agentMembershipId,agentMembershipId];
+      }
       const [items]=await db.query(`SELECT c.id,c.direction,c.status,c.lead_id AS leadId,c.gateway_channel_no AS gatewayChannelNo,
           q.queue_name AS queueName,c.started_at AS startedAt,c.answered_at AS answeredAt,c.ended_at AS endedAt,
           DATE_FORMAT(c.started_at,'%Y-%m-%d %H:%i:%s.%f') AS cursorStartedAt,
@@ -142,10 +169,10 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         LEFT JOIN sx_telephony_call_recordings r ON r.tenant_id=c.tenant_id AND r.call_id=c.id
         WHERE c.tenant_id=? AND (?=0 OR c.started_by_membership_id=? OR c.answered_by_membership_id=? OR EXISTS(
           SELECT 1 FROM sx_telephony_queue_members qm WHERE qm.tenant_id=c.tenant_id AND qm.queue_id=c.inbound_queue_id AND qm.membership_id=?))
-          ${cursorFilter}${teamFilter}${recordingFilter}
+          ${cursorFilter}${teamFilter}${recordingFilter}${agentFilter}
         ORDER BY c.started_at DESC,c.id DESC LIMIT 101`,[context.membership.id,context.tenant.id,access.scope==='assigned'?1:0,
         context.membership.id,context.membership.id,context.membership.id,...(cursor?[cursor.startedAt,cursor.startedAt,cursor.callId]:[]),
-        ...(salesTeam&&teamMembershipIds.length?[teamMembershipIds,teamMembershipIds,teamMembershipIds]:[])]);
+        ...(salesTeam&&teamMembershipIds.length?[teamMembershipIds,teamMembershipIds,teamMembershipIds]:[]),...agentFilterArgs]);
       const hasMore=items.length>100,page=items.slice(0,100),last=page[page.length-1];
       const nextCursor=hasMore&&last?Buffer.from(JSON.stringify({startedAt:last.cursorStartedAt,callId:last.id})).toString('base64url'):null;
       return {hasMore,nextCursor,items:page.map(row=>({callId:row.id,direction:row.direction,status:row.status,leadId:row.leadId||null,gatewayChannelNo:Number(row.gatewayChannelNo),
