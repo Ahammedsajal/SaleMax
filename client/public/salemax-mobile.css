@@ -640,3 +640,18 @@
   #root main .MuiSelect-select{min-height:44px!important;box-sizing:border-box!important;display:flex!important;align-items:center!important}
   #root main .MuiInputBase-root:has(>.MuiSelect-select){min-height:44px!important;box-sizing:border-box!important}
 }
+
+/* Compact the first-party Team Access workspace without shrinking checkbox hit areas. */
+@media(max-width:760px){
+  #sx-team-screen .card{padding:12px!important;margin:10px 0!important;min-width:0!important}
+  #sx-team-screen .nav-option,#sx-team-screen .permission-option{
+    min-width:0!important;min-height:44px!important;box-sizing:border-box!important;padding:8px!important
+  }
+  #sx-team-screen .nav-option span,#sx-team-screen .permission-option span,#sx-team-screen .member-head>*{
+    min-width:0!important;overflow-wrap:anywhere!important;word-break:normal!important
+  }
+}
+@media(max-width:380px){
+  #sx-team-screen,#sx-team-screen[dir=rtl]{padding:10px!important}
+  #sx-team-screen h1{font-size:20px!important}
+}
