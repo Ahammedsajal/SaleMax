@@ -2,7 +2,7 @@
   'use strict';
   if (window.__sxTeamLogin) return;
   window.__sxTeamLogin = true;
-  const isArabic = () => window.SaleMaxLocale?.isArabic() ?? (localStorage.getItem('language') || localStorage.getItem('salemax-language') || '').toLowerCase().startsWith('ar');
+  const isArabic = () => /^(ar(?:[-_]|$)|arabic)/i.test(String(localStorage.getItem('language') || localStorage.getItem('salemax-language') || document.documentElement.lang || ''));
   const label = (en, ar) => isArabic() ? ar : en;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const route = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'agent-login';
