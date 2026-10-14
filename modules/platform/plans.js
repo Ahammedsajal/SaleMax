@@ -51,8 +51,9 @@ async function updateDraft(db,ctx,id,revision,input){
   authorize(ctx,'plans.draft');uuid(id);const data=definition(input);authorizeCategory(ctx,data.category);
   if(!Number.isSafeInteger(revision)||revision<1)fail('INVALID_REVISION');
   return transaction(db,async()=>{
-    const [[row]]=await db.query('SELECT status,revision FROM sx_plan_versions WHERE id=? FOR UPDATE',[id]);
-    if(!row)fail('PLAN_NOT_FOUND');if(row.status!=='draft')fail('PUBLISHED_PLAN_IMMUTABLE');if(Number(row.revision)!==revision)fail('STALE_REVISION');
+    const [[row]]=await db.query('SELECT status,revision,category_key,category_version FROM sx_plan_versions WHERE id=? FOR UPDATE',[id]);
+    if(!row)fail('PLAN_NOT_FOUND');const currentCategory=getCategory(row.category_key,Number(row.category_version));if(!currentCategory)fail('CATEGORY_UNAVAILABLE');authorizeCategory(ctx,currentCategory);
+    if(row.status!=='draft')fail('PUBLISHED_PLAN_IMMUTABLE');if(Number(row.revision)!==revision)fail('STALE_REVISION');
     await db.query('UPDATE sx_plan_versions SET category_key=?,category_version=?,capabilities=?,role_limits=?,revision=revision+1 WHERE id=?',[data.categoryKey,data.categoryVersion,JSON.stringify(data.capabilities),JSON.stringify(data.roleLimits),id]);
     await audit(db,ctx,'plan.draft-updated',id,{revision:revision+1});return {id,revision:revision+1,status:'draft'};
   });

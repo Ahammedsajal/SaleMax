@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const bridge=require('../modules/platform/catalogue-bridge');
 const plans=require('../modules/platform/plans');
-const {trainingCenter}=require('../modules/platform/categories');
+const {trainingCenter,salemaxSales}=require('../modules/platform/categories');
 module.exports=async(db,other,{i1})=>{
   const ctx={audience:'platform',identity:{id:i1},membership:{role:'super_admin',status:'active'},mfaVerified:true,recentlyAuthenticated:true};
   const [[row]]=await db.query('SELECT * FROM plan LIMIT 1');
@@ -27,6 +27,14 @@ module.exports=async(db,other,{i1})=>{
   await assert.rejects(bridge.createDraft(broken,ctx,{...input,requestId:crypto.randomUUID()}),{code:'SYNTHETIC_AUDIT_FAILURE'});
   assert.equal((await bridge.list(db,ctx,row.id)).length,2);
   const [[count]]=await db.query('SELECT COUNT(*) n FROM sx_legacy_plan_catalogue WHERE legacy_plan_id=?',[row.id]);assert.equal(count.n,1);
-  const [[audits]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE action IN ('legacy-plan.draft-created','legacy-plan.published')");assert.equal(audits.n,3);
-  return {existingCatalogueCanonicalMapping:true,catalogueDraftRetryConcurrent:true,commercialSnapshotsFrozen:true,canonicalPublishCannotBypassCatalogueReview:true,oneCataloguePerLegacyId:true};
+  const salesInput={legacyPlanId:row.id,requestId:crypto.randomUUID(),categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version,capabilities:[...salemaxSales.capabilities],roleLimits:{owner:1,accountant:4,manager:10,team_leader:20,agent:200}};
+  const delegated={...ctx,membership:{role:'staff',status:'active',delegatedPermissions:['plans.read','plans.draft','plans.publish']}};
+  await assert.rejects(bridge.createDraft(db,delegated,salesInput),{code:'PERMISSION_DENIED'});
+  const salesDraft=await bridge.createDraft(db,ctx,salesInput);
+  await assert.rejects(bridge.list(db,delegated,row.id,salemaxSales.key),{code:'PERMISSION_DENIED'});
+  await assert.rejects(bridge.updateDraft(db,delegated,{...input,legacyPlanId:row.id,versionId:salesDraft.id,revision:salesDraft.revision}),{code:'PERMISSION_DENIED'},'staff cannot relabel a private Sales draft as a public category');
+  await assert.rejects(bridge.publish(db,delegated,{legacyPlanId:row.id,versionId:salesDraft.id,revision:salesDraft.revision}),{code:'PERMISSION_DENIED'});
+  assert.equal((await bridge.list(db,ctx,row.id,salemaxSales.key))[0].categoryKey,salemaxSales.key);
+  const [[audits]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE action IN ('legacy-plan.draft-created','legacy-plan.published')");assert.equal(audits.n,4);
+  return {existingCatalogueCanonicalMapping:true,catalogueDraftRetryConcurrent:true,commercialSnapshotsFrozen:true,canonicalPublishCannotBypassCatalogueReview:true,oneCataloguePerLegacyId:true,privateSalesCategoryRequiresPlatformSuperAdmin:true,categoryVersionsRemainSeparated:true};
 };

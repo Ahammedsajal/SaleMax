@@ -2,13 +2,32 @@ const express=require('express');
 const crypto=require('node:crypto');
 const bridge=require('./catalogue-bridge');
 const {platformDecision}=require('./policy');
-const {trainingCenter}=require('./categories');
+const plans=require('./plans');
+const {trainingCenter,salemaxSales,getCategory}=require('./categories');
 const {items}=require('./navigation');
 function createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard}){
   const router=express.Router();router.use(legacyGuard,canonicalGuard);router.use(express.json({limit:'24kb',strict:true}));
   const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
   function legacyId(req){const raw=req.params.legacyPlanId;if(typeof raw!=='string'||!/^\d+$/.test(raw))throw Object.assign(new Error(),{code:'INVALID_LEGACY_PLAN_ID'});return Number(raw);}
   async function use(fn){const db=await pool.getConnection();try{return await fn(db);}finally{db.release();}}
+  function availableCategories(ctx){
+    const definitions=[trainingCenter,...(platformDecision(ctx,'categories.manage')?[salemaxSales]:[])];
+    const featuresByCapability=new Map();
+    for(const item of items)if(!featuresByCapability.has(item.capability))featuresByCapability.set(item.capability,item.label);
+    const featureLabels=new Map([
+      ['team.members',{en:'People and roles',ar:'الأشخاص والأدوار'}],
+      ['team.tasks',{en:'Team tasks',ar:'مهام الفريق'}],
+      ['tenant.settings',{en:'Business settings',ar:'إعدادات الأعمال'}],
+      ['sales.commissions',{en:'Sales commissions',ar:'عمولات المبيعات'}],
+    ]);
+    return definitions.map(category=>({...category,features:category.capabilities.map(capability=>({key:capability,label:featureLabels.get(capability)||featuresByCapability.get(capability)||{en:capability,ar:capability}}))}));
+  }
+  function categoryFor(ctx,key){
+    const definition=getCategory(key,1);
+    if(!definition)throw Object.assign(new Error(),{code:'CATEGORY_UNAVAILABLE'});
+    plans.authorizeCategory(ctx,definition);
+    return availableCategories(ctx).find(item=>item.key===key)||definition;
+  }
   router.use(wrap(async(req,res,next)=>{
     const ctx=req.businessContext;
     if(ctx?.audience!=='platform')throw Object.assign(new Error(),{code:'PLATFORM_REQUIRED'});
@@ -18,9 +37,14 @@ function createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard}){
   }));
   router.get('/context',wrap(async(req,res)=>{
     if(!platformDecision(req.businessContext,'plans.read'))return res.status(403).json({code:'PERMISSION_DENIED'});
-    res.json({category:trainingCenter,features:items.map(({capability,label})=>({key:capability,label})).filter((feature,index,all)=>all.findIndex(other=>other.key===feature.key)===index),permissions:Object.fromEntries(['plans.read','plans.draft','plans.publish'].map(permission=>[permission,platformDecision(req.businessContext,permission)]))});
+    const categories=availableCategories(req.businessContext);
+    res.json({category:categories[0],categories,features:categories[0].features,permissions:Object.fromEntries(['plans.read','plans.draft','plans.publish','categories.manage'].map(permission=>[permission,platformDecision(req.businessContext,permission)]))});
   }));
-  router.get('/:legacyPlanId/versions',wrap(async(req,res)=>res.json({items:await use(db=>bridge.list(db,req.businessContext,legacyId(req)))})));
+  router.get('/:legacyPlanId/versions',wrap(async(req,res)=>{
+    const categoryKey=typeof req.query.categoryKey==='string'&&req.query.categoryKey?req.query.categoryKey:'training_center';
+    categoryFor(req.businessContext,categoryKey);
+    res.json({items:await use(db=>bridge.list(db,req.businessContext,legacyId(req),categoryKey))});
+  }));
   router.post('/:legacyPlanId/drafts',wrap(async(req,res)=>res.status(201).json(await use(db=>bridge.createDraft(db,req.businessContext,{...req.body,legacyPlanId:legacyId(req)})))));
   router.put('/:legacyPlanId/drafts/:versionId',wrap(async(req,res)=>res.json(await use(db=>bridge.updateDraft(db,req.businessContext,{...req.body,versionId:req.params.versionId,legacyPlanId:legacyId(req)})))));
   router.post('/:legacyPlanId/publish',wrap(async(req,res)=>res.json(await use(db=>bridge.publish(db,req.businessContext,{...req.body,legacyPlanId:legacyId(req)})))));
