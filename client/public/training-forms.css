@@ -503,5 +503,8 @@
 @media(max-width:260px){
   #sx-form-editor .sx-form-field-row{grid-template-columns:minmax(44px,1fr) minmax(44px,1fr);gap:4px;padding:6px 4px}
   #sx-form-editor .sx-form-field-row label{gap:4px;font-size:11px}
+  /* Stack application labels above their values on extra-narrow phones. */
+  #sx-forms-screen .sx-app-table td{grid-template-columns:minmax(0,1fr);gap:2px}
+  #sx-forms-screen .sx-app-table td::before{line-height:1.25}
 }
 
