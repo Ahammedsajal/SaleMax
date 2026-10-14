@@ -56,6 +56,12 @@ module.exports=async(db,other,{i1},pool)=>{
   const salesLimits={owner:1,accountant:4,manager:10,team_leader:40,agent:500};
   const salesDraft=await catalogue.createDraft(db,actor,{legacyPlanId:Number(contract.legacy_plan_id),requestId:crypto.randomUUID(),categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version,capabilities:[...salemaxSales.capabilities],roleLimits:salesLimits});
   await catalogue.publish(db,actor,{legacyPlanId:Number(contract.legacy_plan_id),versionId:salesDraft.id,revision:1});
+  const wrongOwnerUid='wrong-sales-owner-'+crypto.randomUUID(),wrongOwnerEmail=`wrong-sales-owner-${crypto.randomUUID()}@example.invalid`;
+  const [wrongOwner]=await db.query('INSERT INTO user(uid,name,email,plan,plan_expire) VALUES (?,?,?,?,?)',[wrongOwnerUid,'Synthetic Wrong Sales Owner',wrongOwnerEmail,JSON.stringify(commercial),expiry]);
+  const wrongOwnerOptions=await request(`${wrongOwner.insertId}/provision-options?categoryKey=salemax_sales`);
+  assert.equal(wrongOwnerOptions.status,409);assert.equal(wrongOwnerOptions.body.code,'DESIGNATED_OWNER_REQUIRED');
+  const [[wrongOwnerMapping]]=await db.query("SELECT COUNT(*) AS total FROM sx_legacy_ownership WHERE source_table='user' AND source_id=?",[String(wrongOwner.insertId)]);assert.equal(Number(wrongOwnerMapping.total),0);
+  const [[wrongOwnerIdentity]]=await db.query('SELECT COUNT(*) AS total FROM sx_identities WHERE email_normalized=?',[wrongOwnerEmail]);assert.equal(Number(wrongOwnerIdentity.total),0);
   const salesEmail='admin@salemax.qa',salesUid='sales-owner-'+crypto.randomUUID(),temporaryPassword='Synthetic-Temporary-Owner-62',temporaryHash=await bcrypt.hash(temporaryPassword,10);
   const [salesUser]=await db.query('INSERT INTO user(uid,name,email,password,plan,plan_expire) VALUES (?,?,?,?,?,?)',[salesUid,'Synthetic SaleMaX Admin',salesEmail,temporaryHash,JSON.stringify(commercial),expiry]);
   const salesRequestId=crypto.randomUUID(),salesBusinessName='Synthetic SaleMaX Sales';
@@ -88,6 +94,6 @@ module.exports=async(db,other,{i1},pool)=>{
     const [[storedSession]]=await db.query('SELECT token_hash FROM sx_sessions WHERE id=?',[session.context.sessionId]);
     assert.equal(storedSession.token_hash,crypto.createHash('sha256').update(session.token).digest('hex'));
   }finally{for(const [key,value]of Object.entries(saved)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
-  return {existingBusinessProvisionHttpWorkflow:true,existingUserProvisionedInPlace:true,trainingCategoryAndQatarDefaults:true,salesOwnerProvisionedInPlace:true,salesTenantIndiaDefaults:true,oneTimeOwnerActivationTokenHashed:true,legacyAndCanonicalOwnerPasswordsActivatedAtomically:true,ownerInviteCannotBeReplayed:true,publishedPlanAssignedAtomically:true,provisionPreviewStalenessEnforced:true,provisionIdempotency:true,reviewedLegacyOwnerLinkCreated:true,provisioningAudited:true,legacyOwnerLoginCreatesTenantSession:true,legacyPasswordRehashedNotCopied:true,canonicalSessionRetryDoesNotRehash:true,foreignOriginDoesNotCreateTenantSession:true,canonicalSessionTokenOnlyStoredAsHash:true,unauthorizedProvisionDenied:true};
+  return {existingBusinessProvisionHttpWorkflow:true,existingUserProvisionedInPlace:true,trainingCategoryAndQatarDefaults:true,wrongSalesOwnerCannotProvision:true,wrongSalesOwnerNoTenantOrIdentityCreated:true,salesOwnerProvisionedInPlace:true,salesTenantIndiaDefaults:true,oneTimeOwnerActivationTokenHashed:true,legacyAndCanonicalOwnerPasswordsActivatedAtomically:true,ownerInviteCannotBeReplayed:true,publishedPlanAssignedAtomically:true,provisionPreviewStalenessEnforced:true,provisionIdempotency:true,reviewedLegacyOwnerLinkCreated:true,provisioningAudited:true,legacyOwnerLoginCreatesTenantSession:true,legacyPasswordRehashedNotCopied:true,canonicalSessionRetryDoesNotRehash:true,foreignOriginDoesNotCreateTenantSession:true,canonicalSessionTokenOnlyStoredAsHash:true,unauthorizedProvisionDenied:true};
   } finally {await new Promise(resolve=>server.close(resolve));}
 };

@@ -33,6 +33,7 @@ async function context(db,ctx,userId,{locked=false,categoryKey='training_center'
   if(links[0].length)fail('BUSINESS_ALREADY_PROVISIONED');
   const current=legacy.summary(user.plan);if(!current.valid||!current.plan||!Number.isSafeInteger(Number(current.plan.id))||Number(current.plan.id)<1)fail('BUSINESS_PLAN_REQUIRED');
   const normalizedEmail=email(user.email);
+  if(category.key===salemaxSales.key&&normalizedEmail!=='admin@salemax.qa')fail('DESIGNATED_OWNER_REQUIRED');
   const [[identity]]=await db.query('SELECT id FROM sx_identities WHERE email_normalized=?'+suffix,[normalizedEmail]);if(identity)fail('BUSINESS_IDENTITY_EXISTS');
   const [[version]]=await db.query(`SELECT v.id,v.version,v.category_key AS categoryKey,v.category_version AS categoryVersion,v.capabilities,v.role_limits AS roleLimits,
       c.legacy_plan_id AS legacyPlanId,c.commercial_snapshot AS commercialSnapshot,c.commercial_hash AS commercialHash
