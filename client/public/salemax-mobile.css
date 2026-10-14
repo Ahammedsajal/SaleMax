@@ -28,6 +28,13 @@
   header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{width:42px!important;min-width:42px!important;flex:0 0 42px!important;padding:0!important}
 }
 
+/* Match the fixed-header spacer when the header wraps on extra-narrow phones. */
+@media(max-width:260px){
+  #root main:has(>header.MuiAppBar-positionFixed)>.MuiBox-root:first-child{
+    height:99px!important;min-height:99px!important
+  }
+}
+
 /* Give Finance actions comfortable tap targets on phone-sized screens. */
 @media(max-width:600px){#sx-finance-screen button{min-height:44px!important}}
 
