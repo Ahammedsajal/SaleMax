@@ -348,3 +348,6 @@ The empty Agent Task screen was checked at 220px and 320px in LTR and RTL. The d
 ## Training Center Profile save action — production follow-up, 14 October 2026
 
 At 320px RTL, the sticky Save action overlapped the first contact input while the profile was at its initial scroll position. The mobile rule now makes the action static so it follows the entire form instead of covering fields. Verified on production at 320px RTL and 220px RTL: document widths are 312px and 212px, there are no controls outside the viewport, the Save action is 44px high at the end of the form, and every visible button is at least 44px. The profile, logo, report recipient settings, and account data were not changed.
+## Dashboard narrow-width and Call Center route availability — production, 14 October 2026
+
+The authenticated Dashboard was checked at 220px and 320px in LTR. The document/main widths are 212px and 312px, with no page-level horizontal overflow or visible buttons outside the viewport; all visible buttons are at least 44px high. Direct navigation to `/user?page=call-center` returned to the Dashboard in this account, so the Call Center screen remains unavailable for this account's audit. No dashboard action was triggered and no call was placed.
