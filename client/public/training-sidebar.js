@@ -15,7 +15,7 @@
     window.__sxTrainingFormsEditorLayoutLoader = true;
     const formsEditorStyle = document.createElement('link');
     formsEditorStyle.rel = 'stylesheet';
-    formsEditorStyle.href = '/training-forms-editor.css?v=20261012-editor-scroll1';
+    formsEditorStyle.href = '/training-forms-editor.css?v=20261014-editor-touch44-1';
     document.head.append(formsEditorStyle);
   }
   if (!window.__sxFaqManagerLoader) {
