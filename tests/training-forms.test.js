@@ -139,3 +139,13 @@ test('application detail groups registration snapshots and suppresses duplicate 
   assert.equal(JSON.stringify(renderedGroups).includes('85a9df27-076a-44f3-901a-09a1f5fa4e4d'),false);
   assert.equal(JSON.stringify(renderedGroups).includes('73004aae-b4ba-4f63-ae7c-00b53a748919'),false);
 });
+
+test('application fields keep signature dates readable and state consent explicitly',()=>{
+  const fs=require('node:fs'),vm=require('node:vm'),screen=fs.readFileSync(require('node:path').join(__dirname,'../client/public/training-forms.js'),'utf8');
+  const helper=screen.match(/function applicationFieldValue\(key,value\)\{[\s\S]*?(?=\n  function showApplication\()/)?.[0];assert.ok(helper,'application field display helper stays available to test');
+  const value=vm.runInNewContext(`(()=>{const tr=en=>en,readableValue=value=>String(value??'');${helper};return applicationFieldValue;})()`);
+  assert.equal(value('student_signature','signed'),'Signature provided');
+  assert.equal(value('student_signature_date','2026-10-13'),'2026-10-13');
+  assert.equal(value('consent',true),'Agreed');
+  assert.match(screen,/sx-app-consent-state/);
+});
