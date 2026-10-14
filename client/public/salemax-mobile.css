@@ -235,6 +235,13 @@
   #root .MuiContainer-maxWidthXs:has(input[type="password"]) button{min-height:44px!important}
 }
 
+/* Keep the admin password entry area usable on extra-narrow phones. */
+@media(max-width:260px){
+  #root .MuiContainer-maxWidthXs:has(input[type="password"])>.MuiBox-root>.MuiBox-root:has(>.MuiStack-root input[type="password"]){padding-inline:12px!important}
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) .MuiOutlinedInput-root:has(input[type="password"]){padding-inline:8px!important}
+  #root .MuiContainer-maxWidthXs:has(input[type="password"]) input[type="password"]{flex:1 1 0%!important;width:100%!important;min-width:0!important}
+}
+
 /* Keep business sign-in compact, remove its stray zero, and retain phone tap targets. */
 @media(max-width:600px){
   #root .MuiBox-root:has(> .MuiStack-root input[type="password"]) .MuiInputBase-root,
