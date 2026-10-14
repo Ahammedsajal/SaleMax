@@ -46,7 +46,7 @@ test('Call Center identifies the assigned staff member beside each call and reco
   assert.match(ui,/call\.answeredByRole\|\|call\.startedByRole/);
   assert.match(ui,/Load older calls/);
   assert.match(ui,/encodeURIComponent\(cursor\)/);
-  assert.match(html,/call-center\.js\?v=20261014-call-history-pages1/);
+  assert.match(html,/call-center\.js\?v=20261014-sales-do-not-call1/);
 });
 
 test('Call Center call history loads older pages with a stable tenant-scoped cursor',async t=>{

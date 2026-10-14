@@ -1084,7 +1084,7 @@ async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, 
   },sourcePool);
 }
 
-async function updateLead({ uid, id, input, actorType, actorId, role, agentId, scopeAgentIds, pool:sourcePool }) {
+async function updateLead({ uid, id, input, actorType, actorId, role, agentId, scopeAgentIds, categoryKey, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const [rows] = await connection.query("SELECT * FROM pipeline_leads WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE", [uidHash, id]);
@@ -1151,7 +1151,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
     }
     const requestedFollowUp=input.nextFollowUpAt===undefined?undefined:inputDbDate(input.nextFollowUpAt);
     if (requestedFollowUp !== undefined) add("next_follow_up_at", requestedFollowUp);
-    const outcomes=['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested'];
+    const outcomes=['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested',...(categoryKey==='salemax_sales'?['do_not_call']:[])];
     let contactOutcome=null;
     if(input.outcome!==undefined){
       if(!outcomes.includes(input.outcome)){const error=new Error('Choose a valid contact outcome.');error.status=400;throw error;}
@@ -1161,6 +1161,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
       const error=new Error('Follow-up required must be true or false.');error.status=400;throw error;
     }
     const followUpRequired=input.followUpRequired===undefined?contactOutcome==='follow_up_scheduled'||contactOutcome==='requested_call':input.followUpRequired;
+    if(contactOutcome==='do_not_call'&&followUpRequired){const error=new Error('A do-not-call request cannot have a follow-up.');error.status=400;throw error;}
     const existingFollowUp=lead.next_follow_up_at;
     const providedFollowUp=requestedFollowUp!==undefined?requestedFollowUp:existingFollowUp;
     if(followUpRequired&&!providedFollowUp){const error=new Error('Set a follow-up date and time when follow-up is required.');error.status=400;throw error;}
