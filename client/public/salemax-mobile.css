@@ -739,6 +739,16 @@
   }
 }
 
+/* Give the password-reset action a phone-sized tap area on sign-in screens. */
+@media(max-width:600px){
+  #root .MuiStack-root:has(input[type="email"]):has(input[type="password"])>.MuiBox-root:has(>.MuiTypography-caption){
+    display:flex!important;align-items:center!important;min-height:44px!important
+  }
+  #root .MuiStack-root:has(input[type="email"]):has(input[type="password"])>.MuiBox-root:has(>.MuiTypography-caption)>.MuiTypography-caption{
+    display:flex!important;align-items:center!important;min-height:44px!important
+  }
+}
+
 
 /* Keep the mobile flow editor title and mode selector reachable, and separate the minimap from zoom controls. */
 @media(max-width:600px){

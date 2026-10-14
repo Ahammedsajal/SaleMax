@@ -486,3 +486,15 @@ The Agent Tasks route was checked in Arabic/RTL at 220×800px and 320×760px. Do
 ## Authenticated shell header — production mobile check, 14 October 2026
 
 After the compact language-control CSS was deployed, the authenticated header was reloaded at 550px. The toolbar measured 542×56px in the 550px viewport. Hamburger, language, RTL, theme, and account controls each measured 44×44px and remained in bounds; the logo/name also fit. The language label span measured 1×1px while its accessible name remained “Lang Arabic”. The production CSS and generated index matched their release/container copies, and `/healthz`, the CSS asset, and the authenticated user page returned HTTP 200. No app restart, release-pointer change, migration, or business-data change occurred. The shell displays its existing WhatsApp mark, while the drawer uses the SaleMaX wordmark asset; this is an existing branding inconsistency, not a change from this responsive fix. Full mobile route/state coverage and Admin/Sales role access remain open.
+
+## Campaign Dashboard overview mobile follow-up — production, 14 October 2026
+
+The authenticated Campaign Dashboard overview was rechecked in Arabic/RTL at 390×844, 320×760, and 220×760. Document/body widths were 382/382px, 312/312px, and 212/212px respectively, with no page-level horizontal overflow. Every visible button and tab remained in bounds and at least 44px high; at 220px the paired overview/campaign tabs wrap to 81×76px, while at 320px they measure 131×45px. The overview’s empty charts and recent-campaigns state were inspected read-only; no campaign was sent, edited, searched, or exported.
+
+## Admin sign-in screen mobile follow-up — production, 14 October 2026
+
+The Arabic Admin sign-in screen was checked at 390×844, 320×760, and 220×760. Page width matched each viewport. The email/password controls and sign-in button remained in bounds and 44px high; the password visibility control measured 44×44px. At 220px, the editable password text area measured 51px wide beside the toggle, and the email text area measured 107px wide. The phone layout has no horizontal overflow. No sign-in, password visibility, reset, or other form action was activated.
+
+## Sign-in reset-password mobile tap target — source fix pending production, 14 October 2026
+
+The live Admin sign-in reset-password action was rendered as a clickable 21px-high text span. The shared mobile stylesheet now gives that action and its row a 44px target on email/password sign-in screens up to 600px wide. A live-page style preview at 220px, 320px, and 390px measured the text span at 44px high, preserved 44px password-toggle and submit controls, and kept the document within each viewport. Production deployment and final recheck are pending.

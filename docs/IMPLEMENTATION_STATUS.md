@@ -1477,3 +1477,11 @@ The existing authenticated application-detail modal now presents applicant infor
 ## Authenticated app header language control — production mobile fix, 14 October 2026
 
 At 550px, the authenticated shell header now keeps the language switch compact: the visible label is clipped at 381–600px while its accessible name remains available. The existing shell logo rendering and drawer wordmark are unchanged. Production asset and rollback evidence are recorded in `DEPLOYMENT.md`. This closes the observed 550px header crowding issue; the full route/state and role-based mobile audit remains in progress.
+
+## Campaign Dashboard and Admin sign-in mobile follow-up — production, 14 October 2026
+
+The Campaign Dashboard overview and Admin sign-in shell were checked in Arabic/RTL at 390px, 320px, and 220px. Both screens remained within the viewport with visible controls in bounds and at least 44px high. Dashboard paired tabs wrap into a compact two-column layout at 220px. Admin sign-in fields remain tappable; the inner password entry area is 51px wide beside its 44px visibility control at 220px. No campaign or authentication form action was triggered. Detailed measurements are in `MOBILE_RESPONSIVE_AUDIT.md`; the screen-by-screen audit remains in progress.
+
+## Sign-in reset-password mobile tap target — source fix pending production, 14 October 2026
+
+The clickable reset-password label measured 21px high on the live Admin sign-in page. A shared phone CSS rule now expands the label and row to 44px on email/password sign-in screens up to 600px; the temporary live-page preview passed 220px, 320px, and 390px geometry checks without overflow. The source is ready for deployment; production acceptance remains open.
