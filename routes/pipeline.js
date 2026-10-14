@@ -62,7 +62,7 @@ async function pipelineAuth(req, res, next) {
       if(process.env.SALEMAX_PLATFORM_ENABLED==='true'){
         const linkedActor=await legacyPipelineActor.resolve(require('../database/config.js').promise(),users[0]);
         if(linkedActor?.denied)return res.status(linkedActor.code==='AUTH_REQUIRED'?401:403).json({success:false,code:linkedActor.code});
-        if(['owner','manager','team_leader'].includes(linkedActor?.role)&&linkedActor?.categoryKey==='salemax_sales'){
+        if(legacyPipelineActor.canUsePipeline(linkedActor)){
           req.pipelineActor=linkedActor;
           return next();
         }
