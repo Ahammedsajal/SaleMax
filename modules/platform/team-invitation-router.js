@@ -23,7 +23,11 @@ function createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback=fal
     const query=async(sql,args)=>(await pool.query(sql,args))[0];
     const scope=await access.resolveInboxScope(query,req.decode.userData,'load_conversation');
     if(!scope.assignedOnly)return res.json({success:true,data:{allowed:true,assignedOnly:false}});
-    const rows=await query('SELECT assigned_agent FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1',[scope.uid,chatId]);
+    // Managers may open chats through an explicitly shared QR channel even
+    // when the lead is not assigned directly to their membership. Include the
+    // channel fields used by filterAssignedChats so this periodic access check
+    // agrees with the Inbox list and socket authorization.
+    const rows=await query('SELECT assigned_agent,origin,origin_instance_unique_id FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1',[scope.uid,chatId]);
     res.json({success:true,data:{allowed:rows.length===1&&access.filterAssignedChats(rows,scope).length===1,assignedOnly:true}});
   });
   owner.get('/conversation-access',conversationAccess);
