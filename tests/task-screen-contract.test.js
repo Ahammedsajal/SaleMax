@@ -28,10 +28,18 @@ test('task selectors remain catalogue-backed and popup accessibility labels foll
   assert.match(source, /\$\('#refresh'\)\.setAttribute\('aria-label',tr\('Refresh','تحديث'\)\)/);
   assert.match(source, /querySelectorAll\('\.close'\)\.forEach\(button=>button\.setAttribute\('aria-label',tr\('Close','إغلاق'\)\)\)/);
   assert.match(html, /tasks\.js\?v=20261012-chat-label1/);
+  assert.match(html, /tasks-sales\.js\?v=20261014-sales-calls1/);
+  assert.match(fs.readFileSync(path.join(__dirname, '../client/public/tasks/tasks-sales.js'), 'utf8'), /due\.required=active/);
+  assert.match(context, /option\.value='sales_call'/);
+  const workspace=fs.readFileSync(path.join(__dirname, '../client/public/sales-workspace/sales-workspace.js'), 'utf8');
+  assert.match(workspace, /scheduledCalls/);
+  assert.match(workspace, /delta<0\?'overdue'/);
+  assert.match(workspace, /Due soon/);
+  assert.match(fs.readFileSync(path.join(__dirname, '../client/public/sales-workspace/index.html'), 'utf8'), /id="scheduledCallsPanel"/);
 });
 
 test('shared Tasks screen uses authenticated category context for SaleMaX Sales labels', () => {
-  assert.match(html, /tasks-context\.js\?v=20261014-sales-category1/);
+  assert.match(html, /tasks-context\.js\?v=20261014-sales-category2/);
   assert.match(context, /\/api\/user\/team-invitations\/sidebar-access/);
   assert.match(context, /result\?\.data\?\.categoryKey!=='salemax_sales'/);
   assert.match(context, /Shared work queue for leads, calls, deals and team actions\./);

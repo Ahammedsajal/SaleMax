@@ -36,5 +36,5 @@ test('pipeline settings expose bilingual suggested keyword choices and post sele
   assert.match(pipeline, /data-keyword-custom/);
   assert.doesNotMatch(pipeline, /interestKeywords:String\(get\('interestKeywords'\)\)\.split\(','\)/);
   assert.match(html, /pipeline\/intent-keywords\.js\?v=1/);
-  assert.match(html, /pipeline\/pipeline\.js\?v=20261014-lead-click-call1/);
+  assert.match(html, /pipeline\/pipeline\.js\?v=20261014-sales-scheduled-call1/);
 });
