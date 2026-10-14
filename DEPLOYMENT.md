@@ -1,3 +1,10 @@
+## SaleMaX Campaign Board extra-narrow tabs — production, 14 October 2026
+
+- Source commit: `b40e4db` on branch `mobile-responsive-mainline-20261014` (draft PR #137). The shared mobile CSS now constrains two-tab icon groups below 260px so the selected tab label remains fully visible; the sibling remains reachable in the existing horizontal tab scroller.
+- Active release: `/opt/salemax/releases/candidate-attending-staff-a83a148-20261014`; `salemax-app-1` remained running with zero restarts. Production-generated index SHA-256 is `a05bb1315cfd59c82f01cde0928a66e079eddbf1267d3a32345b80093b4e7da7`. Stylesheet SHA-256 `679be08cb804b0e4a3151810eb123981cbf5d5a47a588fe4c4febd5798b93c79` matches release, container and cache-busted public HTTPS asset. The page references `20261014-mobile-compact16`; `/healthz` returns HTTP 200.
+- Rollback: protected directory `/opt/salemax/shared/backups/mobile-campaign-tabs-20261014` (mode 0700; files mode 0600) preserves prior release/container index and CSS copies. Restore `index.release.before` and `salemax-mobile.css.release.before` to the active release `client/public/`, then copy them into `/app/client/public/` in `salemax-app-1`; no app restart or release-pointer change is required.
+- Verification: authenticated Campaign Board visual/geometry review at 220, 280, 320 and 390px. At 220px the active tab is 160×47px within a 163px scroller; page width is 212px, no non-scroller control is offscreen, and visible targets are at least 44px. No campaign was sent; no business data, database or provider configuration changed.
+
 ## SaleMaX shared phone density refinement — production, 14 October 2026
 
 - Source commit: `c18e04b` on branch `mobile-responsive-mainline-20261014` (draft PR #137). The shared mobile stylesheet now reduces MUI phone typography, card spacing, button label size, and dialog padding across business/admin screens while preserving 44px touch targets.
