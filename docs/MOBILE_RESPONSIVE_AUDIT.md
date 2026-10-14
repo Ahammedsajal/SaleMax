@@ -153,3 +153,7 @@ The existing staff-capture form was inspected at 220px and 320px without reading
 ## Dashboard refresh target recheck — 14 October 2026
 
 At 220px and 320px, the Dashboard remains inside its page width with no offscreen controls; section headings render at 20px and visible actions are 44px high. The localized Dashboard refresh icon measured 40×44px, so shared phone CSS now gives it a 44×44px target. The 220px live recheck confirms the new version-10 stylesheet, 212px document width, 44×44px refresh action, and no offscreen buttons. No dashboard data or actions were changed.
+
+## Courses screen header fit — 14 October 2026
+
+At 220px, the Courses screen used a fixed top offset of 56px under a wrapped 99px app header, and its heading rendered at 24px. Shared phone CSS now moves the Courses layer to 99px and reduces its title to 20px at widths up to 260px. Live production verification at 220px shows a 212px document width, no offscreen controls, and the layer starts below the app header. At 320px the page is 312px wide, the 24px title remains readable, and controls stay within the viewport. No course data or actions were changed.

@@ -33,6 +33,8 @@
   #root main:has(>header.MuiAppBar-positionFixed)>.MuiBox-root:first-child{
     height:99px!important;min-height:99px!important
   }
+  #sx-course-screen{top:99px!important}
+  #sx-course-screen h1{font-size:20px!important;line-height:1.2!important}
 }
 
 /* Preserve a square tap target for the compact Dashboard refresh action. */
