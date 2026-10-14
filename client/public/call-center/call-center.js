@@ -1,14 +1,15 @@
 (() => {
   'use strict';
   const isArabic=()=>{const value=(localStorage.getItem('language')||'').toLowerCase();return value==='ar'||value.includes('arab');};
-  function applyLanguage(){const ar=isArabic();document.documentElement.lang=ar?'ar':'en';document.documentElement.dir=ar?'rtl':'ltr';document.querySelectorAll('[data-en][data-ar]').forEach(el=>el.textContent=ar?el.dataset.ar:el.dataset.en);const filter=node('recordingsOnly');if(filter)filter.textContent=callHistory.recordingsOnly?text('Show all calls','عرض كل المكالمات'):text('Show recordings ready to review','عرض التسجيلات الجاهزة للمراجعة');}
+  function applyLanguage(){const ar=isArabic();document.documentElement.lang=ar?'ar':'en';document.documentElement.dir=ar?'rtl':'ltr';document.querySelectorAll('[data-en][data-ar]').forEach(el=>el.textContent=ar?el.dataset.ar:el.dataset.en);const filter=node('recordingsOnly');if(filter)filter.textContent=callHistory.recordingsOnly?text('Show all calls','عرض كل المكالمات'):text('Show recordings ready to review','عرض التسجيلات الجاهزة للمراجعة');renderAgentReviewFilter();}
   const text=(en,ar)=>isArabic()?ar:en;
   const node=id=>document.getElementById(id);
   let browserSipState='disconnected';
   let linkedLeadId='';
   let tenantTimezone='Asia/Qatar';
   let salesCategory=false;
-  const callHistory={items:[],nextCursor:null,loading:false,recordingsOnly:false};
+  const callHistory={items:[],nextCursor:null,loading:false,recordingsOnly:false,agentMembershipId:'',generation:0};
+  const callReview={agents:[],role:''};
   function notice(kind,message){const target=node('notice');target.dataset.kind=kind||'';target.textContent=message;}
   function bearer(){return localStorage.getItem('wacrm_user');}
   async function request(path,method='GET',body){
@@ -27,6 +28,19 @@
     return result.data;
   }
   const roleLabel=role=>({owner:text('Business Admin','مسؤول النشاط'),manager:text('Sales Manager','مدير المبيعات'),team_leader:text('Team Leader','قائد الفريق'),agent:text('Sales Agent','وكيل المبيعات'),accountant:text('Accountant','المحاسب')}[role]||role);
+  function renderAgentReviewFilter(){
+    const label=node('agentReviewFilterLabel'),select=node('agentReviewFilter');if(!label||!select)return;
+    const allowed=salesCategory&&['owner','manager','team_leader'].includes(callReview.role);label.hidden=!allowed;
+    if(callHistory.agentMembershipId&&!callReview.agents.some(agent=>agent.membershipId===callHistory.agentMembershipId))callHistory.agentMembershipId='';
+    const entries=[['',text('All my team','كل فريقي')],...callReview.agents.map(agent=>[agent.membershipId,agent.displayName])];
+    select.replaceChildren(...entries.map(([value,name])=>{const option=document.createElement('option');option.value=value;option.textContent=name;return option;}));
+    select.value=callHistory.agentMembershipId;
+  }
+  async function loadAgentReviewRoster(){
+    if(!salesCategory||!['owner','manager','team_leader'].includes(callReview.role)){callReview.agents=[];callHistory.agentMembershipId='';renderAgentReviewFilter();return;}
+    try{const data=await request('/calls/agents');callReview.agents=Array.isArray(data.agents)?data.agents:[];renderAgentReviewFilter();}
+    catch(_){callReview.agents=[];callHistory.agentMembershipId='';renderAgentReviewFilter();}
+  }
   function renderExtensions(items){
     const section=node('extensionsSection'),host=node('extensionList');section.hidden=false;host.replaceChildren();
     if(!items.length){const empty=document.createElement('p');empty.className='extension-state';empty.textContent=text('No active calling team members are available.','لا يوجد أعضاء فريق نشطون متاحون للمكالمات.');host.append(empty);return;}
@@ -185,19 +199,22 @@
   async function loadCalls({append=false}={}){
     if(callHistory.loading)return;
     if(append&&!callHistory.nextCursor)return;
+    const generation=callHistory.generation;
     callHistory.loading=true;
     const host=node('callList');
     try{
-      const cursor=append?callHistory.nextCursor:null,params=new URLSearchParams();if(callHistory.recordingsOnly)params.set('recordedOnly','1');if(cursor)params.set('cursor',cursor);const query=params.toString(),data=await request(`/calls${query?`?${query}`:''}`),items=data.items||[];
+      const cursor=append?callHistory.nextCursor:null,params=new URLSearchParams();if(callHistory.recordingsOnly)params.set('recordedOnly','1');if(callHistory.agentMembershipId)params.set('agentMembershipId',callHistory.agentMembershipId);if(cursor)params.set('cursor',cursor);const query=params.toString(),data=await request(`/calls${query?`?${query}`:''}`),items=data.items||[];
+      if(generation!==callHistory.generation)return;
       if(append){const known=new Set(callHistory.items.map(item=>item.callId));callHistory.items.push(...items.filter(item=>!known.has(item.callId)));}
       else callHistory.items=items;
       callHistory.nextCursor=data.nextCursor||null;renderCalls(callHistory.items,data.hasMore===true);
     }catch(error){
+      if(generation!==callHistory.generation)return;
       const message=error.code==='INVALID_CALL_CURSOR'?text('Call history changed. Refresh to load the latest calls.','تغير سجل المكالمات. حدّث الصفحة لتحميل أحدث المكالمات.'):
         error.code==='FEATURE_UNAVAILABLE'?text('Call Center is not included in this plan.','مركز الاتصال غير مشمول في هذه الخطة.'):
           text('Call list is unavailable. Confirm the telephony migration and access permissions.','قائمة المكالمات غير متاحة. تحقق من ترحيل الاتصالات وصلاحيات الوصول.');
       if(append){renderCalls(callHistory.items,true);const state=document.createElement('p');state.className='call-empty';state.textContent=message;host.append(state);}else host.textContent=message;
-    }finally{callHistory.loading=false;}
+    }finally{callHistory.loading=false;if(generation!==callHistory.generation)loadCalls();}
   }
   async function playRecording(callId,button,row){
     button.disabled=true;button.textContent=text('Loading recording…','جارٍ تحميل التسجيل…');
@@ -239,6 +256,8 @@
       const data=result.data||{};
       tenantTimezone=data.timezone||'Asia/Qatar';
       salesCategory=data.categoryKey==='salemax_sales';
+      callReview.role=data.membershipRole||'';
+      await loadAgentReviewRoster();
       node('outgoingSection').hidden=!data.permissions?.controlCalls;
       if(data.permissions?.manageRecordings)await loadRecordingPolicy();else node('recordingPolicySection').hidden=true;
       await loadCalls();
@@ -322,7 +341,8 @@
   });
   node('browserSipHangup').addEventListener('click',async()=>{try{await window.SaleMaXSip?.hangupBrowserCall?.();}catch(_){setBrowserState('call-failed');}});
   window.addEventListener('pagehide',()=>{node('mobileSipSetup').replaceChildren();window.SaleMaXSip?.disconnectBrowserSip?.();});
-  node('recordingsOnly').addEventListener('click',event=>{callHistory.recordingsOnly=!callHistory.recordingsOnly;callHistory.items=[];callHistory.nextCursor=null;event.currentTarget.setAttribute('aria-pressed',String(callHistory.recordingsOnly));event.currentTarget.textContent=callHistory.recordingsOnly?text('Show all calls','عرض كل المكالمات'):text('Show recordings ready to review','عرض التسجيلات الجاهزة للمراجعة');loadCalls();});
+  node('recordingsOnly').addEventListener('click',event=>{callHistory.recordingsOnly=!callHistory.recordingsOnly;callHistory.generation++;callHistory.items=[];callHistory.nextCursor=null;event.currentTarget.setAttribute('aria-pressed',String(callHistory.recordingsOnly));event.currentTarget.textContent=callHistory.recordingsOnly?text('Show all calls','عرض كل المكالمات'):text('Show recordings ready to review','عرض التسجيلات الجاهزة للمراجعة');loadCalls();});
+  node('agentReviewFilter').addEventListener('change',event=>{callHistory.agentMembershipId=event.currentTarget.value;callHistory.generation++;callHistory.items=[];callHistory.nextCursor=null;loadCalls();});
   applyLanguage();node('refresh').addEventListener('click',refresh);node('outgoingForm').addEventListener('submit',placeOutboundCall);loadLinkedLead();refresh();
   window.setInterval(()=>{if(!document.hidden)loadCalls();},10000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadCalls();});
