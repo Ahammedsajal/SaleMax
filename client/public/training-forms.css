@@ -477,6 +477,7 @@
  .sx-app-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
  .sx-app-detail .sx-app-detail-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
  .sx-app-detail .sx-app-detail-actions>button{width:100%;min-width:0}
+ .sx-app-detail .sx-app-linked-lead{min-height:44px;box-sizing:border-box}
 }
 @media(max-width:420px){
  .sx-app-detail .sx-app-detail-data>div{grid-template-columns:1fr;gap:3px}
