@@ -360,3 +360,6 @@ At 220px and 260px, the shared header wraps to 99px, but CRM Appearance began at
 ## Team Login wrapped-header overlap — production fix, 14 October 2026
 
 At 220px the header wraps to 99px but the Team Login overlay began at 56px, causing its title to overlap the second header row. The maintained `team-login.js` now moves the overlay to 99px at widths up to 260px. Live production at 220px RTL shows the page begins at the header bottom, the title does not overlap header controls, the document is 212px wide, and all five visible controls are in bounds and at least 44px high. The team list and account/password actions were not activated.
+## Course Enquiry form editor checkbox targets — production fix, 14 October 2026
+
+The blank Course Enquiry editor was opened without saving or publishing. At 220px RTL, the two checkbox labels in each field row measured 17–20px high, leaving small, hard-to-tap targets. Mobile CSS now gives all 52 field/Required labels at least 44px height; at 220px their minimum width is 48px. Production checks at 220px RTL and 320px RTL/LTR show no page overflow, offscreen controls, or non-checkbox input/button below 44px. The editor uses its own vertical scroll and its 44px Save draft and Preview actions remain visible while scrolling. Network review showed GET requests only; no form was saved, previewed, or published.
