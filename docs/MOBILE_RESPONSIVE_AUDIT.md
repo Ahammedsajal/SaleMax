@@ -608,3 +608,7 @@ The authenticated Student Registrations screen was checked in English/LTR at 220
 ## Navigation drawer scroll and target check — production, 14 October 2026
 
 At the narrow 220px phone viewport, the mobile navigation drawer uses its own vertical scroller and reaches the lower menu items without widening the page. Visible menu entries at the bottom (Automation Flows, WA Chatbot, FAQs, Team access, Tasks, Agent Task, and Agent Login) have 44px-high targets and remain within the drawer. No menu route was selected during this check.
+
+## Finance Reports route current-session availability recheck — production, 14 October 2026
+
+Opening Finance Reports from the authenticated business navigation changed the URL to `/user?page=finance-settings&section=reports`, but the screen remained at “Loading finance settings…” on repeated accessibility and screenshot observations. No report controls or report layout rendered, so this route cannot be accepted as mobile-responsive from this session; the earlier register view and route discrepancy remain unresolved. No report action or finance record was touched.
