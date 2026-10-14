@@ -590,3 +590,7 @@ The blank Course Enquiry editor was opened from the Forms screen without saving 
 ## Finance invoices and receivables screen current-session recheck — production, 14 October 2026
 
 The current `/user?page=finance-settings` screen was checked in Arabic/RTL at 220×760 and 320×760. Document widths match the 212px/312px phone viewport, and all 17 visible controls stay in bounds at 44px or taller. The 660px invoice table and 640px receivables-aging table remain in separate 141px/116px (220px viewport) and 241px/216px (320px viewport) horizontal scrollers. The filter controls fit at 320px; the narrow 220px form labels flex beyond their inner row but remain within the page. No invoice, payment, or receivable row was opened, and no filters or finance actions were changed.
+
+## Courses catalogue current-session recheck — production, 14 October 2026
+
+The authenticated Courses route was checked in Arabic/RTL at 220×760 and 320×760. The page stays within the 212px/312px viewport, the long course catalogue scrolls vertically, and all rendered controls stay in bounds with a 44px minimum height. The course overview, catalogue, and learner-journey cards fit the viewport width. No course, batch, or learner record was opened or changed.
