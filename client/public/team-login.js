@@ -58,13 +58,20 @@
   }
   function normalizeBreadcrumb(){
     const root=document.getElementById('root');if(!root)return;
+    const target=label('Team Login','تسجيل دخول الفريق');
+    const aliases=new Set(['agent-login','agent login','team login','دخول الوكيل','تسجيل دخول الوكيل','تسجيل دخول الفريق']);
     for(const element of root.querySelectorAll('*'))if(!element.children.length){
       const text=element.textContent.trim().toLowerCase();
-      if(text==='agent-login'||text==='agent login'||text==='team login'||text==='دخول الوكيل'||text==='تسجيل دخول الوكيل')element.textContent=label('Team Login','تسجيل دخول الفريق');
+      if(aliases.has(text)&&element.textContent!==target)element.textContent=target;
     }
   }
+  let syncQueued=false;
+  function queueSync(){if(syncQueued)return;syncQueued=true;requestAnimationFrame(()=>{syncQueued=false;sync();});}
   let lastRoute=false;
   function sync(){const active=route();let node=document.getElementById('sx-team-login');if(!active){node?.remove();lastRoute=false;return;}const locale=isArabic()?'ar':'en';if(node&&node.dataset.locale!==locale){node.remove();node=null;}if(!node){node=createScreen();load(node);}normalizeBreadcrumb();lastRoute=active;}
-  addEventListener('salemax:languagechange',sync);
-  addEventListener('popstate',sync);new MutationObserver(sync).observe(document.documentElement,{subtree:true,childList:true});setInterval(()=>{if(route()&&!document.getElementById('sx-team-login'))sync();},1200);sync();
+  addEventListener('salemax:languagechange',queueSync);
+  addEventListener('popstate',queueSync);addEventListener('hashchange',queueSync);addEventListener('pageshow',queueSync);
+  for(const method of ['pushState','replaceState']){const original=history[method];history[method]=function(...args){const result=original.apply(this,args);queueSync();return result;};}
+  new MutationObserver(queueSync).observe(document.documentElement,{subtree:true,childList:true});
+  setInterval(()=>{if(route()&&!document.getElementById('sx-team-login'))queueSync();},1200);sync();
 })();
