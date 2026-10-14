@@ -21,7 +21,7 @@ const tokens = fs.readFileSync(tokenFile, 'utf8');
 test('first-party Sales screens load the shared design tokens before section styles', () => {
   for (const { directory, style } of sections) {
     const html = fs.readFileSync(path.join(root, `client/public/${directory}/index.html`), 'utf8');
-    const sharedIndex = html.indexOf('/sales-design-tokens.css?v=20261014-sales-ui1');
+    const sharedIndex = html.indexOf('/sales-design-tokens.css?v=20261014-sales-ui2');
     const sectionIndex = html.search(new RegExp(`/${directory}/${style}\\?v=20261014-[^" ]+`));
     assert.ok(sharedIndex >= 0, `${directory} should load the shared token stylesheet`);
     assert.ok(sectionIndex > sharedIndex, `${directory} styles should load after shared tokens`);
@@ -50,8 +50,26 @@ test('Sales section styles use only defined shared design variables', () => {
 test('shared Sales tokens retain the existing burgundy brand and accessibility focus treatment', () => {
   assert.match(tokens, /--sx-brand:\s*#a8003b/i);
   assert.match(tokens, /--sx-brand-dark:\s*#85002f/i);
+  assert.match(tokens, /--sx-page-padding:\s*26px 24px 44px/);
+  assert.match(tokens, /--sx-page-padding-mobile:\s*17px 13px 28px/);
+  assert.match(tokens, /--sx-focus-ring:\s*rgb\(168 0 59 \/ 28%\)/);
   assert.match(tokens, /a:focus-visible[\s\S]*outline:/);
   assert.match(tokens, /prefers-reduced-motion/);
+});
+
+test('Sales-only workspaces share desktop and mobile page gutters', () => {
+  const files = [
+    'sales-workspace/sales-workspace.css',
+    'sales-organization/sales-organization.css',
+    'sales-commissions/sales-commissions.css',
+    'sales-finance/sales-finance.css',
+    'sales-audit/sales-audit.css',
+  ];
+  for (const file of files) {
+    const css = fs.readFileSync(path.join(root, `client/public/${file}`), 'utf8');
+    assert.match(css, /\.workspace\{[^}]*padding:var\(--sx-page-padding\)/, `${file} should use the shared desktop gutter`);
+    assert.match(css, /\.workspace\{padding:var\(--sx-page-padding-mobile\)\}/, `${file} should use the shared mobile gutter`);
+  }
 });
 
 test('Call Center browser chrome and mobile spacing follow the shared Sales theme', () => {
