@@ -149,3 +149,7 @@ The authenticated Tasks page was inspected in Arabic/RTL at 220px and 320px with
 ## Public staff registration form extra-narrow heading — 14 October 2026
 
 The existing staff-capture form was inspected at 220px and 320px without reading or editing any field values. At 220px, the organization heading and logo shared a narrow row and the heading occupied 236px vertically. The phone layout now stacks the heading and logo, reduces the title to 16px, and aligns the logo to the edge; the heading block is 108px tall. Visible controls remain within the page, with no horizontal overflow, and fields/selects remain 44px tall. At 320px, the existing single-row heading is unchanged, all visible controls remain in bounds, and document width is 305px. Production stylesheet cache key is `20261014-mobile-compact2`; release/container hashes and health checks are recorded in `DEPLOYMENT.md`. No form values were changed or submitted.
+
+## Dashboard refresh target recheck — 14 October 2026
+
+At 220px and 320px, the Dashboard remains inside its page width with no offscreen controls; section headings render at 20px and visible actions are 44px high. The localized Dashboard refresh icon measured 40×44px, so shared phone CSS now gives it a 44×44px target. The 220px live recheck confirms the new version-10 stylesheet, 212px document width, 44×44px refresh action, and no offscreen buttons. No dashboard data or actions were changed.
