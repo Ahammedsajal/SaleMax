@@ -427,3 +427,64 @@
 @media(max-width:720px){
   #sx-forms-screen .sx-public-link>.sx-form-action-group{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+/* Application detail: show each registration fact once in a compact, readable group. */
+.sx-app-detail>section{width:min(1080px,100%);max-height:min(92dvh,900px);padding:22px}
+.sx-app-detail .sx-app-detail-header{align-items:center;gap:16px;padding-bottom:12px}
+.sx-app-detail .sx-app-detail-header h2{font-size:22px}
+.sx-app-detail .sx-app-detail-header p{line-height:1.45;color:#667085}
+.sx-app-detail .sx-app-detail-meta{align-items:center;gap:8px 12px;padding:10px 0;font-size:12px}
+.sx-app-linked-lead,.sx-app-status,.sx-app-detail-meta>span{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:5px 10px;border:1px solid #e4e9ef;border-radius:999px;background:#f8fafc;color:#40566a;text-decoration:none}
+.sx-app-linked-lead{border-color:#ead0da;background:#fff7fa;color:#8f173e;font-weight:700}
+.sx-app-linked-lead:hover{text-decoration:underline}
+.sx-app-detail .sx-app-detail-section{padding:12px 0}
+.sx-app-detail .sx-app-detail-section h3{margin-bottom:8px;font-size:15px}
+.sx-app-detail-data{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px!important;margin:4px 0!important}
+.sx-app-detail .sx-app-detail-data>div{grid-template-columns:minmax(112px,.72fr) minmax(0,1.28fr);gap:10px;padding:8px 3px}
+.sx-app-detail .sx-app-detail-data strong{font-size:12px;line-height:1.4}
+.sx-app-field-value{font-size:13px;line-height:1.45}
+.sx-app-detail-data>div.sx-app-field-complex{grid-column:1/-1}
+.sx-app-course-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.sx-app-course-card{min-width:0;padding:12px;border:1px solid #e6ebf0;border-radius:10px;background:#fbfcfe}
+.sx-app-course-card h4{margin:0 0 8px;color:#253a4d;font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+.sx-app-course-card dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:0}
+.sx-app-course-card dl>div,.sx-app-summary>div{min-width:0;padding:7px 9px;border-radius:7px;background:#f1f5f8}
+.sx-app-course-card dt,.sx-app-summary dt{color:#68798a;font-size:11px}
+.sx-app-course-card dd,.sx-app-summary dd{margin:2px 0 0;color:#273b4d;font-size:13px;overflow-wrap:anywhere}
+.sx-app-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:0 0 9px}
+.sx-app-installments{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:7px}
+.sx-app-installments article{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;align-items:center;padding:8px 10px;border:1px solid #e8edf2;border-radius:8px;font-size:12px}
+.sx-app-installments article strong{grid-column:1/-1;color:#526476;font-size:11px}
+.sx-app-installments article span{color:#526476}
+.sx-app-installments article b{color:#243442;text-align:end;white-space:nowrap}
+.sx-app-consent-copy{max-width:78ch;line-height:1.55;color:#33485a;font-size:13px}
+.sx-app-attribution{margin-top:12px;padding-top:10px;border-top:1px solid #edf0f3}
+.sx-app-attribution h3{font-size:13px!important}
+.sx-app-attribution dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px 12px;margin:8px 0 0}
+.sx-app-attribution dl>div{min-width:0}
+.sx-app-attribution dt{color:#68798a;font-size:11px}
+.sx-app-attribution dd{margin:2px 0 0;overflow-wrap:anywhere;font-size:12px}
+.sx-app-detail .sx-app-detail-actions{gap:7px}
+.sx-app-detail .sx-app-detail-actions>button{min-width:108px;font-size:13px}
+.sx-applicant-name{font-size:14px;color:#243442}
+@media(max-width:720px){
+ .sx-app-detail{place-items:start center;padding:8px}
+ .sx-app-detail>section{max-height:calc(100dvh - 16px);padding:14px;border-radius:12px}
+ .sx-app-detail .sx-app-detail-header h2{font-size:20px}
+ .sx-app-detail-data{grid-template-columns:1fr}
+ .sx-app-detail .sx-app-detail-data>div{grid-template-columns:minmax(110px,.65fr) minmax(0,1.35fr);gap:8px}
+ .sx-app-course-card dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .sx-app-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .sx-app-detail .sx-app-detail-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .sx-app-detail .sx-app-detail-actions>button{width:100%;min-width:0}
+}
+@media(max-width:420px){
+ .sx-app-detail .sx-app-detail-data>div{grid-template-columns:1fr;gap:3px}
+ .sx-app-course-card dl,.sx-app-summary{grid-template-columns:1fr}
+ .sx-app-installments{grid-template-columns:1fr}
+}
+@media print{
+ .sx-app-course-card,.sx-app-summary>div,.sx-app-installments article{break-inside:avoid}
+ .sx-app-detail>section{max-height:none}
+ .sx-app-detail .sx-app-detail-meta{padding:6px 0}
+}
