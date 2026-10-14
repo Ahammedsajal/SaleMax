@@ -1483,6 +1483,59 @@ First-party Sales tenant and staff identities remain unprovisioned, so authentic
 
 The existing authenticated application-detail modal now presents applicant information, course and schedule, payment and consent in readable groups. Duplicate summary values and raw internal IDs are suppressed, linked lead appears once, and signature/consent dates and the course name are readable. Payment details use a compact responsive record, with narrow layouts stacking cleanly. Source PR #140 is merged as `35c0c000c6b7a06db0dfd8ec4092bc603fe34d8` and the reviewed assets are live in `/opt/salemax/releases/candidate-app-details-consent-35c0c00-20261014`. Focused tests pass 13/13; authenticated owner review passed in English/LTR and Arabic/RTL. No migration or data change occurred. The live under-480px action-button rule is now synchronized to the tracked stylesheet; phone/tablet visual review and print acceptance remain open; broader Candidate Applications and full 42-ticket gates remain in progress. See `DEPLOYMENT.md` for hashes, rollback and production evidence.
 
+## Authenticated app header language control — production mobile fix, 14 October 2026
+
+At 550px, the authenticated shell header now keeps the language switch compact: the visible label is clipped at 381–600px while its accessible name remains available. The existing shell logo rendering and drawer wordmark are unchanged. Production asset and rollback evidence are recorded in `DEPLOYMENT.md`. This closes the observed 550px header crowding issue; the full route/state and role-based mobile audit remains in progress.
+
+## Campaign Dashboard and Admin sign-in mobile follow-up — production, 14 October 2026
+
+The Campaign Dashboard overview and Admin sign-in shell were checked in Arabic/RTL at 390px, 320px, and 220px. Both screens remained within the viewport with visible controls in bounds and at least 44px high. Dashboard paired tabs wrap into a compact two-column layout at 220px. Admin sign-in fields remain tappable; the inner password entry area is 51px wide beside its 44px visibility control at 220px. No campaign or authentication form action was triggered. Detailed measurements are in `MOBILE_RESPONSIVE_AUDIT.md`; the screen-by-screen audit remains in progress.
+
+## Sign-in mobile link tap targets — production, 14 October 2026
+
+The Admin reset-password action and business login recovery, account creation, and policy links measured below 44px on live sign-in screens. The shared mobile CSS makes each link target 44px up to 600px, scoped to email/password sign-in pages. The production release and served cache-busted stylesheet match the committed source; Arabic/RTL browser checks at 220px, 320px, and 390px passed bounds and overflow checks. No form action was activated. Full mobile route/state and Admin/Sales role acceptance remain open.
+
+## Campaign Dashboard All Campaigns state — mobile recheck, 14 October 2026
+
+The All Campaigns state was checked at 220px, 320px, and 390px in Arabic/RTL. Search and filter fields plus Search, Export CSV and Refresh fit the viewport; action buttons and field wrappers meet the 44px target. The 24px native select input is contained within its 44px control wrapper. No campaign action was triggered. The documented SSH configuration is now available and the sign-in tap-target source/deployment is recorded in the later production entry; full route/role coverage remains open.
+
+## Training Profile full-form mobile recheck — production, 14 October 2026
+
+After layout settled, the Arabic/RTL Training Profile form was checked at 390px, 320px, and 220px. The document stayed within the mobile layout width at each size; all 33 visible controls remained in bounds and at least 44px high. No profile values were read or changed. The Training Profile screen is covered for its current form state; role-specific and nested states remain part of the overall audit.
+
+## Main Dashboard mobile recheck — production, 14 October 2026
+
+The main Dashboard was checked in Arabic/RTL at 390px, 320px, and 220px. Its page width stayed within the available mobile column and all nine visible interactive controls remained in bounds and at least 44px high. No dashboard data or action was changed; metrics were not copied.
+
+## Inbox list mobile recheck — production, 14 October 2026
+
+The authenticated Inbox list was checked at 390px, 320px, and 220px with no conversation opened. All 13 visible controls stayed in bounds and met the 44px height target; page width remained within the viewport. No message or read state changed. The iframe utility content remains outside this visual check.
+
+## Student Registrations table link target — production, 14 October 2026
+
+The authenticated Arabic/RTL Student Registrations screen fits 390px, 320px, and 220px widths, with its approximately 592–600px table inside a horizontal scroller. One link in the table measured 33px high; a scoped mobile rule raises it to 44px. The served compact41 stylesheet hash matches the active release and container. No student row or action was opened. The full mobile audit remains in progress.
+
+## Finance invoice register mobile recheck — production, 14 October 2026
+
+The authenticated Finance route was checked in Arabic/RTL at 220px, 320px, and 390px. Its document/body stayed within the viewport and all nine visible interactive controls were in bounds and at least 44px high. No invoice was opened or modified, and no finance action was triggered. Finance reports and other finance sub-screens remain in the audit inventory.
+
+## Phonebook current-release mobile recheck — production, 14 October 2026
+
+The authenticated Phonebook screen was checked at 220px, 320px, and 390px. All rendered controls were in bounds and at least 44px high; the 1,140px grid stays inside its horizontal scroller. No contact was opened or changed. The overall screen-by-screen audit remains active.
+
+## Staff-mode Student Registration mobile recheck — production, 14 October 2026
+
+At 220px, 320px, and 390px, the public staff-mode form stayed within the viewport and all 31 visible controls met the 44px target. The consent checkbox label provides the touch area; the invisible honeypot is excluded. No form value or file was supplied and the form was not submitted.
+
+## Candidate Applications list current-release recheck — production, 14 October 2026
+
+The authenticated Arabic/RTL applications list fits 220px, 320px, and 390px widths with all 28 visible controls in bounds and at least 44px high. The page scrolls vertically within its application section. No application was opened, printed, or changed.
+
+## Tasks embedded view current-session recheck — production, 14 October 2026
+
+The Tasks iframe now loads in the current authenticated session instead of showing the earlier expired-session state. At 220px, 320px, and 390px its frame fits the viewport and all four visible controls are in bounds and at least 44px high. No task content was read, and no task was opened or changed.
+
+
 ## Candidate Applications applicant-name open action — production, 14 October 2026
 
 The applicant name in each submitted application now opens its review and print details directly. The extra View / print action was removed, while the linked lead remains a separate action. PR #143 merged as `3d3ca5cf43c3b1d350eba2ad7503ca69988c06f5` and is live. Focused checks pass 14/14; production release, container and public asset hashes match, health is 200, and the authenticated name click opened the detail modal. No migration or customer-data change occurred, and the app did not restart. Rollback and release hashes are recorded in `DEPLOYMENT.md`. Phone/tablet visual review, physical print acceptance, broader Candidate Applications workflows and the full 42-ticket upgrade remain open.

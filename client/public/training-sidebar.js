@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261013-language-layout1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261014-mobile-profile-card1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
@@ -15,7 +15,7 @@
     window.__sxTrainingFormsEditorLayoutLoader = true;
     const formsEditorStyle = document.createElement('link');
     formsEditorStyle.rel = 'stylesheet';
-    formsEditorStyle.href = '/training-forms-editor.css?v=20261012-editor-scroll1';
+    formsEditorStyle.href = '/training-forms-editor.css?v=20261014-editor-touch44-1';
     document.head.append(formsEditorStyle);
   }
   if (!window.__sxFaqManagerLoader) {

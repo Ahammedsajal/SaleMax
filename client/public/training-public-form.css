@@ -16,3 +16,8 @@
 .course-picker[data-opens-upward][open] summary{border-radius:0 0 8px 8px}
 .course-picker[data-opens-upward] .course-picker-panel{border-top:1px solid #cbd6df;border-bottom:0;border-radius:8px 8px 0 0}
 .course-option-list{min-height:0;max-height:min(250px,calc(44vh - 110px))}
+
+/* Compact public forms on phones and keep long content inside the viewport. */
+@media(max-width:600px){.public-form{width:100%;min-width:0;padding:12px 10px}.form-header{min-width:0;margin-bottom:12px}.form-header button{min-height:44px;padding:7px 10px;font-size:14px}.form-card{width:100%;min-width:0;max-width:100%;padding:18px 14px;border-radius:14px}.form-card h1{font-size:22px;line-height:1.2;overflow-wrap:anywhere}.description{font-size:14px;line-height:1.4;margin-bottom:16px}.form-field{min-width:0;margin-top:13px;font-size:13px}.form-field input,.form-field select{min-width:0;max-width:100%;min-height:44px;padding:8px 10px;font-size:14px}}
+@media(max-width:360px){.public-form{padding:10px 8px}.form-card{padding:14px 12px}.form-card h1{font-size:20px}.description{font-size:13px}}
+@media(max-width:760px){.honeypot{position:fixed!important}}

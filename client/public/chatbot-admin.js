@@ -89,6 +89,7 @@
       section = document.createElement('section');
       section.id = 'sx-native-chatbot-profiles';
       section.setAttribute('aria-label', tr('Chatbot profiles','ملفات روبوتات المحادثة'));
+      section.dataset.sxChatbotProfiles = 'true';
       header.insertAdjacentElement('afterend', section);
     }
     if (section.dataset.loaded === '1' || nativeProfileListRequest) return;
@@ -243,7 +244,7 @@
   }
   function syncMobileFlowLayout(enabled) {
     const flow = document.querySelector('.react-flow');
-    const toolbar = document.querySelector('button[aria-label="Node Menu"]')?.parentElement;
+    const toolbar = document.querySelector('button[aria-label="Node Menu"],button[aria-label="قائمة العقد"]')?.parentElement;
     document.querySelectorAll('[data-sx-chatbot-mobile-toolbar="true"]').forEach(previous => {
       if (!enabled || previous !== toolbar) {
         previous.style.transform = previous.dataset.sxChatbotOriginalTransform || '';
@@ -286,6 +287,15 @@
       #sx-chatbot-panel .sx-status{display:inline-flex;align-items:center;gap:6px;border-radius:20px;padding:5px 10px;background:#ecfdf3;color:#067647;font-size:12px;font-weight:700} #sx-chatbot-panel .sx-status:before{content:'';width:8px;height:8px;border-radius:50%;background:#12b76a}
       #sx-chatbot-panel .sx-status[data-status=draft],#sx-chatbot-panel .sx-status[data-status=testing]{background:#f2f4f7;color:#475467} #sx-chatbot-panel .sx-status[data-status=draft]:before,#sx-chatbot-panel .sx-status[data-status=testing]:before{background:#98a2b3}
       #sx-chatbot-panel .sx-alert{padding:12px 14px;border-radius:9px;background:#eff8ff;color:#175cd3;border:1px solid #b2ddff;margin-top:16px}
+      @media(max-width:600px){
+        #root [data-sx-chatbot-profiles]>div{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+        #root [data-sx-chatbot-profiles]>div>div:nth-child(2){display:grid;grid-template-columns:minmax(0,1fr);width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+        #root [data-sx-chatbot-profiles] article{width:100%;min-width:0;max-width:100%;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;gap:8px!important;padding:12px!important;box-sizing:border-box}
+        #root [data-sx-chatbot-profiles] article>div:first-child{min-width:0;max-width:100%;overflow-wrap:anywhere}
+        #root [data-sx-chatbot-profiles] article>div:last-child{width:100%;min-width:0;max-width:100%;flex-shrink:1!important;flex-wrap:wrap;gap:8px!important}
+        #root [data-sx-chatbot-profiles] article>div:last-child>span{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+        #root [data-sx-chatbot-profiles] article>div:last-child>button{min-height:44px;box-sizing:border-box}
+      }
       #sx-chatbot-dialog{position:fixed;z-index:2147483000;inset:0;background:#10182880;display:grid;place-items:center;padding:18px}
       #sx-chatbot-dialog .sx-dialog{width:min(760px,100%);max-height:92vh;overflow:auto;background:#fff;color:#182230;border-radius:16px;padding:24px;box-shadow:0 20px 70px #10182840}
       #sx-chatbot-dialog .sx-bot-editor-dialog{display:flex;flex-direction:column;overflow:hidden}
