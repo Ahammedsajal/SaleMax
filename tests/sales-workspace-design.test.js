@@ -12,6 +12,7 @@ const sections = [
   { directory: 'sales-commissions', style: 'sales-commissions.css' },
   { directory: 'sales-finance', style: 'sales-finance.css' },
   { directory: 'sales-audit', style: 'sales-audit.css' },
+  { directory: 'call-center', style: 'call-center.css' },
 ];
 const tokenFile = path.join(root, 'client/public/sales-design-tokens.css');
 const tokens = fs.readFileSync(tokenFile, 'utf8');
@@ -20,7 +21,7 @@ test('first-party Sales screens load the shared design tokens before section sty
   for (const { directory, style } of sections) {
     const html = fs.readFileSync(path.join(root, `client/public/${directory}/index.html`), 'utf8');
     const sharedIndex = html.indexOf('/sales-design-tokens.css?v=20261014-sales-ui1');
-    const sectionIndex = html.search(new RegExp(`/${directory}/${style}\\?v=20261014-(?:sales-ui1|followups1|overview-alerts1|payout-batches1)`));
+    const sectionIndex = html.search(new RegExp(`/${directory}/${style}\\?v=20261014-[^" ]+`));
     assert.ok(sharedIndex >= 0, `${directory} should load the shared token stylesheet`);
     assert.ok(sectionIndex > sharedIndex, `${directory} styles should load after shared tokens`);
   }
@@ -50,4 +51,14 @@ test('shared Sales tokens retain the existing burgundy brand and accessibility f
   assert.match(tokens, /--sx-brand-dark:\s*#85002f/i);
   assert.match(tokens, /a:focus-visible[\s\S]*outline:/);
   assert.match(tokens, /prefers-reduced-motion/);
+});
+
+test('Call Center browser chrome and mobile spacing follow the shared Sales theme', () => {
+  const html = fs.readFileSync(path.join(root, 'client/public/call-center/index.html'), 'utf8');
+  const css = fs.readFileSync(path.join(root, 'client/public/call-center/call-center.css'), 'utf8');
+  assert.match(html, /theme-color" content="#A8003B"/i);
+  assert.match(html, /call-center\/call-center\.css\?v=20261014-sales-ui2/);
+  assert.match(css, /header\{align-items:flex-start\}/);
+  assert.match(css, /color:var\(--sx-brand\)/);
+  assert.match(css, /background:var\(--sx-canvas\)/);
 });
