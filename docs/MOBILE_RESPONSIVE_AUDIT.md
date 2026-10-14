@@ -459,6 +459,6 @@ The blank invoice builder was opened read-only and checked in Arabic/RTL at 220p
 
 The authenticated navigation drawer was checked at 220×800px and 320×760px. Its width stays within the viewport, its long menu scrolls vertically inside the drawer, and the 24 visible interactive controls measured at least 44px high with no horizontal overflow or offscreen targets. Navigation items were inspected without changing account settings or business records.
 
-## Tasks page list view — production mobile check, 14 October 2026
+## Tasks route session state — production, 14 October 2026
 
-The authenticated Tasks list view was checked at 220×800px and 320×760px. The document and body stayed within the viewport, all nine visible interactive controls measured at least 44px high, and no visible controls were horizontally offscreen. No task was opened, edited, or created.
+The `/user?page=tasks` route opens an embedded Tasks page that displays “Your session has expired. Sign in again, then reopen Tasks.” The CRM shell remained within the viewport at 220px and 320px, but the Tasks list and its controls could not be audited because the embedded session was expired. No task was opened or changed.
