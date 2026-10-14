@@ -8,6 +8,7 @@ test('open-chat check follows persisted transfer and rejects invalid account sco
   const pool={query:async(sql,args)=>{
     if(sql.includes('WHERE o.source_table'))return [[{tenantId:'tenant',tenantStatus:'active',identityId:'manager',role:'manager',membershipStatus:active?'active':'inactive',identityStatus:'active',uidHash:hash('staff'),delegatedPermissions:[]}]];
     if(sql.includes("m.role='owner'"))return [[{uid:'owner',uidHash:hash('owner')}]];
+    if(sql.includes('FROM sx_qr_channel_shares'))return [[]];
     assert.deepEqual(args,['owner','chat']);
     return [[{assigned_agent:JSON.stringify([{kind:'identity',identityId:assigned}])}]];
   }};

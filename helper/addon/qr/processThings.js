@@ -131,7 +131,8 @@ async function updateChatInMysql({
              sender_name = ?, 
              sender_mobile = ?, 
              origin = ?, 
-             origin_instance_id = ?
+             origin_instance_id = ?,
+             origin_instance_unique_id = ?
              ${unread_count > 0 ? ", unread_count = ?" : ""}
          WHERE chat_id = ? AND uid = ?`,
         unread_count > 0
@@ -141,6 +142,7 @@ async function updateChatInMysql({
               sender_mobile,
               origin,
               origin_instance_id,
+              sessionId,
               unread_count,
               chatId,
               uid,
@@ -151,6 +153,7 @@ async function updateChatInMysql({
               sender_mobile,
               origin,
               origin_instance_id,
+              sessionId,
               chatId,
               uid,
             ]
@@ -158,8 +161,8 @@ async function updateChatInMysql({
     } else {
       await query(
         `INSERT INTO beta_chats 
-         (uid, chat_id, last_message, sender_name, sender_mobile, origin, origin_instance_id, unread_count, assigned_agent) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+         (uid, chat_id, last_message, sender_name, sender_mobile, origin, origin_instance_id, origin_instance_unique_id, unread_count, assigned_agent)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
         [
           uid,
           chatId,
@@ -168,6 +171,7 @@ async function updateChatInMysql({
           sender_mobile,
           origin,
           origin_instance_id,
+          sessionId,
           unread_count,
         ]
       );

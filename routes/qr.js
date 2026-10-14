@@ -222,6 +222,22 @@ router.get("/get_all_agent", validateAgent, async (req, res) => {
 // get all instances
 router.get("/get_all", validateUser, async (req, res) => {
   try {
+    const inboxScope = await require('../modules/platform/team-inbox-scope')
+      .resolveInboxScope(query, req.decode.userData, 'get_chat_list');
+    if (inboxScope.canonical && inboxScope.ctx.membership.role !== 'owner') {
+      const shared = (inboxScope.sharedQrInstances || []).map(instance => ({
+        id: Number(instance.instanceId),
+        title: instance.title || 'WhatsApp',
+        number: normalizeNumber(instance.number || ''),
+        channel_key: normalizeNumber(instance.number || '') || null,
+        status: !getSession(instance.uniqueId) && ['ACTIVE', 'RECONNECTING'].includes(String(instance.status).toUpperCase())
+          ? 'RECONNECTING'
+          : instance.status,
+        uniqueId: instance.uniqueId,
+        sharedAccess: true,
+      }));
+      return res.json({ success: true, data: shared });
+    }
     const { active } = req.query;
     const instances = await query(`SELECT * FROM instance WHERE uid = ?`, [
       req.decode.uid,

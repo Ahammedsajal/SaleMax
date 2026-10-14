@@ -195,13 +195,13 @@ function processSocketEvent({
             agentData = [...new Map(combined.map(item => [item.uid,item])).values()];
           }
 
-          const qrInstances = await query(
-            `SELECT uniqueId, title, number, status
+          const qrInstances = inboxAccess.filterQrInstances(await query(
+            `SELECT id, uniqueId, title, number, status
              FROM instance
              WHERE uid = ? AND status = 'ACTIVE'
              ORDER BY title ASC, number ASC`,
             [chatListOwnerUid],
-          );
+          ), inboxScope);
 
           socket.emit("chat_list", {
             chats: chatData,

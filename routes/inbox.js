@@ -624,6 +624,9 @@ async function handleMessages(change, uid, body) {
 // getting chat lists
 router.get("/get_chats", validateUser, async (req, res) => {
   try {
+    const inboxAccess = require('../modules/platform/team-inbox-scope');
+    const inboxScope = await inboxAccess.resolveInboxScope(query, req.decode.userData, 'get_chat_list');
+    const ownerUid = inboxScope.uid;
     const origin = normalizeOriginFilter(req.query?.origin);
     const search = String(req.query?.search || "").trim();
 
@@ -635,15 +638,16 @@ router.get("/get_chats", validateUser, async (req, res) => {
         last_message,
         unread_count,
         origin,
+        origin_instance_unique_id,
         updatedAt,
         createdAt
       FROM beta_chats 
       WHERE uid = ?`,
-      [req.decode.uid],
+      [ownerUid],
     );
 
     const legacyChats = await query(`SELECT * FROM chats WHERE uid = ?`, [
-      req.decode.uid,
+      ownerUid,
     ]);
 
     let data = mergeChatLists({
@@ -655,9 +659,10 @@ router.get("/get_chats", validateUser, async (req, res) => {
       origin,
       search,
     });
+    data = inboxAccess.filterAssignedChats(data, inboxScope);
 
     const getContacts = await query(`SELECT * FROM contact WHERE uid = ?`, [
-      req.decode.uid,
+      ownerUid,
     ]);
 
     if (data.length > 0 && getContacts.length > 0) {
@@ -676,6 +681,9 @@ router.get("/get_chats", validateUser, async (req, res) => {
 // get chat conversatio
 router.post("/get_convo", validateUser, async (req, res) => {
   try {
+    const inboxAccess = require('../modules/platform/team-inbox-scope');
+    const inboxScope = await inboxAccess.resolveInboxScope(query, req.decode.userData, 'load_conversation');
+    const ownerUid = inboxScope.uid;
     const { chatId } = req.body;
     const limit = Math.min(
       500,
@@ -685,15 +693,19 @@ router.post("/get_convo", validateUser, async (req, res) => {
       return res.json({ success: false, msg: "chatId is required", data: [] });
     }
 
+    const [chat] = await query('SELECT * FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1', [ownerUid, chatId]);
+    if (!chat) return res.status(inboxScope.canonical ? 404 : 200).json({success:false,code:'CONVERSATION_NOT_FOUND',data:[]});
+    await inboxAccess.authorizeInboxPayload(query, inboxScope, 'load_conversation', {chat});
+
     const dbMessages = await query(
       `SELECT * FROM beta_conversation
        WHERE uid = ? AND chat_id = ?
        ORDER BY timestamp DESC, id DESC
        LIMIT ?`,
-      [req.decode.uid, chatId, limit],
+      [ownerUid, chatId, limit],
     );
 
-    const filePath = `${__dirname}/../conversations/inbox/${req.decode.uid}/${chatId}.json`;
+    const filePath = `${__dirname}/../conversations/inbox/${ownerUid}/${chatId}.json`;
     const legacyMessages = readJSONFile(filePath, limit);
 
     const data = sanitizeMergedRows(
