@@ -99,6 +99,15 @@ test('task list reports whether another page exists and caps the page to the req
   assert.deepEqual(query.args.slice(-2),[3,2]);
 });
 
+test('active task filters exclude completed history before pagination',async()=>{
+  let query;const db={query:async(sql,args)=>{query={sql,args};return [[],[]];}};
+  await tasks.list(db,{...ctx,tenant:{categoryKey:'salemax_sales'}},{scope:'mine',status:'active',taskType:'sales_call'});
+  assert.match(query.sql,/t\.status IN \('open','in_progress','blocked'\)/);
+  assert.match(query.sql,/t\.task_type=\?/);
+  assert.ok(query.args.includes('sales_call'));
+  assert.equal(query.args.includes('active'),false);
+});
+
 test('task type filters scope scheduled Sales calls and cannot be used by other categories',async()=>{
   let query;const db={query:async(sql,args)=>{query={sql,args};return [[],[]];}};
   await tasks.list(db,{...ctx,tenant:{categoryKey:'salemax_sales'}},{scope:'mine',taskType:'sales_call'});
