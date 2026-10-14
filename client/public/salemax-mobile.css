@@ -378,7 +378,7 @@
 /* Reduce Training Center student-card bulk; keep controls and internal tables usable. */
 @media(max-width:600px){
   #sx-training-students-screen{padding:12px 10px}
-  #sx-training-students-screen h1{font-size:22px;line-height:1.2}
+  #sx-training-students-screen h1{font-size:22px!important;line-height:1.2!important}
   #sx-training-students-screen h2{font-size:17px;line-height:1.25}
   #sx-training-students-screen .sx-st-sub{font-size:13px;line-height:1.4;margin-bottom:12px}
   #sx-training-students-screen .sx-st-card{padding:12px;border-radius:12px}
@@ -392,7 +392,7 @@
   #sx-training-students-screen .sx-st-list{gap:8px;margin-top:12px}
 }
 @media(max-width:300px){
-  #sx-training-students-screen h1{font-size:20px}
+  #sx-training-students-screen h1{font-size:20px!important}
   #sx-training-students-screen .sx-st-card{padding:10px}
   #sx-training-students-screen button,#sx-training-students-screen a.sx-st-btn{padding-inline:8px;font-size:12px}
 }
