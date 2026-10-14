@@ -33,6 +33,8 @@ test('task selectors remain catalogue-backed and popup accessibility labels foll
   assert.match(context, /option\.value='sales_call'/);
   const workspace=fs.readFileSync(path.join(__dirname, '../client/public/sales-workspace/sales-workspace.js'), 'utf8');
   assert.match(workspace, /scheduledCalls/);
+  assert.match(workspace, /delta<0\?'overdue'/);
+  assert.match(workspace, /Due soon/);
   assert.match(fs.readFileSync(path.join(__dirname, '../client/public/sales-workspace/index.html'), 'utf8'), /id="scheduledCallsPanel"/);
 });
 
