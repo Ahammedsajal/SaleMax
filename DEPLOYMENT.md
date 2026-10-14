@@ -1,3 +1,14 @@
+## Assigned agent contact number visibility — production, 14 October 2026
+
+- Source commit: `2cd297c1796745628d38543ab6d7f66463db1975` on `main` (`routes/agent.js`).
+- Deployed release: `/opt/salemax/releases/agent-chat-contact-details-2cd297c-20261014`; previous release: `/opt/salemax/releases/team-route-sync-a611a1b-20261014`.
+- Change: `GET /api/agent/get_me` returns `mask_number=0` for a canonical team agent with assigned-only Inbox scope. This lets the existing Inbox show the complete customer phone number. Existing server authorization still filters chat lists and verifies assignments before loading conversations; legacy agents retain their configured Mask Number setting. The existing conversation API already returns the assigned chat's messages and contact record. No new account, permission, or data route was added.
+- Deployment: app image `sha256:fb037ea8515873e178bc2085b3b1578cef855838a8a48eb09146ad8ecf1721b6`; container `6488e3e0abe0c0b6e8d3f1a90c2edb298186b966bfa20481427f0b9af16ae94c`, healthy with zero restarts. The reviewed route file was copied into the protected prior app image and only the app service was recreated. Database and report-worker services were not restarted.
+- Database/data: no migrations and no customer, conversation, or assignment changes.
+- Rollback: protected snapshot `/opt/salemax/shared/rollback-agent-chat-contact-details-2cd297c-20261014` (mode 0700) contains the prior release pointer, app/container/image baseline, and exact prior `routes/agent.js`. The old image is retained as `salemax-app:rollback-agent-chat-contact-details-2cd297c-20261014`. Restore `/opt/salemax/current` to `/opt/salemax/releases/team-route-sync-a611a1b-20261014`, retag that rollback image as `salemax-app:latest`, then recreate only the app with `docker compose -p salemax --env-file /opt/salemax/shared/stack.env -f /opt/salemax/current/deploy/compose.yml up -d --no-build --no-deps --force-recreate app`. No database rollback applies.
+- Verification: route JavaScript syntax passed inside the running app container; the release/container route SHA-256 matches (`98abb9627570f8a3822d7c178ecfbe988ca654cef25bcdd606b398e21717f7a7)); app health is `healthy`, `/healthz` succeeds, and the public HTTPS health endpoint returns HTTP 200.
+- Remaining gate: authenticated agent browser acceptance of the full phone number and conversation details was not available during deployment. Verify using the affected agent account after its next login; an agent session was not opened or impersonated for this release.
+
 ## Inbox and Team access SPA route cleanup — production, 14 October 2026
 
 - Source commit: `a611a1b1e5a1edd1ee71930500af2ebef2c84617` on `main` (`client/public/team-invitations.js`).
