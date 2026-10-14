@@ -39,6 +39,8 @@ const fs = require("fs");
 const legacyAgentSeats = require("../modules/platform/legacy-agent-seats");
 const legacyAgentAccess = require("../modules/platform/legacy-agent-access");
 const {issueForVerifiedLegacyAccount} = require("../modules/platform/legacy-session-bridge");
+const legacyAgentTaskAdapter = require("../modules/platform/legacy-agent-task-adapter");
+const taskManagement = require("../modules/platform/task-management");
 
 
 // adding agent
@@ -1243,10 +1245,13 @@ router.post("/send_image", validateAgent, checkPlan, async (req, res) => {
 // get my tasks
 router.get("/get_my_task", validateAgent, async (req, res) => {
   try {
-    const data = await query(`SELECT * FROM agent_task WHERE uid = ?`, [
-      req.decode.uid,
-    ]);
+    const data = await legacyAgentTaskAdapter.listAgentTasks(query, {
+      ownerUid: req.owner.uid,
+      agentUid: req.decode.uid,
+      agentId: req.decode.userData.id,
+    });
 
+    res.setHeader("Cache-Control", "no-store");
     res.json({ data, success: true });
   } catch (err) {
     console.log(err);
@@ -1261,6 +1266,43 @@ router.post("/mark_task_complete", validateAgent, async (req, res) => {
 
     if (!comment) {
       return res.json({ msg: "Please type your comments." });
+    }
+
+    const sharedTaskId = typeof id === "string" ? id.match(/^sx:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)?.[1] : null;
+    if (typeof id === "string" && id.startsWith("sx:") && !sharedTaskId) {
+      return res.status(400).json({ success: false, code: "INVALID_TASK_ID" });
+    }
+    if (sharedTaskId) {
+      const ownerUid = req.owner.uid;
+      const agentId = Number(req.decode.userData.id);
+      const uidHash = legacyAgentTaskAdapter.ownerHash(ownerUid);
+      const [tasks] = await query(`SELECT t.tenant_id,t.uid_hash,t.revision,t.status
+        FROM sx_tasks t
+        JOIN sx_task_participants p ON p.tenant_id=t.tenant_id AND p.task_id=t.id
+          AND p.actor_type='agent' AND p.actor_id=? AND p.removed_at IS NULL
+        WHERE t.id=? AND t.uid_hash=? AND t.deleted_at IS NULL LIMIT 1`,
+      [String(agentId), sharedTaskId, uidHash]);
+      if (!tasks) return res.status(404).json({ success: false, code: "TASK_NOT_FOUND" });
+      const pool = require("../database/config.js").promise();
+      const db = await pool.getConnection();
+      try {
+        const result = await taskManagement.updateStatus(db, {
+          tenantId: tasks.tenant_id,
+          uidHash: tasks.uid_hash,
+          uid: ownerUid,
+          role: "agent",
+          actorType: "agent",
+          actorId: String(agentId),
+          agentId,
+        }, sharedTaskId, {
+          status: "completed",
+          expectedRevision: Number(tasks.revision),
+          comment: String(comment).trim().slice(0, 1000),
+        });
+        return res.json({ success: true, msg: "Task updated", data: result });
+      } finally {
+        db.release();
+      }
     }
 
     await query(
