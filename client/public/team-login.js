@@ -2,7 +2,7 @@
   'use strict';
   if (window.__sxTeamLogin) return;
   window.__sxTeamLogin = true;
-  const isArabic = () => (localStorage.getItem('language') || localStorage.getItem('salemax-language') || '').toLowerCase().startsWith('ar');
+  const isArabic = () => window.SaleMaxLocale?.isArabic() ?? (localStorage.getItem('language') || localStorage.getItem('salemax-language') || '').toLowerCase().startsWith('ar');
   const label = (en, ar) => isArabic() ? ar : en;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const route = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'agent-login';
@@ -64,5 +64,6 @@
   }
   let lastRoute=false;
   function sync(){const active=route();let node=document.getElementById('sx-team-login');if(!active){node?.remove();lastRoute=false;return;}if(!node){node=createScreen();load(node);}normalizeBreadcrumb();lastRoute=active;}
+  addEventListener('salemax:languagechange',()=>{if(route()){document.getElementById('sx-team-login')?.remove();sync();}});
   addEventListener('popstate',sync);new MutationObserver(sync).observe(document.documentElement,{subtree:true,childList:true});setInterval(()=>{if(route()&&!document.getElementById('sx-team-login'))sync();},1200);sync();
 })();
