@@ -357,3 +357,6 @@ The live `/user?page=crm-appearance` screen was rechecked at 220px RTL and 320px
 ## CRM Appearance wrapped-header overlap — production fix, 14 October 2026
 
 At 220px and 260px, the shared header wraps to 99px, but CRM Appearance began at 56px and its title overlapped the header's second row. The maintained script now offsets the screen to 99px below 260px. Production checks at 220px and 260px show the screen begins at the header bottom with no overlap, no page overflow, no offscreen controls, and all visible inputs/buttons at least 44px. At 280px the header is 56px and the screen remains at 56px with no overlap. No logo or domain setting was changed.
+## Team Login wrapped-header overlap — production fix, 14 October 2026
+
+At 220px the header wraps to 99px but the Team Login overlay began at 56px, causing its title to overlap the second header row. The maintained `team-login.js` now moves the overlay to 99px at widths up to 260px. Live production at 220px RTL shows the page begins at the header bottom, the title does not overlap header controls, the document is 212px wide, and all five visible controls are in bounds and at least 44px high. The team list and account/password actions were not activated.
