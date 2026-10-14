@@ -436,3 +436,7 @@ The authenticated Web Notification route was checked at 220px and 320px. At both
 ## Agent Login list — production mobile check, 14 October 2026
 
 The authenticated Agent Login list was checked at 220px and 320px. The page/body stays within the viewport and visible controls meet the 44px minimum. At 320px, the 1,015px-wide data grid scrolls horizontally inside its 295px panel, while the outer page remains 320px wide; row switches in offscreen columns were not activated. No account or agent setting was changed.
+
+## Student Registration form editor — production mobile check, 14 October 2026
+
+The existing Student Registration form editor was opened read-only and checked at 220px and 320px. At 220px the page/body stays within the 212px layout viewport; at 320px LTR and a temporary RTL direction the page/body stays within 312px with no offscreen visible controls. All visible non-checkbox fields/actions are at least 44px high. The 74 small checkbox inputs are paired with labels at least 44px high and 48px wide. The long editor scrolls vertically, and Save Draft/Publish/Preview actions remained 44px tall. The original direction was restored; the editor was closed by reloading the forms page without saving, publishing, or previewing.
