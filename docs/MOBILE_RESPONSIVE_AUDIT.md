@@ -518,3 +518,7 @@ The authenticated Inbox list was rechecked at 390×844, 320×760, and 220×760 w
 ## Student Registrations table link target — production, 14 October 2026
 
 The authenticated Student Registrations screen was checked in Arabic/RTL at 390×844, 320×760, and 220×760. Document/body widths remained 382px, 312px, and 212px. Its approximately 592–600px-wide table is contained in a 323px, 253px, and 157px horizontal scroller respectively; three row controls are reachable through that scroller. One table link was 33px high, so a scoped mobile rule raises it to 44px. The production cache key is `20261014-mobile-compact41`; live checks measured the link at 44px at all three widths with no page overflow. No student row or action was opened.
+
+## Finance invoice register mobile recheck — production, 14 October 2026
+
+The authenticated Finance route (`/user?page=finance`) was checked in Arabic/RTL at 220×760, 320×760, and 390×844. Document/body widths were 212px, 312px, and 382px. All nine visible interactive controls stayed within the viewport and measured at least 44px high; there was no page-level horizontal overflow. No invoice was opened or changed, and no finance action was triggered.

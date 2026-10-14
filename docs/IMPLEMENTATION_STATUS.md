@@ -1505,3 +1505,7 @@ The authenticated Inbox list was checked at 390px, 320px, and 220px with no conv
 ## Student Registrations table link target — production, 14 October 2026
 
 The authenticated Arabic/RTL Student Registrations screen fits 390px, 320px, and 220px widths, with its approximately 592–600px table inside a horizontal scroller. One link in the table measured 33px high; a scoped mobile rule raises it to 44px. The served compact41 stylesheet hash matches the active release and container. No student row or action was opened. The full mobile audit remains in progress.
+
+## Finance invoice register mobile recheck — production, 14 October 2026
+
+The authenticated Finance route was checked in Arabic/RTL at 220px, 320px, and 390px. Its document/body stayed within the viewport and all nine visible interactive controls were in bounds and at least 44px high. No invoice was opened or modified, and no finance action was triggered. Finance reports and other finance sub-screens remain in the audit inventory.
