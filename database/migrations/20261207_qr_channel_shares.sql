@@ -1,6 +1,6 @@
 ALTER TABLE beta_chats
   ADD COLUMN origin_instance_unique_id VARCHAR(255) NULL,
-  ADD KEY idx_beta_chats_qr_channel (uid, origin_instance_unique_id);
+  ADD KEY idx_beta_chats_qr_channel (uid(191), origin_instance_unique_id(191));
 
 UPDATE beta_chats chat
 JOIN (
