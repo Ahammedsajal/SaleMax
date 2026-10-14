@@ -493,3 +493,15 @@
 .sx-app-consent-state time{color:#667085;font-size:12px}
 
 @media(max-width:480px){.sx-app-detail .sx-app-detail-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.sx-app-detail .sx-app-detail-actions>button{width:100%;min-width:0;min-height:48px;height:auto;max-height:none;white-space:normal;overflow-wrap:anywhere}}
+
+/* Give mobile form-field and Required checkbox labels full-size tap targets. */
+@media(max-width:650px){
+  #sx-form-editor .sx-form-field-row label{
+    min-height:44px;box-sizing:border-box;align-items:center;overflow-wrap:anywhere
+  }
+}
+@media(max-width:260px){
+  #sx-form-editor .sx-form-field-row{grid-template-columns:minmax(44px,1fr) minmax(44px,1fr);gap:4px;padding:6px 4px}
+  #sx-form-editor .sx-form-field-row label{gap:4px;font-size:11px}
+}
+
