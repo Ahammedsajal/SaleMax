@@ -739,13 +739,15 @@
   }
 }
 
-/* Give the password-reset action a phone-sized tap area on sign-in screens. */
+/* Keep sign-in recovery, account creation, and policy links easy to tap on phones. */
 @media(max-width:600px){
-  #root .MuiStack-root:has(input[type="email"]):has(input[type="password"])>.MuiBox-root:has(>.MuiTypography-caption){
-    display:flex!important;align-items:center!important;min-height:44px!important
+  #root :is(.MuiStack-root,.MuiBox-root):has(input[type="password"])>.MuiBox-root:has(>.MuiTypography-caption):not(:has(>.MuiTypography-caption:nth-child(n+2))){
+    display:flex!important;align-items:center!important;justify-content:flex-end!important;min-height:44px!important
   }
-  #root .MuiStack-root:has(input[type="email"]):has(input[type="password"])>.MuiBox-root:has(>.MuiTypography-caption)>.MuiTypography-caption{
-    display:flex!important;align-items:center!important;min-height:44px!important
+  #root :is(.MuiStack-root,.MuiBox-root):has(input[type="password"])>.MuiBox-root:has(>.MuiTypography-caption):not(:has(>.MuiTypography-caption:nth-child(n+2)))>.MuiTypography-caption,
+  #root .MuiBox-root:has(input[type="password"])>.MuiTypography-body2>span.MuiBox-root,
+  #root .MuiBox-root:has(input[type="password"])>.MuiTypography-caption>span.MuiBox-root{
+    display:inline-block!important;min-height:44px!important;box-sizing:border-box!important
   }
 }
 

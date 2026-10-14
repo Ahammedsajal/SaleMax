@@ -1482,9 +1482,9 @@ At 550px, the authenticated shell header now keeps the language switch compact: 
 
 The Campaign Dashboard overview and Admin sign-in shell were checked in Arabic/RTL at 390px, 320px, and 220px. Both screens remained within the viewport with visible controls in bounds and at least 44px high. Dashboard paired tabs wrap into a compact two-column layout at 220px. Admin sign-in fields remain tappable; the inner password entry area is 51px wide beside its 44px visibility control at 220px. No campaign or authentication form action was triggered. Detailed measurements are in `MOBILE_RESPONSIVE_AUDIT.md`; the screen-by-screen audit remains in progress.
 
-## Sign-in reset-password mobile tap target — source fix pending production, 14 October 2026
+## Sign-in mobile link tap targets — source fix pending production, 14 October 2026
 
-The clickable reset-password label measured 21px high on the live Admin sign-in page. A shared phone CSS rule now expands the label and row to 44px on email/password sign-in screens up to 600px; the temporary live-page preview passed 220px, 320px, and 390px geometry checks without overflow. The source is ready for deployment; production acceptance remains open.
+The Admin reset-password action and business login recovery, account creation, and policy links measured below 44px on live sign-in screens. The shared mobile CSS makes each link target 44px up to 600px, scoped to email/password sign-in pages. Arabic/RTL live style previews at 220px, 320px, and 390px passed bounds and overflow checks; no form action was activated. Production deployment and final live verification remain open.
 
 ## Campaign Dashboard All Campaigns state — mobile recheck, 14 October 2026
 
