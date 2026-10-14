@@ -182,3 +182,13 @@
   header .MuiToolbar-root:has([aria-label="Account menu"])>button:nth-of-type(4){width:28px!important;min-width:28px!important;flex:0 0 28px!important;height:30px!important;padding:2px!important}
   header .MuiToolbar-root:has([aria-label="Account menu"])>[aria-label="Account menu"]{width:34px!important;min-width:34px!important;flex:0 0 34px!important;height:38px!important}
 }
+
+/* Enlarge primary actions in compact setup cards and paired mobile controls. */
+@media(max-width:600px){
+  main .MuiBox-root:has(> .MuiBox-root .MuiTypography-h5) button{min-height:44px!important}
+  main .MuiPaper-root:has(>button:nth-child(2))>button,
+  main .MuiStack-root:has(>button:nth-child(2))>button{min-height:44px!important}
+}
+
+/* Keep course catalogue actions comfortable to tap on phones. */
+@media(max-width:600px){#sx-course-screen button{min-height:44px!important}}
