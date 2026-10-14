@@ -559,6 +559,16 @@ router.get("/get_me", validateAgent, async (req, res) => {
     const data = await query(`SELECT * FROM agents WHERE uid = ?`, [
       req.decode.uid,
     ]);
+    if (data[0]) {
+      // Canonical team agents only see conversations assigned to them. Show the
+      // full customer number for those assigned conversations; the legacy
+      // Mask Number preference still applies to agents outside team access.
+      const inboxScope = await require("../modules/platform/team-inbox-scope")
+        .resolveInboxScope(query, req.decode.userData, "get_chat_list");
+      if (inboxScope.canonical && inboxScope.assignedOnly) {
+        data[0].mask_number = 0;
+      }
+    }
     res.json({ data: data[0], success: true });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong", err });
