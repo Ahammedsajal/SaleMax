@@ -72,7 +72,7 @@ test('legacy Manage Users assignment denial offers the reviewed contract flow', 
 });
 
 test('Manage Users links missing SaleMaX Sales contracts to the existing Manage Plans screen', () => {
-  assert.match(shell, /admin-user-plans\.js\?v=20261014-sales-contract-link1/);
+  assert.match(shell, /admin-user-plans\.js\?v=20261014-sales-owner-guard1/);
   assert.match(userPlans, /No published SaleMaX Sales contracts are available/);
   assert.match(userPlans, /Open Manage Plans to publish a SaleMaX Sales contract/);
   assert.match(userPlans, /href="\/admin\?page=manage-plans"/);
