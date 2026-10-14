@@ -53,6 +53,15 @@
   #sx-team-screen button{height:auto!important;min-height:44px!important;box-sizing:border-box!important}
 }
 
+/* Compact the Training Forms heading and keep its mobile filters/actions in bounds. */
+@media(max-width:600px){
+  #sx-forms-screen h1{font-size:22px!important;line-height:1.2!important}
+  #sx-forms-screen h2{font-size:17px!important}
+  #sx-forms-screen button,#sx-forms-screen a{min-height:44px!important;box-sizing:border-box!important}
+  #sx-forms-screen #sx-form-exit{width:min(100%,220px)!important;height:44px!important;min-height:44px!important;flex:0 0 44px!important}
+  #sx-forms-screen .sx-app-filter input{width:100%!important;min-width:0!important;max-width:100%!important;height:44px!important;min-height:44px!important;box-sizing:border-box!important}
+}
+
 /* Give Finance actions comfortable tap targets on phone-sized screens. */
 @media(max-width:600px){#sx-finance-screen button{min-height:44px!important}}
 

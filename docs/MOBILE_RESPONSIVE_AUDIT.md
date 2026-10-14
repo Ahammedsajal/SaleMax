@@ -165,3 +165,9 @@ At 220px, the Profile screen began at 56px while the app header wrapped to 99px,
 ## Team Invitations phone layout — 14 October 2026
 
 At 220px, the Team screen started at 56px under the 99px wrapped header, its text fields/selects measured 42px, and buttons measured 40px. Shared phone CSS now moves the fixed layer to 99px through 260px, uses a 20px title at those widths, and sizes text fields/selects/actions to at least 44px while retaining native checkbox dimensions. Production version 13 verification at 220px shows 212px document width, title at 20px, and no horizontally offscreen controls. At 320px, the screen is 312px wide with fields and buttons 44px high and no offscreen controls. No invitation was sent and no team data was changed.
+
+## Training Forms compact controls and date filters — 14 October 2026
+
+At 220px, the application date filter's intrinsic width extended 29px beyond the left page edge, the back-to-workspace tile was 180px tall, and several form links/actions were 36px. Shared phone CSS now constrains date fields to their grid cells, reduces the back action to 44px, makes links/actions at least 44px, and uses a 22px page title. At 220px all controls are inside the 212px page; date inputs are 67px wide in their two-column filter cells. At 320px the page is 312px wide, the back action is 44px, and all 19 visible controls remain in bounds with no button/link shorter than 44px. No form was opened, edited, or submitted.
+
+The production pointer advanced from the prior mobile release to a newer application release that carried stylesheet version 12, so the Team version-13 change was no longer served there. Version 14 reapplies the Team fix together with Forms adjustments on the current release. Live Team checks at 220px and 320px confirm screen top offsets clear the header at 220px, fields and buttons are at least 44px, and no controls are horizontally offscreen.
