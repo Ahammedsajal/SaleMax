@@ -1517,3 +1517,7 @@ The authenticated Phonebook screen was checked at 220px, 320px, and 390px. All r
 ## Staff-mode Student Registration mobile recheck — production, 14 October 2026
 
 At 220px, 320px, and 390px, the public staff-mode form stayed within the viewport and all 31 visible controls met the 44px target. The consent checkbox label provides the touch area; the invisible honeypot is excluded. No form value or file was supplied and the form was not submitted.
+
+## Candidate Applications list current-release recheck — production, 14 October 2026
+
+The authenticated Arabic/RTL applications list fits 220px, 320px, and 390px widths with all 28 visible controls in bounds and at least 44px high. The page scrolls vertically within its application section. No application was opened, printed, or changed.

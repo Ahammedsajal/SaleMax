@@ -530,3 +530,7 @@ The authenticated Phonebook screen was checked at 220×760, 320×760, and 390×8
 ## Staff-mode Student Registration form mobile recheck — production, 14 October 2026
 
 The public staff-mode Student Registration form was checked at 220×760, 320×760, and 390×844. Document/body widths were 205px, 305px, and 375px, within each viewport. All 31 visible form controls remained in bounds and at least 44px high, counting the consent checkbox's full label as its touch area; the offscreen honeypot is excluded. The form remains vertically scrollable. No value was read or entered, and no upload or submit action was triggered.
+
+## Candidate Applications list current-release recheck — production, 14 October 2026
+
+The authenticated Candidate Applications list was rechecked at 220×760, 320×760, and 390×844 in Arabic/RTL. The document/body widths were 212px, 312px, and 382px; all 28 visible controls stayed in bounds and at least 44px high. The page scrolls vertically inside its application section. No application was opened, printed, or changed.
