@@ -488,3 +488,6 @@
  .sx-app-detail>section{max-height:none}
  .sx-app-detail .sx-app-detail-meta{padding:6px 0}
 }
+.sx-app-consent-state{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 8px;color:#176b44;font-size:13px}
+.sx-app-consent-state strong{padding:4px 9px;border-radius:999px;background:#eaf6ef}
+.sx-app-consent-state time{color:#667085;font-size:12px}
