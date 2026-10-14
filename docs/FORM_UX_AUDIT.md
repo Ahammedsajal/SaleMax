@@ -534,3 +534,9 @@ Five regression tests pass. Synthetic browser checks verify English/Arabic switc
 ## Compact clickable invoice register — 13 October 2026
 
 The existing invoice list now uses one visible heading, a right/end-aligned Create invoice action, compact filters with content-width wrapping, and tighter table rows. Invoice numbers are native buttons for keyboard access, and non-interactive row areas open the same PDF while preserving text selection and avoiding double opens. English/Arabic synthetic checks and three PDF-open interactions pass. The two live assets match reviewed hashes; authenticated owner invoice opening remains unverified. See DEPLOYMENT.md for source, verification, durable image and rollback.
+
+## Invoice document editing and per-course discounts — 14 October 2026
+
+The existing invoice register opens documents in a new tab without printing automatically. Each eligible generated invoice has Edit and Delete actions. The populated form supports up to ten courses, each with a separate percentage or fixed-QAR discount, calculated line totals and a discounted overall total/payment schedule. Edits preserve number/date and retain previous snapshots; deletion archives the document with history. Posted/linked invoices and replaced originals remain locked.
+
+Fourteen focused tests and a disposable MariaDB API integration pass. Synthetic browser checks cover English/Arabic, create/edit/reopen/delete and zero automatic print calls. Production health, all deployed hashes, 88 migrations, existing-owner invoice reads and anonymous write denial are verified. Real production invoice mutations were not exercised. DEPLOYMENT.md records the exact release/image, protected backup, rollback limits and the pre-existing full-suite failures.
