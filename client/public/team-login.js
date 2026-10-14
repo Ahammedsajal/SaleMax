@@ -57,7 +57,10 @@
   }
   function normalizeBreadcrumb(){
     const root=document.getElementById('root');if(!root)return;
-    for(const element of root.querySelectorAll('*'))if(!element.children.length&&element.textContent.trim().toLowerCase()==='agent-login')element.textContent=label('Team Login','تسجيل دخول الفريق');
+    for(const element of root.querySelectorAll('*'))if(!element.children.length){
+      const text=element.textContent.trim().toLowerCase();
+      if(text==='agent-login'||text==='agent login'||text==='دخول الوكيل'||text==='تسجيل دخول الوكيل')element.textContent=label('Team Login','تسجيل دخول الفريق');
+    }
   }
   let lastRoute=false;
   function sync(){const active=route();let node=document.getElementById('sx-team-login');if(!active){node?.remove();lastRoute=false;return;}if(!node){node=createScreen();load(node);}normalizeBreadcrumb();lastRoute=active;}
