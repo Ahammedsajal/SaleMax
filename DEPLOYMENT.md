@@ -1,3 +1,12 @@
+## SaleMaX Sales Pipeline report do-not-call labels — production, 14 October 2026
+
+- Source commit: PR #113 merge commit `701528a7b46ea9c4184b25f415161f6ece970738` on `main` (PR head `1ef9547`).
+- Deployed release: `/opt/salemax/releases/sales-pipeline-outcome-labels-701528a-20261014`; previous release: `/opt/salemax/releases/sales-pipeline-do-not-call-5636985-20261014`. App image `sha256:51403350343ba07e34f439285cbdc753454dfb01879c7933c7d2088f6468340d`; container `52181abf0cb4eca85efc922c9f733a71a6000604742724151429bf0c9ca85b60`, healthy with zero restarts. MariaDB and the report worker were not recreated.
+- Change: Pipeline report outcome breakdowns and contact activity rows now localize `do_not_call` in English and Arabic. No API, schema, customer-data or report-schedule behavior changed.
+- Rollback: protected snapshot `/opt/salemax/shared/rollback-sales-pipeline-outcome-labels-701528a-20261014` (mode 0700) records the prior release, app image/container IDs and exact prior Pipeline `index.html` and `reports.js`. Restore `/opt/salemax/current` to `/opt/salemax/releases/sales-pipeline-do-not-call-5636985-20261014`, retag `salemax-app:rollback-sales-pipeline-outcome-labels-701528a-20261014` as `salemax-app:latest`, then recreate only the app with the existing Compose file and `/opt/salemax/shared/stack.env`. No database rollback applies.
+- Verification: related Pipeline, call outcome and scope checks pass 34/34; report-script syntax and `git diff --check` pass. `/healthz`, `/user/login`, and `/pipeline/` return 200; anonymous `/api/pipeline/board` returns 401. SHA-256 values match across source release, running container and public HTTPS: Pipeline HTML `9e6ef2a73f2f1dd2d5124edc615bdd2289330910e8c9b04b02d35663471b7bc0`; `reports.js` `2d73b740358dc229ebb690ac3f7922e12e503cb34e75d46e17a57cb88c69632a`. Only the app service was recreated. Disk is 97% used with about 1.7 GB free.
+- Open gates: the first-party Sales tenant and staff sessions remain unavailable for authenticated role/bilingual browser acceptance. Asterisk remains inactive, so real calling and recording remain unverified. The complete Sales workspace objective remains in progress.
+
 ## SaleMaX Sales Pipeline do-not-call visibility — production, 14 October 2026
 
 - Source commit: PR #112 merge commit `563698508e1e0b7496d8f39017c43f2ebdc541b6` on `main` (PR head `792fa5f`).
