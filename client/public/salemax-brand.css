@@ -248,6 +248,16 @@
   main:has(.MuiMobileStepper-progress) .MuiTypography-subtitle1{font-size:12px!important}
 }
 
+/* Raise visible Meta Template fields to the same comfortable phone target as its buttons. */
+@media(max-width:600px){
+  #root main:has(.MuiMobileStepper-progress) .MuiInputBase-root,
+  #root main:has(.MuiMobileStepper-progress) .MuiSelect-select,
+  #root main:has(.MuiMobileStepper-progress) input:not([type="hidden"]):not(.MuiSelect-nativeInput),
+  #root main:has(.MuiMobileStepper-progress) textarea{
+    min-height:44px!important;box-sizing:border-box!important
+  }
+}
+
 /* Keep compact admin sign-in fields and password visibility usable on phones. */
 @media(max-width:600px){
   #root .MuiContainer-maxWidthXs:has(input[type="password"]) .MuiInputBase-root,
