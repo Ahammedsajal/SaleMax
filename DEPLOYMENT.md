@@ -1,3 +1,10 @@
+## Production Docker build-cache maintenance — 14 October 2026
+
+- Active release remained `/opt/salemax/releases/sales-owner-guard-2f4d578-20261014` from source merge `2f4d57883c8966ed763c16761f79f8eaaddd6dec`. No application release was deployed by this maintenance action.
+- Reclaimed disposable Docker build cache only. Docker reported 111 cache objects (2.805 GB reclaimable) before pruning and zero cache objects afterward; the command reported 3.949 GB reclaimed. Filesystem availability rose from 758 MB (99% used) to 3.7 GB (93% used). Running containers, application/rollback images, volumes, databases and customer records were not removed or modified.
+- Verification after cleanup: active release symlink still resolves to the release above; app container image remains `sha256:131ae7e8c16062f2cfd466492ac16f8868d6d1d694870c39c3dddb2ce7048108`, status healthy, restart count zero; database and report worker remained running; Docker now reports `Build Cache 0`.
+- No rollback is needed for application state. Build cache is reproducible and will be recreated by future builds. The full Sales workspace release remains pending source integration, verification, and authenticated role acceptance; production Asterisk remains inactive.
+
 ## SaleMaX Sales designated owner provisioning guard — production, 14 October 2026
 
 - Source commit: PR #101 merge commit `2f4d57883c8966ed763c16761f79f8eaaddd6dec` on `main`.
