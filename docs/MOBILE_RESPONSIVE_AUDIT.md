@@ -440,3 +440,7 @@ The authenticated Agent Login list was checked at 220px and 320px. The page/body
 ## Student Registration form editor — production mobile check, 14 October 2026
 
 The existing Student Registration form editor was opened read-only and checked at 220px and 320px. At 220px the page/body stays within the 212px layout viewport; at 320px LTR and a temporary RTL direction the page/body stays within 312px with no offscreen visible controls. All visible non-checkbox fields/actions are at least 44px high. The 74 small checkbox inputs are paired with labels at least 44px high and 48px wide. The long editor scrolls vertically, and Save Draft/Publish/Preview actions remained 44px tall. The original direction was restored; the editor was closed by reloading the forms page without saving, publishing, or previewing.
+
+## Admin sign-in password field — production mobile fix, 14 October 2026
+
+At 220px the Admin sign-in password field had only 28px of usable width because the visibility toggle and card padding consumed the row. The compact rule now reduces form side padding and lets the password field use remaining space. Live production checks at 220px, 260px, and 320px measured password widths of 51px, 91px, and 127px respectively; email width was 107px at 220px. LTR and temporary RTL checks had no page overflow or offscreen controls, and visible controls remained at least 44px high. No credentials were submitted.
