@@ -1,3 +1,13 @@
+## Inbox and Team access SPA route cleanup — production, 14 October 2026
+
+- Source commit: `a611a1b1e5a1edd1ee71930500af2ebef2c84617` on `main` (`client/public/team-invitations.js`).
+- Deployed release: `/opt/salemax/releases/team-route-sync-a611a1b-20261014`; previous release: `/opt/salemax/releases/sales-team-access-focus-d8fad80-20261014`.
+- Root cause: the maintained Team access script injected a fixed-position screen and removed it on `popstate`, but the existing React shell navigates between query routes with `history.pushState`. Selecting Inbox therefore left the Team access screen mounted over the inbox. The deployed script now calls its route update on `pushState`, `replaceState`, `popstate`, `hashchange`, and `pageshow`, removing the injected screen as soon as navigation leaves Team access.
+- Database/data: no migrations and no customer, conversation, membership, or account data changes. No app container restart was needed. The source release and running app container serve the same updated JS and HTML.
+- Rollback: protected baseline `/opt/salemax/shared/rollback-team-route-sync-a611a1b-20261014` (mode 0700) contains the prior release path and prior/container copies of the script and HTML. Restore `/opt/salemax/current` to the previous release and copy both baseline files back into `salemax-app-1:/app/client/public/`; the earlier script cache reference is preserved in the baseline HTML.
+- Verification: updated script passes `node --check` in the app container; release/container SHA-256 match for JS (`4cd5428a0ea92c0f4ac30c8393ca2c171c2723419f5a54475042da7006d3fb37`) and HTML (`dff1730966ca9a159e8554b57cdf98a5ebcfe5586c658847603829242abb4322)); `/healthz` returns success. Authenticated production browser acceptance loaded Team access, clicked Inbox, and confirmed URL `/user?page=inbox`, visible conversations, and no `#sx-team-screen` element. The Inbox header/list occupy the normal application content area.
+- Remaining gates: no Arabic route acceptance or narrow/mobile viewport check was run. No other inbox behaviors were changed or revalidated.
+
 ## SaleMaX Sales People & Roles focus theme — production, 14 October 2026
 
 - Source: PR #118 merge commit `923b6541094c7d846b70b2d500798be3a6c0a6bf` on `main` (PR head `d8fad8022223a8f2b1bbb6cc056a4154d85e3948`).
