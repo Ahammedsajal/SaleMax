@@ -424,3 +424,7 @@ The inbox list was checked at 390px in the authenticated business account. The d
 ## CRM sign-in screen — production mobile check, 14 October 2026
 
 The `/user/login` form was checked at 220px, 320px, and 390px. Document/body widths matched the viewport at all three sizes, and visible fields and buttons were at least 44px high and in bounds. The existing prefilled form was left untouched and not submitted. This check covers the CRM user sign-in page; privileged Admin login and authenticated role-specific screens still require the corresponding authorized access.
+
+## Create Meta Template extra-narrow layout — production, 14 October 2026
+
+The blank Create Meta Template screen was rechecked at 220px and 320px after the compact mobile rules. At 220px the page width is 212px with no horizontal overflow; the title is 15px, supporting copy and step heading are 12px, the form cards stack, and visible actions/fields stay in bounds at 44px or taller. A temporary RTL direction check at 220px also had no overflow or offscreen visible controls; the original direction was restored. The shorter 19px MUI native select inputs are hidden internal controls. No template was created or submitted.
