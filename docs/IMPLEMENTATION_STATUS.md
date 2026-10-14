@@ -1493,3 +1493,7 @@ The All Campaigns state was checked at 220px, 320px, and 390px in Arabic/RTL. Se
 ## Training Profile full-form mobile recheck — production, 14 October 2026
 
 After layout settled, the Arabic/RTL Training Profile form was checked at 390px, 320px, and 220px. The document stayed within the mobile layout width at each size; all 33 visible controls remained in bounds and at least 44px high. No profile values were read or changed. The Training Profile screen is covered for its current form state; role-specific and nested states remain part of the overall audit.
+
+## Main Dashboard mobile recheck — production, 14 October 2026
+
+The main Dashboard was checked in Arabic/RTL at 390px, 320px, and 220px. Its page width stayed within the available mobile column and all nine visible interactive controls remained in bounds and at least 44px high. No dashboard data or action was changed; metrics were not copied.

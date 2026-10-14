@@ -506,3 +506,7 @@ The All Campaigns tab was inspected in Arabic/RTL at 220px, 320px, and 390px. Th
 ## Training Profile full-form mobile recheck — production, 14 October 2026
 
 The authenticated Arabic/RTL Training Profile form was measured after its layout settled at 390×844, 320×760, and 220×760. Document/body widths were 382/382px, 312/312px, and 212/212px; all 33 visible buttons, fields, role buttons, and upload controls stayed within the viewport and measured at least 44px high. The long form remains vertically scrollable. No profile field values were read or changed, and no upload or save action was activated.
+
+## Main Dashboard mobile recheck — production, 14 October 2026
+
+The authenticated main Dashboard (`/user?page=dashboard`) was measured in Arabic/RTL at 390×844, 320×760, and 220×760. Document/body widths were 382px, 312px, and 212px; all nine visible buttons and other interactive controls stayed in bounds and met the 44px height target. The page remains vertically scrollable. Account metrics were not copied; no dashboard action or record was changed.
