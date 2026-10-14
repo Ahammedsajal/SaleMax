@@ -236,3 +236,7 @@ The blank Create Invoice editor was opened after source inspection confirmed ope
 ## CRM Appearance phone sizing — source fix, 14 October 2026
 
 The owner-accessible CRM Appearance screen was inspected without changing its settings. In production at 320px, the title was 27px, the file/text inputs 42px, and the Save/Connect buttons 40px. Source now adds a compact phone style (21px title/16px card headings, tighter card spacing, 44px inputs and buttons) with a 19px title and full-width actions below 260px. Browser CSS preview at 220px RTL, 320px LTR and 390px LTR shows the page fits its 212px/312px/382px content width; all visible actions are at least 44px and none extend past the viewport. The settings screen itself remains at its production sizing until this source update is deployed. No logo or CRM domain settings were changed.
+
+## Team Login mobile sizing — source fix, 14 October 2026
+
+The authenticated Team Login page was reviewed without opening an account row or password dialog. In production at 320px, its title was 24px, the search field 42px and four visible buttons 38px; the list stays within the page and its wide table is replaced by mobile cards. Source adds a compact 21px title (19px below 260px), 12px card padding, and 44px inputs/buttons. Browser CSS preview at 320px LTR and 220px RTL keeps all five controls in bounds with no horizontal overflow and no action below 44px. The source fix is pending production deployment; no team account or password was changed.
