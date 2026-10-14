@@ -149,3 +149,11 @@ test('application fields keep signature dates readable and state consent explici
   assert.equal(value('consent',true),'Agreed');
   assert.match(screen,/sx-app-consent-state/);
 });
+test('submitted applicant name is the single keyboard-accessible application open action',()=>{
+  const fs=require('node:fs'),path=require('node:path'),screen=fs.readFileSync(path.join(__dirname,'../client/public/training-forms.js'),'utf8'),styles=fs.readFileSync(path.join(__dirname,'../client/public/training-forms.css'),'utf8');
+  assert.match(screen,/<button type="button" class="sx-applicant-open" data-app="\$\{i\}" aria-label="\$\{tr\('Open application for'/);
+  assert.match(screen,/Select an applicant name to review and print the application\./);
+  assert.match(screen,/querySelectorAll\('\[data-app\]'\)\.forEach\(button=>button\.onclick=\(\)=>showApplication/);
+  assert.doesNotMatch(screen,/data-label="\$\{tr\('Actions'/);
+  assert.match(styles,/\.sx-applicant-open:focus-visible/);
+});
