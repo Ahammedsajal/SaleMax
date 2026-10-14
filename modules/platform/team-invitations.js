@@ -263,14 +263,18 @@ async function sidebarAccess(pool,legacyUid){
     const category=getCategory(rows[0].categoryKey,Number(rows[0].categoryVersion));if(!category)fail('CATEGORY_UNAVAILABLE');
     const context={audience:'tenant',tenant,category,subscription,membership:{id:rows[0].id,tenantId:rows[0].tenantId,role:rows[0].role,status:'active',delegatedPermissions:[],customPermissions}};
     const roleNavigation=navigation.navigationFor(context).map(item=>item.key);
+    const assignedNavigation=parseNavigation(rows[0].assignedNavigation);
     // A shared QR connection is available to a manager from the existing QR
     // screen. This grants navigation only; QR management APIs still require
     // channels.configure and remain owner/admin capabilities.
     if(rows[0].role==='manager'){
       const [sharedQr]=await db.query(`SELECT 1 FROM sx_qr_channel_shares WHERE tenant_id=? AND membership_id=? LIMIT 1`,[rows[0].tenantId,rows[0].id]);
-      if(sharedQr.length&&!roleNavigation.includes('whatsapp-qr'))roleNavigation.push('whatsapp-qr');
+      if(sharedQr.length){
+        if(!roleNavigation.includes('whatsapp-qr'))roleNavigation.push('whatsapp-qr');
+        if(assignedNavigation&&!assignedNavigation.includes('whatsapp-qr'))assignedNavigation.push('whatsapp-qr');
+      }
     }
-    return {categoryKey:rows[0].categoryKey,role:rows[0].role,roleProfileId:rows[0].roleProfileId||null,customPermissions,roleNavigation,assignedNavigation:parseNavigation(rows[0].assignedNavigation)};
+    return {categoryKey:rows[0].categoryKey,role:rows[0].role,roleProfileId:rows[0].roleProfileId||null,customPermissions,roleNavigation,assignedNavigation};
   }finally{db.release();}
 }
 function parseNavigation(value){
