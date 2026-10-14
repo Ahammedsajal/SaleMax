@@ -92,3 +92,25 @@
   .close{min-width:44px;min-height:44px}
   #taskForm footer button,.detail-actions button{min-height:44px}
 }
+
+/* Keep the task-creation dialog inside narrow phones and make its controls usable. */
+@media(max-width:600px){
+  #taskDialog{max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-x:hidden;overflow-y:auto}
+  #taskForm,#taskForm label,#taskForm fieldset,#taskForm .two,#taskForm .people{min-width:0}
+  #taskForm{padding:14px;gap:10px}
+  #taskForm header{min-width:0}
+  #taskForm header h2{min-width:0;font-size:19px;line-height:1.25;overflow-wrap:anywhere}
+  #taskForm label{gap:4px;font-size:13px}
+  #taskForm input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  #taskForm textarea,#taskForm select{width:100%;min-width:0;min-height:44px;box-sizing:border-box}
+  #taskForm .two,#taskForm .people{grid-template-columns:minmax(0,1fr)}
+  #taskForm fieldset{padding:8px}
+  #taskForm .people{gap:6px}
+  #taskForm .person{min-width:0;min-height:44px;flex-wrap:wrap;padding:7px;gap:6px}
+  #taskForm .person select{width:100%;min-width:0;min-height:44px;margin-inline-start:0}
+  #taskForm .close{flex:0 0 44px}
+}
+@media(max-width:300px){
+  #taskForm footer{flex-direction:column;align-items:stretch}
+  #taskForm footer button{width:100%;min-width:0;min-height:44px}
+}
