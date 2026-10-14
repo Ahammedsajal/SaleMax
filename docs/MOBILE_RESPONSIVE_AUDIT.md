@@ -454,3 +454,7 @@ The submitted-application detail dialog was opened read-only. Its four actions f
 ## Finance Create Invoice dialog — production mobile check, 14 October 2026
 
 The blank invoice builder was opened read-only and checked in Arabic/RTL at 220px, 320px, and 390px. The dialog remained within the viewport and used internal vertical scrolling; no visible controls were horizontally offscreen. The native radio inputs measured 40px high, while their labels measured 67px, providing the tap area. Other visible controls met the 44px target. The 107×44px submit button fit in bounds. The builder was closed without submitting, and the Finance page remained at 382px document width in the 390px viewport. No invoice or customer data was changed.
+
+## Mobile navigation drawer — production, 14 October 2026
+
+The authenticated navigation drawer was checked at 220×800px and 320×760px. Its width stays within the viewport, its long menu scrolls vertically inside the drawer, and the 24 visible interactive controls measured at least 44px high with no horizontal overflow or offscreen targets. Navigation items were inspected without changing account settings or business records.
