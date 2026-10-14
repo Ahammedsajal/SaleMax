@@ -462,3 +462,7 @@ The authenticated navigation drawer was checked at 220×800px and 320×760px. It
 ## Tasks route session state — production, 14 October 2026
 
 The `/user?page=tasks` route opens an embedded Tasks page that displays “Your session has expired. Sign in again, then reopen Tasks.” The CRM shell remained within the viewport at 220px and 320px, but the Tasks list and its controls could not be audited because the embedded session was expired. No task was opened or changed.
+
+## Courses overview and list route — production mobile check, 14 October 2026
+
+The authenticated Courses route and its overview, course-list, and learner-journey regions were checked at 220px and 320px while displayed in Arabic/RTL. The document/body measured 212px at 220px and 312px at 320px; all 47 visible interactive controls were in bounds and at least 44px high. No page-level horizontal overflow or internal horizontal scroller was present. No course or learner record was opened or changed.
