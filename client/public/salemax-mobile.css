@@ -559,6 +559,17 @@
   }
 }
 
+/* Wrap paired DataGrid toolbar groups before the export action leaves the phone. */
+@media(max-width:600px){
+  #root main .MuiDataGrid-toolbarContainer .MuiStack-root:has(> .MuiStack-root > button[aria-label="Export"]){
+    width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;
+    flex-wrap:wrap!important;justify-content:flex-start!important;row-gap:6px!important
+  }
+  #root main .MuiDataGrid-toolbarContainer .MuiStack-root:has(> .MuiStack-root > button[aria-label="Export"])>.MuiStack-root{
+    max-width:100%!important;min-width:0!important;flex:0 1 auto!important
+  }
+}
+
 /* App-like phone density: reduce visual scale while keeping 44px touch targets. */
 @media(max-width:600px){
   #root main:not(:has(.MuiMobileStepper-progress)) .MuiTypography-h1{font-size:21px!important;line-height:1.2!important}
