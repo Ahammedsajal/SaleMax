@@ -75,7 +75,7 @@ This is a continuing screen inventory, not a claim that every role-specific or A
 
 ## Remaining inventory
 
-Re-authenticate the business and platform accounts in their respective tabs before continuing interactive production review. The browser offered a saved identifier that did not match the account shown in the earlier session, so it was not submitted. The session expired during navigation to some settings.
+The authenticated business session remains available for non-destructive layout review. Continue using the existing account and preserve populated forms and customer records. Platform-admin and permission-gated pages require their respective authorized account before those screens can be accepted.
 
 Business screens still to review:
 
@@ -91,6 +91,10 @@ Admin screens still to review:
 - QR/Meta credential setup, Web Notification and Manual Web Push (currently marked PRO add-on required), Telegram Config (PRO add-on required), and platform-staff/Asterisk screens.
 
 Repeat critical screens at narrower phone widths and in Arabic/RTL. The Finance Reports menu currently lands on the invoice register at `section=reports`; its separate report layout was therefore unavailable for this mobile review. The shared embedded-workspace fix also covers Call Center, commission, sales finance, organization and task frames; only Lead Pipeline/Reports and Tasks were visually reviewed. The sign-in implementation is present only in the compiled app bundle in this checkout; there is no source map or maintained source file available to fix the stray `0` without recovering source first.
+
+## Automation Flows phone controls — source update, 14 October 2026
+
+The authenticated Arabic Automation Flows screen fits at 220, 280, 320 and 390px, but its legacy toolbar actions measured 27×27px and React Flow zoom controls measured 26×27px. The mobile layout hook only recognized the English “Node Menu” aria label, so it did not mark the toolbar in the active Arabic UI. Source commit `4f46498` now recognizes the Arabic label, preserves the existing compact wrapped toolbar layout, and raises canvas zoom controls to 44×44px. An in-browser CSS preview confirms the five toolbar actions wrap within the viewport and the canvas starts below the toolbar at all four widths, with no page-level horizontal overflow. The source is pushed to draft PR #137; production deployment and authenticated post-deployment verification are pending. No flow was edited or saved.
 
 ## Training Center Profile stale-script regression — 14 October 2026
 
