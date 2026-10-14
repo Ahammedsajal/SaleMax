@@ -44,7 +44,36 @@ test('Call Center identifies the assigned staff member beside each call and reco
   assert.match(ui,/call\.answeredByName\|\|call\.startedByName/);
   assert.match(ui,/Handled by/);
   assert.match(ui,/call\.answeredByRole\|\|call\.startedByRole/);
-  assert.match(html,/call-center\.js\?v=20261014-sales-agent-attribution1/);
+  assert.match(ui,/Load older calls/);
+  assert.match(ui,/encodeURIComponent\(cursor\)/);
+  assert.match(html,/call-center\.js\?v=20261014-call-history-pages1/);
+});
+
+test('Call Center call history loads older pages with a stable tenant-scoped cursor',async t=>{
+  const tenantId='11111111-1111-4111-8111-111111111111',memberId='22222222-2222-4222-8222-222222222222',queries=[];
+  const makeRow=index=>({id:`00000000-0000-4000-8000-${String(index).padStart(12,'0')}`,direction:'outbound',status:'ended',gatewayChannelNo:1,
+    startedAt:new Date(Date.UTC(2026,9,14,1,0,100-index)),cursorStartedAt:`2026-10-14 01:00:${String(100-index).padStart(2,'0')}.000000`,
+    answeredAt:null,endedAt:null,durationSeconds:null,answeredByMembershipId:memberId,startedByMembershipId:memberId,
+    answeredByName:'Agent One',answeredByRole:'agent',startedByName:'Agent One',startedByRole:'agent',recordingState:'not_recorded',hasAssignedActiveLeg:0});
+  const db={release(){},async query(sql,args=[]){
+    queries.push({sql,args});
+    if(!sql.includes('SELECT c.id,c.direction,c.status'))throw new Error(`Unexpected call history query: ${sql}`);
+    if(sql.includes('c.started_at < ?'))return [[makeRow(101)],[]];
+    return [[...Array.from({length:101},(_,index)=>makeRow(index+1))],[]];
+  }};
+  const context={audience:'tenant',identity:{id:'identity-owner'},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
+    membership:{id:memberId,tenantId,role:'owner',status:'active'},category:getCategory('salemax_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
+  const app=express();app.use('/call-center',createCallCenterRouter({pool:{async getConnection(){return db;}},userGuard(){throw new Error('legacy guard should not run')},canonicalGuard(req,_res,next){req.businessContext=context;next();},origin:'http://127.0.0.1'}));
+  const server=http.createServer(app);await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const first=await fetch(`http://127.0.0.1:${server.address().port}/call-center/calls`),firstBody=await first.json();
+  assert.equal(first.status,200);assert.equal(firstBody.data.items.length,100);assert.equal(firstBody.data.hasMore,true);assert.ok(firstBody.data.nextCursor);
+  assert.doesNotMatch(JSON.stringify(firstBody.data),/cursorStartedAt/);
+  const invalid=await fetch(`http://127.0.0.1:${server.address().port}/call-center/calls?cursor=not-a-cursor`);
+  assert.equal(invalid.status,400);assert.equal(queries.length,1,'invalid cursors are rejected before a database query');
+  const second=await fetch(`http://127.0.0.1:${server.address().port}/call-center/calls?cursor=${encodeURIComponent(firstBody.data.nextCursor)}`),secondBody=await second.json();
+  assert.equal(second.status,200);assert.equal(secondBody.data.items.length,1);assert.equal(secondBody.data.hasMore,false);assert.equal(secondBody.data.nextCursor,null);
+  assert.match(queries[1].sql,/c\.started_at < \? OR \(c\.started_at = \? AND c\.id < \?\)/);
+  assert.deepEqual(queries[1].args.slice(6,9),['2026-10-14 01:00:00.000000','2026-10-14 01:00:00.000000',makeRow(100).id]);
 });
 
 test('Sales managers and team leaders cannot end a call outside their current organisation scope',async()=>{
