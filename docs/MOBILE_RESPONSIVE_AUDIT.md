@@ -478,3 +478,7 @@ The authenticated Send Campaign route was checked in Arabic/RTL at 220×800px an
 ## FAQs screen — production mobile check, 14 October 2026
 
 The authenticated FAQs route was checked in Arabic/RTL at 220×800px and 320×760px. The document/body measured 212px and 312px respectively; all 11 visible interactive controls were within the viewport and at least 44px high. No page-level horizontal overflow was present. No FAQ was created or edited.
+
+## Agent Tasks screen — production mobile check, 14 October 2026
+
+The Agent Tasks route was checked in Arabic/RTL at 220×800px and 320×760px. Document/body widths stayed within the viewport; all seven visible interactive controls were at least 44px high and in bounds. No horizontal overflow was present. No task was opened or created.
