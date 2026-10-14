@@ -548,3 +548,7 @@ The Arabic/RTL report was checked at 220×900, 320×900, and 390×900. Document 
 ## QR device screen current-account recheck — production, 14 October 2026
 
 The authenticated account's Add WhatsApp by QR screen shows its empty-device state. At 220px, 320px, and 390px, after the layout settled, document and body widths match the viewport; all nine visible controls are in bounds and at least 44px high. No QR session or device was started.
+
+## Meta Manual Setup current-account recheck — production, 14 October 2026
+
+The Link Meta WhatsApp menu item opens the existing Meta API Keys screen. Its Manual Setup panel was checked at the current 405×399 in-app viewport: document/body width is 397px, all 13 visible controls stay in bounds and at least 44px high, and the form scrolls vertically. The four setup fields were measured without reading their values. Copy, Save, and Fetch were not activated.
