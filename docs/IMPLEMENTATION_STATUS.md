@@ -1,6 +1,6 @@
 ## SaleMaX Sales Organization palette alignment — production, 14 October 2026
 
-The existing Organization screen now uses the shared SaleMaX burgundy/neutral palette for reporting hierarchy cards and all five role badges in both LTR and RTL. The previous blue, green and orange role colors are removed while text labels remain the source of role meaning. PR #117 merged to `main` as `c85291c5e8507aaf3596a34c15bc4d420b1814bc` and is live in `/opt/salemax/releases/sales-organization-role-colors-2b62162-20261014`.
+The existing Organization screen now uses the shared SaleMaX burgundy/neutral palette for reporting hierarchy cards and all five role badges in both LTR and RTL. The previous blue, green and orange role colors are removed while text labels remain the source of role meaning. PR #117 merged to `main` as `c85291c055961d5cfb5ef0df9ed9c63f667e6ec8` and is live in `/opt/salemax/releases/sales-organization-role-colors-2b62162-20261014`.
 
 Focused Organization, navigation, permission-boundary and design checks pass 24/24. Production health, login and Organization routes return 200; anonymous API access returns 401. Release, container and public stylesheet hashes match. No database or business data changed; the app alone was recreated. Rollback evidence is in `DEPLOYMENT.md`.
 

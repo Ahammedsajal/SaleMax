@@ -1,6 +1,6 @@
 ## SaleMaX Sales Organization palette alignment — production, 14 October 2026
 
-- Source: PR #117 merge commit `c85291c5e8507aaf3596a34c15bc4d420b1814bc` on `main` (PR head `2b62162cd45b5bebe2a162729c12e97baa8cce28`).
+- Source: PR #117 merge commit `c85291c055961d5cfb5ef0df9ed9c63f667e6ec8` on `main` (PR head `2b62162cd45b5bebe2a162729c12e97baa8cce28`).
 - Deployed release: `/opt/salemax/releases/sales-organization-role-colors-2b62162-20261014`; previous release: `/opt/salemax/releases/sales-call-outcome-review-c4e2860-20261014`. App image `sha256:23dab53df6e80861b427866c5162b6158b54ea550be1ac14cd4042d52653b248`; container `ff9753f78521a74e0f767218cc65820b9c351278cadb99ee3796194789724b5a`, healthy with zero restarts. MariaDB `0a8f89195e0537bebe331c25d6df91f849ed968f3e030ec59e403402b68e7665` and report worker `4e0fa5e8b03d8d79a116bdb7691be7004e458adec3670230349595c0f43d5eaa` were not recreated.
 - Change: Organization hierarchy connectors, nested team cards and role badges now use shared SaleMaX burgundy/neutral tokens in both left-to-right and right-to-left layout. The page keeps role labels and meaning while removing unrelated blue/green/orange role colors. Stylesheet cache key: `20261014-sales-role-palette1`. No API, permission, database or business-data change occurred.
 - Build: derived the app image from the protected previous image and copied only the Organization HTML and CSS; only the app service was recreated. Production disk is 97% used with about 1.6 GB free.
