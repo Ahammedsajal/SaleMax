@@ -498,3 +498,7 @@ The Arabic Admin sign-in screen was checked at 390×844, 320×760, and 220×760.
 ## Sign-in reset-password mobile tap target — source fix pending production, 14 October 2026
 
 The live Admin sign-in reset-password action was rendered as a clickable 21px-high text span. The shared mobile stylesheet now gives that action and its row a 44px target on email/password sign-in screens up to 600px wide. A live-page style preview at 220px, 320px, and 390px measured the text span at 44px high, preserved 44px password-toggle and submit controls, and kept the document within each viewport. Production deployment and final recheck are pending.
+
+## Campaign Dashboard All Campaigns mobile recheck — production, 14 October 2026
+
+The All Campaigns tab was inspected in Arabic/RTL at 220px, 320px, and 390px. The page stayed within each viewport with no horizontal overflow. Paired tabs measured 81×76px at 220px, 135×45px at 320px, and 200×44px / 127×44px at 390px. The search field, filters, Search, Export CSV, and Refresh stayed in bounds; the visible actions measured 44px high, and the filter control with a 24px native input sits inside a 44px field. No campaign was searched, exported, refreshed, edited, or sent.

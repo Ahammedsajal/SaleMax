@@ -1485,3 +1485,7 @@ The Campaign Dashboard overview and Admin sign-in shell were checked in Arabic/R
 ## Sign-in reset-password mobile tap target — source fix pending production, 14 October 2026
 
 The clickable reset-password label measured 21px high on the live Admin sign-in page. A shared phone CSS rule now expands the label and row to 44px on email/password sign-in screens up to 600px; the temporary live-page preview passed 220px, 320px, and 390px geometry checks without overflow. The source is ready for deployment; production acceptance remains open.
+
+## Campaign Dashboard All Campaigns state — mobile recheck, 14 October 2026
+
+The All Campaigns state was checked at 220px, 320px, and 390px in Arabic/RTL. Search and filter fields plus Search, Export CSV and Refresh fit the viewport; action buttons and field wrappers meet the 44px target. The 24px native select input is contained within its 44px control wrapper. No campaign action was triggered. Production SSH is currently unavailable from this host because `carsqatar-prod-01` does not resolve; the reset-password CSS source is pushed but awaits deployment and a live post-deploy check.
