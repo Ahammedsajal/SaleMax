@@ -10,7 +10,7 @@ async function main(){
   try{
     await admin.query('CREATE DATABASE '+name+' CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci');pool=mysql.createPool({...config,database:name,connectionLimit:6});const db=await pool.getConnection();
     try{
-      for(const migration of ['20260928_lead_pipeline.sql','20260929_meta_ads_opening_messages.sql','20261007_pipeline_contacts.sql','20261210_pipeline_opening_routing.sql'])for(const sql of splitSql(fs.readFileSync(path.join(root,'database/migrations',migration),'utf8')))await db.query(sql);
+      for(const migration of ['20260928_lead_pipeline.sql','20260929_meta_ads_opening_messages.sql','20261007_pipeline_contacts.sql','20261210_pipeline_opening_routing.sql','20261211_pipeline_opening_routing_collation.sql'])for(let sql of splitSql(fs.readFileSync(path.join(root,'database/migrations',migration),'utf8'))){if(!migration.startsWith('202612'))sql=sql.replace(/DEFAULT CHARSET=utf8mb4/g,'DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci');await db.query(sql);}
       for(const sql of ["CREATE TABLE phonebook(id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999) COLLATE utf8mb4_unicode_ci,name VARCHAR(255))","CREATE TABLE agents(id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(191) COLLATE utf8mb4_unicode_ci,owner_uid VARCHAR(999) COLLATE utf8mb4_unicode_ci,name VARCHAR(255),role VARCHAR(32),is_active INT)","CREATE TABLE agent_chats(owner_uid VARCHAR(191),uid VARCHAR(191),chat_id VARCHAR(191),UNIQUE KEY uq_agent_chat(owner_uid,uid,chat_id))","CREATE TABLE beta_chats(uid VARCHAR(191),chat_id VARCHAR(191),assigned_agent LONGTEXT,UNIQUE KEY uq_chat(uid,chat_id))","CREATE TABLE contact(id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),phonebook_id INT,phonebook_name VARCHAR(255),name VARCHAR(255),mobile VARCHAR(64),var1 TEXT,var2 TEXT,var3 TEXT,var4 TEXT,var5 TEXT,createdAt DATETIME(3))"])await db.query(sql);
       await db.query("INSERT INTO phonebook(uid,name) VALUES('owner-a','Nursing enquiries'),('owner-b','Other workspace')");await db.query("INSERT INTO agents(uid,owner_uid,name,role,is_active) VALUES('agent-a','owner-a','Agent A','agent',1),('agent-b','owner-b','Other Agent','agent',1),('agent-c','owner-a','Agent C','agent',1)");
       const first=await routing.save(db,'owner-a',{name:'Nursing',keywords:['nursing'],agentId:1,phonebookId:1,position:20});
@@ -38,4 +38,4 @@ async function main(){
     }finally{db.release();}
   }finally{if(pool)await pool.end();if(/^sx_opening_test_[a-f0-9]{12}$/.test(name))await admin.query('DROP DATABASE IF EXISTS '+name);await admin.end();}
 }
-main().catch(error=>{console.error(error.code||error.message);process.exitCode=1;});
+main().catch(error=>{console.error(error.code||error.message,error.stack);process.exitCode=1;});
