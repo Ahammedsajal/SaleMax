@@ -35,6 +35,17 @@ test('sales manager pipeline queries are restricted to their active reporting ag
   assert.ok(agentQuery.args.some(value=>Array.isArray(value)&&value.join(',')==='4,9'));
 });
 
+test('pipeline today summary is calculated server-side in the requested timezone and assignment scope',async()=>{
+  const f=mockDb();
+  await pipeline.getBoard({uid:'sales-owner',role:'manager',scopeAgentIds:[4,9],timezone:'Asia/Kolkata',pool:f.pool});
+  const query=f.calls.find(item=>item.sql.startsWith('SELECT COUNT(*) AS total, COALESCE(SUM(l.created_at'));
+  assert.ok(query);
+  assert.match(query.sql,/l\.owner_agent_id IN \(\?\)/);
+  assert.equal(query.args.length,4);
+  assert.deepEqual(query.args.slice(2),[require('crypto').createHash('sha256').update('sales-owner').digest('hex'),[4,9]]);
+  assert.equal(new Date(query.args[1])-new Date(query.args[0]),24*60*60*1000);
+});
+
 test('team leaders cannot receive tenant-wide leads or follow-ups when no agent is assigned',async()=>{
   const f=mockDb();
   await pipeline.getBoard({uid:'sales-owner',role:'team_leader',scopeAgentIds:[],pool:f.pool});

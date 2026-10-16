@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const moment = require("moment-timezone");
 let defaultPool;
 function getPromisePool(source) {
   const value=source||(defaultPool||(defaultPool=require("../../database/config")));
@@ -559,7 +560,7 @@ async function captureQrMessage({ uid, chatId, message, normalizedMessage }) {
   throw lastError;
 }
 
-async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filters = {}, pool:sourcePool }) {
+async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezone = "Asia/Qatar", filters = {}, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const conditions = ["l.uid_hash = ?"];
@@ -614,11 +615,15 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filter
       const suppressedIds=new Set(suppressed.map(row=>String(row.leadId)));
       for(const lead of leads)lead.doNotCall=suppressedIds.has(String(lead.id));
     }else for(const lead of leads)lead.doNotCall=false;
+    const zone = moment.tz.zone(timezone) ? timezone : "Asia/Qatar";
+    const today = moment.tz(zone);
+    const todayStart = today.clone().startOf("day").utc().format("YYYY-MM-DD HH:mm:ss.SSS");
+    const todayEnd = today.clone().add(1, "day").startOf("day").utc().format("YYYY-MM-DD HH:mm:ss.SSS");
     const [countRows] = await connection.query(
-      `SELECT COUNT(*) AS total FROM pipeline_leads l
+      `SELECT COUNT(*) AS total, COALESCE(SUM(l.created_at >= ? AND l.created_at < ?),0) AS today_new_leads FROM pipeline_leads l
        LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
        WHERE ${conditions.join(" AND ")}`,
-      values,
+      [todayStart, todayEnd, ...values],
     );
     const agentConditions=['owner_uid = ?','is_active = 1'],agentValues=[uid];
     if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds)){
@@ -627,7 +632,7 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filter
     }
     const [agents] = await connection.query(`SELECT id, name, email, is_active FROM agents WHERE ${agentConditions.join(' AND ')} ORDER BY name ASC`,agentValues);
     const grouped = stages.map((stage) => ({ ...stage, leads: leads.filter((lead) => lead.stage_key === stage.stage_key) }));
-    return { stages: grouped, leads, agents, total: Number(countRows[0]?.total || 0), page, limit };
+    return { stages: grouped, leads, agents, total: Number(countRows[0]?.total || 0), summary: { todayNewLeads: Number(countRows[0]?.today_new_leads || 0) }, page, limit };
   },sourcePool);
 }
 

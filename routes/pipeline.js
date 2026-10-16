@@ -151,6 +151,7 @@ router.get("/board", async (req, res) => {
       agentId: req.pipelineActor.agentId,
       scopeAgentIds: req.pipelineActor.scopeAgentIds,
       categoryKey: req.pipelineActor.categoryKey,
+      timezone: req.pipelineActor.timezone,
       filters: {
         search: req.query.search,
         stage: req.query.stage,

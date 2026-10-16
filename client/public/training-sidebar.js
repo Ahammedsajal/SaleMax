@@ -258,7 +258,8 @@
       button.onclick=event=>{event.preventDefault();location.href='/user?page=tasks';};list.append(copy);
     }
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
-    if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')){
+    const hasLeadReports=[...list.children].some(row=>row.tagName==='LI'&&(aliases[label(row)]||label(row))==='Lead Reports');
+    if(leadSource&&!hasLeadReports){
       const copy=leadSource.cloneNode(true);copy.dataset.sxLeadReportsNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
       // This is a synthetic row, so set its primary label directly. The legacy
       // row can wrap its text in different span structures across builds; only
