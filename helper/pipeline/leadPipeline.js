@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const moment = require("moment-timezone");
+const applicationLeadProfile = require("../../modules/platform/training-application-lead-profile");
 let defaultPool;
 function getPromisePool(source) {
   const value=source||(defaultPool||(defaultPool=require("../../database/config")));
@@ -985,6 +986,7 @@ async function getLead(uid, id, {role,agentId,scopeAgentIds,pool:sourcePool}={})
         attribution:typeof row.attributionJson==='string'?JSON.parse(row.attributionJson):row.attributionJson,
         schema:typeof row.schemaJson==='string'?JSON.parse(row.schemaJson):row.schemaJson,schemaJson:undefined,attributionJson:undefined}));
     }
+    if(applications.length)leads[0].qualification_data=applicationLeadProfile.fillMissing(leads[0].qualification_data,applications[0].submissionData);
     const attributionHistory=summarizeCampaignAttribution(applications);
     return { ...leads[0], activities, conversations, attributions, applications, attributionHistory };
   },sourcePool);

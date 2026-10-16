@@ -7,6 +7,7 @@ const pipeline=require('../../helper/pipeline/leadPipeline');
 const registration=require('./training-registration-workflow');
 const registrationFields=require('./training-registration-schema');
 const registrationSelections=require('./training-registration-selections');
+const applicationLeadProfile=require('./training-application-lead-profile');
 const uuid=()=>crypto.randomUUID();
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const keys=new Set(['contact_name','learner_name','phone','email','nationality','course_id','preferred_date','consent','student_id','certificate_name','qid','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','source','referral_name','courses','student_agreement','tuition_qar','student_signature','student_signature_date','representative_signature','representative_signature_date','payment_plan','batch_id','payment_plan_id','staff_attended','level','class_day','class_time','enrollment_terms','course_selections']);
@@ -140,7 +141,7 @@ async function staffForms(pool,actor){
 }
 async function staffLead(pool,actor,leadId){
   if(typeof leadId!=='string'||!/^[0-9a-f-]{36}$/i.test(leadId))fail('LEAD_NOT_ACCESSIBLE');
-  const db=await pool.getConnection();try{const ctx=await staffContext(db,actor),uidHash=sha(actor.uid),scope=actor.role==='agent'?' AND l.owner_agent_id=?':'',params=[uidHash,leadId];if(actor.role==='agent')params.push(actor.agentId);const [[row]]=await db.query(`SELECT l.id,l.contact_name AS contactName,l.learner_name AS learnerName,l.mobile AS phone,c.normalized_email AS email,l.qualification_data AS qualificationData FROM pipeline_leads l LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id WHERE l.uid_hash=? AND l.id=?${scope} LIMIT 1`,params);if(!row)fail('LEAD_NOT_ACCESSIBLE');return {...row,qualificationData:typeof row.qualificationData==='string'?JSON.parse(row.qualificationData):row.qualificationData||{}};}finally{db.release();}
+  const db=await pool.getConnection();try{const ctx=await staffContext(db,actor),uidHash=sha(actor.uid),scope=actor.role==='agent'?' AND l.owner_agent_id=?':'',params=[ctx.tenant.id,uidHash,leadId];if(actor.role==='agent')params.push(actor.agentId);const [[row]]=await db.query(`SELECT l.id,l.contact_name AS contactName,l.learner_name AS learnerName,l.mobile AS phone,c.normalized_email AS email,l.qualification_data AS qualificationData,(SELECT s.submission_data FROM sx_training_form_submissions s WHERE s.tenant_id=? AND s.lead_id=l.id ORDER BY s.created_at DESC,s.id DESC LIMIT 1) AS latestApplicationData FROM pipeline_leads l LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id WHERE l.uid_hash=? AND l.id=?${scope} LIMIT 1`,params);if(!row)fail('LEAD_NOT_ACCESSIBLE');return {...row,qualificationData:applicationLeadProfile.fillMissing(row.qualificationData,row.latestApplicationData),latestApplicationData:undefined};}finally{db.release();}
 }
 async function searchStaffLeads(pool,actor,search){
   const term=String(search||'').trim().slice(0,100);
@@ -148,12 +149,12 @@ async function searchStaffLeads(pool,actor,search){
   const db=await pool.getConnection();try{
     const ctx=await staffContext(db,actor),uidHash=sha(actor.uid),like=`%${term.replace(/[\\%_]/g,'\\$&')}%`;
     const scope=actor.role==='agent'?' AND l.owner_agent_id=?':'';
-    const params=[uidHash,like,like,like,like];if(actor.role==='agent')params.push(actor.agentId);
-    const [rows]=await db.query(`SELECT l.id,l.contact_name AS contactName,l.learner_name AS learnerName,l.mobile AS phone,c.normalized_email AS email,l.qualification_data AS qualificationData
+    const params=[ctx.tenant.id,uidHash,like,like,like,like];if(actor.role==='agent')params.push(actor.agentId);
+    const [rows]=await db.query(`SELECT l.id,l.contact_name AS contactName,l.learner_name AS learnerName,l.mobile AS phone,c.normalized_email AS email,l.qualification_data AS qualificationData,(SELECT s.submission_data FROM sx_training_form_submissions s WHERE s.tenant_id=? AND s.lead_id=l.id ORDER BY s.created_at DESC,s.id DESC LIMIT 1) AS latestApplicationData
       FROM pipeline_leads l LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
       WHERE l.uid_hash=? AND (l.contact_name LIKE ? OR l.learner_name LIKE ? OR l.mobile LIKE ? OR c.normalized_email LIKE ?)${scope}
       ORDER BY l.updated_at DESC,l.created_at DESC LIMIT 20`,params);
-    return rows.map(r=>({...r,qualificationData:typeof r.qualificationData==='string'?JSON.parse(r.qualificationData):r.qualificationData||{}}));
+    return rows.map(r=>({...r,qualificationData:applicationLeadProfile.fillMissing(r.qualificationData,r.latestApplicationData),latestApplicationData:undefined}));
   }finally{db.release();}
 }
 async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,values,captureMode,visitorHash,actor,campaignAttribution}){
@@ -173,10 +174,17 @@ async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,
   if(captureMode==='staff'&&actor.selectedLeadId){
     const uidHash=sha(uid),scope=actor.role==='agent'?' AND owner_agent_id=?':'';
     const params=[uidHash,actor.selectedLeadId];if(actor.role==='agent')params.push(actor.agentId);
-    const [[linked]]=await db.query(`SELECT id FROM pipeline_leads WHERE uid_hash=? AND id=?${scope} LIMIT 1 FOR UPDATE`,params);
+    const [[linked]]=await db.query(`SELECT id,qualification_data FROM pipeline_leads WHERE uid_hash=? AND id=?${scope} LIMIT 1 FOR UPDATE`,params);
     if(!linked)fail('LEAD_NOT_ACCESSIBLE');leadId=linked.id;
+    const synced=applicationLeadProfile.mergeSubmitted(linked.qualification_data,schema,data);
+    if(synced.changed.length){
+      await db.query('UPDATE pipeline_leads SET qualification_data=?,last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND id=?',[Object.keys(synced.qualification).length?JSON.stringify(synced.qualification):null,uidHash,leadId]);
+      await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,actor_id,activity_type,summary,details) VALUES(?,?,?,?,?,'Student details synced from application',?)`,[uidHash,leadId,actor.actorType||'user',actor.actorId==null?null:String(actor.actorId),'application_profile_synced',JSON.stringify({fields:synced.changed})]);
+    }
   }else{
-    const lead=await pipeline.createManualLead({uid,actorType:captureMode==='public'?'system':actor.actorType,actorId:captureMode==='public'?null:actor.actorId,agentId:actor?.agentId,role:captureMode==='public'?'owner':actor.role,connection:db,input:{title:courseTitle||form.name_en,contactName:data.contact_name,learnerName:data.learner_name||data.contact_name,mobile:data.phone||'',email:data.email||'',sourceType:captureMode==='public'?'public_form':'staff_form',qualificationData:captureMode==='public'&&campaignAttribution?{campaign:campaignAttribution}:undefined}});leadId=lead.id;
+    const applicationProfile=applicationLeadProfile.profileFromSubmission(schema,data);
+    if(captureMode==='public'&&campaignAttribution)applicationProfile.campaign=campaignAttribution;
+    const lead=await pipeline.createManualLead({uid,actorType:captureMode==='public'?'system':actor.actorType,actorId:captureMode==='public'?null:actor.actorId,agentId:actor?.agentId,role:captureMode==='public'?'owner':actor.role,connection:db,input:{title:courseTitle||form.name_en,contactName:data.contact_name,learnerName:data.learner_name||data.contact_name,mobile:data.phone||'',email:data.email||'',sourceType:captureMode==='public'?'public_form':'staff_form',qualificationData:Object.keys(applicationProfile).length?applicationProfile:undefined}});leadId=lead.id;
   }
   await db.query('UPDATE sx_training_form_submissions SET lead_id=? WHERE id=? AND tenant_id=?',[leadId,submissionId,tenantId]);
   const workflow=schema.templateKey==='procatalyst-registration-v1'?await registration.create(db,{tenantId,uid,submissionId,leadId,data:{...data,consent_text:schema.consentTextEn},actor,referenceCode:reference}):{};return {...workflow,referenceCode:reference,leadId,repeated:false};
