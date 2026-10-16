@@ -1096,7 +1096,7 @@ async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, 
   },sourcePool);
 }
 
-async function updateLead({ uid, id, input, actorType, actorId, role, agentId, scopeAgentIds, categoryKey, sourceCallId = null, pool:sourcePool }) {
+async function updateLead({ uid, id, input, actorType, actorId, role, agentId, scopeAgentIds, categoryKey, sourceCallId = null, onAssignmentChange, pool:sourcePool }) {
   if(sourceCallId!==null&&sourceCallId!==undefined&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sourceCallId)){
     const error=new Error('Invalid source call.');error.status=400;error.code='INVALID_CALL_ID';throw error;
   }
@@ -1192,6 +1192,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
       add("currency", currency);
     }
     let assignmentChange = null;
+    let assignmentEffects = null;
     if (input.ownerAgentId !== undefined && role !== "agent") {
       let owner = null;
       if (input.ownerAgentId !== null && input.ownerAgentId !== "") {
@@ -1205,6 +1206,11 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
         const [nextAgents] = owner == null ? [[]] : await connection.query("SELECT name FROM agents WHERE id = ? AND owner_uid COLLATE utf8mb4_general_ci = ? COLLATE utf8mb4_general_ci LIMIT 1", [owner, uid]);
         assignmentChange = { fromAgentId: lead.owner_agent_id == null ? null : Number(lead.owner_agent_id), fromAgentName: previousAgents[0]?.name || null, toAgentId: owner, toAgentName: nextAgents[0]?.name || null };
         add("owner_agent_id", owner);
+        if (owner !== null) {
+          const reminderAt = requestedFollowUp || (input.nextFollowUpAt === undefined ? existingFollowUp : null) || dbDate(new Date(Date.now() + 60 * 60 * 1000));
+          if (!requestedFollowUp && (!existingFollowUp || input.nextFollowUpAt !== undefined)) add("next_follow_up_at", reminderAt);
+          assignmentChange.followUpAt = reminderAt;
+        }
       }
     }
     if (changes.length) {
@@ -1214,6 +1220,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
     }
     if (assignmentChange) {
       await addActivity(connection, uidHash, id, "lead_reassigned", assignmentChange.toAgentName ? `Reassigned to ${assignmentChange.toAgentName}` : "Lead unassigned", assignmentChange, actorType, actorId);
+      if (typeof onAssignmentChange === "function") assignmentEffects = await onAssignmentChange(connection, { lead, assignmentChange });
     }
     if(contactOutcome){
       const outcomeDetails={outcome:contactOutcome,followUpRequired,nextFollowUpAt:providedFollowUp||null};
@@ -1229,7 +1236,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
       await connection.query("UPDATE pipeline_leads SET automation_paused = ?, last_activity_at = ? WHERE uid_hash = ? AND id = ?", [input.automationPaused ? 1 : 0, dbDate(new Date()), uidHash, id]);
       await addActivity(connection, uidHash, id, "automation_setting", input.automationPaused ? "Lead automation paused" : "Lead automation resumed", { paused: Boolean(input.automationPaused) }, actorType, actorId);
     }
-    return { id };
+    return { id, ...(assignmentChange ? { assignment: { ...assignmentChange, ...(assignmentEffects || {}) } } : {}) };
   },sourcePool);
 }
 

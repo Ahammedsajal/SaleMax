@@ -399,16 +399,62 @@ router.post('/leads/:id/sale-reviews/:reviewId/convert',authorizeLead,async(req,
 
 router.patch("/leads/:id", authorizeLead, async (req, res) => {
   try {
+    const pool=require('../database/config.js').promise();
+    const input=req.body||{};
+    const requestedOwner=input.ownerAgentId===undefined?undefined:(input.ownerAgentId===null||input.ownerAgentId===''?null:Number(input.ownerAgentId));
+    const assignmentWillChange=requestedOwner!==undefined&&(requestedOwner===null?req.pipelineLead.owner_agent_id!=null:Number(req.pipelineLead.owner_agent_id)!==requestedOwner);
+    const reminderContext=assignmentWillChange&&requestedOwner!==null
+      ? await taskContext(req.pipelineActor,'tasks.manage') : null;
     const data = await pipeline.updateLead({
       uid: req.pipelineActor.uid,
       id: req.params.id,
-      input: req.body || {},
+      input,
       actorType: req.pipelineActor.actorType,
       actorId: req.pipelineActor.actorId,
       role: req.pipelineActor.role,
       agentId: req.pipelineActor.agentId,
       scopeAgentIds:req.pipelineActor.scopeAgentIds,
       categoryKey:req.pipelineActor.categoryKey,
+      pool,
+      onAssignmentChange: async (db,{lead,assignmentChange}) => {
+        const chatIds=await db.query('SELECT DISTINCT chat_id FROM pipeline_conversations WHERE uid_hash=? AND lead_id=? AND chat_id IS NOT NULL AND chat_id<>\'\'',[require('crypto').createHash('sha256').update(String(req.pipelineActor.uid),'utf8').digest('hex'),lead.id]);
+        const ids=(chatIds[0]||[]).map(row=>row.chat_id).filter(Boolean);
+        if(!ids.length&&lead.chat_id)ids.push(lead.chat_id);
+        const [agents]=assignmentChange.toAgentId===null?[[]]:await db.query('SELECT id,uid,name,email FROM agents WHERE id=? AND owner_uid=? AND is_active=1 LIMIT 1',[assignmentChange.toAgentId,req.pipelineActor.uid]);
+        const [previousAgents]=assignmentChange.fromAgentId===null?[[]]:await db.query('SELECT uid FROM agents WHERE id=? AND owner_uid=? LIMIT 1',[assignmentChange.fromAgentId,req.pipelineActor.uid]);
+        const previousUid=previousAgents[0]?.uid;
+        const target=agents[0]||null;
+        for(const chatId of ids){
+          if(previousUid)await db.query('DELETE FROM agent_chats WHERE owner_uid=? AND uid=? AND chat_id=?',[req.pipelineActor.uid,previousUid,chatId]);
+          if(target){
+            await db.query('INSERT IGNORE INTO agent_chats(owner_uid,uid,chat_id) VALUES(?,?,?)',[req.pipelineActor.uid,target.uid,chatId]);
+          }
+          const [chatRows]=await db.query('SELECT assigned_agent FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1 FOR UPDATE',[req.pipelineActor.uid,chatId]);
+          if(chatRows.length){
+            let assigned=[];
+            try{const parsed=typeof chatRows[0].assigned_agent==='string'?JSON.parse(chatRows[0].assigned_agent):chatRows[0].assigned_agent;assigned=Array.isArray(parsed)?parsed:parsed?[parsed]:[];}catch{}
+            assigned=assigned.filter(item=>!previousUid||item?.uid!==previousUid);
+            if(target&&!assigned.some(item=>String(item?.id)===String(target.id)||item?.uid===target.uid))assigned.push(target);
+            await db.query('UPDATE beta_chats SET assigned_agent=? WHERE uid=? AND chat_id=?',[JSON.stringify(assigned),req.pipelineActor.uid,chatId]);
+          }
+        }
+        let reminderTask=null;
+        if(target){
+          const dueAt=assignmentChange.followUpAt||new Date(Date.now()+60*60*1000).toISOString();
+          const reminderInput={
+            title:`Follow up: ${lead.title||lead.contact_name||'Lead'}`,
+            description:`Follow up with ${lead.contact_name||lead.learner_name||lead.mobile||'this lead'}. The lead was assigned to you in Pipeline.`,
+            taskType:'lead_follow_up',priority:lead.priority||'normal',dueAt,
+            source:{type:'lead',id:lead.id},
+            participants:[{actorType:'agent',actorId:String(target.id),role:'assignee'}],
+          };
+          const [existingReminders]=await db.query("SELECT id,revision FROM sx_tasks WHERE tenant_id=? AND uid_hash=? AND lead_id=? AND task_type='lead_follow_up' AND status IN ('open','in_progress','blocked') AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[reminderContext.tenantId,reminderContext.uidHash,lead.id]);
+          reminderTask=existingReminders.length
+            ? await trainingTasks.edit(db,reminderContext,existingReminders[0].id,{...reminderInput,expectedRevision:Number(existingReminders[0].revision)},{manageTransaction:false})
+            : await trainingTasks.create(db,reminderContext,reminderInput,{manageTransaction:false});
+        }
+        return { chatsAssigned:target?ids.length:0, reminderTaskId:reminderTask?.id||null };
+      },
     });
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }
