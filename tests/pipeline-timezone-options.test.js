@@ -19,12 +19,12 @@ test('report time-zone choices are selectable IANA zones accepted by the schedul
   const legacy=timezones.options('Etc/GMT+3','Choose a time zone');
   assert.match(legacy,/value="Etc\/GMT\+3" selected/);
 });
-test('report time-zone selector is loaded before its renderer and uses the report card control layout',()=>{
+test('report schedules pin the system timezone to Qatar and use the report card control layout',()=>{
   const html=fs.readFileSync(path.join(root,'client/public/pipeline/index.html'),'utf8');
   const renderer=fs.readFileSync(path.join(root,'client/public/pipeline/reports.js'),'utf8');
   const css=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8');
-  assert.ok(html.indexOf('timezone-options.js?v=1')<html.indexOf('reports.js?v=21'));
-  assert.match(renderer,/<select name="timezone" required>/);
+  assert.ok(html.indexOf('timezone-datetime.js?v=20261014-followup-timezone1')<html.indexOf('reports.js?v=20261016-system-qatar-time1'));
+  assert.match(renderer,/<select name="timezone" required><option value="Asia\/Qatar" selected>Doha, Qatar \(Asia\/Qatar\)<\/option><\/select>/);
   assert.match(css,/\.report-schedule-card input:not\(\[type=checkbox\]\),\.report-schedule-card select/);
-  assert.match(html,/pipeline\.css\?v=14/);
+  assert.match(html,/pipeline\.css\?v=20261016-lead-report-dashboard1/);
 });

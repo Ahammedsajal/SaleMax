@@ -94,7 +94,7 @@ function renderOverviewAlerts(hasNav){
 function renderScheduledCalls(allowed){
   const panel=el('scheduledCallsPanel'),host=el('scheduledCalls');panel.hidden=!allowed;if(!allowed)return;
   el('scheduledCallsTitle').textContent=tr(state.role==='agent'?'My scheduled calls':'Team scheduled calls',state.role==='agent'?'مكالماتي المجدولة':'مكالمات الفريق المجدولة');
-  el('scheduledCallsIntro').textContent=tr('Upcoming sales calls assigned to your current scope. Schedule times are shown in India time.','مكالمات المبيعات القادمة ضمن نطاقك الحالي. تُعرض المواعيد بتوقيت الهند.');
+  el('scheduledCallsIntro').textContent=tr('Upcoming sales calls assigned to your current scope. Schedule times are shown in Qatar time.','مكالمات المبيعات القادمة ضمن نطاقك الحالي. تُعرض المواعيد بتوقيت قطر.');
   el('scheduledCallsLink').textContent=tr('Open tasks','فتح المهام');
   if(state.overview.scheduledCallsError){host.innerHTML=`<div class="empty">${tr('Scheduled calls could not be loaded. Open Tasks to retry.','تعذر تحميل المكالمات المجدولة. افتح المهام للمحاولة مجددًا.')}</div>`;return;}
   const rows=(state.overview.scheduledCalls?.items||[]).filter(task=>task.task_type==='sales_call'&&!['completed','canceled'].includes(task.status)).slice(0,8);
@@ -106,7 +106,7 @@ function renderPriorityFollowups(allowed){
   const panel=el('followupPrioritiesPanel'),host=el('followupPriorities');panel.hidden=!allowed;if(!allowed)return;
   const data=state.overview.followups,rows=data?.items||[],locale=ar()?'ar':'en',zone=data?.timezone||'Asia/Qatar';
   el('followupPrioritiesTitle').textContent=tr('Priority follow-ups','المتابعات ذات الأولوية');
-  el('followupPrioritiesIntro').textContent=tr('Your next assigned leads to contact, with India-local due times.','العملاء المحتملون التاليون للتواصل معهم، حسب توقيت الهند.');
+  el('followupPrioritiesIntro').textContent=tr('Your next assigned leads to contact, with Qatar-local due times.','العملاء المحتملون التاليون للتواصل معهم، حسب توقيت قطر.');
   el('followupQueueLink').textContent=tr('Open follow-up queue','فتح قائمة المتابعات');
   if(!data){host.innerHTML=`<div class="empty">${tr('Follow-up data could not be loaded.','تعذر تحميل بيانات المتابعة.')}</div>`;return;}
   if(!rows.length){host.innerHTML=`<div class="empty">${tr('No follow-ups are due in your current scope.','لا توجد متابعات مستحقة ضمن نطاقك الحالي.')}</div>`;return;}
