@@ -171,7 +171,20 @@ async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds
           AND pa.activity_type IN ('contact_outcome','agent_message_sent') AND pa.created_at>=? AND pa.created_at<?${attendanceScope.sql} GROUP BY CAST(pa.actor_id AS UNSIGNED)) att ON att.agent_id=a.id
       WHERE a.owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci${agentScope.sql}
       GROUP BY a.id,a.name,a.is_active ORDER BY attendedLeads DESC,assignedLeads DESC,a.name`,[uidHash,uid,uidHash,uid,start,end,...attendanceScope.args,uid,...agentScope.args]);
-    return {from,to,timezone,daily:range.days.map((day,i)=>({date:day.date,total:Number(dailyRows[0]?.[`d${i}`]||0)})),agents:agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),attendedLeads:Number(row.attendedLeads||0)}))};
+    const now=moment.tz(timezone),todayStart=now.clone().startOf('day').utc().format('YYYY-MM-DD HH:mm:ss.SSS'),tomorrowStart=now.clone().add(1,'day').startOf('day').utc().format('YYYY-MM-DD HH:mm:ss.SSS'),monthStart=now.clone().startOf('month').utc().format('YYYY-MM-DD HH:mm:ss.SSS'),monthEnd=now.clone().add(1,'day').startOf('day').utc().format('YYYY-MM-DD HH:mm:ss.SSS');
+    const [[current]]=await connection.query(`SELECT
+      (SELECT COUNT(*) FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}) AS leads_today,
+      (SELECT COUNT(*) FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}) AS leads_month,
+      (SELECT COUNT(DISTINCT pa.lead_id) FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id WHERE pa.uid_hash=? AND l.uid=? AND pa.activity_type='sale_converted' AND pa.created_at>=? AND pa.created_at<?${leadScope.sql}) AS sales_converted_month,
+      (SELECT COUNT(*) FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.status='open'${leadScope.sql}) AS live_leads,
+      (SELECT COUNT(*) FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.owner_agent_id IS NULL${role==='owner'?'': ' AND 1=0'}) AS unassigned_leads`,[
+      uidHash,uid,todayStart,tomorrowStart,...leadScope.args,
+      uidHash,uid,monthStart,monthEnd,...leadScope.args,
+      uidHash,uid,monthStart,monthEnd,...leadScope.args,
+      uidHash,uid,...leadScope.args,
+      uidHash,uid
+    ]);
+    return {from,to,timezone,daily:range.days.map((day,i)=>({date:day.date,total:Number(dailyRows[0]?.[`d${i}`]||0)})),agents:agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),attendedLeads:Number(row.attendedLeads||0)})),current:{today:Number(current.leads_today||0),month:Number(current.leads_month||0),salesConvertedMonth:Number(current.sales_converted_month||0),live:Number(current.live_leads||0),unassigned:role==='owner'?Number(current.unassigned_leads||0):null}};
   }finally{connection.release();}
 }
 async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,date,selectedAgentId,from,to,timezone='Asia/Qatar',page=1,limit=50}){

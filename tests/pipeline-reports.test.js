@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {periodWindow,getActivityReport,getJourneyReport}=require('../helper/pipeline/reports');
+const {periodWindow,getActivityReport,getJourneyReport,getLeadReportSummary}=require('../helper/pipeline/reports');
 const {reconcileExisting}=require('../modules/platform/training-lead-journey');
 
 test('pipeline reports define Qatar-local daily, Monday-weekly and monthly periods',()=>{
@@ -16,6 +16,24 @@ test('pipeline reports reject unsupported periods, invalid dates, roles and pagi
   const pool={getConnection(){throw new Error('must not connect')}};
   await assert.rejects(getActivityReport({pool,uid:'synthetic',role:'accountant'}),{status:403});
   await assert.rejects(getActivityReport({pool,uid:'synthetic',role:'owner',page:0}),{status:400});
+});
+
+test('lead report summary returns current-period KPIs and keeps unassigned visibility within role access',async()=>{
+  const queries=[];
+  const connection={release(){},async query(sql,params=[]){queries.push({sql,params});
+    if(sql.includes('SELECT SUM(l.created_at'))return [[{d0:2,d1:3}]];
+    if(sql.includes('FROM agents a'))return [[{agentId:12,agentName:'Mona',active:1,assignedLeads:4,attendedLeads:2}]];
+    if(sql.includes('AS leads_today'))return [[{leads_today:3,leads_month:20,sales_converted_month:2,live_leads:17,unassigned_leads:9}]];
+    return [[]];
+  }};
+  const report=await getLeadReportSummary({pool:{async getConnection(){return connection;}},uid:'manager-workspace',role:'manager',scopeAgentIds:[12],from:'2026-10-15',to:'2026-10-16',timezone:'Asia/Qatar'});
+  assert.deepEqual(report.daily,[{date:'2026-10-15',total:2},{date:'2026-10-16',total:3}]);
+  assert.deepEqual(report.current,{today:3,month:20,salesConvertedMonth:2,live:17,unassigned:null});
+  const current=queries.find(query=>query.sql.includes('AS leads_today'));
+  assert.match(current.sql,/pa\.activity_type='sale_converted'/);
+  assert.match(current.sql,/l\.status='open'/);
+  assert.match(current.sql,/l\.owner_agent_id IS NULL AND 1=0/);
+  for(const query of queries)assert.equal(query.params.length,(query.sql.match(/\?/g)||[]).length,`placeholder count for ${query.sql.slice(0,90)}`);
 });
 
 test('managers can read sales activity reports without receiving finance totals',async()=>{
