@@ -26,6 +26,7 @@ services:
     restart: unless-stopped
     env_file: /opt/salemax/shared/runtime.env
     environment:
+      TZ: Asia/Qatar
       SALEMAX_LICENSE_FILE: /app/license-store/license.json
       SALEMAX_CRM_LOGO_ROOT: /app/private/crm-tenant-logos
     extra_hosts:
@@ -62,6 +63,7 @@ services:
     init: true
     env_file: /opt/salemax/shared/runtime.env
     environment:
+      TZ: Asia/Qatar
       SALEMAX_TRAINING_REPORT_WORKER_ENABLED: "true"
       SALEMAX_TRAINING_REPORT_WORKER_INTERVAL_MS: "30000"
     depends_on:
