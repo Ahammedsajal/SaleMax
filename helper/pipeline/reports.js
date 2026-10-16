@@ -191,8 +191,9 @@ async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view lead reports.',403);
   if(['manager','team_leader'].includes(role)&&!Array.isArray(scopeAgentIds))fail('Team scope is unavailable for this report.',403);
-  if(!['created','attended'].includes(kind))fail('Choose created or attended leads.');
-  const range=kind==='attended'&&from&&to?reportRange({from,to,timezone}):null,window=range?{start:range.days[0].start,end:range.days[range.days.length-1].end,timezone}:{...periodWindow({period:'daily',at:date,timezone}),date},currentPage=Number(page),pageSize=Number(limit);
+  if(!['created','attended','month_created','month_converted','live','unassigned'].includes(kind))fail('Choose a supported lead list.');
+  if(kind==='unassigned'&&role!=='owner')fail('Unassigned leads are outside your access scope.',403);
+  const range=kind==='attended'&&from&&to?reportRange({from,to,timezone}):null,window=range?{start:range.days[0].start,end:range.days[range.days.length-1].end,timezone}:['month_created','month_converted'].includes(kind)?periodWindow({period:'monthly',at:date,timezone}):periodWindow({period:'daily',at:date,timezone}),currentPage=Number(page),pageSize=Number(limit);
   if(!Number.isSafeInteger(currentPage)||currentPage<1||currentPage>10000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)fail('Report page or page size is invalid.');
   let actor=selectedAgentId;
   if(kind==='attended'){
@@ -207,14 +208,24 @@ async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,
       if(!allowedAgent)fail('This agent is outside your workspace.',403);
     }
     const leadScope=teamAgentScope(role,agentId,scopeAgentIds),offset=(currentPage-1)*pageSize;
-    const source=kind==='created'?`SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}`:`SELECT DISTINCT pa.lead_id AS id FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id WHERE pa.uid_hash=? AND l.uid=? AND pa.actor_type='agent' AND pa.actor_id=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','agent_message_sent')${leadScope.sql}`;
-    const params=kind==='created'?[uidHash,uid,window.start,window.end,...leadScope.args]:[uidHash,uid,String(actor),window.start,window.end,...leadScope.args];
+    let source,params;
+    if(kind==='created'||kind==='month_created'){
+      source=`SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}`;params=[uidHash,uid,window.start,window.end,...leadScope.args];
+    }else if(kind==='month_converted'){
+      source=`SELECT DISTINCT pa.lead_id AS id FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id WHERE pa.uid_hash=? AND l.uid=? AND pa.activity_type='sale_converted' AND pa.created_at>=? AND pa.created_at<?${leadScope.sql}`;params=[uidHash,uid,window.start,window.end,...leadScope.args];
+    }else if(kind==='live'){
+      source=`SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.status='open'${leadScope.sql}`;params=[uidHash,uid,...leadScope.args];
+    }else if(kind==='unassigned'){
+      source=`SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.owner_agent_id IS NULL`;params=[uidHash,uid];
+    }else{
+      source=`SELECT DISTINCT pa.lead_id AS id FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id WHERE pa.uid_hash=? AND l.uid=? AND pa.actor_type='agent' AND pa.actor_id=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','agent_message_sent')${leadScope.sql}`;params=[uidHash,uid,String(actor),window.start,window.end,...leadScope.args];
+    }
     const [[count]]=await connection.query(`SELECT COUNT(*) AS total FROM (${source}) report_leads`,params);
     const [rows]=await connection.query(`SELECT l.id AS leadId,l.title,COALESCE(c.display_name,l.contact_name) AS contactName,l.mobile,l.stage_key AS stageKey,l.owner_agent_id AS agentId,COALESCE(a.name,'—') AS agentName,l.created_at AS createdAt
       FROM (${source}) report_leads JOIN pipeline_leads l ON l.uid_hash=? AND l.id=report_leads.id LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
       LEFT JOIN agents a ON a.id=l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
       ORDER BY l.created_at DESC,l.id DESC LIMIT ? OFFSET ?`,[...params,uidHash,pageSize,offset]);
-    const total=Number(count.total||0);return {kind,date:kind==='created'?date:to||date,from:kind==='attended'?from||date:null,to:kind==='attended'?to||date:null,selectedAgentId:kind==='attended'?actor:null,page:currentPage,limit:pageSize,total,hasMore:offset+rows.length<total,items:rows};
+    const total=Number(count.total||0);return {kind,date,from:kind==='attended'?from||date:['month_created','month_converted'].includes(kind)?window.start:null,to:kind==='attended'?to||date:['month_created','month_converted'].includes(kind)?window.end:null,selectedAgentId:kind==='attended'?actor:null,page:currentPage,limit:pageSize,total,hasMore:offset+rows.length<total,items:rows};
   }finally{connection.release();}
 }
 async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,period='daily',at,timezone='Asia/Qatar'}){

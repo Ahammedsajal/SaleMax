@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {periodWindow,getActivityReport,getJourneyReport,getLeadReportSummary}=require('../helper/pipeline/reports');
+const {periodWindow,getActivityReport,getJourneyReport,getLeadReportSummary,getReportLeads}=require('../helper/pipeline/reports');
 const {reconcileExisting}=require('../modules/platform/training-lead-journey');
 
 test('pipeline reports define Qatar-local daily, Monday-weekly and monthly periods',()=>{
@@ -34,6 +34,18 @@ test('lead report summary returns current-period KPIs and keeps unassigned visib
   assert.match(current.sql,/l\.status='open'/);
   assert.match(current.sql,/l\.owner_agent_id IS NULL AND 1=0/);
   for(const query of queries)assert.equal(query.params.length,(query.sql.match(/\?/g)||[]).length,`placeholder count for ${query.sql.slice(0,90)}`);
+});
+
+test('summary-card lead lists use the matching date and pipeline filters with paginated results',async()=>{
+  for(const [kind,expected] of [['created',/l\.created_at>=\? AND l\.created_at</],['month_created',/l\.created_at>=\? AND l\.created_at</],['month_converted',/pa\.activity_type='sale_converted'/],['live',/l\.status='open'/],['unassigned',/l\.owner_agent_id IS NULL/]]){
+    const queries=[];
+    const connection={release(){},async query(sql,params=[]){queries.push({sql,params});if(sql.includes('SELECT COUNT(*) AS total FROM ('))return [[{total:1}]];if(sql.includes('SELECT l.id AS leadId'))return [[{leadId:'lead-1',contactName:'Synthetic lead'}]];throw new Error(`Unexpected ${kind} query: ${sql}`);}};
+    const role=kind==='unassigned'?'owner':'manager',report=await getReportLeads({pool:{async getConnection(){return connection;}},uid:'manager-workspace',role,scopeAgentIds:role==='manager'?[12]:undefined,kind,date:'2026-10-16',page:1,limit:50,timezone:'Asia/Qatar'});
+    assert.equal(report.kind,kind);assert.equal(report.total,1);assert.equal(report.items[0].leadId,'lead-1');
+    const listQuery=queries[0];assert.match(listQuery.sql,expected);
+    for(const query of queries)assert.equal(query.params.length,(query.sql.match(/\?/g)||[]).length,`placeholder count for ${kind} query`);
+  }
+  await assert.rejects(getReportLeads({pool:{getConnection(){throw new Error('must not connect')}},uid:'manager-workspace',role:'manager',scopeAgentIds:[12],kind:'unassigned',date:'2026-10-16'}),{status:403});
 });
 
 test('managers can read sales activity reports without receiving finance totals',async()=>{

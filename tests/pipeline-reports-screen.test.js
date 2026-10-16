@@ -43,12 +43,16 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports,/convertedMonth:'Sales converted this month'/);
   assert.match(reports,/liveLeadsNow:'Live leads now'/);
   assert.match(reports,/unassignedTotal:'Unassigned leads'/);
+  assert.match(reports,/class="report-kpi report-summary-card"/);
+  assert.match(reports,/data-summary-kind/);
+  assert.match(reports,/data-report-preset="week"/);
+  assert.doesNotMatch(reports,/fmtDay\(state\.to\)\} · \$\{escape\(report\.timezone/);
   assert.match(reports,/dialog\.showModal\(\)/);
   assert.match(reports,/<dialog class="report-lead-dialog"/);
   assert.match(reports, /cohortShare:'of new leads'/);
   assert.match(reports, /cohortShare:'من العملاء الجدد'/);
   assert.match(reports, /Math\.round\(Number\(value\|\|0\)\*100\/cohortSize\)/);
-  assert.match(html, /pipeline\.css\?v=20261016-lead-report-dashboard1/);
+  assert.match(html, /pipeline\.css\?v=20261016-lead-report-dashboard2/);
   assert.match(html, /reports\.js\?v=[^"]+/);
   const css=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8');
   assert.match(css,/journey-cohort \.journey-stage small/);
