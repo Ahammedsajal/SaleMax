@@ -135,6 +135,13 @@ async function publishedFormForTenant(db,tenantId,formSlug){
 async function staffForm(pool,actor,formSlug){
   const db=await pool.getConnection();try{const ctx=await staffContext(db,actor);const form=await publishedFormForTenant(db,ctx.tenant.id,formSlug);const definition=await publicForm(db,ctx.tenantSlug,form.slug);if(!definition)fail('FORM_NOT_FOUND');return {...definition,staff:await registration.staffOptions(db,ctx.tenant.id,actor.uid),captureMode:'staff'};}finally{db.release();}
 }
+async function staffForms(pool,actor){
+  const db=await pool.getConnection();try{const ctx=await staffContext(db,actor);const [rows]=await db.query(`SELECT v.slug,v.name_en AS nameEn,v.name_ar AS nameAr FROM sx_training_forms f JOIN sx_training_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version WHERE f.tenant_id=? AND f.status='published' ORDER BY v.name_en,v.slug`,[ctx.tenant.id]);return {tenantSlug:ctx.tenantSlug,items:rows};}finally{db.release();}
+}
+async function staffLead(pool,actor,leadId){
+  if(typeof leadId!=='string'||!/^[0-9a-f-]{36}$/i.test(leadId))fail('LEAD_NOT_ACCESSIBLE');
+  const db=await pool.getConnection();try{const ctx=await staffContext(db,actor),uidHash=sha(actor.uid),scope=actor.role==='agent'?' AND l.owner_agent_id=?':'',params=[uidHash,leadId];if(actor.role==='agent')params.push(actor.agentId);const [[row]]=await db.query(`SELECT l.id,l.contact_name AS contactName,l.learner_name AS learnerName,l.mobile AS phone,c.normalized_email AS email,l.qualification_data AS qualificationData FROM pipeline_leads l LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id WHERE l.uid_hash=? AND l.id=?${scope} LIMIT 1`,params);if(!row)fail('LEAD_NOT_ACCESSIBLE');return {...row,qualificationData:typeof row.qualificationData==='string'?JSON.parse(row.qualificationData):row.qualificationData||{}};}finally{db.release();}
+}
 async function searchStaffLeads(pool,actor,search){
   const term=String(search||'').trim().slice(0,100);
   if(term.length<2)fail('SEARCH_TERM_TOO_SHORT');
@@ -194,4 +201,4 @@ async function submitStaff(pool,actor,formSlug,{submissionToken,values,selectedL
     await db.commit();begun=false;return {...result,collectorRole:actor.role};
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
-module.exports={formInput,list,submissions,create,createRegistration,update,publish,publicForm,cleanSubmission,cleanCampaignAttribution,submitPublic,staffForm,searchStaffLeads,submitStaff};
+module.exports={formInput,list,submissions,create,createRegistration,update,publish,publicForm,cleanSubmission,cleanCampaignAttribution,submitPublic,staffForm,staffForms,staffLead,searchStaffLeads,submitStaff};

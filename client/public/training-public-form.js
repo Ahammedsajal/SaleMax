@@ -6,6 +6,7 @@
   const tenantSlug = parts[1];
   const formSlug = parts[3];
   const query = new URLSearchParams(location.search);
+  const requestedLeadId = query.get('leadId');
   const staffCapture = query.get('mode') === 'staff' || (formSlug === 'student-registration' && Boolean(localStorage.getItem('wacrm_agent') || localStorage.getItem('wacrm_user')));
   const storageKey = `sx-form-token:${tenantSlug}:${formSlug}:${staffCapture ? 'staff' : 'public'}`;
   let data = null;
@@ -152,7 +153,7 @@
       ${staffCapture ? `<div class="capture-banner" role="status">${isRegistration ? tr('Staff capture · details clear after each registration', 'تسجيل الموظف · تُمسح البيانات بعد كل طلب تسجيل') : tr('Staff capture · details clear after each enquiry', 'تسجيل الموظف · تُمسح البيانات بعد كل استفسار')}</div>` : ''}
       <section class="form-card">${schema.templateKey==='procatalyst-registration-v1'?'':`<p class="eyebrow">${staffCapture ? tr('STAFF ENQUIRY CAPTURE', 'تسجيل استفسار بواسطة الموظف') : tr('TRAINING CENTER ENQUIRY', 'استفسار مركز التدريب')}</p><h1>${esc(isArabic ? schema.titleAr : schema.titleEn)}</h1>${(isArabic ? schema.descriptionAr : schema.descriptionEn) ? `<p class="description">${esc(isArabic ? schema.descriptionAr : schema.descriptionEn)}</p>` : ''}`}
       <div id="form-message" role="status" aria-live="polite"></div><form id="enquiry-form" novalidate autocomplete="off">
-      ${staffCapture ? `<section class="lead-prefill" aria-label="${tr('Find an existing lead','البحث عن عميل محتمل موجود')}"><label for="lead-search">${tr('Find existing lead by name, phone or email','ابحث عن عميل محتمل بالاسم أو الهاتف أو البريد الإلكتروني')}</label><input id="lead-search" type="search" autocomplete="off" placeholder="${tr('Type at least 2 characters','اكتب حرفين على الأقل')}"/><div id="lead-search-results" role="listbox" aria-live="polite"></div><p id="lead-selected" class="lead-selected" role="status"></p></section>` : ''}
+      ${staffCapture ? `<section class="lead-prefill" aria-label="${tr('Find an existing lead','البحث عن عميل محتمل موجود')}">${requestedLeadId?`<p id="lead-selected" class="lead-selected" role="status"></p>`:`<label for="lead-search">${tr('Find existing lead by name, phone or email','ابحث عن عميل محتمل بالاسم أو الهاتف أو البريد الإلكتروني')}</label><input id="lead-search" type="search" autocomplete="off" placeholder="${tr('Type at least 2 characters','اكتب حرفين على الأقل')}"/><div id="lead-search-results" role="listbox" aria-live="polite"></div><p id="lead-selected" class="lead-selected" role="status"></p>`}</section>` : ''}
       <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
       ${schema.templateKey === 'procatalyst-registration-v1' ? window.SXTrainingRegistration.capture(schema, language, staffCapture, data.tenant, data) : schema.fields.filter(field => field.key !== 'consent').map(field => {
         const [labelEn, labelAr, type, autocomplete] = fields[field.key] || [field.key.replace(/_/g, ' ').replace(/^./, char => char.toUpperCase()), field.key.replace(/_/g, ' '), field.key.endsWith('_date') ? 'date' : 'text', 'off'];
@@ -185,7 +186,7 @@
     root.querySelector('#enquiry-form').onsubmit = submit;
     wireCoursePicker(root.querySelector('#enquiry-form'));
     if(isRegistration)window.__sxRegistrationControls=window.SXTrainingRegistration.wire(root.querySelector('#enquiry-form'),data,language,priorCourses);
-    if(staffCapture) wireLeadSearch();
+    if(staffCapture) { wireLeadSearch(); if(selectedLead) prefillSelectedLead(); }
     if(isRegistration){const source=root.querySelector('[name="source"]'),heading=root.querySelector('.registration-capture > .reg-two-col');let lookup=root.querySelector('.lead-prefill');if(!lookup){lookup=document.createElement('section');lookup.className='lead-prefill';lookup.innerHTML='<p>'+tr('Sign in as staff to search and import an existing lead.','سجّل الدخول كموظف للبحث واستيراد عميل محتمل موجود.')+'</p><a class="form-action" href="'+location.pathname+'?mode=staff">'+tr('Open staff capture','فتح تسجيل الموظف')+'</a>';}heading.insertAdjacentElement('afterend',lookup);const original=source.onchange;const toggle=focus=>{lookup.hidden=source.value!=='Lead';if(focus&&!lookup.hidden)lookup.querySelector('input')?.focus();if(lookup.hidden){selectedLead=null;const selected=lookup.querySelector('#lead-selected');if(selected)selected.textContent='';}};source.onchange=()=>{original?.();toggle(true);};toggle(false);}
     if (!staffCapture && data.botChallenge) mountTurnstile();
   }
@@ -207,14 +208,21 @@
           results.innerHTML=body.data.map(lead=>`<button type="button" class="lead-result" role="option" data-lead-id="${esc(lead.id)}"><strong>${esc(lead.contactName||lead.learnerName||tr('Unnamed lead','عميل محتمل بلا اسم'))}</strong><span>${[lead.phone,lead.email].filter(Boolean).map(esc).join(' · ')}</span></button>`).join('');
           results.querySelectorAll('[data-lead-id]').forEach(button=>button.addEventListener('click',()=>{
             selectedLead=body.data.find(lead=>lead.id===button.dataset.leadId)||null;if(!selectedLead)return;
-            const form=root.querySelector('#enquiry-form');const fill=(name,value)=>{const control=form.elements[name];if(control)control.value=value??'';};
-            fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);for(const key of ['certificate_name','qid','nationality','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','referral_name']){const value=selectedLead.qualificationData?.[key]||'';const c=form.elements[key];if(c?.tagName==='SELECT'&&value&&!Array.from(c.options).some(o=>o.value===value))c.add(new Option(value,value));fill(key,value);}fill('source','Lead');window.__sxRegistrationControls?.refresh();
+            prefillSelectedLead();
             selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. You can edit the form details.` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. يمكنك تعديل بيانات النموذج.`);
             results.innerHTML='';input.value='';
           }));
         }catch{results.innerHTML=`<p class="error-message">${tr('Lead search is unavailable.','البحث عن العميل المحتمل غير متاح.')}</p>`;}
       },250);
     });
+  }
+
+  function prefillSelectedLead(){
+    if(!selectedLead)return;const form=root.querySelector('#enquiry-form'),selected=root.querySelector('#lead-selected');if(!form)return;
+    const fill=(name,value)=>{const control=form.elements[name];if(control)control.value=value??'';};
+    fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);
+    for(const key of ['certificate_name','qid','nationality','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','referral_name']){const value=selectedLead.qualificationData?.[key]||'';const control=form.elements[key];if(control?.tagName==='SELECT'&&value&&!Array.from(control.options).some(option=>option.value===value))control.add(new Option(value,value));fill(key,value);}
+    fill('source','Lead');window.__sxRegistrationControls?.refresh();if(selected)selected.textContent=tr(`Application will be linked to ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}.`,`سيتم ربط الطلب بـ ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}.`);
   }
 
   function mountTurnstile() {
@@ -327,6 +335,7 @@
       let body;
       try { body = await response.json(); } catch { throw Error('SERVER_ERROR'); }
       if (!response.ok || body.success !== true) throw Error(body.code || 'SUBMISSION_FAILED');
+      if(staffCapture&&window.parent!==window&&selectedLead)window.parent.postMessage({type:'sx-training-application-submitted',leadId:selectedLead.id,referenceCode:body.data.referenceCode},location.origin);
       sessionStorage.removeItem(storageKey);
       selectedLead=null;
       const reference = esc(body.data.referenceCode);const registrationResult=body.data.studentNumber?'<p>'+tr('Total','الإجمالي')+': QAR '+(Number(body.data.totalMinor)/100).toFixed(2)+'</p>'+ (body.data.registrations||[body.data]).map(r=>'<p><strong>'+esc(language==='ar'?r.courseNameAr:r.courseNameEn)+'</strong><br>'+tr('Student ID','رقم الطالب')+': '+esc(r.studentNumber)+'<br>'+tr('Provisional invoice','فاتورة مبدئية')+': '+esc(r.provisionalInvoiceNumber)+' · QAR '+(Number(r.totalMinor)/100).toFixed(2)+'</p>').join(''):'';
@@ -389,6 +398,7 @@
         throw Error(body.code || 'FORM_NOT_FOUND');
       }
       data = body.data;
+      if(staffCapture&&requestedLeadId){const leadResponse=await fetch(`/api/pipeline/training-forms/${encodeURIComponent(formSlug)}/leads/${encodeURIComponent(requestedLeadId)}`,{cache:'no-store',credentials:'same-origin',headers:{Authorization:`Bearer ${token}`}});const leadBody=await leadResponse.json();if(!leadResponse.ok||!leadBody.success)throw Error(leadBody.code||'LEAD_NOT_ACCESSIBLE');selectedLead=leadBody.data;}
       if (data.form.schema.fields.some(field => field.key === 'course_id' && field.required) && !data.courses.length) {
         renderMessage(tr('Registration is temporarily unavailable.', 'التسجيل غير متاح مؤقتًا.'), tr('Contact the training center before collecting this enquiry.', 'تواصل مع مركز التدريب قبل تسجيل هذا الاستفسار.'), null, '');
         return;

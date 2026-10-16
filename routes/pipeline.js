@@ -100,6 +100,12 @@ async function pipelineAuth(req, res, next) {
 router.use(pipelineAuth);
 router.use('/tasks',createTaskRouter({pool:require('../database/config.js').promise(),contextFor:(req,permission)=>taskContext(req.pipelineActor,permission)}));
 
+router.get('/training-forms', async (req,res) => {
+  res.setHeader('Cache-Control','no-store');
+  try { const data=await trainingForms.staffForms(require('../database/config.js').promise(),req.pipelineActor);res.json({success:true,data}); }
+  catch(error) { const code=error.code||'STAFF_FORM_UNAVAILABLE';const status=code==='PERMISSION_DENIED'?403:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)||code==='BUSINESS_LINK_INVALID'?409:500;res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code}); }
+});
+
 router.get('/training-forms/:formSlug', async (req,res) => {
   try {
     const data=await trainingForms.staffForm(require('../database/config.js').promise(),req.pipelineActor,req.params.formSlug);
@@ -120,6 +126,18 @@ router.get('/training-forms/:formSlug/leads', async (req,res) => {
     const code=error.code||'STAFF_FORM_UNAVAILABLE';
     const status=code==='PERMISSION_DENIED'?403:code==='SEARCH_TERM_TOO_SHORT'?400:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:500;
     if(status>=500)console.error('Staff lead lookup failed:',code);
+    res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code});
+  }
+});
+
+router.get('/training-forms/:formSlug/leads/:leadId', async (req,res) => {
+  res.setHeader('Cache-Control','no-store');
+  try {
+    await trainingForms.staffForm(require('../database/config.js').promise(),req.pipelineActor,req.params.formSlug);
+    const data=await trainingForms.staffLead(require('../database/config.js').promise(),req.pipelineActor,req.params.leadId);
+    res.json({success:true,data});
+  } catch(error) {
+    const code=error.code||'STAFF_FORM_UNAVAILABLE';const status=code==='PERMISSION_DENIED'||code==='LEAD_NOT_ACCESSIBLE'?403:code==='FORM_NOT_FOUND'?404:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:500;
     res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code});
   }
 });

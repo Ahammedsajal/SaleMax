@@ -30,3 +30,15 @@ test('lead detail organizes the existing fields and actions into clear responsiv
   assert.ok(style.includes('.lead-detail-page #editLead{max-width:none;display:grid'));
   assert.ok(style.includes('.lead-detail-page .application-chain .empty{margin:0;padding:14px'));
 });
+
+test('lead applications can be created in a modal and returned to the same linked lead',()=>{
+  assert.match(script,/id="createLeadApplication"/);
+  assert.match(script,/openApplicationCapture\(lead\)/);
+  assert.match(script,/api\('\/training-forms'\)/);
+  assert.match(script,/leadId',String\(lead\.id\)/);
+  assert.match(script,/event\.source!==frame\.contentWindow/);
+  assert.match(script,/sx-training-application-submitted/);
+  assert.match(script,/await load\(\);await openLead\(lead\.id\)/);
+  assert.match(script,/application-modal/);
+  assert.match(style,/\.application-capture-frame/);
+});
