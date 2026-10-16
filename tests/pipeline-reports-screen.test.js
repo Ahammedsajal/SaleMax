@@ -36,6 +36,8 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /agentScope:'العملاء المسندون إليك حاليًا فقط'/);
   assert.match(reports, /name="from" type="date"/);
   assert.match(reports, /name="to" type="date"/);
+  assert.match(reports,/const dailyRows=\[\.\.\.\(range\.daily\|\|\[\]\)\]\.sort\(\(a,b\)=>b\.date\.localeCompare\(a\.date\)\)/);
+  assert.match(reports,/dailyRows\.map\(day=>/);
   assert.match(reports, /cohortShare:'of new leads'/);
   assert.match(reports, /cohortShare:'من العملاء الجدد'/);
   assert.match(reports, /Math\.round\(Number\(value\|\|0\)\*100\/cohortSize\)/);
