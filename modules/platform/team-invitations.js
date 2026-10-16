@@ -26,6 +26,8 @@ function permissionsFor(seatRole,category=trainingCenter,subscription=null){
   });
 }
 function rolePermissions(value,seatRole,allowed=permissionsFor(seatRole)){if(!Array.isArray(value)||value.length>Object.keys(policy.permissions).length||value.some(item=>typeof item!=='string')||new Set(value).size!==value.length||value.some(item=>!allowed.includes(item)))fail('INVALID_ROLE_PERMISSIONS');return [...value].sort();}
+function roleNavigation(value,available){if(!Array.isArray(value)||value.length>100||value.some(item=>typeof item!=='string')||new Set(value).size!==value.length||value.some(item=>!available.has(item)))fail('INVALID_ROLE_NAVIGATION');return [...value].sort();}
+function ownerNavigation(scope){const context={audience:'tenant',tenant:{id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)},category:scope.category,subscription:scope.entitlement,membership:{id:'owner-preview',tenantId:scope.tenantId,role:'owner',status:'active',delegatedPermissions:[]}};return navigation.navigationFor(context).map(item=>({key:item.key,label:item.label,group:item.group}));}
 async function tx(db,fn){await db.beginTransaction();try{const out=await fn();await db.commit();return out;}catch(error){await db.rollback();throw error;}}
 async function audit(db,identityId,tenantId,action,id,changes,resourceType='team-invitation'){await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
   VALUES (?,?,?,'identity',?,?,?,?,?)`,[crypto.randomUUID(),tenantId,identityId,action,resourceType,id,JSON.stringify(changes),crypto.randomUUID()]);}
@@ -35,7 +37,8 @@ async function storage(db){
   const [membershipColumns]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sx_memberships' AND COLUMN_NAME IN ('assigned_navigation','role_profile_id')");
   const [inviteColumns]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sx_team_invites' AND COLUMN_NAME='role_profile_id'");
   const [[rolesTable]]=await db.query("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sx_team_roles'");
-  if(table?.ENGINE!=='InnoDB'||columns.length!==3||membershipColumns.length!==2||inviteColumns.length!==1||rolesTable?.ENGINE!=='InnoDB')fail('TEAM_INVITATION_STORAGE_NOT_READY');
+  const [roleColumns]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sx_team_roles' AND COLUMN_NAME='navigation'");
+  if(table?.ENGINE!=='InnoDB'||columns.length!==3||membershipColumns.length!==2||inviteColumns.length!==1||rolesTable?.ENGINE!=='InnoDB'||roleColumns.length!==1)fail('TEAM_INVITATION_STORAGE_NOT_READY');
 }
 async function ownerScope(db,ownerUid,{requireTeam=true}={}){
   const [rows]=await db.query(`SELECT u.id AS legacyUserId,u.uid,t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,
@@ -60,22 +63,26 @@ async function createRole(pool,ownerUid,input){
   const db=await pool.getConnection();try{return await tx(db,async()=>{await storage(db);const scope=await ownerScope(db,ownerUid);
     if(!scope.category.seatRoles.includes(seatRole))fail('INVALID_ROLE');
     const permissions=rolePermissions(input?.permissions,seatRole,permissionsFor(seatRole,scope.category,scope.entitlement));
-    await db.query('INSERT INTO sx_team_roles(id,tenant_id,name,description,seat_role,permissions,status,created_by_identity_id) VALUES (?,?,?,?,?,? ,\'active\',?)',[id,scope.tenantId,name,description,seatRole,JSON.stringify(permissions),scope.identityId]);
-    await audit(db,scope.identityId,scope.tenantId,'team.role-created',id,{name,seatRole,permissions},'team-role');
-    return {id,name,description,seatRole,permissions,status:'active'};
+    const availableNavigation=new Set(ownerNavigation(scope).map(item=>item.key));
+    const sidebar=roleNavigation(input?.navigation===undefined?[...availableNavigation]:input.navigation,availableNavigation);
+    await db.query('INSERT INTO sx_team_roles(id,tenant_id,name,description,seat_role,permissions,navigation,status,created_by_identity_id) VALUES (?,?,?,?,?,?,?,\'active\',?)',[id,scope.tenantId,name,description,seatRole,JSON.stringify(permissions),JSON.stringify(sidebar),scope.identityId]);
+    await audit(db,scope.identityId,scope.tenantId,'team.role-created',id,{name,seatRole,permissions,navigation:sidebar},'team-role');
+    return {id,name,description,seatRole,permissions,navigation:sidebar,status:'active'};
   });}catch(error){if(error.code==='ER_DUP_ENTRY')fail('ROLE_NAME_EXISTS');throw error;}finally{db.release();}
 }
 async function updateRole(pool,ownerUid,id,input){
   invitationId(id);const name=roleName(input?.name),description=roleDescription(input?.description);
   const db=await pool.getConnection();try{return await tx(db,async()=>{await storage(db);const scope=await ownerScope(db,ownerUid);
-    const [[current]]=await db.query('SELECT id,name,description,seat_role AS seatRole,permissions,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE',[scope.tenantId,id]);
+    const [[current]]=await db.query('SELECT id,name,description,seat_role AS seatRole,permissions,navigation,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE',[scope.tenantId,id]);
     if(!current)fail('ROLE_NOT_FOUND');if(current.status!=='active')fail('ROLE_ARCHIVED');
     const previous=typeof current.permissions==='string'?JSON.parse(current.permissions):current.permissions;
     const permissions=rolePermissions(input?.permissions,current.seatRole,permissionsFor(current.seatRole,scope.category,scope.entitlement));
-    await db.query('UPDATE sx_team_roles SET name=?,description=?,permissions=? WHERE tenant_id=? AND id=?',[name,description,JSON.stringify(permissions),scope.tenantId,id]);
+    const oldNavigation=parseNavigation(current.navigation),availableNavigation=new Set(ownerNavigation(scope).map(item=>item.key));
+    const sidebar=roleNavigation(input?.navigation===undefined?[...availableNavigation]:input.navigation,availableNavigation);
+    await db.query('UPDATE sx_team_roles SET name=?,description=?,permissions=?,navigation=? WHERE tenant_id=? AND id=?',[name,description,JSON.stringify(permissions),JSON.stringify(sidebar),scope.tenantId,id]);
     await db.query('UPDATE sx_memberships SET permission_version=permission_version+1 WHERE tenant_id=? AND role_profile_id=? AND status=\'active\'',[scope.tenantId,id]);
-    await audit(db,scope.identityId,scope.tenantId,'team.role-updated',id,{oldName:current.name,newName:name,oldPermissions:previous,newPermissions:permissions},'team-role');
-    return {id,name,description,seatRole:current.seatRole,permissions,status:'active'};
+    await audit(db,scope.identityId,scope.tenantId,'team.role-updated',id,{oldName:current.name,newName:name,oldPermissions:previous,newPermissions:permissions,oldNavigation,newNavigation:sidebar},'team-role');
+    return {id,name,description,seatRole:current.seatRole,permissions,navigation:sidebar,status:'active'};
   });}catch(error){if(error.code==='ER_DUP_ENTRY')fail('ROLE_NAME_EXISTS');throw error;}finally{db.release();}
 }
 async function archiveRole(pool,ownerUid,id){
@@ -138,9 +145,9 @@ async function list(pool,ownerUid){
     const teamEnabled=Boolean(scope.entitlement&&['active','trial','grace'].includes(scope.entitlement.status)&&scope.entitlement.capabilities.includes('team.members'));
     const availableStaffRoles=scope.category.seatRoles.filter(key=>key!=='owner');
     const seatUsage=Object.fromEntries(availableStaffRoles.map(key=>{const pendingCount=pending[key]||0,limit=scope.entitlement?.roleLimits?.[key]??null,total=Number(used[key]||0);return [key,{active:Math.max(0,total-pendingCount),pending:pendingCount,limit,available:!teamEnabled||limit===null?0:Math.max(0,limit-total)}];}));
-    const [roles]=await db.query(`SELECT id,name,description,seat_role AS seatRole,permissions,status,created_at AS createdAt,updated_at AS updatedAt
+    const [roles]=await db.query(`SELECT id,name,description,seat_role AS seatRole,permissions,navigation,status,created_at AS createdAt,updated_at AS updatedAt
       FROM sx_team_roles WHERE tenant_id=? ORDER BY FIELD(status,'active','archived'),name,id`,[scope.tenantId]);
-    const normalizedRoles=roles.map(item=>({...item,permissions:typeof item.permissions==='string'?JSON.parse(item.permissions):item.permissions}));
+    const normalizedRoles=roles.map(item=>({...item,permissions:typeof item.permissions==='string'?JSON.parse(item.permissions):item.permissions,navigation:parseNavigation(item.navigation)}));
     const [rows]=await db.query(`SELECT v.id,v.email_normalized AS email,v.role,v.role_profile_id AS roleProfileId,r.name AS roleName,v.status,DATE_FORMAT(v.expires_at,'%Y-%m-%dT%H:%i:%s.%fZ') AS expiresAt
       FROM sx_team_invites v LEFT JOIN sx_team_roles r ON r.id=v.role_profile_id AND r.tenant_id=v.tenant_id
       WHERE v.tenant_id=? AND v.token_hash IS NOT NULL ORDER BY v.created_at DESC,v.id LIMIT 200`,[scope.tenantId]);
@@ -158,12 +165,11 @@ async function list(pool,ownerUid){
         membership:{id:'preview',tenantId:scope.tenantId,role:memberRole,status:'active',delegatedPermissions:[]}};
       return [memberRole,navigation.navigationFor(context).map(item=>({key:item.key,label:item.label,group:item.group}))];
     }));
+    const navigationCatalog=ownerNavigation(scope);
     const navigationByRoleProfile=Object.fromEntries(normalizedRoles.map(item=>{
-      const context={audience:'tenant',tenant,category:scope.category,subscription:scope.entitlement,
-        membership:{id:'preview',tenantId:scope.tenantId,role:item.seatRole,status:'active',delegatedPermissions:[],customPermissions:item.permissions}};
-      return [item.id,navigation.navigationFor(context).map(entry=>({key:entry.key,label:entry.label,group:entry.group}))];
+      return [item.id,item.navigation===null?navigationByRole[item.seatRole]:navigationCatalog.filter(entry=>item.navigation.includes(entry.key))];
     }));
-    return {categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
+    return {categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),navigationCatalog,navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
   });}finally{db.release();}
 }
 async function updateMemberPassword(pool,ownerUid,memberId,input={}){
@@ -248,7 +254,7 @@ async function sidebarAccess(pool,legacyUid){
   if(typeof legacyUid!=='string'||!legacyUid)fail('AUTH_REQUIRED');
   const db=await pool.getConnection();
   try{
-    const [rows]=await db.query(`SELECT m.id,m.role,m.role_profile_id AS roleProfileId,r.permissions AS rolePermissions,m.status AS membershipStatus,m.assigned_navigation AS assignedNavigation,
+    const [rows]=await db.query(`SELECT m.id,m.role,m.role_profile_id AS roleProfileId,r.permissions AS rolePermissions,r.navigation AS roleNavigation,m.status AS membershipStatus,m.assigned_navigation AS assignedNavigation,
         t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,o.legacy_uid_hash AS uidHash
       FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
       JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
@@ -262,12 +268,14 @@ async function sidebarAccess(pool,legacyUid){
     const tenant={id:rows[0].tenantId,status:rows[0].tenantStatus,categoryKey:rows[0].categoryKey,categoryVersion:Number(rows[0].categoryVersion)};
     const category=getCategory(rows[0].categoryKey,Number(rows[0].categoryVersion));if(!category)fail('CATEGORY_UNAVAILABLE');
     const context={audience:'tenant',tenant,category,subscription,membership:{id:rows[0].id,tenantId:rows[0].tenantId,role:rows[0].role,status:'active',delegatedPermissions:[],customPermissions}};
-    const roleNavigation=navigation.navigationFor(context).map(item=>item.key);
+    const configuredRoleNavigation=parseNavigation(rows[0].roleNavigation);
+    const availableKeys=new Set(ownerNavigation({tenantId:rows[0].tenantId,tenantStatus:rows[0].tenantStatus,categoryKey:rows[0].categoryKey,categoryVersion:rows[0].categoryVersion,category,entitlement:subscription}).map(item=>item.key));
+    const roleNavigation=(configuredRoleNavigation===null?navigation.navigationFor(context).map(item=>item.key):configuredRoleNavigation).filter(key=>availableKeys.has(key));
     const assignedNavigation=parseNavigation(rows[0].assignedNavigation);
     // A shared QR connection is available to a manager from the existing QR
     // screen. This grants navigation only; QR management APIs still require
     // channels.configure and remain owner/admin capabilities.
-    if(rows[0].role==='manager'){
+    if(rows[0].role==='manager'&&configuredRoleNavigation===null){
       const [sharedQr]=await db.query(`SELECT 1 FROM sx_qr_channel_shares WHERE tenant_id=? AND membership_id=? LIMIT 1`,[rows[0].tenantId,rows[0].id]);
       if(sharedQr.length){
         if(!roleNavigation.includes('whatsapp-qr'))roleNavigation.push('whatsapp-qr');
@@ -287,7 +295,7 @@ async function updateMemberNavigation(pool,ownerUid,membershipId,input){
   const db=await pool.getConnection();
   try{return await tx(db,async()=>{
     await storage(db);const scope=await ownerScope(db,ownerUid);
-    const [[member]]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,m.role_profile_id AS roleProfileId,r.permissions AS rolePermissions,m.assigned_navigation AS assignedNavigation
+    const [[member]]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,m.role_profile_id AS roleProfileId,r.permissions AS rolePermissions,r.navigation AS roleNavigation,m.assigned_navigation AS assignedNavigation
       FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
       WHERE m.tenant_id=? AND m.id=? AND m.status='active' AND i.status='active' AND m.role IN ('accountant','manager','team_leader','agent') FOR UPDATE`,[scope.tenantId,membershipId]);
     if(!member)fail('MEMBER_NOT_FOUND');
@@ -295,7 +303,8 @@ async function updateMemberNavigation(pool,ownerUid,membershipId,input){
     if(member.roleProfileId&&!Array.isArray(customPermissions))fail('TEAM_ROLE_STORAGE_INVALID');
     const context={audience:'tenant',tenant:{id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)},category:scope.category,subscription:scope.entitlement,
       membership:{id:member.id,tenantId:scope.tenantId,role:member.role,status:'active',delegatedPermissions:[],customPermissions}};
-    const allowed=new Set(navigation.navigationFor(context).map(item=>item.key));
+    const configuredRoleNavigation=parseNavigation(member.roleNavigation);
+    const allowed=new Set(configuredRoleNavigation===null?navigation.navigationFor(context).map(item=>item.key):configuredRoleNavigation);
     if(input.navigation.some(key=>!allowed.has(key)))fail('NAVIGATION_NOT_AVAILABLE');
     const old=parseNavigation(member.assignedNavigation);
     await db.query('UPDATE sx_memberships SET assigned_navigation=?,permission_version=permission_version+1 WHERE id=? AND tenant_id=?',[JSON.stringify(input.navigation),member.id,scope.tenantId]);
