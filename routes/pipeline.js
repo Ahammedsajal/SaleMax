@@ -217,6 +217,16 @@ router.get("/reports/activity", async (req,res)=>{
   }catch(error){fail(res,error);}
 });
 
+router.get('/reports/summary',async(req,res)=>{
+  try{const data=await pipelineReports.getLeadReportSummary({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,from:req.query.from,to:req.query.to,timezone:req.pipelineActor.timezone});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  catch(error){fail(res,error);}
+});
+
+router.get('/reports/leads',async(req,res)=>{
+  try{const data=await pipelineReports.getReportLeads({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,kind:req.query.kind,date:req.query.date,from:req.query.from,to:req.query.to,selectedAgentId:req.query.agentId,timezone:req.pipelineActor.timezone,page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit)});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  catch(error){fail(res,error);}
+});
+
 router.get('/reports/journey',async(req,res)=>{
   try{const pool=require('../database/config.js').promise();if(req.pipelineActor.categoryKey!=='salemax_sales')await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){fail(res,error);}

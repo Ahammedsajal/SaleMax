@@ -146,6 +146,64 @@ async function getActivityReport({pool,uid,role='owner',agentId,scopeAgentIds,pe
   }catch(error){try{await connection.rollback();}catch(_){}throw error;}
   finally{connection.release();}
 }
+function reportRange({from,to,timezone='Asia/Qatar'}){
+  if(!moment.tz.zone(timezone))fail('Choose a valid business timezone.');
+  const start=moment.tz(from,'YYYY-MM-DD',true,timezone),last=moment.tz(to,'YYYY-MM-DD',true,timezone);
+  if(!start.isValid()||!last.isValid()||last.isBefore(start))fail('Choose a valid report date range.');
+  const days=last.diff(start,'days')+1;if(days>90)fail('Choose a date range of 90 days or less.');
+  return {days:Array.from({length:days},(_,i)=>{const day=start.clone().add(i,'days');return {date:day.format('YYYY-MM-DD'),start:day.clone().startOf('day').utc().format('YYYY-MM-DD HH:mm:ss.SSS'),end:day.clone().add(1,'day').startOf('day').utc().format('YYYY-MM-DD HH:mm:ss.SSS')};}),timezone};
+}
+async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds,from,to,timezone='Asia/Qatar'}){
+  if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
+  if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view lead reports.',403);
+  if(['manager','team_leader'].includes(role)&&!Array.isArray(scopeAgentIds))fail('Team scope is unavailable for this report.',403);
+  if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
+  const range=reportRange({from,to,timezone}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool,connection=await db.getConnection();
+  try{
+    const start=range.days[0].start,end=range.days[range.days.length-1].end,leadScope=teamAgentScope(role,agentId,scopeAgentIds);
+    const [dailyRows]=await connection.query(`SELECT ${range.days.map((_,i)=>`SUM(l.created_at>=? AND l.created_at<?) AS d${i}`).join(',')} FROM pipeline_leads l WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}`,[...range.days.flatMap(day=>[day.start,day.end]),uidHash,start,end,...leadScope.args]);
+    const agentScope=teamAgentScope(role,agentId,scopeAgentIds,{alias:'a',column:'id'}),attendanceScope=teamAgentScope(role,agentId,scopeAgentIds,{alias:'pl',column:'owner_agent_id'});
+    const [agentRows]=await connection.query(`SELECT a.id AS agentId,a.name AS agentName,a.is_active AS active,COUNT(DISTINCT l.id) AS assignedLeads,COALESCE(MAX(att.attended),0) AS attendedLeads
+      FROM agents a LEFT JOIN pipeline_leads l ON l.uid_hash=? AND l.uid=? AND l.owner_agent_id=a.id
+      LEFT JOIN (SELECT CAST(pa.actor_id AS UNSIGNED) AS agent_id,COUNT(DISTINCT pa.lead_id) AS attended FROM pipeline_activity pa
+        JOIN pipeline_leads pl ON pl.uid_hash=pa.uid_hash AND pl.id=pa.lead_id
+        WHERE pa.uid_hash=? AND pl.uid=? AND pa.actor_type='agent' AND pa.actor_id REGEXP '^[0-9]+$'
+          AND pa.activity_type IN ('contact_outcome','agent_message_sent') AND pa.created_at>=? AND pa.created_at<?${attendanceScope.sql} GROUP BY CAST(pa.actor_id AS UNSIGNED)) att ON att.agent_id=a.id
+      WHERE a.owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci${agentScope.sql}
+      GROUP BY a.id,a.name,a.is_active ORDER BY attendedLeads DESC,assignedLeads DESC,a.name`,[uidHash,uid,uidHash,uid,start,end,...attendanceScope.args,uid,...agentScope.args]);
+    return {from,to,timezone,daily:range.days.map((day,i)=>({date:day.date,total:Number(dailyRows[0]?.[`d${i}`]||0)})),agents:agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),attendedLeads:Number(row.attendedLeads||0)}))};
+  }finally{connection.release();}
+}
+async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,date,selectedAgentId,from,to,timezone='Asia/Qatar',page=1,limit=50}){
+  if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
+  if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view lead reports.',403);
+  if(['manager','team_leader'].includes(role)&&!Array.isArray(scopeAgentIds))fail('Team scope is unavailable for this report.',403);
+  if(!['created','attended'].includes(kind))fail('Choose created or attended leads.');
+  const range=kind==='attended'&&from&&to?reportRange({from,to,timezone}):null,window=range?{start:range.days[0].start,end:range.days[range.days.length-1].end,timezone}:{...periodWindow({period:'daily',at:date,timezone}),date},currentPage=Number(page),pageSize=Number(limit);
+  if(!Number.isSafeInteger(currentPage)||currentPage<1||currentPage>10000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)fail('Report page or page size is invalid.');
+  let actor=selectedAgentId;
+  if(kind==='attended'){
+    actor=role==='agent'?Number(agentId):Number(actor);
+    if(!Number.isSafeInteger(actor)||actor<1)fail('Choose an agent to view attended leads.');
+    if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds)&&!scopeAgentIds.map(Number).includes(actor))fail('This agent is outside your team scope.',403);
+  }
+  const uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool,connection=await db.getConnection();
+  try{
+    if(kind==='attended'&&role!=='agent'){
+      const [[allowedAgent]]=await connection.query(`SELECT id FROM agents WHERE id=? AND owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci LIMIT 1`,[actor,uid]);
+      if(!allowedAgent)fail('This agent is outside your workspace.',403);
+    }
+    const leadScope=teamAgentScope(role,agentId,scopeAgentIds),offset=(currentPage-1)*pageSize;
+    const source=kind==='created'?`SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}`:`SELECT DISTINCT pa.lead_id AS id FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id WHERE pa.uid_hash=? AND l.uid=? AND pa.actor_type='agent' AND pa.actor_id=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','agent_message_sent')${leadScope.sql}`;
+    const params=kind==='created'?[uidHash,uid,window.start,window.end,...leadScope.args]:[uidHash,uid,String(actor),window.start,window.end,...leadScope.args];
+    const [[count]]=await connection.query(`SELECT COUNT(*) AS total FROM (${source}) report_leads`,params);
+    const [rows]=await connection.query(`SELECT l.id AS leadId,l.title,COALESCE(c.display_name,l.contact_name) AS contactName,l.mobile,l.stage_key AS stageKey,l.owner_agent_id AS agentId,COALESCE(a.name,'—') AS agentName,l.created_at AS createdAt
+      FROM (${source}) report_leads JOIN pipeline_leads l ON l.uid_hash=? AND l.id=report_leads.id LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
+      LEFT JOIN agents a ON a.id=l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
+      ORDER BY l.created_at DESC,l.id DESC LIMIT ? OFFSET ?`,[...params,uidHash,pageSize,offset]);
+    const total=Number(count.total||0);return {kind,date:kind==='created'?date:to||date,from:kind==='attended'?from||date:null,to:kind==='attended'?to||date:null,selectedAgentId:kind==='attended'?actor:null,page:currentPage,limit:pageSize,total,hasMore:offset+rows.length<total,items:rows};
+  }finally{connection.release();}
+}
 async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,period='daily',at,timezone='Asia/Qatar'}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view the lead journey report.',403);
@@ -314,4 +372,4 @@ async function getSalesJourneyReport({pool,uid,role,agentId,scopeAgentIds,period
       stages:mappedStages,sources:sources.map(row=>({...row,total:Number(row.total)})),stageTransitions:transitions.map(row=>({...row,total:Number(row.total)})),agents,cohortFunnel:null,journeyActivity:null,learnerJourney:null};
   }catch(error){try{await connection.rollback();}catch(_){}throw error;}finally{connection.release();}
 }
-module.exports={periodWindow,getActivityReport,getJourneyReport};
+module.exports={periodWindow,getActivityReport,getJourneyReport,reportRange,getLeadReportSummary,getReportLeads};
