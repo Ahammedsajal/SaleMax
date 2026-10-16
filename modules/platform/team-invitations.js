@@ -29,6 +29,7 @@ function rolePermissions(value,seatRole,allowed=permissionsFor(seatRole)){if(!Ar
 function roleNavigation(value,available){if(!Array.isArray(value)||value.length>100||value.some(item=>typeof item!=='string')||new Set(value).size!==value.length||value.some(item=>!available.has(item)))fail('INVALID_ROLE_NAVIGATION');return [...value].sort();}
 function ownerNavigation(){return navigation.items.map(({key,label,group})=>({key,label,group}));}
 function permissionCatalog(scope){const enabled=new Set((scope.category?.capabilities||[]).filter(capability=>scope.entitlement?.capabilities?.includes(capability)));const planPermissions=new Set(Object.entries(policy.capabilities).filter(([capability])=>enabled.has(capability)).flatMap(([,keys])=>keys));return Object.keys(policy.permissions).filter(key=>planPermissions.has(key)&&policy.scopeFor({role:'owner'},key));}
+function permissionsForNavigation(value,scope){const available=new Set(navigation.items.map(item=>item.key)),selected=roleNavigation(value,available),grantable=new Set(permissionCatalog(scope)),requested=new Set();for(const item of navigation.items){if(!selected.includes(item.key))continue;for(const permission of policy.capabilities[item.capability]||[])if(grantable.has(permission))requested.add(permission);}return [...requested].sort();}
 async function tx(db,fn){await db.beginTransaction();try{const out=await fn();await db.commit();return out;}catch(error){await db.rollback();throw error;}}
 async function audit(db,identityId,tenantId,action,id,changes,resourceType='team-invitation'){await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
   VALUES (?,?,?,'identity',?,?,?,?,?)`,[crypto.randomUUID(),tenantId,identityId,action,resourceType,id,JSON.stringify(changes),crypto.randomUUID()]);}
@@ -62,9 +63,9 @@ async function ownerScope(db,ownerUid,{requireTeam=true}={}){
 async function createRole(pool,ownerUid,input){
   const name=roleName(input?.name),description=roleDescription(input?.description),id=crypto.randomUUID();
   const db=await pool.getConnection();try{return await tx(db,async()=>{await storage(db);const scope=await ownerScope(db,ownerUid);
-    const permissions=rolePermissions(input?.permissions,undefined,permissionCatalog(scope));
     const availableNavigation=new Set(ownerNavigation().map(item=>item.key));
     const sidebar=roleNavigation(input?.navigation===undefined?[...availableNavigation]:input.navigation,availableNavigation);
+    const permissions=permissionsForNavigation(sidebar,scope);
     await db.query('INSERT INTO sx_team_roles(id,tenant_id,name,description,seat_role,permissions,navigation,status,created_by_identity_id) VALUES (?,?,?,?,NULL,?,?,\'active\',?)',[id,scope.tenantId,name,description,JSON.stringify(permissions),JSON.stringify(sidebar),scope.identityId]);
     await audit(db,scope.identityId,scope.tenantId,'team.role-created',id,{name,permissions,navigation:sidebar},'team-role');
     return {id,name,description,seatRole:null,permissions,navigation:sidebar,status:'active'};
@@ -76,9 +77,9 @@ async function updateRole(pool,ownerUid,id,input){
     const [[current]]=await db.query('SELECT id,name,description,seat_role AS seatRole,permissions,navigation,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE',[scope.tenantId,id]);
     if(!current)fail('ROLE_NOT_FOUND');if(current.status!=='active')fail('ROLE_ARCHIVED');
     const previous=typeof current.permissions==='string'?JSON.parse(current.permissions):current.permissions;
-    const permissions=rolePermissions(input?.permissions,undefined,permissionCatalog(scope));
     const oldNavigation=parseNavigation(current.navigation),availableNavigation=new Set(ownerNavigation().map(item=>item.key));
     const sidebar=roleNavigation(input?.navigation===undefined?[...availableNavigation]:input.navigation,availableNavigation);
+    const permissions=permissionsForNavigation(sidebar,scope);
     await db.query('UPDATE sx_team_roles SET name=?,description=?,seat_role=NULL,permissions=?,navigation=? WHERE tenant_id=? AND id=?',[name,description,JSON.stringify(permissions),JSON.stringify(sidebar),scope.tenantId,id]);
     await db.query('UPDATE sx_memberships SET permission_version=permission_version+1 WHERE tenant_id=? AND role_profile_id=? AND status=\'active\'',[scope.tenantId,id]);
     await audit(db,scope.identityId,scope.tenantId,'team.role-updated',id,{oldName:current.name,newName:name,oldPermissions:previous,newPermissions:permissions,oldNavigation,newNavigation:sidebar},'team-role');
