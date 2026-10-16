@@ -20,3 +20,13 @@ test('full-page lead edits refresh the same lead and the existing back control r
   assert.match(script,/if\(state\.detailPage\)\{await load\(\);await openLead\(id\);\}/);
   assert.match(script,/if\(state\.detailPage\)\{const target=new URL\(location\.href\);target\.searchParams\.delete\('lead'\);target\.searchParams\.delete\('view'\)/);
 });
+
+test('lead detail organizes the existing fields and actions into clear responsive sections',()=>{
+  assert.ok(script.includes("leadFormLayout.replaceChildren(section(ar?'بيانات العميل':'Lead and contact'"));
+  assert.match(script,/Pipeline and ownership/);
+  assert.match(script,/Follow-up and outcome/);
+  assert.match(script,/Value and source/);
+  assert.ok(script.includes("actionBar.append($('#createLeadTask'),callLead,scheduleCall)"));
+  assert.ok(style.includes('.lead-detail-page #editLead{max-width:none;display:grid'));
+  assert.ok(style.includes('.lead-detail-page .application-chain .empty{margin:0;padding:14px'));
+});

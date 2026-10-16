@@ -52,7 +52,7 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /cohortShare:'of new leads'/);
   assert.match(reports, /cohortShare:'من العملاء الجدد'/);
   assert.match(reports, /Math\.round\(Number\(value\|\|0\)\*100\/cohortSize\)/);
-  assert.match(html, /pipeline\.css\?v=20261016-lead-report-dashboard2/);
+  assert.match(html, /pipeline\.css\?v=20261016-lead-detail-organized1/);
   assert.match(html, /reports\.js\?v=[^"]+/);
   const css=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8');
   assert.match(css,/journey-cohort \.journey-stage small/);
