@@ -27,7 +27,8 @@ function permissionsFor(seatRole,category=trainingCenter,subscription=null){
 }
 function rolePermissions(value,seatRole,allowed=permissionsFor(seatRole)){if(!Array.isArray(value)||value.length>Object.keys(policy.permissions).length||value.some(item=>typeof item!=='string')||new Set(value).size!==value.length||value.some(item=>!allowed.includes(item)))fail('INVALID_ROLE_PERMISSIONS');return [...value].sort();}
 function roleNavigation(value,available){if(!Array.isArray(value)||value.length>100||value.some(item=>typeof item!=='string')||new Set(value).size!==value.length||value.some(item=>!available.has(item)))fail('INVALID_ROLE_NAVIGATION');return [...value].sort();}
-function ownerNavigation(scope){const context={audience:'tenant',tenant:{id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)},category:scope.category,subscription:scope.entitlement,membership:{id:'owner-preview',tenantId:scope.tenantId,role:'owner',status:'active',delegatedPermissions:[]}};return navigation.navigationFor(context).map(item=>({key:item.key,label:item.label,group:item.group}));}
+function ownerNavigation(){return navigation.items.map(({key,label,group})=>({key,label,group}));}
+function permissionCatalog(scope){const enabled=new Set((scope.category?.capabilities||[]).filter(capability=>scope.entitlement?.capabilities?.includes(capability)));const planPermissions=new Set(Object.entries(policy.capabilities).filter(([capability])=>enabled.has(capability)).flatMap(([,keys])=>keys));return Object.keys(policy.permissions).filter(key=>planPermissions.has(key)&&policy.scopeFor({role:'owner'},key));}
 async function tx(db,fn){await db.beginTransaction();try{const out=await fn();await db.commit();return out;}catch(error){await db.rollback();throw error;}}
 async function audit(db,identityId,tenantId,action,id,changes,resourceType='team-invitation'){await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
   VALUES (?,?,?,'identity',?,?,?,?,?)`,[crypto.randomUUID(),tenantId,identityId,action,resourceType,id,JSON.stringify(changes),crypto.randomUUID()]);}
@@ -59,15 +60,14 @@ async function ownerScope(db,ownerUid,{requireTeam=true}={}){
   return {...value,category,entitlement};
 }
 async function createRole(pool,ownerUid,input){
-  const name=roleName(input?.name),seatRole=role(input?.seatRole),description=roleDescription(input?.description),id=crypto.randomUUID();
+  const name=roleName(input?.name),description=roleDescription(input?.description),id=crypto.randomUUID();
   const db=await pool.getConnection();try{return await tx(db,async()=>{await storage(db);const scope=await ownerScope(db,ownerUid);
-    if(!scope.category.seatRoles.includes(seatRole))fail('INVALID_ROLE');
-    const permissions=rolePermissions(input?.permissions,seatRole,permissionsFor(seatRole,scope.category,scope.entitlement));
-    const availableNavigation=new Set(ownerNavigation(scope).map(item=>item.key));
+    const permissions=rolePermissions(input?.permissions,undefined,permissionCatalog(scope));
+    const availableNavigation=new Set(ownerNavigation().map(item=>item.key));
     const sidebar=roleNavigation(input?.navigation===undefined?[...availableNavigation]:input.navigation,availableNavigation);
-    await db.query('INSERT INTO sx_team_roles(id,tenant_id,name,description,seat_role,permissions,navigation,status,created_by_identity_id) VALUES (?,?,?,?,?,?,?,\'active\',?)',[id,scope.tenantId,name,description,seatRole,JSON.stringify(permissions),JSON.stringify(sidebar),scope.identityId]);
-    await audit(db,scope.identityId,scope.tenantId,'team.role-created',id,{name,seatRole,permissions,navigation:sidebar},'team-role');
-    return {id,name,description,seatRole,permissions,navigation:sidebar,status:'active'};
+    await db.query('INSERT INTO sx_team_roles(id,tenant_id,name,description,seat_role,permissions,navigation,status,created_by_identity_id) VALUES (?,?,?,?,NULL,?,?,\'active\',?)',[id,scope.tenantId,name,description,JSON.stringify(permissions),JSON.stringify(sidebar),scope.identityId]);
+    await audit(db,scope.identityId,scope.tenantId,'team.role-created',id,{name,permissions,navigation:sidebar},'team-role');
+    return {id,name,description,seatRole:null,permissions,navigation:sidebar,status:'active'};
   });}catch(error){if(error.code==='ER_DUP_ENTRY')fail('ROLE_NAME_EXISTS');throw error;}finally{db.release();}
 }
 async function updateRole(pool,ownerUid,id,input){
@@ -76,13 +76,13 @@ async function updateRole(pool,ownerUid,id,input){
     const [[current]]=await db.query('SELECT id,name,description,seat_role AS seatRole,permissions,navigation,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE',[scope.tenantId,id]);
     if(!current)fail('ROLE_NOT_FOUND');if(current.status!=='active')fail('ROLE_ARCHIVED');
     const previous=typeof current.permissions==='string'?JSON.parse(current.permissions):current.permissions;
-    const permissions=rolePermissions(input?.permissions,current.seatRole,permissionsFor(current.seatRole,scope.category,scope.entitlement));
-    const oldNavigation=parseNavigation(current.navigation),availableNavigation=new Set(ownerNavigation(scope).map(item=>item.key));
+    const permissions=rolePermissions(input?.permissions,undefined,permissionCatalog(scope));
+    const oldNavigation=parseNavigation(current.navigation),availableNavigation=new Set(ownerNavigation().map(item=>item.key));
     const sidebar=roleNavigation(input?.navigation===undefined?[...availableNavigation]:input.navigation,availableNavigation);
-    await db.query('UPDATE sx_team_roles SET name=?,description=?,permissions=?,navigation=? WHERE tenant_id=? AND id=?',[name,description,JSON.stringify(permissions),JSON.stringify(sidebar),scope.tenantId,id]);
+    await db.query('UPDATE sx_team_roles SET name=?,description=?,seat_role=NULL,permissions=?,navigation=? WHERE tenant_id=? AND id=?',[name,description,JSON.stringify(permissions),JSON.stringify(sidebar),scope.tenantId,id]);
     await db.query('UPDATE sx_memberships SET permission_version=permission_version+1 WHERE tenant_id=? AND role_profile_id=? AND status=\'active\'',[scope.tenantId,id]);
     await audit(db,scope.identityId,scope.tenantId,'team.role-updated',id,{oldName:current.name,newName:name,oldPermissions:previous,newPermissions:permissions,oldNavigation,newNavigation:sidebar},'team-role');
-    return {id,name,description,seatRole:current.seatRole,permissions,navigation:sidebar,status:'active'};
+    return {id,name,description,seatRole:null,permissions,navigation:sidebar,status:'active'};
   });}catch(error){if(error.code==='ER_DUP_ENTRY')fail('ROLE_NAME_EXISTS');throw error;}finally{db.release();}
 }
 async function archiveRole(pool,ownerUid,id){
@@ -101,14 +101,15 @@ async function create(pool,ownerUid,input){
   const targetEmail=email(input?.email),profileId=input?.roleProfileId?invitationId(input.roleProfileId):null,requestKey=invitationId(input?.requestKey);
   const direct=input?.temporaryPassword!==undefined&&input.temporaryPassword!=='';
   const activation=direct?activationInput({...input,password:input.temporaryPassword}):null;
-  if(!profileId)role(input?.role??'agent');
+  const requestedRole=input?.role?role(input.role):null;
+  if(!profileId&&!requestedRole)role('agent');
   const token=crypto.randomBytes(32).toString('base64url'),id=crypto.randomUUID();
   const db=await pool.getConnection();try{return await tx(db,async()=>{
     await storage(db);
     const scope=await ownerScope(db,ownerUid);
     let profile=null,targetRole;
-    if(profileId){const [[row]]=await db.query("SELECT id,name,seat_role AS seatRole,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE",[scope.tenantId,profileId]);if(!row||row.status!=='active')fail('ROLE_NOT_FOUND');profile=row;targetRole=role(row.seatRole);}
-    else targetRole=role(input?.role??'agent');
+    if(profileId){const [[row]]=await db.query("SELECT id,name,seat_role AS seatRole,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE",[scope.tenantId,profileId]);if(!row||row.status!=='active')fail('ROLE_NOT_FOUND');profile=row;targetRole=row.seatRole?role(row.seatRole):requestedRole;if(row.seatRole&&requestedRole&&requestedRole!==row.seatRole)fail('ROLE_SEAT_MISMATCH');if(!targetRole)fail('INVALID_ROLE');}
+    else targetRole=requestedRole||'agent';
     if(!scope.category.seatRoles.includes(targetRole))fail('INVALID_ROLE');
     if(direct&&targetRole==='agent'&&!activation.mobile)fail('INVALID_MOBILE');
     const [[prior]]=await db.query('SELECT id,email_normalized,role,role_profile_id AS roleProfileId,status,token_hash FROM sx_team_invites WHERE tenant_id=? AND request_key=? FOR UPDATE',[scope.tenantId,requestKey]);
@@ -169,7 +170,7 @@ async function list(pool,ownerUid){
     const navigationByRoleProfile=Object.fromEntries(normalizedRoles.map(item=>{
       return [item.id,item.navigation===null?navigationByRole[item.seatRole]:navigationCatalog.filter(entry=>item.navigation.includes(entry.key))];
     }));
-    return {categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),navigationCatalog,navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
+    return {categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),permissionCatalogAll:permissionCatalog(scope),navigationCatalog,navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
   });}finally{db.release();}
 }
 async function updateMemberPassword(pool,ownerUid,memberId,input={}){
@@ -312,6 +313,14 @@ async function updateMemberNavigation(pool,ownerUid,membershipId,input){
     return {membershipId:member.id,assignedNavigation:input.navigation};
   });}finally{db.release();}
 }
+async function updateMemberRoleProfile(pool,ownerUid,membershipId,input){
+  invitationId(membershipId);const profileId=input?.roleProfileId?invitationId(input.roleProfileId):null;const db=await pool.getConnection();
+  try{return await tx(db,async()=>{await storage(db);const scope=await ownerScope(db,ownerUid);const [[member]]=await db.query(`SELECT m.id,m.role,m.role_profile_id AS roleProfileId FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id WHERE m.tenant_id=? AND m.id=? AND m.status='active' AND i.status='active' AND m.role IN ('accountant','manager','team_leader','agent') FOR UPDATE`,[scope.tenantId,membershipId]);if(!member)fail('MEMBER_NOT_FOUND');
+    let profile=null;if(profileId){const [[row]]=await db.query("SELECT id,name,seat_role AS seatRole,status FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE",[scope.tenantId,profileId]);if(!row||row.status!=='active')fail('ROLE_NOT_FOUND');if(row.seatRole&&row.seatRole!==member.role)fail('ROLE_SEAT_MISMATCH');profile=row;}
+    await db.query('UPDATE sx_memberships SET role_profile_id=?,permission_version=permission_version+1 WHERE tenant_id=? AND id=?',[profileId,scope.tenantId,member.id]);
+    await audit(db,scope.identityId,scope.tenantId,'team.member-role-updated',member.id,{oldRoleProfileId:member.roleProfileId||null,newRoleProfileId:profileId,roleName:profile?.name||null,permissionVersionIncremented:true},'team-member');return {membershipId:member.id,roleProfileId:profileId,roleName:profile?.name||null};
+  });}finally{db.release();}
+}
 async function rotate(pool,ownerUid,id){
   invitationId(id);const token=crypto.randomBytes(32).toString('base64url'),db=await pool.getConnection();
   try{return await tx(db,async()=>{await storage(db);const scope=await ownerScope(db,ownerUid);const [[invite]]=await db.query('SELECT v.id,v.email_normalized AS email,v.role,v.role_profile_id AS roleProfileId,r.name AS roleName,r.status AS roleStatus,v.status,v.expires_at<=UTC_TIMESTAMP(3) AS expired_now FROM sx_team_invites v LEFT JOIN sx_team_roles r ON r.id=v.role_profile_id AND r.tenant_id=v.tenant_id WHERE v.tenant_id=? AND v.id=? FOR UPDATE',[scope.tenantId,id]);
@@ -430,4 +439,4 @@ async function accountSession(pool,ownerUid,membershipId,{jwtKey,returning=false
     return {token:legacyToken,cookieToken:raw,sessionId:id,expiresInSeconds:seconds};
   });}finally{db.release();}
 }
-module.exports={accountSession,create,list,updateMemberPassword,salesOrganization,reassignSalesMember,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};
+module.exports={accountSession,create,list,updateMemberPassword,salesOrganization,reassignSalesMember,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,updateMemberRoleProfile,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};

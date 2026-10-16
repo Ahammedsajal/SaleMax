@@ -134,6 +134,7 @@
       INVALID_ROLE_NAME: label('Enter a role name up to 80 characters.','أدخل اسماً للدور لا يتجاوز 80 حرفاً.'),
       INVALID_ROLE_DESCRIPTION: label('Role description is too long.','وصف الدور طويل جداً.'),
       INVALID_ROLE_PERMISSIONS: label('One or more permissions are unavailable for this seat type. Reload and try again.','إحدى الصلاحيات غير متاحة لهذا النوع من المقاعد. أعد تحميل الصفحة وحاول مرة أخرى.'),
+      ROLE_SEAT_MISMATCH: label('This legacy role is limited to a different account type. Choose an access role without a seat restriction.','هذا الدور القديم مخصص لنوع حساب آخر. اختر دور وصول غير مقيد بنوع حساب.'),
       ROLE_NAME_EXISTS: label('A role with this name already exists.','يوجد دور بهذا الاسم بالفعل.'),
       ROLE_NOT_FOUND: label('This role is no longer available. Reload the page.','هذا الدور لم يعد متاحاً. أعد تحميل الصفحة.'),
       ROLE_ARCHIVED: label('This role is archived. Create or select an active role.','هذا الدور مؤرشف. أنشئ دوراً نشطاً أو اختره.'),
@@ -199,29 +200,27 @@
 
   async function load() {
     const node = screen();
-    node.innerHTML = `<div class="wrap"><h1>${label('Team access','إدارة وصول الفريق')}</h1><p>${label('Create roles with the access your team needs, then invite staff and agents into those roles. Plan seat limits still apply.','أنشئ أدواراً بالصلاحيات المطلوبة ثم ادعُ الموظفين والوكلاء إليها. تظل حدود مقاعد الباقة سارية.')}</p><div id="sx-team-msg" role="status" aria-live="polite"></div><div class="card" id="sx-sales-org-card" hidden><h2>${label('Organisation','الهيكل التنظيمي')}</h2><p class="muted">${label('Managers own teams; Team Leaders and Agents keep an auditable reporting path.','يدير مديرو المبيعات فرقهم، مع حفظ مسار إسناد قادة الفرق والوكلاء.')}</p><div id="sx-sales-org-content">${label('Loading organisation…','جارٍ تحميل الهيكل التنظيمي…')}</div></div><div class="card" id="sx-qr-access-card"><h2>${label('WhatsApp access','صلاحية واتساب')}</h2><p class="muted">${label('Choose which connected WhatsApp number each Manager can use in the shared inbox. Existing agent assignments stay in place.','اختر رقم واتساب المتصل الذي يمكن لكل مدير استخدامه في صندوق الوارد المشترك. تظل إسنادات الوكلاء الحالية كما هي.')}</p><div id="sx-qr-channels">${label('Loading WhatsApp connections…','جارٍ تحميل اتصالات واتساب…')}</div></div><div class="card"><h2>${label('Roles & permissions','الأدوار والصلاحيات')}</h2><p class="muted">${label('Each role starts from an accountant, manager, Team Leader or agent seat. You can remove access from that role, but cannot grant more than its seat type allows. Permissions also restrict API access.','يبدأ كل دور من مقعد محاسب أو مدير أو قائد فريق أو وكيل. يمكنك تقليل الصلاحيات ولا يمكنك تجاوز صلاحيات نوع المقعد. وتُطبق الصلاحيات على واجهات النظام أيضاً.')}</p><form id="sx-role-form" class="role-form"><input type="hidden" name="id"><label>${label('Role name','اسم الدور')}<input name="name" required maxlength="80"></label><label>${label('Seat type','نوع المقعد')}<select name="seatRole" required>${Object.entries(roles).map(([key,value])=>`<option value="${key}">${label(value[0],value[1])}</option>`).join('')}</select></label><label class="role-description">${label('Description (optional)','الوصف (اختياري)')}<input name="description" maxlength="300"></label><fieldset class="permission-fieldset"><legend>${label('Sidebar access','صلاحية القائمة الجانبية')}</legend><p class="muted">${label('Choose which sidebar features this role can see. Member settings can restrict access further.','اختر عناصر القائمة الجانبية التي يراها هذا الدور. ويمكن تقييد الوصول لكل عضو أكثر.')}</p><div id="sx-role-navigation"></div></fieldset><fieldset class="permission-fieldset"><legend>${label('Module permissions','صلاحيات الوحدات')}</legend><div id="sx-role-permissions"></div></fieldset><button type="submit" class="primary">${label('Create role','إنشاء الدور')}</button><button type="button" id="sx-role-reset">${label('Clear','مسح')}</button></form><div id="sx-role-list">${label('Loading roles…','جارٍ تحميل الأدوار…')}</div></div><div class="card"><h2>${label('Plan seat usage','استخدام مقاعد الباقة')}</h2><div id="sx-team-seat-usage">${label('Loading seat usage…','جارٍ تحميل المقاعد…')}</div></div><div class="card"><h2>${label('Team members','أعضاء الفريق')}</h2><p class="muted">${label('Sidebar access can further restrict each member. Role permissions are enforced separately by the server.','يمكن تقييد قائمة كل عضو أكثر. وتُطبق صلاحيات الدور بشكل مستقل على الخادم.')}</p><div id="sx-team-members">${label('Loading team members…','جارٍ تحميل أعضاء الفريق…')}</div></div><div class="card"><h2>${label('Add staff or agent','إضافة موظف أو وكيل')}</h2><form id="sx-team-form"><label>${label('Email address','البريد الإلكتروني')}<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>${label('Assign role','تعيين الدور')}<select name="assignment" required aria-label="${label('Assign role','تعيين الدور')}"></select></label><label>${label('Temporary password (optional)','كلمة مرور مؤقتة (اختياري)')}<input name="temporaryPassword" type="password" minlength="12" autocomplete="new-password" aria-describedby="sx-password-help"></label><label>${label('Full name (for password accounts)','الاسم الكامل (لحسابات كلمة المرور)')}<input name="displayName" maxlength="200" autocomplete="name"></label><label>${label('Mobile (required for agents)','الجوال (مطلوب للوكلاء)')}<input name="mobile" type="tel" autocomplete="tel" placeholder="+97450123456"></label><button type="submit" class="primary" disabled>${label('Create invitation','إنشاء دعوة')}</button></form><p id="sx-password-help" class="muted">${label('Enter at least 12 characters to create an active account now. Leave the password blank to send a setup invitation. Share the initial password privately.','أدخل 12 حرفاً على الأقل لإنشاء حساب نشط الآن. اترك كلمة المرور فارغة لإنشاء دعوة إعداد. شارك كلمة المرور الأولية بشكل خاص.')}</p><p class="muted">${label('The one-time link is shown once. Copy and send it using your approved channel. Automatic email and WhatsApp delivery are not available yet.','يظهر الرابط لمرة واحدة. انسخه وأرسله عبر القناة المعتمدة. الإرسال التلقائي بالبريد وواتساب غير متاح حالياً.')}</p></div><div class="card"><h2>${label('Invitations','الدعوات')}</h2><div id="sx-team-list">${label('Loading…','جارٍ التحميل…')}</div></div></div>`;
+    node.innerHTML = `<div class="wrap"><h1>${label('Team access','إدارة وصول الفريق')}</h1><p>${label('Create named access roles from the complete feature list, then assign one when inviting a team member. Account type still determines the plan seat and server-enforced limits.','أنشئ أدوار وصول مسماة من قائمة الميزات الكاملة، ثم عيّنها عند دعوة عضو للفريق. يحدد نوع الحساب المقعد وحدود الخادم.')}</p><div id="sx-team-msg" role="status" aria-live="polite"></div><div class="card" id="sx-sales-org-card" hidden><h2>${label('Organisation','الهيكل التنظيمي')}</h2><p class="muted">${label('Managers own teams; Team Leaders and Agents keep an auditable reporting path.','يدير مديرو المبيعات فرقهم، مع حفظ مسار إسناد قادة الفرق والوكلاء.')}</p><div id="sx-sales-org-content">${label('Loading organisation…','جارٍ تحميل الهيكل التنظيمي…')}</div></div><div class="card" id="sx-qr-access-card"><h2>${label('WhatsApp access','صلاحية واتساب')}</h2><p class="muted">${label('Choose which connected WhatsApp number each Manager can use in the shared inbox. Existing agent assignments stay in place.','اختر رقم واتساب المتصل الذي يمكن لكل مدير استخدامه في صندوق الوارد المشترك. تظل إسنادات الوكلاء الحالية كما هي.')}</p><div id="sx-qr-channels">${label('Loading WhatsApp connections…','جارٍ تحميل اتصالات واتساب…')}</div></div><div class="card"><h2>${label('Roles & permissions','الأدوار والصلاحيات')}</h2><p class="muted">${label('Create named custom roles from the full feature list. Account type is selected separately when inviting a member; server permissions remain the security boundary.','أنشئ أدوار وصول مخصصة من قائمة الميزات الكاملة. يتم تحديد نوع الحساب عند دعوة العضو، وتظل صلاحيات الخادم هي حدود الأمان.')}</p><form id="sx-role-form" class="role-form"><input type="hidden" name="id"><label>${label('Role name','اسم الدور')}<input name="name" required maxlength="80"></label><label class="role-description">${label('Description (optional)','الوصف (اختياري)')}<input name="description" maxlength="300"></label><fieldset class="permission-fieldset"><legend>${label('Sidebar access','صلاحية القائمة الجانبية')}</legend><p class="muted">${label('Choose which sidebar features this role can see. Member settings can restrict access further.','اختر عناصر القائمة الجانبية التي يراها هذا الدور. ويمكن تقييد الوصول لكل عضو أكثر.')}</p><div id="sx-role-navigation"></div></fieldset><fieldset class="permission-fieldset"><legend>${label('Module permissions','صلاحيات الوحدات')}</legend><div id="sx-role-permissions"></div></fieldset><button type="submit" class="primary">${label('Create role','إنشاء الدور')}</button><button type="button" id="sx-role-reset">${label('Clear','مسح')}</button></form><div id="sx-role-list">${label('Loading roles…','جارٍ تحميل الأدوار…')}</div></div><div class="card"><h2>${label('Plan seat usage','استخدام مقاعد الباقة')}</h2><div id="sx-team-seat-usage">${label('Loading seat usage…','جارٍ تحميل المقاعد…')}</div></div><div class="card"><h2>${label('Team members','أعضاء الفريق')}</h2><p class="muted">${label('Sidebar access can further restrict each member. Role permissions are enforced separately by the server.','يمكن تقييد قائمة كل عضو أكثر. وتُطبق صلاحيات الدور بشكل مستقل على الخادم.')}</p><div id="sx-team-members">${label('Loading team members…','جارٍ تحميل أعضاء الفريق…')}</div></div><div class="card"><h2>${label('Add staff or agent','إضافة موظف أو وكيل')}</h2><form id="sx-team-form"><label>${label('Email address','البريد الإلكتروني')}<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>${label('Account type (plan seat)','نوع الحساب (مقعد الباقة)')}<select name="memberRole" required aria-label="${label('Account type (plan seat)','نوع الحساب (مقعد الباقة)')}"></select></label><label>${label('Custom access role (optional)','دور الوصول المخصص (اختياري)')}<select name="accessProfile" aria-label="${label('Custom access role','دور الوصول المخصص')}"></select></label><label>${label('Temporary password (optional)','كلمة مرور مؤقتة (اختياري)')}<input name="temporaryPassword" type="password" minlength="12" autocomplete="new-password" aria-describedby="sx-password-help"></label><label>${label('Full name (for password accounts)','الاسم الكامل (لحسابات كلمة المرور)')}<input name="displayName" maxlength="200" autocomplete="name"></label><label>${label('Mobile (required for agents)','الجوال (مطلوب للوكلاء)')}<input name="mobile" type="tel" autocomplete="tel" placeholder="+97450123456"></label><button type="submit" class="primary" disabled>${label('Create invitation','إنشاء دعوة')}</button></form><p id="sx-password-help" class="muted">${label('Enter at least 12 characters to create an active account now. Leave the password blank to send a setup invitation. Share the initial password privately.','أدخل 12 حرفاً على الأقل لإنشاء حساب نشط الآن. اترك كلمة المرور فارغة لإنشاء دعوة إعداد. شارك كلمة المرور الأولية بشكل خاص.')}</p><p class="muted">${label('The one-time link is shown once. Copy and send it using your approved channel. Automatic email and WhatsApp delivery are not available yet.','يظهر الرابط لمرة واحدة. انسخه وأرسله عبر القناة المعتمدة. الإرسال التلقائي بالبريد وواتساب غير متاح حالياً.')}</p></div><div class="card"><h2>${label('Invitations','الدعوات')}</h2><div id="sx-team-list">${label('Loading…','جارٍ التحميل…')}</div></div></div>`;
     organizeTeamScreen(node);
     const form = node.querySelector('#sx-team-form');
     const passwordField=form.elements.temporaryPassword;
     const updateCreationMode=()=>{
       const direct=passwordField.value.length>0;
       form.elements.displayName.required=direct;
-      const assignment=form.elements.assignment.value;
-      const selectedRole=assignment.startsWith('profile:')?currentTeamData?.roles?.find(item=>item.id===assignment.slice(8))?.seatRole:assignment.slice(7);
+      const selectedRole=form.elements.memberRole.value;
       form.elements.mobile.required=direct&&selectedRole==='agent';
       form.querySelector('button[type="submit"]').textContent=direct?label('Create account','إنشاء حساب'):label('Create invitation','إنشاء دعوة');
     };
     passwordField.oninput=updateCreationMode;
-    form.elements.assignment.onchange=updateCreationMode;
+    form.elements.memberRole.onchange=updateCreationMode;
     form.onsubmit = async event => {
       event.preventDefault();
       const button = event.submitter;
       button.disabled = true;
       const data = new FormData(form);
       try {
-        const assignment=String(data.get('assignment')||'');
-        const inviteBody={email:data.get('email'),requestKey:crypto.randomUUID()};
-        if(assignment.startsWith('profile:'))inviteBody.roleProfileId=assignment.slice(8);else inviteBody.role=assignment.slice(7);
+        const inviteBody={email:data.get('email'),requestKey:crypto.randomUUID(),role:data.get('memberRole')};
+        if(data.get('accessProfile'))inviteBody.roleProfileId=data.get('accessProfile');
         if(data.get('temporaryPassword'))Object.assign(inviteBody,{temporaryPassword:data.get('temporaryPassword'),displayName:data.get('displayName'),mobile:data.get('mobile')});
         const invite = await api('/api/user/team-invitations/', {method:'POST', body:inviteBody});
         if(invite.delivery==='password')node.querySelector('#sx-team-msg').innerHTML=`<div class="notice" role="status">${label('Account created. Share the email and initial password privately. Sign in at:','تم إنشاء الحساب. شارك البريد وكلمة المرور الأولية بشكل خاص. تسجيل الدخول:')} <a href="${esc(invite.loginPath)}">${esc(location.origin+invite.loginPath)}</a></div>`;
@@ -236,7 +235,6 @@
       }
     };
     node.querySelector('#sx-role-form').onsubmit=saveRole;
-    node.querySelector('#sx-role-form [name="seatRole"]').onchange=()=>{renderRolePermissions(currentTeamData);renderRoleNavigation(currentTeamData);};
     node.querySelector('#sx-role-reset').onclick=()=>resetRoleForm(node);
     await list(node);
   }
@@ -250,30 +248,30 @@
     };
   }
   function renderRolePermissions(data,selected){
-    const target=document.getElementById('sx-role-permissions'),seatRole=document.querySelector('#sx-role-form [name="seatRole"]')?.value;
-    if(!target||!seatRole)return;
-    const permissions=data?.permissionCatalog?.[seatRole]||[];
-    const chosen=new Set(selected||permissions),groups=new Map();
+    const target=document.getElementById('sx-role-permissions');
+    if(!target)return;
+    const permissions=data?.permissionCatalogAll||[];
+    const chosen=new Set(selected||[]),groups=new Map();
     for(const key of permissions){const group=permissionGroup(key);const heading=label(group[0],group[1]);if(!groups.has(heading))groups.set(heading,[]);groups.get(heading).push(key);}
-    target.innerHTML=`<div class="permission-grid">${[...groups].map(([group,keys])=>`<details class="permission-category"><summary>${esc(group)} <span data-permission-count>${keys.filter(key=>chosen.has(key)).length}/${keys.length}</span></summary>${keys.map(key=>`<label class="permission-option"><input type="checkbox" name="permission" value="${esc(key)}" ${chosen.has(key)?'checked':''}><span>${esc(permissionTitle(key))}</span></label>`).join('')}</details>`).join('')}</div><p class="muted">${label('These are the maximum permissions available to this seat type. Plan and category access still apply.','هذه هي الحدود القصوى لصلاحيات هذا النوع من المقاعد. تظل صلاحيات الباقة والفئة مطبقة.')}</p>`;target.onchange=event=>{const detail=event.target.closest('.permission-category');if(detail){const inputs=[...detail.querySelectorAll('[name=permission]')];detail.querySelector('[data-permission-count]').textContent=inputs.filter(input=>input.checked).length+'/'+inputs.length;}};
+    target.innerHTML=`<div class="role-catalog-actions"><button type="button" data-select-all>${label('Select all','تحديد الكل')}</button><button type="button" data-clear-all>${label('Clear all','إلغاء التحديد')}</button></div><div class="permission-grid">${[...groups].map(([group,keys])=>`<details class="permission-category"><summary>${esc(group)} <span data-permission-count>${keys.filter(key=>chosen.has(key)).length}/${keys.length}</span></summary>${keys.map(key=>`<label class="permission-option"><input type="checkbox" name="permission" value="${esc(key)}" ${chosen.has(key)?'checked':''}><span>${esc(permissionTitle(key))}</span></label>`).join('')}</details>`).join('')}</div><p class="muted">${label('Permissions are enforced by the server and remain limited by the member account type and plan.','تُطبق الصلاحيات على الخادم وتظل محدودة بنوع حساب العضو والباقة.')}</p>`;target.querySelector('[data-select-all]').onclick=()=>{target.querySelectorAll('[name=permission]').forEach(input=>input.checked=true);target.querySelectorAll('[data-permission-count]').forEach(count=>{const total=count.closest('details').querySelectorAll('[name=permission]').length;count.textContent=total+'/'+total;});};target.querySelector('[data-clear-all]').onclick=()=>{target.querySelectorAll('[name=permission]').forEach(input=>input.checked=false);target.querySelectorAll('[data-permission-count]').forEach(count=>count.textContent='0/'+count.closest('details').querySelectorAll('[name=permission]').length);};target.onchange=event=>{const detail=event.target.closest('.permission-category');if(detail){const inputs=[...detail.querySelectorAll('[name=permission]')];detail.querySelector('[data-permission-count]').textContent=inputs.filter(input=>input.checked).length+'/'+inputs.length;}};
   }
   function renderRoleNavigation(data,selected){
     const target=document.getElementById('sx-role-navigation');if(!target)return;
-    const items=data?.navigationCatalog||[],chosen=new Set(selected===undefined?items.map(item=>item.key):(selected||[])),groups=new Map();
+    const items=data?.navigationCatalog||[],chosen=new Set(selected||[]),groups=new Map();
     for(const item of items){const group=label(item.group.en,item.group.ar);if(!groups.has(group))groups.set(group,[]);groups.get(group).push(item);}
-    target.innerHTML=`<div class="permission-grid">${[...groups].map(([group,entries])=>`<details class="permission-category"><summary>${esc(group)} <span data-navigation-count>${entries.filter(item=>chosen.has(item.key)).length}/${entries.length}</span></summary>${entries.map(item=>`<label class="permission-option"><input type="checkbox" name="sidebarNavigation" value="${esc(item.key)}" ${chosen.has(item.key)?'checked':''}><span>${esc(label(item.label.en,item.label.ar))}</span></label>`).join('')}</details>`).join('')}</div><p class="muted">${label('Choose which sidebar features members of this role can see. Each member can be restricted further below. This does not grant API permissions.','اختر عناصر القائمة الجانبية التي يراها أعضاء هذا الدور. ويمكن تقييد كل عضو أكثر أدناه. هذا لا يمنح صلاحيات واجهة النظام.')}`;
+    target.innerHTML=`<div class="role-catalog-actions"><button type="button" data-select-all>${label('Select all','تحديد الكل')}</button><button type="button" data-clear-all>${label('Clear all','إلغاء التحديد')}</button></div><div class="permission-grid">${[...groups].map(([group,entries])=>`<details class="permission-category"><summary>${esc(group)} <span data-navigation-count>${entries.filter(item=>chosen.has(item.key)).length}/${entries.length}</span></summary>${entries.map(item=>`<label class="permission-option"><input type="checkbox" name="sidebarNavigation" value="${esc(item.key)}" ${chosen.has(item.key)?'checked':''}><span>${esc(label(item.label.en,item.label.ar))}</span></label>`).join('')}</details>`).join('')}</div><p class="muted">${label('Choose which sidebar features members of this role can see. Each member can be restricted further below. This does not grant API permissions.','اختر عناصر القائمة الجانبية التي يراها أعضاء هذا الدور. ويمكن تقييد كل عضو أكثر أدناه. هذا لا يمنح صلاحيات واجهة النظام.')}`;
+    target.querySelector('[data-select-all]').onclick=()=>{target.querySelectorAll('[name=sidebarNavigation]').forEach(input=>input.checked=true);target.querySelectorAll('[data-navigation-count]').forEach(count=>{const total=count.closest('details').querySelectorAll('[name=sidebarNavigation]').length;count.textContent=total+'/'+total;});};target.querySelector('[data-clear-all]').onclick=()=>{target.querySelectorAll('[name=sidebarNavigation]').forEach(input=>input.checked=false);target.querySelectorAll('[data-navigation-count]').forEach(count=>count.textContent='0/'+count.closest('details').querySelectorAll('[name=sidebarNavigation]').length);};
     target.onchange=event=>{const detail=event.target.closest('.permission-category');if(detail){const inputs=[...detail.querySelectorAll('[name=sidebarNavigation]')];detail.querySelector('[data-navigation-count]').textContent=inputs.filter(input=>input.checked).length+'/'+inputs.length;}};
   }
   function resetRoleForm(node){
     const form=node.querySelector('#sx-role-form');form.reset();form.elements.id.value='';
-    form.elements.seatRole.disabled=false;form.querySelector('button[type="submit"]').textContent=label('Create role','إنشاء الدور');
+    form.querySelector('button[type="submit"]').textContent=label('Create role','إنشاء الدور');
     renderRolePermissions(currentTeamData);
     renderRoleNavigation(currentTeamData);
   }
   async function saveRole(event){
     event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),id=form.elements.id.value;
     const body={name:form.elements.name.value,description:form.elements.description.value,permissions:[...form.querySelectorAll('[name="permission"]:checked')].map(input=>input.value),navigation:[...form.querySelectorAll('[name="sidebarNavigation"]:checked')].map(input=>input.value)};
-    if(!id)body.seatRole=form.elements.seatRole.value;
     button.disabled=true;
     try{await api('/api/user/team-invitations/roles'+(id?'/'+encodeURIComponent(id):''),{method:id?'PUT':'POST',body});nodeMessage(document.getElementById('sx-team-msg'),label(id?'Role updated.':'Role created.','تم تحديث الدور.'),false);resetRoleForm(document.getElementById('sx-team-screen'));await list(document.getElementById('sx-team-screen'));}
     catch(error){nodeMessage(document.getElementById('sx-team-msg'),errorText(error.message),true);}
@@ -283,11 +281,11 @@
     if(!element)return;
     const rolesList=data.roles||[];
     if(!rolesList.length){element.innerHTML=`<div class="muted">${label('No custom roles yet. Create one above.','لا توجد أدوار مخصصة بعد. أنشئ دوراً أعلاه.')}</div>`;return;}
-    element.innerHTML=rolesList.map(item=>`<div class="role-row" data-role-id="${esc(item.id)}"><div><strong>${esc(item.name)}</strong><div class="muted">${esc(roleLabel(item.seatRole))} · ${esc(item.status)} · ${esc((item.permissions||[]).length)} ${label('permissions','صلاحيات')} · ${esc(item.navigation?.length??'—')} ${label('sidebar items','عناصر القائمة')}</div>${item.description?`<div class="muted">${esc(item.description)}</div>`:''}</div><div class="role-actions">${item.status==='active'?`<button type="button" data-edit-role>${label('Edit','تعديل')}</button><button type="button" data-archive-role>${label('Archive','أرشفة')}</button>`:''}</div></div>`).join('');
+    element.innerHTML=rolesList.map(item=>`<div class="role-row" data-role-id="${esc(item.id)}"><div><strong>${esc(item.name)}</strong><div class="muted">${item.seatRole?esc(roleLabel(item.seatRole))+' · ':''}${esc(item.status)} · ${esc((item.permissions||[]).length)} ${label('permissions','صلاحيات')} · ${esc(item.navigation?.length??'—')} ${label('sidebar items','عناصر القائمة')}</div>${item.description?`<div class="muted">${esc(item.description)}</div>`:''}</div><div class="role-actions">${item.status==='active'?`<button type="button" data-edit-role>${label('Edit','تعديل')}</button><button type="button" data-archive-role>${label('Archive','أرشفة')}</button>`:''}</div></div>`).join('');
     element.querySelectorAll('[data-edit-role]').forEach(button=>button.onclick=()=>{
       const item=rolesList.find(role=>role.id===button.closest('[data-role-id]').dataset.roleId);if(!item)return;
-      const form=document.getElementById('sx-role-form');form.elements.id.value=item.id;form.elements.name.value=item.name;form.elements.description.value=item.description||'';form.elements.seatRole.value=item.seatRole;form.elements.seatRole.disabled=true;
-      form.querySelector('button[type="submit"]').textContent=label('Save role','حفظ الدور');renderRolePermissions(data,item.permissions||[]);renderRoleNavigation(data,item.navigation===null?undefined:item.navigation);form.scrollIntoView({behavior:'smooth',block:'center'});
+      const form=document.getElementById('sx-role-form');form.elements.id.value=item.id;form.elements.name.value=item.name;form.elements.description.value=item.description||'';
+      form.querySelector('button[type="submit"]').textContent=label('Save role','حفظ الدور');renderRolePermissions(data,item.permissions||[]);renderRoleNavigation(data,item.navigation===null?(data.navigationByRoleProfile?.[item.id]||[]):item.navigation);form.scrollIntoView({behavior:'smooth',block:'center'});
     });
     element.querySelectorAll('[data-archive-role]').forEach(button=>button.onclick=async()=>{
       if(!confirm(label('Archive this role?','هل تريد أرشفة هذا الدور؟')))return;button.disabled=true;
@@ -300,21 +298,11 @@
     element.replaceChildren();
     const values = data.seatUsage || {};
     const supportedRoles=new Set(Object.keys(values));
-    const seatRoleSelect=document.querySelector('#sx-role-form [name="seatRole"]');
-    if(seatRoleSelect)for(const option of [...seatRoleSelect.options])if(!supportedRoles.has(option.value))option.remove();
     const available = new Set(data.availableRoles || []);
-    const select = document.querySelector('#sx-team-form select[name="assignment"]');
-    if (select) {
-      select.replaceChildren();
-      for (const key of Object.keys(values)) {
-        const option = document.createElement('option'); option.value = 'system:'+key;
-        option.textContent = roleLabel(key) + (available.has(key) ? '' : ' · ' + label('No seats','لا توجد مقاعد'));
-        option.disabled = !available.has(key); select.append(option);
-      }
-      for(const profile of data.roles||[]){if(profile.status!=='active')continue;const option=document.createElement('option');option.value='profile:'+profile.id;const hasSeats=available.has(profile.seatRole);option.textContent=profile.name+' · '+roleLabel(profile.seatRole)+(hasSeats?'':' · '+label('No seats','لا توجد مقاعد'));option.disabled=!hasSeats;select.append(option);}
-      const first = [...select.options].find(option => !option.disabled);
-      if (first) select.value = first.value;
-    }
+    const memberRoleSelect=document.querySelector('#sx-team-form select[name="memberRole"]');
+    if(memberRoleSelect){memberRoleSelect.replaceChildren();for(const key of Object.keys(values)){const option=document.createElement('option');option.value=key;option.textContent=roleLabel(key)+(available.has(key)?'':' · '+label('No seats','لا توجد مقاعد'));option.disabled=!available.has(key);memberRoleSelect.append(option);}const first=[...memberRoleSelect.options].find(option=>!option.disabled);if(first)memberRoleSelect.value=first.value;}
+    const profileSelect=document.querySelector('#sx-team-form select[name="accessProfile"]');
+    if(profileSelect){const renderProfiles=()=>{profileSelect.replaceChildren();const standard=document.createElement('option');standard.value='';standard.textContent=label('Standard access','الصلاحيات الأساسية');profileSelect.append(standard);const selectedRole=memberRoleSelect?.value;for(const profile of data.roles||[]){if(profile.status!=='active'||profile.seatRole&&profile.seatRole!==selectedRole)continue;const option=document.createElement('option');option.value=profile.id;option.textContent=profile.name;profileSelect.append(option);}};renderProfiles();memberRoleSelect?.addEventListener('change',renderProfiles);}
     for (const key of Object.keys(values)) {
       const usage = values[key];
       const card = document.createElement('div'); card.className = 'seat-card';
@@ -326,7 +314,7 @@
       card.append(metrics); element.append(card);
     }
     const button = document.querySelector('#sx-team-form button[type="submit"]');
-    if (button) button.disabled = !select||![...select.options].some(option=>!option.disabled);
+    if (button) button.disabled = !memberRoleSelect||![...memberRoleSelect.options].some(option=>!option.disabled);
   }
   function renderSalesOrganisation(node,data){
     const card=node.querySelector('#sx-sales-org-card'),target=node.querySelector('#sx-sales-org-content');
@@ -383,7 +371,7 @@
       const data = await api('/api/user/team-invitations/');
       currentTeamData=data;
       renderSeats(node.querySelector('#sx-team-seat-usage'), data);
-      node.querySelector('#sx-team-form [name="assignment"]').dispatchEvent(new Event('change'));
+      node.querySelector('#sx-team-form [name="memberRole"]').dispatchEvent(new Event('change'));
       renderRoles(node.querySelector('#sx-role-list'),data);
       if(!node.querySelector('#sx-role-form [name="id"]').value){renderRolePermissions(data);renderRoleNavigation(data);}
       renderMembers(node.querySelector('#sx-team-members'),data);
@@ -446,10 +434,17 @@
     if(!data.members?.length){element.innerHTML=`<div class="muted">${label('No active team members yet. Members will appear here after they accept an invitation.','لا يوجد أعضاء فريق نشطون بعد. سيظهر الأعضاء هنا بعد قبول الدعوة.')}</div>`;return;}
     element.innerHTML=data.members.map(member=>{
       const options=(member.roleProfileId?data.navigationByRoleProfile?.[member.roleProfileId]:data.navigationByRole?.[member.role])||[],selected=new Set(member.assignedNavigation===null?options.map(item=>item.key):member.assignedNavigation);
+      const profiles=(data.roles||[]).filter(profile=>profile.status==='active'&&(!profile.seatRole||profile.seatRole===member.role));
+      const roleOptions=`<option value="">${label('Standard access','الصلاحيات الأساسية')}</option>${profiles.map(profile=>`<option value="${esc(profile.id)}" ${member.roleProfileId===profile.id?'selected':''}>${esc(profile.name)}</option>`).join('')}`;
       const groups=new Map();for(const option of options){const name=label(option.group.en,option.group.ar);if(!groups.has(name))groups.set(name,[]);groups.get(name).push(option);}
       const choices=[...groups].map(([group,items])=>`<details class="nav-category"><summary>${esc(group)} <span data-nav-count>${items.filter(item=>selected.has(item.key)).length}/${items.length}</span></summary>${items.map(item=>`<label class="nav-option"><input type="checkbox" data-nav-key="${esc(item.key)}" ${selected.has(item.key)?'checked':''}><span>${esc(label(item.label.en,item.label.ar))}</span></label>`).join('')}</details>`).join('');
-      return `<section class="member-card" data-member="${esc(member.id)}"><div class="member-head"><div><strong>${esc(member.displayName||member.email)}</strong><div class="muted">${esc(member.email)} · ${esc(member.roleName||roleLabel(member.role))}</div></div><button type="button" class="primary" data-save-navigation>${label('Save sidebar access','حفظ صلاحيات القائمة')}</button></div><div class="nav-grid">${choices}</div></section>`;
+      return `<section class="member-card" data-member="${esc(member.id)}"><div class="member-head"><div><strong>${esc(member.displayName||member.email)}</strong><div class="muted">${esc(member.email)} · ${esc(roleLabel(member.role))}${member.roleName?' · '+esc(member.roleName):''}</div></div><div class="member-role-assignment"><label>${label('Access role','دور الوصول')}<select data-member-role>${roleOptions}</select></label><button type="button" data-save-role>${label('Save role','حفظ الدور')}</button><button type="button" class="primary" data-save-navigation>${label('Save sidebar access','حفظ صلاحيات القائمة')}</button></div></div><div class="nav-grid">${choices}</div></section>`;
     }).join('');
+    element.querySelectorAll('[data-save-role]').forEach(button=>button.onclick=async()=>{
+      const card=button.closest('[data-member]'),roleProfileId=card.querySelector('[data-member-role]').value||null;button.disabled=true;
+      try{await api('/api/user/team-invitations/members/'+encodeURIComponent(card.dataset.member)+'/role',{method:'PUT',body:{roleProfileId}});nodeMessage(element,label('Access role saved.','تم حفظ دور الوصول.'),false);await list(document.getElementById('sx-team-screen'));}
+      catch(error){nodeMessage(element,errorText(error.message),true);button.disabled=false;}
+    });
     element.querySelectorAll('[data-save-navigation]').forEach(button=>button.onclick=async()=>{
       const card=button.closest('[data-member]'),navigation=[...card.querySelectorAll('[data-nav-key]:checked')].map(input=>input.dataset.navKey);
       button.disabled=true;

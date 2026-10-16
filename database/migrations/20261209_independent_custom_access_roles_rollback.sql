@@ -1,0 +1,3 @@
+-- This migration cannot be reversed automatically after a custom role is shared
+-- across different member account types. Map each custom role to one seat first,
+-- then restore NOT NULL; retain the column for legacy single-seat profiles.
