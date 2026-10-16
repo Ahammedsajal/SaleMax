@@ -47,7 +47,7 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
-  const actorToken = () => localStorage.getItem('wacrm_agent') || localStorage.getItem('wacrm_user');
+  const actorToken = () => localStorage.getItem('wacrm_user') || localStorage.getItem('wacrm_agent');
   function campaignAttribution() {
     const fields = { utmSource: ['utm_source', 120], utmMedium: ['utm_medium', 120], utmCampaign: ['utm_campaign', 180], utmContent: ['utm_content', 180], utmTerm: ['utm_term', 180] };
     const attribution = {};
