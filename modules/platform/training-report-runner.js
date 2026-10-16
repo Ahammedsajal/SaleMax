@@ -54,11 +54,11 @@ async function claimRuns(db,{workerId,limit=10,leaseSeconds=120}={}){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 async function buildSnapshot(pool,run){
-  const db=await pool.getConnection();let ownerUid;
+  const db=await pool.getConnection();let ownerUid,dashboardEnabled=false;
   try{
     const [[tenant]]=await db.query('SELECT id,status,category_key,category_version FROM sx_tenants WHERE id=?',[run.tenant_id]);
     if(!tenant||tenant.status!=='active'||tenant.category_key!=='training_center'||Number(tenant.category_version)!==1)fail('REPORT_TENANT_UNAVAILABLE');
-    const entitlement=await plans.loadEntitlements(db,tenant.id);
+    const entitlement=await plans.loadEntitlements(db,tenant.id);dashboardEnabled=Boolean(entitlement?.capabilities?.includes('finance.invoices')&&entitlement?.capabilities?.includes('tenant.settings'));
     if(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities.includes('reports.read')||!entitlement.capabilities.includes('reports.schedule'))fail('REPORT_ENTITLEMENT_UNAVAILABLE');
     const [owners]=await db.query(`SELECT u.uid,o.legacy_uid_hash FROM sx_legacy_ownership o JOIN user u ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
       JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id AND m.role='owner' AND m.status='active'
@@ -78,6 +78,14 @@ async function buildSnapshot(pool,run){
     comparisons[key]={from:prior.from,to:prior.to,activityCount:prior.total,summary:prior.summary,finance:prior.finance||null,journey:{summary:priorJourney.summary,cohortFunnel:priorJourney.cohortFunnel}};
   }
   const summary=report.summary||{},finance=report.finance||null;
+  let dashboardFinance=null;
+  if(dashboardEnabled){
+    const context=await require('./training-courses').legacyOwnerContext(pool,ownerUid),connection=await pool.getConnection();
+    try{const local=moment.utc(window.start).tz(run.timezone).format('YYYY-MM-DD'),end=moment.utc(window.end).subtract(1,'millisecond').tz(run.timezone).format('YYYY-MM-DD');
+      const dashboard=await require('./training-finance-dashboard').report(connection,context,{from:local,to:end,limit:1});
+      dashboardFinance={...dashboard.summary,asOf:dashboard.asOf,from:local,to:end};
+    }finally{connection.release();}
+  }
   const actionItems=[];
   if(Number(summary.followUpsOverdue)>0)actionItems.push({key:'overdue_followups',count:Number(summary.followUpsOverdue),priority:'high'});
   if(Number(summary.followUpsDue)>0)actionItems.push({key:'followups_due',count:Number(summary.followUpsDue),priority:'today'});
@@ -87,8 +95,9 @@ async function buildSnapshot(pool,run){
   if(finance?.reconciliation?.status==='attention')actionItems.push({key:'finance_reconciliation',count:Math.max(Number(finance.reconciliation.periodIssuedInvoiceMismatchCount||0),Number(finance.reconciliation.allInvoiceMismatchCount||0)),priority:'high'});
   if(!finance)actionItems.push({key:'finance_data_unavailable',priority:'high'});
   const snapshot={schemaVersion:2,metricDefinitionVersion:Number(run.metric_definition_version),scheduleRevision:Number(run.schedule_revision),revision:Number(run.revision||1),revisionReason:run.revision_reason||null,supersedesRunId:run.supersedes_run_id||null,period:run.period,timezone:run.timezone,from:report.from,to:report.to,cutoffAt:report.cutoffAt||window.cutoffAt,generatedAt:new Date().toISOString(),activityCount:report.total,summary,journey:{summary:journey.summary,sources:journey.sources,stages:journey.stages,agents:journey.agents,cohortFunnel:journey.cohortFunnel,learnerJourney:journey.learnerJourney,journeyActivity:journey.journeyActivity},finance,comparisons,actionItems,customerDetailsIncluded:false,delivery:{email:'not_configured',whatsapp:'not_configured'}};
-  return snapshot;
+  return {...snapshot,dashboardFinance};
 }
+
 async function completeRun(db,{run,workerId,snapshot}){
   const json=JSON.stringify(snapshot),digest=crypto.createHash('sha256').update(json).digest('hex');await db.beginTransaction();
   try{const [[current]]=await db.query('SELECT status,lease_owner,schedule_id,schedule_revision,(lease_expires_at>UTC_TIMESTAMP(3)) AS valid FROM sx_training_report_runs WHERE tenant_id=? AND id=? FOR UPDATE',[run.tenant_id,run.id]);if(!current||current.status!=='processing'||current.lease_owner!==workerId||Number(current.valid)!==1)fail('REPORT_RUN_LEASE_REQUIRED');

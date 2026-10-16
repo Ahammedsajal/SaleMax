@@ -1494,3 +1494,11 @@ A click anywhere on a submitted-application row now opens the application detail
 ## Candidate Applications attending staff name — production, 14 October 2026
 
 The existing application detail now shows the saved attending staff name/account instead of the generic “Recorded” label. The name already existed in each registration snapshot; PR #147 makes it available in the tenant-scoped submissions response. The focused suite passes 14/14, production health is 200, release/container hashes match, and authenticated review confirms the actual saved staff name appears. No schema migration or customer-data write occurred. Only the app service was recreated. See `DEPLOYMENT.md` for image, release, rollback and hash details.
+
+## Finance Reports dashboard and account-controlled QR reporting - 16 October 2026
+
+Finance Reports now has a dedicated dashboard with Qatar date presets/manual dates, clickable sales/receipts/receivable/overdue cards, monthly charts, collection health, installment aging and linked paginated records. Generated invoices count once when linked to posted invoices; pending payments, allocation reversals, credits and excess deposits retain their accounting meaning. Managers receive read access while financial mutations stay restricted.
+
+Owners configure and verify their own report recipients and activate/pause a daily Qatar-time schedule on this screen. The existing report worker supports QR delivery through the protected connected-session service and verified tenant recipients. Deployment creates no recipient or schedule and sends no messages. Configuration and calculation semantics are in FINANCE_REPORTS_DASHBOARD.md.
+
+Validation: six new unit tests pass; disposable MariaDB checks and synthetic EN/AR 1440/390/260px browser flows pass. Full suite: 764/789 passing, with the same 25 failing test names as unchanged origin/main (758/783). Current production read-only dashboard queries work for both training tenants. Real account recipient verification and scheduled WhatsApp delivery remain account-controlled acceptance steps.
