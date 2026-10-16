@@ -15,7 +15,7 @@ function normalize(input){
   if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['period','timezone','localTime','emailEnabled','emailDestination','whatsappEnabled','whatsappDestination','status','expectedRevision'].includes(k)))fail('INVALID_REPORT_SCHEDULE');
   if(input.expectedRevision!==undefined&&(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0))fail('INVALID_REVISION');
   if(!['daily','weekly','monthly'].includes(input.period))fail('INVALID_REPORT_PERIOD');
-  const timezone=typeof input.timezone==='string'?input.timezone.trim():'';if(timezone.length>64||!moment.tz.zone(timezone))fail('INVALID_TIMEZONE');
+  const timezone='Asia/Qatar';
   if(typeof input.localTime!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(input.localTime))fail('INVALID_LOCAL_TIME');
   for(const key of ['emailEnabled','whatsappEnabled'])if(typeof input[key]!=='boolean')fail('INVALID_REPORT_CHANNEL');
   if(!input.emailEnabled&&!input.whatsappEnabled)fail('REPORT_CHANNEL_REQUIRED');

@@ -1053,7 +1053,7 @@ async function processSendMessage({
     });
 
     const userTimezone = getCurrentTimestampInTimeZone(
-      user?.timezone || "Asia/Kolkata",
+      user?.timezone || "Asia/Qatar",
     );
 
     if (sendMsg) {
@@ -1731,7 +1731,7 @@ async function processAiTransfer({
       });
 
       const userTimezone = getCurrentTimestampInTimeZone(
-        user?.timezone || "Asia/Kolkata",
+        user?.timezone || "Asia/Qatar",
       );
 
       if (sendMsg) {
@@ -2123,7 +2123,7 @@ async function processSendWaTemplate({
     // ── save to conversation ─────────────────────────────────────────────────
     if (sendMsgId) {
       const userTimezone = getCurrentTimestampInTimeZone(
-        user?.timezone || "Asia/Kolkata",
+        user?.timezone || "Asia/Qatar",
       );
       const messageData = {
         type: "template",

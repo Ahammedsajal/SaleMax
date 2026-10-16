@@ -534,7 +534,7 @@ function processSocketEvent({
             agentData: agents,
             countDownTimer: {
               timestamp: lastSenderMsg?.timestamp ? lastSenderMsg.timestamp : 0,
-              timezone: socket?.userData?.timezone || "Asia/Kolkata",
+              timezone: socket?.userData?.timezone || "Asia/Qatar",
             },
             phonebookData: phonebookData,
             chatBots: chatBots,
@@ -714,7 +714,7 @@ function processSocketEvent({
             ]);
 
             const userTimezone = getCurrentTimestampInTimeZone(
-              user?.timezone || "Asia/Kolkata",
+              user?.timezone || "Asia/Qatar",
             );
 
             // adding new array with rating included
@@ -759,7 +759,7 @@ function processSocketEvent({
           ]);
 
           const userTimezone = getCurrentTimestampInTimeZone(
-            user?.timezone || "Asia/Kolkata",
+              user?.timezone || "Asia/Qatar",
           );
 
           const msgObj = returnMsgObjAfterAddingKey({
@@ -1005,7 +1005,7 @@ function processSocketEvent({
 
           if (sendNewMsg?.id) {
             const userTimezone = getCurrentTimestampInTimeZone(
-              socket?.userData?.timezone || "Asia/Kolkata",
+              socket?.userData?.timezone || "Asia/Qatar",
             );
 
             const msgObj = returnMsgObjAfterAddingKey({

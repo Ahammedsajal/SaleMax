@@ -216,7 +216,7 @@ router.post("/add_user", adminValidator, async (req, res) => {
     let inserted;
     try {
       await db.beginTransaction();
-      [inserted] = await db.query("INSERT INTO user (name, uid, email, password, mobile_with_country_code) VALUES (?,?,?,?,?)", [cleanName, uid, cleanEmail, passwordHash, cleanMobile]);
+      [inserted] = await db.query("INSERT INTO user (name, uid, email, password, mobile_with_country_code, timezone) VALUES (?,?,?,?,?, 'Asia/Qatar')", [cleanName, uid, cleanEmail, passwordHash, cleanMobile]);
       if (context) await portfolios.recordCreated(db, context, inserted.insertId);
       await db.commit();
     } catch (error) { await db.rollback(); throw error; }

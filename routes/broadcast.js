@@ -104,7 +104,7 @@ router.post("/add_new", validateUser, checkPlan, async (req, res) => {
         JSON.stringify(phonebook),
         "QUEUE",
         scheduleDate,
-        getUser[0]?.timezone || "Asia/Kolkata",
+        getUser[0]?.timezone || "Asia/Qatar",
       ],
     );
 
@@ -233,8 +233,8 @@ router.post(
         button_variables,
         carousel_cards,
         schedule,
-        timezone,
       } = req.body;
+      const timezone = "Asia/Qatar";
 
       // ── Validate required ─────────────────────────────────
       if (

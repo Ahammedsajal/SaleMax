@@ -59,10 +59,10 @@ test('call outcome form is in Call Center and uses the existing scoped outcome A
   assert.match(api,/calls\/:callId\/lead-outcome/);assert.match(api,/SELECT timezone FROM sx_tenants/);assert.match(api,/categoryKey:context\.tenant\.categoryKey/);assert.match(api,/CALL_LEAD_DO_NOT_CALL/);
 });
 
-test('Sales follow-up entry treats typed time as Asia/Kolkata local time',()=>{
-  const instant=dateTime.fromInput('2026-10-15T10:00','Asia/Kolkata');
-  assert.equal(instant,'2026-10-15T04:30:00.000Z');
-  assert.equal(dateTime.toInput(instant,'Asia/Kolkata'),'2026-10-15T10:00');
+test('Sales follow-up entry treats typed time as Asia/Qatar local time',()=>{
+  const instant=dateTime.fromInput('2026-10-15T10:00','Asia/Qatar');
+  assert.equal(instant,'2026-10-15T07:00:00.000Z');
+  assert.equal(dateTime.toInput(instant,'Asia/Qatar'),'2026-10-15T10:00');
 });
 
 test('outcome input rejects unsupported dispositions, invalid follow-up types and oversized notes',()=>{

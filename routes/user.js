@@ -1609,7 +1609,6 @@ router.post("/update_profile", validateUser, async (req, res) => {
       mobile: mobileFromBody,
       mobile_with_country_code: mobile_with_country_codeNew,
       email,
-      timezone,
     } = req.body;
 
     let mobile = mobileFromBody; // Use let instead of const
@@ -1622,9 +1621,10 @@ router.post("/update_profile", validateUser, async (req, res) => {
       mobile_with_country_code = mobile_with_country_codeNew;
     }
 
-    if (!name || !mobile_with_country_code || !email || !timezone) {
+    const timezone = "Asia/Qatar";
+    if (!name || !mobile_with_country_code || !email) {
       return res.json({
-        msg: "Name, Mobile, Email, Timezone are required fields",
+        msg: "Name, Mobile and Email are required fields",
       });
     }
 

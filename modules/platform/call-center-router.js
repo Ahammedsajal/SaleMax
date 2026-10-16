@@ -56,7 +56,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     if(userData){
       const actor=await legacyPipelineActor.resolve(pool,userData);
       if(actor?.denied)throw Object.assign(new Error(actor.code),{code:actor.code});
-      if(actor?.categoryKey==='salemax_sales'&&actor.canonicalContext){context=actor.canonicalContext;context.timezone=actor.timezone||context.tenant.timezone||'Asia/Kolkata';}
+      if(actor?.categoryKey==='salemax_sales'&&actor.canonicalContext){context=actor.canonicalContext;context.timezone=actor.timezone||context.tenant.timezone||'Asia/Qatar';}
     }
     if(!context)context=await courses.legacyOwnerContext(pool,uid);
     try{
