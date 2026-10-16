@@ -101,7 +101,7 @@ router.use(pipelineAuth);
 const openingRouting=require('../helper/pipeline/openingRouting');
 const openingPool=require('../database/config').promise();
 async function openingDb(work){const db=await openingPool.getConnection();try{return await work(db);}finally{db.release();}}
-const openingAdmin=(req,res,next)=>req.pipelineActor.role==='owner'?next():res.status(403).json({success:false,message:'Only a workspace admin can configure keyword routing.'});
+const openingAdmin=(req,res,next)=>req.pipelineActor.role==='owner'||req.pipelineActor.role==='manager'&&!Array.isArray(req.pipelineActor.scopeAgentIds)?next():res.status(403).json({success:false,message:'Your role cannot configure workspace-wide keyword routing.'});
 router.get('/opening-routing',openingAdmin,async(req,res)=>{try{res.setHeader('Cache-Control','no-store');res.json({success:true,data:await openingDb(db=>openingRouting.list(db,req.pipelineActor.uid))});}catch(error){fail(res,error);}});
 router.post('/opening-routing',openingAdmin,async(req,res)=>{try{res.status(201).json({success:true,data:await openingDb(db=>openingRouting.save(db,req.pipelineActor.uid,req.body))});}catch(error){fail(res,error);}});
 router.put('/opening-routing/:id',openingAdmin,async(req,res)=>{try{res.json({success:true,data:await openingDb(db=>openingRouting.save(db,req.pipelineActor.uid,req.body,req.params.id))});}catch(error){fail(res,error);}});
