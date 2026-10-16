@@ -258,7 +258,15 @@
       button.onclick=event=>{event.preventDefault();location.href='/user?page=tasks';};list.append(copy);
     }
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
-    const hasLeadReports=[...list.children].some(row=>row.tagName==='LI'&&(aliases[label(row)]||label(row))==='Lead Reports');
+    if(leadSource){
+      const pipelineLabel=tr('Lead Pipeline','مسار العملاء المحتملين'),primary=leadSource.querySelector('.MuiListItemText-primary');
+      if(primary&&primary.textContent!==pipelineLabel)primary.textContent=pipelineLabel;
+      leadSource.setAttribute('aria-label',pipelineLabel);
+      const button=leadSource.querySelector('.MuiListItemButton-root,[role=button],button,a')||leadSource;button.setAttribute('aria-label',pipelineLabel);
+    }
+    const leadReportRows=[...list.children].filter(row=>row.tagName==='LI'&&!row.hasAttribute('data-salemax-pipeline-link')&&(aliases[label(row)]||label(row))==='Lead Reports');
+    leadReportRows.slice(1).forEach(row=>row.remove());
+    const hasLeadReports=leadReportRows.length>0;
     if(leadSource&&!hasLeadReports){
       const copy=leadSource.cloneNode(true);copy.dataset.sxLeadReportsNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
       // This is a synthetic row, so set its primary label directly. The legacy

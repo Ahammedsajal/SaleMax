@@ -21,6 +21,9 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(entry, /get\('page'\)\s*===\s*'lead-reports'/);
   assert.match(entry, /pipelineView\(\)\?'&view='/);
   assert.match(sidebar, /Lead Reports/);
+  assert.match(sidebar,/const pipelineLabel=tr\('Lead Pipeline','مسار العملاء المحتملين'\)/);
+  assert.match(sidebar,/row=>row\.tagName==='LI'&&!row\.hasAttribute\('data-salemax-pipeline-link'\)/);
+  assert.match(sidebar,/leadReportRows\.slice\(1\)\.forEach\(row=>row\.remove\(\)\)/);
   assert.match(html, /id="followupsMode"/);
   assert.match(html, /id="followups" class="reports hidden"/);
   assert.match(reports, /\/api\/pipeline\/reports\/activity/);
@@ -31,8 +34,8 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /activityType==='agent_message_sent'/);
   assert.match(reports, /ownerScope:'نشاط مساحة العمل بالكامل'/);
   assert.match(reports, /agentScope:'العملاء المسندون إليك حاليًا فقط'/);
-  assert.match(reports, /name="period"/);
-  assert.match(reports, /name="at" type="date"/);
+  assert.match(reports, /name="from" type="date"/);
+  assert.match(reports, /name="to" type="date"/);
   assert.match(reports, /cohortShare:'of new leads'/);
   assert.match(reports, /cohortShare:'من العملاء الجدد'/);
   assert.match(reports, /Math\.round\(Number\(value\|\|0\)\*100\/cohortSize\)/);
