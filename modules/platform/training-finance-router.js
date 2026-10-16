@@ -7,6 +7,7 @@ const policies=require('./training-finance-policies');
 const invoices=require('./training-invoices');
 const saleReviews=require('./training-sale-reviews');
 const receivablesReport=require('./training-receivables-report');
+const financeDashboard=require('./training-finance-dashboard');
 const payments=require('./training-payments');
 const paymentProofs=require('./training-payment-proofs');
 const schedules=require('./training-installment-schedules');
@@ -70,6 +71,12 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.put('/accountant/generator/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.update)(req.businessContext,{uid:await canonicalGeneratorUid(req),id:req.params.id,input:req.body})})));
   router.delete('/accountant/generator/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.remove)(req.businessContext,{id:req.params.id,input:req.body})})));
   router.get('/reports/receivables-aging',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(receivablesReport.list)(req.financeContext,req.query)})));
+  router.get('/reports/dashboard',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(financeDashboard.report)(req.financeContext,req.query)})));
+  for(const [prefix,guards,contextKey] of [['',[userGuard,ownerContext],'financeContext'],['/accountant',[canonicalGuard],'businessContext']]){
+    router.get(prefix+'/reports/schedules',...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(require('./training-report-schedules').list)(req[contextKey])})));
+    router.put(prefix+'/reports/schedules',...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(require('./training-report-schedules').save)(req[contextKey],req.body)})));
+  }
+  router.get('/accountant/reports/dashboard',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(financeDashboard.report)(req.businessContext,req.query)})));
   router.get('/accountant/reports/receivables-aging',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(receivablesReport.list)(req.businessContext,req.query)})));
   router.post('/invoices/:id/schedule-changes',userGuard,ownerContext,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(schedules.request)(req.financeContext,req.params.id,req.body)})));
   router.post('/accountant/invoices/:id/schedule-changes',canonicalGuard,wrap(async(req,res)=>res.status(201).json({success:true,data:await withConnection(schedules.request)(req.businessContext,req.params.id,req.body)})));

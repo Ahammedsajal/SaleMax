@@ -34,7 +34,7 @@ const permissions = {
   'invoices.read': { owner: 'tenant', accountant: 'tenant', manager: 'summary' },
   'invoices.issue': { owner: 'tenant', accountant: 'tenant' },
   'payments.verify': { owner: 'tenant', accountant: 'tenant' },
-  'receipts.read': { owner: 'tenant', accountant: 'tenant' },
+  'receipts.read': { owner: 'tenant', accountant: 'tenant', manager: 'tenant' },
   'credits.prepare': { owner: 'tenant', accountant: 'tenant' },
   'credits.approve': { owner: 'tenant' },
   'reports.read': { owner: 'tenant', accountant: 'finance', manager: 'sales', team_leader: 'team', agent: 'own' },
