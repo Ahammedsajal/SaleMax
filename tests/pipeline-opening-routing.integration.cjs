@@ -1,0 +1,41 @@
+'use strict';
+const assert=require('node:assert/strict'),crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path'),mysql=require('mysql2/promise');
+const root=process.env.ROUTING_SOURCE_ROOT||path.resolve(__dirname,'..');
+const {splitSql}=require(path.join(root,'database/migration-runner'));
+const routing=require(path.join(root,'helper/pipeline/openingRouting')),pipeline=require(path.join(root,'helper/pipeline/leadPipeline'));
+async function main(){
+  if(process.env.ROUTING_TEST_DATABASE_IS_DISPOSABLE!=='true')throw Error('DISPOSABLE_DATABASE_REQUIRED');
+  const config={host:process.env.DBHOST||'127.0.0.1',port:Number(process.env.DBPORT||3306),user:process.env.DBUSER||'root',password:process.env.DBPASS,charset:'utf8mb4'},name='sx_opening_test_'+crypto.randomBytes(6).toString('hex');
+  const admin=await mysql.createConnection(config);let pool;
+  try{
+    await admin.query('CREATE DATABASE '+name+' CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci');pool=mysql.createPool({...config,database:name,connectionLimit:6});const db=await pool.getConnection();
+    try{
+      for(const migration of ['20260928_lead_pipeline.sql','20260929_meta_ads_opening_messages.sql','20261007_pipeline_contacts.sql','20261210_pipeline_opening_routing.sql'])for(const sql of splitSql(fs.readFileSync(path.join(root,'database/migrations',migration),'utf8')))await db.query(sql);
+      for(const sql of ["CREATE TABLE phonebook(id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999) COLLATE utf8mb4_unicode_ci,name VARCHAR(255))","CREATE TABLE agents(id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(191) COLLATE utf8mb4_unicode_ci,owner_uid VARCHAR(999) COLLATE utf8mb4_unicode_ci,name VARCHAR(255),role VARCHAR(32),is_active INT)","CREATE TABLE agent_chats(owner_uid VARCHAR(191),uid VARCHAR(191),chat_id VARCHAR(191),UNIQUE KEY uq_agent_chat(owner_uid,uid,chat_id))","CREATE TABLE beta_chats(uid VARCHAR(191),chat_id VARCHAR(191),assigned_agent LONGTEXT,UNIQUE KEY uq_chat(uid,chat_id))","CREATE TABLE contact(id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),phonebook_id INT,phonebook_name VARCHAR(255),name VARCHAR(255),mobile VARCHAR(64),var1 TEXT,var2 TEXT,var3 TEXT,var4 TEXT,var5 TEXT,createdAt DATETIME(3))"])await db.query(sql);
+      await db.query("INSERT INTO phonebook(uid,name) VALUES('owner-a','Nursing enquiries'),('owner-b','Other workspace')");await db.query("INSERT INTO agents(uid,owner_uid,name,role,is_active) VALUES('agent-a','owner-a','Agent A','agent',1),('agent-b','owner-b','Other Agent','agent',1),('agent-c','owner-a','Agent C','agent',1)");
+      const first=await routing.save(db,'owner-a',{name:'Nursing',keywords:['nursing'],agentId:1,phonebookId:1,position:20});
+      const winner=await routing.save(db,'owner-a',{name:'Priority nursing',keywords:['nursing'],agentId:3,phonebookId:1,position:5});
+      await assert.rejects(routing.save(db,'owner-a',{name:'Invalid',keywords:['x'],agentId:2,phonebookId:1}));await assert.rejects(routing.save(db,'owner-a',{name:'Invalid',keywords:['x'],agentId:1,phonebookId:2}));
+      await assert.rejects(routing.save(db,'owner-a',{name:'Nursing',keywords:['nursing'],agentId:1,phonebookId:1,expectedRevision:9},first.id));
+      assert.equal((await routing.list(db,'owner-b')).rules.length,0);
+      const event=(phone,id,body='I want nursing',origin='qr')=>({uid:'owner-a',origin,chatId:origin+'_'+phone,senderMobile:phone,senderName:'Synthetic Customer',providerMessageId:id,timestamp:Date.now(),message:origin==='meta'?{from:phone,id,text:{body}}:{key:{id},text:{body}},normalizedMessage:{route:'INCOMING'},pool});
+      const opening=event('97450000001','first');const result=await pipeline.captureInbound(opening);assert.equal(result.openingRouting.ruleId,winner.id);assert.equal(result.openingRouting.agentId,3);
+      await db.query('INSERT INTO beta_chats(uid,chat_id) VALUES(?,?)',['owner-a',opening.chatId]);await routing.reconcileConversation(pool,{uid:'owner-a',chatId:opening.chatId});const [[chat]]=await db.query('SELECT assigned_agent FROM beta_chats WHERE chat_id=?',[opening.chatId]);assert.equal(JSON.parse(chat.assigned_agent)[0].id,3);
+      assert.equal((await pipeline.captureInbound(opening)).duplicate,true);await pipeline.captureInbound({...opening,providerMessageId:'later'});
+      assert.equal((await routing.notifications(db,'owner-a',3)).items.length,1);assert.equal((await routing.notifications(db,'owner-b',3)).items.length,0);
+      const [[count]]=await db.query('SELECT COUNT(*) AS n FROM contact WHERE phonebook_id=1');assert.equal(Number(count.n),1);
+      await db.query('UPDATE pipeline_leads SET owner_agent_id=1 WHERE id=?',[result.leadId]);await db.query('UPDATE beta_chats SET assigned_agent=? WHERE chat_id=?',[JSON.stringify([{id:1}]),opening.chatId]);assert.equal((await routing.reconcileConversation(pool,{uid:'owner-a',chatId:opening.chatId})).routed,false);assert.equal((await routing.notifications(db,'owner-a',3)).items.length,0);
+      const noMatch=event('97450000002','hello','hello');await pipeline.captureInbound(noMatch);const later=await pipeline.captureInbound({...noMatch,message:{text:{body:'nursing'}},providerMessageId:'hello-later'});assert.equal(later.openingRouting,null);
+      assert.equal((await pipeline.captureInbound({...event('97450000003','out'),normalizedMessage:{route:'OUTGOING'}})).skipped,true);
+      await routing.save(db,'owner-a',{name:'Arabic nursing',keywords:['تمريض'],agentId:1,phonebookId:1,position:1});const meta=event('97450000004','meta-first','أريد دورة تمريض','meta');assert.equal((await pipeline.captureInbound(meta)).openingRouting.agentId,1);
+      const pending=(await routing.notifications(db,'owner-a',1)).items[0];await routing.acknowledge(db,'owner-b',1,pending.id);assert.equal((await routing.notifications(db,'owner-a',1)).items.length,1);await routing.acknowledge(db,'owner-a',1,pending.id);assert.equal((await routing.notifications(db,'owner-a',1)).items.length,0);
+      const concurrent=event('97450000005','concurrent');await Promise.all([pipeline.captureInbound(concurrent),pipeline.captureInbound({...concurrent,providerMessageId:'concurrent-two'})]);const [[once]]=await db.query('SELECT COUNT(*) AS n FROM pipeline_opening_routing_matches WHERE mobile=?',['+97450000005']);assert.equal(Number(once.n),1);
+      const waiting=(await routing.notifications(db,'owner-a',3)).items;assert.equal(waiting.length,1);await db.query("INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,actor_id,activity_type,summary) VALUES(?,?,'agent','3','agent_message_sent','Synthetic successful reply')",[crypto.createHash('sha256').update('owner-a').digest('hex'),waiting[0].leadId]);assert.equal((await routing.notifications(db,'owner-a',3)).items.length,0);
+      const broken={getConnection:async()=>{const connection=await pool.getConnection();return {query:(sql,args)=>sql.startsWith('INSERT IGNORE INTO agent_chats')?Promise.reject(Error('SYNTHETIC_FAILURE')):connection.query(sql,args),beginTransaction:()=>connection.beginTransaction(),commit:()=>connection.commit(),rollback:()=>connection.rollback(),release:()=>connection.release()};}};
+      await assert.rejects(pipeline.captureInbound({...event('97450000006','rollback'),pool:broken}),/SYNTHETIC_FAILURE/);const [[rolledBack]]=await db.query('SELECT COUNT(*) AS n FROM pipeline_leads WHERE mobile=?',['+97450000006']);assert.equal(Number(rolledBack.n),0);
+      await routing.remove(db,'owner-a',winner.id,1);assert.equal((await routing.list(db,'owner-a')).rules.some(x=>x.id===winner.id),false);
+      console.log(JSON.stringify({openingRoutingIntegration:'PASS',qr:true,meta:true,arabic:true,phonebookDeduplication:true,priority:true,duplicateAndConcurrentMessages:true,laterMessageIgnored:true,manualTransferPreserved:true,notificationsAndTenantIsolation:true,staleRuleDenied:true,transactionRollback:true}));
+    }finally{db.release();}
+  }finally{if(pool)await pool.end();if(/^sx_opening_test_[a-f0-9]{12}$/.test(name))await admin.query('DROP DATABASE IF EXISTS '+name);await admin.end();}
+}
+main().catch(error=>{console.error(error.code||error.message);process.exitCode=1;});

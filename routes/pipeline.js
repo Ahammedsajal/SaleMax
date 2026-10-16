@@ -98,6 +98,16 @@ async function pipelineAuth(req, res, next) {
 }
 
 router.use(pipelineAuth);
+const openingRouting=require('../helper/pipeline/openingRouting');
+const openingPool=require('../database/config').promise();
+async function openingDb(work){const db=await openingPool.getConnection();try{return await work(db);}finally{db.release();}}
+const openingAdmin=(req,res,next)=>req.pipelineActor.role==='owner'?next():res.status(403).json({success:false,message:'Only a workspace admin can configure keyword routing.'});
+router.get('/opening-routing',openingAdmin,async(req,res)=>{try{res.setHeader('Cache-Control','no-store');res.json({success:true,data:await openingDb(db=>openingRouting.list(db,req.pipelineActor.uid))});}catch(error){fail(res,error);}});
+router.post('/opening-routing',openingAdmin,async(req,res)=>{try{res.status(201).json({success:true,data:await openingDb(db=>openingRouting.save(db,req.pipelineActor.uid,req.body))});}catch(error){fail(res,error);}});
+router.put('/opening-routing/:id',openingAdmin,async(req,res)=>{try{res.json({success:true,data:await openingDb(db=>openingRouting.save(db,req.pipelineActor.uid,req.body,req.params.id))});}catch(error){fail(res,error);}});
+router.delete('/opening-routing/:id',openingAdmin,async(req,res)=>{try{res.json({success:true,data:await openingDb(db=>openingRouting.remove(db,req.pipelineActor.uid,req.params.id,req.body?.expectedRevision))});}catch(error){fail(res,error);}});
+router.get('/routing-notifications',async(req,res)=>{try{res.setHeader('Cache-Control','no-store');res.json({success:true,data:req.pipelineActor.role==='agent'?await openingDb(db=>openingRouting.notifications(db,req.pipelineActor.uid,req.pipelineActor.agentId)):{items:[]}});}catch(error){fail(res,error);}});
+router.post('/routing-notifications/:id/read',async(req,res)=>{if(req.pipelineActor.role!=='agent')return res.status(403).json({success:false});try{res.json({success:true,data:await openingDb(db=>openingRouting.acknowledge(db,req.pipelineActor.uid,req.pipelineActor.agentId,req.params.id))});}catch(error){fail(res,error);}});
 router.use('/tasks',createTaskRouter({pool:require('../database/config.js').promise(),contextFor:(req,permission)=>taskContext(req.pipelineActor,permission)}));
 
 router.get('/training-forms', async (req,res) => {

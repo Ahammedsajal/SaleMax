@@ -238,7 +238,7 @@ async function ensurePhonebook(connection, uidHash, uid, kind) {
   return phonebookId;
 }
 
-async function ensurePhonebookContact(connection, { uidHash, uid, kind, phonebookId, phone, name, receivedAt }) {
+async function ensurePhonebookContact(connection, { uidHash, uid, kind, phonebookId, phone, name, receivedAt, bookName: selectedBookName }) {
   const identityKey = sha(phone);
   await connection.query(
     `INSERT IGNORE INTO pipeline_phonebook_memberships
@@ -255,15 +255,15 @@ async function ensurePhonebookContact(connection, { uidHash, uid, kind, phoneboo
 
   const [existing] = await connection.query(
     `SELECT id FROM contact
-     WHERE uid = ? AND phonebook_id = ? AND mobile = ?
+     WHERE uid = ? AND phonebook_id = ? AND mobile IN (?, ?)
      ORDER BY id ASC LIMIT 1 FOR UPDATE`,
-    [uid, phonebookId, phone],
+    [uid, phonebookId, phone, phone.replace(/^\+/, '')],
   );
   let contactId;
   if (existing.length) {
     contactId = Number(existing[0].id);
   } else {
-    const bookName = kind === "meta_ads" ? "Facebook Ads WhatsApp Leads" : "WhatsApp Leads";
+    const bookName = selectedBookName || (kind === "meta_ads" ? "Facebook Ads WhatsApp Leads" : "WhatsApp Leads");
     const safeName = text(name, 255) || phone;
     const [inserted] = await connection.query(
       `INSERT INTO contact
@@ -490,11 +490,12 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
       await ensurePhonebookContact(connection, { uidHash, uid: uidValue, kind: "meta_ads", phonebookId: adsBook, phone, name, receivedAt: now });
     }
 
+    const openingRouting=await require('./openingRouting').applyOpening(connection,{uid:uidValue,lead,identityKey,chatId:safeChatId,origin,phone,name,message:messageBody,isOpening:Boolean(settings.enabled)&&(created||!lead.first_inbound_at),ensureContact:ensurePhonebookContact,now});
     await connection.query(
       "UPDATE pipeline_events SET lead_id = ?, status = 'processed', processed_at = CURRENT_TIMESTAMP(3) WHERE uid_hash = ? AND event_key = ?",
       [lead.id, uidHash, eventKey],
     );
-    return { leadId: lead.id, created, duplicate: false, metaAdsAttributed: adReferral, metaAdsMessageMatched: messageMatchedAd, metaAdsClassified: isMetaAds, stageKey: lead.stage_key };
+    return { leadId: lead.id, created, duplicate: false, metaAdsAttributed: adReferral, metaAdsMessageMatched: messageMatchedAd, metaAdsClassified: isMetaAds, stageKey: lead.stage_key,openingRouting };
   },sourcePool);
 }
 
@@ -1243,6 +1244,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
 }
 
 module.exports = {
+  captureInbound,
   captureBotInbound: input => captureInbound({ ...input, botCapture: true }),
   DEFAULT_STAGES,
   normalizePhone,
