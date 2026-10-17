@@ -1,0 +1,17 @@
+# Invoice and customer 360 continuation - 17 October 2026
+
+The full seven-part user objective remains active. The preceding goal turn delivered and verified the Finance Reports release; this turn is making a separate invoice/customer workflow increment. Completion of this increment does not complete the goal.
+
+| Requirement | Authoritative current evidence | State / next proof |
+| --- | --- | --- |
+| 1. Modern invoice creation | Maintained invoice-builder.js plus invoice-composer.css; rendered EN/AR desktop/phone/260px, workspace-bound modal, summary, compact customer controls, independent discounts | Locally verified; publish and verify served assets |
+| 2. Searchable saved leads with editable autofill | New invoice-customers.js resolves the verified tenant owner, loads 40 recent records, searches name/mobile/email and application contact details, deduplicates contacts already attached to leads | Unit + disposable MariaDB + read-only current production data queries pass; authenticated endpoint and source-linked creation acceptance still required after release |
+| 3. Automatic invoice WhatsApp/email plus 7/3/1/due reminders | Existing generated invoice creation does not enqueue document delivery. Existing document delivery targets posted invoices and Meta templates. Reminder DEFAULT_OFFSETS is [-3,0,3,7] | Incomplete. Extend generated-document delivery with a durable per-channel job, safe access links, channel readiness and exact requested cadence |
+| 4. Daily overdue until receipt | Existing reminders are fixed offsets, require posted invoice preferences and do not repeat daily; posted allocations and credits already determine current unpaid amounts | Incomplete. Add date-specific deduplication for every overdue day, actual posted receipt/allocation checks, dispatch-time suppression after payment, edit/replacement/cancel/dispute handling |
+| 5. Editable default messages on same page | Existing reminder text is hard-coded; current settings only enabled/offsets/revision | Incomplete. Add versioned tenant message settings and templates, same-page editor, preview and validation, and use them in real delivery |
+| 6. Customer 360 | Existing student profile already contains one formal invoice, installments/payments/receipts, applications, attendance and enrollment timeline. Generated invoices and lead profile links are incomplete | Incomplete. Build shared tenant/customer aggregation, then connect generated/formal invoices and delivery/reminder history in both profiles |
+| 7. Improved student/lead UI and AI insights | Existing maintained training-students.js and pipeline.js; live copies have newer UI additions that must be preserved. No unified customer AI summary was verified | Incomplete. Extend existing pages with verified activity/financial insights and graphs; integrate configured AI on demand with provenance and honest unavailable states |
+
+Preserve existing sale approval/conversion, separate course records, discounts, receipts and tenant/role boundaries. Never treat generated PDF documents as already posted enrollments. Keep live-derived source baselines and customer/provider evidence outside Git. Do not create financial/customer records or send unapproved test messages in production to manufacture end-to-end acceptance.
+
+Evidence directory: A:/Salemax - Training center/verification/invoice-customer360-20261017. Current live release when inspected: /opt/salemax/releases/opening-keyword-routing-494570a-20261016.
