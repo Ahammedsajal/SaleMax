@@ -75,9 +75,9 @@ async function create(db,args){
  await db.query('UPDATE sx_training_form_submissions SET submission_data=? WHERE tenant_id=? AND id=?',[JSON.stringify(data),args.tenantId,args.submissionId]);
  return result;
 }
-async function queueInvoice(db,tenantId,saleReviewId){
+async function queueInvoice(db,tenantId,saleReviewId,{skipCandidate=false}={}){
  const [[registration]]=await db.query('SELECT id FROM sx_training_registrations WHERE tenant_id=? AND sale_review_id=?',[tenantId,saleReviewId]);if(!registration)return;
  const [recipients]=await db.query('SELECT DISTINCT recipient_kind,recipient_id,channel FROM sx_training_registration_deliveries WHERE tenant_id=? AND registration_id=?',[tenantId,registration.id]);
- for(const r of recipients)await db.query("INSERT IGNORE INTO sx_training_registration_deliveries(id,tenant_id,registration_id,recipient_kind,recipient_id,channel,event_type) VALUES (?,?,?,?,?,?,'invoice_issued')",[crypto.randomUUID(),tenantId,registration.id,r.recipient_kind,r.recipient_id,r.channel]);
+ for(const r of recipients){if(skipCandidate&&r.recipient_kind==='candidate')continue;await db.query("INSERT IGNORE INTO sx_training_registration_deliveries(id,tenant_id,registration_id,recipient_kind,recipient_id,channel,event_type) VALUES (?,?,?,?,?,?,'invoice_issued')",[crypto.randomUUID(),tenantId,registration.id,r.recipient_kind,r.recipient_id,r.channel]);}
 }
 module.exports={profileKeys,signature,options,staffOptions,create,queueInvoice};

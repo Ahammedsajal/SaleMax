@@ -8,8 +8,8 @@ function email(value){const raw=String(value||'').trim().toLowerCase();return ra
 function active(document){return Boolean(document&&!document.deleted&&!document.replaced&&['generated','issued'].includes(document.status)&&document.id&&Number.isSafeInteger(document.revision)&&document.revision>=1);}
 function balance(term,allocations=[],credits=[]){
   const amount=minor(term.amountMinor);let paid=0n,credited=0n;
-  for(const item of allocations){if(item.installmentId!==term.id||item.status!=='posted'||!item.receiptId)continue;const gross=minor(item.amountMinor),reversed=minor(item.reversedMinor||0);if(reversed>gross)fail('INVOICE_COMMUNICATION_BALANCE_REQUIRES_REVIEW');paid+=gross-reversed;}
-  for(const item of credits)if(item.installmentId===term.id&&item.status==='posted')credited+=minor(item.amountMinor);
+  for(const item of allocations){if(!term.id||item.installmentId!==term.id||item.status!=='posted'||!item.receiptId)continue;const gross=minor(item.amountMinor),reversed=minor(item.reversedMinor||0);if(reversed>gross)fail('INVOICE_COMMUNICATION_BALANCE_REQUIRES_REVIEW');paid+=gross-reversed;}
+  for(const item of credits)if(term.id&&item.installmentId===term.id&&item.status==='posted')credited+=minor(item.amountMinor);
   if(paid+credited>amount)fail('INVOICE_COMMUNICATION_BALANCE_REQUIRES_REVIEW');
   return {amountMinor:String(amount),paidMinor:String(paid),creditedMinor:String(credited),openMinor:String(amount-paid-credited)};
 }
@@ -28,8 +28,8 @@ function reminders(document,settings,today,{allocations=[],credits=[]}={}){
   for(const term of document.installments||[]){if(term.cancelled)continue;date(term.dueDate);const days=Math.round((Date.parse(today+'T00:00:00Z')-Date.parse(term.dueDate+'T00:00:00Z'))/86400000);
     if(!OFFSETS.includes(days)&&!(days>0&&settings.dailyOverdue))continue;
     const amounts=balance(term,allocations,credits);if(amounts.openMinor==='0')continue;
-    const delivery=channels(document,settings,'reminder'),kind=days<0?'upcoming':days===0?'due':'overdue',termKey=term.id||`sequence-${term.sequence}`;
-    if(!termKey||!term.id&&(!Number.isSafeInteger(term.sequence)||term.sequence<1))fail('INVALID_INVOICE_COMMUNICATION_INSTALLMENT');
+    const delivery=channels(document,settings,'reminder'),kind=days<0?'upcoming':days===0?'due':'overdue',termKey=`sequence-${term.sequence}`;
+    if(!Number.isSafeInteger(term.sequence)||term.sequence<1)fail('INVALID_INVOICE_COMMUNICATION_INSTALLMENT');
     for(const channel of delivery.jobs)jobs.push({...channel,kind,documentId:document.id,documentRevision:document.revision,installmentId:term.id||null,sequence:term.sequence,dueDate:term.dueDate,scheduledDate:today,daysFromDue:days,amountMinor:amounts.openMinor,idempotencyKey:`reminder:${document.id}:v${document.revision}:${termKey}:${today}:${channel.channel}`});
     skipped.push(...delivery.skipped.map(item=>({...item,sequence:term.sequence})));
   }

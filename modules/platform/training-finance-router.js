@@ -72,6 +72,19 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.delete('/accountant/generator/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.remove)(req.businessContext,{id:req.params.id,input:req.body})})));
   for(const [prefix,guards,contextKey] of [['',[userGuard,ownerContext],'financeContext'],['/accountant',[canonicalGuard],'businessContext']]){
     const communications=require('./invoice-communications-settings');
+    router.get(prefix+'/generator/invoices/:id/messages',...guards,wrap(async(req,res)=>{
+      const db=await pool.getConnection();try{
+        await invoiceGenerator.detail(db,req[contextKey],req.params.id);
+        res.json({success:true,data:await require('./invoice-customer-jobs').info(db,req[contextKey].tenant.id,req.params.id)});
+      }finally{db.release();}
+    }));
+    router.get(prefix+'/invoices/:id/messages',...guards,wrap(async(req,res)=>{
+      const db=await pool.getConnection();try{
+        await invoices.detail(db,req[contextKey],req.params.id);
+        const jobs=require('./invoice-customer-jobs'),documentId=await jobs.invoiceDocumentId(db,req[contextKey].tenant.id,req.params.id);
+        res.json({success:true,data:await jobs.info(db,req[contextKey].tenant.id,documentId)});
+      }finally{db.release();}
+    }));
     router.get(prefix+'/communications/settings',...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(communications.get)(req[contextKey])})));
     router.get(prefix+'/communications/settings/defaults',...guards,wrap(async(req,res)=>{communications.authorize(req[contextKey]);res.json({success:true,data:communications.defaults()});}));
     router.put(prefix+'/communications/settings',...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(communications.save)(req[contextKey],req.body)})));

@@ -18,6 +18,13 @@ module.exports=async(db,ctx,invoiceId)=>{
   const today=reminders.todayQatar(),[year,month,day]=today.split('-').map(Number),tomorrow=new Date(Date.UTC(year,month-1,day+1)).toISOString().slice(0,10);
   await db.query('UPDATE sx_training_installments SET due_date=? WHERE tenant_id=? AND id=?',[tomorrow,ctx.tenant.id,installment.id]);
   await reminders.saveSettings(db,ctx,{enabled:true,offsetsDays:[-1],expectedRevision:0});
+  const [[tracked]]=await db.query('SELECT document_id FROM sx_invoice_communication_documents WHERE tenant_id=? AND formal_invoice_id=?',[ctx.tenant.id,invoiceId]);assert.ok(tracked,'new sale conversion is enrolled in customer communications');
+  const [[queued]]=await db.query('SELECT COUNT(*) AS n FROM sx_invoice_customer_jobs WHERE tenant_id=? AND document_id=?',[ctx.tenant.id,tracked.document_id]);assert.equal(Number(queued.n),2,'sale conversion transaction queues one invoice message per channel');
+  assert.equal((await reminders.scheduleDue(db,ctx,{now:new Date()})).scheduled,0,'legacy scheduler never duplicates the new invoice scheduler');
+  // The rest of this compatibility fixture represents an invoice predating the new tracker.
+  // Remove only synthetic messaging rows; retain the actual posted invoice and its balances.
+  await db.query('DELETE FROM sx_invoice_customer_jobs WHERE tenant_id=? AND document_id=?',[ctx.tenant.id,tracked.document_id]);
+  await db.query('DELETE FROM sx_invoice_communication_documents WHERE tenant_id=? AND document_id=?',[ctx.tenant.id,tracked.document_id]);
   const scheduled=await reminders.scheduleDue(db,ctx,{now:new Date()});assert.equal(scheduled.scheduled,1);
   const claimed=await outbox.claim(db,ctx,{workerId:'reminder-db-integration',limit:5,leaseSeconds:60,eventTypes:['finance.installment.reminder']});assert.equal(claimed.items.length,1);
   const sentMessages=[];const transport={async sendMail(message){sentMessages.push(message);return {accepted:[message.to]};}};

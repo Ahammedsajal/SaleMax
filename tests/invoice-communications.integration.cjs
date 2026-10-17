@@ -9,6 +9,8 @@ async function main(){
     await pool.query('CREATE TABLE sx_tenants(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,status VARCHAR(20))');
     await pool.query('CREATE TABLE sx_identities(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY)');
     await pool.query('CREATE TABLE sx_audit_events(id VARCHAR(36),tenant_id VARCHAR(36),actor_identity_id VARCHAR(36),actor_kind VARCHAR(20),action VARCHAR(100),resource_type VARCHAR(100),resource_id VARCHAR(36),changes JSON,correlation_id VARCHAR(36))');
+    // Empty tracking dependency; delivery integration applies and tests its full FK schema.
+    await pool.query('CREATE TABLE sx_invoice_communication_documents(tenant_id CHAR(36),next_scan_at DATETIME(3))');
     const tenant=crypto.randomUUID(),identity=crypto.randomUUID();await pool.query("INSERT INTO sx_tenants VALUES(?,'active')",[tenant]);await pool.query('INSERT INTO sx_identities VALUES(?)',[identity]);
     const migration=discover(path.join(__dirname,'../database/migrations')).filter(x=>x.file==='20261205_invoice_customer_communications.sql');assert.equal(migration.length,1);let db=await pool.getConnection();try{await applyMigrations(db,migration);}finally{db.release();}
     const ctx={audience:'tenant',identity:{id:identity},tenant:{id:tenant,categoryKey:'training_center',categoryVersion:1,status:'active'},membership:{tenantId:tenant,role:'owner',status:'active'},category:{key:'training_center',version:1,capabilities:['finance.invoices']},subscription:{status:'active',capabilities:['finance.invoices']}};

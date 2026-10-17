@@ -46,8 +46,9 @@ async function main() {
       for(const row of tables)await connection.query(`DROP TABLE IF EXISTS \`${String(row.TABLE_NAME).replace(/`/g,'``')}\``);
       await connection.query('SET FOREIGN_KEY_CHECKS=1');
     }
-    await connection.query('CREATE TABLE instance (id INT PRIMARY KEY, status VARCHAR(20))');
-    await connection.query("INSERT INTO instance VALUES (1, 'INACTIVE')");
+    await connection.query('CREATE TABLE instance (id INT PRIMARY KEY, status VARCHAR(20),uid VARCHAR(999),uniqueId VARCHAR(160),number VARCHAR(80))');
+    await connection.query("INSERT INTO instance(id,status) VALUES (1, 'INACTIVE')");
+    await connection.query('CREATE TABLE beta_chats(uid VARCHAR(999),chat_id VARCHAR(999),origin VARCHAR(20),origin_instance_id JSON,KEY migration_chat_lookup(uid(191),chat_id(191))) ENGINE=InnoDB');
     const migrations = discover(path.join(__dirname, '../database/migrations'));
     const result = await applyMigrations(connection, migrations);
     assert.equal(result.applied.length, migrations.length);
@@ -95,6 +96,7 @@ async function main() {
       return;
     }
     const businessContractEvidence=await require('./business-contract-integration.cjs')(connection,other,{t2,i1,m2},pool);
+    if(process.env.SALEMAX_TEST_FINANCE_ONLY==='true'){console.log(JSON.stringify({realMariaDb:true,forwardMigrations:migrations.length,scope:'finance-and-business-contract',...businessContractEvidence,customerDataTouched:false,externalWrites:false}));return;}
     const taskEvidence=await require('./task-integration.cjs')(connection,other,{tenantId:t1,identityId:i1,pool});
     const staffAccessEvidence=await require('./staff-access-integration.cjs')(connection,{ownerIdentityId:i1});
     const businessProvisioningEvidence=await require('./business-provisioning-integration.cjs')(connection,other,{i1},pool);
