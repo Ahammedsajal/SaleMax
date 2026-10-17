@@ -109,6 +109,8 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.post('/accountant/payments/:id/reject',canonicalGuard,wrap(async(req,res)=>{
     const data=await withConnection(payments.reject)(req.businessContext,req.params.id,{reason:req.body?.reason});res.json({success:true,data});
   }));
+  router.get('/receipts',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(payments.listReceipts)(req.financeContext,req.query)})));
+  router.get('/accountant/receipts',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(payments.listReceipts)(req.businessContext,req.query)})));
   router.get('/receipts/:id',userGuard,ownerContext,wrap(async(req,res)=>{
     const data=await withConnection(payments.receipt)(req.financeContext,req.params.id);res.json({success:true,data});
   }));
