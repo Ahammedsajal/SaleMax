@@ -11,6 +11,7 @@ const interval=Number(process.env.SALEMAX_REPORT_WORKER_INTERVAL_MS||30000);
 if(!Number.isSafeInteger(interval)||interval<5000||interval>300000)throw new Error('INVALID_REPORT_WORKER_INTERVAL');
 let stopping=false,timer=null;
 async function tick(){
+  if(process.env.SALEMAX_INVOICE_CUSTOMER_DELIVERY_ENABLED==='true')try{const invoiceDelivery=await require('../modules/platform/invoice-customer-worker').tick(pool,{workerId:`${workerId.slice(0,83)}-invoice`,limit:10});if(invoiceDelivery.processed||invoiceDelivery.scanFailed)console.log(JSON.stringify({invoiceDelivery}));}catch(error){console.error(JSON.stringify({invoiceDeliveryError:error.code||'INVOICE_CUSTOMER_WORKER_FAILED'}));}
   const result=await runner.tick(pool,{workerId,limit:10});
   const registrationDelivery=await require('../modules/platform/training-registration-delivery').tick(pool);
   if(registrationDelivery.processed)console.log(JSON.stringify({registrationDelivery}));

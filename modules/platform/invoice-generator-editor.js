@@ -27,6 +27,7 @@ async function mutate(db,ctx,{uid,id,input,action}){
     }else result={id,invoiceNumber:prior.invoiceNumber,revision,deleted:true};
     await db.query('INSERT INTO sx_invoice_generator_document_state(tenant_id,document_id,revision,deleted_at,updated_by_identity_id) VALUES(?,?,?,IF(?,UTC_TIMESTAMP(3),NULL),?) ON DUPLICATE KEY UPDATE revision=VALUES(revision),deleted_at=VALUES(deleted_at),updated_by_identity_id=VALUES(updated_by_identity_id),updated_at=UTC_TIMESTAMP(3)',[ctx.tenant.id,id,revision,action==='deleted',ctx.identity.id]);
     await db.query('INSERT INTO sx_invoice_generator_document_history(id,tenant_id,document_id,request_key,payload_hash,prior_revision,action,prior_snapshot,result_snapshot,actor_identity_id) VALUES(?,?,?,?,?,?,?,?,?,?)',[crypto.randomUUID(),ctx.tenant.id,id,input.requestKey,payloadHash,document.revision,action,JSON.stringify(prior),JSON.stringify(result),ctx.identity.id]);
+    await require('./invoice-customer-jobs').changed(db,ctx,result);
     await db.commit();return result;
   }catch(error){await db.rollback();throw error;}
 }
