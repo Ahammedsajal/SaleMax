@@ -29,6 +29,16 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   const parsePaymentProof=(req,res,next)=>{if(!req.is('multipart/form-data'))return res.status(400).json({success:false,code:'PAYMENT_PROOF_FILE_REQUIRED'});fileUpload({useTempFiles:true,tempFileDir:require('node:os').tmpdir(),limits:{fileSize:paymentProofs.LIMIT,files:1,fields:0},abortOnLimit:false})(req,res,error=>{if(error)return res.status(error.status===413||error.code==='LIMIT_FILE_SIZE'?413:400).json({success:false,code:error.code==='LIMIT_FILE_SIZE'?'PAYMENT_PROOF_TOO_LARGE':'INVALID_PAYMENT_PROOF'});next();});};
   const openPaymentProof=contextName=>wrap(async(req,res,next)=>{const proof=await withConnection(paymentProofs.get)(req[contextName],req.params.id);res.setHeader('Content-Type',proof.mimeType);res.setHeader('Content-Length',String(proof.bytes));res.setHeader('Content-Disposition','inline');res.setHeader('X-Content-Type-Options','nosniff');res.sendFile(proof.filePath,{dotfiles:'deny'},error=>{if(error&&!res.headersSent)next(error);});});
   const ownerContext=(req,res,next)=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.financeContext=ctx;next();}).catch(next);
+  const invoiceDetailOrGenerated=withConnection(async(db,ctx,id)=>{
+    try{return await invoices.detail(db,ctx,id);}
+    catch(error){
+      // Older cached Finance scripts opened generated PDF IDs through this
+      // formal-invoice route. Keep that read path compatible, tenant scoped,
+      // and read-only while the browser updates its cached asset.
+      if(error.code!=='INVOICE_NOT_FOUND')throw error;
+      return require('./generated-invoice-posting').paymentContext(db,ctx,id);
+    }
+  });
   const tenantLegacyOwnerUid=async tenantId=>(await require('./invoice-customers').owner(pool,tenantId)).uid;
   router.get('/current',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.get)(req.financeContext)})));
   router.get('/history',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.history)(req.financeContext)})));
@@ -43,7 +53,7 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.get('/sales/approved-for-invoice',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await saleReviews.listApprovedForInvoice(pool,req.financeContext,{uid:req.decode.uid})})));
   router.get('/accountant/sales/approved-for-invoice',canonicalGuard,wrap(async(req,res)=>{const uid=await tenantLegacyOwnerUid(req.businessContext.tenant.id);res.json({success:true,data:await saleReviews.listApprovedForInvoice(pool,req.businessContext,{uid})});}));
   router.post('/accountant/sales/:leadId/reviews/:reviewId/convert',canonicalGuard,wrap(async(req,res)=>{const uid=await tenantLegacyOwnerUid(req.businessContext.tenant.id),db=await pool.getConnection();try{const conversion=require('./training-sale-conversion'),data=await conversion.convert(db,req.businessContext,{uid,leadId:req.params.leadId,saleReviewId:req.params.reviewId,requestKey:req.body?.requestKey,actorRole:req.businessContext.membership.role,actorType:'identity',actorId:String(req.businessContext.identity.id)});res.status(data.repeated?200:201).json({success:true,data});}finally{db.release();}}));
-  router.get('/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.detail)(req.financeContext,req.params.id)})));
+  router.get('/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await invoiceDetailOrGenerated(req.financeContext,req.params.id)})));
   router.get('/generator/settings',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.getSettings)(req.financeContext)})));
   router.put('/generator/settings',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.saveSettings)(req.financeContext,req.body)})));
   router.get('/generator/courses',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.courses)(req.financeContext)})));
@@ -60,7 +70,7 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.delete('/generator/invoices/:id',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.remove)(req.financeContext,{id:req.params.id,input:req.body})})));
   router.get('/accountant/invoices',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.list)(req.businessContext,req.query)})));
   router.get('/accountant/invoices/summary',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.summary)(req.businessContext,req.query)})));
-  router.get('/accountant/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoices.detail)(req.businessContext,req.params.id)})));
+  router.get('/accountant/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await invoiceDetailOrGenerated(req.businessContext,req.params.id)})));
   const canonicalGeneratorUid=async req=>tenantLegacyOwnerUid(req.businessContext.tenant.id);
   router.get('/accountant/generator/settings',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.getSettings)(req.businessContext)})));
   router.put('/accountant/generator/settings',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceGenerator.saveSettings)(req.businessContext,req.body)})));
