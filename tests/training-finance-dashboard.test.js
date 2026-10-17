@@ -17,10 +17,10 @@ test('QR report transport is explicit and disabled in local-only mode',()=>{
   assert.equal(qr.config({...env,SALEMAX_REPORT_QR_INTERNAL_ORIGIN:'http://app:3010'}).url,'http://app:3010/api/internal/qr/send-text');
   assert.throws(()=>qr.config({...env,SALEMAX_REPORT_QR_INTERNAL_ORIGIN:'https://external.example'}));
 });
-test('manager finance access remains read-only',()=>{
+test('manager finance access supports direct invoice and receipt issuance',()=>{
   const ctx={audience:'tenant',identity:{id:'identity'},tenant:{id:'tenant',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{tenantId:'tenant',role:'manager',status:'active'},category:{key:'training_center',version:1,capabilities:['finance.invoices']},subscription:{status:'active',capabilities:['finance.invoices']}};
   const generator=require('../modules/platform/invoice-generator');
-  assert.doesNotThrow(()=>generator.requireRole(ctx));assert.throws(()=>generator.requireRole(ctx,true));
+  assert.doesNotThrow(()=>generator.requireRole(ctx));assert.doesNotThrow(()=>generator.requireRole(ctx,true));
 });
 test('QR report verifies tenant sender and recipient and requires provider message id',async()=>{
   let calls=0;const db={async query(sql){return sql.includes('sx_legacy_ownership')?[[owner]]:[[{id:'verified-recipient'}]];}};

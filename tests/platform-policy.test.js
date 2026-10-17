@@ -47,9 +47,9 @@ test('SaleMaX Sales accountants are finance-only while Training Center billing-l
   assert.equal(navigationFor(c).some(item=>['leads','contacts'].includes(item.key)),false);
   assert.equal(decision(context('accountant'),{capability:'crm.leads',permission:'leads.read',resource:{tenantId:'tenant-a',billingLinked:true}}).scope,'billing');
 });
-test('manager delegations cannot become financial or owner authority',()=>{
+test('manager receipt authority does not grant credit approval or owner authority',()=>{
   const c=context('manager'); c.membership.delegatedPermissions=['payments.verify','credits.approve','channels.configure'];
-  assert.equal(decision(c,{capability:'finance.payments',permission:'payments.verify'}).allowed,false);
+  assert.equal(decision(c,{capability:'finance.payments',permission:'payments.verify'}).allowed,true);
   assert.equal(decision(c,{capability:'finance.credits',permission:'credits.approve'}).allowed,false);
   assert.equal(decision(c,{capability:'messaging.meta',permission:'channels.configure'}).allowed,true);
 });

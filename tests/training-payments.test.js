@@ -10,9 +10,10 @@ test('manual payment capture validates QAR amounts, method, timestamp and bounde
   const normalized=payments.normalizeRecord(id,valid);assert.equal(normalized.amountMinor,10000);assert.equal(normalized.reference,'BANK-001');assert.equal(normalized.receivedAt.toISOString(),'2026-10-02T07:00:00.000Z');
   for(const input of [{...valid,amountMinor:0},{...valid,amountMinor:1.1},{...valid,method:'crypto'},{...valid,receivedAt:'2026-02-30T10:00:00Z'},{...valid,reference:'x'.repeat(201)}])assert.throws(()=>payments.normalizeRecord(id,input));
 });
-test('payment review role gate admits owners and accountants while rejecting other roles',()=>{
+test('payment review role gate admits authorized Finance staff and rejects agents',()=>{
   assert.doesNotThrow(()=>payments.requireRole(context('owner'),'payments.verify',['owner','accountant']));
   assert.doesNotThrow(()=>payments.requireRole(context('accountant'),'payments.verify',['owner','accountant']));
+  assert.doesNotThrow(()=>payments.requireRole(context('manager'),'payments.verify',['owner','accountant','manager']));
   assert.throws(()=>payments.requireRole(context('agent'),'payments.verify',['owner','accountant']),{code:'PERMISSION_DENIED'});
 });
 test('owner or accountant can verify payments without a separate finance-policy approval threshold',()=>{
@@ -21,6 +22,8 @@ test('owner or accountant can verify payments without a separate finance-policy 
   assert.equal(payments.approvalRule('owner',owner,payment,500000),true);
   assert.equal(payments.approvalRule('owner',owner,{...payment,amount_minor:500000},null),false);
   assert.equal(payments.approvalRule('accountant',recorder,{...payment,amount_minor:500000},null),false);
+  assert.equal(payments.approvalRule('manager',recorder,payment,null),false);
+  assert.throws(()=>payments.approvalRule('agent',recorder,payment,null),{code:'PERMISSION_DENIED'});
 });
 test('manual payments and receipts use the existing bilingual Finance screen and authenticated routes',()=>{
   const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');

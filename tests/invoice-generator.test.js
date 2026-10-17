@@ -21,9 +21,11 @@ function fakeDb(prior=null){
   },async beginTransaction(){transaction=true;calls.push({sql:'BEGIN'});},async commit(){calls.push({sql:'COMMIT'});},async rollback(){calls.push({sql:'ROLLBACK'});}};
 }
 
-test('invoice generation is available to tenant owners and rejects roles before database access',()=>{
+test('invoice generation admits authorized Finance staff and rejects agents before database access',()=>{
   assert.doesNotThrow(()=>generator.requireRole(context()));
-  assert.throws(()=>generator.requireRole(context('manager'),true),{code:'PERMISSION_DENIED'});
+  assert.doesNotThrow(()=>generator.requireRole(context('manager'),true));
+  assert.doesNotThrow(()=>generator.requireRole(context('accountant'),true));
+  assert.throws(()=>generator.requireRole(context('agent'),true),{code:'PERMISSION_DENIED'});
 });
 
 test('manual invoice creation stores a no-tax snapshot and advances a locked tenant sequence',async()=>{
