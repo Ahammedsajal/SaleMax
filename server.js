@@ -18,6 +18,10 @@ const { isLicenseActivated } = require("./middlewares/license.js");
 const receiptWorkerRuntime = require("./modules/platform/training-receipt-worker-runtime");
 const taskNotificationWorkerRuntime = require("./modules/platform/task-notification-worker-runtime");
 const asteriskAriEventsWorkerRuntime = require("./modules/platform/asterisk-ari-events-worker-runtime");
+const {
+  isMetaTemplateBuilderRequest,
+  injectMetaTemplateSamplesScript,
+} = require("./modules/web/meta-template-samples-shell");
 
 const app = express();
 let receiptWorkerProcess = null;
@@ -242,7 +246,16 @@ app.get("*", async (request, response, next) => {
 });
 
 app.get("*", function (request, response) {
-  response.sendFile(path.resolve(publicDir, "index.html"));
+  const indexPath = path.resolve(publicDir, "index.html");
+
+  if (!isMetaTemplateBuilderRequest(request)) {
+    return response.sendFile(indexPath);
+  }
+
+  fs.readFile(indexPath, "utf8", (error, html) => {
+    if (error) return response.sendFile(indexPath);
+    return response.type("html").send(injectMetaTemplateSamplesScript(html));
+  });
 });
 
 // ─── Server ───────────────────────────────────────────────────────────────────
