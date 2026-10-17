@@ -15,6 +15,18 @@ function middleware({pool,resolver}={}){
     try{
       const user=req.decode?.userData;
       if(!user)return res.status(401).json({success:false,code:'AUTH_REQUIRED'});
+      if(req.method==='GET'&&['/get_by_uid','/get_uid_contacts'].includes(req.path)){
+        const db=await pool.getConnection();
+        try{
+          const context=await require('./phonebook-workspace').context(db,user);
+          if(!context.manage){
+            req.phonebookReadContext=context;
+            req.decode.actorUid=user.uid;
+            req.decode.uid=context.uid;
+            return next();
+          }
+        }finally{db.release();}
+      }
       const ownerUid=await resolveOwnerUid(user,{pool,resolver});
       if(!ownerUid)return res.status(403).json({success:false,code:'BUSINESS_LINK_INVALID'});
       // The existing Phonebook and plan-limit services key records by this UID.

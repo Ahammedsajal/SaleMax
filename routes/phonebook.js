@@ -59,6 +59,11 @@ router.post(
 // get by uid
 router.get("/get_by_uid", validateUser, phonebookOwnerScope, async (req, res) => {
   try {
+    if(req.phonebookReadContext){
+      const db=await require('../database/config').promise().getConnection();
+      try{return res.json({data:await require('../modules/platform/phonebook-workspace').books(db,req.phonebookReadContext),success:true});}
+      finally{db.release();}
+    }
     let data = await query(`SELECT * FROM phonebook WHERE uid = ?`, [
       req.decode.uid,
     ]);
@@ -266,6 +271,11 @@ router.post(
 // get contacts using uid
 router.get("/get_uid_contacts", validateUser, phonebookOwnerScope, async (req, res) => {
   try {
+    if(req.phonebookReadContext){
+      const scope=require('../modules/platform/phonebook-workspace').visibility(req.phonebookReadContext);
+      const data=await query(`SELECT c.* FROM contact c WHERE ${scope.sql}`,scope.params);
+      return res.json({data,success:true});
+    }
     const data = await query(`SELECT * FROM contact WHERE uid = ?`, [
       req.decode.uid,
     ]);
