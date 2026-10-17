@@ -164,12 +164,12 @@
     panel.id = panelId;
     panel.setAttribute("aria-labelledby", `${panelId}-title`);
     Object.assign(panel.style, {
-      margin: "0 24px 24px", padding: "20px", border: "1px solid #e2e6ec", borderRadius: "10px",
+      margin: "16px 24px 24px", padding: "20px", border: "1px solid #e2e6ec", borderRadius: "10px",
       background: "#f8fafc", color: "#263238", font: "14px/1.5 Roboto, Arial, sans-serif",
       boxSizing: "border-box", minWidth: "0", textAlign: "start",
     });
     const style = document.createElement("style");
-    style.textContent = `[data-sx-variable-summary=true]{display:none!important}#${panelId} .sx-sample-row{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:center;margin-top:12px}#${panelId} .sx-sample-label{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #e2e6ec;background:#fff;border-radius:7px;font:500 14px/1.4 Roboto,Arial,sans-serif;direction:ltr}#${panelId} input:focus{outline:2px solid #a8003b;outline-offset:2px}#${panelId} input[aria-invalid=true]{border-color:#b42318}@media(max-width:600px){#${panelId}{margin:0 16px 16px!important;padding:16px!important}#${panelId} .sx-sample-row{grid-template-columns:60px minmax(0,1fr);gap:8px}}`;
+    style.textContent = `[data-sx-variable-summary=true]{display:none!important}#${panelId} .sx-sample-row{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:center;margin-top:12px}#${panelId} .sx-sample-label{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #e2e6ec;background:#fff;border-radius:7px;font:500 14px/1.4 Roboto,Arial,sans-serif;direction:ltr}#${panelId} input:focus{outline:2px solid #a8003b;outline-offset:2px}#${panelId} input[aria-invalid=true]{border-color:#b42318}@media(max-width:600px){#${panelId}{margin:16px 16px 16px!important;padding:16px!important}#${panelId} .sx-sample-row{grid-template-columns:60px minmax(0,1fr);gap:8px}}`;
     panel.append(style);
     const title = document.createElement("h3");
     title.id = `${panelId}-title`;
