@@ -20,17 +20,17 @@ async function context(db,user,type='user',owner=null){
   const ownerContext=await context(db,owner);
   if(ownerContext.uid!==owner.uid||!ownerContext.manage)fail('ACCESS_DENIED',403);
   const [links]=await db.query(`SELECT o.legacy_uid_hash AS uidHash,m.status,i.status AS identityStatus,t.status AS tenantStatus
-   FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id
-   JOIN sx_identities i ON i.id=m.identity_id JOIN sx_tenants t ON t.id=o.tenant_id
+   FROM sx_legacy_ownership o LEFT JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id
+   LEFT JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_tenants t ON t.id=o.tenant_id
    WHERE o.source_table='agents' AND o.source_id=? LIMIT 2`,[String(user.id)]);
   if(links.length&&(links.length!==1||links[0].uidHash!==hash(user.uid)||links[0].status!=='active'||links[0].identityStatus!=='active'||links[0].tenantStatus!=='active'))fail('ACCESS_DENIED',403);
   return {...ownerContext,type,id:Number(user.id),manage:false};
  }
- const [links]=await db.query(`SELECT o.legacy_uid_hash AS uidHash,o.tenant_id AS tenantId,m.role,m.status,t.status AS tenantStatus
- FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id JOIN sx_tenants t ON t.id=o.tenant_id
+ const [links]=await db.query(`SELECT o.legacy_uid_hash AS uidHash,o.tenant_id AS tenantId,m.role,m.status,t.status AS tenantStatus,i.status AS identityStatus
+ FROM sx_legacy_ownership o LEFT JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id LEFT JOIN sx_tenants t ON t.id=o.tenant_id LEFT JOIN sx_identities i ON i.id=m.identity_id
  WHERE o.source_table='user' AND o.source_id=? LIMIT 2`,[String(user.id)]);
  if(!links.length)return {uid:user.uid,hash:hash(user.uid),type,id:Number(user.id),manage:true,category:'legacy'};
- const link=links[0];if(links.length!==1||link.uidHash!==hash(user.uid)||link.status!=='active'||link.tenantStatus!=='active')fail('ACCESS_DENIED',403);
+ const link=links[0];if(links.length!==1||link.uidHash!==hash(user.uid)||link.status!=='active'||link.identityStatus!=='active'||link.tenantStatus!=='active')fail('ACCESS_DENIED',403);
  const [owners]=await db.query(`SELECT u.uid,o.legacy_uid_hash AS uidHash FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id JOIN user u ON BINARY CAST(u.id AS CHAR)=BINARY o.source_id
  WHERE o.source_table='user' AND o.tenant_id=? AND m.role='owner' AND m.status='active' LIMIT 2`,[link.tenantId]);
  if(owners.length!==1||owners[0].uidHash!==hash(owners[0].uid))fail('ACCESS_DENIED',403);
