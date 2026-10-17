@@ -14,15 +14,15 @@ function snapshotInput(document){
  if(typeof s.customer?.name!=='string'||!s.customer.name.trim()||!s.legalName||!document.invoice_number||!Number.isFinite(Date.parse(s.issuedAt)))fail('GENERATED_INVOICE_DATA_INVALID');
  return s;
 }
-async function post(db,ctx,{uid,documentId}){
+async function post(db,ctx,{uid,documentId},{withinTransaction=false}={}){
  generator.requireRole(ctx,true);
  if(typeof uid!=='string'||!uid||typeof documentId!=='string'||!/^[0-9a-f-]{36}$/i.test(documentId))fail('INVALID_GENERATED_INVOICE',400);
- await db.beginTransaction();
+ if(!withinTransaction)await db.beginTransaction();
  try{
   const [[tenant]]=await db.query("SELECT id FROM sx_tenants WHERE id=? AND status='active' FOR UPDATE",[ctx.tenant.id]);if(!tenant)fail('BUSINESS_INACTIVE');
   const [[doc]]=await db.query('SELECT d.* FROM sx_invoice_generator_documents d LEFT JOIN sx_invoice_generator_document_state st ON st.tenant_id=d.tenant_id AND st.document_id=d.id WHERE d.tenant_id=? AND d.id=? AND st.deleted_at IS NULL FOR UPDATE',[ctx.tenant.id,documentId]);if(!doc)fail('INVOICE_NOT_FOUND',404);
   const [[link]]=await db.query('SELECT l.invoice_id,i.invoice_number FROM sx_training_generated_invoice_links l JOIN sx_training_invoices i ON i.tenant_id=l.tenant_id AND i.id=l.invoice_id WHERE l.tenant_id=? AND l.generated_document_id=?',[ctx.tenant.id,documentId]);
-  if(link){await db.commit();return {invoiceId:link.invoice_id,invoiceNumber:link.invoice_number,repeated:true};}
+  if(link){if(!withinTransaction)await db.commit();return {invoiceId:link.invoice_id,invoiceNumber:link.invoice_number,repeated:true};}
   const [[replaced]]=await db.query('SELECT replacement_invoice_id FROM sx_invoice_generator_replacements WHERE tenant_id=? AND prior_invoice_id=?',[ctx.tenant.id,documentId]);if(replaced)fail('GENERATED_INVOICE_REPLACED');
   const s=snapshotInput(doc),offers=[];
   // Historical invoice prices remain authoritative even when today's course price changes.
@@ -43,7 +43,23 @@ async function post(db,ctx,{uid,documentId}){
   await db.query("INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,?,'identity','training.generated-invoice-posted','invoice',?,?,?)",[uuid(),ctx.tenant.id,ctx.identity.id,invoiceId,JSON.stringify({generatedDocumentId:documentId,invoiceNumber:doc.invoice_number,totalMinor:s.totalMinor,actorRole:ctx.membership.role,saleApprovalRequired:false}),documentId]);
   const serial=/^(.*)-(\d{4})-(\d+)$/.exec(doc.invoice_number);
   if(serial&&Number.isSafeInteger(Number(serial[3])))await db.query('INSERT INTO sx_training_number_sequences(tenant_id,prefix,period_year,last_value) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE last_value=GREATEST(last_value,VALUES(last_value))',[ctx.tenant.id,serial[1],Number(serial[2]),Number(serial[3])]);
-  await db.commit();return {invoiceId,invoiceNumber:doc.invoice_number,repeated:false};
- }catch(e){await db.rollback();throw e;}
+  if(!withinTransaction)await db.commit();return {invoiceId,invoiceNumber:doc.invoice_number,repeated:false};
+ }catch(e){if(!withinTransaction)await db.rollback();throw e;}
 }
-module.exports={post,snapshotInput};
+async function paymentContext(db,ctx,documentId){
+ generator.requireRole(ctx,true);
+ const doc=await generator.detail(db,ctx,documentId);
+ const [[link]]=await db.query('SELECT invoice_id FROM sx_training_generated_invoice_links WHERE tenant_id=? AND generated_document_id=?',[ctx.tenant.id,documentId]);
+ if(link)return require('./training-invoices').detail(db,ctx,link.invoice_id);
+ if(!doc.canEdit)fail('GENERATED_INVOICE_REPLACED');
+ const s=snapshotInput({snapshot:doc,amount_minor:doc.totalMinor,invoice_number:doc.invoiceNumber});
+ return {...s,id:documentId,generatedDocumentId:documentId,status:'issued',subtotalMinor:s.totalMinor,invoiceEmail:s.customer.email||'',terms:s.footer||'',collectedMinor:0,creditedMinor:0,amountDueMinor:s.totalMinor,enrollment:{learnerName:s.customer.name,payerName:s.customer.name,payerEmail:s.customer.email||null,payerPhone:s.customer.phone||null},payments:[],installments:s.installments.map((p,i)=>({...p,sequence:i+1,status:'pending'})),lines:s.lines.map(l=>({...l,contractAmountMinor:l.totalMinor,taxableBaseMinor:l.totalMinor})),journal:null};
+}
+async function recordPayment(db,ctx,{uid,documentId,input}){
+ generator.requireRole(ctx,true);
+ const payments=require('./training-payments');payments.normalizeRecord(documentId,input);
+ await db.beginTransaction();
+ try{const invoice=await post(db,ctx,{uid,documentId},{withinTransaction:true});const result=await payments.recordAndPost(db,ctx,invoice.invoiceId,input,{withinTransaction:true});await db.commit();return result;}
+ catch(e){await db.rollback();throw e;}
+}
+module.exports={post,snapshotInput,paymentContext,recordPayment};

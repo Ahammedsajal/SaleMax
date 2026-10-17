@@ -8,11 +8,11 @@ test('direct posting preserves the issued snapshot rather than repricing or inve
  assert.throws(()=>snapshotInput({...doc,amount_minor:1}));
  assert.throws(()=>snapshotInput({...doc,snapshot:{...s,lines:[{...s.lines[0],discountMinor:100001}]}}));
 });
-test('the existing receipt picker posts the selected invoice directly without a sale-approval request',async()=>{
+test('the existing receipt picker opens a read-only payment preview without a sale-approval request',async()=>{
  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../client/public/training-finance.js'),'utf8');
  const start=source.indexOf('  async function openGeneratedReceiptInvoice('),end=source.indexOf('  async function loadReceiptRegister(',start),calls=[];
- const context={generatorPath:mode=>mode==='owner'?'/generator':'/accountant/generator',generatorFetch:async(...args)=>{calls.push(args);return {invoiceId:'formal-id'};},loadInvoiceDetail:async(...args)=>calls.push(args),encodeURIComponent};
+ const context={generatorPath:mode=>mode==='owner'?'/generator':'/accountant/generator',generatorFetch:async(...args)=>{calls.push(args);return {id:'document-id'};},loadInvoiceDetail:async(...args)=>calls.push(args),encodeURIComponent};
  require('node:vm').runInNewContext(source.slice(start,end),context);
  const dialog={};await context.openGeneratedReceiptInvoice(dialog,'manager','fixture-csrf','selected-document');
- assert.equal(calls[0][0],'manager');assert.equal(calls[0][1],'/accountant/generator/invoices/selected-document/post');assert.equal(calls[0][2],'POST');assert.equal(calls[1][3],'formal-id');
+ assert.equal(calls[0][0],'manager');assert.equal(calls[0][1],'/accountant/generator/invoices/selected-document/payment-context');assert.equal(calls[0][2],'GET');assert.equal(calls[1][3],'document-id');
 });
