@@ -10,6 +10,7 @@
   const endpoint = "/api/user/add_meta_templet";
   const panelId = "salemax-meta-template-samples";
   const values = new Map();
+  const sourceSamples = new Map();
   const nativeOpen = XMLHttpRequest.prototype.open;
   const nativeSend = XMLHttpRequest.prototype.send;
   const requestMeta = new WeakMap();
@@ -105,6 +106,7 @@
       if (panel) panel.remove();
       return;
     }
+    seedExistingExamples(main);
     if (panel && panel.parentElement) {
       syncFields(panel, variables);
       panel = document.getElementById(panelId);
@@ -138,6 +140,25 @@
     });
   }
 
+  function seedExistingExamples(root) {
+    const heading = [...root.querySelectorAll("h1,h2,h3,h4,h5,h6")]
+      .find((element) => /^(variables|المتغيرات)$/.test(normalize(element.textContent)));
+    const summary = heading?.parentElement?.parentElement;
+    if (!summary || summary.id === panelId) return;
+    let found = false;
+    for (const label of summary.querySelectorAll("p")) {
+      const match = label.textContent.trim().match(/^\{\{(\d+)\}\}$/);
+      const sample = label.nextElementSibling?.textContent?.trim();
+      if (!match || !sample) continue;
+      const variable = match[1];
+      if (!values.has(variable) || sourceSamples.get(variable) !== sample) values.set(variable, sample);
+      sourceSamples.set(variable, sample);
+      found = true;
+    }
+    // Reuse the standard wizard's examples in one editable section.
+    if (found && summary.dataset.sxVariableSummary !== "true") summary.dataset.sxVariableSummary = "true";
+  }
+
   function createPanel(variables, arabic) {
     const panel = document.createElement("section");
     panel.id = panelId;
@@ -148,7 +169,7 @@
       boxSizing: "border-box", minWidth: "0", textAlign: "start",
     });
     const style = document.createElement("style");
-    style.textContent = `#${panelId} .sx-sample-row{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:center;margin-top:12px}#${panelId} .sx-sample-label{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #e2e6ec;background:#fff;border-radius:7px;font:500 14px/1.4 Roboto,Arial,sans-serif;direction:ltr}#${panelId} input:focus{outline:2px solid #a8003b;outline-offset:2px}#${panelId} input[aria-invalid=true]{border-color:#b42318}@media(max-width:600px){#${panelId}{margin:0 16px 16px!important;padding:16px!important}#${panelId} .sx-sample-row{grid-template-columns:60px minmax(0,1fr);gap:8px}}`;
+    style.textContent = `[data-sx-variable-summary=true]{display:none!important}#${panelId} .sx-sample-row{display:grid;grid-template-columns:76px minmax(0,1fr);gap:12px;align-items:center;margin-top:12px}#${panelId} .sx-sample-label{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #e2e6ec;background:#fff;border-radius:7px;font:500 14px/1.4 Roboto,Arial,sans-serif;direction:ltr}#${panelId} input:focus{outline:2px solid #a8003b;outline-offset:2px}#${panelId} input[aria-invalid=true]{border-color:#b42318}@media(max-width:600px){#${panelId}{margin:0 16px 16px!important;padding:16px!important}#${panelId} .sx-sample-row{grid-template-columns:60px minmax(0,1fr);gap:8px}}`;
     panel.append(style);
     const title = document.createElement("h3");
     title.id = `${panelId}-title`;
@@ -192,7 +213,14 @@
 
   function syncFields(panel, variables) {
     const current = [...panel.querySelectorAll("[data-variable]")].map((row) => row.dataset.variable);
-    if (current.join(",") === variables.join(",")) return;
+    if (current.join(",") === variables.join(",")) {
+      for (const input of panel.querySelectorAll("input")) {
+        const variable = input.closest("[data-variable]").dataset.variable;
+        const value = values.get(variable) || "";
+        if (input.value !== value) input.value = value;
+      }
+      return;
+    }
     const replacement = createPanel(variables, isArabic());
     panel.replaceWith(replacement);
   }
