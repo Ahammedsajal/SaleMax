@@ -1,7 +1,7 @@
 "use strict";
 
 const META_TEMPLATE_SAMPLES_SCRIPT =
-  '<script defer src="/meta-template-samples.js?v=20261017-carousel-examples1"></script>';
+  '<script defer src="/meta-template-samples.js?v=20261017-step3-inline2"></script>';
 
 function isMetaTemplateBuilderRequest(request) {
   return request?.path === "/user" && request?.query?.page === "create-meta-template";
