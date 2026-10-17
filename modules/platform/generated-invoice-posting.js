@@ -14,6 +14,19 @@ function snapshotInput(document){
  if(typeof s.customer?.name!=='string'||!s.customer.name.trim()||!s.legalName||!document.invoice_number||!Number.isFinite(Date.parse(s.issuedAt)))fail('GENERATED_INVOICE_DATA_INVALID');
  return s;
 }
+async function storedSnapshot(db,ctx,document){
+ const s=decode(document.snapshot);
+ if(Array.isArray(s?.lines)&&s.lines.length===1&&(!s.lines[0].courseId||!s.lines[0].offerVersion)){
+  const line=s.lines[0];
+  // Early single-course PDFs stored the course on their document row, but
+  // omitted course/offer references inside the line. Recover that historical
+  // reference using its original gross price and creation time; never reprice.
+  const [[reference]]=await db.query(`SELECT d.course_id,o.version FROM sx_invoice_generator_documents d JOIN sx_training_offers o ON o.tenant_id=d.tenant_id AND o.course_id=d.course_id WHERE d.tenant_id=? AND d.id=? AND o.price_minor+o.registration_fee_minor=? AND o.created_at<=d.created_at AND (o.valid_from IS NULL OR o.valid_from<=DATE(d.created_at)) AND (o.valid_until IS NULL OR o.valid_until>=DATE(d.created_at)) ORDER BY o.created_at DESC,o.version DESC LIMIT 1`,[ctx.tenant.id,document.id,line.unitAmountMinor]);
+  if(!reference)fail('GENERATED_INVOICE_DATA_INVALID');
+  s.lines=[{...line,courseId:reference.course_id,offerVersion:Number(reference.version)}];s.historicalCourseReferencesRecovered=true;
+ }
+ return snapshotInput({...document,snapshot:s});
+}
 async function post(db,ctx,{uid,documentId},{withinTransaction=false}={}){
  generator.requireRole(ctx,true);
  if(typeof uid!=='string'||!uid||typeof documentId!=='string'||!/^[0-9a-f-]{36}$/i.test(documentId))fail('INVALID_GENERATED_INVOICE',400);
@@ -24,7 +37,7 @@ async function post(db,ctx,{uid,documentId},{withinTransaction=false}={}){
   const [[link]]=await db.query('SELECT l.invoice_id,i.invoice_number FROM sx_training_generated_invoice_links l JOIN sx_training_invoices i ON i.tenant_id=l.tenant_id AND i.id=l.invoice_id WHERE l.tenant_id=? AND l.generated_document_id=?',[ctx.tenant.id,documentId]);
   if(link){if(!withinTransaction)await db.commit();return {invoiceId:link.invoice_id,invoiceNumber:link.invoice_number,repeated:true};}
   const [[replaced]]=await db.query('SELECT replacement_invoice_id FROM sx_invoice_generator_replacements WHERE tenant_id=? AND prior_invoice_id=?',[ctx.tenant.id,documentId]);if(replaced)fail('GENERATED_INVOICE_REPLACED');
-  const s=snapshotInput(doc),offers=[];
+  const s=await storedSnapshot(db,ctx,doc),offers=[];
   // Historical invoice prices remain authoritative even when today's course price changes.
   for(const line of s.lines){const [[offer]]=await db.query('SELECT id FROM sx_training_offers WHERE tenant_id=? AND course_id=? AND version=? LIMIT 1',[ctx.tenant.id,line.courseId,line.offerVersion]);if(!offer)fail('GENERATED_INVOICE_DATA_INVALID');offers.push(offer.id);}
   const [[collision]]=await db.query('SELECT id FROM sx_training_invoices WHERE tenant_id=? AND invoice_number=?',[ctx.tenant.id,doc.invoice_number]);if(collision)fail('INVOICE_NUMBER_CONFLICT');
@@ -40,7 +53,7 @@ async function post(db,ctx,{uid,documentId},{withinTransaction=false}={}){
   const journal=uuid();await db.query("INSERT INTO sx_training_journal_entries(id,tenant_id,source_type,source_id,entry_type,currency,occurred_at,created_by_identity_id) VALUES (?,?,'invoice',?,'invoice_issued','QAR',?,?)",[journal,ctx.tenant.id,invoiceId,issuedAt,ctx.identity.id]);
   for(const [number,account,debit,credit] of [[1,'accounts_receivable',s.totalMinor,0],[2,'deferred_revenue',0,s.totalMinor]])await db.query('INSERT INTO sx_training_journal_lines(tenant_id,entry_id,line_number,account_code,debit_minor,credit_minor) VALUES (?,?,?,?,?,?)',[ctx.tenant.id,journal,number,account,debit,credit]);
   await db.query('INSERT INTO sx_training_generated_invoice_links(tenant_id,generated_document_id,sale_review_id,invoice_id,linked_by_identity_id) VALUES (?,?,NULL,?,?)',[ctx.tenant.id,documentId,invoiceId,ctx.identity.id]);
-  await db.query("INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,?,'identity','training.generated-invoice-posted','invoice',?,?,?)",[uuid(),ctx.tenant.id,ctx.identity.id,invoiceId,JSON.stringify({generatedDocumentId:documentId,invoiceNumber:doc.invoice_number,totalMinor:s.totalMinor,actorRole:ctx.membership.role,saleApprovalRequired:false}),documentId]);
+  await db.query("INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,?,'identity','training.generated-invoice-posted','invoice',?,?,?)",[uuid(),ctx.tenant.id,ctx.identity.id,invoiceId,JSON.stringify({generatedDocumentId:documentId,invoiceNumber:doc.invoice_number,totalMinor:s.totalMinor,actorRole:ctx.membership.role,saleApprovalRequired:false,historicalCourseReferencesRecovered:s.historicalCourseReferencesRecovered===true}),documentId]);
   const serial=/^(.*)-(\d{4})-(\d+)$/.exec(doc.invoice_number);
   if(serial&&Number.isSafeInteger(Number(serial[3])))await db.query('INSERT INTO sx_training_number_sequences(tenant_id,prefix,period_year,last_value) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE last_value=GREATEST(last_value,VALUES(last_value))',[ctx.tenant.id,serial[1],Number(serial[2]),Number(serial[3])]);
   if(!withinTransaction)await db.commit();return {invoiceId,invoiceNumber:doc.invoice_number,repeated:false};
@@ -52,7 +65,7 @@ async function paymentContext(db,ctx,documentId){
  const [[link]]=await db.query('SELECT invoice_id FROM sx_training_generated_invoice_links WHERE tenant_id=? AND generated_document_id=?',[ctx.tenant.id,documentId]);
  if(link)return require('./training-invoices').detail(db,ctx,link.invoice_id);
  if(!doc.canEdit)fail('GENERATED_INVOICE_REPLACED');
- const s=snapshotInput({snapshot:doc,amount_minor:doc.totalMinor,invoice_number:doc.invoiceNumber});
+ const s=await storedSnapshot(db,ctx,{id:documentId,snapshot:doc,amount_minor:doc.totalMinor,invoice_number:doc.invoiceNumber});
  return {...s,id:documentId,generatedDocumentId:documentId,status:'issued',subtotalMinor:s.totalMinor,invoiceEmail:s.customer.email||'',terms:s.footer||'',collectedMinor:0,creditedMinor:0,amountDueMinor:s.totalMinor,enrollment:{learnerName:s.customer.name,payerName:s.customer.name,payerEmail:s.customer.email||null,payerPhone:s.customer.phone||null},payments:[],installments:s.installments.map((p,i)=>({...p,sequence:i+1,status:'pending'})),lines:s.lines.map(l=>({...l,contractAmountMinor:l.totalMinor,taxableBaseMinor:l.totalMinor})),journal:null};
 }
 async function recordPayment(db,ctx,{uid,documentId,input}){
@@ -62,4 +75,4 @@ async function recordPayment(db,ctx,{uid,documentId,input}){
  try{const invoice=await post(db,ctx,{uid,documentId},{withinTransaction:true});const result=await payments.recordAndPost(db,ctx,invoice.invoiceId,input,{withinTransaction:true});await db.commit();return result;}
  catch(e){await db.rollback();throw e;}
 }
-module.exports={post,snapshotInput,paymentContext,recordPayment};
+module.exports={post,snapshotInput,storedSnapshot,paymentContext,recordPayment};

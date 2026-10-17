@@ -153,6 +153,7 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.post('/:id/decision',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(policies.decide)(req.businessContext,{id:req.params.id,expectedRevision:req.body?.expectedRevision,decision:req.body?.decision,reason:req.body?.reason})})));
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);const code=error.code||'FINANCE_POLICY_UNAVAILABLE';
+    if(Number.isInteger(error.status)&&error.status>=400&&error.status<500)return res.status(error.status).json({success:false,code});
     const documentStatus={STALE_INVOICE_REVISION:409,STALE_COURSE_PRICE:409,INVOICE_LINKED_READ_ONLY:409,INVOICE_REPLACED_READ_ONLY:409,INVOICE_DELETED:410,DISCOUNT_EXCEEDS_COURSE_PRICE:400};
     if(documentStatus[code])return res.status(documentStatus[code]).json({success:false,code});
     if(code.startsWith('REFUND_'))return res.status(code==='REFUND_NOT_FOUND'?404:409).json({success:false,code});
