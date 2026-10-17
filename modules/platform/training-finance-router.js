@@ -70,6 +70,12 @@ function createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard}){
   router.post('/accountant/generator/invoices',canonicalGuard,wrap(async(req,res)=>{const uid=await canonicalGeneratorUid(req),data=await withConnection(invoiceGenerator.create)(req.businessContext,{uid,input:req.body});res.status(data.repeated?200:201).json({success:true,data});}));
   router.put('/accountant/generator/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.update)(req.businessContext,{uid:await canonicalGeneratorUid(req),id:req.params.id,input:req.body})})));
   router.delete('/accountant/generator/invoices/:id',canonicalGuard,wrap(async(req,res)=>res.json({success:true,data:await withConnection(invoiceEditor.remove)(req.businessContext,{id:req.params.id,input:req.body})})));
+  for(const [prefix,guards,contextKey] of [['',[userGuard,ownerContext],'financeContext'],['/accountant',[canonicalGuard],'businessContext']]){
+    const communications=require('./invoice-communications-settings');
+    router.get(prefix+'/communications/settings',...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(communications.get)(req[contextKey])})));
+    router.get(prefix+'/communications/settings/defaults',...guards,wrap(async(req,res)=>{communications.authorize(req[contextKey]);res.json({success:true,data:communications.defaults()});}));
+    router.put(prefix+'/communications/settings',...guards,wrap(async(req,res)=>res.json({success:true,data:await withConnection(communications.save)(req[contextKey],req.body)})));
+  }
   router.get('/reports/receivables-aging',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(receivablesReport.list)(req.financeContext,req.query)})));
   router.get('/reports/dashboard',userGuard,ownerContext,wrap(async(req,res)=>res.json({success:true,data:await withConnection(financeDashboard.report)(req.financeContext,req.query)})));
   for(const [prefix,guards,contextKey] of [['',[userGuard,ownerContext],'financeContext'],['/accountant',[canonicalGuard],'businessContext']]){
