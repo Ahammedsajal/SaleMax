@@ -33,8 +33,81 @@ function modal(title,subtitle,body,submitLabel,submit){close();originFocus=docum
 function configure(){const config=structuredClone(state.config);const d=modal(t('Configure phonebook','إعداد دفتر الهاتف'),t('Field labels and automatic lead routing for this account category','أسماء الحقول والتوجيه التلقائي للعملاء لفئة الحساب'),`<section><h3>${t('01 · Contact field labels','01 · أسماء حقول الاتصال')}</h3><p class="pb-sub">${t('Rename the five existing variables. Saved values and template variable numbers stay the same.','أعد تسمية المتغيرات الخمسة. تبقى القيم المحفوظة وأرقام متغيرات القوالب كما هي.')}</p><div class="pb-labels">${config.labels.map((v,i)=>`<label>${t('Variable ','المتغير ')+(i+1)}<input name="label${i}" maxlength="60" required value="${esc(v)}" placeholder="${esc(['Course','Nationality','Gender','QID','Custom field'][i])}"></label>`).join('')}</div></section><section><h3>${t('02 · Opening-message triggers','02 · كلمات الرسالة الافتتاحية')}</h3><p class="pb-sub">${t('When a new WhatsApp conversation starts, match a phrase in the first incoming message and save the contact to a phonebook. Case-insensitive; first matching rule wins. Existing conversations are not rerouted.','عند بدء محادثة واتساب جديدة، ابحث عن العبارة في أول رسالة واردة واحفظ جهة الاتصال في الدفتر. تطبق أول قاعدة مطابقة دون تمييز حالة الأحرف. لا تُعاد توجيه المحادثات السابقة.')}</p><div class="pb-rules"></div><button type="button" data-add-rule>${t('＋ Add trigger','＋ إضافة كلمة تشغيل')}</button><p class="pb-sub">${t('Example: “excel course” matches “Can I get more info on Excel course?” · Contact plan limits apply.','مثال: «دورة إكسل» تطابق «هل يمكنني معرفة المزيد عن دورة إكسل؟» · تطبق حدود جهات الاتصال في الباقة.')}</p></section>`,t('Save configuration','حفظ الإعدادات'),async el=>{const labels=config.labels.map((_,i)=>el.querySelector(`[name=label${i}]`).value);const rules=[...el.querySelectorAll('.pb-rule')].map(row=>({keyword:row.querySelector('input').value,bookId:row.querySelector('select').value}));const result=await api('/settings','PUT',{labels,rules,revision:config.revision});state.config=result.config;render();});
 const add=rule=>{const row=document.createElement('div');row.className='pb-rule';row.innerHTML=`<label>${t('Trigger keyword or phrase','كلمة أو عبارة التشغيل')}<input required maxlength="240" value="${esc(rule?.keyword||'')}" placeholder="${t('e.g. excel course','مثال: دورة إكسل')}"></label><label>${t('Save to phonebook','الحفظ في دفتر')}<select required>${options(rule?.bookId)}</select></label><button type="button" aria-label="${t('Remove trigger','حذف القاعدة')}">×</button>`;row.querySelector('button').onclick=()=>row.remove();d.querySelector('.pb-rules').append(row);};config.rules.forEach(add);d.querySelector('[data-add-rule]').onclick=()=>{if(d.querySelectorAll('.pb-rule').length<30)add();};}
 function filter(initial=''){const d=modal(t('Filter contacts','تصفية جهات الاتصال'),t('Choose a column, then select one of its saved values. Add more filters to narrow the results.','اختر عمودًا ثم قيمة محفوظة فيه. أضف فلاتر أخرى لتضييق النتائج.'),`<label>${t('Column','العمود')}<select data-field required><option value="">${t('Choose column','اختر العمود')}</option>${columns().map(([f,l])=>`<option value="${f}">${esc(l)}</option>`).join('')}</select></label><label>${t('Value','القيمة')}<select data-value required disabled><option value="">${t('Choose a column first','اختر عمودًا أولًا')}</option></select></label><small data-value-note></small>`,t('Apply filter','تطبيق التصفية'),async el=>{const value=el.querySelector('[data-value]');if(value.disabled||value.selectedIndex<1)throw Error('INVALID_FILTER');state.filters=state.filters.filter(x=>x.field!==el.querySelector('[data-field]').value);state.filters.push({field:el.querySelector('[data-field]').value,value:value.value});reset();});let serial=0;d.querySelector('[data-field]').onchange=async e=>{const current=++serial,select=d.querySelector('[data-value]');select.disabled=true;try{const data=await api('/values','POST',{field:e.target.value,bookId:state.bookId,search:state.search,filters:state.filters.filter(f=>f.field!==e.target.value)});if(current!==serial)return;select.innerHTML=`<option value="">${t('Choose value','اختر القيمة')}</option>`+data.values.map(v=>`<option value="${esc(v)}">${esc(v||t('(Blank)','(فارغ)'))}</option>`).join('');select.disabled=!data.values.length;select.required=false;d.querySelector('[data-value-note]').textContent=data.truncated?t('Showing the first 1,000 unique values. Narrow the phonebook or search first.','تظهر أول 1000 قيمة فريدة. حدد الدفتر أو البحث أولًا.'):'';}catch(error){const box=d.querySelector('.pb-error');box.textContent=errorText(error);box.hidden=false;}};if(initial){d.querySelector('[data-field]').value=initial;d.querySelector('[data-field]').dispatchEvent(new Event('change'));}}
-async function sharing(contacts){if(!contacts&&!state.bookId){notice(t('Choose a phonebook from the dropdown before sharing it.','اختر دفترًا من القائمة قبل مشاركته.'));return;}const data=await api('/recipients'),resourceType=contacts?'contact':'book',selected=contacts?[...state.selected]:[Number(state.bookId)];const d=modal(t('Share with your team','المشاركة مع الفريق'),t('Share read-only access with an active agent or user in this account. Sharing does not copy contacts or transfer ownership.','شارك صلاحية القراءة مع وكيل أو مستخدم نشط في الحساب. لا تُنسخ جهات الاتصال ولا تتغير ملكيتها.'),`<p>${contacts?selected.length+' '+t('selected contacts','جهات اتصال محددة'):esc(state.books.find(x=>String(x.id)===state.bookId)?.name)}</p><label>${t('Agent or account user','الوكيل أو مستخدم الحساب')}<select data-recipient required><option value="">${t('Choose team member','اختر عضو الفريق')}</option>${data.recipients.map(r=>`<option value="${r.type}:${r.id}">${esc(r.name||r.email)} · ${r.type==='agents'?t('Agent','وكيل'):t('User','مستخدم')}</option>`).join('')}</select></label><section><h3>${t('Current access','الوصول الحالي')}</h3><div class="pb-share-list"></div></section>`,t('Share access','مشاركة الوصول'),async el=>{const [recipientType,recipientId]=el.querySelector('[data-recipient]').value.split(':');await api('/share','POST',{resourceType,ids:selected,recipientType,recipientId});notice(t('Shared successfully. The team member can open Phonebook in their account.','تمت المشاركة. يمكن لعضو الفريق فتح دفتر الهاتف في حسابه.'));});
-const renderShares=()=>{const shares=data.shares.filter(s=>s.resourceType===resourceType&&selected.includes(Number(s.resourceId)));d.querySelector('.pb-share-list').innerHTML=shares.map((s,i)=>{const person=data.recipients.find(r=>r.type===s.recipientType&&Number(r.id)===Number(s.recipientId));return `<div class="pb-share-item"><span>${esc(person?.name||person?.email||t('Inactive member','عضو غير نشط'))}${contacts?' · #'+s.resourceId:''}</span><button type="button" data-revoke="${i}">${t('Revoke','إلغاء الوصول')}</button></div>`;}).join('')||`<p class="pb-sub">${t('No direct shares yet','لا توجد مشاركات مباشرة')}</p>`;d.querySelectorAll('[data-revoke]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const s=shares[Number(b.dataset.revoke)];await api('/share','POST',{...s,ids:[s.resourceId],revoke:true});data.shares=data.shares.filter(x=>x!==s);renderShares();}catch(error){const box=d.querySelector('.pb-error');box.textContent=errorText(error);box.hidden=false;b.disabled=false;}});};renderShares();}
+function sharing(contacts){
+  const resourceType=contacts?'contact':'book';
+  const initialBook=state.books.some(book=>String(book.id)===String(state.bookId))?String(state.bookId):(state.books.length===1?String(state.books[0].id):'');
+  let selected=contacts?[...state.selected]:(initialBook?[Number(initialBook)]:[]);
+  let data={recipients:[],shares:[]},loading=true;
+  const d=modal(
+    contacts?t('Share selected contacts','مشاركة جهات الاتصال المحددة'):t('Share phonebook','مشاركة دفتر الهاتف'),
+    t('Choose what to share and who can access it. Access is read-only and can be revoked.','اختر ما تريد مشاركته ومن يمكنه الوصول إليه. الصلاحية للقراءة فقط ويمكن إلغاؤها.'),
+    `${contacts?`<section><h3>${selected.length} ${t('selected contacts','جهات اتصال محددة')}</h3></section>`:`<section><h3>${t('1 · Choose phonebook','1 · اختر دفتر الهاتف')}</h3><label>${t('Phonebook to share','دفتر الهاتف للمشاركة')}<select data-share-book required ${state.books.length?'':'disabled'}>${options(initialBook)}</select></label><p class="pb-sub" data-share-scope></p></section>`}
+     <section><h3>${t('2 · Choose recipient','2 · اختر المستلم')}</h3><label>${t('Agent or account user','الوكيل أو مستخدم الحساب')}<select data-recipient required disabled><option value="">${t('Loading team members…','جارٍ تحميل أعضاء الفريق…')}</option></select></label><p class="pb-sub" data-recipient-status role="status">${t('Loading active agents and users in this account…','جارٍ تحميل الوكلاء والمستخدمين النشطين في هذا الحساب…')}</p><button type="button" data-recipient-retry hidden>${t('Retry loading team members','إعادة تحميل أعضاء الفريق')}</button></section>
+     <section><h3>${t('Current access','الوصول الحالي')}</h3><div class="pb-share-list"><p class="pb-sub">${t('Loading access…','جارٍ تحميل الصلاحيات…')}</p></div></section>`,
+    t('Share access','مشاركة الوصول'),
+    async el=>{
+      if(loading||!selected.length||!el.querySelector('[data-recipient]').value)throw Error(t('Choose a phonebook and a team member first.','اختر دفتر هاتف وعضوًا في الفريق أولًا.'));
+      const [recipientType,recipientId]=el.querySelector('[data-recipient]').value.split(':');
+      await api('/share','POST',{resourceType,ids:selected,recipientType,recipientId});
+      notice(t('Shared successfully. The team member can open Phonebook in their account.','تمت المشاركة. يمكن لعضو الفريق فتح دفتر الهاتف في حسابه.'));
+    }
+  );
+  const recipient=d.querySelector('[data-recipient]'),submit=d.querySelector('[type=submit]');
+  const updateSubmit=()=>{submit.disabled=loading||!selected.length||!recipient.value;};
+  const renderShares=()=>{
+    const shares=data.shares.filter(s=>s.resourceType===resourceType&&selected.includes(Number(s.resourceId)));
+    const list=d.querySelector('.pb-share-list');
+    list.innerHTML=shares.map((s,i)=>{
+      const person=data.recipients.find(r=>r.type===s.recipientType&&Number(r.id)===Number(s.recipientId));
+      return `<div class="pb-share-item"><span>${esc(person?.name||person?.email||t('Inactive member','عضو غير نشط'))}${contacts?' · #'+s.resourceId:''}</span><button type="button" data-revoke="${i}">${t('Revoke','إلغاء الوصول')}</button></div>`;
+    }).join('')||`<p class="pb-sub">${selected.length?t('No direct shares yet','لا توجد مشاركات مباشرة'):t('Select a phonebook to see its current access.','اختر دفترًا لعرض صلاحيات الوصول الحالية.')}</p>`;
+    list.querySelectorAll('[data-revoke]').forEach(button=>button.onclick=async()=>{
+      button.disabled=true;
+      try{
+        const share=shares[Number(button.dataset.revoke)];
+        await api('/share','POST',{...share,ids:[share.resourceId],revoke:true});
+        data.shares=data.shares.filter(item=>item!==share);renderShares();
+      }catch(error){const box=d.querySelector('.pb-error');box.textContent=errorText(error);box.hidden=false;button.disabled=false;}
+    });
+  };
+  const updateBook=()=>{
+    if(!contacts){
+      const book=state.books.find(item=>String(item.id)===d.querySelector('[data-share-book]').value);
+      selected=book?[Number(book.id)]:[];
+      d.querySelector('[data-share-scope]').textContent=book?`${Number(book.contactCount)||0} ${t('contacts · Current and future contacts in this book will be shared.','جهة اتصال · تتم مشاركة جهات الاتصال الحالية والمستقبلية في هذا الدفتر.')}`:t('Choose the phonebook you want to share.','اختر دفتر الهاتف الذي تريد مشاركته.');
+    }
+    if(!loading)renderShares();updateSubmit();
+  };
+  const loadRecipients=async()=>{
+    loading=true;recipient.disabled=true;updateSubmit();
+    const retry=d.querySelector('[data-recipient-retry]'),status=d.querySelector('[data-recipient-status]');
+    retry.hidden=true;status.textContent=t('Loading active agents and users in this account…','جارٍ تحميل الوكلاء والمستخدمين النشطين في هذا الحساب…');
+    d.querySelector('.pb-error').hidden=true;
+    try{
+      const result=await api('/recipients');
+      if(dialog!==d||!d.isConnected)return;
+      data=result;
+      recipient.innerHTML=`<option value="">${t('Choose agent or user','اختر وكيلًا أو مستخدمًا')}</option>`+['agents','user'].map(type=>{
+        const people=data.recipients.filter(person=>person.type===type);
+        return people.length?`<optgroup label="${type==='agents'?t('Agents','الوكلاء'):t('Account users','مستخدمو الحساب')}">${people.map(person=>`<option value="${person.type}:${person.id}">${esc(person.name||person.email)}</option>`).join('')}</optgroup>`:'';
+      }).join('');
+      recipient.disabled=!data.recipients.length;
+      status.innerHTML=data.recipients.length?t('Only active members of this account are listed.','تظهر الأعضاء النشطون في هذا الحساب فقط.'):`${t('No active agents or users are available in this account. Add or activate a member in Team access first.','لا يوجد وكلاء أو مستخدمون نشطون في هذا الحساب. أضف عضوًا أو فعّله من صفحة وصول الفريق أولًا.')} <a href="/user?page=team-invitations">${t('Open Team access','فتح وصول الفريق')}</a>`;
+      renderShares();
+    }catch(error){
+      if(dialog!==d||!d.isConnected)return;
+      recipient.innerHTML=`<option value="">${t('Team members unavailable','أعضاء الفريق غير متاحين')}</option>`;
+      status.textContent=t('Team members could not be loaded. Retry below.','تعذر تحميل أعضاء الفريق. أعد المحاولة أدناه.');
+      retry.hidden=false;
+      const box=d.querySelector('.pb-error');box.textContent=errorText(error);box.hidden=false;
+      d.querySelector('.pb-share-list').textContent=t('Access could not be loaded.','تعذر تحميل الصلاحيات.');
+    }finally{if(dialog===d&&d.isConnected){loading=false;updateSubmit();}}
+  };
+  recipient.onchange=updateSubmit;
+  d.querySelector('[data-share-book]')?.addEventListener('change',updateBook);
+  d.querySelector('[data-recipient-retry]').onclick=loadRecipients;
+  updateBook();loadRecipients();
+}
 function moving(){modal(t('Move selected contacts','نقل جهات الاتصال المحددة'),t('All saved contact fields stay intact. Existing phonebook access follows the destination book. Direct contact shares stay active.','تبقى كل بيانات الاتصال. تتبع صلاحيات الدفتر الدفتر الجديد. تبقى مشاركات الاتصال المباشرة.'),`<p>${state.selected.size} ${t('selected contacts','جهات اتصال محددة')}</p><label>${t('Destination phonebook','دفتر الهاتف الوجهة')}<select data-target required>${options()}</select></label>`,t('Move contacts','نقل الجهات'),async el=>{await api('/move','POST',{ids:[...state.selected],bookId:el.querySelector('[data-target]').value});state.selected.clear();await bootstrap();});}
 function edit(id){const row=state.rows.find(r=>Number(r.id)===Number(id));if(!row)return;const editable=columns().filter(([f])=>!['phonebook_name','createdAt'].includes(f));modal(t('Edit contact','تعديل جهة الاتصال'),t('Update the existing saved contact','تحديث جهة الاتصال المحفوظة'),`<div class="pb-labels">${editable.map(([f,l])=>`<label>${esc(l)}<input name="${f}" value="${esc(row[f])}" maxlength="999" ${f==='mobile'?'required':''}></label>`).join('')}</div>`,t('Save contact','حفظ جهة الاتصال'),async el=>{const payload={contactId:row.id,var6:row.var6??''};editable.forEach(([f])=>payload[f]=el.querySelector(`[name=${f}]`).value);await api('/edit_contact','PUT',payload,true);await load();});}
 async function exportRows(){let rows=[],page=0,total=1;while(rows.length<total){const result=await api('/contacts','POST',{bookId:state.bookId,search:state.search,filters:state.filters,page:page++});total=result.total;rows.push(...result.rows);if(!result.rows.length)break;if(rows.length>50000)throw Error(t('Narrow the filters before exporting more than 50,000 contacts.','قلل النتائج قبل تصدير أكثر من 50000 جهة.'));}const cs=columns(),cell=v=>'"'+String(v??'').replace(/^[=+\-@\t\r]/,"'$&").replace(/"/g,'""')+'"';const csv='\ufeff'+[cs.map(x=>cell(x[1])).join(','),...rows.map(r=>cs.map(([f])=>cell(r[f])).join(','))].join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='phonebook-contacts.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
