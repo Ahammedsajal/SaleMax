@@ -18,6 +18,8 @@ function routePermission(req){
   if(mount.startsWith('/api/user/training/forms'))return read?'forms.manage':'forms.capture';
   if(mount==='/api/user/training/profile')return 'tenant.manage';
   if(mount==='/api/inbox')return read||/^\/(get_|import_chats)/.test(path)?'conversations.read':'conversations.reply';
+  if(mount==='/api/agent/phonebook')return ['GET','HEAD'].includes(method)||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
+  if(mount==='/api/phonebook/workspace')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
   if(mount==='/api/phonebook')return read||/^\/(get_|search|check_)/.test(path)?'contacts.read':'contacts.manage';
   if(['/api/chat_flow','/api/chatbot'].includes(mount))return 'automation.manage';
   if(mount==='/api/templet')return 'templates.manage';
@@ -86,7 +88,7 @@ function authorizeLegacyMembership(req,row){
   if(!permission)return {allowed:false,code:'TEAM_ROLE_ROUTE_UNMAPPED'};
   const scope=policy.scopeFor({role:row.role,delegatedPermissions:permissions,customPermissions:permissions},permission);
   if(!permissions.includes(permission)||!scope)return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
-  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/pipeline'].includes(String(req.baseUrl||'').replace(/\/$/,''))))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
+  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline'].includes(String(req.baseUrl||'').replace(/\/$/,''))))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
   return {allowed:true,permission};
 }
 

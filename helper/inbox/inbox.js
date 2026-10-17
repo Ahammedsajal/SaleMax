@@ -367,6 +367,16 @@ async function processMessage({
         return console.log("User not found");
       }
 
+      try {
+        await require('../../modules/platform/phonebook-workspace').routeOpening({
+          uid, message: msg, chatId: latestConversation?.chatId, origin,
+          sessionId: latestConversation?.channelExternalId || sessionId,
+          pool: require('../../database/config').promise(),
+        });
+      } catch (error) {
+        console.warn('Phonebook opening routing unavailable', error.code || 'PHONEBOOK_ROUTING_ERROR');
+      }
+
       // Process the message through the flow builder
       await processWebhook(latestConversation?.newMessage, user);
 
