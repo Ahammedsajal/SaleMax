@@ -132,9 +132,13 @@ module.exports=async(db,other,pool,{i1})=>{
   await db.query("UPDATE sx_team_invites SET status='expired',expires_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 DAY) WHERE id=?",[second.id]);
   const reissued=await team.rotate(pool,ownerUid,second.id);assert.equal(reissued.status,'pending');assert.notEqual(reissued.token,second.token);
   await team.cancel(pool,ownerUid,second.id);
+  const [[manager]]=await db.query("SELECT u.uid,m.id AS membershipId,m.identity_id AS identityId FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR) JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id WHERE m.tenant_id=? AND m.role='manager'",[tenantId]);
+  assert.ok(manager);
+  assert.equal((await team.list(pool,manager.uid)).seatUsage.agent.available,limits.agent-1);
   const directAgentRequest={email:`direct-agent-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID(),temporaryPassword:'Synthetic-Direct-Agent-Password-73',displayName:'Direct agent',mobile:'+974 (5012) 3456'};
   await assert.rejects(team.create(pool,ownerUid,{...directAgentRequest,mobile:''}),{code:'INVALID_MOBILE'});
-  const directAgent=await team.create(pool,ownerUid,directAgentRequest);assert.equal(directAgent.delivery,'password');assert.equal(directAgent.loginPath,'/agent/login');assert.equal(directAgent.token,undefined);
+  const directAgent=await team.create(pool,manager.uid,directAgentRequest);assert.equal(directAgent.delivery,'password');assert.equal(directAgent.loginPath,'/agent/login');assert.equal(directAgent.token,undefined);
+  const [[managerInvite]]=await db.query('SELECT invited_by_identity_id FROM sx_team_invites WHERE id=?',[directAgent.id]);assert.equal(managerInvite.invited_by_identity_id,manager.identityId);
   const [[directLegacyAgent]]=await db.query('SELECT uid,password,mobile FROM agents WHERE email=?',[directAgentRequest.email]);assert.ok(await bcrypt.compare(directAgentRequest.temporaryPassword,directLegacyAgent.password));assert.equal(directLegacyAgent.mobile,'+97450123456');
   const directLogin=await canonicalAuth.login(db,{email:directAgentRequest.email,password:directAgentRequest.temporaryPassword,audience:'tenant',tenantId},'127.0.0.1');assert.equal(directLogin.context.membership.role,'agent');await canonicalAuth.logout(db,directLogin.token);
   await assert.rejects(team.create(pool,ownerUid,{...directAgentRequest,requestKey:crypto.randomUUID()}),{code:'MEMBERSHIP_EXISTS'});
