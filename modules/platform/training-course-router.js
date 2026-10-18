@@ -7,7 +7,8 @@ const courses = require('./training-courses');
 const courseMedia = require('./training-course-media');
 const enrollmentProgress = require('./training-enrollment-progress');
 
-function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, sessionGuard }) {
+function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, sessionGuard, products = false }) {
+  if(products)pool=require('./product-catalog').database(pool);
   const router = express.Router();
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
   let activeCourseUploads = 0;
@@ -59,11 +60,18 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   router.use((req, res, next) => {
     if(sessionGuard)return sessionGuard(req,res,()=>{req.courseContext=req.featureSession.context;next();});
     const authorization = req.get('Authorization') || '';
-    if (/^Bearer\s+/i.test(authorization)) return userGuard(req, res, () => courses.legacyOwnerContext(pool, req.decode.uid).then(ctx => { req.courseContext = ctx; next(); }).catch(next));
-    if (!canonicalGuard) return userGuard(req, res, () => courses.legacyOwnerContext(pool, req.decode.uid).then(ctx => { req.courseContext = ctx; next(); }).catch(next));
+    if (/^Bearer\s+/i.test(authorization)) return userGuard(req, res, () => courses.legacyOwnerContext(pool, req.decode.uid,{allowProducts:products}).then(ctx => { req.courseContext = ctx; next(); }).catch(next));
+    if (!canonicalGuard) return userGuard(req, res, () => courses.legacyOwnerContext(pool, req.decode.uid,{allowProducts:products}).then(ctx => { req.courseContext = ctx; next(); }).catch(next));
     return canonicalGuard(req, res, () => { req.courseContext = req.businessContext; next(); });
   });
-  const contextGuard = (req, res, next) => req.courseContext ? next() : res.status(401).json({ success: false, code: 'AUTH_REQUIRED' });
+  const contextGuard = (req,res,next) => {
+    if(!req.courseContext)return res.status(401).json({success:false,code:'AUTH_REQUIRED'});
+    const expected=products?'salemax_sales':'training_center';
+    if(req.courseContext.tenant.categoryKey!==expected)return res.status(403).json({success:false,code:'CATEGORY_UNAVAILABLE'});
+    return next();
+  };
+  router.use(contextGuard);
+  if(products)router.use((req,res,next)=>/^(?:\/enrollments|\/import-procatalyst)(?:\/|$)/.test(req.path)?res.sendStatus(404):next());
 
   router.get('/', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.list(pool, req.courseContext, {
     page: req.query.page === undefined ? 1 : Number(req.query.page),

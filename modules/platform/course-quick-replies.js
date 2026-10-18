@@ -2,6 +2,9 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const courses = require('./training-courses');
+const catalog = require('./product-catalog');
+function catalogCapability(ctx){return catalog.sales(ctx)?'products.catalog':'training.courses';}
+function requireCatalog(ctx){const capability=catalogCapability(ctx);if(!['active','trial','grace'].includes(ctx.subscription?.status)||!['training_center','salemax_sales'].includes(ctx.tenant.categoryKey)||!ctx.category?.capabilities.includes(capability)||!ctx.subscription?.capabilities.includes(capability))fail('FEATURE_UNAVAILABLE',403);}
 const media = require('./training-course-media');
 const access = require('./team-inbox-scope');
 const fail = (code, status = 409) => { throw Object.assign(new Error(code), { code, status }); };
@@ -15,7 +18,8 @@ async function context(pool, actor, agent, owner) {
     if (!owner?.uid || actor.owner_uid !== owner.uid || !actor.is_active) fail('PERMISSION_DENIED', 403);
     scope.uid = owner.uid;
   }
-  const ctx = await courses.legacyOwnerContext(pool, scope.uid);
+  const ctx = await courses.legacyOwnerContext(pool, scope.uid,{allowProducts:true});
+  requireCatalog(ctx);
   return { scope, ctx, actor, agent, query, refresh:async()=>{
     const rows=await query(`SELECT * FROM ${agent?'agents':'user'} WHERE id=? LIMIT 1`,[actor.id]);
     if(rows.length!==1||rows[0].uid!==actor.uid)fail('PERMISSION_DENIED',403);
@@ -26,13 +30,14 @@ async function sessionContext(pool,session){
   if(!session.context)return context(pool,session.actor,session.agent,session.owner);
   const ctx=session.context,result=require('./policy').decision(ctx,{capability:'messaging.inbox',permission:'conversations.reply'});
   if(!result.allowed)fail(result.code,403);
-  if(!ctx.category?.capabilities.includes('training.courses')||!ctx.subscription?.capabilities.includes('training.courses'))fail('FEATURE_UNAVAILABLE',403);
+  requireCatalog(ctx);
   const query=async(sql,args)=>(await pool.query(sql,args))[0];
   const sharedQrInstances=ctx.membership.role==='manager'?await query(`SELECT instance.uniqueId FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=? WHERE share.tenant_id=? AND share.membership_id=?`,[session.ownerUid,ctx.tenant.id,ctx.membership.id]):[];
   const scope={canonical:true,uid:session.ownerUid,identityId:ctx.identity.id,assignedOnly:ctx.membership.role!=='owner',sharedQrInstances,ctx};
   return {scope,ctx,actor:session.actor||{uid:session.ownerUid},agent:session.agent,query,refresh:async()=>sessionContext(pool,await session.refresh())};
 }
 async function options(pool,c){
+  requireCatalog(c.ctx);pool=catalog.forContext(pool,c.ctx);
   return (await pool.query("SELECT id,name_en AS nameEn,name_ar AS nameAr FROM sx_training_courses WHERE tenant_id=? AND status='active' AND deleted_at IS NULL ORDER BY name_en,name_ar,id",[c.ctx.tenant.id]))[0];
 }
 async function conversation(c, chatId) {
@@ -70,6 +75,7 @@ function textParts(course, offer, language) {
   return parts;
 }
 async function plan(pool, c, courseId, language) {
+  requireCatalog(c.ctx);pool=catalog.forContext(pool,c.ctx);
   if (!validId(courseId)) fail('INVALID_COURSE', 400);
   const [[course]] = await pool.query("SELECT * FROM sx_training_courses WHERE tenant_id=? AND id=? AND status='active' AND deleted_at IS NULL", [c.ctx.tenant.id, courseId]);
   if (!course) fail('COURSE_NOT_AVAILABLE', 404);
@@ -86,7 +92,9 @@ async function plan(pool, c, courseId, language) {
     const stat = await fs.stat(file.path);
     if (stat.size !== p.sizeBytes) fail('COURSE_MEDIA_NOT_AVAILABLE');
   }
-  parts.push(...textParts(course, offer, language));
+  const texts=textParts(course,offer,language);
+  if(catalog.sales(c.ctx))for(const part of texts)part.text=part.text.replace(/Course fee/g,'Price').replace(/رسوم الدورة/g,'السعر').replace(/Learning outcomes/g,'Details').replace(/مخرجات التعلم/g,'التفاصيل').replace(/Prerequisites/g,'Requirements').replace(/المتطلبات السابقة/g,'المتطلبات');
+  parts.push(...texts);
   return { courseId, name:language==='ar'?course.name_ar:course.name_en, language, parts };
 }
 function publicJob(row) {
@@ -94,6 +102,7 @@ function publicJob(row) {
   return { id:row.id, chatId:row.chat_id, courseId:row.course_id, state:row.state, sent:Number(row.sent_count), total:parts.length, parts:parts.map(p=>({kind:p.kind,name:p.name,text:p.text})), error:row.error_code || null };
 }
 async function job(pool, c, id) {
+  requireCatalog(c.ctx);pool=catalog.forContext(pool,c.ctx);
   if (!validId(id)) fail('INVALID_REQUEST',400);
   const [[row]] = await pool.query('SELECT * FROM sx_course_reply_jobs WHERE id=? AND owner_hash=?', [id,hash(c.scope.uid)]);
   if (!row) fail('REQUEST_NOT_FOUND',404);
@@ -108,6 +117,7 @@ const conversationLock=(uid,chatId)=>'course-reply:'+hash(uid+'|'+chatId).slice(
 // A durable claim and per-conversation database lock prevent duplicate/reordered
 // sends across clicks, HTTP retries and app processes. Ambiguous sends never retry.
 async function execute(pool, c, input, send = require('./course-reply-transport').send) {
+  requireCatalog(c.ctx);pool=catalog.forContext(pool,c.ctx);
   const {requestId,chatId,courseId,language='en'}=input || {};
   if (!validId(requestId) || !['en','ar'].includes(language)) fail('INVALID_REQUEST',400);
   await conversation(c,chatId);

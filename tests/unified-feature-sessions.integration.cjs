@@ -5,7 +5,7 @@ const mysql=require('mysql2/promise'),crypto=require('node:crypto'),assert=requi
 const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).digest('hex');
 (async()=>{
  if(process.env.UNIFIED_SYNTHETIC_ONLY!=='true')throw Error('SYNTHETIC_DATABASE_REQUIRED');
- const connection={host:process.env.DBHOST,user:process.env.DBUSER,password:process.env.DBPASS},admin=await mysql.createConnection(connection),name='salemax_unified_test_'+crypto.randomBytes(6).toString('hex');let pool,server,legacyPool;
+ const connection={host:process.env.DBHOST,port:Number(process.env.DBPORT||3306),user:process.env.DBUSER,password:process.env.DBPASS},admin=await mysql.createConnection(connection),name='salemax_unified_test_'+crypto.randomBytes(6).toString('hex');let pool,server,legacyPool;
  try{
  await admin.query('CREATE DATABASE `'+name+'` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');pool=mysql.createPool({...connection,database:name,connectionLimit:12});
  const inventory=require('../docs/LEGACY_SCHEMA_INVENTORY.json');
@@ -40,6 +40,9 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  const sessionRouter=express.Router();sessionRouter.use(guard.guard);sessionRouter.get('/',(req,res,next)=>require('../modules/platform/feature-contract').describeWithNavigation(pool,req.featureSession).then(data=>res.json({success:true,data})).catch(next));app.use('/api/workspace/session',sessionRouter);
  const finance=require('../modules/platform/training-finance-router').createTrainingFinanceRouter({pool,origin,sessionGuard:guard.guard});app.use(['/api/workspace/finance','/api/user/training/finance-policies'],finance);
  const phonebook=require('../modules/platform/phonebook-workspace-router')({pool,authenticate:guard.guard});app.use(['/api/workspace/phonebook','/api/phonebook/workspace','/api/agent/phonebook'],phonebook);
+ const catalogRouter=require('../modules/platform/training-course-router').createTrainingCourseRouter;
+ app.use('/api/workspace/products-services',catalogRouter({pool,origin,sessionGuard:guard.guard,products:true}));
+ app.use('/api/workspace/courses',catalogRouter({pool,origin,sessionGuard:guard.guard}));
  let sends=0,revokeDuringSend=false;const replies=require('../modules/platform/course-quick-reply-router')({pool,origin,authenticate:guard.guard,send:async()=>{sends++;if(revokeDuringSend)await pool.query('UPDATE sx_memberships SET assigned_navigation=JSON_ARRAY() WHERE id=?',[people.agent.membership]);}});app.use(['/api/workspace/inbox/course-replies','/api/inbox/course-replies','/api/agent/course-replies'],replies);
  app.use((error,req,res,next)=>{if(!res.headersSent)res.status(error.status||503).json({success:false,code:error.code||'UNAVAILABLE'});});
  server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const base=origin+':'+server.address().port;
@@ -66,6 +69,27 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  revokeDuringSend=true;const stopped=await request('agent','cookie','/api/workspace/inbox/course-replies/send','POST',{requestId:uuid(),chatId:'synthetic-chat',courseId:course,language:'en'});assert.equal(stopped.data.state,'stopped',JSON.stringify(stopped));assert.equal(stopped.data.sent,1);
  await pool.query("UPDATE sx_memberships SET status='inactive' WHERE id=?",[people.manager.membership]);
  assert.equal((await request('manager','cookie','/api/workspace/session')).status,401);assert.equal((await request('manager','bearer','/api/workspace/session')).status,403);
- console.log(JSON.stringify({passed:true,migrations:require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')).length,checks:['owner manager accountant agent bearer and real cookie auth','one Finance route for all roles and compatibility aliases','Finance screen includes receipts','manager uses owner phonebooks','same-account sharing and agent read-only scope','Inbox-only published course replies','foreign course and conversation denial','real cookie CSRF and Origin denial','Arabic ordered send with fake transport','mid-send permission revocation stops subsequent messages','inactive member denied for both session kinds'],customerDataTouched:false,externalMessages:0}));
+ // Reclassify this disposable tenant to prove storage and endpoint isolation
+ // even when a category change leaves historical training records behind.
+ const salesCategory=require('../modules/platform/categories').salemaxSales;
+ const salesLimits=JSON.stringify({owner:1,accountant:3,manager:3,team_leader:3,agent:10});
+ await pool.query("UPDATE sx_tenants SET category_key='salemax_sales' WHERE id=?",[tenant]);
+ await pool.query("UPDATE sx_plan_versions SET category_key='salemax_sales',capabilities=?,role_limits=? WHERE id=?",[JSON.stringify(salesCategory.capabilities),salesLimits,version]);
+ await pool.query('UPDATE sx_plan_assignments SET role_limits=? WHERE tenant_id=?',[salesLimits,tenant]);
+ await pool.query("UPDATE sx_memberships SET status='active',assigned_navigation=JSON_ARRAY('inbox','contacts','products-services') WHERE tenant_id=?",[tenant]);
+ for(const kind of ['bearer','cookie'])for(const role of ['owner','manager','agent']){
+  assert.equal((await request(role,kind,'/api/workspace/products-services')).status,200);
+  assert.equal((await request(role,kind,'/api/workspace/courses')).status,403);
+  const options=await request(role,kind,'/api/workspace/inbox/course-replies?chatId=synthetic-chat');assert.equal(options.data.catalogKind,'products');assert.equal(options.data.courses.length,0);
+ }
+ for(const kind of ['bearer','cookie'])assert.equal((await request('accountant',kind,'/api/workspace/products-services')).status,403);
+ const product=await request('owner','cookie','/api/workspace/products-services','POST',{code:'SERVICE-01',nameEn:'Synthetic product',nameAr:'منتج تجريبي',offer:{priceMinor:9900}});assert.equal(product.status,201,JSON.stringify(product));
+ const productId=product.data.id;
+ assert.equal((await request('manager','bearer','/api/workspace/products-services/'+productId+'/publish','POST',{expectedRevision:1})).status,200);
+ for(const kind of ['bearer','cookie']){
+  const options=await request('agent',kind,'/api/workspace/inbox/course-replies?chatId=synthetic-chat');assert.equal(options.data.courses.length,1);assert.equal(options.data.courses[0].id,productId);
+  assert.equal((await request('agent',kind,'/api/workspace/inbox/course-replies/preview/'+course+'?chatId=synthetic-chat')).status,404);
+ }
+ console.log(JSON.stringify({passed:true,migrations:require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')).length,checks:['owner manager accountant agent bearer and real cookie auth','one Finance route for all roles and compatibility aliases','Finance screen includes receipts','manager uses owner phonebooks','same-account sharing and agent read-only scope','Inbox-only published course replies','foreign course and conversation denial','real cookie CSRF and Origin denial','Arabic ordered send with fake transport','mid-send permission revocation stops subsequent messages','inactive member denied for both session kinds','Sales catalog with both auth kinds and category-specific APIs and quick replies','Sales owner creates and manager publishes; agent reads; accountant denied','historical training courses stay separate after category changes'],customerDataTouched:false,externalMessages:0}));
  }finally{if(server)await new Promise(r=>server.close(r));if(legacyPool)await legacyPool.promise().end();await pool?.end();await admin.query('DROP DATABASE IF EXISTS `'+name+'`');await admin.end();}
 })().catch(error=>{console.error(error.stack);process.exitCode=1;});

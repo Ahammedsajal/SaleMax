@@ -25,7 +25,7 @@ module.exports=function createRouter({agent=false,pool:injectedPool,authenticate
     const c=await contextFor(req);
     const row=await service.job(pool,c,req.params.id),parts=JSON.parse(row.parts_json),index=Number(req.params.index);
     if(!Number.isInteger(index)||index<0||index>=parts.length||!parts[index].mediaId)return res.sendStatus(404);
-    const file=await media.getFile(pool,c.ctx.tenant.id,row.course_id,parts[index].mediaId);
+    const file=await media.getFile(require('./product-catalog').forContext(pool,c.ctx),c.ctx.tenant.id,row.course_id,parts[index].mediaId);
     res.set({'Content-Type':file.mimeType,'X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; sandbox",'Content-Disposition':`${file.kind==='document'?'attachment':'inline'}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`});
     res.sendFile(file.path,{dotfiles:'deny'});
   }));
@@ -36,7 +36,7 @@ module.exports=function createRouter({agent=false,pool:injectedPool,authenticate
     const items=await service.options(pool,c);
     const auth=Buffer.from(JSON.stringify(req.get('Authorization')?{mode:'bearer',agent:req.featureSession?.agent??agent,token:req.get('Authorization')}:{mode:'cookie'})).toString('base64url');
     for(const path of ['/api/inbox/course-replies/files','/api/workspace/inbox/course-replies/files'])res.cookie('sx_course_reply',auth,{httpOnly:true,secure:origin?.startsWith('https:'),sameSite:'strict',path,maxAge:3600000});
-    res.json({success:true,data:{courses:items}});
+    res.json({success:true,data:{courses:items,catalogKind:c.ctx.tenant.categoryKey==='salemax_sales'?'products':'courses'}});
   }));
   router.get('/preview/:id',wrap(async(req,res)=>{await service.conversation(req.courseReplyContext,req.query.chatId);res.json({success:true,data:await service.plan(pool,req.courseReplyContext,req.params.id,req.query.language==='ar'?'ar':'en')});}));
   router.get('/jobs/:id',wrap(async(req,res)=>res.json({success:true,data:service.publicJob(await service.job(pool,req.courseReplyContext,req.params.id))})));

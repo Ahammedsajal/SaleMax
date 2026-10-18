@@ -53,6 +53,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   const team=createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback});
   app.use('/api/user/team-invitations',team.owner);
   app.use('/api/agent/invitations',team.accept);
+  app.use('/api/workspace/products-services',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard,products:true}));
   app.use(['/api/workspace/courses','/api/user/training/courses'],createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard}));
   app.use('/api/user/training/tasks',businessBoundary.guard,createTaskRouter({pool,contextFor:(req,permission)=>createTaskContext(pool,req.businessContext,permission)}));
   app.use(['/api/workspace/students','/api/user/training/students'],createTrainingStudentsRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard}));

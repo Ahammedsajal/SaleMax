@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   if(window.SaleMaxWorkspace)return;
-  const paths={session:'/api/workspace/session',finance:'/api/workspace/finance',phonebook:'/api/workspace/phonebook',courseReplies:'/api/workspace/inbox/course-replies',courses:'/api/workspace/courses',students:'/api/workspace/students',profile:'/api/workspace/profile',forms:'/api/workspace/forms'};
+  const paths={session:'/api/workspace/session',finance:'/api/workspace/finance',phonebook:'/api/workspace/phonebook',courseReplies:'/api/workspace/inbox/course-replies',products:'/api/workspace/products-services',courses:'/api/workspace/courses',students:'/api/workspace/students',profile:'/api/workspace/profile',forms:'/api/workspace/forms'};
   const actor=()=>/^\/agent\/?$/.test(location.pathname)?'agent':'user';
   async function headers(json=true){
     const kind=actor(),token=localStorage.getItem(kind==='agent'?'wacrm_agent':'wacrm_user');

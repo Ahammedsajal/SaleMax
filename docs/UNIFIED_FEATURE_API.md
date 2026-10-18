@@ -10,6 +10,7 @@ business feature. Add future changes to that implementation once.
 | Phonebook | `/api/workspace/phonebook` | `/api/phonebook/workspace`, `/api/agent/phonebook` |
 | Finance, invoices, payments and receipts | `/api/workspace/finance` | `/api/user/training/finance-policies`; its `/accountant` and `/canonical` prefixes are stripped before routing |
 | Course catalogue | `/api/workspace/courses` | `/api/user/training/courses` |
+| Products & services catalogue (SaleMaX Sales) | `/api/workspace/products-services` | None |
 | Students | `/api/workspace/students` | `/api/user/training/students` |
 | Business profile | `/api/workspace/profile` | `/api/user/training/profile` |
 | Forms | `/api/workspace/forms` | `/api/user/training/forms` |
@@ -21,6 +22,19 @@ delegations, configured screen access and current plan entitlements. Legacy
 unmapped Phonebook accounts retain their existing account scope; training and
 Finance services still require an enabled, linked business. No tenant is
 silently provisioned and no subscription is bypassed.
+
+Products & services reuse the course editor and catalogue handlers with the
+`products.catalog` capability and `products.read` / `products.manage` permissions.
+The Sales router uses fixed separate product tables through `product-catalog.js`;
+Training Center APIs reject Sales sessions and Sales APIs reject Training Center
+sessions. Existing courses and reply jobs are preserved. The shared Inbox reply
+API chooses the catalogue from the current authenticated category and returns
+`catalogKind`. The session contract supplies `quickReplyCatalog`; unsupported
+categories do not mount the catalogue reply panel. Publishing, private media,
+ordered sends, idempotency, conversation scope and revocation checks are shared.
+Migration `20261215_category_product_catalog.sql` creates empty Sales tables and
+adds the catalogue capability to existing Sales plan versions. It does not copy
+Training Center courses or change customer records.
 
 Bearer requests identify the current panel with `X-Salemax-Actor: agent` for
 Agent credentials; existing Agent aliases identify the panel themselves.
