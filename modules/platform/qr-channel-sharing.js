@@ -84,12 +84,14 @@ async function list(pool, ownerUid) {
       WHERE ${channelScope} GROUP BY i.id,i.title,i.number,i.status,i.uniqueId,i.createdAt ORDER BY i.createdAt DESC,i.id DESC`, channelParams);
     const [agentRows] = scope.role === 'manager' ? await db.query(`SELECT m.id AS membershipId,i.display_name AS displayName,i.email_normalized AS email,
         a.uid AS legacyUid,a.is_active AS active,o.legacy_uid_hash AS uidHash
-      FROM sx_sales_org_history org JOIN sx_memberships m ON m.tenant_id=org.tenant_id AND m.id=org.membership_id
+      FROM sx_memberships m
+      LEFT JOIN sx_sales_org_history org_scope ON org_scope.tenant_id=m.tenant_id AND org_scope.membership_id=m.id AND org_scope.ended_at IS NULL
       JOIN sx_identities i ON i.id=m.identity_id
       JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='agents'
       JOIN agents a ON CAST(a.id AS CHAR)=o.source_id AND a.owner_uid=?
-      WHERE org.tenant_id=? AND org.manager_membership_id=? AND org.ended_at IS NULL AND m.role='agent' AND m.status='active' AND i.status='active' AND a.is_active=1
-      ORDER BY i.display_name,i.email_normalized`, [owner.uid,scope.tenantId,scope.membershipId]) : [[]];
+      WHERE m.tenant_id=? AND m.role='agent' AND m.status='active' AND i.status='active' AND a.is_active=1
+        AND (?='training_center' OR org_scope.manager_membership_id=?)
+      ORDER BY i.display_name,i.email_normalized`, [owner.uid,scope.tenantId,scope.categoryKey,scope.membershipId]) : [[]];
     const agents = agentRows.filter(agent => agent.uidHash === digest(agent.legacyUid)).map(({membershipId,displayName,email})=>({membershipId,displayName,email}));
     const [members] = await db.query(`SELECT m.id AS membershipId,m.identity_id AS identityId,
         i.display_name AS displayName,i.email_normalized AS email,r.permissions AS rolePermissions,
@@ -154,8 +156,9 @@ async function saveAgentShares(pool, managerUid, instanceIdValue, agentMembershi
       FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
       JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='agents'
       JOIN agents a ON CAST(a.id AS CHAR)=o.source_id AND a.owner_uid=?
-      JOIN sx_sales_org_history org ON org.tenant_id=m.tenant_id AND org.membership_id=m.id AND org.manager_membership_id=? AND org.ended_at IS NULL
-      WHERE m.tenant_id=? AND m.id IN (?) AND m.role='agent' AND m.status='active' AND i.status='active' AND a.is_active=1 FOR UPDATE`,[owner.uid,scope.membershipId,scope.tenantId,agentMembershipIds]):[[]];
+      LEFT JOIN sx_sales_org_history org ON org.tenant_id=m.tenant_id AND org.membership_id=m.id AND org.ended_at IS NULL
+      WHERE m.tenant_id=? AND m.id IN (?) AND m.role='agent' AND m.status='active' AND i.status='active' AND a.is_active=1
+        AND (?='training_center' OR org.manager_membership_id=?) FOR UPDATE`,[owner.uid,scope.tenantId,agentMembershipIds,scope.categoryKey,scope.membershipId]):[[]];
     if(agents.length!==agentMembershipIds.length||agents.some(agent=>agent.uidHash!==digest(agent.legacyUid)))fail('INVALID_AGENT_ASSIGNMENTS');
     const [oldRows]=await db.query(`SELECT membership_id AS membershipId,granted_by_identity_id AS grantedByIdentityId FROM sx_qr_channel_shares WHERE tenant_id=? AND instance_id=? AND granted_by_identity_id=? FOR UPDATE`,[scope.tenantId,instanceId,scope.identityId]);
     const oldIds=oldRows.map(row=>row.membershipId);

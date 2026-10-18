@@ -13,7 +13,7 @@ const parse = value => { try { const list = typeof value === 'string' ? JSON.par
 
 async function resolveInboxScope(query, user, event) {
   const source=user.isAgent||user.role==='agent'?'agents':'user';
-  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
+  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
       i.status AS identityStatus,o.legacy_uid_hash AS uidHash,m.role_profile_id AS roleProfileId,
       m.delegated_permissions AS delegatedPermissions,r.permissions AS rolePermissions,r.seat_role AS seatRole,r.status AS roleStatus
     FROM sx_legacy_ownership o JOIN sx_tenants t ON t.id=o.tenant_id
@@ -47,11 +47,16 @@ async function resolveInboxScope(query, user, event) {
         FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=?
         WHERE share.tenant_id=? AND share.membership_id=? AND (
           share.granted_by_identity_id=? OR EXISTS (
-            SELECT 1 FROM sx_sales_org_history org
-            JOIN sx_memberships manager ON manager.tenant_id=org.tenant_id AND manager.id=org.manager_membership_id AND manager.role='manager' AND manager.status='active'
-            JOIN sx_qr_channel_shares manager_share ON manager_share.tenant_id=org.tenant_id AND manager_share.instance_id=share.instance_id AND manager_share.membership_id=manager.id
-            WHERE org.tenant_id=share.tenant_id AND org.membership_id=share.membership_id AND org.ended_at IS NULL
-              AND manager.identity_id=share.granted_by_identity_id
+            SELECT 1 FROM sx_memberships manager
+            JOIN sx_qr_channel_shares manager_share ON manager_share.tenant_id=share.tenant_id AND manager_share.instance_id=share.instance_id AND manager_share.membership_id=manager.id
+            JOIN sx_tenants tenant ON tenant.id=manager.tenant_id
+            WHERE manager.tenant_id=share.tenant_id AND manager.role='manager' AND manager.status='active'
+              AND manager.identity_id=share.granted_by_identity_id AND (
+                tenant.category_key='training_center' OR EXISTS (
+                  SELECT 1 FROM sx_sales_org_history org WHERE org.tenant_id=share.tenant_id
+                    AND org.membership_id=share.membership_id AND org.manager_membership_id=manager.id AND org.ended_at IS NULL
+                )
+              )
           )
         )`, [owners[0].uid,row.tenantId,row.membershipId,owners[0].identityId])
     : [];

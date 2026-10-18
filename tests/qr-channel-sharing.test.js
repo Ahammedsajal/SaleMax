@@ -20,7 +20,7 @@ function poolFor({authorizedAgent=true,sharedChannel=true,rolePermissions=null,e
       if(sql.includes('FROM sx_plan_assignments'))return [[{id:'plan',status:'active',current_period:1,role_limits:JSON.stringify({owner:1,accountant:1,manager:1,agent:7}),capabilities:JSON.stringify(['team.members','messaging.inbox']),category_key:'training_center',category_version:1}]];
       if(sql.includes('FROM sx_memberships m')&&sql.includes("m.role='owner'")&&sql.includes('legacy_uid_hash'))return [[{membershipId:'owner-membership',identityId:'owner-identity',uid:ownerUid,uidHash:hash(ownerUid)}]];
       if(sql.includes('FROM instance i LEFT JOIN beta_chats'))return [[{...channel,conversationCount:3}]];
-      if(sql.includes('FROM sx_sales_org_history org JOIN sx_memberships m'))return [[agent]];
+      if(sql.includes("o.source_table='agents'")&&sql.includes('m.role=\'agent\'')&&sql.includes('i.status=\'active\''))return [authorizedAgent?[agent]:[]];
       if(sql.includes('FROM sx_memberships m JOIN sx_identities i')&&sql.includes("m.role='manager'"))return [[]];
       if(sql.includes('SELECT instance_id AS instanceId,membership_id AS membershipId,granted_by_identity_id AS grantedByIdentityId'))return [existingShares];
       if(sql.includes('JOIN sx_qr_channel_shares manager_share'))return [sharedChannel?[channel]:[]];
@@ -48,6 +48,7 @@ test('manager delegation requires an owner-shared QR connection and an active ag
   assert.deepEqual(result,{instanceId:7,agentMembershipIds:[agentId]});
   assert.ok(fixture.calls.some(call=>call.sql.startsWith('INSERT INTO sx_qr_channel_shares')));
   assert.ok(fixture.calls.some(call=>call.sql.includes('whatsapp.qr-agent-access-updated')));
+  assert.ok(fixture.calls.some(call=>call.sql.includes("?='training_center' OR org.manager_membership_id=?")));
   assert.equal(fixture.calls.at(-1).sql,'COMMIT');
 });
 
