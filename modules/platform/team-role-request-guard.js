@@ -121,6 +121,17 @@ async function authorizeLegacyRequest(req,{sourceTable,sourceId}){
   }catch(error){if(error.code==='ER_NO_SUCH_TABLE'||error.code==='ER_BAD_FIELD_ERROR')return {allowed:false,code:'TEAM_ROLE_STORAGE_NOT_READY'};throw error;}
   if(!rows?.length)return {allowed:true};
   if(rows.length!==1)return {allowed:false,code:'TEAM_ROLE_LINK_INVALID'};
+  const mount=mountFor(req), permission=routePermission(req);
+  if(rows[0].role==='accountant'&&rows[0].categoryKey==='training_center'&&['conversations.read','conversations.reply'].includes(permission)&&['/api/inbox','/api/qr'].includes(mount)){
+    try{
+      const shares=await query(`SELECT 1 FROM sx_legacy_ownership o JOIN sx_memberships member ON member.tenant_id=o.tenant_id AND member.id=o.membership_id
+        JOIN sx_qr_channel_shares share ON share.tenant_id=member.tenant_id AND share.membership_id=member.id
+        JOIN sx_memberships manager ON manager.tenant_id=share.tenant_id AND manager.identity_id=share.granted_by_identity_id AND manager.role='manager' AND manager.status='active'
+        JOIN sx_qr_channel_shares manager_share ON manager_share.tenant_id=share.tenant_id AND manager_share.instance_id=share.instance_id AND manager_share.membership_id=manager.id
+        WHERE o.source_table='user' AND o.source_id=? AND member.status='active' LIMIT 1`,[String(sourceId)]);
+      if(shares?.length)return {allowed:true,permission};
+    }catch(error){if(!['ER_NO_SUCH_TABLE','ER_BAD_FIELD_ERROR'].includes(error.code))throw error;}
+  }
   return authorizeLegacyMembership({...req,sourceTable},rows[0]);
 }
 module.exports={routePermission,salesAccountantLegacyRouteAllowed,authorizeLegacyMembership,authorizeLegacyRequest};

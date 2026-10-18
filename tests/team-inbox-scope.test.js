@@ -57,6 +57,28 @@ test('Agent QR access follows an active manager grant and the agent’s current 
   assert.deepEqual(filterAssignedChats([{origin:'qr',origin_instance_unique_id:'delegated-qr-session',assigned_agent:'[]'},{origin:'qr',origin_instance_unique_id:'private-session',assigned_agent:'[]'}],scope).map(chat=>chat.origin_instance_unique_id),['delegated-qr-session']);
 });
 
+test('accountant QR share grants access only to shared QR conversations and replies',async()=>{
+  const accountant={...user,uid:'synthetic-accountant'};
+  const channel={instanceId:61,uniqueId:'accountant-qr',number:'97450000000',title:'Team QR',status:'ACTIVE'};
+  const lookup=async sql=>{
+    if(sql.includes('WHERE o.source_table'))return [{...member,uidHash:hash(accountant.uid),role:'accountant',categoryKey:'training_center'}];
+    if(sql.includes("m.role='owner'"))return [{uid:'synthetic-owner',membershipId:'owner-member',identityId:'owner-identity',uidHash:hash('synthetic-owner')}];
+    if(sql.includes('FROM sx_qr_channel_shares share'))return [channel];
+    return [];
+  };
+  const scope=await resolveInboxScope(lookup,accountant,'get_chat_list');
+  assert.equal(scope.qrOnly,true);
+  assert.deepEqual(filterAssignedChats([
+    {origin:'qr',origin_instance_unique_id:'accountant-qr',assigned_agent:'[]'},
+    {origin:'qr',origin_instance_unique_id:'private-qr',assigned_agent:'[]'},
+    {origin:'meta',origin_instance_unique_id:'accountant-qr',assigned_agent:'[]'}
+  ],scope).length,1);
+  const allowed=await authorizeInboxPayload(async()=>[{chat_id:'shared',origin:'qr',origin_instance_unique_id:'accountant-qr'}],scope,'send_chat_message',{chatInfo:{chat_id:'shared'}});
+  assert.equal(allowed.chatInfo.origin,'qr');
+  await assert.rejects(authorizeInboxPayload(async()=>[],scope,'assign_agent_to_chat',{chatId:'shared'}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(resolveInboxScope(async sql=>sql.includes('WHERE o.source_table')?[{...member,uidHash:hash(accountant.uid),role:'accountant',categoryKey:'training_center'}]:sql.includes("m.role='owner'")?[{uid:'synthetic-owner',identityId:'owner-identity',uidHash:hash('synthetic-owner')}]:[],accountant,'get_chat_list'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});
+
 test('staff Inbox drops transferred chats and rejects stale direct reads/replies and forged targets', async () => {
   const scope = await resolveInboxScope(query(member), user, 'get_chat_list');
   const current = { chat_id: 'shared-chat', origin: 'qr', sender_mobile: 'synthetic-customer', assigned_agent: JSON.stringify([{kind:'identity',identityId:'staff-a'}]) };

@@ -66,6 +66,6 @@ test('staff invitation UI is integrated into the existing single SaleMaX app she
   assert.match(js,/new MutationObserver\(addNav\)/);
   assert.match(js,/data-member-role/);assert.match(js,/members\/.*\/role/);assert.match(router,/owner\.put\('\/members\/:id\/role'/);
   assert.match(js,/permissionCatalog/);assert.match(js,/name="permission"/);
-  assert.match(js,/data-qr-agent/);assert.match(js,/agentMembershipIds/);assert.match(js,/assigned agents/);
+  assert.match(js,/data-qr-recipient/);assert.match(js,/recipientMembershipIds/);assert.match(js,/active accountants and agents/);
   assert.match(router,/qrChannels\.saveAccess/);
 });

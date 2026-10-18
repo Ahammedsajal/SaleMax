@@ -26,14 +26,15 @@ async function resolveInboxScope(query, user, event) {
 
   const permission = EVENT_PERMISSIONS[event];
   if (!permission && row.role !== 'owner') fail();
+  const qrAccountant = row.role==='accountant' && row.categoryKey==='training_center' && ['conversations.read','conversations.reply'].includes(permission);
   const delegatedPermissions = parse(row.delegatedPermissions) || [];
   const membership = { role: row.role, delegatedPermissions };
   if (row.roleProfileId) {
     const permissions = parse(row.rolePermissions);
-    if (!permissions || row.seatRole !== row.role || !['active','archived'].includes(row.roleStatus) || (permission && !permissions.includes(permission))) fail();
+    if (!permissions || row.seatRole !== row.role || !['active','archived'].includes(row.roleStatus) || (permission && !permissions.includes(permission) && !qrAccountant)) fail();
     membership.customPermissions = permissions;
   }
-  if (row.role !== 'owner' && !scopeFor(membership, permission)) fail();
+  if (row.role !== 'owner' && !qrAccountant && !scopeFor(membership, permission)) fail();
   const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId, ctx: { tenant: { id: row.tenantId }, identity: { id: row.identityId }, membership } };
   if (row.role === 'owner') return { ...base, uid: user.uid };
   const owners = await query(`SELECT u.uid,m.id AS membershipId,m.identity_id AS identityId,o.legacy_uid_hash AS uidHash FROM sx_memberships m
@@ -42,7 +43,7 @@ async function resolveInboxScope(query, user, event) {
     WHERE m.tenant_id=? AND m.role='owner' AND m.status='active' AND i.status='active' AND u.role='user' LIMIT 2`, [row.tenantId]);
   if (owners.length !== 1 || owners[0].uidHash !== crypto.createHash('sha256').update(owners[0].uid).digest('hex')) fail();
   if(source==='agents'&&(user.is_active===0||user.owner_uid!==owners[0].uid))fail();
-  const sharedQrInstances = ['manager','agent'].includes(row.role)
+  const sharedQrInstances = ['manager','agent','accountant'].includes(row.role)
     ? await query(`SELECT instance.id AS instanceId,instance.uniqueId,instance.number,instance.title,instance.status
         FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=?
         WHERE share.tenant_id=? AND share.membership_id=? AND (
@@ -60,7 +61,8 @@ async function resolveInboxScope(query, user, event) {
           )
         )`, [owners[0].uid,row.tenantId,row.membershipId,owners[0].identityId])
     : [];
-  return { ...base, uid: owners[0].uid, sharedQrInstances, sharedQrInstanceIds: sharedQrInstances.map(channel => Number(channel.instanceId)) };
+  if(qrAccountant&&!sharedQrInstances.length)fail();
+  return { ...base, uid: owners[0].uid, sharedQrInstances, sharedQrInstanceIds: sharedQrInstances.map(channel => Number(channel.instanceId)), qrOnly:qrAccountant };
 }
 
 async function resolveInboxUid(query, user, event) {
@@ -71,7 +73,7 @@ function filterAssignedChats(chats, scope) {
   const { ownsConversation } = require('./team-conversation-assignment');
   if (!scope.assignedOnly) return chats;
   const channelIds = new Set((scope.sharedQrInstances || []).map(channel => String(channel.uniqueId)));
-  return chats.filter(chat => ownsConversation(chat.assigned_agent, scope.identityId) ||
+  return chats.filter(chat => (!scope.qrOnly&&ownsConversation(chat.assigned_agent, scope.identityId)) ||
     (chat.origin === 'qr' && chat.origin_instance_unique_id && channelIds.has(String(chat.origin_instance_unique_id))));
 }
 
@@ -83,6 +85,7 @@ function filterQrInstances(instances, scope) {
 
 async function authorizeInboxPayload(query, scope, event, payload) {
   if (!scope.canonical) return payload;
+  if(scope.qrOnly&&!['get_chat_list','load_conversation','export_chats','export_conversation','send_chat_message'].includes(event))fail();
   // Staff never initiate a different WhatsApp conversation through the shared
   // number. Reply only to the persisted, currently assigned customer/channel.
   if (scope.assignedOnly && ['send_new_message', 'unasign_chat_agent'].includes(event)) fail();

@@ -6,11 +6,13 @@ const sharing=require('../modules/platform/qr-channel-sharing');
 
 const managerUid='synthetic-manager-uid',ownerUid='synthetic-owner-uid';
 const managerId='11111111-1111-4111-8111-111111111111',agentId='22222222-2222-4222-8222-222222222222';
+const accountantId='44444444-4444-4444-8444-444444444444';
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 const manager={userId:2,uid:managerUid,tenantId:'33333333-3333-4333-8333-333333333333',tenantStatus:'active',categoryKey:'training_center',categoryVersion:1,membershipId:managerId,identityId:'manager-identity',role:'manager',membershipStatus:'active',identityStatus:'active',uidHash:hash(managerUid),roleProfileId:null,assignedNavigation:null};
-const agent={membershipId:agentId,identityId:'agent-identity',legacyUid:'synthetic-agent-uid',uidHash:hash('synthetic-agent-uid'),active:1};
+const agent={membershipId:agentId,identityId:'agent-identity',legacyUid:'synthetic-agent-uid',uid:'synthetic-agent-uid',uidHash:hash('synthetic-agent-uid'),active:1};
+const accountant={membershipId:accountantId,identityId:'accountant-identity',uid:'synthetic-accountant-uid',uidHash:hash('synthetic-accountant-uid'),role:'accountant'};
 const channel={id:7,title:'Support QR',number:'97450000000',status:'ACTIVE',uniqueId:'qr-session-7',createdAt:'2026-10-01'};
-function poolFor({authorizedAgent=true,sharedChannel=true,rolePermissions=null,existingShares=[]}={}){
+function poolFor({authorizedAgent=true,authorizedAccountant=false,sharedChannel=true,rolePermissions=null,existingShares=[]}={}){
   const calls=[];
   const db={
     async beginTransaction(){calls.push({sql:'BEGIN'});},async commit(){calls.push({sql:'COMMIT'});},async rollback(){calls.push({sql:'ROLLBACK'});},release(){},
@@ -21,9 +23,11 @@ function poolFor({authorizedAgent=true,sharedChannel=true,rolePermissions=null,e
       if(sql.includes('FROM sx_memberships m')&&sql.includes("m.role='owner'")&&sql.includes('legacy_uid_hash'))return [[{membershipId:'owner-membership',identityId:'owner-identity',uid:ownerUid,uidHash:hash(ownerUid)}]];
       if(sql.includes('FROM instance i LEFT JOIN beta_chats'))return [[{...channel,conversationCount:3}]];
       if(sql.includes("o.source_table='agents'")&&sql.includes('m.role=\'agent\'')&&sql.includes('i.status=\'active\''))return [authorizedAgent?[agent]:[]];
+      if(sql.includes('FROM sx_memberships m JOIN sx_identities i')&&sql.includes("m.role='accountant'"))return [authorizedAccountant?[accountant]:[]];
       if(sql.includes('FROM sx_memberships m JOIN sx_identities i')&&sql.includes("m.role='manager'"))return [[]];
       if(sql.includes('SELECT instance_id AS instanceId,membership_id AS membershipId,granted_by_identity_id AS grantedByIdentityId'))return [existingShares];
       if(sql.includes('JOIN sx_qr_channel_shares manager_share'))return [sharedChannel?[channel]:[]];
+      if(sql.includes('FROM sx_memberships m JOIN sx_identities i')&&sql.includes("m.role='accountant'"))return [authorizedAccountant?[accountant]:[]];
       if(sql.includes('FROM sx_memberships m JOIN sx_identities i')&&sql.includes("o.source_table='agents'")&&sql.includes('FOR UPDATE'))return [authorizedAgent?[agent]:[]];
       if(sql.includes('SELECT membership_id AS membershipId,granted_by_identity_id AS grantedByIdentityId')&&sql.includes('granted_by_identity_id=?'))return [existingShares.filter(row=>row.grantedByIdentityId==='manager-identity')];
       if(sql.includes('SELECT membership_id AS membershipId,granted_by_identity_id AS grantedByIdentityId'))return [existingShares];
@@ -50,6 +54,15 @@ test('manager delegation requires an owner-shared QR connection and an active ag
   assert.ok(fixture.calls.some(call=>call.sql.includes('whatsapp.qr-agent-access-updated')));
   assert.ok(fixture.calls.some(call=>call.sql.includes("?='training_center' OR org.manager_membership_id=?")));
   assert.equal(fixture.calls.at(-1).sql,'COMMIT');
+});
+
+test('manager can list and grant QR access to an active Training Center accountant',async()=>{
+  const fixture=poolFor({authorizedAccountant:true});
+  const data=await sharing.list(fixture.pool,managerUid);
+  assert.deepEqual(data.recipients.map(row=>row.role),['accountant','agent']);
+  const result=await sharing.saveAccess(fixture.pool,managerUid,7,[accountantId,agentId]);
+  assert.deepEqual(result,{instanceId:7,membershipIds:[accountantId,agentId]});
+  assert.ok(fixture.calls.some(call=>call.sql.includes('whatsapp.qr-member-access-updated')));
 });
 
 test('manager can take over a stale agent grant only while that agent is assigned to their team',async()=>{

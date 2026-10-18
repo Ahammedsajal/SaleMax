@@ -13,7 +13,7 @@ function createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback=fal
   owner.use(express.json({limit:'16kb',strict:true}));owner.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(!require('./request-origin').matches(req,origin)||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(!require('./request-origin').matches(req,origin)?403:400).json({success:false,code:!require('./request-origin').matches(req,origin)?'ORIGIN_DENIED':'INVALID_BODY'});next();});owner.use(userGuard);
   owner.get('/sidebar-access',wrap(async(req,res)=>res.json({success:true,data:await team.sidebarAccess(pool,req.decode.uid)})));
   owner.get('/whatsapp-channels',wrap(async(req,res)=>res.json({success:true,data:await qrChannels.list(pool,req.decode.uid)})));
-  owner.put('/whatsapp-channels/:id/access',wrap(async(req,res)=>res.json({success:true,data:await qrChannels.saveAccess(pool,req.decode.uid,req.params.id,req.body?.managerMembershipIds||req.body?.agentMembershipIds)})));
+  owner.put('/whatsapp-channels/:id/access',wrap(async(req,res)=>res.json({success:true,data:await qrChannels.saveAccess(pool,req.decode.uid,req.params.id,req.body?.managerMembershipIds||req.body?.recipientMembershipIds||req.body?.agentMembershipIds)})));
   owner.get('/sales-organization',wrap(async(req,res)=>res.json({success:true,data:await team.salesOrganization(pool,req.decode.uid)})));
   owner.post('/sales-organization/members/:id/reassign',wrap(async(req,res)=>res.json({success:true,data:await team.reassignSalesMember(pool,req.decode.uid,req.params.id,req.body||{})})));
   const conversationAccess=wrap(async(req,res)=>{
