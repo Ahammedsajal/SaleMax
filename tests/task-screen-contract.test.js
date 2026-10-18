@@ -27,7 +27,7 @@ test('task selectors remain catalogue-backed and popup accessibility labels foll
   assert.match(source, /\$\('#statusFilter'\)\.setAttribute\('aria-label',tr\('Status filter','تصفية الحالة'\)\)/);
   assert.match(source, /\$\('#refresh'\)\.setAttribute\('aria-label',tr\('Refresh','تحديث'\)\)/);
   assert.match(source, /querySelectorAll\('\.close'\)\.forEach\(button=>button\.setAttribute\('aria-label',tr\('Close','إغلاق'\)\)\)/);
-  assert.match(html, /tasks\.js\?v=20261018-followup1/);
+  assert.match(html, /tasks\.js\?v=20261018-agent-workspace1/);
   assert.match(html, /tasks-sales\.js\?v=20261014-sales-calls1/);
   assert.match(fs.readFileSync(path.join(__dirname, '../client/public/tasks/tasks-sales.js'), 'utf8'), /due\.required=active/);
   assert.match(context, /option\.value='sales_call'/);

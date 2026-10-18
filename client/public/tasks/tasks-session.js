@@ -65,13 +65,14 @@
 
     // Prefer the same HttpOnly business session used by the existing /user panel.
     // Fall back to the compatible legacy pipeline API for accounts not yet mapped.
-    const session = await getCanonicalSession();
+    const agentPanel=window.parent?.location?.pathname?.replace(/\/$/,'')==='/agent';
+    const session = agentPanel?null:await getCanonicalSession();
     if (session) {
       headers.delete('Authorization');
       headers.set('X-CSRF-Token', session.csrfToken);
       url.pathname = url.pathname.replace('/api/pipeline/tasks', '/api/user/training/tasks');
     } else {
-      const currentToken = localStorage.getItem('wacrm_user');
+      const currentToken = localStorage.getItem(agentPanel?'wacrm_agent':'wacrm_user');
       if (currentToken) headers.set('Authorization', `Bearer ${currentToken}`);
       else headers.delete('Authorization');
     }

@@ -4,6 +4,17 @@ const assert=require('node:assert/strict');
 const students=require('../modules/platform/training-students');
 const {trainingCenter}=require('../modules/platform/categories');
 const context={audience:'tenant',identity:{id:'39bb978e-cf93-4b72-a5f9-211669cc4c67'},tenant:{id:'05cf4e43-7b6f-4dd9-9fa2-e153a7c08358',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member',tenantId:'05cf4e43-7b6f-4dd9-9fa2-e153a7c08358',role:'owner',status:'active',delegatedPermissions:[]},category:trainingCenter,subscription:{status:'active',capabilities:['training.courses']},runtimeReady:{}};
+
+test('Agent enrollment reads require a verified mapping and restrict both counts and rows to assigned leads',async()=>{
+  const ctx={...context,membership:{...context.membership,role:'agent'},subscription:{status:'active',capabilities:['training.enrollments','training.courses']}};
+  const calls=[],db={query:async(sql,params)=>{calls.push({sql,params});if(sql.includes('source_table=\'agents\''))return [[{agentId:'12'}]];if(sql.includes('COUNT(*) AS total'))return [[{total:1}]];return [[{id:'enrollment',leadId:'lead',learnerName:'Synthetic learner',status:'confirmed'}]];}};
+  const result=await students.list(db,ctx,{});assert.equal(result.readOnly,true);assert.equal(result.total,1);
+  assert.equal(calls.length,3);assert.deepEqual(calls[0].params,[ctx.tenant.id,ctx.membership.id]);
+  for(const call of calls.slice(1)){assert.match(call.sql,/e\.tenant_id=\? AND l\.owner_agent_id=\?/);assert.deepEqual(call.params.slice(0,2),[ctx.tenant.id,12]);assert.doesNotMatch(call.sql,/payer_email|payment_allocations|total_minor|invoice_number/);}
+  await assert.rejects(students.list({query:async()=>[[]]},ctx,{}),{code:'PERMISSION_DENIED'});
+  let queried=false;await assert.rejects(students.list({query:async()=>{queried=true;}},{...ctx,membership:{...ctx.membership,assignedNavigation:[]}},{}));assert.equal(queried,false);
+  await assert.rejects(students.setTrainer(db,ctx,'00000000-0000-4000-8000-000000000000','Changed'),{code:'PERMISSION_DENIED'});
+});
 test('attendance date picker uses Qatar local date at UTC day rollover',()=>{
   const fs=require('node:fs'),vm=require('node:vm'),source=fs.readFileSync(require('node:path').join(__dirname,'../client/public/training-students.js'),'utf8');
   const start=source.indexOf('function todayInQatar()'),end=source.indexOf('\n  function readableData',start),helper=source.slice(start,end).trim();assert.ok(helper.startsWith('function todayInQatar()'),'Qatar-local date helper is present');

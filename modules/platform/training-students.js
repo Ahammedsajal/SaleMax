@@ -9,7 +9,22 @@ function input(query={}){const page=query.page===undefined?1:Number(query.page),
 const paidExpr=`(SELECT COALESCE(SUM(CAST(a.amount_minor AS DECIMAL(65,0))-CAST(COALESCE((SELECT SUM(ar.amount_minor) FROM sx_training_payment_allocation_reversals ar WHERE ar.tenant_id=a.tenant_id AND ar.allocation_id=a.id),0) AS DECIMAL(65,0))),0) FROM sx_training_payment_allocations a JOIN sx_training_payments p ON p.tenant_id=a.tenant_id AND p.id=a.payment_id AND p.status='posted' WHERE a.tenant_id=i.tenant_id AND a.invoice_id=i.id)`;
 const creditedExpr=`(SELECT COALESCE(SUM(cr.amount_minor),0) FROM sx_training_credit_notes cr WHERE cr.tenant_id=i.tenant_id AND cr.invoice_id=i.id AND cr.status='posted')`;
 const formValue=`(SELECT fs.submission_data FROM sx_training_form_submissions fs WHERE fs.tenant_id=e.tenant_id AND fs.lead_id=e.lead_id ORDER BY fs.created_at DESC,fs.id DESC LIMIT 1)`;
+async function listAssigned(db,ctx,query={}){
+  const access=require('./policy').decision(ctx,{capability:'training.enrollments',permission:'sales.request'});
+  if(!access.allowed)fail(access.code||'PERMISSION_DENIED',403);
+  const {page,limit,search,status}=input(query);
+  const [links]=await db.query("SELECT source_id AS agentId FROM sx_legacy_ownership WHERE tenant_id=? AND membership_id=? AND source_table='agents' LIMIT 2",[ctx.tenant.id,ctx.membership.id]);
+  if(links.length!==1||!Number.isSafeInteger(Number(links[0].agentId))||Number(links[0].agentId)<1)fail('PERMISSION_DENIED',403);
+  const where=['e.tenant_id=?','l.owner_agent_id=?'],params=[ctx.tenant.id,Number(links[0].agentId)];
+  if(status){where.push('e.status=?');params.push(status);}
+  if(search){where.push('(e.learner_name LIKE ? OR c.name_en LIKE ? OR c.name_ar LIKE ?)');const term='%'+search.replace(/[\\%_]/g,'\\async function list(db,ctx,query={}){')+'%';params.push(term,term,term);}
+  const joins='FROM sx_training_enrollments e JOIN sx_training_courses c ON c.tenant_id=e.tenant_id AND c.id=e.course_id JOIN pipeline_leads l ON l.uid_hash=CONVERT(e.legacy_uid_hash USING utf8mb4) COLLATE utf8mb4_general_ci AND l.uid=CONVERT(e.legacy_uid USING utf8mb4) COLLATE utf8mb4_general_ci AND l.id=CONVERT(e.lead_id USING utf8mb4) COLLATE utf8mb4_general_ci';
+  const [[count]]=await db.query('SELECT COUNT(*) AS total '+joins+' WHERE '+where.join(' AND '),params);
+  const [items]=await db.query('SELECT e.id,e.lead_id AS leadId,e.learner_name AS learnerName,e.status,e.created_at AS enrolledAt,c.name_en AS courseNameEn,c.name_ar AS courseNameAr '+joins+' WHERE '+where.join(' AND ')+' ORDER BY e.created_at DESC,e.id DESC LIMIT ? OFFSET ?',[...params,limit,(page-1)*limit]);
+  return {readOnly:true,page,limit,total:Number(count.total),pages:Math.ceil(Number(count.total)/limit),items};
+}
 async function list(db,ctx,query={}){
+  if(ctx?.membership?.role==='agent')return listAssigned(db,ctx,query);
   authorize(ctx);const {page,limit,search,status}=input(query),tenant=ctx.tenant.id,where=['e.tenant_id=?'],params=[tenant];
   if(status){where.push('e.status=?');params.push(status);}
   if(search){const term=`%${search.replace(/[\\%_]/g,'\\$&')}%`,fields=['e.learner_name','e.payer_name',`COALESCE(e.payer_email,i.invoice_email,JSON_UNQUOTE(JSON_EXTRACT(${formValue},'$.email')))`,`COALESCE(e.payer_phone,l.mobile,JSON_UNQUOTE(JSON_EXTRACT(${formValue},'$.phone')))`,`i.invoice_number`,'c.name_en','c.name_ar'];where.push(`(${fields.map(field=>`CONVERT(${field} USING utf8mb4) COLLATE utf8mb4_uca1400_ai_ci LIKE CONVERT(? USING utf8mb4) COLLATE utf8mb4_uca1400_ai_ci`).join(' OR ')})`);params.push(...Array(7).fill(term));}

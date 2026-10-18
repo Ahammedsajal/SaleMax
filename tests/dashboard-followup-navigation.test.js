@@ -17,7 +17,7 @@ test('dashboard Create actions also leave the embedded dashboard',()=>{
   let assigned;
   const button={dataset:{index:'0'}},menu={querySelectorAll:()=>[button]},create={};
   vm.runInNewContext(code+';createMenu();',{
-    navigation:()=>new Set(['tasks']),state:{},tr:en=>en,esc:x=>x,
+    actor:()=> 'user',navigation:()=>new Set(['tasks']),state:{},tr:en=>en,esc:x=>x,
     $:selector=>selector==='#create-menu'?menu:create,createCloseBound:false,
     document:{addEventListener(){}},window:{top:{location:{assign:value=>assigned=value}}}
   });

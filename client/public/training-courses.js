@@ -19,7 +19,7 @@
   const isAr=()=>{const value=(localStorage.getItem('language')||'').toLowerCase();return value.startsWith('ar')||value.includes('arabic');};
   const tr=(en,ar)=>productCopy(isAr()?ar:en,isAr());
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const active=()=>location.pathname.replace(/\/$/,'')==='/user'&&new URLSearchParams(location.search).get('page')===(products?'products-services':'courses');
+  const active=()=>['/user','/agent'].includes(location.pathname.replace(/\/$/,''))&&new URLSearchParams(location.search).get('page')===(products?'products-services':'courses');
   const getToken=()=>localStorage.getItem('wacrm_user');
   async function responseData(response){let data;try{data=await response.json()}catch{throw Error('SERVER_ERROR')}if(!response.ok||data.success===false)throw Error(data.code||'REQUEST_FAILED');return data.data;}
   async function api(path,method='GET',body){return (await window.SaleMaxWorkspace.request(products?'products':'courses',path,{method,body})).data;}
@@ -190,7 +190,7 @@
   }
   function addNav(){if(!navAllowed)return;if(location.pathname.replace(/\/$/,'')!=='/user')return;const controls=[...document.querySelectorAll('[role="button"],button,a')];const item=controls.find(x=>['Agent Login','تسجيل دخول الوكيل','دخول الوكيل'].includes((x.innerText||'').trim()))||(products?controls.find(x=>['Inbox','صندوق الوارد','People & Roles','الأشخاص والأدوار'].includes((x.innerText||'').trim())):null);if(!item)return;const row=item.closest('li')||item.parentElement;if(!row?.parentElement)return;let copy=row.parentElement.querySelector('[data-sx-course-nav]');if(!copy){copy=row.cloneNode(true);for(const key of Object.keys(copy.dataset))delete copy.dataset[key];copy.dataset.sxCourseNav='1';copy.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));row.parentElement.insertBefore(copy,row.nextSibling);const btn=copy.querySelector('[role="button"],button,a')||copy;btn.onclick=e=>{e.preventDefault();location.href=products?'/user?page=products-services':'/user?page=courses'};}copy.querySelectorAll('span').forEach(s=>{if(['Agent Login','تسجيل دخول الوكيل','دخول الوكيل','Courses','الدورات','Products & services','المنتجات والخدمات','Inbox','صندوق الوارد','People & Roles','الأشخاص والأدوار'].includes(s.textContent.trim())){const next=tr('Courses','الدورات');if(s.textContent!==next)s.textContent=next;}});copy.setAttribute('aria-label',tr('Courses','الدورات'));}
   let renderedLanguage='';
-  function update(){checkCourseAccess();addNav();if(location.pathname.replace(/\/$/,'')==='/user'&&!document.getElementById('sx-students-script')){const script=document.createElement('script');script.id='sx-students-script';script.src='/training-students.js?v=20261018-unified1';document.head.append(script);}if(active()){const language=isAr()?'ar':'en';if(!document.getElementById('sx-course-screen')||renderedLanguage!==language){renderedLanguage=language;load();}}else{renderedLanguage='';document.getElementById('sx-course-screen')?.remove();}}
+  function update(){checkCourseAccess();addNav();if(['/user','/agent'].includes(location.pathname.replace(/\/$/,''))&&!document.getElementById('sx-students-script')){const script=document.createElement('script');script.id='sx-students-script';script.src='/training-students.js?v=20261018-agent-workspace1';document.head.append(script);}if(active()){const language=isAr()?'ar':'en';if(!document.getElementById('sx-course-screen')||renderedLanguage!==language){renderedLanguage=language;load();}}else{renderedLanguage='';document.getElementById('sx-course-screen')?.remove();}}
   new MutationObserver(update).observe(document.documentElement,{childList:true,subtree:true});window.addEventListener('popstate',update);setInterval(update,900);update();
 })();
 
@@ -201,7 +201,7 @@
   const ar=()=>{const v=(localStorage.getItem('language')||'').toLowerCase();return v.startsWith('ar')||v.includes('arabic');};
   const tr=(en,arText)=>ar()?arText:en;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const active=()=>location.pathname.replace(/\/$/,'')==='/user'&&new URLSearchParams(location.search).get('page')==='training-profile';
+  const active=()=>['/user','/agent'].includes(location.pathname.replace(/\/$/,''))&&new URLSearchParams(location.search).get('page')==='training-profile';
   const token=()=>localStorage.getItem('wacrm_user');
   async function result(response){let data;try{data=await response.json();}catch{throw Error('SERVER_ERROR');}if(!response.ok||data.success===false)throw Error(data.code||'REQUEST_FAILED');return data.data;}
   async function api(method='GET',body,logoFile=null,clearLogo=false,target=endpoint){

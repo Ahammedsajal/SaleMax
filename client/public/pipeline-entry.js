@@ -3,18 +3,18 @@
   window.__salemaxPipelineEntry = true;
 
   const isArabic = () => { const language = (localStorage.getItem('language') || '').toLowerCase(); return language === 'ar' || language.startsWith('ar-') || language.includes('arabic'); };
-  const isLeadReportsRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'lead-reports';
+  const isLeadReportsRoute = () => ['/user','/agent'].includes(location.pathname.replace(/\/$/, '')) && new URLSearchParams(location.search).get('page') === 'lead-reports';
   const pipelineView = () => isLeadReportsRoute()?'reports':(['board','list','followups'].includes(new URLSearchParams(location.search).get('view'))?new URLSearchParams(location.search).get('view'):'');
   const pipelineSource = () => '/pipeline/?embed=1'+(pipelineView()?'&view='+encodeURIComponent(pipelineView()):'')+(new URLSearchParams(location.search).get('lead')?'&lead='+encodeURIComponent(new URLSearchParams(location.search).get('lead')):'');
-  const isTasksRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'tasks';
+  const isTasksRoute = () => ['/user','/agent'].includes(location.pathname.replace(/\/$/, '')) && new URLSearchParams(location.search).get('page') === 'tasks';
   const isCallCenterRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'call-center';
   const isCommissionPolicyRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'commission-policy';
   const isSalesWorkspaceRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-workspace';
   const isSalesFinanceRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-finance';
   const isSalesOrganizationRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-organization';
   const isSalesAuditRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-audit';
-  const isDashboardRoute = () => location.pathname.replace(/\/$/, '') === '/user' && (!new URLSearchParams(location.search).get('page') || new URLSearchParams(location.search).get('page') === 'dashboard');
-  const isPipelineRoute = () => location.pathname.replace(/\/$/, '') === '/user' && ['lead-pipeline','lead-reports'].includes(new URLSearchParams(location.search).get('page'));
+  const isDashboardRoute = () => (location.pathname.replace(/\/$/, '') === '/user' && !new URLSearchParams(location.search).get('page')) || (['/user','/agent'].includes(location.pathname.replace(/\/$/, '')) && new URLSearchParams(location.search).get('page') === 'dashboard');
+  const isPipelineRoute = () => ['/user','/agent'].includes(location.pathname.replace(/\/$/, '')) && ['lead-pipeline','lead-reports'].includes(new URLSearchParams(location.search).get('page'));
   const pipelineLabel = () => isArabic() ? (isLeadReportsRoute()?'تقارير العملاء المحتملين':'مسار العملاء المحتملين') : (isLeadReportsRoute()?'Lead Reports':'Lead Pipeline');
   const visible = (el) => {
     const r = el.getBoundingClientRect();
@@ -26,7 +26,7 @@
   function workspaceBounds(){
     const viewportWidth=window.innerWidth,viewportHeight=window.innerHeight;
     let left=0,right=0;
-    for(const drawer of document.querySelectorAll('.MuiDrawer-paper')){
+    for(const drawer of document.querySelectorAll('.MuiDrawer-paper,[data-sx-agent-sidebar]')){
       if(!visible(drawer)||getComputedStyle(drawer).display==='none')continue;
       const r=drawer.getBoundingClientRect();
       const docked=drawer.closest('.MuiDrawer-docked')||drawer.classList.contains('MuiDrawer-paperAnchorDockedLeft')||drawer.classList.contains('MuiDrawer-paperAnchorDockedRight');
@@ -51,7 +51,7 @@
           const link=event.target.closest?.('a[href]');
           if(!link||link.hasAttribute('target')||link.hasAttribute('download'))return;
           const destination=new URL(link.href,location.href);
-          if(destination.origin===location.origin&&/^\/(user|agent|admin)(\/|$)/.test(destination.pathname))link.target='_top';
+          if(destination.origin===location.origin&&/^\/(user|agent|admin)(\/|$)/.test(destination.pathname)){if(location.pathname.replace(/\/$/,'')==='/agent'&&destination.pathname==='/user'){destination.pathname='/agent';link.href=destination.href;}link.target='_top';}
         },true);
       }catch{}
     };
@@ -76,6 +76,7 @@
   }
 
   function addNavigationItem() {
+    if(location.pathname.replace(/\/$/,'')!=='/user')return;
     document.querySelectorAll('[data-salemax-pipeline-fallback]').forEach((el) => el.remove());
     document.querySelectorAll('[data-salemax-pipeline-link]').forEach((el) => {
       if (el.tagName !== 'LI') (el.closest('li') || el).remove();
@@ -247,6 +248,10 @@
 
   function update() {
     addNavigationItem();
+    if(location.pathname.replace(/\/$/,'')==='/agent'){
+      const bounds=workspaceBounds();
+      for(const id of ['sx-course-screen','sx-forms-screen','sx-training-students-screen','sx-phonebook']){const node=document.getElementById(id);if(!node)continue;for(const [key,value] of Object.entries({position:'fixed',zIndex:'1100',left:bounds.left+'px',right:'auto',top:bounds.top+'px',width:bounds.width+'px',height:bounds.height+'px',overflow:'auto',boxSizing:'border-box',background:'#f5f7fb'}))if(node.style[key]!==value)node.style[key]=value;}
+    }
     syncBusinessDashboard();
     syncPipelineWorkspace();
     syncTasksWorkspace();
@@ -268,5 +273,6 @@
   window.addEventListener('resize', update);
   window.addEventListener('transitionend', event=>{if(event.target.closest?.('.MuiDrawer-root,.MuiAppBar-root'))update();});
   window.addEventListener('popstate', update);
+  window.addEventListener('salemax:agent-navigation', update);
   update();
 })();

@@ -63,7 +63,7 @@
     return new Intl.DateTimeFormat(arabic()?'ar-QA':'en-QA',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Qatar'}).format(new Date(normalized));
   };
   const formatWindowDate = (value,end=false) => value ? new Intl.DateTimeFormat(arabic()?'ar-QA':'en-QA',{dateStyle:'medium',timeZone:'Asia/Qatar'}).format(new Date(Date.parse(value.replace(' ','T')+'Z')-(end?1:0))) : '—';
-  const token = () => localStorage.getItem('wacrm_user') || localStorage.getItem('wacrm_agent');
+  const token = () => window.parent.location.pathname.replace(/\/$/,'')==='/agent'?localStorage.getItem('wacrm_agent'):localStorage.getItem('wacrm_user')||localStorage.getItem('wacrm_agent');
   const state = {page:1,report:null,journey:null,sequence:0,period:'daily',at:qatarToday(),taskPage:1,taskPeriod:'all',taskSequence:0,taskTimezone:'Asia/Qatar',tasks:null,schedules:null,scheduleError:'',scheduleSequence:0};
   const host = $('#reports'), taskHost = $('#followups'), toolbar = $('.toolbar');
   if (!host || !$('#reportsMode')) return;

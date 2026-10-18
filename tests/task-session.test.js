@@ -8,6 +8,14 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../client/public/tasks/tasks-session.js'), 'utf8');
 
+test('Agent task requests retain the Agent identity when a business token and cookie are also present',async()=>{
+  const calls=[],window={parent:{location:{pathname:'/agent'}},fetch:async(input,init)=>{calls.push({input,init});return {ok:true};}};
+  vm.runInNewContext(source,{window,localStorage:{getItem:key=>key==='wacrm_agent'?'agent-token':'owner-token'},location:{href:'https://crm.salemax.qa/tasks/',origin:'https://crm.salemax.qa'},URL,Headers,Request});
+  await window.fetch('/api/pipeline/tasks',{headers:{Authorization:'Bearer stale-owner-token'}});
+  assert.equal(calls.length,1);assert.equal(new URL(calls[0].input).pathname,'/api/pipeline/tasks');
+  assert.equal(new Headers(calls[0].init.headers).get('authorization'),'Bearer agent-token');
+});
+
 test('Tasks uses the latest shared business token for every pipeline request', async () => {
   let currentToken = 'initial-business-token';
   const calls = [];

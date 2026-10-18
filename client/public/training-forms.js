@@ -15,7 +15,7 @@
     if(typeof value==='object'){const rows=Object.entries(value).filter(([,item])=>!empty(item));return rows.length?`<dl class="sx-readable-dl">${rows.map(([key,item])=>`<div><dt>${esc(label(key))}</dt><dd>${readableValue(item)}</dd></div>`).join('')}</dl>`:`<span class="sx-readable-empty">${tr('No details provided','لا توجد تفاصيل')}</span>`;}
     return esc(String(value));
   }
-  const active=()=>location.pathname.replace(/\/$/,'')==='/user'&&new URLSearchParams(location.search).get('page')==='forms';
+  const active=()=>['/user','/agent'].includes(location.pathname.replace(/\/$/,''))&&new URLSearchParams(location.search).get('page')==='forms';
   async function api(path='',method='GET',body){return (await window.SaleMaxWorkspace.request('forms',path,{method,body})).data;}
   const fields=Array.from(new Map(window.SXTrainingRegistration.definitions.map(([key,en,ar])=>[key,en,ar,['contact_name','phone','consent'].includes(key)]).concat([['learner_name','Learner name','اسم المتعلم',false],['course_id','Course','الدورة',false],['preferred_date','Preferred start date','تاريخ البدء المفضل',false]]).map(field=>[field[0],field])).values());
   const registrationOnlyFields=new Set(['student_id','courses','tuition_qar','student_signature','student_signature_date','representative_signature','representative_signature_date','payment_plan','student_agreement','batch_id','payment_plan_id','staff_attended','course_selections']);
