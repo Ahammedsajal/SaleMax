@@ -36,16 +36,24 @@ async function resolveInboxScope(query, user, event) {
   if (row.role !== 'owner' && !scopeFor(membership, permission)) fail();
   const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId, ctx: { tenant: { id: row.tenantId }, identity: { id: row.identityId }, membership } };
   if (row.role === 'owner') return { ...base, uid: user.uid };
-  const owners = await query(`SELECT u.uid,o.legacy_uid_hash AS uidHash FROM sx_memberships m
+  const owners = await query(`SELECT u.uid,m.id AS membershipId,m.identity_id AS identityId,o.legacy_uid_hash AS uidHash FROM sx_memberships m
     JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
     JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED) JOIN sx_identities i ON i.id=m.identity_id
     WHERE m.tenant_id=? AND m.role='owner' AND m.status='active' AND i.status='active' AND u.role='user' LIMIT 2`, [row.tenantId]);
   if (owners.length !== 1 || owners[0].uidHash !== crypto.createHash('sha256').update(owners[0].uid).digest('hex')) fail();
   if(source==='agents'&&(user.is_active===0||user.owner_uid!==owners[0].uid))fail();
-  const sharedQrInstances = row.role === 'manager'
+  const sharedQrInstances = ['manager','agent'].includes(row.role)
     ? await query(`SELECT instance.id AS instanceId,instance.uniqueId,instance.number,instance.title,instance.status
         FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=?
-        WHERE share.tenant_id=? AND share.membership_id=?`, [owners[0].uid,row.tenantId,row.membershipId])
+        WHERE share.tenant_id=? AND share.membership_id=? AND (
+          share.granted_by_identity_id=? OR EXISTS (
+            SELECT 1 FROM sx_sales_org_history org
+            JOIN sx_memberships manager ON manager.tenant_id=org.tenant_id AND manager.id=org.manager_membership_id AND manager.role='manager' AND manager.status='active'
+            JOIN sx_qr_channel_shares manager_share ON manager_share.tenant_id=org.tenant_id AND manager_share.instance_id=share.instance_id AND manager_share.membership_id=manager.id
+            WHERE org.tenant_id=share.tenant_id AND org.membership_id=share.membership_id AND org.ended_at IS NULL
+              AND manager.identity_id=share.granted_by_identity_id
+          )
+        )`, [owners[0].uid,row.tenantId,row.membershipId,owners[0].identityId])
     : [];
   return { ...base, uid: owners[0].uid, sharedQrInstances, sharedQrInstanceIds: sharedQrInstances.map(channel => Number(channel.instanceId)) };
 }

@@ -40,6 +40,23 @@ test('Manager scope includes only assigned QR chats and QR connections', async (
   ], scope).map(instance => instance.id), [41]);
 });
 
+test('Agent QR access follows an active manager grant and the agent’s current manager assignment',async()=>{
+  const agent={...user,isAgent:true,role:'agent',is_active:1,owner_uid:'synthetic-owner'};
+  const assignedChannel={instanceId:51,uniqueId:'delegated-qr-session',number:'97450000000',title:'Team QR',status:'ACTIVE'};
+  const calls=[];
+  const lookup=async(sql,args)=>{
+    calls.push({sql,args});
+    if(sql.includes('WHERE o.source_table'))return [{...member,role:'agent'}];
+    if(sql.includes("m.role='owner'"))return [{uid:'synthetic-owner',membershipId:'owner-member',identityId:'owner-identity',uidHash:hash('synthetic-owner')}];
+    if(sql.includes('FROM sx_qr_channel_shares share'))return [assignedChannel];
+    return [];
+  };
+  const scope=await resolveInboxScope(lookup,agent,'get_chat_list');
+  assert.deepEqual(scope.sharedQrInstanceIds,[51]);
+  assert.match(calls.find(call=>call.sql.includes('FROM sx_qr_channel_shares share')).sql,/sx_sales_org_history/);
+  assert.deepEqual(filterAssignedChats([{origin:'qr',origin_instance_unique_id:'delegated-qr-session',assigned_agent:'[]'},{origin:'qr',origin_instance_unique_id:'private-session',assigned_agent:'[]'}],scope).map(chat=>chat.origin_instance_unique_id),['delegated-qr-session']);
+});
+
 test('staff Inbox drops transferred chats and rejects stale direct reads/replies and forged targets', async () => {
   const scope = await resolveInboxScope(query(member), user, 'get_chat_list');
   const current = { chat_id: 'shared-chat', origin: 'qr', sender_mobile: 'synthetic-customer', assigned_agent: JSON.stringify([{kind:'identity',identityId:'staff-a'}]) };
