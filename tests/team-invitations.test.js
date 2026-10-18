@@ -59,13 +59,15 @@ test('staff invitation UI is integrated into the existing single SaleMaX app she
   assert.match(js,/<details class="permission-category">/);assert.match(js,/data-permission-count/);assert.match(js,/target\.onchange=event=>/);
   assert.match(js,/<details class="nav-category">/);assert.match(js,/data-nav-count/);assert.match(js,/element\.onchange=event=>/);
   assert.match(js,/localStorage\.getItem\('salemax-language'\)/);assert.match(js,/\.startsWith\('ar'\)/);
-  assert.match(js,/roleProfileId/);assert.match(js,/Role permissions are enforced separately by the server/);
+  assert.match(js,/roleProfileId/);assert.match(js,/Permissions are enforced by the server/);
   assert.match(js,/<button type="submit" class="primary" disabled>/);assert.match(js,/button\.disabled = false/);
   assert.match(html,/team-invitations\.js\?v=[^" ]+/);
+  assert.match(html,/team-access\.css\?v=[^" ]+/);
   assert.match(html,/training-sidebar\.js\?v=[^" ]+/);
   assert.match(js,/new MutationObserver\(addNav\)/);
   assert.match(js,/data-member-role/);assert.match(js,/members\/.*\/role/);assert.match(router,/owner\.put\('\/members\/:id\/role'/);
   assert.match(js,/permissionCatalog/);assert.match(js,/name="permission"/);
   assert.match(js,/data-qr-recipient/);assert.match(js,/recipientMembershipIds/);assert.match(js,/active accountants and agents/);
+  for(const feature of ['data-team-tab','data-team-panel','sx-team-stats','sx-member-search','sx-role-filter','Organisation hierarchy','sx-invite-dialog','sx-role-dialog','data-edit-member'])assert.ok(js.includes(feature),`missing redesigned Team Access feature ${feature}`);
   assert.match(router,/qrChannels\.saveAccess/);
 });
