@@ -9,6 +9,8 @@ test('course messages preserve the selected language, media-independent text ord
  assert.match(ar[0].text,/إكسل/);assert.match(ar[1].text,/٨|8/);assert.match(ar[1].text,/حضوري/);
  assert.ok(s.textParts({...course,description_en:'x'.repeat(5000)},null,'en').every(p=>p.text.length<=3500));
  assert.doesNotMatch(s.textParts(course,null,'en').map(p=>p.text).join(''),/QAR/);
+ const product=s.textParts({...course,name_en:'Course fee calculator',description_en:'Learning outcomes are preserved as supplied.'},offer,'en',true);
+ assert.equal(product[0].text,'Course fee calculator\n\nLearning outcomes are preserved as supplied.');assert.match(product[1].text,/Price: QAR 850.00/);assert.match(product[1].text,/Details:\nBuild reports/);
 });
 test('conversation access derives account and recipient from persisted rows and denies unassigned/foreign chats',async()=>{
  const row={chat_id:'chat',sender_mobile:'97450000001',origin:'qr',assigned_agent:JSON.stringify([{kind:'identity',identityId:'agent-i'}])};

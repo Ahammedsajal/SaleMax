@@ -53,7 +53,7 @@ async function conversation(c, chatId) {
   if (!['qr', 'meta'].includes(chat.origin) || chat.isGroup) fail('CHANNEL_NOT_SUPPORTED');
   return chat;
 }
-function textParts(course, offer, language) {
+function textParts(course, offer, language, products=false) {
   const ar = language === 'ar';
   const pick = key => course[key + (ar ? '_ar' : '_en')] || course[key + (ar ? '_en' : '_ar')] || '';
   const title = pick('name');
@@ -64,12 +64,12 @@ function textParts(course, offer, language) {
   if (course.duration_value) details.push(`${ar ? 'المدة' : 'Duration'}: ${course.duration_value} ${ar ? ({hours:'ساعات',days:'أيام',weeks:'أسابيع',months:'أشهر'}[course.duration_unit] || course.duration_unit) : course.duration_unit}`);
   if (course.delivery_mode) details.push(`${ar ? 'طريقة الدراسة' : 'Delivery'}: ${(ar ? {in_person:'حضوري',online:'عبر الإنترنت',hybrid:'مدمج'} : {in_person:'In person',online:'Online',hybrid:'Hybrid'})[course.delivery_mode] || course.delivery_mode}`);
   if (offer) {
-    details.push(`${ar ? 'رسوم الدورة' : 'Course fee'}: ${offer.currency} ${(Number(offer.price_minor) / 100).toFixed(2)}`);
+    details.push(`${products?(ar?'السعر':'Price'):(ar?'رسوم الدورة':'Course fee')}: ${offer.currency} ${(Number(offer.price_minor) / 100).toFixed(2)}`);
     if (Number(offer.registration_fee_minor)) details.push(`${ar ? 'رسوم التسجيل' : 'Registration fee'}: ${offer.currency} ${(Number(offer.registration_fee_minor) / 100).toFixed(2)}`);
     let inclusions; try { inclusions = typeof offer.inclusions === 'string' ? JSON.parse(offer.inclusions) : offer.inclusions; } catch { inclusions = []; }
     if (Array.isArray(inclusions) && inclusions.length) details.push(`${ar ? 'تشمل' : 'Includes'}:\n${inclusions.join('\n')}`);
   }
-  if (pick('outcomes')) details.push(`${ar ? 'مخرجات التعلم' : 'Learning outcomes'}:\n${pick('outcomes')}`);
+  if (pick('outcomes')) details.push(`${products?(ar?'التفاصيل':'Details'):(ar?'مخرجات التعلم':'Learning outcomes')}:\n${pick('outcomes')}`);
   if (pick('prerequisites')) details.push(`${ar ? 'المتطلبات' : 'Prerequisites'}:\n${pick('prerequisites')}`);
   if (details.length) add(details.join('\n\n'));
   return parts;
@@ -92,8 +92,7 @@ async function plan(pool, c, courseId, language) {
     const stat = await fs.stat(file.path);
     if (stat.size !== p.sizeBytes) fail('COURSE_MEDIA_NOT_AVAILABLE');
   }
-  const texts=textParts(course,offer,language);
-  if(catalog.sales(c.ctx))for(const part of texts)part.text=part.text.replace(/Course fee/g,'Price').replace(/رسوم الدورة/g,'السعر').replace(/Learning outcomes/g,'Details').replace(/مخرجات التعلم/g,'التفاصيل').replace(/Prerequisites/g,'Requirements').replace(/المتطلبات السابقة/g,'المتطلبات');
+  const texts=textParts(course,offer,language,catalog.sales(c.ctx));
   parts.push(...texts);
   return { courseId, name:language==='ar'?course.name_ar:course.name_en, language, parts };
 }
