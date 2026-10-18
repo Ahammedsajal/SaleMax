@@ -56,6 +56,9 @@ test('manager receipt authority does not grant credit approval or owner authorit
 test('Training Center managers can manage tenant team access within the team.members entitlement',()=>{
   const c=context('manager');
   assert.equal(decision(c,{capability:'team.members',permission:'team.invite'}).scope,'tenant');
+  c.membership.customPermissions=[];
+  assert.equal(decision(c,{capability:'team.members',permission:'team.invite'}).code,'PERMISSION_DENIED');
+  c.membership.customPermissions=null;
   c.subscription.capabilities=c.subscription.capabilities.filter(capability=>capability!=='team.members');
   assert.equal(decision(c,{capability:'team.members',permission:'team.invite'}).code,'FEATURE_UNAVAILABLE');
   const sales={...context('manager'),category:salemaxSales};

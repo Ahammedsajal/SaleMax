@@ -39,19 +39,31 @@ async function storage(db){
 }
 async function ownerScope(db,ownerUid,{requireTeam=true}={}){
   const [rows]=await db.query(`SELECT u.id AS legacyUserId,u.uid,t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,
-      m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,i.status AS identityStatus,o.legacy_uid_hash AS uidHash
+      m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.role_profile_id AS roleProfileId,
+      m.assigned_navigation AS assignedNavigation,r.seat_role AS seatRole,r.permissions AS rolePermissions,r.status AS roleStatus,
+      i.status AS identityStatus,o.legacy_uid_hash AS uidHash
     FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
     JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
-    JOIN sx_identities i ON i.id=m.identity_id WHERE u.uid=? FOR UPDATE`,[ownerUid]);
+    JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
+    WHERE u.uid=? FOR UPDATE`,[ownerUid]);
   if(!rows.length)fail('VERIFIED_BUSINESS_OWNER_REQUIRED');
   if(rows.length!==1||rows[0].uidHash!==digest(ownerUid))fail('BUSINESS_LINK_INVALID');
   const value=rows[0];
-  if(value.role!=='owner'||value.membershipStatus!=='active'||value.identityStatus!=='active')fail('PERMISSION_DENIED');
   const category=getCategory(value.categoryKey,Number(value.categoryVersion));
-  if(value.tenantStatus!=='active'||!category||!category.seatRoles?.includes('owner'))fail('BUSINESS_INACTIVE');
+  if(value.membershipStatus!=='active'||value.identityStatus!=='active')fail('PERMISSION_DENIED');
+  if(value.tenantStatus!=='active'||!category||!category.seatRoles?.includes(value.role))fail('BUSINESS_INACTIVE');
   const [[tenant]]=await db.query('SELECT id,status,category_key,category_version FROM sx_tenants WHERE id=? FOR UPDATE',[value.tenantId]);
   if(!tenant||tenant.status!=='active')fail('BUSINESS_INACTIVE');
   const entitlement=await plans.loadEntitlements(db,value.tenantId);
+  let customPermissions=null;
+  if(value.roleProfileId){
+    try{customPermissions=typeof value.rolePermissions==='string'?JSON.parse(value.rolePermissions):value.rolePermissions;}catch{fail('TEAM_ROLE_STORAGE_INVALID');}
+    if(value.seatRole!==value.role||!Array.isArray(customPermissions)||customPermissions.some(item=>typeof item!=='string')||!['active','archived'].includes(value.roleStatus))fail('TEAM_ROLE_STORAGE_INVALID');
+  }
+  const authorization=decision({audience:'tenant',identity:{id:value.identityId},tenant:{id:value.tenantId,status:value.tenantStatus,categoryKey:value.categoryKey,categoryVersion:Number(value.categoryVersion)},
+    membership:{id:value.membershipId,tenantId:value.tenantId,role:value.role,status:value.membershipStatus,customPermissions,assignedNavigation:parseNavigation(value.assignedNavigation),delegatedPermissions:[]},
+    category,subscription:entitlement},{capability:'team.members',permission:'team.invite'});
+  if(!authorization.allowed)fail(authorization.code);
   if(requireTeam&&(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities.includes('team.members')))fail('TEAM_FEATURE_UNAVAILABLE');
   return {...value,category,entitlement};
 }
