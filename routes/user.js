@@ -31,6 +31,9 @@ const {
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
+const {createSelfProfileAuth} = require("../modules/platform/self-profile-auth");
+const selfProfile = require("../modules/platform/self-profile");
+const selfProfileAuth = createSelfProfileAuth();
 const {issueForVerifiedLegacyAccount} = require("../modules/platform/legacy-session-bridge");
 const Stripe = require("stripe");
 const {
@@ -1603,51 +1606,35 @@ router.post("/pay_with_paystack", validateUser, async (req, res) => {
 });
 
 // update profile
-router.post("/update_profile", validateUser, async (req, res) => {
+router.post("/update_profile", selfProfileAuth, async (req, res) => {
   try {
-    let mobile_with_country_code;
-    const {
-      newPassword,
-      name,
-      mobile: mobileFromBody,
-      mobile_with_country_code: mobile_with_country_codeNew,
-      email,
-    } = req.body;
-
-    let mobile = mobileFromBody; // Use let instead of const
-
-    if (mobile) {
-      mobile_with_country_code = mobile;
-    }
-
-    if (mobile_with_country_codeNew) {
-      mobile_with_country_code = mobile_with_country_codeNew;
-    }
-
-    const timezone = "Asia/Qatar";
-    if (!name || !mobile_with_country_code || !email) {
-      return res.json({
-        msg: "Name, Mobile and Email are required fields",
-      });
-    }
-
-    if (newPassword) {
-      const hash = await bcrypt.hash(newPassword, 10);
-      await query(
-        `UPDATE user SET name = ?, email = ?, password = ?, mobile_with_country_code = ?, timezone = ? WHERE uid = ?`,
-        [name, email, hash, mobile_with_country_code, timezone, req.decode.uid],
-      );
-    } else {
-      await query(
-        `UPDATE user SET name = ?, email = ?, mobile_with_country_code = ?, timezone = ? WHERE uid = ?`,
-        [name, email, mobile_with_country_code, timezone, req.decode.uid],
-      );
-    }
-
-    res.json({ success: true, msg: "Profile was updated" });
+    const accountType=req.decode?.role==='agent'?'agent':'user';
+    const outcome=await selfProfile.saveSelfProfile({query}, {
+      actor:req.decode?.userData,
+      input:req.body||{},
+      accountType,
+      hashPassword:password=>bcrypt.hash(password,12),
+    });
+    return res.json({
+      success:true,
+      msg:outcome.passwordChanged
+        ?"Password updated. Sign in again using your new password."
+        :outcome.emailChanged?"Email updated. Sign in again using your new email address.":"Profile was updated",
+      reloginRequired:outcome.reloginRequired,
+    });
   } catch (err) {
-    console.log(err);
-    res.json({ msg: "Something went wrong", err, success: false });
+    const safeMessages={
+      INVALID_PROFILE_NAME:"Enter a name up to 200 characters.",
+      INVALID_PROFILE_EMAIL:"Enter a valid email address.",
+      INVALID_PROFILE_MOBILE:"Enter a valid mobile number.",
+      INVALID_PASSWORD:"Use a password with at least 12 characters and no more than 72 UTF-8 bytes.",
+      INVALID_TIMEZONE:"Choose a valid timezone.",
+      PROFILE_EMAIL_IN_USE:"That email is already used by another account.",
+      PROFILE_ACCOUNT_NOT_FOUND:"This account is no longer available.",
+    };
+    if(err.status)return res.status(err.status).json({success:false,code:err.code,msg:safeMessages[err.code]||"Could not update this profile."});
+    console.error('Self profile update failed:',err.code||err.message);
+    return res.status(503).json({success:false,code:'PROFILE_UPDATE_UNAVAILABLE',msg:'Could not update this profile. Please try again.'});
   }
 });
 

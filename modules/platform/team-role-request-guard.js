@@ -1,6 +1,7 @@
 'use strict';
 const {query}=require('../../database/dbpromise');
 const policy=require('./policy');
+const {isSelfProfileRequest}=require('./self-profile-policy');
 
 function routePermission(req){
   const mount=String(req.baseUrl||'').replace(/\/$/,'');
@@ -110,6 +111,11 @@ function authorizeLegacyMembership(req,row){
 const mountFor=req=>String(req.baseUrl||'').replace(/\/$/,'');
 
 async function authorizeLegacyRequest(req,{sourceTable,sourceId}){
+  // Updating the authenticated account's own Profile is a core account
+  // capability, independent of its optional module grants. The route is
+  // still protected by user/agent authentication and only targets that actor.
+  if(isSelfProfileRequest(req,sourceTable))
+    return {allowed:true,permission:'account.profile.update'};
   let rows;
   try{
     rows=await query(`SELECT m.role,m.role_profile_id AS roleProfileId,r.seat_role AS seatRole,r.permissions AS rolePermissions,
