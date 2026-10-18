@@ -407,8 +407,11 @@
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
     const routeKeys={courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'chatbot','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
     const required=routeKeys[page];
-    const salesOrganisationAccess=membershipCategoryKey==='salemax_sales'&&['owner','manager','team_leader'].includes(membershipRole);
-    if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(roleNavigation!==null&&required&&!roleNavigation.has(required))||(page==='team-invitations'&&membershipRole&&membershipRole!=='owner'&&!salesOrganisationAccess))location.replace('/user?page=dashboard');
+    // Team access is available to any membership whose role/navigation grants
+    // it. The API still enforces team.invite (including owner-approved manager
+    // delegation), so category/role-specific redirects here only create a
+    // refresh loop for otherwise-authorized Training Center managers.
+    if((assignedNavigation!==null&&required&&!assignedNavigation.has(required))||(roleNavigation!==null&&required&&!roleNavigation.has(required)))location.replace('/user?page=dashboard');
   }
   let inboxRetryRoute = '';
   let inboxRetryCount = 0;

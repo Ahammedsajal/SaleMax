@@ -18,6 +18,12 @@ test('team invitation inputs are bounded to tenant staff roles',()=>{
   assert.throws(()=>team.rolePermissions(['tenant.manage'],'agent',allowed),{code:'INVALID_ROLE_PERMISSIONS'});
 });
 
+test('Team Access route honors granted role and member navigation without category redirects',()=>{
+  const sidebar=fs.readFileSync(path.join(__dirname,'../client/public/training-sidebar.js'),'utf8');
+  assert.match(sidebar,/if\(\(assignedNavigation!==null&&required&&!assignedNavigation\.has\(required\)\)\|\|\(roleNavigation!==null&&required&&!roleNavigation\.has\(required\)\)\)location\.replace/);
+  assert.doesNotMatch(sidebar,/page==='team-invitations'.*membershipRole/);
+});
+
 test('invalid invitation requests fail before acquiring a database connection',async()=>{
   const pool={getConnection(){throw new Error('must not connect')}};
   await assert.rejects(team.create(pool,'owner',{email:'bad',role:'agent',requestKey:'not-a-uuid'}),{code:'INVALID_EMAIL'});
