@@ -143,10 +143,21 @@ router.post('/training-forms/:formSlug/submissions', async (req,res) => {
 
 router.get('/stage-summary',async(req,res)=>{
   try{
-    const pool=require('../database/config.js').promise();
-    await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});
-    const data=await pipeline.getStageSummary({uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,pool});
-    res.setHeader('Cache-Control','no-store');res.json({success:true,data:{...data,timezone:req.pipelineActor.timezone,role:req.pipelineActor.role,categoryKey:req.pipelineActor.categoryKey||null}});
+    const pool=require('../database/config.js').promise(),actor=req.pipelineActor;
+    await trainingLeadJourney.reconcileExisting(pool,{uid:actor.uid});
+    const uidHash=crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex');
+    const conditions=['l.uid_hash=?'],args=[uidHash];
+    if(actor.role==='agent'){conditions.push('l.owner_agent_id=?');args.push(actor.agentId);}
+    else if(['manager','team_leader'].includes(actor.role)&&Array.isArray(actor.scopeAgentIds)){
+      if(actor.scopeAgentIds.length){conditions.push('l.owner_agent_id IN (?)');args.push(actor.scopeAgentIds);}
+      else conditions.push('1=0');
+    }
+    const [rows]=await pool.query(`SELECT s.stage_key AS stageKey,s.title,s.position,COUNT(l.id) AS total
+      FROM pipeline_stages s LEFT JOIN pipeline_leads l ON l.uid_hash=s.uid_hash AND l.stage_key=s.stage_key AND ${conditions.join(' AND ')}
+      WHERE s.uid_hash=? GROUP BY s.stage_key,s.title,s.position ORDER BY s.position,s.stage_key`,[...args,uidHash]);
+    const stages=rows.map(row=>({...row,total:Number(row.total||0)}));
+    const data={stages,total:stages.reduce((sum,row)=>sum+row.total,0),timezone:actor.timezone,role:actor.role,categoryKey:actor.categoryKey||null};
+    res.setHeader('Cache-Control','no-store');res.json({success:true,data});
   }catch(error){fail(res,error);}
 });
 

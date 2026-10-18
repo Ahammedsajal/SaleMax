@@ -631,17 +631,6 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filter
   },sourcePool);
 }
 
-async function getStageSummary({uid,role,agentId,scopeAgentIds,pool:sourcePool}){
-  return inTransaction(async connection=>{
-    const {uidHash}=await ensureWorkspace(connection,uid),conditions=['l.uid_hash=?'],values=[uidHash];
-    appendAssignmentScope(conditions,values,role,agentId,scopeAgentIds);
-    const [rows]=await connection.query(`SELECT s.stage_key AS stageKey,s.title,s.position,COUNT(l.id) AS total
-      FROM pipeline_stages s LEFT JOIN pipeline_leads l ON l.uid_hash=s.uid_hash AND l.stage_key=s.stage_key AND ${conditions.join(' AND ')}
-      WHERE s.uid_hash=? GROUP BY s.stage_key,s.title,s.position ORDER BY s.position,s.stage_key`,[...values,uidHash]);
-    return {stages:rows.map(row=>({...row,total:Number(row.total||0)})),total:rows.reduce((sum,row)=>sum+Number(row.total||0),0)};
-  },sourcePool);
-}
-
 async function getSettings(uid) {
   return inTransaction(async (connection) => {
     const { uidHash, settings } = await ensureWorkspace(connection, uid);
@@ -1252,7 +1241,6 @@ module.exports = {
   captureMetaWebhook,
   captureQrMessage,
   getBoard,
-  getStageSummary,
   getSettings,
   updateSettings,
   createStage,
