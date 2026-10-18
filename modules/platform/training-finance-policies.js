@@ -27,7 +27,7 @@ function normalize(input){
 }
 function requireAccess(ctx,permission){
   if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.categoryKey!=='training_center'||Number(ctx.tenant?.categoryVersion)!==1||ctx.tenant.status!=='active'||ctx.membership?.status!=='active'||ctx.membership.tenantId!==ctx.tenant.id)fail('TENANT_CONTEXT_REQUIRED');
-  if(permission==='read'&&!['owner','accountant'].includes(ctx.membership.role))fail('PERMISSION_DENIED');
+  if(permission==='read'&&!['owner','accountant'].includes(ctx.membership.role)&&!access.explicitlyGranted(ctx,'invoices.read'))fail('PERMISSION_DENIED');
   const requests=[{capability:'tenant.settings',permission:permission==='configure'?'tenant.manage':'tenant.read'},{capability:'finance.invoices',permission:permission==='approve'?'invoices.issue':'invoices.read'}];
   if(permission==='approve')requests.push({capability:'finance.invoices',permission:'invoices.issue'});
   for(const request of requests){const result=access.decision(ctx,request);if(!result.allowed)fail(result.code);}

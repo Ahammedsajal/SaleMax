@@ -130,20 +130,20 @@ app.use("/api/user", require("./routes/user"));
 app.use("/api/web", require("./routes/web"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/phonebook", require("./routes/phonebook"));
-app.use("/api/chat_flow", require("./routes/chatFlow"));
-app.use("/api/inbox", require("./routes/inbox"));
-app.use("/api/templet", require("./routes/templet"));
-app.use("/api/chatbot", require("./routes/chatbot"));
-app.use("/api/broadcast", require("./routes/broadcast"));
+app.use(["/api/chat_flow","/api/workspace/automation/flows"], require("./routes/chatFlow"));
+app.use(["/api/inbox","/api/workspace/inbox"], require("./routes/inbox"));
+app.use(["/api/templet","/api/workspace/templates"], require("./routes/templet"));
+app.use(["/api/chatbot","/api/workspace/automation/chatbot"], require("./routes/chatbot"));
+app.use(["/api/broadcast","/api/workspace/campaigns"], require("./routes/broadcast"));
 app.use("/api/v1", require("./routes/apiv2"));
 app.use("/api/agent", require("./routes/agent"));
-app.use("/api/qr", require("./routes/qr"));
+app.use(["/api/qr","/api/workspace/channels/qr"], require("./routes/qr"));
 app.use("/api/ai", require("./routes/ai"));
 app.use("/api/webhook", require("./routes/webhook"));
 app.use("/api/wa_call", require("./routes/waCall"));
 app.use("/api/telegram", require("./routes/telegram"));
 app.use("/api/theme", require("./routes/theme"));
-app.use("/api/pipeline", require("./routes/pipeline"));
+app.use(["/api/pipeline","/api/workspace/pipeline"], require("./routes/pipeline"));
 app.use("/api/internal", require("./routes/internal"));
 
 // ─── Media Streaming Middleware ───────────────────────────────────────────────

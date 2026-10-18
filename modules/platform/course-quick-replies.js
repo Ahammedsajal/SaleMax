@@ -32,8 +32,7 @@ async function sessionContext(pool,session){
   if(!result.allowed)fail(result.code,403);
   requireCatalog(ctx);
   const query=async(sql,args)=>(await pool.query(sql,args))[0];
-  const sharedQrInstances=ctx.membership.role==='manager'?await query(`SELECT instance.uniqueId FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=? WHERE share.tenant_id=? AND share.membership_id=?`,[session.ownerUid,ctx.tenant.id,ctx.membership.id]):[];
-  const scope={canonical:true,uid:session.ownerUid,identityId:ctx.identity.id,assignedOnly:ctx.membership.role!=='owner',sharedQrInstances,ctx};
+  const scope=session.actor?await access.resolveInboxScope(query,{...session.actor,isAgent:session.agent},'send_chat_message'):{canonical:true,uid:session.ownerUid,identityId:ctx.identity.id,assignedOnly:ctx.membership.role!=='owner',sharedQrInstances:[],ctx};
   return {scope,ctx,actor:session.actor||{uid:session.ownerUid},agent:session.agent,query,refresh:async()=>sessionContext(pool,await session.refresh())};
 }
 async function options(pool,c){

@@ -28,7 +28,10 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/admin/platform-auth',legacyGuard,boundary.router);
   // Business sessions use the existing /user API surface and never accept the
   // separate platform-admin audience.
-  app.use('/api/user/business-auth',businessBoundary.router);
+  const agentIdentity=require('express').Router();
+  const agentIdentityGuard=require('./agent-workspace-access').createAgentWorkspaceGuard({pool,origin});
+  agentIdentity.get('/me',(req,res,next)=>req.get('X-Salemax-Actor')==='agent'?agentIdentityGuard(req,res,next):next());
+  app.use('/api/user/business-auth',agentIdentity,businessBoundary.router);
   const featureSession=require('./business-feature-session').createBusinessFeatureSession({pool,origin,userGuard,agentGuard:require('../../middlewares/agent'),canonicalGuard:businessBoundary.guard,resolveBusinessContext:businessBoundary.resolveContext});
   const featureAccess=require('express').Router();featureAccess.use(featureSession.guard);
   featureAccess.get('/',(req,res,next)=>require('./feature-contract').describeWithNavigation(pool,req.featureSession).then(data=>res.json({success:true,data})).catch(next));
@@ -38,7 +41,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use(['/api/workspace/phonebook','/api/phonebook/workspace','/api/agent/phonebook'],phonebook);
   const courseReplies=require('./course-quick-reply-router')({pool,origin,authenticate:featureSession.guard});
   app.use(['/api/workspace/inbox/course-replies','/api/inbox/course-replies','/api/agent/course-replies'],courseReplies);
-  app.use('/api/crm',createTenantCrmRouter({pool,canonicalGuard:businessBoundary.guard}));
+  app.use('/api/crm',createTenantCrmRouter({pool,canonicalGuard:featureSession.guard}));
   app.use('/api/user/sales-organization',createSalesOrganizationRouter({pool,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/sales-commissions',createSalesCommissionRouter({pool,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/sales-finance',createSalesFinanceRouter({pool,canonicalGuard:businessBoundary.guard}));

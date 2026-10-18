@@ -3,7 +3,7 @@ const access=require('./policy');
 const policies=require('./training-finance-policies');
 const schedules=require('./training-installment-schedules');
 const fail=(code,details)=>{const error=Error(code);error.code=code;if(details!==undefined)error.details=details;throw error;};
-function requireRead(ctx){if(ctx?.membership?.role!=='manager')policies.requireAccess(ctx,'read');const result=access.decision(ctx,{capability:'finance.invoices',permission:'invoices.read'});if(!result.allowed)fail(result.code);if(!ctx.identity?.id||!['owner','accountant','manager'].includes(ctx.membership.role))fail('PERMISSION_DENIED');}
+function requireRead(ctx){if(ctx?.membership?.role!=='manager'&&!access.explicitlyGranted(ctx,'invoices.read'))policies.requireAccess(ctx,'read');const result=access.decision(ctx,{capability:'finance.invoices',permission:'invoices.read'});if(!result.allowed)fail(result.code);if(!ctx.identity?.id||(!['owner','accountant','manager'].includes(ctx.membership.role)&&!access.explicitlyGranted(ctx,'invoices.read')))fail('PERMISSION_DENIED');}
 function listInput(input={}){
   const page=input.page===undefined?1:Number(input.page),limit=input.limit===undefined?20:Number(input.limit);
   if(!Number.isSafeInteger(page)||page<1||page>10000||!Number.isSafeInteger(limit)||limit<1||limit>50)fail('INVALID_INVOICE_PAGE');

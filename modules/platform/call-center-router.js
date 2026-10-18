@@ -70,7 +70,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   }
   router.use((req,res,next)=>{
     if(/^Bearer\s+/i.test(req.get('Authorization')||'')){
-      return userGuard(req,res,()=>legacyContext(req.decode.uid,req.decode.userData).then(ctx=>{req.callCenterContext=ctx;next();}).catch(next));
+      return userGuard(req,res,()=>(req.featureSession?.context?Promise.resolve(req.featureSession.context):legacyContext(req.decode.uid,req.decode.userData)).then(ctx=>{req.callCenterContext=ctx;next();}).catch(next));
     }
     return canonicalGuard(req,res,()=>{req.callCenterContext=req.businessContext;next();});
   });

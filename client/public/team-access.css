@@ -110,3 +110,32 @@
 #sx-team-screen .team-dialog .creation-mode{padding:14px;background:#f7f9fc;border:1px solid #e4e9f0;border-radius:10px}
 #sx-team-screen .team-dialog .creation-error{margin:0;outline-offset:3px}
 @media(max-width:560px){#sx-team-screen .team-dialog{padding:18px}#sx-team-screen .team-dialog .dialog-actions{flex-wrap:wrap}#sx-team-screen .team-dialog .dialog-actions button{flex:1}}
+
+#sx-team-screen .role-dialog,#sx-team-screen .member-access-dialog{width:min(1180px,calc(100vw - 32px));padding:0}
+#sx-team-screen .role-dialog>.dialog-heading,#sx-team-screen .member-access-dialog>.dialog-heading{position:sticky;top:0;z-index:3;margin:0;padding:24px 28px;background:#fff;border-bottom:1px solid #e4e9f0}
+#sx-team-screen .role-dialog>#sx-role-form,#sx-team-screen .member-access-dialog>p,#sx-team-screen .member-access-dialog>[data-member-access-content]{padding:22px 28px;margin:0}
+#sx-team-screen .role-dialog .permission-fieldset{max-height:none;overflow:visible;padding:16px}
+#sx-team-screen .role-dialog .permission-workspace{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:18px;align-items:start}
+#sx-team-screen .role-dialog .permission-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+#sx-team-screen .permission-category{min-width:0;padding:12px;border:1px solid #e4e9f0;border-radius:10px;background:#fff}
+#sx-team-screen .permission-category>summary{font-weight:700;cursor:pointer;padding:2px 0 8px}
+#sx-team-screen .permission-category>summary span{float:inline-end;font-size:12px;color:#69768a}
+#sx-team-screen .permission-option{margin-top:7px;padding:9px;background:#f9fafc;align-items:center}
+#sx-team-screen .permission-option small{display:block;font-size:10px;font-weight:400;color:#69768a;direction:ltr;overflow-wrap:anywhere}
+#sx-team-screen .permission-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid #e4e9f0}
+#sx-team-screen .permission-toolbar>label{flex:1;min-width:180px;font-size:12px}
+#sx-team-screen .permission-toolbar input{width:100%;box-sizing:border-box}
+#sx-team-screen .permission-summary{padding:10px;font-size:12px;font-weight:600;color:#a8003b}
+#sx-team-screen .permission-group-tools{display:flex;gap:6px;margin-bottom:8px}
+#sx-team-screen .permission-group-tools button{min-height:26px;padding:2px 9px;font-size:11px}
+#sx-team-screen .role-screen-preview{position:sticky;top:110px;padding:16px;background:#f5f7fb;border:1px solid #e4e9f0;border-radius:10px}
+#sx-team-screen .role-screen-preview h3{margin:0;font-size:15px}
+#sx-team-screen .role-preview-row{padding:8px 0;border-top:1px solid #e4e9f0;font-size:12px}
+#sx-team-screen .role-dialog .dialog-actions{position:sticky;bottom:0;margin:0;padding:16px 0;background:#fff;border-top:1px solid #e4e9f0;z-index:2}
+#sx-team-screen .member-access-dialog .nav-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+#sx-team-screen .member-access-dialog .nav-category{border:1px solid #e4e9f0;border-radius:10px;padding:12px}
+#sx-team-screen .member-access-dialog .nav-category summary{font-weight:700;margin-bottom:8px}
+#sx-team-screen .member-access-dialog .member-detail-panel{border:0;background:#fff;padding:0}
+#sx-team-screen #sx-role-error{margin:16px 28px 0}
+@media(max-width:800px){#sx-team-screen .role-dialog .permission-workspace{grid-template-columns:1fr}#sx-team-screen .role-screen-preview{position:static}#sx-team-screen .member-access-dialog .nav-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){#sx-team-screen .role-dialog .permission-grid,#sx-team-screen .member-access-dialog .nav-grid{grid-template-columns:1fr}#sx-team-screen .role-dialog>.dialog-heading,#sx-team-screen .member-access-dialog>.dialog-heading{padding:18px}#sx-team-screen .role-dialog>#sx-role-form,#sx-team-screen .member-access-dialog>[data-member-access-content],#sx-team-screen .member-access-dialog>p{padding:18px}#sx-team-screen .role-dialog .dialog-actions{margin:0;padding:14px 0}}

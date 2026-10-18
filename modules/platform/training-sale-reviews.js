@@ -59,7 +59,7 @@ async function listForLead(pool,ctx,{leadId,uid,role,agentId}){
 }
 async function listApprovedForInvoice(pool,ctx,{uid}){
   const permission=require('./policy').decision(ctx,{capability:'finance.invoices',permission:'invoices.issue'});if(!permission.allowed)fail(permission.code);
-  if(!['owner','accountant'].includes(ctx.membership.role)||typeof uid!=='string'||!uid)fail('PERMISSION_DENIED');
+  if((!['owner','accountant'].includes(ctx.membership.role)&&!require('./policy').explicitlyGranted(ctx,'invoices.issue'))||typeof uid!=='string'||!uid)fail('PERMISSION_DENIED');
   const db=await pool.getConnection();try{
     const [rows]=await db.query(`SELECT r.id,r.lead_id,r.revision,r.status,r.decided_by_role,r.installments,r.lead_updated_at_snapshot,r.course_name_en,r.course_name_ar,r.currency,r.net_minor,r.learner_name,r.payer_name,r.decided_at,l.updated_at AS lead_updated_at,(c.deleted_at IS NOT NULL) AS course_removed
       FROM sx_training_sale_reviews r LEFT JOIN sx_training_courses c ON c.tenant_id=r.tenant_id AND c.id=r.course_id JOIN pipeline_leads l ON l.id=r.lead_id AND l.uid_hash=r.legacy_uid_hash AND BINARY l.uid=BINARY r.legacy_uid

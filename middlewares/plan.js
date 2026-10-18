@@ -4,11 +4,11 @@ const { getNumberOfDaysFromTimestamp } = require("../functions/function");
 
 const checkPlan = async (req, res, next) => {
   try {
-    if (req.owner) {
+    if (req.owner && !req.agentWorkspace) {
       req.decode.uid = req.owner.uid;
     }
 
-    const getUser = await query(`SELECT * FROM user WHERE uid = ?`, [
+    const getUser = req.agentWorkspace ? [req.owner] : await query(`SELECT * FROM user WHERE uid = ?`, [
       req.decode.uid,
     ]);
     const plan = getUser[0]?.plan;
@@ -108,7 +108,7 @@ const checkQrScan = async (req, res, next) => {
   try {
     if (req.plan?.qr_account > 0) {
       const accounts = parseInt(req?.plan?.qr_account) || 0;
-      const instances = await query(`SELECT * FROM instance WHERE uid = ?`, [
+      const instances = req.agentWorkspace ? await query(`SELECT instance.id FROM instance WHERE uid=? OR uid IN (SELECT uid FROM agents WHERE owner_uid=?)`,[req.owner.uid,req.owner.uid]) : await query(`SELECT * FROM instance WHERE uid = ?`, [
         req.decode.uid,
       ]);
 

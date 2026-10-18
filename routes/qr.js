@@ -147,10 +147,15 @@ router.post(
         });
       }
 
-      await query(
+      const inserted = await query(
         `INSERT INTO instance (uid, title, uniqueId, status) VALUES (?,?,?,?)`,
         [req.decode.uid, title, uniqueId, "GENERATING"],
       );
+      if(req.agentWorkspace){
+        const ctx=req.featureSession.context;
+        try{await query('INSERT INTO sx_qr_channel_shares(tenant_id,instance_id,membership_id,granted_by_identity_id) VALUES (?,?,?,?)',[ctx.tenant.id,inserted.insertId,ctx.membership.id,ctx.identity.id]);}
+        catch(error){await query('DELETE FROM instance WHERE id=? AND uid=?',[inserted.insertId,req.decode.uid]);throw error;}
+      }
 
       await createSession(
         uniqueId,
@@ -222,6 +227,14 @@ router.get("/get_all_agent", validateAgent, async (req, res) => {
 // get all instances
 router.get("/get_all", validateUser, async (req, res) => {
   try {
+    if(req.agentWorkspace){
+      const ctx=req.featureSession.context;
+      const rows=await query('SELECT instance.id AS instanceId,instance.uniqueId,instance.title,instance.number,instance.status FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=?',[req.owner.uid,ctx.tenant.id,ctx.membership.id]);
+      const scoped={sharedQrInstances:rows};
+      const own=await query('SELECT instance.id FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=? AND share.granted_by_identity_id=?',[req.owner.uid,ctx.tenant.id,ctx.membership.id,ctx.identity.id]);
+      const owned=new Set(own.map(row=>Number(row.id)));
+      return res.json({success:true,data:(scoped.sharedQrInstances||[]).map(row=>({id:Number(row.instanceId),uniqueId:row.uniqueId,title:row.title,number:normalizeNumber(row.number),status:row.status,sharedAccess:!owned.has(Number(row.instanceId))}))});
+    }
     const inboxScope = await require('../modules/platform/team-inbox-scope')
       .resolveInboxScope(query, req.decode.userData, 'get_chat_list');
     if (inboxScope.canonical && inboxScope.ctx.membership.role !== 'owner') {
@@ -340,6 +353,7 @@ router.post("/del_instance", validateUser, async (req, res) => {
       });
     }
 
+    if(!(await query('SELECT id FROM instance WHERE uniqueId=? AND uid=?',[uniqueId,req.decode.uid])).length)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
     const session = getSession(uniqueId);
 
     if (session) {
@@ -395,6 +409,7 @@ router.post("/change_instance_status", validateUser, async (req, res) => {
 
     const { insId, status, jid } = req.body;
 
+    if(!(await query('SELECT id FROM instance WHERE uniqueId=? AND uid=?',[insId,req.decode.uid])).length)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
     const session = await getSession(insId);
 
     if (!session) {

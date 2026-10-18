@@ -10,6 +10,7 @@ function fixture(role='manager'){
  const actor={id:2,uid:role+'-uid',email:role+'@example.invalid',password:'synthetic',owner_uid:'owner-uid',is_active:1},owner={id:1,uid:'owner-uid',role:'user',password:'synthetic'};
  let member={tenantId:tenant,tenantStatus:'active',categoryKey:'training_center',categoryVersion:1,membershipId:'member-'+role,identityId:'identity-'+role,role,membershipStatus:'active',identityStatus:'active',uidHash:sha(actor.uid),delegatedPermissions:'[]',assignedNavigation:role==='agent'?'["inbox","contacts"]':'["invoices","inbox","contacts"]',roleProfileId:null};
  const query=async(sql,args)=>{
+  if(sql.includes('SELECT u.uid,m.id AS membershipId'))return [[{uid:owner.uid,uidHash:sha(owner.uid),membershipId:'owner-member',identityId:'owner-identity'}]];
   if(sql.includes('o.legacy_uid_hash AS uidHash'))return [[member]];
   if(sql.includes('FROM sx_plan_assignments'))return [[{id:'assignment',status:'active',current_period:1,role_limits:JSON.stringify({owner:1,accountant:2,manager:2,agent:10}),capabilities:JSON.stringify(trainingCenter.capabilities),category_key:'training_center',category_version:1}]];
   if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:owner.uid,legacy_uid_hash:sha(owner.uid)}]];

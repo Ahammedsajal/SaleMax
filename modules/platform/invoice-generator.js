@@ -7,7 +7,7 @@ const todayQatar=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Qatar',year
 const defaultPlans=[{id:'full',label:'Full payment',installments:1,intervalDays:0},{id:'monthly-2',label:'2 monthly payments',installments:2,intervalDays:30},{id:'monthly-3',label:'3 monthly payments',installments:3,intervalDays:30},{id:'monthly-6',label:'6 monthly payments',installments:6,intervalDays:30}];
 function requireRole(ctx,write=false){
   if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.categoryKey!=='training_center'||Number(ctx.tenant?.categoryVersion)!==1||ctx.tenant.status!=='active'||ctx.membership?.status!=='active'||ctx.membership.tenantId!==ctx.tenant.id)fail('TENANT_CONTEXT_REQUIRED',403);
-  if(!ctx.identity?.id||!['owner','accountant','manager'].includes(ctx.membership.role))fail('PERMISSION_DENIED',403);
+  if(!ctx.identity?.id||(!['owner','accountant','manager'].includes(ctx.membership.role)&&!access.explicitlyGranted(ctx,write?'invoices.issue':'invoices.read')))fail('PERMISSION_DENIED',403);
   for(const request of [{capability:'finance.invoices',permission:'invoices.read'},...(write?[{capability:'finance.invoices',permission:'invoices.issue'}]:[])]){const result=access.decision(ctx,request);if(!result.allowed)fail(result.code,403);}
 }
 function cleanText(value,max,code,{optional=false}={}){if(value===null||value===undefined){if(optional)return null;fail(code);}if(typeof value!=='string')fail(code);const text=value.trim();if((!text&&!optional)||text.length>max)fail(code);return text||null;}

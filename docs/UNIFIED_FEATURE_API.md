@@ -72,3 +72,13 @@ Regression gates: `tests/unified-feature-api.test.js`,
 requires `UNIFIED_SYNTHETIC_ONLY=true`, creates and drops its own schema, uses
 synthetic identities and a fake message transport, and must run on disposable
 MariaDB infrastructure. It never sends WhatsApp messages.
+
+## Agent access to the shared business shell
+
+The existing Agent login opens the existing `/user` shell in Agent mode. A tab-local actor marker and an early credential adapter select only `wacrm_agent`; a separate business credential is preserved. Both bearer requests and the session contract keep the actual Agent membership and identity. `/api/user/get_me` and dashboard compatibility reads return a bounded Agent profile, never the owner row or owner credential fields. The Agent identity read also avoids falling back to a separate business cookie.
+
+Custom business roles may explicitly add modules to Manager, Team Leader and Agent seats. Default roles remain unchanged; an existing custom role gains no new grants automatically. Assigned conversations and own-report scopes remain scoped, plan/category limits still apply, and platform administration and financial separation-of-duty rules remain separate. The common policy authorizes each request against current role grants and assigned screens.
+
+QR, Flow, Chatbot, Templates, Campaigns, Inbox and Pipeline compatibility routers also mount at `/api/workspace/channels/qr`, `/api/workspace/automation/flows`, `/api/workspace/automation/chatbot`, `/api/workspace/templates`, `/api/workspace/campaigns`, `/api/workspace/inbox` and `/api/workspace/pipeline`. They reuse the same handlers. Agent-created QR connections stay in the business channel inventory and receive an explicit creator membership grant. Agents can manage connections they created, see their permitted shared connections, and cannot delete another member's connection. The business QR plan limit is checked before creation. No owner pairing credentials are copied.
+
+Verification covers the actual QR routes with a fake provider, real MariaDB sessions and permission changes, separate business/Agent credentials, and both bearer/cookie feature access. Actual WhatsApp pairing and messaging remain provider acceptance.

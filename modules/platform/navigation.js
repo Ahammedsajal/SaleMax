@@ -1,6 +1,7 @@
 const { decision } = require('./policy');
 const items = [
   ['dashboard', 'tenant.settings', 'tenant.read', 'Dashboard', 'لوحة التحكم', 'Overview', 'نظرة عامة'],
+  ['notifications', 'tenant.settings', 'tenant.read', 'Web Notifications', 'إشعارات الويب', 'Overview', 'نظرة عامة'],
   ['inbox', 'messaging.inbox', 'conversations.read', 'Inbox', 'صندوق الوارد', 'Conversations', 'المحادثات'],
   ['whatsapp-qr', 'messaging.qr', 'channels.configure', 'Add WhatsApp by QR', 'إضافة واتساب عبر QR', 'Conversations', 'المحادثات'],
   ['whatsapp-meta', 'messaging.meta', 'channels.configure', 'Link Meta WhatsApp', 'ربط واتساب ميتا', 'Conversations', 'المحادثات'],

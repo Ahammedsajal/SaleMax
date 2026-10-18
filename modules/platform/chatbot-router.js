@@ -33,7 +33,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   });
   router.use((req, res, next) => {
     if (/^Bearer\s+/i.test(req.get('Authorization') || '')) {
-      return userGuard(req, res, () => legacyChatbotContext(pool, req.decode.uid).then(ctx => { req.botContext = ctx; next(); }).catch(next));
+      return userGuard(req, res, () => (req.featureSession?.context?Promise.resolve(req.featureSession.context):legacyChatbotContext(pool, req.decode.uid)).then(ctx => { req.botContext = ctx; next(); }).catch(next));
     }
     return canonicalGuard(req, res, () => { req.botContext = req.businessContext; next(); });
   });

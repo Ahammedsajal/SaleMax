@@ -7,7 +7,7 @@ const tenant='11111111-1111-4111-8111-111111111111',memberId='22222222-2222-4222
 function fixture({ownerRole='owner',target=[]}={}){
   const writes=[];let committed=false,rolledBack=false;
   const db={beginTransaction:async()=>{},commit:async()=>{committed=true;},rollback:async()=>{rolledBack=true;},release:()=>{},query:async(sql,args)=>{
-    if(sql.includes('FROM user u JOIN sx_legacy_ownership'))return [[{uid:'owner',uidHash:hash('owner'),tenantId:tenant,membershipId:memberId,identityId:'owner-id',role:ownerRole,membershipStatus:'active',identityStatus:'active',tenantStatus:'active',categoryKey:'training_center',categoryVersion:1}]];
+    if(sql.includes("FROM (SELECT id,uid,'user' AS sourceTable"))return [[{uid:'owner',uidHash:hash('owner'),tenantId:tenant,membershipId:memberId,identityId:'owner-id',role:ownerRole,membershipStatus:'active',identityStatus:'active',tenantStatus:'active',categoryKey:'training_center',categoryVersion:1}]];
     if(sql.includes('SELECT id,status,category_key'))return [[{id:tenant,status:'active'}]];
     if(sql.includes('FROM sx_plan_assignments'))return [[{id:tenant,status:'active',current_period:1,role_limits:JSON.stringify({owner:1,accountant:2,manager:2,agent:3}),capabilities:JSON.stringify(['team.members']),category_key:'training_center',category_version:1}]];
     if(sql.includes('FROM sx_memberships m JOIN sx_identities')){assert.equal(args[0],tenant);return [target];}

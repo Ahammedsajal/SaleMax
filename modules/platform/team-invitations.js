@@ -21,7 +21,7 @@ function permissionsFor(seatRole,category=trainingCenter,subscription=null){
   const enabledCapabilities=new Set((category?.capabilities||[]).filter(capability=>subscription?.capabilities?.includes(capability)));
   const planPermissions=new Set(Object.entries(policy.capabilities).filter(([capability])=>enabledCapabilities.has(capability)).flatMap(([,items])=>items));
   return Object.keys(policy.permissions).filter(key=>{
-    const allowed=policy.scopeFor({role:seatRole,delegatedPermissions:seatRole==='manager'?policy.delegationAllowlist:[]},key)||category?.key==='salemax_sales'&&seatRole==='manager'&&key==='team.invite';
+    const allowed=policy.scopeFor({role:seatRole,customPermissions:['manager','team_leader','agent'].includes(seatRole)?[key]:null,delegatedPermissions:seatRole==='manager'?policy.delegationAllowlist:[]},key)||category?.key==='salemax_sales'&&seatRole==='manager'&&key==='team.invite';
     return allowed&&planPermissions.has(key);
   });
 }
@@ -48,7 +48,7 @@ async function ownerScope(db,ownerUid,{requireTeam=true}={}){
       m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.role_profile_id AS roleProfileId,
       m.assigned_navigation AS assignedNavigation,r.seat_role AS seatRole,r.permissions AS rolePermissions,r.status AS roleStatus,
       i.status AS identityStatus,o.legacy_uid_hash AS uidHash
-    FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+    FROM (SELECT id,uid,'user' AS sourceTable FROM user UNION ALL SELECT id,uid,'agents' AS sourceTable FROM agents) u JOIN sx_legacy_ownership o ON o.source_table=u.sourceTable AND o.source_id=CAST(u.id AS CHAR)
     JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
     JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
     WHERE u.uid=? FOR UPDATE`,[ownerUid]);
@@ -181,7 +181,7 @@ async function list(pool,ownerUid){
         membership:{id:'preview',tenantId:scope.tenantId,role:item.seatRole,status:'active',delegatedPermissions:[],customPermissions:item.permissions}};
       return [item.id,navigation.navigationFor(context).map(entry=>({key:entry.key,label:entry.label,group:entry.group}))];
     }));
-    return {categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
+    return {screenCatalog:navigation.items.filter(item=>scope.category.capabilities.includes(item.capability)&&scope.entitlement?.capabilities.includes(item.capability)),categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),permissionDefaults:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement).filter(permission=>policy.scopeFor({role:key},permission))])),navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
   });}finally{db.release();}
 }
 async function updateMemberPassword(pool,ownerUid,memberId,input={}){
@@ -247,7 +247,7 @@ async function salesOrganization(pool,legacyUid){
     const [rows]=await db.query(`SELECT m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.role_profile_id AS roleProfileId,
         r.permissions AS rolePermissions,m.assigned_navigation AS assignedNavigation,t.id AS tenantId,t.status AS tenantStatus,
         t.category_key AS categoryKey,t.category_version AS categoryVersion,o.legacy_uid_hash AS uidHash
-      FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      FROM (SELECT id,uid,'user' AS sourceTable FROM user UNION ALL SELECT id,uid,'agents' AS sourceTable FROM agents) u JOIN sx_legacy_ownership o ON o.source_table=u.sourceTable AND o.source_id=CAST(u.id AS CHAR)
       JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.tenant_id=t.id AND m.id=o.membership_id
       LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
       JOIN sx_identities i ON i.id=m.identity_id
@@ -271,7 +271,7 @@ async function reassignSalesMember(pool,legacyUid,membershipId,input){
     const [rows]=await db.query(`SELECT m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.role_profile_id AS roleProfileId,
         r.permissions AS rolePermissions,m.assigned_navigation AS assignedNavigation,t.id AS tenantId,t.status AS tenantStatus,
         t.category_key AS categoryKey,t.category_version AS categoryVersion,o.legacy_uid_hash AS uidHash
-      FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      FROM (SELECT id,uid,'user' AS sourceTable FROM user UNION ALL SELECT id,uid,'agents' AS sourceTable FROM agents) u JOIN sx_legacy_ownership o ON o.source_table=u.sourceTable AND o.source_id=CAST(u.id AS CHAR)
       JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.tenant_id=t.id AND m.id=o.membership_id
       LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
       JOIN sx_identities i ON i.id=m.identity_id
@@ -292,7 +292,7 @@ async function sidebarAccess(pool,legacyUid){
   try{
     const [rows]=await db.query(`SELECT m.id,m.role,m.role_profile_id AS roleProfileId,r.permissions AS rolePermissions,m.status AS membershipStatus,m.assigned_navigation AS assignedNavigation,
         t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,o.legacy_uid_hash AS uidHash
-      FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      FROM (SELECT id,uid,'user' AS sourceTable FROM user UNION ALL SELECT id,uid,'agents' AS sourceTable FROM agents) u JOIN sx_legacy_ownership o ON o.source_table=u.sourceTable AND o.source_id=CAST(u.id AS CHAR)
       JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
       LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
       JOIN sx_identities i ON i.id=m.identity_id
@@ -437,6 +437,7 @@ async function accountSession(pool,ownerUid,membershipId,{jwtKey,returning=false
   const db=await pool.getConnection();
   try{return await tx(db,async()=>{
     const scope=await ownerScope(db,ownerUid,{requireTeam:!returning});
+    if(['agent','team_leader'].includes(scope.role))fail('PERMISSION_DENIED');
     const targetId=returning?scope.membershipId:membershipId;
     const [rows]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,i.credential_version AS credentialVersion,
         u.uid,u.email,u.password,o.legacy_uid_hash AS uidHash

@@ -9,7 +9,7 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  try{
  await admin.query('CREATE DATABASE `'+name+'` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');pool=mysql.createPool({...connection,database:name,connectionLimit:12});
  const inventory=require('../docs/LEGACY_SCHEMA_INVENTORY.json');
- for(const table of ['admin','plan','web_public','web_private','user','orders','contact_form','beta_chats','beta_conversation','agents','agent_task','instance','beta_flows','contact','phonebook']){
+ for(const table of ['admin','plan','web_public','web_private','user','orders','contact_form','beta_chats','beta_conversation','agents','agent_task','instance','meta_api','beta_flows','contact','phonebook']){
  const columns=inventory.columns.filter(c=>c.tableName===table&&!(table==='instance'&&c.columnName==='inactiveSince'));
  if(!columns.length)continue;
  await pool.query('CREATE TABLE `'+table+'` ('+columns.map(c=>'`'+c.columnName+'` '+c.columnType+' '+(c.nullable==='NO'?'NOT NULL':'')+' '+(c.columnKey==='PRI'?'PRIMARY KEY':'')+' '+(c.extra==='auto_increment'?'AUTO_INCREMENT':'')+' '+(c.columnName==='createdAt'?'DEFAULT CURRENT_TIMESTAMP':'')).join(',')+')');
@@ -35,6 +35,18 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
   const token=crypto.randomBytes(32).toString('base64url');await pool.query("INSERT INTO sx_sessions(id,token_hash,identity_id,audience,tenant_id,membership_id,credential_version,authenticated_at,expires_at) VALUES (?,?,?,'tenant',?,?,1,UTC_TIMESTAMP(3),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 HOUR))",[uuid(),sha(token),identity,tenant,membership]);
   people[role]={id,uid,identity,membership,token,bearer:require('jsonwebtoken').sign({uid,email,password},process.env.JWTKEY,{expiresIn:'1h'})};
  }
+ process.env.SALEMAX_PLATFORM_ORIGIN=origin;
+ // Exercise the actual legacy shell/QR routers with a fake provider transport.
+ let qrStarts=0;
+ const functionPath=require.resolve('../functions/function.js');require.cache[functionPath]={id:functionPath,filename:functionPath,loaded:true,exports:{getNumberOfDaysFromTimestamp:value=>Math.ceil((Number(value)-Date.now())/86400000),checkWarmerPlan:()=>false}};
+ const addonsPath=require.resolve('../utils/addons');require.cache[addonsPath]={id:addonsPath,filename:addonsPath,loaded:true,exports:{returnAddons:()=>['QR']}};
+ const qrPath=require.resolve('../helper/addon/qr/index.js');
+ require.cache[qrPath]={id:qrPath,filename:qrPath,loaded:true,exports:{createSession:async()=>{qrStarts++;},getSession:()=>null,sendMessage:async()=>{},deleteSession:()=>{},isExists:()=>false}};
+ const webhookPath=require.resolve('../helper/inbox/outboundWebhook');
+ require.cache[webhookPath]={id:webhookPath,filename:webhookPath,loaded:true,exports:{sendQrStatusToCrm:async()=>{}}};
+ const agentIdentity=express.Router();agentIdentity.get('/me',(req,res,next)=>req.get('X-Salemax-Actor')==='agent'?require('../modules/platform/agent-workspace-access').createAgentWorkspaceGuard({pool,origin})(req,res,next):next());app.use('/api/user/business-auth',agentIdentity);
+ const shell=express.Router();shell.get('/get_dashboard',require('../middlewares/user'),(_req,res)=>res.status(500).end());shell.get('/get_me',require('../middlewares/user'),(_req,res)=>res.status(500).end());shell.get('/optional-features',require('../middlewares/user'),(_req,res)=>res.status(500).end());app.use('/api/user',shell);
+ const qr=require('../routes/qr');app.use(['/api/workspace/channels/qr','/api/qr'],express.json(),qr);
  const guard=require('../modules/platform/business-feature-session').createBusinessFeatureSession({pool,origin,userGuard:require('../middlewares/user'),agentGuard:require('../middlewares/agent'),canonicalGuard:auth.guard,resolveBusinessContext:auth.resolveContext});legacyPool=require('../database/config');
  app.use('/api/user/business-auth',auth.router);
  const sessionRouter=express.Router();sessionRouter.use(guard.guard);sessionRouter.get('/',(req,res,next)=>require('../modules/platform/feature-contract').describeWithNavigation(pool,req.featureSession).then(data=>res.json({success:true,data})).catch(next));app.use('/api/workspace/session',sessionRouter);
@@ -67,6 +79,39 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  assert.equal((await request('manager','bearer','/api/workspace/inbox/course-replies/send','POST',{requestId:uuid(),chatId:'synthetic-chat',courseId:course},{foreign:true})).status,403);
  const complete=await request('agent','cookie','/api/workspace/inbox/course-replies/send','POST',{requestId:uuid(),chatId:'synthetic-chat',courseId:course,language:'ar'});assert.equal(complete.data.state,'sent',JSON.stringify(complete));assert.ok(sends>=1);
  revokeDuringSend=true;const stopped=await request('agent','cookie','/api/workspace/inbox/course-replies/send','POST',{requestId:uuid(),chatId:'synthetic-chat',courseId:course,language:'en'});assert.equal(stopped.data.state,'stopped',JSON.stringify(stopped));assert.equal(stopped.data.sent,1);
+ // Grant additional business features through the same Manager role editor.
+ await pool.query("UPDATE sx_memberships SET assigned_navigation=NULL WHERE id=?",[people.manager.membership]);
+ await pool.query('UPDATE user SET plan=?,plan_expire=? WHERE id=?',[JSON.stringify({qr_account:5,contact_limit:1000}),String(Date.now()+30*86400000),people.owner.id]);
+ const team=require('../modules/platform/team-invitations');
+ const expanded=['tenant.read','conversations.read','conversations.reply','contacts.read','contacts.manage','courses.read','courses.manage','channels.configure','invoices.read','invoices.issue','receipts.read','payments.verify','forms.manage','forms.capture','tasks.read','tasks.manage'];
+ const profile=await team.createRole(pool,people.manager.uid,{name:'Synthetic expanded Agent',seatRole:'agent',permissions:expanded});
+ await team.updateMemberRole(pool,people.manager.uid,people.agent.membership,{roleProfileId:profile.id});
+ await pool.query('UPDATE sx_memberships SET assigned_navigation=NULL WHERE id=?',[people.agent.membership]);
+ for(const kind of ['bearer','cookie']){
+  const session=await request('agent',kind,'/api/workspace/session');assert.equal(session.status,200,JSON.stringify(session));
+  for(const key of ['whatsapp-qr','courses','invoices','contacts','forms'])assert.ok(session.data.roleNavigation.includes(key),key);
+  assert.equal((await request('agent',kind,'/api/workspace/courses','POST',{code:'AGENT-01-'+kind,nameEn:'Agent course',nameAr:'دورة الوكيل',durationValue:4,durationUnit:'weeks',deliveryMode:'online',offer:{priceMinor:1200}})).status,201);
+  assert.equal((await request('agent',kind,'/api/workspace/finance/generator/settings')).status,200);
+  assert.equal((await request('agent',kind,'/api/workspace/finance/receipts')).status,200);
+  assert.equal((await request('agent',kind,'/api/workspace/phonebook/bootstrap')).manage,true);
+ }
+ const shellProfile=await request('agent','bearer','/api/user/get_me');assert.equal(shellProfile.status,200,JSON.stringify(shellProfile));assert.equal(shellProfile.data.uid,people.agent.uid);assert.equal(shellProfile.data.email,'agent@example.invalid');assert.equal(shellProfile.data.password,undefined);assert.equal(shellProfile.data.api_key,undefined);
+ const identity=await request('agent','bearer','/api/user/business-auth/me');assert.equal(identity.context.membership.role,'agent');assert.equal(identity.context.identity.id,people.agent.identity);
+ const dashboard=await request('agent','bearer','/api/user/get_dashboard');assert.equal(dashboard.data.user.uid,people.agent.uid);assert.equal(dashboard.data.user.password,undefined);
+ const generation=await request('agent','bearer','/api/workspace/channels/qr/gen_qr','POST',{title:'Synthetic Agent channel'});assert.equal(generation.success,true,JSON.stringify(generation));assert.equal(qrStarts,1);
+ const [[ownedChannel]]=await pool.query("SELECT id,uniqueId FROM instance WHERE title='Synthetic Agent channel'");
+ const listChannels=await request('agent','bearer','/api/workspace/channels/qr/get_all');assert.equal(listChannels.success,true,JSON.stringify(listChannels));assert.equal(listChannels.data.length,1);assert.equal(listChannels.data[0].sharedAccess,false);
+ const [foreignChannel]=await pool.query("INSERT INTO instance(uid,title,uniqueId,status) VALUES (?,'Owner channel','synthetic-owner-channel','INACTIVE')",[people.owner.uid]);
+ assert.equal((await request('agent','bearer','/api/qr/del_instance','POST',{uniqueId:'synthetic-owner-channel'})).status,404);
+ assert.equal((await request('agent','bearer','/api/qr/get_all')).data.length,1);
+ const agentScope=await require('../modules/platform/team-inbox-scope').resolveInboxScope(async(sql,args)=>(await pool.query(sql,args))[0],{...(await pool.query('SELECT * FROM agents WHERE id=?',[people.agent.id]))[0][0],isAgent:true},'get_chat_list');assert.ok(agentScope.sharedQrInstances.some(row=>row.uniqueId===ownedChannel.uniqueId));
+ await team.updateRole(pool,people.manager.uid,profile.id,{name:'Synthetic expanded Agent',permissions:expanded.filter(key=>key!=='channels.configure')});
+ assert.equal((await request('agent','bearer','/api/qr/gen_qr','POST',{title:'Denied channel'})).status,403);assert.equal(qrStarts,1);
+ await team.updateRole(pool,people.manager.uid,profile.id,{name:'Synthetic expanded Agent',permissions:expanded});
+ await pool.query("UPDATE sx_memberships SET assigned_navigation=JSON_ARRAY('inbox') WHERE id=?",[people.agent.membership]);
+ assert.equal((await request('agent','bearer','/api/workspace/courses')).status,403);
+ await pool.query("UPDATE sx_memberships SET role_profile_id=NULL,assigned_navigation=JSON_ARRAY('inbox','contacts') WHERE id=?",[people.agent.membership]);
+ await pool.query('DELETE FROM sx_qr_channel_shares WHERE instance_id=?',[ownedChannel.id]);await pool.query('DELETE FROM instance WHERE id IN (?,?)',[ownedChannel.id,foreignChannel.insertId]);
  await pool.query("UPDATE sx_memberships SET status='inactive' WHERE id=?",[people.manager.membership]);
  assert.equal((await request('manager','cookie','/api/workspace/session')).status,401);assert.equal((await request('manager','bearer','/api/workspace/session')).status,403);
  // Reclassify this disposable tenant to prove storage and endpoint isolation
@@ -90,6 +135,6 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
   const options=await request('agent',kind,'/api/workspace/inbox/course-replies?chatId=synthetic-chat');assert.equal(options.data.courses.length,1);assert.equal(options.data.courses[0].id,productId);
   assert.equal((await request('agent',kind,'/api/workspace/inbox/course-replies/preview/'+course+'?chatId=synthetic-chat')).status,404);
  }
- console.log(JSON.stringify({passed:true,migrations:require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')).length,checks:['owner manager accountant agent bearer and real cookie auth','one Finance route for all roles and compatibility aliases','Finance screen includes receipts','manager uses owner phonebooks','same-account sharing and agent read-only scope','Inbox-only published course replies','foreign course and conversation denial','real cookie CSRF and Origin denial','Arabic ordered send with fake transport','mid-send permission revocation stops subsequent messages','inactive member denied for both session kinds','Sales catalog with both auth kinds and category-specific APIs and quick replies','Sales owner creates and manager publishes; agent reads; accountant denied','historical training courses stay separate after category changes'],customerDataTouched:false,externalMessages:0}));
+ console.log(JSON.stringify({passed:true,migrations:require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')).length,checks:['owner manager accountant agent bearer and real cookie auth','one Finance route for all roles and compatibility aliases','Finance screen includes receipts','manager uses owner phonebooks','same-account sharing and agent read-only scope','Inbox-only published course replies','foreign course and conversation denial','real cookie CSRF and Origin denial','Arabic ordered send with fake transport','mid-send permission revocation stops subsequent messages','inactive member denied for both session kinds','Sales catalog with both auth kinds and category-specific APIs and quick replies','Sales owner creates and manager publishes; agent reads; accountant denied','historical training courses stay separate after category changes','Manager creates expanded Agent role and assigns it','Agent writes course and manages phonebook with bearer and cookie sessions','Agent Finance read after explicit grant','Agent safe shell profile and identity','actual QR generation/list router with fake provider and self channel grant','foreign QR deletion denied','grant and sidebar revocation take effect immediately'],customerDataTouched:false,externalMessages:0}));
  }finally{if(server)await new Promise(r=>server.close(r));if(legacyPool)await legacyPool.promise().end();await pool?.end();await admin.query('DROP DATABASE IF EXISTS `'+name+'`');await admin.end();}
 })().catch(error=>{console.error(error.stack);process.exitCode=1;});

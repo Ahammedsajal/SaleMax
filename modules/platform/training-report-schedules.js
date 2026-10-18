@@ -9,7 +9,7 @@ function validateContext(ctx){
   if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant?.id)fail('TENANT_CONTEXT_REQUIRED');
   const report=decision(ctx,{capability:'reports.read',permission:'reports.read'});if(!report.allowed)fail(report.code);
   const schedule=decision(ctx,{capability:'reports.schedule',permission:'reports.schedule'});if(!schedule.allowed)fail(schedule.code);
-  if(ctx.membership.role!=='owner')fail('PERMISSION_DENIED');
+  if(ctx.membership.role!=='owner'&&!require('./policy').explicitlyGranted(ctx,'reports.schedule'))fail('PERMISSION_DENIED');
 }
 function normalize(input){
   if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!['period','timezone','localTime','emailEnabled','emailDestination','whatsappEnabled','whatsappDestination','status','expectedRevision'].includes(k)))fail('INVALID_REPORT_SCHEDULE');

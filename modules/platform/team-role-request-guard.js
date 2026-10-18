@@ -1,13 +1,17 @@
 'use strict';
+const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/workspace/automation/flows':'/api/chat_flow','/api/workspace/automation/chatbot':'/api/chatbot','/api/workspace/templates':'/api/templet','/api/workspace/campaigns':'/api/broadcast','/api/workspace/inbox':'/api/inbox','/api/workspace/pipeline':'/api/pipeline'}[String(value||'').replace(/\/$/,'')]||String(value||'').replace(/\/$/,''));
+
 const {query}=require('../../database/dbpromise');
 const policy=require('./policy');
 const {isSelfProfileRequest}=require('./self-profile-policy');
 
 function routePermission(req){
-  const mount=String(req.baseUrl||'').replace(/\/$/,'');
+  const mount=canonicalMount(req.baseUrl);
   const path=String(req.path||'/').toLowerCase();
   const method=String(req.method||'GET').toUpperCase();
   const read=method==='GET'||method==='HEAD';
+  if(mount==='/api/crm')return path==='/tenant-context'&&read?'tenant.read':'tenant.manage';
+  if(mount==='/api/user/business-auth'&&path==='/me'&&read)return 'tenant.read';
   if(mount==='/api/workspace/session')return 'tenant.read';
   if(mount==='/api/workspace/inbox/course-replies')return read?'conversations.read':'conversations.reply';
   if(mount==='/api/workspace/phonebook')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
@@ -82,7 +86,7 @@ function routePermission(req){
 }
 
 function salesAccountantLegacyRouteAllowed(req){
-  const mount=String(req.baseUrl||'').replace(/\/$/,'');
+  const mount=canonicalMount(req.baseUrl);
   const path=String(req.path||'/').toLowerCase();
   const method=String(req.method||'GET').toUpperCase();
   if(mount==='/api/workspace/session'&&method==='GET')return true;

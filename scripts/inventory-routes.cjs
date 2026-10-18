@@ -22,9 +22,10 @@ function label(node) {
 function inventory() {
   const mounts = [], direct = [];
   walk(parse('server.js'), node => {
-    if (isMethod(node, 'app', 'use') && typeof node.arguments[0]?.value === 'string') {
+    if (isMethod(node, 'app', 'use')) {
       const required = node.arguments.find(arg => arg.type === 'CallExpression' && arg.callee.name === 'require');
-      if (required) mounts.push({ prefix: node.arguments[0].value, source: required.arguments[0].value.replace(/^\.\//, '') + '.js', line: node.loc.start.line });
+      const prefixes=node.arguments[0]?.type==='ArrayExpression'?node.arguments[0].elements:[node.arguments[0]];
+      if (required) for(const prefix of prefixes) if(typeof prefix?.value==='string')mounts.push({ prefix: prefix.value, source: required.arguments[0].value.replace(/^\.\//, '') + '.js', line: node.loc.start.line });
     }
     if (node.type === 'CallExpression' && node.callee.type === 'MemberExpression' && node.callee.object.name === 'app' && ['get', 'post', 'put', 'patch', 'delete'].includes(node.callee.property.name) && typeof node.arguments[0]?.value === 'string') direct.push({ method: node.callee.property.name.toUpperCase(), path: node.arguments[0].value, source: 'server.js', line: node.loc.start.line });
   });

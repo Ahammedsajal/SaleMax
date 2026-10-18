@@ -86,9 +86,18 @@ function scopeFor(membership, permission) {
   if (Array.isArray(membership.customPermissions) && !membership.customPermissions.includes(permission)) return null;
   const base = Object.hasOwn(permissions[permission], membership.role) ? permissions[permission][membership.role] : null;
   if (base) return base;
+  // Explicit business-role grants can add modules to a staff seat. Keeping the
+  // seat role unchanged preserves assigned-chat scope and approval separation.
+  if (['manager','team_leader','agent'].includes(membership.role) &&
+      membership.customPermissions?.includes(permission)) return 'tenant';
   // Delegations cannot change finance/owner authority or elevate an agent.
   return membership.role === 'manager' && delegationAllowlist.includes(permission) &&
     (membership.delegatedPermissions?.includes(permission) || membership.customPermissions?.includes(permission)) ? 'tenant' : null;
+}
+function explicitlyGranted(context,permission){
+  return context?.membership?.status==='active' &&
+    ['manager','team_leader','agent'].includes(context.membership.role) &&
+    context.membership.customPermissions?.includes(permission)===true;
 }
 function decision(context, { capability, permission, resource, external = false }) {
   if (!context || context.audience !== 'tenant') return { allowed: false, code: 'TENANT_CONTEXT_REQUIRED' };
@@ -137,4 +146,4 @@ function platformDecision(context, permission) {
   if (context.membership.role === 'platform_admin') return platformAdminAllowlist.includes(permission);
   return context.membership.role === 'staff' && platformStaffAllowlist.includes(permission) && context.membership.delegatedPermissions?.includes(permission) === true;
 }
-module.exports = { permissions, capabilities, scopeFor, decision, platformDecision, delegationAllowlist, platformStaffAllowlist, platformAdminAllowlist, platformPermissions };
+module.exports = { permissions, capabilities, scopeFor, explicitlyGranted, decision, platformDecision, delegationAllowlist, platformStaffAllowlist, platformAdminAllowlist, platformPermissions };

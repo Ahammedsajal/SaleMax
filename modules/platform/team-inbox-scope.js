@@ -47,7 +47,7 @@ async function resolveInboxScope(query, user, event) {
     ? await query(`SELECT instance.id AS instanceId,instance.uniqueId,instance.number,instance.title,instance.status
         FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=?
         WHERE share.tenant_id=? AND share.membership_id=? AND (
-          share.granted_by_identity_id=? OR EXISTS (
+          share.granted_by_identity_id=? OR share.granted_by_identity_id=? OR EXISTS (
             SELECT 1 FROM sx_memberships manager
             JOIN sx_qr_channel_shares manager_share ON manager_share.tenant_id=share.tenant_id AND manager_share.instance_id=share.instance_id AND manager_share.membership_id=manager.id
             JOIN sx_tenants tenant ON tenant.id=manager.tenant_id
@@ -59,7 +59,7 @@ async function resolveInboxScope(query, user, event) {
                 )
               )
           )
-        )`, [owners[0].uid,row.tenantId,row.membershipId,owners[0].identityId])
+        )`, [owners[0].uid,row.tenantId,row.membershipId,owners[0].identityId,row.identityId])
     : [];
   if(qrAccountant&&!sharedQrInstances.length)fail();
   return { ...base, uid: owners[0].uid, sharedQrInstances, sharedQrInstanceIds: sharedQrInstances.map(channel => Number(channel.instanceId)), qrOnly:qrAccountant };

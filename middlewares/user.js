@@ -3,6 +3,7 @@ const { query } = require("../database/dbpromise");
 
 const validateUser = async (req, res, next) => {
   try {
+    if(req.get("X-Salemax-Actor")==="agent")return require("../modules/platform/agent-workspace-access").createAgentWorkspaceGuard({pool:require("../database/config").promise()})(req,res,next);
     const token = req.get("Authorization");
     if (!token) {
       return res.json({ msg: "No token found", token: token, logout: true });

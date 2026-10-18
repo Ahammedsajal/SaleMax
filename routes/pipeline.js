@@ -17,7 +17,7 @@ const crypto = require('node:crypto');
 const {createTaskRouter}=require('../modules/platform/task-router');
 
 async function saleContext(actor) {
-  if(actor.categoryKey==='salemax_sales'&&actor.canonicalContext)return {...actor.canonicalContext,uid:actor.uid,uidHash:crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex'),role:actor.role,actorType:actor.actorType,actorId:String(actor.actorId),agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,scopeIdentityIds:actor.scopeIdentityIds};
+  if(actor.canonicalContext)return {...actor.canonicalContext,uid:actor.uid,uidHash:crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex'),role:actor.role,actorType:actor.actorType,actorId:String(actor.actorId),agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,scopeIdentityIds:actor.scopeIdentityIds};
   const ctx=await trainingCourses.legacyOwnerContext(require('../database/config.js').promise(),actor.uid);
   if(actor.role==='manager'){
     ctx.identity={id:actor.identityId};
@@ -98,6 +98,16 @@ async function pipelineAuth(req, res, next) {
 }
 
 router.use(pipelineAuth);
+router.use(async(req,res,next)=>{
+ if(req.pipelineActor?.role!=='agent')return next();
+ try{
+  const [rows]=await require('../database/config').promise().query('SELECT * FROM agents WHERE id=?',[req.pipelineActor.agentId]);
+  const session=await require('../modules/platform/business-feature-session').resolve(require('../database/config').promise(),{actor:rows[0],agent:true});
+  require('../modules/platform/agent-workspace-access').authorize(req,session);
+  req.pipelineActor.canonicalContext=session.context;req.pipelineActor.identityId=session.context.identity.id;req.pipelineActor.membershipId=session.context.membership.id;
+  next();
+ }catch(error){res.status(error.status||403).json({success:false,code:error.code||'PERMISSION_DENIED'});}
+});
 router.use('/tasks',createTaskRouter({pool:require('../database/config.js').promise(),contextFor:(req,permission)=>taskContext(req.pipelineActor,permission)}));
 
 router.get('/training-forms/:formSlug', async (req,res) => {
