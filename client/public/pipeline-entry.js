@@ -13,6 +13,7 @@
   const isSalesFinanceRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-finance';
   const isSalesOrganizationRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-organization';
   const isSalesAuditRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-audit';
+  const isDashboardRoute = () => ['/user','/agent'].includes(location.pathname.replace(/\/$/, '')) && (!new URLSearchParams(location.search).get('page') || new URLSearchParams(location.search).get('page') === 'dashboard');
   const isPipelineRoute = () => location.pathname.replace(/\/$/, '') === '/user' && ['lead-pipeline','lead-reports'].includes(new URLSearchParams(location.search).get('page'));
   const pipelineLabel = () => isArabic() ? (isLeadReportsRoute()?'تقارير العملاء المحتملين':'مسار العملاء المحتملين') : (isLeadReportsRoute()?'Lead Reports':'Lead Pipeline');
   const visible = (el) => {
@@ -126,6 +127,17 @@
     workspace.style.height = `${Math.max(0, window.innerHeight - top)}px`;
   }
 
+  function syncBusinessDashboard(){
+    const existing=document.getElementById('salemax-business-dashboard');
+    if(!isDashboardRoute()){existing?.remove();return;}
+    const drawer=[...document.querySelectorAll('.MuiDrawer-paper')].find(visible);
+    const topbar=[...document.querySelectorAll('.MuiBox-root')].filter(el=>{const r=el.getBoundingClientRect();return visible(el)&&r.y<=5&&r.height>=30&&r.height<100&&r.width>window.innerWidth*.5;}).sort((a,b)=>a.getBoundingClientRect().height-b.getBoundingClientRect().height)[0];
+    const drawerRect=drawer?.getBoundingClientRect(),topRect=topbar?.getBoundingClientRect(),left=Math.max(0,drawerRect?.right||260),top=Math.max(0,topRect?.bottom||60);
+    if(topbar){const crumb=[...topbar.querySelectorAll('*')].find(el=>el.childElementCount===0&&['Dashboard','لوحة التحكم'].includes((el.textContent||'').trim()));if(crumb)crumb.textContent=isArabic()?'لوحة المعلومات':'Dashboard';}
+    let frame=existing;if(!frame){frame=document.createElement('iframe');frame.id='salemax-business-dashboard';frame.title=isArabic()?'لوحة المعلومات':'SaleMaX dashboard';frame.src='/business-dashboard/?embed=1';frame.style.cssText='position:fixed;z-index:1100;border:0;background:#f5f7fb;display:block;';document.body.append(frame);}
+    frame.style.left=`${left}px`;frame.style.top=`${top}px`;frame.style.width=`${Math.max(0,window.innerWidth-left)}px`;frame.style.height=`${Math.max(0,window.innerHeight-top)}px`;
+  }
+
   function syncTasksWorkspace(){
     const existing=document.getElementById('salemax-tasks-workspace');
     if(!isTasksRoute()){existing?.remove();return;}
@@ -215,6 +227,7 @@
 
   function update() {
     addNavigationItem();
+    syncBusinessDashboard();
     syncPipelineWorkspace();
     syncTasksWorkspace();
     syncCallCenterWorkspace();

@@ -141,6 +141,15 @@ router.post('/training-forms/:formSlug/submissions', async (req,res) => {
   }
 });
 
+router.get('/stage-summary',async(req,res)=>{
+  try{
+    const pool=require('../database/config.js').promise();
+    await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});
+    const data=await pipeline.getStageSummary({uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,pool});
+    res.setHeader('Cache-Control','no-store');res.json({success:true,data:{...data,timezone:req.pipelineActor.timezone,role:req.pipelineActor.role,categoryKey:req.pipelineActor.categoryKey||null}});
+  }catch(error){fail(res,error);}
+});
+
 router.get("/board", async (req, res) => {
   try {
     const pool=require('../database/config.js').promise();
