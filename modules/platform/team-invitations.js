@@ -26,6 +26,12 @@ function permissionsFor(seatRole,category=trainingCenter,subscription=null){
   });
 }
 function rolePermissions(value,seatRole,allowed=permissionsFor(seatRole)){if(!Array.isArray(value)||value.length>Object.keys(policy.permissions).length||value.some(item=>typeof item!=='string')||new Set(value).size!==value.length||value.some(item=>!allowed.includes(item)))fail('INVALID_ROLE_PERMISSIONS');return [...value].sort();}
+function memberRoleProfileId(memberRole,profile){
+  if(!profile)return null;
+  if(profile.status!=='active')fail('ROLE_NOT_FOUND');
+  if(profile.seatRole!==memberRole)fail('INVALID_ROLE');
+  return profile.id;
+}
 async function tx(db,fn){await db.beginTransaction();try{const out=await fn();await db.commit();return out;}catch(error){await db.rollback();throw error;}}
 async function audit(db,identityId,tenantId,action,id,changes,resourceType='team-invitation'){await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
   VALUES (?,?,?,'identity',?,?,?,?,?)`,[crypto.randomUUID(),tenantId,identityId,action,resourceType,id,JSON.stringify(changes),crypto.randomUUID()]);}
@@ -208,6 +214,30 @@ async function updateMemberPassword(pool,ownerUid,memberId,input={}){
     if(legacy.affectedRows!==1)fail('BUSINESS_LINK_INVALID');
     await audit(db,scope.identityId,scope.tenantId,'team.password-updated',member.id,{role:member.role,credentialVersionIncremented:true},'team-member');
     return {memberId:String(member.id),updated:true};
+  });}finally{db.release();}
+}
+async function updateMemberRole(pool,actorUid,memberId,input={}){
+  invitationId(memberId);
+  const requestedProfileId=input.roleProfileId==null||input.roleProfileId===''?null:invitationId(input.roleProfileId);
+  const db=await pool.getConnection();
+  try{return await tx(db,async()=>{
+    await storage(db);const scope=await ownerScope(db,actorUid);
+    const [[member]]=await db.query(`SELECT id,role,role_profile_id AS roleProfileId,status FROM sx_memberships
+      WHERE tenant_id=? AND id=? AND role IN ('accountant','manager','team_leader','agent') FOR UPDATE`,[scope.tenantId,memberId]);
+    if(!member||member.status!=='active')fail('MEMBER_NOT_FOUND');
+    let roleProfileId=null;
+    if(requestedProfileId){
+      const [[profile]]=await db.query('SELECT id,seat_role AS seatRole,status,permissions FROM sx_team_roles WHERE tenant_id=? AND id=? FOR UPDATE',[scope.tenantId,requestedProfileId]);
+      if(!profile)fail('ROLE_NOT_FOUND');
+      roleProfileId=memberRoleProfileId(member.role,profile);
+      const permissions=typeof profile.permissions==='string'?JSON.parse(profile.permissions):profile.permissions;
+      rolePermissions(permissions,profile.seatRole,permissionsFor(profile.seatRole,scope.category,scope.entitlement));
+    }
+    if(member.roleProfileId!==roleProfileId){
+      await db.query('UPDATE sx_memberships SET role_profile_id=?,permission_version=permission_version+1 WHERE tenant_id=? AND id=?',[roleProfileId,scope.tenantId,memberId]);
+      await audit(db,scope.identityId,scope.tenantId,'team.member-role-updated',memberId,{role:member.role,oldRoleProfileId:member.roleProfileId||null,newRoleProfileId:roleProfileId},'team-member');
+    }
+    return {membershipId:memberId,roleProfileId};
   });}finally{db.release();}
 }
 async function salesOrganization(pool,legacyUid){
@@ -433,4 +463,4 @@ async function accountSession(pool,ownerUid,membershipId,{jwtKey,returning=false
     return {token:legacyToken,cookieToken:raw,sessionId:id,expiresInSeconds:seconds};
   });}finally{db.release();}
 }
-module.exports={accountSession,create,list,updateMemberPassword,salesOrganization,reassignSalesMember,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};
+module.exports={accountSession,create,list,updateMemberPassword,updateMemberRole,memberRoleProfileId,salesOrganization,reassignSalesMember,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};

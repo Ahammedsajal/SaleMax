@@ -24,6 +24,13 @@ test('Team Access route honors granted role and member navigation without catego
   assert.doesNotMatch(sidebar,/page==='team-invitations'.*membershipRole/);
 });
 
+test('member role assignment only accepts an active role profile for the member seat',()=>{
+  assert.equal(team.memberRoleProfileId('agent',null),null);
+  assert.equal(team.memberRoleProfileId('agent',{id:'role-agent',seatRole:'agent',status:'active'}),'role-agent');
+  assert.throws(()=>team.memberRoleProfileId('agent',{id:'role-manager',seatRole:'manager',status:'active'}),{code:'INVALID_ROLE'});
+  assert.throws(()=>team.memberRoleProfileId('agent',{id:'role-agent',seatRole:'agent',status:'archived'}),{code:'ROLE_NOT_FOUND'});
+});
+
 test('invalid invitation requests fail before acquiring a database connection',async()=>{
   const pool={getConnection(){throw new Error('must not connect')}};
   await assert.rejects(team.create(pool,'owner',{email:'bad',role:'agent',requestKey:'not-a-uuid'}),{code:'INVALID_EMAIL'});
@@ -39,6 +46,7 @@ test('invalid invitation requests fail before acquiring a database connection',a
 test('staff invitation UI is integrated into the existing single SaleMaX app shell',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   const js=fs.readFileSync(path.join(__dirname,'../client/public/team-invitations.js'),'utf8');
+  const router=fs.readFileSync(path.join(__dirname,'../modules/platform/team-invitation-router.js'),'utf8');
   assert.match(html,/team-invitations\.js\?v=/);assert.ok(html.indexOf('team-invite-capture.js')<html.indexOf('main.73648acf.js'));
   assert.match(html,/team-invite-capture\.js\?v=/);assert.match(js,/\/user\?page=team-invitations/);
   assert.match(js,/\/user\?page=team-invitations#team-invite=/);assert.match(js,/dataset\.accept = '1'/);
@@ -56,4 +64,6 @@ test('staff invitation UI is integrated into the existing single SaleMaX app she
   assert.match(html,/team-invitations\.js\?v=[^" ]+/);
   assert.match(html,/training-sidebar\.js\?v=[^" ]+/);
   assert.match(js,/new MutationObserver\(addNav\)/);
+  assert.match(js,/data-member-role/);assert.match(js,/members\/.*\/role/);assert.match(router,/owner\.put\('\/members\/:id\/role'/);
+  assert.match(js,/permissionCatalog/);assert.match(js,/name="permission"/);
 });

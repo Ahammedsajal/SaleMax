@@ -41,6 +41,7 @@ function createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback=fal
     setAccountCookie(res,result);res.json({success:true,data:{token:result.token,sessionId:result.sessionId,expiresInSeconds:result.expiresInSeconds}});
   }));
   owner.put('/members/:id/password',wrap(async(req,res)=>res.json({success:true,data:await team.updateMemberPassword(pool,req.decode.uid,req.params.id,req.body||{})})));
+  owner.put('/members/:id/role',wrap(async(req,res)=>res.json({success:true,data:await team.updateMemberRole(pool,req.decode.uid,req.params.id,req.body||{})})));
   owner.post('/return-owner',wrap(async(req,res)=>{
     const result=await team.accountSession(pool,req.decode.uid,null,{jwtKey:process.env.JWTKEY,returning:true,sessionId:req.body.sessionId});
     setAccountCookie(res,result);res.json({success:true,data:{returned:true}});
