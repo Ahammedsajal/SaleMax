@@ -1,10 +1,10 @@
 "use strict";
 
 const META_TEMPLATE_SAMPLES_SCRIPT =
-  '<script defer src="/meta-template-samples.js?v=20261017-step3-inline2"></script>';
+  '<link rel="stylesheet" href="/template-placeholders.css?v=20261018-1"><script defer src="/template-placeholder-contract.js?v=20261018-1"></script><script defer src="/meta-template-samples.js?v=20261018-1"></script><script defer src="/campaign-placeholder-mapping.js?v=20261018-1"></script>';
 
 function isMetaTemplateBuilderRequest(request) {
-  return request?.path === "/user" && request?.query?.page === "create-meta-template";
+  return request?.path === "/user" && ["create-meta-template", "send-campaign"].includes(request?.query?.page);
 }
 
 function injectMetaTemplateSamplesScript(html) {

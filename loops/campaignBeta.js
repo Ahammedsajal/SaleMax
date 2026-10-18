@@ -391,10 +391,7 @@ async function processSingleCampaign(campaign) {
             card.bodyVariables || [],
             contact,
           ),
-          buttonVariables: replaceContactVariables(
-            card.buttonVariables || [],
-            contact,
-          ),
+          buttonVariables: require('../client/public/template-placeholder-contract').resolveButtons(card.buttonVariables, contact),
         }));
 
         result = await sendCarouselTemplateMessage(
@@ -592,21 +589,7 @@ function replaceContactVariables(variables, contact) {
  * Replace contact variable in a single variable
  */
 function replaceContactVariable(variable, contact) {
-  if (typeof variable !== "string") return variable;
-
-  // Replace {{{name}}} pattern
-  let result = variable.replace(/\{\{\{name\}\}\}/g, contact.name || "");
-
-  // Replace {{{mobile}}} pattern
-  result = result.replace(/\{\{\{mobile\}\}\}/g, contact.mobile || "");
-
-  // Replace {{{var1}}} to {{{var5}}} patterns
-  for (let i = 1; i <= 5; i++) {
-    const pattern = new RegExp(`\\{\\{\\{var${i}\\}\\}\\}`, "g");
-    result = result.replace(pattern, contact[`var${i}`] || "");
-  }
-
-  return result;
+  return require('../client/public/template-placeholder-contract').replace(variable, contact);
 }
 
 /**

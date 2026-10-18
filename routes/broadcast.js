@@ -104,7 +104,7 @@ router.post("/add_new", validateUser, checkPlan, async (req, res) => {
         JSON.stringify(phonebook),
         "QUEUE",
         scheduleDate,
-        getUser[0]?.timezone || "Asia/Kolkata",
+        getUser[0]?.timezone || "Asia/Qatar",
       ],
     );
 
@@ -233,8 +233,8 @@ router.post(
         button_variables,
         carousel_cards,
         schedule,
-        timezone,
       } = req.body;
+      const timezone = "Asia/Qatar";
 
       // ── Validate required ─────────────────────────────────
       if (
@@ -291,6 +291,16 @@ router.post(
           success: false,
           msg: "No contacts found in phonebook",
         });
+      }
+
+      // Resolve approved components in this account before creating any queued send.
+      let placeholderComponents;
+      try {
+        const validation = require('../modules/platform/campaign-placeholder-validation');
+        placeholderComponents = await validation.validate({payload:req.body,uid:req.decode.uid,query});
+        validation.validateContacts(req.body,placeholderComponents,contacts);
+      } catch (error) {
+        return res.status(error.status||400).json({success:false,code:error.code||'PLACEHOLDER_MAPPING_REQUIRED',msg:'Check every placeholder column and contact value before sending / تحقق من أعمدة المتغيرات وقيم جهات الاتصال قبل الإرسال'});
       }
 
       const campaignId = randomstring.generate(10);

@@ -997,6 +997,9 @@ router.get("/get_meta_keys", validateUser, async (req, res) => {
 // add meta templet
 router.post("/add_meta_templet", validateUser, checkPlan, async (req, res) => {
   try {
+    try { require('../client/public/template-placeholder-contract').validateSamples(req.body.components); }
+    catch (_) { return res.status(400).json({success:false,code:'PLACEHOLDER_SAMPLE_REQUIRED',msg:'Add sample data for every placeholder / أضف بيانات تجريبية لكل متغير'}); }
+
     const getAPIKEYS = await query(`SELECT * FROM meta_api WHERE uid = ?`, [
       req.decode.uid,
     ]);
@@ -1609,7 +1612,6 @@ router.post("/update_profile", validateUser, async (req, res) => {
       mobile: mobileFromBody,
       mobile_with_country_code: mobile_with_country_codeNew,
       email,
-      timezone,
     } = req.body;
 
     let mobile = mobileFromBody; // Use let instead of const
@@ -1622,9 +1624,10 @@ router.post("/update_profile", validateUser, async (req, res) => {
       mobile_with_country_code = mobile_with_country_codeNew;
     }
 
-    if (!name || !mobile_with_country_code || !email || !timezone) {
+    const timezone = "Asia/Qatar";
+    if (!name || !mobile_with_country_code || !email) {
       return res.json({
-        msg: "Name, Mobile, Email, Timezone are required fields",
+        msg: "Name, Mobile and Email are required fields",
       });
     }
 
