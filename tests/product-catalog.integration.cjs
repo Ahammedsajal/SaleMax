@@ -61,6 +61,20 @@ const {discover,applyMigrations}=require('../database/migration-runner');
   await courses.create(db,contexts.training_center,{...input,code:'COURSE-01'});assert.equal((await courses.list(db,contexts.training_center)).total,1);assert.equal((await courses.list(productDb,ctx)).total,1);
   assert.equal((await request('/products/'+id,{method:'DELETE'})).status,200);assert.equal((await replies.options(pool,c)).length,0);
   assert.equal((await courses.list(db,contexts.training_center)).total,1);
+  const operator=require('../scripts/link-sales-catalog-owner.cjs');
+  const custodian=idForTest();
+  await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,'Synthetic platform owner','active')",[custodian,custodian+'@example.invalid']);
+  await db.query("INSERT INTO sx_platform_memberships(identity_id,role,status) VALUES (?,'super_admin','active')",[custodian]);
+  const legacyEditor=require('../modules/platform/legacy-plan-editor'),terms=legacyEditor.normalize({title:'Synthetic premium',short_description:'Synthetic plan',plan_duration_in_days:365,price:100,contact_limit:500,qr_account:1}).value;
+  const [planRow]=await db.query('INSERT INTO plan ('+legacyEditor.columns.join(',')+') VALUES ('+legacyEditor.columns.map(()=>'?').join(',')+')',legacyEditor.columns.map(key=>terms[key]));
+  const legacySnapshot=JSON.stringify({id:planRow.insertId,...terms}),expiry=Date.now()+86400000*30;
+  const [account]=await db.query("INSERT INTO user(uid,name,email,password,role,plan,plan_expire,timezone) VALUES ('synthetic-sales-link-owner','Synthetic SaleMaX','admin@salemax.qa','synthetic-only','user',?,?,'Asia/Qatar')",[legacySnapshot,expiry]);
+  assert.equal((await operator.link(db,{email:'admin@salemax.qa'})).preview,true);
+  const linked=await operator.link(db,{email:'admin@salemax.qa',apply:true});assert.equal(linked.applied,true);
+  assert.equal((await operator.link(db,{email:'admin@salemax.qa',apply:true})).alreadyLinked,true);
+  const [[preserved]]=await db.query('SELECT plan,plan_expire FROM user WHERE id=?',[account.insertId]);assert.equal(preserved.plan,legacySnapshot);assert.equal(Number(preserved.plan_expire),expiry);
+  assert.equal((await courses.list(db,contexts.training_center)).total,1);
   console.log('PASS: category and tenant isolation, role denials, create/edit/publish, media/access, EN/AR ordered previews, stale revisions, removal and unchanged Training Center storage');
  }finally{db.release();if(server)await new Promise(resolve=>server.close(resolve));await pool.end();await fs.rm(mediaRoot,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});
+function idForTest(){return crypto.randomUUID();}
