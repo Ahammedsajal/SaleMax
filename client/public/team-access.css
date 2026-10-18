@@ -99,3 +99,14 @@
 #sx-team-screen #sx-team-list>.muted{padding:12px 0}
 #sx-team-screen .hierarchy-card{min-height:450px}
 @media(max-width:560px){#sx-team-screen .whatsapp-summary-content{align-items:flex-start;flex-wrap:wrap;gap:10px}.whatsapp-summary-name{flex:1}.whatsapp-summary-count{width:100%;padding:8px 0 0!important;border:0!important}.whatsapp-summary-arrow{display:none}}
+
+/* Restore native dialog centering after the application CSS reset. */
+#sx-team-screen .team-dialog{position:fixed;inset:0;margin:auto;box-sizing:border-box;max-width:calc(100vw - 28px);max-height:calc(100dvh - 32px);padding:26px}
+#sx-team-screen .team-dialog:not([open]){display:none}
+#sx-team-screen .team-dialog .creation-mode,#sx-team-screen .team-dialog .creation-error{grid-column:1/-1}
+#sx-team-screen .team-dialog [hidden]{display:none!important}
+#sx-team-screen .team-dialog label{min-width:0}
+#sx-team-screen .team-dialog input,#sx-team-screen .team-dialog select{box-sizing:border-box;min-width:0}
+#sx-team-screen .team-dialog .creation-mode{padding:14px;background:#f7f9fc;border:1px solid #e4e9f0;border-radius:10px}
+#sx-team-screen .team-dialog .creation-error{margin:0;outline-offset:3px}
+@media(max-width:560px){#sx-team-screen .team-dialog{padding:18px}#sx-team-screen .team-dialog .dialog-actions{flex-wrap:wrap}#sx-team-screen .team-dialog .dialog-actions button{flex:1}}

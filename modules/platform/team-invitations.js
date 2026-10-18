@@ -381,7 +381,7 @@ async function accept(pool,input){
 function activationInput(input){
   const name=typeof input.displayName==='string'?input.displayName.trim():'';
   if(!name||name.length>200)fail('INVALID_DISPLAY_NAME');
-  const mobile=typeof input.mobile==='string'?input.mobile.trim():'';
+  const mobile=typeof input.mobile==='string'?input.mobile.trim().replace(/[\s().-]/g,''):'';
   if(mobile&&!/^\+[1-9][0-9]{7,14}$/.test(mobile))fail('INVALID_MOBILE');
   if(typeof input.password!=='string'||Array.from(input.password).length<12||Buffer.byteLength(input.password,'utf8')>72)fail('INVALID_PASSWORD');
   return {displayName:name,mobile,password:input.password};

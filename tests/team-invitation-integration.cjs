@@ -132,10 +132,10 @@ module.exports=async(db,other,pool,{i1})=>{
   await db.query("UPDATE sx_team_invites SET status='expired',expires_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 DAY) WHERE id=?",[second.id]);
   const reissued=await team.rotate(pool,ownerUid,second.id);assert.equal(reissued.status,'pending');assert.notEqual(reissued.token,second.token);
   await team.cancel(pool,ownerUid,second.id);
-  const directAgentRequest={email:`direct-agent-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID(),temporaryPassword:'Synthetic-Direct-Agent-Password-73',displayName:'Direct agent',mobile:'+97450123456'};
+  const directAgentRequest={email:`direct-agent-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID(),temporaryPassword:'Synthetic-Direct-Agent-Password-73',displayName:'Direct agent',mobile:'+974 (5012) 3456'};
   await assert.rejects(team.create(pool,ownerUid,{...directAgentRequest,mobile:''}),{code:'INVALID_MOBILE'});
   const directAgent=await team.create(pool,ownerUid,directAgentRequest);assert.equal(directAgent.delivery,'password');assert.equal(directAgent.loginPath,'/agent/login');assert.equal(directAgent.token,undefined);
-  const [[directLegacyAgent]]=await db.query('SELECT uid,password FROM agents WHERE email=?',[directAgentRequest.email]);assert.ok(await bcrypt.compare(directAgentRequest.temporaryPassword,directLegacyAgent.password));
+  const [[directLegacyAgent]]=await db.query('SELECT uid,password,mobile FROM agents WHERE email=?',[directAgentRequest.email]);assert.ok(await bcrypt.compare(directAgentRequest.temporaryPassword,directLegacyAgent.password));assert.equal(directLegacyAgent.mobile,'+97450123456');
   const directLogin=await canonicalAuth.login(db,{email:directAgentRequest.email,password:directAgentRequest.temporaryPassword,audience:'tenant',tenantId},'127.0.0.1');assert.equal(directLogin.context.membership.role,'agent');await canonicalAuth.logout(db,directLogin.token);
   await assert.rejects(team.create(pool,ownerUid,{...directAgentRequest,requestKey:crypto.randomUUID()}),{code:'MEMBERSHIP_EXISTS'});
   await db.query("UPDATE sx_memberships SET status='inactive' WHERE tenant_id=? AND identity_id=(SELECT id FROM sx_identities WHERE email_normalized=?)",[tenantId,directAgentRequest.email]);

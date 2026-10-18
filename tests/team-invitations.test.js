@@ -43,6 +43,13 @@ test('invalid invitation requests fail before acquiring a database connection',a
   await assert.rejects(team.create(pool,'owner',{...direct,temporaryPassword:'Initial-password-73',mobile:'123'}),{code:'INVALID_MOBILE'});
 });
 
+test('direct account mobile validation accepts presentation formatting and rejects invalid numbers',async()=>{
+  const pool={getConnection(){throw Object.assign(new Error('VALIDATED_INPUT'),{code:'VALIDATED_INPUT'});}};
+  const input={email:'staff@example.invalid',role:'manager',requestKey:'00000000-0000-4000-8000-000000000000',displayName:'Synthetic staff',temporaryPassword:'Synthetic-Password-123'};
+  for(const mobile of ['+97450123456','+974 5012 3456','+974 (5012)-3456','+974.5012.3456'])await assert.rejects(team.create(pool,'owner',{...input,mobile}),{code:'VALIDATED_INPUT'});
+  for(const mobile of ['97450123456','+974abc50123456','+00012345678','+974/50123456'])await assert.rejects(team.create(pool,'owner',{...input,mobile}),{code:'INVALID_MOBILE'});
+});
+
 test('staff invitation UI is integrated into the existing single SaleMaX app shell',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   const js=fs.readFileSync(path.join(__dirname,'../client/public/team-invitations.js'),'utf8');

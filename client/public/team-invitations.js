@@ -185,7 +185,7 @@
       </main><aside class="card hierarchy-card"><h2>${label('Organisation hierarchy','الهيكل التنظيمي')}</h2><p class="muted">${label('Your team structure and reporting lines.','هيكل الفريق وخطوط الإشراف.')}</p><div class="hierarchy-node admin-node"><strong>${label('Admin','المسؤول')}</strong><span>${label('Full account access','صلاحية كاملة للحساب')}</span></div><div class="hierarchy-connector"></div><div class="hierarchy-node manager-node"><strong>${label('Manager','المدير')}</strong><span>${label('Manages the team and WhatsApp access','يدير الفريق وصلاحيات واتساب')}</span></div><div class="hierarchy-branches"><div class="hierarchy-node role-node"><strong>${label('Accountant','محاسب')}</strong><span>${label('Finance and accounting','المالية والمحاسبة')}</span></div><div class="hierarchy-node role-node"><strong>${label('Agents','الوكلاء')}</strong><span>${label('Sales, leads and conversations','المبيعات والعملاء والمحادثات')}</span></div></div><div class="hierarchy-note">ⓘ ${label('Managers can share assigned QR numbers with team members below them.','يمكن للمدير مشاركة أرقام QR المسندة إليه مع أعضاء الفريق التابعين له.')}</div></aside></div></section>
       <section class="team-panel" role="tabpanel" data-team-panel="roles" hidden><div class="card section-card"><div class="section-heading"><div><h2>${label('Roles & permissions','الأدوار والصلاحيات')}</h2><p class="muted">${label('Create roles from available seat types. Permissions are enforced by the server.','أنشئ أدواراً من أنواع المقاعد المتاحة. يفرض الخادم الصلاحيات المحددة.')}</p></div><button type="button" class="primary" id="sx-open-role">${label('＋ Create role','＋ إنشاء دور')}</button></div><div id="sx-role-list">${label('Loading roles…','جارٍ تحميل الأدوار…')}</div></div></section>
       <section class="team-panel" role="tabpanel" data-team-panel="whatsapp" hidden><div class="card section-card" id="sx-qr-access-card"><div class="section-heading"><div><h2>${label('WhatsApp access','صلاحية واتساب')}</h2><p class="muted">${label('Connected WhatsApp channels and team access.','قنوات واتساب المتصلة وصلاحيات وصول الفريق.')}</p></div></div><div id="sx-qr-channels">${label('Loading WhatsApp connections…','جارٍ تحميل اتصالات واتساب…')}</div></div></section>
-      <dialog id="sx-invite-dialog" class="team-dialog"><div class="dialog-heading"><div><h2>${label('Add team member','إضافة عضو للفريق')}</h2><p class="muted">${label('Invite a teammate and choose their account role.','ادعُ زميلاً وحدد دور حسابه.')}</p></div><button type="button" class="icon-button" data-close-dialog="sx-invite-dialog" aria-label="${label('Close','إغلاق')}">×</button></div><form id="sx-team-form"><label>${label('Email address','البريد الإلكتروني')}<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>${label('Assign role','تعيين الدور')}<select name="assignment" required aria-label="${label('Assign role','تعيين الدور')}"></select></label><label>${label('Temporary password (optional)','كلمة مرور مؤقتة (اختياري)')}<input name="temporaryPassword" type="password" minlength="12" autocomplete="new-password" aria-describedby="sx-password-help"></label><label>${label('Full name (for password accounts)','الاسم الكامل (لحسابات كلمة المرور)')}<input name="displayName" maxlength="200" autocomplete="name"></label><label>${label('Mobile (required for agents)','الجوال (مطلوب للوكلاء)')}<input name="mobile" type="tel" autocomplete="tel" placeholder="+97450123456"></label><p id="sx-password-help" class="muted">${label('Leave password blank to send a setup invitation. Enter at least 12 characters to create an active account now.','اترك كلمة المرور فارغة لإرسال دعوة إعداد. أدخل 12 حرفاً على الأقل لإنشاء حساب نشط الآن.')}</p><div class="dialog-actions"><button type="button" data-close-dialog="sx-invite-dialog">${label('Cancel','إلغاء')}</button><button type="submit" class="primary" disabled>${label('Create invitation','إنشاء دعوة')}</button></div></form><p class="muted">${label('The one-time invitation link is shown once. Send it using your approved channel.','يظهر رابط الدعوة لمرة واحدة. أرسله عبر القناة المعتمدة.')}</p></dialog>
+      <dialog id="sx-invite-dialog" class="team-dialog"><div class="dialog-heading"><div><h2>${label('Add team member','إضافة عضو للفريق')}</h2><p class="muted">${label('Create an active account now, or prepare an invitation link.','أنشئ حساباً نشطاً الآن، أو جهّز رابط دعوة.')}</p></div><button type="button" class="icon-button" data-close-dialog="sx-invite-dialog" aria-label="${label('Close','إغلاق')}">×</button></div><form id="sx-team-form"><label class="creation-mode">${label('How to add this member','طريقة إضافة العضو')}<select name="creationMode"><option value="account">${label('Create account now','إنشاء حساب الآن')}</option><option value="invitation">${label('Create invitation link','إنشاء رابط دعوة')}</option></select></label><div id="sx-create-error" class="creation-error" role="alert" aria-live="assertive" tabindex="-1" hidden></div><label>${label('Email address','البريد الإلكتروني')}<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>${label('Assign role','تعيين الدور')}<select name="assignment" required aria-label="${label('Assign role','تعيين الدور')}"></select></label><label>${label('Initial password (at least 12 characters)','كلمة المرور الأولية (12 حرفاً على الأقل)')}<input name="temporaryPassword" type="password" required minlength="12" maxlength="72" autocomplete="new-password" aria-describedby="sx-password-help"></label><label>${label('Full name','الاسم الكامل')}<input name="displayName" maxlength="200" autocomplete="name"></label><label>${label('Mobile (required for agents)','الجوال (مطلوب للوكلاء)')}<input name="mobile" type="tel" autocomplete="tel" placeholder="+97450123456"></label><p id="sx-password-help" class="muted">${label('Leave password blank to send a setup invitation. Enter at least 12 characters to create an active account now.','اترك كلمة المرور فارغة لإرسال دعوة إعداد. أدخل 12 حرفاً على الأقل لإنشاء حساب نشط الآن.')}</p><div class="dialog-actions"><button type="button" data-close-dialog="sx-invite-dialog">${label('Cancel','إلغاء')}</button><button type="submit" class="primary" disabled>${label('Create invitation','إنشاء دعوة')}</button></div></form><p id="sx-invitation-note" class="muted" hidden>${label('The one-time invitation link is shown once. Send it using your approved channel.','يظهر رابط الدعوة لمرة واحدة. أرسله عبر القناة المعتمدة.')}</p></dialog>
       <dialog id="sx-role-dialog" class="team-dialog role-dialog"><div class="dialog-heading"><div><h2>${label('Create role','إنشاء دور')}</h2><p class="muted">${label('Set a seat type, then choose the permissions this role needs.','حدد نوع المقعد ثم اختر الصلاحيات المطلوبة.')}</p></div><button type="button" class="icon-button" data-close-dialog="sx-role-dialog" aria-label="${label('Close','إغلاق')}">×</button></div><form id="sx-role-form" class="role-form"><input type="hidden" name="id"><label>${label('Role name','اسم الدور')}<input name="name" required maxlength="80"></label><label>${label('Seat type','نوع المقعد')}<select name="seatRole" required>${Object.entries(roles).map(([key,value])=>`<option value="${key}">${label(value[0],value[1])}</option>`).join('')}</select></label><label class="role-description">${label('Description (optional)','الوصف (اختياري)')}<input name="description" maxlength="300"></label><fieldset class="permission-fieldset"><legend>${label('Module permissions','صلاحيات الوحدات')}</legend><div id="sx-role-permissions"></div></fieldset><div class="dialog-actions"><button type="button" id="sx-role-reset">${label('Clear','مسح')}</button><button type="submit" class="primary">${label('Create role','إنشاء الدور')}</button></div></form></dialog>
       </div>`;
     node.querySelectorAll('[data-team-tab]').forEach(button=>{
@@ -196,32 +196,38 @@
     node.querySelector('#sx-manage-whatsapp').onclick=()=>activateTeamTab(node,'whatsapp');
     node.querySelector('#sx-open-role').onclick=()=>{resetRoleForm(node);node.querySelector('#sx-role-dialog').showModal();};
     node.querySelectorAll('[data-close-dialog]').forEach(button=>button.onclick=()=>node.querySelector('#'+button.dataset.closeDialog).close());
-    node.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();}));
+    node.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{const rect=dialog.getBoundingClientRect();if(event.target===dialog&&(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom))dialog.close();}));
     node.querySelector('#sx-member-search').oninput=()=>filterMembers(node);
     node.querySelector('#sx-role-filter').onchange=()=>filterMembers(node);
     const form = node.querySelector('#sx-team-form');
     node.querySelector('#sx-role-dialog').addEventListener('close',()=>{if(!node.querySelector('#sx-role-form [name="id"]').value)resetRoleForm(node);});
     const passwordField=form.elements.temporaryPassword;
     const updateCreationMode=()=>{
-      const direct=passwordField.value.length>0;
+      const direct=form.elements.creationMode.value==='account';
+      passwordField.required=direct;
+      for(const input of [passwordField,form.elements.displayName,form.elements.mobile]){input.disabled=!direct;input.closest('label').hidden=!direct;}
+      node.querySelector('#sx-invitation-note').hidden=direct;
+      node.querySelector('#sx-password-help').textContent=direct?label('The account will be active immediately. Share the email and initial password privately.','سيكون الحساب نشطاً فوراً. شارك البريد وكلمة المرور الأولية بشكل خاص.'):label('Create a one-time setup link for your teammate to choose their own password. Copy and share it after creation.','أنشئ رابط إعداد لمرة واحدة ليختار زميلك كلمة مروره. انسخ الرابط وشاركه بعد إنشائه.');
       form.elements.displayName.required=direct;
       const assignment=form.elements.assignment.value;
       const selectedRole=assignment.startsWith('profile:')?currentTeamData?.roles?.find(item=>item.id===assignment.slice(8))?.seatRole:assignment.slice(7);
       form.elements.mobile.required=direct&&selectedRole==='agent';
       form.querySelector('button[type="submit"]').textContent=direct?label('Create account','إنشاء حساب'):label('Create invitation','إنشاء دعوة');
     };
-    passwordField.oninput=updateCreationMode;
+    form.elements.creationMode.onchange=()=>{passwordField.value='';node.querySelector('#sx-create-error').hidden=true;updateCreationMode();};
+    updateCreationMode();
     form.elements.assignment.onchange=updateCreationMode;
     form.onsubmit = async event => {
       event.preventDefault();
-      const button = event.submitter;
+      const button = form.querySelector('button[type="submit"]');
+      const errorBox=node.querySelector('#sx-create-error');errorBox.hidden=true;
       button.disabled = true;
       const data = new FormData(form);
       try {
         const assignment=String(data.get('assignment')||'');
         const inviteBody={email:data.get('email'),requestKey:crypto.randomUUID()};
         if(assignment.startsWith('profile:'))inviteBody.roleProfileId=assignment.slice(8);else inviteBody.role=assignment.slice(7);
-        if(data.get('temporaryPassword'))Object.assign(inviteBody,{temporaryPassword:data.get('temporaryPassword'),displayName:data.get('displayName'),mobile:data.get('mobile')});
+        if(data.get('temporaryPassword'))Object.assign(inviteBody,{temporaryPassword:data.get('temporaryPassword'),displayName:data.get('displayName'),mobile:String(data.get('mobile')||'').trim().replace(/[\s().-]/g,'')});
         const invite = await api('/api/user/team-invitations/', {method:'POST', body:inviteBody});
         if(invite.delivery==='password')node.querySelector('#sx-team-msg').innerHTML=`<div class="notice" role="status">${label('Account created. Share the email and initial password privately. Sign in at:','تم إنشاء الحساب. شارك البريد وكلمة المرور الأولية بشكل خاص. تسجيل الدخول:')} <a href="${esc(invite.loginPath)}">${esc(location.origin+invite.loginPath)}</a></div>`;
         else if(invite.token)showLink(node, invite.token, label('Copy this one-time invitation link now','انسخ رابط الدعوة لمرة واحدة الآن'));
@@ -231,8 +237,9 @@
         updateCreationMode();
         await list(node);
       } catch (error) {
-        node.querySelector('#sx-team-msg').innerHTML = `<div class="error" role="alert">${esc(errorText(error.message))}</div>`;
-        await list(node);
+        errorBox.className='error creation-error';errorBox.textContent=errorText(error.message);errorBox.hidden=false;errorBox.focus();
+      } finally {
+        button.disabled=false;
       }
     };
     node.querySelector('#sx-role-form').onsubmit=saveRole;
