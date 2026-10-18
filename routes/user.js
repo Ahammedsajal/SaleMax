@@ -31,6 +31,7 @@ const {
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
+const { subscribeWabaWebhook } = require("../modules/platform/meta-webhook-subscription");
 const {createSelfProfileAuth} = require("../modules/platform/self-profile-auth");
 const selfProfile = require("../modules/platform/self-profile");
 const selfProfileAuth = createSelfProfileAuth();
@@ -871,7 +872,7 @@ router.post("/update_meta", validateUser, async (req, res) => {
     const { waba_id, access_token, business_phone_number_id, app_id } =
       req.body;
 
-    if (!waba_id || !access_token || !app_id) {
+    if (!waba_id || !access_token || !business_phone_number_id || !app_id) {
       return res.json({ success: false, msg: "Please fill all the fields" });
     }
 
@@ -917,9 +918,28 @@ router.post("/update_meta", validateUser, async (req, res) => {
       );
     }
 
+    try {
+      await subscribeWabaWebhook({
+        wabaId: waba_id,
+        accessToken: access_token,
+        apiVersion: process.env.META_GRAPH_API_VERSION || "v26.0",
+      });
+    } catch (subscriptionError) {
+      console.error(
+        "Meta WhatsApp webhook subscription failed:",
+        subscriptionError?.message || "unknown error",
+      );
+      return res.json({
+        success: false,
+        code: "META_WEBHOOK_SUBSCRIPTION_FAILED",
+        msg: "Meta settings were saved, but Meta did not subscribe this WhatsApp account to SaleMaX message webhooks. Check the token permissions and try Save again.",
+      });
+    }
+
     res.json({
       success: true,
-      msg: "Your meta settings were updated successfully!",
+      webhook_subscribed: true,
+      msg: "Your Meta settings were updated and WhatsApp message webhooks were connected successfully!",
     });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong", err });

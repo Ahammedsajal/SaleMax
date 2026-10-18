@@ -47,3 +47,51 @@ test('inbox processing still checks the callback phone number against the select
   assert.match(inbox, /SELECT \* FROM meta_api WHERE uid = \?/);
   assert.match(inbox, /if \(checkNumber !== myNumberId\)\s*\{\s*console\.log\("⚠️ Phone number mismatch"\);\s*return;/);
 });
+
+test('manual Meta connection subscribes its WABA to the SaleMaX app', () => {
+  const user = read('routes/user.js');
+  const start = user.indexOf('router.post("/update_meta"');
+  const end = user.indexOf('// update embed meta', start);
+  assert.ok(start >= 0 && end > start);
+  const route = user.slice(start, end);
+  assert.match(route, /await subscribeWabaWebhook\(\{/);
+  assert.match(route, /wabaId:\s*waba_id/);
+  assert.match(route, /accessToken:\s*access_token/);
+  assert.match(route, /webhook_subscribed:\s*true/);
+  assert.match(route, /META_WEBHOOK_SUBSCRIPTION_FAILED/);
+});
+
+test('Meta WABA subscription sends a POST with the tenant token only as a Bearer header', async () => {
+  const { subscribeWabaWebhook } = require('../modules/platform/meta-webhook-subscription');
+  let request;
+  const result = await subscribeWabaWebhook({
+    wabaId: '1490367149599261',
+    accessToken: 'test-token-do-not-log',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return { ok: true, text: async () => JSON.stringify({ success: true }) };
+    },
+  });
+  assert.equal(result.subscribed, true);
+  assert.equal(result.wabaId, '1490367149599261');
+  assert.equal(request.url, 'https://graph.facebook.com/v26.0/1490367149599261/subscribed_apps');
+  assert.equal(request.options.method, 'POST');
+  assert.equal(request.options.headers.authorization, 'Bearer test-token-do-not-log');
+  assert.doesNotMatch(request.url, /test-token-do-not-log/);
+});
+
+test('Meta WABA subscription fails closed on provider rejection without exposing provider data', async () => {
+  const { subscribeWabaWebhook } = require('../modules/platform/meta-webhook-subscription');
+  await assert.rejects(
+    () => subscribeWabaWebhook({
+      wabaId: '1490367149599261',
+      accessToken: 'test-token-do-not-log',
+      fetchImpl: async () => ({ ok: false, text: async () => JSON.stringify({ error: { message: 'sensitive provider detail' } }) }),
+    }),
+    (error) => {
+      assert.equal(error.message, 'Meta rejected the WhatsApp webhook subscription');
+      assert.doesNotMatch(error.message, /sensitive provider detail|test-token-do-not-log/);
+      return true;
+    },
+  );
+});
