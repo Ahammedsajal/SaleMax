@@ -1,6 +1,6 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ar=()=>((localStorage.getItem('language')||'').toLowerCase().includes('arab')||document.documentElement.dir==='rtl');
+const ar=()=>{const language=(localStorage.getItem('language')||'').toLowerCase();return language==='ar'||language.includes('arab')||document.documentElement.dir==='rtl';};
 const tr=(en,aa)=>ar()?aa:en,token=()=>localStorage.getItem('wacrm_user')||localStorage.getItem('wacrm_agent');
 const state={access:null,data:{},errors:new Set()};let createCloseBound=false;
 const navigation=()=>new Set((state.access?.roleNavigation||[]).filter(key=>state.access?.assignedNavigation===null||!Array.isArray(state.access?.assignedNavigation)||state.access.assignedNavigation.includes(key)));
