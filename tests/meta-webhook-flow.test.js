@@ -11,8 +11,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 test('both SaleMaX process entrypoints parse Meta callbacks without a global app-secret gate', () => {
   for (const file of ['app.js', 'server.js']) {
     const source = read(file);
-    assert.match(source, /express\.json\(\{\s*limit:\s*["']10mb["']\s*\}\)/);
-    assert.doesNotMatch(source, /meta-webhook-signature|captureRawBody/);
+    assert.match(source, /express\.json\(\{\s*limit:\s*["']10mb["'],\s*verify:\s*require\(["']\.\/modules\/platform\/meta-webhook-signature["']\)\.captureRawBody\s*\}\)/);
   }
 
   const inbox = read('routes/inbox.js');
