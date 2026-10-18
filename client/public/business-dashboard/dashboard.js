@@ -1,10 +1,11 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ar=()=>{const language=(localStorage.getItem('language')||'').toLowerCase();return language==='ar'||language.includes('arab')||document.documentElement.dir==='rtl';};
-const tr=(en,aa)=>ar()?aa:en,token=()=>localStorage.getItem('wacrm_user')||localStorage.getItem('wacrm_agent');
+const tr=(en,aa)=>ar()?aa:en;
+function actor(){try{return /^\/agent\/?$/.test(window.parent.location.pathname)?'agent':'user';}catch(_){return localStorage.getItem('wacrm_agent')&&!localStorage.getItem('wacrm_user')?'agent':'user';}}
 const state={access:null,data:{},errors:new Set()};let createCloseBound=false;
 const navigation=()=>new Set((state.access?.roleNavigation||[]).filter(key=>state.access?.assignedNavigation===null||!Array.isArray(state.access?.assignedNavigation)||state.access.assignedNavigation.includes(key)));
-async function api(url){const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(token()?{Authorization:`Bearer ${token()}`}:{})}});const body=await response.json().catch(()=>({}));if(!response.ok||body.success===false)throw Error(body.code||'REQUEST_FAILED');return body.data??body;}
+async function api(url){const kind=actor(),token=localStorage.getItem(kind==='agent'?'wacrm_agent':'wacrm_user'),headers={Accept:'application/json'};if(token){headers.Authorization=`Bearer ${token}`;headers['X-Salemax-Actor']=kind;}else{const auth=await fetch('/api/user/business-auth/me',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}}),session=await auth.json().catch(()=>({}));if(!auth.ok||session.context?.audience!=='tenant'||!session.csrfToken)throw Error(session.code||'AUTH_REQUIRED');headers['X-CSRF-Token']=session.csrfToken;}const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers});const body=await response.json().catch(()=>({}));if(!response.ok||body.success===false)throw Error(body.code||'REQUEST_FAILED');return body.data??body;}
 const count=(x)=>Number(x||0).toLocaleString(ar()?'ar':'en');
 const period=()=>{const f=new Intl.DateTimeFormat('en-CA',{timeZone:state.access?.timezone||'Asia/Qatar',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return `${f.find(x=>x.type==='year').value}-${f.find(x=>x.type==='month').value}-${f.find(x=>x.type==='day').value}`;};
 const labelFor=key=>({training_center:['Training center overview','نظرة عامة على مركز التدريب'],salemax_sales:['SaleMaX sales overview','نظرة عامة على مبيعات SaleMaX']})[key]||['Business overview','نظرة عامة على الأعمال'];
