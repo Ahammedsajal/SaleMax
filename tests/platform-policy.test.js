@@ -53,6 +53,15 @@ test('manager receipt authority does not grant credit approval or owner authorit
   assert.equal(decision(c,{capability:'finance.credits',permission:'credits.approve'}).allowed,false);
   assert.equal(decision(c,{capability:'messaging.meta',permission:'channels.configure'}).allowed,true);
 });
+test('Training Center managers can manage tenant team access within the team.members entitlement',()=>{
+  const c=context('manager');
+  assert.equal(decision(c,{capability:'team.members',permission:'team.invite'}).scope,'tenant');
+  c.subscription.capabilities=c.subscription.capabilities.filter(capability=>capability!=='team.members');
+  assert.equal(decision(c,{capability:'team.members',permission:'team.invite'}).code,'FEATURE_UNAVAILABLE');
+  const sales={...context('manager'),category:salemaxSales};
+  sales.tenant.categoryKey=salemaxSales.key;sales.subscription.capabilities=[...salemaxSales.capabilities];
+  assert.equal(decision(sales,{capability:'team.members',permission:'team.invite'}).scope,'tenant');
+});
 test('category, plan, inactive state and provider readiness remain separate gates',()=>{
   const request={capability:'training.courses',permission:'courses.read'};
   const fixture=context(); fixture.category=restaurantFixture; fixture.tenant.categoryKey=restaurantFixture.key;

@@ -103,7 +103,7 @@ function decision(context, { capability, permission, resource, external = false 
       ['leads.read', 'contacts.read'].includes(permission)) {
     return { allowed: false, code: 'PERMISSION_DENIED' };
   }
-  const scope = category.key==='salemax_sales'&&membership.role==='manager'&&permission==='team.invite'?'tenant':scopeFor(membership, permission);
+  const scope = ['salemax_sales','training_center'].includes(category.key)&&membership.role==='manager'&&permission==='team.invite'?'tenant':scopeFor(membership, permission);
   if (!scope) return { allowed: false, code: 'PERMISSION_DENIED' };
   // Once an owner has configured a member's sidebar, that assignment also
   // constrains the corresponding canonical module APIs. A missing value keeps
