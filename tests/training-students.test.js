@@ -71,5 +71,5 @@ test('student form hides custom trainer entry and aligns attendance actions acro
   assert.match(tablet,/#\$\{rootId\} #sx-st-trainer-form\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
   assert.match(mobile,/#\$\{rootId\} #sx-st-attendance-form\{grid-template-columns:1fr\}/);
   assert.match(mobile,/#\$\{rootId\} #sx-st-trainer-form\{grid-template-columns:1fr\}/);
-  assert.match(loader,/training-students\.js\?v=20261012-trainer-picker2/);
+  assert.match(loader,/training-students\.js\?v=[^"\s]+/);
 });

@@ -88,7 +88,7 @@ test('only first-party Sales receives role-specific sidebar labels and grouped n
   assert.match(sidebar,/membershipCategoryKey==='salemax_sales'\?\(salesNavLabels\.calls/);
   assert.match(sidebar,/if\(membershipCategoryKey==='salemax_sales'\)applySalesRoleAliases\(\)/);
   assert.match(sidebar,/membershipCategoryKey==='salemax_sales'&&index===11\?/);
-  assert.match(shell,/training-sidebar\.js\?v=20261014-sales-people-roles1/);
+  assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
 });
 
 test('SaleMaX Sales owner gets one People & Roles entry while managers and team leaders use their scoped Organisation screen',()=>{
@@ -104,7 +104,7 @@ test('SaleMaX Sales owner gets one People & Roles entry while managers and team 
   assert.match(team,/label\('People & Roles','الأشخاص والأدوار'\)/);
   assert.match(team,/node\.dataset\.salesCategory='salemax_sales'/);
   assert.match(team,/#sx-team-screen\[data-sales-category=\"salemax_sales\"\] :focus-visible\{outline-color:#a8003b\}/);
-  assert.match(shell,/training-sidebar\.js\?v=20261014-sales-people-roles1/);
+  assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
   assert.match(shell,/team-invitations\.js\?v=20261207-qr-channel-share1/);
 });
 
@@ -165,7 +165,7 @@ test('Sales Reports reuse the scoped monthly target entitlement and parent-panel
   assert.match(sidebar,/\['reports','sales-targets','reports'\]/);
   assert.match(sidebar,/reports:'sales-targets'/);
   assert.match(shell,/reports:\['تقارير المبيعات','Sales Reports'\]/);
-  assert.match(index,/training-sidebar\.js\?v=20261014-sales-people-roles1/);
+  assert.match(index,/training-sidebar\.js\?v=[^"\s]+/);
   assert.match(index,/pipeline-entry\.js\?v=20261014-lead-click-call1/);
   assert.match(page,/id="reportsSection"/);
   assert.match(page,/id="reportPeriod"/);

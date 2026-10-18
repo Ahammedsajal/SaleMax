@@ -2,7 +2,7 @@
   'use strict';
   window.SXFinanceDashboard = async function(node, mode, csrf, api) {
     const {tr,esc,money,invoiceDate,invoiceRequest,loadInvoiceDetail,loadReceipt,renderInvoicePrint,generatorPath,invoiceWrite} = api;
-    const prefix=mode==='owner'?'':'/accountant';
+    const prefix='';
     const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Qatar',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
     let from=today().slice(0,7)+'-01',to=today(),view='invoices',bucket='all',page=1,q='',sequence=0;
     const titles={invoices:tr('Sales invoices','فواتير المبيعات'),receipts:tr('Payment receipts','إيصالات الدفع'),receivable:tr('Outstanding invoices','الفواتير المستحقة'),overdue:tr('Overdue invoices','الفواتير المتأخرة')};

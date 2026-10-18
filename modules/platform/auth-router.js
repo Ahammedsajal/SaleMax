@@ -101,6 +101,12 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudienc
     const status=error.code==='AUTH_INVALID'?401:['AUTH_RATE_LIMITED','MFA_RATE_LIMITED'].includes(error.code)?429:['MFA_INVALID','REAUTH_REQUIRED','MFA_NOT_ENROLLED'].includes(error.code)?403:error.code==='MFA_ALREADY_ENROLLED'?409:error.type==='entity.too.large'?413:error.type==='entity.parse.failed'?400:500;
     res.status(status).json({code:status===500?'AUTH_UNAVAILABLE':status===400?'INVALID_JSON':status===413?'BODY_TOO_LARGE':error.code});
   });
-  return {router,guard,cookieName};
+  const resolveContext=async req=>{
+    const context=await connection(db=>contextFor(db,token(req)));
+    if(!audienceMatches(context))return null;
+    if(req.crmTenantDomain&&context.audience==='tenant'&&context.tenant.id!==req.crmTenantDomain.tenantId)return null;
+    return context;
+  };
+  return {router,guard,cookieName,resolveContext};
 }
 module.exports={createAuthRouter};

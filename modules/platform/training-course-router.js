@@ -7,7 +7,7 @@ const courses = require('./training-courses');
 const courseMedia = require('./training-course-media');
 const enrollmentProgress = require('./training-enrollment-progress');
 
-function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard }) {
+function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, sessionGuard }) {
   const router = express.Router();
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
   let activeCourseUploads = 0;
@@ -57,6 +57,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard })
   }));
 
   router.use((req, res, next) => {
+    if(sessionGuard)return sessionGuard(req,res,()=>{req.courseContext=req.featureSession.context;next();});
     const authorization = req.get('Authorization') || '';
     if (/^Bearer\s+/i.test(authorization)) return userGuard(req, res, () => courses.legacyOwnerContext(pool, req.decode.uid).then(ctx => { req.courseContext = ctx; next(); }).catch(next));
     if (!canonicalGuard) return userGuard(req, res, () => courses.legacyOwnerContext(pool, req.decode.uid).then(ctx => { req.courseContext = ctx; next(); }).catch(next));

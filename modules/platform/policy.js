@@ -109,8 +109,7 @@ function decision(context, { capability, permission, resource, external = false 
   // constrains the corresponding canonical module APIs. A missing value keeps
   // existing memberships on their established role-based behavior.
   if (Array.isArray(membership.assignedNavigation)) {
-    const menuItems = require('./navigation').items;
-    const matchingKeys = menuItems.filter(item => item.capability === capability).map(item => item.key);
+    const matchingKeys = require('./navigation').keysForCapability(capability);
     if (matchingKeys.length && !matchingKeys.some(key => membership.assignedNavigation.includes(key))) {
       return { allowed: false, code: 'PERMISSION_DENIED' };
     }

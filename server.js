@@ -129,12 +129,8 @@ app.use("/sso", (req, res, next) => {
 app.use("/api/user", require("./routes/user"));
 app.use("/api/web", require("./routes/web"));
 app.use("/api/admin", require("./routes/admin"));
-app.use("/api/phonebook/workspace", require("./modules/platform/phonebook-workspace-router")());
-app.use("/api/agent/phonebook", require("./modules/platform/phonebook-workspace-router")({agent:true}));
 app.use("/api/phonebook", require("./routes/phonebook"));
 app.use("/api/chat_flow", require("./routes/chatFlow"));
-app.use("/api/inbox/course-replies", require("./modules/platform/course-quick-reply-router")());
-app.use("/api/agent/course-replies", require("./modules/platform/course-quick-reply-router")({agent:true}));
 app.use("/api/inbox", require("./routes/inbox"));
 app.use("/api/templet", require("./routes/templet"));
 app.use("/api/chatbot", require("./routes/chatbot"));

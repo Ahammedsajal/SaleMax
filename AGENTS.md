@@ -11,6 +11,7 @@ Read docs/SALEMAX_TRAINING_CENTER_IMPLEMENTATION_PLAN.md and docs/IMPLEMENTATION
 - Extend existing inbox, QR/Meta, flows, chatbot, templates, campaigns, pipeline, phonebook and agent tasks. Add Courses, Finance, Reports and Forms screens only where functionality is missing, inside the existing business panel.
 - Missing original frontend inputs do not authorize rebuilding the application. Recover relevant inputs where available; otherwise extend maintained existing modules/hooks and record the affected component limitation. Do not patch minified application logic manually.
 - Standalone workspace/login/plan test pages are development artifacts, not the delivery destination. Reuse useful services and controls; do not continue developing another panel. Isolated tests do not prove existing-screen integration.
+- Business features must use the shared session/context adapter and `/api/workspace` feature APIs described in `docs/UNIFIED_FEATURE_API.md`. Existing user/agent/accountant URLs are compatibility aliases to the same router, not separate implementations. Extend shared handlers once, use the common browser API client, and verify both login types plus permitted/denied staff roles before publishing feature updates.
 
 ## Evidence and publication
 

@@ -45,4 +45,11 @@ function navigationFor(context) {
     : items;
   return visible.filter(item => decision(context, item).allowed).map(item => ({ ...item, scope: decision(context, item).scope }));
 }
-module.exports = { items, navigationFor };
+// The existing Finance screen contains invoices, installments, payments and
+// receipts in one workspace. A screen assignment admits those views; the
+// member's action permissions still decide which operations are available.
+function keysForCapability(capability){
+  if(['finance.invoices','finance.installments','finance.payments','finance.receipts'].includes(capability))return ['invoices','installments','payments','receipts'];
+  return items.filter(item=>item.capability===capability).map(item=>item.key);
+}
+module.exports = { items, navigationFor, keysForCapability };

@@ -27,13 +27,13 @@ test('new course workflow is mounted in existing user shell with bilingual scree
   const fs=require('node:fs'),path=require('node:path');
   const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
   const html=read('client/public/index.html'),screen=read('client/public/training-courses.js'),mount=read('modules/platform/mount-existing-upgrade.js');
-  assert.match(html,/training-courses\.js\?v=20261012-course-editor-details1/);assert.match(screen,/\?page=courses/);assert.match(screen,/الدورات/);assert.match(screen,/priceMinor/);assert.match(screen,/Publish course/);assert.match(screen,/Schedule a batch/);assert.match(screen,/Retire course/);assert.match(screen,/data-edit-batch/);
+  assert.match(html,/training-courses\.js\?v=[^"\s]+/);assert.match(screen,/\?page=courses/);assert.match(screen,/الدورات/);assert.match(screen,/priceMinor/);assert.match(screen,/Publish course/);assert.match(screen,/Schedule a batch/);assert.match(screen,/Retire course/);assert.match(screen,/data-edit-batch/);
   assert.match(screen,/Learning outcomes/);assert.match(screen,/Prerequisites/);assert.match(screen,/addLearningInfo/);
   assert.match(screen,/prerequisitesEn:f\.get\('prerequisitesEn'\)/);assert.match(screen,/prerequisitesAr:f\.get\('prerequisitesAr'\)/);
   assert.match(screen,/area\.dir=rtl\?'rtl':'ltr'/);assert.match(screen,/help\.dir=field\.endsWith\('Ar'\)\?'rtl':'ltr'/);
   assert.equal((screen.match(/prerequisitesEn:f\.get\('prerequisitesEn'\)/g)||[]).length,2,'create and edit must both persist English prerequisites');
   assert.equal((screen.match(/prerequisitesAr:f\.get\('prerequisitesAr'\)/g)||[]).length,2,'create and edit must both persist Arabic prerequisites');
-  assert.match(screen,/business-auth\/me/);assert.match(screen,/canonicalCsrf/);assert.match(mount,/canonicalGuard:businessBoundary\.guard/);
+  assert.match(screen,/SaleMaxWorkspace\.request/);assert.match(read('client/public/workspace-api.js'),/business-auth\/me/);assert.match(read('client/public/workspace-api.js'),/X-CSRF-Token/);assert.match(mount,/canonicalGuard:businessBoundary\.guard/);
   assert.match(mount,/\/api\/user\/training\/courses/);assert.match(read('docs/API_DOCUMENTATION.md'),/Training-center course catalogue/);assert.match(read('docs/USER_MANUAL.md'),/Training courses/);
 });
 test('batch language controls prefer common choices while preserving custom locale codes',()=>{

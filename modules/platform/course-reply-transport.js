@@ -3,7 +3,7 @@ const fs=require('node:fs/promises');
 const fail=()=>{throw Object.assign(new Error('SEND_STOPPED_CHECK_CHAT'),{code:'SEND_STOPPED_CHECK_CHAT'});};
 async function send({c,chat,part,file,jobId,index},dependencies={}) {
   const helpers=dependencies.helpers||require('../../helper/socket/function');
-  let msgCon=part.kind==='text'?{type:'text',text:{body:part.text,preview_url:false}}:{type:part.kind,[part.kind]:{link:`/api/inbox/course-replies/files/${jobId}/${index}`,caption:part.name,...(part.kind==='document'?{filename:part.name}:{})}};
+  let msgCon=part.kind==='text'?{type:'text',text:{body:part.text,preview_url:false}}:{type:part.kind,[part.kind]:{link:`/api/workspace/inbox/course-replies/files/${jobId}/${index}`,caption:part.name,...(part.kind==='document'?{filename:part.name}:{})}};
   let response;
   if(chat.origin==='qr') {
     // Resolve the actual persisted channel inside this account, never a browser supplied session.

@@ -38,6 +38,22 @@ async function context(db,user,type='user',owner=null){
  return {uid,hash:hash(uid),type,id:Number(user.id),manage:['owner','manager'].includes(link.role),category:await category(db,uid)};
 }
 async function category(db,uid){const [rows]=await db.query(`SELECT t.category_key FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND BINARY o.source_id=BINARY CAST(u.id AS CHAR) JOIN sx_tenants t ON t.id=o.tenant_id WHERE u.uid=? LIMIT 1`,[uid]);return rows[0]?.category_key||'legacy';}
+async function sessionContext(db,session){
+ if(!session.context)return context(db,session.actor,session.agent?'agents':'user',session.owner);
+ const policy=require('./policy'),read=policy.decision(session.context,{capability:'crm.contacts',permission:'contacts.read'});
+ if(!read.allowed)fail(read.code,403);
+ const manage=policy.decision(session.context,{capability:'crm.contacts',permission:'contacts.manage'}).allowed;
+ if(!manage&&!session.actor)fail('ACCESS_DENIED',403);
+ return {uid:session.ownerUid,hash:hash(session.ownerUid),type:session.agent?'agents':'user',id:session.actor?.id||null,manage,category:session.context.tenant.categoryKey};
+}
+async function edit(db,ctx,input){
+ manage(ctx);const id=ids([input?.contactId])[0],keys=['name','mobile','var1','var2','var3','var4','var5','var6'];
+ if(keys.some(key=>input[key]!=null&&(typeof input[key]!=='string'||input[key].length>999))||!String(input.mobile||'').trim())fail('INVALID_CONTACT');
+ const values=keys.map(key=>input[key]??'');
+ const [result]=await db.query('UPDATE contact SET name=?,mobile=?,var1=?,var2=?,var3=?,var4=?,var5=?,var6=? WHERE uid=? AND id=?',[...values,ctx.uid,id]);
+ if(!result.affectedRows)fail('CONTACT_NOT_FOUND',404);return {updated:true};
+}
+async function remove(db,ctx,input){manage(ctx);const selected=ids(input?.selected);const [result]=await db.query('DELETE FROM contact WHERE uid=? AND id IN (?)',[ctx.uid,selected]);return {count:result.affectedRows};}
 function visibility(ctx,alias='c'){
  if(ctx.manage)return {sql:`${alias}.uid=?`,params:[ctx.uid]};
  return {sql:`${alias}.uid=? AND EXISTS (SELECT 1 FROM sx_phonebook_shares s WHERE s.owner_hash=? AND s.recipient_type=? AND s.recipient_id=? AND ((s.resource_type='book' AND s.resource_id=${alias}.phonebook_id) OR (s.resource_type='contact' AND s.resource_id=${alias}.id)))`,params:[ctx.uid,ctx.hash,ctx.type,ctx.id]};
@@ -106,4 +122,4 @@ async function routeOpening({uid,message,chatId,origin,sessionId,pool}){
  await db.query('INSERT INTO contact(uid,phonebook_id,phonebook_name,name,mobile,var1,var2,var3,var4,var5) VALUES (?,?,?,?,?,?,?,?,?,?)',[uid,book.id,book.name,String(message.senderName||mobile).slice(0,200),mobile,'','','','','']);}
  await db.commit();return {routed:true,bookId:book.id};
  }catch(e){await db.rollback();throw e;}finally{db.release();}}
-module.exports={hash,ids,normalize,validateConfig,context,visibility,settings,books,list,unique,saveSettings,move,recipients,share,shares,routeOpening};
+module.exports={hash,ids,normalize,validateConfig,context,sessionContext,edit,remove,visibility,settings,books,list,unique,saveSettings,move,recipients,share,shares,routeOpening};

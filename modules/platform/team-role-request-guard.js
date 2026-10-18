@@ -7,6 +7,19 @@ function routePermission(req){
   const path=String(req.path||'/').toLowerCase();
   const method=String(req.method||'GET').toUpperCase();
   const read=method==='GET'||method==='HEAD';
+  if(mount==='/api/workspace/session')return 'tenant.read';
+  if(mount==='/api/workspace/inbox/course-replies')return read?'conversations.read':'conversations.reply';
+  if(mount==='/api/workspace/phonebook')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
+  if(mount==='/api/workspace/courses')return read?'courses.read':'courses.manage';
+  if(mount==='/api/workspace/students')return read?'sales.request':'sales.approve';
+  if(mount==='/api/workspace/profile')return 'tenant.manage';
+  if(mount==='/api/workspace/forms')return read?'forms.manage':'forms.capture';
+  if(mount==='/api/workspace/finance'||mount==='/api/user/training/finance-policies'){
+    const endpoint=path.replace(/^\/(accountant|canonical)(?=\/|$)/,'');
+    if(endpoint.startsWith('/receipts'))return 'receipts.read';
+    if(endpoint.startsWith('/reports'))return 'reports.read';
+    return read?'invoices.read':endpoint.startsWith('/generator')&&!endpoint.endsWith('/payments')?'invoices.issue':'payments.verify';
+  }
   if(mount==='/api/user/team-invitations')return ['/sidebar-access','/conversation-access'].includes(path)?'tenant.read':'team.invite';
   if(mount==='/api/user/call-center')return path==='/status'||read?'calls.read':'calls.control';
   if(mount==='/api/user/chatbots')return 'automation.manage';
@@ -70,6 +83,7 @@ function salesAccountantLegacyRouteAllowed(req){
   const mount=String(req.baseUrl||'').replace(/\/$/,'');
   const path=String(req.path||'/').toLowerCase();
   const method=String(req.method||'GET').toUpperCase();
+  if(mount==='/api/workspace/session'&&method==='GET')return true;
   // Keep the identity/bootstrap reads required by the existing /user shell.
   // Finance and commission workspaces use their canonical guarded APIs.
   return mount==='/api/user' && method==='GET' &&
@@ -85,13 +99,15 @@ function authorizeLegacyMembership(req,row){
   let permissions;
   try{permissions=typeof row.rolePermissions==='string'?JSON.parse(row.rolePermissions):row.rolePermissions;}catch{permissions=null;}
   if(row.role!==row.seatRole||!Array.isArray(permissions)||permissions.some(item=>typeof item!=='string'))return {allowed:false,code:'TEAM_ROLE_STORAGE_INVALID'};
+  if(mountFor(req)==='/api/workspace/session'&&['GET','HEAD'].includes(String(req.method||'GET').toUpperCase()))return {allowed:true,permission:'tenant.read'};
   const permission=routePermission(req);
   if(!permission)return {allowed:false,code:'TEAM_ROLE_ROUTE_UNMAPPED'};
   const scope=policy.scopeFor({role:row.role,delegatedPermissions:permissions,customPermissions:permissions},permission);
   if(!permissions.includes(permission)||!scope)return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
-  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies'].includes(String(req.baseUrl||'').replace(/\/$/,''))))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
+  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/phonebook','/api/workspace/inbox/course-replies'].includes(String(req.baseUrl||'').replace(/\/$/,'')))&&!(['/api/workspace/finance','/api/user/training/finance-policies'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
   return {allowed:true,permission};
 }
+const mountFor=req=>String(req.baseUrl||'').replace(/\/$/,'');
 
 async function authorizeLegacyRequest(req,{sourceTable,sourceId}){
   let rows;

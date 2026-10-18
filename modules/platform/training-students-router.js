@@ -2,12 +2,12 @@
 const express=require('express');
 const courses=require('./training-courses');
 const students=require('./training-students');
-function createTrainingStudentsRouter({pool,origin,userGuard,canonicalGuard}){
+function createTrainingStudentsRouter({pool,origin,userGuard,canonicalGuard,sessionGuard}){
   const router=express.Router(),wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   const withConnection=fn=>async(...args)=>{const db=await pool.getConnection();try{return await fn(db,...args);}finally{db.release();}};
   router.use(express.json({limit:'24kb',strict:true}));
   router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(!require('./request-origin').matches(req,origin)||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(!require('./request-origin').matches(req,origin)?403:400).json({success:false,code:!require('./request-origin').matches(req,origin)?'ORIGIN_DENIED':'INVALID_BODY'});next();});
-  router.use((req,res,next)=>{const authorization=req.get('Authorization')||'';if(/^Bearer\s+/i.test(authorization))return userGuard(req,res,()=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.studentContext=ctx;next();}).catch(next));return canonicalGuard(req,res,()=>{req.studentContext=req.businessContext;next();});});
+  router.use((req,res,next)=>{if(sessionGuard)return sessionGuard(req,res,()=>{req.studentContext=req.featureSession.context;next();});const authorization=req.get('Authorization')||'';if(/^Bearer\s+/i.test(authorization))return userGuard(req,res,()=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.studentContext=ctx;next();}).catch(next));return canonicalGuard(req,res,()=>{req.studentContext=req.businessContext;next();});});
   router.get('/',wrap(async(req,res)=>res.json({success:true,data:await withConnection(students.list)(req.studentContext,req.query)})));
   router.get('/registrations',wrap(async(req,res)=>res.json({success:true,data:await withConnection(require('./training-registration-directory').list)(req.studentContext,req.query)})));
   router.get('/:id',wrap(async(req,res)=>res.json({success:true,data:await withConnection(students.profile)(req.studentContext,req.params.id)})));

@@ -22,6 +22,19 @@ async function context(pool, actor, agent, owner) {
     return context(pool,rows[0],agent,owner);
   } };
 }
+async function sessionContext(pool,session){
+  if(!session.context)return context(pool,session.actor,session.agent,session.owner);
+  const ctx=session.context,result=require('./policy').decision(ctx,{capability:'messaging.inbox',permission:'conversations.reply'});
+  if(!result.allowed)fail(result.code,403);
+  if(!ctx.category?.capabilities.includes('training.courses')||!ctx.subscription?.capabilities.includes('training.courses'))fail('FEATURE_UNAVAILABLE',403);
+  const query=async(sql,args)=>(await pool.query(sql,args))[0];
+  const sharedQrInstances=ctx.membership.role==='manager'?await query(`SELECT instance.uniqueId FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=? WHERE share.tenant_id=? AND share.membership_id=?`,[session.ownerUid,ctx.tenant.id,ctx.membership.id]):[];
+  const scope={canonical:true,uid:session.ownerUid,identityId:ctx.identity.id,assignedOnly:ctx.membership.role!=='owner',sharedQrInstances,ctx};
+  return {scope,ctx,actor:session.actor||{uid:session.ownerUid},agent:session.agent,query,refresh:async()=>sessionContext(pool,await session.refresh())};
+}
+async function options(pool,c){
+  return (await pool.query("SELECT id,name_en AS nameEn,name_ar AS nameAr FROM sx_training_courses WHERE tenant_id=? AND status='active' AND deleted_at IS NULL ORDER BY name_en,name_ar,id",[c.ctx.tenant.id]))[0];
+}
 async function conversation(c, chatId) {
   if (typeof chatId !== 'string' || !chatId || chatId.length > 255) fail('INVALID_CONVERSATION', 400);
   const rows = await c.query('SELECT * FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1', [c.scope.uid, chatId]);
@@ -62,7 +75,9 @@ async function plan(pool, c, courseId, language) {
   if (!course) fail('COURSE_NOT_AVAILABLE', 404);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Qatar', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const [[offer]] = await pool.query("SELECT * FROM sx_training_offers WHERE tenant_id=? AND course_id=? AND status='active' AND (valid_from IS NULL OR valid_from<=?) AND (valid_until IS NULL OR valid_until>=?) ORDER BY version DESC LIMIT 1", [c.ctx.tenant.id, courseId, today, today]);
-  const files = await media.list(pool, c.ctx, courseId);
+  // Published course attachments are part of an authorized Inbox reply. Staff
+  // do not need catalogue-management/sidebar access to send these public facts.
+  const [files] = await pool.query('SELECT id,media_kind AS kind,mime_type AS mimeType,original_name AS originalName,file_size_bytes AS sizeBytes FROM sx_training_course_media WHERE tenant_id=? AND course_id=? AND deleted_at IS NULL ORDER BY created_at,id',[c.ctx.tenant.id,courseId]);
   const parts = files.sort((a,b) => ({image:0,document:1,video:2}[a.kind] - {image:0,document:1,video:2}[b.kind])).map(f => ({kind:f.kind, mediaId:f.id, name:f.originalName, mimeType:f.mimeType, sizeBytes:f.sizeBytes}));
   for (const p of parts) {
     const max = {image:5,document:20,video:16}[p.kind];
@@ -134,4 +149,4 @@ async function execute(pool, c, input, send = require('./course-reply-transport'
     return publicJob(await job(pool,c,requestId));
   }finally{if(locked)await db.query('SELECT RELEASE_LOCK(?)',[lock]);db.release();}
 }
-module.exports={context,conversation,plan,textParts,job,publicJob,execute,hash};
+module.exports={context,sessionContext,options,conversation,plan,textParts,job,publicJob,execute,hash};

@@ -10,12 +10,12 @@ const {createTrainingTurnstile}=require('./training-turnstile');
 function publicFormMetadata(data,publicUrl,language='en'){
   const isArabic=language==='ar';const company=data.tenant.companyName||data.tenant.name;const center=(isArabic?data.tenant.centerNameAr:data.tenant.centerNameEn)||company;const address=isArabic?data.tenant.addressAr:data.tenant.addressEn;const description=[company,center,address].filter(Boolean).filter((value,index,list)=>list.indexOf(value)===index).join(' · ');const title=data.form.schema.templateKey==='procatalyst-registration-v1'?'Registration Form':(isArabic?data.form.nameAr:data.form.nameEn);const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));return {title,html:`<meta name="description" content="${escape(description)}"><meta property="og:type" content="website"><meta property="og:site_name" content="${escape(company)}"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${escape(description)}"><meta property="og:url" content="${escape(publicUrl)}"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${escape(title)}"><meta name="twitter:description" content="${escape(description)}">`};
 }
-function createTrainingFormRouter({pool,origin,userGuard}){
+function createTrainingFormRouter({pool,origin,userGuard,sessionGuard}){
   const router=express.Router();const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   router.use(express.json({limit:'32kb',strict:true}));
   router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(!require('./request-origin').matches(req,origin)||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(!require('./request-origin').matches(req,origin)?403:400).json({success:false,code:!require('./request-origin').matches(req,origin)?'ORIGIN_DENIED':'INVALID_BODY'});next();});
-  router.use(userGuard);
-  router.use((req,res,next)=>courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.formContext=ctx;next();}).catch(next));
+  router.use(sessionGuard||userGuard);
+  router.use((req,res,next)=>{if(req.featureSession){req.formContext=req.featureSession.context;return next();}return courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.formContext=ctx;next();}).catch(next);});
   const connection=fn=>async(...args)=>{const db=await pool.getConnection();try{return await fn(db,...args);}finally{db.release();}};
   router.get('/',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.list)(req.formContext)})));
   router.get('/submissions',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.submissions)(req.formContext,req.query)})));

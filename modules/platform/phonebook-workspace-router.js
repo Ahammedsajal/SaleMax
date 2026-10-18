@@ -2,8 +2,10 @@
 const service=require('./phonebook-workspace');
 module.exports=function createRouter({agent=false,pool:injectedPool,authenticate}={}){
  const router=require('express').Router(),pool=injectedPool||require('../../database/config').promise();
+ router.use(require('express').json({limit:'32kb',strict:true}));
+ router.use((req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(400).json({success:false,code:'INVALID_BODY'});next();});
  router.use(authenticate||(agent?require('../../middlewares/agent'):require('../../middlewares/user')));
- router.use(async(req,res,next)=>{let db;try{db=await pool.getConnection();req.phonebookContext=await service.context(db,req.decode.userData,agent?'agents':'user',req.owner);next();}catch(e){res.status(e.status||503).json({success:false,code:e.code||'PHONEBOOK_UNAVAILABLE'});}finally{db?.release();}});
+ router.use(async(req,res,next)=>{let db;try{db=await pool.getConnection();req.phonebookContext=req.featureSession?await service.sessionContext(db,req.featureSession):await service.context(db,req.decode.userData,agent?'agents':'user',req.owner);next();}catch(e){res.status(e.status||503).json({success:false,code:e.code||'PHONEBOOK_UNAVAILABLE'});}finally{db?.release();}});
  const handle=fn=>async(req,res)=>{let db;try{db=await pool.getConnection();res.set('Cache-Control','no-store');res.json({success:true,...await fn(db,req.phonebookContext,req)});}catch(e){res.status(e.status||500).json({success:false,code:e.status?e.code:'PHONEBOOK_UNAVAILABLE'});}finally{db?.release();}};
  router.get('/bootstrap',handle(async(db,ctx)=>({config:await service.settings(db,ctx),books:await service.books(db,ctx),manage:ctx.manage,category:ctx.category})));
  router.post('/contacts',handle(async(db,ctx,req)=>service.list(db,ctx,req.body)));
@@ -12,5 +14,7 @@ module.exports=function createRouter({agent=false,pool:injectedPool,authenticate
  router.post('/move',handle((db,ctx,req)=>service.move(db,ctx,req.body)));
  router.get('/recipients',handle(async(db,ctx)=>({recipients:await service.recipients(db,ctx),shares:await service.shares(db,ctx)})));
  router.post('/share',handle((db,ctx,req)=>service.share(db,ctx,req.body)));
+ router.put('/edit_contact',handle((db,ctx,req)=>service.edit(db,ctx,req.body)));
+ router.post('/del_contacts',handle((db,ctx,req)=>service.remove(db,ctx,req.body)));
  return router;
 };

@@ -94,10 +94,8 @@
     navigationLoaded=true;
     document.documentElement.setAttribute('data-sx-navigation-loading','');
     try{
-      const token=localStorage.getItem('wacrm_user');
-      const response=await fetch('/api/user/team-invitations/sidebar-access',{credentials:'same-origin',headers:{Accept:'application/json',...(token?{Authorization:'Bearer '+token}:{})}});
-      if(response.ok){
-        const data=await response.json();
+      const data={data:await window.SaleMaxWorkspace.session()};
+      {
         const value=data?.data?.assignedNavigation;
         const allowedByRole=data?.data?.roleNavigation;
         membershipRole=data?.data?.role||null;
