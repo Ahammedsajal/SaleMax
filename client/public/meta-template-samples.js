@@ -3,7 +3,7 @@
   'use strict';
   const contract=window.SaleMaxTemplatePlaceholders,values=new Map();let snapshot=[],queued=false;
   const active=()=>location.pathname==='/user'&&new URLSearchParams(location.search).get('page')==='create-meta-template';
-  const ar=()=>document.documentElement.lang?.startsWith('ar')||document.documentElement.dir==='rtl';
+  const ar=()=>{const language=String(localStorage.getItem('language')||'').toLowerCase();return language==='ar'||language.includes('arabic')||document.documentElement.lang?.startsWith('ar')||document.documentElement.dir==='rtl';};
   const tr=(en,arabic)=>ar()?arabic:en;
   const nativeOpen=XMLHttpRequest.prototype.open,nativeSend=XMLHttpRequest.prototype.send,requests=new WeakMap();
   function entries(texts){const counts=new Map();return texts.map(text=>{const count=counts.get(text)||0;counts.set(text,count+1);return {text,key:text+'\u0000'+count,numbers:contract.numbers(text)};});}
@@ -25,10 +25,10 @@
     const steps=[...main.querySelectorAll('.MuiStepLabel-label')];const review=steps.length&&steps[steps.length-1].classList.contains('Mui-active');
     if(!review){document.getElementById('sx-samples-review')?.remove();return;}
     if(document.getElementById('sx-samples-review')||!snapshot.length)return;
-    const reviewBox=document.createElement('div');reviewBox.id='sx-samples-review';for(const entry of snapshot)reviewBox.append(panel(entry));const button=[...main.querySelectorAll('button')].find(b=>/^(Submit|إرسال|حفظ|تقديم)$/i.test(b.textContent.trim()));if(button)button.parentElement.before(reviewBox);
+    const reviewBox=document.createElement('div');reviewBox.id='sx-samples-review';for(const entry of snapshot)reviewBox.append(panel(entry));const button=[...main.querySelectorAll('button')].find(b=>/^(Submit(?: template)?|Create template|Save changes|إرسال|حفظ التغييرات|حفظ|تقديم)$/i.test(b.textContent.trim()));if(button)button.parentElement.before(reviewBox);
   }
   document.addEventListener('input',event=>{if(active()&&!event.target.closest('.sx-template-samples'))render();});
-  document.addEventListener('click',event=>{if(!active())return;const button=event.target.closest('button');if(!button||!/^(Submit|إرسال|حفظ|تقديم)$/i.test(button.textContent.trim()))return;if(snapshot.some(e=>e.numbers.some(n=>!sample(e,n)))){event.preventDefault();event.stopImmediatePropagation();const input=[...document.querySelectorAll('.sx-template-samples input')].find(e=>!e.value.trim());input?.focus();input?.reportValidity();}},true);
+  document.addEventListener('click',event=>{if(!active())return;const button=event.target.closest('button');if(!button||!/^(Submit(?: template)?|Create template|Save changes|إرسال|حفظ التغييرات|حفظ|تقديم)$/i.test(button.textContent.trim()))return;if(snapshot.some(e=>e.numbers.some(n=>!sample(e,n)))){event.preventDefault();event.stopImmediatePropagation();const input=[...document.querySelectorAll('.sx-template-samples input')].find(e=>!e.value.trim());input?.focus();input?.reportValidity();}},true);
   XMLHttpRequest.prototype.open=function(method,url,...rest){requests.set(this,{method:String(method).toUpperCase(),url:String(url)});return nativeOpen.call(this,method,url,...rest);};
   XMLHttpRequest.prototype.send=function(body){const req=requests.get(this);if(req?.method!=='POST'||!req.url.includes('/add_meta_templet'))return nativeSend.call(this,body);let payload;try{payload=JSON.parse(body);}catch{return nativeSend.call(this,body);}try{const targets=contract.targets(payload.components),sources=entries(targets.map(t=>t.text));for(const [i,t] of targets.entries()){const samples=t.numbers.map(n=>sample(sources[i],n));if(samples.every(Boolean)){if(t.kind==='body')t.component.example={...(t.component.example||{}),body_text:[samples]};else t.component.example=samples;}}contract.validateSamples(payload.components);return nativeSend.call(this,JSON.stringify(payload));}catch{this.abort();window.alert(tr('Add sample data for every placeholder before submitting.','أضف بيانات تجريبية لكل متغير قبل الإرسال.'));}};
   new MutationObserver(()=>{if(queued)return;queued=true;queueMicrotask(()=>{queued=false;render();});}).observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['dir','lang']});render();

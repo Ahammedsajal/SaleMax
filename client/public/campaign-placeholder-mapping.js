@@ -5,7 +5,7 @@
   const id='sx-campaign-mapping';let selected=null,queued=false,labels={},labelsLoaded=false;
   const nativeOpen=XMLHttpRequest.prototype.open,nativeSend=XMLHttpRequest.prototype.send,requests=new WeakMap();
   const active=()=>location.pathname==='/user'&&new URLSearchParams(location.search).get('page')==='send-campaign';
-  const ar=()=>document.documentElement.lang?.startsWith('ar')||document.documentElement.dir==='rtl';
+  const ar=()=>{const language=String(localStorage.getItem('language')||'').toLowerCase();return language==='ar'||language.includes('arabic')||document.documentElement.lang?.startsWith('ar')||document.documentElement.dir==='rtl';};
   const tr=(en,arabic)=>ar()?arabic:en;
   XMLHttpRequest.prototype.open=function(method,url,...rest){requests.set(this,{method:String(method).toUpperCase(),url:String(url)});if(String(url).includes('/get_my_meta_templets_beta'))this.addEventListener('load',()=>{try{const data=JSON.parse(this.responseText);for(const t of data.data||[])templates.set(t.name+':'+t.language,t);render();}catch{}});return nativeOpen.call(this,method,url,...rest);};
   XMLHttpRequest.prototype.send=function(body){const req=requests.get(this);if(active()&&req?.method==='POST'&&req.url.includes('/create_template_campaign')&&selected){try{const p=JSON.parse(body);if(p.template_name!==selected.name||p.template_language!==selected.language)throw Error('TEMPLATE_CHANGED');apply(p);contract.validateCampaign(p,selected.components);return nativeSend.call(this,JSON.stringify(p));}catch{showError();this.abort();return;}}return nativeSend.call(this,body);};
