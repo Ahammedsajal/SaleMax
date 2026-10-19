@@ -22,7 +22,7 @@ async function assign(db,{ctx,uid,chatId,chat,agentId,agentName}){
   if(!lead&&lock?.current_lead_id){const [[current]]=await db.query('SELECT id,owner_agent_id FROM pipeline_leads WHERE uid_hash=? AND id=? LIMIT 1 FOR UPDATE',[uidHash,lock.current_lead_id]);lead=current||null;}
   if(!lead){
     const name=String(chat.sender_name||'').trim().slice(0,255);
-    const result=await pipeline.createManualLead({uid,actorType:'identity',actorId:ctx.identity.id,role:'owner',connection:db,input:{title:(name?`${name} · WhatsApp inquiry`:'WhatsApp inquiry').slice(0,180),contactName:name||undefined,mobile:phone||undefined,ownerAgentId:agentId}});
+    const result=await pipeline.createManualLead({uid,actorType:'user',actorId:ctx.identity.id,role:'owner',connection:db,input:{title:(name?`${name} · WhatsApp inquiry`:'WhatsApp inquiry').slice(0,180),contactName:name||undefined,mobile:phone||undefined,ownerAgentId:agentId}});
     lead={id:result.id,owner_agent_id:agentId};created=true;
     await db.query('UPDATE pipeline_leads SET identity_key=?,chat_id=?,primary_origin=?,source_type=? WHERE uid_hash=? AND id=?',[identityKey,chatId,chat.origin,chat.origin==='qr'?'qr_whatsapp':'meta_whatsapp',uidHash,lead.id]);
   }
@@ -30,7 +30,7 @@ async function assign(db,{ctx,uid,chatId,chat,agentId,agentName}){
   if(previousAgentId!==agentId){
     await db.query('UPDATE pipeline_leads SET owner_agent_id=?,last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND id=?',[agentId,uidHash,lead.id]);
     await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,actor_id,activity_type,summary,details,created_at)
-      VALUES (?,?,'identity',?,'lead_reassigned',?,?,UTC_TIMESTAMP(3))`,[uidHash,lead.id,ctx.identity.id,`Chat transferred to ${agentName||'agent'}`,JSON.stringify({fromAgentId:previousAgentId,toAgentId:agentId,toAgentName:agentName||null,reason:'conversation_transfer',chatId})]);
+      VALUES (?,?,'user',?,'lead_reassigned',?,?,UTC_TIMESTAMP(3))`,[uidHash,lead.id,ctx.identity.id,`Chat transferred to ${agentName||'agent'}`,JSON.stringify({fromAgentId:previousAgentId,toAgentId:agentId,toAgentName:agentName||null,reason:'conversation_transfer',chatId})]);
   }
   await db.query(`INSERT INTO pipeline_conversations(uid_hash,lead_id,conversation_key,chat_id,origin,first_inbound_at,last_inbound_at)
     VALUES (?,?,?,?,?,UTC_TIMESTAMP(3),UTC_TIMESTAMP(3)) ON DUPLICATE KEY UPDATE lead_id=VALUES(lead_id)`,[uidHash,lead.id,conversationKey,chatId,chat.origin]);
