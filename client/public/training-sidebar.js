@@ -24,10 +24,10 @@
     const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261019-uplift2'; faqScript.defer = true; document.head.append(faqScript);
   }
   const groups = [
-    ['Overview', 'نظرة عامة', ['Dashboard']],
-    ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Products & services', 'Candidate Applications']],
+    ['Overview', 'نظرة عامة', ['Dashboard', 'Inbox', 'Candidate Applications']],
+    ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Products & services']],
     ['Leads & Reports', 'العملاء المحتملون والتقارير', ['Lead Pipeline', 'Lead Reports']],
-    ['Contacts & Conversations', 'جهات الاتصال والمحادثات', ['Inbox', 'Phonebook', 'Call Center']],
+    ['Contacts & Conversations', 'جهات الاتصال والمحادثات', ['Phonebook', 'Call Center']],
     ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports', 'Sales Finance']],
     ['WhatsApp & Campaigns', 'واتساب والحملات', ['Add WhatsApp by QR', 'Link Meta WhatsApp', 'Create Meta Template', 'Send Campaign', 'Campaign Dashboard', 'Web Notification']],
     ['Automation & Bots', 'الأتمتة والروبوتات', ['Automation Flows', 'WA Chatbot', 'FAQs']],
