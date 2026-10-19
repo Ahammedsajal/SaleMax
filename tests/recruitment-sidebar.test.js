@@ -20,4 +20,6 @@ test('SaleMaX Sales owner has a permission-backed Applications & CVs sidebar ent
   assert.match(sidebar,/'Candidate Applications':'recruitment'/);
   assert.match(sidebar,/forms:'forms',recruitment:'recruitment'/);
   assert.match(sidebar,/'Applications & CVs':'Candidate Applications'/);
+  assert.match(sidebar,/function dedupeRecruitmentNavigationRows\(list\)/);
+  assert.ok(sidebar.indexOf('dedupeRecruitmentNavigationRows(list);')>sidebar.indexOf('ensureSalesNavigationRows(list);'));
 });

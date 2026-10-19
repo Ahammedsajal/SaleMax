@@ -390,6 +390,15 @@
       else row.remove();
     }
   }
+  function dedupeRecruitmentNavigationRows(list){
+    const rows=[...list.children].filter(row=>row.tagName==='LI'&&(
+      row.dataset.sxCanonicalSalesNav==='recruitment'||row.hasAttribute('data-sx-recruitment-nav')||
+      navigationKeys[aliases[label(row)]||label(row)]==='recruitment'
+    ));
+    if(rows.length<2)return;
+    const retained=rows.find(row=>row.dataset.sxCanonicalSalesNav==='recruitment')||rows[0];
+    for(const row of rows)if(row!==retained)row.remove();
+  }
   function update() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return;
     resetAgentLoginSearch();
@@ -406,6 +415,7 @@
       }
       syncInjectedRows(list);
       ensureSalesNavigationRows(list);
+      dedupeRecruitmentNavigationRows(list);
       dedupeSalesNavigationRows(list);
       list.dataset.sxSidebarList = '1';
       const expanded = sidebarExpandedOverride.get(drawer);
