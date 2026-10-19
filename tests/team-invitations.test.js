@@ -62,7 +62,7 @@ test('staff invitation UI is integrated into the existing single SaleMaX app she
   assert.match(js,/accountant/);assert.match(js,/manager/);assert.match(js,/seat-grid/);assert.match(js,/business sign in/);
   assert.match(js,/Copy link/);assert.match(js,/Create new link/);assert.match(js,/Agent seats/);assert.match(js,/مقاعد الوكلاء/);
   assert.match(js,/Pending/);assert.match(js,/معلق/);
-  assert.match(js,/Roles & permissions/);assert.match(js,/الأدوار والصلاحيات/);assert.match(js,/Module permissions/);
+  assert.match(js,/Roles & permissions/);assert.match(js,/الأدوار والصلاحيات/);assert.match(js,/Sidebar screens and actions/);
   assert.match(js,/<details class="permission-category"/);assert.match(js,/data-permission-count/);assert.match(js,/target\.onchange=event=>/);
   assert.match(js,/<details class="nav-category">/);assert.match(js,/data-nav-count/);assert.match(js,/element\.onchange=event=>/);
   assert.match(js,/localStorage\.getItem\('salemax-language'\)/);assert.match(js,/\.startsWith\('ar'\)/);
