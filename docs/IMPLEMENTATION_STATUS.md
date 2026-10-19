@@ -1,6 +1,6 @@
 ## SaleMaX Sales recruitment navigation — deployed 19 October 2026
 
-The existing SaleMaX Sales owner sidebar now exposes “Candidate Applications” under Overview when the owner’s recruitment entitlement is present. The entry uses the recruitment permission key and routes to the existing owner-only Applications & CVs screen; the existing Training Center form route remains mapped to its own `forms` permission. No schema or business data changed. Focused recruitment checks pass 13/13 and the production app is healthy. The end-to-end WhatsApp inbound message and real candidate submission remain unverified; the 42-ticket upgrade remains in progress. See DEPLOYMENT.md for release and rollback evidence.
+The existing SaleMaX Sales owner sidebar exposes one “Candidate Applications” entry under Overview when the owner’s recruitment entitlement is present. It uses the recruitment permission key and opens the existing owner-only Applications & CVs screen; Training Center keeps its separate `forms` permission. The generated legacy shortcut is deduplicated when it arrives after permission loading. No schema or business data changed. Focused recruitment checks pass 13/13; authenticated Edge confirms the single entry and empty review screen. The end-to-end WhatsApp inbound message and real candidate submission remain unverified; the 42-ticket upgrade remains in progress. See DEPLOYMENT.md for release and rollback evidence.
 
 ## Role sidebar screen selection — deployed 19 October 2026
 
