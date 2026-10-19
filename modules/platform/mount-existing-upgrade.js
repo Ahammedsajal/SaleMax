@@ -58,7 +58,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/agent/invitations',team.accept);
   app.use('/api/workspace/products-services',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard,products:true}));
   app.use(['/api/workspace/courses','/api/user/training/courses'],createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard}));
-  app.use('/api/user/training/tasks',businessBoundary.guard,createTaskRouter({pool,contextFor:(req,permission)=>createTaskContext(pool,req.businessContext,permission)}));
+  app.use(['/api/workspace/tasks','/api/user/training/tasks'],featureSession.guard,createTaskRouter({pool,contextFor:(req,permission)=>createTaskContext(pool,req.businessContext,permission)}));
   app.use(['/api/workspace/students','/api/user/training/students'],createTrainingStudentsRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard}));
   app.use(['/api/workspace/profile','/api/user/training/profile'],createTrainingCenterProfileRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard}));
   app.use(['/api/workspace/finance','/api/user/training/finance-policies'],createTrainingFinanceRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard}));

@@ -13,6 +13,7 @@ function routePermission(req){
   if(mount==='/api/crm')return path==='/tenant-context'&&read?'tenant.read':'tenant.manage';
   if(mount==='/api/user/business-auth'&&path==='/me'&&read)return 'tenant.read';
   if(mount==='/api/workspace/session')return 'tenant.read';
+  if(['/api/workspace/tasks','/api/user/training/tasks'].includes(mount))return read?'tasks.read':'tasks.manage';
   if(mount==='/api/workspace/inbox/course-replies')return read?'conversations.read':'conversations.reply';
   if(mount==='/api/workspace/phonebook')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
   if(mount==='/api/workspace/courses')return read?'courses.read':'courses.manage';
@@ -110,7 +111,7 @@ function authorizeLegacyMembership(req,row){
   if(!permission)return {allowed:false,code:'TEAM_ROLE_ROUTE_UNMAPPED'};
   const scope=policy.scopeFor({role:row.role,delegatedPermissions:permissions,customPermissions:permissions},permission);
   if(!permissions.includes(permission)||!scope)return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
-  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/phonebook','/api/workspace/inbox/course-replies'].includes(String(req.baseUrl||'').replace(/\/$/,'')))&&!(['/api/workspace/finance','/api/user/training/finance-policies'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
+  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies'].includes(String(req.baseUrl||'').replace(/\/$/,'')))&&!(['/api/workspace/finance','/api/user/training/finance-policies'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
   return {allowed:true,permission};
 }
 const mountFor=req=>String(req.baseUrl||'').replace(/\/$/,'');

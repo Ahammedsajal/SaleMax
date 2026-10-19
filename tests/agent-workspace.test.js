@@ -44,3 +44,14 @@ test('existing agent entry point opens the shared shell; a normal business tab i
  assert.deepEqual(browserSandbox('https://crm.example.invalid/agent?page=chat').redirects,['/user?actor=agent&page=inbox']);
  const {box,redirects}=browserSandbox('https://crm.example.invalid/user?page=courses');assert.equal(box.window.SaleMaxActor,undefined);assert.equal(box.localStorage.getItem('wacrm_user'),'manager-token');assert.deepEqual(redirects,[]);
 });
+
+test('shared Task endpoints preserve assigned scope and deny removed Task grants',()=>{
+ const session={context:ctx(['tasks.read','tasks.manage']),agent:true};
+ for(const baseUrl of ['/api/workspace/tasks','/api/user/training/tasks']){
+  assert.equal(access.authorize({baseUrl,path:'/',method:'GET'},session).scope,'assigned');
+  assert.equal(access.authorize({baseUrl,path:'/id/status',method:'PATCH'},session).permission,'tasks.manage');
+  session.context.membership.customPermissions=[];
+  assert.throws(()=>access.authorize({baseUrl,path:'/',method:'GET'},session),{code:'PERMISSION_DENIED'});
+  session.context.membership.customPermissions=['tasks.read','tasks.manage'];
+ }
+});

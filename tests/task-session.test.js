@@ -1,141 +1,46 @@
 'use strict';
-
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const test = require('node:test');
-const vm = require('node:vm');
-
-const source = fs.readFileSync(path.join(__dirname, '../client/public/tasks/tasks-session.js'), 'utf8');
-
-test('Tasks uses the latest shared business token for every pipeline request', async () => {
-  let currentToken = 'initial-business-token';
-  const calls = [];
-  const window = {
-    fetch: async (input, init) => {
-      calls.push({ input, init });
-      return { ok: false };
-    },
-  };
-  const context = {
-    window,
-    localStorage: { getItem: key => key === 'wacrm_user' ? currentToken : null },
-    location: { href: 'https://crm.salemax.qa/tasks/', origin: 'https://crm.salemax.qa' },
-    URL,
-    Headers,
-    Request,
-  };
-  vm.runInNewContext(source, context, { filename: 'tasks-session.js' });
-
-  await window.fetch('/api/pipeline/tasks', { headers: { Authorization: 'Bearer stale-token' } });
-  currentToken = 'refreshed-business-token';
-  await window.fetch('/api/pipeline/tasks/participants', { headers: { 'X-Trace': 'kept' } });
-
-  const tasksCalls = calls.filter(call => String(call.input).includes('/api/pipeline/tasks'));
-  assert.equal(new Headers(tasksCalls[0].init.headers).get('authorization'), 'Bearer initial-business-token');
-  assert.equal(new Headers(tasksCalls[1].init.headers).get('authorization'), 'Bearer refreshed-business-token');
-  assert.equal(new Headers(tasksCalls[1].init.headers).get('x-trace'), 'kept');
-});
-
-test('Tasks uses the existing HttpOnly business session and CSRF token when it is available', async () => {
-  const calls=[];
-  const window={fetch:async(input,init)=>{
-    calls.push({input,init});
-    if(String(input).includes('/api/user/business-auth/me'))return {ok:true,json:async()=>({context:{audience:'tenant'},csrfToken:'csrf-proof'})};
-    return {ok:true};
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),test=require('node:test'),vm=require('node:vm');
+const common=fs.readFileSync(path.join(__dirname,'../client/public/workspace-api.js'),'utf8');
+const adapter=fs.readFileSync(path.join(__dirname,'../client/public/tasks/tasks-session.js'),'utf8');
+function browser({actor='user',token='active-token',cookie=true,status=200}={}){
+  const calls=[],removed=[];
+  const window={SaleMaxActor:actor,fetch:async(input,init)=>{
+    calls.push({url:new URL(String(input),'https://crm.example.invalid'),headers:new Headers(init?.headers),init});
+    if(String(input).includes('/business-auth/me'))return {ok:cookie,json:async()=>({context:{audience:'tenant'},csrfToken:'cookie-csrf'})};
+    return {ok:status===200,status,json:async()=>({success:status===200})};
   }};
-  const context={window,localStorage:{getItem:()=> 'legacy-token'},location:{href:'https://crm.salemax.qa/tasks/',origin:'https://crm.salemax.qa'},URL,Headers,Request};
-  vm.runInNewContext(source,context,{filename:'tasks-session.js'});
-  await window.fetch('/api/pipeline/tasks',{headers:{Authorization:'Bearer legacy-token'}});
-  const taskCall=calls.find(call=>String(call.input).includes('/api/user/training/tasks'));
-  assert.ok(taskCall);
-  assert.equal(new URL(String(taskCall.input)).pathname,'/api/user/training/tasks');
-  assert.equal(new Headers(taskCall.init.headers).get('authorization'),null);
-  assert.equal(new Headers(taskCall.init.headers).get('x-csrf-token'),'csrf-proof');
-  assert.equal(taskCall.init.credentials,'same-origin');
+  const context={window,localStorage:{getItem:key=>key===(actor==='agent'?'wacrm_agent':'wacrm_user')?token:key==='wacrm_user'?'other-account-token':null,removeItem:key=>removed.push(key)},location:{pathname:'/tasks/',href:'https://crm.example.invalid/tasks/',origin:'https://crm.example.invalid'},URL,Headers,Request,FormData};
+  context.fetch=(...args)=>window.fetch(...args);
+  vm.runInNewContext(common,context);vm.runInNewContext(adapter,context);
+  return {window,calls,removed,context};
+}
+test('Agent Tasks uses its current bearer without probing or borrowing the business cookie',async()=>{
+  const {window,calls}=browser({actor:'agent'});
+  for(const suffix of ['', '/participants', '/preferences','/task-id/messages'])await window.fetch('/api/pipeline/tasks'+suffix,{headers:{Authorization:'Bearer stale-user','X-Trace':'kept'}});
+  assert.equal(calls.length,4);
+  for(const call of calls){assert.ok(call.url.pathname.startsWith('/api/workspace/tasks'));assert.equal(call.headers.get('Authorization'),'Bearer active-token');assert.equal(call.headers.get('X-Salemax-Actor'),'agent');assert.equal(call.headers.get('X-Trace'),'kept');assert.equal(call.init.credentials,'same-origin');}
 });
-
-test('parallel Tasks requests wait for one canonical session probe before choosing their API', async () => {
-  const calls = [];
-  let resolveSession;
-  const sessionResponse = new Promise(resolve => { resolveSession = resolve; });
-  const window = { fetch: async (input, init) => {
-    calls.push({ input, init });
-    if (String(input).includes('/api/user/business-auth/me')) return sessionResponse;
-    return { ok: true };
-  } };
-  const context = {
-    window,
-    localStorage: { getItem: () => 'legacy-token' },
-    location: { href: 'https://crm.salemax.qa/tasks/', origin: 'https://crm.salemax.qa' },
-    URL,
-    Headers,
-    Request,
-  };
-  vm.runInNewContext(source, context, { filename: 'tasks-session.js' });
-
-  const requests = [
-    window.fetch('/api/pipeline/tasks'),
-    window.fetch('/api/pipeline/tasks/participants'),
-    window.fetch('/api/pipeline/board?limit=100'),
-  ];
-  await Promise.resolve();
-  resolveSession({ ok: true, json: async () => ({ context: { audience: 'tenant' }, csrfToken: 'csrf-proof' }) });
-  await Promise.all(requests);
-
-  assert.equal(calls.filter(call => String(call.input).includes('/api/user/business-auth/me')).length, 1);
-  assert.deepEqual(
-    calls.filter(call => String(call.input).includes('/api/user/training/tasks')).map(call => new URL(String(call.input)).pathname),
-    ['/api/user/training/tasks', '/api/user/training/tasks/participants'],
-  );
-  assert.equal(calls.some(call => String(call.input).includes('/api/pipeline/board')), true);
-  assert.equal(calls.filter(call => String(call.input).includes('/api/pipeline/tasks/participants')).length, 0);
+test('business bearer Tasks also reuses the panel credential and does not switch to a different cookie identity',async()=>{
+  const {window,calls}=browser();
+  await window.fetch('/api/pipeline/tasks?scope=mine&status=open');
+  assert.equal(calls.length,1);assert.equal(calls[0].headers.get('Authorization'),'Bearer active-token');assert.equal(calls[0].headers.get('X-Salemax-Actor'),'user');assert.equal(calls[0].url.search,'?scope=mine&status=open');
 });
-
-test('Tasks does not rewrite authorization for requests outside its same-origin pipeline API', async () => {
-  const calls = [];
-  const window = {
-    fetch: async (input, init) => {
-      calls.push({ input, init });
-      return { ok: true };
-    },
-  };
-  const context = {
-    window,
-    localStorage: { getItem: () => 'business-token' },
-    location: { href: 'https://crm.salemax.qa/tasks/', origin: 'https://crm.salemax.qa' },
-    URL,
-    Headers,
-    Request,
-  };
-  vm.runInNewContext(source, context, { filename: 'tasks-session.js' });
-
-  await window.fetch('https://example.com/health', { headers: { Authorization: 'Bearer third-party-token' } });
-
-  assert.equal(new Headers(calls[0].init.headers).get('authorization'), 'Bearer third-party-token');
+test('cookie-only Tasks keeps CSRF and the same shared API for reads and writes',async()=>{
+  const {window,calls}=browser({token:null});
+  await window.fetch('/api/pipeline/tasks/id/status',{method:'PATCH',headers:{Authorization:'Bearer stale','X-Salemax-Actor':'agent'},body:'{"status":"completed"}'});
+  assert.equal(calls.length,2);const call=calls[1];assert.equal(call.url.pathname,'/api/workspace/tasks/id/status');assert.equal(call.headers.get('Authorization'),null);assert.equal(call.headers.get('X-CSRF-Token'),'cookie-csrf');assert.equal(call.headers.get('X-Salemax-Actor'),null);assert.equal(call.init.method,'PATCH');assert.equal(call.init.body,'{"status":"completed"}');
 });
-
-test('Tasks recovery clears the stale token so the existing login route can authenticate again', () => {
-  let clickHandler;
-  const removed = [];
-  const context = {
-    window: { fetch: async () => ({ ok: true }) },
-    document: { addEventListener: (name, handler, capture) => {
-      assert.equal(name, 'click');
-      assert.equal(capture, true);
-      clickHandler = handler;
-    } },
-    localStorage: { removeItem: key => removed.push(key) },
-    location: { href: 'https://crm.salemax.qa/tasks/', origin: 'https://crm.salemax.qa' },
-    URL,
-    Headers,
-    Request,
-  };
-  vm.runInNewContext(source, context, { filename: 'tasks-session.js' });
-
-  clickHandler({ target: { closest: () => ({ href: 'https://crm.salemax.qa/user/login' }) } });
-  clickHandler({ target: { closest: () => ({ href: 'https://outside.example/user/login' }) } });
-  clickHandler({ target: { closest: () => null } });
-
-  assert.deepEqual(removed, ['wacrm_user']);
+test('denied and expired Tasks requests do not retry or clear an active panel credential',async()=>{
+  for(const status of [401,403]){const {window,calls,removed}=browser({actor:'agent',status});const response=await window.fetch('/api/pipeline/tasks');assert.equal(response.status,status);assert.equal(calls.length,1);assert.deepEqual(removed,[]);}
+});
+test('unrelated and foreign-origin requests retain their original URL and headers',async()=>{
+  const {window,calls}=browser();
+  for(const url of ['/api/pipeline/board?limit=100','https://external.invalid/api/pipeline/tasks'])await window.fetch(url,{headers:{Authorization:'Bearer original'}});
+  assert.equal(calls.length,2);for(const call of calls)assert.equal(call.headers.get('Authorization'),'Bearer original');
+  assert.equal(calls[1].url.origin,'https://external.invalid');
+});
+test('only explicit recovery clears a stale token; normal Task requests leave sign-in intact',()=>{
+  let handler;const {context,removed}=browser();context.document={addEventListener:(type,fn)=>{handler=fn;}};vm.runInNewContext(adapter,context);
+  handler({target:{closest:()=>({href:'https://outside.invalid/user/login'})}});assert.deepEqual(removed,[]);
+  handler({target:{closest:()=>({href:'https://crm.example.invalid/user/login'})}});assert.deepEqual(removed,['wacrm_user']);
 });
