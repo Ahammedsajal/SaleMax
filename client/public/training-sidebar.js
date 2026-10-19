@@ -268,7 +268,7 @@
       const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;button.setAttribute('aria-label',tr('Lead Reports','تقارير العملاء المحتملين'));button.onclick=event=>{event.preventDefault();location.href='/user?page=lead-reports';};
       list.append(copy);
     }
-    if(window.__sxCallCenterAllowed&&pipelineSource&&!list.querySelector('[data-sx-call-center-nav]')){
+    if(roleNavigation?.has('call-center')&&(assignedNavigation===null||assignedNavigation.has('call-center'))&&pipelineSource&&!list.querySelector('[data-sx-call-center-nav]')){
       const copy=pipelineSource.cloneNode(true);copy.dataset.sxCallCenterNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
       const [label,arabic]=membershipCategoryKey==='salemax_sales'?(salesNavLabels.calls[membershipRole]||salesNavLabels.calls.agent):['Call Center','مركز الاتصال'],primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr(label,arabic);
       copy.setAttribute('aria-label',tr(label,arabic));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
@@ -318,6 +318,41 @@
       }
     }
   }
+  function ensureSalesNavigationRows(list){
+    if(membershipCategoryKey!=='salemax_sales'||!roleNavigation)return;
+    const entries=[
+      ['dashboard','Dashboard','لوحة التحكم','dashboard'],
+      ['inbox','Inbox','صندوق الوارد','inbox'],['whatsapp-qr','Add WhatsApp by QR','إضافة واتساب عبر QR','wa-qr-connect'],
+      ['whatsapp-meta','Link Meta WhatsApp','ربط واتساب ميتا','wa-meta-manual'],['flows','Automation Flows','مسارات الأتمتة','automation-flows'],
+      ['chatbot','WA Chatbot','روبوت محادثة واتساب','wa-chatbot'],['templates','Create Meta Template','إنشاء قالب ميتا','create-meta-template'],
+      ['campaigns','Send Campaign','إرسال حملة','send-campaign'],['campaign-dashboard','Campaign Dashboard','لوحة الحملات','campaign-dashboard'],
+      ['leads','Lead Pipeline','مسار العملاء المحتملين','lead-pipeline'],['contacts','Phonebook','دليل الهاتف','phonebook'],
+      ['products-services','Products & services','المنتجات والخدمات','products-services'],
+      ['tasks','Tasks','المهام','tasks'],
+      ['call-center',...(salesNavLabels.calls[membershipRole]||['Call Center','مركز الاتصال']),'call-center'],
+      ['sales-deals',...(salesNavLabels.deals[membershipRole]||salesNavLabels.deals.owner),'sales-workspace&section=deals'],
+      ['sales-commissions',...(salesNavLabels.commissions[membershipRole]||salesNavLabels.commissions.owner),'sales-workspace&section=commissions'],
+      ['sales-audit','Audit Trail','سجل التدقيق','sales-audit'],
+      ['sales-organization',...(salesNavLabels.organization[membershipRole]||salesNavLabels.organization.owner),'sales-organization'],
+      ['commission-policy','Commission Policy','سياسة العمولات','commission-policy'],
+      ['sales-targets',...(salesNavLabels.overview[membershipRole]||['Sales Overview','نظرة عامة على المبيعات']),'sales-workspace&section=overview'],
+      ['sales-finance','Sales Finance','مالية المبيعات','sales-finance&view=overview'],
+      ['reports','Lead Reports','تقارير العملاء المحتملين','lead-reports'],['finance-reports','Finance Reports','تقارير المالية','finance-settings&section=reports'],
+      ['faqs','FAQs','الأسئلة الشائعة','faqs'],
+      ...(membershipRole==='owner'?[['team','People & Roles','الأشخاص والأدوار','team-invitations'],['settings','Business Settings','إعدادات الأعمال','settings']]:[])
+    ];
+    const hasKey=key=>[...list.children].some(row=>row.tagName==='LI'&&(row.dataset.sxCanonicalSalesNav===key||navigationKeys[aliases[label(row)]||label(row)]===key));
+    const template=list.querySelector(':scope > li:not([data-sx-nav-section])');
+    if(!template)return;
+    for(const [key,en,ar,path] of entries){
+      if(!roleNavigation.has(key)||(assignedNavigation!==null&&!assignedNavigation.has(key))||hasKey(key))continue;
+      const row=template.cloneNode(true);row.removeAttribute('data-salemax-pipeline-link');row.removeAttribute('data-sx-search-hidden');row.removeAttribute('data-sx-optional-hidden');
+      row.dataset.sxCanonicalSalesNav=key;row.hidden=false;row.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const title=tr(en,ar),primary=row.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=title;
+      row.setAttribute('aria-label',title);const button=row.querySelector('.MuiListItemButton-root,[role="button"],button,a')||row;
+      button.setAttribute('aria-label',title);button.onclick=event=>{event.preventDefault();location.href='/user?page='+path;};list.append(row);
+    }
+  }
   function update() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return;
     resetAgentLoginSearch();
@@ -333,6 +368,7 @@
         searchInput.toggleAttribute('data-sx-search-empty', !searchInput.value);
       }
       syncInjectedRows(list);
+      ensureSalesNavigationRows(list);
       list.dataset.sxSidebarList = '1';
       const expanded = sidebarExpandedOverride.get(drawer);
       const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;
@@ -371,13 +407,14 @@
         const rank = groups[group][2].indexOf(name);
         const order = String(group * 100 + 1 + (rank < 0 ? index : rank));
         if (row.style.order !== order) row.style.order = order;
-        const navKey=row.dataset.sxSalesSection?({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[row.dataset.sxSalesSection]:navigationKeys[name]||navigationKeys[text];
+        const navKey=row.dataset.sxCanonicalSalesNav||(row.dataset.sxSalesSection?({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[row.dataset.sxSalesSection]:navigationKeys[name]||navigationKeys[text]);
         const salesTeamEntryHidden=membershipCategoryKey==='salemax_sales'&&(name==='Agent Login'||(name==='Team access'&&membershipRole!=='owner'));
         const duplicateTask=name==='Agent Task'&&!!list.querySelector('[data-sx-tasks-nav]');
         const unknownStaffItem=roleNavigation!==null&&membershipRole!=='owner'&&!navKey&&!['Logout','Sign out'].includes(name);
         const hiddenByOwner=duplicateTask||unknownStaffItem||(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(roleNavigation!==null&&navKey&&!roleNavigation.has(navKey))||salesTeamEntryHidden;
         const optionalFeature=window.salemaxOptionalLabels?.[text]||window.salemaxOptionalLabels?.[name];
-        const hiddenByFeature=!!optionalFeature&&optionalFeatures[optionalFeature]!==true;
+        const salesContractAllows=membershipCategoryKey==='salemax_sales'&&navKey&&roleNavigation?.has(navKey)&&(assignedNavigation===null||assignedNavigation.has(navKey));
+        const hiddenByFeature=!!optionalFeature&&optionalFeatures[optionalFeature]!==true&&!salesContractAllows;
         if(hiddenByFeature)row.setAttribute('data-sx-optional-hidden','1');
         else if(optionalFeature)row.removeAttribute('data-sx-optional-hidden');
         const hidden = hiddenByOwner || (!!query && !text.toLowerCase().includes(query) && !name.toLowerCase().includes(query));

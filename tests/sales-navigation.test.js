@@ -91,6 +91,16 @@ test('only first-party Sales receives role-specific sidebar labels and grouped n
   assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
 });
 
+test('Sales sidebar recovers contract-permitted entries when the legacy shell omits them',()=>{
+  const root=path.join(__dirname,'..');
+  const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
+  const owner=navigation.navigationFor(context('owner')).map(item=>item.key);
+  for(const key of ['products-services','call-center','tasks','campaigns','sales-finance'])assert.ok(owner.includes(key),`owner navigation contract should permit ${key}`);
+  assert.match(sidebar,/function ensureSalesNavigationRows\(list\)/);
+  assert.match(sidebar,/roleNavigation\?\.has\('call-center'\)/);
+  assert.match(sidebar,/!salesContractAllows/);
+});
+
 test('SaleMaX Sales owner gets one People & Roles entry while managers and team leaders use their scoped Organisation screen',()=>{
   const root=path.join(__dirname,'..');
   const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
