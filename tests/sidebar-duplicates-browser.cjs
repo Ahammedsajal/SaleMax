@@ -14,7 +14,7 @@ const row=(name,attrs='')=>`<li ${attrs}><button class="MuiListItemButton-root">
    const page=await browser.newPage({viewport:{width:390,height:844}});page.setDefaultTimeout(5000);
    await page.route('http://sidebar.invalid/**',route=>route.fulfill({contentType:'text/html',body:'<html><head></head><body></body></html>'}));
    await page.goto('http://sidebar.invalid/user?page=dashboard');
-   await page.setContent(`<html lang="${ar?'ar':'en'}" dir="${ar?'rtl':'ltr'}"><body>`+[0,1].map(()=>`<div class="MuiDrawer-paper" style="width:250px"><input><ul>${row('Dashboard')}${delayed?'':row('Lead Pipeline','data-salemax-pipeline-link="1"')}${row('WA Chatbot')}</ul></div>`).join('')+'</body></html>');
+   await page.setContent(`<html lang="${ar?'ar':'en'}" dir="${ar?'rtl':'ltr'}"><body>`+[0,1].map(()=>`<div class="MuiDrawer-paper" style="width:250px"><input><ul>${row('Dashboard')}${delayed?'':row('Lead Pipeline','data-salemax-pipeline-link="1"')}${row('WA Chatbot')}${row('Agent Task')}</ul></div>`).join('')+'</body></html>');
    const allowed=role==='accountant'?['sales-finance','sales-commissions']:role==='owner'?keys:keys.filter(k=>!['commission-policy','sales-audit','recruitment','team'].includes(k));
    await page.evaluate(({role,allowed,delayed})=>{
     window.fixtureAccess={role,categoryKey:'salemax_sales',roleNavigation:allowed,assignedNavigation:null};
@@ -36,6 +36,7 @@ const row=(name,attrs='')=>`<li ${attrs}><button class="MuiListItemButton-root">
    const check=async()=>{for(const drawer of await inspect()){
     assert.equal(new Set(drawer.labels).size,drawer.labels.length,`duplicate ${role} ${ar} delayed=${delayed}: ${drawer.labels}`);
     assert.equal(drawer.inherited,0,'new rows must not inherit template identities');
+    assert.ok(!drawer.labels.includes('Agent Task'),'legacy task alias must stay hidden when Tasks is restored');
     if(role!=='accountant')for(const section of ['overview','targets','reports','deals','commissions'])assert.ok(drawer.sections.includes(section),`${role} must retain ${section}`);
    }};
    await check();

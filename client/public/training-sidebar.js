@@ -483,7 +483,7 @@
         if (row.style.order !== order) row.style.order = order;
         const navKey=row.dataset.sxCanonicalSalesNav||(row.dataset.sxSalesSection?({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[row.dataset.sxSalesSection]:navigationKeys[name]||navigationKeys[text]);
         const salesTeamEntryHidden=membershipCategoryKey==='salemax_sales'&&(name==='Agent Login'||(name==='Team access'&&membershipRole!=='owner'));
-        const duplicateTask=name==='Agent Task'&&!!list.querySelector('[data-sx-tasks-nav]');
+        const duplicateTask=name==='Agent Task'&&hasNavigationKey(list,'tasks');
         const unknownStaffItem=roleNavigation!==null&&membershipRole!=='owner'&&!navKey&&!['Logout','Sign out'].includes(name);
         const hiddenByOwner=duplicateTask||unknownStaffItem||(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(roleNavigation!==null&&navKey&&!roleNavigation.has(navKey))||salesTeamEntryHidden;
         const optionalFeature=window.salemaxOptionalLabels?.[text]||window.salemaxOptionalLabels?.[name];
