@@ -1,0 +1,34 @@
+/* Scoped to the existing marketing screens and their retained native controls. */
+[data-sx-marketing-hero]{position:relative;display:flex!important;align-items:center;justify-content:space-between;gap:18px!important;border:1px solid #e1e8f1!important;border-radius:19px!important;background:linear-gradient(115deg,#fff 70%,#fff7fa)!important;box-shadow:0 4px 18px #34466004!important}
+[data-sx-marketing-hero]>:not(.sx-marketing-create){flex:1;min-width:0}
+[data-sx-marketing-hero] .MuiTypography-h5{font-size:25px;line-height:1.25;letter-spacing:-.035em;font-weight:750;color:#23334b}
+[data-sx-marketing-hero] .MuiTypography-body2{margin-top:5px;font-size:12px;color:#7a889c;line-height:1.6}
+.sx-marketing-create{display:inline-flex;flex:none;align-items:center;justify-content:center;margin-inline-start:auto;padding:12px 17px;min-height:42px;box-sizing:border-box;background:#ac0040;border:1px solid #ac0040;border-radius:11px;color:#fff;text-decoration:none;font:600 12px Roboto,Arial,sans-serif;white-space:nowrap;box-shadow:0 4px 10px #ac00401a;transition:background .15s}
+.sx-marketing-create:hover{background:#8d0035;color:#fff}
+#sx-marketing-nav{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:-8px 0 24px;padding:13px 16px;background:#fff;border:1px solid #e1e8f2;border-radius:14px;box-sizing:border-box;min-width:0}
+.sx-marketing-caption{font:700 9px Roboto,Arial,sans-serif;letter-spacing:.09em;color:#8d9aad;padding-inline:5px}
+.sx-marketing-links{display:flex;gap:5px;min-width:0;padding:3px;border-radius:10px;background:#f1f5fa;overflow-x:auto;scrollbar-width:thin}
+.sx-marketing-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:none;padding:10px 12px;min-height:39px;box-sizing:border-box;border-radius:8px;border:1px solid transparent;color:#74849b;text-decoration:none;white-space:nowrap;font:550 12px Roboto,Arial,sans-serif}
+.sx-marketing-link svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.sx-marketing-link:hover{color:#a8003b;background:#fff9fb}
+.sx-marketing-link[aria-current=page]{color:#a8003b;background:#fff;border-color:#e8e1e7;box-shadow:0 2px 5px #223b5810}
+[data-sx-marketing-empty]{display:flex;gap:10px;flex-wrap:wrap;margin-block-start:12px}
+.sx-marketing-empty-link{display:inline-flex;padding:7px 10px;border:1px solid #ccdae9;border-radius:8px;background:#fff;color:#526987;font:600 11px Roboto,Arial,sans-serif;text-decoration:none}
+.sx-marketing-empty-link:hover{border-color:#d9a2b9;color:#a8003b}
+html[data-sx-page=campaign-dashboard] .MuiTabs-root{min-height:46px;padding:4px;background:#f0f4f9;border-radius:12px}
+html[data-sx-page=campaign-dashboard] .MuiTab-root{min-height:38px;border-radius:8px;font-size:12px;text-transform:none;color:#77869b}
+html[data-sx-page=campaign-dashboard] .MuiTab-root.Mui-selected{color:#a8003b;background:#fff;box-shadow:0 2px 5px #20395710}
+html[data-sx-page=campaign-dashboard] .MuiTabs-indicator{display:none}
+html[data-sx-page=campaign-dashboard] [data-sx-marketing-metric]{border-color:#e1e8f2!important;border-radius:17px!important;box-shadow:0 4px 18px #243e6004!important;min-width:0}
+html[data-sx-page=campaign-dashboard] [data-sx-marketing-metric] .MuiTypography-h3{font-size:29px;letter-spacing:-.045em;color:#25364f}
+html[data-sx-page=campaign-dashboard] [data-sx-marketing-metric] .MuiTypography-caption{font-size:11px;color:#7f8da1;font-weight:500}
+html[data-sx-page=campaign-dashboard] .MuiTableCell-body{font-size:12px;line-height:1.6}
+html[data-sx-page=campaign-dashboard] .MuiTableHead-root th{background:#f5f8fc;font-size:10px;letter-spacing:.04em}
+html[data-sx-page=create-meta-template] .MuiStepConnector-line{border-color:#dde5f0}
+html[data-sx-page=create-meta-template] .MuiStepIcon-root{font-size:23px}
+html[data-sx-page=send-campaign] .MuiAlert-standardInfo{border:1px dashed #d5e1ef;background:#f6f9fd}
+#sx-marketing-nav a:focus-visible,.sx-marketing-create:focus-visible,.sx-marketing-empty-link:focus-visible{outline:3px solid #be497c66;outline-offset:3px}
+#sx-marketing-nav[dir=rtl] :is(.sx-marketing-caption,.sx-marketing-link),html[dir=rtl] :is(.sx-marketing-create,.sx-marketing-empty-link){font-family:'Segoe UI',Tahoma,Arial,sans-serif;letter-spacing:0}
+@media(max-width:1050px){#sx-marketing-nav{align-items:stretch;flex-direction:column;gap:10px}.sx-marketing-links{align-self:flex-start;max-width:100%}}
+@media(max-width:600px){[data-sx-marketing-hero]{flex-wrap:wrap!important;padding:18px!important}[data-sx-marketing-hero] .MuiTypography-h5{font-size:21px}.sx-marketing-create{margin-inline-start:0;width:100%}#sx-marketing-nav{padding:10px;margin-bottom:18px}.sx-marketing-caption{font-size:8px}.sx-marketing-links{width:100%;box-sizing:border-box}.sx-marketing-link{font-size:11px;padding:9px 10px;flex:1;min-height:42px}.sx-marketing-link svg{display:none}html[data-sx-page=campaign-dashboard] [data-sx-marketing-metric] .MuiTypography-h3{font-size:24px}}
+@media(prefers-reduced-motion:reduce){.sx-marketing-create{transition:none}}
