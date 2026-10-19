@@ -101,6 +101,17 @@ test('Sales sidebar recovers contract-permitted entries when the legacy shell om
   assert.match(sidebar,/!salesContractAllows/);
 });
 
+test('Sales sidebar deduplicates legacy and generated Lead Pipeline, Lead Reports and Calls rows',()=>{
+  const root=path.join(__dirname,'..');
+  const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
+  assert.match(sidebar,/function hasNavigationKey\(list,key\)/);
+  assert.match(sidebar,/!hasNavigationKey\(list,'reports'\)/);
+  assert.match(sidebar,/!hasNavigationKey\(list,'call-center'\)/);
+  assert.match(sidebar,/function dedupeSalesNavigationRows\(list\)/);
+  assert.match(sidebar,/\['leads','reports','call-center'\]\.includes\(key\)/);
+  assert.ok(sidebar.indexOf('dedupeSalesNavigationRows(list);')>sidebar.indexOf('ensureSalesNavigationRows(list);'));
+});
+
 test('SaleMaX Sales owner gets one People & Roles entry while managers and team leaders use their scoped Organisation screen',()=>{
   const root=path.join(__dirname,'..');
   const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');

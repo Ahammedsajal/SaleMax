@@ -256,7 +256,7 @@
       button.onclick=event=>{event.preventDefault();location.href='/user?page=tasks';};list.append(copy);
     }
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
-    if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')){
+    if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')&&!hasNavigationKey(list,'reports')){
       const copy=leadSource.cloneNode(true);copy.dataset.sxLeadReportsNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
       // This is a synthetic row, so set its primary label directly. The legacy
       // row can wrap its text in different span structures across builds; only
@@ -268,7 +268,7 @@
       const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;button.setAttribute('aria-label',tr('Lead Reports','تقارير العملاء المحتملين'));button.onclick=event=>{event.preventDefault();location.href='/user?page=lead-reports';};
       list.append(copy);
     }
-    if(roleNavigation?.has('call-center')&&(assignedNavigation===null||assignedNavigation.has('call-center'))&&pipelineSource&&!list.querySelector('[data-sx-call-center-nav]')){
+    if(roleNavigation?.has('call-center')&&(assignedNavigation===null||assignedNavigation.has('call-center'))&&pipelineSource&&!list.querySelector('[data-sx-call-center-nav]')&&!hasNavigationKey(list,'call-center')){
       const copy=pipelineSource.cloneNode(true);copy.dataset.sxCallCenterNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
       const [label,arabic]=membershipCategoryKey==='salemax_sales'?(salesNavLabels.calls[membershipRole]||salesNavLabels.calls.agent):['Call Center','مركز الاتصال'],primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr(label,arabic);
       copy.setAttribute('aria-label',tr(label,arabic));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
@@ -353,6 +353,35 @@
       button.setAttribute('aria-label',title);button.onclick=event=>{event.preventDefault();location.href='/user?page='+path;};list.append(row);
     }
   }
+  function hasNavigationKey(list,key){
+    return [...list.children].some(row=>row.tagName==='LI'&&(
+      row.dataset.sxCanonicalSalesNav===key||
+      (key==='reports'&&row.hasAttribute('data-sx-lead-reports-nav'))||
+      (key==='call-center'&&row.hasAttribute('data-sx-call-center-nav'))||
+      (key==='tasks'&&row.hasAttribute('data-sx-tasks-nav'))||
+      navigationKeys[aliases[label(row)]||label(row)]===key
+    ));
+  }
+  function dedupeSalesNavigationRows(list){
+    if(membershipCategoryKey!=='salemax_sales')return;
+    const injectedMarkers=['data-sx-canonical-sales-nav','data-sx-lead-reports-nav','data-sx-call-center-nav','data-sx-tasks-nav'];
+    const retained=new Map();
+    for(const row of [...list.children]){
+      if(row.tagName!=='LI')continue;
+      let key=row.dataset.sxCanonicalSalesNav||null;
+      if(!key&&row.hasAttribute('data-sx-lead-reports-nav'))key='reports';
+      if(!key&&row.hasAttribute('data-sx-call-center-nav'))key='call-center';
+      if(!key&&row.hasAttribute('data-sx-tasks-nav'))key='tasks';
+      if(!key){const text=label(row);key=navigationKeys[aliases[text]||text]||null;}
+      if(!['leads','reports','call-center'].includes(key))continue;
+      const previous=retained.get(key);
+      if(!previous){retained.set(key,row);continue;}
+      const previousIsGenerated=injectedMarkers.some(marker=>previous.hasAttribute(marker));
+      const currentIsGenerated=injectedMarkers.some(marker=>row.hasAttribute(marker));
+      if(previousIsGenerated&&!currentIsGenerated){previous.remove();retained.set(key,row);}
+      else row.remove();
+    }
+  }
   function update() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return;
     resetAgentLoginSearch();
@@ -369,6 +398,7 @@
       }
       syncInjectedRows(list);
       ensureSalesNavigationRows(list);
+      dedupeSalesNavigationRows(list);
       list.dataset.sxSidebarList = '1';
       const expanded = sidebarExpandedOverride.get(drawer);
       const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;
