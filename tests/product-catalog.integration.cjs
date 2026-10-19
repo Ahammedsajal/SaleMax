@@ -73,6 +73,22 @@ const {discover,applyMigrations}=require('../database/migration-runner');
   const linked=await operator.link(db,{email:'admin@salemax.qa',apply:true});assert.equal(linked.applied,true);
   assert.equal((await operator.link(db,{email:'admin@salemax.qa',apply:true})).alreadyLinked,true);
   const [[preserved]]=await db.query('SELECT plan,plan_expire FROM user WHERE id=?',[account.insertId]);assert.equal(preserved.plan,legacySnapshot);assert.equal(Number(preserved.plan_expire),expiry);
+  const messagingOperator=require('../scripts/enable-sales-messaging.cjs');
+  // Reproduce a historical Sales plan that predates messaging entitlement.
+  const [[oldPlan]]=await db.query('SELECT p.id,p.capabilities,a.id AS assignmentId,a.role_limits,a.expires_at FROM sx_plan_versions p JOIN sx_plan_assignments a ON a.plan_version_id=p.id WHERE a.tenant_id=? AND a.current_tenant IS NOT NULL',[linked.tenantId]);
+  const oldCaps=(typeof oldPlan.capabilities==='string'?JSON.parse(oldPlan.capabilities):oldPlan.capabilities).filter(c=>!messagingOperator.messaging.includes(c));
+  await db.query('UPDATE sx_plan_versions SET capabilities=? WHERE id=?',[JSON.stringify(oldCaps),oldPlan.id]);
+  await assert.rejects(messagingOperator.enable(db,{email:'foreign@example.test',apply:true}),{code:'DESIGNATED_OWNER_REQUIRED'});
+  const preview=await messagingOperator.enable(db,{email:'admin@salemax.qa'});assert.equal(preview.preview,true);assert.equal(preview.missing.length,7);
+  await assert.rejects(messagingOperator.enable(db,{email:'admin@salemax.qa',apply:true,expectedAssignmentId:idForTest()}),{code:'STALE_ASSIGNMENT'});
+  let backup=null;const expanded=await messagingOperator.enable(db,{email:'admin@salemax.qa',apply:true,expectedAssignmentId:preview.assignmentId,saveBackup:data=>{backup=data;}});assert.equal(expanded.applied,true);assert.equal(backup.priorAssignment.id,oldPlan.assignmentId);
+  const [[replacement]]=await db.query('SELECT a.*,v.capabilities FROM sx_plan_assignments a JOIN sx_plan_versions v ON v.id=a.plan_version_id WHERE a.id=?',[expanded.newAssignmentId]);
+  assert.equal(JSON.stringify(replacement.role_limits),JSON.stringify(oldPlan.role_limits));assert.equal(new Date(replacement.expires_at).getTime(),new Date(oldPlan.expires_at).getTime());
+  const caps=typeof replacement.capabilities==='string'?JSON.parse(replacement.capabilities):replacement.capabilities;for(const capability of messagingOperator.messaging)assert.ok(caps.includes(capability));
+  const [[priorVersion]]=await db.query('SELECT capabilities FROM sx_plan_versions WHERE id=?',[oldPlan.id]);assert.deepEqual(typeof priorVersion.capabilities==='string'?JSON.parse(priorVersion.capabilities):priorVersion.capabilities,oldCaps);
+  assert.equal((await messagingOperator.enable(db,{email:'admin@salemax.qa',apply:true,expectedAssignmentId:preview.assignmentId})).alreadyEnabled,true);
+  const [[afterExpansion]]=await db.query('SELECT plan,plan_expire FROM user WHERE id=?',[account.insertId]);assert.equal(afterExpansion.plan,legacySnapshot);assert.equal(Number(afterExpansion.plan_expire),expiry);
+  const [[audit]]=await db.query("SELECT COUNT(*) AS count FROM sx_audit_events WHERE tenant_id=? AND action='business.sales-messaging-enabled'",[linked.tenantId]);assert.equal(Number(audit.count),1);
   assert.equal((await courses.list(db,contexts.training_center)).total,1);
   console.log('PASS: category and tenant isolation, role denials, create/edit/publish, media/access, EN/AR ordered previews, stale revisions, removal and unchanged Training Center storage');
  }finally{db.release();if(server)await new Promise(resolve=>server.close(resolve));await pool.end();await fs.rm(mediaRoot,{recursive:true,force:true});}

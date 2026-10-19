@@ -1,7 +1,7 @@
 'use strict';
 const crypto = require('node:crypto');
 const plans = require('./plans');
-const { getCategory, supportsBusinessCapability } = require('./categories');
+const { getCategory, supportsCategoryCapability } = require('./categories');
 
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 
@@ -19,7 +19,7 @@ async function legacyChatbotContext(pool, ownerUid) {
     if (!['owner', 'manager'].includes(row.role) || row.membershipStatus !== 'active' || row.identityStatus !== 'active') fail('PERMISSION_DENIED');
     if (row.tenantStatus !== 'active') fail('BUSINESS_INACTIVE');
     const category = getCategory(row.categoryKey, Number(row.categoryVersion));
-    if (!supportsBusinessCapability(category, 'automation.chatbot')) fail('CATEGORY_UNAVAILABLE');
+    if (!category?.planable || !supportsCategoryCapability(category, 'automation.chatbot')) fail('CATEGORY_UNAVAILABLE');
     const subscription = await plans.loadEntitlements(db, row.tenantId);
     if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status)) fail('FEATURE_UNAVAILABLE');
     return {

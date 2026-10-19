@@ -109,6 +109,8 @@ test('legacy chatbot authentication resolves tenant category and rejects unpubli
     const context = await legacyChatbotContext(poolFor(row), ownerUid);
     assert.equal(context.category.key, trainingCenter.key);
     assert.equal(context.tenant.categoryVersion, trainingCenter.version);
+    const sales=await legacyChatbotContext(poolFor({...row,categoryKey:'salemax_sales',categoryVersion:1}),ownerUid);
+    assert.equal(sales.category.key,'salemax_sales');
     await assert.rejects(legacyChatbotContext(poolFor({ ...row, categoryKey: restaurantFixture.key, categoryVersion: restaurantFixture.version }), ownerUid), { code: 'CATEGORY_UNAVAILABLE' });
   } finally { platformPlans.loadEntitlements = previousLoadEntitlements; }
 });

@@ -2,7 +2,7 @@
 const crypto = require('node:crypto');
 const dbPool = require('../../database/config').promise();
 const { query } = require('../../database/dbpromise');
-const { getCategory, supportsBusinessCapability } = require('./categories');
+const { getCategory, supportsCategoryCapability } = require('./categories');
 const { decision } = require('./policy');
 const secrets = require('./chatbot-secrets');
 const provider = require('./chatbot-provider');
@@ -54,7 +54,7 @@ async function resolveTenant(uid) {
     WHERE o.source_table='user' AND u.uid=? AND o.legacy_uid_hash=? AND u.role='user' LIMIT 2`, [uid, uidHash]);
   if (rows.length !== 1) return null;
   const row = rows[0], category = getCategory(row.categoryKey, Number(row.categoryVersion));
-  if (!supportsBusinessCapability(category, 'automation.chatbot')) return null;
+  if (!category?.planable || !supportsCategoryCapability(category, 'automation.chatbot')) return null;
   let capabilities = [];
   try { capabilities = typeof row.capabilities === 'string' ? JSON.parse(row.capabilities) : row.capabilities || []; } catch { return null; }
   let delegatedPermissions = [];
