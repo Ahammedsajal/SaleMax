@@ -16,7 +16,8 @@ function ownerNavigation(){
 test('SaleMaX Sales owner has a permission-backed Applications & CVs sidebar entry',()=>{
   const sidebar=fs.readFileSync(path.join(__dirname,'../client/public/training-sidebar.js'),'utf8');
   assert.ok(ownerNavigation().includes('recruitment'));
-  assert.match(sidebar,/membershipRole==='owner'\?\[\['recruitment','Candidate Applications','طلبات التوظيف','forms'\]\]:\[\]/);
+  assert.match(sidebar,/membershipRole==='owner'\?\[\['recruitment','Candidate Applications','طلبات التوظيف','recruitment'\]\]:\[\]/);
   assert.match(sidebar,/'Candidate Applications':'recruitment'/);
-  assert.match(sidebar,/forms:membershipCategoryKey==='salemax_sales'\?'recruitment':'forms'/);
+  assert.match(sidebar,/forms:'forms',recruitment:'recruitment'/);
+  assert.match(sidebar,/'Applications & CVs':'Candidate Applications'/);
 });

@@ -46,7 +46,7 @@
     ['More Tools', 'أدوات أخرى', []]
   ];
   const aliases = {
-    'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
+    'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'Applications & CVs':'Candidate Applications', 'طلبات التوظيف والسير الذاتية':'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
     'مسار العملاء المحتملين': 'Lead Pipeline', 'تقارير العملاء المحتملين': 'Lead Reports',
     'الفواتير والمدفوعات': 'Invoices & Payments', 'تقارير المالية': 'Finance Reports',
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Team Login',
@@ -346,7 +346,7 @@
       ['sales-targets',...(salesNavLabels.overview[membershipRole]||['Sales Overview','نظرة عامة على المبيعات']),'sales-workspace&section=overview'],
       ['sales-finance','Sales Finance','مالية المبيعات','sales-finance&view=overview'],
       ['reports','Lead Reports','تقارير العملاء المحتملين','lead-reports'],['finance-reports','Finance Reports','تقارير المالية','finance-settings&section=reports'],
-      ...(membershipRole==='owner'?[['recruitment','Candidate Applications','طلبات التوظيف','forms']]:[]),
+      ...(membershipRole==='owner'?[['recruitment','Candidate Applications','طلبات التوظيف','recruitment']]:[]),
       ['faqs','FAQs','الأسئلة الشائعة','faqs'],
       ...(membershipRole==='owner'?[['team','People & Roles','الأشخاص والأدوار','team-invitations'],['settings','Business Settings','إعدادات الأعمال','settings']]:[])
     ];
@@ -482,7 +482,7 @@
     });
     const page=new URLSearchParams(location.search).get('page');
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
-    const routeKeys={students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:membershipCategoryKey==='salemax_sales'?'recruitment':'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
+    const routeKeys={students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
     const required=routeKeys[page];
     // Team access is available to any membership whose role/navigation grants
     // it. The API still enforces team.invite (including owner-approved manager
