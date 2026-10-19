@@ -220,7 +220,7 @@
     // The legacy shell mounts separate desktop and mobile drawers. Reuse only
     // entries already admitted by the maintained modules' permission checks.
     const entries = [
-      ['[data-sx-course-nav]:not([data-sx-finance-nav])', membershipCategoryKey==='salemax_sales'?'products-services':'courses'],
+      ['[data-sx-course-nav]:not([data-sx-finance-nav]):not([data-sx-profile-nav])', membershipCategoryKey==='salemax_sales'?'products-services':'courses'],
       ['[data-sx-forms-nav]', 'forms'],
       ['[data-sx-finance-nav]', 'finance-settings'],
       ['[data-sx-finance-report-nav]', 'finance-settings&section=reports'],
@@ -392,7 +392,7 @@
         if (!title && !present.has(index)) return;
         if (!title) { title = document.createElement('li'); title.dataset.sxNavSection = String(index); title.style.order = String(index * 100); list.append(title); }
         const salesGroupLabels={owner:['Sales Operations','عمليات المبيعات'],manager:['My Teams & Sales','فرقي ومبيعاتي'],team_leader:['Team Workspace','مساحة الفريق'],agent:['My Sales Work','عملي في المبيعات'],accountant:['Finance & Payouts','المالية والمدفوعات']};
-        const groupLabel=membershipCategoryKey==='salemax_sales'&&index===11?(salesGroupLabels[membershipRole]||salesGroupLabels.owner):[en,arabic];
+        const groupLabel=membershipCategoryKey==='salemax_sales'&&index===1?['Products & services','المنتجات والخدمات']:membershipCategoryKey==='salemax_sales'&&index===11?(salesGroupLabels[membershipRole]||salesGroupLabels.owner):[en,arabic];
         const text = tr(...groupLabel);
         if (title.textContent !== text) title.textContent = text;
         title.hidden = !present.has(index);
