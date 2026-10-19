@@ -54,3 +54,7 @@ The shared foundation is deployed. A second refinement adds screen-specific layo
 ## Sales capability restoration
 
 Release sales-messaging-ad72dee-20261019 restores QR, Meta connection, templates, campaign sending/dashboard, Flows and Chatbot/FAQs in the Sales registry and designated owner plan. All corresponding authenticated read APIs and chatbot runtime category resolution pass. Real campaign delivery and number pairing remain distinct provider acceptance steps. Campaign and template screens are now included in the priority design review.
+
+## Product catalogue follow-up
+
+Deployed product-ui-8e1ea9b-20261019: category-specific catalogue statistics and product descriptions, hidden Training-only editor fields, sequential visible sections, styled confirmations and corrected Arabic desktop dialog bounds. Actual-shell browser tests cover EN/AR at 1440/390, counts/description rendering, reachable Close and cancelled deletion with no writes. Training editor helper tests continue to pass. Production catalogue data is unchanged.
