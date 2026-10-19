@@ -23,11 +23,11 @@ async function assignConversation(db, { ctx, uid, chatId, identityId, reason = '
     JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED) JOIN sx_identities i ON i.id=m.identity_id
     WHERE m.tenant_id=? AND m.role='owner' AND m.status='active' AND i.status='active' AND u.uid=? LIMIT 1`, [ctx.tenant.id, uid]);
   if (!owner || owner.uidHash !== crypto.createHash('sha256').update(uid).digest('hex')) fail('CONVERSATION_OWNER_INVALID');
-  const [[chat]] = await db.query('SELECT assigned_agent FROM beta_chats WHERE uid=? AND chat_id=? FOR UPDATE', [uid, chatId]);
+  const [[chat]] = await db.query('SELECT assigned_agent,origin,sender_name,sender_mobile FROM beta_chats WHERE uid=? AND chat_id=? FOR UPDATE', [uid, chatId]);
   if (!chat) fail('CONVERSATION_NOT_FOUND');
   const scope = scopeFor(ctx.membership, 'conversations.reply');
   if (!scope || (scope === 'assigned' && !ownsConversation(chat.assigned_agent, ctx.identity.id))) fail('CONVERSATION_TRANSFER_DENIED');
-  const [targets] = await db.query(`SELECT i.id AS identityId,i.display_name AS name,u.uid,m.role,m.role_profile_id AS roleProfileId,
+  const [targets] = await db.query(`SELECT i.id AS identityId,i.display_name AS name,u.uid,u.id AS legacyId,u.sourceTable,m.role,m.role_profile_id AS roleProfileId,
       r.permissions AS rolePermissions,r.status AS roleStatus,r.seat_role AS seatRole,o.legacy_uid_hash AS uidHash
     FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
     JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table IN ('user','agents')
@@ -46,11 +46,15 @@ async function assignConversation(db, { ctx, uid, chatId, identityId, reason = '
   if (!scopeFor(membership, 'conversations.read') || !scopeFor(membership, 'conversations.reply') || target.uidHash !== crypto.createHash('sha256').update(target.uid).digest('hex')) fail('CONVERSATION_ASSIGNEE_INVALID');
   const assignee = { kind: 'identity', identityId: target.identityId, uid: target.uid, name: target.name };
   const previous = assignments(chat.assigned_agent);
+  let lead=null;
+  if(ctx.tenant.categoryKey==='training_center'&&target.role==='agent'&&target.sourceTable==='agents'){
+    lead=await require('./conversation-lead-assignment').assign(db,{ctx,uid,chatId,chat,agentId:Number(target.legacyId),agentName:target.name});
+  }
   await db.query('UPDATE beta_chats SET assigned_agent=? WHERE uid=? AND chat_id=?', [JSON.stringify([assignee]), uid, chatId]);
   await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
     VALUES (?,?,?,'identity','conversation.transferred','conversation',?,?,?)`,
   [crypto.randomUUID(), ctx.tenant.id, ctx.identity.id, chatId, JSON.stringify({ previousIdentityIds: previous.map(item => item.identityId).filter(Boolean), identityId, reason: String(reason).slice(0, 120) }), crypto.randomUUID()]);
-  return { assignee, previous };
+  return { assignee, previous, lead };
 }
 
 async function eligibleStaff(db, tenantId) {

@@ -1229,6 +1229,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
 }
 
 module.exports = {
+  prepareWorkspace: ensureWorkspace,
   captureBotInbound: input => captureInbound({ ...input, botCapture: true }),
   DEFAULT_STAGES,
   normalizePhone,
