@@ -375,6 +375,10 @@
   };
   function navigationIdentity(row){
     const text=label(row),name=aliases[text]||text;
+    // The legacy Agent Task opens a different shell route. Keep it available
+    // for the existing duplicateTask visibility rule, rather than discarding
+    // the maintained Tasks row and its shared-workspace handler.
+    if(name==='Agent Task')return null;
     const marker=Object.keys(navigationMarkers).find(marker=>row.hasAttribute(marker));
     const key=row.dataset.sxCanonicalSalesNav||(marker&&navigationMarkers[marker])||navigationKeys[name];
     if(!key)return null;
