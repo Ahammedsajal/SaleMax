@@ -10,7 +10,8 @@ test('recruitment introduction builds trust before describing the role',()=>{
   assert.match(result.reply,/Qatar-based software and marketing company/);
   assert.match(result.reply,/Apple:/);
   assert.match(result.reply,/Google Play:/);
-  assert.match(result.reply,/company owner and software developer/);
+  assert.match(result.reply,/You would work directly with the company owner, who is also the software developer/);
+  assert.doesNotMatch(result.reply,/You are speaking directly with the company owner/);
   assert.equal(result.buttons.length,3);
   assert.deepEqual(result.buttons.map(button=>button.id),['about_talab','about_salemax','about_role']);
 });

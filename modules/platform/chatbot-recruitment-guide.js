@@ -86,7 +86,7 @@ function recruitmentReply({message,state,facts,config={}}){
   const base=text(config,'welcome',language,language==='ar'?'مرحباً بك!':'Hello and welcome!');
   const company=`${language==='ar'?'نحن':'We are'} Sitta Arbaa Sitta for Software Solutions (${language==='ar'?'السجل التجاري':'CR'} 251489), ${language==='ar'?'شركة برمجيات وتسويق مقرها قطر. طلب هو سوقنا الإلكتروني في قطر':'a Qatar-based software and marketing company. Talab is our marketplace app for Qatar'}.`;
   const apps=`Talab · Apple: ${APPLE}\nGoogle Play: ${ANDROID}`;
-  const salemax=language==='ar'?'SaleMaX هو برنامج CRM مخصص لإدارة الأعمال. أنت تتحدث مباشرةً مع مالك الشركة ومطوّر البرامج.':'SaleMaX is our CRM software for customised business management. You are speaking directly with the company owner and software developer.';
+  const salemax=language==='ar'?'SaleMaX هو برنامج CRM مخصص لإدارة الأعمال. ستعمل مباشرةً مع مالك الشركة، وهو أيضاً مطوّر البرامج.':'SaleMaX is our CRM software for customised business management. You would work directly with the company owner, who is also the software developer.';
   reply=[base,company,apps,salemax,text(config,'menuPrompt',language,language==='ar'?'اختر موضوعاً للمتابعة:':'Choose what you would like to know next:')].join('\n\n');
   choices=buttons([['about_talab',labels.talab],['about_salemax',labels.salemax],['about_role',labels.role]]);
  }else if(step==='talab'){
