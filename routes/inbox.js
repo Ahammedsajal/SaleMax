@@ -627,10 +627,12 @@ router.get("/get_chats", validateUser, async (req, res) => {
         chat_id,
         sender_name,
         sender_mobile,
+        assigned_agent,
         last_message,
         unread_count,
         origin,
         origin_instance_unique_id,
+        (SELECT i.number FROM instance i WHERE i.uid=beta_chats.uid AND i.uniqueId=beta_chats.origin_instance_unique_id LIMIT 1) AS origin_instance_number,
         updatedAt,
         createdAt
       FROM beta_chats 
@@ -650,6 +652,7 @@ router.get("/get_chats", validateUser, async (req, res) => {
     data = filterChats(data, {
       origin,
       search,
+      instance: req.query?.instance || req.query?.whatsappNumber || '',
     });
     data = inboxAccess.filterAssignedChats(data, inboxScope);
 

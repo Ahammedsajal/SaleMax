@@ -49,6 +49,8 @@
   Object.assign(copy.ar,{cohortTitle:'رحلة العملاء الذين وصلوا خلال هذه الفترة',cohortSubtitle:'توضح الأعداد والنسب عدد العملاء من الفترة المحددة الذين وصلوا إلى كل خطوة حتى الآن.',cohortShare:'من العملاء الجدد',cohortStages:'المرحلة الحالية لهذه المجموعة',funnelNew:'عملاء جدد',funnelAttended:'تم التواصل بواسطة الوكيل',funnelInterested:'مهتم',funnelFollowUp:'تم تحديد متابعة',funnelSales:'تم تحويلهم إلى مبيعات',funnelInvoice:'صدرت الفاتورة',funnelPayment:'تم استلام دفعة',funnelCourseStarted:'بدأت الدورة',funnelFullyPaid:'تم السداد بالكامل',funnelCourseCompleted:'اكتملت الدورة',funnelCertificate:'صدرت الشهادة'});
   Object.assign(copy.en,{trainingJourneyStage:'Training journey'});
   Object.assign(copy.ar,{trainingJourneyStage:'رحلة التدريب'});
+  Object.assign(copy.en,{assignmentFilter:'Assignment',allAssignments:'All assignment states',assignedTransferred:'Assigned / transferred',unassigned:'Unassigned',qrNumberFilter:'QR WhatsApp number',allQrNumbers:'All QR numbers'});
+  Object.assign(copy.ar,{assignmentFilter:'حالة الإسناد',allAssignments:'كل حالات الإسناد',assignedTransferred:'مُسند / مُحوّل',unassigned:'غير مُسند',qrNumberFilter:'رقم واتساب QR',allQrNumbers:'كل أرقام QR'});
   const t = key => (arabic()?copy.ar:copy.en)[key] || key;
   const journeyStageTitle=item=>arabic()?({training_invoice_issued:'تم البيع وإصدار الفاتورة',training_payment_received:'تم استلام الدفعة',training_course_started:'بدأت الدورة',training_fully_paid:'تم السداد بالكامل',training_course_completed:'اكتملت الدورة',training_certificate_issued:'صدرت الشهادة'}[item.stageKey]||item.title):item.title;
   const outcomeLabel = key => (arabic()?copy.ar:copy.en).outcomesMap[key] || key || '—';
@@ -64,7 +66,7 @@
   };
   const formatWindowDate = (value,end=false) => value ? new Intl.DateTimeFormat(arabic()?'ar-QA':'en-QA',{dateStyle:'medium',timeZone:'Asia/Qatar'}).format(new Date(Date.parse(value.replace(' ','T')+'Z')-(end?1:0))) : '—';
   const token = () => localStorage.getItem('wacrm_user') || localStorage.getItem('wacrm_agent');
-  const state = {page:1,report:null,journey:null,sequence:0,period:'daily',at:qatarToday(),taskPage:1,taskPeriod:'all',taskSequence:0,taskTimezone:'Asia/Qatar',tasks:null,schedules:null,scheduleError:'',scheduleSequence:0};
+  const state = {page:1,report:null,journey:null,sequence:0,period:'daily',at:qatarToday(),assignment:'',qrInstanceId:'',qrInstances:[],taskPage:1,taskPeriod:'all',taskSequence:0,taskTimezone:'Asia/Qatar',tasks:null,schedules:null,scheduleError:'',scheduleSequence:0};
   const host = $('#reports'), taskHost = $('#followups'), toolbar = $('.toolbar');
   if (!host || !$('#reportsMode')) return;
 
@@ -85,7 +87,7 @@
   function shell(content) {
     const scope=agentSession()?t('agentScope'):t('ownerScope');
     return `<div class="report-head"><div><h2>${t('title')}</h2><p>${t('subtitle')}</p><span class="report-scope">${scope}</span></div>${state.report?.items?.length?`<button class="report-export" type="button" id="reportExport">${t('exportPage')}</button>`:''}</div>
-      <form class="report-filters" id="reportFilters"><label>${t('period')}<select name="period"><option value="daily" ${state.period==='daily'?'selected':''}>${t('daily')}</option><option value="weekly" ${state.period==='weekly'?'selected':''}>${t('weekly')}</option><option value="monthly" ${state.period==='monthly'?'selected':''}>${t('monthly')}</option></select></label><label>${t('date')}<input name="at" type="date" value="${escape(state.at)}" required></label><button class="primary" type="submit">${t('apply')}</button></form>${ownerSession()?scheduleSection():''}${content}`;
+      <form class="report-filters" id="reportFilters"><label>${t('period')}<select name="period"><option value="daily" ${state.period==='daily'?'selected':''}>${t('daily')}</option><option value="weekly" ${state.period==='weekly'?'selected':''}>${t('weekly')}</option><option value="monthly" ${state.period==='monthly'?'selected':''}>${t('monthly')}</option></select></label><label>${t('date')}<input name="at" type="date" value="${escape(state.at)}" required></label>${state.journey?.categoryKey==='training_center'?`<label>${t('assignmentFilter')}<select name="assignment"><option value="">${t('allAssignments')}</option><option value="assigned" ${state.assignment==='assigned'?'selected':''}>${t('assignedTransferred')}</option><option value="unassigned" ${state.assignment==='unassigned'?'selected':''}>${t('unassigned')}</option></select></label><label>${t('qrNumberFilter')}<select name="qrInstanceId"><option value="">${t('allQrNumbers')}</option>${state.qrInstances.map(row=>`<option value="${escape(row.id)}" ${String(state.qrInstanceId)===String(row.id)?'selected':''}>${escape(row.title||'WhatsApp')} · ${escape(row.number||'')}</option>`).join('')}</select></label>`:''}<button class="primary" type="submit">${t('apply')}</button></form>${ownerSession()?scheduleSection():''}${content}`;
   }
   const ownerSession=()=>!agentSession();
   function scheduleSection(){
@@ -116,7 +118,9 @@
   function errorState() { host.innerHTML=shell(`<div class="report-state" role="alert">${t('failed')}<p><button class="report-retry" type="button" id="reportRetry">${t('retry')}</button></p></div>`);bindFilters();bindScheduleForms();$('#reportRetry').onclick=load; }
   function bindFilters() {
     const form=$('#reportFilters');form.elements.period.value=state.period;form.elements.at.value=state.at;
-    form.onsubmit=event=>{event.preventDefault();state.page=1;load();};
+    if(form.elements.assignment)form.elements.assignment.value=state.assignment;
+    if(form.elements.qrInstanceId)form.elements.qrInstanceId.value=state.qrInstanceId;
+    form.onsubmit=event=>{event.preventDefault();state.period=form.elements.period.value;state.at=form.elements.at.value||qatarToday();state.assignment=form.elements.assignment?.value||'';state.qrInstanceId=form.elements.qrInstanceId?.value||'';state.page=1;load();};
   }
   function metric(label,value) { return `<div class="report-kpi"><small>${escape(label)}</small><b>${escape(value)}</b></div>`; }
   function formatQarMinor(value){
@@ -184,12 +188,13 @@
     loading();
     try {
       const bearer=token();if(!bearer)throw new Error('auth');
-      const query=new URLSearchParams({period,at,page:String(state.page),limit:'25'});
-      const headers={Authorization:`Bearer ${bearer}`,'Accept':'application/json'},[response,journeyResponse]=await Promise.all([fetch('/api/pipeline/reports/activity?'+query,{headers}),fetch('/api/pipeline/reports/journey?'+query,{headers})]);
-      const [body,journeyBody]=await Promise.all([response.json().catch(()=>({})),journeyResponse.json().catch(()=>({}))]);
+      const query=new URLSearchParams({period,at,page:String(state.page),limit:'25',assignment:state.assignment,qrInstanceId:state.qrInstanceId});
+      const headers={Authorization:`Bearer ${bearer}`,'Accept':'application/json'},[response,journeyResponse,optionsResponse]=await Promise.all([fetch('/api/pipeline/reports/activity?'+query,{headers}),fetch('/api/pipeline/reports/journey?'+query,{headers}),fetch('/api/pipeline/filter-options',{headers})]);
+      const [body,journeyBody,optionsBody]=await Promise.all([response.json().catch(()=>({})),journeyResponse.json().catch(()=>({})),optionsResponse.json().catch(()=>({}))]);
       if(request!==state.sequence)return;
-      if(!response.ok||!body.success||!journeyResponse.ok||!journeyBody.success)throw new Error(body.message||journeyBody.message||'report');
+      if(!response.ok||!body.success||!journeyResponse.ok||!journeyBody.success||!optionsResponse.ok||!optionsBody.success)throw new Error(body.message||journeyBody.message||'report');
       state.journey=journeyBody.data;
+      state.qrInstances=optionsBody.data.qrInstances||[];
       render(body.data);
     }catch(_){if(request===state.sequence)errorState();}
   }

@@ -79,6 +79,7 @@ test('owner finance separates period cash from invoice cohorts and flags, rather
 test('journey report combines current pipeline stages, period sources and agent sales credit',async()=>{
   const queries=[];
   const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
+    if(sql.startsWith('CREATE TEMPORARY TABLE')||sql.startsWith('DELETE FROM sx_report_lead_scope')||sql.startsWith('INSERT INTO sx_report_lead_scope'))return [[],[]];
     if(sql.includes('FROM pipeline_stages'))return [[{stageKey:'new',title:'New',stageType:'open',position:0,total:'2',cohortTotal:'1'},{stageKey:'won',title:'Won',stageType:'won',position:4,total:'1',cohortTotal:'1'}]];
     if(sql.includes('GROUP BY l.source_type'))return [[{sourceType:'whatsapp',origin:'whatsapp',total:'2'}]];
     if(sql.includes('WITH cohort_leads AS'))return [[{new_leads:2,attended:2,interested:1,follow_up:1,sales_converted:1,invoices_issued:1,payment_received:1,course_started:1,fully_paid:1,course_completed:1,certificate_issued:1}]];
@@ -89,7 +90,7 @@ test('journey report combines current pipeline stages, period sources and agent 
     if(sql.includes('AS enrolled'))return [[{enrolled:2,course_started:1,course_completed:1,certificates_issued:1,fully_paid:1}]];
     throw new Error(`Unexpected query: ${sql}`);
   }};
-  const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'owner',period:'daily',at:'2026-10-01'});
+  const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'owner',period:'daily',at:'2026-10-01',assignment:'assigned',qrInstanceId:17});
   assert.deepEqual(report.summary,{newLeads:2,leadsAttended:2,stageChanges:3,salesConverted:1,salesClosedByAgents:1,openLeads:2,wonLeads:1,lostLeads:0});
   assert.equal(report.stages[0].total,2);assert.equal(report.sources[0].total,2);
   assert.equal(report.stages[0].cohortTotal,1);
@@ -113,7 +114,9 @@ test('journey report combines current pipeline stages, period sources and agent 
   assert.equal((cohortJourneyQuery.match(/e\.legacy_uid COLLATE utf8mb4_general_ci=c\.uid COLLATE utf8mb4_general_ci/g)||[]).length,7);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_receipts/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_enrollment_events/);
-  assert.equal(queries.length,8);
+  assert.equal(queries.length,11);
+  assert.match(queries[2],/l.owner_agent_id IS NOT NULL/);assert.match(queries[2],/qif.id = \?/);
+  for(const sql of queries.filter(item=>item.includes('FROM pipeline_stages')||item.includes('GROUP BY l.source_type')||item.includes('AS new_leads')||item.includes('FROM agents a')||item.includes("JSON_EXTRACT(pa.details,'$.stageTo')")))assert.match(sql,/sx_report_lead_scope/);
 });
 
 test('legacy enrollment reconciliation uses a compatible collation for tenant uid joins',async()=>{
@@ -148,4 +151,24 @@ test('finance report summary remains owner-only and presents exact bilingual Qat
   assert.match(ui,/Payments received this period/);assert.match(ui,/المدفوعات المستلمة خلال الفترة/);
   assert.match(ui,/Period activity is separate from the current receivables position/);assert.match(ui,/نشاط الفترة منفصل عن الذمم المدينة الحالية/);
   assert.match(ui,/journeyTitle:'Lead journey overview'/);assert.match(ui,/journeyTitle:'نظرة عامة على رحلة العميل'/);assert.match(ui,/journey\.agents/);assert.match(ui,/periodPaymentReceipts:'Payment receipts issued'/);assert.match(ui,/periodPaymentReceipts:'إيصالات الدفع الصادرة'/);
+});
+
+test('activity reports apply assigned and QR instance filters to counts and event rows',async()=>{
+  const calls=[];
+  const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql,args=[]){calls.push({sql,args});
+    if(sql.includes('SUM(pa.activity_type='))return [[{outcomes:0,notes:0,agent_replies:0,leads_touched:0}]];
+    if(sql.includes('GROUP BY outcome'))return [[]];
+    if(sql.includes('SELECT pa.id'))return [[]];
+    return [[{n:0}]];
+  }};
+  const report=await getActivityReport({pool:{async getConnection(){return connection;}},uid:'synthetic-owner',role:'manager',period:'daily',at:'2026-10-01',assignment:'assigned',qrInstanceId:17});
+  assert.equal(report.summary.leadsCreated,0);
+  const scoped=calls.filter(call=>call.sql.includes('pipeline_leads l')||call.sql.includes('JOIN pipeline_leads l'));
+  assert.ok(scoped.length>=8);
+  for(const call of scoped){assert.match(call.sql,/l\.owner_agent_id IS NOT NULL/);assert.match(call.sql,/qif\.id = \?/);assert.ok(call.args.includes(17));}
+});
+
+test('activity reports reject malformed QR instance filters before connecting',async()=>{
+  const pool={getConnection(){throw new Error('must not connect')}};
+  await assert.rejects(getActivityReport({pool,uid:'synthetic-owner',role:'owner',qrInstanceId:'17 OR 1=1'}),{status:400});
 });

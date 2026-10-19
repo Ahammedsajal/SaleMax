@@ -3,6 +3,7 @@ const crypto=require('node:crypto');
 const moment=require('moment-timezone');
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
 const periods=Object.freeze({daily:'day',weekly:'isoWeek',monthly:'month'});
+const leadFilters=require('./lead-filters');
 function fail(message,status=400){throw Object.assign(new Error(message),{status});}
 function periodWindow({period='daily',at,timezone='Asia/Qatar',cutoffAt}){
   const unit=periods[period];
@@ -93,39 +94,41 @@ async function getFinanceSummary(connection,uid,window,cutoffAt){
     receivablesAsOf:moment.utc(asOf).toISOString(),allOutstandingMinor:String(receivable.outstanding_minor||0),overdueReceivablesMinor:Object.entries(aging).filter(([key])=>key!=='current').reduce((sum,[,value])=>sum+BigInt(value.outstandingMinor),0n).toString(),receivablesAging:aging,reconciliation:{status:Number(totals.mismatched||0)+Number(receivable.mismatch_count||0)>0?'attention':'clear',
       periodIssuedInvoiceMismatchCount:Number(totals.mismatched||0),allInvoiceMismatchCount:Number(receivable.mismatch_count||0)}};
 }
-async function getActivityReport({pool,uid,role='owner',agentId,scopeAgentIds,period='daily',at,timezone='Asia/Qatar',cutoffAt,page=1,limit=50}){
+async function getActivityReport({pool,uid,role='owner',agentId,scopeAgentIds,period='daily',at,timezone='Asia/Qatar',cutoffAt,page=1,limit=50,assignment,qrInstanceId}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view the legacy lead activity report.',403);
   if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
   const currentPage=Number(page),pageSize=Number(limit);
   if(!Number.isSafeInteger(currentPage)||currentPage<1||currentPage>10000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)fail('Report page or page size is invalid.');
-  const window=periodWindow({period,at,timezone,cutoffAt}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool;
+  const window=periodWindow({period,at,timezone,cutoffAt}),selected=leadFilters.parseLeadFilters({assignment,qrInstanceId}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool;
   const connection=await db.getConnection();
   try{
     await connection.beginTransaction();
     const agentScope=teamAgentScope(role,agentId,scopeAgentIds);
-    const [[created]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${agentScope.sql}`,[uidHash,window.start,window.end,...agentScope.args]);
+    const selectedScope=leadFilters.leadFilterSql({...selected,alias:'l'});
+    const leadScope={sql:agentScope.sql+selectedScope.sql,args:[...agentScope.args,...selectedScope.args]};
+    const [[created]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}`,[uidHash,window.start,window.end,...leadScope.args]);
     const [[counts]]=await connection.query(`SELECT
       SUM(pa.activity_type='contact_outcome') AS outcomes,
       SUM(pa.activity_type='note_added') AS notes,
       SUM(pa.activity_type='agent_message_sent') AS agent_replies,
       COUNT(DISTINCT pa.lead_id) AS leads_touched
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
-      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${agentScope.sql}`,[uidHash,window.start,window.end,...agentScope.args]);
+      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${leadScope.sql}`,[uidHash,window.start,window.end,...leadScope.args]);
     const [[cohortContact]]=await connection.query(`SELECT COUNT(DISTINCT l.id) AS contacted FROM pipeline_leads l
       JOIN pipeline_activity pa ON pa.uid_hash=l.uid_hash AND pa.lead_id=l.id AND pa.created_at>=? AND pa.created_at<?
         AND pa.activity_type IN ('contact_outcome','agent_message_sent')
-      WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${agentScope.sql}`,[window.start,window.end,uidHash,window.start,window.end,...agentScope.args]);
+      WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}`,[window.start,window.end,uidHash,window.start,window.end,...leadScope.args]);
     const [outcomeRows]=await connection.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.outcome')) AS outcome,COUNT(*) AS total
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
-      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'${agentScope.sql}
-      GROUP BY outcome ORDER BY total DESC,outcome`,[uidHash,window.start,window.end,...agentScope.args]);
-    const [[followups]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at>=? AND l.next_follow_up_at<? AND l.status='open'${agentScope.sql}`,[uidHash,window.start,window.end,...agentScope.args]);
+      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'${leadScope.sql}
+      GROUP BY outcome ORDER BY total DESC,outcome`,[uidHash,window.start,window.end,...leadScope.args]);
+    const [[followups]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at>=? AND l.next_follow_up_at<? AND l.status='open'${leadScope.sql}`,[uidHash,window.start,window.end,...leadScope.args]);
     const [[followupsRequired]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
       WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'
-      AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.followUpRequired'))='true'${agentScope.sql}`,[uidHash,window.start,window.end,...agentScope.args]);
-    const [[overdue]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at<COALESCE(?,UTC_TIMESTAMP(3)) AND l.status='open'${agentScope.sql}`,[uidHash,cutoffAt?moment.utc(cutoffAt).format('YYYY-MM-DD HH:mm:ss.SSS'):null,...agentScope.args]);
-    const finance=role==='owner'?await getFinanceSummary(connection,uid,window,cutoffAt):null;
+      AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.followUpRequired'))='true'${leadScope.sql}`,[uidHash,window.start,window.end,...leadScope.args]);
+    const [[overdue]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at<COALESCE(?,UTC_TIMESTAMP(3)) AND l.status='open'${leadScope.sql}`,[uidHash,cutoffAt?moment.utc(cutoffAt).format('YYYY-MM-DD HH:mm:ss.SSS'):null,...leadScope.args]);
+    const finance=role==='owner'&&!selected.assignment&&!selected.qrInstanceId?await getFinanceSummary(connection,uid,window,cutoffAt):null;
     const offset=(currentPage-1)*pageSize;
     const [events]=await connection.query(`SELECT pa.id,pa.lead_id AS leadId,pa.actor_type AS actorType,
       CASE WHEN pa.actor_type='agent' THEN COALESCE(a.name,'Agent') WHEN pa.actor_type='system' THEN 'System' ELSE 'Business user' END AS attendedBy,
@@ -135,8 +138,8 @@ async function getActivityReport({pool,uid,role='owner',agentId,scopeAgentIds,pe
       LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
       LEFT JOIN agents a ON pa.actor_type='agent' AND a.id=CAST(IF(pa.actor_id REGEXP '^[0-9]+$',pa.actor_id,'0') AS UNSIGNED)
         AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
-      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${agentScope.sql}
-      ORDER BY pa.created_at DESC,pa.id DESC LIMIT ? OFFSET ?`,[uidHash,window.start,window.end,...agentScope.args,pageSize,offset]);
+      WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','note_added','agent_message_sent')${leadScope.sql}
+      ORDER BY pa.created_at DESC,pa.id DESC LIMIT ? OFFSET ?`,[uidHash,window.start,window.end,...leadScope.args,pageSize,offset]);
     const total=Number(counts?.outcomes||0)+Number(counts?.notes||0)+Number(counts?.agent_replies||0);
     await connection.commit();
     return {period:window.period,timezone:window.timezone,from:window.start,to:window.end,...(cutoffAt?{cutoffAt:moment.utc(cutoffAt).toISOString()}:{}),page:currentPage,limit:pageSize,total,hasMore:offset+events.length<total,
@@ -146,30 +149,34 @@ async function getActivityReport({pool,uid,role='owner',agentId,scopeAgentIds,pe
   }catch(error){try{await connection.rollback();}catch(_){}throw error;}
   finally{connection.release();}
 }
-async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,period='daily',at,timezone='Asia/Qatar'}){
+async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,period='daily',at,timezone='Asia/Qatar',assignment,qrInstanceId}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view the lead journey report.',403);
   if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
-  if(categoryKey==='salemax_sales')return getSalesJourneyReport({pool,uid,role,agentId,scopeAgentIds,period,at,timezone});
+  if(categoryKey==='salemax_sales'){if(assignment||qrInstanceId)fail('Lead assignment and QR filters are available for Training Center reports only.',403);return getSalesJourneyReport({pool,uid,role,agentId,scopeAgentIds,period,at,timezone});}
   if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds))fail('The team-scoped journey report is not available yet.',403);
-  const window=periodWindow({period,at,timezone}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool,connection=await db.getConnection();
+  const window=periodWindow({period,at,timezone}),selected=leadFilters.parseLeadFilters({assignment,qrInstanceId}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool,connection=await db.getConnection();
   try{
     await connection.beginTransaction();
+    const filters=leadFilters.leadFilterSql({...selected,alias:'l'});
+    await connection.query('CREATE TEMPORARY TABLE IF NOT EXISTS sx_report_lead_scope (lead_id BIGINT UNSIGNED NOT NULL PRIMARY KEY) ENGINE=InnoDB');
+    await connection.query('DELETE FROM sx_report_lead_scope');
+    await connection.query(`INSERT INTO sx_report_lead_scope (lead_id) SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=?${filters.sql}`,[uidHash,uid,...filters.args]);
     const [stages]=await connection.query(`SELECT ps.stage_key AS stageKey,ps.title,ps.stage_type AS stageType,ps.position,COUNT(l.id) AS total,
       COUNT(CASE WHEN l.created_at>=? AND l.created_at<? THEN l.id END) AS cohortTotal
-      FROM pipeline_stages ps LEFT JOIN pipeline_leads l ON l.uid_hash=ps.uid_hash AND l.uid=ps.uid AND l.stage_key=ps.stage_key${role==='agent'?' AND l.owner_agent_id=?':''}
+      FROM pipeline_stages ps LEFT JOIN pipeline_leads l ON l.uid_hash=ps.uid_hash AND l.uid=ps.uid AND l.stage_key=ps.stage_key${role==='agent'?' AND l.owner_agent_id=?':''} AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)
       WHERE ps.uid_hash=? AND ps.uid=? GROUP BY ps.stage_key,ps.title,ps.stage_type,ps.position ORDER BY ps.position,ps.stage_key`,[window.start,window.end,...(role==='agent'?[agentId]:[]),uidHash,uid]);
     const [sources]=await connection.query(`SELECT l.source_type AS sourceType,l.primary_origin AS origin,COUNT(*) AS total
-      FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''}
+      FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''} AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)
       GROUP BY l.source_type,l.primary_origin ORDER BY total DESC,l.source_type`,[uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[])]);
     const [[flow]]=await connection.query(`SELECT
-      (SELECT COUNT(*) FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''}) AS new_leads,
+      (SELECT COUNT(*) FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''} AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)) AS new_leads,
       SUM(pa.activity_type='stage_changed') AS stage_changes,
       SUM(pa.activity_type='sale_converted') AS sales_converted,
       SUM(pa.activity_type='sale_converted' AND pa.actor_type='agent') AS sales_closed_by_agents,
       COUNT(DISTINCT CASE WHEN pa.activity_type IN ('contact_outcome','agent_message_sent') THEN pa.lead_id END) AS leads_attended
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
-      WHERE pa.uid_hash=? AND l.uid=? AND pa.created_at>=? AND pa.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''}`,[uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[]),uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[])]);
+      WHERE pa.uid_hash=? AND l.uid=? AND pa.created_at>=? AND pa.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''} AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)` ,[uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[]),uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[])]);
     const [agentRows]=await connection.query(`SELECT a.id AS agentId,a.name AS agentName,a.is_active AS active,
       COUNT(DISTINCT l.id) AS assignedLeads,
       COUNT(DISTINCT CASE WHEN l.created_at>=? AND l.created_at<? THEN l.id END) AS newLeads,
@@ -179,12 +186,12 @@ async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,cat
       COALESCE(MAX(attendance.agent_replies),0) AS agentReplies,
       COALESCE(MAX(sales.sales_attributed),0) AS salesAttributed,
       COALESCE(MAX(sales.sales_closed_by_agent),0) AS salesClosedByAgent
-      FROM agents a LEFT JOIN pipeline_leads l ON l.uid_hash=? AND l.uid=? AND l.owner_agent_id=a.id
+      FROM agents a LEFT JOIN pipeline_leads l ON l.uid_hash=? AND l.uid=? AND l.owner_agent_id=a.id AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)
       LEFT JOIN (
         SELECT CAST(pa.actor_id AS UNSIGNED) AS agent_id,COUNT(DISTINCT pa.lead_id) AS attended_leads,SUM(pa.activity_type='agent_message_sent') AS agent_replies
         FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
         WHERE pa.uid_hash=? AND l.uid=? AND pa.actor_type='agent' AND pa.actor_id REGEXP '^[0-9]+$'
-          AND pa.activity_type IN ('contact_outcome','agent_message_sent') AND pa.created_at>=? AND pa.created_at<?
+          AND pa.activity_type IN ('contact_outcome','agent_message_sent') AND pa.created_at>=? AND pa.created_at<? AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)
         GROUP BY CAST(pa.actor_id AS UNSIGNED)
       ) attendance ON attendance.agent_id=a.id
       LEFT JOIN (
@@ -197,17 +204,18 @@ async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,cat
         JOIN sx_training_enrollments e ON e.tenant_id=c.tenant_id AND e.id=c.enrollment_id
         JOIN sx_training_invoices i ON i.tenant_id=c.tenant_id AND i.id=c.invoice_id
         WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND c.sales_agent_id IS NOT NULL
+          AND EXISTS (SELECT 1 FROM pipeline_leads scoped_lead JOIN sx_report_lead_scope x ON x.lead_id=scoped_lead.id WHERE scoped_lead.uid_hash=e.legacy_uid_hash AND scoped_lead.uid=e.legacy_uid AND scoped_lead.id=e.lead_id)
           AND i.issued_at>=? AND i.issued_at<?
         GROUP BY e.legacy_uid_hash,e.legacy_uid,c.sales_agent_id
       ) sales ON sales.legacy_uid_hash=? AND sales.legacy_uid=? AND sales.sales_agent_id=a.id
       WHERE a.owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci${role==='agent'?' AND a.id=?':''} GROUP BY a.id,a.name,a.is_active ORDER BY salesClosedByAgent DESC,salesAttributed DESC,attendedLeads DESC,newLeads DESC,a.name`,[window.start,window.end,window.start,window.end,window.end,uidHash,uid,uidHash,uid,window.start,window.end,uidHash,uid,window.start,window.end,uidHash,uid,uid,...(role==='agent'?[agentId]:[])]);
     const [transitions]=await connection.query(`SELECT JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.stageTo')) AS stageKey,COUNT(*) AS total
       FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
-      WHERE pa.uid_hash=? AND l.uid=? AND pa.activity_type='stage_changed' AND pa.created_at>=? AND pa.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''}
+      WHERE pa.uid_hash=? AND l.uid=? AND pa.activity_type='stage_changed' AND pa.created_at>=? AND pa.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''} AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)
       GROUP BY stageKey ORDER BY total DESC,stageKey`,[uidHash,uid,window.start,window.end,...(role==='agent'?[agentId]:[])]);
     const [[cohortFunnel]]=await connection.query(`WITH cohort_leads AS (
       SELECT l.id,l.uid_hash,l.uid FROM pipeline_leads l
-      WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''}
+      WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${role==='agent'?' AND l.owner_agent_id=?':''} AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)
     ) SELECT COUNT(*) AS new_leads,
       COALESCE(SUM(EXISTS(SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=c.uid_hash AND pa.lead_id=c.id AND pa.activity_type IN ('contact_outcome','agent_message_sent'))),0) AS attended,
       COALESCE(SUM(EXISTS(SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=c.uid_hash AND pa.lead_id=c.id AND pa.activity_type='contact_outcome' AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.outcome'))='interested')),0) AS interested,
@@ -226,20 +234,20 @@ async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,cat
     const [[journeyActivity]]=await connection.query(`WITH journey_events AS (
       SELECT 'invoice_issued' AS event_type,i.id AS event_id,0 AS amount_minor
       FROM sx_training_invoices i JOIN sx_training_enrollments e ON e.tenant_id=i.tenant_id AND e.id=i.enrollment_id
-      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND i.status='issued' AND i.issued_at>=? AND i.issued_at<?${learnerScope}
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND EXISTS (SELECT 1 FROM pipeline_leads fl JOIN sx_report_lead_scope x ON x.lead_id=fl.id WHERE fl.uid_hash=e.legacy_uid_hash AND fl.uid=e.legacy_uid AND fl.id=e.lead_id) AND i.status='issued' AND i.issued_at>=? AND i.issued_at<?${learnerScope}
       UNION ALL
       SELECT 'payment_received',r.id,r.amount_minor
       FROM sx_training_receipts r JOIN sx_training_invoices i ON i.tenant_id=r.tenant_id AND i.id=r.invoice_id
       JOIN sx_training_enrollments e ON e.tenant_id=i.tenant_id AND e.id=i.enrollment_id
-      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND r.issued_at>=? AND r.issued_at<?${learnerScope}
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND EXISTS (SELECT 1 FROM pipeline_leads fl JOIN sx_report_lead_scope x ON x.lead_id=fl.id WHERE fl.uid_hash=e.legacy_uid_hash AND fl.uid=e.legacy_uid AND fl.id=e.lead_id) AND r.issued_at>=? AND r.issued_at<?${learnerScope}
       UNION ALL
       SELECT ev.event_type,ev.id,0
       FROM sx_training_enrollment_events ev JOIN sx_training_enrollments e ON e.tenant_id=ev.tenant_id AND e.id=ev.enrollment_id
-      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND ev.created_at>=? AND ev.created_at<? AND ev.event_type IN ('course_started','course_completed')${learnerScope}
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND EXISTS (SELECT 1 FROM pipeline_leads fl JOIN sx_report_lead_scope x ON x.lead_id=fl.id WHERE fl.uid_hash=e.legacy_uid_hash AND fl.uid=e.legacy_uid AND fl.id=e.lead_id) AND ev.created_at>=? AND ev.created_at<? AND ev.event_type IN ('course_started','course_completed')${learnerScope}
       UNION ALL
       SELECT 'certificate_issued',cert.id,0
       FROM sx_training_certificates cert JOIN sx_training_enrollments e ON e.tenant_id=cert.tenant_id AND e.id=cert.enrollment_id
-      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND cert.issued_at>=? AND cert.issued_at<?${learnerScope}
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND EXISTS (SELECT 1 FROM pipeline_leads fl JOIN sx_report_lead_scope x ON x.lead_id=fl.id WHERE fl.uid_hash=e.legacy_uid_hash AND fl.uid=e.legacy_uid AND fl.id=e.lead_id) AND cert.issued_at>=? AND cert.issued_at<?${learnerScope}
     ) SELECT COUNT(DISTINCT CASE WHEN event_type='invoice_issued' THEN event_id END) AS invoices_issued,
       COUNT(DISTINCT CASE WHEN event_type='payment_received' THEN event_id END) AS payment_receipts_issued,
       COALESCE(SUM(CASE WHEN event_type='payment_received' THEN amount_minor ELSE 0 END),0) AS payments_received_minor,
@@ -255,7 +263,7 @@ async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,cat
         WHERE a.tenant_id=e.tenant_id AND a.invoice_id=i.id)>=i.total_minor) AS fully_paid
       FROM sx_training_enrollments e JOIN sx_training_invoices i ON i.tenant_id=e.tenant_id AND i.enrollment_id=e.id
       LEFT JOIN sx_training_certificates cert ON cert.tenant_id=e.tenant_id AND cert.enrollment_id=e.id
-      WHERE e.legacy_uid_hash=? AND e.legacy_uid=?${learnerScope}`,[uidHash,uid,...(role==='agent'?[agentId]:[])]);
+      WHERE e.legacy_uid_hash=? AND e.legacy_uid=? AND EXISTS (SELECT 1 FROM pipeline_leads fl JOIN sx_report_lead_scope x ON x.lead_id=fl.id WHERE fl.uid_hash=e.legacy_uid_hash AND fl.uid=e.legacy_uid AND fl.id=e.lead_id)${learnerScope}`,[uidHash,uid,...(role==='agent'?[agentId]:[])]);
     const mappedStages=stages.map(row=>({...row,total:Number(row.total),cohortTotal:Number(row.cohortTotal||0)})),mappedAgents=agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),newLeads:Number(row.newLeads),attendedLeads:Number(row.attendedLeads),agentReplies:Number(row.agentReplies||0),followUpsDue:Number(row.followUpsDue||0),followUpsOverdue:Number(row.followUpsOverdue||0),salesAttributed:Number(row.salesAttributed),salesClosedByAgent:Number(row.salesClosedByAgent)}));
     const report={period:window.period,timezone:window.timezone,from:window.start,to:window.end,asOf:new Date().toISOString(),
       summary:{newLeads:Number(flow.new_leads||0),leadsAttended:Number(flow.leads_attended||0),stageChanges:Number(flow.stage_changes||0),salesConverted:Number(flow.sales_converted||0),salesClosedByAgents:Number(flow.sales_closed_by_agents||0),openLeads:mappedStages.filter(row=>row.stageType==='open').reduce((sum,row)=>sum+row.total,0),wonLeads:mappedStages.filter(row=>row.stageType==='won').reduce((sum,row)=>sum+row.total,0),lostLeads:mappedStages.filter(row=>row.stageType==='lost').reduce((sum,row)=>sum+row.total,0)},

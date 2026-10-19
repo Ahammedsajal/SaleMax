@@ -12,6 +12,7 @@ const reportDelivery = require('../modules/platform/training-report-delivery');
 const trainingForms = require('../modules/platform/training-forms');
 const legacyPipelineActor = require('../modules/platform/legacy-pipeline-actor');
 const trainingLeadJourney = require('../modules/platform/training-lead-journey');
+const leadFilters = require('../helper/pipeline/lead-filters');
 const trainingTasks = require('../modules/platform/task-management');
 const crypto = require('node:crypto');
 const {createTaskRouter}=require('../modules/platform/task-router');
@@ -186,6 +187,8 @@ router.get("/board", async (req, res) => {
         stage: req.query.stage,
         origin: req.query.origin,
         sourceType: req.query.sourceType,
+        assignment: req.query.assignment,
+        qrInstanceId: req.query.qrInstanceId,
         owner: req.query.owner,
         page: req.query.page,
         limit: req.query.limit,
@@ -193,6 +196,24 @@ router.get("/board", async (req, res) => {
     });
     res.json({ success: true, data: { ...data, timezone: req.pipelineActor.timezone, role: req.pipelineActor.role, categoryKey: req.pipelineActor.categoryKey || null } });
   } catch (error) { fail(res, error); }
+});
+
+router.get('/filter-options',async(req,res)=>{
+  try{
+    const actor=req.pipelineActor,uidHash=crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex');
+    const conditions=['l.uid_hash=?','l.uid=?','bc.origin="qr"'],args=[uidHash,actor.uid];
+    if(actor.role==='agent'){conditions.push('l.owner_agent_id=?');args.push(actor.agentId);}
+    else if(['manager','team_leader'].includes(actor.role)&&Array.isArray(actor.scopeAgentIds)){
+      if(actor.scopeAgentIds.length){conditions.push('l.owner_agent_id IN (?)');args.push(actor.scopeAgentIds);}
+      else conditions.push('1=0');
+    }
+    const [rows]=await require('../database/config.js').promise().query(`SELECT i.id,i.uniqueId,i.number,i.title,COUNT(DISTINCT l.id) AS leadCount
+      FROM pipeline_leads l JOIN pipeline_conversations pc ON pc.uid_hash=l.uid_hash AND pc.lead_id=l.id
+      JOIN beta_chats bc ON bc.uid=l.uid AND bc.chat_id=pc.chat_id AND bc.origin='qr'
+      JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id
+      WHERE ${conditions.join(' AND ')} GROUP BY i.id,i.uniqueId,i.number,i.title ORDER BY i.number,i.id`,args);
+    res.setHeader('Cache-Control','no-store');res.json({success:true,data:{qrInstances:rows.map(row=>({...row,id:Number(row.id),leadCount:Number(row.leadCount)}))}});
+  }catch(error){fail(res,error);}
 });
 
 router.get("/follow-ups", async (req, res) => {
@@ -242,13 +263,14 @@ router.get("/reports/activity", async (req,res)=>{
       role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,
       period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,
       page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit),
+      assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId,
     });
     res.setHeader('Cache-Control','no-store');res.json({success:true,data});
   }catch(error){fail(res,error);}
 });
 
 router.get('/reports/journey',async(req,res)=>{
-  try{const pool=require('../database/config.js').promise();if(req.pipelineActor.categoryKey!=='salemax_sales')await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  try{const pool=require('../database/config.js').promise();if(req.pipelineActor.categoryKey!=='salemax_sales')await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){fail(res,error);}
 });
 

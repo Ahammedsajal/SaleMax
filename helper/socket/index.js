@@ -97,23 +97,25 @@ function processSocketEvent({
               );
             }
 
-            if (origin) {
+            if (origin && origin !== 'assigned') {
               queryStr += ` AND origin = ?`;
               queryParams.push(origin);
             }
 
+            if (origin === 'assigned' || assignedOnly) {
+              queryStr += ` AND assigned_agent IS NOT NULL AND assigned_agent != 'null' AND assigned_agent != '' AND assigned_agent != '[]'`;
+            }
+
             if (instance) {
-              queryStr += ` AND chat_id LIKE ?`;
-              queryParams.push(`${instance}_%`);
+              queryStr += ` AND (chat_id LIKE ? OR origin_instance_unique_id = ? OR origin_instance_unique_id IN (SELECT uniqueId FROM instance WHERE uid = ? AND number = ?))`;
+              queryParams.push(`${instance}_%`, instance, chatListOwnerUid, instance);
             }
 
             if (unreadOnly) {
               queryStr += ` AND unread_count > 0`;
             }
 
-            if (assignedOnly) {
-              queryStr += ` AND assigned_agent IS NOT NULL AND assigned_agent != 'null' AND assigned_agent != ''`;
-            }
+
 
             if (agentFilter) {
               queryStr += ` AND (assigned_agent LIKE ? OR assigned_agent LIKE ?)`;
@@ -149,7 +151,8 @@ function processSocketEvent({
 
             chats = await query(`SELECT * ${queryStr}`, queryParams);
           } else {
-            const betaChats = await query(`SELECT * FROM beta_chats WHERE uid = ?`, [
+            const betaChats = await query(`SELECT bc.*,i.number AS origin_instance_number FROM beta_chats bc
+              LEFT JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE bc.uid = ?`, [
               chatListOwnerUid,
             ]);
             const legacyChats = await query(`SELECT * FROM chats WHERE uid = ?`, [
@@ -169,6 +172,7 @@ function processSocketEvent({
                 statusFilter,
                 hasNote,
                 instance,
+                assignedOnly: assignedOnly || origin === 'assigned',
               },
             );
           }

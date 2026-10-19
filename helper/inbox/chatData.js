@@ -45,6 +45,7 @@ function normalizeOriginFilter(origin) {
 
   if (normalizedOrigin === "whatsapp_web") return "qr";
   if (normalizedOrigin === "whatsappweb") return "qr";
+  if (normalizedOrigin === "assigned" || normalizedOrigin === "transferred") return "assigned";
 
   return normalizedOrigin;
 }
@@ -139,6 +140,7 @@ function filterChats(chats, filters = {}) {
     statusFilter = "all",
     hasNote = false,
     instance = "",
+    assignedOnly = false,
   } = filters;
 
   const normalizedOrigin = normalizeOriginFilter(origin);
@@ -157,13 +159,24 @@ function filterChats(chats, filters = {}) {
     const messageText = JSON.stringify(lastMessage || chat?.last_message || "")
       .toLowerCase();
 
-    if (normalizedOrigin && chatOrigin !== normalizedOrigin) {
+    if (normalizedOrigin === 'assigned') {
+      let assigned = chat?.assigned_agent;
+      if (typeof assigned === 'string') { try { assigned = JSON.parse(assigned); } catch { assigned = null; } }
+      if (!assigned || (Array.isArray(assigned) && assigned.length === 0)) return false;
+    } else if (normalizedOrigin && chatOrigin !== normalizedOrigin) {
       return false;
+    }
+    if (assignedOnly) {
+      let assigned = chat?.assigned_agent;
+      if (typeof assigned === 'string') { try { assigned = JSON.parse(assigned); } catch { assigned = null; } }
+      if (!assigned || (Array.isArray(assigned) && assigned.length === 0)) return false;
     }
 
     if (
       normalizedInstance &&
-      !String(chat?.chat_id || "").startsWith(`${normalizedInstance}_`)
+      (chatOrigin !== 'qr' || (!String(chat?.chat_id || "").startsWith(`${normalizedInstance}_`) &&
+       String(chat?.origin_instance_unique_id || '') !== normalizedInstance &&
+       String(chat?.origin_instance_number || '') !== normalizedInstance))
     ) {
       return false;
     }

@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const leadFilters = require('./lead-filters');
 let defaultPool;
 function getPromisePool(source) {
   const value=source||(defaultPool||(defaultPool=require("../../database/config")));
@@ -565,10 +566,15 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filter
     const conditions = ["l.uid_hash = ?"];
     const values = [uidHash];
     appendAssignmentScope(conditions,values,role,agentId,scopeAgentIds);
+    const selectedFilters = leadFilters.parseLeadFilters(filters);
+    const assignmentFilter = leadFilters.leadFilterSql({ ...selectedFilters, alias: 'l' });
+    if (assignmentFilter.sql) { conditions.push(assignmentFilter.sql.replace(/^ AND /, '')); values.push(...assignmentFilter.args); }
     if (filters.stage) { conditions.push("l.stage_key = ?"); values.push(text(filters.stage, 64)); }
     if (filters.origin && ["qr", "meta", "manual"].includes(filters.origin)) { conditions.push("l.primary_origin = ?"); values.push(filters.origin); }
     const requestedSource = text(filters.sourceType, 64);
-    if (requestedSource === "meta_ads_whatsapp") {
+    if (requestedSource === "assigned") {
+      conditions.push('l.owner_agent_id IS NOT NULL');
+    } else if (requestedSource === "meta_ads_whatsapp") {
       conditions.push(`(l.source_type = 'meta_ads_whatsapp' OR EXISTS (
         SELECT 1 FROM pipeline_attributions pa
         WHERE pa.uid_hash = l.uid_hash AND pa.lead_id = l.id AND pa.is_verified_ad = 1
@@ -599,6 +605,7 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filter
         l.currency, l.next_follow_up_at, l.first_inbound_at, l.last_activity_at, l.created_at, l.updated_at,
         (SELECT pc.origin FROM pipeline_conversations pc WHERE pc.uid_hash = l.uid_hash AND pc.lead_id = l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS latest_origin,
         (SELECT pc.chat_id FROM pipeline_conversations pc WHERE pc.uid_hash = l.uid_hash AND pc.lead_id = l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS latest_chat_id,
+        (SELECT i.number FROM pipeline_conversations pc JOIN beta_chats bc ON bc.uid=l.uid AND bc.chat_id=pc.chat_id AND bc.origin='qr' JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE pc.uid_hash=l.uid_hash AND pc.lead_id=l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS source_instance_number,
         EXISTS (SELECT 1 FROM pipeline_attributions pa WHERE pa.uid_hash = l.uid_hash AND pa.lead_id = l.id AND pa.is_verified_ad = 1) AS has_verified_ad_attribution
        FROM pipeline_leads l LEFT JOIN agents a ON a.id = l.owner_agent_id
         AND a.owner_uid COLLATE utf8mb4_general_ci = l.uid COLLATE utf8mb4_general_ci
@@ -950,9 +957,10 @@ async function getLead(uid, id, {role,agentId,scopeAgentIds,pool:sourcePool}={})
     }
     const [conversations] = await connection.query(
       `SELECT pc.chat_id, pc.origin, pc.first_inbound_at, pc.last_inbound_at,
+         (SELECT i.number FROM beta_chats bc JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE bc.uid=? AND bc.chat_id=pc.chat_id AND bc.origin='qr' LIMIT 1) AS instance_number,
          EXISTS (SELECT 1 FROM pipeline_attributions pa WHERE pa.uid_hash = pc.uid_hash AND pa.conversation_key = pc.conversation_key AND pa.is_verified_ad = 1) AS has_verified_ad_attribution
        FROM pipeline_conversations pc WHERE pc.uid_hash = ? AND pc.lead_id = ? ORDER BY pc.last_inbound_at DESC`,
-      [uidHash, id],
+      [uid, uidHash, id],
     );
     const [attributions] = await connection.query(
       `SELECT source_type, source_id, source_url, headline, body, media_type, ctwa_clid, is_verified_ad, event_at, received_at
