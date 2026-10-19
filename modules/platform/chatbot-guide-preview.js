@@ -29,7 +29,7 @@ async function previewGuidedTurn({ body, pack, db, tenantId, platformOrigin, kno
   const facts = pack.requiresDatabase ? await pack.loadFacts({ db, tenantId, platformOrigin }) : [];
   const result = pack.guidedReply({ message: input.message, state: input.state, facts, config: { ...input.guidedContent, knowledgeEntries } });
   if (!result || typeof result.reply !== 'string' || !result.reply.trim()) throw Object.assign(new Error('GUIDED_FLOW_UNAVAILABLE'), { code: 'GUIDED_FLOW_UNAVAILABLE' });
-  return { reply: result.reply, state: result.state || null, handoff: result.handoff === true };
+  return { reply: result.reply, state: result.state || null, handoff: result.handoff === true, buttons:Array.isArray(result.buttons)?result.buttons:[] };
 }
 
 module.exports = { previewGuidedTurn, previewInput, isSafeStateValue };

@@ -303,4 +303,27 @@ registerDomainPack({
   isGuidedIntent: require('./chatbot-training-guide').shouldStartGuided,
 });
 
+const RECRUITMENT_GUIDED_DEFAULTS={version:1,messages:{
+  welcome:{en:'Hello and welcome to SaleMaX.',ar:'مرحباً بك في SaleMaX.'},
+  menuPrompt:{en:'Before we discuss the role, feel free to learn more about our company and products.',ar:'قبل أن نتحدث عن الوظيفة، يمكنك التعرف على الشركة ومنتجاتها.'},
+  buttonTalab:{en:'About Talab',ar:'عن طلب'},buttonSalemax:{en:'About SaleMaX',ar:'عن SaleMaX'},buttonRole:{en:'About the role',ar:'عن الوظيفة'},
+  buttonCommission:{en:'Commission',ar:'العمولة'},buttonApply:{en:'Apply now',ar:'قدّم الآن'},buttonMenu:{en:'Main menu',ar:'القائمة'},buttonHuman:{en:'Talk to owner',ar:'تحدث مع المالك'},
+}};
+const recruitField=(path,labelEn,labelAr)=>({path,type:'localized-text',label:{en:labelEn,ar:labelAr},maxLength:400});
+const RECRUITMENT_GUIDED_SCHEMA={groups:[{id:'recruitment-messages',title:{en:'Recruitment introduction and buttons',ar:'التعريف بالتوظيف والأزرار'},fields:Object.keys(RECRUITMENT_GUIDED_DEFAULTS.messages).map(key=>recruitField(`messages.${key}`,key.replaceAll(/([A-Z])/g,' $1'),key.replaceAll(/([A-Z])/g,' $1')))}]};
+async function salemaxSalesRecruitmentFacts({db,tenantId,platformOrigin}){
+  const [[tenant]]=await db.query("SELECT slug FROM sx_tenants WHERE id=? AND category_key='salemax_sales' AND status='active' LIMIT 1",[tenantId]);
+  if(!tenant)return [];
+  let url='';try{url=new URL(`/careers/${encodeURIComponent(tenant.slug)}?source=whatsapp`,platformOrigin).href;}catch{}
+  return url?[{kind:'recruitment_application',url}]:[];
+}
+registerDomainPack({
+  key:'salemax_sales',version:1,title:'SaleMaX Sales Recruitment',requiresDatabase:true,
+  systemGuidance:'You are the recruitment guide for SaleMaX. Always begin with the approved Qatar company identity, CR 251489, Talab marketplace links and SaleMaX description before discussing the role. The company supplies leads. Professional English is required; Hindi is preferred but optional. Explain the 2–3 month commission-only trial with no base salary and 15% of a paid QAR 2,500 annual subscription (QAR 375). A later full-time basic salary plus commission may be considered but is not guaranteed. Never promise selection, employment, income, or an interview. Route applications to the supplied secure application URL; do not request a CV, government ID, bank details, or other sensitive information in chat.',
+  loadFacts:salemaxSalesRecruitmentFacts,guidedContentDefaults:RECRUITMENT_GUIDED_DEFAULTS,guidedContentSchema:RECRUITMENT_GUIDED_SCHEMA,
+  guidedReply:input=>require('./chatbot-recruitment-guide').recruitmentReply(input),
+  isGuidedIntent:message=>/\b(?:job|role|apply|application|commission|sales associate|talab|salemax)\b|وظيفة|تقديم|عمولة|طلب|سالمكس/iu.test(String(message||'')),
+});
+
+
 module.exports = { registerDomainPack, getDomainPack, publicFormUrl, amountFromMinorUnits, normalizeOffer };

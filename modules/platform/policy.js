@@ -53,6 +53,7 @@ const permissions = {
   'calls.control': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
   'calls.manage': { owner: 'tenant', manager: 'tenant' },
   'templates.manage': { owner: 'tenant' },
+  'recruitment.manage': { owner: 'tenant' },
 };
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);
 const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read', 'telephony.configure']);
@@ -68,6 +69,7 @@ const capabilities = Object.freeze({
   'sales.finance': ['sales.finance.read','sales.invoice.issue','sales.receipt.record','sales.receipt.allocate','sales.finance.report'],
   'sales.targets': ['targets.read','targets.manage'],
   'products.catalog': ['products.read','products.manage'],
+  'hr.recruitment': ['recruitment.manage'],
   'campaigns.dashboard': ['campaigns.manage'], 'crm.leads': ['leads.read', 'leads.manage', 'leads.assign'],
   'crm.contacts': ['contacts.read', 'contacts.manage'], 'team.members': ['team.read', 'team.invite'],
   'team.tasks': ['tasks.read', 'tasks.manage'], 'training.courses': ['courses.read', 'courses.manage'],

@@ -23,6 +23,13 @@
     const faqStyle = document.createElement('link'); faqStyle.rel = 'stylesheet'; faqStyle.href = '/training-faqs.css?v=20261012-faq-library5'; document.head.append(faqStyle);
     const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261019-uplift2'; faqScript.defer = true; document.head.append(faqScript);
   }
+  if (!window.__sxRecruitmentLoader) {
+    window.__sxRecruitmentLoader = true;
+    const recruitmentScript = document.createElement('script');
+    recruitmentScript.src = '/recruitment.js?v=20261019-1';
+    recruitmentScript.defer = true;
+    document.head.append(recruitmentScript);
+  }
   const groups = [
     ['Overview', 'نظرة عامة', ['Dashboard', 'Inbox', 'Candidate Applications']],
     ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Products & services']],

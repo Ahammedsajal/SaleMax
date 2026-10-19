@@ -38,9 +38,10 @@ const items = [
   ['faqs', 'automation.chatbot', 'automation.manage', 'FAQs', 'الأسئلة الشائعة', 'Automation', 'الأتمتة'],
   ['scheduled-reports', 'reports.schedule', 'reports.schedule', 'Scheduled Reports', 'التقارير المجدولة', 'Insights', 'الإحصاءات'],
   ['forms', 'portal.forms', 'forms.manage', 'Candidate Applications', 'طلبات المتقدمين', 'Portal leads', 'عملاء البوابة'],
+  ['recruitment', 'hr.recruitment', 'recruitment.manage', 'Applications & CVs', 'طلبات التوظيف والسير الذاتية', 'Administration', 'الإدارة'],
   ['team', 'team.members', 'team.read', 'Team access', 'إدارة وصول الفريق', 'Administration', 'الإدارة'],
   ['settings', 'tenant.settings', 'tenant.manage', 'Business Settings', 'إعدادات الأعمال', 'Administration', 'الإدارة'],
-].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr },ownerOnly:key==='training-profile',sidebar:!['batches','enrollments','installments','payments','receipts','credits','scheduled-reports'].includes(key) }));
+].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr },ownerOnly:['recruitment','training-profile'].includes(key),sidebar:!['batches','enrollments','installments','payments','receipts','credits','scheduled-reports'].includes(key) }));
 function navigationFor(context) {
   if (context?.audience !== 'tenant' || context.tenant?.status !== 'active' || context.membership?.status !== 'active' || context.membership?.tenantId !== context.tenant?.id) return [];
   // Internal Sales accountants work from finance and payout workspaces only.

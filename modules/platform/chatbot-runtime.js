@@ -232,11 +232,13 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
 
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return false;
   const { sendWaMessage } = require('../../automation/functions');
-  const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: reply.reply } } });
+  const interactiveButtons=channelKind==='whatsapp_meta'&&Array.isArray(reply.buttons)?reply.buttons.filter(item=>item&&typeof item.id==='string'&&typeof item.title==='string'&&item.id.length<=256&&item.title.length<=20).slice(0,3):[];
+  const messageContext=interactiveButtons.length?{type:'interactive',interactive:{type:'button',body:{text:reply.reply.slice(0,1024)},action:{buttons:interactiveButtons.map(item=>({type:'reply',reply:{id:item.id,title:item.title}}))}}}:{type:'text',text:{preview_url:false,body:reply.reply}};
+  const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: messageContext });
   if (!sentId) return false;
   if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, 'customer-requested-human', profile, uid);
   const timestamp = Math.trunc(Date.now() / 1000);
-  const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: reply.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
+  const messageData = { type: messageContext.type, metaChatId: sentId, msgContext: messageContext, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
   if (!reply.handoff && !deferLeadQuestion) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);

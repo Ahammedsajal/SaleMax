@@ -19,6 +19,7 @@ const {createSalesCommissionRouter}=require('./sales-commission-router');
 const {createSalesFinanceRouter}=require('./sales-finance-router');
 const {createSalesTargetsRouter}=require('./sales-targets-router');
 const {createSalesAuditRouter}=require('./sales-audit-router');
+const {createRecruitmentRouter,createPublicRecruitmentRouter,createRecruitmentPageRouter}=require('./recruitment-router');
 function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacyGuard,userGuard=require('../../middlewares/user')}){
   const tenantCrmDomains=require('./tenant-crm-domains');
   app.use(tenantCrmDomains.middleware(pool));
@@ -68,12 +69,15 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.get('/customer-reminders',(req,res)=>{res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");res.sendFile(require('node:path').resolve(__dirname,'../../client/public/customer-reminders.html'));});
   app.use(['/api/workspace/forms','/api/user/training/forms'],createTrainingFormRouter({pool,origin,userGuard,sessionGuard:featureSession.guard}));
   app.use('/api/user/chatbots',createChatbotRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
+  app.use('/api/user/recruitment',createRecruitmentRouter({pool,origin,key,userGuard,canonicalGuard:businessBoundary.guard}));
+  app.use('/api/public/recruitment',createPublicRecruitmentRouter({pool,origin,key}));
+  createRecruitmentPageRouter(app,{pool,origin});
   app.use('/api/user/call-center',createCallCenterRouter({pool,userGuard,canonicalGuard:businessBoundary.guard,origin}));
   app.use('/api/public/training/forms',createPublicTrainingFormRouter({app,pool,rateKey:key,origin}));
   return boundary;
 }
 function mountConfiguredUpgrade(app){
-  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/workspace','/api/inbox/course-replies','/api/agent/course-replies','/api/phonebook/workspace','/api/agent/phonebook','/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/crm','/api/user/sales-organization','/api/user/sales-commissions','/api/user/sales-finance','/api/user/sales-targets','/api/user/sales-audit','/api/user/team-invitations','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/call-center','/api/public/training/forms','/api/public/training/documents','/api/public/training/reminder-preferences','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
+  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/workspace','/api/inbox/course-replies','/api/agent/course-replies','/api/phonebook/workspace','/api/agent/phonebook','/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/crm','/api/user/sales-organization','/api/user/sales-commissions','/api/user/sales-finance','/api/user/sales-targets','/api/user/sales-audit','/api/user/team-invitations','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/recruitment','/api/public/recruitment','/api/user/call-center','/api/public/training/forms','/api/public/training/documents','/api/public/training/reminder-preferences','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
   const secret=process.env.SALEMAX_PLATFORM_KEY_BASE64;
   if(typeof secret!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(secret))throw new Error('PLATFORM_KEY_REQUIRED');
   const key=Buffer.from(secret,'base64');if(key.length!==32||key.toString('base64')!==secret)throw new Error('PLATFORM_KEY_INVALID');
