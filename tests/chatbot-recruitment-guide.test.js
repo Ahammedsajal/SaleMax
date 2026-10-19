@@ -34,3 +34,21 @@ test('apply action returns secure form URL and retains only guided state',()=>{
   assert.equal(result.buttons.length,2);
   assert.equal(result.state.step,'apply');
 });
+
+test('button screening saves location, language, sales background and availability in guided state',()=>{
+  let result=recruitmentReply({message:'start_screening',state:{step:'role'},facts:{}});
+  assert.equal(result.state.step,'screen_location');assert.equal(result.buttons.length,2);
+  result=recruitmentReply({message:'screen_india_no',state:result.state,facts:{}});
+  assert.equal(result.state.answers.location,'elsewhere');assert.equal(result.state.step,'screen_english');
+  result=recruitmentReply({message:'screen_english_professional',state:result.state,facts:{}});
+  assert.equal(result.state.answers.englishLevel,'proficient');assert.equal(result.state.step,'screen_hindi');
+  result=recruitmentReply({message:'screen_hindi_none',state:result.state,facts:{}});
+  assert.equal(result.state.answers.hindiLevel,'none');assert.equal(result.state.step,'screen_experience');
+  result=recruitmentReply({message:'screen_exp_saas',state:result.state,facts:{}});
+  assert.equal(result.state.answers.salesExperience,'saas_crm_it');assert.equal(result.state.step,'screen_availability');
+  result=recruitmentReply({message:'screen_availability_full',state:result.state,facts:{}});
+  assert.equal(result.state.step,'screen_complete');
+  assert.deepEqual(result.state.answers,{location:'elsewhere',englishLevel:'proficient',hindiLevel:'none',salesExperience:'saas_crm_it',availability:'full_time'});
+  assert.match(result.reply,/saved with this recruitment chat/);
+  assert.equal(result.buttons[0].id,'apply_now');
+});

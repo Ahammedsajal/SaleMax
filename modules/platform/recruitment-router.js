@@ -29,7 +29,7 @@ function createPublicRecruitmentRouter({pool,origin,key}){
   const ip=remote==='127.0.0.1'||remote==='::1'||remote==='::ffff:127.0.0.1'?last||remote:remote;
   const visitorHash=crypto.createHmac('sha256',key).update(String(ip)).digest('hex');
   const file=req.files?.cv;if(Array.isArray(file))throw Object.assign(Error('INVALID_CV_FILE'),{code:'INVALID_CV_FILE'});
-  try{const result=await recruitment.createPublic(pool,{tenantSlug:req.params.tenantSlug,body:req.body,file,visitorHash});res.status(result.repeated?200:201).json({success:true,data:{referenceCode:result.referenceCode,repeated:result.repeated,linkedLead:result.leadLinked||false,linkedContact:result.contactLinked||false}});}
+  try{const result=await recruitment.createPublic(pool,{tenantSlug:req.params.tenantSlug,body:req.body,file,visitorHash});res.status(result.repeated?200:201).json({success:true,data:{referenceCode:result.referenceCode,repeated:result.repeated,linkedLead:result.leadLinked||false,linkedContact:result.contactLinked||false,linkedChat:result.chatLinked||false}});}
   finally{if(file?.tempFilePath)await fs.rm(file.tempFilePath,{force:true}).catch(()=>{});}
  }));
  router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'RECRUITMENT_UNAVAILABLE',status=Number(error.status)||(['APPLICATION_RATE_LIMITED'].includes(code)?429:['INVALID_','CONSENT_REQUIRED'].some(prefix=>code.startsWith(prefix))?400:code==='TENANT_NOT_FOUND'?404:503);res.status(status).json({success:false,code:status>=500?'RECRUITMENT_UNAVAILABLE':code});});

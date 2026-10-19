@@ -40,34 +40,52 @@ test('application phone match links only the unique owner workspace contact and 
     if(sql.includes('FROM sx_legacy_ownership'))return [[{uidHash:'owner-hash',uid:'sales-owner'}]];
     if(sql.includes('FROM pipeline_contacts'))return [[{id:'contact-1'}]];
     if(sql.includes('FROM pipeline_leads'))return [[{id:'lead-1'}]];
+    if(sql.includes('FROM beta_chats'))return [[{chatId:'chat-1',chatOrigin:'meta'}]];
     throw new Error('Unexpected recruitment matching query');
   }};
   const linked=await recruitment.matchExistingLead(db,{tenant:{id:owner.tenant.id}},'+919876543210');
-  assert.deepEqual(linked,{contactId:'contact-1',leadId:'lead-1',uid:'sales-owner'});
+  assert.deepEqual(linked,{contactId:'contact-1',leadId:'lead-1',chatId:'chat-1',chatOrigin:'meta',uid:'sales-owner'});
   assert.deepEqual(calls[0].params,[owner.tenant.id]);
   assert.deepEqual(calls[1].params,['owner-hash','+919876543210']);
-  assert.deepEqual(calls[2].params,['owner-hash','contact-1']);
+  assert.deepEqual(calls[2].params,['sales-owner','+919876543210','919876543210']);
+  assert.deepEqual(calls[3].params,['owner-hash','contact-1']);
 });
 
 test('application phone match refuses ambiguous workspace ownership and leaves unmatched applicants unlinked',async()=>{
   let queries=0;
   const ambiguous={query:async()=>{queries++;return [[{uidHash:'owner-a',uid:'owner-a'},{uidHash:'owner-b',uid:'owner-b'}]];}};
-  assert.deepEqual(await recruitment.matchExistingLead(ambiguous,{tenant:{id:owner.tenant.id}},'+919876543210'),{contactId:null,leadId:null});
+  assert.deepEqual(await recruitment.matchExistingLead(ambiguous,{tenant:{id:owner.tenant.id}},'+919876543210'),{contactId:null,leadId:null,chatId:null,chatOrigin:null});
   assert.equal(queries,1,'ambiguous ownership never queries contacts or leads');
 
   const unmatched={query:async(sql)=>{
     if(sql.includes('FROM sx_legacy_ownership'))return [[{uidHash:'owner-hash',uid:'sales-owner'}]];
     if(sql.includes('FROM pipeline_contacts'))return [[]];
+    if(sql.includes('FROM beta_chats'))return [[]];
     throw new Error('An unmatched phone must not query or create a lead');
   }};
-  assert.deepEqual(await recruitment.matchExistingLead(unmatched,{tenant:{id:owner.tenant.id}},'+919876543210'),{contactId:null,leadId:null});
+  assert.deepEqual(await recruitment.matchExistingLead(unmatched,{tenant:{id:owner.tenant.id}},'+919876543210'),{contactId:null,leadId:null,chatId:null,chatOrigin:null,uid:'sales-owner'});
+});
+
+test('application phone match links an existing WhatsApp chat even when no Phonebook contact or lead exists',async()=>{
+  const calls=[];
+  const db={query:async(sql,params)=>{
+    calls.push({sql,params});
+    if(sql.includes('FROM sx_legacy_ownership'))return [[{uidHash:'owner-hash',uid:'sales-owner'}]];
+    if(sql.includes('FROM pipeline_contacts'))return [[]];
+    if(sql.includes('FROM beta_chats'))return [[{chatId:'chat-only-1',chatOrigin:'qr'}]];
+    throw new Error('A chat-only match must not invent a phonebook contact or lead');
+  }};
+  const linked=await recruitment.matchExistingLead(db,{tenant:{id:owner.tenant.id}},'+919876543210');
+  assert.deepEqual(linked,{contactId:null,leadId:null,chatId:'chat-only-1',chatOrigin:'qr',uid:'sales-owner'});
+  assert.deepEqual(calls[2].params,['sales-owner','+919876543210','919876543210']);
 });
 
 test('application review exposes the latest chat linked to its matched lead',async()=>{
   const item={id:'application-1',referenceCode:'SMX-ABC12345',fullName:'Asha Candidate',mobile:'+91 98765 43210',email:null,englishLevel:'proficient',hindiLevel:'none',experienceYears:4,crmSaasExperience:'SaaS sales',availability:'either',cvFileName:'asha.pdf',cvMimeType:'application/pdf',cvBytes:123,linkedContactId:'contact-1',linkedLeadId:'lead-1',linkedChatId:'chat-1',linkedChatOrigin:'meta',sourceChannel:'whatsapp',sourceReference:null,status:'new',revision:1,consentedAt:new Date(),createdAt:new Date(),updatedAt:new Date()};
   const db={query:async(sql,params)=>{
     if(sql.startsWith('SELECT COUNT')){assert.deepEqual(params,[owner.tenant.id]);return [[{total:1}]];}
-    assert.match(sql,/pipeline_conversations pc/,'review query must resolve an existing linked conversation');
+    assert.match(sql,/COALESCE\(a\.linked_chat_id/,'review query must prioritize an exact existing chat linked at submission');
+    assert.match(sql,/pipeline_conversations pc/,'legacy applications must still resolve chats through their matched lead');
     assert.deepEqual(params,[owner.tenant.id,25,0]);return [[item]];
   }};
   const result=await recruitment.list(db,owner,{status:'all'});
