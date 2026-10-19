@@ -14,7 +14,7 @@ For every screen: inspect its existing rendered state; improve its actual layout
 
 | Section | Current work | Required next evidence |
 | --- | --- | --- |
-| Shared business sidebar/header | Foundation in working tree; catalogue consumer markers corrected | Native desktop/mobile drawers, all locale/role combinations, search/collapse/keyboard, live user confirmation |
+| Shared business sidebar/header | First foundation deployed; catalogue consumer markers corrected | Native desktop/mobile drawers, all locale/role combinations, search/collapse/keyboard, live user confirmation |
 | Products & services | Existing catalogue styling pass; profile/student cloning denied for Sales | Main editor, price/media/publish workflow, populated/error/mobile states |
 | Training Courses | Shared foundation applies | Catalogue/editor, batches/offers/media and permission layouts |
 | Dashboard, Sales and Training | Shared foundation applies to existing iframe | Role-specific cards, charts, shortcuts; desktop/mobile EN/AR |
@@ -22,7 +22,7 @@ For every screen: inspect its existing rendered state; improve its actual layout
 | Sales deals | Shared module foundation | Creation, review, approval dialogs, table/cards, errors |
 | Sales targets/performance | Shared module foundation | Target editor, monthly controls, team hierarchy |
 | Sales reports | Shared module foundation | Filters, exports, long tables, report permissions |
-| Sales commissions/payouts | Layout pass in working tree for reported page | Populated ledger, review/payout controls, mobile EN/AR; preserve separation of duties |
+| Sales commissions/payouts | Ledger layout deployed; responsive dialog refinement in progress | Populated ledger, review/payout controls, mobile EN/AR; preserve separation of duties |
 | Commission policy | Shared module foundation | Policy versions, editor, tier controls and confirmation |
 | Sales finance | Shared module foundation | Invoice/receipt/allocation and reconciliation views |
 | Organization | Shared module foundation | Reporting hierarchy and member controls |
@@ -49,4 +49,8 @@ For every screen: inspect its existing rendered state; improve its actual layout
 | Account/profile/sign-in | Shared root scope only | Existing account/login layouts and validation |
 | Platform administration | Shared root scope only | Plan/user/staff screens and dialogs; preserve separate platform authority |
 
-No section is marked fully accepted yet. Synthetic preview evidence and deployment facts are recorded in DEPLOYMENT.md when an increment is published. The active goal remains the entire requested uplift.
+The shared foundation is deployed. A second refinement adds screen-specific layouts for Sales finance, deals/targets/reports, organization, audit, calls and tasks; material campaign/template controls, Team Access, Phonebook and FAQ surfaces follow the same design. A maintained synthetic browser runner covers 12 module routes with desktop populated/empty states, Arabic mobile states and denied mobile states. Deal cancellation/Escape/rejection payload and organization search/move-dialog cancellation are exercised. This synthetic evidence does not certify every provider or customer-data workflow. No section is marked fully accepted yet. Synthetic preview evidence and deployment facts are recorded in DEPLOYMENT.md when an increment is published. The active goal remains the entire requested uplift.
+
+## Sales capability restoration
+
+Release sales-messaging-ad72dee-20261019 restores QR, Meta connection, templates, campaign sending/dashboard, Flows and Chatbot/FAQs in the Sales registry and designated owner plan. All corresponding authenticated read APIs and chatbot runtime category resolution pass. Real campaign delivery and number pairing remain distinct provider acceptance steps. Campaign and template screens are now included in the priority design review.

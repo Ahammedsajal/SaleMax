@@ -41,6 +41,30 @@ html[data-sx-modern=shell] .MuiTableHead-root{background:#f6f8fb}
 html[data-sx-modern=shell] .MuiTableCell-head{color:#68778d;font-size:11px;font-weight:700;letter-spacing:.025em;border-color:#e7edf4}
 html[data-sx-modern=shell] .MuiTableCell-body{font-size:13px;border-color:#eef2f6;padding-block:15px}
 html[data-sx-modern=shell] .MuiTableRow-root:hover .MuiTableCell-body{background:#fafbfe}
+html[data-sx-modern=shell] .MuiOutlinedInput-root{border-radius:10px;font-size:13px;background:#fff}
+html[data-sx-modern=shell] .MuiOutlinedInput-notchedOutline{border-color:#d7e0eb}
+html[data-sx-modern=shell] .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline{border-color:#ad003f;border-width:1px;box-shadow:0 0 0 3px #ad003f09}
+html[data-sx-modern=shell] .MuiInputLabel-root{font-size:13px;color:#758299}
+html[data-sx-modern=shell] .MuiButton-outlined{border-radius:10px;text-transform:none;border-color:#d3ddeb;color:#52647d;font-size:12px}
+html[data-sx-modern=shell] .MuiAlert-root{font-size:12px;line-height:1.7;border-radius:12px;box-shadow:none}
+html[data-sx-modern=shell] .MuiChip-root{font-size:10px;font-weight:650;border-radius:7px}
+html[data-sx-modern=shell] :is(.MuiDialogTitle-root,.MuiDialogContent-root,.MuiDialogActions-root){padding-inline:26px}
+html[data-sx-modern=shell] .MuiDialogTitle-root{font-size:20px;padding-top:24px;letter-spacing:-.025em}
+html[data-sx-modern=shell] .MuiDialogActions-root{padding-block:16px 22px;border-top:1px solid #edf1f7;gap:7px}
+/* Existing campaign/template wizards keep all native fields and validation. */
+html[data-sx-page=send-campaign] .MuiStepper-root,html[data-sx-page=create-meta-template] .MuiStepper-root{padding:20px 16px;background:#f6f8fc;border-bottom:1px solid #e5ebf4}
+html[data-sx-page=send-campaign] .MuiStepIcon-root.Mui-active,html[data-sx-page=create-meta-template] .MuiStepIcon-root.Mui-active{color:#ac0040;filter:drop-shadow(0 2px 5px #ac004020)}
+html[data-sx-page=send-campaign] .MuiStepIcon-root.Mui-completed,html[data-sx-page=create-meta-template] .MuiStepIcon-root.Mui-completed{color:#237b64}
+html[data-sx-page=send-campaign] .MuiStepLabel-label,html[data-sx-page=create-meta-template] .MuiStepLabel-label{font-size:11px;color:#7a899f;font-weight:550}
+html[data-sx-page=send-campaign] .MuiStepLabel-label.Mui-active,html[data-sx-page=create-meta-template] .MuiStepLabel-label.Mui-active{color:#a8003b;font-weight:700}
+html[data-sx-page=send-campaign] .MuiPaper-root:not(.MuiDrawer-paper):not(.MuiMenu-paper):not(.MuiPopover-paper),html[data-sx-page=create-meta-template] .MuiPaper-root:not(.MuiDrawer-paper):not(.MuiMenu-paper):not(.MuiPopover-paper){border:1px solid #e3e9f2;box-shadow:0 4px 18px #263e6005}
+html[data-sx-page=campaign-dashboard] .MuiTableContainer-root{border:1px solid #e1e9f3;border-radius:16px}
+html[data-sx-page=campaign-dashboard] .MuiCard-root{border:1px solid #e2e9f2;box-shadow:0 4px 18px #263e6005;border-radius:16px}
+html[data-sx-page=wa-qr-connect] .MuiCard-root{border:1px solid #e0e8f3;border-radius:18px;box-shadow:0 5px 20px #243b5a05}
+html[data-sx-page=wa-meta-manual] .MuiTabs-root{background:#eff3f8;border-radius:11px;padding:4px;min-height:44px}
+html[data-sx-page=wa-meta-manual] .MuiTab-root{border-radius:8px;font-size:12px;text-transform:none;min-height:38px}
+html[data-sx-page=wa-meta-manual] .MuiTab-root.Mui-selected{background:#fff;box-shadow:0 2px 5px #273e5d12;color:#a8003b}
+html[data-sx-page=wa-meta-manual] .MuiTabs-indicator{display:none}
 /* Maintained screen surfaces. Keep financial/content layout semantics intact. */
 html[data-sx-modern] :is(.workspace,.dashboard){max-width:1440px;margin-inline:auto;padding:30px 32px 48px}
 html[data-sx-modern] :is(.workspace>header,.dashboard>.hero){padding-block:4px 12px;margin-bottom:18px}
@@ -83,8 +107,119 @@ html[data-sx-modern] .commission-summary-card dl>div:nth-child(2) dd{color:#a800
 html[data-sx-modern] .commission-summary-card dl>div:nth-child(3){background:#f2faf7;border-color:#daeee4}
 html[data-sx-modern] .commission-summary-card dl>div:nth-child(3) dd{color:#197455}
 html[data-sx-modern] #separationNote{padding-bottom:18px;border-bottom:1px solid #edf1f6}
+/* Sales finance: preserve currency-separated totals and expose a visual hierarchy. */
+html[data-sx-module=sales-finance] #overviewCards{grid-template-columns:1fr;gap:18px;margin-bottom:22px}
+html[data-sx-module=sales-finance] #overviewCards .metric{padding:22px;background:linear-gradient(120deg,#fff 75%,#faf4f7)}
+html[data-sx-module=sales-finance] #overviewCards .metric>h2{display:inline-flex;padding:5px 10px;border-radius:7px;background:#f0e8ed;color:#93415f;font-size:11px;letter-spacing:.06em}
+html[data-sx-module=sales-finance] #overviewCards .metric dl{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));column-gap:20px;row-gap:10px;margin:16px 0 4px}
+html[data-sx-module=sales-finance] #overviewCards .metric dt{grid-row:1;font-size:11px;color:#748196;line-height:1.5}
+html[data-sx-module=sales-finance] #overviewCards .metric dd{grid-row:2;text-align:start;margin:0;font-size:clamp(16px,1.4vw,22px);letter-spacing:-.03em;font-weight:700;overflow-wrap:anywhere;line-height:1.4;color:#26374e}
+html[data-sx-module=sales-finance] #overviewCards .metric :is(dt,dd):nth-of-type(1){grid-column:1}
+html[data-sx-module=sales-finance] #overviewCards .metric :is(dt,dd):nth-of-type(2){grid-column:2}
+html[data-sx-module=sales-finance] #overviewCards .metric :is(dt,dd):nth-of-type(3){grid-column:3}
+html[data-sx-module=sales-finance] #overviewCards .metric :is(dt,dd):nth-of-type(4){grid-column:4}
+html[data-sx-module=sales-finance] #overviewCards .metric :is(dt,dd):nth-of-type(5){grid-column:5}
+html[data-sx-module=sales-finance] #overviewCards .metric :is(dt,dd):nth-of-type(6){grid-column:6}
+html[data-sx-module=sales-finance] #overviewCards .metric dd:nth-of-type(2){color:#18785b}
+html[data-sx-module=sales-finance] #overviewCards .metric dd:nth-of-type(4){color:#b76420}
+html[data-sx-module=sales-finance] #invoicesView>.toolbar,html[data-sx-module=sales-finance] #reconciliationView>.toolbar{padding:18px 22px;border:1px solid #e3e9f1;background:#fff;border-radius:14px}
+html[data-sx-module=sales-finance] .form-grid{gap:18px}
+html[data-sx-module=sales-finance] .form-grid label{font-size:12px;color:#56667d}
+html[data-sx-module=sales-finance] #receiptForm>button{justify-self:start;min-width:165px}
+html[data-sx-module=sales-finance] #reconciliationView>.panel{max-width:100%;border-top:3px solid #eac5d5}
+html[data-sx-module=sales-finance] #reportForm{align-items:end;gap:16px}
+/* People: the reporting hierarchy stays explicit, with calmer nested surfaces. */
+html[data-sx-module=sales-organization] .summary-card{padding:20px;position:relative;overflow:hidden}
+html[data-sx-module=sales-organization] .summary-card strong{font-size:30px;margin-top:13px;color:#26374e}
+html[data-sx-module=sales-organization] .summary-card:after{content:'';position:absolute;inset-inline-end:20px;top:20px;width:30px;height:30px;border:8px solid #f7e5ed;border-radius:12px;transform:rotate(-12deg)}
+html[data-sx-module=sales-organization] .org-manager{padding:20px;border-inline-start:3px solid #b40045;background:#fbfcfe}
+html[data-sx-module=sales-organization] .org-leader{padding:14px;background:#f3f6fb;border-color:#e6ebf3}
+html[data-sx-module=sales-organization] .org-member{padding:16px;min-height:84px;border-color:#e8edf4;border-radius:12px}
+html[data-sx-module=sales-organization] .member-name{font-size:14px}
+html[data-sx-module=sales-organization] .member-email{font-size:11px;margin:5px 0 10px}
+html[data-sx-module=sales-organization] .role-badge{padding:5px 9px;border-radius:7px;font-size:10px}
+html[data-sx-module=sales-organization] .org-owners{padding:16px;border-style:solid;background:#faf8fb}
+html[data-sx-module=sales-organization] .org-level{padding-inline-start:20px;margin-inline-start:8px}
+/* Audit events: readable chronology and expandable details. */
+html[data-sx-module=sales-audit] .filter-bar{padding:20px;background:#fff;border:1px solid #e3e9f1;border-radius:16px;gap:14px;margin-bottom:24px}
+html[data-sx-module=sales-audit] .event-list{position:relative;padding-inline-start:24px;border-inline-start:1px solid #dbe3ef;margin-inline-start:8px}
+html[data-sx-module=sales-audit] .event-card{position:relative;padding:22px;border:1px solid #e3e9f1;border-radius:15px;box-shadow:0 3px 14px #273c5c04}
+html[data-sx-module=sales-audit] .event-card:before{content:'';position:absolute;inset-inline-start:-31px;top:28px;width:10px;height:10px;background:#ad003f;border:3px solid #f4f7fb;border-radius:50%}
+html[data-sx-module=sales-audit] .event-heading h2{font-size:14px;font-family:Roboto,Arial,sans-serif}
+html[data-sx-module=sales-audit] .event-heading time{font-size:11px;padding:5px 8px;background:#f4f7fb;border-radius:6px;color:#74829a}
+html[data-sx-module=sales-audit] .event-meta{font-size:12px;line-height:1.7;gap:18px}
+html[data-sx-module=sales-audit] details{margin-top:15px;border-top:1px solid #edf1f6;padding-top:12px}
+html[data-sx-module=sales-audit] summary{cursor:pointer;font-size:12px;color:#a8003b;font-weight:600}
+/* Calls and tasks: status-led cards, clear work-queue controls. */
+html[data-sx-module=call-center] .cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:22px}
+html[data-sx-module=call-center] .cards .card{padding:21px;min-height:155px;border:1px solid #e0e7f0;border-radius:16px;background:#fff;box-shadow:0 4px 18px #293f6104}
+html[data-sx-module=call-center] .cards .card>span{font-size:11px;color:#6d7f97;text-transform:uppercase;letter-spacing:.03em}
+html[data-sx-module=call-center] .cards .card strong{display:block;font-size:20px;letter-spacing:-.025em;margin-block:12px 8px;color:#34435b}
+html[data-sx-module=call-center] .cards .card small{font-size:11px;line-height:1.65;color:#7b8a9e}
+html[data-sx-module=call-center] #notice:not(:empty){border-inline-start:3px solid #ddb56b;background:#fffdf8;color:#7e693f}
+html[data-sx-module=tasks] .app{max-width:1440px;margin-inline:auto;padding:30px 32px 48px}
+html[data-sx-module=tasks] .app>header{margin-bottom:24px}
+html[data-sx-module=tasks] .app>header small{font-size:10px;letter-spacing:.12em;color:#a8003b;font-weight:700}
+html[data-sx-module=tasks] .app>header p{font-size:13px;color:#74839a}
+html[data-sx-module=tasks] .app>nav{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px;background:#fff;border:1px solid #e2e9f2;border-radius:14px;margin-bottom:20px}
+html[data-sx-module=tasks] .filters{gap:4px;background:#f2f5fa;padding:4px;border-radius:10px}
+html[data-sx-module=tasks] [data-scope]{border:0;border-radius:7px;background:transparent;color:#6b7c92;padding:9px 13px}
+html[data-sx-module=tasks] [data-scope].active{background:#fff;color:#a8003b;box-shadow:0 2px 5px #223c5a10}
+html[data-sx-module=tasks] .task-list>.empty{padding:60px 20px;text-align:center;background:#fff;border-radius:16px}
+html[data-sx-module=tasks] .task-card{padding:20px;border-radius:15px;border-color:#e3eaf3;box-shadow:0 3px 14px #273b5b04}
+html[data-sx-module=tasks] .pagination{justify-content:space-between;border-top:1px solid #e1e8f2;padding-top:18px;margin-top:24px;font-size:12px;color:#8190a5}
+/* Native module dialogs preserve showModal focus, validation and submission behavior. */
+html[data-sx-modern=module] dialog{border:1px solid #e3e8f0;border-radius:20px;box-shadow:0 30px 100px #182b4d30;padding:26px;max-height:calc(100dvh - 48px);overflow:auto}
+html[data-sx-modern=module] dialog::backdrop{background:#15233d65;backdrop-filter:blur(5px)}
+html[data-sx-modern=module] dialog :is(input,select,textarea){box-sizing:border-box;width:100%;min-height:44px;border:1px solid #d5deea;border-radius:10px;padding:10px 12px;background:#fff;color:#26374c;font-size:13px}
+html[data-sx-modern=module] dialog input:is([type=checkbox],[type=radio]){width:auto;min-height:0}
+html[data-sx-modern=module] dialog label{font-size:12px;line-height:1.6;color:#52637b}
+html[data-sx-modern=module] dialog .dialog-actions{margin-top:22px;padding-top:18px;border-top:1px solid #e8edf4}
+html[data-sx-modern] .sx-action-dialog{width:min(480px,calc(100vw - 32px));box-sizing:border-box;background:#fff;padding:28px;border:1px solid #e3e8f0;border-radius:20px;box-shadow:0 30px 100px #182b4d30;max-height:calc(100dvh - 32px);overflow:auto}
+html[data-sx-modern] .sx-action-dialog::backdrop{background:#15233d65;backdrop-filter:blur(5px)}
+html[data-sx-modern] .sx-dialog-symbol{width:44px;height:44px;display:grid;place-items:center;font-size:20px;color:#ad003f;background:#fbeaf1;border:6px solid #fff5f9;border-radius:14px;margin-bottom:20px;box-sizing:content-box}
+html[data-sx-modern] .sx-action-dialog h2{font-size:20px;margin:0 0 10px}
+html[data-sx-modern] .sx-dialog-description{font-size:13px;color:#6a7b93;line-height:1.8;margin:0 0 22px}
+html[data-sx-modern] .sx-dialog-input{display:grid;gap:7px;font-size:12px;color:#53647c}
+html[data-sx-modern] .sx-dialog-input textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:90px;border:1px solid #d6dfeb;border-radius:10px;padding:12px;font:inherit}
+html[data-sx-modern] .sx-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px;padding-top:18px;border-top:1px solid #e7edf5}
+html[data-sx-modern] .sx-dialog-actions button{padding:10px 18px;border:1px solid #d4deeb;border-radius:10px;font:inherit;font-size:12px;min-height:42px;background:white;color:#4c5d75;cursor:pointer}
+html[data-sx-modern] .sx-dialog-actions button.primary{background:#ad003f;border-color:#ad003f;color:white}
+/* Sales requests and monthly targets are separate work surfaces. */
+html[data-sx-module=sales-workspace] :is(#dealsSection,#targetsSection,#reportsSection){padding:24px;background:#fff;border:1px solid #e2e9f2;border-radius:18px;box-shadow:0 3px 16px #25395404}
+html[data-sx-module=sales-workspace] :is(#dealsSection,#targetsSection)>.toolbar{margin-top:0;padding-bottom:16px;border-bottom:1px solid #edf1f7}
+html[data-sx-module=sales-workspace] #submitPanel{background:#f9fbfe;border-color:#e4ebf5;border-radius:14px;margin-block:20px}
+html[data-sx-module=sales-workspace] .record-card{padding:20px;border-radius:14px;border-color:#e3eaf4;gap:24px}
+html[data-sx-module=sales-workspace] .record-card strong{font-size:14px}
+html[data-sx-module=sales-workspace] .record-card small{font-size:12px;line-height:1.7;margin-top:7px;color:#7c8a9f}
+html[data-sx-module=sales-workspace] .target-metrics{background:#f5f8fc;border:1px solid #e6edf6;padding:16px;border-radius:11px}
+html[data-sx-module=sales-workspace] .target-progress{padding-inline:10px}
+html[data-sx-module=sales-workspace] .target-progress span{font-size:11px;color:#7b899f}
+html[data-sx-module=sales-workspace] .target-progress strong{font-size:20px;margin-top:10px;display:block;letter-spacing:-.03em}
+html[data-sx-module=sales-workspace] .target-form{padding-top:18px;border-top:1px solid #edf1f7;gap:14px}
+html[data-sx-module=sales-workspace] .report-controls{align-items:end;gap:12px}
+html[data-sx-module=sales-workspace] .report-table-wrap{margin-top:22px;border:1px solid #e3eaf3;box-shadow:none}
 /* Existing overlay screens receive the same spacing and controls. */
 html[data-sx-modern] :is(#sx-course-screen,#sx-team-invitations-screen,#sx-training-profile-screen,#sx-crm-appearance){background:#f4f7fb!important}
+html[data-sx-modern] #sx-team-screen{background:#f4f7fb!important}
+html[data-sx-modern] #sx-team-screen .card{border:1px solid #e2e9f2;border-radius:17px;box-shadow:0 4px 16px #223c5c04;padding:23px}
+html[data-sx-modern] #sx-team-screen :is(.sub,.muted){font-size:12px;line-height:1.7;color:#76859b}
+html[data-sx-modern] #sx-team-screen :is(input:not([type=checkbox]):not([type=radio]),select,textarea){border-radius:10px;border-color:#d5dfeb;font-size:13px;min-height:43px}
+html[data-sx-modern] #sx-team-screen button{border-radius:10px;font-size:12px;font-weight:600}
+html[data-sx-modern] #sx-team-screen .member-row{border-bottom-color:#eaf0f6;padding-block:16px}
+html[data-sx-modern] #sx-phonebook{border:1px solid #e1e9f3;box-shadow:0 4px 18px #263e6005;border-radius:18px}
+html[data-sx-modern] #sx-phonebook .pb-head{padding:22px}
+html[data-sx-modern] #sx-phonebook .pb-toolbar{padding:16px 20px;background:#fafbfd;border-block:1px solid #e8edf5}
+html[data-sx-modern] #sx-phonebook th{background:#f5f8fc;font-size:10px;color:#7b8a9f;letter-spacing:.03em}
+html[data-sx-modern] #sx-phonebook td{padding-block:15px}
+html[data-sx-modern] .sx-pb-dialog{border-radius:20px;border-color:#e0e8f2;box-shadow:0 25px 90px #1a2e4c28}
+html[data-sx-modern] #sx-faqs-screen{background:#f4f7fb}
+html[data-sx-modern] #sx-faqs-screen .sx-faqs-heading{padding-block:4px 16px;margin-bottom:24px}
+html[data-sx-modern] #sx-faqs-screen .sx-faqs-heading p{max-width:650px;font-size:13px;line-height:1.75;color:#75859b}
+html[data-sx-modern] #sx-faqs-screen .sx-faq-card{border:1px solid #e1e8f2;border-radius:16px;box-shadow:0 4px 16px #263c5904;padding:24px}
+html[data-sx-modern] #sx-faqs-screen .sx-faqs-empty{background:#fff;border:1px dashed #d9e3ee;border-radius:18px;padding:52px 24px;text-align:center}
+html[data-sx-modern] #sx-faqs-screen .sx-faq-dialog{border:1px solid #e3e9f2;border-radius:20px;box-shadow:0 30px 90px #20344f25}
+html[data-sx-modern] #sx-faqs-screen .sx-faq-dialog::backdrop{background:#15233d65;backdrop-filter:blur(5px)}
 html[data-sx-modern] #sx-course-screen .card{border:1px solid #e2e8f1!important;border-radius:18px!important;box-shadow:0 3px 16px #263c5a05!important}
 html[data-sx-modern] #sx-course-screen .page-heading{margin-bottom:26px}
 html[data-sx-modern] #sx-course-screen :is(input,select,textarea){border-color:#d4ddeb;border-radius:10px;font-size:13px}
@@ -97,6 +232,14 @@ html[data-sx-modern] :is(.sx-team-dialog,.sx-team-role-modal,.MuiDialog-paper){b
  html[data-sx-modern] .panel,html[data-sx-modern] #commissionsSection{padding:18px}
  html[data-sx-modern] :is(h1,.hero h1){font-size:26px}
  html[data-sx-modern] .tabs button{min-height:42px;padding:9px 12px}
+ html[data-sx-module=sales-finance] #overviewCards .metric dl{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:12px}
+ html[data-sx-module=sales-finance] #overviewCards .metric :is(dt,dd):nth-of-type(4){grid-column:1}
+ html[data-sx-module=sales-finance] #overviewCards .metric :is(dt,dd):nth-of-type(5){grid-column:2}
+ html[data-sx-module=sales-finance] #overviewCards .metric :is(dt,dd):nth-of-type(6){grid-column:3}
+ html[data-sx-module=sales-finance] #overviewCards .metric dt:nth-of-type(n+4){grid-row:3;padding-top:12px;border-top:1px solid #e5eaf2}
+ html[data-sx-module=sales-finance] #overviewCards .metric dd:nth-of-type(n+4){grid-row:4}
+ html[data-sx-module=call-center] .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+ html[data-sx-module=tasks] .app{padding:22px 18px 32px}
 }
 @media(max-width:480px){
  html[data-sx-modern] :is(.workspace,.dashboard){padding:18px 12px 30px}
@@ -104,5 +247,13 @@ html[data-sx-modern] :is(.sx-team-dialog,.sx-team-role-modal,.MuiDialog-paper){b
  html[data-sx-modern] :is(button,input,select){scroll-margin-block:80px}
  html[data-sx-modern] .commission-summary-card dl{grid-template-columns:1fr}
  html[data-sx-modern] .commission-summary-card dl>div{padding:14px;gap:7px}
+ html[data-sx-module=tasks] .app{padding:18px 12px 30px}
+ html[data-sx-module=call-center] .cards{grid-template-columns:1fr}
+ html[data-sx-module=sales-finance] #overviewCards .metric dl{column-gap:10px}
+ html[data-sx-module=sales-finance] #overviewCards .metric dd{font-size:15px}
+ html[data-sx-module=sales-organization] .org-manager{padding:12px}
+ html[data-sx-module=sales-organization] .org-level{padding-inline-start:10px;margin-inline-start:0}
+ html[data-sx-modern=module] dialog{padding:18px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px)}
+ html[data-sx-module=sales-workspace] :is(#dealsSection,#targetsSection,#reportsSection){padding:16px;border-radius:14px}
 }
 @media(prefers-reduced-motion:reduce){html[data-sx-modern] *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}

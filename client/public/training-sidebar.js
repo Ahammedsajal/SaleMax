@@ -21,7 +21,7 @@
   if (!window.__sxFaqManagerLoader) {
     window.__sxFaqManagerLoader = true;
     const faqStyle = document.createElement('link'); faqStyle.rel = 'stylesheet'; faqStyle.href = '/training-faqs.css?v=20261012-faq-library5'; document.head.append(faqStyle);
-    const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261013-language-layout1'; faqScript.defer = true; document.head.append(faqScript);
+    const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261019-uplift2'; faqScript.defer = true; document.head.append(faqScript);
   }
   const groups = [
     ['Overview', 'نظرة عامة', ['Dashboard']],

@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const source=fs.readFileSync(require.resolve('../client/public/workspace-modern.js'),'utf8');
 function run(path,language){
  const links=[],root={dataset:{}},doc={addEventListener(){},documentElement:root,head:{append:link=>links.push(link)},querySelector:()=>links[0]||null,querySelectorAll:()=>[],createElement:()=>({dataset:{}})};
- vm.runInNewContext(source,{location:{pathname:path,origin:'https://synthetic.example'},document:doc,localStorage:{getItem:()=>language},MutationObserver:class{observe(){}},WeakSet});
+ vm.runInNewContext(source,{window:{addEventListener(){}},URLSearchParams,location:{pathname:path,search:'',origin:'https://synthetic.example'},document:doc,localStorage:{getItem:()=>language},MutationObserver:class{observe(){}},WeakSet});
  return {links,root};
 }
 test('modern workspace styling is limited to existing authenticated routes and modules',()=>{
