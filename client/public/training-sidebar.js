@@ -295,7 +295,7 @@
     if(membershipCategoryKey==='salemax_sales'&&pipelineSource){
       if(roleNavigation?.has('sales-targets')&&(assignedNavigation===null||assignedNavigation.has('sales-targets'))&&!list.querySelector('[data-sx-sales-overview-nav]')){
         const [label,arabic]=salesNavLabels.overview[membershipRole]||['Sales Overview','نظرة عامة على المبيعات'];
-        const copy=pipelineSource.cloneNode(true);copy.dataset.sxSalesOverviewNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+        const copy=pipelineSource.cloneNode(true);copy.dataset.sxSalesOverviewNav='1';copy.dataset.sxSalesSection='overview';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
         const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr(label,arabic);
         copy.setAttribute('aria-label',tr(label,arabic));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
         button.setAttribute('aria-label',tr(label,arabic));button.onclick=event=>{event.preventDefault();location.href='/user?page=sales-workspace&section=overview';};list.append(copy);
@@ -303,9 +303,9 @@
       const salesLinks=[['targets','sales-targets','targets'],['reports','sales-targets','reports'],['deals','sales-deals','deals'],['commissions','sales-commissions','commissions']];
       for(const [labelKey,key,section] of salesLinks){
         if(roleNavigation&&!roleNavigation.has(key))continue;if(assignedNavigation!==null&&!assignedNavigation.has(key))continue;
-        const marker=`data-sx-${key}-nav`;if(list.querySelector(`[${marker}]`))continue;
+        const marker=`data-sx-sales-${section}-nav`;if(list.querySelector(`[${marker}]`))continue;
         const [label,arabic]=salesNavLabels[labelKey][membershipRole]||salesNavLabels[labelKey].owner;
-        const copy=pipelineSource.cloneNode(true);copy.setAttribute(marker,'1');copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+        const copy=pipelineSource.cloneNode(true);copy.setAttribute(marker,'1');copy.dataset.sxSalesSection=section;copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
         const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr(label,arabic);
         copy.setAttribute('aria-label',tr(label,arabic));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
         button.setAttribute('aria-label',tr(label,arabic));button.onclick=event=>{event.preventDefault();location.href=`/user?page=sales-workspace&section=${section}`;};list.append(copy);
@@ -356,7 +356,7 @@
         const tooltip = name === 'Web Notification' ? tr('Web Notifications', 'إشعارات الويب') : text;
         if (Object.values(routes).includes(active)) {
           const button = row.querySelector('.MuiListItemButton-root');
-          if (button) { const selected = name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : name==='Sales Reports' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Sales Deals' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='deals' : name==='Sales Targets' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='targets' : ['My Commissions','Commission Payouts'].includes(name) ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='commissions' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
+          if (button) { const selected = row.dataset.sxSalesSection ? active==='sales-workspace'&&(new URLSearchParams(location.search).get('section')||'overview')===row.dataset.sxSalesSection : name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : name==='Sales Reports' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Sales Deals' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='deals' : name==='Sales Targets' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='targets' : ['My Commissions','Commission Payouts'].includes(name) ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='commissions' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
         }
         const captions = {Dashboard:['Dashboard','لوحة التحكم'], 'Web Notification':['Web Notifications','إشعارات الويب'], 'Create Meta Template':['Create Meta Template','إنشاء قالب Meta']};
         const leaf = [...row.querySelectorAll('.MuiListItemText-primary span')].at(-1);
@@ -371,7 +371,7 @@
         const rank = groups[group][2].indexOf(name);
         const order = String(group * 100 + 1 + (rank < 0 ? index : rank));
         if (row.style.order !== order) row.style.order = order;
-        const navKey=navigationKeys[name]||navigationKeys[text];
+        const navKey=row.dataset.sxSalesSection?({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[row.dataset.sxSalesSection]:navigationKeys[name]||navigationKeys[text];
         const salesTeamEntryHidden=membershipCategoryKey==='salemax_sales'&&(name==='Agent Login'||(name==='Team access'&&membershipRole!=='owner'));
         const duplicateTask=name==='Agent Task'&&!!list.querySelector('[data-sx-tasks-nav]');
         const unknownStaffItem=roleNavigation!==null&&membershipRole!=='owner'&&!navKey&&!['Logout','Sign out'].includes(name);

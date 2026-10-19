@@ -15,6 +15,6 @@ test('catalogue navigation uses category permission even when the catalogue API 
   vm.runInContext("let products=false,rootPath='',navToken='',navAllowed=false,navChecked=false,navLoading=false;"+functions,context);
   await vm.runInContext('checkCourseAccess()',context);
   assert.equal(catalogueRequests,0);assert.equal(inserted.length,granted?1:0);
-  if(granted){assert.equal(copy.hidden,false);assert.deepEqual(Object.keys(copy.dataset),['sxCourseNav']);assert.equal(primary.textContent,category==='salemax_sales'?'Products & services':'Courses');click({preventDefault(){}});assert.equal(context.location.href,'/user?page='+(category==='salemax_sales'?'products-services':'courses'));}
+  if(granted){assert.equal(copy.hidden,false);assert.deepEqual(Object.keys(copy.dataset),['sxCourseNav','sxCatalogKind']);assert.equal(primary.textContent,category==='salemax_sales'?'Products & services':'Courses');click({preventDefault(){}});assert.equal(context.location.href,'/user?page='+(category==='salemax_sales'?'products-services':'courses'));}
  }
 });
