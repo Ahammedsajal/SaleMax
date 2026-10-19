@@ -152,7 +152,7 @@ function parseCSVFile(fileData) {
 
     // Use csv-parser to parse the CSV data
     bufferStream
-      .pipe(csv())
+      .pipe(csv({ mapHeaders: ({ header }) => phonebookImport.normalizeHeader(header) }))
       .on("data", (data) => {
         // Push each row of data to the results array
         results.push(data);

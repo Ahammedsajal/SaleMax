@@ -1,7 +1,12 @@
 'use strict';
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
-const {normalizeImportRows,sendableContacts}=require('../modules/platform/phonebook-import');
+const {normalizeHeader,normalizeImportRows,sendableContacts}=require('../modules/platform/phonebook-import');
+
+test('CSV parser header normalization removes an Excel UTF-8 byte-order mark',()=>{
+  assert.equal(normalizeHeader('\uFEFFname'),'name');
+  assert.equal(normalizeHeader('mobile'),'mobile');
+});
 
 test('imports phone, email-only, social-only, and company-only contacts without inventing numbers',()=>{
   const rows=normalizeImportRows([

@@ -4,6 +4,10 @@ function clean(value) {
   return value == null ? '' : String(value).trim();
 }
 
+function normalizeHeader(header) {
+  return String(header || '').replace(/^\uFEFF/, '');
+}
+
 function normalizeImportRows(rows) {
   if (!Array.isArray(rows) || !rows.length) {
     throw Object.assign(new Error('INVALID_CONTACT_IMPORT'), { code: 'INVALID_CONTACT_IMPORT' });
@@ -32,4 +36,4 @@ function sendableContacts(contacts) {
     .filter(contact => clean(contact?.mobile).length > 0);
 }
 
-module.exports = { normalizeImportRows, sendableContacts };
+module.exports = { normalizeHeader, normalizeImportRows, sendableContacts };
