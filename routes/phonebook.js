@@ -12,6 +12,7 @@ const csv = require("csv-parser");
 const fs = require("fs");
 const { checkPlan, checkContactLimit } = require("../middlewares/plan.js");
 const phonebookOwnerScope=require('../modules/platform/phonebook-owner-scope').middleware({pool:require('../database/config.js').promise()});
+const phonebookImport = require('../modules/platform/phonebook-import');
 
 // add phonebook name
 router.post(
@@ -189,26 +190,14 @@ router.post(
         return res.json({ success: false, msg: "Invalid CSV provided" });
       }
 
-      const cvalidateMobile = areMobileNumbersFilled(csvData);
-      if (!cvalidateMobile) {
-        return res.json({
-          msg: "Please check your CSV there one or more mobile not filled",
-          csvData,
-        });
-      }
-
-      // Flatten the array of objects into an array of values
-      const values = csvData.map((item) => [
+      // Contacts without a number can be catalogued, but campaign/call routes
+      // explicitly exclude them from recipient lists.
+      const normalizedRows = phonebookImport.normalizeImportRows(csvData);
+      const values = normalizedRows.map((item) => [
         req.decode.uid, // assuming uid is available in each item
         id,
         phonebook_name,
-        item.name,
-        item.mobile,
-        item.var1,
-        item.var2,
-        item.var3,
-        item.var4,
-        item.var5,
+        ...item,
       ]);
 
       // Execute the query
@@ -217,8 +206,11 @@ router.post(
         [values]
       );
 
-      res.json({ success: true, msg: "Contacts were inserted" });
+      res.json({ success: true, msg: "Contacts were inserted", imported: values.length, withoutMobile: normalizedRows.filter((row) => !row[1]).length });
     } catch (err) {
+      if (err.code === 'INVALID_CONTACT_IMPORT' || err.code === 'INVALID_CONTACT_IMPORT_ROW' || err.code === 'CONTACT_FIELD_TOO_LONG') {
+        return res.status(400).json({ success: false, code: err.code, row: err.row });
+      }
       res.json({ success: false, msg: "something went wrong" });
       console.log(err);
     }

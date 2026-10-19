@@ -9,6 +9,7 @@ const {
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
 const { checkPlan } = require("../middlewares/plan.js");
+const phonebookImport = require("../modules/platform/phonebook-import");
 
 // adding campaign
 router.post("/add_new", validateUser, checkPlan, async (req, res) => {
@@ -33,10 +34,10 @@ router.post("/add_new", validateUser, checkPlan, async (req, res) => {
       return res.json({ msg: "We could not find your meta API keys" });
     }
 
-    const getPhonebookContacts = await query(
+    const getPhonebookContacts = phonebookImport.sendableContacts(await query(
       `SELECT * FROM contact where phonebook_id = ? AND uid = ?`,
       [id, req.decode.uid],
-    );
+    ));
 
     if (getPhonebookContacts.length < 1) {
       return res.json({
@@ -272,7 +273,7 @@ router.post(
       }
 
       // ── Get contacts ──────────────────────────────────────
-      const contacts = await query(
+      const contacts = phonebookImport.sendableContacts(await query(
         `SELECT 
           mobile,
           MAX(name)  as name,
@@ -285,7 +286,7 @@ router.post(
         WHERE phonebook_id = ? AND uid = ?
         GROUP BY mobile`,
         [phonebook_id, req.decode.uid],
-      );
+      ));
       if (!contacts || contacts.length === 0) {
         return res.json({
           success: false,
