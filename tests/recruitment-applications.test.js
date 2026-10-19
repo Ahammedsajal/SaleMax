@@ -33,6 +33,51 @@ test('recruitment CV storage requires a private absolute path',()=>{
   assert.throws(()=>recruitment.storageRoot({}),{code:'RECRUITMENT_STORAGE_NOT_CONFIGURED'});
 });
 
+test('application phone match links only the unique owner workspace contact and lead',async()=>{
+  const calls=[];
+  const db={query:async(sql,params)=>{
+    calls.push({sql,params});
+    if(sql.includes('FROM sx_legacy_ownership'))return [[{uidHash:'owner-hash',uid:'sales-owner'}]];
+    if(sql.includes('FROM pipeline_contacts'))return [[{id:'contact-1'}]];
+    if(sql.includes('FROM pipeline_leads'))return [[{id:'lead-1'}]];
+    throw new Error('Unexpected recruitment matching query');
+  }};
+  const linked=await recruitment.matchExistingLead(db,{tenant:{id:owner.tenant.id}},'+919876543210');
+  assert.deepEqual(linked,{contactId:'contact-1',leadId:'lead-1',uid:'sales-owner'});
+  assert.deepEqual(calls[0].params,[owner.tenant.id]);
+  assert.deepEqual(calls[1].params,['owner-hash','+919876543210']);
+  assert.deepEqual(calls[2].params,['owner-hash','contact-1']);
+});
+
+test('application phone match refuses ambiguous workspace ownership and leaves unmatched applicants unlinked',async()=>{
+  let queries=0;
+  const ambiguous={query:async()=>{queries++;return [[{uidHash:'owner-a',uid:'owner-a'},{uidHash:'owner-b',uid:'owner-b'}]];}};
+  assert.deepEqual(await recruitment.matchExistingLead(ambiguous,{tenant:{id:owner.tenant.id}},'+919876543210'),{contactId:null,leadId:null});
+  assert.equal(queries,1,'ambiguous ownership never queries contacts or leads');
+
+  const unmatched={query:async(sql)=>{
+    if(sql.includes('FROM sx_legacy_ownership'))return [[{uidHash:'owner-hash',uid:'sales-owner'}]];
+    if(sql.includes('FROM pipeline_contacts'))return [[]];
+    throw new Error('An unmatched phone must not query or create a lead');
+  }};
+  assert.deepEqual(await recruitment.matchExistingLead(unmatched,{tenant:{id:owner.tenant.id}},'+919876543210'),{contactId:null,leadId:null});
+});
+
+test('application review exposes the latest chat linked to its matched lead',async()=>{
+  const item={id:'application-1',referenceCode:'SMX-ABC12345',fullName:'Asha Candidate',mobile:'+91 98765 43210',email:null,englishLevel:'proficient',hindiLevel:'none',experienceYears:4,crmSaasExperience:'SaaS sales',availability:'either',cvFileName:'asha.pdf',cvMimeType:'application/pdf',cvBytes:123,linkedContactId:'contact-1',linkedLeadId:'lead-1',linkedChatId:'chat-1',linkedChatOrigin:'meta',sourceChannel:'whatsapp',sourceReference:null,status:'new',revision:1,consentedAt:new Date(),createdAt:new Date(),updatedAt:new Date()};
+  const db={query:async(sql,params)=>{
+    if(sql.startsWith('SELECT COUNT')){assert.deepEqual(params,[owner.tenant.id]);return [[{total:1}]];}
+    assert.match(sql,/pipeline_conversations pc/,'review query must resolve an existing linked conversation');
+    assert.deepEqual(params,[owner.tenant.id,25,0]);return [[item]];
+  }};
+  const result=await recruitment.list(db,owner,{status:'all'});
+  assert.equal(result.total,1);
+  assert.equal(result.items[0].linkedContactId,'contact-1');
+  assert.equal(result.items[0].linkedLeadId,'lead-1');
+  assert.equal(result.items[0].linkedChatId,'chat-1');
+  assert.equal(result.items[0].linkedChatOrigin,'meta');
+});
+
 test('internal SaleMaX owner recruitment does not change the published plan entitlement',()=>{
   const withoutFeature={...owner,subscription:{status:'active',capabilities:[]}};
   assert.equal(decision(withoutFeature,{capability:'hr.recruitment',permission:'recruitment.manage'}).allowed,true);
