@@ -33,6 +33,30 @@ test('recruitment CV storage requires a private absolute path',()=>{
   assert.throws(()=>recruitment.storageRoot({}),{code:'RECRUITMENT_STORAGE_NOT_CONFIGURED'});
 });
 
+test('pre-screen answers are saved only with explicit consent and stay tied to the WhatsApp conversation',async()=>{
+  const calls=[],db={query:async(sql,params)=>{calls.push({sql,params});return [{affectedRows:1}];}};
+  const input={tenantId:owner.tenant.id,channelKind:'whatsapp_meta',channelRef:'meta-channel',conversationId:'candidate-chat',mobile:'+91 98765 43210',senderName:'Asha',answers:{location:'india',englishLevel:'proficient',privateNote:'discard'},complete:false,consent:false};
+  assert.equal(await recruitment.saveScreening(db,input),false);
+  assert.equal(calls.length,0);
+  assert.equal(await recruitment.saveScreening(db,{...input,consent:true}),true);
+  assert.equal(calls.length,1);
+  assert.match(calls[0].sql,/ON DUPLICATE KEY UPDATE/);
+  assert.equal(calls[0].params[1],owner.tenant.id);
+  assert.deepEqual(JSON.parse(calls[0].params[9]),{location:'india',englishLevel:'proficient'});
+  assert.equal(calls[0].params[10],recruitment.SCREENING_CONSENT);
+  assert.equal(calls[0].params[11],0);
+});
+
+test('pre-screen review is tenant-scoped and returns a direct conversation link',async()=>{
+  const item={id:'screen-1',mobile:'+919876543210',senderName:'Asha',answers:JSON.stringify({location:'india'}),channelKind:'whatsapp_meta',linkedChatId:'chat-1',channelRef:'meta-1',consentedAt:new Date(),completedAt:null,updatedAt:new Date()};
+  const db={query:async(sql,params)=>{
+    if(sql.startsWith('SELECT COUNT')){assert.match(sql,/tenant_id=\?/);assert.deepEqual(params,[owner.tenant.id]);return [[{total:1}]];}
+    assert.match(sql,/FROM sx_recruitment_screenings/);assert.deepEqual(params,[owner.tenant.id,25,0]);return [[item]];
+  }};
+  const result=await recruitment.listScreenings(db,owner,{});
+  assert.equal(result.total,1);assert.equal(result.items[0].chatOrigin,'meta');assert.deepEqual(result.items[0].answers,{location:'india'});
+});
+
 test('application phone match links only the unique owner workspace contact and lead',async()=>{
   const calls=[];
   const db={query:async(sql,params)=>{

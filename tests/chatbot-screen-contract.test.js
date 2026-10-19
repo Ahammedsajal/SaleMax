@@ -11,6 +11,7 @@ const sidebar = read('client/public/training-sidebar.js');
 const indexPath = path.join(__dirname, '..', 'client/public/index.html');
 const index = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, 'utf8') : '';
 const chatbotRouter = read('modules/platform/chatbot-router.js');
+const runtime = read('modules/platform/chatbot-runtime.js');
 
 test('existing Automation Flows canvas remains the first pill tab', () => {
   const definitions = admin.match(/const definitions = \[([\s\S]*?)\];/)?.[1] || '';
@@ -175,4 +176,13 @@ test('HTML and sidebar loader each expose a cache-busted chatbot script URL', { 
   const botKey = sidebar.match(/chatbot-admin\.js\?v=([^"']+)/)?.[1];
   assert.ok(htmlKey);
   assert.ok(botKey);
+});
+
+test('SaleMaX Sales built-in guide can run a saved opening Flow once then continue guided chat',()=>{
+  assert.match(admin,/name="introFlowId"/);
+  assert.match(admin,/Runs once when a new WhatsApp conversation starts/);
+  assert.match(admin,/introFlowId:usesDomainGuide\?String\(data\.get\('introFlowId'\)/);
+  assert.match(chatbotRouter,/if \(config\.introFlowId\)/);
+  assert.match(chatbotRouter,/GUIDED_FLOW_UNAVAILABLE/);
+  assert.match(runtime,/claimOpeningFlow/);
 });

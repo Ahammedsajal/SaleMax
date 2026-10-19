@@ -37,7 +37,10 @@ test('apply action returns secure form URL and retains only guided state',()=>{
 
 test('button screening saves location, language, sales background and availability in guided state',()=>{
   let result=recruitmentReply({message:'start_screening',state:{step:'role'},facts:{}});
-  assert.equal(result.state.step,'screen_location');assert.equal(result.buttons.length,2);
+  assert.equal(result.state.step,'screen_consent');assert.equal(result.buttons.length,2);
+  assert.match(result.reply,/may we save your answers/);
+  result=recruitmentReply({message:'screen_consent_yes',state:result.state,facts:{}});
+  assert.equal(result.state.screeningConsent,true);assert.equal(result.state.step,'screen_location');
   result=recruitmentReply({message:'screen_india_no',state:result.state,facts:{}});
   assert.equal(result.state.answers.location,'elsewhere');assert.equal(result.state.step,'screen_english');
   result=recruitmentReply({message:'screen_english_professional',state:result.state,facts:{}});
@@ -49,6 +52,15 @@ test('button screening saves location, language, sales background and availabili
   result=recruitmentReply({message:'screen_availability_full',state:result.state,facts:{}});
   assert.equal(result.state.step,'screen_complete');
   assert.deepEqual(result.state.answers,{location:'elsewhere',englishLevel:'proficient',hindiLevel:'none',salesExperience:'saas_crm_it',availability:'full_time'});
-  assert.match(result.reply,/saved with this recruitment chat/);
+  assert.match(result.reply,/saved in the private recruitment review area/);
   assert.equal(result.buttons[0].id,'apply_now');
+});
+
+test('declining screening consent leaves answers empty and offers the application form',()=>{
+  let result=recruitmentReply({message:'start_screening',state:{step:'role'},facts:{}});
+  result=recruitmentReply({message:'screen_consent_no',state:result.state,facts:{}});
+  assert.equal(result.state.screeningConsent,false);
+  assert.deepEqual(result.state.answers,{});
+  assert.equal(result.state.step,'screening_declined');
+  assert.ok(result.buttons.some(button=>button.id==='apply_now'));
 });

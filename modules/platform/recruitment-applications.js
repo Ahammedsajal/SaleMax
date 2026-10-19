@@ -7,6 +7,7 @@ const {decision}=require('./policy');
 
 const MAX_CV_BYTES=8*1024*1024;
 const CONSENT='I agree that Sitta Arbaa Sitta for Software Solutions may use my application and CV to assess me for the SaleMaX sales associate role and contact me about recruitment.';
+const SCREENING_CONSENT='Candidate agreed to save WhatsApp pre-screen answers with the recruitment conversation for review by the SaleMaX Sales team.';
 const STATUSES=new Set(['new','reviewing','shortlisted','interview','rejected','hired','archived']);
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest();
@@ -51,6 +52,30 @@ async function list(db,ctx,query={}){
   const where=clauses.join(' AND '),[[count]]=await db.query(`SELECT COUNT(*) AS total FROM sx_recruitment_applications a WHERE ${where}`,params);
   const [items]=await db.query(`SELECT a.id,a.reference_code AS referenceCode,a.full_name AS fullName,a.mobile,a.email,a.english_level AS englishLevel,a.hindi_level AS hindiLevel,a.experience_years AS experienceYears,a.crm_saas_experience AS crmSaasExperience,a.availability,a.cv_file_name AS cvFileName,a.cv_mime_type AS cvMimeType,a.cv_bytes AS cvBytes,a.linked_contact_id AS linkedContactId,a.linked_lead_id AS linkedLeadId,COALESCE(a.linked_chat_id,(SELECT pc.chat_id FROM pipeline_conversations pc WHERE pc.uid_hash=(SELECT legacy_uid_hash FROM sx_legacy_ownership WHERE tenant_id=a.tenant_id AND source_table='user' LIMIT 1) AND pc.lead_id=a.linked_lead_id ORDER BY pc.last_inbound_at DESC LIMIT 1)) AS linkedChatId,COALESCE(a.linked_chat_origin,(SELECT pc.origin FROM pipeline_conversations pc WHERE pc.uid_hash=(SELECT legacy_uid_hash FROM sx_legacy_ownership WHERE tenant_id=a.tenant_id AND source_table='user' LIMIT 1) AND pc.lead_id=a.linked_lead_id ORDER BY pc.last_inbound_at DESC LIMIT 1)) AS linkedChatOrigin,a.source_channel AS sourceChannel,a.source_reference AS sourceReference,a.status,a.revision,a.consented_at AS consentedAt,a.created_at AS createdAt,a.updated_at AS updatedAt FROM sx_recruitment_applications a WHERE ${where} ORDER BY a.created_at DESC,a.id LIMIT ? OFFSET ?`,[...params,limit,(page-1)*limit]);
   return {items:items.map(item=>({...item,experienceYears:Number(item.experienceYears),cvBytes:Number(item.cvBytes),revision:Number(item.revision)})),page,limit,total:Number(count.total),pages:Math.ceil(Number(count.total)/limit)};
+}
+async function saveScreening(db,{tenantId,channelKind,channelRef,conversationId,mobile,senderName,answers,complete,consent}){
+  if(consent!==true||!answers||!Object.keys(answers).length||!['whatsapp_meta','whatsapp_qr'].includes(channelKind))return false;
+  let normalizedMobile;try{normalizedMobile='+'+normalizeMobile(mobile);}catch{return false;}
+  if(typeof conversationId!=='string'||!conversationId||typeof channelRef!=='string'||!channelRef)return false;
+  const allowed=['location','englishLevel','hindiLevel','salesExperience','availability'];
+  const safeAnswers=Object.fromEntries(allowed.filter(key=>typeof answers[key]==='string').map(key=>[key,answers[key]]));
+  if(!Object.keys(safeAnswers).length)return false;
+  await db.query(`INSERT INTO sx_recruitment_screenings(id,tenant_id,channel_kind,channel_ref,conversation_id,conversation_hash,mobile,normalized_mobile,sender_name,answers,consent_text,consented_at,completed_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),IF(?,UTC_TIMESTAMP(3),NULL))
+    ON DUPLICATE KEY UPDATE mobile=VALUES(mobile),sender_name=COALESCE(VALUES(sender_name),sender_name),answers=VALUES(answers),completed_at=IF(VALUES(completed_at) IS NULL,completed_at,VALUES(completed_at))`,
+  [uuid(),tenantId,channelKind,channelRef,conversationId,hash(conversationId),String(mobile).slice(0,40),normalizedMobile,typeof senderName==='string'?senderName.trim().slice(0,160)||null:null,JSON.stringify(safeAnswers),SCREENING_CONSENT,complete?1:0]);
+  return true;
+}
+async function listScreenings(db,ctx,query={}){
+  authorize(ctx);
+  const page=Math.max(1,Math.min(100000,Number.parseInt(query.page,10)||1)),limit=Math.min(50,Math.max(1,Number.parseInt(query.limit,10)||25)),search=String(query.search||'').trim().slice(0,100);
+  const clauses=['s.tenant_id=?'],params=[ctx.tenant.id];
+  if(search){const term=`%${search.replace(/[\\%_]/g,'\\$&')}%`;clauses.push('(s.sender_name LIKE ? OR s.mobile LIKE ?)');params.push(term,term);}
+  const where=clauses.join(' AND '),[[count]]=await db.query(`SELECT COUNT(*) AS total FROM sx_recruitment_screenings s WHERE ${where}`,params);
+  const [items]=await db.query(`SELECT s.id,s.mobile,s.sender_name AS senderName,s.answers,s.channel_kind AS channelKind,s.conversation_id AS linkedChatId,s.channel_ref AS channelRef,s.consented_at AS consentedAt,s.completed_at AS completedAt,s.updated_at AS updatedAt,
+    (SELECT l.id FROM sx_recruitment_applications a JOIN pipeline_leads l ON l.id=a.linked_lead_id WHERE a.tenant_id=s.tenant_id AND a.normalized_mobile=s.normalized_mobile ORDER BY a.created_at DESC LIMIT 1) AS linkedLeadId
+    FROM sx_recruitment_screenings s WHERE ${where} ORDER BY s.updated_at DESC,s.id LIMIT ? OFFSET ?`,[...params,limit,(page-1)*limit]);
+  return {items:items.map(item=>({...item,answers:typeof item.answers==='string'?JSON.parse(item.answers):item.answers,chatOrigin:item.channelKind==='whatsapp_meta'?'meta':'qr'})),page,limit,total:Number(count.total),pages:Math.ceil(Number(count.total)/limit)};
 }
 async function matchExistingLead(db,ctx,normalizedMobile){
   const [owners]=await db.query(`SELECT o.legacy_uid_hash AS uidHash,u.uid FROM sx_legacy_ownership o JOIN user u ON CAST(u.id AS CHAR)=o.source_id WHERE o.tenant_id=? AND o.source_table='user' LIMIT 2`,[ctx.tenant.id]);
@@ -102,4 +127,4 @@ async function updateStatus(db,ctx,id,expectedRevision,status){
 async function getCv(db,ctx,id,{env=process.env}={}){
   authorize(ctx);if(!/^[0-9a-f-]{36}$/i.test(id))fail('APPLICATION_NOT_FOUND',404);const [[row]]=await db.query('SELECT cv_storage_key AS storageKey,cv_file_name AS fileName,cv_mime_type AS mimeType,cv_bytes AS bytes FROM sx_recruitment_applications WHERE tenant_id=? AND id=?',[ctx.tenant.id,id]);if(!row)fail('APPLICATION_NOT_FOUND',404);const root=storageRoot(env);if(!row.storageKey.startsWith(`${ctx.tenant.id}/${id}/`)||row.storageKey.includes('..'))fail('CV_NOT_FOUND',404);const filePath=path.resolve(root,row.storageKey);if(!filePath.startsWith(root+path.sep))fail('CV_NOT_FOUND',404);await fs.access(filePath);return {...row,filePath,bytes:Number(row.bytes)};
 }
-module.exports={MAX_CV_BYTES,CONSENT,STATUSES,authorize,storageRoot,detectCv,normalizeMobile,cleanApplication,createPublic,list,updateStatus,getCv,matchExistingLead};
+module.exports={MAX_CV_BYTES,CONSENT,SCREENING_CONSENT,STATUSES,authorize,storageRoot,detectCv,normalizeMobile,cleanApplication,createPublic,list,listScreenings,saveScreening,updateStatus,getCv,matchExistingLead};

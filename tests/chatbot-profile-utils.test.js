@@ -80,6 +80,15 @@ test('training-center bot validation produces a bounded reusable category profil
   assert.deepEqual(botRequirements('ai'), { requiresGuidedFlow: false, requiresAi: true });
 });
 
+test('SaleMaX Sales built-in guide can run a validated Automation Flow once before continuing guided chat',()=>{
+  const bot=botInput({name:'SaleMaX recruitment',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'recruitment_intro'}},'salemax_sales');
+  assert.equal(bot.config.guidedMode,'domain_default');
+  assert.equal(bot.config.flowId,null);
+  assert.equal(bot.config.introFlowId,'recruitment_intro');
+  assert.throws(()=>botInput({name:'Bad',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'../bad'}},'salemax_sales'),{code:'INVALID_FLOW_ID'});
+  assert.equal(botInput({name:'Guide',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'flow-1'}},'training_center').config.introFlowId,undefined);
+});
+
 test('guided bot validation retains bilingual approved FAQs', () => {
   const bot = botInput({ name: 'Guide', engine: 'guided', config: { knowledgeEntries: [{ questionEn: 'Opening hours', answerEn: '9 AM to 5 PM', questionAr: 'ساعات العمل', answerAr: 'من التاسعة إلى الخامسة' }] } }, 'training_center');
   assert.equal(bot.config.knowledgeEntries[0].answerEn, '9 AM to 5 PM');

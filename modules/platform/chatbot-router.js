@@ -314,6 +314,12 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
       const flow = await require('../platform/chatbot-runtime').loadGuidedFlow(uid, config.flowId);
       if (!flow) fail('GUIDED_FLOW_UNAVAILABLE');
     }
+    if (config.introFlowId) {
+      if (profile.categoryKey !== 'salemax_sales' || config.guidedMode !== 'domain_default') fail('INVALID_FLOW_ID');
+      const uid = await legacyUidFor(db, req, ctx);
+      const introFlow = await require('../platform/chatbot-runtime').loadGuidedFlow(uid, config.introFlowId);
+      if (!introFlow) fail('GUIDED_FLOW_UNAVAILABLE');
+    }
     if (requirements.requiresAi) {
       if (config.aiDataProcessingConfirmed !== true) fail('AI_DATA_PROCESSING_ACK_REQUIRED');
       const [[providerConfig]] = await db.query(`SELECT provider,key_ciphertext,key_iv,key_auth_tag FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]);

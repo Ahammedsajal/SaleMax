@@ -139,8 +139,37 @@ async function loadGuidedFlow(uid, flowId) {
   return rows.length === 1 ? parseGuidedFlow(rows[0]) : null;
 }
 
+async function claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef}) {
+  const db=await dbPool.getConnection();
+  try {
+    await db.beginTransaction();
+    await db.query(`INSERT IGNORE INTO sx_chatbot_guided_sessions(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,conversation_hash,state,expires_at)
+      VALUES (?,?,?,?,?,?,?,JSON_OBJECT(),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR))`,
+    [crypto.randomUUID(),ctx.tenant.id,profile.id,channelKind,channelRef,chatId,guidedConversationHash(chatId)]);
+    const [[row]]=await db.query(`SELECT id,state,(expires_at<=UTC_TIMESTAMP(3)) AS expired FROM sx_chatbot_guided_sessions
+      WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_hash=? AND conversation_id=? FOR UPDATE`,
+    [ctx.tenant.id,profile.id,channelKind,channelRef,guidedConversationHash(chatId),chatId]);
+    let state={};if(!row.expired)try{state=typeof row.state==='string'?JSON.parse(row.state):row.state||{};}catch{}
+    const claimed=!state.openingFlowSent;
+    if(claimed){state.openingFlowSent=true;state.greeted=false;await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`,[JSON.stringify(state),row.id]);}
+    await db.commit();return claimed;
+  } catch(error){await db.rollback().catch(()=>{});throw error;} finally{db.release();}
+}
+
 async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) {
-  if (profile.config?.guidedMode === 'domain_default') return trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo });
+  if (profile.config?.guidedMode === 'domain_default') {
+    const introId=profile.config?.introFlowId,channelKind=channelFor(origin);
+    if(introId&&channelKind){
+      await pruneExpiredGuidedSessions();
+    }
+    if(introId&&channelKind&&await claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef:sessionId})){
+      const intro=await loadGuidedFlow(uid,introId);if(!intro)return false;
+      const {processFlow}=require('../../automation/automation'),flowSessionId=executionFlowId(profile);
+      await processFlow({nodes:intro.nodes,edges:intro.edges,uid,flowId:flowSessionId,message,incomingText:textOf(message),user,sessionId,origin,chatId,element:{...intro,flow_id:flowSessionId},loopDetection:{visitedNodes:new Map(),startTime:Date.now()}});
+      return true;
+    }
+    return trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo });
+  }
   const flow = await loadGuidedFlow(uid, profile.config?.flowId);
   if (!flow) return false;
   const { processFlow } = require('../../automation/automation');
@@ -224,6 +253,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     reply.media = [...(reply.media || []).filter(item => item.kind !== 'document'), ...pdfs];
     const nextState = JSON.stringify(reply.state || {});
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
+    if(ctx.category.key==='salemax_sales'&&reply.state?.screeningConsent===true&&reply.state?.answers){
+      await require('./recruitment-applications').saveScreening(db,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId,mobile:message.senderMobile,senderName:message.senderName,answers:reply.state.answers,complete:reply.state.step==='screen_complete',consent:true});
+    }
     await db.commit();
   } catch (error) {
     await db.rollback().catch(() => {});

@@ -123,6 +123,8 @@ function botInput(input, categoryKey, categoryVersion = 1) {
     if (source.flowId != null && (typeof source.flowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.flowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
     config.flowId = source.flowId || null;
     config.guidedMode = config.flowId ? 'automation_flow' : (source.guidedMode === 'domain_default' ? 'domain_default' : null);
+    if (source.introFlowId != null && (typeof source.introFlowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.introFlowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
+    if (config.guidedMode === 'domain_default' && categoryKey === 'salemax_sales') config.introFlowId = source.introFlowId || null;
     config.welcomeMessage = cleanText(source.welcomeMessage, 1200, 'INVALID_WELCOME_MESSAGE');
     config.fallbackMessage = cleanText(source.fallbackMessage, 1200, 'INVALID_FALLBACK_MESSAGE');
     if (!Array.isArray(source.knowledgeEntries ?? []) || (source.knowledgeEntries ?? []).length > 60) throw Object.assign(new Error('INVALID_KNOWLEDGE_ENTRIES'), { code: 'INVALID_KNOWLEDGE_ENTRIES' });
@@ -140,6 +142,8 @@ function botInput(input, categoryKey, categoryVersion = 1) {
       if (source.flowId != null && (typeof source.flowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.flowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
       config.flowId = source.flowId || null;
       config.guidedMode = config.flowId ? 'automation_flow' : (source.guidedMode === 'domain_default' ? 'domain_default' : null);
+      if (source.introFlowId != null && (typeof source.introFlowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.introFlowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
+      if (config.guidedMode === 'domain_default' && categoryKey === 'salemax_sales') config.introFlowId = source.introFlowId || null;
       config.aiFallback = source.aiFallback !== false;
     }
   }

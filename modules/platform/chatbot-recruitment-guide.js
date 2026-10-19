@@ -6,6 +6,10 @@ const ANDROID='https://play.google.com/store/apps/details?id=com.talab.white';
 function text(config,key,language,fallback){return config?.messages?.[key]?.[language]||fallback;}
 function buttons(items){return items.slice(0,3).map(([id,title])=>({id,title}));}
 const SCREENING={
+ screen_consent:{
+  question:{en:'Before these quick screening questions, may we save your answers with your recruitment conversation for the Sales team to review? You can decline and apply through the CV form instead.',ar:'قبل أسئلة الفرز السريعة، هل تسمح بحفظ إجاباتك مع محادثة التوظيف ليطّلع عليها فريق المبيعات؟ يمكنك الرفض والتقديم عبر نموذج السيرة الذاتية بدلاً من ذلك.'},
+  options:[['screen_consent_yes',{en:'Agree and continue',ar:'أوافق وأتابع'},'yes'],['screen_consent_no',{en:'No, thanks',ar:'لا، شكراً'},'no']]
+ },
  screen_location:{
   question:{en:'Are you based in India and able to work remotely?',ar:'هل تقيم في الهند ويمكنك العمل عن بُعد؟'},
   options:[['screen_india_yes',{en:'Yes, based in India',ar:'نعم، في الهند'},'india'],['screen_india_no',{en:'No, elsewhere',ar:'لا، في بلد آخر'},'elsewhere']]
@@ -45,13 +49,18 @@ function recruitmentReply({message,state,facts,config={}}){
  else if(match('about_salemax','about salemax','salemax','سالمكس'))command='salemax';
  else if(match('commission_details','commission details','commission only','العمولة','الراتب','عمولة'))command='commission';
  else if(match('apply_now','apply now','application','ابدأ التقديم','قدم الآن','قدّم الآن'))command='apply';
- else if(match('start_screening','quick questions','screening','ابدأ الأسئلة','أسئلة سريعة'))command='screen_location';
+ else if(match('start_screening','quick questions','screening','ابدأ الأسئلة','أسئلة سريعة'))command=previous.screeningConsent?'screen_location':'screen_consent';
  else if(match('about_role','about the role','job','الوظيفة','الدور','العمل'))command='role';
  else if(match('talk_to_owner','talk to owner','موظف','المالك','تحدث مع المالك'))command='human';
  if(command)step=command;
  else if(screeningStep){
   const option=SCREENING[step].options.find(([id,label,value])=>[id,label.en,label.ar,value].some(term=>input===normalize(term)));
   if(option){
+   if(step==='screen_consent'){
+    if(option[2]==='no')return {reply:language==='ar'?'حسنًا، لن نحفظ إجابات الفرز. يمكنك التقديم عبر النموذج الآمن ورفع سيرتك الذاتية.':'Understood. We will not save screening answers. You can apply through the secure form and upload your CV.',state:{...previous,language,step:'screening_declined',screeningConsent:false,answers:{}},buttons:buttons([['apply_now',labels.apply],['about_role',labels.role],['main_menu',labels.menu]])};
+    const question=screeningQuestion('screen_location',language);
+    return {reply:question.reply,state:{...previous,language,step:'screen_location',screeningConsent:true,greeted:true,answers:{}},buttons:question.buttons};
+   }
    const answers={...(previous.answers||{}),[SCREENING_FIELDS[step]]:option[2]};
    const next=SCREENING_NEXT[step];
    if(next)step=next;
@@ -59,7 +68,7 @@ function recruitmentReply({message,state,facts,config={}}){
     step='screen_complete';
     const names={location:answers.location==='india'?'based in India':'outside India',englishLevel:answers.englishLevel,hindiLevel:answers.hindiLevel,salesExperience:answers.salesExperience,availability:answers.availability};
     const summary=`Location: ${names.location}; English: ${names.englishLevel}; Hindi: ${names.hindiLevel}; sales background: ${names.salesExperience}; availability: ${names.availability}.`;
-    return {reply:language==='ar'?`شكراً، تم حفظ إجاباتك في محادثة التوظيف: ${summary}\nأكمل طلبك وارفع سيرتك الذاتية لتظهر بياناتك كاملة في قسم Applications & CVs.`:`Thanks. Your screening answers are saved with this recruitment chat: ${summary}\nComplete the application and upload your CV so the team has your full details in Applications & CVs.`,state:{...previous,language,step,greeted:true,answers},buttons:buttons([['apply_now',labels.apply],['talk_to_owner',labels.human],['main_menu',labels.menu]])};
+    return {reply:language==='ar'?`شكراً، تم حفظ إجاباتك في قسم التوظيف الخاص: ${summary}\nأكمل طلبك وارفع سيرتك الذاتية لتكتمل بياناتك.`:`Thanks. Your answers are saved in the private recruitment review area: ${summary}\nComplete the application and upload your CV to finish your application.`,state:{...previous,language,step,greeted:true,answers},buttons:buttons([['apply_now',labels.apply],['talk_to_owner',labels.human],['main_menu',labels.menu]])};
    }
    const question=screeningQuestion(step,language);
    return {reply:question.reply,state:{...previous,language,step,greeted:true,answers},buttons:question.buttons};
@@ -71,6 +80,7 @@ function recruitmentReply({message,state,facts,config={}}){
   const question=screeningQuestion(step,language);
   return {reply:question.reply,state:{...previous,language,step,greeted:true,answers:previous.answers||{}},buttons:question.buttons};
  }
+ if(step==='screening_declined')return {reply:language==='ar'?'لم يتم حفظ إجابات الفرز. يمكنك التقديم عبر النموذج أو مراجعة تفاصيل الوظيفة.':'Screening answers were not saved. You can apply through the CV form or review the role details.',state:{...previous,language,greeted:true,answers:{}},buttons:buttons([['apply_now',labels.apply],['about_role',labels.role],['main_menu',labels.menu]])};
  if(step==='screen_complete')return {reply:language==='ar'?'إجاباتك محفوظة. أرسل طلبك وسيرتك الذاتية لإكمال التقديم.':'Your screening answers are saved. Submit the application and CV to complete your application.',state:{...previous,language,step,greeted:true,answers:previous.answers||{}},buttons:buttons([['apply_now',labels.apply],['talk_to_owner',labels.human],['main_menu',labels.menu]])};
  if(step==='welcome'){
   const base=text(config,'welcome',language,language==='ar'?'مرحباً بك!':'Hello and welcome!');

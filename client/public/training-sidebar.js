@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261013-language-layout1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261019-intro-flow2';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
@@ -26,7 +26,7 @@
   if (!window.__sxRecruitmentLoader) {
     window.__sxRecruitmentLoader = true;
     const recruitmentScript = document.createElement('script');
-    recruitmentScript.src = '/recruitment.js?v=20261019-1';
+    recruitmentScript.src = '/recruitment.js?v=20261019-screening2';
     recruitmentScript.defer = true;
     document.head.append(recruitmentScript);
   }
