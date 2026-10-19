@@ -1,3 +1,9 @@
+## Direct invoice and payment receipt creation — deployed 19 October 2026
+
+The existing Sales Finance screen now provides standalone invoice and received-payment receipt forms. Issuing an invoice no longer requires an approved Pipeline sale, and issuing/recording does not require an accountant. Owners and managers can use the full tenant Finance workflow; custom staff roles require explicit Finance grants, and ungranted agents remain denied. Existing sale-linked invoices remain supported. The same capability-gated workflow works for the SaleMaX Sales and Training Center categories.
+
+Production is live in `/opt/salemax/releases/finance-direct-dddfc5e-20261019`. The authenticated owner view visibly opens both forms. Focused tests pass 21/21; the disposable MariaDB integration validates the complete 104-migration history, manager-created standalone invoice and receipt, retries, tenant boundaries, staff grants and rollback behavior. No production invoice or receipt was issued as a test. See `DEPLOYMENT.md` for the commit, migration, backup, rollback and live verification details. Actual production write/print acceptance and the full 42-ticket upgrade remain open.
+
 ## Role sidebar screen selection — deployed 19 October 2026
 
 Team Access roles now use the same names as the existing sidebar, with independent screen selection and expandable actions, unavailable entries disabled, search and an accurate preview. Finance Reports requires finance access and is independent from Lead Reports; task duplication and owner-only profile exposure are corrected. Saved role choices combine with member restrictions and refresh in active sessions. The additive role navigation migration is applied without changing existing roles or assignments.

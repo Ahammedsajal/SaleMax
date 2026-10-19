@@ -44,7 +44,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/crm',createTenantCrmRouter({pool,canonicalGuard:featureSession.guard}));
   app.use('/api/user/sales-organization',createSalesOrganizationRouter({pool,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/sales-commissions',createSalesCommissionRouter({pool,canonicalGuard:businessBoundary.guard}));
-  app.use('/api/user/sales-finance',createSalesFinanceRouter({pool,canonicalGuard:businessBoundary.guard}));
+  app.use('/api/user/sales-finance',createSalesFinanceRouter({pool,origin,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard}));
   app.use('/api/user/sales-targets',createSalesTargetsRouter({pool,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/sales-audit',createSalesAuditRouter({pool,canonicalGuard:businessBoundary.guard}));
   app.use('/api/admin/plan-contracts',createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard:boundary.guard}));
