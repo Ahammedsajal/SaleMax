@@ -87,6 +87,13 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  const profile=await team.createRole(pool,people.manager.uid,{name:'Synthetic expanded Agent',seatRole:'agent',permissions:expanded});
  await team.updateMemberRole(pool,people.manager.uid,people.agent.membership,{roleProfileId:profile.id});
  await pool.query('UPDATE sx_memberships SET assigned_navigation=NULL WHERE id=?',[people.agent.membership]);
+ await team.updateRole(pool,people.manager.uid,profile.id,{name:'Synthetic expanded Agent',permissions:expanded,sidebarNavigation:['courses','contacts','tasks']});
+ const savedRole=(await team.list(pool,people.manager.uid)).roles.find(item=>item.id===profile.id);assert.deepEqual(savedRole.sidebarNavigation,['courses','contacts','tasks']);
+ for(const kind of ['bearer','cookie']){const current=await request('agent',kind,'/api/workspace/session');assert.equal(current.status,200);assert.deepEqual([...current.data.roleNavigation].sort(),['contacts','courses','tasks']);}
+ await assert.rejects(team.updateRole(pool,people.manager.uid,profile.id,{name:'Synthetic expanded Agent',permissions:expanded.filter(key=>key!=='invoices.read'),sidebarNavigation:['finance-reports']}),{code:'INVALID_ROLE_NAVIGATION'});
+ await team.updateRole(pool,people.manager.uid,profile.id,{name:'Synthetic expanded Agent',permissions:expanded,sidebarNavigation:null});
+
+ await pool.query('UPDATE sx_memberships SET assigned_navigation=NULL WHERE id=?',[people.agent.membership]);
  for(const kind of ['bearer','cookie']){
   const session=await request('agent',kind,'/api/workspace/session');assert.equal(session.status,200,JSON.stringify(session));
   for(const key of ['whatsapp-qr','courses','invoices','contacts','forms'])assert.ok(session.data.roleNavigation.includes(key),key);

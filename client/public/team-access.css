@@ -139,3 +139,16 @@
 #sx-team-screen #sx-role-error{margin:16px 28px 0}
 @media(max-width:800px){#sx-team-screen .role-dialog .permission-workspace{grid-template-columns:1fr}#sx-team-screen .role-screen-preview{position:static}#sx-team-screen .member-access-dialog .nav-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){#sx-team-screen .role-dialog .permission-grid,#sx-team-screen .member-access-dialog .nav-grid{grid-template-columns:1fr}#sx-team-screen .role-dialog>.dialog-heading,#sx-team-screen .member-access-dialog>.dialog-heading{padding:18px}#sx-team-screen .role-dialog>#sx-role-form,#sx-team-screen .member-access-dialog>[data-member-access-content],#sx-team-screen .member-access-dialog>p{padding:18px}#sx-team-screen .role-dialog .dialog-actions{margin:0;padding:14px 0}}
+/* Role screens use the same display names as the real sidebar. */
+#sx-team-screen .sidebar-screen-card{padding:14px;border:1px solid #e4e8ef;border-radius:14px;background:#fff;min-width:0}
+#sx-team-screen .sidebar-screen-choice{display:flex;align-items:flex-start;gap:12px;min-height:52px;cursor:pointer;font-weight:400}
+#sx-team-screen .sidebar-screen-choice>input{flex:none;width:20px;height:20px;margin:3px 0;accent-color:#a8003b}
+#sx-team-screen .sidebar-screen-choice span{min-width:0;display:grid;gap:5px}
+#sx-team-screen .sidebar-screen-choice strong{font-size:14px;color:#172033}
+#sx-team-screen .sidebar-screen-choice small{font-size:12px;color:#697586}
+#sx-team-screen .sidebar-screen-card:has([name=sidebarScreen]:checked){border-color:#dda6bb;background:#fffafd}
+#sx-team-screen .sidebar-screen-card:has([name=sidebarScreen]:disabled){background:#f8f9fb;opacity:.65}
+#sx-team-screen .screen-actions{border-top:1px solid #e9edf3;margin-top:10px;padding-top:10px}
+#sx-team-screen .screen-actions summary{font-size:12px;color:#526074;cursor:pointer;min-height:30px;display:list-item}
+#sx-team-screen .screen-actions .permission-option{font-size:13px;min-height:44px;padding:8px}
+#sx-team-screen .permission-category[hidden]{display:none!important}

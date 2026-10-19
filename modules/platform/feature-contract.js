@@ -18,6 +18,9 @@ async function describeWithNavigation(pool,session){
     const [shares]=await pool.query('SELECT 1 FROM sx_qr_channel_shares WHERE tenant_id=? AND membership_id=? LIMIT 1',[session.context.tenant.id,session.context.membership.id]);
     if(shares.length){if(!data.roleNavigation.includes('whatsapp-qr'))data.roleNavigation.push('whatsapp-qr');if(data.assignedNavigation&&!data.assignedNavigation.includes('whatsapp-qr'))data.assignedNavigation.push('whatsapp-qr');}
   }
+  const navigation=require('./navigation');
+  const visible=await navigation.sidebarForMembership(pool,session.context,navigation.items.filter(item=>data.roleNavigation.includes(item.key)));
+  data.roleNavigation=visible.map(item=>item.key);
   return data;
 }
 module.exports={describe,describeWithNavigation};

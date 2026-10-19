@@ -49,10 +49,10 @@
   };
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
-    'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'chatbot', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
+    'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'faqs', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
-    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'enrollments', 'Center profile':'enrollments', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
-    'Finance Reports':'reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
+    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
+    'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
     'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit'
   };
   const salesNavLabels={
@@ -101,10 +101,10 @@
         membershipRole=data?.data?.role||null;
         membershipCategoryKey=data?.data?.categoryKey||null;
         if(membershipCategoryKey==='salemax_sales')applySalesRoleAliases();
-        if(Array.isArray(value))assignedNavigation=new Set(value);
-        if(Array.isArray(allowedByRole))roleNavigation=new Set(allowedByRole);
+        assignedNavigation=Array.isArray(value)?new Set(value):null;
+        roleNavigation=Array.isArray(allowedByRole)?new Set(allowedByRole):new Set();
       }
-    }catch(_){}finally{navigationCheckComplete();}
+    }catch(_){roleNavigation=new Set();}finally{navigationCheckComplete();}
   }
   async function loadOptionalNavigation(){
     try{
@@ -373,7 +373,9 @@
         if (row.style.order !== order) row.style.order = order;
         const navKey=navigationKeys[name]||navigationKeys[text];
         const salesTeamEntryHidden=membershipCategoryKey==='salemax_sales'&&(name==='Agent Login'||(name==='Team access'&&membershipRole!=='owner'));
-        const hiddenByOwner=(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(roleNavigation!==null&&navKey&&!roleNavigation.has(navKey))||salesTeamEntryHidden;
+        const duplicateTask=name==='Agent Task'&&!!list.querySelector('[data-sx-tasks-nav]');
+        const unknownStaffItem=roleNavigation!==null&&membershipRole!=='owner'&&!navKey&&!['Logout','Sign out'].includes(name);
+        const hiddenByOwner=duplicateTask||unknownStaffItem||(assignedNavigation!==null&&navKey&&!assignedNavigation.has(navKey))||(roleNavigation!==null&&navKey&&!roleNavigation.has(navKey))||salesTeamEntryHidden;
         const optionalFeature=window.salemaxOptionalLabels?.[text]||window.salemaxOptionalLabels?.[name];
         const hiddenByFeature=!!optionalFeature&&optionalFeatures[optionalFeature]!==true;
         if(hiddenByFeature)row.setAttribute('data-sx-optional-hidden','1');
@@ -405,7 +407,7 @@
     });
     const page=new URLSearchParams(location.search).get('page');
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
-    const routeKeys={'products-services':'products-services',courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'chatbot','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
+    const routeKeys={students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:'forms','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
     const required=routeKeys[page];
     // Team access is available to any membership whose role/navigation grants
     // it. The API still enforces team.invite (including owner-approved manager
@@ -557,6 +559,9 @@
   window.addEventListener('resize', schedule);
   window.addEventListener('popstate', schedule);
   window.addEventListener('storage', schedule);
+  const refreshSidebarAccess=()=>{navigationLoaded=false;loadAssignedNavigation().then(schedule);};
+  window.addEventListener('focus',refreshSidebarAccess);
+  window.setInterval(refreshSidebarAccess,30000);
   loadAssignedNavigation();
   loadOptionalNavigation();
   loadCallCenterAccess();

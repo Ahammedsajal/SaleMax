@@ -105,7 +105,7 @@ test('SaleMaX Sales owner gets one People & Roles entry while managers and team 
   assert.match(team,/node\.dataset\.salesCategory='salemax_sales'/);
   assert.match(team,/#sx-team-screen\[data-sales-category=\"salemax_sales\"\] :focus-visible\{outline-color:#a8003b\}/);
   assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
-  assert.match(shell,/team-invitations\.js\?v=20261018-team-access-workspace1/);
+  assert.match(shell,/team-invitations\.js\?v=20261019-role-sidebar2/);
 });
 
 test('Sales Overview is integrated into existing navigation, refreshes scoped APIs and keeps nested routes in the parent URL',()=>{
