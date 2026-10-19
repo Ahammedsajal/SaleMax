@@ -45,6 +45,7 @@
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Team Login',
     'دخول الوكيل': 'Team Login', 'Rest API': 'REST API', 'Web Notificaion': 'Web Notification',
     'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard', 'المهام': 'Tasks', 'مركز الاتصال': 'Call Center',
+    'Calls & Recordings': 'Call Center', 'المكالمات والتسجيلات': 'Call Center',
     'سياسة العمولات':'Commission Policy','صفقات المبيعات':'Sales Deals','أهداف المبيعات':'Sales Targets','عمولاتي':'My Commissions','مدفوعات العمولات':'Commission Payouts','مالية المبيعات':'Sales Finance','الهيكل التنظيمي':'Organization','سجل التدقيق':'Audit Trail'
   };
   const navigationKeys = {
@@ -363,7 +364,6 @@
     ));
   }
   function dedupeSalesNavigationRows(list){
-    if(membershipCategoryKey!=='salemax_sales')return;
     const injectedMarkers=['data-sx-canonical-sales-nav','data-sx-lead-reports-nav','data-sx-call-center-nav','data-sx-tasks-nav'];
     const retained=new Map();
     for(const row of [...list.children]){
