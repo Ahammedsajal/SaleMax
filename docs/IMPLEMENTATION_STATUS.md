@@ -1,3 +1,7 @@
+## SaleMaX Sales recruitment navigation — deployed 19 October 2026
+
+The existing SaleMaX Sales owner sidebar now exposes “Candidate Applications” under Overview when the owner’s recruitment entitlement is present. The entry uses the recruitment permission key and routes to the existing owner-only Applications & CVs screen; the existing Training Center form route remains mapped to its own `forms` permission. No schema or business data changed. Focused recruitment checks pass 13/13 and the production app is healthy. The end-to-end WhatsApp inbound message and real candidate submission remain unverified; the 42-ticket upgrade remains in progress. See DEPLOYMENT.md for release and rollback evidence.
+
 ## Role sidebar screen selection — deployed 19 October 2026
 
 Team Access roles now use the same names as the existing sidebar, with independent screen selection and expandable actions, unavailable entries disabled, search and an accurate preview. Finance Reports requires finance access and is independent from Lead Reports; task duplication and owner-only profile exposure are corrected. Saved role choices combine with member restrictions and refresh in active sessions. The additive role navigation migration is applied without changing existing roles or assignments.
