@@ -1,3 +1,9 @@
+## Role sidebar screen selection — deployed 19 October 2026
+
+Team Access roles now use the same names as the existing sidebar, with independent screen selection and expandable actions, unavailable entries disabled, search and an accurate preview. Finance Reports requires finance access and is independent from Lead Reports; task duplication and owner-only profile exposure are corrected. Saved role choices combine with member restrictions and refresh in active sessions. The additive role navigation migration is applied without changing existing roles or assignments.
+
+The release `/opt/salemax/releases/role-sidebar-251d404-20261019` is healthy after correcting a candidate index ownership failure and verifying rollback. Forty-five focused checks, disposable MariaDB bearer/cookie integration, desktop/mobile English/Arabic browser fixtures and read-only live checks across 16 active linked memberships pass. Source, container and public asset hashes match. Final production save/reopen and agent browser visual acceptance remain open because authenticated browser control was unavailable. See DEPLOYMENT.md for evidence and rollback; the full upgrade remains in progress.
+
 ## Team Access direct creation — deployed 18 October 2026
 
 The existing member popup now defaults to creating an active account, with a separate invitation-link choice. It is centered at desktop/mobile sizes in English and Arabic; phone presentation formatting is accepted and request failures stay visible inside the popup. Six focused checks and disposable MariaDB team/account tests pass, including Manager-created agent login and seat concurrency. The live Manager session displays the deployed centered form with creation enabled. No production teammate or invitation was created for testing; real-user creation/login remains operator acceptance. See DEPLOYMENT.md for the release and rollback. The broader implementation program remains in progress.
