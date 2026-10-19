@@ -73,12 +73,16 @@ test('chatbot overlays follow the active SaleMaX dark theme without restyling th
   assert.doesNotMatch(admin, /html\[data-sx-chatbot-theme="dark"\].*\.react-flow/);
 });
 
-test('bot editor renders editable bilingual training-center guide fields', () => {
+test('bot editor renders editable bilingual category guide fields without training-only labels', () => {
   assert.match(admin, /guidedContentMarkup\(config, selectedDomainGuide\)/);
   assert.match(admin, /English<textarea/);
   assert.match(admin, /العربية<textarea/);
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:en/);
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:ar/);
+  assert.match(admin, /tr\('Guided conversation','المحادثة الموجّهة'\)/);
+  assert.match(admin, /const trainingCenter = state\.categoryKey === 'training_center'/);
+  assert.match(admin, /const catalogueLink = trainingCenter \?/);
+  assert.doesNotMatch(admin, /Training center guided conversation|published course data|course number/);
 });
 
 test('bot editor keeps save actions visible while its long form scrolls', () => {
