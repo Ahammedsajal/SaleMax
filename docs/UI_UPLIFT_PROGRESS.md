@@ -40,8 +40,8 @@ For every screen: inspect its existing rendered state; improve its actual layout
 | Team Access | Existing wide dialogs retained; shared surface styling | Role/member/create dialogs, mobile long permission lists, validation |
 | WhatsApp QR | Shell foundation | Connection cards, pairing modal, sharing and status/error states |
 | Meta WhatsApp | Shell foundation | Setup form, status/cards, provider validation |
-| Templates | Shell foundation | Library/editor, samples, carousel/cards/media |
-| Campaigns | Shell foundation | Builder, mapping, preview, queue/report states |
+| Templates | Existing editor header, accessible template name and connected marketing navigation deployed | Library, remaining editor stages, samples/carousel/media, complete native Arabic copy and provider submission |
+| Campaigns and Campaign Dashboard | Dedicated header/action, connected permission-aware navigation, clearer metrics/tabs/table and empty-template actions deployed | Remaining mapping/preview/queue/detail and delivery states, native Arabic copy, actual provider acceptance |
 | Automation/Flows | Shell foundation | Canvas/node properties and responsive controls |
 | Chatbots/FAQs | Shell foundation | Library/editor/import and errors |
 | Notifications | Shell foundation | Feed, settings, unread/empty states |
@@ -58,3 +58,9 @@ Release sales-messaging-ad72dee-20261019 restores QR, Meta connection, templates
 ## Product catalogue follow-up
 
 Deployed product-ui-8e1ea9b-20261019: category-specific catalogue statistics and product descriptions, hidden Training-only editor fields, sequential visible sections, styled confirmations and corrected Arabic desktop dialog bounds. Actual-shell browser tests cover EN/AR at 1440/390, counts/description rendering, reachable Close and cancelled deletion with no writes. Training editor helper tests continue to pass. Production catalogue data is unchanged.
+
+## Campaign and template navigation follow-up
+
+Deployed marketing-ui-b91b949-20261019: improved native marketing headers, Campaign Dashboard metric/tab/table presentation, Create campaign shortcut, and a shared marketing navigation strip connecting results, preparation and template creation. Only currently granted role/member destinations appear. Empty template lists offer permitted template/Meta setup actions. The native dashboard/list, campaign configuration wizard and template editor remain in place; the template name receives its missing accessible label. Added labels support Arabic and the layout follows persisted direction; untranslated native React copy remains a follow-up.
+
+The actual compiled shell passes synthetic EN/AR desktop/mobile navigation, dashboard tab/list, approved-template selection, disabled incomplete send, template Next/Back preservation, empty/limited permissions and Agent identity/member restrictions, with no submissions or provider calls. Eight focused unit checks pass. Production health, release/container/public file hashes and the Sales owner's nine read-only feature endpoints pass; DB/worker containers are unchanged. Final customer-session visual acceptance and real provider delivery remain open. This increment does not complete the wider page-by-page goal.

@@ -1631,3 +1631,9 @@ Source `0aa04e9`, release `/opt/salemax/releases/workspace-refine-0aa04e9-202610
 ### Product catalogue and Arabic editor polish — production, 19 October 2026
 
 Final source `8e1ea9b` (including `fe025cf`) is live at `/opt/salemax/releases/product-ui-8e1ea9b-20261019`. Product cards/descriptions, truthful catalogue counts, readable prices and product-only editor labels replace inherited Training presentation. Arabic desktop dialog bounds now keep Close on screen; mobile retains full-screen editing. Actual-shell EN/AR 1440/390 browser checks and five focused tests pass, with no production product write. Final live Sales messaging/automation/campaign feature reads all pass. No migration/provider send occurred. DEPLOYMENT.md records hashes/rollback; remaining all-screen redesign and provider/live-browser acceptance stay open.
+
+## Campaign workspace uplift — deployed 19 October 2026
+
+The existing Campaign Dashboard, campaign setup and template editor now have clearer headers, connected permission-aware marketing navigation and relevant setup shortcuts. Dashboard metrics/tabs/table and responsive layouts are refined; incomplete sending remains disabled and template Next/Back retains values. The missing accessible template-name label is supplied. New controls support English/Arabic and Agent identity/member restrictions. Existing native untranslated text remains follow-up work.
+
+Release `/opt/salemax/releases/marketing-ui-b91b949-20261019` is healthy; runtime/public hashes and nine live Sales feature reads pass. Eight focused checks and actual-shell synthetic desktop/mobile EN/AR workflows pass with no provider calls/submissions. DB and worker remain unchanged. Real delivery, customer-session visual acceptance and the wider page-by-page uplift remain open; DEPLOYMENT.md records the precise artifact and rollback.
