@@ -3,6 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {getCategory}=require('../modules/platform/categories');
 const recruitment=require('../modules/platform/recruitment-applications');
+const {decision}=require('../modules/platform/policy');
 
 const owner={audience:'tenant',tenant:{id:'11111111-1111-4111-8111-111111111111',status:'active',categoryKey:'salemax_sales',categoryVersion:1},membership:{id:'22222222-2222-4222-8222-222222222222',tenantId:'11111111-1111-4111-8111-111111111111',role:'owner',status:'active'},category:getCategory('salemax_sales',1),subscription:{status:'active',capabilities:['hr.recruitment']}};
 const valid={submissionToken:'33333333-3333-4333-8333-333333333333',fullName:'Asha Candidate',mobile:'+91 98765 43210',email:'asha@example.in',englishLevel:'proficient',hindiLevel:'conversational',experienceYears:'4',crmSaasExperience:'Four years in SaaS and CRM sales.',availability:'either',consent:'on'};
@@ -30,4 +31,10 @@ test('only an active SaleMaX Sales owner can review hiring records',()=>{
 test('recruitment CV storage requires a private absolute path',()=>{
   assert.equal(recruitment.storageRoot({SALEMAX_RECRUITMENT_CV_ROOT:'/private/salemax/cv'}),'/private/salemax/cv');
   assert.throws(()=>recruitment.storageRoot({}),{code:'RECRUITMENT_STORAGE_NOT_CONFIGURED'});
+});
+
+test('internal SaleMaX owner recruitment does not change the published plan entitlement',()=>{
+  const withoutFeature={...owner,subscription:{status:'active',capabilities:[]}};
+  assert.equal(decision(withoutFeature,{capability:'hr.recruitment',permission:'recruitment.manage'}).allowed,true);
+  assert.equal(decision({...withoutFeature,membership:{...owner.membership,role:'manager'}},{capability:'hr.recruitment',permission:'recruitment.manage'}).allowed,false);
 });

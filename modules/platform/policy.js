@@ -109,7 +109,10 @@ function decision(context, { capability, permission, resource, external = false 
   if (resource && resource.tenantId !== tenant.id) return { allowed: false, code: 'RESOURCE_NOT_FOUND' };
   if (!Object.hasOwn(capabilities, capability) || !capabilities[capability].includes(permission)) return { allowed: false, code: 'CAPABILITY_PERMISSION_INVALID' };
   if (!category || category.key !== tenant.categoryKey || category.version !== tenant.categoryVersion || !Array.isArray(category.capabilities) || !category.capabilities.includes(capability)) return { allowed: false, code: 'CATEGORY_UNAVAILABLE' };
-  if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || !subscription.capabilities.includes(capability)) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
+  const internalRecruitmentOwner = capability === 'hr.recruitment' && category.key === 'salemax_sales' && membership.role === 'owner';
+  // Recruitment is an owner-only internal SaleMaX workspace feature, not a customer plan add-on.
+  // Keep the tenant's active-plan requirement while avoiding mutation of its published plan version.
+  if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || (!internalRecruitmentOwner && !subscription.capabilities.includes(capability))) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
   // Internal SaleMaX accountants work from Finance and payout records. The
   // legacy Sales Lead Pipeline does not provide the finance-only detail view.
   // Keep Training Center billing-linked lead access unchanged.
