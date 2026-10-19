@@ -2,6 +2,7 @@
 const crypto=require('node:crypto');
 const bcrypt=require('bcrypt');
 const {createAuthentication}=require('./authentication');
+const {getCategory}=require('./categories');
 
 const uidHash=value=>crypto.createHash('sha256').update(String(value),'utf8').digest('hex');
 const email=value=>String(value||'').trim().toLowerCase();
@@ -38,7 +39,8 @@ async function issueForVerifiedLegacyAccount({kind,legacyId,legacyUid,legacyEmai
     if(rows.length!==1)throw Object.assign(new Error('BUSINESS_LINK_INVALID'),{code:'BUSINESS_LINK_INVALID'});
     const mapping=rows[0];
     if(customOrigin)await require('./tenant-crm-domains').assertTenantHost(db,{crmTenantDomain:{hostname:tenantHost,tenantId:mapping.tenantId}},mapping.tenantId);
-    if(mapping.legacyUidHash!==uidHash(legacyUid)||email(mapping.email)!==email(legacyEmail)||!expectedRoles.includes(mapping.role)||mapping.membershipStatus!=='active'||mapping.identityStatus!=='active'||mapping.tenantStatus!=='active'||mapping.categoryKey!=='training_center'||Number(mapping.categoryVersion)!==1){
+    const category=getCategory(mapping.categoryKey,Number(mapping.categoryVersion));
+    if(mapping.legacyUidHash!==uidHash(legacyUid)||email(mapping.email)!==email(legacyEmail)||!expectedRoles.includes(mapping.role)||mapping.membershipStatus!=='active'||mapping.identityStatus!=='active'||mapping.tenantStatus!=='active'||!category?.planable||!category.seatRoles.includes(mapping.role)){
       throw Object.assign(new Error('BUSINESS_ACCESS_INACTIVE'),{code:'BUSINESS_ACCESS_INACTIVE'});
     }
     const canonicalHash=typeof mapping.passwordHash==='string'?mapping.passwordHash:null;
