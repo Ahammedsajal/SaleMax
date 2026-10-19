@@ -79,7 +79,8 @@ test('Sales workspace loads permissions before section APIs, hides unauthorized 
 test('duplicate pipeline, reports and call navigation is removed for every business category',()=>{
   const sidebar=fs.readFileSync(path.join(__dirname,'..','client/public/training-sidebar.js'),'utf8');
   assert.match(sidebar,/function dedupeSalesNavigationRows\(list\)/);
-  assert.match(sidebar,/if\(!\['leads','reports','call-center'\]\.includes\(key\)\)continue/);
+  assert.match(sidebar,/const key=navigationIdentity\(row\)/);
+  assert.ok(sidebar.includes("key==='sales-targets'?key+':'+section:key"));
   assert.match(sidebar,/dedupeSalesNavigationRows\(list\)/);
   assert.doesNotMatch(sidebar,/function dedupeSalesNavigationRows\(list\)\{\s*if\(membershipCategoryKey!==['"]salemax_sales/);
   assert.match(sidebar,/['"]Calls & Recordings['"]:\s*['"]Call Center['"]/);
@@ -113,11 +114,11 @@ test('Sales sidebar recovers contract-permitted entries when the legacy shell om
 test('Sales sidebar deduplicates legacy and generated Lead Pipeline, Lead Reports and Calls rows',()=>{
   const root=path.join(__dirname,'..');
   const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
-  assert.match(sidebar,/function hasNavigationKey\(list,key\)/);
+  assert.match(sidebar,/function hasNavigationKey\(list,key,section='overview'\)/);
   assert.match(sidebar,/!hasNavigationKey\(list,'reports'\)/);
   assert.match(sidebar,/!hasNavigationKey\(list,'call-center'\)/);
   assert.match(sidebar,/function dedupeSalesNavigationRows\(list\)/);
-  assert.match(sidebar,/\['leads','reports','call-center'\]\.includes\(key\)/);
+  assert.match(sidebar,/else if\(generatedNavigationRow\(row\)\)row\.remove\(\)/);
   assert.ok(sidebar.indexOf('dedupeSalesNavigationRows(list);')>sidebar.indexOf('ensureSalesNavigationRows(list);'));
 });
 
