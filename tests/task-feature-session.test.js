@@ -15,6 +15,8 @@ test('existing Task handlers accept the panel Agent session and enforce current 
     if(sql.includes('o.legacy_uid_hash AS uidHash'))return [[{uidHash:hash(actor.uid),tenantId,tenantStatus:'active',categoryKey:'training_center',categoryVersion:1,membershipId:'member',identityId:'identity-agent',role:'agent',membershipStatus:active?'active':'revoked',identityStatus:'active',delegatedPermissions:'[]',assignedNavigation:null,roleProfileId:'profile',rolePermissions:JSON.stringify(grants),seatRole:'agent',roleStatus:'active'}]];
     if(sql.includes('FROM sx_plan_assignments'))return [[{id:'assignment',status:'active',current_period:1,role_limits:JSON.stringify({owner:1,accountant:2,manager:2,agent:10}),capabilities:JSON.stringify(trainingCenter.capabilities),category_key:'training_center',category_version:1}]];
     if(sql.includes('FROM sx_legacy_ownership o JOIN agents a'))return [[{id:7}]];
+    if(sql.startsWith('SELECT id,COALESCE'))return [[{id:7,label:'Agent'}]];
+    if(sql.startsWith('SELECT m.identity_id'))return [[{actorId:'owner-identity',role:'owner',label:'Main User'}]];
     if(sql.includes('SELECT t.id,t.title')){seen.push({sql,args});return [[{id:'assigned-task',title:'Synthetic assigned task'}]];}
     if(sql.includes('SELECT * FROM user WHERE uid='))return [[owner]];
     throw Error('Unexpected query: '+sql);
@@ -35,7 +37,7 @@ test('existing Task handlers accept the panel Agent session and enforce current 
   const base='http://127.0.0.1:'+server.address().port,headers={Authorization:'Bearer active-agent','X-Salemax-Actor':'agent'};
   for(const route of ['/api/workspace/tasks','/api/user/training/tasks']){
     const r=await fetch(base+route,{headers});assert.equal(r.status,200);const body=await r.json();assert.equal(body.data.items[0].title,'Synthetic assigned task');assert.equal(body.data.permissions.canViewTeam,false);
-    const people=await fetch(base+route+'/participants',{headers});assert.equal(people.status,200);assert.deepEqual((await people.json()).data,[{actorType:'agent',actorId:'7',role:'agent',label:'Me'}]);
+    const people=await fetch(base+route+'/participants',{headers});assert.equal(people.status,200);assert.deepEqual((await people.json()).data,[{actorType:'identity',actorId:'owner-identity',role:'owner',label:'Main User'},{actorType:'agent',actorId:'7',role:'agent',label:'Agent'}]);
   }
   assert.equal(cookieCalls,0);assert.equal(seen.length,2);for(const row of seen){assert.match(row.sql,/p\.actor_type=\? AND p\.actor_id=\?/);assert.ok(row.args.includes(tenantId));assert.ok(row.args.includes(hash(owner.uid)));assert.ok(row.args.includes('7'));}
   grants=[];assert.equal((await fetch(base+'/api/workspace/tasks',{headers})).status,403);assert.equal(seen.length,2);
