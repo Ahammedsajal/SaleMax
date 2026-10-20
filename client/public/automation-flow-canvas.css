@@ -1,6 +1,6 @@
 /* Keep React Flow gestures inside the canvas instead of scrolling the app page. */
-html[data-sxPage="automation-flows"],
-html[data-sxPage="automation-flows"] body {
+html[data-sx-page="automation-flows"],
+html[data-sx-page="automation-flows"] body {
   width: 100%;
   max-width: 100vw;
   height: 100%;
@@ -8,7 +8,7 @@ html[data-sxPage="automation-flows"] body {
   overscroll-behavior: none;
 }
 
-html[data-sxPage="automation-flows"] #root {
+html[data-sx-page="automation-flows"] #root {
   width: 100%;
   max-width: 100vw;
   height: 100%;
@@ -16,7 +16,7 @@ html[data-sxPage="automation-flows"] #root {
   overflow: hidden;
 }
 
-html[data-sxPage="automation-flows"] .MuiBox-root:has(> .react-flow) {
+html[data-sx-page="automation-flows"] .MuiBox-root:has(> .react-flow) {
   min-width: 0;
   min-height: 0;
   max-width: 100%;
@@ -24,20 +24,29 @@ html[data-sxPage="automation-flows"] .MuiBox-root:has(> .react-flow) {
   overscroll-behavior: contain;
 }
 
-html[data-sxPage="automation-flows"] .react-flow,
-html[data-sxPage="automation-flows"] .react-flow__pane,
-html[data-sxPage="automation-flows"] .react-flow__renderer,
-html[data-sxPage="automation-flows"] .react-flow__viewport {
+html[data-sx-page="automation-flows"] .react-flow {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html[data-sx-page="automation-flows"] .react-flow__pane,
+html[data-sx-page="automation-flows"] .react-flow__renderer,
+html[data-sx-page="automation-flows"] .react-flow__viewport {
   touch-action: none;
   overscroll-behavior: contain;
 }
 
-html[data-sxPage="automation-flows"] .react-flow__node {
+html[data-sx-page="automation-flows"] .react-flow__node {
   user-select: none;
   -webkit-user-select: none;
   cursor: grab;
 }
 
-html[data-sxPage="automation-flows"] .react-flow__node:active {
+html[data-sx-page="automation-flows"] .react-flow__node:active {
   cursor: grabbing;
 }
