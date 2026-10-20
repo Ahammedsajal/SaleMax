@@ -21,6 +21,9 @@ async function describeWithNavigation(pool,session){
   const navigation=require('./navigation');
   const visible=await navigation.sidebarForMembership(pool,session.context,navigation.items.filter(item=>data.roleNavigation.includes(item.key)));
   data.roleNavigation=visible.map(item=>item.key);
+  const customization=await require('./tenant-customization').effective(pool,session.context);
+  data.customizationRevision=customization.revision;
+  data.navigationLabels=Object.fromEntries(Object.entries(customization.document.navigationLabels).filter(([key])=>data.roleNavigation.includes(key)));
   return data;
 }
 module.exports={describe,describeWithNavigation};

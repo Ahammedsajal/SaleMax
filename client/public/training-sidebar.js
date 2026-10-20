@@ -82,6 +82,7 @@
   }
   let assignedNavigation = null;
   let roleNavigation = null;
+  let tenantNavigationLabels = {};
   let membershipRole = null;
   let membershipCategoryKey = null;
   let optionalFeatures = {};
@@ -106,13 +107,14 @@
       {
         const value=data?.data?.assignedNavigation;
         const allowedByRole=data?.data?.roleNavigation;
+        tenantNavigationLabels=data?.data?.navigationLabels||{};
         membershipRole=data?.data?.role||null;
         membershipCategoryKey=data?.data?.categoryKey||null;
         if(membershipCategoryKey==='salemax_sales')applySalesRoleAliases();
         assignedNavigation=Array.isArray(value)?new Set(value):null;
         roleNavigation=Array.isArray(allowedByRole)?new Set(allowedByRole):new Set();
       }
-    }catch(_){roleNavigation=new Set();}finally{navigationCheckComplete();}
+    }catch(_){tenantNavigationLabels={};roleNavigation=new Set();}finally{navigationCheckComplete();}
   }
   async function loadOptionalNavigation(){
     try{
@@ -131,6 +133,8 @@
   Object.assign(aliases, window.salemaxSidebarAliases || {});
   const style = document.createElement('style');
   style.textContent = `
+    [data-sx-native-label-hidden]{display:none!important}
+    .sx-tenant-navigation-label{display:block;font-size:14px;line-height:1.5;color:inherit}
     html[data-sx-navigation-loading] .MuiDrawer-paper{visibility:hidden!important}
     [data-sx-sidebar-list]{display:flex!important;flex-direction:column}
     [data-sx-sidebar-list]>p:not([data-sx-nav-section]){display:none!important}
@@ -237,7 +241,7 @@
     if(!list.querySelector('[data-sx-faq-nav]')){
       const source=[...list.children].find(row=>row.tagName==='LI'&&(aliases[label(row)]||label(row))==='WA Chatbot');
       if(source){
-        const copy=source.cloneNode(true);copy.dataset.sxFaqNav='1';copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+        const copy=source.cloneNode(true);clearClonedTenantLabel(copy);copy.dataset.sxFaqNav='1';copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
         const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('FAQs','الأسئلة الشائعة');
         const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;button.setAttribute('aria-label',tr('FAQs','الأسئلة الشائعة'));
         button.onclick=event=>{event.preventDefault();event.stopPropagation();location.href='/user?page=faqs';};
@@ -248,7 +252,7 @@
       if (list.querySelector(selector)) return;
       const source = document.querySelector(selector);
       if (!source) return;
-      const copy = source.cloneNode(true);
+      const copy = source.cloneNode(true);clearClonedTenantLabel(copy);
       copy.removeAttribute('data-sx-search-hidden');
       copy.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
       const button = copy.querySelector('[role=button],button,a') || copy;
@@ -265,7 +269,7 @@
     }
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
     if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')&&!hasNavigationKey(list,'reports')){
-      const copy=leadSource.cloneNode(true);copy.dataset.sxLeadReportsNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const copy=leadSource.cloneNode(true);clearClonedTenantLabel(copy);copy.dataset.sxLeadReportsNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
       // This is a synthetic row, so set its primary label directly. The legacy
       // row can wrap its text in different span structures across builds; only
       // replacing an exact child span leaves the copied "Lead Pipeline" label
@@ -392,8 +396,12 @@
   function generatedNavigationRow(row){
     return row.hasAttribute('data-sx-canonical-sales-nav')||Object.keys(navigationMarkers).some(marker=>row.hasAttribute(marker));
   }
+  function clearClonedTenantLabel(copy){
+    copy.querySelectorAll('[data-sx-tenant-label]').forEach(node=>node.remove());
+    copy.querySelectorAll('[data-sx-native-label-hidden]').forEach(node=>node.removeAttribute('data-sx-native-label-hidden'));
+  }
   function cloneNavigationRow(source){
-    const copy=source.cloneNode(true);
+    const copy=source.cloneNode(true);clearClonedTenantLabel(copy);
     // A template's identity, permission flags and selected state belong to its
     // original screen, not to the new destination.
     for(const attr of [...copy.attributes])if(/^data-sx-.*nav$/.test(attr.name)||['data-salemax-pipeline-link','data-sx-sales-section','data-sx-search-hidden','data-sx-optional-hidden','aria-label'].includes(attr.name))copy.removeAttribute(attr.name);
@@ -424,6 +432,18 @@
     if(rows.length<2)return;
     const retained=rows.find(row=>row.dataset.sxCanonicalSalesNav==='recruitment')||rows[0];
     for(const row of rows)if(row!==retained)row.remove();
+  }
+  function applyTenantNavigationLabel(row,key) {
+    const native=row.querySelector('.MuiListItemText-primary');
+    if(!native)return null;
+    const override=Object.hasOwn(tenantNavigationLabels,key||'')?tenantNavigationLabels[key]:null;
+    const text=override&&typeof override.en==='string'&&typeof override.ar==='string'?tr(override.en,override.ar):null;
+    let custom=row.querySelector('[data-sx-tenant-label]');
+    if(!text){native.removeAttribute('data-sx-native-label-hidden');custom?.remove();return null;}
+    if(!custom){custom=document.createElement('span');custom.dataset.sxTenantLabel='1';custom.className='sx-tenant-navigation-label';native.after(custom);}
+    if(custom.textContent!==text)custom.textContent=text;
+    native.setAttribute('data-sx-native-label-hidden','1');
+    return text;
   }
   function update() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return;
@@ -463,7 +483,7 @@
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
         const navButton = row.querySelector('.MuiListItemButton-root,[role="button"],button,a');
-        const tooltip = name === 'Web Notification' ? tr('Web Notifications', 'إشعارات الويب') : text;
+        let tooltip = name === 'Web Notification' ? tr('Web Notifications', 'إشعارات الويب') : text;
         if (Object.values(routes).includes(active)) {
           const button = row.querySelector('.MuiListItemButton-root');
           if (button) { const selected = row.dataset.sxSalesSection ? active==='sales-workspace'&&(new URLSearchParams(location.search).get('section')||'overview')===row.dataset.sxSalesSection : name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : name==='Sales Reports' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Sales Deals' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='deals' : name==='Sales Targets' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='targets' : ['My Commissions','Commission Payouts'].includes(name) ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='commissions' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
@@ -482,6 +502,8 @@
         const order = String(group * 100 + 1 + (rank < 0 ? index : rank));
         if (row.style.order !== order) row.style.order = order;
         const navKey=row.dataset.sxCanonicalSalesNav||(row.dataset.sxSalesSection?({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[row.dataset.sxSalesSection]:navigationKeys[name]||navigationKeys[text]);
+        const tenantLabel=applyTenantNavigationLabel(row,navKey);
+        if(tenantLabel)tooltip=tenantLabel;
         const salesTeamEntryHidden=membershipCategoryKey==='salemax_sales'&&(name==='Agent Login'||(name==='Team access'&&membershipRole!=='owner'));
         const duplicateTask=name==='Agent Task'&&hasNavigationKey(list,'tasks');
         const unknownStaffItem=roleNavigation!==null&&membershipRole!=='owner'&&!navKey&&!['Logout','Sign out'].includes(name);
@@ -491,11 +513,11 @@
         const hiddenByFeature=!!optionalFeature&&optionalFeatures[optionalFeature]!==true&&!salesContractAllows;
         if(hiddenByFeature)row.setAttribute('data-sx-optional-hidden','1');
         else if(optionalFeature)row.removeAttribute('data-sx-optional-hidden');
-        const hidden = hiddenByOwner || (!!query && !text.toLowerCase().includes(query) && !name.toLowerCase().includes(query));
+        const hidden = hiddenByOwner || (!!query && !text.toLowerCase().includes(query) && !name.toLowerCase().includes(query) && !(tenantLabel||'').toLowerCase().includes(query));
         row.toggleAttribute('data-sx-search-hidden', hidden);
         const available = !hidden && !row.hidden && !row.hasAttribute('data-sx-optional-hidden') && getComputedStyle(row).display !== 'none';
         if (navButton) {
-          if (available) { trainingIcon(row, name); if (navButton.getAttribute('title') !== tooltip) navButton.setAttribute('title', tooltip); }
+          if (available) { if(navButton.getAttribute('aria-label')!==tooltip)navButton.setAttribute('aria-label',tooltip); trainingIcon(row, name); if (navButton.getAttribute('title') !== tooltip) navButton.setAttribute('title', tooltip); }
           else navButton.removeAttribute('title');
         }
         if (available) present.add(group);
@@ -670,8 +692,11 @@
   window.addEventListener('resize', schedule);
   window.addEventListener('popstate', schedule);
   window.addEventListener('storage', schedule);
-  const refreshSidebarAccess=()=>{navigationLoaded=false;loadAssignedNavigation().then(schedule);};
+  const refreshSidebarAccess=()=>{window.SaleMaxWorkspace.invalidateSession?.();navigationLoaded=false;loadAssignedNavigation().then(schedule);};
   window.addEventListener('focus',refreshSidebarAccess);
+  window.addEventListener('storage',refreshSidebarAccess);
+  window.addEventListener('popstate',refreshSidebarAccess);
+  window.addEventListener('salemax:customization-published',()=>{window.SaleMaxWorkspace.invalidateSession?.();refreshSidebarAccess();});
   window.setInterval(refreshSidebarAccess,30000);
   loadAssignedNavigation();
   loadOptionalNavigation();

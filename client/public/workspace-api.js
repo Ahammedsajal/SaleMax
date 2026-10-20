@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   if(window.SaleMaxWorkspace)return;
-  const paths={qr:'/api/workspace/channels/qr',flows:'/api/workspace/automation/flows',chatbot:'/api/workspace/automation/chatbot',templates:'/api/workspace/templates',campaigns:'/api/workspace/campaigns',inbox:'/api/workspace/inbox',pipeline:'/api/workspace/pipeline',session:'/api/workspace/session',tasks:'/api/workspace/tasks',finance:'/api/workspace/finance',phonebook:'/api/workspace/phonebook',courseReplies:'/api/workspace/inbox/course-replies',products:'/api/workspace/products-services',courses:'/api/workspace/courses',students:'/api/workspace/students',profile:'/api/workspace/profile',forms:'/api/workspace/forms'};
+  const paths={customization:'/api/workspace/customization',qr:'/api/workspace/channels/qr',flows:'/api/workspace/automation/flows',chatbot:'/api/workspace/automation/chatbot',templates:'/api/workspace/templates',campaigns:'/api/workspace/campaigns',inbox:'/api/workspace/inbox',pipeline:'/api/workspace/pipeline',session:'/api/workspace/session',tasks:'/api/workspace/tasks',finance:'/api/workspace/finance',phonebook:'/api/workspace/phonebook',courseReplies:'/api/workspace/inbox/course-replies',products:'/api/workspace/products-services',courses:'/api/workspace/courses',students:'/api/workspace/students',profile:'/api/workspace/profile',forms:'/api/workspace/forms'};
   const actor=()=>window.SaleMaxActor==='agent'||/^\/agent\/?$/.test(location.pathname)?'agent':'user';
   async function headers(json=true){
     const kind=actor(),token=localStorage.getItem(kind==='agent'?'wacrm_agent':'wacrm_user');
@@ -23,11 +23,22 @@
     if(!response.ok||result.success===false||result.success===0||result.logout){const error=Error(result.code||(result.logout?'AUTH_REQUIRED':'REQUEST_FAILED'));error.details=result.details;throw error;}
     return result;
   }
-  let sessionPromise=null,sessionKey='',sessionUntil=0;
+  let sessionPromise=null,sessionKey='',sessionUntil=0,sessionGeneration=0;
+  const currentSessionKey=()=>{const kind=actor();return kind+':'+(localStorage.getItem(kind==='agent'?'wacrm_agent':'wacrm_user')||'cookie');};
   async function session(){
-    const kind=actor(),key=kind+':'+(localStorage.getItem(kind==='agent'?'wacrm_agent':'wacrm_user')||'cookie');
-    if(!sessionPromise||sessionKey!==key||Date.now()>sessionUntil){sessionKey=key;sessionUntil=Date.now()+5000;sessionPromise=request('session').then(result=>result.data).catch(error=>{sessionPromise=null;throw error;});}
-    return sessionPromise;
+    const key=currentSessionKey();
+    if(!sessionPromise||sessionKey!==key||Date.now()>sessionUntil){
+      sessionKey=key;sessionUntil=Date.now()+5000;sessionGeneration++;
+      const pending=request('session').then(result=>result.data);
+      sessionPromise=pending;
+      pending.catch(()=>{if(sessionPromise===pending)sessionPromise=null;});
+    }
+    const generation=sessionGeneration,result=await sessionPromise;
+    // A response begun under another identity must never paint its labels or
+    // role navigation after an account switch or explicit invalidation.
+    if(generation!==sessionGeneration||currentSessionKey()!==key)return session();
+    return result;
   }
-  window.SaleMaxWorkspace=Object.freeze({paths,headers,request,session});
+  const invalidateSession=()=>{sessionGeneration++;sessionPromise=null;sessionUntil=0;};
+  window.SaleMaxWorkspace=Object.freeze({paths,headers,request,session,invalidateSession});
 })();

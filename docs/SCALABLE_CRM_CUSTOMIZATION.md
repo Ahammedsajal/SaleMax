@@ -80,9 +80,9 @@ Use dedicated tables and services for domain invariants. Use bounded, typed cust
 | --- | --- | --- |
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
-| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | Pending |
-| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Pending |
-| Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Pending |
+| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) implemented and verified with disposable MariaDB; broader schema/module settings pending |
+| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor integrated; eight EN/AR desktop/mobile bearer/cookie browser fixtures pass; live acceptance pending |
+| Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels integrated in shared session and sidebar, including account-switch race protection; other modules/workers pending |
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Partly existing; broader proof pending |
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |
@@ -102,3 +102,27 @@ The reviewed-source registry rejects duplicate key/version pairs, unknown capabi
 Manage Plans selectors now identify a category by key and version, include both in list requests and use the selected definition when drafting. Catalogue listing filters both database columns. Provisioning options, previews and writes propagate the selected version rather than forcing v1; the existing Manage Users form sends the version returned by its options API. Legacy requests default to v1. Historical v1 provisioning idempotency hashes remain unchanged; later versions include the explicit version. No successor category is registered or assigned by this increment.
 
 Fifty focused tests pass, including HTTP authorization/listing requests, malformed and unavailable versions, synthetic future registry versions, immutable input isolation, prior policy, provisioning, existing-screen contracts and chatbot domains. The local shared Express dependencies stalled on module loading; HTTP checks used a disposable `/private/tmp` dependency installation with Express 4.21.2. Production dependencies were unchanged. Rendered/authenticated EN/AR UI acceptance, database provisioning concurrency, successor adoption and production release remain open.
+
+
+## First tenant configuration schema — 20 October 2026
+
+The current increment implements immutable owner-managed configuration revisions,
+preview, optimistic draft saves, audited publication and historical rollback.
+Schema 1 supports bilingual primary-menu labels. It does not implement arbitrary
+custom entities, fields, domain workflows, module enablement or bot behavior.
+Publishing labels cannot grant a route or permission. Training Center v1's two
+historical Sales-only grants are excluded from new label options; commercial
+assignments remain unchanged pending reviewed successor adoption.
+
+A disposable real-MariaDB test proves same-category and different-category
+isolation, unique concurrent-edit winner, cross-tenant rollback denial, composite
+foreign-key ownership, audit-failure rollback, inactive-owner denial, expired-plan
+denial and runtime session filtering. The full shared-feature integration passes
+113 migrations with real bearer/cookie sessions and owner/Manager/Accountant/Agent
+permission checks. Its legacy fixture was extended with the two empty campaign
+tables required by the existing timezone migration. No production record is used.
+The browser tests cover the actual existing appearance hook and sidebar with
+synthetic API/session data: eight editor combinations, four customization/sidebar
+combinations, and twenty existing duplicate/sidebar regressions. Screenshots stay
+outside Git. Production deployment and authenticated live acceptance are recorded
+separately in DEPLOYMENT.md; the full customization objective remains open.

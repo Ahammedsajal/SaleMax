@@ -39,6 +39,8 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   featureAccess.get('/',(req,res,next)=>require('./feature-contract').describeWithNavigation(pool,req.featureSession).then(data=>res.json({success:true,data})).catch(next));
   featureAccess.use((error,req,res,next)=>res.status(error.status||503).json({success:false,code:error.status?error.code:'WORKSPACE_UNAVAILABLE'}));
   app.use('/api/workspace/session',featureAccess);
+  const customization=require('./tenant-customization-router').createTenantCustomizationRouter({pool,origin,authenticate:featureSession.guard});
+  app.use(['/api/workspace/customization','/api/crm/customization'],customization);
   const phonebook=require('./phonebook-workspace-router')({pool,authenticate:featureSession.guard});
   app.use(['/api/workspace/phonebook','/api/phonebook/workspace','/api/agent/phonebook'],phonebook);
   const courseReplies=require('./course-quick-reply-router')({pool,origin,authenticate:featureSession.guard});

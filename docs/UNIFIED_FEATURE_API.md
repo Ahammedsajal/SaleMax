@@ -13,6 +13,7 @@ business feature. Add future changes to that implementation once.
 | Products & services catalogue (SaleMaX Sales) | `/api/workspace/products-services` | None |
 | Students | `/api/workspace/students` | `/api/user/training/students` |
 | Business profile | `/api/workspace/profile` | `/api/user/training/profile` |
+| Tenant customization | `/api/workspace/customization` | `/api/crm/customization` |
 | Forms | `/api/workspace/forms` | `/api/user/training/forms` |
 
 `business-feature-session.js` adapts existing bearer and business-cookie
@@ -82,3 +83,28 @@ Custom business roles may explicitly add modules to Manager, Team Leader and Age
 QR, Flow, Chatbot, Templates, Campaigns, Inbox and Pipeline compatibility routers also mount at `/api/workspace/channels/qr`, `/api/workspace/automation/flows`, `/api/workspace/automation/chatbot`, `/api/workspace/templates`, `/api/workspace/campaigns`, `/api/workspace/inbox` and `/api/workspace/pipeline`. They reuse the same handlers. Agent-created QR connections stay in the business channel inventory and receive an explicit creator membership grant. Agents can manage connections they created, see their permitted shared connections, and cannot delete another member's connection. The business QR plan limit is checked before creation. No owner pairing credentials are copied.
 
 Verification covers the actual QR routes with a fake provider, real MariaDB sessions and permission changes, separate business/Agent credentials, and both bearer/cookie feature access. Actual WhatsApp pairing and messaging remain provider acceptance.
+
+
+## Tenant customization publication
+
+The existing CRM appearance screen uses the shared browser client for owner-only
+configuration drafts, read-only preview, publication and rollback. The first typed
+schema allows bilingual navigation labels; it rejects arbitrary keys, executable
+content, unknown category screens and Sales-only label options inherited by the
+historical Training Center v1 contract. Both bearer and cookie requests use the
+same router/service, current session refresh, Origin checks and cookie CSRF.
+
+Immutable database revisions and a per-tenant active/draft pointer retain category
+and schema versions, canonical checksums and an audited monotonic revision. Writes
+lock the tenant and recheck current owner membership and subscription before
+checking the expected revision. Composite foreign keys prohibit pointers to
+another tenant's revisions. Publication/rollback never modify another tenant.
+The session contract returns only published labels for the caller's permitted
+navigation. The sidebar keeps native route names and click handlers intact while
+rendering custom labels separately. Client invalidation prevents an earlier
+identity's in-flight session response from painting a later account's navigation.
+
+Migration `20261220_tenant_customization.sql` adds two empty tables; no existing
+business receives custom labels automatically. Configuration history is separate
+from the commercial plan catalogue. Broader fields, workflows, bot behavior,
+category adoption and new vertical modules remain subsequent implementation work.

@@ -9,12 +9,12 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  try{
  await admin.query('CREATE DATABASE `'+name+'` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');pool=mysql.createPool({...connection,database:name,connectionLimit:12});
  const inventory=require('../docs/LEGACY_SCHEMA_INVENTORY.json');
- for(const table of ['admin','plan','web_public','web_private','user','orders','contact_form','beta_chats','beta_conversation','agents','agent_task','instance','meta_api','beta_flows','contact','phonebook']){
+ for(const table of ['admin','plan','web_public','web_private','user','orders','contact_form','broadcast','beta_campaign','beta_chats','beta_conversation','agents','agent_task','instance','meta_api','beta_flows','contact','phonebook']){
  const columns=inventory.columns.filter(c=>c.tableName===table&&!(table==='instance'&&c.columnName==='inactiveSince'));
  if(!columns.length)continue;
  await pool.query('CREATE TABLE `'+table+'` ('+columns.map(c=>'`'+c.columnName+'` '+c.columnType+' '+(c.nullable==='NO'?'NOT NULL':'')+' '+(c.columnKey==='PRI'?'PRIMARY KEY':'')+' '+(c.extra==='auto_increment'?'AUTO_INCREMENT':'')+' '+(c.columnName==='createdAt'?'DEFAULT CURRENT_TIMESTAMP':'')).join(',')+')');
  }
- const db=await pool.getConnection();try{await require('../database/migration-runner').applyMigrations(db,require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')));}finally{db.release();}
+ const db=await pool.getConnection();try{await require('../database/migration-runner').applyMigrations(db,require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')));}catch(error){const [failed]=await db.query("SELECT migration_name,error_code,statements_completed FROM salemax_schema_migrations WHERE status<>'applied'");console.error(JSON.stringify({syntheticMigrationFailure:failed}));throw error;}finally{db.release();}
 
  process.env.DBNAME=name;process.env.JWTKEY='synthetic-unified-jwt-key';process.env.LOCAL_ONLY_MODE='true';
  const express=require('express'),app=express(),origin='http://127.0.0.1';
@@ -28,7 +28,7 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  for(const role of ['owner','manager','accountant','agent']){
   const identity=uuid(),membership=uuid(),uid='synthetic-unified-'+role,password='synthetic-'+role,email=role+'@example.invalid';
   await pool.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,?,'synthetic','active')",[identity,email,role]);
-  await pool.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status,assigned_navigation) VALUES (?,?,?,?,'active',?)",[membership,tenant,identity,role,JSON.stringify(role==='agent'?['inbox','contacts']:['inbox','invoices','contacts','courses','reports'])]);
+  await pool.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status,assigned_navigation) VALUES (?,?,?,?,'active',?)",[membership,tenant,identity,role,JSON.stringify(role==='agent'?['inbox','contacts']:role==='owner'?['dashboard','inbox','invoices','contacts','courses','reports']:['inbox','invoices','contacts','courses','reports'])]);
   let result;if(role==='agent')([result]=await pool.query("INSERT INTO agents(uid,name,email,password,owner_uid,role,is_active) VALUES (?,?,?,?,?,'agent',1)",[uid,role,email,password,'synthetic-unified-owner']));
   else ([result]=await pool.query("INSERT INTO user(uid,name,email,password,role) VALUES (?,?,?,?,'user')",[uid,role,email,password]));
   const id=result.insertId;await pool.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES (?,?,?,?,?,UTC_TIMESTAMP(3))",[role==='agent'?'agents':'user',String(id),tenant,membership,sha(uid)]);
@@ -50,6 +50,7 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  const guard=require('../modules/platform/business-feature-session').createBusinessFeatureSession({pool,origin,userGuard:require('../middlewares/user'),agentGuard:require('../middlewares/agent'),canonicalGuard:auth.guard,resolveBusinessContext:auth.resolveContext});legacyPool=require('../database/config');
  app.use('/api/user/business-auth',auth.router);
  const sessionRouter=express.Router();sessionRouter.use(guard.guard);sessionRouter.get('/',(req,res,next)=>require('../modules/platform/feature-contract').describeWithNavigation(pool,req.featureSession).then(data=>res.json({success:true,data})).catch(next));app.use('/api/workspace/session',sessionRouter);
+ const customization=require('../modules/platform/tenant-customization-router').createTenantCustomizationRouter({pool,origin,authenticate:guard.guard});app.use(['/api/workspace/customization','/api/crm/customization'],customization);
  const finance=require('../modules/platform/training-finance-router').createTrainingFinanceRouter({pool,origin,sessionGuard:guard.guard});app.use(['/api/workspace/finance','/api/user/training/finance-policies'],finance);
  const phonebook=require('../modules/platform/phonebook-workspace-router')({pool,authenticate:guard.guard});app.use(['/api/workspace/phonebook','/api/phonebook/workspace','/api/agent/phonebook'],phonebook);
  const catalogRouter=require('../modules/platform/training-course-router').createTrainingCourseRouter;
@@ -68,6 +69,25 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
   const session=await request(role,kind,'/api/workspace/session');assert.equal(session.status,200,JSON.stringify(session));assert.equal(session.data.role,role);
   for(const url of ['/api/workspace/finance/generator/settings','/api/user/training/finance-policies/accountant/generator/settings','/api/workspace/finance/receipts']){const response=await request(role,kind,url);assert.equal(response.status,role==='agent'?403:200,JSON.stringify(response));}
  }
+ // Exercise the new feature through the real shared bearer/cookie boundary.
+ for(const kind of ['bearer','cookie']){
+  const current=await request('owner',kind,'/api/workspace/customization');assert.equal(current.status,200,JSON.stringify(current));
+  const document={schemaVersion:1,navigationLabels:{inbox:{en:'Synthetic desk '+kind,ar:'مكتب تجريبي'}}};
+  assert.equal((await request('owner',kind,'/api/workspace/customization/preview','POST',{document})).status,200);
+  assert.equal((await request('owner',kind,'/api/workspace/customization/draft','PUT',{expectedRevision:current.data.revision,document})).status,200);
+  assert.equal((await request('owner',kind,'/api/crm/customization/publish','POST',{expectedRevision:current.data.revision+1})).status,200);
+  for(const role of ['owner','manager','accountant','agent']){
+   const visible=await request(role,kind,'/api/workspace/session');assert.equal(visible.status,200,JSON.stringify(visible));
+   assert.equal(visible.data.navigationLabels.inbox?.en,role==='accountant'?undefined:document.navigationLabels.inbox.en);
+   if(role!=='owner')assert.equal((await request(role,kind,'/api/workspace/customization')).status,403);
+  }
+ }
+ const saved=await request('owner','cookie','/api/workspace/customization');
+ assert.equal((await request('owner','cookie','/api/workspace/customization/draft','PUT',{expectedRevision:saved.data.revision,document:{schemaVersion:1,navigationLabels:{}}},{csrf:false})).status,403);
+ assert.equal((await request('owner','bearer','/api/workspace/customization/preview','POST',{document:{schemaVersion:1,navigationLabels:{}}},{foreign:true})).status,403);
+ // Reset only the disposable fixture's active pointer before unrelated category
+ // reclassification tests below. Historical revisions remain tenant-scoped.
+ await pool.query('UPDATE sx_tenant_customization_heads SET active_id=NULL,draft_id=NULL WHERE tenant_id=?',[tenant]);
  const [book]=await pool.query("INSERT INTO phonebook(uid,name) VALUES ('synthetic-unified-owner','Synthetic shared book')");
  for(const kind of ['bearer','cookie']){const result=await request('manager',kind,'/api/workspace/phonebook/bootstrap');assert.equal(result.books[0].id,book.insertId);assert.equal(result.manage,true);}
  const share=await request('owner','cookie','/api/workspace/phonebook/share','POST',{resourceType:'book',ids:[book.insertId],recipientType:'agents',recipientId:people.agent.id});assert.equal(share.success,true,JSON.stringify(share));
@@ -142,6 +162,6 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
   const options=await request('agent',kind,'/api/workspace/inbox/course-replies?chatId=synthetic-chat');assert.equal(options.data.courses.length,1);assert.equal(options.data.courses[0].id,productId);
   assert.equal((await request('agent',kind,'/api/workspace/inbox/course-replies/preview/'+course+'?chatId=synthetic-chat')).status,404);
  }
- console.log(JSON.stringify({passed:true,migrations:require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')).length,checks:['owner manager accountant agent bearer and real cookie auth','one Finance route for all roles and compatibility aliases','Finance screen includes receipts','manager uses owner phonebooks','same-account sharing and agent read-only scope','Inbox-only published course replies','foreign course and conversation denial','real cookie CSRF and Origin denial','Arabic ordered send with fake transport','mid-send permission revocation stops subsequent messages','inactive member denied for both session kinds','Sales catalog with both auth kinds and category-specific APIs and quick replies','Sales owner creates and manager publishes; agent reads; accountant denied','historical training courses stay separate after category changes','Manager creates expanded Agent role and assigns it','Agent writes course and manages phonebook with bearer and cookie sessions','Agent Finance read after explicit grant','Agent safe shell profile and identity','actual QR generation/list router with fake provider and self channel grant','foreign QR deletion denied','grant and sidebar revocation take effect immediately'],customerDataTouched:false,externalMessages:0}));
+ console.log(JSON.stringify({passed:true,migrations:require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')).length,checks:['tenant customization with real bearer and cookie auth, published session labels, owner-only writes, CSRF and Origin checks','owner manager accountant agent bearer and real cookie auth','one Finance route for all roles and compatibility aliases','Finance screen includes receipts','manager uses owner phonebooks','same-account sharing and agent read-only scope','Inbox-only published course replies','foreign course and conversation denial','real cookie CSRF and Origin denial','Arabic ordered send with fake transport','mid-send permission revocation stops subsequent messages','inactive member denied for both session kinds','Sales catalog with both auth kinds and category-specific APIs and quick replies','Sales owner creates and manager publishes; agent reads; accountant denied','historical training courses stay separate after category changes','Manager creates expanded Agent role and assigns it','Agent writes course and manages phonebook with bearer and cookie sessions','Agent Finance read after explicit grant','Agent safe shell profile and identity','actual QR generation/list router with fake provider and self channel grant','foreign QR deletion denied','grant and sidebar revocation take effect immediately'],customerDataTouched:false,externalMessages:0}));
  }finally{if(server)await new Promise(r=>server.close(r));if(legacyPool)await legacyPool.promise().end();await pool?.end();await admin.query('DROP DATABASE IF EXISTS `'+name+'`');await admin.end();}
 })().catch(error=>{console.error(error.stack);process.exitCode=1;});

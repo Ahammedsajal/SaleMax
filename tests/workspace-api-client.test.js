@@ -21,3 +21,17 @@ test('the common client loads before dependent existing screen scripts',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8'),common=html.indexOf('/workspace-api.js?');assert.ok(common>=0);
  for(const module of ['training-courses','training-finance','training-forms','phonebook-workspace','course-quick-replies'])assert.ok(common<html.indexOf('/'+module+'.js?'));
 });
+
+
+test('late session responses cannot expose a previous business after a bearer identity switch',async()=>{
+ let token='business-a';const pending=[];
+ const sandbox={window:{},location:{pathname:'/user'},localStorage:{getItem:()=>token},FormData:class {},fetch:async()=>new Promise(resolve=>pending.push(resolve))};
+ vm.runInNewContext(source,sandbox);
+ const first=sandbox.window.SaleMaxWorkspace.session();await new Promise(resolve=>setImmediate(resolve));
+ token='business-b';const second=sandbox.window.SaleMaxWorkspace.session();await new Promise(resolve=>setImmediate(resolve));
+ pending[1]({ok:true,json:async()=>({success:true,data:{tenantId:'business-b',navigationLabels:{inbox:{en:'B'}}}})});
+ assert.equal((await second).tenantId,'business-b');
+ pending[0]({ok:true,json:async()=>({success:true,data:{tenantId:'business-a',navigationLabels:{inbox:{en:'A'}}}})});
+ assert.equal((await first).tenantId,'business-b');
+ assert.equal(pending.length,2);
+});
