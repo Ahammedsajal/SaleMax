@@ -78,7 +78,7 @@ Use dedicated tables and services for domain invariants. Use bounded, typed cust
 
 | Workstream | Required evidence | State |
 | --- | --- | --- |
-| Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Implemented; 40 focused checks pass; production deployment pending |
+| Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
 | Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | Pending |
 | Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Pending |
@@ -88,7 +88,7 @@ Use dedicated tables and services for domain invariants. Use bounded, typed cust
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |
 | New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Pending; not delivered by adding names to a dropdown |
 | Operational scale | Measured tenant load/fairness, recoverable backups, restore drill, rollout rings and health telemetry | Pending |
-| Publication | Verified source push, targeted production backup/deploy, hashes, API/browser acceptance and deployment record | Source increment; no production deployment claim |
+| Publication | Verified source push, targeted production backup/deploy, hashes, API/browser acceptance and deployment record | Category foundation deployed; tenant configuration and full objective still in progress |
 
 Acceptance requires a matrix covering two businesses in the same category, two different categories, and an unmapped legacy business. Change A's draft, publish it, run its workflow, revoke permissions and roll back; B's active revision, visible modules, API decisions, bot content and stored data must remain unchanged throughout. Also cover concurrent publish, malformed/unknown fields, unsupported category version, expired plan, cross-tenant ID substitution, stale worker/cache state, migration failure and partial provider failure. Fixtures cannot stand in for authenticated existing-screen verification.
 
