@@ -30,6 +30,7 @@ for (const file of [
   const destination = path.join(target, file);
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.copyFileSync(path.join(source, file), destination);
+  fs.chmodSync(destination, 0o644);
 }
 // Extend the maintained Pipeline formatter without reverting newer live Pipeline logic.
 const pipelineFile = path.join(target, "client/public/pipeline/pipeline.js");
