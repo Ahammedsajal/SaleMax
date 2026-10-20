@@ -1802,7 +1802,7 @@ router.get("/get_dashboard", validateUser, async (req, res) => {
         agents: agents[0].count,
         activeChats: activeChats[0].count,
         completedTasks: completedTasks[0].count,
-        activeInstances: activeInstances[0].count,
+        activeInstances: Number(activeInstances || 0),
       },
       recentConversations,
       unreadSummary,
