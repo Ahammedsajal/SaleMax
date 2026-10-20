@@ -10,7 +10,7 @@ test('recruitment introduction builds trust before describing the role',()=>{
   assert.match(result.reply,/Qatar-based software and marketing company/);
   assert.match(result.reply,/Apple:/);
   assert.match(result.reply,/Google Play:/);
-  assert.match(result.reply,/company owner and software developer/);
+  assert.match(result.reply,/Sales Manager, who will guide your day-to-day sales activities/);
   assert.equal(result.buttons.length,3);
   assert.deepEqual(result.buttons.map(button=>button.id),['about_talab','about_salemax','about_role']);
 });
@@ -19,11 +19,15 @@ test('role and commission replies state qualification and payment terms accurate
   const role=recruitmentReply({message:'about_role',state:{step:'welcome'},facts:{}});
   assert.match(role.reply,/We provide the leads/);
   assert.match(role.reply,/Professional English is required; Hindi is helpful but optional/);
+  assert.match(role.reply,/Sales Manager will guide your day-to-day sales activities and targets/);
   assert.ok(role.buttons.length<=3);
   const commission=recruitmentReply({message:'commission_details',state:{step:'role'},facts:{}});
   assert.match(commission.reply,/15%/);
   assert.match(commission.reply,/QAR 2,500/);
   assert.match(commission.reply,/QAR 375/);
+  assert.match(commission.reply,/INR 65,200/);
+  assert.match(commission.reply,/INR 9,800/);
+  assert.match(commission.reply,/INR conversions are estimates/);
   assert.match(commission.reply,/not guaranteed/);
   assert.ok(commission.buttons.length<=3);
 });
