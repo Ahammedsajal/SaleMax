@@ -126,3 +126,33 @@ synthetic API/session data: eight editor combinations, four customization/sideba
 combinations, and twenty existing duplicate/sidebar regressions. Screenshots stay
 outside Git. Production deployment and authenticated live acceptance are recorded
 separately in DEPLOYMENT.md; the full customization objective remains open.
+
+
+## Next adoption boundary: lead fields and legacy Pipeline — 20 October 2026
+
+Source tracing after the first configuration deployment confirms that menu labels
+alone do not make lead workflows category-neutral:
+
+- `client/public/pipeline/pipeline.js` builds the Add Lead dialog with student,
+  certificate, QID, course-interest and learning-goal controls directly in the
+  shared screen. The board response already includes category context, but those
+  controls do not consume a versioned field contract.
+- `helper/pipeline/leadPipeline.js` normalizes qualification through a fixed set
+  of training-oriented enums/text limits. Unknown keys are discarded. Adding
+  arbitrary inputs to a UI would therefore not persist customer-specific values.
+  Editing qualification replaces the normalized JSON, so historical custom values
+  need an explicit preservation strategy before a new schema can be adopted.
+- `routes/pipeline.js` retains legacy bearer authentication alongside canonical
+  actors. Some fallback actors have no category metadata. Do not treat missing
+  category context as Training Center or reject those working legacy accounts
+  merely to simplify the configurable path.
+
+Required next implementation: a versioned server field contract with explicit
+shared and category fields; tenant-published typed field definitions; bounded
+custom values with a reserved namespace; snapshot/version attribution on saved
+records; create/edit/read UI generated from the same contract; and tests proving
+unknown/foreign field IDs cannot cross tenants. Preserve historical values when
+fields are archived or labels/types evolve. Never reuse medical/stock/reservation
+invariants as free-form custom fields. Both legacy base behavior and canonical
+owner/staff sessions must pass their existing-screen acceptance matrix before
+publication. These requirements remain unimplemented in the first label schema.
