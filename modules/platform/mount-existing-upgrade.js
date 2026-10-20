@@ -23,6 +23,7 @@ const {createRecruitmentRouter,createPublicRecruitmentRouter,createRecruitmentPa
 function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacyGuard,userGuard=require('../../middlewares/user')}){
   const tenantCrmDomains=require('./tenant-crm-domains');
   app.use(tenantCrmDomains.middleware(pool));
+  require('../web/public-website').mountPublicWebsite(app,{pool,key,origin});
   const boundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'platform'});
   const businessBoundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'tenant'});
   // Existing /admin panel only: no separate catalogue, login page or application shell.

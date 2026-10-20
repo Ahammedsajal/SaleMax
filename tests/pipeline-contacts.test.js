@@ -46,7 +46,7 @@ test('existing pipeline add-opportunity screen offers contact reuse and separate
   assert.match(screen, /if\(isAgent\)delete payload\.ownerAgentId/);
   assert.match(screen, /Create a separate contact \/ learner/);
   assert.match(screen, /إنشاء جهة اتصال \/ متعلم مستقل/);
-  assert.match(html, /pipeline\.js\?v=20261014-sales-do-not-call1/);
+  assert.match(html, /pipeline\.js\?v=20261020-website1/);
   assert.match(screen,/Schedule call/);assert.match(screen,/taskType=sales_call/);
   assert.match(screen, /settingsModal\(\)\{if\(state\.data\?\.role!==['"]owner['"]\)/);
   assert.match(screen, /conversionReady&&\['owner','agent'\]\.includes\(state\.data\?\.role\)/);
