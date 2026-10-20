@@ -272,7 +272,17 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     const nextState = JSON.stringify(reply.state || {});
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
     if(ctx.category.key==='salemax_sales'&&reply.state?.screeningConsent===true&&reply.state?.answers){
-      await require('./recruitment-applications').saveScreening(db,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId,mobile:message.senderMobile,senderName:message.senderName,answers:reply.state.answers,complete:['awaiting_cv','application_submitted'].includes(reply.state.step),consent:true});
+      const recruitment=require('./recruitment-applications');
+      const saved=await recruitment.saveScreening(db,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId,mobile:message.senderMobile,senderName:message.senderName,answers:reply.state.answers,complete:['awaiting_cv','application_saved','application_submitted'].includes(reply.state.step),consent:true});
+      if(saved?.applicationId&&reply.state.step==='awaiting_cv'){
+        const prefill=await recruitment.issuePrefillToken(db,{tenantId:ctx.tenant.id,applicationId:saved.applicationId,answers:reply.state.answers});
+        const url=new URL(`/careers/${encodeURIComponent(ctx.tenant.slug)}?source=whatsapp&prefill=${encodeURIComponent(prefill)}`,process.env.FRONTENDURI||'https://crm.salemax.qa').toString();
+        reply.reply=`Thanks, your application is saved in our private Applications & CVs area (Ref: ${saved.referenceCode}). CV status: Not uploaded. You can send a PDF or DOCX here, or open this link to review or edit your saved details and upload your CV: ${url}\n\nThe Founder will contact you soon about the next steps.`;
+        reply.buttons=[{id:'skip_cv',title:'Skip CV'}];
+      }
+    }
+    if(ctx.category.key==='salemax_sales'&&reply.notifyRecruiter){
+      await require('./recruitment-founder-notifications').enqueue(db,{tenantId:ctx.tenant.id,profileId:profile.id,channelKind,channelRef:sessionId,conversationId:chatId,inboundMessageId:String(message.metaChatId||`recruiter:${chatId}:${Date.now()}`),payload:{answers:{fullName:message.senderName||'Not provided',whatsappNumber:message.senderMobile||'Not provided',contactNumber:message.senderMobile||'Not provided'},whatsappNumber:message.senderMobile||'Not provided',senderName:message.senderName||'Candidate',source:'Candidate requested the recruiter'}});
     }
     await db.commit();
   } catch (error) {

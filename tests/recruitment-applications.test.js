@@ -22,8 +22,8 @@ test('application stores the requested pre-screen answers and keeps WhatsApp sep
 });
 test('prefill links use opaque expiring tokens and return only consented candidate screening fields',async()=>{
   let inserted;const db={query:async(sql,params)=>{inserted={sql,params};return [{affectedRows:1}];}};
-  const token=await recruitment.issuePrefillToken(db,{tenantId:owner.tenant.id,answers:{fullName:'Asha',email:'asha@example.in',whatsappNumber:'+919876543210',privateNote:'do not retain'}});
-  assert.match(token,/^[A-Za-z0-9_-]{40,60}$/);assert.match(inserted.sql,/INTERVAL 14 DAY/);assert.doesNotMatch(JSON.stringify(inserted.params),/privateNote/);
+  const token=await recruitment.issuePrefillToken(db,{tenantId:owner.tenant.id,applicationId:'application-1',answers:{fullName:'Asha',email:'asha@example.in',whatsappNumber:'+919876543210',privateNote:'do not retain'}});
+  assert.match(token,/^[A-Za-z0-9_-]{40,60}$/);assert.match(inserted.sql,/INTERVAL 14 DAY/);assert.equal(inserted.params[2],'application-1');assert.doesNotMatch(JSON.stringify(inserted.params),/privateNote/);
   const dbRead={query:async(sql,params)=>{assert.match(sql,/expires_at>UTC_TIMESTAMP/);assert.deepEqual(params,['salemax-sales',require('node:crypto').createHash('sha256').update(token).digest()]);return [[{answers:JSON.stringify({fullName:'Asha'})}]];}};
   assert.deepEqual(await recruitment.getPrefill(dbRead,{tenantSlug:'salemax-sales',token}),{fullName:'Asha'});
   await assert.rejects(recruitment.getPrefill(dbRead,{tenantSlug:'salemax-sales',token:'bad'}),{code:'PREFILL_NOT_FOUND'});
@@ -75,13 +75,23 @@ test('pre-screen answers are saved only with explicit consent and stay tied to t
   const input={tenantId:owner.tenant.id,channelKind:'whatsapp_meta',channelRef:'meta-channel',conversationId:'candidate-chat',mobile:'+91 98765 43210',senderName:'Asha',answers:{location:'india',englishLevel:'proficient',privateNote:'discard'},complete:false,consent:false};
   assert.equal(await recruitment.saveScreening(db,input),false);
   assert.equal(calls.length,0);
-  assert.equal(await recruitment.saveScreening(db,{...input,consent:true}),true);
+  assert.deepEqual(await recruitment.saveScreening(db,{...input,consent:true}),{saved:true,applicationId:null,referenceCode:null});
   assert.equal(calls.length,1);
   assert.match(calls[0].sql,/ON DUPLICATE KEY UPDATE/);
   assert.equal(calls[0].params[1],owner.tenant.id);
   assert.deepEqual(JSON.parse(calls[0].params[9]),{location:'india',englishLevel:'proficient'});
   assert.equal(calls[0].params[10],recruitment.SCREENING_CONSENT);
   assert.equal(calls[0].params[11],0);
+});
+
+test('completing WhatsApp screening creates a reviewable application with no CV attached',async()=>{
+  const calls=[],answers={fullName:'Asha Candidate',email:'asha@example.in',whatsappNumber:'+919876543210',contactNumber:'+919876543210',currentlyWorking:'yes',contactNumberSame:'same',totalExperienceRange:'3+',salesExperienceYears:'1-2',hasComputerAndInternet:'yes',comfortableWithSalesCalls:'yes',englishLevel:'proficient',hindiLevel:'none',availability:'full_time'};
+  const db={query:async(sql,params)=>{calls.push({sql,params});if(sql.includes('FROM sx_legacy_ownership'))return [[]];if(sql.includes('SELECT id,reference_code AS referenceCode FROM sx_recruitment_applications'))return [[{id:'application-1',referenceCode:'SMX-12345678'}]];if(sql.includes('FROM sx_chatbot_profiles'))return [[{id:'profile-1'}]];if(sql.includes('SELECT answers FROM sx_recruitment_screenings'))return [[{answers:JSON.stringify(answers)}]];return [{affectedRows:1}];}};
+  const saved=await recruitment.saveScreening(db,{tenantId:owner.tenant.id,channelKind:'whatsapp_qr',channelRef:'qr-instance',conversationId:'candidate-chat',mobile:'+919876543210',senderName:'Asha',answers,complete:true,consent:true});
+  assert.deepEqual(saved,{saved:true,applicationId:'application-1',referenceCode:'SMX-12345678'});
+  const insert=calls.find(call=>call.sql.includes('INSERT INTO sx_recruitment_applications'));
+  assert.ok(insert);assert.match(insert.sql,/ON DUPLICATE KEY UPDATE/);assert.equal(insert.params[19],null);assert.equal(insert.params[20],null);assert.equal(insert.params[21],null);assert.equal(insert.params[22],null);assert.equal(insert.params[23],null);
+  assert.ok(calls.some(call=>call.sql.includes('INSERT IGNORE INTO sx_recruitment_founder_notifications')),'application completion queues the existing dual-channel recruiter alert');
 });
 
 test('pre-screen review is tenant-scoped and returns a direct conversation link',async()=>{

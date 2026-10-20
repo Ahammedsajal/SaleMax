@@ -17,6 +17,8 @@ test('actual discovery excludes destructive rollback', () => {
   assert.ok(recruitmentScreenings);
   const recruitmentPrefill=migrations.find(m=>m.file==='20261020_sales_recruitment_prefill.sql');
   assert.ok(recruitmentPrefill);assert.match(recruitmentPrefill.statements.join('\n'),/sx_recruitment_prefill_tokens/);assert.match(recruitmentPrefill.statements.join('\n'),/comfortable_with_sales_calls/);
+  const savedApplications=migrations.find(m=>m.file==='20261020_sales_recruitment_saved_applications.sql');
+  assert.ok(savedApplications);assert.match(savedApplications.statements.join('\n'),/MODIFY cv_file_name VARCHAR\(180\) NULL/);assert.match(savedApplications.statements.join('\n'),/application_id/);assert.match(savedApplications.statements.join('\n'),/ON DELETE CASCADE/);
   assert.match(recruitmentScreenings.statements.join('\n'),/UNIQUE KEY sx_recruitment_screening_conversation/);
   assert.match(recruitmentScreenings.statements.join('\n'),/consented_at DATETIME\(3\) NOT NULL/);
   const qrShares = migrations.find(m => m.file === '20261207_qr_channel_shares.sql');
