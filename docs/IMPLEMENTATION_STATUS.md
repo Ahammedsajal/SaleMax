@@ -1673,3 +1673,9 @@ Live acceptance also repaired existing Pipeline board/filter/detail collation co
 ### Original public logo and icon — production, 20 October 2026
 
 `def8d24` is deployed in `public-logo-def8d24-20261020`. Public header/footer use the original SaleMaX horizontal logo; the hero and browser icon use the supplied icon assets. Desktop image loading, mobile bounds, source/runtime/HTTPS hashes and health passed. This is an HTML/CSS-only branding correction, with no migration or business-data change; release/rollback evidence is in `DEPLOYMENT.md`.
+
+## Custom CRM shared-core pricing — production, 20 October 2026
+
+`3a9956e` and `bab620c` are pushed to main and live in `/opt/salemax/releases/public-crm-plans-bab620c-20261020`. The public offer presents a customizable CRM for any industry with category-based views/features/workflows; Training Center is one implementation. Existing paid catalogue IDs 26 and 25 are Monthly CRM (QAR 350 / 30 days) and Yearly CRM (QAR 3,700 / 365 days). Two public cards share nine verified cross-category CRM/messaging/campaign/automation/team/reporting features, with QAR 500 annual savings. Industry-specific modules and bespoke work are separately scoped. The trial remains in administration/history. This does not publish new industry categories or duplicate the catalogue.
+
+Six focused source tests, three deployment-image checks, English/Arabic DOM checks using live catalogue responses, production health/route/hash checks and customer-snapshot/limits preservation checks passed. No migration or customer-assignment rewrite occurred. Browser control is disabled, so rendered visual and authenticated admin browser review remain open. DEPLOYMENT.md records the transactional catalogue update, backups, rollback and remaining 42-ticket/provider/finance/release gates.
