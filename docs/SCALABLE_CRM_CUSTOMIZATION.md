@@ -230,3 +230,5 @@ It does not make the training registration schema generic or authorize medical,
 stock, property or reservation workflows. Typed custom fields still require
 reviewed form/bot/export/report adapters. No customer configuration or category
 assignment changes in this increment; no migration is needed.
+
+Production: `1e7d977` is live in `pipeline-workspace-1e7d977-20261020`. Thirty focused checks, 12 browser fixture cases and real shared-auth/MariaDB integration pass. Current production owner contracts, public/runtime hashes and health pass; five deployed paths are synchronized locally. Signed-in live browser acceptance remains open. See DEPLOYMENT.md for rollback and remaining gates.
