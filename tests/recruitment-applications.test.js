@@ -12,6 +12,10 @@ test('recruitment form validates and normalizes applicant details',()=>{
   const result=recruitment.cleanApplication(valid);
   assert.equal(result.fullName,'Asha Candidate');assert.equal(result.normalizedMobile,'+919876543210');assert.equal(result.email,'asha@example.in');assert.equal(result.experienceYears,4);assert.equal(result.sourceChannel,'public_form');
 });
+test('public hiring consent names SaleMaX as the hiring company',()=>{
+  assert.equal(recruitment.CONSENT,'I agree that SaleMaX may use my application and CV to assess me for the SaleMaX sales associate role and contact me about recruitment.');
+  assert.doesNotMatch(recruitment.CONSENT,/Sitta Arbaa Sitta/i);
+});
 test('recruitment requires explicit consent and valid English/Hindi levels',()=>{
   assert.throws(()=>recruitment.cleanApplication({...valid,consent:''}),{code:'CONSENT_REQUIRED'});
   assert.throws(()=>recruitment.cleanApplication({...valid,englishLevel:'fluent'}),{code:'INVALID_ENGLISH_LEVEL'});

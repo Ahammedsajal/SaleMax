@@ -18,7 +18,7 @@ function createPublicRecruitmentRouter({pool,origin,key}){
  router.get('/:tenantSlug',wrap(async(req,res)=>{
   const [[tenant]]=await pool.query("SELECT id,slug FROM sx_tenants WHERE slug=? AND category_key='salemax_sales' AND status='active' LIMIT 1",[req.params.tenantSlug]);
   if(!tenant)return res.status(404).json({success:false,code:'TENANT_NOT_FOUND'});
-  res.setHeader('Cache-Control','no-store');res.json({success:true,data:{...COPY,tenantSlug:tenant.slug,consent:recruitment.CONSENT}});
+  res.setHeader('Cache-Control','no-store');res.json({success:true,data:{companyName:'SaleMaX',role:COPY.role,roleSummary:COPY.roleSummary,talabApple:COPY.talabApple,talabAndroid:COPY.talabAndroid,tenantSlug:tenant.slug,consent:recruitment.CONSENT}});
  }));
  router.post('/:tenantSlug',(req,res,next)=>{
   if(!require('./request-origin').matches(req,origin))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});

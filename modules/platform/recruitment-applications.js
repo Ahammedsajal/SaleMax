@@ -6,7 +6,7 @@ const path=require('node:path');
 const {decision}=require('./policy');
 
 const MAX_CV_BYTES=8*1024*1024;
-const CONSENT='I agree that Sitta Arbaa Sitta for Software Solutions may use my application and CV to assess me for the SaleMaX sales associate role and contact me about recruitment.';
+const CONSENT='I agree that SaleMaX may use my application and CV to assess me for the SaleMaX sales associate role and contact me about recruitment.';
 const SCREENING_CONSENT='Candidate agreed to save WhatsApp pre-screen answers with the recruitment conversation for review by the SaleMaX Sales team.';
 const STATUSES=new Set(['new','reviewing','shortlisted','interview','rejected','hired','archived']);
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
