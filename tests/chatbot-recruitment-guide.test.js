@@ -18,23 +18,38 @@ test('recruitment introduction builds trust before describing the role',()=>{
 test('role and commission replies state qualification and payment terms accurately',()=>{
   const role=recruitmentReply({message:'about_role',state:{step:'welcome'},facts:{}});
   assert.match(role.reply,/We provide the leads/);
-  assert.match(role.reply,/Professional English is required; Hindi is helpful but optional/);
-  assert.match(role.reply,/Sales Manager will guide your day-to-day sales activities and targets/);
+  assert.match(role.reply,/Strong English is required; Hindi is helpful but optional/);
+  assert.match(role.reply,/Sales Manager will support you/);
   assert.ok(role.buttons.length<=3);
-  const commission=recruitmentReply({message:'commission_details',state:{step:'role'},facts:{}});
+  const commission=recruitmentReply({message:'Pay & Commission',state:{step:'role'},facts:{}});
   assert.match(commission.reply,/15%/);
   assert.match(commission.reply,/QAR 2,500/);
-  assert.match(commission.reply,/approximately INR 9,000–9,800 per paid sale/);
-  assert.doesNotMatch(commission.reply,/65,200|26\.08|exchange rate/i);
-  assert.match(commission.reply,/not guaranteed/);
+  assert.match(commission.reply,/QAR 375 per sale/);
+  assert.match(commission.reply,/We provide the leads/);
+  assert.doesNotMatch(commission.reply,/INR|exchange rate/i);
+  assert.match(commission.reply,/depending on performance and mutual agreement/);
   assert.ok(commission.buttons.length<=3);
 });
 
-test('apply action returns secure form URL and retains only guided state',()=>{
-  const result=recruitmentReply({message:'apply_now',state:{step:'role'},facts:[{kind:'recruitment_application',url:'https://crm.salemax.qa/careers/salemax-sales?source=whatsapp'}]});
+test('WhatsApp apply button returns secure form URL and upload instructions',()=>{
+  const result=recruitmentReply({message:'Apply & Upload CV',state:{step:'role'},facts:[{kind:'recruitment_application',url:'https://crm.salemax.qa/careers/salemax-sales?source=whatsapp'}]});
   assert.match(result.reply,/https:\/\/crm\.salemax\.qa\/careers\/salemax-sales/);
+  assert.match(result.reply,/PDF or DOCX files up to 8 MB/);
+  assert.match(result.reply,/Applications & CVs/);
   assert.equal(result.buttons.length,2);
   assert.equal(result.state.step,'apply');
+});
+
+test('configured human button labels route to their intended answers',()=>{
+  const config={messages:{buttonRole:{en:'About the role'},buttonCommission:{en:'Pay & Commission'},buttonApply:{en:'Apply & Upload CV'}}};
+  const role=recruitmentReply({message:'About the role',state:{step:'welcome'},facts:{},config});
+  const commission=recruitmentReply({message:'Pay & Commission',state:role.state,facts:{},config});
+  const apply=recruitmentReply({message:'Apply & Upload CV',state:commission.state,facts:[{kind:'recruitment_application',url:'https://crm.salemax.qa/careers/salemax-sales?source=whatsapp'}],config});
+  assert.equal(role.state.step,'role');
+  assert.equal(commission.state.step,'commission');
+  assert.equal(apply.state.step,'apply');
+  assert.match(commission.reply,/QAR 375 per sale/);
+  assert.match(apply.reply,/https:\/\/crm\.salemax\.qa\/careers\/salemax-sales/);
 });
 
 test('button screening saves location, language, sales background and availability in guided state',()=>{

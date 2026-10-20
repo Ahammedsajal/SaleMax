@@ -40,18 +40,18 @@ function screeningQuestion(step,language){
 function recruitmentReply({message,state,facts,config={}}){
  const language=/[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/u.test(String(message||''))||state?.language==='ar'?'ar':'en';
  const input=normalize(String(message||''));const previous=state||{};let step=previous.step||'welcome',reply='',choices=[];
- const labels={talab:text(config,'buttonTalab',language,language==='ar'?'عن طلب':'About Talab'),salemax:text(config,'buttonSalemax',language,language==='ar'?'عن SaleMaX':'About SaleMaX'),role:text(config,'buttonRole',language,language==='ar'?'عن الوظيفة':'About the role'),commission:text(config,'buttonCommission',language,language==='ar'?'العمولة':'Commission'),apply:text(config,'buttonApply',language,language==='ar'?'قدّم الآن':'Apply now'),menu:text(config,'buttonMenu',language,language==='ar'?'القائمة':'Main menu'),human:text(config,'buttonHuman',language==='ar'?'تحدث مع المالك':'Talk to owner'),screening:text(config,'buttonScreening',language==='ar'?'أسئلة سريعة':'Quick questions')};
+ const labels={talab:text(config,'buttonTalab',language,language==='ar'?'عن طلب':'About Talab'),salemax:text(config,'buttonSalemax',language,language==='ar'?'عن SaleMaX':'About SaleMaX'),role:text(config,'buttonRole',language,language==='ar'?'عن الوظيفة':'About the role'),commission:text(config,'buttonCommission',language,language==='ar'?'العمولة':'Commission'),apply:text(config,'buttonApply',language,language==='ar'?'قدّم الآن':'Apply now'),menu:text(config,'buttonMenu',language,language==='ar'?'القائمة':'Main menu'),human:text(config,'buttonHuman',language,language==='ar'?'تحدث مع المالك':'Talk to owner'),screening:text(config,'buttonScreening',language,language==='ar'?'أسئلة سريعة':'Quick questions')};
  const match=(...terms)=>terms.some(term=>input===normalize(term)||input.includes(normalize(term)));
  const screeningStep=Object.hasOwn(SCREENING,step);
  let command=null;
- if(match('main_menu','main menu','القائمة','الرئيسية','start over'))command='welcome';
- else if(match('about_talab','about talab','طلب','talab'))command='talab';
- else if(match('about_salemax','about salemax','salemax','سالمكس'))command='salemax';
- else if(match('commission_details','commission details','commission only','العمولة','الراتب','عمولة'))command='commission';
- else if(match('apply_now','apply now','application','ابدأ التقديم','قدم الآن','قدّم الآن'))command='apply';
+ if(match('main_menu','main menu','القائمة','الرئيسية','start over',labels.menu))command='welcome';
+ else if(match('about_talab','about talab','طلب','talab',labels.talab))command='talab';
+ else if(match('about_salemax','about salemax','salemax','سالمكس',labels.salemax))command='salemax';
+ else if(match('commission_details','commission details','commission only','pay and commission','pay commission','commission','pay','العمولة','الراتب','عمولة',labels.commission))command='commission';
+ else if(match('apply_now','apply now','apply and upload cv','apply upload cv','application','apply','cv','resume','ابدأ التقديم','قدم الآن','قدّم الآن',labels.apply))command='apply';
  else if(match('start_screening','quick questions','screening','ابدأ الأسئلة','أسئلة سريعة'))command=previous.screeningConsent?'screen_location':'screen_consent';
- else if(match('about_role','about the role','job','الوظيفة','الدور','العمل'))command='role';
- else if(match('talk_to_owner','talk to owner','موظف','المالك','تحدث مع المالك'))command='human';
+ else if(match('about_role','about the role','role','requirements','job','الوظيفة','الدور','العمل',labels.role))command='role';
+ else if(match('talk_to_owner','talk to owner','موظف','المالك','تحدث مع المالك',labels.human))command='human';
  if(command)step=command;
  else if(screeningStep){
   const option=SCREENING[step].options.find(([id,label,value])=>[id,label.en,label.ar,value].some(term=>input===normalize(term)));
@@ -96,15 +96,15 @@ function recruitmentReply({message,state,facts,config={}}){
   reply=language==='ar'?'SaleMaX هو برنامج CRM مخصص لإدارة الأعمال، يشمل تنظيم العملاء والتواصل وأدوات المبيعات. سيوجه مدير المبيعات أنشطتك اليومية.':'SaleMaX is our CRM and customised business-management software. It helps businesses organise customer communication and sales work. The Sales Manager will guide your day-to-day sales activities.';
   choices=buttons([['about_role',labels.role],['about_talab',labels.talab],['main_menu',labels.menu]]);
  }else if(step==='role'){
-  reply=language==='ar'?'الدور: مساعد مبيعات تقنية عن بُعد في الهند. نحن نوفر العملاء المحتملين. ستتواصل مع أصحاب الأعمال، تشرح SaleMaX، تقدم عروضاً عبر Google Meet وتساعد على إتمام الاشتراك السنوي. سيوجه مدير المبيعات أنشطتك اليومية وأهدافك. الإنجليزية بمستوى مهني مطلوب؛ الهندية مفيدة لكنها اختيارية.':'Role: Remote IT/SaaS Sales Associate based in India. We provide the leads. You will contact business owners, explain SaleMaX, give demos on Google Meet, and help close annual subscriptions. The Sales Manager will guide your day-to-day sales activities and targets. Professional English is required; Hindi is helpful but optional.';
+  reply=language==='ar'?'نبحث عن مساعد مبيعات تقنية وبرمجيات عن بُعد في الهند. نحن نوفر العملاء المحتملين. ستتحدث مع أصحاب الأعمال، وتشرح SaleMaX، وتقدم عروضاً عبر Google Meet، وتتابع معهم لإتمام الاشتراك السنوي. سيدعمك مدير المبيعات في عملك اليومي. إجادة الإنجليزية مطلوبة؛ والهندية مفيدة لكنها اختيارية.':'We’re hiring a remote IT/SaaS Sales Associate in India. We provide the leads. You’ll talk with business owners, explain SaleMaX, give demos on Google Meet, and follow up to close yearly subscriptions. Our Sales Manager will support you. Strong English is required; Hindi is helpful but optional.';
   choices=buttons([['start_screening',labels.screening],['commission_details',labels.commission],['apply_now',labels.apply]]);
  }else if(step==='commission'){
-  reply=language==='ar'?'خلال أول 2–3 أشهر توجد فترة تجربة بعمولة فقط دون راتب أساسي. العمولة 15% من الاشتراك السنوي المدفوع بقيمة 2,500 ريال قطري (حوالي 9,000–9,800 روبية هندية لكل عملية بيع مدفوعة). بعد التجربة، قد يُنظر في تعيين بدوام كامل براتب أساسي وعمولة؛ ولا يُعد ذلك مضموناً.':'The first 2–3 months are a commission-only trial with no base salary. Commission is 15% of a paid QAR 2,500 annual subscription (approximately INR 9,000–9,800 per paid sale). After the trial, successful associates may be considered for full-time employment with a basic salary plus commission; this is not guaranteed.';
+  reply=language==='ar'?'أول شهرين إلى ثلاثة أشهر فترة تجربة بالعمولة فقط، من دون راتب أساسي. نحن نوفر العملاء المحتملين. عن كل اشتراك سنوي مدفوع بقيمة 2500 ريال قطري، تحصل على 15% عمولة، أي 375 ريالاً قطرياً لكل عملية بيع. بعد التجربة، قد نعرض عليك وظيفة بدوام كامل براتب أساسي وعمولة، حسب الأداء والاتفاق بيننا.':'The first 2–3 months are a commission-only trial, with no base salary. We provide the leads. For each paid QAR 2,500 yearly subscription, you earn 15% commission — QAR 375 per sale. After the trial, we may offer a full-time role with a basic salary plus commission, depending on performance and mutual agreement.';
   choices=buttons([['start_screening',labels.screening],['apply_now',labels.apply],['main_menu',labels.menu]]);
  }else if(step==='apply'){
   const url=facts.find(item=>item.kind==='recruitment_application')?.url;
   if(!url){reply=language==='ar'?'نموذج التقديم غير متاح مؤقتاً. يرجى طلب مساعدة المالك.':'The application form is temporarily unavailable. Please ask to speak with the owner.';choices=buttons([['talk_to_owner',labels.human],['main_menu',labels.menu]]);step='human';}
-  else{reply=language==='ar'?`أكمل طلبك وارفع سيرتك الذاتية من الرابط الآمن التالي:\n${url}\nسيُحفظ الطلب في قسم Applications & CVs الخاص بالتوظيف.`:`Complete your application and upload your CV through this secure form:\n${url}\nYour submission will be saved in the private Applications & CVs review area.`;choices=buttons([['about_role',labels.role],['main_menu',labels.menu]]);}
+  else{reply=language==='ar'?`للتقديم، أكمل النموذج وارفع سيرتك الذاتية من هنا:\n${url}\nنقبل ملفات PDF أو DOCX حتى 8 ميجابايت. سيصل طلبك إلى قسم Applications & CVs الخاص للمراجعة.`:`To apply, complete the form and upload your CV here:\n${url}\nWe accept PDF or DOCX files up to 8 MB. Your application will go to our private Applications & CVs review area.`;choices=buttons([['about_role',labels.role],['main_menu',labels.menu]]);}
  }else{
   reply=language==='ar'?'سأطلب من مالك الشركة متابعة محادثتك. يمكنك أيضاً استكمال طلب التقديم من القائمة.':'I will ask the company owner to follow up in this chat. You can also continue your application from the menu.';
   choices=buttons([['apply_now',labels.apply],['main_menu',labels.menu]]);step='human';
