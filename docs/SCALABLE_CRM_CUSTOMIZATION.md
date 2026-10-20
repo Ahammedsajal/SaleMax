@@ -267,3 +267,5 @@ the exact previous release/image is safe; after adoption use a compatible repair
 image or an explicit reviewed form publication rollback that preserves historical
 form versions, submissions and Pipeline snapshots. Never restore an old database
 dump over subsequent customer activity.
+
+Production: source `605849d` is live in `lead-form-fields-605849d-20261020`. Forty-nine focused checks, 16 browser fixtures and real editor/public/staff HTTP/MariaDB integration pass. All twelve runtime hashes and public assets match; existing three published forms remain readable, with zero customer pinned-form/configuration adoption during deployment. Primary files are synchronized with verified backups. Signed-in live browser acceptance remains open; see DEPLOYMENT.md.
