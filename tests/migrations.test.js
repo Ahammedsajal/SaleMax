@@ -58,6 +58,15 @@ test('applied history is skipped and checksum drift blocks new SQL', async () =>
   assert.ok(!bad.calls.some(call => call.sql.startsWith('INSERT')));
   assert.ok(bad.calls.at(-1).sql.includes('RELEASE_LOCK'));
 });
+test('scoped apply validates full migration history but applies only the selected migration',async()=>{
+  const future={file:'20261220_future.sql',checksum:'c'.repeat(64),statements:['CREATE TABLE unrelated (id INT)']};
+  const previous={migration_name:future.file,checksum:future.checksum,status:'applied'};
+  const connection=fake({rows:[previous]});
+  assert.deepEqual(await applyMigrations(connection,[migration,future],{only:migration.file}),{applied:[migration.file],skipped:[]});
+  assert.ok(connection.calls.some(call=>call.sql===migration.statements[0]));
+  assert.ok(!connection.calls.some(call=>call.sql===future.statements[0]));
+  const missing=fake();await assert.rejects(applyMigrations(missing,[migration],{only:'20261020_missing.sql'}),{code:'MIGRATION_NOT_FOUND'});assert.equal(missing.calls.length,0);
+});
 test('failed/interrupted history requires recovery before retrying DDL', async () => {
   for (const status of ['failed', 'running']) {
     const connection = fake({ rows: [{ migration_name: migration.file, checksum: migration.checksum, status }] });

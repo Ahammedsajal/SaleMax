@@ -13,6 +13,8 @@ test('public recruitment page identifies SaleMaX as the hiring company without e
   assert.match(application,/SaleMaX is the company hiring for this role/);
   assert.match(application,/SaleMaX هي الشركة التي توظف لهذا الدور/);
   assert.doesNotMatch(application,/Sitta Arbaa Sitta|registered company name|Commercial Registration/);
+  for(const field of ['fullName','mobile','contactMobile','email','currentWorkStatus','totalExperienceRange','salesExperienceYears','hasComputerAndInternet','comfortableWithSalesCalls'])assert.match(application,new RegExp(`name="${field}"`));
+  assert.match(application,/\/prefill\//);assert.match(application,/prefillToken/);
   assert.match(applicationHtml,/recruitment-application\.js\?v=20261020-recruitment-prefill-1/);
   const recruiter=fs.readFileSync(path.join(root,'modules/platform/recruitment-router.js'),'utf8');
   assert.match(recruiter,/work with the SaleMaX Sales Manager/);
