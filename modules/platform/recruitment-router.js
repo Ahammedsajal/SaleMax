@@ -10,15 +10,16 @@ const COPY={
   talabApple:'https://apps.apple.com/qa/app/%D8%B9%D8%B1%D8%B6-%D9%88-%D8%B7%D9%84%D8%A8-%D9%82%D8%B7%D8%B1-talab-qtr/id6744091784',
   talabAndroid:'https://play.google.com/store/apps/details?id=com.talab.white',
   role:'Remote IT/SaaS Sales Associate — India',
-  roleSummary:'We are a Qatar-based software and marketing company. We build Talab, a Qatar marketplace app, and SaleMaX, custom business-management CRM software. You will speak with business leads supplied by us, explain SaleMaX on Google Meet, and help close annual subscriptions. You will work directly with the company owner and software developer. The first 2–3 months are a commission-only trial with no base salary. Commission is 15% of a paid QAR 2,500 annual subscription (QAR 375 per paid sale). After the trial, successful associates may be considered for a full-time role with basic salary plus commission; this is not guaranteed.',
+  roleSummary:'We are a Qatar-based software and marketing company. We build Talab, a Qatar marketplace app, and SaleMaX, custom business-management CRM software. You will speak with business leads supplied by us, explain SaleMaX on Google Meet, and help close annual subscriptions. You will work with the SaleMaX Sales Manager, who will guide your day-to-day sales activities and targets. The first 2–3 months are a commission-only trial with no base salary. Commission is 15% of each paid QAR 2,500 annual subscription (approximately INR 9,000–9,800 per paid sale). After the trial, successful associates may be considered for a full-time role with basic salary plus commission; this is not guaranteed.',
 };
 function createPublicRecruitmentRouter({pool,origin,key}){
  const router=express.Router(),wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
  router.use(express.json({limit:'8kb',strict:true}));
+ router.get('/:tenantSlug/prefill/:token',wrap(async(req,res)=>{res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');const answers=await recruitment.getPrefill(pool,{tenantSlug:req.params.tenantSlug,token:req.params.token});res.json({success:true,data:answers});}));
  router.get('/:tenantSlug',wrap(async(req,res)=>{
   const [[tenant]]=await pool.query("SELECT id,slug FROM sx_tenants WHERE slug=? AND category_key='salemax_sales' AND status='active' LIMIT 1",[req.params.tenantSlug]);
   if(!tenant)return res.status(404).json({success:false,code:'TENANT_NOT_FOUND'});
-  res.setHeader('Cache-Control','no-store');res.json({success:true,data:{...COPY,tenantSlug:tenant.slug,consent:recruitment.CONSENT}});
+  res.setHeader('Cache-Control','no-store');res.json({success:true,data:{companyName:'SaleMaX',role:COPY.role,roleSummary:COPY.roleSummary,talabApple:COPY.talabApple,talabAndroid:COPY.talabAndroid,tenantSlug:tenant.slug,consent:recruitment.CONSENT}});
  }));
  router.post('/:tenantSlug',(req,res,next)=>{
   if(!require('./request-origin').matches(req,origin))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
@@ -32,7 +33,7 @@ function createPublicRecruitmentRouter({pool,origin,key}){
   try{const result=await recruitment.createPublic(pool,{tenantSlug:req.params.tenantSlug,body:req.body,file,visitorHash});res.status(result.repeated?200:201).json({success:true,data:{referenceCode:result.referenceCode,repeated:result.repeated,linkedLead:result.leadLinked||false,linkedContact:result.contactLinked||false,linkedChat:result.chatLinked||false}});}
   finally{if(file?.tempFilePath)await fs.rm(file.tempFilePath,{force:true}).catch(()=>{});}
  }));
- router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'RECRUITMENT_UNAVAILABLE',status=Number(error.status)||(['APPLICATION_RATE_LIMITED'].includes(code)?429:['INVALID_','CONSENT_REQUIRED'].some(prefix=>code.startsWith(prefix))?400:code==='TENANT_NOT_FOUND'?404:503);res.status(status).json({success:false,code:status>=500?'RECRUITMENT_UNAVAILABLE':code});});
+ router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'RECRUITMENT_UNAVAILABLE',status=Number(error.status)||(['APPLICATION_RATE_LIMITED'].includes(code)?429:['INVALID_','CONSENT_REQUIRED'].some(prefix=>code.startsWith(prefix))?400:['TENANT_NOT_FOUND','PREFILL_NOT_FOUND'].includes(code)?404:503);res.status(status).json({success:false,code:status>=500?'RECRUITMENT_UNAVAILABLE':code});});
  return router;
 }
 

@@ -12,6 +12,23 @@ test('recruitment form validates and normalizes applicant details',()=>{
   const result=recruitment.cleanApplication(valid);
   assert.equal(result.fullName,'Asha Candidate');assert.equal(result.normalizedMobile,'+919876543210');assert.equal(result.email,'asha@example.in');assert.equal(result.experienceYears,4);assert.equal(result.sourceChannel,'public_form');
 });
+test('application stores the requested pre-screen answers and keeps WhatsApp separate from contact number',()=>{
+  const result=recruitment.cleanApplication({...valid,mobile:'+919876543210',contactMobile:'+919876500000',currentWorkStatus:'yes',totalExperienceRange:'3+',salesExperienceYears:'1-2',hasComputerAndInternet:'yes',comfortableWithSalesCalls:'yes'});
+  assert.equal(result.mobile,'+919876543210');assert.equal(result.contactMobile,'+919876500000');assert.equal(result.currentWorkStatus,'yes');assert.equal(result.totalExperienceRange,'3+');assert.equal(result.salesExperienceYears,'1-2');assert.equal(result.hasComputerAndInternet,'yes');assert.equal(result.comfortableWithSalesCalls,'yes');
+  assert.throws(()=>recruitment.cleanApplication({...valid,comfortableWithSalesCalls:'maybe'}),{code:'INVALID_APPLICATION'});
+});
+test('prefill links use opaque expiring tokens and return only consented candidate screening fields',async()=>{
+  let inserted;const db={query:async(sql,params)=>{inserted={sql,params};return [{affectedRows:1}];}};
+  const token=await recruitment.issuePrefillToken(db,{tenantId:owner.tenant.id,answers:{fullName:'Asha',email:'asha@example.in',whatsappNumber:'+919876543210',privateNote:'do not retain'}});
+  assert.match(token,/^[A-Za-z0-9_-]{40,60}$/);assert.match(inserted.sql,/INTERVAL 14 DAY/);assert.doesNotMatch(JSON.stringify(inserted.params),/privateNote/);
+  const dbRead={query:async(sql,params)=>{assert.match(sql,/expires_at>UTC_TIMESTAMP/);assert.deepEqual(params,['salemax-sales',require('node:crypto').createHash('sha256').update(token).digest()]);return [[{answers:JSON.stringify({fullName:'Asha'})}]];}};
+  assert.deepEqual(await recruitment.getPrefill(dbRead,{tenantSlug:'salemax-sales',token}),{fullName:'Asha'});
+  await assert.rejects(recruitment.getPrefill(dbRead,{tenantSlug:'salemax-sales',token:'bad'}),{code:'PREFILL_NOT_FOUND'});
+});
+test('public hiring consent names SaleMaX as the hiring company',()=>{
+  assert.equal(recruitment.CONSENT,'I agree that SaleMaX may use my application and CV to assess me for the SaleMaX sales associate role and contact me about recruitment.');
+  assert.doesNotMatch(recruitment.CONSENT,/Sitta Arbaa Sitta/i);
+});
 test('recruitment requires explicit consent and valid English/Hindi levels',()=>{
   assert.throws(()=>recruitment.cleanApplication({...valid,consent:''}),{code:'CONSENT_REQUIRED'});
   assert.throws(()=>recruitment.cleanApplication({...valid,englishLevel:'fluent'}),{code:'INVALID_ENGLISH_LEVEL'});

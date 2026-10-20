@@ -237,9 +237,14 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     let priorState = null;
     if (row && new Date(row.expiresAt).getTime() <= Date.now()) priorState = null;
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
+    if(priorState&&typeof message.senderMobile==='string')priorState.whatsappNumber=message.senderMobile;
     if (profile.engine !== 'guided' && priorState) priorState.language = businessContext.languageFor(intent || textOf(message), priorState);
     deferLeadQuestion = !priorState?.greeted;
     reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
+    if(ctx.category.key==='salemax_sales'&&reply.state?.step==='screen_complete'&&reply.state?.screeningConsent===true&&!reply.state.applicationUrl){
+      const base=facts.find(item=>item.kind==='recruitment_application')?.url;
+      if(base){const token=await require('./recruitment-applications').issuePrefillToken(db,{tenantId:ctx.tenant.id,answers:reply.state.answers});const url=new URL(base);url.searchParams.set('source','whatsapp');url.searchParams.set('prefill',token);reply.state.applicationUrl=url.toString();reply.reply+=`\n${reply.state.applicationUrl}`;}
+    }
     if (leadInfo?.nameOnly) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
