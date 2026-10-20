@@ -69,7 +69,10 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.get('/customer-reminders',(req,res)=>{res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");res.sendFile(require('node:path').resolve(__dirname,'../../client/public/customer-reminders.html'));});
   app.use(['/api/workspace/forms','/api/user/training/forms'],createTrainingFormRouter({pool,origin,userGuard,sessionGuard:featureSession.guard}));
   app.use('/api/user/chatbots',createChatbotRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard}));
-  app.use('/api/user/recruitment',createRecruitmentRouter({pool,origin,key,userGuard,canonicalGuard:businessBoundary.guard}));
+  // Recruitment is part of the existing user panel, whose current sessions
+  // may still be legacy bearer tokens. Normalize both those sessions and
+  // canonical tenant cookies through the shared feature-session guard.
+  app.use('/api/user/recruitment',createRecruitmentRouter({pool,origin,key,userGuard,canonicalGuard:featureSession.guard}));
   app.use('/api/public/recruitment',createPublicRecruitmentRouter({pool,origin,key}));
   createRecruitmentPageRouter(app,{pool,origin});
   app.use('/api/user/call-center',createCallCenterRouter({pool,userGuard,canonicalGuard:businessBoundary.guard,origin}));
