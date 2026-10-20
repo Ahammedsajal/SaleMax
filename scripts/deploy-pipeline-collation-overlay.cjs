@@ -21,6 +21,24 @@ for (const name of [
     throw Error("COLLATION_QUERY_ANCHOR_CHANGED:" + name);
   fs.writeFileSync(file, text.replace(from, to));
 }
+const leadFile = path.join(target, "helper/pipeline/leadPipeline.js");
+let lead = fs.readFileSync(leadFile, "utf8");
+for (const [from, to] of [
+  [
+    "bc.uid=? AND bc.chat_id=pc.chat_id AND",
+    "bc.uid=? AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci AND",
+  ],
+  [
+    "o.source_id=CAST(u.id AS CHAR)",
+    "CONVERT(o.source_id USING utf8mb4) COLLATE utf8mb4_bin=CONVERT(CAST(u.id AS CHAR) USING utf8mb4) COLLATE utf8mb4_bin",
+  ],
+]) {
+  if (lead.includes(to)) continue;
+  if (lead.split(from).length !== 2)
+    throw Error("LEAD_DETAIL_COLLATION_ANCHOR_CHANGED");
+  lead = lead.replace(from, to);
+}
+fs.writeFileSync(leadFile, lead);
 console.log(
   "Pipeline mixed-collation joins updated without replacing newer live modules.",
 );

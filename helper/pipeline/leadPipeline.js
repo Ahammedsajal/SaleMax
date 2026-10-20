@@ -957,7 +957,7 @@ async function getLead(uid, id, {role,agentId,scopeAgentIds,pool:sourcePool}={})
     }
     const [conversations] = await connection.query(
       `SELECT pc.chat_id, pc.origin, pc.first_inbound_at, pc.last_inbound_at,
-         (SELECT i.number FROM beta_chats bc JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE bc.uid=? AND bc.chat_id=pc.chat_id AND bc.origin='qr' LIMIT 1) AS instance_number,
+         (SELECT i.number FROM beta_chats bc JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE bc.uid=? AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci AND bc.origin='qr' LIMIT 1) AS instance_number,
          EXISTS (SELECT 1 FROM pipeline_attributions pa WHERE pa.uid_hash = pc.uid_hash AND pa.conversation_key = pc.conversation_key AND pa.is_verified_ad = 1) AS has_verified_ad_attribution
        FROM pipeline_conversations pc WHERE pc.uid_hash = ? AND pc.lead_id = ? ORDER BY pc.last_inbound_at DESC`,
       [uid, uidHash, id],
@@ -968,7 +968,7 @@ async function getLead(uid, id, {role,agentId,scopeAgentIds,pool:sourcePool}={})
       [uidHash, id],
     );
     const [[tenant]] = await connection.query(`SELECT o.tenant_id AS tenantId FROM sx_legacy_ownership o
-      JOIN user u ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      JOIN user u ON o.source_table='user' AND CONVERT(o.source_id USING utf8mb4) COLLATE utf8mb4_bin=CONVERT(CAST(u.id AS CHAR) USING utf8mb4) COLLATE utf8mb4_bin
       WHERE u.uid=? AND o.legacy_uid_hash=? LIMIT 1`, [uid, uidHash]);
     let applications=[];
     if(tenant?.tenantId){

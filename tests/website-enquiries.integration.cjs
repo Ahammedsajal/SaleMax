@@ -152,6 +152,24 @@ async function main() {
       ),
       { code: "SUBMISSION_CHANGED" },
     );
+    // Exercise detail/activities with mixed collations; omit the unrelated Training application fixture.
+    await pool.query(
+      "DELETE FROM sx_legacy_ownership WHERE source_table='user' AND source_id='1'",
+    );
+    const detail = await pipeline.getLead(uid, board.leads[0].id, {
+      role: "owner",
+      pool,
+    });
+    assert.equal(
+      detail.activities.find(
+        (item) => item.details?.source === "salemax_website",
+      ).details.content,
+      base.content,
+    );
+    await pool.query(
+      "INSERT INTO sx_legacy_ownership VALUES('user','1',?,?,?)",
+      [tenant, member, hash(uid)],
+    );
     const before = await count("contact_form");
     await assert.rejects(
       enquiries.submit(
