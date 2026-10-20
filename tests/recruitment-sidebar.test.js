@@ -23,3 +23,8 @@ test('SaleMaX Sales owner has a permission-backed Applications & CVs sidebar ent
   assert.match(sidebar,/function dedupeRecruitmentNavigationRows\(list\)/);
   assert.ok(sidebar.indexOf('dedupeRecruitmentNavigationRows(list);')>sidebar.indexOf('ensureSalesNavigationRows(list);'));
 });
+
+test('Applications & CVs API accepts the existing panel session through shared feature auth',()=>{
+  const mount=fs.readFileSync(path.join(__dirname,'../modules/platform/mount-existing-upgrade.js'),'utf8');
+  assert.match(mount,/createRecruitmentRouter\(\{pool,origin,key,userGuard,canonicalGuard:featureSession\.guard\}\)/);
+});
