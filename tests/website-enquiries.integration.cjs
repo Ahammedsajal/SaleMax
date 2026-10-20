@@ -105,6 +105,39 @@ async function main() {
       "sx_website_enquiries",
     ])
       assert.equal(await count(table), 1, table + " exactly once");
+    await pool.query(
+      "CREATE TABLE agents(id INT PRIMARY KEY,owner_uid VARCHAR(999),name VARCHAR(100),email VARCHAR(100),is_active TINYINT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    );
+    await pool.query(
+      "CREATE TABLE beta_chats(uid VARCHAR(999),chat_id VARCHAR(191),origin VARCHAR(20),origin_instance_unique_id VARCHAR(191)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci",
+    );
+    await pool.query(
+      "CREATE TABLE instance(id INT PRIMARY KEY,uid VARCHAR(999),uniqueId VARCHAR(191),number VARCHAR(40),title VARCHAR(100)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci",
+    );
+    const pipeline = require("../helper/pipeline/leadPipeline");
+    const board = await pipeline.getBoard({
+      uid,
+      role: "owner",
+      categoryKey: "salemax_sales",
+      pool,
+    });
+    assert.equal(
+      board.total,
+      1,
+      "website enquiry is readable through the real Pipeline board with mixed legacy collations",
+    );
+    const filtered = await pipeline.getBoard({
+      uid,
+      role: "owner",
+      categoryKey: "salemax_sales",
+      filters: { qrInstanceId: 1 },
+      pool,
+    });
+    assert.equal(
+      filtered.total,
+      0,
+      "a website enquiry is not incorrectly attributed to QR",
+    );
     const [[lead]] = await pool.query(
       "SELECT uid,source_type,title FROM pipeline_leads",
     );
@@ -184,7 +217,7 @@ async function main() {
     );
     assert.match(saved.content, /استفسار تجريبي/);
     console.log(
-      "PASS: real MariaDB pipeline integration, concurrent retry deduplication, payload conflict, atomic rollback, inactive-owner rejection, rate limiting and Arabic data preservation.",
+      "PASS: real MariaDB pipeline integration, concurrent retry deduplication, payload conflict, atomic rollback, inactive-owner rejection, rate limiting and Arabic data preservation and mixed-collation Pipeline board reads.",
     );
   } finally {
     await pool.end();

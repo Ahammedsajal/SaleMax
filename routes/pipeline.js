@@ -209,7 +209,7 @@ router.get('/filter-options',async(req,res)=>{
     }
     const [rows]=await require('../database/config.js').promise().query(`SELECT i.id,i.uniqueId,i.number,i.title,COUNT(DISTINCT l.id) AS leadCount
       FROM pipeline_leads l JOIN pipeline_conversations pc ON pc.uid_hash=l.uid_hash AND pc.lead_id=l.id
-      JOIN beta_chats bc ON bc.uid=l.uid AND bc.chat_id=pc.chat_id AND bc.origin='qr'
+      JOIN beta_chats bc ON bc.uid=l.uid COLLATE utf8mb4_unicode_ci AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci AND bc.origin='qr'
       JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id
       WHERE ${conditions.join(' AND ')} GROUP BY i.id,i.uniqueId,i.number,i.title ORDER BY i.number,i.id`,args);
     res.setHeader('Cache-Control','no-store');res.json({success:true,data:{qrInstances:rows.map(row=>({...row,id:Number(row.id),leadCount:Number(row.leadCount)}))}});

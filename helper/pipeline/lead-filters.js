@@ -22,7 +22,7 @@ function leadFilterSql({ assignment = '', qrInstanceId = null, alias = 'l' } = {
   if (qrInstanceId !== null && qrInstanceId !== undefined) {
     clauses.push(`EXISTS (
       SELECT 1 FROM pipeline_conversations pcf
-      JOIN beta_chats bcf ON bcf.uid = ${alias}.uid AND bcf.chat_id = pcf.chat_id AND bcf.origin = 'qr'
+      JOIN beta_chats bcf ON bcf.uid = ${alias}.uid COLLATE utf8mb4_unicode_ci AND bcf.chat_id = pcf.chat_id COLLATE utf8mb4_unicode_ci AND bcf.origin = 'qr'
       JOIN instance qif ON qif.uid = bcf.uid AND qif.uniqueId = bcf.origin_instance_unique_id
       WHERE pcf.uid_hash = ${alias}.uid_hash AND pcf.lead_id = ${alias}.id AND qif.id = ?
     )`);
