@@ -201,3 +201,5 @@ code rollback is safe. After adoption, retain the schema-2 reader and custom-val
 preservation adapter in a compatible repair/rollback image, or use an explicitly
 reviewed per-tenant configuration rollback while preserving stored values. Do not
 blindly restore a previous database or silently erase business field history.
+
+Production: source `072ae58` is deployed in `lead-fields-072ae58-20261020`, derived from the current live release with eleven allowlisted changes. Live health and runtime/public asset hashes pass; primary local files are synchronized with verified backups. No migration or customer configuration write occurred. Signed-in live browser acceptance remains open; see DEPLOYMENT.md.
