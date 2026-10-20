@@ -32,15 +32,15 @@ const fields=[{key:'courses',label:{en:'Courses',ar:'الدورات'}},{key:'inb
   });
   await page.goto('http://127.0.0.1/user?page=crm-appearance');
   await page.evaluate(({auth})=>{if(auth==='bearer')localStorage.setItem('wacrm_user','synthetic-owner');window.publishEvents=0;window.addEventListener('salemax:customization-published',()=>window.publishEvents++);},{auth});
-  for(const name of ['workspace-api.js','tenant-customization.js','tenant-crm-appearance.js'])await page.addScriptTag({content:read(name)});
-  const panel=page.locator('[data-sx-customization]');await panel.locator('form').waitFor();await panel.locator('summary').click();
+  for(const name of ['workspace-api.js','lead-field-editor.js','tenant-customization.js','tenant-crm-appearance.js'])await page.addScriptTag({content:read(name)});
+  const panel=page.locator('[data-sx-customization]');await panel.locator('form').waitFor();await panel.locator('summary').first().click();
   const field=panel.locator('[data-label-key="courses"]');await field.locator('[data-en]').fill('Programmes A');await field.locator('[data-ar]').fill('برامج أ');assert.equal(await panel.locator('[data-publish]').isDisabled(),true);
   await panel.locator('[data-preview]').click();await panel.locator('[data-preview-result] li').waitFor();assert.equal(state.revision,0,'preview has no write effect');
   await panel.locator('button[type="submit"]').click();await page.waitForFunction(()=>!document.querySelector('[data-publish]').disabled);
   await panel.locator('[data-publish]').click();await page.waitForFunction(()=>window.publishEvents===1);await panel.locator('form').waitFor();assert.equal(state.active.document.navigationLabels.courses.en,'Programmes A');const firstPublished=state.active.id;
   await panel.locator('[data-defaults]').click();await panel.locator('button[type="submit"]').click();await page.waitForFunction(()=>!document.querySelector('[data-publish]').disabled);await panel.locator('[data-publish]').click();await page.waitForFunction(()=>window.publishEvents===2);assert.deepEqual(state.active.document.navigationLabels,{});
   await panel.locator('[data-history]').selectOption(firstPublished);await panel.locator('[data-restore]').click();await page.waitForFunction(()=>window.publishEvents===3);assert.equal(state.active.document.navigationLabels.courses.en,'Programmes A');
-  await panel.locator('summary').click();
+  await panel.locator('summary').first().click();
   if(process.env.CUSTOMIZATION_BROWSER_EVIDENCE){fs.mkdirSync(process.env.CUSTOMIZATION_BROWSER_EVIDENCE,{recursive:true});await page.screenshot({path:path.join(process.env.CUSTOMIZATION_BROWSER_EVIDENCE,`${language}-${auth}-${width}.png`),fullPage:true});}
   conflict=true;await panel.locator('[data-label-key="courses"] [data-en]').fill('Unsaved A');await panel.locator('button[type="submit"]').click();await panel.locator('[data-message][role="alert"]').waitFor();assert.equal(state.active.document.navigationLabels.courses.en,'Programmes A');
   for(const request of requests){if(auth==='bearer')assert.equal(request.headers.authorization,'Bearer synthetic-owner');else if(request.body.document||request.path.endsWith('/publish')||request.path.endsWith('/rollback'))assert.equal(request.headers['x-csrf-token'],'synthetic-csrf');}

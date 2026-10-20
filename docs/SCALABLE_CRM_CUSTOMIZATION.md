@@ -156,3 +156,48 @@ fields are archived or labels/types evolve. Never reuse medical/stock/reservatio
 invariants as free-form custom fields. Both legacy base behavior and canonical
 owner/staff sessions must pass their existing-screen acceptance matrix before
 publication. These requirements remain unimplemented in the first label schema.
+
+
+## Typed lead-field implementation — 20 October 2026
+
+Configuration schema 2 adds up to 24 tenant-defined lead fields (text, bounded
+whole number, Boolean, or calendar date). A type-bearing random field key fixes
+its type permanently. Labels, active/archive state and required-on-manual-entry
+are published through the existing draft/preview/publish flow. Schema 1 documents
+and checksums remain readable without rewriting their published revisions.
+Definitions cannot enable a missing `crm.leads` category capability.
+
+The existing Pipeline Add Lead and edit forms render these controls. Server-side
+create/update handlers validate values against the verified owner's published
+configuration, enforce revision checks and retain the existing lead/team scope.
+Values live under an internal `qualification_data.customFields` namespace with
+server-generated definition/configuration snapshots. A regular qualification edit
+preserves custom values. Archived or removed fields remain readable using saved
+snapshots; clients cannot overwrite archived fields. History is bounded separately
+from active definitions. Typed false/zero values are retained. Configuration reads
+are locked during writes to serialize with publication. The manual API forces
+manual source attribution so a caller cannot skip required fields by claiming to
+be a public form. Existing trusted public/staff submission services keep their
+separate schemas and are not forced to collect these manual-only fields.
+
+Legacy accounts without reviewed tenant mappings retain an empty custom contract
+and cannot submit another business's field keys. No account is auto-provisioned.
+The pre-existing training-oriented standard controls still require category-neutral
+adoption; this increment adds isolated custom fields without silently deleting or
+renaming historical standard fields. Exports, search/report indexes, public forms,
+bot collection and new industry invariants do not yet consume custom fields.
+
+Validation: 81 focused checks pass. Browser fixtures cover four typed-field builder
+cases, four actual existing Pipeline Add Lead cases, and eight existing editor
+cases across EN/AR and desktop/mobile. Disposable MariaDB/shared-auth integration
+passes all 113 migrations and actual Pipeline create/update, required validation,
+assigned-lead denial, stale configuration and historical-value preservation.
+No live business field is configured during deployment verification.
+
+Rollback must account for adoption: reverting to a schema-1-only application after
+businesses publish schema 2 can make their session/configuration reads fail, and an
+older qualification writer can discard custom values. Before adoption, ordinary
+code rollback is safe. After adoption, retain the schema-2 reader and custom-value
+preservation adapter in a compatible repair/rollback image, or use an explicitly
+reviewed per-tenant configuration rollback while preserving stored values. Do not
+blindly restore a previous database or silently erase business field history.

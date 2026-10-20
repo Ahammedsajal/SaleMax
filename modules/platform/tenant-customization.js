@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const {decision} = require('./policy');
 const fail = (code,status=400) => {throw Object.assign(new Error(code),{code,status});};
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-const defaults = () => ({schemaVersion:1,navigationLabels:{}});
+const defaults = () => ({schemaVersion:2,navigationLabels:{},leadFields:[]});
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function authorize(ctx) {
   const result=decision(ctx,{capability:'tenant.settings',permission:'tenant.manage'});
@@ -17,7 +17,7 @@ function fieldsFor(ctx) {
     !(ctx.category.key==='training_center'&&['sales.finance','hr.recruitment'].includes(item.capability)));
 }
 function normalize(ctx,input) {
-  if(!plain(input)||Object.keys(input).some(key=>!['schemaVersion','navigationLabels'].includes(key))||input.schemaVersion!==1||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
+  if(!plain(input)||Object.keys(input).some(key=>!(input.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels']).includes(key))||![1,2].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
   const allowed=new Set(fieldsFor(ctx).map(item=>item.key));
   const labels={};
   for(const key of Object.keys(input.navigationLabels).sort()) {
@@ -25,14 +25,16 @@ function normalize(ctx,input) {
     if(!allowed.has(key)||!plain(value)||Object.keys(value).length!==2||!['en','ar'].every(lang=>Object.hasOwn(value,lang)&&typeof value[lang]==='string'&&value[lang].trim().length>0&&value[lang].length<=80&&!/[<>\u0000-\u001f\u007f]/.test(value[lang])))fail('INVALID_CUSTOMIZATION_LABEL');
     labels[key]={en:value.en.trim(),ar:value.ar.trim()};
   }
-  return {schemaVersion:1,navigationLabels:labels};
+  const leadFields=input.schemaVersion===2?require('./lead-field-contract').definitions(input.leadFields):null;
+  if(leadFields?.length&&!ctx.category?.capabilities.includes('crm.leads'))fail('CATEGORY_UNAVAILABLE',409);
+  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(leadFields?{leadFields}:{})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
 function decode(ctx,row) {
   if(!row)return null;
-  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||Number(row.schema_version)!==1)fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   const document=normalize(ctx,typeof row.document==='string'?JSON.parse(row.document):row.document);
-  if(checksum(document)!==row.checksum)fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
+  if(document.schemaVersion!==Number(row.schema_version)||checksum(document)!==row.checksum)fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {id:row.id,revision:Number(row.revision),kind:row.kind,document,checksum:row.checksum,createdAt:row.created_at};
 }
 async function revision(db,ctx,id) {
@@ -79,7 +81,7 @@ async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
       next=source.document;
     }
     const id=crypto.randomUUID(),kind=action==='draft'?'draft':'published',digest=checksum(next);
-    await db.query('INSERT INTO sx_tenant_customization_revisions(id,tenant_id,category_key,category_version,schema_version,revision,kind,document,checksum,created_by_identity_id) VALUES (?,?,?,?,1,?,?,?,?,?)',[id,ctx.tenant.id,ctx.tenant.categoryKey,ctx.tenant.categoryVersion,expectedRevision+1,kind,JSON.stringify(next),digest,ctx.identity.id]);
+    await db.query('INSERT INTO sx_tenant_customization_revisions(id,tenant_id,category_key,category_version,schema_version,revision,kind,document,checksum,created_by_identity_id) VALUES (?,?,?,?,?,?,?,?,?,?)',[id,ctx.tenant.id,ctx.tenant.categoryKey,ctx.tenant.categoryVersion,next.schemaVersion,expectedRevision+1,kind,JSON.stringify(next),digest,ctx.identity.id]);
     if(!head)await db.query('INSERT INTO sx_tenant_customization_heads(tenant_id,revision) VALUES (?,0)',[ctx.tenant.id]);
     if(kind==='draft')await db.query('UPDATE sx_tenant_customization_heads SET revision=revision+1,draft_id=? WHERE tenant_id=?',[id,ctx.tenant.id]);
     else await db.query('UPDATE sx_tenant_customization_heads SET revision=revision+1,active_id=?,draft_id=NULL WHERE tenant_id=?',[id,ctx.tenant.id]);

@@ -871,6 +871,7 @@ async function createManualLead({ uid, actorType, actorId, agentId, scopeAgentId
     const amount = input.expectedValue === "" || input.expectedValue === null || input.expectedValue === undefined ? null : Number(input.expectedValue);
     if (amount !== null && (!Number.isFinite(amount) || amount < 0)) { const error = new Error("Expected value must be zero or greater."); error.status = 400; throw error; }
     const qualification = normalizeQualification(input.qualificationData);
+    if(input.customFields!==undefined||!['public_form','staff_form'].includes(input.sourceType)){const custom=await require('../../modules/platform/lead-field-runtime').save(connection,uid,input.customFields,undefined,{creating:true});if(Object.keys(custom).length)qualification.customFields=custom;}
     const currency = /^[A-Z]{3}$/.test(String(input.currency || "QAR")) ? String(input.currency || "QAR") : "QAR";
     const sourceType=['public_form','staff_form'].includes(input.sourceType)?input.sourceType:'manual';
     await connection.query(
@@ -1170,7 +1171,13 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
         for (const linked of linkedLeads) await addActivity(connection, uidHash, linked.id, "contact_profile_updated", "Shared contact profile updated", { fields }, actorType, actorId);
       }
     }
-    if(input.qualificationData!==undefined)add("qualification_data",JSON.stringify(normalizeQualification(input.qualificationData)));
+    if(input.qualificationData!==undefined||input.customFields!==undefined){
+      const prior=require('../../modules/platform/lead-field-runtime').qualification(lead.qualification_data);
+      const qualification=input.qualificationData===undefined?{...prior}:normalizeQualification(input.qualificationData);
+      const custom=await require('../../modules/platform/lead-field-runtime').save(connection,uid,input.customFields,prior);
+      if(Object.keys(custom).length)qualification.customFields=custom;
+      add("qualification_data",JSON.stringify(qualification));
+    }
     if (input.priority !== undefined) {
       if (!["low", "normal", "high", "urgent"].includes(input.priority)) { const error = new Error("Invalid lead priority."); error.status = 400; throw error; }
       add("priority", input.priority);

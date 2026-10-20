@@ -108,3 +108,12 @@ Migration `20261220_tenant_customization.sql` adds two empty tables; no existing
 business receives custom labels automatically. Configuration history is separate
 from the commercial plan catalogue. Broader fields, workflows, bot behavior,
 category adoption and new vertical modules remain subsequent implementation work.
+
+
+Configuration schema 2 supports typed custom lead fields and is backward-compatible
+with published schema 1 label documents. Existing `/api/workspace/pipeline` and
+`/api/pipeline` create/update handlers share the same lead service; no duplicate
+custom-field CRUD panel is introduced. The current Pipeline browser still uses its
+legacy bearer request path. Custom-field controls are added to its existing forms,
+and values are validated inside the scoped lead transaction. Canonical-cookie
+Pipeline UI adoption remains a separate legacy migration gate.

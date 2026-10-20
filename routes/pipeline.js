@@ -223,6 +223,8 @@ router.get("/board", async (req, res) => {
         limit: req.query.limit,
       },
     });
+    data.customFieldContract=await require('../modules/platform/lead-field-runtime').contractForOwner(pool,req.pipelineActor.uid);
+    res.setHeader('Cache-Control','private, no-store');
     res.json({ success: true, data: { ...data, timezone: req.pipelineActor.timezone, role: req.pipelineActor.role, categoryKey: req.pipelineActor.categoryKey || null } });
   } catch (error) { fail(res, error); }
 });
@@ -385,7 +387,7 @@ router.post("/leads", async (req, res) => {
       agentId: req.pipelineActor.agentId,
       scopeAgentIds:req.pipelineActor.scopeAgentIds,
       role: req.pipelineActor.role,
-      input: req.body || {},
+      input: {...(req.body || {}),sourceType:'manual'},
     });
     res.status(201).json({ success: true, data });
   } catch (error) { fail(res, error); }
@@ -408,6 +410,7 @@ router.post('/leads/import', async (req,res) => {
 async function authorizeLead(req, res, next) {
   try {
     const lead = await pipeline.getLead(req.pipelineActor.uid, req.params.id,{role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds});
+    if(lead)lead.customFieldContract=await require('../modules/platform/lead-field-runtime').contractForOwner(require('../database/config.js').promise(),req.pipelineActor.uid);
     if (!lead) return res.status(404).json({ success: false, message: "Lead not found." });
     if (req.pipelineActor.role === "agent" && !pipelineAccess.canAgentAccessLead(req.pipelineActor.agentId, lead.owner_agent_id)) {
       return res.status(403).json({ success: false, message: "This lead is assigned to another agent." });
