@@ -41,6 +41,10 @@ function screeningQuestion(step,language){
 function recruitmentReply({message,state,facts,config={}}){
  const language=/[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/u.test(String(message||''))||state?.language==='ar'?'ar':'en';
  const input=normalize(String(message||''));const previous=state||{};let step=previous.step||'welcome',reply='',choices=[];
+ if(['awaiting_cv','application_saved','application_submitted'].includes(step)){
+  const recruiter=['talk_to_recruiter','talk to recruiter','تحدث مع مسؤول التوظيف'].includes(String(message||'').trim().toLowerCase());
+  return {reply:recruiter?(language==='ar'?'أبلغت مسؤول التوظيف، وسينضم إلى المحادثة قريباً.':'I’ve notified the recruiter. They’ll join this chat soon.'):'',state:previous,buttons:[],handoff:true,handoffReason:'recruitment-recruiter-requested',notifyRecruiter:recruiter,terminal:true};
+ }
  const labels={talab:text(config,'buttonTalab',language,language==='ar'?'عن طلب':'About Talab'),salemax:text(config,'buttonSalemax',language,language==='ar'?'عن SaleMaX':'About SaleMaX'),role:text(config,'buttonRole',language,language==='ar'?'عن الوظيفة':'About the role'),commission:text(config,'buttonCommission',language,language==='ar'?'العمولة':'Commission details'),apply:text(config,'buttonApply',language,language==='ar'?'قدّم الآن':'Apply now'),menu:text(config,'buttonMenu',language,language==='ar'?'القائمة':'Main menu'),human:text(config,'buttonHuman',language,language==='ar'?'تحدث مع مسؤول التوظيف':'Talk to recruiter'),screening:text(config,'buttonScreening',language,language==='ar'?'قدّم الآن':'Apply now')};
  const match=(...terms)=>terms.some(term=>input===normalize(term)||input.includes(normalize(term)));
  const screeningStep=Object.hasOwn(SCREENING,step)||['screen_name','screen_email','screen_contact_number'].includes(step);
@@ -87,7 +91,7 @@ function recruitmentReply({message,state,facts,config={}}){
    if(next)step=next;
    else{
     step='awaiting_cv';
-    return {reply:language==='ar'?'شكراً، تم حفظ إجاباتك. أرسل سيرتك الذاتية هنا كملف PDF أو DOCX (حتى 8 ميغابايت). سنقدّم طلبك تلقائياً، وسيتواصل معك المؤسس قريباً للخطوات التالية.':'Thanks, your answers are saved. Send your CV here as a PDF or DOCX file (up to 8 MB). We’ll submit your application automatically, and the Founder will contact you soon about the next steps.',state:{...previous,language,step,greeted:true,answers},buttons:[]};
+    return {reply:language==='ar'?'يرجى رفع سيرتك الذاتية هنا كملف PDF أو DOCX (حتى 8 ميغابايت) لإكمال طلبك. سيتواصل معك مسؤول التوظيف قريباً.':'Please upload your CV here as a PDF or DOCX file (up to 8 MB) to complete your application. Our recruiter will contact you soon.',state:{...previous,language,step,greeted:true,answers},buttons:buttons([['talk_to_recruiter',labels.human]]),handoff:true,handoffReason:'recruitment-awaiting-cv'};
    }
    const question=screeningQuestion(step,language);
    return {reply:question.reply,state:{...previous,language,step,greeted:true,answers},buttons:question.buttons};
@@ -119,7 +123,7 @@ function recruitmentReply({message,state,facts,config={}}){
   choices=buttons([['start_screening',labels.screening],['commission_details',labels.commission],['talk_to_recruiter',labels.human]]);
  }else if(step==='commission'){
   reply=language==='ar'?'الأشهر الثلاثة الأولى فترة تجربة بالعمولة فقط، من دون راتب أساسي. نحن نوفر العملاء المحتملين. عن كل اشتراك سنوي مدفوع بقيمة 2500 ريال قطري، تحصل على 15% عمولة، أي 375 ريالاً قطرياً لكل عملية بيع. بعد التجربة، قد نعرض عليك وظيفة بدوام كامل براتب أساسي وعمولة، حسب الأداء والاتفاق بيننا.':'The first three months are a commission-only trial, with no base salary. We provide the leads. For each paid QAR 2,500 yearly subscription, you earn 15% commission — QAR 375 per sale. After the trial, we may offer a full-time role with a basic salary plus commission, depending on performance and mutual agreement.';
-  choices=buttons([['start_screening',labels.screening],['apply_now',labels.apply],['main_menu',labels.menu]]);
+  choices=buttons([['start_screening',labels.screening],['about_role',labels.role],['talk_to_recruiter',labels.human]]);
  }else if(step==='apply'){
   if(previous.screeningConsent&&previous.answers?.fullName){reply=language==='ar'?'أكمل بياناتك من البداية، أو استخدم رابط طلبك المحفوظ لإرسال السيرة الذاتية.':'Let’s go through your application details. You can also use your saved application link to upload your CV.';const question=screeningQuestion('screen_name',language);reply+=`\n\n${question.reply}`;choices=question.buttons;step='screen_name';}
   else{const question=screeningQuestion('screen_consent',language);reply=question.reply;choices=question.buttons;step='screen_consent';}

@@ -253,7 +253,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       const success= cvSubmission.repeated
         ? (priorState?.language==='ar'?'تم تسجيل طلبك مسبقاً. سيرتك الذاتية محفوظة، وسيتواصل معك المؤسس قريباً.':'Your application is already recorded. Your CV is saved, and the Founder will contact you soon.')
         : (priorState?.language==='ar'?`شكراً! تم تقديم طلبك وحفظ سيرتك الذاتية في قسم الطلبات الخاص. رقم الطلب ${cvSubmission.referenceCode}. سيتواصل معك المؤسس قريباً.`:`Thank you! Your application is submitted and your CV is saved in our private Applications & CVs area. Reference: ${cvSubmission.referenceCode}. The Founder will contact you soon.`);
-      reply={reply:success,state:{...priorState,step:'application_submitted',applicationReferenceCode:cvSubmission.referenceCode},buttons:[]};
+      reply={reply:success,state:{...priorState,step:'application_submitted',applicationReferenceCode:cvSubmission.referenceCode},buttons:[],handoff:true,handoffReason:'recruitment-complete'};
     }else if(cvError){
       const invalid=cvError==='CV_TYPE_NOT_ALLOWED'||cvError==='INVALID_CV_FILE';
       reply={reply:priorState?.language==='ar'?(invalid?'يرجى إرسال السيرة الذاتية كملف PDF أو DOCX حتى 8 ميغابايت.':'تعذر حفظ الملف الآن. يرجى المحاولة مرة أخرى بعد قليل.'):(invalid?'Please send your CV as a PDF or DOCX file up to 8 MB.':'I couldn’t save that file just now. Please try sending it again shortly.'),state:priorState,buttons:[]};
@@ -277,8 +277,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       if(saved?.applicationId&&reply.state.step==='awaiting_cv'){
         const prefill=await recruitment.issuePrefillToken(db,{tenantId:ctx.tenant.id,applicationId:saved.applicationId,answers:reply.state.answers});
         const url=new URL(`/careers/${encodeURIComponent(ctx.tenant.slug)}?source=whatsapp&prefill=${encodeURIComponent(prefill)}`,process.env.FRONTENDURI||'https://crm.salemax.qa').toString();
-        reply.reply=`Thanks, your application is saved in our private Applications & CVs area (Ref: ${saved.referenceCode}). CV status: Not uploaded. You can send a PDF or DOCX here, or open this link to review or edit your saved details and upload your CV: ${url}\n\nThe Founder will contact you soon about the next steps.`;
-        reply.buttons=[{id:'skip_cv',title:'Skip CV'}];
+        reply.reply=`Please upload your CV here as a PDF or DOCX file (up to 8 MB) to complete your application. Your answers are saved. You can also review your details and upload your CV here: ${url}\n\nOur recruiter will contact you soon.`;
+        reply.buttons=[{id:'talk_to_recruiter',title:'Talk to recruiter'}];
+        reply.handoff=true;reply.handoffReason='recruitment-awaiting-cv';
       }
     }
     if(ctx.category.key==='salemax_sales'&&reply.notifyRecruiter){
@@ -296,7 +297,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   const messageContext=interactiveButtons.length?{type:'interactive',interactive:{type:'button',body:{text:reply.reply.slice(0,1024)},action:{buttons:interactiveButtons.map(item=>({type:'reply',reply:{id:item.id,title:item.title}}))}}}:{type:'text',text:{preview_url:false,body:reply.reply}};
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: messageContext });
   if (!sentId) return false;
-  if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, 'customer-requested-human', profile, uid);
+  if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, reply.handoffReason||'customer-requested-human', profile, uid);
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: messageContext.type, metaChatId: sentId, msgContext: messageContext, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
@@ -512,6 +513,36 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
   return { canAnswer: true, confidence: answer.confidence, reply: answer.reply, wouldHandoff: false, reason: answer.reason || null, route: answer.route, state: answer.state, metrics: answer.metrics };
 }
 
+async function finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action}){
+  const module=require('./recruitment-chat-completion'),channelKind=channelFor(origin);
+  const current=await profileFor(ctx,uid,origin,sessionId);
+  const latest=await module.load(dbPool,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId});
+  if(current?.id!==profile.id||Number(current.revision)!==Number(profile.revision)||!recipientAllowed(current.config,message.senderMobile)||!latest||!module.mayFinish(latest.control))return {paused:true};
+  let reply,reason='recruitment-awaiting-cv';
+  if(action==='cv'){
+    if(latest.application.cvFileName)return {paused:true};
+    try{
+      await require('./recruitment-applications').createFromWhatsApp(dbPool,{tenantSlug:ctx.tenant.slug,answers:latest.answers,mobile:latest.application.mobile,channelKind,channelRef:sessionId,conversationId:chatId,senderName:latest.application.fullName,mediaUrl:message.msgContext?.document?.link,fileName:message.msgContext?.document?.filename});
+      reply='Thank you! Your CV is saved and your application is complete. Our recruiter will contact you soon.';reason='recruitment-complete';
+      await query(`UPDATE sx_chatbot_guided_sessions SET state=JSON_SET(state,'$.step','application_submitted') WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`,[ctx.tenant.id,profile.id,channelKind,sessionId,chatId]);
+    }catch(error){reply=['CV_TYPE_NOT_ALLOWED','INVALID_CV_FILE'].includes(error.code)?'Please upload your CV as a PDF or DOCX file up to 8 MB.':'I couldn’t save the file just now. Please send your CV again, or contact the recruiter.';}
+  }else{
+    await require('./recruitment-founder-notifications').enqueue(dbPool,{tenantId:ctx.tenant.id,profileId:profile.id,channelKind,channelRef:sessionId,conversationId:chatId,inboundMessageId:String(message.metaChatId),payload:{answers:latest.answers,whatsappNumber:latest.application.mobile,senderName:latest.application.fullName,source:'Candidate requested the recruiter'}});
+    reply='I’ve notified the recruiter. They’ll join this chat soon.';reason='recruitment-recruiter-requested';
+  }
+  // A human pause set while the file was saving also suppresses the acknowledgement.
+  const final=await module.load(dbPool,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId});
+  if(!module.mayFinish(final?.control))return {paused:true};
+  const content={type:'text',text:{preview_url:false,body:reply}};
+  const id=await require('../../automation/functions').sendWaMessage({origin,sessionId,message,uid,chatId,content});
+  await handoffConversation(ctx,chatId,channelKind,sessionId,reason,profile,uid);
+  if(!id)return {paused:true};
+  const data={type:'text',metaChatId:id,msgContext:JSON.stringify(content),reaction:'',timestamp:Math.trunc(Date.now()/1000),senderName:message.senderName,senderMobile:message.senderMobile,star:0,route:'OUTGOING',context:null,origin,sentBy:'bot'};
+  await require('./chatbot-conversation-store').persistConversationMessage({uid,chatId,data});
+  await query('UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?',[JSON.stringify({...data,msgContext:content}),uid,chatId]);
+  return {sent:true};
+}
+
 async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId }) {
   if (!uid || !chatId || message?.route !== 'INCOMING') return { handled: false };
   const ctx = await resolveTenant(uid);
@@ -543,7 +574,15 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
   const channelKind = channelFor(origin);
   const testReset = require('./chatbot-test-reset').isTestReset(profile.config, message?.senderMobile, textOf(message));
-  if (!testReset && await shouldPause(uid, chatId, channelKind, sessionId)) return { handled: true, paused: true };
+  const completionModule=require('./recruitment-chat-completion');
+  const completion=!testReset&&ctx.category.key==='salemax_sales'
+    ? await completionModule.load(dbPool,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId}):null;
+  const completionAction=completionModule.actionFor(completion,message,textOf(message));
+  if(completionAction==='silent'){
+    if(!completion.control||completion.control.mode!=='paused')await handoffConversation(ctx,chatId,channelKind,sessionId,completion.application.cvFileName?'recruitment-complete':'recruitment-awaiting-cv',profile,uid);
+    return {handled:true,paused:true,code:'RECRUITMENT_QUESTIONS_FINISHED'};
+  }
+  if (!testReset && !completionAction && await shouldPause(uid, chatId, channelKind, sessionId)) return { handled: true, paused: true };
   const turn = await claimTurn(ctx, profile, message, chatId);
   if (!turn) {
     await handoffConversation(ctx, chatId, channelKind, sessionId, 'inbound-message-id-unavailable', profile, uid);
@@ -558,7 +597,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       message = { ...message, msgContext: { text: { body: 'Hi' } } };
     }
     let result;
-    if (profile.engine === 'guided') result = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
+    if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
+    else if (profile.engine === 'guided') result = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
     if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, reason: result.reason || null, ...result.metrics }), crypto.randomUUID()]);
     if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');

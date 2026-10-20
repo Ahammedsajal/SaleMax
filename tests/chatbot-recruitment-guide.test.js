@@ -79,8 +79,10 @@ test('button screening collects the candidate details and required sales setup i
   assert.equal(result.state.answers.currentlyWorking,'yes');
   assert.equal(result.state.answers.totalExperienceRange,'3+');
   assert.equal(result.state.answers.salesExperienceYears,'1-2');
-  assert.match(result.reply,/Send your CV here as a PDF or DOCX/);
-  assert.deepEqual(result.buttons,[]);
+  assert.match(result.reply,/upload your CV here as a PDF or DOCX/);
+  assert.deepEqual(result.buttons.map(b=>b.id),['talk_to_recruiter']);
+  assert.equal(result.handoff,true);
+  assert.equal(result.handoffReason,'recruitment-awaiting-cv');
 });
 
 test('recruiter button confirms notification and offers to continue application questions',()=>{
@@ -102,4 +104,21 @@ test('declining screening consent leaves answers empty and does not start an app
   assert.deepEqual(result.state.answers,{});
   assert.equal(result.state.step,'screening_declined');
   assert.ok(!result.buttons.some(button=>button.id==='apply_now'));
+});
+
+
+test('finished recruitment never restarts on obsolete CV or apply buttons',()=>{
+  for(const step of ['awaiting_cv','application_saved','application_submitted']){
+    for(const message of ['Skip CV','skip_cv','Apply now','hello','thanks']){
+      const result=recruitmentReply({message,state:{step,screeningConsent:true,answers:{fullName:'Asha'}},facts:{}});
+      assert.equal(result.reply,'');assert.equal(result.state.step,step);assert.deepEqual(result.buttons,[]);assert.equal(result.handoff,true);
+    }
+  }
+  const recruiter=recruitmentReply({message:'Talk to recruiter',state:{step:'awaiting_cv',answers:{fullName:'Asha'}},facts:{}});
+  assert.equal(recruiter.notifyRecruiter,true);assert.equal(recruiter.handoff,true);assert.doesNotMatch(recruiter.reply,/preliminary|question|full name/);
+});
+
+test('commission menu has one Apply now action',()=>{
+  const result=recruitmentReply({message:'Commission details',state:{step:'role'},facts:{}});
+  assert.equal(result.buttons.filter(b=>b.title==='Apply now').length,1);
 });
