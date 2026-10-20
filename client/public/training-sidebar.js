@@ -26,7 +26,7 @@
   if (!window.__sxRecruitmentLoader) {
     window.__sxRecruitmentLoader = true;
     const recruitmentScript = document.createElement('script');
-    recruitmentScript.src = '/recruitment.js?v=20261019-screening2';
+    recruitmentScript.src = '/recruitment.js?v=20261020-apply-save-cv-2';
     recruitmentScript.defer = true;
     document.head.append(recruitmentScript);
   }

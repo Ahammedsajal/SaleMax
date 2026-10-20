@@ -56,7 +56,13 @@ const ledgerSql = `CREATE TABLE IF NOT EXISTS salemax_schema_migrations (
   completed_at DATETIME(3) NULL,
   error_code VARCHAR(100) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`;
-async function applyMigrations(connection, migrations) {
+async function applyMigrations(connection, migrations, { only = null } = {}) {
+  const current = new Map(migrations.map(m => [m.file, m]));
+  const selected = only == null ? migrations : (() => {
+    const names = Array.isArray(only) ? only : [only];
+    if (!names.length || names.some(name => typeof name !== 'string' || !current.has(name))) throw new MigrationError('MIGRATION_NOT_FOUND');
+    return names.map(name => current.get(name));
+  })();
   const [[database]] = await connection.query('SELECT DATABASE() AS db');
   if (!database.db) throw new MigrationError('DATABASE_REQUIRED');
   const lockName = 'salemax:migrate:' + crypto.createHash('sha256').update(database.db).digest('hex').slice(0, 40);
@@ -67,14 +73,13 @@ async function applyMigrations(connection, migrations) {
     await connection.query(ledgerSql);
     const [rows] = await connection.query('SELECT * FROM salemax_schema_migrations');
     const prior = new Map(rows.map(row => [row.migration_name, row]));
-    const current = new Map(migrations.map(m => [m.file, m]));
     // Check the whole history before applying any new SQL.
     for (const row of rows) {
       if (!current.has(row.migration_name)) throw new MigrationError('MIGRATION_HISTORY_MISSING');
       if (current.get(row.migration_name).checksum !== row.checksum) throw new MigrationError('MIGRATION_CHECKSUM_CHANGED');
       if (row.status !== 'applied') throw new MigrationError('MIGRATION_RECOVERY_REQUIRED');
     }
-    for (const migration of migrations) {
+    for (const migration of selected) {
       if (prior.has(migration.file)) { skipped.push(migration.file); continue; }
       await connection.query('INSERT INTO salemax_schema_migrations (migration_name, checksum, status, statement_count) VALUES (?, ?, ?, ?)', [migration.file, migration.checksum, 'running', migration.statements.length]);
       let completed = 0;

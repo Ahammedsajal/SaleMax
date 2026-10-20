@@ -1,4 +1,6 @@
 const crypto = require("crypto");
+const moment = require("moment-timezone");
+const applicationLeadProfile = require("../../modules/platform/training-application-lead-profile");
 const leadFilters = require('./lead-filters');
 let defaultPool;
 function getPromisePool(source) {
@@ -237,7 +239,7 @@ async function ensurePhonebook(connection, uidHash, uid, kind) {
   return phonebookId;
 }
 
-async function ensurePhonebookContact(connection, { uidHash, uid, kind, phonebookId, phone, name, receivedAt }) {
+async function ensurePhonebookContact(connection, { uidHash, uid, kind, phonebookId, phone, name, receivedAt, bookName: selectedBookName }) {
   const identityKey = sha(phone);
   await connection.query(
     `INSERT IGNORE INTO pipeline_phonebook_memberships
@@ -254,15 +256,15 @@ async function ensurePhonebookContact(connection, { uidHash, uid, kind, phoneboo
 
   const [existing] = await connection.query(
     `SELECT id FROM contact
-     WHERE uid = ? AND phonebook_id = ? AND mobile = ?
+     WHERE uid = ? AND phonebook_id = ? AND mobile IN (?, ?)
      ORDER BY id ASC LIMIT 1 FOR UPDATE`,
-    [uid, phonebookId, phone],
+    [uid, phonebookId, phone, phone.replace(/^\+/, '')],
   );
   let contactId;
   if (existing.length) {
     contactId = Number(existing[0].id);
   } else {
-    const bookName = kind === "meta_ads" ? "Facebook Ads WhatsApp Leads" : "WhatsApp Leads";
+    const bookName = selectedBookName || (kind === "meta_ads" ? "Facebook Ads WhatsApp Leads" : "WhatsApp Leads");
     const safeName = text(name, 255) || phone;
     const [inserted] = await connection.query(
       `INSERT INTO contact
@@ -489,11 +491,12 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
       await ensurePhonebookContact(connection, { uidHash, uid: uidValue, kind: "meta_ads", phonebookId: adsBook, phone, name, receivedAt: now });
     }
 
+    const openingRouting=await require('./openingRouting').applyOpening(connection,{uid:uidValue,lead,identityKey,chatId:safeChatId,origin,phone,name,message:messageBody,isOpening:Boolean(settings.enabled)&&(created||!lead.first_inbound_at),ensureContact:ensurePhonebookContact,now});
     await connection.query(
       "UPDATE pipeline_events SET lead_id = ?, status = 'processed', processed_at = CURRENT_TIMESTAMP(3) WHERE uid_hash = ? AND event_key = ?",
       [lead.id, uidHash, eventKey],
     );
-    return { leadId: lead.id, created, duplicate: false, metaAdsAttributed: adReferral, metaAdsMessageMatched: messageMatchedAd, metaAdsClassified: isMetaAds, stageKey: lead.stage_key };
+    return { leadId: lead.id, created, duplicate: false, metaAdsAttributed: adReferral, metaAdsMessageMatched: messageMatchedAd, metaAdsClassified: isMetaAds, stageKey: lead.stage_key,openingRouting };
   },sourcePool);
 }
 
@@ -560,7 +563,7 @@ async function captureQrMessage({ uid, chatId, message, normalizedMessage }) {
   throw lastError;
 }
 
-async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filters = {}, pool:sourcePool }) {
+async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezone = "Asia/Qatar", filters = {}, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const conditions = ["l.uid_hash = ?"];
@@ -621,11 +624,15 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filter
       const suppressedIds=new Set(suppressed.map(row=>String(row.leadId)));
       for(const lead of leads)lead.doNotCall=suppressedIds.has(String(lead.id));
     }else for(const lead of leads)lead.doNotCall=false;
+    const zone = moment.tz.zone(timezone) ? timezone : "Asia/Qatar";
+    const today = moment.tz(zone);
+    const todayStart = today.clone().startOf("day").utc().format("YYYY-MM-DD HH:mm:ss.SSS");
+    const todayEnd = today.clone().add(1, "day").startOf("day").utc().format("YYYY-MM-DD HH:mm:ss.SSS");
     const [countRows] = await connection.query(
-      `SELECT COUNT(*) AS total FROM pipeline_leads l
+      `SELECT COUNT(*) AS total, COALESCE(SUM(l.created_at >= ? AND l.created_at < ?),0) AS today_new_leads FROM pipeline_leads l
        LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
        WHERE ${conditions.join(" AND ")}`,
-      values,
+      [todayStart, todayEnd, ...values],
     );
     const agentConditions=['owner_uid = ?','is_active = 1'],agentValues=[uid];
     if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds)){
@@ -634,7 +641,7 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, filter
     }
     const [agents] = await connection.query(`SELECT id, name, email, is_active FROM agents WHERE ${agentConditions.join(' AND ')} ORDER BY name ASC`,agentValues);
     const grouped = stages.map((stage) => ({ ...stage, leads: leads.filter((lead) => lead.stage_key === stage.stage_key) }));
-    return { stages: grouped, leads, agents, total: Number(countRows[0]?.total || 0), page, limit };
+    return { stages: grouped, leads, agents, total: Number(countRows[0]?.total || 0), summary: { todayNewLeads: Number(countRows[0]?.today_new_leads || 0) }, page, limit };
   },sourcePool);
 }
 
@@ -988,6 +995,7 @@ async function getLead(uid, id, {role,agentId,scopeAgentIds,pool:sourcePool}={})
         attribution:typeof row.attributionJson==='string'?JSON.parse(row.attributionJson):row.attributionJson,
         schema:typeof row.schemaJson==='string'?JSON.parse(row.schemaJson):row.schemaJson,schemaJson:undefined,attributionJson:undefined}));
     }
+    if(applications.length)leads[0].qualification_data=applicationLeadProfile.fillMissing(leads[0].qualification_data,applications[0].submissionData);
     const attributionHistory=summarizeCampaignAttribution(applications);
     return { ...leads[0], activities, conversations, attributions, applications, attributionHistory };
   },sourcePool);
@@ -1099,7 +1107,7 @@ async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, 
   },sourcePool);
 }
 
-async function updateLead({ uid, id, input, actorType, actorId, role, agentId, scopeAgentIds, categoryKey, sourceCallId = null, pool:sourcePool }) {
+async function updateLead({ uid, id, input, actorType, actorId, role, agentId, scopeAgentIds, categoryKey, sourceCallId = null, onAssignmentChange, pool:sourcePool }) {
   if(sourceCallId!==null&&sourceCallId!==undefined&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sourceCallId)){
     const error=new Error('Invalid source call.');error.status=400;error.code='INVALID_CALL_ID';throw error;
   }
@@ -1195,6 +1203,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
       add("currency", currency);
     }
     let assignmentChange = null;
+    let assignmentEffects = null;
     if (input.ownerAgentId !== undefined && role !== "agent") {
       let owner = null;
       if (input.ownerAgentId !== null && input.ownerAgentId !== "") {
@@ -1208,6 +1217,11 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
         const [nextAgents] = owner == null ? [[]] : await connection.query("SELECT name FROM agents WHERE id = ? AND owner_uid COLLATE utf8mb4_general_ci = ? COLLATE utf8mb4_general_ci LIMIT 1", [owner, uid]);
         assignmentChange = { fromAgentId: lead.owner_agent_id == null ? null : Number(lead.owner_agent_id), fromAgentName: previousAgents[0]?.name || null, toAgentId: owner, toAgentName: nextAgents[0]?.name || null };
         add("owner_agent_id", owner);
+        if (owner !== null) {
+          const reminderAt = requestedFollowUp || (input.nextFollowUpAt === undefined ? existingFollowUp : null) || dbDate(new Date(Date.now() + 60 * 60 * 1000));
+          if (!requestedFollowUp && (!existingFollowUp || input.nextFollowUpAt !== undefined)) add("next_follow_up_at", reminderAt);
+          assignmentChange.followUpAt = reminderAt;
+        }
       }
     }
     if (changes.length) {
@@ -1217,6 +1231,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
     }
     if (assignmentChange) {
       await addActivity(connection, uidHash, id, "lead_reassigned", assignmentChange.toAgentName ? `Reassigned to ${assignmentChange.toAgentName}` : "Lead unassigned", assignmentChange, actorType, actorId);
+      if (typeof onAssignmentChange === "function") assignmentEffects = await onAssignmentChange(connection, { lead, assignmentChange });
     }
     if(contactOutcome){
       const outcomeDetails={outcome:contactOutcome,followUpRequired,nextFollowUpAt:providedFollowUp||null};
@@ -1232,12 +1247,13 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
       await connection.query("UPDATE pipeline_leads SET automation_paused = ?, last_activity_at = ? WHERE uid_hash = ? AND id = ?", [input.automationPaused ? 1 : 0, dbDate(new Date()), uidHash, id]);
       await addActivity(connection, uidHash, id, "automation_setting", input.automationPaused ? "Lead automation paused" : "Lead automation resumed", { paused: Boolean(input.automationPaused) }, actorType, actorId);
     }
-    return { id };
+    return { id, ...(assignmentChange ? { assignment: { ...assignmentChange, ...(assignmentEffects || {}) } } : {}) };
   },sourcePool);
 }
 
 module.exports = {
   prepareWorkspace: ensureWorkspace,
+  captureInbound,
   captureBotInbound: input => captureInbound({ ...input, botCapture: true }),
   DEFAULT_STAGES,
   normalizePhone,

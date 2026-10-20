@@ -15,6 +15,7 @@ const {
   processBroadcastCalls,
 } = require("../helper/addon/wacall/broadcastProcessor.js");
 const axios = require("axios");
+const phonebookImport = require("../modules/platform/phonebook-import");
 
 // add new beta
 router.post("/insert_flow", validateUser, checkPlan, async (req, res) => {
@@ -291,10 +292,10 @@ router.post("/create_broadcast", validateUser, checkPlan, async (req, res) => {
       return res.json({ msg: "Title and Flow are required" });
     }
 
-    const contacts = await query(
+    const contacts = phonebookImport.sendableContacts(await query(
       `SELECT * FROM contact WHERE uid = ? AND phonebook_id = ?`,
       [req.decode.uid, phonebook?.id],
-    );
+    ));
 
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return res.json({ msg: "At least one contact is required" });

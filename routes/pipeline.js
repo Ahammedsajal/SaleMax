@@ -109,7 +109,23 @@ router.use(async(req,res,next)=>{
   next();
  }catch(error){res.status(error.status||403).json({success:false,code:error.code||'PERMISSION_DENIED'});}
 });
+const openingRouting=require('../helper/pipeline/openingRouting');
+const openingPool=require('../database/config').promise();
+async function openingDb(work){const db=await openingPool.getConnection();try{return await work(db);}finally{db.release();}}
+const openingAdmin=(req,res,next)=>req.pipelineActor.role==='owner'||req.pipelineActor.role==='manager'&&!Array.isArray(req.pipelineActor.scopeAgentIds)?next():res.status(403).json({success:false,message:'Your role cannot configure workspace-wide keyword routing.'});
+router.get('/opening-routing',openingAdmin,async(req,res)=>{try{res.setHeader('Cache-Control','no-store');res.json({success:true,data:await openingDb(db=>openingRouting.list(db,req.pipelineActor.uid))});}catch(error){fail(res,error);}});
+router.post('/opening-routing',openingAdmin,async(req,res)=>{try{res.status(201).json({success:true,data:await openingDb(db=>openingRouting.save(db,req.pipelineActor.uid,req.body))});}catch(error){fail(res,error);}});
+router.put('/opening-routing/:id',openingAdmin,async(req,res)=>{try{res.json({success:true,data:await openingDb(db=>openingRouting.save(db,req.pipelineActor.uid,req.body,req.params.id))});}catch(error){fail(res,error);}});
+router.delete('/opening-routing/:id',openingAdmin,async(req,res)=>{try{res.json({success:true,data:await openingDb(db=>openingRouting.remove(db,req.pipelineActor.uid,req.params.id,req.body?.expectedRevision))});}catch(error){fail(res,error);}});
+router.get('/routing-notifications',async(req,res)=>{try{res.setHeader('Cache-Control','no-store');res.json({success:true,data:req.pipelineActor.role==='agent'?await openingDb(db=>openingRouting.notifications(db,req.pipelineActor.uid,req.pipelineActor.agentId)):{items:[]}});}catch(error){fail(res,error);}});
+router.post('/routing-notifications/:id/read',async(req,res)=>{if(req.pipelineActor.role!=='agent')return res.status(403).json({success:false});try{res.json({success:true,data:await openingDb(db=>openingRouting.acknowledge(db,req.pipelineActor.uid,req.pipelineActor.agentId,req.params.id))});}catch(error){fail(res,error);}});
 router.use('/tasks',createTaskRouter({pool:require('../database/config.js').promise(),contextFor:(req,permission)=>taskContext(req.pipelineActor,permission)}));
+
+router.get('/training-forms', async (req,res) => {
+  res.setHeader('Cache-Control','no-store');
+  try { const data=await trainingForms.staffForms(require('../database/config.js').promise(),req.pipelineActor);res.json({success:true,data}); }
+  catch(error) { const code=error.code||'STAFF_FORM_UNAVAILABLE';const status=code==='PERMISSION_DENIED'?403:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)||code==='BUSINESS_LINK_INVALID'?409:500;res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code}); }
+});
 
 router.get('/training-forms/:formSlug', async (req,res) => {
   try {
@@ -131,6 +147,18 @@ router.get('/training-forms/:formSlug/leads', async (req,res) => {
     const code=error.code||'STAFF_FORM_UNAVAILABLE';
     const status=code==='PERMISSION_DENIED'?403:code==='SEARCH_TERM_TOO_SHORT'?400:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:500;
     if(status>=500)console.error('Staff lead lookup failed:',code);
+    res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code});
+  }
+});
+
+router.get('/training-forms/:formSlug/leads/:leadId', async (req,res) => {
+  res.setHeader('Cache-Control','no-store');
+  try {
+    await trainingForms.staffForm(require('../database/config.js').promise(),req.pipelineActor,req.params.formSlug);
+    const data=await trainingForms.staffLead(require('../database/config.js').promise(),req.pipelineActor,req.params.leadId);
+    res.json({success:true,data});
+  } catch(error) {
+    const code=error.code||'STAFF_FORM_UNAVAILABLE';const status=code==='PERMISSION_DENIED'||code==='LEAD_NOT_ACCESSIBLE'?403:code==='FORM_NOT_FOUND'?404:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:500;
     res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code});
   }
 });
@@ -182,6 +210,7 @@ router.get("/board", async (req, res) => {
       agentId: req.pipelineActor.agentId,
       scopeAgentIds: req.pipelineActor.scopeAgentIds,
       categoryKey: req.pipelineActor.categoryKey,
+      timezone: req.pipelineActor.timezone,
       filters: {
         search: req.query.search,
         stage: req.query.stage,
@@ -262,11 +291,20 @@ router.get("/reports/activity", async (req,res)=>{
       pool:require("../database/config.js").promise(),uid:req.pipelineActor.uid,
       role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,
       period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,
-      page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit),
-      assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId,
+      page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit),assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId,
     });
     res.setHeader('Cache-Control','no-store');res.json({success:true,data});
   }catch(error){fail(res,error);}
+});
+
+router.get('/reports/summary',async(req,res)=>{
+  try{const data=await pipelineReports.getLeadReportSummary({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,from:req.query.from,to:req.query.to,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  catch(error){fail(res,error);}
+});
+
+router.get('/reports/leads',async(req,res)=>{
+  try{const data=await pipelineReports.getReportLeads({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,kind:req.query.kind,date:req.query.date,from:req.query.from,to:req.query.to,selectedAgentId:req.query.agentId,timezone:req.pipelineActor.timezone,page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit),assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  catch(error){fail(res,error);}
 });
 
 router.get('/reports/journey',async(req,res)=>{
@@ -422,16 +460,62 @@ router.post('/leads/:id/sale-reviews/:reviewId/convert',authorizeLead,async(req,
 
 router.patch("/leads/:id", authorizeLead, async (req, res) => {
   try {
+    const pool=require('../database/config.js').promise();
+    const input=req.body||{};
+    const requestedOwner=input.ownerAgentId===undefined?undefined:(input.ownerAgentId===null||input.ownerAgentId===''?null:Number(input.ownerAgentId));
+    const assignmentWillChange=requestedOwner!==undefined&&(requestedOwner===null?req.pipelineLead.owner_agent_id!=null:Number(req.pipelineLead.owner_agent_id)!==requestedOwner);
+    const reminderContext=assignmentWillChange&&requestedOwner!==null
+      ? await taskContext(req.pipelineActor,'tasks.manage') : null;
     const data = await pipeline.updateLead({
       uid: req.pipelineActor.uid,
       id: req.params.id,
-      input: req.body || {},
+      input,
       actorType: req.pipelineActor.actorType,
       actorId: req.pipelineActor.actorId,
       role: req.pipelineActor.role,
       agentId: req.pipelineActor.agentId,
       scopeAgentIds:req.pipelineActor.scopeAgentIds,
       categoryKey:req.pipelineActor.categoryKey,
+      pool,
+      onAssignmentChange: async (db,{lead,assignmentChange}) => {
+        const chatIds=await db.query('SELECT DISTINCT chat_id FROM pipeline_conversations WHERE uid_hash=? AND lead_id=? AND chat_id IS NOT NULL AND chat_id<>\'\'',[require('crypto').createHash('sha256').update(String(req.pipelineActor.uid),'utf8').digest('hex'),lead.id]);
+        const ids=(chatIds[0]||[]).map(row=>row.chat_id).filter(Boolean);
+        if(!ids.length&&lead.chat_id)ids.push(lead.chat_id);
+        const [agents]=assignmentChange.toAgentId===null?[[]]:await db.query('SELECT id,uid,name,email FROM agents WHERE id=? AND owner_uid=? AND is_active=1 LIMIT 1',[assignmentChange.toAgentId,req.pipelineActor.uid]);
+        const [previousAgents]=assignmentChange.fromAgentId===null?[[]]:await db.query('SELECT uid FROM agents WHERE id=? AND owner_uid=? LIMIT 1',[assignmentChange.fromAgentId,req.pipelineActor.uid]);
+        const previousUid=previousAgents[0]?.uid;
+        const target=agents[0]||null;
+        for(const chatId of ids){
+          if(previousUid)await db.query('DELETE FROM agent_chats WHERE owner_uid=? AND uid=? AND chat_id=?',[req.pipelineActor.uid,previousUid,chatId]);
+          if(target){
+            await db.query('INSERT IGNORE INTO agent_chats(owner_uid,uid,chat_id) VALUES(?,?,?)',[req.pipelineActor.uid,target.uid,chatId]);
+          }
+          const [chatRows]=await db.query('SELECT assigned_agent FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1 FOR UPDATE',[req.pipelineActor.uid,chatId]);
+          if(chatRows.length){
+            let assigned=[];
+            try{const parsed=typeof chatRows[0].assigned_agent==='string'?JSON.parse(chatRows[0].assigned_agent):chatRows[0].assigned_agent;assigned=Array.isArray(parsed)?parsed:parsed?[parsed]:[];}catch{}
+            assigned=assigned.filter(item=>!previousUid||item?.uid!==previousUid);
+            if(target&&!assigned.some(item=>String(item?.id)===String(target.id)||item?.uid===target.uid))assigned.push(target);
+            await db.query('UPDATE beta_chats SET assigned_agent=? WHERE uid=? AND chat_id=?',[JSON.stringify(assigned),req.pipelineActor.uid,chatId]);
+          }
+        }
+        let reminderTask=null;
+        if(target){
+          const dueAt=assignmentChange.followUpAt||new Date(Date.now()+60*60*1000).toISOString();
+          const reminderInput={
+            title:`Follow up: ${lead.title||lead.contact_name||'Lead'}`,
+            description:`Follow up with ${lead.contact_name||lead.learner_name||lead.mobile||'this lead'}. The lead was assigned to you in Pipeline.`,
+            taskType:'lead_follow_up',priority:lead.priority||'normal',dueAt,
+            source:{type:'lead',id:lead.id},
+            participants:[{actorType:'agent',actorId:String(target.id),role:'assignee'}],
+          };
+          const [existingReminders]=await db.query("SELECT id,revision FROM sx_tasks WHERE tenant_id=? AND uid_hash=? AND lead_id=? AND task_type='lead_follow_up' AND status IN ('open','in_progress','blocked') AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[reminderContext.tenantId,reminderContext.uidHash,lead.id]);
+          reminderTask=existingReminders.length
+            ? await trainingTasks.edit(db,reminderContext,existingReminders[0].id,{...reminderInput,expectedRevision:Number(existingReminders[0].revision)},{manageTransaction:false})
+            : await trainingTasks.create(db,reminderContext,reminderInput,{manageTransaction:false});
+        }
+        return { chatsAssigned:target?ids.length:0, reminderTaskId:reminderTask?.id||null };
+      },
     });
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }

@@ -1734,6 +1734,7 @@ router.get("/get_dashboard", validateUser, async (req, res) => {
   try {
     const uid = req.decode.uid;
     const { returnAddons } = require("../utils/addons.js");
+    const dashboardChannels = require("../modules/platform/legacy-dashboard-channels.js");
 
     // 1. User Profile Data
     const user = await query("SELECT * FROM user WHERE uid = ?", [uid]);
@@ -1752,10 +1753,7 @@ router.get("/get_dashboard", validateUser, async (req, res) => {
           "SELECT COUNT(*) as count FROM agent_task WHERE owner_uid = ? AND status = 'COMPLETED'",
           [uid],
         ),
-        query(
-          "SELECT COUNT(*) as count FROM instance WHERE uid = ? AND status = 'ACTIVE'",
-          [uid],
-        ),
+        dashboardChannels.countConnectedWhatsAppChannels(query, uid),
       ]);
 
     // 3. Recent Conversations (from beta_conversation)
@@ -1765,15 +1763,9 @@ router.get("/get_dashboard", validateUser, async (req, res) => {
     const unreadSummary = [];
 
     // 5. Active Chatbots
-    const activeChatbots = await query(
-      `
-      SELECT title, flow_id 
-      FROM beta_chatbot 
-      WHERE uid = ? AND active = 1
-      LIMIT 3
-    `,
-      [uid],
-    );
+    const activeChatbots = await dashboardChannels.listActiveChatbots(query, uid, {
+      includePlatformProfiles: process.env.SALEMAX_PLATFORM_ENABLED === "true",
+    });
 
     // 6. Performance Metrics (last 7 days)
     const performanceData = await query(
@@ -1810,7 +1802,7 @@ router.get("/get_dashboard", validateUser, async (req, res) => {
         agents: agents[0].count,
         activeChats: activeChats[0].count,
         completedTasks: completedTasks[0].count,
-        activeInstances: activeInstances[0].count,
+        activeInstances: Number(activeInstances || 0),
       },
       recentConversations,
       unreadSummary,
