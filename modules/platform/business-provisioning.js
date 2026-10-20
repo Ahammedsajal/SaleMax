@@ -12,18 +12,18 @@ const email=value=>{const normalized=typeof value==='string'?value.trim().toLowe
 const tables=['user','sx_tenants','sx_identities','sx_memberships','sx_legacy_ownership','sx_plan_versions','sx_plan_assignments','sx_legacy_plan_contracts','sx_legacy_plan_assignments','sx_legacy_contract_assignments','sx_team_invites','sx_audit_events','sx_business_provisions'];
 async function transaction(db,fn){const [rows]=await db.query('SELECT TABLE_NAME,ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('+tables.map(()=>'?').join(',')+')',tables);if(rows.length!==tables.length||rows.some(row=>row.ENGINE!=='InnoDB'))fail('PROVISION_STORAGE_NOT_READY');await db.beginTransaction();try{const result=await fn();await db.commit();return result;}catch(error){await db.rollback();if(error.code==='ER_DUP_ENTRY')fail('BUSINESS_ALREADY_PROVISIONED');throw error;}}
 function authorize(ctx,permission){if(!platformDecision(ctx,permission))fail('PERMISSION_DENIED');}
-function provisionCategory(ctx,key='training_center'){
-  const category=getCategory(key,1);
-  if(!category||!['training_center','salemax_sales'].includes(category.key))fail('CATEGORY_UNAVAILABLE');
+function provisionCategory(ctx,key='training_center',version=1){
+  const category=getCategory(key,version);
+  if(!category||category.planable!==true)fail('CATEGORY_UNAVAILABLE');
   if(category.public===false&&!platformDecision(ctx,'categories.manage'))fail('PERMISSION_DENIED');
   return category;
 }
 function roles(value,category){return plans.limits(value,category.seatRoles);}
 function normalizeName(value){const name=typeof value==='string'?value.trim():'';if(name.length<2||name.length>200)fail('BUSINESS_NAME_INVALID');return name;}
 function slug(name,uid){const base=name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,52)||'salemax-business';return `${base}-${crypto.createHash('sha256').update(uid).digest('hex').slice(0,10)}`;}
-async function context(db,ctx,userId,{locked=false,categoryKey='training_center'}={}){
+async function context(db,ctx,userId,{locked=false,categoryKey='training_center',categoryVersion=1}={}){
   authorize(ctx,'tenants.create');authorize(ctx,'plans.assign');authorize(ctx,'plans.read');
-  const category=provisionCategory(ctx,categoryKey);
+  const category=provisionCategory(ctx,categoryKey,categoryVersion);
   if(!Number.isSafeInteger(userId)||userId<1||userId>2147483647)fail('INVALID_ASSIGNMENT');
   const suffix=locked?' FOR UPDATE':'';
   const [[user]]=await db.query('SELECT id,uid,name,email,plan,plan_expire FROM user WHERE id=?'+suffix,[userId]);
@@ -51,27 +51,27 @@ async function context(db,ctx,userId,{locked=false,categoryKey='training_center'
 }
 function selection(ctx,input){
   const userId=Number(input?.userId);if(!Number.isSafeInteger(userId)||userId<1||userId>2147483647||!uuid(input?.planVersionId)||!uuid(input?.requestId)||typeof input?.expectedState!=='string'||!/^[a-f0-9]{64}$/.test(input.expectedState))fail('INVALID_PROVISION');
-  const businessName=normalizeName(input.businessName),category=provisionCategory(ctx,input.categoryKey||'training_center'),roleLimits=roles(input.roleLimits,category);
+  const businessName=normalizeName(input.businessName),category=provisionCategory(ctx,input.categoryKey||'training_center',input.categoryVersion===undefined?1:input.categoryVersion),roleLimits=roles(input.roleLimits,category);
   authorize(ctx,'tenants.create');authorize(ctx,'plans.assign');authorize(ctx,'plans.read');
   return {userId,planVersionId:input.planVersionId.toLowerCase(),requestId:input.requestId.toLowerCase(),expectedState:input.expectedState,businessName,roleLimits,category};
 }
 async function preview(db,ctx,input){
-  const data=selection(ctx,{...input,expectedState:'0'.repeat(64)});const base=await context(db,ctx,data.userId,{categoryKey:data.category.key});
+  const data=selection(ctx,{...input,expectedState:'0'.repeat(64)});const base=await context(db,ctx,data.userId,{categoryKey:data.category.key,categoryVersion:data.category.version});
   if(base.version.id!==data.planVersionId||base.version.categoryKey!==data.category.key)fail('CONTRACT_NOT_FOR_CURRENT_PLAN');
   const blockers=[];for(const role of Object.keys(data.roleLimits)){if(data.roleLimits[role]>base.version.roleLimits[role])blockers.push('PLAN_LIMIT_EXCEEDED:'+role);if(data.roleLimits[role]<(role==='owner'?1:0))blockers.push('SEATS_IN_USE:'+role);}
   const state=hash(JSON.stringify({snapshot:base.snapshot,categoryKey:data.category.key,categoryVersion:data.category.version,versionId:base.version.id,commercialHash:hash(JSON.stringify(base.version.commercial)),businessName:data.businessName,roleLimits:data.roleLimits}));
   return {user:{id:base.user.id,name:base.user.name,email:base.normalizedEmail,currentPlan:base.current.plan},businessName:data.businessName,category:{key:data.category.key,version:data.category.version,title:data.category.title},contract:{id:base.version.id,version:base.version.version,commercial:base.version.commercial,capabilities:base.version.capabilities,ceiling:base.version.roleLimits},proposedLimits:data.roleLimits,used:Object.fromEntries(data.category.seatRoles.map(role=>[role,role==='owner'?1:0])),blockers,canProvision:!blockers.length,expectedState:state,readOnly:true};
 }
-async function options(db,ctx,userId,categoryKey='training_center'){
-  const base=await context(db,ctx,userId,{categoryKey});
+async function options(db,ctx,userId,categoryKey='training_center',categoryVersion=1){
+  const base=await context(db,ctx,userId,{categoryKey,categoryVersion});
   return {user:{id:base.user.id,name:base.user.name,email:base.normalizedEmail,currentPlan:base.current.plan},category:{key:base.category.key,version:base.category.version,title:base.category.title},contract:{id:base.version.id,version:base.version.version,commercial:base.version.commercial,capabilities:base.version.capabilities,ceiling:base.version.roleLimits},defaultLimits:base.version.roleLimits};
 }
 async function provision(db,ctx,input){
-  const data=selection(ctx,input),payloadHash=hash(JSON.stringify({userId:data.userId,categoryKey:data.category.key,planVersionId:data.planVersionId,businessName:data.businessName,roleLimits:data.roleLimits,expectedState:data.expectedState}));
+  const data=selection(ctx,input),payloadHash=hash(JSON.stringify({userId:data.userId,categoryKey:data.category.key,...(data.category.version===1?{}:{categoryVersion:data.category.version}),planVersionId:data.planVersionId,businessName:data.businessName,roleLimits:data.roleLimits,expectedState:data.expectedState}));
   return transaction(db,async()=>{
     const [[prior]]=await db.query('SELECT request_id,user_id,tenant_id,actor_identity_id,payload_hash,assignment_id,role_limits FROM sx_business_provisions WHERE request_id=? FOR UPDATE',[data.requestId]);
     if(prior){if(Number(prior.user_id)!==data.userId||prior.actor_identity_id!==ctx.identity.id||prior.payload_hash!==payloadHash)fail('IDEMPOTENCY_CONFLICT');return {tenantId:prior.tenant_id,userId:data.userId,assignmentId:prior.assignment_id,roleLimits:typeof prior.role_limits==='string'?JSON.parse(prior.role_limits):prior.role_limits,replayed:true};}
-    const base=await context(db,ctx,data.userId,{locked:true,categoryKey:data.category.key});if(base.version.id!==data.planVersionId||base.version.categoryKey!==data.category.key)fail('CONTRACT_NOT_FOR_CURRENT_PLAN');
+    const base=await context(db,ctx,data.userId,{locked:true,categoryKey:data.category.key,categoryVersion:data.category.version});if(base.version.id!==data.planVersionId||base.version.categoryKey!==data.category.key)fail('CONTRACT_NOT_FOR_CURRENT_PLAN');
     const currentState=hash(JSON.stringify({snapshot:base.snapshot,categoryKey:data.category.key,categoryVersion:data.category.version,versionId:base.version.id,commercialHash:hash(JSON.stringify(base.version.commercial)),businessName:data.businessName,roleLimits:data.roleLimits}));
     if(currentState!==data.expectedState)fail('STALE_PROVISION');
     for(const role of Object.keys(data.roleLimits)){if(data.roleLimits[role]>base.version.roleLimits[role])fail('PLAN_LIMIT_EXCEEDED');if(role==='owner'&&data.roleLimits[role]!==1)fail('ONE_OWNER_REQUIRED');}

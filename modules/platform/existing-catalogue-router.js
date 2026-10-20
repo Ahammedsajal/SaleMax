@@ -3,7 +3,7 @@ const crypto=require('node:crypto');
 const bridge=require('./catalogue-bridge');
 const {platformDecision}=require('./policy');
 const plans=require('./plans');
-const {trainingCenter,salemaxSales,getCategory}=require('./categories');
+const {listCategories,getCategory}=require('./categories');
 const {items}=require('./navigation');
 function createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard}){
   const router=express.Router();router.use(legacyGuard,canonicalGuard);router.use(express.json({limit:'24kb',strict:true}));
@@ -11,7 +11,7 @@ function createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard}){
   function legacyId(req){const raw=req.params.legacyPlanId;if(typeof raw!=='string'||!/^\d+$/.test(raw))throw Object.assign(new Error(),{code:'INVALID_LEGACY_PLAN_ID'});return Number(raw);}
   async function use(fn){const db=await pool.getConnection();try{return await fn(db);}finally{db.release();}}
   function availableCategories(ctx){
-    const definitions=[trainingCenter,...(platformDecision(ctx,'categories.manage')?[salemaxSales]:[])];
+    const definitions=listCategories().filter(category=>category.planable===true&&(category.public||platformDecision(ctx,'categories.manage')));
     const featuresByCapability=new Map();
     for(const item of items)if(!featuresByCapability.has(item.capability))featuresByCapability.set(item.capability,item.label);
     const featureLabels=new Map([
@@ -22,11 +22,11 @@ function createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard}){
     ]);
     return definitions.map(category=>({...category,features:category.capabilities.map(capability=>({key:capability,label:featureLabels.get(capability)||featuresByCapability.get(capability)||{en:capability,ar:capability}}))}));
   }
-  function categoryFor(ctx,key){
-    const definition=getCategory(key,1);
+  function categoryFor(ctx,key,version){
+    const definition=getCategory(key,version);
     if(!definition)throw Object.assign(new Error(),{code:'CATEGORY_UNAVAILABLE'});
     plans.authorizeCategory(ctx,definition);
-    return availableCategories(ctx).find(item=>item.key===key)||definition;
+    return availableCategories(ctx).find(item=>item.key===key&&item.version===version)||definition;
   }
   router.use(wrap(async(req,res,next)=>{
     const ctx=req.businessContext;
@@ -42,8 +42,12 @@ function createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard}){
   }));
   router.get('/:legacyPlanId/versions',wrap(async(req,res)=>{
     const categoryKey=typeof req.query.categoryKey==='string'&&req.query.categoryKey?req.query.categoryKey:'training_center';
-    categoryFor(req.businessContext,categoryKey);
-    res.json({items:await use(db=>bridge.list(db,req.businessContext,legacyId(req),categoryKey))});
+    const rawVersion=req.query.categoryVersion;
+    if(rawVersion!==undefined&&(typeof rawVersion!=='string'||! /^[1-9][0-9]*$/.test(rawVersion)))throw Object.assign(new Error(),{code:'INVALID_CATEGORY_VERSION'});
+    const categoryVersion=rawVersion===undefined?1:Number(rawVersion);
+    if(!Number.isSafeInteger(categoryVersion))throw Object.assign(new Error(),{code:'INVALID_CATEGORY_VERSION'});
+    categoryFor(req.businessContext,categoryKey,categoryVersion);
+    res.json({items:await use(db=>bridge.list(db,req.businessContext,legacyId(req),categoryKey,categoryVersion))});
   }));
   router.post('/:legacyPlanId/drafts',wrap(async(req,res)=>res.status(201).json(await use(db=>bridge.createDraft(db,req.businessContext,{...req.body,legacyPlanId:legacyId(req)})))));
   router.put('/:legacyPlanId/drafts/:versionId',wrap(async(req,res)=>res.json(await use(db=>bridge.updateDraft(db,req.businessContext,{...req.body,versionId:req.params.versionId,legacyPlanId:legacyId(req)})))));

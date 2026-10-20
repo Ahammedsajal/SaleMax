@@ -27,11 +27,13 @@ const trainingCenter = Object.freeze({ key: 'training_center', version: 1, title
 const salemaxSales = Object.freeze({ key: 'salemax_sales', version: 1, title: Object.freeze({ en: 'SaleMaX Sales', ar: 'مبيعات SaleMaX' }), public: false, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'team_leader', 'agent']), capabilities: Object.freeze([...sharedCapabilities, 'sales.deals', 'sales.commissions','sales.finance','sales.targets','products.catalog','hr.recruitment']), migration: '20261001_platform_identity.sql' });
 // Contract fixture only; never offered for production tenant onboarding.
 const restaurantFixture = Object.freeze({ key: 'restaurant_fixture', version: 1, title: Object.freeze({ en: 'Restaurant fixture', ar: 'نموذج مطعم للاختبار' }), public: false, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'agent']), capabilities: Object.freeze(['messaging.inbox', 'crm.contacts', 'team.tasks', 'tenant.settings']), migration: '20261001_platform_identity.sql' });
-function getCategory(key, version) { return [trainingCenter, salemaxSales, restaurantFixture].find(c => c.key === key && c.version === version) || null; }
+const registry = require('./category-registry').createCategoryRegistry([trainingCenter, salemaxSales, restaurantFixture], capabilities);
+function getCategory(key, version) { return registry.get(key, version); }
+function listCategories() { return registry.list(); }
 function supportsBusinessCapability(category, capability) {
   return category?.public === true && Array.isArray(category.capabilities) && category.capabilities.includes(capability);
 }
 function supportsCategoryCapability(category, capability) {
   return Boolean(category && Array.isArray(category.capabilities) && category.capabilities.includes(capability));
 }
-module.exports = { trainingCenter, salemaxSales, restaurantFixture, getCategory, supportsBusinessCapability, supportsCategoryCapability };
+module.exports = { trainingCenter: registry.get(trainingCenter.key, trainingCenter.version), salemaxSales: registry.get(salemaxSales.key, salemaxSales.version), restaurantFixture: registry.get(restaurantFixture.key, restaurantFixture.version), listCategories, getCategory, supportsBusinessCapability, supportsCategoryCapability };

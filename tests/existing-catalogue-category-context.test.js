@@ -6,16 +6,18 @@ const {createExistingCatalogueRouter}=require('../modules/platform/existing-cata
 const {salemaxSales}=require('../modules/platform/categories');
 
 async function serverFor(context){
-  const app=express();
-  const db={async query(sql){
+  const app=express(),queries=[];
+  const db={async query(sql,params){
+    queries.push({sql,params});
+    if(sql.includes('FROM sx_legacy_plan_contracts c JOIN sx_plan_versions'))return [[]];
     if(sql.includes('FROM sx_legacy_admin_identities'))return [[{legacy_uid:'synthetic-admin',identity_id:context.identity.id,status:'active'}]];
     return [{affectedRows:1},[]];
   }};
   app.use('/api/admin/plan-contracts',createExistingCatalogueRouter({pool:{getConnection:async()=>({...db,release(){}})},legacyGuard:(req,res,next)=>{req.legacyAdminId=1;req.decode={uid:'synthetic-admin'};next();},canonicalGuard:(req,res,next)=>{req.businessContext=context;next();}}));
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
-  return {base:`http://127.0.0.1:${server.address().port}/api/admin/plan-contracts`,close:()=>new Promise(resolve=>server.close(resolve))};
+  return {queries,base:`http://127.0.0.1:${server.address().port}/api/admin/plan-contracts`,close:()=>new Promise(resolve=>server.close(resolve))};
 }
-const base={audience:'platform',identity:{id:'synthetic-identity'},mfaVerified:true,membership:{status:'active',delegatedPermissions:['plans.read','plans.draft','plans.publish']}};
+const base={audience:'platform',identity:{id:'11111111-1111-4111-8111-111111111111'},mfaVerified:true,membership:{status:'active',delegatedPermissions:['plans.read','plans.draft','plans.publish']}};
 
 test('Manage Plans context offers internal Sales features only to platform category administrators',async()=>{
   const admin=await serverFor({...base,membership:{...base.membership,role:'super_admin'}});
@@ -43,4 +45,27 @@ test('delegated plan staff cannot enumerate or draft private SaleMaX Sales contr
     assert.equal(draft.status,403);
     assert.equal((await draft.json()).code,'PERMISSION_DENIED');
   }finally{await staff.close();}
+});
+
+
+test('version listing pins requested category revision and rejects malformed or unavailable revisions',async()=>{
+  const admin=await serverFor({...base,membership:{...base.membership,role:'super_admin'}});
+  try{
+    for(const query of ['', '&categoryVersion=1']){
+      const response=await fetch(admin.base+'/7/versions?categoryKey=training_center'+query);
+      assert.equal(response.status,200);
+      assert.deepEqual((await response.json()).items,[]);
+      const lookup=admin.queries.filter(row=>row.sql.includes('FROM sx_legacy_plan_contracts c JOIN sx_plan_versions')).at(-1);
+      assert.deepEqual(lookup.params,[7,'training_center',1]);
+    }
+    for(const value of ['0','-1','1.5','abc','01','9007199254740992','1&categoryVersion=2']){
+      const response=await fetch(admin.base+'/7/versions?categoryKey=training_center&categoryVersion='+value);
+      assert.equal(response.status,400);
+      assert.equal((await response.json()).code,'INVALID_CATEGORY_VERSION');
+    }
+    const missing=await fetch(admin.base+'/7/versions?categoryKey=training_center&categoryVersion=2');
+    assert.equal(missing.status,400);
+    assert.equal((await missing.json()).code,'CATEGORY_UNAVAILABLE');
+    assert.equal(admin.queries.filter(row=>row.sql.includes('FROM sx_legacy_plan_contracts c JOIN sx_plan_versions')).length,2);
+  }finally{await admin.close();}
 });

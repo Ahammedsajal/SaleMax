@@ -38,7 +38,7 @@ test('Manage Plans contract editor offers the private SaleMaX Sales category fro
   assert.match(router,/const categories=availableCategories\(req\.businessContext\)/);
   assert.match(router,/res\.json\(\{category:categories\[0\],categories/);
   assert.match(router,/platformDecision\(ctx,'categories\.manage'\)/);
-  assert.match(router,/categoryFor\(req\.businessContext,categoryKey\)/);
+  assert.match(router,/categoryFor\(req\.businessContext,categoryKey,categoryVersion\)/);
   assert.match(contracts,/context\.categories\.some/);
   assert.match(contracts,/category\.features\.map/);
   assert.match(bridge,/plans\.authorizeCategory\(ctx,definition\.category\)/);
