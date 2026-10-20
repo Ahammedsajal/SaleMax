@@ -117,7 +117,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     const pack = getDomainPack(ctx.category.key, ctx.category.version);
     const result = await withDb(async db => {
       const [knowledgeEntries] = await db.query(`SELECT question_en AS questionEn,answer_en AS answerEn,question_ar AS questionAr,answer_ar AS answerAr FROM sx_chatbot_faqs WHERE tenant_id=? AND is_active=1 ORDER BY position,created_at,id LIMIT 60`, [ctx.tenant.id]);
-      return previewGuidedTurn({ body: req.body, pack, db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, knowledgeEntries });
+      return previewGuidedTurn({ body: req.body, pack, db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, knowledgeEntries, context:ctx });
     });
     res.json({ success: true, data: result });
   }));
@@ -139,6 +139,8 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         engines: [...ENGINES],
         guidedContentDefaults: pack.guidedContentDefaults,
         guidedContentSchema: pack.guidedContentSchema,
+        captureFormsSupported:require('./chatbot-capture-forms').supports(ctx.category),
+        captureForms:await require('./chatbot-capture-forms').options(db,ctx),
         items: bots,
       };
     });
@@ -218,6 +220,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     const id = uuid();
     const data = await withDb(async db => {
       await db.beginTransaction(); try {
+        await require('./chatbot-capture-forms').validate(db,ctx,input.config);
         await db.query(`INSERT INTO sx_chatbot_profiles(id,tenant_id,category_key,category_version,name,engine,status,config,created_by_identity_id,updated_by_identity_id) VALUES (?,?,?,?,?,?,'draft',?,?,?)`, [id, ctx.tenant.id, ctx.category.key, ctx.category.version, input.name, input.engine, JSON.stringify(input.config), ctx.identity.id, ctx.identity.id]);
         await audit(db, ctx, 'chatbot.profile-created', id, { engine: input.engine, category: ctx.category.key });
         await db.commit(); return { id, status: 'draft', revision: 1, runtime: 'configuration_only' };
@@ -233,6 +236,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         const [[row]] = await db.query(`SELECT revision,status,category_key AS categoryKey,category_version AS categoryVersion FROM sx_chatbot_profiles WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
         if (!row) fail('BOT_NOT_FOUND');
         if (Number(row.revision) !== req.body.expectedRevision) fail('STALE_REVISION');
+        await require('./chatbot-capture-forms').validate(db,ctx,input.config);
         if (row.status === 'live') await assertLiveProfileReady(db, req, ctx, {
           id: req.params.id, engine: input.engine, config: input.config,
           categoryKey: row.categoryKey, categoryVersion: Number(row.categoryVersion),
@@ -305,6 +309,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     if (Number(assignment.count) < 1) fail('BOT_CHANNEL_REQUIRED');
     if (profile.categoryKey !== ctx.category.key || Number(profile.categoryVersion) !== ctx.category.version) fail('CATEGORY_UNAVAILABLE');
     const config = profile.config || {};
+    await require('./chatbot-capture-forms').validate(db,ctx,config);
     const domainPack = require('./chatbot-domain-packs').getDomainPack(profile.categoryKey, Number(profile.categoryVersion));
     if (config.guidedMode === 'domain_default' && !domainPack.guidedReply) fail('CATEGORY_GUIDED_FLOW_UNAVAILABLE');
     const requirements = botRequirements(profile.engine, config);
@@ -400,7 +405,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   router.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const code = error.code || 'CHATBOT_UNAVAILABLE';
-    const status = ['PERMISSION_DENIED'].includes(code) ? 403 : ['TENANT_CONTEXT_REQUIRED','VERIFIED_BUSINESS_OWNER_REQUIRED'].includes(code) ? 403 : ['BOT_NOT_FOUND','CONVERSATION_NOT_FOUND','FAQ_NOT_FOUND'].includes(code) ? 404 : ['STALE_REVISION','LIVE_BOT_MUST_BE_PAUSED','CATEGORY_UNAVAILABLE','CATEGORY_GUIDED_FLOW_UNAVAILABLE','FEATURE_UNAVAILABLE','ER_DUP_ENTRY','BOT_CHANNEL_REQUIRED','CONNECTED_CHANNEL_NOT_FOUND','GUIDED_FLOW_REQUIRED','GUIDED_FLOW_UNAVAILABLE','AI_PROVIDER_NOT_CONFIGURED','PROVIDER_KEY_REQUIRED','AI_DATA_PROCESSING_ACK_REQUIRED','FAQ_LIMIT_REACHED'].includes(code) ? 409 : code.startsWith('INVALID_') || ['DUPLICATE_CHANNEL','FAQ_QUESTION_AND_ANSWER_REQUIRED','FAQ_QUESTION_NEEDS_TWO_WORDS'].includes(code) ? 400 : 503;
+    const status = ['PERMISSION_DENIED'].includes(code) ? 403 : ['TENANT_CONTEXT_REQUIRED','VERIFIED_BUSINESS_OWNER_REQUIRED'].includes(code) ? 403 : ['BOT_NOT_FOUND','CONVERSATION_NOT_FOUND','FAQ_NOT_FOUND'].includes(code) ? 404 : ['STALE_REVISION','LIVE_BOT_MUST_BE_PAUSED','CATEGORY_UNAVAILABLE','CATEGORY_GUIDED_FLOW_UNAVAILABLE','FEATURE_UNAVAILABLE','ER_DUP_ENTRY','BOT_CHANNEL_REQUIRED','CONNECTED_CHANNEL_NOT_FOUND','GUIDED_FLOW_REQUIRED','GUIDED_FLOW_UNAVAILABLE','AI_PROVIDER_NOT_CONFIGURED','PROVIDER_KEY_REQUIRED','AI_DATA_PROCESSING_ACK_REQUIRED','FAQ_LIMIT_REACHED','CAPTURE_FORM_UNAVAILABLE'].includes(code) ? 409 : code.startsWith('INVALID_') || ['DUPLICATE_CHANNEL','FAQ_QUESTION_AND_ANSWER_REQUIRED','FAQ_QUESTION_NEEDS_TWO_WORDS'].includes(code) ? 400 : 503;
     res.status(status).json({ success: false, code: status >= 500 ? 'CHATBOT_UNAVAILABLE' : code === 'ER_DUP_ENTRY' ? 'CHANNEL_ALREADY_ASSIGNED' : code });
   });
   return router;

@@ -47,3 +47,49 @@ later node revalidates automatically. Tenant-defined bot capture and generic pac
 adoption remain separate implementation work.
 
 Production: `7672d59` is live in `bot-runtime-access-7672d59-20261020`. Thirty-seven focused checks and actual runtime/shared-auth/MariaDB integration pass. The existing live owner still qualifies; health and exact two-file runtime parity pass. No bot configuration, migration or provider message was changed. See DEPLOYMENT.md for rollback and remaining gates.
+
+
+## Explicit form selection per bot profile — 20 October 2026
+
+Training Center profiles may keep the existing automatic published-form choice,
+select one published form belonging to their tenant, or disable catalogue form
+facts. The existing editor lists bounded public form metadata and its number of
+business fields. No form-management permission is granted by this selection.
+Draft/live save, activation and unsaved guided preview validate category support,
+current form entitlement and same-tenant published ownership. The selected form's
+current published version is used. Publishing a different form does not redirect
+this profile. An unavailable selected form or revoked form entitlement contributes
+no form facts and never substitutes another form. Existing automatic profiles are
+unchanged until an operator explicitly selects a mode.
+
+Guide, AI/Hybrid fact loading, lead-capture facts and both preview paths receive
+the same profile configuration. Public URLs are generated from the approved
+platform origin and selected tenant/form slugs; callers cannot submit a URL.
+Selection is profile-local and uses its existing optimistic revision controls.
+A selected form can contain tenant-defined typed questions from the preceding
+form increment. Saved FAQ/reply text and legacy Automation Flows retain their own
+links; this setting restricts catalogue facts, not arbitrary authored content.
+It does not add direct free-text conversational field collection or expose Forms
+to unsupported categories. The adapter is explicitly Training Center v1 pending
+reviewed generic form/pack adoption.
+
+Verification: 54 focused checks and eight actual editor browser fixtures across
+EN/AR, desktop/mobile and selected/disabled modes pass. Real shared-auth/MariaDB
+integration passes all 113 migrations and cookie/bearer creation/list/update,
+independent profiles, selected/disabled guided preview, real foreign-tenant form
+rejection and unavailable-form suppression. No customer profile, assignment,
+provider send or configuration adoption is used for verification.
+
+Remaining form integrity gate identified during tracing: the public submission
+service selects the current published version at submit time, while the rendered
+client does not submit an expected form version. A publication between rendering
+and submission can therefore cause rejection or attribute unchanged answers to
+newer labels/consent. Add a backward-compatible expected-version handshake and
+explicit reload/review error before claiming full immutable visitor acceptance.
+This gate is separate from profile-local form routing and remains open.
+
+Rollback after explicit selection must retain the selection adapter. An older
+runtime ignores the property and may resume automatic catalogue choice. Before
+adoption, the exact previous release/image is safe; after adoption use a compatible
+repair image, or explicitly review profile configuration rollback while preserving
+submitted form/lead history. Never silently erase selected references.

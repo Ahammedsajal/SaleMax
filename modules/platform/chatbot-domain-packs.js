@@ -239,7 +239,7 @@ function normalizeOffer(raw) {
   return offer;
 }
 
-async function trainingCenterFacts({ db, tenantId, platformOrigin }) {
+async function trainingCenterFacts({ db, tenantId, platformOrigin, config = {} }) {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Qatar', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const [courses] = await db.query(`SELECT c.id,c.code,c.name_en AS nameEn,c.name_ar AS nameAr,c.description_en AS descriptionEn,c.description_ar AS descriptionAr,
       c.outcomes_en AS outcomesEn,c.outcomes_ar AS outcomesAr,c.revision AS revision,c.updated_at AS updatedAt,c.duration_value AS durationValue,c.duration_unit AS durationUnit,c.delivery_mode AS deliveryMode,
@@ -277,10 +277,12 @@ async function trainingCenterFacts({ db, tenantId, platformOrigin }) {
       batches: batchesByCourse.get(String(id)) || [],
     };
   });
-  const [forms] = await db.query(`SELECT t.slug AS tenantSlug,v.slug AS formSlug,f.id AS formId,v.version AS publishedVersion,v.name_en AS nameEn,v.name_ar AS nameAr,JSON_UNQUOTE(JSON_EXTRACT(v.schema_json,'$.templateKey')) AS templateKey
+  const forms = config.captureFormId!==undefined
+    ? await require('./chatbot-capture-forms').selectedRows(db,tenantId,config.captureFormId)
+    : (await db.query(`SELECT t.slug AS tenantSlug,v.slug AS formSlug,f.id AS formId,v.version AS publishedVersion,v.name_en AS nameEn,v.name_ar AS nameAr,JSON_UNQUOTE(JSON_EXTRACT(v.schema_json,'$.templateKey')) AS templateKey
     FROM sx_training_forms f JOIN sx_training_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version
     JOIN sx_tenants t ON t.id=f.tenant_id
-    WHERE f.tenant_id=? AND f.status='published' AND f.published_version IS NOT NULL ORDER BY f.updated_at DESC,f.id LIMIT 10`, [tenantId]);
+    WHERE f.tenant_id=? AND f.status='published' AND f.published_version IS NOT NULL ORDER BY f.updated_at DESC,f.id LIMIT 10`, [tenantId]))[0];
   for (const form of forms) {
     const url = publicFormUrl(platformOrigin, form.tenantSlug, form.formSlug);
     if (url) facts.push({ kind: 'published_enquiry_form', url, formId: form.formId, publishedVersion: form.publishedVersion, nameEn: form.nameEn, nameAr: form.nameAr, purpose: form.templateKey === 'procatalyst-registration-v1' || form.formSlug === 'student-registration' ? 'registration' : 'enquiry' });

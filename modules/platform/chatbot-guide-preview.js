@@ -21,12 +21,13 @@ function previewInput(body, pack) {
   if (state !== null && (typeof state !== 'object' || Array.isArray(state) || Buffer.byteLength(JSON.stringify(state)) > 4096 || !isSafeStateValue(state))) {
     throw Object.assign(new Error('INVALID_PREVIEW_STATE'), { code: 'INVALID_PREVIEW_STATE' });
   }
-  return { message: message.trim(), state, guidedContent: normalizeGuidedContent(body?.guidedContent, pack) };
+  return { captureFormId:require('./chatbot-capture-forms').normalize(body?.captureFormId), message: message.trim(), state, guidedContent: normalizeGuidedContent(body?.guidedContent, pack) };
 }
 
-async function previewGuidedTurn({ body, pack, db, tenantId, platformOrigin, knowledgeEntries = [] }) {
+async function previewGuidedTurn({ body, pack, db, tenantId, platformOrigin, knowledgeEntries = [], context }) {
   const input = previewInput(body, pack);
-  const facts = pack.requiresDatabase ? await pack.loadFacts({ db, tenantId, platformOrigin }) : [];
+  if(input.captureFormId!==undefined)await require('./chatbot-capture-forms').validate(db,context,{captureFormId:input.captureFormId});
+  const facts = pack.requiresDatabase ? await pack.loadFacts({ db, tenantId, platformOrigin,config:{captureFormId:input.captureFormId} }) : [];
   const result = pack.guidedReply({ message: input.message, state: input.state, facts, config: { ...input.guidedContent, knowledgeEntries } });
   if (!result || typeof result.reply !== 'string' || !result.reply.trim()) throw Object.assign(new Error('GUIDED_FLOW_UNAVAILABLE'), { code: 'GUIDED_FLOW_UNAVAILABLE' });
   return { reply: result.reply, state: result.state || null, handoff: result.handoff === true, buttons:Array.isArray(result.buttons)?result.buttons:[] };

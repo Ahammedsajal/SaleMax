@@ -98,6 +98,7 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   const source = input.config;
   if (!source || typeof source !== 'object' || Array.isArray(source) || Buffer.byteLength(JSON.stringify(source)) > 128000) throw Object.assign(new Error('INVALID_BOT_CONFIG'), { code: 'INVALID_BOT_CONFIG' });
   const config = { domainPack: categoryKey, language: ['en', 'ar', 'en_ar'].includes(source.language) ? source.language : 'en_ar' };
+  if(source.captureFormId!==undefined){const forms=require('./chatbot-capture-forms');if(!forms.supports({key:categoryKey,version:categoryVersion}))throw Object.assign(new Error('INVALID_CAPTURE_FORM'),{code:'INVALID_CAPTURE_FORM'});config.captureFormId=forms.normalize(source.captureFormId);}
   const audience = normalizeAudience(source.allowedRecipientPhones);
   if (audience !== undefined) config.allowedRecipientPhones = audience;
   if (source.testRecipientPhone != null && source.testRecipientPhone !== '') {
