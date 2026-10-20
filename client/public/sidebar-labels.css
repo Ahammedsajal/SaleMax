@@ -1,0 +1,3 @@
+/* Restore accessible labels for sidebar links whose legacy row has no text node. */
+.MuiDrawer-paper:not([data-sx-sidebar-collapsed]) [data-sx-sidebar-list] .MuiListItemButton-root:not(:has(.MuiListItemText-root))[aria-label]{justify-content:flex-start!important;gap:8px!important}
+.MuiDrawer-paper:not([data-sx-sidebar-collapsed]) [data-sx-sidebar-list] .MuiListItemButton-root:not(:has(.MuiListItemText-root))[aria-label]::after{content:attr(aria-label);display:block;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;font:500 14px/1.4 Roboto,Arial,sans-serif;text-align:start}
