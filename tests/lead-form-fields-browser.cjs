@@ -1,0 +1,26 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{chromium}=require('playwright');
+const root=path.join(__dirname,'../client/public'),definitions=['text','integer','boolean','date'].map((type,i)=>({key:'cf_'+type+'_'+String(i).repeat(16),type,label:{en:['Reference','Team size','Needs parking','Visit date'][i],ar:['مرجع','حجم الفريق','يحتاج موقفًا','تاريخ الزيارة'][i]},required:true,active:true,version:1}));
+(async()=>{const browser=await chromium.launch({channel:'msedge',headless:true});let cases=0;try{
+ for(const lang of ['en','ar'])for(const width of [390,1280]){
+  const page=await browser.newPage({viewport:{width,height:1000}});page.setDefaultTimeout(7000);const requests=[],errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const schema={titleEn:'Synthetic enquiry',titleAr:'استفسار تجريبي',consentTextEn:'I agree to contact.',consentTextAr:'أوافق على التواصل.',fields:[{key:'contact_name',required:true,labelEn:'Name',labelAr:'الاسم'},{key:'phone',required:true,labelEn:'Phone',labelAr:'الهاتف'},{key:'consent',required:true,labelEn:'Consent',labelAr:'الموافقة'}],leadFields:{configurationRevision:7,fields:definitions}};
+  await page.route('**/*',async route=>{const req=route.request(),url=new URL(req.url());
+   if(url.pathname.startsWith('/p/'))return route.fulfill({contentType:'text/html',body:'<html><body><main id="public-form"></main></body></html>'});
+   if(url.pathname.startsWith('/api/')){let data={tenant:{name:'Synthetic business'},form:{nameEn:'Synthetic enquiry',nameAr:'استفسار تجريبي',schema},courses:[]};if(req.method()==='POST'){requests.push(req.postDataJSON());data={referenceCode:'SYNTHETIC',repeated:false};}return route.fulfill({contentType:'application/json',body:JSON.stringify({success:true,data})});}
+   return route.fulfill({body:''});
+  });
+  await page.goto('http://127.0.0.1/p/synthetic/forms/enquiry?lang='+lang);
+  for(const name of ['training-form-request.js','training-public-form.js'])await page.addScriptTag({content:fs.readFileSync(path.join(root,name),'utf8')});
+  await page.locator('[data-business-fields]').waitFor();await page.locator('[name=contact_name]').fill('Synthetic person');await page.locator('[name=phone]').fill('+12025550199');
+  await page.locator('[name="custom_'+definitions[0].key+'"]').fill('Reference A');await page.locator('[name="custom_'+definitions[1].key+'"]').fill('0');await page.locator('[name="custom_'+definitions[2].key+'"]').selectOption('false');await page.locator('[name="custom_'+definitions[3].key+'"]').fill('2026-12-10');
+  await page.locator('#language-toggle').click();assert.equal(await page.locator('[name="custom_'+definitions[2].key+'"]').inputValue(),'false');await page.locator('[name=consent]').check();await page.locator('#submit-button').click();await page.waitForFunction(()=>document.querySelector('h1')?.textContent.includes('Thank')||document.querySelector('h1')?.textContent.includes('شك'));
+  assert.deepEqual(requests[0].values.customFields,{[definitions[0].key]:'Reference A',[definitions[1].key]:0,[definitions[2].key]:false,[definitions[3].key]:'2026-12-10'});assert.deepEqual(errors,[]);await page.close();cases++;
+  const editor=await browser.newPage({viewport:{width,height:1000}});editor.setDefaultTimeout(7000);await editor.route('**/*',route=>route.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await editor.goto('http://127.0.0.1/user?page=forms');
+  await editor.evaluate(({lang,definitions})=>{localStorage.setItem('wacrm_user','synthetic');localStorage.setItem('language',lang);window.SXTrainingRegistration={definitions:[['contact_name','Name','الاسم'],['phone','Phone','الهاتف'],['consent','Consent','الموافقة']]};window.__writes=[];window.SaleMaxWorkspace={request:async(feature,p='',options={})=>{if(p==='/lead-fields')return {data:{revision:7,fields:definitions}};if(p.startsWith('/submissions'))return {data:{items:[],page:1,pages:1,total:0}};if(options.method==='POST'){window.__writes.push(options.body);return {data:{id:'form-a'}};}return {data:[]};}};},{lang,definitions});
+  await editor.addScriptTag({content:fs.readFileSync(path.join(root,'training-forms.js'),'utf8')});await editor.locator('#sx-form-new').click();await editor.locator('[data-form-lead-fields]').waitFor();
+  await editor.locator('[data-custom-field="'+definitions[0].key+'"]').check();await editor.locator('#sx-form-preview').click();assert.match(await editor.locator('#sx-form-preview-area').textContent(),new RegExp(definitions[0].label[lang]));
+  await editor.locator('#sx-form-editor [type=submit]').click();await editor.waitForFunction(()=>window.__writes.length===1);const written=await editor.evaluate(()=>window.__writes[0]);assert.equal(written.schema.leadFields.configurationRevision,7);assert.equal(written.schema.leadFields.fields.length,1);assert.deepEqual(written.schema.leadFields.fields[0],definitions[0]);await editor.close();cases++;
+ }
+ console.log(JSON.stringify({passed:true,cases,checks:['existing form editor field selection and preview','typed public inputs and payload','zero and false','language switch retains inputs','English Arabic mobile desktop']}));
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

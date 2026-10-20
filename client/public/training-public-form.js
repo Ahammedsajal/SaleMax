@@ -124,6 +124,16 @@
     filter();
   }
 
+  function leadFieldMarkup(schema) {
+    const definitions=schema.leadFields?.fields||[];
+    if(!definitions.length)return '';
+    return `<fieldset class="form-field" data-business-fields><legend>${tr('Business-specific details','بيانات خاصة بالنشاط')}</legend>${definitions.map(field=>{
+      const name='custom_'+field.key,label=esc(field.label[language]),required=field.required?'required':'';
+      const control=field.type==='boolean'?`<select name="${esc(name)}" ${required}><option value="">—</option><option value="true">${tr('Yes','نعم')}</option><option value="false">${tr('No','لا')}</option></select>`:`<input name="${esc(name)}" type="${field.type==='integer'?'number':field.type==='date'?'date':'text'}" ${field.type==='integer'?'step="1" min="-1000000000000" max="1000000000000"':field.type==='text'?'maxlength="1000"':''} ${required}>`;
+      return `<label class="form-field">${label}${field.required?' *':''}${control}</label>`;
+    }).join('')}</fieldset>`;
+  }
+
   function render() {
     const priorCourses=root.querySelector('[data-course-row]')?window.__sxRegistrationControls?.selections():undefined;
     const prior = {};
@@ -163,6 +173,7 @@
          if (choices) return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<select name="${esc(field.key)}" ${field.required ? 'required' : ''}><option value="">${tr('Choose an option…','اختر خيارًا…')}</option>${choices.map(([value, text]) => `<option value="${esc(value)}">${esc(text)}</option>`).join('')}</select></label>`;
         return `<label class="form-field">${esc(label)}${field.required ? ' *' : ''}<input name="${field.key}" type="${type}" autocomplete="${staffCapture ? 'off' : autocomplete || 'off'}" ${staffCapture ? 'autocapitalize="off" spellcheck="false"' : ''} ${field.key === 'phone' ? 'inputmode="tel" placeholder="+974 …"' : ''} maxlength="${field.key === 'email' ? 254 : field.key === 'phone' ? 40 : 255}" ${field.required ? 'required' : ''}></label>`;
       }).join('')}
+      ${leadFieldMarkup(schema)}
       ${isRegistration ? '' : `<label class="consent"><input type="checkbox" name="consent" required><span>${esc(isArabic ? schema.consentTextAr : schema.consentTextEn)}</span></label>`}
       ${!staffCapture && data.botChallenge ? `<div class="bot-challenge"><p>${tr('Complete the security check to send this enquiry.', 'أكمل التحقق الأمني لإرسال هذا الاستفسار.')}</p><div id="turnstile-widget"></div><div id="turnstile-status" role="status" aria-live="polite">${tr('Loading security check…', 'جارٍ تحميل التحقق الأمني…')}</div></div>` : ''}
       <button id="submit-button" class="submit-button" type="submit">${isRegistration ? tr('Submit registration', 'إرسال طلب التسجيل') : tr(staffCapture ? 'Save enquiry' : 'Send enquiry', staffCapture ? 'حفظ الاستفسار' : 'إرسال الاستفسار')}</button>
@@ -208,7 +219,7 @@
           results.querySelectorAll('[data-lead-id]').forEach(button=>button.addEventListener('click',()=>{
             selectedLead=body.data.find(lead=>lead.id===button.dataset.leadId)||null;if(!selectedLead)return;
             const form=root.querySelector('#enquiry-form');const fill=(name,value)=>{const control=form.elements[name];if(control)control.value=value??'';};
-            fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);for(const key of ['certificate_name','qid','nationality','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','referral_name']){const value=selectedLead.qualificationData?.[key]||'';const c=form.elements[key];if(c?.tagName==='SELECT'&&value&&!Array.from(c.options).some(o=>o.value===value))c.add(new Option(value,value));fill(key,value);}fill('source','Lead');window.__sxRegistrationControls?.refresh();
+            fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);for(const key of ['certificate_name','qid','nationality','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','referral_name']){const value=selectedLead.qualificationData?.[key]||'';const c=form.elements[key];if(c?.tagName==='SELECT'&&value&&!Array.from(c.options).some(o=>o.value===value))c.add(new Option(value,value));fill(key,value);}for(const field of data.form.schema.leadFields?.fields||[])fill('custom_'+field.key,selectedLead.qualificationData?.customFields?.[field.key]?.value??'');fill('source','Lead');window.__sxRegistrationControls?.refresh();
             selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. You can edit the form details.` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. يمكنك تعديل بيانات النموذج.`);
             results.innerHTML='';input.value='';
           }));
@@ -308,6 +319,7 @@
       const control = form.elements[field.key];
       if (control?.value) values[field.key] = control.value.trim();
     }
+    if(data.form.schema.leadFields){values.customFields={};for(const field of data.form.schema.leadFields.fields){const raw=form.elements['custom_'+field.key]?.value;if(raw!==undefined&&raw!=='')values.customFields[field.key]=field.type==='boolean'?raw==='true':field.type==='integer'?Number(raw):raw;}}
     const attribution = staffCapture ? null : campaignAttribution();
     const payload = { submissionToken: getSubmissionToken(), values, ...(staffCapture&&selectedLead?{selectedLeadId:selectedLead.id}:{}), ...(attribution?{campaignAttribution:attribution}:{}) };
     if (!staffCapture) payload.website = form.elements.website.value;
@@ -347,6 +359,7 @@
     } catch (error) {
       const challengeError = String(error.message || '').startsWith('BOT_CHALLENGE');
       const text = ['INVALID_COURSE','INVALID_COURSE_SELECTIONS','DUPLICATE_REGISTRATION_COURSE','INVALID_BATCH','INVALID_SIGNATURE','REGISTRATION_DETAILS_REQUIRED','REFERRAL_NAME_REQUIRED','INVALID_QID','INVALID_STAFF_ATTENDED','INVALID_PAYMENT_PLAN','INVALID_REGISTRATION_SOURCE'].includes(error.message)?tr('Check the course, payment plan, QID, referral and signature details.','تحقق من الدورة وخطة الدفع والبطاقة والإحالة والتوقيع.') : error.message === 'AUTH_REQUIRED' ? tr('Sign in with your staff account, then reopen this capture link.', 'سجّل الدخول بحساب الموظف ثم افتح رابط التسجيل مجددًا.')
+        : ['REQUIRED_LEAD_FIELD','INVALID_LEAD_FIELD_VALUE','UNKNOWN_LEAD_FIELD'].includes(error.message) ? tr('Check the business-specific fields and try again.','تحقق من بيانات النشاط الخاصة وحاول مجددًا.')
         : error.message === 'FORM_RATE_LIMITED' ? tr('Please wait a little before trying again.', 'يرجى الانتظار قليلًا قبل المحاولة مجددًا.')
           : challengeError ? tr('The security check expired or could not be verified. Complete it again and retry.', 'انتهت صلاحية التحقق الأمني أو تعذر التحقق منه. أكمله مجددًا ثم أعد المحاولة.')
             : tr('We could not save this enquiry. Check your connection and try again.', 'تعذر حفظ الاستفسار. تحقق من الاتصال وحاول مجددًا.');

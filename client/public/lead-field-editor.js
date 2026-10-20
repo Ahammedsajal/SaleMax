@@ -7,7 +7,7 @@
   const form=panel.querySelector('form');if(!form)return;
   const section=document.createElement('details');section.dataset.leadFieldEditor='1';
   const summary=document.createElement('summary');summary.textContent=tr('Custom lead fields','حقول العملاء المخصصة');section.append(summary);
-  const help=document.createElement('p');help.textContent=tr('Add optional or required fields for manual lead entry. Archive a field to stop collecting it; saved historical values remain readable. Field types are fixed after creation.','أضف حقولًا اختيارية أو مطلوبة عند إدخال العميل يدويًا. أرشف الحقل لإيقاف جمعه مع حفظ القيم السابقة للقراءة. نوع الحقل ثابت بعد إنشائه.');section.append(help);
+  const help=document.createElement('p');help.textContent=tr('Add optional or required fields for manual lead entry. Archive a field to stop manual collection; saved values remain readable. Published forms keep their fields until republished. Field types are fixed after creation.','أضف حقولًا اختيارية أو مطلوبة عند إدخال العميل يدويًا. أرشف الحقل لإيقاف جمعه يدويًا مع حفظ القيم السابقة للقراءة. تحتفظ النماذج المنشورة بحقولها حتى إعادة نشرها. نوع الحقل ثابت بعد إنشائه.');section.append(help);
   const list=document.createElement('div');section.append(list);
   const fields=structuredClone(initial),controls=[];
   function draw(field){

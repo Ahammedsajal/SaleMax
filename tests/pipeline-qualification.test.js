@@ -51,3 +51,10 @@ test('invalid qualification rejects and rolls back its lead and contact writes',
   assert.equal(state.committed,false);
   assert.equal(state.rolledBack,true);
 });
+
+test('trusted form capture validates its pinned contract without inheriting manual-only requirements',async()=>{
+ const {pool,state}=fixturePool(),field={key:'cf_integer_0123456789abcdef',type:'integer',label:{en:'Team size',ar:'حجم الفريق'},required:true,active:true,version:1};
+ await leadPipeline.createManualLead({uid:'synthetic-owner',actorType:'system',role:'owner',pool,captureFieldContract:{revision:4,fields:[field]},input:{title:'Pinned form',sourceType:'public_form',customFields:{configurationRevision:4,values:{[field.key]:0}}}});
+ const saved=JSON.parse(state.leadInsert.params[16]);assert.equal(saved.customFields[field.key].value,0);assert.equal(saved.customFields[field.key].configurationRevision,4);
+ const bad=fixturePool();await assert.rejects(leadPipeline.createManualLead({uid:'synthetic-owner',actorType:'user',role:'owner',pool:bad.pool,captureFieldContract:{revision:4,fields:[field]},input:{title:'Not a trusted form',sourceType:'manual',customFields:{configurationRevision:4,values:{[field.key]:0}}}}),{code:'INVALID_CAPTURE_SOURCE'});assert.equal(bad.state.rolledBack,true);
+});

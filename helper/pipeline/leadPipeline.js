@@ -811,7 +811,7 @@ async function deleteStage(uid, stageKey, targetStage) {
   });
 }
 
-async function createManualLead({ uid, actorType, actorId, agentId, scopeAgentIds, role, input, connection:existingConnection, pool:sourcePool }) {
+async function createManualLead({ uid, actorType, actorId, agentId, scopeAgentIds, role, input, connection:existingConnection, pool:sourcePool, captureFieldContract }) {
   const work=async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const title = text(input.title, 180);
@@ -871,7 +871,8 @@ async function createManualLead({ uid, actorType, actorId, agentId, scopeAgentId
     const amount = input.expectedValue === "" || input.expectedValue === null || input.expectedValue === undefined ? null : Number(input.expectedValue);
     if (amount !== null && (!Number.isFinite(amount) || amount < 0)) { const error = new Error("Expected value must be zero or greater."); error.status = 400; throw error; }
     const qualification = normalizeQualification(input.qualificationData);
-    if(input.customFields!==undefined||!['public_form','staff_form'].includes(input.sourceType)){const custom=await require('../../modules/platform/lead-field-runtime').save(connection,uid,input.customFields,undefined,{creating:true});if(Object.keys(custom).length)qualification.customFields=custom;}
+    if(captureFieldContract){if(!['public_form','staff_form'].includes(input.sourceType))throw Object.assign(new Error('INVALID_CAPTURE_SOURCE'),{code:'INVALID_CAPTURE_SOURCE',status:400});const custom=require('../../modules/platform/lead-field-contract').save(captureFieldContract,input.customFields);if(Object.keys(custom).length)qualification.customFields=custom;}
+    else if(input.customFields!==undefined||!['public_form','staff_form'].includes(input.sourceType)){const custom=await require('../../modules/platform/lead-field-runtime').save(connection,uid,input.customFields,undefined,{creating:true});if(Object.keys(custom).length)qualification.customFields=custom;}
     const currency = /^[A-Z]{3}$/.test(String(input.currency || "QAR")) ? String(input.currency || "QAR") : "QAR";
     const sourceType=['public_form','staff_form'].includes(input.sourceType)?input.sourceType:'manual';
     await connection.query(

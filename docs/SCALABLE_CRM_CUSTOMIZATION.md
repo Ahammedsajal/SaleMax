@@ -232,3 +232,38 @@ reviewed form/bot/export/report adapters. No customer configuration or category
 assignment changes in this increment; no migration is needed.
 
 Production: `1e7d977` is live in `pipeline-workspace-1e7d977-20261020`. Thirty focused checks, 12 browser fixture cases and real shared-auth/MariaDB integration pass. Current production owner contracts, public/runtime hashes and health pass; five deployed paths are synchronized locally. Signed-in live browser acceptance remains open. See DEPLOYMENT.md for rollback and remaining gates.
+
+
+## Pinned tenant fields in existing forms — 20 October 2026
+
+The existing Forms editor can select active published tenant lead fields and set
+required flags for that form. Draft save and publication validate the exact current
+tenant configuration revision, field identity/type and bilingual labels; only the
+form-required switch may differ. The existing form version stores the selected
+typed definitions. Public/staff capture validates against that pinned snapshot,
+not a visitor-provided definition or another tenant's current configuration.
+Renaming/archiving a CRM field does not rewrite published forms. Republish a form
+to change its questions; this behavior is stated in both editors.
+
+Typed values and server definition/revision snapshots persist in the existing
+submission JSON and Pipeline qualification namespace. New leads use an internal
+trusted capture contract available only to existing public/staff source services;
+manual API callers still use the current owner contract and manual required rules.
+Staff linking to an existing scoped lead merges the captured fields without
+discarding other qualification/custom values. Saved values, false and zero remain
+readable under their submitted labels. Unknown keys/types and foreign/stale draft
+definitions are rejected. Staff and public payload ceilings are both 96 KiB.
+
+This adapter extends existing Training Center forms; it does not silently grant
+`portal.forms` to Sales, unmapped legacy businesses or new industry categories.
+Registration/accounting invariants and server permission checks remain unchanged.
+The category-neutral adapter is reusable when those categories receive reviewed
+form contracts. Bot collection, export/search/report consumption and new industry
+modules remain separate implementation work.
+
+Rollback after adoption must retain this adapter: older form validators reject the
+new `customFields` payload and older clients omit its controls. Before adoption,
+the exact previous release/image is safe; after adoption use a compatible repair
+image or an explicit reviewed form publication rollback that preserves historical
+form versions, submissions and Pipeline snapshots. Never restore an old database
+dump over subsequent customer activity.
