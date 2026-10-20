@@ -15,6 +15,7 @@ const COPY={
 function createPublicRecruitmentRouter({pool,origin,key}){
  const router=express.Router(),wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
  router.use(express.json({limit:'8kb',strict:true}));
+ router.get('/:tenantSlug/prefill/:token',wrap(async(req,res)=>{res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');const answers=await recruitment.getPrefill(pool,{tenantSlug:req.params.tenantSlug,token:req.params.token});res.json({success:true,data:answers});}));
  router.get('/:tenantSlug',wrap(async(req,res)=>{
   const [[tenant]]=await pool.query("SELECT id,slug FROM sx_tenants WHERE slug=? AND category_key='salemax_sales' AND status='active' LIMIT 1",[req.params.tenantSlug]);
   if(!tenant)return res.status(404).json({success:false,code:'TENANT_NOT_FOUND'});
@@ -32,7 +33,7 @@ function createPublicRecruitmentRouter({pool,origin,key}){
   try{const result=await recruitment.createPublic(pool,{tenantSlug:req.params.tenantSlug,body:req.body,file,visitorHash});res.status(result.repeated?200:201).json({success:true,data:{referenceCode:result.referenceCode,repeated:result.repeated,linkedLead:result.leadLinked||false,linkedContact:result.contactLinked||false,linkedChat:result.chatLinked||false}});}
   finally{if(file?.tempFilePath)await fs.rm(file.tempFilePath,{force:true}).catch(()=>{});}
  }));
- router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'RECRUITMENT_UNAVAILABLE',status=Number(error.status)||(['APPLICATION_RATE_LIMITED'].includes(code)?429:['INVALID_','CONSENT_REQUIRED'].some(prefix=>code.startsWith(prefix))?400:code==='TENANT_NOT_FOUND'?404:503);res.status(status).json({success:false,code:status>=500?'RECRUITMENT_UNAVAILABLE':code});});
+ router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'RECRUITMENT_UNAVAILABLE',status=Number(error.status)||(['APPLICATION_RATE_LIMITED'].includes(code)?429:['INVALID_','CONSENT_REQUIRED'].some(prefix=>code.startsWith(prefix))?400:['TENANT_NOT_FOUND','PREFILL_NOT_FOUND'].includes(code)?404:503);res.status(status).json({success:false,code:status>=500?'RECRUITMENT_UNAVAILABLE':code});});
  return router;
 }
 
