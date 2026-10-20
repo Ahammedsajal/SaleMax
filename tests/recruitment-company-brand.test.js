@@ -16,6 +16,6 @@ test('public recruitment page identifies SaleMaX as the hiring company without e
   assert.match(applicationHtml,/recruitment-application\.js\?v=20261020-salemax-sales-manager-inr1/);
   const recruiter=fs.readFileSync(path.join(root,'modules/platform/recruitment-router.js'),'utf8');
   assert.match(recruiter,/work with the SaleMaX Sales Manager/);
-  assert.match(recruiter,/QAR 375 \(about INR 9,800\)/);
-  assert.match(recruiter,/INR amounts are estimates/);
+  assert.match(recruiter,/15% of each paid QAR 2,500 annual subscription \(approximately INR 9,000–9,800 per paid sale\)/);
+  assert.doesNotMatch(recruiter,/65,200|26\.08 per QAR|INR amounts are estimates/);
 });

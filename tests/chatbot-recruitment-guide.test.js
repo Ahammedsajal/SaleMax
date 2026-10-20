@@ -24,10 +24,8 @@ test('role and commission replies state qualification and payment terms accurate
   const commission=recruitmentReply({message:'commission_details',state:{step:'role'},facts:{}});
   assert.match(commission.reply,/15%/);
   assert.match(commission.reply,/QAR 2,500/);
-  assert.match(commission.reply,/QAR 375/);
-  assert.match(commission.reply,/INR 65,200/);
-  assert.match(commission.reply,/INR 9,800/);
-  assert.match(commission.reply,/INR conversions are estimates/);
+  assert.match(commission.reply,/approximately INR 9,000–9,800 per paid sale/);
+  assert.doesNotMatch(commission.reply,/65,200|26\.08|exchange rate/i);
   assert.match(commission.reply,/not guaranteed/);
   assert.ok(commission.buttons.length<=3);
 });
