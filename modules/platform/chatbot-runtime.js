@@ -250,6 +250,8 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       await db.rollback();
       return false;
     }
+    const founderNotification=reply.founderNotification||null;
+    delete reply.founderNotification;
     reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
     const questionLeadInfo = deferLeadQuestion ? { ...leadInfo, questionKey: null } : leadInfo;
     if (!reply.handoff) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
@@ -260,6 +262,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
     if(ctx.category.key==='salemax_sales'&&reply.state?.screeningConsent===true&&reply.state?.answers){
       await require('./recruitment-applications').saveScreening(db,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId,mobile:message.senderMobile,senderName:message.senderName,answers:reply.state.answers,complete:reply.state.step==='screen_complete',consent:true});
+    }
+    if(ctx.category.key==='salemax_sales'&&founderNotification){
+      await require('./recruitment-founder-notifications').enqueue(db,{tenantId:ctx.tenant.id,profileId:profile.id,channelKind,channelRef:sessionId,conversationId:chatId,inboundMessageId:String(message.metaChatId||''),payload:{...founderNotification,whatsappNumber:founderNotification.whatsappNumber||message.senderMobile||''}});
     }
     await db.commit();
   } catch (error) {
