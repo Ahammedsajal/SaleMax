@@ -43,7 +43,7 @@ async function loadApprovedFaqs(tenantId) {
 
 async function resolveTenant(uid) {
   const uidHash = crypto.createHash('sha256').update(uid).digest('hex');
-  const rows = await query(`SELECT t.id AS tenantId,t.category_key AS categoryKey,t.category_version AS categoryVersion,t.status AS tenantStatus,
+  const rows = await query(`SELECT t.id AS tenantId,t.slug AS tenantSlug,t.category_key AS categoryKey,t.category_version AS categoryVersion,t.status AS tenantStatus,
       m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.delegated_permissions AS delegatedPermissions,
       i.status AS identityStatus,a.status AS planStatus,pv.capabilities
     FROM sx_legacy_ownership o JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED)
@@ -61,7 +61,7 @@ async function resolveTenant(uid) {
   try { delegatedPermissions = typeof row.delegatedPermissions === 'string' ? JSON.parse(row.delegatedPermissions) : row.delegatedPermissions || []; } catch { delegatedPermissions = []; }
   const context = {
     audience: 'tenant', identity: { id: row.identityId, status: row.identityStatus },
-    tenant: { id: row.tenantId, status: row.tenantStatus, categoryKey: row.categoryKey, categoryVersion: Number(row.categoryVersion) },
+    tenant: { id: row.tenantId, slug: row.tenantSlug, status: row.tenantStatus, categoryKey: row.categoryKey, categoryVersion: Number(row.categoryVersion) },
     membership: { id: row.membershipId, tenantId: row.tenantId, role: row.role, status: row.membershipStatus, delegatedPermissions },
     category, subscription: { status: row.planStatus, capabilities }, runtimeReady: {}
   };
@@ -219,6 +219,15 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   if (!channelKind || !pack.guidedReply) return false;
   await pruneExpiredGuidedSessions();
+  let cvSubmission = null, cvError = null;
+  if(ctx.category.key==='salemax_sales'&&message?.type==='document'){
+    const candidateState=await loadDomainGuidedSession({ctx,profile,chatId,channelKind,channelRef:sessionId});
+    if(candidateState?.step==='awaiting_cv'&&candidateState.screeningConsent===true){
+      try{
+        cvSubmission=await require('./recruitment-applications').createFromWhatsApp(dbPool,{tenantSlug:ctx.tenant.slug,answers:candidateState.answers,mobile:message.senderMobile,channelKind,channelRef:sessionId,conversationId:chatId,senderName:message.senderName,mediaUrl:message.msgContext?.document?.link,fileName:message.msgContext?.document?.filename});
+      }catch(error){cvError=error.code||'CV_SAVE_FAILED';}
+    }
+  }
   const db = await dbPool.getConnection();
   let reply = null;
   let deferLeadQuestion = false;
@@ -240,11 +249,15 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     if(priorState&&typeof message.senderMobile==='string')priorState.whatsappNumber=message.senderMobile;
     if (profile.engine !== 'guided' && priorState) priorState.language = businessContext.languageFor(intent || textOf(message), priorState);
     deferLeadQuestion = !priorState?.greeted;
-    reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
-    if(ctx.category.key==='salemax_sales'&&reply.state?.step==='screen_complete'&&reply.state?.screeningConsent===true&&!reply.state.applicationUrl){
-      const base=facts.find(item=>item.kind==='recruitment_application')?.url;
-      if(base){const token=await require('./recruitment-applications').issuePrefillToken(db,{tenantId:ctx.tenant.id,answers:reply.state.answers});const url=new URL(base);url.searchParams.set('source','whatsapp');url.searchParams.set('prefill',token);reply.state.applicationUrl=url.toString();reply.reply+=`\n${reply.state.applicationUrl}`;}
-    }
+    if(cvSubmission){
+      const success= cvSubmission.repeated
+        ? (priorState?.language==='ar'?'تم تسجيل طلبك مسبقاً. سيرتك الذاتية محفوظة، وسيتواصل معك المؤسس قريباً.':'Your application is already recorded. Your CV is saved, and the Founder will contact you soon.')
+        : (priorState?.language==='ar'?`شكراً! تم تقديم طلبك وحفظ سيرتك الذاتية في قسم الطلبات الخاص. رقم الطلب ${cvSubmission.referenceCode}. سيتواصل معك المؤسس قريباً.`:`Thank you! Your application is submitted and your CV is saved in our private Applications & CVs area. Reference: ${cvSubmission.referenceCode}. The Founder will contact you soon.`);
+      reply={reply:success,state:{...priorState,step:'application_submitted',applicationReferenceCode:cvSubmission.referenceCode},buttons:[]};
+    }else if(cvError){
+      const invalid=cvError==='CV_TYPE_NOT_ALLOWED'||cvError==='INVALID_CV_FILE';
+      reply={reply:priorState?.language==='ar'?(invalid?'يرجى إرسال السيرة الذاتية كملف PDF أو DOCX حتى 8 ميغابايت.':'تعذر حفظ الملف الآن. يرجى المحاولة مرة أخرى بعد قليل.'):(invalid?'Please send your CV as a PDF or DOCX file up to 8 MB.':'I couldn’t save that file just now. Please try sending it again shortly.'),state:priorState,buttons:[]};
+    }else reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
     if (leadInfo?.nameOnly) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
@@ -259,7 +272,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     const nextState = JSON.stringify(reply.state || {});
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
     if(ctx.category.key==='salemax_sales'&&reply.state?.screeningConsent===true&&reply.state?.answers){
-      await require('./recruitment-applications').saveScreening(db,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId,mobile:message.senderMobile,senderName:message.senderName,answers:reply.state.answers,complete:reply.state.step==='screen_complete',consent:true});
+      await require('./recruitment-applications').saveScreening(db,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId,mobile:message.senderMobile,senderName:message.senderName,answers:reply.state.answers,complete:['awaiting_cv','application_submitted'].includes(reply.state.step),consent:true});
     }
     await db.commit();
   } catch (error) {

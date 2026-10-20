@@ -31,20 +31,13 @@ test('role and commission replies state qualification and payment terms accurate
   assert.ok(commission.buttons.length<=3);
 });
 
-test('WhatsApp apply button returns secure form URL and upload instructions',()=>{
-  const result=recruitmentReply({message:'Apply & Upload CV',state:{step:'role'},facts:[{kind:'recruitment_application',url:'https://crm.salemax.qa/careers/salemax-sales?source=whatsapp'}]});
-  assert.match(result.reply,/https:\/\/crm\.salemax\.qa\/careers\/salemax-sales/);
-  assert.match(result.reply,/PDF or DOCX files up to 8 MB/);
-  assert.match(result.reply,/Applications & CVs/);
-  assert.equal(result.buttons.length,2);
-  assert.equal(result.state.step,'apply');
+test('WhatsApp Apply now starts the questions in chat without sending a web form link',()=>{
+  const result=recruitmentReply({message:'Apply now',state:{step:'role'},facts:[{kind:'recruitment_application',url:'https://crm.salemax.qa/careers/salemax-sales?source=whatsapp'}]});
+  assert.match(result.reply,/may we save your answers and the CV you send/);
+  assert.doesNotMatch(result.reply,/https:\/\/crm\.salemax\.qa\/careers/);
+  assert.equal(result.state.step,'screen_consent');
+  assert.deepEqual(result.buttons.map(button=>button.id),['screen_consent_yes','screen_consent_no']);
 });
-test('Apply button repeats the candidate-specific prefilled application link',()=>{
-  const url='https://crm.salemax.qa/careers/salemax-sales?source=whatsapp&prefill=opaque-token';
-  const result=recruitmentReply({message:'apply_now',state:{step:'screen_complete',applicationUrl:url},facts:[]});
-  assert.match(result.reply,/opaque-token/);assert.ok(result.buttons.some(button=>button.id==='about_role'));
-});
-
 test('configured human button labels route to their intended answers',()=>{
   const config={messages:{buttonRole:{en:'About the role'},buttonCommission:{en:'Pay & Commission'},buttonApply:{en:'Apply & Upload CV'}}};
   const role=recruitmentReply({message:'About the role',state:{step:'welcome'},facts:{},config});
@@ -52,9 +45,9 @@ test('configured human button labels route to their intended answers',()=>{
   const apply=recruitmentReply({message:'Apply & Upload CV',state:commission.state,facts:[{kind:'recruitment_application',url:'https://crm.salemax.qa/careers/salemax-sales?source=whatsapp'}],config});
   assert.equal(role.state.step,'role');
   assert.equal(commission.state.step,'commission');
-  assert.equal(apply.state.step,'apply');
+  assert.equal(apply.state.step,'screen_consent');
   assert.match(commission.reply,/QAR 375 per sale/);
-  assert.match(apply.reply,/https:\/\/crm\.salemax\.qa\/careers\/salemax-sales/);
+  assert.match(apply.reply,/may we save your answers and the CV you send/);
 });
 
 test('button screening collects the candidate details and required sales setup in order',()=>{
@@ -76,19 +69,20 @@ test('button screening collects the candidate details and required sales setup i
   result=recruitmentReply({message:'screen_hindi_none',state:result.state,facts:{}});
   assert.equal(result.state.answers.hindiLevel,'none');assert.equal(result.state.step,'screen_availability');
   result=recruitmentReply({message:'screen_availability_full',state:result.state,facts:{}});
-  assert.equal(result.state.step,'screen_complete');
+  assert.equal(result.state.step,'awaiting_cv');
   assert.equal(result.state.answers.fullName,'Asha Candidate');
   assert.equal(result.state.answers.currentlyWorking,'yes');
   assert.equal(result.state.answers.totalExperienceRange,'3+');
   assert.equal(result.state.answers.salesExperienceYears,'1-2');
-  assert.equal(result.buttons[0].id,'apply_now');
+  assert.match(result.reply,/Send your CV here as a PDF or DOCX/);
+  assert.deepEqual(result.buttons,[]);
 });
 
-test('declining screening consent leaves answers empty and offers the application form',()=>{
+test('declining screening consent leaves answers empty and does not start an application',()=>{
   let result=recruitmentReply({message:'start_screening',state:{step:'role'},facts:{}});
   result=recruitmentReply({message:'screen_consent_no',state:result.state,facts:{}});
   assert.equal(result.state.screeningConsent,false);
   assert.deepEqual(result.state.answers,{});
   assert.equal(result.state.step,'screening_declined');
-  assert.ok(result.buttons.some(button=>button.id==='apply_now'));
+  assert.ok(!result.buttons.some(button=>button.id==='apply_now'));
 });

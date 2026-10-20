@@ -1,6 +1,9 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
 const {getCategory}=require('../modules/platform/categories');
 const recruitment=require('../modules/platform/recruitment-applications');
 const {decision}=require('../modules/platform/policy');
@@ -26,7 +29,7 @@ test('prefill links use opaque expiring tokens and return only consented candida
   await assert.rejects(recruitment.getPrefill(dbRead,{tenantSlug:'salemax-sales',token:'bad'}),{code:'PREFILL_NOT_FOUND'});
 });
 test('public hiring consent names SaleMaX as the hiring company',()=>{
-  assert.equal(recruitment.CONSENT,'I agree that SaleMaX may use my application and CV to assess me for the SaleMaX sales associate role and contact me about recruitment.');
+  assert.match(recruitment.CONSENT,/save my WhatsApp application answers and CV in its private Applications & CVs area/);
   assert.doesNotMatch(recruitment.CONSENT,/Sitta Arbaa Sitta/i);
 });
 test('recruitment requires explicit consent and valid English/Hindi levels',()=>{
@@ -39,6 +42,23 @@ test('recruitment CV signature is checked rather than trusting the file extensio
   assert.deepEqual(recruitment.detectCv(Buffer.from('%PDF-1.7')), {mime:'application/pdf',ext:'pdf'});
   assert.deepEqual(recruitment.detectCv(Buffer.from([0x50,0x4b,0x03,0x04])), {mime:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',ext:'docx'});
   assert.equal(recruitment.detectCv(Buffer.from('not a pdf')),null);
+});
+test('WhatsApp answers map to a repeat-safe application and CV links are same-origin files',async()=>{
+  const answers={fullName:'Asha Candidate',email:'asha@example.in',currentlyWorking:'yes',whatsappNumber:'+919876543210',contactNumber:'+919876543210',totalExperienceRange:'3+',salesExperienceYears:'1-2',hasComputerAndInternet:'yes',comfortableWithSalesCalls:'yes',englishLevel:'proficient',hindiLevel:'none',availability:'full_time'};
+  const base={answers,mobile:'+919876543210',channelKind:'whatsapp_qr',channelRef:'qr-instance',conversationId:'chat-1'};
+  const body=recruitment.whatsappApplicationBody(base);
+  assert.equal(body.source,'whatsapp');assert.equal(body.currentWorkStatus,'yes');assert.equal(body.experienceYears,'3');assert.equal(body.contactMobile,'+919876543210');
+  assert.equal(body.submissionToken,recruitment.whatsappApplicationBody(base).submissionToken);
+  assert.throws(()=>recruitment.whatsappApplicationBody({...base,answers:{...answers,email:''}}),{code:'SCREENING_INCOMPLETE'});
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'salemax-cv-'));
+  try{
+    await fs.writeFile(path.join(root,'candidate.bin'),Buffer.from('%PDF-1.7 test'));
+    const cv=await recruitment.resolveWhatsAppCv({mediaUrl:'https://crm.salemax.qa/meta-media/candidate.bin',fileName:'candidate.docx',frontendUri:'https://crm.salemax.qa',mediaRoot:root});
+    assert.equal(cv.name,'candidate.pdf');assert.equal(cv.size,13);
+    await assert.rejects(recruitment.resolveWhatsAppCv({mediaUrl:'https://evil.example/meta-media/candidate.bin',frontendUri:'https://crm.salemax.qa',mediaRoot:root}),{code:'INVALID_CV_FILE'});
+    await fs.writeFile(path.join(root,'bad.pdf'),'not a CV');
+    await assert.rejects(recruitment.resolveWhatsAppCv({mediaUrl:'https://crm.salemax.qa/meta-media/bad.pdf',frontendUri:'https://crm.salemax.qa',mediaRoot:root}),{code:'CV_TYPE_NOT_ALLOWED'});
+  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
 test('only an active SaleMaX Sales owner can review hiring records',()=>{
   assert.equal(recruitment.authorize(owner),owner);

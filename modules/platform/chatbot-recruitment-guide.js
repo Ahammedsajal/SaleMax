@@ -7,7 +7,7 @@ function text(config,key,language,fallback){return config?.messages?.[key]?.[lan
 function buttons(items){return items.slice(0,3).map(([id,title])=>({id,title}));}
 const SCREENING={
  screen_consent:{
-  question:{en:'Before these quick screening questions, may we save your answers with your recruitment conversation for the Sales team to review? You can decline and apply through the CV form instead.',ar:'قبل أسئلة الفرز السريعة، هل تسمح بحفظ إجاباتك مع محادثة التوظيف ليطّلع عليها فريق المبيعات؟ يمكنك الرفض والتقديم عبر نموذج السيرة الذاتية بدلاً من ذلك.'},
+  question:{en:'Before you apply, may we save your answers and the CV you send in our private Applications & CVs area so the SaleMaX team can review your application and contact you?',ar:'قبل التقديم، هل تسمح بحفظ إجاباتك والسيرة الذاتية التي ترسلها في قسم الطلبات والسير الذاتية الخاص، ليتمكن فريق SaleMaX من مراجعة طلبك والتواصل معك؟'},
   options:[['screen_consent_yes',{en:'Agree and continue',ar:'أوافق وأتابع'},'yes'],['screen_consent_no',{en:'No, thanks',ar:'لا، شكراً'},'no']]
  },
  screen_working:{question:{en:'Are you currently working?',ar:'هل تعمل حالياً؟'},options:[['screen_working_yes',{en:'Yes',ar:'نعم'},'yes'],['screen_working_no',{en:'No',ar:'لا'},'no']]},
@@ -41,7 +41,7 @@ function screeningQuestion(step,language){
 function recruitmentReply({message,state,facts,config={}}){
  const language=/[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/u.test(String(message||''))||state?.language==='ar'?'ar':'en';
  const input=normalize(String(message||''));const previous=state||{};let step=previous.step||'welcome',reply='',choices=[];
- const labels={talab:text(config,'buttonTalab',language,language==='ar'?'عن طلب':'About Talab'),salemax:text(config,'buttonSalemax',language,language==='ar'?'عن SaleMaX':'About SaleMaX'),role:text(config,'buttonRole',language,language==='ar'?'عن الوظيفة':'About the role'),commission:text(config,'buttonCommission',language,language==='ar'?'العمولة':'Commission'),apply:text(config,'buttonApply',language,language==='ar'?'قدّم الآن':'Apply now'),menu:text(config,'buttonMenu',language,language==='ar'?'القائمة':'Main menu'),human:text(config,'buttonHuman',language,language==='ar'?'تحدث مع المالك':'Talk to owner'),screening:text(config,'buttonScreening',language,language==='ar'?'أسئلة سريعة':'Quick questions')};
+ const labels={talab:text(config,'buttonTalab',language,language==='ar'?'عن طلب':'About Talab'),salemax:text(config,'buttonSalemax',language,language==='ar'?'عن SaleMaX':'About SaleMaX'),role:text(config,'buttonRole',language,language==='ar'?'عن الوظيفة':'About the role'),commission:text(config,'buttonCommission',language,language==='ar'?'العمولة':'Commission'),apply:text(config,'buttonApply',language,language==='ar'?'قدّم الآن':'Apply now'),menu:text(config,'buttonMenu',language,language==='ar'?'القائمة':'Main menu'),human:text(config,'buttonHuman',language,language==='ar'?'تحدث مع المؤسس':'Talk to Founder'),screening:text(config,'buttonScreening',language,language==='ar'?'أسئلة سريعة':'Quick questions')};
  const match=(...terms)=>terms.some(term=>input===normalize(term)||input.includes(normalize(term)));
  const screeningStep=Object.hasOwn(SCREENING,step)||['screen_name','screen_email','screen_contact_number'].includes(step);
  let command=null;
@@ -52,8 +52,9 @@ function recruitmentReply({message,state,facts,config={}}){
  else if(match('apply_now','apply now','apply and upload cv','apply upload cv','application','apply','cv','resume','ابدأ التقديم','قدم الآن','قدّم الآن',labels.apply))command='apply';
   else if(match('start_screening','quick questions','screening','ابدأ الأسئلة','أسئلة سريعة'))command=previous.screeningConsent?'screen_name':'screen_consent';
  else if(match('about_role','about the role','role','requirements','job','الوظيفة','الدور','العمل',labels.role))command='role';
- else if(match('talk_to_owner','talk to owner','موظف','المالك','تحدث مع المالك',labels.human))command='human';
- if(command)step=command;
+ else if(match('talk_to_founder','talk to founder','founder','talk to owner','موظف','المؤسس','المالك','تحدث مع المالك',labels.human))command='human';
+ if(command==='apply')step='apply';
+ else if(command)step=command;
  else if(screeningStep&&['screen_name','screen_email','screen_contact_number'].includes(step)){
    const value=String(message||'').trim();
    if(step==='screen_email'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))return {reply:language==='ar'?'يرجى إدخال بريد إلكتروني صحيح.':'Please enter a valid email address.',state:previous,buttons:[]};
@@ -68,7 +69,7 @@ function recruitmentReply({message,state,facts,config={}}){
   const option=SCREENING[step].options.find(([id,label,value])=>[id,label.en,label.ar,value].some(term=>input===normalize(term)));
   if(option){
    if(step==='screen_consent'){
-    if(option[2]==='no')return {reply:language==='ar'?'حسنًا، لن نحفظ إجابات الفرز. يمكنك التقديم عبر النموذج الآمن ورفع سيرتك الذاتية.':'Understood. We will not save screening answers. You can apply through the secure form and upload your CV.',state:{...previous,language,step:'screening_declined',screeningConsent:false,answers:{}},buttons:buttons([['apply_now',labels.apply],['about_role',labels.role],['main_menu',labels.menu]])};
+    if(option[2]==='no')return {reply:language==='ar'?'حسنًا، لن نحفظ إجاباتك أو سيرتك الذاتية عبر واتساب. يمكنك مراجعة تفاصيل الوظيفة أو التحدث مع المؤسس.':'Understood. We will not save your answers or CV through WhatsApp. You can review the role or ask to speak with the Founder.',state:{...previous,language,step:'screening_declined',screeningConsent:false,answers:{}},buttons:buttons([['about_role',labels.role],['talk_to_founder',labels.human],['main_menu',labels.menu]])};
     const question=screeningQuestion('screen_name',language);
     return {reply:question.reply,state:{...previous,language,step:'screen_name',screeningConsent:true,greeted:true,answers:{whatsappNumber:previous.whatsappNumber||''}},buttons:question.buttons};
    }
@@ -77,10 +78,8 @@ function recruitmentReply({message,state,facts,config={}}){
    if(step==='screen_phone_same'&&option[2]==='same')answers.contactNumber=answers.whatsappNumber||'';
    if(next)step=next;
    else{
-    step='screen_complete';
-    const names={location:answers.location==='india'?'based in India':'outside India',englishLevel:answers.englishLevel,hindiLevel:answers.hindiLevel,salesExperience:answers.salesExperience,availability:answers.availability};
-    const summary=`Location: ${names.location}; English: ${names.englishLevel}; Hindi: ${names.hindiLevel}; sales background: ${names.salesExperience}; availability: ${names.availability}.`;
-    return {reply:language==='ar'?`شكراً، تم حفظ إجاباتك في قسم التوظيف الخاص: ${summary}\nأكمل طلبك وارفع سيرتك الذاتية لتكتمل بياناتك.`:`Thanks. Your answers are saved in the private recruitment review area: ${summary}\nComplete the application and upload your CV to finish your application.`,state:{...previous,language,step,greeted:true,answers},buttons:buttons([['apply_now',labels.apply],['talk_to_owner',labels.human],['main_menu',labels.menu]])};
+    step='awaiting_cv';
+    return {reply:language==='ar'?'شكراً، تم حفظ إجاباتك. أرسل سيرتك الذاتية هنا كملف PDF أو DOCX (حتى 8 ميغابايت). سنقدّم طلبك تلقائياً، وسيتواصل معك المؤسس قريباً للخطوات التالية.':'Thanks, your answers are saved. Send your CV here as a PDF or DOCX file (up to 8 MB). We’ll submit your application automatically, and the Founder will contact you soon about the next steps.',state:{...previous,language,step,greeted:true,answers},buttons:[]};
    }
    const question=screeningQuestion(step,language);
    return {reply:question.reply,state:{...previous,language,step,greeted:true,answers},buttons:question.buttons};
@@ -92,8 +91,8 @@ function recruitmentReply({message,state,facts,config={}}){
   const question=screeningQuestion(step,language);
   return {reply:question.reply,state:{...previous,language,step,greeted:true,answers:previous.answers||{}},buttons:question.buttons};
  }
- if(step==='screening_declined')return {reply:language==='ar'?'لم يتم حفظ إجابات الفرز. يمكنك التقديم عبر النموذج أو مراجعة تفاصيل الوظيفة.':'Screening answers were not saved. You can apply through the CV form or review the role details.',state:{...previous,language,greeted:true,answers:{}},buttons:buttons([['apply_now',labels.apply],['about_role',labels.role],['main_menu',labels.menu]])};
- if(step==='screen_complete')return {reply:(language==='ar'?'تم حفظ إجاباتك. استخدم الرابط لمراجعة بياناتك ورفع سيرتك الذاتية. سيتواصل معك مؤسس الشركة قريباً بشأن الخطوات التالية.':'Thanks, your answers are saved. Use the link to review your details and upload your CV. Our founder will contact you soon about the next steps.')+(previous.applicationUrl?`\n${previous.applicationUrl}`:''),state:{...previous,language,step,greeted:true,answers:previous.answers||{}},buttons:buttons([['apply_now',labels.apply],['talk_to_owner',labels.human],['main_menu',labels.menu]])};
+ if(step==='screening_declined')return {reply:language==='ar'?'لم يتم حفظ إجاباتك. يمكنك مراجعة تفاصيل الوظيفة أو التحدث مع المؤسس.':'Your answers were not saved. You can review the role or ask to speak with the Founder.',state:{...previous,language,greeted:true,answers:{}},buttons:buttons([['about_role',labels.role],['talk_to_founder',labels.human],['main_menu',labels.menu]])};
+ if(step==='screen_complete'||step==='awaiting_cv')return {reply:language==='ar'?'أرسل سيرتك الذاتية هنا كملف PDF أو DOCX (حتى 8 ميغابايت). سنكمل تقديم طلبك تلقائياً.':'Please send your CV here as a PDF or DOCX file (up to 8 MB). We’ll submit your application automatically.',state:{...previous,language,step:'awaiting_cv',greeted:true,answers:previous.answers||{}},buttons:[]};
  if(step==='welcome'){
   const base=text(config,'welcome',language,language==='ar'?'مرحباً بك!':'Hello and welcome!');
   const company=`${language==='ar'?'نحن':'We are'} Sitta Arbaa Sitta for Software Solutions (${language==='ar'?'السجل التجاري':'CR'} 251489), ${language==='ar'?'شركة برمجيات وتسويق مقرها قطر. طلب هو سوقنا الإلكتروني في قطر':'a Qatar-based software and marketing company. Talab is our marketplace app for Qatar'}.`;
@@ -111,14 +110,13 @@ function recruitmentReply({message,state,facts,config={}}){
   reply=language==='ar'?'نبحث عن مساعد مبيعات تقنية وبرمجيات عن بُعد في الهند. نحن نوفر العملاء المحتملين. ستتحدث مع أصحاب الأعمال، وتشرح SaleMaX، وتقدم عروضاً عبر Google Meet، وتتابع معهم لإتمام الاشتراك السنوي. سيدعمك مدير المبيعات في عملك اليومي. إجادة الإنجليزية مطلوبة؛ والهندية مفيدة لكنها اختيارية.':'We’re hiring a remote IT/SaaS Sales Associate in India. We provide the leads. You’ll talk with business owners, explain SaleMaX, give demos on Google Meet, and follow up to close yearly subscriptions. Our Sales Manager will support you. Strong English is required; Hindi is helpful but optional.';
   choices=buttons([['start_screening',labels.screening],['commission_details',labels.commission],['apply_now',labels.apply]]);
  }else if(step==='commission'){
-  reply=language==='ar'?'أول شهرين إلى ثلاثة أشهر فترة تجربة بالعمولة فقط، من دون راتب أساسي. نحن نوفر العملاء المحتملين. عن كل اشتراك سنوي مدفوع بقيمة 2500 ريال قطري، تحصل على 15% عمولة، أي 375 ريالاً قطرياً لكل عملية بيع. بعد التجربة، قد نعرض عليك وظيفة بدوام كامل براتب أساسي وعمولة، حسب الأداء والاتفاق بيننا.':'The first 2–3 months are a commission-only trial, with no base salary. We provide the leads. For each paid QAR 2,500 yearly subscription, you earn 15% commission — QAR 375 per sale. After the trial, we may offer a full-time role with a basic salary plus commission, depending on performance and mutual agreement.';
+  reply=language==='ar'?'الأشهر الثلاثة الأولى فترة تجربة بالعمولة فقط، من دون راتب أساسي. نحن نوفر العملاء المحتملين. عن كل اشتراك سنوي مدفوع بقيمة 2500 ريال قطري، تحصل على 15% عمولة، أي 375 ريالاً قطرياً لكل عملية بيع. بعد التجربة، قد نعرض عليك وظيفة بدوام كامل براتب أساسي وعمولة، حسب الأداء والاتفاق بيننا.':'The first three months are a commission-only trial, with no base salary. We provide the leads. For each paid QAR 2,500 yearly subscription, you earn 15% commission — QAR 375 per sale. After the trial, we may offer a full-time role with a basic salary plus commission, depending on performance and mutual agreement.';
   choices=buttons([['start_screening',labels.screening],['apply_now',labels.apply],['main_menu',labels.menu]]);
  }else if(step==='apply'){
-  const url=previous.applicationUrl||facts.find(item=>item.kind==='recruitment_application')?.url;
-  if(!url){reply=language==='ar'?'نموذج التقديم غير متاح مؤقتاً. يرجى طلب مساعدة المالك.':'The application form is temporarily unavailable. Please ask to speak with the owner.';choices=buttons([['talk_to_owner',labels.human],['main_menu',labels.menu]]);step='human';}
-  else{reply=language==='ar'?`للتقديم، أكمل النموذج وارفع سيرتك الذاتية من هنا:\n${url}\nنقبل ملفات PDF أو DOCX حتى 8 ميجابايت. سيصل طلبك إلى قسم Applications & CVs الخاص للمراجعة.`:`To apply, complete the form and upload your CV here:\n${url}\nWe accept PDF or DOCX files up to 8 MB. Your application will go to our private Applications & CVs review area.`;choices=buttons([['about_role',labels.role],['main_menu',labels.menu]]);}
+  if(previous.screeningConsent&&previous.answers?.fullName){reply=language==='ar'?'أرسل سيرتك الذاتية هنا كملف PDF أو DOCX (حتى 8 ميغابايت).':'Please send your CV here as a PDF or DOCX file (up to 8 MB).';step='awaiting_cv';}
+  else{const question=screeningQuestion('screen_consent',language);reply=question.reply;choices=question.buttons;step='screen_consent';}
  }else{
-  reply=language==='ar'?'سأطلب من مالك الشركة متابعة محادثتك. يمكنك أيضاً استكمال طلب التقديم من القائمة.':'I will ask the company owner to follow up in this chat. You can also continue your application from the menu.';
+  reply=language==='ar'?'سأبلغ المؤسس برغبتك في التحدث معه، وسيتواصل معك قريباً.':'I’ll let the Founder know you’d like to speak, and they’ll contact you soon.';
   choices=buttons([['apply_now',labels.apply],['main_menu',labels.menu]]);step='human';
  }
  return {reply,state:{...previous,language,step,greeted:true,answers:previous.answers||{}},buttons:choices};
