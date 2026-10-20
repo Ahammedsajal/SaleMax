@@ -17,8 +17,8 @@ test('dashboard includes native live WhatsApp bots and deduplicates the legacy l
     { title: 'Legacy bot', flow_id: 'flow-1' },
   ]);
   assert.equal(calls.length, 2);
-  assert.match(calls[1].sql, /p\.status='live'/);
-  assert.match(calls[1].sql, /a\.channel_kind IN \('whatsapp_meta','whatsapp_qr'\)/);
+  assert.match(calls[1].sql, /BINARY p\.status=BINARY 'live'/);
+  assert.match(calls[1].sql, /BINARY a\.channel_kind IN \(BINARY 'whatsapp_meta',BINARY 'whatsapp_qr'\)/);
   assert.deepEqual(calls[1].params, ['owner-uid']);
 });
 
@@ -31,10 +31,15 @@ test('dashboard avoids platform tables when platform features are disabled', asy
 });
 
 test('dashboard counts active QR and connected Meta WhatsApp channels', async () => {
-  let call;
-  const query = async (sql, params) => { call = { sql, params }; return [{ count: '2' }]; };
-  assert.equal(await countConnectedWhatsAppChannels(query, 'owner-uid'), 2);
-  assert.match(call.sql, /FROM instance WHERE uid=\? AND status='ACTIVE'/);
-  assert.match(call.sql, /FROM meta_api WHERE uid=\?/);
-  assert.deepEqual(call.params, ['owner-uid', 'owner-uid']);
+  const calls = [];
+  const query = async (sql, params) => {
+    calls.push({ sql, params });
+    return [{ count: sql.includes('FROM instance') ? '1' : '2' }];
+  };
+  assert.equal(await countConnectedWhatsAppChannels(query, 'owner-uid'), 3);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].sql, /COUNT\(DISTINCT uniqueId\).*FROM instance/s);
+  assert.match(calls[0].sql, /BINARY status=BINARY 'ACTIVE'/);
+  assert.match(calls[1].sql, /COUNT\(DISTINCT business_phone_number_id\).*FROM meta_api/s);
+  assert.deepEqual(calls.map(call=>call.params), [['owner-uid'], ['owner-uid']]);
 });
