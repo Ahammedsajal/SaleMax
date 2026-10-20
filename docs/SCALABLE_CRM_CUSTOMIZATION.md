@@ -203,3 +203,30 @@ reviewed per-tenant configuration rollback while preserving stored values. Do no
 blindly restore a previous database or silently erase business field history.
 
 Production: source `072ae58` is deployed in `lead-fields-072ae58-20261020`, derived from the current live release with eleven allowlisted changes. Live health and runtime/public asset hashes pass; primary local files are synchronized with verified backups. No migration or customer configuration write occurred. Signed-in live browser acceptance remains open; see DEPLOYMENT.md.
+
+
+## Shared Pipeline presentation contract — 20 October 2026
+
+The existing Pipeline now consumes `leadWorkspaceContract` from Board and Detail.
+The server resolves the owner UID through verified legacy ownership, active owner
+membership/identity and the exact registered category version. Workflow visibility
+uses the intersection of that manifest and its current matching plan. It is a
+presentation contract; existing workflow API authorization remains authoritative.
+No category is inferred from a missing mapping. Unmapped legacy businesses use
+shared contact controls and no training workflow shortcuts, without provisioning
+or rewriting their data.
+
+Sales/shared Add Lead omits learner, certificate, QID and other student-specific
+inputs, course/learning/payer qualification fields, and training enquiry choices.
+Shared contact, attribution, follow-up and tenant-defined typed fields remain.
+Training Center retains its existing controls. Course options, form creation and
+training sale review requests are made only when the verified workflow contract
+enables them. Historical submitted application snapshots remain readable even when
+new application creation is unavailable. Historical qualification values are
+preserved on edit when their category-specific inputs are absent.
+
+This closes the known Sales detail `CATEGORY_UNAVAILABLE` training-panel leak.
+It does not make the training registration schema generic or authorize medical,
+stock, property or reservation workflows. Typed custom fields still require
+reviewed form/bot/export/report adapters. No customer configuration or category
+assignment changes in this increment; no migration is needed.
