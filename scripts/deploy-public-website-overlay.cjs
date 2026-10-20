@@ -58,7 +58,7 @@ if (!/pipeline\.js(?:\?[^"']*)?["']/.test(html))
   throw Error("PIPELINE_CACHE_ANCHOR_CHANGED");
 html = html.replace(
   /pipeline\.js(?:\?[^"']*)?(?=["'])/g,
-  "pipeline.js?v=20261020-website1",
+  "pipeline.js?v=20261020-website2",
 );
 fs.writeFileSync(pipelineHtml, html);
 console.log("Public website overlay applied. Existing panel shell retained.");
