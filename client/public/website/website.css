@@ -2320,3 +2320,135 @@ nav {
     padding: 2px 5px;
   }
 }
+/* One shared CRM core, two subscription periods. */
+.plans-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 1060px;
+  margin: 35px auto 0;
+  align-items: stretch;
+  gap: 25px;
+}
+.plan-card {
+  padding: 36px;
+  gap: 18px;
+  position: relative;
+  border-radius: 17px;
+}
+.plan-featured {
+  border: 2px solid var(--wine);
+  background: linear-gradient(150deg, #fffdfb, #f9eef3);
+  box-shadow: 0 18px 45px #76224310;
+}
+.plan-kind {
+  min-height: 19px;
+}
+.plan-featured .plan-kind {
+  background: var(--wine);
+  color: white;
+  border-radius: 30px;
+  padding: 5px 12px;
+  align-self: flex-start;
+}
+.plan-card .plan-price {
+  font-size: 46px;
+  margin-top: 3px;
+  line-height: 1.15;
+}
+.plan-card h3 {
+  font-size: 30px;
+}
+.plan-intro {
+  font-size: 13px;
+  line-height: 1.8;
+  max-width: 350px;
+}
+.plan-features-label {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  color: var(--wine);
+  font-weight: 700;
+  border-top: 1px solid var(--line);
+  padding-top: 22px;
+  margin-top: 4px;
+}
+.plan-card ul {
+  gap: 13px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.plan-card .button {
+  margin-top: 10px;
+  padding-block: 16px;
+}
+.plan-card .text-link {
+  justify-content: center;
+  margin-top: 0;
+}
+.plan-saving,
+.plan-flexibility {
+  font-size: 12px;
+  line-height: 1.7;
+  min-height: 40px;
+  color: var(--wine);
+}
+.plan-saving {
+  font-weight: 650;
+}
+.plan-customization {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  padding: 32px;
+  background: #ede5e5;
+  border: 1px solid #e5d7dd;
+  border-radius: 13px;
+  margin-top: 30px;
+}
+.plan-customization > div {
+  max-width: 750px;
+}
+.plan-customization h3 {
+  font-size: 25px;
+  margin-bottom: 15px;
+}
+.plan-customization p:not(.eyebrow) {
+  font-size: 13px;
+  line-height: 1.9;
+}
+.plan-customization .eyebrow {
+  margin-bottom: 12px;
+  font-size: 9px;
+}
+.plan-customization .button {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+#plans-note {
+  max-width: 1000px;
+  margin-inline: auto;
+  line-height: 1.9;
+  font-size: 11px;
+}
+@media (max-width: 700px) {
+  .plans-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .plan-card {
+    padding: 28px;
+  }
+  .plan-customization {
+    display: block;
+    padding: 26px;
+  }
+  .plan-customization .button {
+    margin-top: 24px;
+  }
+  .plan-card .plan-price {
+    font-size: 40px;
+  }
+  .plan-customization h3 {
+    font-size: 25px;
+  }
+}

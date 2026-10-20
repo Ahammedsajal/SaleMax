@@ -36,80 +36,120 @@
     if (!catalogue) return;
     planGrid.replaceChildren();
     const ar = language === "ar";
-    for (const plan of catalogue) {
+    const selected = window.SaleMaXPlans.select(catalogue);
+    const monthly = selected.find(
+      (p) => Number(p.plan_duration_in_days) === 30,
+    );
+    const yearly = selected.find(
+      (p) => Number(p.plan_duration_in_days) === 365,
+    );
+    const saving = window.SaleMaXPlans.savings(monthly, yearly);
+    const money = (value) =>
+      new Intl.NumberFormat(ar ? "ar-QA" : "en-QA", {
+        style: "currency",
+        currency: planCurrency,
+        maximumFractionDigits: 2,
+      }).format(Number(value));
+    if (!selected.length) {
+      planGrid.textContent = ar
+        ? "تواصل معنا لمعرفة الخطط المتاحة."
+        : "Contact us for available plans.";
+      return;
+    }
+    for (const plan of selected) {
+      const annual = Number(plan.plan_duration_in_days) === 365;
       const card = document.createElement("article");
-      card.className = "plan-card";
+      card.className = "plan-card" + (annual ? " plan-featured" : "");
       card.dataset.planId = String(plan.id);
-      const element = (tag, value, className) => {
+      const element = (tag, text, cls) => {
         const node = document.createElement(tag);
-        node.textContent = value;
-        if (className) node.className = className;
+        node.textContent = text;
+        if (cls) node.className = cls;
         card.append(node);
         return node;
       };
       element(
         "p",
-        Number(plan.is_trial)
+        annual
           ? ar
-            ? "خطة تجريبية"
-            : "Trial plan"
+            ? "أفضل قيمة"
+            : "BEST VALUE"
           : ar
-            ? "خطة اشتراك"
-            : "Subscription plan",
+            ? "مرونة الدفع"
+            : "FLEXIBLE START",
         "plan-kind",
       );
-      element("h3", String(plan.title));
       element(
-        "p",
-        new Intl.NumberFormat(ar ? "ar-QA" : "en-QA", {
-          style: "currency",
-          currency: planCurrency,
-          maximumFractionDigits: 2,
-        }).format(Number(plan.price)),
-        "plan-price",
+        "h3",
+        annual
+          ? ar
+            ? "CRM سنوي"
+            : "Yearly CRM"
+          : ar
+            ? "CRM شهري"
+            : "Monthly CRM",
       );
       element(
         "p",
         ar
-          ? `لمدة ${plan.plan_duration_in_days} يوماً`
-          : `For ${plan.plan_duration_in_days} days`,
+          ? "نفس أساس CRM. اختر فترة اشتراكك."
+          : "The same CRM foundation. Your choice of billing period.",
+        "plan-intro",
+      );
+      element("p", money(plan.price), "plan-price");
+      element(
+        "p",
+        annual
+          ? ar
+            ? "دفعة واحدة لمدة 365 يوماً"
+            : "One payment for 365 days"
+          : ar
+            ? "دفعة واحدة لمدة 30 يوماً"
+            : "One payment for 30 days",
         "plan-duration",
       );
+      if (annual && saving)
+        element(
+          "p",
+          ar
+            ? `وفّر ${money(saving.amount)} مقارنة بـ 12 فترة شهرية`
+            : `Save ${money(saving.amount)} compared with 12 monthly periods`,
+          "plan-saving",
+        );
+      else
+        element(
+          "p",
+          ar
+            ? "ابدأ بفترة اشتراك شهرية"
+            : "Start with a monthly subscription period",
+          "plan-flexibility",
+        );
+      element(
+        "p",
+        ar ? "الميزات الأساسية في كلتا الخطتين" : "SHARED CORE IN BOTH PLANS",
+        "plan-features-label",
+      );
       const list = element("ul", "");
-      const features = [
-        ar
-          ? `${plan.contact_limit} جهة اتصال`
-          : `${new Intl.NumberFormat("en").format(Number(plan.contact_limit))} contacts`,
-        ar ? `${plan.qr_account} حسابات QR` : `${plan.qr_account} QR accounts`,
-      ];
-      if (Number(plan.allow_chatbot))
-        features.push(ar ? "روبوت المحادثة" : "Chatbot");
-      if (Number(plan.allow_note))
-        features.push(ar ? "ملاحظات العملاء" : "Customer notes");
-      if (Number(plan.allow_tag))
-        features.push(ar ? "وسوم جهات الاتصال" : "Contact tags");
-      if (Number(plan.allow_api))
-        features.push(ar ? "وصول Cloud API" : "Cloud API access");
-      features.forEach((text) => {
+      for (const feature of window.SaleMaXPlans.features) {
         const li = document.createElement("li");
-        li.textContent = text;
+        li.textContent = feature[ar ? "ar" : "en"];
         list.append(li);
-      });
+      }
       const checkout = element(
         "a",
-        Number(plan.is_trial)
+        annual
           ? ar
-            ? "ابدأ التجربة ↗"
-            : "Start trial ↗"
+            ? "اختر السنوي ↗"
+            : "Choose yearly ↗"
           : ar
-            ? "ابدأ الآن ↗"
-            : "Get started ↗",
-        "button button-dark",
+            ? "اختر الشهري ↗"
+            : "Choose monthly ↗",
+        "button " + (annual ? "" : "button-dark"),
       );
       checkout.href = "/user/checkout?product=" + encodeURIComponent(plan.id);
       const link = element(
         "a",
-        ar ? "ناقش هذه الخطة ↗" : "Discuss this plan ↗",
+        ar ? "ناقش تخصيص CRM لأعمالك ↗" : "Discuss your CRM setup ↗",
         "text-link",
       );
       link.href = "#contact";
@@ -117,13 +157,14 @@
         const content = document.getElementById("content");
         if (!content.value)
           content.value = ar
-            ? `أرغب في مناقشة خطة ${plan.title} (رقم ${plan.id}).`
-            : `I'd like to discuss ${plan.title} (plan #${plan.id}).`;
-        document.getElementById("solution").value = "other";
+            ? `أرغب في مناقشة خطة ${plan.title} وتخصيص CRM لنشاطي.`
+            : `I'd like to discuss ${plan.title} and a CRM setup for my industry.`;
+        document.getElementById("solution").value = "custom";
       });
       planGrid.append(card);
     }
   }
+
   Promise.all([
     fetch("/api/admin/get_plans").then((r) => r.json()),
     fetch("/api/web/get_web_public").then((r) => r.json()),
