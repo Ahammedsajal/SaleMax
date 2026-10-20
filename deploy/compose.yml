@@ -73,6 +73,22 @@ services:
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
+  recruitment-founder-notification-worker:
+    image: salemax-app:latest
+    command: ["node", "scripts/recruitment-founder-notification-worker.cjs"]
+    restart: unless-stopped
+    init: true
+    env_file: /opt/salemax/shared/runtime.env
+    environment:
+      SALEMAX_RECRUITMENT_FOUNDER_WORKER_ENABLED: "true"
+      SALEMAX_RECRUITMENT_FOUNDER_INTERVAL_MS: "30000"
+    depends_on:
+      db: {condition: service_healthy}
+    mem_limit: 128m
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
 
 networks:
   default: {}
