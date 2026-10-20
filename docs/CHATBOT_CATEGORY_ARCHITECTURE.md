@@ -45,3 +45,5 @@ a message. Legacy multi-node flow execution still needs its own per-node authori
 and outbox/lease acceptance audit; checking dispatch does not establish that every
 later node revalidates automatically. Tenant-defined bot capture and generic pack
 adoption remain separate implementation work.
+
+Production: `7672d59` is live in `bot-runtime-access-7672d59-20261020`. Thirty-seven focused checks and actual runtime/shared-auth/MariaDB integration pass. The existing live owner still qualifies; health and exact two-file runtime parity pass. No bot configuration, migration or provider message was changed. See DEPLOYMENT.md for rollback and remaining gates.
