@@ -115,7 +115,7 @@ function recruitmentReply({message,state,facts,config={}}){
   choices=buttons([['start_screening',labels.screening],['apply_now',labels.apply],['main_menu',labels.menu]]);
  }else if(step==='apply'){
   const url=previous.applicationUrl||facts.find(item=>item.kind==='recruitment_application')?.url;
-  if(!url){reply=language==='ar'?'نموذج التقديم غير متاح مؤقتاً. يرجى طلب التحدث إلى المؤسس.':'The application form is temporarily unavailable. Please ask to speak with the Founder.';choices=buttons([['talk_to_owner',labels.human],['main_menu',labels.menu]]);step='human';}
+  if(!url){reply=language==='ar'?'نموذج التقديم غير متاح مؤقتاً. يرجى طلب التحدث إلى المؤسس.':'The application form is temporarily unavailable. Please ask to speak with the Founder.';choices=buttons([['talk_to_founder',labels.human],['main_menu',labels.menu]]);step='human';}
   else{reply=language==='ar'?`للتقديم، أكمل النموذج وارفع سيرتك الذاتية من هنا:\n${url}\nنقبل ملفات PDF أو DOCX حتى 8 ميجابايت. سيصل طلبك إلى قسم Applications & CVs الخاص للمراجعة.`:`To apply, complete the form and upload your CV here:\n${url}\nWe accept PDF or DOCX files up to 8 MB. Your application will go to our private Applications & CVs review area.`;choices=buttons([['about_role',labels.role],['main_menu',labels.menu]]);}
  }else if(step==='human'){
   const answers=previous.answers||{};

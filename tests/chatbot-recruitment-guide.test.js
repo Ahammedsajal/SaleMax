@@ -93,11 +93,16 @@ test('declining screening consent leaves answers empty and offers the applicatio
   assert.ok(result.buttons.some(button=>button.id==='apply_now'));
 });
 
-test('Founder request uses the new label and queues consented screening details for manual handoff',()=>{
+test('Founder request uses the new label and queues all consented screening details for handoff',()=>{
   const state={step:'screen_complete',screeningConsent:true,answers:{fullName:'Asha Candidate',whatsappNumber:'+919876543210',email:'asha@example.in',totalExperienceRange:'3+',salesExperienceYears:'1-2'}};
   const result=recruitmentReply({message:'Talk to the Founder',state,facts:{}});
-  assert.equal(result.state.step,'human');assert.equal(result.handoff,true);assert.deepEqual(result.founderNotification.answers,state.answers);
-  assert.match(result.reply,/Founder/);assert.ok(result.buttons.every(button=>button.id!=='talk_to_owner'));
+  assert.equal(result.state.step,'human');
+  assert.equal(result.handoff,true);
+  assert.deepEqual(result.founderNotification.answers,state.answers);
+  assert.match(result.reply,/Founder/);
+  assert.ok(result.buttons.every(button=>button.id!=='talk_to_owner'));
   const noConsent=recruitmentReply({message:'Talk to the Founder',state:{step:'role',screeningConsent:false,answers:{}},facts:{}});
-  assert.equal(noConsent.founderNotification,undefined);assert.match(noConsent.reply,/quick questions/);assert.ok(noConsent.buttons.some(button=>button.id==='start_screening'));
+  assert.equal(noConsent.founderNotification,undefined);
+  assert.match(noConsent.reply,/quick questions/);
+  assert.ok(noConsent.buttons.some(button=>button.id==='start_screening'));
 });
