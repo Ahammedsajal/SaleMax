@@ -2,8 +2,6 @@
 const crypto = require('node:crypto');
 const dbPool = require('../../database/config').promise();
 const { query } = require('../../database/dbpromise');
-const { getCategory, supportsCategoryCapability } = require('./categories');
-const { decision } = require('./policy');
 const secrets = require('./chatbot-secrets');
 const provider = require('./chatbot-provider');
 const { shouldPause } = require('./chatbot-conversation-control');
@@ -41,33 +39,12 @@ async function loadApprovedFaqs(tenantId) {
   } finally { db.release(); }
 }
 
-async function resolveTenant(uid) {
-  const uidHash = crypto.createHash('sha256').update(uid).digest('hex');
-  const rows = await query(`SELECT t.id AS tenantId,t.slug AS tenantSlug,t.category_key AS categoryKey,t.category_version AS categoryVersion,t.status AS tenantStatus,
-      m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.delegated_permissions AS delegatedPermissions,
-      i.status AS identityStatus,a.status AS planStatus,pv.capabilities
-    FROM sx_legacy_ownership o JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED)
-    JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
-    JOIN sx_identities i ON i.id=m.identity_id
-    LEFT JOIN sx_plan_assignments a ON a.tenant_id=t.id AND a.status IN ('active','trial','grace')
-    LEFT JOIN sx_plan_versions pv ON pv.id=a.plan_version_id
-    WHERE o.source_table='user' AND u.uid=? AND o.legacy_uid_hash=? AND u.role='user' LIMIT 2`, [uid, uidHash]);
-  if (rows.length !== 1) return null;
-  const row = rows[0], category = getCategory(row.categoryKey, Number(row.categoryVersion));
-  if (!category?.planable || !supportsCategoryCapability(category, 'automation.chatbot')) return null;
-  let capabilities = [];
-  try { capabilities = typeof row.capabilities === 'string' ? JSON.parse(row.capabilities) : row.capabilities || []; } catch { return null; }
-  let delegatedPermissions = [];
-  try { delegatedPermissions = typeof row.delegatedPermissions === 'string' ? JSON.parse(row.delegatedPermissions) : row.delegatedPermissions || []; } catch { delegatedPermissions = []; }
-  const context = {
-    audience: 'tenant', identity: { id: row.identityId, status: row.identityStatus },
-    tenant: { id: row.tenantId, slug: row.tenantSlug, status: row.tenantStatus, categoryKey: row.categoryKey, categoryVersion: Number(row.categoryVersion) },
-    membership: { id: row.membershipId, tenantId: row.tenantId, role: row.role, status: row.membershipStatus, delegatedPermissions },
-    category, subscription: { status: row.planStatus, capabilities }, runtimeReady: {}
-  };
-  const gate = decision(context, { capability: 'automation.chatbot', permission: 'automation.manage' });
-  return gate.allowed ? context : null;
+async function currentOwnerAccess(uid) {
+  const db=await dbPool.getConnection();
+  try{return await require('./chatbot-runtime-access').resolveOwnerAccess(db,uid);}
+  finally{db.release();}
 }
+async function resolveTenant(uid) {return (await currentOwnerAccess(uid)).context;}
 
 async function claimTurn(ctx, profile, message, chatId) {
   const providerMessageId = String(message?.metaChatId || '').trim();
@@ -164,6 +141,7 @@ async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin,
     }
     if(introId&&channelKind&&await claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef:sessionId})){
       const intro=await loadGuidedFlow(uid,introId);if(!intro)return false;
+      if(!await canSendNow({ctx,profile,uid,origin,sessionId,chatId,message}))return false;
       const {processFlow}=require('../../automation/automation'),flowSessionId=executionFlowId(profile);
       await processFlow({nodes:intro.nodes,edges:intro.edges,uid,flowId:flowSessionId,message,incomingText:textOf(message),user,sessionId,origin,chatId,element:{...intro,flow_id:flowSessionId},loopDetection:{visitedNodes:new Map(),startTime:Date.now()}});
       return true;
@@ -172,6 +150,7 @@ async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin,
   }
   const flow = await loadGuidedFlow(uid, profile.config?.flowId);
   if (!flow) return false;
+  if(!await canSendNow({ctx,profile,uid,origin,sessionId,chatId,message}))return false;
   const { processFlow } = require('../../automation/automation');
   // Legacy flow_session keys omit the connected channel and profile ID. Give
   // each profile/channel pair its own opaque execution ID to prevent a shared
@@ -339,7 +318,9 @@ async function saveConversationalState({ ctx, profile, chatId, channelKind, chan
 }
 
 async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message }) {
-  const current = await profileFor(ctx, uid, origin, sessionId);
+  const access=await currentOwnerAccess(uid);
+  if(!require('./chatbot-runtime-access').sameBoundary(ctx,access.context))return false;
+  const current = await profileFor(access.context, uid, origin, sessionId);
   return current?.id === profile.id && Number(current.revision) === Number(profile.revision)
     && recipientAllowed(current.config, message?.senderMobile)
     && !await shouldPause(uid, chatId, channelFor(origin), sessionId);
@@ -545,8 +526,11 @@ async function finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,c
 
 async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId }) {
   if (!uid || !chatId || message?.route !== 'INCOMING') return { handled: false };
-  const ctx = await resolveTenant(uid);
-  if (!ctx) return { handled: false };
+  const access=await currentOwnerAccess(uid),ctx=access.context;
+  if(!ctx){
+    const blocked=await require('./chatbot-runtime-access').blocksFallback(dbPool,access,channelFor(origin),sessionId);
+    return blocked?{handled:true,paused:true,code:access.code||'BUSINESS_ACCESS_INACTIVE'}:{handled:false};
+  }
   const profile = await profileFor(ctx, uid, origin, sessionId);
   if (!profile) return { handled: false };
   // A restricted chat is handled silently so it cannot fall through to legacy bots.
@@ -620,4 +604,4 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
 }
 
-module.exports = { runConfiguredBot, previewConfiguredBot, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId };
+module.exports = { canSendNow, runConfiguredBot, previewConfiguredBot, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId };

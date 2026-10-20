@@ -21,3 +21,27 @@ Register an immutable `{category key, version}` pack with a display title, allow
 ## Current acceptance boundary
 
 The Training Center pack and editor are implemented. The existing channel adapter, permissions, profile APIs, provider adapter, preview, number assignments, and per-conversation pause routes are integrated. A real provider key, connected WhatsApp number, inbound message, and live-provider response must be configured and verified before claiming end-to-end customer delivery; never activate or alter a live bot merely as a test.
+
+
+## Current bot authority at dispatch and send — 20 October 2026
+
+Bot runtime owner resolution now reuses the shared business context and current
+published-plan entitlement loader. Exact owner UID/tenant membership, active
+identity, category/version, current assignment period, capability and configured
+navigation restrictions are checked before resolving a bot. An expired historical
+assignment cannot grant access merely because its status still says active.
+
+Direct reply/media checks refresh this authority and require the same tenant,
+category/version, owner identity/membership and plan-assignment identity as the
+turn's starting context. Flow dispatch is checked before invoking the existing
+executor. A denied live bot assignment consumes that channel's inbound adapter
+silently rather than falling through to an unrelated legacy flow. Unmapped legacy
+accounts and channels without a live configured bot retain their existing flow
+path. The check is scoped to the assigned tenant/channel/profile; no bot is
+activated or customer configuration changed by this code update.
+
+This is an authorization boundary, not proof of recall after a provider accepted
+a message. Legacy multi-node flow execution still needs its own per-node authority
+and outbox/lease acceptance audit; checking dispatch does not establish that every
+later node revalidates automatically. Tenant-defined bot capture and generic pack
+adoption remain separate implementation work.
