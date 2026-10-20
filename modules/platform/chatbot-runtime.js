@@ -282,7 +282,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       }
     }
     if(ctx.category.key==='salemax_sales'&&reply.notifyRecruiter){
-      await require('./recruitment-founder-notifications').enqueue(db,{tenantId:ctx.tenant.id,profileId:profile.id,channelKind,channelRef:sessionId,conversationId:chatId,inboundMessageId:String(message.metaChatId||`recruiter:${chatId}:${Date.now()}`),payload:{answers:{fullName:message.senderName||'Not provided',whatsappNumber:message.senderMobile||'Not provided',contactNumber:message.senderMobile||'Not provided'},whatsappNumber:message.senderMobile||'Not provided',senderName:message.senderName||'Candidate',source:'Candidate requested the recruiter'}});
+      await require('./recruitment-founder-notifications').enqueue(db,{tenantId:ctx.tenant.id,profileId:profile.id,channelKind,channelRef:sessionId,conversationId:chatId,inboundMessageId:String(message.metaChatId||`recruiter:${chatId}:${Date.now()}`),payload:{answers:{...(reply.state.answers||{}),fullName:reply.state.answers?.fullName||message.senderName||'Not provided',whatsappNumber:reply.state.answers?.whatsappNumber||message.senderMobile||'Not provided',contactNumber:reply.state.answers?.contactNumber||message.senderMobile||'Not provided'},whatsappNumber:reply.state.answers?.whatsappNumber||message.senderMobile||'Not provided',senderName:reply.state.answers?.fullName||message.senderName||'Candidate',source:'Candidate requested the recruiter'}});
     }
     await db.commit();
   } catch (error) {
