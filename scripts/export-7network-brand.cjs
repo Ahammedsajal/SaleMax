@@ -26,7 +26,7 @@ async function main() {
   const dataUri = (buffer) => `data:image/png;base64,${buffer.toString('base64')}`;
   const composedSource = source.replace('icon-source.png', dataUri(hero)).replace('globe-no7-source.png', dataUri(globe));
   const lightSvg = Buffer.from(composedSource);
-  const darkSvg = Buffer.from(composedSource.replace(/fill="#102A4C"/g, 'fill="#F5F9FF"'));
+  const darkSvg = Buffer.from(composedSource.replace(/fill="#071A33"/g, 'fill="#FFFFFF"'));
   const logoBuffer = await sharp(lightSvg).ensureAlpha().png().toBuffer();
   const darkLogoBuffer = await sharp(darkSvg).ensureAlpha().png().toBuffer();
   const logo = sharp(logoBuffer).trim().extend({
@@ -99,8 +99,8 @@ async function main() {
     id: '/', start_url: '/', scope: '/', display: 'standalone',
     theme_color: '#081630', background_color: '#081630',
     icons: [192, 512].flatMap(size => [
-      { src: `/branding/7network/icon-${size}.png?v=20261021-2`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
-      { src: `/branding/7network/maskable-${size}.png?v=20261021-2`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
+      { src: `/branding/7network/icon-${size}.png?v=20261022-clear1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
+      { src: `/branding/7network/maskable-${size}.png?v=20261022-clear1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
     ]),
   };
   const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
