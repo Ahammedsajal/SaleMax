@@ -26,7 +26,7 @@
   width: 142px;
   height: 48px;
   margin-bottom: 26px;
-  background: url('/media/7network-logo.png?v=20261022-clear1') left center / contain no-repeat;
+  background: url('/media/7network-logo.png?v=20261021-final-horizontal1') left center / contain no-repeat;
 }
 #sx-team-screen[data-accept="1"][dir="rtl"] .card::before { background-position: right center; }
 #sx-team-screen[data-accept="1"] h1 { font-size: 26px; line-height: 1.3; letter-spacing: -.5px; margin: 0 0 12px; }

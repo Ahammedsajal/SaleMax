@@ -22,7 +22,9 @@ test('registry rejects duplicate identity, unknown capabilities, invalid roles a
     {planable:'yes'},{capabilities:['unknown.feature']},{capabilities:['messaging.inbox','messaging.inbox']},
     {seatRoles:['agent']},{seatRoles:['owner','super_admin']},{migration:'../schema.sql'},
     {chatbotLeadCapture:'unreviewed'},{chatbotLeadCapture:'generic',capabilities:['messaging.inbox']},
-    {chatbotLeadCapture:'training',capabilities:['messaging.inbox','crm.leads']}]) {
+    {chatbotLeadCapture:'training',capabilities:['messaging.inbox','crm.leads']},
+    {taskAdapters:{unknown:1}},{taskAdapters:{sales_call:1},capabilities:['messaging.inbox','team.tasks']},
+    {taskAdapters:{sales_call:2}}]) {
     assert.throws(()=>createCategoryRegistry([{...trainingCenter,...patch}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
   }
 });

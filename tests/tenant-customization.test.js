@@ -8,7 +8,7 @@ const doc={schemaVersion:1,navigationLabels:{courses:{en:'Programmes',ar:'الب
 test('label customization is bounded, category-scoped data rather than executable configuration',()=>{
   assert.deepEqual(settings.preview(ctx,doc),{readOnly:true,document:doc});
   const source=structuredClone(doc),normalized=settings.normalize(ctx,source);source.navigationLabels.courses.en='Changed';assert.equal(normalized.navigationLabels.courses.en,'Programmes');
-  for(const value of [{...doc,tenantId:'other'},{...doc,schemaVersion:4},{...doc,disabledCapabilities:[]},{schemaVersion:1,navigationLabels:{recruitment:{en:'Recruitment',ar:'توظيف'}}},{schemaVersion:1,navigationLabels:{'products-services':{en:'Products',ar:'منتجات'}}},{schemaVersion:1,navigationLabels:{courses:{en:'<script>',ar:'الدورات'}}},JSON.parse('{"schemaVersion":1,"navigationLabels":{"__proto__":{"en":"x","ar":"x"}}}')])assert.throws(()=>settings.normalize(ctx,value));
+  for(const value of [{...doc,tenantId:'other'},{...doc,schemaVersion:5},{...doc,disabledCapabilities:[]},{schemaVersion:1,navigationLabels:{recruitment:{en:'Recruitment',ar:'توظيف'}}},{schemaVersion:1,navigationLabels:{'products-services':{en:'Products',ar:'منتجات'}}},{schemaVersion:1,navigationLabels:{courses:{en:'<script>',ar:'الدورات'}}},JSON.parse('{"schemaVersion":1,"navigationLabels":{"__proto__":{"en":"x","ar":"x"}}}')])assert.throws(()=>settings.normalize(ctx,value));
   assert.throws(()=>settings.normalize({...ctx,category:salemaxSales},{schemaVersion:1,navigationLabels:{courses:{en:'Courses',ar:'دورات'}}}),{code:'INVALID_CUSTOMIZATION_LABEL'});
 });
 test('preview cannot grant access and denied staff never reach persistence',async()=>{
@@ -36,6 +36,13 @@ test('schema 3 hides only category-owned navigation keys while schema 1 and 2 re
   const rows=[{key:'inbox'},{key:'courses'},{key:'tasks'}];
   assert.deepEqual(settings.visibleNavigation(rows,doc3),[{key:'tasks'}]);
   assert.deepEqual(settings.visibleNavigation(rows,{schemaVersion:2}),rows);
+});
+test('schema 4 enables only reviewed category task types and preserves legacy configuration schemas',()=>{
+  const doc4={schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:['enrollment','invoice_follow_up']};
+  assert.deepEqual(settings.normalize(ctx,doc4),doc4);
+  assert.throws(()=>settings.normalize(ctx,{...doc4,enabledTaskTypes:['sales_call']}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
+  assert.throws(()=>settings.normalize(ctx,{...doc4,enabledTaskTypes:['enrollment','enrollment']}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
+  assert.deepEqual(settings.normalize(ctx,{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]}),{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]});
 });
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');

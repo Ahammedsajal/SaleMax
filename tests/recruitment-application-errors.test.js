@@ -17,6 +17,19 @@ test('public recruitment errors show a safe exact cause without exposing interna
   assert.equal(publicSubmissionError(Object.assign(new Error('wrong origin'),{code:'ORIGIN_DENIED',status:403})).status,403);
 });
 
+test('oversized CV parser errors stay on the applicant upload-error path with exact safe cause',()=>{
+  const parserError=Object.assign(new Error('private upload parser detail'),{code:'LIMIT_FILE_SIZE'});
+  const result=publicSubmissionError(parserError);
+  assert.equal(result.status,413);
+  assert.deepEqual(result.body,{success:false,code:'INVALID_CV_FILE',diagnosticCode:'LIMIT_FILE_SIZE'});
+  assert.equal(format(result.body.code,result.body.diagnosticCode), 'Your CV is larger than 8 MB. Please choose a smaller file and try again. [Cause: The CV is larger than the 8 MB limit (LIMIT_FILE_SIZE)]');
+  assert.doesNotMatch(JSON.stringify(result),/private upload parser detail/);
+
+  const validationError=Object.assign(new Error('private validator detail'),{code:'INVALID_CV_FILE',status:413});
+  assert.deepEqual(publicSubmissionError(validationError).body,{success:false,code:'INVALID_CV_FILE',diagnosticCode:'HTTP_413'});
+  assert.equal(format('INVALID_CV_FILE','HTTP_413'), 'Your CV could not be uploaded. Please choose a file under 8 MB and try again. [Cause: The CV upload exceeded the allowed request size (HTTP_413)]');
+});
+
 test('applicants receive plain-language guidance and an exact safe cause for technical failures',()=>{
   assert.equal(format('RECRUITMENT_UNAVAILABLE','ER_BAD_FIELD_ERROR'), 'We could not send your application just now. Please try again. If it still does not work, contact the 7Network recruitment team and include the cause shown in brackets. [Cause: The application details could not be saved (ER_BAD_FIELD_ERROR)]');
   assert.equal(format('RECRUITMENT_UNAVAILABLE','ECONNREFUSED','ar'), 'تعذر إرسال طلبك الآن. يرجى المحاولة مرة أخرى. إذا لم ينجح ذلك، تواصل مع فريق التوظيف في 7Network وأرسل لهم السبب الظاهر بين القوسين. [السبب: رفضت خدمة التقديم الاتصال (ECONNREFUSED)]');

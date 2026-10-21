@@ -24,3 +24,13 @@
   border-top:1px solid #e5eaf0;
   box-shadow:0 -8px 14px #fff;
 }
+
+/* Standard fields in the mobile form editor keep a reliable touch height. */
+@media(max-width:650px){
+  #sx-form-editor .sx-form-grid input:not([type="checkbox"]):not([type="hidden"]){
+    box-sizing:border-box;min-height:44px;height:44px
+  }
+  #sx-form-editor .sx-form-grid textarea{
+    box-sizing:border-box;min-height:78px
+  }
+}
