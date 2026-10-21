@@ -52,6 +52,19 @@ paths in the inventory, then close route-by-route category/tenant policy gaps
 before enabling additional categories. This is not completion of the broader
 42-ticket CRM program.
 
+## Recruitment CV upload error mapping — source correction, 21 October 2026
+
+The current source maps upload-parser file-size errors (`LIMIT_FILE_SIZE`) to
+the same clear 8 MB CV guidance used by form validation, while keeping the safe
+cause code in brackets and withholding raw server details. Production was
+rechecked against its active release on 21 October: its helper and public error
+asset are older and do not include that mapping, despite the earlier diagnostic
+release record below. The public asset version is bumped so browsers fetch the
+corrected helper when a release is made. No production files or applicant data
+were changed; production currently has 1.7 GB free, so an app-image deployment
+is deferred until capacity is safely available. Focused tests cover both parser
+error mapping and the customer-facing English/Arabic messages.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language

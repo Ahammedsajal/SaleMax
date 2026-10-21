@@ -19,8 +19,8 @@ test('public recruitment page identifies 7Network as the hiring company without 
   assert.match(applicationErrors,/\[\$\{ar\?'السبب':'Cause'\}: \$\{detail\}\]/);
   assert.match(application,/HTTP_\$\{response\.status\}/);
   assert.doesNotMatch(application,/Sitta Arbaa Sitta|registered company name|Commercial Registration/);
-  assert.match(applicationHtml,/recruitment-application-errors\.js\?v=20261021-error-copy-1/);
-  assert.match(applicationHtml,/recruitment-application\.js\?v=20261021-error-copy-1/);
+  assert.match(applicationHtml,/recruitment-application-errors\.js\?v=20261021-error-copy-2/);
+  assert.match(applicationHtml,/recruitment-application\.js\?v=20261021-error-copy-2/);
   const recruiter=fs.readFileSync(path.join(root,'modules/platform/recruitment-router.js'),'utf8');
   assert.match(recruiter,/work with the 7Network Sales Manager/);
   assert.match(recruiter,/15% of each paid QAR 2,500 annual subscription \(approximately INR 9,000–9,800 per paid sale\)/);
