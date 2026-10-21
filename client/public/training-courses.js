@@ -192,7 +192,7 @@
     if(token!==navToken){navToken=token;navAllowed=false;navChecked=false;document.querySelector('[data-sx-course-nav]')?.remove();}
     if(navLoading||navChecked)return;
     navLoading=true;
-    try{const access=await window.SaleMaxWorkspace.session();products=access.categoryKey==='7network_sales';rootPath=products?'/api/workspace/products-services':'/api/workspace/courses';if(!(products?access.modules.products:access.modules.courses))throw Error('FEATURE_UNAVAILABLE');if((getToken()||'canonical-session')===token){navAllowed=true;addNav();}}
+    try{const access=await window.SaleMaxWorkspace.session();products=access.quickReplyCatalog==='products';rootPath=products?'/api/workspace/products-services':'/api/workspace/courses';if(!(products?access.modules.products:access.modules.courses))throw Error('FEATURE_UNAVAILABLE');if((getToken()||'canonical-session')===token){navAllowed=true;addNav();}}
     catch{navAllowed=false;}
     finally{if((getToken()||'canonical-session')===token)navChecked=true;navLoading=false;}
   }

@@ -1952,3 +1952,9 @@ clinic appointments. Those need reviewed domain contracts and isolated data
 models before a category is offered. Production was inspected read-only; the
 active root filesystem is 99% full (848 MB free), so this change is source only
 and was not deployed. Full TC00–TC41 and release acceptance remain open.
+
+The existing catalogue client also used a `7network_sales` category-key check
+to select the product view. It now follows the server's plan-checked catalogue
+adapter, and a `future_retail` fixture verifies adapter-based selection in the
+existing hook. This supports a reviewed future product-category integration
+without granting or exposing a new category.

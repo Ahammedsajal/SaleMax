@@ -793,3 +793,12 @@ Production was inspected read-only at
 `/opt/salemax/releases/recruitment-customer-guidance-5ab3315-20261022`; the root
 filesystem has 848 MB free (99% used). This source-only router correction is not
 deployed. Recheck capacity and rollback readiness before any release.
+
+The same audit found that the existing catalogue navigation still selected the
+Products & services screen by checking for the `7network_sales` category key,
+despite the server already returning a plan-checked catalogue adapter in the
+shared session. The client now selects the product or course screen from that
+reviewed adapter value. A `future_retail` browser fixture confirms the current
+existing-screen hook can select Products & services without inheriting Sales
+identity or Sales-only navigation. This enables reuse of the generic catalogue
+entry point; it does not make that category available or provide inventory.
