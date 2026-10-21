@@ -678,12 +678,12 @@ context used by other tenant capabilities. A revoked entitlement hides the
 field contract and rejects newly submitted custom values with
 `FEATURE_UNAVAILABLE`. Ordinary lead edits remain available, and existing
 custom-field snapshots stay attached to the lead. This is application-layer
-MariaDB enforcement; it does not claim database row-level security. The
-integration test covers plan revocation and snapshot preservation, but is not
-verified yet: the only local database is Oracle MySQL 9.6, which rejects the
-MariaDB `PERSISTENT` generated-column syntax in the platform identity migration.
-Run the harness on the supported MariaDB version before release. Tenant isolation
-follows OWASP's guidance to derive tenant context from verified identity and
+MariaDB enforcement; it does not claim database row-level security. The full
+synthetic integration harness passes on MariaDB 11.4.13 after applying all 118
+discovered migrations, including plan revocation, category mismatch denial and
+snapshot preservation. This validates the database path without touching
+customer data; authenticated EN/AR browser acceptance remains open. Tenant
+isolation follows OWASP's guidance to derive tenant context from verified identity and
 apply it consistently at every access path ([OWASP Multi-Tenant Security
 Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)); AWS also describes runtime policy enforcement for pooled SaaS systems
 ([AWS runtime policy isolation](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/run-time-policy-based-isolation-with-iam.html)).
@@ -695,8 +695,11 @@ A source audit found that the legacy `flow_data` table stores a nullable owner
 `uid` separately from `uniqueId`, and `uniqueId` is not unique. The QR and Meta
 runtimes previously read and updated state by the conversation key alone. Those
 paths now bind every read and mutation to both owner UID and conversation key;
-a composite prefix index supports the lookup. Do not infer or backfill missing
-owners by parsing the concatenated key. Before production rollout, audit null UID
-and duplicate `(uid, uniqueId)` row counts read-only, then verify against the
-supported MariaDB release. Legacy per-node authorization and durable message
+a composite prefix index supports the lookup. The migration and colliding-key
+reads/writes pass in the full synthetic MariaDB 11.4.13 integration harness.
+A read-only aggregate audit of the active production database found six rows,
+zero missing owner UIDs, zero missing conversation keys, and zero duplicate
+`(uid, uniqueId)` pairs; no conversation contents were read and production
+schema remains unchanged. Do not infer or backfill missing owners by parsing
+the concatenated key. Legacy per-node authorization and durable message
 idempotency remain separate requirements.

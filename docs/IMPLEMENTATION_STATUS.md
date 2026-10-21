@@ -1868,14 +1868,16 @@ Focused Pipeline custom-field search, existing team-scope and Sales-only behavio
 Custom lead-field definitions now follow the current tenant plan's `crm.leads`
 capability through the central policy decision. Revoked plans cannot expose or
 accept new custom values; ordinary edits and stored field snapshots remain
-available. Focused tenant-customization, bot-runtime, HTTP, Pipeline-search and Real
-Estate regression tests pass 49/49. The synthetic MariaDB integration case was
-added, but its harness cannot run against the only local database: Oracle MySQL 9.6 rejects the MariaDB
-`PERSISTENT` generated-column syntax in migration `20261001_platform_identity.sql`.
-No synthetic MariaDB server is available here, so database integration remains
-unverified. Source-only branch; production is unchanged. Release gates include
-running the harness on the supported MariaDB version and authenticated EN/AR
-workflow acceptance.
+available. Expanded focused tenant-customization, bot-runtime, HTTP,
+Pipeline-search, Real Estate and flow-isolation tests pass 73/73. The full
+disposable integration harness now
+passes all 118 discovered migrations on MariaDB 11.4.13, including plan
+revocation, category mismatch denial, historical field-value preservation and
+real bearer/cookie authorization. The same harness verifies that QR/Meta
+Flow Builder state reads and writes stay within the owner when conversation keys
+collide. It reports no customer data touched and no external messages sent.
+Source-only branch; production is unchanged. Authenticated EN/AR browser and
+device acceptance remains open.
 
 ### Revoked-plan tenant editor guard — source update, 22 October 2026
 
@@ -1883,13 +1885,12 @@ The existing customization preview now denies lead-field definitions without
 current `crm.leads` access. Draft, publish and rollback operations revalidate the
 plan entitlement inside their transaction before accepting or activating a
 revision with lead fields. Other settings remain editable, and historical
-revisions remain readable for owner recovery. Unit/API coverage passes; the
-synthetic MariaDB integration extends the plan-revocation scenario to preview
-and draft denial but is still awaiting a supported MariaDB runtime. Production
-is unchanged.
+revisions remain readable for owner recovery. Unit/API coverage and the full
+synthetic MariaDB integration pass, including preview and draft denial after
+plan revocation. Production is unchanged.
 
 
-### Legacy Flow Builder conversation-state owner guard — source update, 23 October 2026
+### Legacy Flow Builder conversation-state owner guard — source update, 22 October 2026
 
 The legacy `flow_data` table has an auto-increment primary key, a nullable
 `uid`, and no uniqueness constraint on `uniqueId`. QR and Meta flow-state reads
@@ -1897,9 +1898,10 @@ and updates previously queried by `uniqueId` alone. The existing adapters now
 require both owner UID and conversation key through one shared helper, and the
 forward/rollback migration adds a composite prefix index for that lookup. A
 synthetic collision test proves that identical conversation keys return and
-mutate only the matching owner row; a local MySQL 9.6 synthetic-table check
-confirms the index is selected. Focused flow/isolation tests pass 23/23. This
-is source-only; production is unchanged. Before release, audit live null-UID
-and duplicate `(uid, uniqueId)` rows without exposing conversation contents,
-then verify the migration and runtime on the supported MariaDB version. Legacy
-flow delivery/idempotency and per-node authority remain separate open gates.
+mutate only the matching owner row. Focused flow/isolation tests pass 23/23,
+and the full 118-migration MariaDB 11.4.13 integration verifies the new index
+and owner-filtered reads/writes. A read-only aggregate audit of the active
+production database found six rows, no missing owner UIDs or conversation
+keys, and no duplicate `(uid, uniqueId)` pairs; no conversation contents were
+read. The migration has not run in production. Legacy flow delivery/idempotency,
+per-node authority, and authenticated EN/AR acceptance remain separate gates.
