@@ -1,3 +1,18 @@
+## Recruitment application failure diagnostics — production, 21 October 2026
+
+The existing public application form already gives applicants plain-language
+guidance and places a safe technical cause in brackets for technical failures.
+The backend now preserves more safe MySQL protocol and Node network error codes
+instead of reducing them to `UNEXPECTED_SERVER_ERROR`; arbitrary error messages
+that could expose SQL, paths or applicant information stay hidden. The focused
+error tests pass 2/2. Source commit `9a23a15` is deployed in
+`/opt/salemax/releases/recruitment-diagnostic-causes-9a23a15-20261021`; no
+migration or customer data change occurred, and only the app container was
+recreated. Production health, login routes, release/container helper hashes and
+unchanged database/worker container IDs were verified. No matching failure was
+recorded in the prior 72 hours, so no real applicant submission failure was
+reproduced. Authenticated live submission acceptance and the full 42-ticket
+program remain open; see `DEPLOYMENT.md` for rollback and release evidence.
 ## Finance conversion policy guard — source update, 21 October 2026
 
 The training invoice-total helper now rejects missing, unsupported or malformed
