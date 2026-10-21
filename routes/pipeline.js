@@ -234,6 +234,23 @@ router.get("/board", async (req, res) => {
   } catch (error) { fail(res, error); }
 });
 
+router.get('/leads/export', async (req,res)=>{
+  res.setHeader('Cache-Control','private, no-store');
+  try{
+    const actor=req.pipelineActor;
+    const pool=require('../database/config.js').promise();
+    await trainingLeadJourney.reconcileExisting(pool,{uid:actor.uid});
+    const data=await pipeline.getBoard({uid:actor.uid,role:actor.role,agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,categoryKey:actor.categoryKey,timezone:actor.timezone,includeQualificationData:true,filters:{
+      search:req.query.search,stage:req.query.stage,origin:req.query.origin,sourceType:req.query.sourceType,assignment:req.query.assignment,
+      qrInstanceId:req.query.qrInstanceId,owner:req.query.owner,page:1,limit:300,
+    }});
+    const csv=require('../modules/platform/pipeline-lead-export').toCsv(data.leads);
+    res.setHeader('Content-Type','text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition','attachment; filename="salemax-pipeline-leads.csv"');
+    return res.status(200).send(csv);
+  }catch(error){return fail(res,error);}
+});
+
 router.get('/filter-options',async(req,res)=>{
   try{
     const actor=req.pipelineActor,uidHash=crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex');

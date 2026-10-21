@@ -563,7 +563,7 @@ async function captureQrMessage({ uid, chatId, message, normalizedMessage }) {
   throw lastError;
 }
 
-async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezone = "Asia/Qatar", filters = {}, pool:sourcePool }) {
+async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezone = "Asia/Qatar", filters = {}, includeQualificationData = false, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const conditions = ["l.uid_hash = ?"];
@@ -611,7 +611,7 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezo
       `SELECT l.id, l.title, l.contact_name, l.mobile, c.display_name AS relationship_name, l.chat_id, l.primary_origin, l.source_type,
         l.source_id, l.source_url, l.source_headline, l.stage_key, l.stage_entered_at,
         l.owner_agent_id, a.name AS owner_name, l.status, l.priority, l.expected_value,
-        l.currency, l.next_follow_up_at, l.first_inbound_at, l.last_activity_at, l.created_at, l.updated_at,
+        l.currency, l.next_follow_up_at, l.first_inbound_at, l.last_activity_at, l.created_at, l.updated_at${includeQualificationData ? ', l.qualification_data' : ''},
         (SELECT pc.origin FROM pipeline_conversations pc WHERE pc.uid_hash = l.uid_hash AND pc.lead_id = l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS latest_origin,
         (SELECT pc.chat_id FROM pipeline_conversations pc WHERE pc.uid_hash = l.uid_hash AND pc.lead_id = l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS latest_chat_id,
         (SELECT i.number FROM pipeline_conversations pc JOIN beta_chats bc ON bc.uid=l.uid COLLATE utf8mb4_unicode_ci AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci AND bc.origin='qr' JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE pc.uid_hash=l.uid_hash AND pc.lead_id=l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS source_instance_number,
