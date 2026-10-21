@@ -14,12 +14,23 @@ rows cannot be newly published or sent by product quick replies until an owner
 reviews the type. Product-specific bilingual guidance now explains required
 classification and active pricing. The existing Pipeline Reports route also
 loads its IANA timezone selector before the report renderer; prior source
-omitted that dependency. Focused category/router/reply/editor and report tests
-pass. The full suite passes 1,074/1,090. A clean checkout of the current
+omitted that dependency. Integration exposed and fixed a Sales reply-send
+`ReferenceError`; the sender now selects its table adapter from the validated
+category context. Browser verification also caught product type and tag inputs
+being dropped by the existing course-form section organizer; Sales now keeps
+those fields and hides empty learning-only sections.
+
+The disposable MariaDB 11.4 integration applies all 121 migrations and passes
+category and role denials, product create/edit/publish, private media access,
+English/Arabic reply previews and idempotent send, with zero Training Center
+catalogue or reply-job writes from Sales. The existing `/user?page=products-services`
+screen passes synthetic owner-session browser checks in English and Arabic at
+1440px and 390px, including type/tag editing, course-field isolation and
+delete cancellation. The full suite passes 1,074/1,090. A clean checkout of the current
 `origin/main` baseline passes 1,019/1,045, and all 16 current failure names
 also fail on that baseline. JavaScript syntax and
-diff checks pass. Browser acceptance could not run because Playwright is absent
-from this clean worktree; disposable database integration is still required.
+diff checks pass. These are synthetic API/browser checks; signed-in production
+owner/staff acceptance remains open.
 The router, product media and durable Inbox reply adapter still retain
 course-compatible plumbing and remain the next extraction boundary. Source
 only; no production upload or customer data change occurred. Production disk,

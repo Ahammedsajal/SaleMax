@@ -129,7 +129,7 @@ const conversationLock=(uid,chatId)=>'course-reply:'+hash(uid+'|'+chatId).slice(
 // A durable claim and per-conversation database lock prevent duplicate/reordered
 // sends across clicks, HTTP retries and app processes. Ambiguous sends never retry.
 async function execute(pool, c, input, send = require('./course-reply-transport').send) {
-  requireCatalog(c.ctx);pool=catalog.forContext(pool,c.ctx);
+  requireCatalog(c.ctx);const products=catalog.sales(c.ctx);pool=catalog.forContext(pool,c.ctx);
   const {requestId,chatId,courseId,language='en'}=input || {};
   if (!validId(requestId) || !['en','ar'].includes(language)) fail('INVALID_REQUEST',400);
   await conversation(c,chatId);

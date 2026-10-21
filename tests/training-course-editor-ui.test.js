@@ -28,7 +28,9 @@ test('course editor summary replaces missing catalogue values with readable loca
 
 test('Sales catalogue asks for product or service type and preserves legacy rows for review',()=>{
   assert.match(source,/select\.name='itemKind'/);
-  assert.match(source,/select\.value='service'/);
+  assert.match(source,/select\.value=item\.itemKind\|\|'service'/);
+  assert.match(source,/addProductFields\(form\)/);
+  assert.match(source,/groups\[0\]\.fields=\['itemKind','nameEn','nameAr','code','tags','descriptionEn','descriptionAr'\]/);
   assert.match(source,/const item=products\?\{\.\.\.common,itemKind:f\.get\('itemKind'\),tags:parseTags\(f\.get\('tags'\)\)\}/);
   assert.match(source,/select\.value=c\.itemKind\|\|'unclassified'/);
   assert.match(source,/PRODUCT_TYPE_REVIEW_REQUIRED/);
