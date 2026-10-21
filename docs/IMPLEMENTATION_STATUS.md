@@ -2135,6 +2135,23 @@ known failures. This is source-only, with no customer data or
 migration changed in production. Sales/Training APIs still need full
 authenticated user and agent acceptance, and the remaining legacy module data
 owners are not yet inventoried.
+
+## Training course route-to-table ownership contract — source update, 21 October 2026
+
+The `/api/workspace/courses` and existing training courses route contracts now
+trace the shared router through course catalogue, media, enrollment-progress,
+training-lead journey and document-branding services. `training.core` declares
+its owned course, offer, batch, media, enrollment, certificate and profile
+tables. Its Finance records, platform identity/tenant references and legacy
+`user`/`pipeline_leads` joins are classified separately. An executable check
+compares every referenced table in those source services with the module
+contract and confirms each owned table has a migration. The route remains
+Training Center-only, while Sales products stay on their separate storage
+adapter. The focused registry, route ownership and course workflow tests pass
+24/24. The full suite passes 1,048/1,072 with the same 24 known failures. This
+is a static ownership inventory, not proof of runtime policy or tenant-safe
+behavior. Production was not changed; disposable database and authenticated
+existing-screen acceptance remain open for these route surfaces.
 ## Tenant custom-field search in the existing Pipeline — 21 October 2026
 
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
