@@ -153,3 +153,30 @@ test('Training Finance route separates accounting data from scheduled report own
   const created=new Set([...migrations.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?([a-z][a-z0-9_]*)/gi)].map(match=>match[1]));
   for(const id of route.ownership.modules)for(const table of route.ownership.moduleContracts[id].dataOwnership.ownedTables)assert.ok(created.has(table),`${table} must have a tracked migration`);
 });
+
+test('Training Forms route owns its submission and registration workflow without claiming CRM or Finance records',()=>{
+  const ownership=ownershipForInventory(routerInventory(),{moduleRegistry:categoryRegistry.moduleRegistry,categories:{list:categoryRegistry.listCategories,get:categoryRegistry.getCategory}});
+  const route=ownership.routes.find(item=>item.mount==='/api/workspace/forms');
+  const module=route.ownership.moduleContracts['training.forms'];
+  assert.deepEqual(route.ownership.categoryModules,{training_center:['training.forms']});
+  assert.equal(module.dataOwnership.status,'reviewed');
+  const accessedTables=new Set();
+  for(const file of route.ownership.services){
+    const source=fs.readFileSync(path.join(root,file),'utf8');
+    for(const [,table] of source.matchAll(/\b(?:FROM|JOIN|INTO|UPDATE)\s+([a-z][a-z0-9_]*)/gi))if(table.startsWith('sx_')||['pipeline_leads','pipeline_contacts','pipeline_stages','agents','user'].includes(table))accessedTables.add(table);
+  }
+  const declared=new Set([...module.dataOwnership.ownedTables,...module.dataOwnership.referencedTables.map(item=>item.name)]);
+  assert.deepEqual([...accessedTables].sort(),[...declared].sort(),'form route SQL and module ownership declaration must remain synchronized');
+  assert.deepEqual(module.dataOwnership.ownedTables,['sx_training_form_rate_limits','sx_training_form_submissions','sx_training_form_versions','sx_training_forms','sx_training_registration_deliveries','sx_training_registrations','sx_training_student_sequences']);
+  const references=new Map(module.dataOwnership.referencedTables.map(item=>[item.name,item.scope]));
+  assert.equal(references.get('pipeline_leads'),'tenant_qualified_through_legacy_mapping');
+  assert.equal(references.get('sx_training_invoices'),'tenant_qualified');
+  assert.equal(references.get('user'),'tenant_qualified_through_legacy_mapping');
+  const migrations=fs.readdirSync(path.join(root,'database/migrations')).filter(file=>file.endsWith('.sql')).map(file=>fs.readFileSync(path.join(root,'database/migrations',file),'utf8')).join('\n');
+  const created=new Set([...migrations.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?([a-z][a-z0-9_]*)/gi)].map(match=>match[1]));
+  for(const table of module.dataOwnership.ownedTables)assert.ok(created.has(table),`${table} must have a tracked migration`);
+  for(const mount of ['/api/public/training/forms','/api/user/training/forms']){
+    const formRoute=ownership.routes.find(item=>item.mount===mount);
+    assert.deepEqual(formRoute.ownership.modules,['training.forms']);
+  }
+});

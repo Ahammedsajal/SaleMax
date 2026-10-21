@@ -2173,3 +2173,21 @@ the two modules do not claim the same table. This remains source inventory
 only: no authorization or runtime behavior changed, production was not
 updated, and authenticated workflow plus database-isolation acceptance remain
 open.
+
+## Training Forms route-to-table ownership contract — source update, 21 October 2026
+
+The public, owner and workspace Training Forms routes now declare the same
+Training Center-only module owner and audited service graph. `training.forms`
+owns form definitions, published versions, submissions, rate-limit counters,
+registration snapshots, student-number sequences and registration delivery
+records created by the registration workflow. CRM, tenant customization,
+course and Finance tables are classified as references; the helper's legacy
+lead/contact/stage and owner/user lookups remain explicitly legacy-mapped.
+Focused category-registry and route-ownership tests pass 18/18. The full suite
+passes 1,050/1,074 with the same 24 existing Manage Users, Pipeline,
+Training/Finance and public-form source-contract failures. Tests compare every
+SQL table in the mapped route service files with the manifest and verify
+migrations for each owned table. This is still source inventory, not
+authorization or cross-tenant runtime proof. The registration delivery worker
+is asynchronous and remains a separate audit item; no production files or data
+changed.
