@@ -15,6 +15,10 @@ test('recruitment form validates and normalizes applicant details',()=>{
   const result=recruitment.cleanApplication(valid);
   assert.equal(result.fullName,'Asha Candidate');assert.equal(result.normalizedMobile,'+919876543210');assert.equal(result.email,'asha@example.in');assert.equal(result.experienceYears,4);assert.equal(result.sourceChannel,'public_form');
 });
+test('a missing CV returns the specific attach-file error before database access',async()=>{
+  const pool={getConnection:async()=>{throw new Error('Missing CV must be rejected before database access');}};
+  await assert.rejects(recruitment.createPublic(pool,{tenantSlug:'salemax-sales-86c35173',body:valid,file:null,visitorHash:'a'.repeat(64)}),{code:'CV_FILE_REQUIRED',status:400});
+});
 test('application stores the requested pre-screen answers and keeps WhatsApp separate from contact number',()=>{
   const result=recruitment.cleanApplication({...valid,mobile:'+919876543210',contactMobile:'+919876500000',currentWorkStatus:'yes',totalExperienceRange:'3+',salesExperienceYears:'1-2',hasComputerAndInternet:'yes',comfortableWithSalesCalls:'yes'});
   assert.equal(result.mobile,'+919876543210');assert.equal(result.contactMobile,'+919876500000');assert.equal(result.currentWorkStatus,'yes');assert.equal(result.totalExperienceRange,'3+');assert.equal(result.salesExperienceYears,'1-2');assert.equal(result.hasComputerAndInternet,'yes');assert.equal(result.comfortableWithSalesCalls,'yes');

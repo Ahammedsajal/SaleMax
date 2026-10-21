@@ -152,7 +152,8 @@ async function createPublic(pool,{tenantSlug,body,file,visitorHash,conversation=
   const data=cleanApplication(body),token=String(body.submissionToken||'');if(!/^[0-9a-f-]{36}$/i.test(token))fail('INVALID_SUBMISSION_TOKEN');
   if(typeof body.website==='string'&&body.website.trim())return {repeated:true,referenceCode:'IGNORED'};
   if(typeof visitorHash!=='string'||!/^[0-9a-f]{64}$/.test(visitorHash))fail('INVALID_VISITOR');
-  if(!file||file.truncated||!file.tempFilePath||!Number.isSafeInteger(file.size)||file.size<1||file.size>MAX_CV_BYTES)fail('INVALID_CV_FILE',413);
+  if(!file)fail('CV_FILE_REQUIRED');
+  if(file.truncated||!file.tempFilePath||!Number.isSafeInteger(file.size)||file.size<1||file.size>MAX_CV_BYTES)fail('INVALID_CV_FILE',413);
   const bytes=await fs.readFile(file.tempFilePath);if(bytes.length!==file.size)fail('INVALID_CV_FILE');const detected=detectCv(bytes);if(!detected)fail('CV_TYPE_NOT_ALLOWED',415);
   const db=await pool.getConnection();let storedPath=null,begun=false;
   try{
