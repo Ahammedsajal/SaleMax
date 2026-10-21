@@ -377,6 +377,9 @@ async function processMessage({
         console.warn('Phonebook opening routing unavailable', error.code || 'PHONEBOOK_ROUTING_ERROR');
       }
 
+      const openingRoute=['qr','meta'].includes(origin)&&msg?.route==='INCOMING'?await require('../pipeline/openingRouting').reconcileConversation(require('../../database/config').promise(),{uid,chatId:latestConversation?.chatId}).catch(error=>{console.warn('Opening routing sync unavailable:',error.code||error.name);return null;}):null;
+      // A keyword-routed enquiry waits for its assigned human agent.
+      if(!openingRoute?.routed){
       // Process the message through the flow builder
       await processWebhook(latestConversation?.newMessage, user);
 
@@ -412,6 +415,7 @@ async function processMessage({
         (getConnectionsByUid(uid, true) || []).forEach(socket => sendToSocket(socket.socketId, { chatId: latestConversation.chatId }, "request_update_opened_chat"));
       }
 
+      }
       if (msg?.route === "INCOMING") {
         await processMobileNotificaion({
           uid,
