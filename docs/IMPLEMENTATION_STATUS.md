@@ -1865,7 +1865,7 @@ Focused Pipeline custom-field search, existing team-scope and Sales-only behavio
 
 ## Tenant-scoped messaging delivery status — source update, 21 October 2026
 
-Resolved account UIDs in the Meta callback flow are now passed into the
+Callback owner UIDs are now passed into the
 customer API and campaign log reads, writes, and campaign counter refreshes.
 Every status query filters on the account UID as well as the provider message
 ID, so a duplicate ID in another account cannot mutate that account's log.
@@ -1878,3 +1878,10 @@ customer data, provider setting, or production release changed. Meta callback
 signature configuration and signed live delivery acceptance remain required
 before these routes can be safely published; other legacy route, worker,
 socket, and vertical isolation reviews remain open.
+
+A read-only check of the active release and running container confirmed matching
+runtime hashes for the inbox, campaign worker, function, and optional-feature
+files. The production role guard differs from tracked `main`: it lacks the
+tracked Properties route classification as well as this new customer-API-log
+classification. Keep that source/live drift visible during any later release
+review; this source update does not reconcile or deploy it.
