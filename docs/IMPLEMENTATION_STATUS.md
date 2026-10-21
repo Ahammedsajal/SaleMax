@@ -29,6 +29,29 @@ message ID is saved can still require reconciliation and may lead to a retry.
 The full TC37 and
 42-ticket acceptance remain open.
 
+## QR session tenant ownership — source update, 21 October 2026
+
+QR background events no longer infer an account UID from the session ID
+prefix. The runtime resolves exactly one owner record from `instance`, stops
+on missing or ambiguous session IDs, and scopes connection-status, QR-code,
+contact-name and delete operations by instance row, owner UID and session ID.
+QR send processing also verifies that the database owner matches the owner
+resolved for the event. The internal QR delete endpoint now verifies the same
+ownership before closing a session or deleting authentication data.
+
+The QR owner-resolution and existing QR sharing/Inbox scope suite pass 26/26;
+affected files pass syntax checks. An opt-in integration script passed against
+an isolated local MySQL 9.6 database, verifying database ownership when the ID
+prefix differs, duplicate-ID denial and owner mismatch denial; it created and
+dropped only a random scratch database. A read-only production aggregate found
+two QR instance rows, no duplicate session IDs or indexed-prefix collisions,
+and no session-ID prefix mismatches; the longest ID was 41 characters. Source
+now includes a 150-character unique-prefix index migration with a rollback
+counterpart and rejects longer caller-supplied IDs. The migration has not been
+applied to production, and customer data has not changed. Process-local Baileys
+sockets and reconnect state still prevent safe multi-node ownership; full TC37
+and the 42-ticket objective remain open.
+
 ## Legacy call callback tenant boundary — source update, 21 October 2026
 
 The previously unauthenticated `/api/wa_call/update_broadcast_contact` endpoint

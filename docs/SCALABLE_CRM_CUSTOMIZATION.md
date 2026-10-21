@@ -184,6 +184,29 @@ server with separate server sessions; production MariaDB compatibility still
 needs its own test. It creates and drops only a randomly named local synthetic
 database when explicitly selected through `CAMPAIGN_LOCK_TEST_TARGET`.
 
+### QR session ownership and deployment topology — 21 October 2026
+
+The database instance row is the source of truth for a QR session owner; never
+derive a tenant from a caller-supplied session ID. Resolve exactly one row and
+carry its instance ID, UID and session ID into status, contact and delete
+operations. Missing or ambiguous session IDs fail closed. A read-only live
+aggregate found two instance rows with no duplicate non-empty IDs, but the
+existing session-ID index is non-unique. A forward migration now adds a unique
+150-character prefix index, with an explicit rollback counterpart, and both
+QR creation routes reject caller-supplied IDs longer than that indexed prefix.
+The live aggregate showed no duplicate IDs or prefix collisions and a maximum
+ID length of 41 characters. The migration remains unapplied in production.
+The opt-in owner-resolution integration script passed on an isolated MySQL 9.6
+server, including a session whose ID prefix differs from its database owner and
+an ambiguous ID that must be rejected.
+
+This closes incorrect owner inference and cross-owner mutation through the
+current single-process session map. It does not make the Baileys socket,
+reconnect timer, credential writer or QR event listener safe to own from
+multiple app replicas. Multi-node operation requires one fenced owner per
+session, recovery/transfer rules, and tests proving old owners stop before
+writing after ownership changes; a shared socket registry alone is not enough.
+
 ## Extensibility and domain boundaries
 
 | Category | Candidate modules, subject to implementation and acceptance |

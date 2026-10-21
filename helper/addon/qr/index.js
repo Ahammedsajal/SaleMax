@@ -3,6 +3,7 @@ const pino = require("pino");
 const { query } = require("../../../database/dbpromise");
 const { processMessage } = require("../../inbox/inbox");
 const newLogger = require("../../../utils/logger");
+const { resolveQrSessionOwner } = require("../../../modules/platform/qr-session-owner");
 
 // Declare variables for baileys functions
 let baileysLoaded = false;
@@ -111,10 +112,7 @@ function getCachedQrContactName(sessionId, jid) {
 
 async function syncQrContactNamesToChats(sessionId, contacts = []) {
   try {
-    const [instance] = await query(
-      `SELECT uid, number FROM instance WHERE uniqueId = ? LIMIT 1`,
-      [sessionId],
-    );
+    const instance = await resolveQrSessionOwner(query, sessionId);
     if (!instance?.uid || !instance?.number) return;
 
     const changed = cacheQrContacts(sessionId, contacts);
@@ -220,25 +218,13 @@ async function loadAuthStateModule() {
 /**
  * Extract user ID from session ID
  */
-function extractUidFromSessionId(input) {
-  return input.split("_")[0];
-}
-
 async function resolveUidFromSessionId(sessionId) {
-  const quick = extractUidFromSessionId(String(sessionId || ""));
-  if (quick && quick !== "qr") {
-    return quick;
-  }
-
   try {
-    const [row] = await query(
-      "SELECT uid FROM instance WHERE uniqueId = ? LIMIT 1",
-      [sessionId],
-    );
-    return row?.uid ? String(row.uid) : quick;
+    const owner = await resolveQrSessionOwner(query, String(sessionId || ""));
+    return owner?.uid || null;
   } catch (err) {
     newLogger.error("resolveUidFromSessionId error:", err);
-    return quick;
+    return null;
   }
 }
 
@@ -294,6 +280,8 @@ function closeSocketQuietly(sock) {
 
 async function markSessionStatus(sessionId, status) {
   try {
+    const owner = await resolveQrSessionOwner(query, String(sessionId || ""));
+    if (!owner) return false;
     await query(
       `UPDATE instance
        SET status = ?,
@@ -301,11 +289,13 @@ async function markSessionStatus(sessionId, status) {
              WHEN ? = 'INACTIVE' THEN COALESCE(inactiveSince, NOW())
              ELSE NULL
            END
-       WHERE uniqueId = ?`,
-      [status, status, sessionId],
+       WHERE id = ? AND uid = ? AND uniqueId = ?`,
+      [status, status, owner.instanceId, owner.uid, owner.uniqueId],
     );
+    return true;
   } catch (error) {
     newLogger.error(`Database update error (${status}):`, error);
+    return false;
   }
 }
 
@@ -421,6 +411,8 @@ async function getAuthState(sessionId) {
  * Delete session data based on storage method
  */
 async function deleteSessionData(sessionId) {
+  const owner = await resolveQrSessionOwner(query, String(sessionId || ""));
+  if (!owner) return false;
   switch (STORAGE_METHOD) {
     case "mysql":
       // MySQL cleanup is handled by removeCreds() during logout
@@ -438,6 +430,7 @@ async function deleteSessionData(sessionId) {
       newLogger.log(`Local files deleted for: ${sessionId}`);
       break;
   }
+  return true;
 }
 
 // ============= SESSION MANAGEMENT =============
@@ -452,6 +445,12 @@ const createSession = async (
 ) => {
   if (process.env.LOCAL_ONLY_MODE === "true") return "WhatsApp sessions are disabled in local training mode";
   if (!sessionId) return "Invalid session";
+
+  const sessionOwner = await resolveQrSessionOwner(query, String(sessionId));
+  if (!sessionOwner) {
+    newLogger.warn('WhatsApp session was not started because its database owner is missing or ambiguous.');
+    return "Session owner could not be verified";
+  }
 
   if (connectingSessions.has(sessionId)) {
     newLogger.log(`Session ${sessionId} is already connecting`);
@@ -635,12 +634,14 @@ const createSession = async (
           try {
             const userData = sock.user || {};
             await query(
-              "UPDATE instance SET status = ?, inactiveSince = NULL, number = ?, data = ? WHERE uniqueId = ?",
+              "UPDATE instance SET status = ?, inactiveSince = NULL, number = ?, data = ? WHERE id = ? AND uid = ? AND uniqueId = ?",
               [
                 "ACTIVE",
                 extractPhoneNumber(userData?.id) || null,
                 userData?.id ? JSON.stringify(userData) : null,
-                sessionId,
+                sessionOwner.instanceId,
+                sessionOwner.uid,
+                sessionOwner.uniqueId,
               ],
             );
           } catch (error) {
@@ -674,8 +675,8 @@ const createSession = async (
             }
 
             try {
-              await query("UPDATE instance SET status = ?, inactiveSince = NOW() WHERE uniqueId = ?", [
-                "INACTIVE", sessionId,
+              await query("UPDATE instance SET status = ?, inactiveSince = NOW() WHERE id = ? AND uid = ? AND uniqueId = ?", [
+                "INACTIVE", sessionOwner.instanceId, sessionOwner.uid, sessionOwner.uniqueId,
               ]);
             } catch (error) {
               newLogger.error("Database update error (logout):", error);
@@ -690,9 +691,11 @@ const createSession = async (
           try {
             const qrCodeImage = await toDataURL(qr);
             try {
-              await query("UPDATE instance SET qr = ? WHERE uniqueId = ?", [
+              await query("UPDATE instance SET qr = ? WHERE id = ? AND uid = ? AND uniqueId = ?", [
                 qrCodeImage,
-                sessionId,
+                sessionOwner.instanceId,
+                sessionOwner.uid,
+                sessionOwner.uniqueId,
               ]);
             } catch (error) {
               newLogger.error("Database update error (qr):", error);
@@ -811,8 +814,10 @@ function startAuthCleanup() {
 /**
  * Delete a session
  */
-const deleteSession = async (sessionId) => {
+const deleteSession = async (sessionId, expectedUid = null) => {
   try {
+    const owner = await resolveQrSessionOwner(query, String(sessionId || ""), expectedUid);
+    if (!owner) return false;
     resetReconnectState(sessionId);
     connectingSessions.delete(sessionId);
     const session = getSession(sessionId);
@@ -826,17 +831,20 @@ const deleteSession = async (sessionId) => {
     }
 
     // Delete session data based on storage method
-    await deleteSessionData(sessionId);
+    const removedData = await deleteSessionData(sessionId);
+    if (!removedData) return false;
 
     try {
-      await query("UPDATE instance SET status = ?, inactiveSince = NOW() WHERE uniqueId = ?", [
-        "INACTIVE", sessionId,
+      await query("UPDATE instance SET status = ?, inactiveSince = NOW() WHERE id = ? AND uid = ? AND uniqueId = ?", [
+        "INACTIVE", owner.instanceId, owner.uid, owner.uniqueId,
       ]);
     } catch (error) {
       newLogger.error("Database update error (deleteSession):", error);
     }
+    return true;
   } catch (error) {
     newLogger.error(`Error deleting session ${sessionId}:`, error);
+    return false;
   }
 };
 

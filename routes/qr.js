@@ -17,6 +17,7 @@ const validateUser = require("../middlewares/user.js");
 const validateAgent = require("../middlewares/agent.js");
 const jwt = require("jsonwebtoken");
 const { sendQrStatusToCrm } = require("../helper/inbox/outboundWebhook");
+const { resolveQrSessionOwner } = require("../modules/platform/qr-session-owner");
 const randomstring = require("randomstring");
 
 function normalizeNumber(number) {
@@ -112,6 +113,10 @@ router.post(
         String(inputUniqueId || "").trim() ||
         `${req.decode.uid}_${randomstring.generate(8)}`;
 
+      if (uniqueId.length > 150) {
+        return res.status(422).json({ success: false, code: "QR_SESSION_ID_TOO_LONG" });
+      }
+
       const [metaApi] = await query(`SELECT * FROM meta_api WHERE uid = ?`, [
         req.decode.uid,
       ]);
@@ -147,10 +152,18 @@ router.post(
         });
       }
 
-      const inserted = await query(
-        `INSERT INTO instance (uid, title, uniqueId, status) VALUES (?,?,?,?)`,
-        [req.decode.uid, title, uniqueId, "GENERATING"],
-      );
+      let inserted;
+      try {
+        inserted = await query(
+          `INSERT INTO instance (uid, title, uniqueId, status) VALUES (?,?,?,?)`,
+          [req.decode.uid, title, uniqueId, "GENERATING"],
+        );
+      } catch (insertError) {
+        if (insertError?.code === "ER_DUP_ENTRY") {
+          return res.status(409).json({ success: false, code: "QR_SESSION_ID_ALREADY_EXISTS" });
+        }
+        throw insertError;
+      }
       if(req.agentWorkspace){
         const ctx=req.featureSession.context;
         try{await query('INSERT INTO sx_qr_channel_shares(tenant_id,instance_id,membership_id,granted_by_identity_id) VALUES (?,?,?,?)',[ctx.tenant.id,inserted.insertId,ctx.membership.id,ctx.identity.id]);}
@@ -353,7 +366,8 @@ router.post("/del_instance", validateUser, async (req, res) => {
       });
     }
 
-    if(!(await query('SELECT id FROM instance WHERE uniqueId=? AND uid=?',[uniqueId,req.decode.uid])).length)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
+    const owner = await resolveQrSessionOwner(query, uniqueId, req.decode.uid);
+    if(!owner)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
     const session = getSession(uniqueId);
 
     if (session) {
@@ -361,7 +375,9 @@ router.post("/del_instance", validateUser, async (req, res) => {
         await session.logout();
       } catch {
       } finally {
-        deleteSession(uniqueId);
+        if (!await deleteSession(uniqueId, req.decode.uid)) {
+          return res.status(409).json({ success: false, code: 'QR_CHANNEL_OWNERSHIP_CHANGED' });
+        }
       }
     }
 
@@ -373,9 +389,10 @@ router.post("/del_instance", validateUser, async (req, res) => {
       console.error("qr.del_instance auth cleanup failed", err?.message || err);
     }
 
-    await query(`DELETE FROM instance WHERE uniqueId = ? AND uid = ?`, [
-      uniqueId,
-      req.decode.uid,
+    await query(`DELETE FROM instance WHERE id = ? AND uid = ? AND uniqueId = ?`, [
+      owner.instanceId,
+      owner.uid,
+      owner.uniqueId,
     ]);
 
     await sendQrStatusToCrm({
@@ -409,7 +426,8 @@ router.post("/change_instance_status", validateUser, async (req, res) => {
 
     const { insId, status, jid } = req.body;
 
-    if(!(await query('SELECT id FROM instance WHERE uniqueId=? AND uid=?',[insId,req.decode.uid])).length)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
+    const owner = await resolveQrSessionOwner(query, String(insId || ''), req.decode.uid);
+    if(!owner)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
     const session = await getSession(insId);
 
     if (!session) {
@@ -427,9 +445,11 @@ router.post("/change_instance_status", validateUser, async (req, res) => {
     const finalUpdate = { onlineStatus: status };
 
     await session.sendPresenceUpdate(status);
-    await query(`UPDATE instance SET other = ? WHERE uniqueId = ?`, [
+    await query(`UPDATE instance SET other = ? WHERE id = ? AND uid = ? AND uniqueId = ?`, [
       JSON.stringify(finalUpdate),
-      insId,
+      owner.instanceId,
+      owner.uid,
+      owner.uniqueId,
     ]);
 
     res.json({
