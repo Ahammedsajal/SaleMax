@@ -70,12 +70,24 @@ test('recruitment CV storage requires a private absolute path',()=>{
   assert.throws(()=>recruitment.storageRoot({}),{code:'RECRUITMENT_STORAGE_NOT_CONFIGURED'});
 });
 
+test('application notification queue failures do not block a submitted application',async()=>{
+  const warnings=[],originalWarn=console.warn;
+  console.warn=(...args)=>warnings.push(args);
+  try{
+    const result=await recruitment.queueApplicationNotification({}, {tenantId:owner.tenant.id,application:{id:'application-1'}}, async()=>{throw Object.assign(new Error('database details are private'),{code:'ER_NO_SUCH_TABLE'});});
+    assert.deepEqual(result,{queued:false,reason:'ER_NO_SUCH_TABLE'});
+    assert.equal(warnings.length,1);
+    assert.deepEqual(warnings[0],['[recruitment] Founder notification was not queued','ER_NO_SUCH_TABLE']);
+    assert.doesNotMatch(JSON.stringify(warnings),/database details are private/);
+  }finally{console.warn=originalWarn;}
+});
+
 test('pre-screen answers are saved only with explicit consent and stay tied to the WhatsApp conversation',async()=>{
   const calls=[],db={query:async(sql,params)=>{calls.push({sql,params});return [{affectedRows:1}];}};
   const input={tenantId:owner.tenant.id,channelKind:'whatsapp_meta',channelRef:'meta-channel',conversationId:'candidate-chat',mobile:'+91 98765 43210',senderName:'Asha',answers:{location:'india',englishLevel:'proficient',privateNote:'discard'},complete:false,consent:false};
   assert.equal(await recruitment.saveScreening(db,input),false);
   assert.equal(calls.length,0);
-  assert.equal(await recruitment.saveScreening(db,{...input,consent:true}),true);
+  assert.deepEqual(await recruitment.saveScreening(db,{...input,consent:true}),{saved:true,applicationId:null,referenceCode:null});
   assert.equal(calls.length,1);
   assert.match(calls[0].sql,/ON DUPLICATE KEY UPDATE/);
   assert.equal(calls[0].params[1],owner.tenant.id);

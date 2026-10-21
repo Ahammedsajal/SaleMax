@@ -10,7 +10,8 @@ test('recruitment introduction builds trust before describing the role',()=>{
   assert.match(result.reply,/Qatar-based software and marketing company/);
   assert.match(result.reply,/Apple:/);
   assert.match(result.reply,/Google Play:/);
-  assert.match(result.reply,/Sales Manager, who will guide your day-to-day sales activities/);
+  assert.match(result.reply,/I’m Lucy, SaleMaX’s chatbot/);
+  assert.match(result.reply,/SaleMaX is a CRM and business-management system/);
   assert.equal(result.buttons.length,3);
   assert.deepEqual(result.buttons.map(button=>button.id),['about_talab','about_salemax','about_role']);
 });
@@ -19,7 +20,7 @@ test('role and commission replies state qualification and payment terms accurate
   const role=recruitmentReply({message:'about_role',state:{step:'welcome'},facts:{}});
   assert.match(role.reply,/We provide the leads/);
   assert.match(role.reply,/Strong English is required; Hindi is helpful but optional/);
-  assert.match(role.reply,/Sales Manager will support you/);
+  assert.match(role.reply,/Our Sales Manager will support you/);
   assert.ok(role.buttons.length<=3);
   const commission=recruitmentReply({message:'Pay & Commission',state:{step:'role'},facts:{}});
   assert.match(commission.reply,/15%/);
@@ -33,7 +34,8 @@ test('role and commission replies state qualification and payment terms accurate
 
 test('WhatsApp Apply now starts the questions in chat without sending a web form link',()=>{
   const result=recruitmentReply({message:'Apply now',state:{step:'role'},facts:[{kind:'recruitment_application',url:'https://crm.salemax.qa/careers/salemax-sales?source=whatsapp'}]});
-  assert.match(result.reply,/may we save your answers and the CV you send/);
+  assert.match(result.reply,/may we save your answers in our private Applications & CVs area/);
+  assert.match(result.reply,/You can send your CV now or later/);
   assert.doesNotMatch(result.reply,/https:\/\/crm\.salemax\.qa\/careers/);
   assert.equal(result.state.step,'screen_consent');
   assert.deepEqual(result.buttons.map(button=>button.id),['screen_consent_yes','screen_consent_no']);
@@ -47,7 +49,7 @@ test('configured human button labels route to their intended answers',()=>{
   assert.equal(commission.state.step,'commission');
   assert.equal(apply.state.step,'screen_consent');
   assert.match(commission.reply,/QAR 375 per sale/);
-  assert.match(apply.reply,/may we save your answers and the CV you send/);
+  assert.match(apply.reply,/may we save your answers in our private Applications & CVs area/);
 });
 
 test('button screening collects the candidate details and required sales setup in order',()=>{
@@ -74,8 +76,8 @@ test('button screening collects the candidate details and required sales setup i
   assert.equal(result.state.answers.currentlyWorking,'yes');
   assert.equal(result.state.answers.totalExperienceRange,'3+');
   assert.equal(result.state.answers.salesExperienceYears,'1-2');
-  assert.match(result.reply,/Send your CV here as a PDF or DOCX/);
-  assert.deepEqual(result.buttons,[]);
+  assert.match(result.reply,/Please upload your CV here as a PDF or DOCX file/);
+  assert.deepEqual(result.buttons.map(button=>button.id),['talk_to_recruiter']);
 });
 
 test('declining screening consent leaves answers empty and does not start an application',()=>{
