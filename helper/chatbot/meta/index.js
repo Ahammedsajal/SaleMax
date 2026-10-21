@@ -1,4 +1,5 @@
 const { query } = require("../../../database/dbpromise");
+const flowData = require("../../../modules/platform/legacy-flow-data");
 const { destributeTaskFlow } = require("../../../functions/chatbot");
 const { readJsonFromFile } = require("../../../functions/function");
 const {
@@ -89,10 +90,7 @@ async function runChatbot(
 
           if (answer?.length < 1) {
             const uniqueId = `${uid}-${senderNumber}-${chatId}`;
-            const [flow_data] = await query(
-              `SELECT * FROM flow_data WHERE uniqueId = ?`,
-              [uniqueId]
-            );
+            const flow_data = await flowData.find(query, uid, uniqueId);
             if (flow_data && flow_data?.other) {
               const savedNode = JSON.parse(flow_data.other) || {};
               const findSourceFromEdge = edges?.find(
@@ -141,10 +139,7 @@ async function runChatbot(
 
         if (answer?.length < 1) {
           const uniqueId = `${uid}-${senderNumber}-${chatId}`;
-          const [flow_data] = await query(
-            `SELECT * FROM flow_data WHERE uniqueId = ?`,
-            [uniqueId]
-          );
+          const flow_data = await flowData.find(query, uid, uniqueId);
           if (flow_data && flow_data?.other) {
             const savedNode = JSON.parse(flow_data.other) || {};
             const findSourceFromEdge = edges?.find(

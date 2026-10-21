@@ -687,3 +687,16 @@ follows OWASP's guidance to derive tenant context from verified identity and
 apply it consistently at every access path ([OWASP Multi-Tenant Security
 Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)); AWS also describes runtime policy enforcement for pooled SaaS systems
 ([AWS runtime policy isolation](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/run-time-policy-based-isolation-with-iam.html)).
+
+
+## Legacy Flow Builder state ownership
+
+A source audit found that the legacy `flow_data` table stores a nullable owner
+`uid` separately from `uniqueId`, and `uniqueId` is not unique. The QR and Meta
+runtimes previously read and updated state by the conversation key alone. Those
+paths now bind every read and mutation to both owner UID and conversation key;
+a composite prefix index supports the lookup. Do not infer or backfill missing
+owners by parsing the concatenated key. Before production rollout, audit null UID
+and duplicate `(uid, uniqueId)` row counts read-only, then verify against the
+supported MariaDB release. Legacy per-node authorization and durable message
+idempotency remain separate requirements.

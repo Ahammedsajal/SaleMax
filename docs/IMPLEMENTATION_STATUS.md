@@ -1887,3 +1887,19 @@ revisions remain readable for owner recovery. Unit/API coverage passes; the
 synthetic MariaDB integration extends the plan-revocation scenario to preview
 and draft denial but is still awaiting a supported MariaDB runtime. Production
 is unchanged.
+
+
+### Legacy Flow Builder conversation-state owner guard — source update, 23 October 2026
+
+The legacy `flow_data` table has an auto-increment primary key, a nullable
+`uid`, and no uniqueness constraint on `uniqueId`. QR and Meta flow-state reads
+and updates previously queried by `uniqueId` alone. The existing adapters now
+require both owner UID and conversation key through one shared helper, and the
+forward/rollback migration adds a composite prefix index for that lookup. A
+synthetic collision test proves that identical conversation keys return and
+mutate only the matching owner row; a local MySQL 9.6 synthetic-table check
+confirms the index is selected. Focused flow/isolation tests pass 23/23. This
+is source-only; production is unchanged. Before release, audit live null-UID
+and duplicate `(uid, uniqueId)` rows without exposing conversation contents,
+then verify the migration and runtime on the supported MariaDB version. Legacy
+flow delivery/idempotency and per-node authority remain separate open gates.
