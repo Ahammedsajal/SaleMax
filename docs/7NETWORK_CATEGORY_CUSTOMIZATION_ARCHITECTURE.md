@@ -101,6 +101,22 @@ internal secret must never be given to a provider. This closes one unauthenticat
 mutation path but does not certify category activation or the rest of the
 legacy WhatsApp-call router.
 
+The Meta Inbox callbacks now verify `X-Hub-Signature-256` against the raw
+request body before processing it. Direct callbacks bind the signed phone ID to
+the configured owner UID; embedded callbacks bind the signed WABA/phone pair to
+one owner and verify the platform callback path. Permission replies constrain
+campaign updates by owner UID as well as campaign ID. The direct Meta app uses
+`META_APP_SECRET`; the embedded Meta app uses the separate
+`web_private.embed_app_sec` setting. Both paths fail closed when their matching
+secret is absent. The production environment currently
+has no `META_APP_SECRET` or `web_private.embed_app_sec`, so this source change
+must remain out of production until the app secret is provisioned and real
+callback delivery passes. Signature validity proves the payload came from the
+configured Meta app; the additional phone/WABA lookup establishes the tenant
+owner. This is still not a complete callback audit: Meta subscription changes,
+QR/Baileys callbacks, provider retries/idempotency and all other callback
+families require their own source and runtime review.
+
 ## Ordered implementation plan
 
 1. **Inventory and lock boundaries:** map each existing screen, API route, job, webhook, table, authorization helper and feature flag to shared platform or domain module. Identify legacy routes that bypass category/plan policy and map legacy accounts to a compatibility cohort. Add automated category/plan/tenant/member cross-product denial checks.

@@ -17,6 +17,32 @@ gate for the full legacy `/api/wa_call` router, and production/browser acceptanc
 remain open. This is one security increment toward the full 42-ticket 7Network
 CRM objective.
 
+## Meta webhook signature and tenant binding — source update, 21 October 2026
+
+Both Meta Inbox webhook entrypoints now require a valid raw-body
+`X-Hub-Signature-256` HMAC before acknowledging or processing callbacks. The
+direct Meta app uses `META_APP_SECRET`; the embedded Meta app uses the separate
+`web_private.embed_app_sec` setting. Missing configuration fails closed. The
+direct callback binds every message/call phone-number ID to the path UID, while
+the embedded callback resolves a unique owner from the signed WABA/phone pair
+and checks the platform callback UID. Call-permission replies now scope both
+campaign reads and writes by that owner UID. Tests cover valid/invalid/missing
+signatures, unknown/ambiguous/cross-tenant phone bindings, and campaign-owner
+scope.
+
+The focused Meta callback/auth suite passes 18/18; syntax and whitespace checks
+pass. The full suite passes 1,086/1,110; its 24 failures are the existing
+Manage Users, Pipeline, Training/Finance and public-form source-contract
+assertions recorded in the current baseline. No new callback or authorization
+failure was reported. No production code or business data changed. A read-only production check
+found neither `META_APP_SECRET` nor `web_private.embed_app_sec` configured, so
+deploying the fail-closed guard now would reject Meta callbacks. Production
+disk is 98% used with 1.2 GB available. Provisioning the secret through the
+approved Meta app configuration, callback delivery verification, and a safe
+release window are required before deployment. This closes only these two
+webhook boundaries; the remaining legacy API, worker, socket and provider audit
+is still required for the full 42-ticket 7Network CRM objective.
+
 ## Legacy route and tenant-policy inventory — source audit, 21 October 2026
 
 The first route-boundary pass confirms that `mountConfiguredUpgrade()` runs

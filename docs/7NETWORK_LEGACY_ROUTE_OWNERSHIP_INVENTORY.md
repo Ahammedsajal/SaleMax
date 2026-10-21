@@ -106,6 +106,25 @@ new category gates from this inventory alone.
 
 A read-only production count found 3 active mapped tenants: 1 `7network_sales` and 2 `training_center`. All 3 have a legacy user mapping and a current active/trial plan assignment. These counts reduce uncertainty for the current tenant set, but do not make compatibility-only/unmapped legacy accounts safe to auto-adopt and do not prove every route is covered.
 
+## Meta Inbox callback owner contract — source update, 21 October 2026
+
+The two `/api/inbox/*/webhook/:uid` POST routes now verify Meta's HMAC over
+the captured raw request bytes before acknowledging the event. The direct
+callback requires every message/call phone ID to resolve under its path UID;
+the embedded callback resolves a unique owner from the signed WABA and phone
+ID and verifies the configured platform callback UID. Call-permission replies
+filter both campaign lookup and update by the resolved owner. The direct Meta
+app uses `META_APP_SECRET`; the embedded Meta app uses the separate
+`web_private.embed_app_sec` value. Each fails closed if its matching secret is
+not configured.
+
+This is source-level evidence, not a production release: the live app has no
+secret in either supported location, so publishing the guard would stop Meta
+callbacks until configuration is supplied. Its setting must be provisioned
+through the established Meta app configuration, then verified with a genuine
+signed callback in a safe release window. Other provider callbacks, workers,
+QR events and sockets remain outside this slice.
+
 ## Enforcement and migration plan
 
 1. Build an executable inventory of every mounted legacy route and HTTP method. Join each route to a reviewed module, capability, permission, expected tenant/data owner, and current guard. Mark bootstrap, provider callback, public and static routes separately.
