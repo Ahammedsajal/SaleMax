@@ -1935,6 +1935,30 @@ Legacy jobs, sockets, provider callbacks, public/static routes, and complete
 authenticated EN/AR acceptance remain open; the broader 42-ticket upgrade is
 not complete.
 
+## Versioned module composition in category manifests — source update, 21 October 2026
+
+First-party categories now pin versioned module IDs whose reviewed manifests
+declare capability sets, existing screen keys, service owners, current data
+boundary class, and module-config schema version. The category registry checks
+that the modules compose exactly the category's existing capability contract;
+sellable/public category manifests cannot omit module composition. Existing
+navigation and the Manage Users screen catalog intersect screen visibility with
+the pinned module list. This closes a concrete screen mixing issue: Training
+Center v1 retains historical Sales Finance/recruitment capabilities for old
+assignments, but those screens sit in an explicit compatibility-only module and
+are not shown in its navigation. Tests verify no cross-vertical screens appear
+in Base CRM, Sales, Training or the Real Estate fixture.
+
+The source checks pass 61/61 across registry, category isolation, customization,
+team/navigation, route audit and existing integration contracts; syntax and
+`git diff --check` pass. This is source-only and does not change customer
+assignments, entitlements, database data or production. Module composition is
+still source-owned: tenant-level module activation, versioned per-module
+settings, complete route/data-owner mapping and end-to-end API enforcement are
+not implemented yet. Training v1's legacy capability grants remain intact until
+a reviewed adoption/version transition; this screen filter alone is not an API
+security boundary. The 42-ticket category/CRM work remains active.
+
 ### Original public logo and icon — production, 20 October 2026
 
 `def8d24` is deployed in `public-logo-def8d24-20261020`. Public header/footer use the original SaleMaX horizontal logo; the hero and browser icon use the supplied icon assets. Desktop image loading, mobile bounds, source/runtime/HTTPS hashes and health passed. This is an HTML/CSS-only branding correction, with no migration or business-data change; release/rollback evidence is in `DEPLOYMENT.md`.

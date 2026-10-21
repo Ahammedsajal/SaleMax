@@ -1,4 +1,5 @@
 const { decision } = require('./policy');
+const moduleRegistry=require('./categories').moduleRegistry;
 const items = [
   ['dashboard', 'tenant.settings', 'tenant.read', 'Dashboard', 'لوحة التحكم', 'Overview', 'نظرة عامة'],
   ['notifications', 'tenant.settings', 'tenant.read', 'Web Notifications', 'إشعارات الويب', 'Overview', 'نظرة عامة'],
@@ -43,6 +44,10 @@ const items = [
   ['team', 'team.members', 'team.read', 'Team access', 'إدارة وصول الفريق', 'Administration', 'الإدارة'],
   ['settings', 'tenant.settings', 'tenant.manage', 'Business Settings', 'إعدادات الأعمال', 'Administration', 'الإدارة'],
 ].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr },ownerOnly:['recruitment','training-profile'].includes(key),sidebar:!['batches','enrollments','installments','payments','receipts','credits','scheduled-reports'].includes(key) }));
+function supportsCategoryScreen(category,key){
+  if(!Array.isArray(category?.modules))return true;
+  return category.modules.some(ref=>moduleRegistry.get(ref.id,ref.version)?.screens.includes(key));
+}
 function navigationFor(context) {
   if (context?.audience !== 'tenant' || context.tenant?.status !== 'active' || context.membership?.status !== 'active' || context.membership?.tenantId !== context.tenant?.id) return [];
   // Internal Sales accountants work from finance and payout workspaces only.
@@ -51,7 +56,7 @@ function navigationFor(context) {
   const visible = context.category?.key === '7network_sales' && context.membership.role === 'accountant'
     ? items.filter(item => ['sales-finance', 'sales-commissions'].includes(item.key))
     : items;
-  return visible.filter(item => (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&
+  return visible.filter(item => supportsCategoryScreen(context.category,item.key) && (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&
     (item.key!=='finance-reports'||decision(context,{capability:'finance.invoices',permission:'invoices.read'}).allowed))
     .map(item => ({ ...item, scope: decision(context, item).scope }));
 }
@@ -77,4 +82,4 @@ function keysForCapability(capability){
   if(['finance.invoices','finance.installments','finance.payments','finance.receipts'].includes(capability))return ['invoices','installments','payments','receipts'];
   return items.filter(item=>item.capability===capability).map(item=>item.key);
 }
-module.exports = { items, navigationFor, keysForCapability,parseSidebar,filterSidebar,sidebarForMembership };
+module.exports = { items, navigationFor, supportsCategoryScreen, keysForCapability,parseSidebar,filterSidebar,sidebarForMembership };
