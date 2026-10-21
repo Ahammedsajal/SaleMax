@@ -12,7 +12,7 @@ Configuration isolation can prevent one business's settings affecting another. I
 
 ## Category task adapters — 21 October 2026
 
-The existing shared Tasks screen now receives its available task types from the authenticated category/plan contract. Reviewed immutable adapters define labels and validation; category versions pin adapter versions, while tenant customization may only hide an approved type. It cannot add types, grant category capabilities, or bypass plan entitlements. Existing task history remains readable when an administrator disables a type. Training Center invoice/enrollment and 7Network Sales call choices are wired through this path. Manage Users' legacy-plan fallback now sends mapped accounts to a reviewed category contract using category-neutral English/Arabic guidance; the setup screen reads the actual tenant category and version from the authenticated context. Production source parity was inspected read-only; production-only task adapters, upload-size handling and rollback source were recovered, while the 14 local-only Real Estate source files remain unpublished. Focused category/assignment/application tests pass. The full suite passes 1,054/1,077, with 23 existing app-shell, Pipeline/Reports, Training, Finance, and public-form checks still failing and requiring separate triage. This is source work only: production has not been changed, and production release remains deferred pending renewed host capacity verification. Authenticated browser acceptance and tenant adoption remain open.
+The existing shared Tasks screen now receives its available task types from the authenticated category/plan contract. Reviewed immutable adapters define labels and validation; category versions pin adapter versions, while tenant customization may only hide an approved type. It cannot add types, grant category capabilities, or bypass plan entitlements. Existing task history remains readable when an administrator disables a type. Training Center invoice/enrollment and 7Network Sales call choices are wired through this path. Manage Users' legacy-plan fallback now sends mapped accounts to a reviewed category contract using category-neutral English/Arabic guidance; the setup screen reads the actual tenant category and version from the authenticated context. Production source parity was inspected read-only; production-only task adapters, upload-size handling and rollback source were recovered, while the 14 local-only Real Estate source files remain unpublished. A clean `origin/main` full-suite baseline passes 1,019/1,045; this feature branch passes 1,057/1,079, adds 34 tests and resolves four baseline failures without introducing new failing test names. This is source work only: production has not been changed, and production release remains deferred pending renewed host-capacity and authenticated UI verification. Tenant adoption and the complete 42-ticket objective remain open.
 
 ## Training lifecycle boundary correction — 21 October 2026
 
@@ -179,9 +179,15 @@ Labels are validated as bounded text, saved in the tenant's checksummed immutabl
 revision, and applied by the existing task-type adapter when it builds the
 authenticated task list. A tenant cannot create a task type, expose a plan- or
 category-denied type, change its validation rules, or affect another tenant.
-Older schema versions remain readable. No table change is needed. Unit and
-screen-contract tests pass; the updated disposable two-tenant integration check
-has not been run in this checkout. This extends business vocabulary only;
+Older schema versions remain readable. No table change is needed. Forty-two
+focused customization, task adapter, task management, feature-session and
+screen-contract tests pass. The disposable tenant integration passes against a
+fresh MySQL 9.6 schema, including same-category label separation through the
+existing workspace API, cross-category isolation, concurrent-edit serialization,
+cross-tenant rollback denial, audit rollback, membership revocation and
+expired-plan denial. The synthetic schema, database user and private test
+configuration were removed afterward; no production/customer data or external
+messages were involved. This extends business vocabulary only;
 workflow-specific settings and authenticated EN/AR acceptance remain open.
 
 | Workstream | Required evidence | State |

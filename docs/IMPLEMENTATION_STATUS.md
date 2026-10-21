@@ -8,12 +8,21 @@ presentation only: category, plan, role, enabled-type and assignment checks
 remain authoritative. The normalizer rejects unknown task types, incomplete
 translations, markup/control characters and overlong values. Existing schema
 versions remain readable; this increment uses customization schema version 5
-and needs no database migration. Forty-one focused customization, task adapter,
-task management and screen-contract tests pass. A synthetic two-tenant database
-test now covers persistence and runtime label separation but was not run in
-this checkout. Source only; no production upload or tenant setting change.
-Authenticated English/Arabic browser acceptance and the broader category,
-tenant-adoption, production parity and 42-ticket gates remain open.
+and needs no database migration. Forty-two focused customization, task adapter,
+task management, feature-session and screen-contract tests pass. The tenant
+customization integration passes against a fresh disposable MySQL 9.6 schema:
+same-category tenant label separation through the existing workspace API,
+different-category isolation, denied-navigation filtering, one-winner concurrent
+edits, cross-tenant rollback denial, composite-key ownership, historical
+rollback, audit-failure rollback, membership revocation and expired-plan denial.
+The synthetic database/user and private test configuration were removed after
+the run; no production/customer data or external messages were used. Source only;
+no production upload or tenant setting change. Authenticated English/Arabic
+browser acceptance and the broader category, tenant-adoption, production parity
+and 42-ticket gates remain open. Full-suite comparison: this branch passes
+1,057/1,079 tests; clean `origin/main` passes 1,019/1,045. The 22 failing test
+names on this branch are all in the baseline failure set, and this branch fixes
+four baseline failures while adding 34 tests.
 
 ## Tenant-custom field and QR lead-filter audit — source verification, 21 October 2026
 
