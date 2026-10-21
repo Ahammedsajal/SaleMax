@@ -52,6 +52,25 @@ paths in the inventory, then close route-by-route category/tenant policy gaps
 before enabling additional categories. This is not completion of the broader
 42-ticket CRM program.
 
+## Upgraded route ownership mapping — source update, 21 October 2026
+
+The factory-route scanner now inspects every `app.use()` argument instead of
+stopping at the first matching middleware. It discovered the inline Tasks,
+platform-access and Asterisk routers that were previously missed, adding 54
+route bindings. All 451 bindings across 36 mounts and 25 modules now join to 44
+explicit module/platform ownership contracts. Tests reject missing/stale
+contracts, invalid module IDs, and category/module mismatches; they confirm
+Training courses, Sales products/services and Real Estate listings retain
+separate module ownership. This is an inventory and ownership improvement,
+not route authorization: all bindings still require service/data-scope review,
+and 64 have no recognizable named guard in their declaration. Source only;
+legacy direct routes, jobs, sockets, provider callbacks, authenticated UI
+acceptance, and production release remain open. The full 42-ticket objective
+continues. The focused route/category/customization batch passes 40/40. The
+full test suite passes 1,041/1,065; the same 24 existing Manage Users, Pipeline,
+Training and Finance source-contract assertions remain failing, with no new
+ownership-inventory failures.
+
 ## Recruitment CV upload error mapping — source correction, 21 October 2026
 
 The current source maps upload-parser file-size errors (`LIMIT_FILE_SIZE`) to

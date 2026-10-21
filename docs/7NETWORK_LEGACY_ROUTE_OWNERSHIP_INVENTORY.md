@@ -62,34 +62,45 @@ provider callbacks or static/public pages. The reported 444 count is a source
 inventory, not a whole-application authorization audit. Tests currently assert
 the review baseline is stable and canonical aliases resolve consistently.
 
-## Upgraded router factory inventory — source, 21 October 2026
+## Upgraded router ownership inventory — source, 21 October 2026
 
 The follow-up static scan parses router-factory mounts in
 `modules/platform/mount-existing-upgrade.js`, follows imported and local
 factory bindings, scopes declarations to the factory function and returned
 router object, and joins literal route declarations to their configured path
-prefixes. It currently finds 33 factory mounts across 23 modules and 397
-mounted route bindings, counting path aliases separately.
-This includes both Training and Sales catalogue uses of shared services, plus
-the newer CRM, property, finance, forms, recruitment, bot, team and call-center
-routers. There are no unresolved dynamic route paths in the discovered
-factories.
+prefixes. The scanner now inspects all `app.use()` arguments, so it does not
+stop at an authentication/session middleware when the same mount also creates
+its router inline. That correction surfaced the Tasks router, platform-access
+router and Asterisk admin router: 54 additional route bindings. The current
+inventory covers 36 router mounts across 25 modules and 451 mounted route
+bindings, counting aliases separately, with no unresolved dynamic paths.
 
-Every discovered route remains `review_required`: the scan is intentionally
-not a permission verdict. It can identify some middleware names, but cannot
-prove what inline middleware, closure wrappers, service-level checks, or
-database filters enforce at runtime. In particular, 17 bindings do not expose
-a recognizable named guard in their route declaration; that is a manual review
-queue, not a confirmed set of unprotected routes. The scan also does not cover
-legacy direct mounts, public helpers that register routes on the app, static
-pages, workers, sockets, provider callbacks, SQL data ownership, or rendered
-screen behavior. An inventory test locks representative vertical and shared
-route discovery so new mounts are not silently omitted.
+`modules/platform/upgraded-route-ownership.js` now assigns all 44 distinct
+router/mount pairs to an explicit platform, identity, shared-module or
+category-module owner. The join expands to every discovered route. The
+ownership test rejects unowned bindings, stale contracts, unknown module IDs,
+and category/module combinations not present in the category registry. It also
+locks the catalogue boundary: Training Center courses map to `training.core`,
+Sales products/services map to `sales.products-services`, and properties map
+to `real-estate.properties` only.
+
+All 451 bindings remain `review_required` for actual enforcement. The inventory
+marks ownership as mapped while policy review remains unverified; ownership
+is not a permission verdict. The scanner can identify some middleware names,
+but cannot prove what inline middleware, closure wrappers, service-level
+checks, or database filters enforce at runtime. Sixty-four bindings do not
+expose a recognizable named guard in their route declaration; this is a
+manual review queue, not a confirmed set of unprotected routes. The scan also
+does not cover legacy direct mounts, public helpers that register routes on
+the app, static pages, workers, sockets, provider callbacks, SQL data ownership,
+or rendered screen behavior.
 
 Next, review these route-to-service boundaries with module capability, owning
 tables, trusted tenant-context source, member permission, and negative
-cross-category/tenant tests. Do not turn the scan's guard-name output into
-automated grants or enforce new category gates from this inventory alone.
+cross-category/tenant tests. Then apply the same owner contract to direct
+legacy routers, asynchronous paths and public/static routes. Do not turn the
+scan's guard-name output or ownership metadata into automated grants or enforce
+new category gates from this inventory alone.
 
 A read-only production count found 3 active mapped tenants: 1 `7network_sales` and 2 `training_center`. All 3 have a legacy user mapping and a current active/trial plan assignment. These counts reduce uncertainty for the current tenant set, but do not make compatibility-only/unmapped legacy accounts safe to auto-adopt and do not prove every route is covered.
 

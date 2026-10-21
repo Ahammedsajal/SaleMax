@@ -39,12 +39,18 @@ function mountInventory(){
   if(node.type!=='CallExpression'||member(node.callee)!=='app.use')return;
   const paths=[];
   for(const arg of node.arguments){if(lit(arg)!==null)paths.push(lit(arg));else if(arg.type==='ArrayExpression'&&arg.elements.every(x=>lit(x)!==null))paths.push(...arg.elements.map(lit));}
-  let info=null;
-  for(const arg of node.arguments){info=factoryInfo(arg,factories);if(info)break;if(arg.type==='Identifier'&&bindings.has(arg.name)){info=bindings.get(arg.name);break;}if(arg.type==='MemberExpression'&&bindings.has(member(arg.object))){info=bindings.get(member(arg.object));break;}}
-  if(!info)return;
+  const candidates=[];
+  for(const arg of node.arguments){
+   let info=factoryInfo(arg,factories),routerName=null;
+   if(!info&&arg.type==='Identifier')info=bindings.get(arg.name)||null;
+   if(!info&&arg.type==='CallExpression'&&arg.callee.type==='Identifier')info=bindings.get(arg.callee.name)||null;
+   if(!info&&arg.type==='MemberExpression'&&bindings.has(member(arg.object))){info=bindings.get(member(arg.object));routerName=arg.property?.name||null;}
+   if(info)candidates.push({...info,routerName});
+  }
+  if(!candidates.length)return;
   if(!paths.length){dynamic.push({file:'modules/platform/mount-existing-upgrade.js',line:node.loc.start.line,reason:'factory mount has no static path'});return;}
-  const output=node.arguments.find(arg=>arg.type==='MemberExpression'&&bindings.has(member(arg.object)));
-  mounts.push({...info,routerName:output?.property?.name||null,prefixes:paths,line:node.loc.start.line});
+  const uniqueCandidates=new Map(candidates.map(candidate=>[`${candidate.file}:${candidate.factory}:${candidate.routerName||''}`,candidate]));
+  for(const info of uniqueCandidates.values())mounts.push({...info,prefixes:paths,line:node.loc.start.line});
  });
  return {mounts,dynamic};
 }
