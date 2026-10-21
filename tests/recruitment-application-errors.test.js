@@ -20,10 +20,10 @@ test('public recruitment errors show a safe exact cause without exposing interna
 });
 
 test('applicants receive plain-language guidance and an exact safe cause for technical failures',()=>{
-  assert.equal(format('RECRUITMENT_UNAVAILABLE','ER_BAD_FIELD_ERROR'), 'We could not submit your application right now. Please try again in a few minutes. [Cause: ER_BAD_FIELD_ERROR]');
-  assert.equal(format('RECRUITMENT_UNAVAILABLE','ECONNREFUSED','ar'), 'تعذر إرسال طلبك الآن. يرجى المحاولة مرة أخرى بعد بضع دقائق. [السبب: ECONNREFUSED]');
+  assert.equal(format('RECRUITMENT_UNAVAILABLE','ER_BAD_FIELD_ERROR'), 'We could not complete your application just now. Please try again in a few minutes. [Cause: ER_BAD_FIELD_ERROR]');
+  assert.equal(format('RECRUITMENT_UNAVAILABLE','ECONNREFUSED','ar'), 'تعذر إكمال طلبك الآن. يرجى المحاولة مرة أخرى بعد بضع دقائق. [السبب: ECONNREFUSED]');
   assert.equal(format('APPLICATION_SUBMIT_FAILED','HTTP_413'), 'Your CV could not be uploaded. Please choose a file under 8 MB and try again. [Cause: HTTP_413]');
   assert.equal(format('INVALID_CV_FILE','LIMIT_FILE_SIZE'), 'Your CV is larger than 8 MB. Please choose a smaller file and try again. [Cause: LIMIT_FILE_SIZE]');
   assert.equal(format('INVALID_HINDI_LEVEL'), 'Please choose a Hindi level from the list.');
-  assert.equal(format('RECRUITMENT_UNAVAILABLE','private database error'), 'We could not submit your application right now. Please try again in a few minutes. [Cause: UNEXPECTED_SERVER_ERROR]');
+  assert.equal(format('RECRUITMENT_UNAVAILABLE','private database error'), 'We could not complete your application just now. Please try again in a few minutes. [Cause: UNEXPECTED_SERVER_ERROR]');
 });
