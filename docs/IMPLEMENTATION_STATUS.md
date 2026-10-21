@@ -1984,3 +1984,15 @@ finance. The existing Reports renderer also requires a Training journey context
 before showing Training learner or finance cards, even if an unexpected response
 contains that payload. Focused report/team/category-isolation checks pass 25/25.
 This is source-only; production was not updated.
+
+## Category version fingerprint lock — source only, 22 October 2026
+
+The registry now verifies every checked-in category/version against a reviewed
+fingerprint of its identity, bilingual title, visibility/planability,
+capabilities, role seats, catalogue/bot/task adapters and migration. Changing
+an existing category contract without a corresponding lock change fails registry
+initialization, and the lock requires an entry for every registered version.
+This prevents accidental in-place changes to contracts already assigned to
+tenants. Four focused registry checks pass, including modified-contract and
+missing-lock rejection. No migration, plan/tenant assignment or production
+change occurred.

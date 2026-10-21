@@ -47,6 +47,21 @@ and separate domain adapters. It also confirms remaining launch evidence must
 include tenant-level restore/recovery, load fairness, authenticated user flows
 and cross-tenant API/cache/worker/media tests before calling the system scalable.
 
+## Existing category contract lock — source implementation, 22 October 2026
+
+The runtime registry now checks every registered category/version against a
+reviewed SHA-256 fingerprint covering its identity, bilingual title, exposure
+and planability, catalogue and bot adapters, task adapter versions,
+capabilities, seat roles and migration. Editing an existing v1/v2/v3 contract
+without an explicit fingerprint update makes registry initialization fail;
+adding a category version requires a new lock entry. This catches accidental
+in-place behavior changes that could alter entitlements or workflows for
+already-assigned tenants. The fingerprint is a source-change guard, not a
+cryptographic security boundary: code review still controls intentional updates.
+Four focused registry tests pass, including changed-title rejection and
+missing-version-lock rejection. No tenant assignment, plan, database or
+production state changed.
+
 ## Category task adapters — 21 October 2026
 
 The existing shared Tasks screen now receives its available task types from the authenticated category/plan contract. Reviewed immutable adapters define labels and validation; category versions pin adapter versions, while tenant customization may only hide an approved type. It cannot add types, grant category capabilities, or bypass plan entitlements. Existing task history remains readable when an administrator disables a type. Training Center invoice/enrollment and 7Network Sales call choices are wired through this path. Manage Users' legacy-plan fallback now sends mapped accounts to a reviewed category contract using category-neutral English/Arabic guidance; the setup screen reads the actual tenant category and version from the authenticated context. Production source parity was inspected read-only; production-only task adapters, upload-size handling and rollback source were recovered, while the 14 local-only Real Estate source files remain unpublished. A clean `origin/main` full-suite baseline passes 1,019/1,045; this feature branch passes 1,057/1,079, adds 34 tests and resolves four baseline failures without introducing new failing test names. This is source work only: production has not been changed, and production release remains deferred pending renewed host-capacity and authenticated UI verification. Tenant adoption and the complete 42-ticket objective remain open.
