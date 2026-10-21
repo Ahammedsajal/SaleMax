@@ -86,6 +86,8 @@ test('task list returns role capabilities and scopes unread counts to the curren
   const owner=await tasks.list(db,ctx,{scope:'mine'});
   assert.deepEqual(owner.permissions,{canCreate:true,canManage:true,canViewTeam:true});
   assert.match(query.sql,/AS unread_count/);assert.deepEqual(query.args.slice(0,2),[ctx.actorType,String(ctx.actorId)]);
+  const tenantLabels=await tasks.list(db,{...ctx,tenant:{categoryKey:'training_center',categoryVersion:1},category:trainingCenter,subscription:{capabilities:trainingCenter.capabilities},customization:{document:{taskTypeLabels:{general:{en:'Office work',ar:'عمل مكتبي'}}}}},{scope:'mine'});
+  assert.equal(tenantLabels.taskTypes.find(item=>item.key==='general').label.en,'Office work');
   const agent=await tasks.list(db,{...ctx,role:'agent',actorType:'agent',actorId:'7',agentId:7},{scope:'mine'});
   assert.deepEqual(agent.permissions,{canCreate:true,canManage:false,canViewTeam:false});
   await assert.rejects(tasks.list(db,{...ctx,role:'agent',actorType:'agent',actorId:'7',agentId:7},{scope:'team'}),{code:'PERMISSION_DENIED'});
