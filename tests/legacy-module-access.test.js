@@ -14,6 +14,7 @@ async function run(guard,req={}){
   const out={};await new Promise(resolve=>guard(req,{status(code){out.status=code;return this;},json(body){out.body=body;resolve();}},error=>{out.error=error;resolve();}));return out;
 }
 function chatbotGuard(resolveContext){return createLegacyModuleAccess({pool,capability:'automation.chatbot',permission:'automation.manage',resolveContext});}
+function templateGuard(resolveContext){return createLegacyModuleAccess({pool,capability:'messaging.templates',permission:'templates.manage',resolveContext});}
 
 test('legacy chatbot endpoints allow mapped categories with the enabled chatbot module',async()=>{
   const req={decode:{userData:{id:1,uid:'owner-a',role:'user'}}};
@@ -35,4 +36,14 @@ test('legacy chatbot endpoints deny categories that do not include the chatbot c
 test('unmapped legacy users keep existing chatbot behavior until reviewed adoption',async()=>{
   const result=await run(chatbotGuard(async()=>null),{decode:{userData:{id:1,uid:'legacy-a',role:'user'}}});
   assert.equal(result.error,undefined);
+});
+
+test('shared templates are independently gated by category, plan and tenant activation',async()=>{
+  const allowed=await run(templateGuard(async()=>context(categories.baseCrm)),{decode:{userData:{id:1,uid:'owner-a',role:'user'}}});
+  assert.equal(allowed.status,undefined);
+  const modules=categories.baseCrm.modules.map(moduleKey).filter(key=>key!=='core.templates@1');
+  const disabled=await run(templateGuard(async()=>context(categories.baseCrm,modules)),{decode:{userData:{id:1,uid:'owner-a',role:'user'}}});
+  assert.equal(disabled.status,403);assert.equal(disabled.body.code,'MODULE_DISABLED');
+  const unsupported=await run(templateGuard(async()=>context(categories.restaurantFixture)),{decode:{userData:{id:1,uid:'owner-a',role:'user'}}});
+  assert.equal(unsupported.status,403);assert.equal(unsupported.body.code,'CATEGORY_UNAVAILABLE');
 });

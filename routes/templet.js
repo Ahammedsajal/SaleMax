@@ -4,8 +4,17 @@ const randomstring = require('randomstring')
 const bcrypt = require('bcrypt')
 const { isValidEmail, getFileExtension } = require('../functions/function.js')
 const { sign } = require('jsonwebtoken')
-const validateUser = require('../middlewares/user.js')
+const validateUserAuth = require('../middlewares/user.js')
 const { checkPlan } = require('../middlewares/plan.js')
+const templateAccess = require('../modules/platform/legacy-module-access').createLegacyModuleAccess({
+    pool: require('../database/config.js').promise(),
+    capability: 'messaging.templates',
+    permission: 'templates.manage',
+})
+const validateUser = (req, res, next) => validateUserAuth(req, res, error => {
+    if (error) return next(error)
+    return templateAccess(req, res, next)
+})
 
 // add templet 
 router.post('/add_new', validateUser, checkPlan, async (req, res) => {
