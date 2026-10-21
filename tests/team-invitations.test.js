@@ -24,6 +24,13 @@ test('Team Access route honors granted role and member navigation without catego
   assert.doesNotMatch(sidebar,/page==='team-invitations'.*membershipRole/);
 });
 
+test('tenant menu visibility stays final after shared QR access and filters legacy member assignments',()=>{
+  const args={role:'manager',roleNavigation:['inbox'],assignedNavigation:['inbox','whatsapp-qr'],hasSharedQr:true,document:{schemaVersion:3,hiddenNavigation:['whatsapp-qr']}};
+  assert.deepEqual(team.effectiveSidebarNavigation(args),{roleNavigation:['inbox'],assignedNavigation:['inbox']});
+  assert.deepEqual(team.effectiveSidebarNavigation({...args,document:{schemaVersion:3,hiddenNavigation:[]}}),{roleNavigation:['inbox','whatsapp-qr'],assignedNavigation:['inbox','whatsapp-qr']});
+  assert.deepEqual(team.effectiveSidebarNavigation({...args,assignedNavigation:null,document:{schemaVersion:3,hiddenNavigation:[]}}),{roleNavigation:['inbox','whatsapp-qr'],assignedNavigation:null});
+});
+
 test('member role assignment only accepts an active role profile for the member seat',()=>{
   assert.equal(team.memberRoleProfileId('agent',null),null);
   assert.equal(team.memberRoleProfileId('agent',{id:'role-agent',seatRole:'agent',status:'active'}),'role-agent');

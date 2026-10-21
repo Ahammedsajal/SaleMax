@@ -21,13 +21,13 @@ test('shared customization router and alias serve bearer and cookie contexts wit
 });
 test('preview rejects foreign schema keys, denied staff, missing credentials and cross-origin writes',async()=>{
  const app=await fixture();try{
-  const url=app.base+'/api/workspace/customization/preview',document={schemaVersion:1,navigationLabels:{courses:{en:'Programmes A',ar:'برامج أ'}}};
+  const url=app.base+'/api/workspace/customization/preview',document={schemaVersion:3,navigationLabels:{courses:{en:'Programmes A',ar:'برامج أ'}},leadFields:[],hiddenNavigation:['courses']};
   assert.equal((await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://crm.example.test'},body:JSON.stringify({document})})).status,401);
   const headers={Authorization:'Bearer synthetic-owner','Content-Type':'application/json',Origin:'https://foreign.example.test'};
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document})})).status,403);
   assert.equal(app.counts().refreshes,0);
   headers.Origin='https://crm.example.test';
-  const response=await fetch(url,{method:'POST',headers,body:JSON.stringify({document})});assert.equal(response.status,200);assert.equal((await response.json()).data.readOnly,true);assert.equal(app.counts().queries,0);
+  const response=await fetch(url,{method:'POST',headers,body:JSON.stringify({document})}),preview=await response.json();assert.equal(response.status,200);assert.equal(preview.data.readOnly,true);assert.deepEqual(preview.data.document.hiddenNavigation,['courses']);assert.equal(app.counts().queries,0);
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document:{...document,tenantId:'tenant-b'}})})).status,400);
   app.setContext({...base,membership:{...base.membership,role:'agent'}});
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document})})).status,403);

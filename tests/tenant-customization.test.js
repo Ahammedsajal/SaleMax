@@ -8,7 +8,7 @@ const doc={schemaVersion:1,navigationLabels:{courses:{en:'Programmes',ar:'الب
 test('label customization is bounded, category-scoped data rather than executable configuration',()=>{
   assert.deepEqual(settings.preview(ctx,doc),{readOnly:true,document:doc});
   const source=structuredClone(doc),normalized=settings.normalize(ctx,source);source.navigationLabels.courses.en='Changed';assert.equal(normalized.navigationLabels.courses.en,'Programmes');
-  for(const value of [{...doc,tenantId:'other'},{...doc,schemaVersion:2},{...doc,disabledCapabilities:[]},{schemaVersion:1,navigationLabels:{recruitment:{en:'Recruitment',ar:'توظيف'}}},{schemaVersion:1,navigationLabels:{'products-services':{en:'Products',ar:'منتجات'}}},{schemaVersion:1,navigationLabels:{courses:{en:'<script>',ar:'الدورات'}}},JSON.parse('{"schemaVersion":1,"navigationLabels":{"__proto__":{"en":"x","ar":"x"}}}')])assert.throws(()=>settings.normalize(ctx,value));
+  for(const value of [{...doc,tenantId:'other'},{...doc,schemaVersion:4},{...doc,disabledCapabilities:[]},{schemaVersion:1,navigationLabels:{recruitment:{en:'Recruitment',ar:'توظيف'}}},{schemaVersion:1,navigationLabels:{'products-services':{en:'Products',ar:'منتجات'}}},{schemaVersion:1,navigationLabels:{courses:{en:'<script>',ar:'الدورات'}}},JSON.parse('{"schemaVersion":1,"navigationLabels":{"__proto__":{"en":"x","ar":"x"}}}')])assert.throws(()=>settings.normalize(ctx,value));
   assert.throws(()=>settings.normalize({...ctx,category:salemaxSales},{schemaVersion:1,navigationLabels:{courses:{en:'Courses',ar:'دورات'}}}),{code:'INVALID_CUSTOMIZATION_LABEL'});
 });
 test('preview cannot grant access and denied staff never reach persistence',async()=>{
@@ -25,4 +25,27 @@ test('saved revisions must match tenant category version and canonical checksum'
   assert.deepEqual(settings.decode(ctx,row).document,doc);
   assert.throws(()=>settings.decode(ctx,{...row,checksum:'0'.repeat(64)}),{code:'CUSTOMIZATION_INTEGRITY_ERROR'});
   assert.throws(()=>settings.decode(ctx,{...row,category_version:2}),{code:'CUSTOMIZATION_VERSION_MISMATCH'});
+});
+test('schema 3 hides only category-owned navigation keys while schema 1 and 2 remain readable',()=>{
+  const doc3={schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['courses','inbox']};
+  assert.deepEqual(settings.normalize(ctx,doc3),doc3);
+  assert.throws(()=>settings.normalize(ctx,{...doc3,hiddenNavigation:['recruitment']}),{code:'INVALID_CUSTOMIZATION_NAVIGATION'});
+  assert.throws(()=>settings.normalize(ctx,{...doc3,hiddenNavigation:['courses','courses']}),{code:'INVALID_CUSTOMIZATION_NAVIGATION'});
+  const doc2={schemaVersion:2,navigationLabels:{},leadFields:[]};
+  assert.deepEqual(settings.normalize(ctx,doc2),doc2);
+  const rows=[{key:'inbox'},{key:'courses'},{key:'tasks'}];
+  assert.deepEqual(settings.visibleNavigation(rows,doc3),[{key:'tasks'}]);
+  assert.deepEqual(settings.visibleNavigation(rows,{schemaVersion:2}),rows);
+});
+test('published hidden navigation affects only the current tenant session contract',async()=>{
+  const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');
+  const original=customization.effective;
+  try{
+    customization.effective=async(_db,context)=>({revision:8,document:{schemaVersion:3,navigationLabels:{courses:{en:'Learning',ar:'التعلم'}},leadFields:[],hiddenNavigation:context.tenant.id==='tenant-a'?['courses']:[]}});
+    const a=await contract.describeWithNavigation({}, {context:ctx}),b=await contract.describeWithNavigation({}, {context:{...ctx,tenant:{...ctx.tenant,id:'tenant-b'},membership:{...ctx.membership,tenantId:'tenant-b'}}});
+    assert.equal(a.roleNavigation.includes('courses'),false);
+    assert.equal(a.navigationLabels.courses,undefined);
+    assert.equal(b.roleNavigation.includes('courses'),true);
+    assert.equal(b.navigationLabels.courses.en,'Learning');
+  }finally{customization.effective=original;}
 });

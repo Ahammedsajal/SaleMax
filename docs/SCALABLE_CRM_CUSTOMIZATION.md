@@ -144,8 +144,8 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
 | Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) deployed as tenant-customization-10354f7 after MariaDB isolation tests; broader schema/module settings pending |
-| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor integrated; eight EN/AR desktop/mobile bearer/cookie browser fixtures pass; live acceptance pending |
-| Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels integrated in shared session and sidebar, including account-switch race protection; other modules/workers pending |
+| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields and schema-3 tenant-only hidden menu sections; browser rerun and live acceptance pending |
+| Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through the shared workspace session and legacy sidebar-access contract; API permissions remain independent; other modules/workers pending |
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Partly existing; broader proof pending |
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |
@@ -189,6 +189,28 @@ synthetic API/session data: eight editor combinations, four customization/sideba
 combinations, and twenty existing duplicate/sidebar regressions. Screenshots stay
 outside Git. Production deployment and authenticated live acceptance are recorded
 separately in DEPLOYMENT.md; the full customization objective remains open.
+
+## Tenant-local menu visibility — 21 October 2026
+
+Customization schema 3 adds a typed `hiddenNavigation` list to the existing
+owner-managed draft, preview, publish and rollback document. Keys must belong to
+the current category's reviewed navigation contract; schema 1 and 2 documents
+remain readable. The shared workspace session and the legacy Team Access
+sidebar contract both apply this tenant's published list, and member screen
+assignments cannot reintroduce a hidden entry. The manager shared-QR grant is
+applied before the tenant visibility restriction, so it cannot restore a hidden
+entry. The editor preview lists the menu sections it will hide. This setting changes menus only:
+it does not grant or revoke plan capabilities, role permissions or direct API
+authorization. Each tenant is still loaded by its authenticated tenant ID.
+
+Focused contract tests pass across two same-category tenants with different
+published navigation, other-category rejection and legacy schema compatibility.
+The existing owner editor and HTTP preview route are extended in source. Thirty
+focused customization, policy, Team Access and HTTP tests pass; eight
+synthetic browser cases pass in EN/AR, desktop/mobile and cookie/bearer modes,
+including draft, preview, publication, reset and rollback. These fixtures do not
+prove signed-in live acceptance. No production code or tenant settings changed;
+live acceptance and source publication remain open.
 
 
 ## Next adoption boundary: lead fields and legacy Pipeline — 20 October 2026

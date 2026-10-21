@@ -20,9 +20,10 @@ async function describeWithNavigation(pool,session){
     if(shares.length){if(!data.roleNavigation.includes('whatsapp-qr'))data.roleNavigation.push('whatsapp-qr');if(data.assignedNavigation&&!data.assignedNavigation.includes('whatsapp-qr'))data.assignedNavigation.push('whatsapp-qr');}
   }
   const navigation=require('./navigation');
-  const visible=await navigation.sidebarForMembership(pool,session.context,navigation.items.filter(item=>data.roleNavigation.includes(item.key)));
-  data.roleNavigation=visible.map(item=>item.key);
   const customization=await require('./tenant-customization').effective(pool,session.context);
+  const visibleRows=require('./tenant-customization').visibleNavigation(navigation.items.filter(item=>data.roleNavigation.includes(item.key)),customization.document);
+  const visible=await navigation.sidebarForMembership(pool,session.context,visibleRows);
+  data.roleNavigation=visible.map(item=>item.key);
   data.customizationRevision=customization.revision;
   data.navigationLabels=Object.fromEntries(Object.entries(customization.document.navigationLabels).filter(([key])=>data.roleNavigation.includes(key)));
   return data;

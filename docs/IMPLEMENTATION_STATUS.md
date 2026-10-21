@@ -1,3 +1,22 @@
+## Tenant-local menu visibility — source implementation, 21 October 2026
+
+The existing owner-only workspace customization now supports schema 3 with a
+category-validated list of menu sections hidden for that tenant. The published
+value affects both canonical workspace session navigation and the legacy Team
+Access sidebar contract; staff screen assignments cannot bring a tenant-hidden
+entry back. This is a presentation preference only: category, plan and member
+API authorization still run independently. The restriction remains final after
+the manager shared-QR grant, including for older saved member assignments.
+Schema 1/2 settings remain readable
+and no database migration is required. Five focused customization tests pass,
+including different hidden menus for two same-category tenants. Syntax and diff
+checks pass. Thirty focused customization, policy, Team Access and HTTP
+tests pass. Eight synthetic browser cases pass across English/Arabic, desktop/
+mobile and cookie/bearer paths, including preview, publish, reset and rollback.
+No production deployment or customer setting change has occurred; see
+`docs/SCALABLE_CRM_CUSTOMIZATION.md` for live acceptance and full customization
+gates.
+
 ## SaleMaX Sales applicant error copy — production, 21 October 2026
 
 The existing recruitment form now keeps ordinary validation feedback in plain customer language. Technical/server and network failures show a general bilingual message with a bracketed safe cause code; SQL text and candidate details stay out of the public response. The update is live in `/opt/salemax/releases/recruitment-user-error-copy-20261021`. All 25 focused recruitment tests pass, served HTML/script hashes match, and health is green. No candidate data or schema changed. The signed-out visual test and controlled synthetic production failure remain open; see `DEPLOYMENT.md` for rollback evidence.

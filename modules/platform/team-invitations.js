@@ -299,7 +299,7 @@ async function sidebarAccess(pool,legacyUid){
   if(typeof legacyUid!=='string'||!legacyUid)fail('AUTH_REQUIRED');
   const db=await pool.getConnection();
   try{
-    const [rows]=await db.query(`SELECT m.id,m.role,m.role_profile_id AS roleProfileId,r.permissions AS rolePermissions,m.status AS membershipStatus,m.assigned_navigation AS assignedNavigation,
+    const [rows]=await db.query(`SELECT m.id,m.identity_id AS identityId,m.role,m.role_profile_id AS roleProfileId,r.permissions AS rolePermissions,m.status AS membershipStatus,m.assigned_navigation AS assignedNavigation,
         t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,o.legacy_uid_hash AS uidHash
       FROM (SELECT id,uid,'user' AS sourceTable FROM user UNION ALL SELECT id,uid,'agents' AS sourceTable FROM agents) u JOIN sx_legacy_ownership o ON o.source_table=u.sourceTable AND o.source_id=CAST(u.id AS CHAR)
       JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
@@ -312,22 +312,30 @@ async function sidebarAccess(pool,legacyUid){
     const subscription=await plans.loadEntitlements(db,rows[0].tenantId);
     const tenant={id:rows[0].tenantId,status:rows[0].tenantStatus,categoryKey:rows[0].categoryKey,categoryVersion:Number(rows[0].categoryVersion)};
     const category=getCategory(rows[0].categoryKey,Number(rows[0].categoryVersion));if(!category)fail('CATEGORY_UNAVAILABLE');
-    const context={audience:'tenant',tenant,category,subscription,membership:{id:rows[0].id,roleProfileId:rows[0].roleProfileId,tenantId:rows[0].tenantId,role:rows[0].role,status:'active',delegatedPermissions:[],customPermissions}};
+    const context={audience:'tenant',identity:{id:rows[0].identityId},tenant,category,subscription,membership:{id:rows[0].id,identityId:rows[0].identityId,roleProfileId:rows[0].roleProfileId,tenantId:rows[0].tenantId,role:rows[0].role,status:'active',delegatedPermissions:[],customPermissions}};
+    const customization=await require('./tenant-customization').effective(db,context);
     const roleNavigation=navigation.navigationFor(context).map(item=>item.key);
     const assignedNavigation=parseNavigation(rows[0].assignedNavigation);
+    let hasSharedQr=false;
     // A shared QR connection is available to a manager from the existing QR
     // screen. This grants navigation only; QR management APIs still require
     // channels.configure and remain owner/admin capabilities.
     if(rows[0].role==='manager'){
       const [sharedQr]=await db.query(`SELECT 1 FROM sx_qr_channel_shares WHERE tenant_id=? AND membership_id=? LIMIT 1`,[rows[0].tenantId,rows[0].id]);
-      if(sharedQr.length){
-        if(!roleNavigation.includes('whatsapp-qr'))roleNavigation.push('whatsapp-qr');
-        if(assignedNavigation&&!assignedNavigation.includes('whatsapp-qr'))assignedNavigation.push('whatsapp-qr');
-      }
+      hasSharedQr=sharedQr.length>0;
     }
-    const sidebar=await navigation.sidebarForMembership(db,context,navigation.items.filter(item=>roleNavigation.includes(item.key)));
-    return {categoryKey:rows[0].categoryKey,role:rows[0].role,roleProfileId:rows[0].roleProfileId||null,customPermissions,roleNavigation:sidebar.map(item=>item.key),assignedNavigation};
+    const effectiveNavigation=effectiveSidebarNavigation({role:rows[0].role,roleNavigation,assignedNavigation,hasSharedQr,document:customization.document});
+    const sidebar=await navigation.sidebarForMembership(db,context,navigation.items.filter(item=>effectiveNavigation.roleNavigation.includes(item.key)));
+    return {categoryKey:rows[0].categoryKey,role:rows[0].role,roleProfileId:rows[0].roleProfileId||null,customPermissions,roleNavigation:sidebar.map(item=>item.key),assignedNavigation:effectiveNavigation.assignedNavigation};
   }finally{db.release();}
+}
+function effectiveSidebarNavigation({role,roleNavigation,assignedNavigation,hasSharedQr,document}){
+  const roles=[...roleNavigation],assigned=assignedNavigation===null?null:[...assignedNavigation];
+  // Shared QR grants navigation only. Tenant-published visibility remains the
+  // final presentation restriction, including for legacy saved assignments.
+  if(role==='manager'&&hasSharedQr){if(!roles.includes('whatsapp-qr'))roles.push('whatsapp-qr');if(assigned&&!assigned.includes('whatsapp-qr'))assigned.push('whatsapp-qr');}
+  const visibleKeys=require('./tenant-customization').visibleNavigationKeys;
+  return {roleNavigation:visibleKeys(roles,document),assignedNavigation:assigned===null?null:visibleKeys(assigned,document)};
 }
 function parseNavigation(value){
   try{const keys=typeof value==='string'?JSON.parse(value):value;return Array.isArray(keys)&&keys.every(key=>typeof key==='string')?keys:null;}
@@ -347,7 +355,8 @@ async function updateMemberNavigation(pool,ownerUid,membershipId,input){
     if(member.roleProfileId&&!Array.isArray(customPermissions))fail('TEAM_ROLE_STORAGE_INVALID');
     const context={audience:'tenant',tenant:{id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)},category:scope.category,subscription:scope.entitlement,
       membership:{id:member.id,roleProfileId:member.roleProfileId,tenantId:scope.tenantId,role:member.role,status:'active',delegatedPermissions:[],customPermissions}};
-    const allowed=new Set((await navigation.sidebarForMembership(db,context,navigation.navigationFor(context))).map(item=>item.key));
+    const customization=await require('./tenant-customization').effective(db,context);
+    const allowed=new Set((await navigation.sidebarForMembership(db,context,require('./tenant-customization').visibleNavigation(navigation.navigationFor(context),customization.document))).map(item=>item.key));
     if(input.navigation.some(key=>!allowed.has(key)))fail('NAVIGATION_NOT_AVAILABLE');
     const old=parseNavigation(member.assignedNavigation);
     await db.query('UPDATE sx_memberships SET assigned_navigation=?,permission_version=permission_version+1 WHERE id=? AND tenant_id=?',[JSON.stringify(input.navigation),member.id,scope.tenantId]);
@@ -474,4 +483,4 @@ async function accountSession(pool,ownerUid,membershipId,{jwtKey,returning=false
     return {token:legacyToken,cookieToken:raw,sessionId:id,expiresInSeconds:seconds};
   });}finally{db.release();}
 }
-module.exports={accountSession,create,list,updateMemberPassword,updateMemberRole,memberRoleProfileId,salesOrganization,reassignSalesMember,createRole,updateRole,archiveRole,sidebarAccess,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};
+module.exports={accountSession,create,list,updateMemberPassword,updateMemberRole,memberRoleProfileId,salesOrganization,reassignSalesMember,createRole,updateRole,archiveRole,sidebarAccess,effectiveSidebarNavigation,updateMemberNavigation,rotate,cancel,preview,accept,email,role,permissionsFor,rolePermissions,parseNavigation};
