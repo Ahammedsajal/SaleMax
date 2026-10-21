@@ -275,3 +275,20 @@ The result shows how many messages were sent. If sending stops or status is unce
 ### Create a receipt directly as manager or accountant
 
 In Finance → Payment receipts, choose Record payment and select the invoice. Continue opens its payment form directly; no matching approved Pipeline sale is required. Enter the received amount, method and date, then record the payment. The balance updates and the receipt opens immediately for printing/PDF. Owners have the same direct workflow. Agent accounts cannot use the Finance invoice/payment endpoints. If a screenshot upload fails, the recorded payment and receipt remain valid; retry the proof upload without creating another payment.
+
+
+### Base CRM business setup
+
+For a business using shared CRM without courses or a product/service catalogue,
+an authorized platform category administrator can choose **Base CRM** while
+creating a versioned contract in the existing **Manage Plans** screen. Publish
+the reviewed contract for the user's current catalogue plan. In **Manage Users**,
+edit the existing account, choose Base CRM under Business category, and review
+the business setup and seat limits before confirming. Existing business login
+and catalogue plan IDs remain in use. This does not move existing categorized
+accounts or copy another customer's settings, FAQs or bot configuration.
+
+لاستخدام الميزات المشتركة دون كتالوج دورات أو منتجات، يختار مسؤول المنصة المخوّل
+«إدارة علاقات العملاء الأساسية» عند نشر عقد الخطة من إدارة الخطط، ثم يراجع إعداد
+الفئة وحدود الفريق للحساب الحالي من إدارة المستخدمين. لا يغيّر ذلك فئة عميل آخر
+ولا ينسخ إعداداته أو بياناته.

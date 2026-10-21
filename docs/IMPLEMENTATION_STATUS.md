@@ -1738,3 +1738,17 @@ regressions cover owner/assigned-agent tasks in Training Center and Sales,
 revocation/inactive membership, foreign tenant isolation and server-derived storage
 scope. Production rollout and exact-source sync are recorded in DEPLOYMENT.md
 after verification; broader base/category/vertical adoption remains open.
+
+
+## Base CRM and registry-driven Manage Users — 21 October 2026
+
+Base CRM v1 is a private reviewed shared-core category with no vertical catalogue
+or Training/Sales module. The existing Manage Plans registry and Manage Users
+setup now share exact category/version/title/role metadata. Existing accounts keep
+their login and plan IDs, and setup retains current preview/idempotency/audit
+transactions. No existing customer is reclassified automatically. Two disposable
+business provisions prove real contract publication and setup, same-category
+customization/task/bot FAQ isolation and specialized API denial, with bearer/cookie
+shared-feature checks. Twelve EN/AR desktop/mobile Manage Users fixtures pass.
+Production verification and rollback are recorded in DEPLOYMENT.md. Legacy
+automated adoption, new vertical workflows and full live acceptance remain open.

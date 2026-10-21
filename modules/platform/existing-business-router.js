@@ -8,7 +8,7 @@ const {platformDecision}=require('./policy');
 const portfolio=require('./user-portfolio');
 const optional=require('./optional-features');
 const ownerActivation=require('./business-owner-activation');
-const {salemaxSales}=require('./categories');
+const {getCategory,listCategories}=require('./categories');
 const jsonValue=value=>typeof value==='string'?JSON.parse(value):value;
 function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
   const router=express.Router();router.use(legacyGuard,canonicalGuard);router.use(express.json({limit:'24kb',strict:true}));
@@ -41,11 +41,14 @@ function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
       if(mapping.legacy_uid_hash!==crypto.createHash('sha256').update(user.uid).digest('hex'))throw Object.assign(new Error(),{code:'VERIFIED_BUSINESS_LINK_REQUIRED'});
       const [[tenant]]=await db.query('SELECT id,name,status,category_key,category_version,revision FROM sx_tenants WHERE id=?',[mapping.tenant_id]);
       if(!tenant)return {userId:user.id,uid:user.uid,name:user.name,current:legacy.summary(user.plan),expiresAt:user.plan_expire,linked:false,versions:[]};
-      if(tenant.category_key===salemaxSales.key&&!platformDecision(req.businessContext,'categories.manage'))throw Object.assign(new Error(),{code:'PERMISSION_DENIED'});
+      const category=getCategory(tenant.category_key,Number(tenant.category_version));
+      if(!category||category.planable!==true)throw Object.assign(new Error(),{code:'CATEGORY_UNAVAILABLE'});
+      if(category.public===false&&!platformDecision(req.businessContext,'categories.manage'))throw Object.assign(new Error(),{code:'PERMISSION_DENIED'});
       const state=crypto.createHash('sha256').update(JSON.stringify([user.plan==null?null:String(user.plan),user.plan_expire==null?null:String(user.plan_expire),mapping.tenant_id,mapping.membership_id,mapping.legacy_uid_hash,String(mapping.verified_at),String(tenant.revision)])).digest('hex');
       const [versions]=await db.query("SELECT v.id,v.version,v.category_key AS categoryKey,v.category_version AS categoryVersion,v.role_limits AS roleLimits,v.capabilities,c.commercial_snapshot AS commercial FROM sx_plan_versions v JOIN sx_legacy_plan_contracts c ON c.version_id=v.id WHERE v.status='published' AND v.category_key=? AND v.category_version=? ORDER BY c.legacy_plan_id,v.version DESC LIMIT 100",[tenant.category_key,tenant.category_version]);
-      return {userId:user.id,uid:user.uid,name:user.name,current:legacy.summary(user.plan),expiresAt:user.plan_expire,linked:true,tenant,verifiedAt:mapping.verified_at,state,versions:versions.map(v=>({id:v.id,version:v.version,categoryKey:v.categoryKey,categoryVersion:v.categoryVersion,roleLimits:jsonValue(v.roleLimits),capabilities:jsonValue(v.capabilities),commercial:jsonValue(v.commercial)}))};
+      return {userId:user.id,uid:user.uid,name:user.name,current:legacy.summary(user.plan),expiresAt:user.plan_expire,linked:true,tenant,category:{key:category.key,version:category.version,title:category.title,seatRoles:category.seatRoles},verifiedAt:mapping.verified_at,state,versions:versions.map(v=>({id:v.id,version:v.version,categoryKey:v.categoryKey,categoryVersion:v.categoryVersion,roleLimits:jsonValue(v.roleLimits),capabilities:jsonValue(v.capabilities),commercial:jsonValue(v.commercial)}))};
     });
+    data.categories=listCategories().filter(category=>category.planable===true&&(category.public||platformDecision(req.businessContext,'categories.manage'))).map(({key,version,title,seatRoles})=>({key,version,title,seatRoles}));
     data.permissions={read:platformDecision(req.businessContext,'plans.read'),assign:platformDecision(req.businessContext,'plans.assign'),provision:platformDecision(req.businessContext,'tenants.create')&&platformDecision(req.businessContext,'plans.assign'),internalCategory:platformDecision(req.businessContext,'categories.manage')};res.json({success:true,data});
   }));
   router.get('/:userId/provision-options',wrap(async(req,res)=>{

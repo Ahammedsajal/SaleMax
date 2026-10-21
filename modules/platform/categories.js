@@ -25,9 +25,12 @@ const trainingCenter = Object.freeze({ key: 'training_center', version: 1, catal
 // finance capabilities remain excluded; deals and commissions have their own
 // contracts in this category.
 const salemaxSales = Object.freeze({ key: 'salemax_sales', version: 1, catalogue:'products', title: Object.freeze({ en: 'SaleMaX Sales', ar: 'مبيعات SaleMaX' }), public: false, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'team_leader', 'agent']), capabilities: Object.freeze([...sharedCapabilities, 'sales.deals', 'sales.commissions','sales.finance','sales.targets','products.catalog','hr.recruitment']), migration: '20261001_platform_identity.sql' });
+// Shared CRM contract for reviewed category-neutral businesses. No vertical module
+// or catalogue is implied, and existing legacy accounts are never auto-adopted.
+const baseCrm = Object.freeze({ key:'base_crm', version:1, catalogue:null, title:Object.freeze({en:'Base CRM',ar:'إدارة علاقات العملاء الأساسية'}), public:false, planable:true, seatRoles:Object.freeze(['owner','accountant','manager','agent']), capabilities:sharedCapabilities, migration:'20261001_platform_identity.sql' });
 // Contract fixture only; never offered for production tenant onboarding.
 const restaurantFixture = Object.freeze({ key: 'restaurant_fixture', version: 1, title: Object.freeze({ en: 'Restaurant fixture', ar: 'نموذج مطعم للاختبار' }), public: false, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'agent']), capabilities: Object.freeze(['messaging.inbox', 'crm.contacts', 'team.tasks', 'tenant.settings']), migration: '20261001_platform_identity.sql' });
-const registry = require('./category-registry').createCategoryRegistry([trainingCenter, salemaxSales, restaurantFixture], capabilities);
+const registry = require('./category-registry').createCategoryRegistry([trainingCenter, salemaxSales, baseCrm, restaurantFixture], capabilities);
 function getCategory(key, version) { return registry.get(key, version); }
 function listCategories() { return registry.list(); }
 function supportsBusinessCapability(category, capability) {
@@ -36,4 +39,4 @@ function supportsBusinessCapability(category, capability) {
 function supportsCategoryCapability(category, capability) {
   return Boolean(category && Array.isArray(category.capabilities) && category.capabilities.includes(capability));
 }
-module.exports = { trainingCenter: registry.get(trainingCenter.key, trainingCenter.version), salemaxSales: registry.get(salemaxSales.key, salemaxSales.version), restaurantFixture: registry.get(restaurantFixture.key, restaurantFixture.version), listCategories, getCategory, supportsBusinessCapability, supportsCategoryCapability };
+module.exports = { baseCrm: registry.get(baseCrm.key,baseCrm.version), trainingCenter: registry.get(trainingCenter.key, trainingCenter.version), salemaxSales: registry.get(salemaxSales.key, salemaxSales.version), restaurantFixture: registry.get(restaurantFixture.key, restaurantFixture.version), listCategories, getCategory, supportsBusinessCapability, supportsCategoryCapability };

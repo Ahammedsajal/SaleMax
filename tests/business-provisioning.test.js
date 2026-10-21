@@ -28,7 +28,7 @@ test('onboarding controls extend the original Manage Users contract screen',()=>
   assert.match(router,/provision-options/);assert.match(router,/provision-preview/);assert.match(router,/provisioning\.provision/);
   assert.match(ui,/DESIGNATED_OWNER_REQUIRED:t\('SaleMaX Sales must be provisioned against the designated Business Admin account/);
   assert.match(ui,/Publish a SaleMaX Sales contract for the user’s current catalogue plan first\./);
-  assert.match(ui,/existing Manage Users account/);assert.match(ui,/Training center/);assert.match(ui,/Preview only/);
+  assert.match(ui,/existing Manage Users account/);assert.match(ui,/options\.category\.title/);assert.match(ui,/options\.category\.seatRoles/);assert.match(ui,/Preview only/);
   assert.match(ui,/PLATFORM_UPGRADE_NOT_ENABLED:t\('Training-center setup is not enabled in this environment/);
   assert.match(ui,/إعداد مركز التدريب غير مفعّل في هذه البيئة/);
   assert.match(ui,/ASSIGNMENT_UNAVAILABLE:t\('The setup service is temporarily unavailable/);

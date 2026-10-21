@@ -483,3 +483,39 @@ inactive owner denial, foreign-task rejection/list isolation even with the same
 legacy owner hash, and ignored client-supplied tenant IDs. These are backend API
 checks, not authenticated production browser acceptance. Category-free base
 provisioning and new vertical workflows remain unfinished.
+
+
+## Base CRM contract and existing-panel provisioning — 21 October 2026
+
+`base_crm@1` is an explicit shared-core contract for reviewed businesses without
+a vertical module. It includes the existing messaging, QR/Meta, campaigns,
+flows/chatbot, lead/contact, team/task, call-center, reporting and tenant settings
+capabilities. It declares no catalogue and no Training, Sales, recruitment or
+Training Finance capability. It is private and planable: platform category
+authority is required to publish its contract or provision an existing account.
+It is not self-service onboarding and does not automatically adopt unmapped
+legacy accounts or reclassify any customer.
+
+Manage Plans already consumes the registry. Manage Users now receives authorized
+category versions, localized titles and seat roles from that same server registry;
+its category selector, setup and linked-contract view retain exact version IDs.
+The existing plan ID, commercial terms, owner login, preview/state token,
+idempotency, seat checks and audit transaction remain the provisioning authority.
+Private category guards apply to all private manifests, not only Sales by name.
+
+Two synthetic Base CRM businesses are provisioned through the existing HTTP
+setup endpoints against a real catalogue draft/publication and disposable MariaDB
+schema. Tests cover unauthorized platform staff (with portfolio access), exact
+version rejection, confirmation replay, bearer/cookie shared sessions and
+Phonebook, Pipeline/tasks, same-category task/label/bot/FAQ isolation and denial of
+Training/Sales catalogue/form/finance APIs. No bot/provider send or live customer
+provisioning occurs. Base bots use existing tenant FAQs and configured Automation
+Flows; no Training/Sales built-in guide is implied. AI/provider activation remains
+subject to existing configuration and acceptance gates. A denied Training Finance
+tenant-context error now returns 403 instead of a misleading server error.
+
+Twelve browser fixtures exercise existing Manage Users setup in EN/AR, desktop
+and mobile, across Base/Training/Sales and a synthetic version-2 metadata contract.
+This proves exact version/role rendering and preview payloads, not authenticated
+production browser or provider acceptance. Additional real-estate, clinical,
+retail, hospitality and restaurant domain workflows remain separate work.
