@@ -1,7 +1,6 @@
 'use strict';
 
-// Compose the supplied globe artwork with an exact, high-contrast vector wordmark,
-// then derive every shipped logo and icon size from these tracked sources.
+// Derive shipped logo and icon sizes from the approved source artwork.
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const sharp = require('sharp');
@@ -9,40 +8,55 @@ const sharp = require('sharp');
 const root = path.resolve(__dirname, '..');
 const brand = path.join(root, 'client/public/branding/7network');
 const media = path.join(root, 'client/public/media');
-const logoSource = path.join(brand, 'logo-source.svg');
+const logoSource = path.join(brand, 'logo-horizontal-source.png');
 const iconSource = path.join(brand, 'icon-source.png');
 const iconMaster = path.join(brand, 'icon-master.png');
+const iconVersion = '20261021-color-wordmark1';
+
+async function makeDarkWordmark(source) {
+  const { data, info } = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const startX = Math.floor(info.width * 0.285);
+  const endX = Math.floor(info.width * 0.575);
+  for (let y = 0; y < info.height; y++) {
+    for (let x = startX; x < endX; x++) {
+      const offset = (y * info.width + x) * info.channels;
+      const red = data[offset], green = data[offset + 1], blue = data[offset + 2], alpha = data[offset + 3];
+      // Only recolor the navy "Net" lettering; preserve transparent pixels and the warm "work" letters.
+      if (alpha > 0 && red < 55 && green < 80 && blue < 125 && blue > green * 1.25) {
+        data[offset] = 234;
+        data[offset + 1] = 241;
+        data[offset + 2] = 255;
+      }
+    }
+  }
+  return sharp(data, { raw: info }).png().toBuffer();
+}
 
 async function main() {
   await fs.mkdir(media, { recursive: true });
-  const source = await fs.readFile(logoSource, 'utf8');
+  const source = await fs.readFile(logoSource);
   const hero = await fs.readFile(iconSource);
   const heroMeta = await sharp(hero).metadata();
   if (!heroMeta.hasAlpha) throw new Error('The approved globe artwork must retain transparency');
-  if (!source.includes('icon-source.png') || source.includes('globe-no7-source.png')) throw new Error('The logo must use only the approved globe-and-7 icon, with a plain readable wordmark');
-  const dataUri = (buffer) => `data:image/png;base64,${buffer.toString('base64')}`;
-  const composedSource = source.replace('icon-source.png', dataUri(hero));
-  const lightSvg = Buffer.from(composedSource);
-  const darkSvg = Buffer.from(composedSource.replace(/fill="#0B2748"/g, 'fill="#EAF1FF"').replace(/#D94A3A/g, '#F26C54').replace(/#E05131/g, '#FF8153').replace(/#D96A2B/g, '#FFB35C'));
-  const logoBuffer = await sharp(lightSvg).ensureAlpha().png().toBuffer();
-  const darkLogoBuffer = await sharp(darkSvg).ensureAlpha().png().toBuffer();
-  const logo = sharp(logoBuffer).trim().extend({
-    top: 18, bottom: 18, left: 24, right: 24, background: '#00000000',
-  });
-  const logoPngBuffer = await logo.png().toBuffer();
-  const darkLogoPngBuffer = await sharp(darkLogoBuffer).trim().extend({
+  const sourceMeta = await sharp(source).metadata();
+  if (!sourceMeta.hasAlpha || sourceMeta.width < 2000 || sourceMeta.height < 600) {
+    throw new Error('The approved horizontal logo source must be a high-resolution transparent PNG');
+  }
+  const logoBuffer = await sharp(source).trim().extend({
     top: 18, bottom: 18, left: 24, right: 24, background: '#00000000',
   }).png().toBuffer();
-  const logoMeta = await sharp(logoPngBuffer).metadata();
+  const darkLogoBuffer = await makeDarkWordmark(logoBuffer);
+  const darkLogoPngBuffer = await sharp(darkLogoBuffer).png().toBuffer();
+  const logoMeta = await sharp(logoBuffer).metadata();
   if (!logoMeta.hasAlpha) throw new Error('Approved logo must retain transparency');
 
-  for (const [mode, buffer] of [['light', logoPngBuffer], ['dark', darkLogoPngBuffer]]) {
+  for (const [mode, buffer] of [['light', logoBuffer], ['dark', darkLogoPngBuffer]]) {
     await fs.writeFile(path.join(brand, `logo-${mode}.png`), buffer);
     for (const width of [480, 960, 1920]) {
       await sharp(buffer).resize({ width }).png().toFile(path.join(brand, `logo-${mode}-${width}.png`));
     }
   }
-  await fs.writeFile(path.join(brand, 'logo-horizontal-master-transparent.png'), logoPngBuffer);
+  await fs.writeFile(path.join(brand, 'logo-horizontal-master-transparent.png'), logoBuffer);
 
   const iconBuffer = await sharp(iconSource).trim().png().toBuffer();
   await fs.writeFile(path.join(brand, 'icon-master.png'), iconBuffer);
@@ -96,8 +110,8 @@ async function main() {
     id: '/', start_url: '/', scope: '/', display: 'standalone',
     theme_color: '#081630', background_color: '#081630',
     icons: [192, 512].flatMap(size => [
-      { src: `/branding/7network/icon-${size}.png?v=20261021-color-wordmark1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
-      { src: `/branding/7network/maskable-${size}.png?v=20261021-color-wordmark1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
+      { src: `/branding/7network/icon-${size}.png?v=${iconVersion}`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
+      { src: `/branding/7network/maskable-${size}.png?v=${iconVersion}`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
     ]),
   };
   const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;

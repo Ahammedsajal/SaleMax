@@ -32,16 +32,40 @@ test('compact sidebar branding uses the approved 7Network icon and preserves ful
   const styles = fs.readFileSync(path.join(__dirname, '../client/public/7network-brand.css'), 'utf8');
   assert.match(script, /const compactBrand = Boolean\(img\.closest\('\.logo-box'\)\)/);
   assert.match(script, /const icon = compactBrand \|\|/);
-  assert.match(script, /logo-dark\.png\?v=20261021-color-wordmark1/);
-  assert.match(script, /logo-light\.png\?v=20261021-color-wordmark1/);
+  assert.match(script, /logo-dark\.png\?v=20261021-final-horizontal1/);
+  assert.match(script, /logo-light\.png\?v=20261021-final-horizontal1/);
   assert.match(styles, /\.logo-box img\[data-seven-network-brand="icon"\][^{]*\{[^}]*width: 50px/);
-  const source = fs.readFileSync(path.join(__dirname, '../client/public/branding/7network/logo-source.svg'), 'utf8');
-  assert.match(source, /<tspan fill="#0B2748">Net<\/tspan><tspan fill="url\(#sunrise-red\)">work<\/tspan>/);
-  assert.match(source, /<linearGradient id="sunrise-red"/);
-  assert.doesNotMatch(source, /globe-no7-source\.png/);
   const exporter = fs.readFileSync(path.join(__dirname, '../scripts/export-7network-brand.cjs'), 'utf8');
-  assert.match(exporter, /fill="#EAF1FF"/);
-  assert.match(exporter, /#FF8153/);
+  assert.match(exporter, /logo-horizontal-source\.png/);
+  assert.match(exporter, /makeDarkWordmark/);
+  assert.match(exporter, /logo-horizontal-master-transparent\.png/);
+});
+
+test('the finalized horizontal logo source and generated light/dark variants retain transparency', async () => {
+  const sharp = require('sharp');
+  const directory = path.join(__dirname, '../client/public/branding/7network');
+  for (const file of ['logo-horizontal-source.png', 'logo-horizontal-master-transparent.png', 'logo-light.png', 'logo-dark.png']) {
+    const metadata = await sharp(path.join(directory, file)).metadata();
+    assert.equal(metadata.format, 'png', file);
+    assert.equal(metadata.hasAlpha, true, file);
+    assert.ok(metadata.width >= 1600, `${file} should remain suitable for full-size use`);
+  }
+  const meanWordmarkBrightness = async file => {
+    const { data, info } = await sharp(path.join(directory, file))
+      .extract({ left: 650, top: 170, width: 600, height: 360 })
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let total = 0, count = 0;
+    for (let i = 0; i < data.length; i += info.channels) {
+      if (data[i + 3] < 32) continue;
+      total += (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000;
+      count++;
+    }
+    return total / count;
+  };
+  assert.ok(
+    await meanWordmarkBrightness('logo-dark.png') > await meanWordmarkBrightness('logo-light.png') + 30,
+    'the dark-surface variant should raise the navy wordmark contrast',
+  );
 });
 
 test('Sales chatbot migrations normalize first-party bot branding and its category key without rewriting history', () => {
