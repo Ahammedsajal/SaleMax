@@ -1862,3 +1862,19 @@ automated adoption, new vertical workflows and full live acceptance remain open.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+
+## Tenant-scoped messaging delivery status — source update, 21 October 2026
+
+Resolved account UIDs in the Meta callback flow are now passed into the
+customer API and campaign log reads, writes, and campaign counter refreshes.
+Every status query filters on the account UID as well as the provider message
+ID, so a duplicate ID in another account cannot mutate that account's log.
+Embedded status handling now waits until the configured WABA/phone binding has
+resolved the account. `/api/v1/get_logs` and `/api/v1/delete_logs` also honor
+the existing `customer_api` feature switch, and custom legacy roles need the
+explicit tenant-management permission. Fourteen focused callback, role, and
+optional-feature checks pass; syntax and whitespace checks pass. No schema,
+customer data, provider setting, or production release changed. Meta callback
+signature configuration and signed live delivery acceptance remain required
+before these routes can be safely published; other legacy route, worker,
+socket, and vertical isolation reviews remain open.
