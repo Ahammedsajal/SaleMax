@@ -4,7 +4,7 @@ const {decision}=require('./policy');
 const {supportsCategoryCapability}=require('./categories');
 const deniedCodes=new Set(['ACCOUNT_INACTIVE','BUSINESS_LINK_INVALID','CATEGORY_UNAVAILABLE','INVALID_ROLE_LIMITS','INVALID_GRANTS']);
 const denied=(code,tenantId)=>({linked:true,context:null,code,tenantId});
-async function resolveOwnerAccess(db,uid){
+async function resolveOwnerAccess(db,uid,capability='automation.chatbot'){
  if(typeof uid!=='string'||!uid||uid.length>255)return {linked:false,context:null};
  const [rows]=await db.query(`SELECT u.id,u.uid,o.tenant_id AS tenantId,t.slug AS tenantSlug
  FROM user u LEFT JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
@@ -15,9 +15,9 @@ async function resolveOwnerAccess(db,uid){
  let ctx;
  try{ctx=await legacyContext(db,rows[0]);}catch(error){if(deniedCodes.has(error.code))return deny(error.code);throw error;}
  if(!ctx||ctx.tenant.id!==rows[0].tenantId||ctx.membership.role!=='owner')return deny('BUSINESS_LINK_INVALID');
- if(!ctx.category?.planable||!supportsCategoryCapability(ctx.category,'automation.chatbot'))return deny('CATEGORY_UNAVAILABLE');
+ if(!ctx.category?.planable||!supportsCategoryCapability(ctx.category,capability))return deny('CATEGORY_UNAVAILABLE');
  if(ctx.subscription?.categoryKey!==ctx.category.key||ctx.subscription?.categoryVersion!==ctx.category.version)return deny('FEATURE_UNAVAILABLE');
- const gate=decision(ctx,{capability:'automation.chatbot',permission:'automation.manage'});if(!gate.allowed)return deny(gate.code);
+ const gate=decision(ctx,{capability,permission:'automation.manage'});if(!gate.allowed)return deny(gate.code);
  ctx.tenant.slug=rows[0].tenantSlug;
  return {linked:true,tenantId:ctx.tenant.id,context:ctx};
 }

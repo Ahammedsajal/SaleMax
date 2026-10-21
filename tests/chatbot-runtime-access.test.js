@@ -22,6 +22,9 @@ test('owner identity, exact ownership, membership and navigation restrictions ar
  const f=fixture();f.state.initial=[];assert.equal((await access.resolveOwnerAccess(f.db,f.uid)).linked,false);
  const duplicate=fixture();duplicate.state.initial.push({...duplicate.state.initial[0]});assert.equal((await access.resolveOwnerAccess(duplicate.db,duplicate.uid)).code,'BUSINESS_LINK_INVALID');
 });
+test('legacy Flow Builder authority resolves against the shared flows capability',async()=>{
+ const f=fixture(),result=await access.resolveOwnerAccess(f.db,f.uid,'automation.flows');assert.equal(result.context.category.key,trainingCenter.key);assert.equal(result.context.subscription.capabilities.includes('automation.flows'),true);
+});
 test('a running turn cannot send under a replaced plan, category, tenant, owner identity or membership',async()=>{
  const f=fixture(),prior=(await access.resolveOwnerAccess(f.db,f.uid)).context;assert.equal(access.sameBoundary(prior,structuredClone(prior)),true);
  for(const mutate of [c=>c.tenant.id='foreign',c=>c.tenant.categoryVersion=2,c=>c.tenant.categoryKey='7network_sales',c=>c.membership.id='replacement',c=>c.identity.id='replacement',c=>c.subscription.assignmentId='replacement']){const current=structuredClone(prior);mutate(current);assert.equal(access.sameBoundary(prior,current),false);}

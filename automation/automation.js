@@ -1,6 +1,17 @@
 const flowProcessor = require("./functions");
 const { query } = require("../database/dbpromise");
 const { shouldPause } = require("../modules/platform/chatbot-conversation-control");
+const { createLegacyFlowNodeGuard } = require("../modules/platform/legacy-flow-authority");
+const platformDbPool = require("../database/config").promise();
+const optionalFeatures = require("../modules/platform/optional-features");
+
+function legacyFlowNodeGuard({uid,flowId,origin,sessionId,webhook}){
+  return createLegacyFlowNodeGuard({
+    uid,flowId,origin,sessionId,webhook,pool:platformDbPool,
+    getActiveFlows:flowProcessor.getActiveFlows,
+    optionalFeatureEnabled:optionalFeatures.enabledForUid,
+  });
+}
 
 async function processFlow({
   nodes,
@@ -327,6 +338,7 @@ async function processFlow({
         edges,
         flowSession,
         element,
+        beforeNode,
         variablesObj,
         incomingText,
       });
@@ -516,6 +528,7 @@ async function processAutomation({
         origin,
         chatId,
         element,
+        beforeNode: legacyFlowNodeGuard({uid,flowId:element.flow_id,origin,sessionId}),
         loopDetection: { visitedNodes: new Map(), startTime: Date.now() }, // ✅ Initialize
       });
     } catch (err) {
@@ -596,6 +609,7 @@ async function processWebhookAutomation({ webhook, data, type }) {
             origin: "webhook_automation",
             chatId: "",
             element,
+            beforeNode: legacyFlowNodeGuard({uid,flowId:element.flow_id,origin:"webhook_automation",webhook}),
             webhookVariables: data || {},
             loopDetection: { visitedNodes: new Map(), startTime: Date.now() }, // ✅ Initialize
           });

@@ -13,6 +13,9 @@ function loadFlowExecutor({sendResults}){
   const mocks={
     '../automation/functions':flowProcessor,
     '../database/dbpromise':{query:async(sql)=>{queries.push(sql);return [{}];}},
+    '../database/config':{promise:()=>({})},
+    '../modules/platform/legacy-flow-authority':{createLegacyFlowNodeGuard:()=>async()=>'allowed'},
+    '../modules/platform/optional-features':{enabledForUid:async()=>true},
     '../modules/platform/chatbot-conversation-control':{shouldPause:async()=>false},
   };
   const cacheKeys=[];

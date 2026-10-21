@@ -1389,6 +1389,7 @@ async function processDelay({
   edges,
   flowSession,
   element,
+  beforeNode,
   variablesObj,
   incomingText: incomingTextOld,
 }) {
@@ -1438,6 +1439,7 @@ async function processDelay({
           origin,
           chatId,
           element,
+          beforeNode,
           webhookVariables: {},
           loopDetection: { visitedNodes: new Map(), startTime: Date.now() },
         });
