@@ -178,7 +178,11 @@ acknowledgement atomic: a process or connection failure after provider
 acceptance and before message-ID persistence can leave an uncertain result.
 Keep that boundary visible in retries and operational reconciliation; do not
 claim exactly-once delivery. QR connector ownership, Socket.IO routing, and
-real multi-process/failover tests remain separate TC37 work.
+real separate-application-process/failover tests remain separate TC37 work.
+The opt-in integration script was exercised against an isolated MySQL 9.6
+server with separate server sessions; production MariaDB compatibility still
+needs its own test. It creates and drops only a randomly named local synthetic
+database when explicitly selected through `CAMPAIGN_LOCK_TEST_TARGET`.
 
 ## Extensibility and domain boundaries
 

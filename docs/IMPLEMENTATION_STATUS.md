@@ -12,16 +12,21 @@ fits the database lock-name limit. No schema migration is required.
 The focused campaign, lock, authorization and Meta callback suite passes
 27/27, including two independent database sessions contending for one
 campaign, different tenants remaining independent, cross-tenant log isolation
-and fail-closed behavior after lock loss. Syntax and whitespace checks pass.
+and fail-closed behavior after lock loss. An opt-in integration script creates
+and drops a randomly named local-only synthetic database; it passed against an
+isolated MySQL 9.6 server, including contention between server sessions and
+lock-owner termination. Syntax and whitespace checks pass.
 The full suite passes 1,098/1,122; the 24 remaining failures are existing
 Manage Users, Pipeline, QR, Training/Finance, Reports and public-form
 source-contract assertions, with no campaign-worker or lock failures. This
 source increment has not been deployed. The lock coordinates processes using
 the same MariaDB server; QR ownership, Socket.IO multi-node routing, real
-multi-process database testing and failover testing remain open. Provider
-acceptance and SQL persistence cannot be one atomic operation, so a process
-failure after Meta accepts a message but before its message ID is saved can
-still require reconciliation and may lead to a retry. The full TC37 and
+separate-application-process MariaDB testing and failover testing remain open.
+The integration result does not establish compatibility with the production
+database version. Provider acceptance and SQL persistence cannot be one atomic
+operation, so a process failure after Meta accepts a message but before its
+message ID is saved can still require reconciliation and may lead to a retry.
+The full TC37 and
 42-ticket acceptance remain open.
 
 ## Legacy call callback tenant boundary — source update, 21 October 2026

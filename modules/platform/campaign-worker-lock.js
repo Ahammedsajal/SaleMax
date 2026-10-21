@@ -65,7 +65,17 @@ async function acquireCampaignWorkerLock(pool, uid, campaignId) {
         error.code = 'CAMPAIGN_LOCK_LOST';
         throw error;
       }
-      const [[owner]] = await connection.query('SELECT IS_USED_LOCK(?) AS ownerConnectionId', [name]);
+      let owner;
+      try {
+        [[owner]] = await connection.query('SELECT IS_USED_LOCK(?) AS ownerConnectionId', [name]);
+      } catch (cause) {
+        released = true;
+        if (typeof connection.destroy === 'function') connection.destroy();
+        else connection.release();
+        const error = new Error('CAMPAIGN_LOCK_LOST', { cause });
+        error.code = 'CAMPAIGN_LOCK_LOST';
+        throw error;
+      }
       if (Number(owner?.ownerConnectionId) !== connectionId) {
         const error = new Error('CAMPAIGN_LOCK_LOST');
         error.code = 'CAMPAIGN_LOCK_LOST';
