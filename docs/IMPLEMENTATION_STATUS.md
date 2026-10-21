@@ -2,6 +2,10 @@
 
 The existing recruitment form now keeps ordinary validation feedback in plain customer language. Technical/server and network failures show a general bilingual message with a bracketed safe cause code; SQL text and candidate details stay out of the public response. The update is live in `/opt/salemax/releases/recruitment-user-error-copy-20261021`. All 25 focused recruitment tests pass, served HTML/script hashes match, and health is green. No candidate data or schema changed. The signed-out visual test and controlled synthetic production failure remain open; see `DEPLOYMENT.md` for rollback evidence.
 
+## Read-only tenant adoption audit — production evidence, 21 October 2026
+
+Added `scripts/audit-tenant-adoption.cjs`, which executes only aggregate SELECTs inside a read-only database transaction and omits tenant/account identifiers and personal data. Against the current live database it confirms three active tenants and three category-matched current plan assignments; seven legacy user records resolve to active owner/accountant/manager memberships. Eleven current agents are mapped, while two active legacy agents have unresolved owners and must not be automatically adopted. Six historical agent mappings have no matching current source row and are retained with their membership links. Two focused tests pass, and the script was run against production through a temporary container copy with no database or app change. No Base CRM customer is currently provisioned, so Base CRM's new adapter still lacks real-tenant acceptance. See `docs/SCALABLE_CRM_CUSTOMIZATION.md` for the full migration gate.
+
 ## Per-bot Base CRM lead capture — 21 October 2026
 
 The reviewed category manifest now declares a lead-capture adapter (`none`,

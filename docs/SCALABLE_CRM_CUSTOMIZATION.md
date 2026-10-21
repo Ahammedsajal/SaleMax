@@ -24,6 +24,35 @@ Configuration isolation can prevent one business's settings affecting another. I
 
 This is a targeted architecture assessment, not an exhaustive proof of every query, queue, websocket or legacy route. The verification ledger below defines the remaining work.
 
+## Read-only production adoption baseline — 21 October 2026
+
+The aggregate-only `scripts/audit-tenant-adoption.cjs` preflight runs inside a
+read-only transaction and emits no tenant IDs, names, account identifiers,
+credentials or contact details. Its live production result confirms three active
+tenants: one SaleMaX Sales v1 and two Training Center v1. There are three current
+plan assignments; all three resolve to an existing plan version with the exact
+tenant category and version. No Base CRM tenant is currently assigned, so the
+new Base CRM capture adapter has not yet had a real-tenant screen or channel
+acceptance.
+
+Seven legacy `user` records map to active canonical memberships, identities and
+tenants (three owners, two accountants, two managers), with no unmapped rows,
+UID-hash mismatches or inactive links. Eleven current legacy agents map to active
+agent memberships. Two additional active legacy agent rows have no ownership
+mapping, and their owners cannot be resolved through a canonical user-to-tenant
+link. The ownership table also retains six agent mappings whose legacy source
+rows no longer exist; all retained mappings have a membership reference. These
+two active agents must remain on their existing legacy path until an operator
+reviews their owner relationship. Do not infer a category or backfill them from
+their `owner_uid` alone. The report is aggregate preflight evidence, not an
+authorization to mutate account ownership.
+
+The audit has two focused unit checks and was run against the live MariaDB
+through a temporary copy in the app container. It completed read-only and the
+temporary files were removed. No production code, tenant, membership, plan or
+customer record changed. Re-run this audit before any legacy-category adoption,
+then require a reviewed mapping manifest and a before/after count/hash report.
+
 ## Research and application to SaleMaX
 
 AWS distinguishes pooled, silo and bridge isolation models. SaleMaX can keep pooled infrastructure for ordinary tenants while introducing dedicated resources where a customer's requirements justify them. Authentication alone does not replace application-level ownership checks. See [AWS isolation concepts](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/core-isolation-concepts.html) and [bridge model](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/the-bridge-model.html).
