@@ -462,3 +462,5 @@ Read-only production comparison of seven mapped users finds zero changes in
 access decisions: three mapped canonical actors, two legacy paths, two expected
 permission denials. No new category is registered/exposed; catalogue declarations
 and Pipeline support alone do not deliver a new vertical workflow.
+
+Production: `ee29b8f` is live in `pipeline-category-ee29b8f-20261021`. Forty focused checks and actual shared-auth/MariaDB API integration pass. Both runtime hashes and health pass; seven current mapped-user access outcomes are preserved. Two exact deployed paths are synced locally with backups. No category/customer data mutation occurred; see DEPLOYMENT.md.
