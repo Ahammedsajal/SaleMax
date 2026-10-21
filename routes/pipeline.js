@@ -168,7 +168,7 @@ router.post('/training-forms/:formSlug/submissions', async (req,res) => {
   const receivedOrigin=req.get('Origin')||'';const expectedOrigin=process.env.SALEMAX_PLATFORM_ORIGIN;
   let sameHost=false;try{sameHost=new URL(receivedOrigin).host.toLowerCase()===(req.get('host')||'').toLowerCase();}catch{}
   if(!receivedOrigin||(expectedOrigin?receivedOrigin!==expectedOrigin:!sameHost))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
-  if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values','selectedLeadId'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
+  if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values','selectedLeadId','expectedFormVersion'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
   if(Buffer.byteLength(JSON.stringify(req.body),'utf8')>96*1024)return res.status(413).json({success:false,code:'PAYLOAD_TOO_LARGE'});
   try {
     const data=await trainingForms.submitStaff(require('../database/config.js').promise(),req.pipelineActor,req.params.formSlug,req.body);

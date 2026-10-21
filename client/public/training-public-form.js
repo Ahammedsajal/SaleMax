@@ -321,7 +321,7 @@
     }
     if(data.form.schema.leadFields){values.customFields={};for(const field of data.form.schema.leadFields.fields){const raw=form.elements['custom_'+field.key]?.value;if(raw!==undefined&&raw!=='')values.customFields[field.key]=field.type==='boolean'?raw==='true':field.type==='integer'?Number(raw):raw;}}
     const attribution = staffCapture ? null : campaignAttribution();
-    const payload = { submissionToken: getSubmissionToken(), values, ...(staffCapture&&selectedLead?{selectedLeadId:selectedLead.id}:{}), ...(attribution?{campaignAttribution:attribution}:{}) };
+    const payload = { submissionToken: getSubmissionToken(), expectedFormVersion:Number(data.form.version), values, ...(staffCapture&&selectedLead?{selectedLeadId:selectedLead.id}:{}), ...(attribution?{campaignAttribution:attribution}:{}) };
     if (!staffCapture) payload.website = form.elements.website.value;
     if (!staffCapture && data.botChallenge) payload.challengeToken = challengeToken;
     button.disabled = true;
@@ -359,6 +359,7 @@
     } catch (error) {
       const challengeError = String(error.message || '').startsWith('BOT_CHALLENGE');
       const text = ['INVALID_COURSE','INVALID_COURSE_SELECTIONS','DUPLICATE_REGISTRATION_COURSE','INVALID_BATCH','INVALID_SIGNATURE','REGISTRATION_DETAILS_REQUIRED','REFERRAL_NAME_REQUIRED','INVALID_QID','INVALID_STAFF_ATTENDED','INVALID_PAYMENT_PLAN','INVALID_REGISTRATION_SOURCE'].includes(error.message)?tr('Check the course, payment plan, QID, referral and signature details.','تحقق من الدورة وخطة الدفع والبطاقة والإحالة والتوقيع.') : error.message === 'AUTH_REQUIRED' ? tr('Sign in with your staff account, then reopen this capture link.', 'سجّل الدخول بحساب الموظف ثم افتح رابط التسجيل مجددًا.')
+        : error.message==='FORM_VERSION_CHANGED'?tr('This form changed while you were filling it in. Reload and review the current questions and consent before sending. Your answers have not been submitted.','تغيّر النموذج أثناء تعبئته. أعد تحميله وراجع الأسئلة والموافقة الحالية قبل الإرسال. لم يتم تقديم إجاباتك.')
         : ['REQUIRED_LEAD_FIELD','INVALID_LEAD_FIELD_VALUE','UNKNOWN_LEAD_FIELD'].includes(error.message) ? tr('Check the business-specific fields and try again.','تحقق من بيانات النشاط الخاصة وحاول مجددًا.')
         : error.message === 'FORM_RATE_LIMITED' ? tr('Please wait a little before trying again.', 'يرجى الانتظار قليلًا قبل المحاولة مجددًا.')
           : challengeError ? tr('The security check expired or could not be verified. Complete it again and retry.', 'انتهت صلاحية التحقق الأمني أو تعذر التحقق منه. أكمله مجددًا ثم أعد المحاولة.')
@@ -370,6 +371,7 @@
       message.innerHTML = `<p class="error-message" role="alert" tabindex="-1">${esc(text)}</p>`;
       button.disabled = false;
       button.textContent = tr('Try again', 'حاول مرة أخرى');
+      if(error.message==='FORM_VERSION_CHANGED'){button.disabled=true;const reload=document.createElement('button');reload.type='button';reload.className='form-action';reload.textContent=tr('Reload and review form','إعادة تحميل النموذج ومراجعته');reload.onclick=()=>location.reload();message.append(reload);}
       message.querySelector('[role="alert"]')?.focus();
     }
   }

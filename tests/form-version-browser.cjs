@@ -1,0 +1,12 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{chromium}=require('playwright');
+(async()=>{const browser=await chromium.launch({channel:'msedge',headless:true});let cases=0;try{for(const lang of ['en','ar'])for(const staff of [false,true]){
+ const page=await browser.newPage({viewport:{width:390,height:900}});page.setDefaultTimeout(6000);const posts=[];
+ await page.route('**/*',async route=>{const req=route.request(),url=new URL(req.url());if(!url.pathname.startsWith('/api/'))return route.fulfill({contentType:'text/html',body:'<html><main id="public-form"></main></html>'});
+ if(req.method()==='POST'){posts.push(req.postDataJSON());return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({success:false,code:'FORM_VERSION_CHANGED'})});}
+ return route.fulfill({contentType:'application/json',body:JSON.stringify({success:true,data:{tenant:{name:'Synthetic'},form:{version:4,nameEn:'Enquiry',nameAr:'استفسار',schema:{titleEn:'Enquiry',titleAr:'استفسار',consentTextEn:'I agree',consentTextAr:'أوافق',fields:[{key:'contact_name',required:true},{key:'phone',required:true},{key:'consent',required:true}]}},courses:[]}})});
+ });
+ await page.goto('http://127.0.0.1/p/test/forms/enquiry?lang='+lang+(staff?'&mode=staff':''));if(staff)await page.evaluate(()=>localStorage.setItem('wacrm_user','synthetic'));
+ for(const file of ['training-form-request.js','training-public-form.js'])await page.addScriptTag({content:fs.readFileSync(path.join(__dirname,'../client/public',file),'utf8')});
+ await page.locator('[name=contact_name]').fill('Synthetic');await page.locator('[name=phone]').fill('+12025550199');await page.locator('[name=consent]').check();await page.locator('#submit-button').click();await page.locator('#form-message button').waitFor();assert.equal(posts.length,1);assert.equal(posts[0].expectedFormVersion,4);assert.equal(await page.locator('#submit-button').isDisabled(),true);assert.equal(await page.locator('[name=contact_name]').inputValue(),'Synthetic');assert.match(await page.locator('#form-message').textContent(),lang==='en'?/Reload and review/:/إعادة تحميل/);await page.close();cases++;
+ }console.log(JSON.stringify({passed:true,cases,checks:['public/staff version payload','stale review message','answers retained','English Arabic']}));}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

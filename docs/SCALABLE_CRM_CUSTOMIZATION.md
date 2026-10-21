@@ -343,3 +343,30 @@ repair image, or explicitly review profile configuration rollback while preservi
 submitted form/lead history. Never silently erase selected references.
 
 Production verified 21 October: `76e3c5b` plus loader correction `88fc425` are live in `bot-capture-forms-88fc425-20261020`. Runtime/public hashes and health pass. Nine deployed paths are synchronized locally with backups; zero customer profiles adopted explicit selection. See DEPLOYMENT.md.
+
+
+## Rendered form version handshake — 21 October 2026
+
+The public/staff capture client submits `expectedFormVersion` from the fetched
+form definition. Existing public/staff APIs accept only positive safe integer
+versions. Under their current form publication lock, new submissions must match
+the current version before validation, reservation, rate-bucket or lead writes.
+A mismatch returns `FORM_VERSION_CHANGED` (409). The bilingual capture screen
+keeps entered answers visible, disables stale resubmission and offers an explicit
+reload/review action; it does not silently update consent or resend answers.
+
+An existing tenant/form/idempotency token is resolved first using its stored
+immutable form version. A retry after publication returns that original result,
+including registration workflow result when applicable, without revalidating
+against newer questions. Older callers omitting the version retain compatibility;
+the new guarantee applies to version-bearing updated capture clients. Omitted
+versions cannot establish which consent/questions an old external client showed.
+A future retirement policy for unversioned external clients remains necessary.
+Form deletion/unpublication/slug changes may still make an old link unavailable;
+this increment does not promise replay through withdrawn public links.
+
+No migration or customer form/configuration rewrite is needed. Before enabling
+this code, deployment overlays must preserve the current public template and
+source preimages. Older code rejects version-bearing payloads, so rollback must
+retain version-aware API acceptance for browser tabs loaded from this release,
+or coordinate a compatible repair. Never restore customer tables for code rollback.

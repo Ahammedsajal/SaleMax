@@ -36,14 +36,14 @@ function createPublicTrainingFormRouter({app,pool,rateKey,origin,turnstile}){
     res.setHeader('Cache-Control','no-store');
     if(!require('./request-origin').matches(req,origin))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
     try{
-      if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values','website','challengeToken','campaignAttribution'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
+      if(!req.body||typeof req.body!=='object'||Array.isArray(req.body)||Object.keys(req.body).some(key=>!['submissionToken','values','website','challengeToken','campaignAttribution','expectedFormVersion'].includes(key)))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
       if(typeof req.body.website==='string'&&req.body.website.trim())return res.status(201).json({success:true,data:{referenceCode:crypto.randomBytes(6).toString('hex').toUpperCase()}});
       if(req.body.challengeToken!==undefined&&(typeof req.body.challengeToken!=='string'||req.body.challengeToken.length>2048))return res.status(400).json({success:false,code:'INVALID_SUBMISSION'});
       if(challenge.enabled)await challenge.verify(req.body.challengeToken,req.body.submissionToken,{tenantSlug:req.params.tenantSlug,formSlug:req.params.formSlug});
       const remote=req.socket.remoteAddress||'';let clientIp=null;
       if(['127.0.0.1','::1','::ffff:127.0.0.1'].includes(remote)){const chain=(req.get('X-Forwarded-For')||'').split(',').map(value=>value.trim()).filter(Boolean);const last=chain.at(-1);if(last&&net.isIP(last))clientIp=last;}
       const visitorHash=crypto.createHmac('sha256',rateKey).update(clientIp||crypto.randomBytes(32)).digest('hex');
-      const result=await forms.submitPublic(pool,{tenantSlug:req.params.tenantSlug,formSlug:req.params.formSlug,submissionToken:req.body.submissionToken,values:req.body.values,visitorHash,campaignAttribution:req.body.campaignAttribution});
+      const result=await forms.submitPublic(pool,{tenantSlug:req.params.tenantSlug,formSlug:req.params.formSlug,submissionToken:req.body.submissionToken,values:req.body.values,visitorHash,campaignAttribution:req.body.campaignAttribution,expectedFormVersion:req.body.expectedFormVersion});
       return res.status(result.repeated?200:201).json({success:true,data:{referenceCode:result.referenceCode,repeated:result.repeated,studentNumber:result.studentNumber,provisionalInvoiceNumber:result.provisionalInvoiceNumber,totalMinor:result.totalMinor,status:result.status,courseNameEn:result.courseNameEn,courseNameAr:result.courseNameAr,installments:result.installments}});
     }catch(error){return next(error);}
   });

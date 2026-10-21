@@ -153,9 +153,15 @@ async function searchStaffLeads(pool,actor,search){
     return rows.map(r=>({...r,qualificationData:typeof r.qualificationData==='string'?JSON.parse(r.qualificationData):r.qualificationData||{}}));
   }finally{db.release();}
 }
-async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,values,captureMode,visitorHash,actor,campaignAttribution}){
+async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,values,captureMode,visitorHash,actor,campaignAttribution,expectedFormVersion}){
   const entitlements=await plans.loadEntitlements(db,tenantId);if(!entitlements||!['active','trial','grace'].includes(entitlements.status)||!entitlements.capabilities.includes('portal.forms'))fail('FEATURE_UNAVAILABLE');
-  let schema=typeof form.schema_json==='string'?JSON.parse(form.schema_json):form.schema_json;if(form.slug==='student-registration'||schema.templateKey==='procatalyst-registration-v1'){schema=registrationFields.upgrade(schema);const [[prior]]=await db.query('SELECT s.id,s.reference_code,s.lead_id FROM sx_training_form_submissions s JOIN sx_training_registrations r ON r.tenant_id=s.tenant_id AND r.submission_id=s.id WHERE s.tenant_id=? AND s.form_id=? AND s.idempotency_hash=?',[tenantId,form.form_id,sha(submissionToken)]);if(prior)return {...await registrationSelections.previous(db,tenantId,prior.id),referenceCode:prior.reference_code,leadId:prior.lead_id,repeated:true};}const data=cleanSubmission(schema,values);let courseTitle='';
+  const versionGuard=require('./form-submission-version');
+  const repeated=await versionGuard.replay(db,{tenantId,formId:form.form_id,tokenHash:sha(submissionToken)});
+  if(repeated)return repeated;
+  versionGuard.assertCurrent(expectedFormVersion,form.version);
+  let schema=typeof form.schema_json==='string'?JSON.parse(form.schema_json):form.schema_json;
+  if(form.slug==='student-registration'||schema.templateKey==='procatalyst-registration-v1')schema=registrationFields.upgrade(schema);
+  const data=cleanSubmission(schema,values);let courseTitle='';
   if(schema.templateKey==='procatalyst-registration-v1'){const catalogue=await registration.options(db,tenantId);courseTitle=registrationSelections.normalize(data).map(r=>{const c=catalogue.courses.find(c=>c.id===r.course_id);if(!c)fail('INVALID_COURSE');return c.nameEn;}).join(' + ');}
   else if(schema.fields.some(field=>field.key==='course_id')){
     if(!data.course_id&&schema.fields.find(field=>field.key==='course_id').required)fail('REQUIRED_FIELD_MISSING');
@@ -179,23 +185,25 @@ async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,
   await db.query('UPDATE sx_training_form_submissions SET lead_id=? WHERE id=? AND tenant_id=?',[leadId,submissionId,tenantId]);
   const workflow=schema.templateKey==='procatalyst-registration-v1'?await registration.create(db,{tenantId,uid,submissionId,leadId,data:{...data,consent_text:schema.consentTextEn},actor,referenceCode:reference}):{};return {...workflow,referenceCode:reference,leadId,repeated:false};
 }
-async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,visitorHash,campaignAttribution}){
+async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,visitorHash,campaignAttribution,expectedFormVersion}){
   if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken)||typeof visitorHash!=='string'||!/^[0-9a-f]{64}$/.test(visitorHash))fail('INVALID_SUBMISSION');
+  require('./form-submission-version').normalize(expectedFormVersion);
   campaignAttribution=cleanCampaignAttribution(campaignAttribution);
   const db=await pool.getConnection();let begun=false;try{
     await db.beginTransaction();begun=true;
     const [[form]]=await db.query(`SELECT t.id AS tenant_id,t.slug AS tenant_slug,u.uid,own.legacy_uid_hash,f.id AS form_id,v.version,v.slug,v.name_en,v.name_ar,v.schema_json FROM sx_tenants t JOIN sx_training_forms f ON f.tenant_id=t.id AND f.status='published' JOIN sx_training_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version JOIN sx_legacy_ownership own ON own.tenant_id=t.id AND own.source_table='user' JOIN sx_memberships owner_membership ON owner_membership.tenant_id=own.tenant_id AND owner_membership.id=own.membership_id AND owner_membership.role='owner' AND owner_membership.status='active' JOIN user u ON CAST(u.id AS CHAR)=own.source_id WHERE t.slug=? AND v.slug=? AND t.category_key='training_center' AND t.category_version=1 AND t.status='active' LIMIT 1 FOR UPDATE`,[tenantSlug,formSlug]);
     if(!form)fail('FORM_NOT_FOUND');if(!form.legacy_uid_hash||sha(form.uid)!==form.legacy_uid_hash)fail('BUSINESS_LINK_INVALID');
-    const result=await persistSubmission(db,{form,tenantId:form.tenant_id,uid:form.uid,formSlug,captureMode:'public',submissionToken,values,visitorHash,campaignAttribution});
+    const result=await persistSubmission(db,{form,tenantId:form.tenant_id,uid:form.uid,formSlug,captureMode:'public',submissionToken,values,visitorHash,campaignAttribution,expectedFormVersion});
     await db.commit();begun=false;return result;
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
-async function submitStaff(pool,actor,formSlug,{submissionToken,values,selectedLeadId}){
+async function submitStaff(pool,actor,formSlug,{submissionToken,values,selectedLeadId,expectedFormVersion}){
   if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken))fail('INVALID_SUBMISSION');
+  require('./form-submission-version').normalize(expectedFormVersion);
   if(selectedLeadId!==undefined&&(typeof selectedLeadId!=='string'||!/^[0-9a-f-]{36}$/i.test(selectedLeadId)))fail('INVALID_SUBMISSION');
   const db=await pool.getConnection();let begun=false;try{
     await db.beginTransaction();begun=true;const ctx=await staffContext(db,actor);const form=await publishedFormForTenant(db,ctx.tenant.id,formSlug);
-    const result=await persistSubmission(db,{form,tenantId:ctx.tenant.id,uid:ctx.ownerUid,formSlug,submissionToken,values,captureMode:'staff',actor:{actorType:actor.role==='agent'?'agent':'user',actorId:actor.role==='agent'?String(actor.agentId):actor.role==='manager'?actor.identityId:actor.uid,agentId:actor.agentId,role:actor.role,selectedLeadId}});
+    const result=await persistSubmission(db,{form,tenantId:ctx.tenant.id,uid:ctx.ownerUid,formSlug,submissionToken,values,expectedFormVersion,captureMode:'staff',actor:{actorType:actor.role==='agent'?'agent':'user',actorId:actor.role==='agent'?String(actor.agentId):actor.role==='manager'?actor.identityId:actor.uid,agentId:actor.agentId,role:actor.role,selectedLeadId}});
     await db.commit();begun=false;return {...result,collectorRole:actor.role};
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
