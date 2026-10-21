@@ -138,6 +138,7 @@ async function loadEntitlements(db,tenantId){
   const [[row]]=await db.query(`SELECT a.id,a.status,a.role_limits,p.capabilities,p.category_key,p.category_version,
     (a.effective_from<=UTC_TIMESTAMP(3) AND a.expires_at>UTC_TIMESTAMP(3)) AS current_period
     FROM sx_plan_assignments a JOIN sx_plan_versions p ON p.id=a.plan_version_id AND p.status='published'
+    JOIN sx_tenants t ON t.id=a.tenant_id AND t.category_key=p.category_key AND t.category_version=p.category_version
     WHERE a.tenant_id=? AND a.current_tenant IS NOT NULL`,[uuid(tenantId)]);
   if(!row)return null;
   const category=getCategory(row.category_key,Number(row.category_version));if(!category)fail('CATEGORY_UNAVAILABLE');

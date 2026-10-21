@@ -372,3 +372,28 @@ retain version-aware API acceptance for browser tabs loaded from this release,
 or coordinate a compatible repair. Never restore customer tables for code rollback.
 
 Production: `1c6c442` is live in `form-version-1c6c442-20261021`. Twenty-three focused checks, 12 browser fixtures and actual public/staff/shared-auth/MariaDB integration pass. Runtime/public hashes, health and three current published-form reads pass. Six paths are synchronized locally with backups; no customer form/data mutation occurred. See DEPLOYMENT.md for rollback and compatibility limits.
+
+
+## Exact plan/category binding in shared authority — 21 October 2026
+
+The common entitlement loader now joins the assigned published plan to the owning
+tenant's exact category key/version. A mismatched current assignment returns no
+entitlement instead of granting its shared capability set. Central policy also
+rejects explicit or partial category metadata mismatches before category-specific
+exceptions, including internal Sales recruitment. Older in-process contexts that
+omit both metadata fields retain their existing compatibility contract; actual
+canonical/legacy business loaders carry the exact plan metadata. This does not
+prove that every historical handcrafted context uses the common loader.
+
+No assignment or published plan is rewritten to repair a mismatch. Provisioning
+and category adoption must establish reviewed matching assignments transactionally.
+Production preflight checked three current assignments and found zero mismatches.
+The initial API test assumed a uniform 403, but the existing Courses contract
+returns 409 FEATURE_UNAVAILABLE; verification accepts the established 403/409
+feature-denial responses and requires no success/data access. This preserves the
+existing error contracts without turning category mismatch into an outage error.
+
+The audit also found hardcoded category adoption gates in legacy Pipeline actors,
+product/catalog adapters and bot/form packs. Exact plan binding is a prerequisite
+for expanding those adapters, not evidence that new vertical workflows are ready.
+New categories must not be exposed for sale solely by registering display names.
