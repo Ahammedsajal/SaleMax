@@ -74,8 +74,8 @@ test('schema 6 accepts only bounded settings owned by the exact pinned module ve
   const configured={...settings.defaults(),enabledModules:all,moduleSettings:{'real-estate.properties@1':{schemaVersion:1,defaultTransactionType:'rent',defaultCurrency:'AED'}}};
   const normalized=settings.normalize(propertyCtx,configured);
   assert.deepEqual(normalized,{...configured,enabledModules:[...all].sort()});
-  assert.deepEqual(settings.moduleSettingsFor({...propertyCtx,moduleSettings:configured.moduleSettings},'real-estate.properties',1),configured.moduleSettings['real-estate.properties@1']);
-  assert.deepEqual(settings.moduleSettingsFor(propertyCtx,'real-estate.properties',1),{schemaVersion:1,defaultTransactionType:'sale',defaultCurrency:'QAR'});
+  assert.deepEqual(settings.moduleSettingsFor({...propertyCtx,moduleSettings:configured.moduleSettings},'real-estate.properties',1),{schemaVersion:2,defaultTransactionType:'rent',defaultCurrency:'AED',areaUnit:'sqm'});
+  assert.deepEqual(settings.moduleSettingsFor(propertyCtx,'real-estate.properties',1),{schemaVersion:2,defaultTransactionType:'sale',defaultCurrency:'QAR',areaUnit:'sqm'});
   assert.throws(()=>settings.moduleSettingsFor({...propertyCtx,moduleSettings:{'real-estate.properties@1':{schemaVersion:1,defaultTransactionType:'admin',defaultCurrency:'QAR'}}},'real-estate.properties',1),{code:'INVALID_MODULE_SETTINGS'});
   for(const invalid of [
     {...configured,moduleSettings:{'real-estate.properties@2':configured.moduleSettings['real-estate.properties@1']}},
@@ -89,6 +89,22 @@ test('schema 6 accepts only bounded settings owned by the exact pinned module ve
   assert.equal(require('../modules/platform/policy').decision({...wrongPlan,moduleSettings:configured.moduleSettings},{capability:'realestate.listings',permission:'properties.read'}).code,'FEATURE_UNAVAILABLE');
   const wrongCategory={...propertyCtx,tenant:{...propertyCtx.tenant,categoryKey:'training_center'},category:trainingCenter};
   assert.throws(()=>settings.normalize(wrongCategory,{...configured,enabledModules:null}),{code:'INVALID_CUSTOMIZATION_MODULE_SETTINGS'});
+});
+test('module setting schema upgrades are additive and keep historical revision checksums verifiable',()=>{
+  const propertyCtx={...ctx,tenant:{...ctx.tenant,categoryKey:'real_estate'},category:realEstate,subscription:{status:'active',capabilities:[...realEstate.capabilities]}};
+  const registry=require('../modules/platform/categories').moduleRegistry,module=registry.get('real-estate.properties',1),moduleSettings=require('../modules/platform/module-settings');
+  assert.equal(module.configSchemaVersion,2);
+  const schema1={schemaVersion:1,defaultTransactionType:'rent',defaultCurrency:'AED'};
+  assert.deepEqual(moduleSettings.normalize(module,schema1),schema1,'stored schema 1 keeps its exact historical shape');
+  assert.deepEqual(moduleSettings.migrate(module,schema1),{schemaVersion:2,defaultTransactionType:'rent',defaultCurrency:'AED',areaUnit:'sqm'});
+  const configured=settings.normalize(propertyCtx,{...settings.defaults(),enabledModules:realEstate.modules.map(ref=>`${ref.id}@${ref.version}`),moduleSettings:{'real-estate.properties@1':schema1}});
+  const row={id:'revision-v6-v1-settings',kind:'published',category_key:'real_estate',category_version:1,schema_version:6,revision:6,document:JSON.stringify(configured),checksum:settings.checksum(configured)};
+  assert.deepEqual(settings.decode(propertyCtx,row).document,configured,'adding a module setting does not rewrite a published tenant revision');
+  const option=settings.moduleSettingsOptions(propertyCtx,configured).find(item=>item.key==='real-estate.properties@1');
+  assert.equal(option.schemaVersion,2);assert.deepEqual(option.values,{schemaVersion:2,defaultTransactionType:'rent',defaultCurrency:'AED',areaUnit:'sqm'});
+  assert.deepEqual(moduleSettings.migrate(module,{schemaVersion:2,defaultTransactionType:'rent',defaultCurrency:'AED',areaUnit:'sqft'}),{schemaVersion:2,defaultTransactionType:'rent',defaultCurrency:'AED',areaUnit:'sqft'});
+  assert.throws(()=>moduleSettings.migrate(module,{schemaVersion:1,defaultTransactionType:'rent',defaultCurrency:'AED',areaUnit:'sqft'}),{code:'INVALID_MODULE_SETTINGS'});
+  assert.throws(()=>moduleSettings.migrate(module,{schemaVersion:2,defaultTransactionType:'rent',defaultCurrency:'AED',areaUnit:'admin'}),{code:'INVALID_MODULE_SETTINGS'});
 });
 test('module activation is tenant-scoped and composes with plan, category, and compatibility policy',()=>{
   const {decision}=require('../modules/platform/policy');
@@ -127,8 +143,8 @@ test('schema 6 module settings load only from the authenticated tenant revision'
   const rows=new Map([['tenant-a',rowFor(aContext,aDocument,1)],['tenant-b',rowFor(bContext,bDocument,1)]]);
   const db={query:async(_sql,args)=>[[rows.get(args[0])||null]]};
   const a=await settings.withActivation(db,aContext),b=await settings.withActivation(db,bContext);
-  assert.deepEqual(settings.moduleSettingsFor(a,'real-estate.properties',1),{schemaVersion:1,defaultTransactionType:'rent',defaultCurrency:'AED'});
-  assert.deepEqual(settings.moduleSettingsFor(b,'real-estate.properties',1),{schemaVersion:1,defaultTransactionType:'sale',defaultCurrency:'QAR'});
+  assert.deepEqual(settings.moduleSettingsFor(a,'real-estate.properties',1),{schemaVersion:2,defaultTransactionType:'rent',defaultCurrency:'AED',areaUnit:'sqm'});
+  assert.deepEqual(settings.moduleSettingsFor(b,'real-estate.properties',1),{schemaVersion:2,defaultTransactionType:'sale',defaultCurrency:'QAR',areaUnit:'sqm'});
 });
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');

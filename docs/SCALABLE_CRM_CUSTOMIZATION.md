@@ -839,3 +839,19 @@ in English and Arabic, and production preflight remain open. The pattern is
 intended for other per-user bot settings only where ownership and fallback
 semantics are explicit; it does not create a generic executable customization
 surface.
+
+## Tenant-versioned Real Estate area preference — source increment, 22 October 2026
+
+The existing owner-only Workspace Customization screen now includes a per-tenant
+area unit for the private Real Estate module. Module settings schema 2 adds
+`areaUnit` (`sqm` or `sqft`) without rewriting schema 1 revisions: the stored
+document and integrity checksum remain unchanged until an owner next saves a
+draft, while runtime reads safely add the new square-metre default. The
+existing Properties screen converts entered and displayed values at the UI
+boundary; the service and `area_sqm` column remain canonical square metres.
+The preference is not an entitlement and cannot change another tenant's
+configuration. Focused tests cover legacy checksum verification, additive
+migration, tenant separation, conversion and existing API policy. No production
+deployment or tenant data change has occurred. Authenticated bilingual browser
+acceptance, full property workflows and the remaining 42-ticket gates stay
+open.

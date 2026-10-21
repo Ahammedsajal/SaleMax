@@ -35,7 +35,8 @@ function moduleSettingsOptions(ctx,document=defaults()) {
     const key=settings.moduleKey(module.id,module.version),definition=settings.describe(module);
     const planAvailable=!!ctx.subscription&&['active','trial','grace'].includes(ctx.subscription.status)&&module.capabilities.every(capability=>ctx.subscription.capabilities.includes(capability));
     const enabled=!Array.isArray(document.enabledModules)||document.enabledModules.includes(key);
-    return {key,label:labels.get(key)||{en:module.id,ar:module.id},schemaVersion:definition.schemaVersion,planAvailable,enabled,fields:definition.fields,values:document.moduleSettings?.[key]||settings.defaults(module)};
+    const stored=document.moduleSettings?.[key]||settings.defaults(module);
+    return {key,label:labels.get(key)||{en:module.id,ar:module.id},schemaVersion:definition.schemaVersion,planAvailable,enabled,fields:definition.fields,values:settings.migrate(module,stored)};
   });
 }
 function normalize(ctx,input) {
@@ -169,7 +170,7 @@ async function withActivation(db,ctx) {
 function moduleSettingsFor(ctx,moduleId,moduleVersion){
   const registry=require('./categories').moduleRegistry,module=registry.get(moduleId,moduleVersion),settings=require('./module-settings');
   if(!module||!ctx?.category?.modules?.some(ref=>ref.id===moduleId&&ref.version===moduleVersion))fail('CATEGORY_UNAVAILABLE',409);
-  return settings.normalize(module,ctx.moduleSettings?.[settings.moduleKey(moduleId,moduleVersion)]||settings.defaults(module));
+  return settings.migrate(module,ctx.moduleSettings?.[settings.moduleKey(moduleId,moduleVersion)]||settings.defaults(module));
 }
 function visibleNavigationKeys(keys,document){const hidden=new Set(Array.isArray(document?.hiddenNavigation)?document.hiddenNavigation:[]);return keys.filter(key=>!hidden.has(key));}
 function visibleNavigation(rows,document){const visible=new Set(visibleNavigationKeys(rows.map(item=>item.key),document));return rows.filter(item=>visible.has(item.key));}

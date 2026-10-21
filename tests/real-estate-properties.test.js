@@ -66,13 +66,13 @@ test('listing reads, creates and revision updates stay tenant-scoped',async()=>{
 test('tenant module settings affect only property form defaults and stay outside listing authority',async()=>{
   const configured={...base,moduleSettings:{'real-estate.properties@1':{schemaVersion:1,defaultTransactionType:'rent',defaultCurrency:'AED'}}},calls=[];
   const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:0}]];if(sql.startsWith('SELECT p.id'))return [[]];if(sql.startsWith('INSERT INTO sx_real_estate_properties'))return [{affectedRows:1}];if(sql.includes('real-estate.property-created'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
-  const listed=await properties.list(db,configured);assert.deepEqual(listed.settings,configured.moduleSettings['real-estate.properties@1']);
+  const listed=await properties.list(db,configured);assert.deepEqual(listed.settings,{schemaVersion:2,defaultTransactionType:'rent',defaultCurrency:'AED',areaUnit:'sqm'});
   const input={...listing};delete input.transactionType;delete input.currency;
   const created=await properties.create(db,configured,input);assert.equal(created.transactionType,'rent');assert.equal(created.currency,'AED');
   const insert=calls.find(call=>call.sql.startsWith('INSERT INTO sx_real_estate_properties'));
   assert.ok(insert.args.includes('rent'));assert.ok(insert.args.includes('AED'));assert.ok(insert.args.includes(tenantId));
   const otherTenant={...base,tenant:{...base.tenant,id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},membership:{...base.membership,tenantId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}};
-  assert.deepEqual((await properties.list({...db,query:async(sql,args)=>sql.startsWith('SELECT COUNT')?[[{total:0}]]:[[]]},otherTenant)).settings,{schemaVersion:1,defaultTransactionType:'sale',defaultCurrency:'QAR'});
+  assert.deepEqual((await properties.list({...db,query:async(sql,args)=>sql.startsWith('SELECT COUNT')?[[{total:0}]]:[[]]},otherTenant)).settings,{schemaVersion:2,defaultTransactionType:'sale',defaultCurrency:'QAR',areaUnit:'sqm'});
 });
 
 test('agent and team-leader listing reads are restricted to their persisted assignment scope',async()=>{
@@ -130,5 +130,6 @@ test('real estate storage keys and current-panel entry are registered without a 
   const entry=fs.readFileSync(path.join(__dirname,'../client/public/pipeline-entry.js'),'utf8');
   assert.match(entry,/salemax-properties-workspace/);assert.match(entry,/\/property-listings\//);
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/properties.js'),'utf8');
-  assert.match(ui,/aria-modal="true"/);assert.match(ui,/statusLabels/);assert.match(ui,/data-save-assignee/);assert.match(ui,/assignedMembershipId/);assert.doesNotMatch(ui,/prompt\(/);
+  assert.match(ui,/aria-modal="true"/);assert.match(ui,/statusLabels/);assert.match(ui,/data-save-assignee/);assert.match(ui,/assignedMembershipId/);assert.match(ui,/name="area"/);assert.match(ui,/areaUnits\.toSquareMetres/);assert.match(ui,/areaUnits\.format/);assert.doesNotMatch(ui,/prompt\(/);
+  assert.match(fs.readFileSync(path.join(__dirname,'../client/public/property-listings/index.html'),'utf8'),/area-units\.js/);
 });

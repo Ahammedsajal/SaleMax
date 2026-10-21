@@ -89,7 +89,7 @@ test('version-pinned module composition exactly matches each category capability
   assert.ok(!sevenNetworkSales.modules.some(ref=>ref.id.startsWith('training.')));
   assert.ok(!trainingCenter.modules.some(ref=>ref.id.startsWith('sales.')));
   assert.equal(realEstate.planable,false);
-  assert.equal(moduleRegistry.get('real-estate.properties',1).configSchemaVersion,1);
+  assert.equal(moduleRegistry.get('real-estate.properties',1).configSchemaVersion,2);
   assert.equal(require('../modules/platform/module-settings').assertRegistry(moduleRegistry),true);
 });
 
