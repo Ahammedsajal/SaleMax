@@ -1952,12 +1952,39 @@ in Base CRM, Sales, Training or the Real Estate fixture.
 The source checks pass 61/61 across registry, category isolation, customization,
 team/navigation, route audit and existing integration contracts; syntax and
 `git diff --check` pass. This is source-only and does not change customer
-assignments, entitlements, database data or production. Module composition is
-still source-owned: tenant-level module activation, versioned per-module
-settings, complete route/data-owner mapping and end-to-end API enforcement are
-not implemented yet. Training v1's legacy capability grants remain intact until
-a reviewed adoption/version transition; this screen filter alone is not an API
-security boundary. The 42-ticket category/CRM work remains active.
+assignments, entitlements, database data or production. Tenant activation is
+being added in the following source-only increment; it is not yet a complete
+route-by-route security boundary. Module-owned settings, complete route/data-
+owner mapping, and consistent coverage for legacy routes, jobs, sockets and
+callbacks remain open. Training v1's legacy capability grants remain intact
+until a reviewed adoption/version transition. The 42-ticket category/CRM work
+remains active.
+
+## Tenant-specific module activation — source update, 21 October 2026
+
+The existing owner Workspace Customization flow now supports schema 5 with a
+tenant-owned allow-list of exact module IDs and versions. It preserves the
+schema 1–4 document shape and checksums; tenants without a schema-5 setting keep
+their prior category-default access. Required Business Settings cannot be
+disabled, and Training Center v1 compatibility and internal Sales recruitment
+remain locked to protect existing assignments and behavior.
+
+Canonical session context, adapted legacy feature sessions, policy decisions,
+navigation and the existing Team Access catalog now consume the same active
+tenant configuration. A disabled module returns `MODULE_DISABLED` after the
+category and plan checks; turning it back on does not grant capabilities or
+permissions by itself. There is no database migration. Focused registry,
+customization, policy, navigation, HTTP, canonical-session, adapted-legacy and
+Team Access checks pass 52/52; syntax and whitespace checks pass. The full
+`npm test` run passes 1,039/1,063 with 24 failures in existing Manage Users,
+Pipeline, Training and Finance UI/source-contract tests; none of the module
+activation tests fail. This is source-only and has not been deployed. The local
+browser harness cannot run because this checkout does not have the Playwright
+package installed, and no disposable MariaDB config is available; authenticated
+production UI and database integration acceptance are not claimed. Complete
+legacy route-to-module coverage, module-owned versioned settings, cross-tenant
+tests for every storage path, and signed-in English/Arabic acceptance remain
+open. The 42-ticket 7Network CRM objective remains active.
 
 ### Original public logo and icon — production, 20 October 2026
 

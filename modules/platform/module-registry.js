@@ -4,7 +4,7 @@
 // source-owned modules; they do not themselves grant tenant access. Category,
 // plan, tenant activation, member permission and record scope remain separate.
 const definitions=[
-  {id:'core.business-settings',version:1,capabilities:['tenant.settings'],screens:['dashboard','notifications','settings'],primaryService:'modules/platform/tenant-customization.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
+  {id:'core.business-settings',version:1,activation:'required',capabilities:['tenant.settings'],screens:['dashboard','notifications','settings'],primaryService:'modules/platform/tenant-customization.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'core.inbox',version:1,capabilities:['messaging.inbox'],screens:['inbox'],primaryService:'helper/inbox/inbox.js',dataBoundary:'mixed_legacy_and_tenant',configSchemaVersion:null},
   {id:'core.whatsapp-qr',version:1,capabilities:['messaging.qr'],screens:['whatsapp-qr'],primaryService:'helper/addon/qr/',dataBoundary:'mixed_legacy_and_tenant',configSchemaVersion:null},
   {id:'core.whatsapp-meta',version:1,capabilities:['messaging.meta'],screens:['whatsapp-meta'],primaryService:'modules/platform/chatbot-provider.js',dataBoundary:'mixed_legacy_and_tenant',configSchemaVersion:null},
@@ -22,13 +22,13 @@ const definitions=[
   {id:'training.finance',version:1,capabilities:['finance.invoices','finance.installments','finance.payments','finance.receipts','finance.credits'],screens:['invoices','installments','payments','receipts','credits','finance-reports'],primaryService:'modules/platform/training-finance-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'training.report-schedules',version:1,capabilities:['reports.schedule'],screens:['scheduled-reports'],primaryService:'modules/platform/training-report-schedules.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'training.forms',version:1,capabilities:['portal.forms'],screens:['forms'],primaryService:'modules/platform/training-form-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
-  {id:'compat.training-center-v1',version:1,capabilities:['sales.finance','hr.recruitment'],screens:[],primaryService:'modules/platform/categories.js',dataBoundary:'compatibility_only',configSchemaVersion:null},
+  {id:'compat.training-center-v1',version:1,activation:'locked_compatibility',capabilities:['sales.finance','hr.recruitment'],screens:[],primaryService:'modules/platform/categories.js',dataBoundary:'compatibility_only',configSchemaVersion:null},
   {id:'sales.deals',version:1,capabilities:['sales.deals'],screens:['sales-deals','sales-audit'],primaryService:'modules/platform/sales-organization-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'sales.commissions',version:1,capabilities:['sales.commissions'],screens:['sales-commissions','commission-policy'],primaryService:'modules/platform/sales-commission-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'sales.finance',version:1,capabilities:['sales.finance'],screens:['sales-finance'],primaryService:'modules/platform/sales-finance-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'sales.targets',version:1,capabilities:['sales.targets'],screens:['sales-targets'],primaryService:'modules/platform/sales-targets-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'sales.products-services',version:1,capabilities:['products.catalog'],screens:['products-services'],primaryService:'modules/platform/product-catalog.js',dataBoundary:'mixed_legacy_and_tenant',configSchemaVersion:null},
-  {id:'sales.recruitment',version:1,capabilities:['hr.recruitment'],screens:['recruitment'],primaryService:'modules/platform/recruitment-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
+  {id:'sales.recruitment',version:1,activation:'locked_compatibility',capabilities:['hr.recruitment'],screens:['recruitment'],primaryService:'modules/platform/recruitment-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'real-estate.properties',version:1,capabilities:['realestate.listings'],screens:['properties'],primaryService:'modules/platform/real-estate-properties-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
 ];
 
@@ -41,9 +41,10 @@ function createModuleRegistry(sources,knownCapabilities){
       ||!Array.isArray(source.capabilities)||!source.capabilities.length||new Set(source.capabilities).size!==source.capabilities.length||source.capabilities.some(key=>!Object.hasOwn(knownCapabilities,key))
       ||!Array.isArray(source.screens)||new Set(source.screens).size!==source.screens.length||source.screens.some(key=>typeof key!=='string'||!/^[a-z][a-z0-9-]{0,79}$/.test(key))
       ||typeof source.primaryService!=='string'||!/^[-A-Za-z0-9_./]{1,180}$/.test(source.primaryService)||source.primaryService.split('/').includes('..')||!['tenant_scoped','legacy_owner_uid','mixed_legacy_and_tenant','compatibility_only'].includes(source.dataBoundary)
+      ||(source.activation!==undefined&&!['required','optional','locked_compatibility'].includes(source.activation))
       ||(source.configSchemaVersion!==null&&(!Number.isSafeInteger(source.configSchemaVersion)||source.configSchemaVersion<1)))invalid();
     const identity=`${source.id}@${source.version}`;if(entries.has(identity))invalid();
-    entries.set(identity,Object.freeze({...source,capabilities:Object.freeze([...source.capabilities]),screens:Object.freeze([...source.screens])}));
+    entries.set(identity,Object.freeze({...source,activation:source.activation||'optional',capabilities:Object.freeze([...source.capabilities]),screens:Object.freeze([...source.screens])}));
   }
   return Object.freeze({
     get(id,version){return typeof id==='string'&&Number.isSafeInteger(version)?entries.get(`${id}@${version}`)||null:null;},

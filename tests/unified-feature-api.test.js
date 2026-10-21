@@ -13,6 +13,7 @@ function fixture(role='manager'){
   if(sql.includes('SELECT u.uid,m.id AS membershipId'))return [[{uid:owner.uid,uidHash:sha(owner.uid),membershipId:'owner-member',identityId:'owner-identity'}]];
   if(sql.includes('o.legacy_uid_hash AS uidHash'))return [[member]];
   if(sql.includes('FROM sx_plan_assignments'))return [[{id:'assignment',status:'active',current_period:1,role_limits:JSON.stringify({owner:1,accountant:2,manager:2,agent:10}),capabilities:JSON.stringify(trainingCenter.capabilities),category_key:'training_center',category_version:1}]];
+  if(sql.includes('sx_tenant_customization_heads'))return [[null]];
   if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:owner.uid,legacy_uid_hash:sha(owner.uid)}]];
   if(sql.includes('SELECT * FROM user WHERE uid='))return [[owner]];
   if(sql.includes('SELECT source_table,source_id'))return [[{source_table:role==='agent'?'agents':'user',source_id:'2',legacy_uid_hash:sha(actor.uid)}]];

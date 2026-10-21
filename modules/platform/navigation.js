@@ -44,9 +44,13 @@ const items = [
   ['team', 'team.members', 'team.read', 'Team access', 'إدارة وصول الفريق', 'Administration', 'الإدارة'],
   ['settings', 'tenant.settings', 'tenant.manage', 'Business Settings', 'إعدادات الأعمال', 'Administration', 'الإدارة'],
 ].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr },ownerOnly:['recruitment','training-profile'].includes(key),sidebar:!['batches','enrollments','installments','payments','receipts','credits','scheduled-reports'].includes(key) }));
-function supportsCategoryScreen(category,key){
+function supportsCategoryScreen(category,key,enabledModules=null){
   if(!Array.isArray(category?.modules))return true;
-  return category.modules.some(ref=>moduleRegistry.get(ref.id,ref.version)?.screens.includes(key));
+  const ref=category.modules.find(item=>moduleRegistry.get(item.id,item.version)?.screens.includes(key));
+  if(!ref)return false;
+  const manifest=moduleRegistry.get(ref.id,ref.version);
+  if(!Array.isArray(enabledModules)||manifest.activation==='locked_compatibility')return true;
+  return enabledModules.includes(`${manifest.id}@${manifest.version}`);
 }
 function navigationFor(context) {
   if (context?.audience !== 'tenant' || context.tenant?.status !== 'active' || context.membership?.status !== 'active' || context.membership?.tenantId !== context.tenant?.id) return [];
@@ -56,7 +60,7 @@ function navigationFor(context) {
   const visible = context.category?.key === '7network_sales' && context.membership.role === 'accountant'
     ? items.filter(item => ['sales-finance', 'sales-commissions'].includes(item.key))
     : items;
-  return visible.filter(item => supportsCategoryScreen(context.category,item.key) && (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&
+  return visible.filter(item => supportsCategoryScreen(context.category,item.key,context.enabledModules) && (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&
     (item.key!=='finance-reports'||decision(context,{capability:'finance.invoices',permission:'invoices.read'}).allowed))
     .map(item => ({ ...item, scope: decision(context, item).scope }));
 }

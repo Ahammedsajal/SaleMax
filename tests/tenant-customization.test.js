@@ -49,6 +49,49 @@ test('schema 4 customizes only task types pinned to the active category and neve
   assert.deepEqual(require('../modules/platform/task-type-adapters').available(ctx,['enrollment']).map(item=>item.key),['lead_follow_up','general','enrollment']);
   assert.deepEqual(require('../modules/platform/task-type-adapters').available(sales,[]).map(item=>item.key),['lead_follow_up','general']);
 });
+test('schema 5 enables only exact modules pinned to this category and requires business settings',()=>{
+  const registry=require('../modules/platform/categories').moduleRegistry;
+  const all=ctx.category.modules.map(ref=>({ref,module:registry.get(ref.id,ref.version)})).filter(({module})=>module.activation!=='locked_compatibility').map(({ref})=>`${ref.id}@${ref.version}`);
+  const configured={...settings.defaults(),enabledModules:all.filter(key=>key!=='core.inbox@1')};
+  assert.deepEqual(settings.normalize(ctx,configured).enabledModules,[...configured.enabledModules].sort());
+  for(const invalid of [
+    {...configured,enabledModules:configured.enabledModules.filter(key=>key!=='core.business-settings@1')},
+    {...configured,enabledModules:[...configured.enabledModules,'sales.deals@1']},
+    {...configured,enabledModules:[...configured.enabledModules,'core.inbox@1','core.inbox@1']},
+    {...configured,enabledModules:[...configured.enabledModules,'compat.training-center-v1@1']},
+    {...configured,enabledModules:'core.business-settings@1'},
+  ])assert.throws(()=>settings.normalize(ctx,invalid),{code:'INVALID_CUSTOMIZATION_MODULES'});
+  const old={schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null};
+  assert.deepEqual(settings.normalize(ctx,old),old,'schema 4 remains byte-for-byte compatible for revision checksums');
+});
+test('module activation is tenant-scoped and composes with plan, category, and compatibility policy',()=>{
+  const {decision}=require('../modules/platform/policy');
+  const enabled=ctx.category.modules.map(ref=>`${ref.id}@${ref.version}`).filter(key=>key!=='core.inbox@1');
+  const a={...ctx,enabledModules:enabled};
+  const b={...ctx,tenant:{...ctx.tenant,id:'tenant-b'},membership:{...ctx.membership,tenantId:'tenant-b'},enabledModules:null};
+  assert.deepEqual(decision(a,{capability:'messaging.inbox',permission:'conversations.read'}),{allowed:false,code:'MODULE_DISABLED'});
+  assert.equal(decision(b,{capability:'messaging.inbox',permission:'conversations.read'}).allowed,true);
+  assert.deepEqual(decision({...a,subscription:{status:'active',capabilities:[]}}, {capability:'messaging.inbox',permission:'conversations.read'}),{allowed:false,code:'FEATURE_UNAVAILABLE'});
+  const compatibility={...ctx,enabledModules:['core.business-settings@1']};
+  assert.equal(decision(compatibility,{capability:'sales.finance',permission:'sales.finance.read'}).allowed,true,'Training Center v1 historical compatibility grants remain available');
+  const sales={...ctx,tenant:{...ctx.tenant,categoryKey:'7network_sales'},category:salemaxSales,subscription:{status:'active',capabilities:salemaxSales.capabilities},enabledModules:salemaxSales.modules.map(ref=>`${ref.id}@${ref.version}`).filter(key=>key!=='sales.recruitment@1')};
+  assert.equal(decision(sales,{capability:'hr.recruitment',permission:'recruitment.manage'}).allowed,true,'internal first-party recruitment remains outside customer module toggles');
+  assert.deepEqual(decision({...a,category:salemaxSales},{capability:'messaging.inbox',permission:'conversations.read'}),{allowed:false,code:'CATEGORY_UNAVAILABLE'});
+});
+test('activation loader is tenant-scoped and treats pre-schema-5 documents as category defaults',async()=>{
+  const versions=new Map();
+  const makeRow=(context,document,revision)=>({id:`00000000-0000-4000-8000-${String(revision).padStart(12,'0')}`,tenant_id:context.tenant.id,category_key:context.tenant.categoryKey,category_version:context.tenant.categoryVersion,schema_version:document.schemaVersion,revision,kind:'published',document:JSON.stringify(document),checksum:settings.checksum(document),created_at:'2026-10-21 00:00:00.000'});
+  const modules=ctx.category.modules.map(ref=>({ref,module:require('../modules/platform/categories').moduleRegistry.get(ref.id,ref.version)})).filter(({module})=>module.activation!=='locked_compatibility').map(({ref})=>`${ref.id}@${ref.version}`);
+  const aDoc=settings.normalize(ctx,{...settings.defaults(),enabledModules:modules.filter(key=>key!=='core.inbox@1')});
+  versions.set('tenant-a',makeRow(ctx,aDoc,2));
+  const bctx={...ctx,tenant:{...ctx.tenant,id:'tenant-b'},membership:{...ctx.membership,tenantId:'tenant-b'}};
+  const oldDoc={schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null};
+  versions.set('tenant-b',makeRow(bctx,oldDoc,1));
+  const db={query:async(_sql,args)=>[[versions.get(args[0])||null]]};
+  const a=await settings.withActivation(db,ctx),b=await settings.withActivation(db,bctx);
+  assert.deepEqual(a.enabledModules,aDoc.enabledModules);
+  assert.equal(b.enabledModules,null,'older published tenant configurations retain category defaults');
+});
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');
   const original=customization.effective;
@@ -60,4 +103,14 @@ test('published hidden navigation affects only the current tenant session contra
     assert.equal(b.roleNavigation.includes('courses'),true);
     assert.equal(b.navigationLabels.courses.en,'Learning');
   }finally{customization.effective=original;}
+});
+test('tenant-disabled modules disappear from category navigation while defaults retain legacy visibility',()=>{
+  const navigation=require('../modules/platform/navigation');
+  const enabled=ctx.category.modules.map(ref=>`${ref.id}@${ref.version}`).filter(key=>key!=='training.core@1');
+  assert.equal(navigation.supportsCategoryScreen(ctx.category,'courses'),true);
+  assert.equal(navigation.supportsCategoryScreen(ctx.category,'courses',enabled),false);
+  const visible=navigation.navigationFor({...ctx,enabledModules:enabled}).map(item=>item.key);
+  assert.equal(visible.includes('courses'),false);
+  assert.equal(visible.includes('inbox'),true);
+  assert.equal(visible.includes('settings'),true);
 });

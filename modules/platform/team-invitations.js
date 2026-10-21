@@ -73,12 +73,14 @@ async function ownerScope(db,ownerUid,{requireTeam=true}={}){
     try{customPermissions=typeof value.rolePermissions==='string'?JSON.parse(value.rolePermissions):value.rolePermissions;}catch{fail('TEAM_ROLE_STORAGE_INVALID');}
     if(value.seatRole!==value.role||!Array.isArray(customPermissions)||customPermissions.some(item=>typeof item!=='string')||!['active','archived'].includes(value.roleStatus))fail('TEAM_ROLE_STORAGE_INVALID');
   }
-  const authorization=decision({audience:'tenant',identity:{id:value.identityId},tenant:{id:value.tenantId,status:value.tenantStatus,categoryKey:value.categoryKey,categoryVersion:Number(value.categoryVersion)},
+  const policyContext={audience:'tenant',identity:{id:value.identityId},tenant:{id:value.tenantId,status:value.tenantStatus,categoryKey:value.categoryKey,categoryVersion:Number(value.categoryVersion)},
     membership:{id:value.membershipId,tenantId:value.tenantId,role:value.role,status:value.membershipStatus,customPermissions,assignedNavigation:parseNavigation(value.assignedNavigation),delegatedPermissions:[]},
-    category,subscription:entitlement},{capability:'team.members',permission:'team.invite'});
+    category,subscription:entitlement};
+  const activatedContext=await require('./tenant-customization').withActivation(db,policyContext);
+  const authorization=decision(activatedContext,{capability:'team.members',permission:'team.invite'});
   if(!authorization.allowed)fail(authorization.code);
   if(requireTeam&&(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities.includes('team.members')))fail('TEAM_FEATURE_UNAVAILABLE');
-  return {...value,category,entitlement};
+  return {...value,category,entitlement,enabledModules:activatedContext.enabledModules};
 }
 async function createRole(pool,ownerUid,input){
   const name=roleName(input?.name),seatRole=role(input?.seatRole),description=roleDescription(input?.description),id=crypto.randomUUID();
@@ -181,16 +183,16 @@ async function list(pool,ownerUid){
       ORDER BY i.display_name,i.email_normalized LIMIT 500`,[ownerUid,scope.tenantId]);
     const tenant={id:scope.tenantId,status:scope.tenantStatus,categoryKey:scope.categoryKey,categoryVersion:Number(scope.categoryVersion)};
     const navigationByRole=Object.fromEntries(staffRoles.map(memberRole=>{
-      const context={audience:'tenant',tenant,category:scope.category,subscription:scope.entitlement,
+      const context={audience:'tenant',tenant,category:scope.category,subscription:scope.entitlement,enabledModules:scope.enabledModules,
         membership:{id:'preview',tenantId:scope.tenantId,role:memberRole,status:'active',delegatedPermissions:[]}};
       return [memberRole,navigation.filterSidebar(navigation.navigationFor(context),null).map(item=>({key:item.key,label:item.label,group:item.group}))];
     }));
     const navigationByRoleProfile=Object.fromEntries(normalizedRoles.map(item=>{
-      const context={audience:'tenant',tenant,category:scope.category,subscription:scope.entitlement,
+      const context={audience:'tenant',tenant,category:scope.category,subscription:scope.entitlement,enabledModules:scope.enabledModules,
         membership:{id:'preview',tenantId:scope.tenantId,role:item.seatRole,status:'active',delegatedPermissions:[],customPermissions:item.permissions}};
       return [item.id,navigation.filterSidebar(navigation.navigationFor(context),item.sidebarNavigation).map(entry=>({key:entry.key,label:entry.label,group:entry.group}))];
     }));
-    return {screenCatalog:navigation.items.filter(item=>item.sidebar!==false).map(item=>({...item,available:!item.ownerOnly&&navigation.supportsCategoryScreen(scope.category,item.key)&&scope.category.capabilities.includes(item.capability)&&scope.entitlement?.capabilities.includes(item.capability),actions:item.key==='invoices'?Object.entries(policy.capabilities).filter(([key])=>key.startsWith('finance.')).flatMap(([,value])=>value):(policy.capabilities[item.capability]||[]),requiredPermissions:item.key==='finance-reports'?[item.permission,'invoices.read']:[item.permission]})),categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),permissionDefaults:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement).filter(permission=>policy.scopeFor({role:key},permission))])),navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
+    return {screenCatalog:navigation.items.filter(item=>item.sidebar!==false).map(item=>({...item,available:!item.ownerOnly&&navigation.supportsCategoryScreen(scope.category,item.key,scope.enabledModules)&&scope.category.capabilities.includes(item.capability)&&scope.entitlement?.capabilities.includes(item.capability),actions:item.key==='invoices'?Object.entries(policy.capabilities).filter(([key])=>key.startsWith('finance.')).flatMap(([,value])=>value):(policy.capabilities[item.capability]||[]),requiredPermissions:item.key==='finance-reports'?[item.permission,'invoices.read']:[item.permission]})),categoryKey:scope.category.key,categoryVersion:scope.category.version,invitations:rows,members:members.map(member=>({...member,permissions:member.roleProfileId?(typeof member.rolePermissions==='string'?JSON.parse(member.rolePermissions):member.rolePermissions):null,assignedNavigation:parseNavigation(member.assignedNavigation)})),roles:normalizedRoles,permissionCatalog:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement)])),permissionDefaults:Object.fromEntries(availableStaffRoles.map(key=>[key,permissionsFor(key,scope.category,scope.entitlement).filter(permission=>policy.scopeFor({role:key},permission))])),navigationByRole,navigationByRoleProfile,availableRoles:availableStaffRoles.filter(key=>seatUsage[key].available>0),unsupportedRoles:[],seatUsage};
   });}finally{db.release();}
 }
 async function updateMemberPassword(pool,ownerUid,memberId,input={}){

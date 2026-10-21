@@ -711,3 +711,24 @@ MariaDB's JSON_TABLE converts JSON values into relational rows and supports the
 wildcard path used by this bounded value search ([MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)).
 These are design inputs, not a change to SaleMaX's existing Node/MariaDB
 deployment or an assertion of unlimited pooled scale.
+
+## Tenant module activation in existing Workspace Customization — schema 5, source update, 21 October 2026
+
+The existing owner-only Workspace Customization editor now lets each business
+turn category-pinned optional modules on or off for its own tenant. Required
+Business Settings stay available; Training Center v1 compatibility and internal
+Sales recruitment remain locked on so historical behavior cannot be silently
+removed. Existing schema 1–4 revisions retain their normalized document shape
+and checksums, and keep category-default access until an owner publishes schema
+5.
+
+The shared policy now denies a disabled module at the API decision boundary for
+canonical sessions and legacy sessions adapted into upgraded feature routers.
+Navigation and the existing Team Access screen catalog consume the same tenant
+activation; re-enabling a module does not bypass category, plan, member,
+record-scope or provider checks. The allow-list accepts only exact module
+versions pinned to the tenant's category. No database migration is needed.
+This does not secure every legacy route: unmapped routes, jobs, sockets,
+callbacks and route-to-table ownership remain open audit items. Module-owned
+versioned settings and full signed-in English/Arabic acceptance remain required
+before additional vertical categories are offered.

@@ -106,8 +106,10 @@ test('module manifests reject unsafe contracts and copy immutable ownership meta
   assert.deepEqual(stored.capabilities,['team.tasks']);assert.deepEqual(stored.screens,['appointments']);
   assert.equal(Object.isFrozen(stored),true);assert.equal(Object.isFrozen(stored.capabilities),true);assert.equal(Object.isFrozen(registry.list()),true);
   assert.throws(()=>createModuleRegistry([source,source],capabilities),{code:'INVALID_MODULE_MANIFEST'});
-  for(const patch of [{id:'../clinic'},{version:0},{capabilities:['not.a.capability']},{screens:['<script>']},{primaryService:'../secret.js'},{dataBoundary:'global'},{configSchemaVersion:0}])
+  for(const patch of [{id:'../clinic'},{version:0},{activation:'grant-all'},{capabilities:['not.a.capability']},{screens:['<script>']},{primaryService:'../secret.js'},{dataBoundary:'global'},{configSchemaVersion:0}])
     assert.throws(()=>createModuleRegistry([{...source,...patch}],capabilities),{code:'INVALID_MODULE_MANIFEST'});
+  assert.equal(moduleRegistry.get('core.business-settings',1).activation,'required');
+  assert.equal(moduleRegistry.get('compat.training-center-v1',1).activation,'locked_compatibility');
 });
 
 test('existing navigation only exposes screens declared by the pinned category modules',()=>{

@@ -31,7 +31,7 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudienc
     res.json({context:result.context,csrfToken:result.csrfToken,mfaRequired:result.mfaRequired});
   }));
   router.get('/me',wrap(async(req,res)=>{
-    const raw=token(req),context=await connection(db=>loadSession(db,raw));
+    const raw=token(req),context=await connection(db=>contextFor(db,raw));
     if(!audienceMatches(context))return res.status(401).json({code:'AUTH_REQUIRED'});
     if(req.crmTenantDomain&&context.audience==='tenant'&&context.tenant.id!==req.crmTenantDomain.tenantId)return res.status(403).json({code:'CRM_DOMAIN_TENANT_MISMATCH'});
     res.json({context,csrfToken:auth.csrf(raw),mfaRequired:context.audience==='platform'&&!context.mfaVerified});
@@ -81,6 +81,7 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudienc
       ctx.category=getCategory(ctx.tenant.categoryKey,ctx.tenant.categoryVersion);
       if(!ctx.category)return null;
       ctx.subscription=await loadEntitlements(db,ctx.tenant.id);ctx.runtimeReady={};
+      return require('./tenant-customization').withActivation(db,ctx);
     }
     return ctx;
   }
