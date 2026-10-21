@@ -2419,3 +2419,19 @@ or adapter was added or deployed. Secure Redis provisioning, target load
 balancer configuration, two-process acceptance, outage/recovery and membership
 revocation tests remain open TC37/TC41 gates. The full 42-ticket objective
 remains active.
+
+## Optional Socket.IO Redis Streams adapter — source update, 21 October 2026
+
+The app now has an opt-in Redis Streams adapter pinned with `redis@6.3.0` and
+`@socket.io/redis-streams-adapter@0.3.1`. Both existing server entrypoints
+initialize the adapter before opening the HTTP listener. A process marked
+`SOCKET_IO_CLUSTER_REQUIRED=true` refuses to listen without the Redis URL or
+when its initial Redis connection fails; existing single-process installs
+remain on the in-memory adapter. Stream, channel and recovery-session keys use
+a bounded configurable namespace, and logs do not include the credential URL.
+An opt-in two-process synthetic delivery test is included but could not run
+because this host has no local Redis server. Unit tests pass 8/8 and the socket,
+Inbox and assignment focused suite passes 183/183; the full test suite reports
+1,108/1,132 with the same 24 known failures. Production remains unchanged and
+has no Redis endpoint configured. Redis ACL/network setup, long-polling affinity,
+two-process integration, interruption/recovery and revocation tests remain open.

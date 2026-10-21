@@ -3,6 +3,7 @@ const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const { query } = require("./database/dbpromise");
 const { processSocketEvent } = require("./helper/socket");
+const { configureSocketRedisStreams } = require("./modules/platform/socket-redis-streams");
 const {
   accountRoom,
   joinAccountRooms,
@@ -12,6 +13,7 @@ const {
 } = require("./modules/platform/socket-account-rooms");
 
 let ioInstance = null;
+let realtimeAdapter = { ready: Promise.resolve(), close: async () => {}, enabled: false };
 
 // Database functions
 async function getUserData(uid) {
@@ -57,6 +59,7 @@ function initializeSocket(server) {
       skipMiddlewares: false,
     },
   });
+  realtimeAdapter = configureSocketRedisStreams(ioInstance);
 
   // Authentication middleware
   ioInstance.use(async (socket, next) => {
@@ -347,4 +350,7 @@ module.exports = {
   getConnectionBySocketId,
   getAllSocketData,
   getSocketIo: () => ioInstance,
+  whenRealtimeReady: () => realtimeAdapter.ready,
+  closeRealtimeAdapter: () => realtimeAdapter.close(),
+  isRealtimeClusterEnabled: () => realtimeAdapter.enabled,
 };

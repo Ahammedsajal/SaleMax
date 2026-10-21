@@ -237,6 +237,16 @@ updates, unauthorized room denial, state recovery, Redis interruption,
 membership revocation and rejoin behavior. The adapter's bounded stream
 retention and overflow/recovery behavior also need explicit operational tests.
 
+The opt-in source configuration uses `SOCKET_IO_REDIS_URL` from the runtime
+environment, `SOCKET_IO_REDIS_NAMESPACE` for environment isolation, and
+`SOCKET_IO_CLUSTER_REQUIRED=true` on every intended replica. Cluster-required
+startup fails before binding the HTTP port if the URL is missing or the Redis
+connection cannot be established. The credential URL must stay outside Git.
+The two-process acceptance command is `npm run test:socket:cluster`; it requires
+`SOCKET_IO_CLUSTER_TEST_TARGET=local-disposable` and a dedicated local Redis
+instance. No local Redis server is available in this worktree environment, so
+the cross-process integration script is authored but has not yet been run.
+
 ## Extensibility and domain boundaries
 
 | Category | Candidate modules, subject to implementation and acceptance |

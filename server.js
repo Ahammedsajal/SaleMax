@@ -1,5 +1,6 @@
 require("dotenv").config({ silent: true });
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
@@ -255,7 +256,10 @@ app.get("*", function (request, response) {
 });
 
 // ─── Server ───────────────────────────────────────────────────────────────────
-const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0.1", () => {
+const server = http.createServer(app);
+const socketRuntime = require("./socket");
+const io = socketRuntime.initializeSocket(server);
+socketRuntime.whenRealtimeReady().then(() => server.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0.1", () => {
   console.log(`7Network server is running on port ${process.env.PORT}`);
   receiptWorkerProcess = receiptWorkerRuntime.start();
   if (receiptWorkerProcess) {
@@ -293,10 +297,13 @@ const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0
     initTele();
     initWhatsAppRetentionCleanup();
   }, 1000);
+})).catch((error) => {
+  console.error("Socket.IO realtime adapter failed to initialize:", error?.code || "SOCKET_IO_ADAPTER_START_FAILED");
+  socketRuntime.closeRealtimeAdapter().catch(() => {});
+  process.exitCode = 1;
 });
 
 // ─── Socket.IO ────────────────────────────────────────────────────────────────
-const io = require("./socket").initializeSocket(server);
 module.exports = io;
 
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
@@ -327,4 +334,5 @@ nodeCleanup(async (exitCode, signal) => {
   }
   await cleanupTele();
   cleanup();
+  await socketRuntime.closeRealtimeAdapter().catch(() => {});
 });
