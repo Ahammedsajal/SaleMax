@@ -75,11 +75,13 @@ The existing recruitment form now keeps ordinary validation feedback in plain cu
 The general English and Arabic submission-failure message now tells applicants
 to retry shortly and contact the 7Network recruitment team if the problem
 continues, while sharing the safe cause code shown in brackets. SQL text and
-applicant details remain hidden. The error helper cache key is bumped to ensure
-browsers fetch the updated copy. Focused recruitment error-copy and branding
-tests pass; `git diff --check` passes. Source only; production was not changed.
-The controlled synthetic production failure and signed-out visual acceptance
-remain open.
+applicant details remain hidden. Source was reconciled with the current live
+recruitment helper, preserving its specific oversized-CV response (`LIMIT_FILE_SIZE`)
+and the app JavaScript hash already matches production. The error-helper cache
+key is bumped to ensure browsers fetch the updated copy. Focused recruitment
+error-copy and branding tests pass; `git diff --check` passes. Source only;
+production was not changed. The controlled synthetic production failure and
+signed-out visual acceptance remain open.
 
 ## Real Estate private listing slice — source implementation, 21 October 2026
 
