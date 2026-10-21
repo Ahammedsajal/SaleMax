@@ -940,3 +940,61 @@ audited immutable revision workflow remains the control surface. Focused unit,
 policy, route and API checks pass; the fresh disposable-schema integration check
 and authenticated EN/AR browser acceptance remain open. This is source-only;
 production and tenant settings were not changed.
+
+## Catalogue media resource boundary — source implementation, 22 October 2026
+
+The existing Training Center and Sales product routers share a private-media
+stream handler, but signed links previously carried the same audience and the
+same `sx_course_media_*` cookie name in both category routes. Although the
+database lookup remained tenant-scoped and product/course rows are stored in
+separate tables, a signed grant did not state which catalogue owned its
+resource. That made the shared transport contract weaker than the category
+boundary it serves.
+
+New media grants now include the reviewed catalogue resource type (`courses` or
+`products`), and the HTTP-only cookie uses a separate resource namespace. Each
+stream route checks that claim against its own router before opening a database
+connection. A product grant cannot be replayed through the course stream and a
+course grant cannot be replayed through the product stream. Existing course
+grants without a type remain interpreted as Training Center grants, and the
+course route accepts the old cookie name until its three-hour token expires.
+Product routes never accept that legacy cookie name. No database migration or
+media-file rewrite is required.
+
+The focused token, route, category-adapter, media and course-router tests pass
+13/13. The product MariaDB integration now also asserts reciprocal route denial,
+but could not run in this checkout because no local disposable DB configuration
+is present; no production database was used. Authenticated browser acceptance
+and private-media storage extraction remain open. This change tightens the
+resource namespace; it does not remove the remaining course-compatible storage
+adapter or establish Retail inventory/media readiness.
+
+### SaaS architecture research refresh — 22 October 2026
+
+AWS distinguishes tenant data partitioning from tenant isolation: a pooled
+schema improves shared operations, but each access path still needs effective
+ownership enforcement. It also describes pooled, bridge and silo as options
+that can be combined at the resource level. For 7Network, this supports keeping
+the current pooled Node/MariaDB deployment while considering a dedicated
+resource tier only when an account's measured isolation, compliance or noisy-
+neighbor needs justify the added operations cost. See [AWS SaaS partitioning
+models](https://docs.aws.amazon.com/whitepapers/latest/multi-tenant-saas-storage-strategies/saas-partitioning-models.html)
+and [AWS pool isolation](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/pool-isolation.html).
+
+Microsoft's current multitenant update guidance treats feature rollout,
+deployment stamps and tenant version visibility as complementary controls. In
+7Network, a rollout flag may select a reviewed implementation for a tenant, but
+category, plan, tenant-published configuration, membership and resource
+ownership remain separate checks. Rollout eligibility must not become an
+entitlement. See [Microsoft's update considerations](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/updates)
+and [deployment/configuration approaches](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/deployment-configuration).
+
+MariaDB documents `JSON_TABLE` from version 10.6. Existing custom-field search
+that depends on it must therefore be version-gated in deployment checks and
+measured against realistic tenant record counts; it is not a substitute for an
+indexed relational projection when query plans or latency require one. See the
+[MariaDB JSON_TABLE reference](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table).
+
+These sources reinforce the current design and do not prove 7Network's load,
+recovery, privacy or authenticated UI acceptance. The broad SaaS completion
+gates remain in the implementation ledger.

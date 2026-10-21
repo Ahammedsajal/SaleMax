@@ -35,12 +35,18 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   // Short-lived signed stream URLs let native image/video elements request
   // byte ranges without exposing a long-lived business bearer token.
   router.get('/:courseId/media/:mediaId/stream', wrap(async (req, res) => {
-    const cookieName = `sx_course_media_${req.params.mediaId.replace(/-/g, '')}`;
-    const cookie = String(req.headers.cookie || '').split(';').map(value => value.trim()).find(value => value.startsWith(cookieName + '='));
-    const token = cookie?.slice(cookieName.length + 1);
+    const resourceType = products ? 'products' : 'courses';
+    const mediaCookieName = courseMedia.cookieName(resourceType, req.params.mediaId);
+    const cookieNames = [mediaCookieName];
+    // Existing course access cookies remain usable until their three-hour TTL
+    // expires. Product routes never accept this legacy course cookie name.
+    if (resourceType === 'courses') cookieNames.push(`sx_course_media_${req.params.mediaId.replace(/-/g, '')}`);
+    const cookies = String(req.headers.cookie || '').split(';').map(value => value.trim());
+    const cookie = cookies.find(value => cookieNames.some(name => value.startsWith(name + '=')));
+    const token = cookie?.slice(cookie.indexOf('=') + 1);
     if (!token || token.length > 2048) throw Object.assign(new Error('COURSE_MEDIA_ACCESS_REQUIRED'), { code: 'COURSE_MEDIA_ACCESS_REQUIRED', status: 401 });
     const payload = courseMedia.verifyAccessToken(token);
-    if (payload.courseId !== req.params.courseId || payload.mediaId !== req.params.mediaId) throw Object.assign(new Error('COURSE_MEDIA_ACCESS_REQUIRED'), { code: 'COURSE_MEDIA_ACCESS_REQUIRED', status: 401 });
+    if (payload.resourceType !== resourceType || payload.courseId !== req.params.courseId || payload.mediaId !== req.params.mediaId) throw Object.assign(new Error('COURSE_MEDIA_ACCESS_REQUIRED'), { code: 'COURSE_MEDIA_ACCESS_REQUIRED', status: 401 });
     const db = await pool.getConnection();
     let file;
     try { file = await courseMedia.getFile(db, payload.tenantId, payload.courseId, payload.mediaId); }
@@ -124,9 +130,9 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
     finally { db.release(); }
     const access = courseMedia.accessToken(req.courseContext, req.params.id, req.params.mediaId);
     const mediaPath = `${req.baseUrl}/${encodeURIComponent(req.params.id)}/media/${encodeURIComponent(req.params.mediaId)}/stream`;
-    const cookieName = `sx_course_media_${req.params.mediaId.replace(/-/g, '')}`;
+    const mediaCookieName = courseMedia.cookieName(products ? 'products' : 'courses', req.params.mediaId);
     const secure = origin.startsWith('https://') ? '; Secure' : '';
-    res.setHeader('Set-Cookie', `${cookieName}=${access}; Path=${mediaPath}; Max-Age=10800; HttpOnly; SameSite=Strict${secure}`);
+    res.setHeader('Set-Cookie', `${mediaCookieName}=${access}; Path=${mediaPath}; Max-Age=10800; HttpOnly; SameSite=Strict${secure}`);
     res.json({ success: true, data: { url: mediaPath, expiresInSeconds: 10800 } });
   }));
   router.delete('/:id/media/:mediaId', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courseMedia.remove)(req.courseContext, req.params.id, req.params.mediaId) })));

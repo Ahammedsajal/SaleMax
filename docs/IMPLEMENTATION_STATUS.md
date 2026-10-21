@@ -2064,3 +2064,18 @@ The existing owner workspace customizer now offers server-enforced disable switc
 ## Active production source reconciliation — source only, 22 October 2026
 
 A read-only snapshot of the resolved active release `recruitment-customer-guidance-5ab3315-20261022` was staged outside the repository after excluding credentials, runtime/private data, uploads and the generated React bundle. The deployed `.salemax-source-commit` marker is `34b2f66`, but the live release also includes later overlays. A normalized per-file comparison found 745 of 926 staged source/document files byte-equivalent to the review branch; 176 differ and five release markers or root compatibility shims are not tracked source. The safe reconciliation adds the live recruitment-notification worker to the Compose definition, synchronizes inbound opening-keyword routing before legacy bot dispatch, and uses Qatar as the current onboarding/report schedule timezone with invalid report timezone inputs rejected. Files with divergent category, screen, policy or branding changes remain on the review branch; the exact sanitized production snapshot and three-way comparison are retained outside Git. The live route-inventory script change was not adopted because it stops detecting the existing array-mounted `/api/pipeline` route. The full test suite remains at its established 1,077/1,092 result with the same 15 pre-existing failures; the report schedule and route inventory checks pass. No production service, database, account or candidate data was changed. Deployment and full authenticated acceptance remain open.
+
+## Catalogue media grant isolation — source only, 22 October 2026
+
+Signed course and Sales product media links now carry an explicit catalogue
+resource type, use separate HTTP-only cookie names and are rejected by the other
+catalogue's stream route before database access. Prior course links remain
+accepted through their existing three-hour expiry window; legacy course tokens
+without a resource claim resolve only to Training Center. Focused token, route,
+catalogue adapter, media and course-router tests pass 13/13. Product disposable
+MariaDB integration assertions were added for reciprocal replay denial, but
+that integration could not run because this checkout has no configured local
+disposable database. No production code, database, private media or tenant
+settings were changed. The product SQL adapter and shared course-compatible
+media storage remain for a later extraction; authenticated browser acceptance
+and full CRM/category rollout gates remain open.

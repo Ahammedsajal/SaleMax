@@ -163,7 +163,11 @@ async function getFile(db, tenantId, courseId, mediaId) {
 
 function accessToken(ctx, courseId, mediaId) {
   const jwt = require('jsonwebtoken');
-  return jwt.sign({ aud: 'salemax-course-media', tenantId: ctx.tenant.id, courseId, mediaId }, process.env.JWTKEY, { expiresIn: 10800 });
+  const resourceType = require('./product-catalog').kind(ctx);
+  if (!['courses', 'products'].includes(resourceType)) fail('CATEGORY_UNAVAILABLE', 403);
+  // Keep the established audience for old stream links, but bind every newly
+  // issued grant to the category-owned resource namespace as well.
+  return jwt.sign({ aud: 'salemax-course-media', resourceType, tenantId: ctx.tenant.id, courseId, mediaId }, process.env.JWTKEY, { expiresIn: 10800 });
 }
 
 function verifyAccessToken(token) {
@@ -172,7 +176,15 @@ function verifyAccessToken(token) {
   try { payload = jwt.verify(token, process.env.JWTKEY, { audience: 'salemax-course-media' }); }
   catch (_) { fail('COURSE_MEDIA_ACCESS_REQUIRED', 401); }
   safeId(payload.tenantId); safeId(payload.courseId); safeId(payload.mediaId);
-  return payload;
+  const resourceType = payload.resourceType || 'courses';
+  if (!['courses', 'products'].includes(resourceType)) fail('COURSE_MEDIA_ACCESS_REQUIRED', 401);
+  return { ...payload, resourceType };
 }
 
-module.exports = { MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, getFile, accessToken, verifyAccessToken };
+function cookieName(resourceType, mediaId) {
+  if (!['courses', 'products'].includes(resourceType)) fail('CATEGORY_UNAVAILABLE', 403);
+  safeId(mediaId);
+  return `sx_${resourceType}_media_${mediaId.replace(/-/g, '')}`;
+}
+
+module.exports = { MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, getFile, accessToken, verifyAccessToken, cookieName };
