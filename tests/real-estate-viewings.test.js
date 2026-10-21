@@ -43,6 +43,15 @@ test('viewing creation locks tenant lead/property scope, prevents overlaps and w
   const insert=calls.find(item=>item.sql.startsWith('INSERT INTO sx_real_estate_viewings'));assert.ok(insert.sql.includes('tenant_id'));assert.ok(insert.args.includes(uidHash));assert.ok(insert.args.includes(propertyId));assert.ok(insert.args.includes(agentId));
   assert.ok(calls.some(item=>item.sql.includes('real-estate.viewing-created')));
 });
+test('viewing updates lock lead then property then viewing to match create and closure lock order',async()=>{
+  const calls=[];let committed=false;
+  const db={beginTransaction:async()=>{},commit:async()=>{committed=true;},rollback:async()=>{},query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT lead_id AS leadId,property_id AS propertyId FROM sx_real_estate_viewings'))return [[{leadId,propertyId}]];if(sql.includes('FROM pipeline_leads l LEFT JOIN sx_legacy_ownership'))return [[{id:leadId,owner_agent_id:null,assignedMembershipId:null}]];if(sql.includes('FROM sx_real_estate_properties p WHERE'))return [[{id:propertyId,status:'active',assignedMembershipId:null}]];if(sql.startsWith('SELECT v.id'))return [[{id:'77777777-7777-4777-8777-777777777777',propertyId,leadId,status:'scheduled',revision:1,startsAt:'2026-11-10T06:00:00.000Z',endsAt:'2026-11-10T07:00:00.000Z',assignedMembershipId:agentId}]];if(sql.startsWith('UPDATE sx_real_estate_viewings'))return [{affectedRows:1}];if(sql.includes('real-estate.viewing-updated'))return [{affectedRows:1}];throw Error(`UNEXPECTED_QUERY ${sql}`);}};
+  const result=await viewings.update(db,context,'77777777-7777-4777-8777-777777777777',{expectedRevision:1,status:'completed',outcome:'interested'});
+  const leadLock=calls.findIndex(item=>item.sql.includes('FROM pipeline_leads l LEFT JOIN sx_legacy_ownership'));
+  const propertyLock=calls.findIndex(item=>item.sql.includes('FROM sx_real_estate_properties p WHERE'));
+  const viewingLock=calls.findIndex(item=>item.sql.startsWith('SELECT v.id'));
+  assert.ok(leadLock<propertyLock&&propertyLock<viewingLock);assert.match(calls[viewingLock].sql,/v\.property_id=\?/);assert.equal(result.revision,2);assert.equal(committed,true);
+});
 test('overlapping scheduled viewing fails atomically without inserting or auditing',async()=>{
   let inserts=0,rollbacks=0;
   const db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{rollbacks++;},query:async sql=>{if(sql.includes('FROM pipeline_leads l LEFT JOIN sx_legacy_ownership'))return [[{id:leadId,owner_agent_id:null,assignedMembershipId:null}]];if(sql.includes('FROM sx_real_estate_properties p WHERE'))return [[{id:propertyId,status:'active',assignedMembershipId:null}]];if(sql.startsWith('SELECT m.id'))return [[{id:agentId}]];if(sql.startsWith('SELECT id FROM sx_real_estate_viewings'))return [[{id:'existing'}]];if(sql.startsWith('INSERT'))inserts++;throw Error('UNEXPECTED_QUERY');}};
