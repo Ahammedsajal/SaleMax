@@ -212,7 +212,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   let deferLeadQuestion = false;
   try {
     const facts = leadInfo?.facts || (pack.requiresDatabase
-      ? await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config })
+      ? await pack.loadFacts({ db, tenantId: ctx.tenant.id, context: ctx, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config })
       : []);
     const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
     await db.beginTransaction();
@@ -351,7 +351,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const loadFacts = async () => {
     if (!pack.requiresDatabase) return [];
     const db = await dbPool.getConnection();
-    try { return await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); }
+    try { return await pack.loadFacts({ db, tenantId: ctx.tenant.id, context: ctx, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); }
     finally { db.release(); }
   };
   const facts = factsOverride || await loadFacts();
@@ -506,7 +506,7 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
   if (pack.guidedReply && route !== 'answer') {
     const db = await dbPool.getConnection();
     let facts;
-    try { facts = await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); } finally { db.release(); }
+    try { facts = await pack.loadFacts({ db, tenantId: ctx.tenant.id, context: ctx, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); } finally { db.release(); }
     const result = pack.guidedReply({ message: route === 'human' ? (businessContext.languageFor(message, prior) === 'ar' ? 'موظف' : 'agent') : message, state: prior, facts, config: profile.config.guidedContent });
     businessContext.polishGuidedReply({ result, profile, message, state: prior, defaults: pack.guidedContentDefaults });
     return { canAnswer: true, confidence: 1, reply: result.reply, wouldHandoff: !!result.handoff, reason: result.handoff ? 'customer-requested-human' : null, route, state: result.state, metrics: { inputTokens: 0, outputTokens: 0 } };
@@ -563,7 +563,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     try {
       const db = await dbPool.getConnection();
       let facts;
-      try { facts = await getDomainPack(ctx.category.key, ctx.category.version).loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); }
+      try { facts = await getDomainPack(ctx.category.key, ctx.category.version).loadFacts({ db, tenantId: ctx.tenant.id, context: ctx, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); }
       finally { db.release(); }
       leadInfo = await require('./chatbot-lead-capture').captureLead(dbPool, { ctx, profile, uid, chatId, origin, message, facts });
     } catch (error) {

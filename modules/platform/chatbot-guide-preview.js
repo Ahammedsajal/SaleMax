@@ -27,7 +27,7 @@ function previewInput(body, pack) {
 async function previewGuidedTurn({ body, pack, db, tenantId, platformOrigin, knowledgeEntries = [], context }) {
   const input = previewInput(body, pack);
   if(input.captureFormId!==undefined)await require('./chatbot-capture-forms').validate(db,context,{captureFormId:input.captureFormId});
-  const facts = pack.requiresDatabase ? await pack.loadFacts({ db, tenantId, platformOrigin,config:{captureFormId:input.captureFormId} }) : [];
+  const facts = pack.requiresDatabase ? await pack.loadFacts({ db, tenantId, context, platformOrigin,config:{captureFormId:input.captureFormId} }) : [];
   const result = pack.guidedReply({ message: input.message, state: input.state, facts, config: { ...input.guidedContent, knowledgeEntries } });
   if (!result || typeof result.reply !== 'string' || !result.reply.trim()) throw Object.assign(new Error('GUIDED_FLOW_UNAVAILABLE'), { code: 'GUIDED_FLOW_UNAVAILABLE' });
   return { reply: result.reply, state: result.state || null, handoff: result.handoff === true, buttons:Array.isArray(result.buttons)?result.buttons:[] };

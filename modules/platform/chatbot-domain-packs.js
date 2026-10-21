@@ -327,5 +327,24 @@ registerDomainPack({
   isGuidedIntent:message=>/\b(?:job|role|apply|application|commission|sales associate|talab|salemax|7network)\b|وظيفة|تقديم|عمولة|طلب/iu.test(String(message||'')),
 });
 
+const realEstateGuide=require('./chatbot-real-estate-guide');
+const realEstateField=(path,labelEn,labelAr)=>({path,type:'localized-text',label:{en:labelEn,ar:labelAr},maxLength:600});
+const REAL_ESTATE_GUIDED_SCHEMA={groups:[
+  {id:'property-messages',title:{en:'Property replies',ar:'ردود العقارات'},fields:Object.keys(realEstateGuide.DEFAULTS.messages).map(key=>realEstateField(`messages.${key}`,key.replaceAll(/([A-Z])/g,' $1'),key.replaceAll(/([A-Z])/g,' $1')))},
+  {id:'property-display',title:{en:'Property details',ar:'تفاصيل العقار'},fields:[
+    {path:'display.maxProperties',type:'integer',label:{en:'Maximum properties in a reply',ar:'الحد الأقصى للعقارات في الرد'},min:1,max:10},
+    ...[['showPrices','Show listed prices','عرض الأسعار'],['showArea','Show area','عرض المساحة'],['showBedrooms','Show bedroom counts','عرض عدد غرف النوم']].map(([key,en,ar])=>({path:`display.${key}`,type:'boolean',label:{en,ar}})),
+  ]},
+]};
+registerDomainPack({
+  key:'real_estate',version:3,title:'Real Estate',requiresDatabase:true,
+  systemGuidance:'You are a property enquiry guide. Use only active property facts loaded for this business. Never imply that an under-offer, sold, rented, withdrawn, or draft property is available. Do not invent availability, viewing times, fees, legal terms, neighborhood claims, or transaction status. If a requested detail is absent or unclear, invite the customer to speak with the team. Do not book a viewing or collect sensitive information in chat.',
+  loadFacts:realEstateGuide.loadFacts,
+  guidedContentDefaults:realEstateGuide.DEFAULTS,
+  guidedContentSchema:REAL_ESTATE_GUIDED_SCHEMA,
+  guidedReply:input=>realEstateGuide.guidedReply({...input,defaults:realEstateGuide.DEFAULTS}),
+  isGuidedIntent:message=>/\b(?:property|properties|listing|listings|house|apartment|villa|rent|buy|real estate|available|viewing)\b|عقار|عقارات|شقة|فيلا|للبيع|للايجار|إيجار|معاينة/iu.test(String(message||'')),
+});
+
 
 module.exports = { registerDomainPack, getDomainPack, publicFormUrl, amountFromMinorUnits, normalizeOffer };

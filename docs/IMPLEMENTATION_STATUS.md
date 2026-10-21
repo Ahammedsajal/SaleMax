@@ -2096,3 +2096,26 @@ assertions were expanded but could not run without a configured disposable DB.
 No migration, production deployment, media rewrite or tenant-data change
 occurred. Neutral private-media storage and full product/course browser and DB
 acceptance remain open.
+
+## Tenant-scoped Real Estate chatbot guide — source only, 22 October 2026
+
+Real Estate category version 3 now has a built-in bilingual guided domain pack
+in the existing chatbot editor. Each bot profile retains its own saved copy,
+display preferences and keyword replies; the pack supplies editable defaults,
+not shared customer content. Its fact loader requires the authenticated v3
+Real Estate context, honors the tenant's disabled Properties module, and
+queries only that tenant's active listings. It deliberately excludes custom
+fields, drafts, under-offer and closed listings, buyer requirements, viewing
+records, lead data and assignee details. The guide supports listing discovery,
+reference/title lookup and human handoff without claiming to book viewings or
+invent availability. AI fallback retrieval now includes matched property facts,
+and factual-answer validation recognizes evidenced property prices and amounts.
+
+The complete chatbot test set, including the domain-pack, editor contract,
+guide-preview, runtime and answer-context checks, passes 281/281. These are
+source-level and unit checks; the disposable MariaDB test and authenticated
+English/Arabic Inbox acceptance have
+not run in this checkout. No migration, production change, customer data access
+or provider message was performed. Real Estate remains private and non-planable
+until its workflow, screen, role and release gates are reviewed; other category
+packs and the wider TC00–TC41 objective remain incomplete.

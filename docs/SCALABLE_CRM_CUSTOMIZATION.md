@@ -1030,3 +1030,32 @@ configured in this checkout. No schema, customer data or production state
 changed. Remaining work includes the neutral private-file storage service,
 category-neutral reply-job API names with compatibility adapters, disposable
 MariaDB/browser acceptance and Retail's independent inventory ledger.
+
+## Tenant-scoped Real Estate chatbot guide — source implementation, 22 October 2026
+
+Real Estate v3 previously resolved to the FAQ-only fallback pack even though
+the category already had a tenant-scoped active-property workflow. Its existing
+chatbot profile now receives a reviewed Real Estate guide through the existing
+domain-pack registry and editor. The guide contract contains bilingual
+tenant-editable replies and bounded display controls; settings are saved with
+the tenant's bot profile, so one business's wording cannot alter another bot or
+category default.
+
+The fact loader requires a matching authenticated Real Estate v3 context and
+uses the shared capability decision, including the tenant's module-disable
+restriction. SQL is constrained by tenant ID and active listing state. It
+returns only curated property fields and omits drafts, under-offer/closed
+listings, custom fields, buyer requirements, viewings, lead data and assignee
+details. The guide answers from these facts, supports bilingual listing lookup
+and a team handoff, and does not claim that a viewing has been booked. The
+existing AI fallback now retrieves matching listing facts; number and price
+validation recognizes their evidenced values. The existing generic chatbot
+editor renders the pack's schema without adding another screen or shell.
+
+All chatbot domain-pack, editor contract, preview, runtime and answer-context
+tests pass 281/281. Database-backed and authenticated English/Arabic browser
+acceptance remain open because no disposable MariaDB target is configured here. This is a
+source increment only: no migration, production state, customer record or
+provider was changed. The Real Estate category remains private and
+non-planable, and the other vertical workflows plus full release evidence are
+still required before broader rollout.
