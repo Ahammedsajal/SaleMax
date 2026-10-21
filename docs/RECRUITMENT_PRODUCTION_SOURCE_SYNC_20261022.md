@@ -16,11 +16,13 @@ hashes were:
 | `client/public/recruitment-application-errors.js` | `2cedfbb1fdd2b894542f1b08b331ad9f5ac48a38045494974edd7158936c3db0` |
 | `modules/platform/recruitment-public-errors.js` | `52f8698655a2e8275eff6e2c828675955abaeb1b956b8669ae047f083c5ef373` |
 
-The source change keeps these live validation and upload behaviors, removes
-technical explanations from applicant-facing causes, and shows only a
-customer-friendly general message plus the exact safe cause code in brackets.
-The error helper's cache key is advanced independently; the unchanged form
-script keeps its existing key. This is a source synchronization and wording
-change only. No production files, application records, CVs, database schema,
-or services were changed. At inspection, the production filesystem had 848 MB
-free (99% used), so a runtime release was deferred pending safe capacity.
+The source change keeps these live validation and upload behaviors. Routine
+validation errors give direct instructions; technical failures use calm,
+customer-friendly guidance followed by a short bilingual cause explanation and
+the exact safe cause code in brackets. Untrusted server messages and applicant
+details remain hidden. The error helper's cache key is advanced independently;
+the unchanged form script keeps its existing key. This is a source
+synchronization and wording change only. No production files, application
+records, CVs, database schema, or services were changed. At inspection, the
+production filesystem had 848 MB free (99% used), so a runtime release was
+deferred pending safe capacity.

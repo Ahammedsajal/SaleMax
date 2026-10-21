@@ -16,10 +16,10 @@ test('public recruitment page identifies 7Network as the hiring company without 
   const applicationErrors=fs.readFileSync(path.join(root,'client/public/recruitment-application-errors.js'),'utf8');
   assert.match(applicationErrors,/Please attach your CV before submitting/);
   assert.match(applicationErrors,/We could not send your application just now/);
-  assert.match(applicationErrors,/\[\$\{ar\?'السبب':'Cause'\}: \$\{detail\}\]/);
+  assert.match(applicationErrors,/\[\$\{ar\?'السبب':'Cause'\}: \$\{causeText\(detail,index\)\}\]/);
   assert.match(application,/HTTP_\$\{response\.status\}/);
   assert.doesNotMatch(application,/Sitta Arbaa Sitta|registered company name|Commercial Registration/);
-  assert.match(applicationHtml,/recruitment-application-errors\.js\?v=20261022-error-copy-6/);
+  assert.match(applicationHtml,/recruitment-application-errors\.js\?v=20261022-error-copy-7/);
   assert.match(applicationHtml,/recruitment-application\.js\?v=20261022-error-copy-5/);
   const recruiter=fs.readFileSync(path.join(root,'modules/platform/recruitment-router.js'),'utf8');
   assert.match(recruiter,/work with the 7Network Sales Manager/);
