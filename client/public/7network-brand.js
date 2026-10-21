@@ -39,9 +39,12 @@
       const legacy = platformLogoPaths.has(path);
       const ownedMark = path.startsWith(root) && marked;
       if (!legacy && !ownedMark) return;
-      const icon = (legacy ? /(?:icon|logo192|logo512)/i.test(path) && !/salemax-logo|7network-logo/i.test(path) : marked === 'icon');
+      // The sidebar slot is too narrow for the globe-as-the-o wordmark.
+      // Use the approved globe-and-7 icon there; retain full wordmarks elsewhere.
+      const compactBrand = Boolean(img.closest('.logo-box'));
+      const icon = compactBrand || (legacy ? /(?:icon|logo192|logo512)/i.test(path) && !/salemax-logo|7network-logo/i.test(path) : marked === 'icon');
       const kind = icon ? 'icon' : 'logo';
-      const target = root + (icon ? 'icon-192.png?v=20261022-clear1' : (darkSurface(img) ? 'logo-dark.png?v=20261022-clear1' : 'logo-light.png?v=20261022-clear1'));
+      const target = root + (icon ? 'icon-192.png?v=20261022-sidebar-icon1' : (darkSurface(img) ? 'logo-dark.png?v=20261022-sidebar-icon1' : 'logo-light.png?v=20261022-sidebar-icon1'));
       img.dataset.sevenNetworkBrand = kind;
       if (img.getAttribute('src') !== target) img.setAttribute('src', target);
       if (img.alt !== '7Network') img.alt = '7Network';

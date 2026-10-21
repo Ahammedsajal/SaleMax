@@ -30,6 +30,7 @@ html { accent-color: var(--7network-blue); }
 .logo-box + .brand-text { display: none !important; }
 .logo-box { height: 54px !important; max-width: 220px !important; background: transparent !important; padding: 2px 4px !important; }
 .logo-box img { width: 100%; height: 100%; max-width: 220px; max-height: 50px; object-fit: contain !important; }
+.logo-box img[data-seven-network-brand="icon"] { width: 50px !important; height: 50px !important; max-width: 50px !important; max-height: 50px !important; object-fit: contain !important; }
 img[data-seven-network-brand="logo"] { object-fit: contain; }
 
 @media (prefers-reduced-motion: reduce) {
