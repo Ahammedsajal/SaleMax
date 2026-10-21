@@ -12,9 +12,9 @@ test('legacy sign-in bridges both production categories and rejects inactive or 
   let mapping={...base},commits=0,rollbacks=0;
   const db={beginTransaction:async()=>{},commit:async()=>{commits++;},rollback:async()=>{rollbacks++;},release:()=>{},query:async()=>[[mapping]]};
   const invoke=()=>require(bridgePath).issueForVerifiedLegacyAccount({kind:'user',legacyId:1,legacyUid:'uid',legacyEmail:base.email,password,address:'127.0.0.1',origin:'https://synthetic.example',expectedOrigin:'https://synthetic.example',pool:{getConnection:async()=>db},key:Buffer.alloc(32,7)});
-  for(const categoryKey of ['training_center','salemax_sales']){mapping={...base,categoryKey};assert.equal((await invoke()).context.tenant.id,'tenant');}
+  for(const categoryKey of ['training_center','7network_sales']){mapping={...base,categoryKey};assert.equal((await invoke()).context.tenant.id,'tenant');}
   assert.equal(logins,2);assert.equal(commits,2);
-  for(const changed of [{categoryKey:'restaurant_fixture'},{categoryKey:'unknown'},{categoryVersion:999},{membershipStatus:'suspended'},{identityStatus:'suspended'},{tenantStatus:'suspended'},{legacyUidHash:'invalid'},{email:'foreign@example.test'},{role:'platform_admin'}]){mapping={...base,categoryKey:'salemax_sales',...changed};await assert.rejects(invoke(),{code:'BUSINESS_ACCESS_INACTIVE'});}
+  for(const changed of [{categoryKey:'restaurant_fixture'},{categoryKey:'unknown'},{categoryVersion:999},{membershipStatus:'suspended'},{identityStatus:'suspended'},{tenantStatus:'suspended'},{legacyUidHash:'invalid'},{email:'foreign@example.test'},{role:'platform_admin'}]){mapping={...base,categoryKey:'7network_sales',...changed};await assert.rejects(invoke(),{code:'BUSINESS_ACCESS_INACTIVE'});}
   assert.equal(logins,2);assert.equal(rollbacks,9);
  }finally{delete require.cache[bridgePath];if(prior)require.cache[authPath]=prior;else delete require.cache[authPath];if(enabled===undefined)delete process.env.SALEMAX_PLATFORM_ENABLED;else process.env.SALEMAX_PLATFORM_ENABLED=enabled;}
 });

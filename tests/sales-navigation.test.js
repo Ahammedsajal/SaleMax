@@ -46,8 +46,8 @@ test('Sales workspace exposes only each role assigned sections and keeps account
   for(const key of ['sales-deals','sales-targets','sales-organization','sales-audit','commission-policy'])assert.ok(!accountant.includes(key),`accountant should not receive ${key}`);
 });
 
-test('default SaleMaX Sales Accountant membership is limited to existing shell bootstrap on legacy APIs',()=>{
-  const row={categoryKey:'salemax_sales',role:'accountant',roleProfileId:null};
+test('default 7Network Sales Accountant membership is limited to existing shell bootstrap on legacy APIs',()=>{
+  const row={categoryKey:'7network_sales',role:'accountant',roleProfileId:null};
   const request=(method,path,baseUrl='/api/user')=>({method,path,baseUrl});
   for(const path of ['/get_me','/fetch_profile','/get_plan_details','/optional-features','/get_fcm_data'])
     assert.equal(legacyRoleGuard.authorizeLegacyMembership(request('GET',path),row).allowed,true,path);
@@ -82,7 +82,7 @@ test('duplicate pipeline, reports and call navigation is removed for every busin
   assert.match(sidebar,/const key=navigationIdentity\(row\)/);
   assert.ok(sidebar.includes("key==='sales-targets'?key+':'+section:key"));
   assert.match(sidebar,/dedupeSalesNavigationRows\(list\)/);
-  assert.doesNotMatch(sidebar,/function dedupeSalesNavigationRows\(list\)\{\s*if\(membershipCategoryKey!==['"]salemax_sales/);
+  assert.doesNotMatch(sidebar,/function dedupeSalesNavigationRows\(list\)\{\s*if\(membershipCategoryKey!==['"]7network_sales/);
   assert.match(sidebar,/['"]Calls & Recordings['"]:\s*['"]Call Center['"]/);
 });
 
@@ -95,9 +95,9 @@ test('only first-party Sales receives role-specific sidebar labels and grouped n
   assert.match(sidebar,/calls:\{owner:\['Calls & Recordings','المكالمات والتسجيلات'\],manager:\['Call Review','مراجعة المكالمات'\],team_leader:\['Call Coaching','تدريب المكالمات'\]/);
   assert.match(sidebar,/deals:\{owner:\['Sales Deals','صفقات المبيعات'\],manager:\['Team Deals','صفقات الفريق'\],team_leader:\['Team Deals','صفقات الفريق'\],agent:\['My Deals','صفقاتي'\]/);
   assert.match(sidebar,/commissions:\{owner:\['Sales Commissions','عمولات المبيعات'\],manager:\['Team Commissions','عمولات الفريق'\],team_leader:\['Team Commissions','عمولات الفريق'\],agent:\['My Commission','عمولتي'\],accountant:\['Commission Payouts'/);
-  assert.match(sidebar,/membershipCategoryKey==='salemax_sales'\?\(salesNavLabels\.calls/);
-  assert.match(sidebar,/if\(membershipCategoryKey==='salemax_sales'\)applySalesRoleAliases\(\)/);
-  assert.match(sidebar,/membershipCategoryKey==='salemax_sales'&&index===11\?/);
+  assert.match(sidebar,/membershipCategoryKey==='7network_sales'\?\(salesNavLabels\.calls/);
+  assert.match(sidebar,/if\(membershipCategoryKey==='7network_sales'\)applySalesRoleAliases\(\)/);
+  assert.match(sidebar,/membershipCategoryKey==='7network_sales'&&index===11\?/);
   assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
 });
 
@@ -122,7 +122,7 @@ test('Sales sidebar deduplicates legacy and generated Lead Pipeline, Lead Report
   assert.ok(sidebar.indexOf('dedupeSalesNavigationRows(list);')>sidebar.indexOf('ensureSalesNavigationRows(list);'));
 });
 
-test('SaleMaX Sales owner gets one People & Roles entry while managers and team leaders use their scoped Organisation screen',()=>{
+test('7Network Sales owner gets one People & Roles entry while managers and team leaders use their scoped Organisation screen',()=>{
   const root=path.join(__dirname,'..');
   const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
   const team=fs.readFileSync(path.join(root,'client/public/team-invitations.js'),'utf8');
@@ -133,8 +133,8 @@ test('SaleMaX Sales owner gets one People & Roles entry while managers and team 
   assert.match(sidebar,/'People & Roles':'team'/);
   assert.match(team,/organisation\.role!=='owner'\)\{location\.replace\('\/user\?page=sales-organization'\);return;\}/);
   assert.match(team,/label\('People & Roles','الأشخاص والأدوار'\)/);
-  assert.match(team,/node\.dataset\.salesCategory='salemax_sales'/);
-  assert.match(team,/#sx-team-screen\[data-sales-category=\"salemax_sales\"\] :focus-visible\{outline-color:#a8003b\}/);
+  assert.match(team,/node\.dataset\.salesCategory='7network_sales'/);
+  assert.match(team,/#sx-team-screen\[data-sales-category=\"7network_sales\"\] :focus-visible\{outline-color:#1768d4\}/);
   assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
   assert.match(shell,/team-invitations\.js\?v=20261019-role-sidebar2/);
 });

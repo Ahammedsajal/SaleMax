@@ -304,13 +304,13 @@ async function main(){
     const [[runtime]]=await db.query('SELECT status,events_received,last_event_type FROM sx_platform_asterisk_runtime WHERE id=1');
     assert.equal(runtime.status,'connected');assert.equal(Number(runtime.events_received),1);assert.equal(runtime.last_event_type,'StasisStart');
     const salesTenantId=crypto.randomUUID(),salesMembershipId=crypto.randomUUID(),salesAgentMembershipId=crypto.randomUUID(),salesCallId=crypto.randomUUID(),salesBridgeId=crypto.randomUUID();
-    await db.query(`INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES(?,?,?,'salemax_sales',1,'active')`,[salesTenantId,`synthetic-sales-${salesTenantId.slice(0,8)}`,'Synthetic internal sales']);
+    await db.query(`INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES(?,?,?,'7network_sales',1,'active')`,[salesTenantId,`synthetic-sales-${salesTenantId.slice(0,8)}`,'Synthetic internal sales']);
     await db.query(`INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES(?,?,?,'owner'),(?,?,?,'agent')`,[salesMembershipId,salesTenantId,ownerId,salesAgentMembershipId,salesTenantId,agentId]);
     await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,bridge_id,started_by_membership_id,answered_by_membership_id,answered_at)
       VALUES(?,?,'outbound','connected',1,?,?,?,UTC_TIMESTAMP(3))`,[salesTenantId,salesCallId,salesBridgeId,salesAgentMembershipId,salesAgentMembershipId]);
     await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
       VALUES(?,?,?,'synthetic-sales-agent-leg','agent','mobile',?,'connected')`,[salesTenantId,crypto.randomUUID(),salesCallId,salesAgentMembershipId]);
-    const salesContext={audience:'tenant',identity:{id:ownerId},tenant:{id:salesTenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
+    const salesContext={audience:'tenant',identity:{id:ownerId},tenant:{id:salesTenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},
       membership:{id:salesMembershipId,tenantId:salesTenantId,role:'owner',status:'active'},category:salemaxSales,
       subscription:{status:'active',capabilities:['telephony.call-center']}};
     const sharedFeedback='Opened with discovery questions and confirmed the customer goal.',privateFeedback='Manager-only observation for the next coaching session.';

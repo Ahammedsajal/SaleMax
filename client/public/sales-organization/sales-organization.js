@@ -106,7 +106,7 @@
   async function load(){
     if(state.busy)return;state.busy=true;$('#refresh').disabled=true;notice(tr('Loading organization…','جارٍ تحميل الهيكل التنظيمي…'));
     try{const data=await api();state.members=Array.isArray(data.members)?data.members:[];state.canReassign=data.canReassign===true;state.role=data.role||'';roleOptions();render();notice('');}
-    catch(error){state.members=[];render();const messages={PERMISSION_DENIED:tr('You do not have access to this team view.','ليس لديك صلاحية لعرض هذا الفريق.'),CATEGORY_UNAVAILABLE:tr('This page is available only in the SaleMaX Sales workspace.','هذه الصفحة متاحة فقط في مساحة مبيعات SaleMaX.'),FEATURE_UNAVAILABLE:tr('Team access is not included in the active plan.','إدارة الفريق غير متاحة في الخطة الحالية.')};notice(messages[error.code]||tr('Could not load the organization. Refresh and try again.','تعذر تحميل الهيكل التنظيمي. حدّث الصفحة وحاول مرة أخرى.'),'error');}
+    catch(error){state.members=[];render();const messages={PERMISSION_DENIED:tr('You do not have access to this team view.','ليس لديك صلاحية لعرض هذا الفريق.'),CATEGORY_UNAVAILABLE:tr('This page is available only in the 7Network Sales workspace.','هذه الصفحة متاحة فقط في مساحة مبيعات 7Network.'),FEATURE_UNAVAILABLE:tr('Team access is not included in the active plan.','إدارة الفريق غير متاحة في الخطة الحالية.')};notice(messages[error.code]||tr('Could not load the organization. Refresh and try again.','تعذر تحميل الهيكل التنظيمي. حدّث الصفحة وحاول مرة أخرى.'),'error');}
     finally{state.busy=false;$('#refresh').disabled=false;}
   }
   $('#search').addEventListener('input',event=>{state.query=event.currentTarget.value;render();});

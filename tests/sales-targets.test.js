@@ -7,10 +7,10 @@ const {decision}=require('../modules/platform/policy');
 
 function context(role='owner',overrides={}){
   const id='10000000-0000-4000-8000-000000000001';
-  return {audience:'tenant',tenant:{id,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
+  return {audience:'tenant',tenant:{id,status:'active',categoryKey:'7network_sales',categoryVersion:1},
     identity:{id:'20000000-0000-4000-8000-000000000001'},
     membership:{id,tenantId:id,status:'active',role,...overrides.membership},
-    category:{key:'salemax_sales',version:1,capabilities:['sales.targets']},
+    category:{key:'7network_sales',version:1,capabilities:['sales.targets']},
     subscription:{status:'active',capabilities:['sales.targets','team.members']},...overrides};
 }
 function fakeDb(handler){
@@ -31,8 +31,8 @@ test('accountants and inactive roles cannot read the sales target workspace',asy
   assert.equal(queried,false);
 });
 
-test('target capability is internal SaleMaX Sales only and role scoped',()=>{
-  assert.equal(categories.getCategory('salemax_sales',1).capabilities.includes('sales.targets'),true);
+test('target capability is internal 7Network Sales only and role scoped',()=>{
+  assert.equal(categories.getCategory('7network_sales',1).capabilities.includes('sales.targets'),true);
   assert.equal(categories.getCategory('training_center',1).capabilities.includes('sales.targets'),false);
   assert.equal(decision(context('team_leader'),{capability:'sales.targets',permission:'targets.read'}).scope,'team');
   assert.equal(decision(context('agent'),{capability:'sales.targets',permission:'targets.read'}).scope,'own');
@@ -64,7 +64,7 @@ test('manager performance uses historical deal and call attribution across team 
 
 test('monthly manager reports add commission status totals for the historical team scope',async()=>{
   const manager='10000000-0000-4000-8000-000000000002',agent='10000000-0000-4000-8000-000000000003';
-  const ctx=context('manager',{category:{key:'salemax_sales',version:1,capabilities:['sales.targets','sales.commissions']},subscription:{status:'active',capabilities:['sales.targets','sales.commissions','team.members']}});
+  const ctx=context('manager',{category:{key:'7network_sales',version:1,capabilities:['sales.targets','sales.commissions']},subscription:{status:'active',capabilities:['sales.targets','sales.commissions','team.members']}});
   ctx.membership.id=manager;
   const db=fakeDb(sql=>{
     if(sql.includes('SELECT m.id AS membershipId'))return [[{membershipId:manager,role:'manager',displayName:'Manager'},{membershipId:agent,role:'agent',displayName:'Agent',managerMembershipId:manager}],[]];

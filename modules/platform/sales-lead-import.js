@@ -31,7 +31,7 @@ function normalizeRows(rows,pipeline){
 }
 
 async function importBatch({pool,pipeline,actor,rows}){
-  if(actor?.categoryKey!=='salemax_sales'||actor?.role!=='owner')fail('PERMISSION_DENIED',403);
+  if(actor?.categoryKey!=='7network_sales'||actor?.role!=='owner')fail('PERMISSION_DENIED',403);
   if(Buffer.byteLength(JSON.stringify({rows}),'utf8')>128*1024)fail('IMPORT_TOO_LARGE',413);
   const normalized=normalizeRows(rows,pipeline),db=await pool.getConnection();
   try{

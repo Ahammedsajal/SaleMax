@@ -10,7 +10,7 @@
   fetch('/api/user/team-invitations/sidebar-access',{credentials:'same-origin',headers:{Accept:'application/json',...(token?{Authorization:`Bearer ${token}`}:{})}})
     .then(response=>response.ok?response.json():null)
     .then(result=>{
-      if(result?.data?.categoryKey!=='salemax_sales')return;
+      if(result?.data?.categoryKey!=='7network_sales')return;
       for(const [selector,en,ar] of copy){
         const element=document.querySelector(selector);
         if(!element)continue;

@@ -932,7 +932,7 @@ router.post("/update_meta", validateUser, async (req, res) => {
       return res.json({
         success: false,
         code: "META_WEBHOOK_SUBSCRIPTION_FAILED",
-        msg: "Meta settings were saved, but Meta did not subscribe this WhatsApp account to SaleMaX message webhooks. Check the token permissions and try Save again.",
+        msg: "Meta settings were saved, but Meta did not subscribe this WhatsApp account to 7Network message webhooks. Check the token permissions and try Save again.",
       });
     }
 

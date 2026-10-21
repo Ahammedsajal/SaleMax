@@ -9,8 +9,8 @@ const {getCategory}=require('../modules/platform/categories');
 const tenantId='11111111-1111-4111-8111-111111111111';
 const memberId='22222222-2222-4222-8222-222222222222';
 const identityId='33333333-3333-4333-8333-333333333333';
-function context(role='owner',overrides={}){return{audience:'tenant',identity:{id:identityId},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
-  membership:{id:memberId,tenantId,role,status:'active'},category:getCategory('salemax_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']},...overrides};}
+function context(role='owner',overrides={}){return{audience:'tenant',identity:{id:identityId},tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},
+  membership:{id:memberId,tenantId,role,status:'active'},category:getCategory('7network_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']},...overrides};}
 
 test('recording policy starts off, requires notice acknowledgement and retention, and is revision checked',async()=>{
   let expectedRevision=0,updates=[];

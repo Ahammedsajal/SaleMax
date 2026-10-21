@@ -14,7 +14,7 @@ test('training workflow visibility requires matching active plan capabilities',(
 });
 test('owner-derived lookup isolates tenants and refuses broken ownership/category state',async()=>{
  const saved=process.env.SALEMAX_PLATFORM_ENABLED,plans=require('../modules/platform/plans'),original=plans.loadEntitlements;process.env.SALEMAX_PLATFORM_ENABLED='true';
- const rows=new Map(['a','b'].map((uid,i)=>[uid,{tenant_id:'tenant-'+uid,legacy_uid_hash:crypto.createHash('sha256').update(uid).digest('hex'),tenant_status:'active',category_key:i?'salemax_sales':'training_center',category_version:1,owner_role:'owner',membership_status:'active',identity_status:'active'}]));
+ const rows=new Map(['a','b'].map((uid,i)=>[uid,{tenant_id:'tenant-'+uid,legacy_uid_hash:crypto.createHash('sha256').update(uid).digest('hex'),tenant_status:'active',category_key:i?'7network_sales':'training_center',category_version:1,owner_role:'owner',membership_status:'active',identity_status:'active'}]));
  const lookups=[];plans.loadEntitlements=async(db,id)=>{lookups.push(id);return entitlement(id==='tenant-a'?trainingCenter:salemaxSales);};
  const db={query:async(sql,args)=>{assert.match(sql,/m.tenant_id=o.tenant_id/);assert.match(sql,/WHERE u.uid=\?/);return [rows.has(args[0])?[rows.get(args[0])]:[]];}};
  try{

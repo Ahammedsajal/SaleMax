@@ -1,6 +1,6 @@
 .logo-box + .brand-text{display:none!important}.logo-box{height:48px!important;max-width:200px;background:#fff!important;border-radius:8px;padding:3px 8px}.logo-box img{object-fit:contain!important}img[src="/media/salemax-logo.png"]{object-fit:contain!important;background:#fff;border-radius:8px} .MuiDrawer-paper img[src="/media/salemax-logo.png"]{max-width:180px} @media(max-width:600px){.logo-box{height:38px!important;max-width:150px}}
 
-/* Consistent, accessible controls for SaleMaX's source-maintained native forms. */
+/* Consistent, accessible controls for 7Network's source-maintained native forms. */
 #root form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 #root form select,
 #root form textarea{box-sizing:border-box;max-width:100%;font:inherit;color:#17212f}
@@ -10,8 +10,8 @@
 #root form input:focus-visible,
 #root form select:focus-visible,
 #root form textarea:focus-visible,
-#root form button:focus-visible{outline:3px solid #a8003b;outline-offset:2px}
-#root form input[type="checkbox"],#root form input[type="radio"]{accent-color:#a8003b}
+#root form button:focus-visible{outline:3px solid #1768d4;outline-offset:2px}
+#root form input[type="checkbox"],#root form input[type="radio"]{accent-color:#1768d4}
 #root form button{max-width:100%;min-height:40px;border-radius:9px}
 #root form :disabled{cursor:not-allowed}
 #sx-finance-screen #sx-invoice-create-workspace:not([hidden]){position:fixed!important;z-index:1600!important;inset:0!important;display:grid!important;place-items:center;padding:clamp(12px,3vw,32px);box-sizing:border-box;background:rgba(16,24,40,.58);backdrop-filter:blur(4px)}
@@ -20,19 +20,19 @@
 #sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create[role="dialog"]:focus{outline:none}
 #sx-finance-screen #sx-generator-invoice{display:grid;gap:18px}
 #sx-finance-screen #sx-generator-invoice .sx-invoice-submit-bar{position:sticky;bottom:calc(-1 * var(--sx-invoice-dialog-padding));z-index:3;display:grid;gap:8px;margin:0 calc(-1 * var(--sx-invoice-dialog-padding)) calc(-1 * var(--sx-invoice-dialog-padding));padding:12px var(--sx-invoice-dialog-padding) var(--sx-invoice-dialog-padding);border-top:1px solid #e4e7ec;background:rgba(255,255,255,.97);backdrop-filter:blur(10px)}
-#sx-finance-screen #sx-generator-invoice .sx-invoice-submit-bar>button[type="submit"]{width:100%;min-height:46px;font-weight:700;box-shadow:0 4px 12px rgba(168,0,59,.16)}
+#sx-finance-screen #sx-generator-invoice .sx-invoice-submit-bar>button[type="submit"]{width:100%;min-height:46px;font-weight:700;box-shadow:0 4px 12px rgba(23,104,212,.16)}
 #sx-finance-screen #sx-generator-invoice fieldset{display:grid;gap:14px;min-width:0;margin:0;padding:18px;border:1px solid #e4e7ec;border-radius:14px;background:#fff}
 #sx-finance-screen #sx-generator-invoice legend{padding:0 8px;font-weight:700;color:#344054}
 #sx-finance-screen #sx-generator-invoice .actions label{display:flex;align-items:center;gap:10px;min-height:50px;padding:10px 14px;border:1px solid #e4e7ec;border-radius:12px;background:#f8fafc;cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
-#sx-finance-screen #sx-generator-invoice .actions label:has(input:checked){border-color:#d88ca7;background:#fff5f8;box-shadow:0 0 0 2px rgba(168,0,59,.08)}
-#sx-finance-screen #sx-generator-invoice .actions label:focus-within{outline:2px solid #a8003b;outline-offset:2px}
+#sx-finance-screen #sx-generator-invoice .actions label:has(input:checked){border-color:#d88ca7;background:#fff5f8;box-shadow:0 0 0 2px rgba(23,104,212,.08)}
+#sx-finance-screen #sx-generator-invoice .actions label:focus-within{outline:2px solid #1768d4;outline-offset:2px}
 #sx-finance-screen #sx-generator-invoice .actions input[type="radio"]{flex:0 0 18px;width:18px;height:18px;min-height:18px;margin:0;padding:0}
 #sx-finance-screen #sx-generator-invoice .sx-invoice-customer-fields{margin-top:12px}
 #sx-finance-screen #sx-reminder-settings-form .sx-reminder-offset-picker{grid-column:1/-1;display:grid;gap:10px;min-width:0;padding:16px;border:1px solid #e4e7ec;border-radius:14px;background:#f8fafc}
 #sx-finance-screen #sx-reminder-settings-form .sx-reminder-offset-picker h4{margin:0;color:#344054}
 #sx-finance-screen #sx-reminder-settings-form .sx-reminder-offset-chips{display:flex;flex-wrap:wrap;gap:8px;min-height:34px;align-items:center}
-#sx-finance-screen #sx-reminder-settings-form .sx-reminder-offset-chip{display:inline-flex;align-items:center;gap:8px;padding:5px 8px 5px 12px;border:1px solid #e5b8c7;border-radius:999px;background:#fff6f8;color:#7a1537;font-weight:600}
-#sx-finance-screen #sx-reminder-settings-form .sx-reminder-offset-chip button{display:grid;place-items:center;width:24px;min-height:24px;padding:0;border:0;border-radius:50%;background:#fce7ed;color:#7a1537;font-size:18px;line-height:1}
+#sx-finance-screen #sx-reminder-settings-form .sx-reminder-offset-chip{display:inline-flex;align-items:center;gap:8px;padding:5px 8px 5px 12px;border:1px solid #b3d6f8;border-radius:999px;background:#f4f8ff;color:#11385e;font-weight:600}
+#sx-finance-screen #sx-reminder-settings-form .sx-reminder-offset-chip button{display:grid;place-items:center;width:24px;min-height:24px;padding:0;border:0;border-radius:50%;background:#e1efff;color:#11385e;font-size:18px;line-height:1}
 #sx-finance-screen #sx-reminder-settings-form [data-offset-choice]{max-width:460px}
 #sx-finance-screen #sx-generator-invoice [hidden]{display:none!important}
 @media(max-width:600px){#sx-finance-screen #sx-invoice-create-workspace:not([hidden]){padding:10px}#sx-finance-screen #sx-invoice-create-workspace .sx-invoice-create{--sx-invoice-dialog-padding:16px;max-height:calc(100dvh - 20px);padding:var(--sx-invoice-dialog-padding);border-radius:14px}#sx-finance-screen #sx-generator-invoice fieldset{padding:14px}}

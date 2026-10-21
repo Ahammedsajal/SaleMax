@@ -12,7 +12,7 @@ const campaign={campaign_id:'synthetic-campaign',title:'October product launch',
 const template={id:'synthetic-template',name:'product_update',language:'en',status:'APPROVED',category:'MARKETING',components:[{type:'BODY',text:'Hello {{1}}, discover our new business services.',example:{body_text:[['Alex']]}}],variables:[{component:'BODY',index:'1',example:'Alex'}]};
 function response(url){
  const p=url.pathname;
- const access={role:state.role,categoryKey:'salemax_sales',roleNavigation:state.keys,assignedNavigation:state.assigned,modules:{products:true,inbox:true,phonebook:true},permissions:{'products.read':true,'products.manage':true,'campaigns.manage':true,'templates.manage':state.keys.includes('templates')},quickReplyCatalog:'products'};
+ const access={role:state.role,categoryKey:'7network_sales',roleNavigation:state.keys,assignedNavigation:state.assigned,modules:{products:true,inbox:true,phonebook:true},permissions:{'products.read':true,'products.manage':true,'campaigns.manage':true,'templates.manage':state.keys.includes('templates')},quickReplyCatalog:'products'};
  const profile={id:1,uid:state.role==='agent'?'synthetic-agent':'synthetic-owner',name:'Synthetic Sales',email:'sales@example.invalid',role:'user',isAgent:state.role==='agent',workspaceRole:state.role,plan:JSON.stringify({qr_account:3,contact_limit:1000}),plan_expire:String(Date.now()+86400000)};
  if(p==='/api/workspace/session'||p.endsWith('/sidebar-access'))return {success:true,data:access};
  if(p==='/api/user/get_me')return {success:true,data:profile,addon:['QR']};

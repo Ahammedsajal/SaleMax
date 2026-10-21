@@ -10,14 +10,14 @@
 .sx-marketing-links{display:flex;gap:5px;min-width:0;padding:3px;border-radius:10px;background:#f1f5fa;overflow-x:auto;scrollbar-width:thin}
 .sx-marketing-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:none;padding:10px 12px;min-height:39px;box-sizing:border-box;border-radius:8px;border:1px solid transparent;color:#74849b;text-decoration:none;white-space:nowrap;font:550 12px Roboto,Arial,sans-serif}
 .sx-marketing-link svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.sx-marketing-link:hover{color:#a8003b;background:#fff9fb}
-.sx-marketing-link[aria-current=page]{color:#a8003b;background:#fff;border-color:#e8e1e7;box-shadow:0 2px 5px #223b5810}
+.sx-marketing-link:hover{color:#1768d4;background:#fff9fb}
+.sx-marketing-link[aria-current=page]{color:#1768d4;background:#fff;border-color:#e8e1e7;box-shadow:0 2px 5px #223b5810}
 [data-sx-marketing-empty]{display:flex;gap:10px;flex-wrap:wrap;margin-block-start:12px}
 .sx-marketing-empty-link{display:inline-flex;padding:7px 10px;border:1px solid #ccdae9;border-radius:8px;background:#fff;color:#526987;font:600 11px Roboto,Arial,sans-serif;text-decoration:none}
-.sx-marketing-empty-link:hover{border-color:#d9a2b9;color:#a8003b}
+.sx-marketing-empty-link:hover{border-color:#d9a2b9;color:#1768d4}
 html[data-sx-page=campaign-dashboard] .MuiTabs-root{min-height:46px;padding:4px;background:#f0f4f9;border-radius:12px}
 html[data-sx-page=campaign-dashboard] .MuiTab-root{min-height:38px;border-radius:8px;font-size:12px;text-transform:none;color:#77869b}
-html[data-sx-page=campaign-dashboard] .MuiTab-root.Mui-selected{color:#a8003b;background:#fff;box-shadow:0 2px 5px #20395710}
+html[data-sx-page=campaign-dashboard] .MuiTab-root.Mui-selected{color:#1768d4;background:#fff;box-shadow:0 2px 5px #20395710}
 html[data-sx-page=campaign-dashboard] .MuiTabs-indicator{display:none}
 html[data-sx-page=campaign-dashboard] [data-sx-marketing-metric]{border-color:#e1e8f2!important;border-radius:17px!important;box-shadow:0 4px 18px #243e6004!important;min-width:0}
 html[data-sx-page=campaign-dashboard] [data-sx-marketing-metric] .MuiTypography-h3{font-size:29px;letter-spacing:-.045em;color:#25364f}

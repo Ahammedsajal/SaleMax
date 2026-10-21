@@ -40,7 +40,7 @@ module.exports=async(db,config,{i1})=>{
     assert.equal((await request(contracts+'/1/drafts',{body:{padding:'x'.repeat(25000)}})).status,413);
     assert.equal((await request(contracts+'/1e2/versions')).status,400);
     const context=await request(contracts+'/context');assert.equal(context.status,200);const contextBody=await context.json();assert.equal(contextBody.permissions['plans.publish'],true);assert.deepEqual(contextBody.categories.map(item=>item.key),['training_center'],'delegated staff cannot discover private internal categories');assert.ok(contextBody.categories[0].features.some(feature=>feature.key==='messaging.inbox'));
-    const privateVersions=await request(contracts+'/1/versions?categoryKey=salemax_sales');assert.equal(privateVersions.status,403);assert.equal((await privateVersions.json()).code,'PERMISSION_DENIED');
+    const privateVersions=await request(contracts+'/1/versions?categoryKey=7network_sales');assert.equal(privateVersions.status,403);assert.equal((await privateVersions.json()).code,'PERMISSION_DENIED');
     const [[plan]]=await db.query('SELECT id FROM plan LIMIT 1');
     const input={requestId:crypto.randomUUID(),categoryKey:'training_center',categoryVersion:1,capabilities:['messaging.inbox','team.members'],roleLimits:{owner:1,accountant:1,manager:1,agent:7}};
     const draft=await request(contracts+'/'+plan.id+'/drafts',{body:input});assert.equal(draft.status,201);const version=await draft.json();

@@ -47,7 +47,7 @@ function navigationFor(context) {
   // Internal Sales accountants work from finance and payout workspaces only.
   // Finance overview, invoices, reconciliation and finance reports are views
   // inside Sales Finance; commission payouts are a separate workspace.
-  const visible = context.category?.key === 'salemax_sales' && context.membership.role === 'accountant'
+  const visible = context.category?.key === '7network_sales' && context.membership.role === 'accountant'
     ? items.filter(item => ['sales-finance', 'sales-commissions'].includes(item.key))
     : items;
   return visible.filter(item => (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&

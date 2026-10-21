@@ -6,7 +6,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
   if (!Array.isArray(definitions) || !knownCapabilities || typeof knownCapabilities !== 'object') invalid();
   const entries = new Map();
   for (const source of definitions) {
-    if (!source || typeof source.key !== 'string' || !/^[a-z][a-z0-9_]{1,79}$/.test(source.key)
+    if (!source || typeof source.key !== 'string' || !/^[a-z0-9][a-z0-9_]{1,79}$/.test(source.key)
       || !Number.isSafeInteger(source.version) || source.version < 1
       || typeof source.public !== 'boolean' || (source.planable !== undefined && typeof source.planable !== 'boolean')
       || !source.title || !['en', 'ar'].every(lang => typeof source.title[lang] === 'string' && source.title[lang].trim())

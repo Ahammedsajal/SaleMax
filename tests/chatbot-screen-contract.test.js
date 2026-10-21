@@ -63,7 +63,7 @@ test('WA Chatbot preserves its native list and Add Chatbot assignment dialog', (
   assert.doesNotMatch(admin, /<th>\$\{esc\(tr\('WhatsApp Number'/);
 });
 
-test('chatbot overlays follow the active SaleMaX dark theme without restyling the legacy canvas', () => {
+test('chatbot overlays follow the active 7Network dark theme without restyling the legacy canvas', () => {
   assert.match(admin, /function syncChatbotTheme\(\)/);
   assert.match(admin, /localStorage\.getItem\('theme_mode'\)/);
   assert.match(admin, /data-sx-chatbot-theme/);
@@ -190,7 +190,7 @@ test('HTML and sidebar loader each expose a cache-busted chatbot script URL', { 
   assert.ok(botKey);
 });
 
-test('SaleMaX Sales built-in guide can run a saved opening Flow once then continue guided chat',()=>{
+test('7Network Sales built-in guide can run a saved opening Flow once then continue guided chat',()=>{
   assert.match(admin,/name="introFlowId"/);
   assert.match(admin,/Runs once when a new WhatsApp conversation starts/);
   assert.match(admin,/introFlowId:usesDomainGuide\?String\(data\.get\('introFlowId'\)/);

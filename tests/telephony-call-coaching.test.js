@@ -14,9 +14,9 @@ const callId='22222222-2222-4222-8222-222222222222';
 const agentId='33333333-3333-4333-8333-333333333333';
 function context(role='owner',options={}){
   const membershipId=options.membershipId||'44444444-4444-4444-8444-444444444444';
-  return {audience:'tenant',identity:{id:'55555555-5555-4555-8555-555555555555'},tenant:{id:tenantId,status:'active',categoryKey:options.category||'salemax_sales',categoryVersion:1},
+  return {audience:'tenant',identity:{id:'55555555-5555-4555-8555-555555555555'},tenant:{id:tenantId,status:'active',categoryKey:options.category||'7network_sales',categoryVersion:1},
     membership:{id:membershipId,tenantId,role,status:'active',...(options.customPermissions?{customPermissions:options.customPermissions}:{})},
-    category:getCategory(options.category||'salemax_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
+    category:getCategory(options.category||'7network_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
 }
 
 test('call coaching permissions are scoped to sales leads and prevent accountants and agents from writing',()=>{

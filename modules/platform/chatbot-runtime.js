@@ -199,7 +199,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   if (!channelKind || !pack.guidedReply) return false;
   await pruneExpiredGuidedSessions();
   let cvSubmission = null, cvError = null;
-  if(ctx.category.key==='salemax_sales'&&message?.type==='document'){
+  if(ctx.category.key==='7network_sales'&&message?.type==='document'){
     const candidateState=await loadDomainGuidedSession({ctx,profile,chatId,channelKind,channelRef:sessionId});
     if(candidateState?.step==='awaiting_cv'&&candidateState.screeningConsent===true){
       try{
@@ -250,7 +250,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     reply.media = [...(reply.media || []).filter(item => item.kind !== 'document'), ...pdfs];
     const nextState = JSON.stringify(reply.state || {});
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
-    if(ctx.category.key==='salemax_sales'&&reply.state?.screeningConsent===true&&reply.state?.answers){
+    if(ctx.category.key==='7network_sales'&&reply.state?.screeningConsent===true&&reply.state?.answers){
       const recruitment=require('./recruitment-applications');
       const saved=await recruitment.saveScreening(db,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId,mobile:message.senderMobile,senderName:message.senderName,answers:reply.state.answers,complete:['awaiting_cv','application_saved','application_submitted'].includes(reply.state.step),consent:true});
       if(saved?.applicationId&&reply.state.step==='awaiting_cv'){
@@ -261,7 +261,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
         reply.handoff=true;reply.handoffReason='recruitment-awaiting-cv';
       }
     }
-    if(ctx.category.key==='salemax_sales'&&reply.notifyRecruiter){
+    if(ctx.category.key==='7network_sales'&&reply.notifyRecruiter){
       await require('./recruitment-founder-notifications').enqueue(db,{tenantId:ctx.tenant.id,profileId:profile.id,channelKind,channelRef:sessionId,conversationId:chatId,inboundMessageId:String(message.metaChatId||`recruiter:${chatId}:${Date.now()}`),payload:{answers:{...(reply.state.answers||{}),fullName:reply.state.answers?.fullName||message.senderName||'Not provided',whatsappNumber:reply.state.answers?.whatsappNumber||message.senderMobile||'Not provided',contactNumber:reply.state.answers?.contactNumber||message.senderMobile||'Not provided'},whatsappNumber:reply.state.answers?.whatsappNumber||message.senderMobile||'Not provided',senderName:reply.state.answers?.fullName||message.senderName||'Candidate',source:'Candidate requested the recruiter'}});
     }
     await db.commit();
@@ -568,7 +568,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   const channelKind = channelFor(origin);
   const testReset = require('./chatbot-test-reset').isTestReset(profile.config, message?.senderMobile, textOf(message));
   const completionModule=require('./recruitment-chat-completion');
-  const completion=!testReset&&ctx.category.key==='salemax_sales'
+  const completion=!testReset&&ctx.category.key==='7network_sales'
     ? await completionModule.load(dbPool,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId}):null;
   const completionAction=completionModule.actionFor(completion,message,textOf(message));
   if(completionAction==='silent'){

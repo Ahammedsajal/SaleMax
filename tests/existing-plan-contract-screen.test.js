@@ -32,7 +32,7 @@ test('contract draft editing is mounted inside the original Manage Plans screen'
   assert.match(contracts, /امسح رمز QR الجديد/);
 });
 
-test('Manage Plans contract editor offers the private SaleMaX Sales category from the authorized existing-plan API',()=>{
+test('Manage Plans contract editor offers the private 7Network Sales category from the authorized existing-plan API',()=>{
   const router=fs.readFileSync(path.join(root,'modules/platform/existing-catalogue-router.js'),'utf8');
   const bridge=fs.readFileSync(path.join(root,'modules/platform/catalogue-bridge.js'),'utf8');
   assert.match(router,/const categories=availableCategories\(req\.businessContext\)/);
@@ -42,16 +42,17 @@ test('Manage Plans contract editor offers the private SaleMaX Sales category fro
   assert.match(contracts,/context\.categories\.some/);
   assert.match(contracts,/category\.features\.map/);
   assert.match(bridge,/plans\.authorizeCategory\(ctx,definition\.category\)/);
-  assert.match(bridge,/v\.category_key=\? AND v\.category_version=\?/);
+  assert.match(bridge,/v\.category_key IN \(\$\{categoryKeys\.map\(\(\)=>'\?'\)\.join\(','\)\}\) AND v\.category_version=\?/);
+  assert.match(bridge,/const categoryKeys=require\('\.\/categories'\)\.categoryKeysFor\(category\.key\)/);
   assert.match(bridge,/plans\.authorizeCategory\(ctx,category\)/);
   assert.match(bridge,/plans\.authorizeCategory\(ctx,definition\.category\)/);
-  assert.match(contracts,/category\.key==='salemax_sales'\|\|feature\.key!=='telephony\.call-center'/);
+  assert.match(contracts,/category\.key==='7network_sales'\|\|feature\.key!=='telephony\.call-center'/);
   assert.match(contracts,/category\.features\.find\(feature=>feature\.key===capability\)/);
 });
 
-test('new SaleMaX Sales contract drafts include the core Call Center capability by default', () => {
+test('new 7Network Sales contract drafts include the core Call Center capability by default', () => {
   assert.match(shell, /admin-plan-contracts\.js\?v=[^" ]+/);
-  assert.match(contracts, /!latest\?\(category\.key==='salemax_sales'\|\|feature\.key!==['"]telephony\.call-center['"]\):latest\.capabilities\.includes\(feature\.key\)/);
+  assert.match(contracts, /!latest\?\(category\.key==='7network_sales'\|\|feature\.key!==['"]telephony\.call-center['"]\):latest\.capabilities\.includes\(feature\.key\)/);
   assert.match(contracts, /draft\.querySelectorAll\('\[name=capability\]'\)/);
   assert.match(contracts, /input\.checked=version\.capabilities\.includes\(input\.value\)/);
 });
@@ -71,12 +72,12 @@ test('legacy Manage Users assignment denial offers the reviewed contract flow', 
   assert.match(userPlans, /إنشاء النشاط وتعيين الخطة/);
 });
 
-test('Manage Users links missing SaleMaX Sales contracts to the existing Manage Plans screen', () => {
+test('Manage Users links missing 7Network Sales contracts to the existing Manage Plans screen', () => {
   assert.match(shell, /admin-user-plans\.js\?v=20261014-sales-owner-guard1/);
-  assert.match(userPlans, /No published SaleMaX Sales contracts are available/);
-  assert.match(userPlans, /Open Manage Plans to publish a SaleMaX Sales contract/);
+  assert.match(userPlans, /No published 7Network Sales contracts are available/);
+  assert.match(userPlans, /Open Manage Plans to publish a 7Network Sales contract/);
   assert.match(userPlans, /href="\/admin\?page=manage-plans"/);
-  assert.match(userPlans, /افتح إدارة الخطط لنشر عقد مبيعات SaleMaX/);
+  assert.match(userPlans, /افتح إدارة الخطط لنشر عقد مبيعات 7Network/);
 });
 
 test('Manage Users staff-tree observer avoids rewriting unchanged toggle text', () => {

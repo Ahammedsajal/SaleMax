@@ -8,7 +8,7 @@ const {getCategory}=require('../modules/platform/categories');
 const recruitment=require('../modules/platform/recruitment-applications');
 const {decision}=require('../modules/platform/policy');
 
-const owner={audience:'tenant',tenant:{id:'11111111-1111-4111-8111-111111111111',status:'active',categoryKey:'salemax_sales',categoryVersion:1},membership:{id:'22222222-2222-4222-8222-222222222222',tenantId:'11111111-1111-4111-8111-111111111111',role:'owner',status:'active'},category:getCategory('salemax_sales',1),subscription:{status:'active',capabilities:['hr.recruitment']}};
+const owner={audience:'tenant',tenant:{id:'11111111-1111-4111-8111-111111111111',status:'active',categoryKey:'7network_sales',categoryVersion:1},membership:{id:'22222222-2222-4222-8222-222222222222',tenantId:'11111111-1111-4111-8111-111111111111',role:'owner',status:'active'},category:getCategory('7network_sales',1),subscription:{status:'active',capabilities:['hr.recruitment']}};
 const valid={submissionToken:'33333333-3333-4333-8333-333333333333',fullName:'Asha Candidate',mobile:'+91 98765 43210',email:'asha@example.in',englishLevel:'proficient',hindiLevel:'conversational',experienceYears:'4',crmSaasExperience:'Four years in SaaS and CRM sales.',availability:'either',consent:'on'};
 
 test('recruitment form validates and normalizes applicant details',()=>{
@@ -28,7 +28,7 @@ test('prefill links use opaque expiring tokens and return only consented candida
   assert.deepEqual(await recruitment.getPrefill(dbRead,{tenantSlug:'salemax-sales',token}),{fullName:'Asha'});
   await assert.rejects(recruitment.getPrefill(dbRead,{tenantSlug:'salemax-sales',token:'bad'}),{code:'PREFILL_NOT_FOUND'});
 });
-test('public hiring consent names SaleMaX as the hiring company',()=>{
+test('public hiring consent names 7Network as the hiring company',()=>{
   assert.match(recruitment.CONSENT,/save my WhatsApp application answers and CV in its private Applications & CVs area/);
   assert.doesNotMatch(recruitment.CONSENT,/Sitta Arbaa Sitta/i);
 });
@@ -60,7 +60,7 @@ test('WhatsApp answers map to a repeat-safe application and CV links are same-or
     await assert.rejects(recruitment.resolveWhatsAppCv({mediaUrl:'https://crm.salemax.qa/meta-media/bad.pdf',frontendUri:'https://crm.salemax.qa',mediaRoot:root}),{code:'CV_TYPE_NOT_ALLOWED'});
   }finally{await fs.rm(root,{recursive:true,force:true});}
 });
-test('only an active SaleMaX Sales owner can review hiring records',()=>{
+test('only an active 7Network Sales owner can review hiring records',()=>{
   assert.equal(recruitment.authorize(owner),owner);
   assert.throws(()=>recruitment.authorize({...owner,membership:{...owner.membership,role:'manager'}}),{code:'PERMISSION_DENIED'});
   assert.throws(()=>recruitment.authorize({...owner,tenant:{...owner.tenant,categoryKey:'training_center'},category:getCategory('training_center',1)}),{code:'CATEGORY_UNAVAILABLE'});
@@ -169,7 +169,7 @@ test('application review exposes the latest chat linked to its matched lead',asy
   assert.equal(result.items[0].linkedChatOrigin,'meta');
 });
 
-test('internal SaleMaX owner recruitment does not change the published plan entitlement',()=>{
+test('internal 7Network owner recruitment does not change the published plan entitlement',()=>{
   const withoutFeature={...owner,subscription:{status:'active',capabilities:[]}};
   assert.equal(decision(withoutFeature,{capability:'hr.recruitment',permission:'recruitment.manage'}).allowed,true);
   assert.equal(decision({...withoutFeature,membership:{...owner.membership,role:'manager'}},{capability:'hr.recruitment',permission:'recruitment.manage'}).allowed,false);

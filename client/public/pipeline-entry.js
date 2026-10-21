@@ -160,7 +160,7 @@
     if(!isDashboardRoute()){existing?.remove();return;}
     const {left,top,width,height,topbar}=workspaceBounds();
     if(topbar){const crumb=[...topbar.querySelectorAll('*')].find(el=>el.childElementCount===0&&['Dashboard','لوحة التحكم'].includes((el.textContent||'').trim()));if(crumb)crumb.textContent=isArabic()?'لوحة المعلومات':'Dashboard';}
-    let frame=existing;if(!frame){frame=document.createElement('iframe');frame.id='salemax-business-dashboard';frame.title=isArabic()?'لوحة المعلومات':'SaleMaX dashboard';frame.src='/business-dashboard/?embed=1&v=20261018-auth2';frame.style.cssText='position:fixed;z-index:1100;border:0;background:#f5f7fb;display:block;';document.body.append(frame);}
+    let frame=existing;if(!frame){frame=document.createElement('iframe');frame.id='salemax-business-dashboard';frame.title=isArabic()?'لوحة المعلومات':'7Network dashboard';frame.src='/business-dashboard/?embed=1&v=20261018-auth2';frame.style.cssText='position:fixed;z-index:1100;border:0;background:#f5f7fb;display:block;';document.body.append(frame);}
     bindWorkspaceNavigation(frame);
     frame.style.left=`${left}px`;frame.style.top=`${top}px`;frame.style.width=`${width}px`;frame.style.height=`${height}px`;
   }

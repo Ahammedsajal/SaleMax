@@ -24,8 +24,8 @@ test('Manage Plans context offers internal Sales features only to platform categ
   const staff=await serverFor({...base,membership:{...base.membership,role:'staff'}});
   try{
     const adminContext=await (await fetch(admin.base+'/context')).json();
-    assert.deepEqual(adminContext.categories.map(item=>item.key),['training_center','salemax_sales','base_crm']);
-    const sales=adminContext.categories.find(item=>item.key==='salemax_sales');
+    assert.deepEqual(adminContext.categories.map(item=>item.key),['training_center','7network_sales','base_crm']);
+    const sales=adminContext.categories.find(item=>item.key==='7network_sales');
     assert.deepEqual(sales.seatRoles,['owner','accountant','manager','team_leader','agent']);
     assert.ok(sales.features.some(item=>item.key==='sales.deals'));
     assert.ok(sales.features.some(item=>item.key==='telephony.call-center'));
@@ -35,10 +35,10 @@ test('Manage Plans context offers internal Sales features only to platform categ
   }finally{await admin.close();await staff.close();}
 });
 
-test('delegated plan staff cannot enumerate or draft private SaleMaX Sales contracts',async()=>{
+test('delegated plan staff cannot enumerate or draft private 7Network Sales contracts',async()=>{
   const staff=await serverFor({...base,membership:{...base.membership,role:'staff'}});
   try{
-    const versions=await fetch(staff.base+'/1/versions?categoryKey=salemax_sales');
+    const versions=await fetch(staff.base+'/1/versions?categoryKey=7network_sales');
     assert.equal(versions.status,403);
     assert.equal((await versions.json()).code,'PERMISSION_DENIED');
     const draft=await fetch(staff.base+'/1/drafts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({legacyPlanId:1,requestId:'11111111-1111-4111-8111-111111111111',categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version,capabilities:[...salemaxSales.capabilities],roleLimits:{owner:1,accountant:2,manager:5,team_leader:10,agent:50}})});

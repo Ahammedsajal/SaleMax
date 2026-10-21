@@ -4,7 +4,7 @@ const plans=require('./plans');
 const assignment=require('./business-contract-assignment');
 const legacy=require('./legacy-plan-assignment');
 const {platformDecision}=require('./policy');
-const {trainingCenter,salemaxSales,getCategory}=require('./categories');
+const {trainingCenter,salemaxSales,getCategory,categoryKeysFor,categoryKeyMatches,canonicalCategoryKey}=require('./categories');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const hash=value=>crypto.createHash('sha256').update(value,'utf8').digest('hex');
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -35,11 +35,12 @@ async function context(db,ctx,userId,{locked=false,categoryKey='training_center'
   const normalizedEmail=email(user.email);
   if(category.key===salemaxSales.key&&normalizedEmail!=='admin@salemax.qa')fail('DESIGNATED_OWNER_REQUIRED');
   const [[identity]]=await db.query('SELECT id FROM sx_identities WHERE email_normalized=?'+suffix,[normalizedEmail]);if(identity)fail('BUSINESS_IDENTITY_EXISTS');
+  const categoryKeys=categoryKeysFor(category.key);
   const [[version]]=await db.query(`SELECT v.id,v.version,v.category_key AS categoryKey,v.category_version AS categoryVersion,v.capabilities,v.role_limits AS roleLimits,
       c.legacy_plan_id AS legacyPlanId,c.commercial_snapshot AS commercialSnapshot,c.commercial_hash AS commercialHash
     FROM sx_legacy_plan_contracts c JOIN sx_plan_versions v ON v.id=c.version_id
-    WHERE c.legacy_plan_id=? AND v.status='published' AND v.category_key=? AND v.category_version=?
-    ORDER BY v.version DESC LIMIT 1${suffix}`,[Number(current.plan.id),category.key,category.version]);
+    WHERE c.legacy_plan_id=? AND v.status='published' AND v.category_key IN (${categoryKeys.map(()=>'?').join(',')}) AND v.category_version=?
+    ORDER BY v.version DESC LIMIT 1${suffix}`,[Number(current.plan.id),...categoryKeys,category.version]);
   if(!version)fail('PUBLISHED_CONTRACT_REQUIRED');
   const ceiling=typeof version.roleLimits==='string'?JSON.parse(version.roleLimits):version.roleLimits;
   const capabilities=typeof version.capabilities==='string'?JSON.parse(version.capabilities):version.capabilities;
@@ -47,7 +48,7 @@ async function context(db,ctx,userId,{locked=false,categoryKey='training_center'
   const commercialText=typeof version.commercialSnapshot==='string'?version.commercialSnapshot:JSON.stringify(commercial);
   if(Number(commercial?.id)!==Number(current.plan.id)||hash(commercialText)!==version.commercialHash)fail('STORED_CONTRACT_INVALID');
   const snapshot={id:user.id,uidHash:hash(user.uid),name:user.name,email:normalizedEmail,plan:current.plan,expiresAt:user.plan_expire};
-  return {user,normalizedEmail,current,category,version:{id:version.id,version:Number(version.version),categoryKey:version.categoryKey,categoryVersion:Number(version.categoryVersion),roleLimits:ceiling,capabilities,commercial},snapshot};
+  return {user,normalizedEmail,current,category,version:{id:version.id,version:Number(version.version),categoryKey:canonicalCategoryKey(version.categoryKey),categoryVersion:Number(version.categoryVersion),roleLimits:ceiling,capabilities,commercial},snapshot};
 }
 function selection(ctx,input){
   const userId=Number(input?.userId);if(!Number.isSafeInteger(userId)||userId<1||userId>2147483647||!uuid(input?.planVersionId)||!uuid(input?.requestId)||typeof input?.expectedState!=='string'||!/^[a-f0-9]{64}$/.test(input.expectedState))fail('INVALID_PROVISION');
@@ -57,7 +58,7 @@ function selection(ctx,input){
 }
 async function preview(db,ctx,input){
   const data=selection(ctx,{...input,expectedState:'0'.repeat(64)});const base=await context(db,ctx,data.userId,{categoryKey:data.category.key,categoryVersion:data.category.version});
-  if(base.version.id!==data.planVersionId||base.version.categoryKey!==data.category.key)fail('CONTRACT_NOT_FOR_CURRENT_PLAN');
+  if(base.version.id!==data.planVersionId||!categoryKeyMatches(base.version.categoryKey,data.category.key))fail('CONTRACT_NOT_FOR_CURRENT_PLAN');
   const blockers=[];for(const role of Object.keys(data.roleLimits)){if(data.roleLimits[role]>base.version.roleLimits[role])blockers.push('PLAN_LIMIT_EXCEEDED:'+role);if(data.roleLimits[role]<(role==='owner'?1:0))blockers.push('SEATS_IN_USE:'+role);}
   const state=hash(JSON.stringify({snapshot:base.snapshot,categoryKey:data.category.key,categoryVersion:data.category.version,versionId:base.version.id,commercialHash:hash(JSON.stringify(base.version.commercial)),businessName:data.businessName,roleLimits:data.roleLimits}));
   return {user:{id:base.user.id,name:base.user.name,email:base.normalizedEmail,currentPlan:base.current.plan},businessName:data.businessName,category:{key:data.category.key,version:data.category.version,title:data.category.title,seatRoles:data.category.seatRoles},contract:{id:base.version.id,version:base.version.version,commercial:base.version.commercial,capabilities:base.version.capabilities,ceiling:base.version.roleLimits},proposedLimits:data.roleLimits,used:Object.fromEntries(data.category.seatRoles.map(role=>[role,role==='owner'?1:0])),blockers,canProvision:!blockers.length,expectedState:state,readOnly:true};
@@ -71,12 +72,12 @@ async function provision(db,ctx,input){
   return transaction(db,async()=>{
     const [[prior]]=await db.query('SELECT request_id,user_id,tenant_id,actor_identity_id,payload_hash,assignment_id,role_limits FROM sx_business_provisions WHERE request_id=? FOR UPDATE',[data.requestId]);
     if(prior){if(Number(prior.user_id)!==data.userId||prior.actor_identity_id!==ctx.identity.id||prior.payload_hash!==payloadHash)fail('IDEMPOTENCY_CONFLICT');return {tenantId:prior.tenant_id,userId:data.userId,assignmentId:prior.assignment_id,roleLimits:typeof prior.role_limits==='string'?JSON.parse(prior.role_limits):prior.role_limits,replayed:true};}
-    const base=await context(db,ctx,data.userId,{locked:true,categoryKey:data.category.key,categoryVersion:data.category.version});if(base.version.id!==data.planVersionId||base.version.categoryKey!==data.category.key)fail('CONTRACT_NOT_FOR_CURRENT_PLAN');
+    const base=await context(db,ctx,data.userId,{locked:true,categoryKey:data.category.key,categoryVersion:data.category.version});if(base.version.id!==data.planVersionId||!categoryKeyMatches(base.version.categoryKey,data.category.key))fail('CONTRACT_NOT_FOR_CURRENT_PLAN');
     const currentState=hash(JSON.stringify({snapshot:base.snapshot,categoryKey:data.category.key,categoryVersion:data.category.version,versionId:base.version.id,commercialHash:hash(JSON.stringify(base.version.commercial)),businessName:data.businessName,roleLimits:data.roleLimits}));
     if(currentState!==data.expectedState)fail('STALE_PROVISION');
     for(const role of Object.keys(data.roleLimits)){if(data.roleLimits[role]>base.version.roleLimits[role])fail('PLAN_LIMIT_EXCEEDED');if(role==='owner'&&data.roleLimits[role]!==1)fail('ONE_OWNER_REQUIRED');}
     const tenantId=crypto.randomUUID(),identityId=crypto.randomUUID(),membershipId=crypto.randomUUID();
-    const locale=data.category.key==='salemax_sales'?{country:'IN',currency:'INR',timezone:'Asia/Kolkata'}:{country:'QA',currency:'QAR',timezone:'Asia/Qatar'};
+    const locale=data.category.key==='7network_sales'?{country:'IN',currency:'INR',timezone:'Asia/Kolkata'}:{country:'QA',currency:'QAR',timezone:'Asia/Qatar'};
     await db.query('INSERT INTO sx_tenants(id,slug,name,category_key,category_version,country_code,currency,timezone,status) VALUES (?,?,?,?,?,?,?,?,?)',[tenantId,slug(data.businessName,tenantId),data.businessName,data.category.key,data.category.version,locale.country,locale.currency,locale.timezone,'active']);
     await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,?,NULL,'active')",[identityId,base.normalizedEmail,String(base.user.name||data.businessName).trim().slice(0,200)||data.businessName]);
     await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active')",[membershipId,tenantId,identityId]);

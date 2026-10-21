@@ -12,7 +12,7 @@ test('preserved frontend references existing build assets and branding', () => {
     if (match[1].startsWith('//')) continue;
     assert.ok(fs.existsSync(path.join(publicRoot, match[1].split(/[?#]/)[0])), 'Missing shell asset');
   }
-  assert.ok(html.includes('SaleMaX'));
+  assert.ok(html.includes('7Network'));
   assert.ok(fs.existsSync(path.join(publicRoot, 'media/salemax-logo.png')));
 });
 test('dependency lock matches declared runtime dependencies', () => {

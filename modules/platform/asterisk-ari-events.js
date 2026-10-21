@@ -195,7 +195,7 @@ class AsteriskAriEvents extends EventEmitter {
     if (this.stableTimer) this.clearTimeout(this.stableTimer);
     this.stableTimer = null;
     if (socket && (socket.readyState === this.WebSocketImpl.OPEN || socket.readyState === this.WebSocketImpl.CONNECTING)) {
-      try { socket.close(1000, 'SaleMaX ARI configuration changed'); } catch (_) {}
+      try { socket.close(1000, '7Network ARI configuration changed'); } catch (_) {}
     }
   }
 

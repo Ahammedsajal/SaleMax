@@ -11,7 +11,7 @@ const leadId='22222222-2222-4222-8222-222222222222';
 const ownerUid='owner-uid';
 const uidHash=crypto.createHash('sha256').update(ownerUid).digest('hex');
 function context(role='owner'){
-  return {tenant:{id:tenantId,categoryKey:'salemax_sales'},membership:{id:`${role}-membership`,role}};
+  return {tenant:{id:tenantId,categoryKey:'7network_sales'},membership:{id:`${role}-membership`,role}};
 }
 function dbFor(role,{ownerCount=1,agentCount=1,leadOwnerAgentId=41,leadMobile='+919876543210',leadSuppressed=false}={}){
   return {async query(sql){
@@ -29,7 +29,7 @@ test('owner can link a lead from the same business to a call',async()=>{
   assert.deepEqual(result,{leadId,leadUidHash:uidHash,destination:'+919876543210'});
 });
 
-test('agent can link only leads assigned to its active SaleMaX membership',async()=>{
+test('agent can link only leads assigned to its active 7Network membership',async()=>{
   const result=await resolveLeadLink(dbFor('agent'),context('agent'),leadId);
   assert.deepEqual(result,{leadId,leadUidHash:uidHash,destination:'+919876543210'});
   await assert.rejects(resolveLeadLink(dbFor('agent',{leadOwnerAgentId:99}),context('agent'),leadId),{code:'CALL_LEAD_NOT_ACCESSIBLE'});
@@ -48,9 +48,9 @@ test('Sales outbound calls are blocked after the lead has a recorded do-not-call
   await assert.rejects(resolveOutboundRecipient(dbFor('agent',{leadSuppressed:true}),context('agent'),{leadId}),{code:'CALL_LEAD_DO_NOT_CALL'});
 });
 
-test('Asterisk call origination rejects an unlinked SaleMaX Sales call before database or PBX work',async()=>{
+test('Asterisk call origination rejects an unlinked 7Network Sales call before database or PBX work',async()=>{
   let accessed=false;const control=new AsteriskCallControl({pool:{async getConnection(){accessed=true;throw new Error('unexpected database access');}}});
-  const callContext={audience:'tenant',identity:{id:'agent-identity'},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
+  const callContext={audience:'tenant',identity:{id:'agent-identity'},tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},
     membership:{id:'agent-membership',tenantId,role:'agent',status:'active'},category:salemaxSales,subscription:{status:'active',capabilities:['telephony.call-center']}};
   await assert.rejects(control.originateOutbound(callContext,{destination:'+919999999999',clientType:'mobile'}),{code:'OUTBOUND_LEAD_REQUIRED'});
   assert.equal(accessed,false);

@@ -61,7 +61,7 @@ async function main() {
       uid = "synthetic-website-owner";
     await pool.query("INSERT INTO user VALUES(1,?)", [uid]);
     await pool.query(
-      "INSERT INTO sx_tenants VALUES(?,?,'salemax_sales','active')",
+      "INSERT INTO sx_tenants VALUES(?,?,'7network_sales','active')",
       [
         tenant,
         process.env.SALEMAX_WEBSITE_SALES_TENANT_SLUG ||
@@ -118,7 +118,7 @@ async function main() {
     const board = await pipeline.getBoard({
       uid,
       role: "owner",
-      categoryKey: "salemax_sales",
+      categoryKey: "7network_sales",
       pool,
     });
     assert.equal(
@@ -129,7 +129,7 @@ async function main() {
     const filtered = await pipeline.getBoard({
       uid,
       role: "owner",
-      categoryKey: "salemax_sales",
+      categoryKey: "7network_sales",
       filters: { qrInstanceId: 1 },
       pool,
     });

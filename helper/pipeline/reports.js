@@ -4,6 +4,7 @@ const moment=require('moment-timezone');
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
 const periods=Object.freeze({daily:'day',weekly:'isoWeek',monthly:'month'});
 const leadFilters=require('./lead-filters');
+const { canonicalCategoryKey, categoryKeyMatches } = require('../../modules/platform/categories');
 function fail(message,status=400){throw Object.assign(new Error(message),{status});}
 function periodWindow({period='daily',at,timezone='Asia/Qatar',cutoffAt}){
   const unit=periods[period];
@@ -235,7 +236,7 @@ async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,cat
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view the lead journey report.',403);
   if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
-  if(categoryKey==='salemax_sales'){if(assignment||qrInstanceId)fail('Lead assignment and QR filters are available for Training Center reports only.',403);return getSalesJourneyReport({pool,uid,role,agentId,scopeAgentIds,period,at,timezone});}
+  if(categoryKeyMatches(categoryKey,'7network_sales')){if(assignment||qrInstanceId)fail('Lead assignment and QR filters are available for Training Center reports only.',403);return getSalesJourneyReport({pool,uid,role,agentId,scopeAgentIds,period,at,timezone});}
   if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds))fail('The team-scoped journey report is not available yet.',403);
   const window=periodWindow({period,at,timezone}),selected=leadFilters.parseLeadFilters({assignment,qrInstanceId}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool,connection=await db.getConnection();
   try{
@@ -399,7 +400,7 @@ async function getSalesJourneyReport({pool,uid,role,agentId,scopeAgentIds,period
     const mappedStages=stages.map(row=>({...row,total:Number(row.total),cohortTotal:Number(row.cohortTotal||0)}));
     const agents=agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),newLeads:Number(row.newLeads),attendedLeads:Number(row.attendedLeads||0),agentReplies:Number(row.agentReplies||0),followUpsDue:Number(row.followUpsDue||0),followUpsOverdue:Number(row.followUpsOverdue||0),salesAttributed:Number(row.salesAttributed||0),salesClosedByAgent:Number(row.salesClosedByAgent||0)}));
     await connection.commit();
-    return {categoryKey:'salemax_sales',period:window.period,timezone:window.timezone,from:window.start,to:window.end,asOf:new Date().toISOString(),
+    return {categoryKey:canonicalCategoryKey('salemax_sales'),period:window.period,timezone:window.timezone,from:window.start,to:window.end,asOf:new Date().toISOString(),
       summary:{newLeads:Number(flow.new_leads||0),leadsAttended:Number(flow.leads_attended||0),stageChanges:Number(flow.stage_changes||0),salesConverted:Number(flow.sales_converted||0),salesClosedByAgents:Number(flow.sales_closed_by_agents||0),openLeads:mappedStages.filter(row=>row.stageType==='open').reduce((sum,row)=>sum+row.total,0),wonLeads:mappedStages.filter(row=>row.stageType==='won').reduce((sum,row)=>sum+row.total,0),lostLeads:mappedStages.filter(row=>row.stageType==='lost').reduce((sum,row)=>sum+row.total,0)},
       stages:mappedStages,sources:sources.map(row=>({...row,total:Number(row.total)})),stageTransitions:transitions.map(row=>({...row,total:Number(row.total)})),agents,cohortFunnel:null,journeyActivity:null,learnerJourney:null};
   }catch(error){try{await connection.rollback();}catch(_){}throw error;}finally{connection.release();}

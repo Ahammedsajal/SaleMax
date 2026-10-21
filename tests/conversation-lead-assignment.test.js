@@ -32,5 +32,5 @@ test('retry preserves lead identity and avoids duplicate reassignment history',a
 test('current inbound or legacy conversation lead is reused and unsupported categories remain unchanged',async t=>{
  t.mock.method(pipeline,'prepareWorkspace',async()=>{});
  for(const option of [{legacy:{id:'old-link',owner_agent_id:null}},{current:{id:'inbound',owner_agent_id:null}}]){const f=fixture(option);const result=await service.assign(f.db,input);assert.equal(result.created,false);}
- const f=fixture();assert.equal(await service.assign(f.db,{...input,ctx:{tenant:{categoryKey:'salemax_sales'}}}),null);assert.equal(f.calls.length,0);
+ const f=fixture();assert.equal(await service.assign(f.db,{...input,ctx:{tenant:{categoryKey:'7network_sales'}}}),null);assert.equal(f.calls.length,0);
 });

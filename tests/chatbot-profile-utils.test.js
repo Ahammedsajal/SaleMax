@@ -80,12 +80,12 @@ test('training-center bot validation produces a bounded reusable category profil
   assert.deepEqual(botRequirements('ai'), { requiresGuidedFlow: false, requiresAi: true });
 });
 
-test('SaleMaX Sales built-in guide can run a validated Automation Flow once before continuing guided chat',()=>{
-  const bot=botInput({name:'SaleMaX recruitment',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'recruitment_intro'}},'salemax_sales');
+test('7Network Sales built-in guide can run a validated Automation Flow once before continuing guided chat',()=>{
+  const bot=botInput({name:'7Network recruitment',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'recruitment_intro'}},'7network_sales');
   assert.equal(bot.config.guidedMode,'domain_default');
   assert.equal(bot.config.flowId,null);
   assert.equal(bot.config.introFlowId,'recruitment_intro');
-  assert.throws(()=>botInput({name:'Bad',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'../bad'}},'salemax_sales'),{code:'INVALID_FLOW_ID'});
+  assert.throws(()=>botInput({name:'Bad',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'../bad'}},'7network_sales'),{code:'INVALID_FLOW_ID'});
   assert.equal(botInput({name:'Guide',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'flow-1'}},'training_center').config.introFlowId,undefined);
 });
 
@@ -118,8 +118,8 @@ test('legacy chatbot authentication resolves tenant category and rejects unpubli
     const context = await legacyChatbotContext(poolFor(row), ownerUid);
     assert.equal(context.category.key, trainingCenter.key);
     assert.equal(context.tenant.categoryVersion, trainingCenter.version);
-    const sales=await legacyChatbotContext(poolFor({...row,categoryKey:'salemax_sales',categoryVersion:1}),ownerUid);
-    assert.equal(sales.category.key,'salemax_sales');
+    const sales=await legacyChatbotContext(poolFor({...row,categoryKey:'7network_sales',categoryVersion:1}),ownerUid);
+    assert.equal(sales.category.key,'7network_sales');
     await assert.rejects(legacyChatbotContext(poolFor({ ...row, categoryKey: restaurantFixture.key, categoryVersion: restaurantFixture.version }), ownerUid), { code: 'CATEGORY_UNAVAILABLE' });
   } finally { platformPlans.loadEntitlements = previousLoadEntitlements; }
 });

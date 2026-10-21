@@ -6,7 +6,7 @@ const { decision } = require('./policy');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 function authorize(context, permission) {
-  if (context?.tenant?.categoryKey !== 'salemax_sales') fail('CATEGORY_UNAVAILABLE');
+  if (context?.tenant?.categoryKey !== '7network_sales') fail('CATEGORY_UNAVAILABLE');
   const access = decision(context, { capability: 'telephony.call-center', permission });
   if (!access.allowed) fail(access.code);
   return access;

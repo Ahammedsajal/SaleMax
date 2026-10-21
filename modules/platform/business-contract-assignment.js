@@ -3,6 +3,7 @@ const crypto=require('node:crypto');
 const plans=require('./plans');
 const legacy=require('./legacy-plan-assignment');
 const {platformDecision}=require('./policy');
+const {categoryKeyMatches}=require('./categories');
 const {normalize}=require('./legacy-plan-editor');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -54,7 +55,7 @@ async function load(db,ctx,user,data,locked){
   const [[current]]=await db.query("SELECT id,plan_version_id,status,role_limits,DATE_FORMAT(expires_at,'%Y-%m-%d %H:%i:%s.%f') AS expires_at FROM sx_plan_assignments WHERE tenant_id=? AND current_tenant IS NOT NULL"+suffix,[tenant.id]);
   const used=await plans.readUsage(db,tenant.id),blockers=[];
   if(tenant.status!=='active')blockers.push('ACCOUNT_INACTIVE');
-  if(tenant.category_key!==contract.categoryKey||tenant.category_version!==contract.categoryVersion)blockers.push('CATEGORY_UNAVAILABLE');
+  if(!categoryKeyMatches(tenant.category_key,contract.categoryKey)||Number(tenant.category_version)!==Number(contract.categoryVersion))blockers.push('CATEGORY_UNAVAILABLE');
   for(const role of Object.keys(contract.roleLimits)){
     if(data.roleLimits[role]>contract.roleLimits[role])blockers.push('PLAN_LIMIT_EXCEEDED:'+role);
     if(data.roleLimits[role]<used[role])blockers.push('SEATS_IN_USE:'+role);

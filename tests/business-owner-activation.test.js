@@ -13,9 +13,9 @@ test('business owner invitation requires platform category and tenant provisioni
 
 test('business owner activation rejects malformed links and weak or oversized passwords before database access',async()=>{
   const db={query(){throw new Error('storage must not be read')}};
-  await assert.rejects(activation.accept(db,{token:'bad',name:'SaleMaX Owner',password:'long-enough-password'}),{code:'INVITE_INVALID'});
-  await assert.rejects(activation.accept(db,{token:'A'.repeat(43),name:'SaleMaX Owner',password:'short'}),{code:'INVALID_PASSWORD'});
-  await assert.rejects(activation.accept(db,{token:'A'.repeat(43),name:'SaleMaX Owner',password:'🙂'.repeat(20)}),{code:'INVALID_PASSWORD'});
+  await assert.rejects(activation.accept(db,{token:'bad',name:'7Network Owner',password:'long-enough-password'}),{code:'INVITE_INVALID'});
+  await assert.rejects(activation.accept(db,{token:'A'.repeat(43),name:'7Network Owner',password:'short'}),{code:'INVALID_PASSWORD'});
+  await assert.rejects(activation.accept(db,{token:'A'.repeat(43),name:'7Network Owner',password:'🙂'.repeat(20)}),{code:'INVALID_PASSWORD'});
   await assert.rejects(activation.accept(db,{token:'A'.repeat(43),name:'x',password:'long-enough-password'}),{code:'INVALID_DISPLAY_NAME'});
 });
 
@@ -27,10 +27,10 @@ test('owner activation stores a token digest and activates the same owner identi
     async beginTransaction(){transaction=true;},async commit(){transaction=false;},async rollback(){transaction=false;},
     async query(sql,args=[]){
       if(sql.includes('information_schema.TABLES'))return [tables.map(TABLE_NAME=>({TABLE_NAME,ENGINE:'InnoDB'}))];
-      if(sql.includes('SELECT u.id AS userId'))return [[{userId:27,email:'admin@salemax.qa',uid:'legacy-owner-uid',tenantId:'tenant-1',membershipId:'membership-1',identityId:'identity-1',role:'owner',membershipStatus:'active',identityStatus:'active',passwordHash:null,tenantStatus:'active',categoryKey:'salemax_sales'}]];
+      if(sql.includes('SELECT u.id AS userId'))return [[{userId:27,email:'admin@salemax.qa',uid:'legacy-owner-uid',tenantId:'tenant-1',membershipId:'membership-1',identityId:'identity-1',role:'owner',membershipStatus:'active',identityStatus:'active',passwordHash:null,tenantStatus:'active',categoryKey:'7network_sales'}]];
       if(sql.includes('SELECT id,uid FROM user'))return [[{id:27,uid:'legacy-owner-uid'}]];
       if(sql.includes('SELECT id FROM user WHERE uid='))return [[{id:27}]];
-      if(sql.includes('SELECT v.id,v.tenant_id AS tenantId'))return [[{id:'invite-1',tenantId:'tenant-1',identityId:'identity-1',legacyUserId:27,status:'pending',email:'admin@salemax.qa',legacyEmail:'admin@salemax.qa',currentPasswordHash:null,identityStatus:'active',membershipStatus:'active',role:'owner',tenantStatus:'active',categoryKey:'salemax_sales',uid:'legacy-owner-uid'}]];
+      if(sql.includes('SELECT v.id,v.tenant_id AS tenantId'))return [[{id:'invite-1',tenantId:'tenant-1',identityId:'identity-1',legacyUserId:27,status:'pending',email:'admin@salemax.qa',legacyEmail:'admin@salemax.qa',currentPasswordHash:null,identityStatus:'active',membershipStatus:'active',role:'owner',tenantStatus:'active',categoryKey:'7network_sales',uid:'legacy-owner-uid'}]];
       writes.push({sql,args});
       if(sql.startsWith('UPDATE user SET name=?,password=?'))return [{affectedRows:1}];
       if(sql.startsWith("UPDATE sx_identities SET display_name=?"))return [{affectedRows:1}];
@@ -42,7 +42,7 @@ test('owner activation stores a token digest and activates the same owner identi
   const inviteInsert=writes.find(item=>item.sql.includes('INSERT INTO sx_business_owner_invites'));
   assert.ok(inviteInsert);assert.notEqual(inviteInsert.args[4],created.token);assert.match(inviteInsert.args[4],/^[a-f0-9]{64}$/);
   writes.length=0;
-  const accepted=await activation.accept(db,{token:created.token,name:'SaleMaX Owner',password:'private-owner-password'});
+  const accepted=await activation.accept(db,{token:created.token,name:'7Network Owner',password:'private-owner-password'});
   assert.equal(accepted.status,'accepted');assert.equal(accepted.email,'admin@salemax.qa');assert.equal(accepted.loginPath,'/user/login');assert.equal(transaction,false);
   assert.ok(writes.some(item=>item.sql.startsWith('UPDATE user SET name=?,password=?')));
   assert.ok(writes.some(item=>item.sql.startsWith('UPDATE sx_identities SET display_name=?')));

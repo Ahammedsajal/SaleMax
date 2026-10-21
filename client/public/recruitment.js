@@ -11,7 +11,7 @@
   const statusLabel=s=>({new:tr('New','جديد'),reviewing:tr('Reviewing','قيد المراجعة'),shortlisted:tr('Shortlisted','قائمة مختصرة'),interview:tr('Interview','مقابلة'),rejected:tr('Not proceeding','لن تتم المتابعة'),hired:tr('Hired','تم التعيين'),archived:tr('Archived','مؤرشف')})[s]||s;
   function installStyle(){if(document.getElementById('sx-recruitment-style'))return;const link=document.createElement('link');link.id='sx-recruitment-style';link.rel='stylesheet';link.href='/recruitment-admin.css?v=20261020-whatsapp-apply1';document.head.append(link);}
   function navLink(session){
-    if(session?.categoryKey!=='salemax_sales'||session?.role!=='owner')return;
+    if(session?.categoryKey!=='7network_sales'||session?.role!=='owner')return;
     const candidates=[...document.querySelectorAll('[role="button"],button,a')];if(candidates.some(x=>['Applications & CVs','طلبات التوظيف والسير الذاتية'].includes((x.innerText||'').trim())))return;const source=candidates.find(x=>['Agent Login','Team Login','دخول الوكيل','تسجيل دخول الوكيل','Lead Pipeline','مسار العملاء المحتملين'].includes((x.innerText||'').trim()));
     const row=source?.closest('li')||source?.parentElement;if(!row?.parentElement||document.querySelector('[data-sx-recruitment-nav]'))return;
     const copy=row.cloneNode(true);copy.dataset.sxRecruitmentNav='1';copy.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));
@@ -46,6 +46,6 @@
     };
     root.querySelector('[data-search]').onclick=()=>{page=1;load();};root.querySelector('[name=search]').onkeydown=e=>{if(e.key==='Enter'){page=1;load();}};root.querySelector('[name=status]').onchange=()=>{page=1;load();};root.querySelector('[data-copy]').onclick=async()=>{try{const data=record||await request('?limit=1');await navigator.clipboard.writeText(data.publicUrl);message.textContent=tr('Application link copied.','تم نسخ رابط التقديم.');}catch(e){message.textContent=msg(e.message);}};await load();
   }
-  async function init(){try{const session=await window.SaleMaxWorkspace.session();const data=session?.data||session;navLink(data);if(active()){if(data?.categoryKey!=='salemax_sales'||data?.role!=='owner'){location.replace('/user');return;}await render();}}catch(_){} }
+  async function init(){try{const session=await window.SaleMaxWorkspace.session();const data=session?.data||session;navLink(data);if(active()){if(data?.categoryKey!=='7network_sales'||data?.role!=='owner'){location.replace('/user');return;}await render();}}catch(_){} }
   const observer=new MutationObserver(()=>{if(active()&&!document.getElementById('sx-recruitment-screen'))render();else if(!active())document.getElementById('sx-recruitment-screen')?.remove();});observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','aria-hidden']});window.addEventListener('resize',()=>frame(document.getElementById('sx-recruitment-screen')));init();
 })();

@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {createCategoryRegistry} = require('../modules/platform/category-registry');
 const {capabilities} = require('../modules/platform/policy');
-const {trainingCenter, restaurantFixture, listCategories} = require('../modules/platform/categories');
+const {trainingCenter, sevenNetworkSales, restaurantFixture, listCategories} = require('../modules/platform/categories');
 
 test('category registry pins versions instead of selecting latest implicitly', () => {
   const v2 = {...trainingCenter, version:2, capabilities:trainingCenter.capabilities.filter(key => !['sales.finance','hr.recruitment'].includes(key))};
@@ -13,6 +13,7 @@ test('category registry pins versions instead of selecting latest implicitly', (
   for (const version of [undefined,null,0,-1,1.5,'1',3]) assert.equal(registry.get('training_center',version),null);
   assert.deepEqual(registry.list().map(row=>row.version),[1,2]);
   assert.equal(listCategories().some(row=>row.key===restaurantFixture.key&&row.planable===true),false);
+  assert.equal(createCategoryRegistry([{...sevenNetworkSales}],capabilities).get('7network_sales',1).key,'7network_sales');
 });
 
 test('registry rejects duplicate identity, unknown capabilities, invalid roles and malformed contracts', () => {

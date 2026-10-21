@@ -38,8 +38,9 @@ async function createDraft(db,ctx,input){
 async function list(db,ctx,legacyPlanId,categoryKey='training_center',categoryVersion=1){
   authorize(ctx,'plans.read');id(legacyPlanId);
   const category=require('./categories').getCategory(categoryKey,categoryVersion);if(!category)fail('CATEGORY_UNAVAILABLE');plans.authorizeCategory(ctx,category);
-  const [rows]=await db.query('SELECT v.id,v.version,v.revision,v.status,v.category_key AS categoryKey,v.category_version AS categoryVersion,v.capabilities,v.role_limits AS roleLimits,c.commercial_snapshot AS commercial,c.commercial_hash AS commercialHash FROM sx_legacy_plan_contracts c JOIN sx_plan_versions v ON v.id=c.version_id WHERE c.legacy_plan_id=? AND v.category_key=? AND v.category_version=? ORDER BY v.version DESC LIMIT 100',[legacyPlanId,categoryKey,category.version]);
-  return rows.map(row=>({...row,capabilities:parse(row.capabilities),roleLimits:parse(row.roleLimits),commercial:parse(row.commercial)}));
+  const categoryKeys=require('./categories').categoryKeysFor(category.key);
+  const [rows]=await db.query(`SELECT v.id,v.version,v.revision,v.status,v.category_key AS categoryKey,v.category_version AS categoryVersion,v.capabilities,v.role_limits AS roleLimits,c.commercial_snapshot AS commercial,c.commercial_hash AS commercialHash FROM sx_legacy_plan_contracts c JOIN sx_plan_versions v ON v.id=c.version_id WHERE c.legacy_plan_id=? AND v.category_key IN (${categoryKeys.map(()=>'?').join(',')}) AND v.category_version=? ORDER BY v.version DESC LIMIT 100`,[legacyPlanId,...categoryKeys,category.version]);
+  return rows.map(row=>({...row,categoryKey:require('./categories').canonicalCategoryKey(row.categoryKey),capabilities:parse(row.capabilities),roleLimits:parse(row.roleLimits),commercial:parse(row.commercial)}));
 }
 async function updateDraft(db,ctx,input){
   authorize(ctx,'plans.draft');const legacyId=id(input?.legacyPlanId);

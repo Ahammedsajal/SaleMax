@@ -1,6 +1,6 @@
 const fs=require('fs'),http=require('http'),path=require('path'),assert=require('assert/strict'),jwt=require('jsonwebtoken');
 const {chromium}=require(process.env.SALEMAX_PLAYWRIGHT_PATH||'playwright');
-const access={role:'owner',categoryKey:'salemax_sales',assignedNavigation:null,roleNavigation:['dashboard','inbox','leads','contacts','tasks','products-services','sales-commissions','sales-deals','sales-targets','reports','team','settings'],modules:{products:true,courses:false,inbox:true},permissions:{'products.read':true,'products.manage':true},quickReplyCatalog:'products'};
+const access={role:'owner',categoryKey:'7network_sales',assignedNavigation:null,roleNavigation:['dashboard','inbox','leads','contacts','tasks','products-services','sales-commissions','sales-deals','sales-targets','reports','team','settings'],modules:{products:true,courses:false,inbox:true},permissions:{'products.read':true,'products.manage':true},quickReplyCatalog:'products'};
 const profile={id:1,uid:'synthetic-owner',name:'Synthetic Sales',email:'sales@example.invalid',role:'user',plan:JSON.stringify({contact_limit:1000}),plan_expire:String(Date.now()+86400000)};
 const calls=[],errors=[];const root=path.resolve('client/public');
 const server=http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost');if(url.pathname.startsWith('/api/')){calls.push(req.method+' '+url.pathname);res.setHeader('Content-Type','application/json');let data=[];

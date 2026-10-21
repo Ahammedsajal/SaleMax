@@ -13,7 +13,8 @@ async function link(db,{email,apply=false}){
   const [users]=await db.query('SELECT id,uid,name,email,plan,plan_expire,timezone FROM user WHERE LOWER(email)=? FOR UPDATE',[email]);
   if(users.length!==1)fail('UNIQUE_EXISTING_ACCOUNT_REQUIRED');const user=users[0];
   const [[existing]]=await db.query("SELECT t.category_key AS categoryKey,t.id AS tenantId FROM sx_legacy_ownership o JOIN sx_tenants t ON t.id=o.tenant_id WHERE o.source_table='user' AND o.source_id=?",[String(user.id)]);
-  if(existing){if(existing.categoryKey!=='salemax_sales')fail('EXISTING_CATEGORY_MUST_BE_PRESERVED');await db.rollback();return {alreadyLinked:true,categoryKey:existing.categoryKey,tenantId:existing.tenantId};}
+  const category=require('../modules/platform/categories').sevenNetworkSales;
+  if(existing){if(!require('../modules/platform/categories').categoryKeyMatches(existing.categoryKey,category.key))fail('EXISTING_CATEGORY_MUST_BE_PRESERVED');await db.rollback();return {alreadyLinked:true,categoryKey:category.key,tenantId:existing.tenantId};}
   const [[identity]]=await db.query('SELECT id FROM sx_identities WHERE email_normalized=?',[email]);if(identity)fail('EXISTING_IDENTITY_REQUIRES_REVIEW');
   const [[duplicates]]=await db.query('SELECT COUNT(*) AS n FROM user WHERE uid=?',[user.uid]);if(Number(duplicates.n)!==1)fail('AMBIGUOUS_ACCOUNT');
   const current=require('../modules/platform/legacy-plan-assignment').summary(user.plan);if(!current.valid||!current.plan)fail('ASSIGNED_PLAN_REQUIRED');
@@ -24,7 +25,6 @@ async function link(db,{email,apply=false}){
   const [[ceiling]]=await db.query("SELECT v.role_limits AS roleLimits FROM sx_plan_versions v JOIN sx_legacy_plan_contracts c ON c.version_id=v.id WHERE c.legacy_plan_id=? AND v.category_key='training_center' AND v.status='published' ORDER BY v.version DESC LIMIT 1",[legacyId]);
   const baseline=ceiling?parse(ceiling.roleLimits):{owner:1,accountant:0,manager:0,agent:0};
   const roleLimits={owner:1,accountant:baseline.accountant,manager:baseline.manager,team_leader:0,agent:baseline.agent};
-  const category=require('../modules/platform/categories').salemaxSales;
   const definition=require('../modules/platform/plans').definition({categoryKey:category.key,categoryVersion:category.version,capabilities:[...category.capabilities],roleLimits});
   const preview={account:email,userId:user.id,categoryKey:category.key,legacyPlanId:legacyId,expiresAt:new Date(expiry).toISOString(),timezone:user.timezone||'Asia/Qatar',roleLimits,legacyPlanHash:hash(user.plan),legacyAccountUnchanged:true,trainingWorkspacesUnchanged:true};
   if(!apply){await db.rollback();return {...preview,preview:true};}
@@ -36,7 +36,7 @@ async function link(db,{email,apply=false}){
   await db.query('UPDATE sx_plans SET next_version=next_version+1 WHERE id=?',[mapping.planId]);
   const snapshot=JSON.stringify(commercial);
   await db.query('INSERT INTO sx_legacy_plan_contracts(version_id,legacy_plan_id,request_id,actor_identity_id,commercial_snapshot,definition_hash,commercial_hash) VALUES (?,?,?,?,?,?,?)',[versionId,legacyId,requestId,platformOwner.id,snapshot,hash(JSON.stringify(definition)),hash(snapshot)]);
-  await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,country_code,currency,timezone,status) VALUES (?,?,?,'salemax_sales',1,'QA','QAR',?,'active')",[tenantId,'salemax-sales-'+tenantId.slice(0,8),String(user.name||'SaleMaX Sales'),user.timezone||'Asia/Qatar']);
+  await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,country_code,currency,timezone,status) VALUES (?,?,?, ?,1,'QA','QAR',?,'active')",[tenantId,'7network-sales-'+tenantId.slice(0,8),String(user.name||'7Network Sales'),category.key,user.timezone||'Asia/Qatar']);
   await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,?,NULL,'active')",[identityId,email,String(user.name||'SaleMaX Sales')]);
   await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active')",[membershipId,tenantId,identityId]);
   await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(user.id),tenantId,membershipId,hash(user.uid)]);

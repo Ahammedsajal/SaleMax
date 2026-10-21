@@ -58,7 +58,7 @@ test('CRM host context must match tenant and reviewed legacy ownership',async()=
   await assert.rejects(domains.assertLegacyHost(async()=>[],req,'agents','24'),{code:'CRM_DOMAIN_TENANT_MISMATCH'});
 });
 
-test('DNS record checks compare the stored token hash and require SaleMaX CNAME',async()=>{
+test('DNS record checks compare the stored token hash and require 7Network CNAME',async()=>{
   const crypto=require('node:crypto'),token='synthetic-random-token',tokenHash=crypto.createHash('sha256').update(token).digest('hex');
   const healthy=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async name=>{assert.equal(name,'_salemax-verification.crm.example.qa');return [[`salemax-domain-verification=${token}`]];},resolveCname:async()=>['crm.salemax.qa.']});assert.deepEqual(healthy,{healthy:true,txtOk:true,cnameOk:true});
   const stale=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async()=>[],resolveCname:async()=>['other.example.qa.']});assert.deepEqual(stale,{healthy:false,txtOk:false,cnameOk:false});

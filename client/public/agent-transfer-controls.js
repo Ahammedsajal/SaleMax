@@ -26,7 +26,7 @@
       const select=document.createElement('select');select.required=true;select.setAttribute('aria-label',label.textContent);select.style.cssText='padding:10px;border:1px solid #ddd;border-radius:6px;background:white;color:#17212f';
       const empty=document.createElement('option');empty.value='';empty.textContent=text('Choose staff member','اختر موظفاً');select.append(empty);
       for(const member of result.staff){const option=document.createElement('option');option.value=member.identityId;option.textContent=member.name;select.append(option);}
-      const button=document.createElement('button');button.type='submit';button.textContent=text('Transfer chat','تحويل المحادثة');button.style.cssText='padding:10px;border:0;border-radius:6px;background:#a8003b;color:white;cursor:pointer';
+      const button=document.createElement('button');button.type='submit';button.textContent=text('Transfer chat','تحويل المحادثة');button.style.cssText='padding:10px;border:0;border-radius:6px;background:#1768d4;color:white;cursor:pointer';
       const status=document.createElement('div');status.setAttribute('role','status');
       box.append(label,select,button,status);anchor.parentElement.before(box);
       box.onsubmit=async event=>{event.preventDefault();if(!select.value||chat()?.chat_id!==current.chat_id)return;button.disabled=true;

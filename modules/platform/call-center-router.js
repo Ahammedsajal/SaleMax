@@ -56,7 +56,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     if(userData){
       const actor=await legacyPipelineActor.resolve(pool,userData);
       if(actor?.denied)throw Object.assign(new Error(actor.code),{code:actor.code});
-      if(actor?.categoryKey==='salemax_sales'&&actor.canonicalContext){context=actor.canonicalContext;context.timezone=actor.timezone||context.tenant.timezone||'Asia/Kolkata';}
+      if(actor?.categoryKey==='7network_sales'&&actor.canonicalContext){context=actor.canonicalContext;context.timezone=actor.timezone||context.tenant.timezone||'Asia/Kolkata';}
     }
     if(!context)context=await courses.legacyOwnerContext(pool,uid);
     try{
@@ -92,7 +92,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   router.get('/calls/agents',wrap(async(req,res)=>{
     const context=req.callCenterContext;
     const access=decision(context,{capability:'telephony.call-center',permission:'calls.read'});
-    if(context.tenant.categoryKey!=='salemax_sales'||!access.allowed||!['owner','manager','team_leader'].includes(context.membership.role))
+    if(context.tenant.categoryKey!=='7network_sales'||!access.allowed||!['owner','manager','team_leader'].includes(context.membership.role))
       throw Object.assign(new Error('PERMISSION_DENIED'),{code:'PERMISSION_DENIED'});
     const agents=await withDb(async db=>{
       const role=context.membership.role;
@@ -133,11 +133,11 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const cursor=parseCallCursor(req.query.cursor);
     const recordedOnly=req.query.recordedOnly===undefined?'0':req.query.recordedOnly;
     const agentMembershipId=req.query.agentMembershipId;
-    if(!['0','1'].includes(recordedOnly)||agentMembershipId!==undefined&&(typeof agentMembershipId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(agentMembershipId)||context.tenant.categoryKey!=='salemax_sales'))throw Object.assign(new Error('INVALID_CALL_FILTER'),{code:'INVALID_CALL_FILTER',status:400});
+    if(!['0','1'].includes(recordedOnly)||agentMembershipId!==undefined&&(typeof agentMembershipId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(agentMembershipId)||context.tenant.categoryKey!=='7network_sales'))throw Object.assign(new Error('INVALID_CALL_FILTER'),{code:'INVALID_CALL_FILTER',status:400});
     const cursorFilter=cursor?' AND (c.started_at < ? OR (c.started_at = ? AND c.id < ?))':'';
     const recordingFilter=recordedOnly==='1'?" AND r.state='ready' AND r.expires_at>UTC_TIMESTAMP(3)":'';
     const rows=await withDb(async db=>{
-      const salesTeam=['manager','team_leader'].includes(context.membership.role)&&context.tenant.categoryKey==='salemax_sales';
+      const salesTeam=['manager','team_leader'].includes(context.membership.role)&&context.tenant.categoryKey==='7network_sales';
       let teamMembershipIds=[];
       if(salesTeam){
         const teamColumn=context.membership.role==='manager'?'manager_membership_id':'team_leader_membership_id';
@@ -159,7 +159,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
           SELECT 1 FROM sx_telephony_call_legs selected_leg WHERE selected_leg.tenant_id=c.tenant_id AND selected_leg.call_id=c.id AND selected_leg.membership_id=?))`;
         agentFilterArgs=[agentMembershipId,agentMembershipId,agentMembershipId];
       }
-      const outcomeSelect=context.tenant.categoryKey==='salemax_sales'?`(SELECT pa.details FROM pipeline_activity pa WHERE c.lead_uid_hash IS NOT NULL AND pa.uid_hash=c.lead_uid_hash
+      const outcomeSelect=context.tenant.categoryKey==='7network_sales'?`(SELECT pa.details FROM pipeline_activity pa WHERE c.lead_uid_hash IS NOT NULL AND pa.uid_hash=c.lead_uid_hash
         AND pa.lead_id=c.lead_id AND pa.activity_type='contact_outcome'
         AND (CASE WHEN JSON_VALID(pa.details) THEN JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.sourceCallId')) ELSE NULL END)=c.id
         ORDER BY pa.created_at DESC,pa.id DESC LIMIT 1) AS callOutcomeDetails`:'NULL AS callOutcomeDetails';
@@ -194,8 +194,8 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         answeredByName:row.answeredByName||'',answeredByRole:row.answeredByRole||'',startedByName:row.startedByName||'',startedByRole:row.startedByRole||'',
         outcome:shapeCallOutcome(row.callOutcomeDetails),
         recordingState:row.recordingState||'not_recorded',canListenRecording:row.recordingState==='ready'&&new Date(row.recordingExpiresAt).getTime()>Date.now()&&decision(context,{capability:'telephony.call-center',permission:'calls.recording.listen'}).allowed,
-        canCoach:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.write'}).allowed,
-        canViewCoaching:context.tenant.categoryKey==='salemax_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.read'}).allowed,
+        canCoach:context.tenant.categoryKey==='7network_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.write'}).allowed,
+        canViewCoaching:context.tenant.categoryKey==='7network_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.read'}).allowed,
         canControl:context.membership.role==='owner'||context.membership.role==='manager'||salesTeam||row.startedByMembershipId===context.membership.id
           ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1}))};
     });

@@ -22,7 +22,7 @@ test('first-party Sales screens load the shared design tokens before section sty
   for (const { directory, style } of sections) {
     const html = fs.readFileSync(path.join(root, `client/public/${directory}/index.html`), 'utf8');
     const sharedIndex = html.indexOf('/sales-design-tokens.css?v=20261014-sales-ui2');
-    const sectionIndex = html.search(new RegExp(`/${directory}/${style}\\?v=20261014-[^" ]+`));
+    const sectionIndex = html.search(new RegExp(`/${directory}/${style}\\?v=20[0-9]{6}-[^" ]+`));
     assert.ok(sharedIndex >= 0, `${directory} should load the shared token stylesheet`);
     assert.ok(sectionIndex > sharedIndex, `${directory} styles should load after shared tokens`);
   }
@@ -47,7 +47,7 @@ test('Sales section styles use only defined shared design variables', () => {
   }
 });
 
-test('Organization role badges use the shared burgundy and neutral palette', () => {
+test('Organization role badges use the shared galaxy-blue and neutral palette', () => {
   const css = fs.readFileSync(path.join(root, 'client/public/sales-organization/sales-organization.css'), 'utf8');
   assert.match(css, /\.role-badge\.owner\{background:var\(--sx-brand\);color:var\(--sx-surface\)\}/);
   assert.match(css, /\.role-badge\.manager\{background:var\(--sx-brand-pill-bg\);color:var\(--sx-brand-dark\)\}/);
@@ -57,12 +57,12 @@ test('Organization role badges use the shared burgundy and neutral palette', () 
   assert.doesNotMatch(css, /\.role-badge\.(?:manager|team_leader|agent|accountant)\{background:#/i);
 });
 
-test('shared Sales tokens retain the existing burgundy brand and accessibility focus treatment', () => {
-  assert.match(tokens, /--sx-brand:\s*#a8003b/i);
-  assert.match(tokens, /--sx-brand-dark:\s*#85002f/i);
+test('shared Sales tokens use the 7Network galaxy-blue brand and accessible focus treatment', () => {
+  assert.match(tokens, /--sx-brand:\s*#1768d4/i);
+  assert.match(tokens, /--sx-brand-dark:\s*#0d4fae/i);
   assert.match(tokens, /--sx-page-padding:\s*26px 24px 44px/);
   assert.match(tokens, /--sx-page-padding-mobile:\s*17px 13px 28px/);
-  assert.match(tokens, /--sx-focus-ring:\s*rgb\(168 0 59 \/ 28%\)/);
+  assert.match(tokens, /--sx-focus-ring:\s*rgb\(23 104 212 \/ 28%\)/);
   assert.match(tokens, /a:focus-visible[\s\S]*outline:/);
   assert.match(tokens, /prefers-reduced-motion/);
 });
@@ -85,7 +85,7 @@ test('Sales-only workspaces share desktop and mobile page gutters', () => {
 test('Call Center browser chrome and mobile spacing follow the shared Sales theme', () => {
   const html = fs.readFileSync(path.join(root, 'client/public/call-center/index.html'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'client/public/call-center/call-center.css'), 'utf8');
-  assert.match(html, /theme-color" content="#A8003B"/i);
+  assert.match(html, /theme-color" content="#1768d4"/i);
   assert.match(html, /call-center\/call-center\.css\?v=20261014-sales-call-outcome-review1/);
   assert.match(css, /header\{align-items:flex-start\}/);
   assert.match(css, /color:var\(--sx-brand\)/);
@@ -95,7 +95,7 @@ test('Call Center browser chrome and mobile spacing follow the shared Sales them
 test('Tasks page aligns its shared queue layout and browser theme to the Sales workspace', () => {
   const html = fs.readFileSync(path.join(root, 'client/public/tasks/index.html'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'client/public/tasks/tasks.css'), 'utf8');
-  assert.match(html, /theme-color" content="#A8003B"/i);
+  assert.match(html, /theme-color" content="#1768d4"/i);
   assert.match(html, /sales-design-tokens\.css[\s\S]*tasks\/tasks\.css/);
   assert.match(css, /max-width:var\(--sx-content-width\)/);
   assert.match(css, /color:var\(--sx-brand\)/);

@@ -101,7 +101,7 @@ test('task list reports whether another page exists and caps the page to the req
 
 test('active task filters exclude completed history before pagination',async()=>{
   let query;const db={query:async(sql,args)=>{query={sql,args};return [[],[]];}};
-  await tasks.list(db,{...ctx,tenant:{categoryKey:'salemax_sales'}},{scope:'mine',status:'active',taskType:'sales_call'});
+  await tasks.list(db,{...ctx,tenant:{categoryKey:'7network_sales'}},{scope:'mine',status:'active',taskType:'sales_call'});
   assert.match(query.sql,/t\.status IN \('open','in_progress','blocked'\)/);
   assert.match(query.sql,/t\.task_type=\?/);
   assert.ok(query.args.includes('sales_call'));
@@ -110,7 +110,7 @@ test('active task filters exclude completed history before pagination',async()=>
 
 test('task type filters scope scheduled Sales calls and cannot be used by other categories',async()=>{
   let query;const db={query:async(sql,args)=>{query={sql,args};return [[],[]];}};
-  await tasks.list(db,{...ctx,tenant:{categoryKey:'salemax_sales'}},{scope:'mine',taskType:'sales_call'});
+  await tasks.list(db,{...ctx,tenant:{categoryKey:'7network_sales'}},{scope:'mine',taskType:'sales_call'});
   assert.match(query.sql,/t\.task_type=\?/);assert.ok(query.args.includes('sales_call'));
   await assert.rejects(tasks.list(db,{...ctx,tenant:{categoryKey:'training_center'}},{scope:'mine',taskType:'sales_call'}),{code:'INVALID_TASK_FILTER'});
 });
@@ -215,10 +215,10 @@ test('task lead lookup is constrained to the caller workspace and agent assignme
 test('scheduled sales calls require Sales category, linked lead, time and agent assignee',()=>{
   const validate=tasks._private.validateSalesCall,linked={leadId:'33333333-3333-4333-8333-333333333333'},due=new Date('2026-10-14T10:00:00Z'),agent=[{actorType:'agent',actorId:'7',role:'assignee'}];
   assert.throws(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'sales_call',due,'lead',linked,agent),{code:'INVALID_TASK_TYPE',status:403});
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',due,null,null,agent),{code:'INVALID_SALES_CALL_LEAD'});
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',null,'lead',linked,agent),{code:'INVALID_SALES_CALL_DUE_DATE'});
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',due,'lead',linked,[{actorType:'identity',actorId:'member',role:'assignee'}]),{code:'TASK_ASSIGNEE_REQUIRED'});
-  assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',due,'lead',linked,agent));
+  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,null,null,agent),{code:'INVALID_SALES_CALL_LEAD'});
+  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',null,'lead',linked,agent),{code:'INVALID_SALES_CALL_DUE_DATE'});
+  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,'lead',linked,[{actorType:'identity',actorId:'member',role:'assignee'}]),{code:'TASK_ASSIGNEE_REQUIRED'});
+  assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,'lead',linked,agent));
   assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'general',null,null,null,[]));
 });
 
@@ -245,7 +245,7 @@ test('Tasks stays in the existing business shell and supports legacy and canonic
   const taskUi=fs.readFileSync(path.join(root,'client/public/tasks/tasks.js'),'utf8');for(const kind of ['status','priority','type','role','event','notification'])assert.match(taskUi,new RegExp(`label\\('${kind}'`));assert.match(taskUi,/unread_count/);assert.match(taskUi,/lastReadMessageId/);assert.match(taskUi,/loadOlderMessages/);assert.match(taskUi,/loadOlderHistory/);assert.match(taskUi,/loadOlderNotifications/);assert.match(taskUi,/eventsHasMore/);assert.match(taskUi,/notificationsHasMore/);assert.match(taskUi,/latest=1/);assert.match(taskUi,/chatInitial=true;state\.chatHasOlder=false/);assert.match(taskUi,/Completed at/);assert.match(taskUi,/m\.senderName\|\|/);
 });
 
-test('task screen recognizes SaleMaX Arabic locale values including ar and ar-QA',()=>{
+test('task screen recognizes 7Network Arabic locale values including ar and ar-QA',()=>{
   const source=fs.readFileSync(path.join(__dirname,'../client/public/tasks/tasks.js'),'utf8');
   const match=source.match(/ar=\(\)=>\{const language=\(localStorage\.getItem\('language'\)\|\|''\)\.toLowerCase\(\);return language==='ar'\|\|language\.startsWith\('ar-'\)\|\|language\.includes\('arab'\)\}/);
   assert.ok(match,'task page uses the supported Arabic locale forms');

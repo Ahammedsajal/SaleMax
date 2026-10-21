@@ -9,7 +9,7 @@ const pipeline={
   normalizeEmail:value=>typeof value==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())?value.trim().toLowerCase():null,
   createManualLead:async input=>({id:`lead-${input.input.title}`,contactId:`contact-${input.input.title}`}),
 };
-const actor={uid:'internal-owner-1',actorType:'user',actorId:'identity-1',categoryKey:'salemax_sales',tenantId:'tenant-1',role:'owner'};
+const actor={uid:'internal-owner-1',actorType:'user',actorId:'identity-1',categoryKey:'7network_sales',tenantId:'tenant-1',role:'owner'};
 const prospect=(overrides={})=>({name:'Asha Rao',phone:'+91 9876543210',title:'Business account',email:'asha@example.in',expected_value:'1250.50',currency:'INR',agent_email:'agent@example.in',...overrides});
 function fixture({duplicate=false,agent={id:7,uid:'agent-uid',legacyUidHash:crypto.createHash('sha256').update('agent-uid').digest('hex')},createError=null}={}){
   const calls={begin:0,commit:0,rollback:0,release:0,creates:[],queries:[]};
@@ -28,7 +28,7 @@ test('import validates bounded required fields, international phones, amounts an
   assert.throws(()=>normalizeRows(Array.from({length:101},(_,index)=>prospect({phone:`+9198765432${String(index).padStart(2,'0')}`})),pipeline),{code:'INVALID_IMPORT_ROWS'});
 });
 
-test('import rejects non-owner and non-SaleMaX-Sales actors before opening a connection',async()=>{
+test('import rejects non-owner and non-7Network-Sales actors before opening a connection',async()=>{
   const {pool}=fixture();await assert.rejects(importBatch({pool,pipeline,actor:{...actor,role:'manager'},rows:[prospect()]}),{code:'PERMISSION_DENIED'});
   await assert.rejects(importBatch({pool,pipeline,actor:{...actor,categoryKey:'training_center'},rows:[prospect()]}),{code:'PERMISSION_DENIED'});
 });

@@ -73,7 +73,7 @@ test('activity report aggregates and event rows stay inside a manager reporting 
   }
 });
 
-test('SaleMaX Sales journey report aggregates team performance within current agent assignments',async()=>{
+test('7Network Sales journey report aggregates team performance within current agent assignments',async()=>{
   const calls=[];
   const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql,args=[]){calls.push({sql,args});
     if(sql.includes('FROM pipeline_stages'))return [[{stageKey:'new',title:'New',stageType:'open',position:0,total:5,cohortTotal:2}]];
@@ -83,8 +83,8 @@ test('SaleMaX Sales journey report aggregates team performance within current ag
     if(sql.includes("JSON_EXTRACT(pa.details,'$.stageTo')"))return [[{stageKey:'won',total:1}]];
     throw new Error(`Unexpected team journey query: ${sql}`);
   }};
-  const report=await reports.getJourneyReport({pool:{getConnection:async()=>connection},uid:'sales-owner',role:'manager',scopeAgentIds:[4],categoryKey:'salemax_sales',at:'2026-10-13',timezone:'Asia/Kolkata'});
-  assert.equal(report.categoryKey,'salemax_sales');assert.equal(report.summary.newLeads,2);assert.equal(report.agents[0].agentId,4);assert.equal(report.agents[0].salesClosedByAgent,1);
+  const report=await reports.getJourneyReport({pool:{getConnection:async()=>connection},uid:'sales-owner',role:'manager',scopeAgentIds:[4],categoryKey:'7network_sales',at:'2026-10-13',timezone:'Asia/Kolkata'});
+  assert.equal(report.categoryKey,'7network_sales');assert.equal(report.summary.newLeads,2);assert.equal(report.agents[0].agentId,4);assert.equal(report.agents[0].salesClosedByAgent,1);
   for(const {sql,args} of calls.filter(item=>item.sql.includes('pipeline_leads')||item.sql.includes('FROM agents a'))){
     assert.match(sql,/owner_agent_id IN \(\?\)|a\.id IN \(\?\)/,sql);
     assert.ok(args.some(value=>Array.isArray(value)&&value.join(',')==='4'));

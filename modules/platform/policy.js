@@ -113,18 +113,18 @@ function decision(context, { capability, permission, resource, external = false 
   // before category-specific exceptions; old in-process contexts may omit both.
   if(subscription&&(Object.hasOwn(subscription,'categoryKey')||Object.hasOwn(subscription,'categoryVersion'))&&
       (subscription.categoryKey!==category.key||subscription.categoryVersion!==category.version))return {allowed:false,code:'FEATURE_UNAVAILABLE'};
-  const internalRecruitmentOwner = capability === 'hr.recruitment' && category.key === 'salemax_sales' && membership.role === 'owner';
-  // Recruitment is an owner-only internal SaleMaX workspace feature, not a customer plan add-on.
+  const internalRecruitmentOwner = capability === 'hr.recruitment' && category.key === '7network_sales' && membership.role === 'owner';
+  // Recruitment is an owner-only internal 7Network workspace feature, not a customer plan add-on.
   // Keep the tenant's active-plan requirement while avoiding mutation of its published plan version.
   if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || (!internalRecruitmentOwner && !subscription.capabilities.includes(capability))) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
-  // Internal SaleMaX accountants work from Finance and payout records. The
+  // Internal 7Network accountants work from Finance and payout records. The
   // legacy Sales Lead Pipeline does not provide the finance-only detail view.
   // Keep Training Center billing-linked lead access unchanged.
-  if (category.key === 'salemax_sales' && membership.role === 'accountant' &&
+  if (category.key === '7network_sales' && membership.role === 'accountant' &&
       ['leads.read', 'contacts.read'].includes(permission)) {
     return { allowed: false, code: 'PERMISSION_DENIED' };
   }
-  const canManageTeam = ['salemax_sales','training_center'].includes(category.key) &&
+  const canManageTeam = ['7network_sales','training_center'].includes(category.key) &&
     membership.role === 'manager' && permission === 'team.invite' &&
     (!Array.isArray(membership.customPermissions) || membership.customPermissions.includes(permission));
   const scope = canManageTeam ? 'tenant' : scopeFor(membership, permission);

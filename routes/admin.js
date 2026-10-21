@@ -96,7 +96,7 @@ router.post("/login", async (req, res) => {
 });
 
 // The existing legacy administrator token remains the app's compatibility
-// credential. Linked SaleMaX platform identities also need their verified
+// credential. Linked 7Network platform identities also need their verified
 // canonical MFA session for every authenticated admin-panel API request.
 const {createSuperAdminMfaGate}=require('../middlewares/super-admin-mfa-gate');
 router.use(createSuperAdminMfaGate({runQuery:query,key:()=>process.env.JWTKEY}));

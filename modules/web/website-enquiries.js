@@ -109,7 +109,7 @@ async function submitOnce(
       FROM sx_tenants t JOIN sx_legacy_ownership o ON o.tenant_id=t.id AND o.source_table='user'
       JOIN user u ON CONVERT(CAST(u.id AS CHAR) USING utf8mb4) COLLATE utf8mb4_bin=CONVERT(o.source_id USING utf8mb4) COLLATE utf8mb4_bin JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
       JOIN sx_identities i ON i.id=m.identity_id
-      WHERE t.category_key='salemax_sales' AND t.status='active' AND m.role='owner' AND m.status='active' AND i.status='active'
+      WHERE t.category_key='7network_sales' AND t.status='active' AND m.role='owner' AND m.status='active' AND i.status='active'
       AND t.slug=? LIMIT 2 FOR UPDATE`,
       [
         process.env.SALEMAX_WEBSITE_SALES_TENANT_SLUG ||
@@ -147,7 +147,7 @@ async function submitOnce(
         sourceType: "public_form",
         qualificationData: {
           source: "website",
-          referralSource: "SaleMaX website",
+          referralSource: "7Network website",
           preferredContactMethod: "email",
         },
       },

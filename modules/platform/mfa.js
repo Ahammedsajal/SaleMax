@@ -33,7 +33,7 @@ function createMfa({key}){
       await db.query(`INSERT INTO sx_mfa_credentials(identity_id,secret_encrypted,nonce,auth_tag,window_end)
         VALUES (?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 15 MINUTE)) ON DUPLICATE KEY UPDATE secret_encrypted=VALUES(secret_encrypted),nonce=VALUES(nonce),auth_tag=VALUES(auth_tag)`,[id,encrypted,nonce,tag]);
       await db.commit();const encoded=base32(secret);
-      return {secret:encoded,uri:'otpauth://totp/'+encodeURIComponent('SaleMaX:'+ctx.identity.displayName)+'?'+new URLSearchParams({secret:encoded,issuer:'SaleMaX',algorithm:'SHA1',digits:'6',period:'30'}),enrolled:false};
+      return {secret:encoded,uri:'otpauth://totp/'+encodeURIComponent('7Network:'+ctx.identity.displayName)+'?'+new URLSearchParams({secret:encoded,issuer:'7Network',algorithm:'SHA1',digits:'6',period:'30'}),enrolled:false};
     }catch(error){await db.rollback();throw error;}
   }
   async function verify(db,raw,{code,recoveryCode}={}){

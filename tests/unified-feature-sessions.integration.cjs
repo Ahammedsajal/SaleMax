@@ -107,7 +107,7 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  // Category contract mismatches must deny even shared-capability APIs.
  const entitlementLoader=require('../modules/platform/plans');
  const correctEntitlement=await entitlementLoader.loadEntitlements(pool,tenant);assert.equal(correctEntitlement.categoryKey,'training_center');
- for(const patch of [{key:'salemax_sales',version:1},{key:'training_center',version:2}]){
+ for(const patch of [{key:'7network_sales',version:1},{key:'training_center',version:2}]){
   await pool.query('UPDATE sx_plan_versions SET category_key=?,category_version=? WHERE id=?',[patch.key,patch.version,version]);
   assert.equal(await entitlementLoader.loadEntitlements(pool,tenant),null);
   for(const kind of ['bearer','cookie'])for(const endpoint of ['/api/workspace/courses','/api/workspace/finance/receipts','/api/workspace/phonebook/bootstrap']){const denied=await request('owner',kind,endpoint);assert.ok([403,409].includes(denied.status),JSON.stringify({endpoint,denied}));assert.equal(denied.code,'FEATURE_UNAVAILABLE');assert.equal(denied.success,false);}
@@ -285,8 +285,8 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  // even when a category change leaves historical training records behind.
  const salesCategory=require('../modules/platform/categories').salemaxSales;
  const salesLimits=JSON.stringify({owner:1,accountant:3,manager:3,team_leader:3,agent:10});
- await pool.query("UPDATE sx_tenants SET category_key='salemax_sales' WHERE id=?",[tenant]);
- await pool.query("UPDATE sx_plan_versions SET category_key='salemax_sales',capabilities=?,role_limits=? WHERE id=?",[JSON.stringify(salesCategory.capabilities),salesLimits,version]);
+ await pool.query("UPDATE sx_tenants SET category_key='7network_sales' WHERE id=?",[tenant]);
+ await pool.query("UPDATE sx_plan_versions SET category_key='7network_sales',capabilities=?,role_limits=? WHERE id=?",[JSON.stringify(salesCategory.capabilities),salesLimits,version]);
  await pool.query('UPDATE sx_plan_assignments SET role_limits=? WHERE tenant_id=?',[salesLimits,tenant]);
  const salesWorkspace=await leadWorkspace.forOwner(pool,people.owner.uid);assert.equal(salesWorkspace.profile,'shared');assert.deepEqual(salesWorkspace.workflows,{courses:false,forms:false,saleReviews:false});
  await pool.query("UPDATE sx_memberships SET status='active',assigned_navigation=JSON_ARRAY('inbox','contacts','products-services') WHERE tenant_id=?",[tenant]);
@@ -294,8 +294,8 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  const pipelineActors=require('../modules/platform/legacy-pipeline-actor');
  assert.equal((await pipelineActors.resolve(pool,salesOwnerRow)).code,'PERMISSION_DENIED');
  await pool.query("UPDATE sx_memberships SET assigned_navigation=JSON_ARRAY_APPEND(assigned_navigation,'$', 'leads') WHERE id=?",[people.owner.membership]);
- const mappedSalesOwner=await pipelineActors.resolve(pool,salesOwnerRow);assert.equal(mappedSalesOwner.categoryVersion,1);assert.equal(mappedSalesOwner.canonicalContext.category.key,'salemax_sales');assert.equal(pipelineActors.canUsePipeline(mappedSalesOwner),true);
- const ownerPipeline=await request('owner','bearer','/api/pipeline/settings');assert.equal(ownerPipeline.status,200,JSON.stringify(ownerPipeline));assert.equal(ownerPipeline.data.categoryKey,'salemax_sales');
+ const mappedSalesOwner=await pipelineActors.resolve(pool,salesOwnerRow);assert.equal(mappedSalesOwner.categoryVersion,1);assert.equal(mappedSalesOwner.canonicalContext.category.key,'7network_sales');assert.equal(pipelineActors.canUsePipeline(mappedSalesOwner),true);
+ const ownerPipeline=await request('owner','bearer','/api/pipeline/settings');assert.equal(ownerPipeline.status,200,JSON.stringify(ownerPipeline));assert.equal(ownerPipeline.data.categoryKey,'7network_sales');
  await verifySharedTasks('sales');
  await pool.query("UPDATE sx_memberships SET assigned_navigation=JSON_ARRAY('inbox','contacts','products-services','leads') WHERE id=?",[people.owner.membership]);
  for(const kind of ['bearer','cookie'])for(const role of ['owner','manager','agent']){

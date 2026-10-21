@@ -5,7 +5,7 @@ const policy=require('../modules/platform/sales-commission-policy');
 const {getCategory}=require('../modules/platform/categories');
 
 function context(role='owner'){
-  const category=getCategory('salemax_sales',1),tenantId='11111111-1111-4111-8111-111111111111';
+  const category=getCategory('7network_sales',1),tenantId='11111111-1111-4111-8111-111111111111';
   return {audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:category.key,categoryVersion:category.version},
     membership:{id:'22222222-2222-4222-8222-222222222222',tenantId,role,status:'active'},identity:{id:'33333333-3333-4333-8333-333333333333'},
     category,subscription:{status:'active',capabilities:[...category.capabilities]}};

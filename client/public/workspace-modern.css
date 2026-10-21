@@ -1,4 +1,4 @@
-/* Existing SaleMaX screens: shared visual language, no authority or flow changes. */
+/* Existing 7Network screens: shared visual language, no authority or flow changes. */
 html[data-sx-modern] {
   --sx-brand:#ad003f;--sx-brand-dark:#890031;--sx-brand-soft:#fff1f6;
   --sx-ink:#182537;--sx-muted:#64748b;--sx-subtle:#728196;--sx-label:#344256;
@@ -29,7 +29,7 @@ html[data-sx-modern=shell] [data-sx-sidebar-list] .MuiListItemText-primary{font-
 html[data-sx-modern=shell] [data-sx-sidebar-list] .MuiListItemIcon-root{min-width:31px!important;color:#8190a4}
 html[data-sx-modern=shell] [data-sx-sidebar-list] svg{width:19px;height:19px}
 html[data-sx-modern=shell] [data-sx-sidebar-list] .MuiListItemButton-root:hover{background:#f4f7fb!important}
-html[data-sx-modern=shell] [data-sx-sidebar-list] .Mui-selected{background:#faeaf1!important;color:#a8003b!important;box-shadow:inset 3px 0 #ad003f}
+html[data-sx-modern=shell] [data-sx-sidebar-list] .Mui-selected{background:#eaf4ff!important;color:#1768d4!important;box-shadow:inset 3px 0 #ad003f}
 html[data-sx-modern=shell][dir=rtl] [data-sx-sidebar-list] .Mui-selected{box-shadow:inset -3px 0 #ad003f}
 html[data-sx-modern=shell] [data-sx-sidebar-list] .Mui-selected .MuiListItemIcon-root{color:#ad003f}
 html[data-sx-modern=shell] [data-sx-nav-section]{margin:20px 12px 6px!important;font-size:10px!important;line-height:1.6;letter-spacing:.07em;text-transform:uppercase;color:#8a96a8;font-weight:700}
@@ -56,14 +56,14 @@ html[data-sx-page=send-campaign] .MuiStepper-root,html[data-sx-page=create-meta-
 html[data-sx-page=send-campaign] .MuiStepIcon-root.Mui-active,html[data-sx-page=create-meta-template] .MuiStepIcon-root.Mui-active{color:#ac0040;filter:drop-shadow(0 2px 5px #ac004020)}
 html[data-sx-page=send-campaign] .MuiStepIcon-root.Mui-completed,html[data-sx-page=create-meta-template] .MuiStepIcon-root.Mui-completed{color:#237b64}
 html[data-sx-page=send-campaign] .MuiStepLabel-label,html[data-sx-page=create-meta-template] .MuiStepLabel-label{font-size:11px;color:#7a899f;font-weight:550}
-html[data-sx-page=send-campaign] .MuiStepLabel-label.Mui-active,html[data-sx-page=create-meta-template] .MuiStepLabel-label.Mui-active{color:#a8003b;font-weight:700}
+html[data-sx-page=send-campaign] .MuiStepLabel-label.Mui-active,html[data-sx-page=create-meta-template] .MuiStepLabel-label.Mui-active{color:#1768d4;font-weight:700}
 html[data-sx-page=send-campaign] .MuiPaper-root:not(.MuiDrawer-paper):not(.MuiMenu-paper):not(.MuiPopover-paper),html[data-sx-page=create-meta-template] .MuiPaper-root:not(.MuiDrawer-paper):not(.MuiMenu-paper):not(.MuiPopover-paper){border:1px solid #e3e9f2;box-shadow:0 4px 18px #263e6005}
 html[data-sx-page=campaign-dashboard] .MuiTableContainer-root{border:1px solid #e1e9f3;border-radius:16px}
 html[data-sx-page=campaign-dashboard] .MuiCard-root{border:1px solid #e2e9f2;box-shadow:0 4px 18px #263e6005;border-radius:16px}
 html[data-sx-page=wa-qr-connect] .MuiCard-root{border:1px solid #e0e8f3;border-radius:18px;box-shadow:0 5px 20px #243b5a05}
 html[data-sx-page=wa-meta-manual] .MuiTabs-root{background:#eff3f8;border-radius:11px;padding:4px;min-height:44px}
 html[data-sx-page=wa-meta-manual] .MuiTab-root{border-radius:8px;font-size:12px;text-transform:none;min-height:38px}
-html[data-sx-page=wa-meta-manual] .MuiTab-root.Mui-selected{background:#fff;box-shadow:0 2px 5px #273e5d12;color:#a8003b}
+html[data-sx-page=wa-meta-manual] .MuiTab-root.Mui-selected{background:#fff;box-shadow:0 2px 5px #273e5d12;color:#1768d4}
 html[data-sx-page=wa-meta-manual] .MuiTabs-indicator{display:none}
 /* Maintained screen surfaces. Keep financial/content layout semantics intact. */
 html[data-sx-modern] :is(.workspace,.dashboard){max-width:1440px;margin-inline:auto;padding:30px 32px 48px}
@@ -76,7 +76,7 @@ html[data-sx-modern] .metric-value{letter-spacing:-.045em;font-size:30px;font-va
 html[data-sx-modern] :is(.metric-label,.metric-note){font-size:12px}
 html[data-sx-modern] :is(.tabs,.workspace nav.tabs){border:1px solid #e2e8f0;border-radius:13px;padding:5px;gap:4px;background:#ebf0f6;margin:10px 0 24px;scrollbar-width:thin}
 html[data-sx-modern] .tabs button{min-height:39px;padding:10px 15px;border:0;border-radius:9px;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:none;color:#67758b}
-html[data-sx-modern] .tabs button[aria-selected=true]{background:#fff;color:#a8003b;box-shadow:0 2px 6px #243c5b12}
+html[data-sx-modern] .tabs button[aria-selected=true]{background:#fff;color:#1768d4;box-shadow:0 2px 6px #243c5b12}
 html[data-sx-modern] :is(.workspace,.dashboard) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),select,textarea){min-height:42px;background:#fff;border:1px solid #d6dfeb;border-radius:10px;font-size:13px;padding:10px 12px;color:#253349}
 html[data-sx-modern] :is(.workspace,.dashboard) :is(button,.button){border-radius:10px;min-height:40px;font-size:12px;font-weight:600;padding:10px 15px}
 html[data-sx-modern] :is(.workspace,.dashboard) :is(button.primary,button[type=submit],.btn-primary){background:#ad003f;color:white;border-color:#ad003f;box-shadow:0 3px 8px #ad003f18}
@@ -103,7 +103,7 @@ html[data-sx-modern] .commission-summary-card dl>div{display:flex;flex-direction
 html[data-sx-modern] .commission-summary-card dt{font-size:11px;color:#6b7b92}
 html[data-sx-modern] .commission-summary-card dd{margin:0;font-size:23px;line-height:1.2;font-weight:700;letter-spacing:-.04em;color:#26364d;overflow-wrap:anywhere}
 html[data-sx-modern] .commission-summary-card dl>div:nth-child(2){background:#fdf5f8;border-color:#f0dbe4}
-html[data-sx-modern] .commission-summary-card dl>div:nth-child(2) dd{color:#a8003b}
+html[data-sx-modern] .commission-summary-card dl>div:nth-child(2) dd{color:#1768d4}
 html[data-sx-modern] .commission-summary-card dl>div:nth-child(3){background:#f2faf7;border-color:#daeee4}
 html[data-sx-modern] .commission-summary-card dl>div:nth-child(3) dd{color:#197455}
 html[data-sx-modern] #separationNote{padding-bottom:18px;border-bottom:1px solid #edf1f6}
@@ -149,7 +149,7 @@ html[data-sx-module=sales-audit] .event-heading h2{font-size:14px;font-family:Ro
 html[data-sx-module=sales-audit] .event-heading time{font-size:11px;padding:5px 8px;background:#f4f7fb;border-radius:6px;color:#74829a}
 html[data-sx-module=sales-audit] .event-meta{font-size:12px;line-height:1.7;gap:18px}
 html[data-sx-module=sales-audit] details{margin-top:15px;border-top:1px solid #edf1f6;padding-top:12px}
-html[data-sx-module=sales-audit] summary{cursor:pointer;font-size:12px;color:#a8003b;font-weight:600}
+html[data-sx-module=sales-audit] summary{cursor:pointer;font-size:12px;color:#1768d4;font-weight:600}
 /* Calls and tasks: status-led cards, clear work-queue controls. */
 html[data-sx-module=call-center] .cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:22px}
 html[data-sx-module=call-center] .cards .card{padding:21px;min-height:155px;border:1px solid #e0e7f0;border-radius:16px;background:#fff;box-shadow:0 4px 18px #293f6104}
@@ -159,12 +159,12 @@ html[data-sx-module=call-center] .cards .card small{font-size:11px;line-height:1
 html[data-sx-module=call-center] #notice:not(:empty){border-inline-start:3px solid #ddb56b;background:#fffdf8;color:#7e693f}
 html[data-sx-module=tasks] .app{max-width:1440px;margin-inline:auto;padding:30px 32px 48px}
 html[data-sx-module=tasks] .app>header{margin-bottom:24px}
-html[data-sx-module=tasks] .app>header small{font-size:10px;letter-spacing:.12em;color:#a8003b;font-weight:700}
+html[data-sx-module=tasks] .app>header small{font-size:10px;letter-spacing:.12em;color:#1768d4;font-weight:700}
 html[data-sx-module=tasks] .app>header p{font-size:13px;color:#74839a}
 html[data-sx-module=tasks] .app>nav{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px;background:#fff;border:1px solid #e2e9f2;border-radius:14px;margin-bottom:20px}
 html[data-sx-module=tasks] .filters{gap:4px;background:#f2f5fa;padding:4px;border-radius:10px}
 html[data-sx-module=tasks] [data-scope]{border:0;border-radius:7px;background:transparent;color:#6b7c92;padding:9px 13px}
-html[data-sx-module=tasks] [data-scope].active{background:#fff;color:#a8003b;box-shadow:0 2px 5px #223c5a10}
+html[data-sx-module=tasks] [data-scope].active{background:#fff;color:#1768d4;box-shadow:0 2px 5px #223c5a10}
 html[data-sx-module=tasks] .task-list>.empty{padding:60px 20px;text-align:center;background:#fff;border-radius:16px}
 html[data-sx-module=tasks] .task-card{padding:20px;border-radius:15px;border-color:#e3eaf3;box-shadow:0 3px 14px #273b5b04}
 html[data-sx-module=tasks] .pagination{justify-content:space-between;border-top:1px solid #e1e8f2;padding-top:18px;margin-top:24px;font-size:12px;color:#8190a5}

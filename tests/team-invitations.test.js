@@ -50,7 +50,7 @@ test('direct account mobile validation accepts presentation formatting and rejec
   for(const mobile of ['97450123456','+974abc50123456','+00012345678','+974/50123456'])await assert.rejects(team.create(pool,'owner',{...input,mobile}),{code:'INVALID_MOBILE'});
 });
 
-test('staff invitation UI is integrated into the existing single SaleMaX app shell',()=>{
+test('staff invitation UI is integrated into the existing single 7Network app shell',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   const js=fs.readFileSync(path.join(__dirname,'../client/public/team-invitations.js'),'utf8');
   const router=fs.readFileSync(path.join(__dirname,'../modules/platform/team-invitation-router.js'),'utf8');

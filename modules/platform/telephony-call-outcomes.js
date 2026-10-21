@@ -7,7 +7,7 @@ const {decision}=require('./policy');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 
 function normalizeInput(input,{categoryKey}={}){
-  const outcomes=new Set(['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested',...(categoryKey==='salemax_sales'?['do_not_call']:[])]);
+  const outcomes=new Set(['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested',...(categoryKey==='7network_sales'?['do_not_call']:[])]);
   if(!input||typeof input!=='object'||Array.isArray(input)||!outcomes.has(input.outcome))fail('INVALID_CALL_OUTCOME');
   if(input.followUpRequired!==undefined&&typeof input.followUpRequired!=='boolean')fail('INVALID_CALL_OUTCOME');
   if(input.followUpRequired&&typeof input.nextFollowUpAt!=='string')fail('INVALID_CALL_OUTCOME');
@@ -39,7 +39,7 @@ async function actorForMembership(db,pool,context){
     actor=await pipelineActors.resolve(pool,rows[0]);
   }
   if(!actor||actor.denied)fail(actor?.code||'BUSINESS_LINK_INVALID');
-  if(actor.categoryKey!=='salemax_sales'||actor.tenantId!==context.tenant.id||actor.membershipId!==context.membership.id
+  if(actor.categoryKey!=='7network_sales'||actor.tenantId!==context.tenant.id||actor.membershipId!==context.membership.id
     ||actor.identityId!==context.identity.id||actor.role!==role)fail('BUSINESS_LINK_INVALID');
   return actor;
 }
@@ -59,7 +59,7 @@ function createTelephonyCallOutcomes(pool,{pipelineService=pipeline,scopeCall=ca
     const data=normalizeInput(input,{categoryKey:actor.categoryKey});
     await pipelineService.updateLead({uid:actor.uid,id:call.leadId,input:data,actorType:actor.actorType,
       actorId:actor.actorId,role:actor.role,agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,categoryKey:actor.categoryKey,
-      sourceCallId:context.tenant.categoryKey==='salemax_sales'?callId:null},pool);
+      sourceCallId:context.tenant.categoryKey==='7network_sales'?callId:null},pool);
     return {callId,leadId:call.leadId,outcome:data.outcome,followUpRequired:data.followUpRequired===true};
   }};
 }

@@ -13,7 +13,7 @@ function ownerNavigation(){
   return navigation.navigationFor(context).map(item=>item.key);
 }
 
-test('SaleMaX Sales owner has a permission-backed Applications & CVs sidebar entry',()=>{
+test('7Network Sales owner has a permission-backed Applications & CVs sidebar entry',()=>{
   const sidebar=fs.readFileSync(path.join(__dirname,'../client/public/training-sidebar.js'),'utf8');
   assert.ok(ownerNavigation().includes('recruitment'));
   assert.match(sidebar,/membershipRole==='owner'\?\[\['recruitment','Candidate Applications','طلبات التوظيف','recruitment'\]\]:\[\]/);

@@ -50,7 +50,7 @@ function mountPublicWebsite(app, { pool, key, origin }) {
         .json({
           success: true,
           ...result,
-          msg: "Thank you. Your enquiry is with the SaleMaX sales team.",
+          msg: "Thank you. Your enquiry is with the 7Network sales team.",
         });
     } catch (error) {
       next(error);

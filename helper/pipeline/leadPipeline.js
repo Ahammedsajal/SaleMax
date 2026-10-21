@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const moment = require("moment-timezone");
 const applicationLeadProfile = require("../../modules/platform/training-application-lead-profile");
 const leadFilters = require('./lead-filters');
+const { categoryKeyMatches } = require('../../modules/platform/categories');
 let defaultPool;
 function getPromisePool(source) {
   const value=source||(defaultPool||(defaultPool=require("../../database/config")));
@@ -623,7 +624,7 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezo
        ORDER BY l.last_activity_at DESC, l.created_at DESC LIMIT ? OFFSET ?`,
       [...values, limit, offset],
     );
-    if(categoryKey==='salemax_sales'&&leads.length){
+    if(categoryKeyMatches(categoryKey,'7network_sales')&&leads.length){
       const [suppressed]=await connection.query(`SELECT DISTINCT lead_id AS leadId FROM pipeline_activity
         WHERE uid_hash=? AND lead_id IN (?) AND activity_type='contact_outcome' AND summary='Contact outcome: do_not_call'`,
       [uidHash,leads.map(lead=>lead.id)]);
@@ -1191,7 +1192,7 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
     }
     const requestedFollowUp=input.nextFollowUpAt===undefined?undefined:inputDbDate(input.nextFollowUpAt);
     if (requestedFollowUp !== undefined) add("next_follow_up_at", requestedFollowUp);
-    const outcomes=['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested',...(categoryKey==='salemax_sales'?['do_not_call']:[])];
+    const outcomes=['no_answer','connected','interested','not_interested','follow_up_scheduled','wrong_number','requested_call','sale_requested',...(categoryKeyMatches(categoryKey,'7network_sales')?['do_not_call']:[])];
     let contactOutcome=null;
     if(input.outcome!==undefined){
       if(!outcomes.includes(input.outcome)){const error=new Error('Choose a valid contact outcome.');error.status=400;throw error;}

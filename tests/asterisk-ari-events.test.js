@@ -19,7 +19,7 @@ test('inbound DID Stasis arguments normalize digits-only DIDs and reject invalid
 });
 const asteriskEventsRuntime = require('../modules/platform/asterisk-ari-events-worker-runtime');
 
-test('ARI event worker starts only outside local mode with explicit opt-in and is part of the SaleMaX app lifecycle', () => {
+test('ARI event worker starts only outside local mode with explicit opt-in and is part of the 7Network app lifecycle', () => {
   let calls = 0;
   let actual;
   const spawnProcess = (...args) => { calls++; actual = args; return { pid: 123 }; };

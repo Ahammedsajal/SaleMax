@@ -12,9 +12,9 @@
 #sx-finance-screen .sx-modern-composer legend:before{content:attr(data-step)}
 #sx-finance-screen .sx-modern-composer label{font-weight:500;font-size:12px;color:#3c4b60;gap:7px}
 #sx-finance-screen .sx-modern-composer input:not([type=radio]),#sx-finance-screen .sx-modern-composer select,#sx-finance-screen .sx-modern-composer textarea{border-radius:9px;border-color:#dbe1ea;min-height:43px;font-size:13px;background:#fff;padding:10px 12px;transition:border-color .15s,box-shadow .15s}
-#sx-finance-screen .sx-modern-composer input:focus,#sx-finance-screen .sx-modern-composer select:focus,#sx-finance-screen .sx-modern-composer textarea:focus{outline:none;border-color:#a8003b;box-shadow:0 0 0 3px #a8003b0c}
+#sx-finance-screen .sx-modern-composer input:focus,#sx-finance-screen .sx-modern-composer select:focus,#sx-finance-screen .sx-modern-composer textarea:focus{outline:none;border-color:#1768d4;box-shadow:0 0 0 3px #1768d40c}
 #sx-finance-screen .sx-modern-composer textarea{min-height:70px}
-#sx-finance-screen .sx-modern-composer input[type=radio]{width:17px;height:17px;min-height:0;margin:0;accent-color:#a8003b}
+#sx-finance-screen .sx-modern-composer input[type=radio]{width:17px;height:17px;min-height:0;margin:0;accent-color:#1768d4}
 #sx-finance-screen .sx-modern-composer fieldset>.actions{margin:0 0 18px;gap:12px}
 #sx-finance-screen .sx-modern-composer fieldset>.actions label{display:flex;align-items:center;gap:8px;border:1px solid #e1e6ee;padding:9px 12px;border-radius:9px;background:#fafbfd}
 #sx-finance-screen .sx-modern-composer fieldset>.actions label:has(input:checked){background:#fff6f9;border-color:#e9bbcc;color:#94113e}
@@ -24,9 +24,9 @@
 #sx-finance-screen .sx-modern-composer .sx-course-line{grid-template-columns:minmax(0,2fr) minmax(105px,1fr) minmax(85px,.7fr) auto;gap:9px;padding:14px 0}
 #sx-finance-screen .sx-modern-composer [data-remove-course]{font-size:11px;padding:6px;min-height:36px;color:#946374;border-color:transparent;background:#fff5f8}
 #sx-finance-screen .sx-modern-composer .sx-course-line output{font-size:11px;padding:8px 10px;border-radius:7px;background:#f7f9fc}
-#sx-finance-screen .sx-modern-composer [data-add-course]{color:#a8003b;border-style:dashed;border-color:#dcb0c0;margin-top:10px;font-size:12px}
+#sx-finance-screen .sx-modern-composer [data-add-course]{color:#1768d4;border-style:dashed;border-color:#aed0f5;margin-top:10px;font-size:12px}
 #sx-finance-screen .sx-modern-composer .sx-invoice-totals{font-size:12px;gap:15px;padding-top:17px}
-#sx-finance-screen .sx-modern-composer .sx-invoice-totals strong{color:#a8003b}
+#sx-finance-screen .sx-modern-composer .sx-invoice-totals strong{color:#1768d4}
 #sx-finance-screen .sx-modern-composer table{min-width:0;table-layout:fixed}
 #sx-finance-screen .sx-modern-composer td,#sx-finance-screen .sx-modern-composer th{overflow-wrap:anywhere;white-space:normal}
 #sx-finance-screen .sx-composer-summary{grid-column:2;grid-row:1/5;position:sticky;top:126px;background:#fff;border:1px solid #e2e7ef;border-radius:15px;padding:20px;min-width:0}
@@ -36,7 +36,7 @@
 #sx-finance-screen .sx-composer-billto strong{font-size:14px}
 #sx-finance-screen .sx-composer-total{display:grid;gap:8px;padding:20px 16px;background:#fff5f8;border:1px solid #f1d7e1;border-radius:12px;margin:8px 0 18px}
 #sx-finance-screen .sx-composer-total small{font-size:11px;color:#944661}
-#sx-finance-screen .sx-composer-total strong{font-size:24px;letter-spacing:-.5px;color:#a8003b;overflow-wrap:anywhere}
+#sx-finance-screen .sx-composer-total strong{font-size:24px;letter-spacing:-.5px;color:#1768d4;overflow-wrap:anywhere}
 #sx-finance-screen .sx-composer-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px;color:#7b8799}
 #sx-finance-screen .sx-composer-meta b{text-align:end;color:#3c4b60;font-weight:500;overflow-wrap:anywhere}
 #sx-finance-screen .sx-composer-summary>.muted{font-size:11px;border-top:1px solid #edf0f5;padding-top:15px;margin-top:19px}
@@ -44,10 +44,10 @@
 #sx-finance-screen .sx-modern-composer form>.error,#sx-finance-screen .sx-modern-composer form>.notice{grid-column:1/-1;margin:0}
 #sx-finance-screen .sx-modern-composer .sx-invoice-editor-actions{grid-column:1/-1;position:sticky;bottom:-18px;z-index:4;background:#fff;padding:16px 22px;margin:0 -28px -18px;box-shadow:0 -6px 20px #10182805;border-top:1px solid #e6eaf1;align-items:center}
 #sx-finance-screen .sx-modern-composer .sx-invoice-editor-actions button{min-width:105px;font-size:13px;min-height:43px}
-#sx-finance-screen .sx-modern-composer .sx-invoice-editor-actions button.primary{min-width:145px;box-shadow:0 4px 12px #a8003b1a}
+#sx-finance-screen .sx-modern-composer .sx-invoice-editor-actions button.primary{min-width:145px;box-shadow:0 4px 12px #1768d41a}
 #sx-finance-screen .sx-customer-picker{position:relative;margin-bottom:16px}
 #sx-finance-screen .sx-customer-search{display:flex;align-items:center;border:1px solid #dbe1ea;border-radius:9px;background:#fff;padding-inline-start:12px;color:#7e8b9e}
-#sx-finance-screen .sx-customer-search:focus-within{border-color:#a8003b;box-shadow:0 0 0 3px #a8003b0c}
+#sx-finance-screen .sx-customer-search:focus-within{border-color:#1768d4;box-shadow:0 0 0 3px #1768d40c}
 #sx-finance-screen .sx-customer-search input{border:0!important;box-shadow:none!important;background:transparent!important;flex:1;width:0}
 #sx-finance-screen .sx-customer-search button{border:0;min-height:39px;background:transparent;border-inline-start:1px solid #edf0f5;border-radius:0 8px 8px 0;padding:5px 12px}
 #sx-finance-screen .sx-customer-options{position:absolute;top:69px;inset-inline:0;z-index:10;background:white;border:1px solid #dbe1ea;border-radius:12px;padding:5px;box-shadow:0 14px 40px #10182825;max-height:290px;overflow:auto}
@@ -56,7 +56,7 @@
 #sx-finance-screen .sx-customer-options>button:hover,#sx-finance-screen .sx-customer-options>button[aria-selected=true]{background:#fff4f8}
 #sx-finance-screen .sx-customer-options>button>span:nth-child(2){flex:1;min-width:0;display:grid;gap:5px}
 #sx-finance-screen .sx-customer-options small{font-size:11px;color:#7e8b9e;overflow-wrap:anywhere}
-#sx-finance-screen .sx-customer-avatar{width:34px;height:34px;border-radius:10px;background:#fbe8ef;color:#a8003b;display:grid;place-items:center;flex-shrink:0;font-weight:600}
+#sx-finance-screen .sx-customer-avatar{width:34px;height:34px;border-radius:10px;background:#e8f2ff;color:#1768d4;display:grid;place-items:center;flex-shrink:0;font-weight:600}
 #sx-finance-screen .sx-selected-customer{display:flex;gap:11px;align-items:center;padding:12px;background:#f7faf9;border:1px solid #dcece5;border-radius:10px;margin-top:12px}
 #sx-finance-screen .sx-selected-customer>div{flex:1;min-width:0;display:grid;gap:4px}
 #sx-finance-screen .sx-selected-customer strong{font-size:13px;overflow-wrap:anywhere}

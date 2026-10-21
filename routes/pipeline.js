@@ -332,7 +332,7 @@ router.get('/reports/leads',async(req,res)=>{
 });
 
 router.get('/reports/journey',async(req,res)=>{
-  try{const pool=require('../database/config.js').promise();if(req.pipelineActor.categoryKey!=='salemax_sales')await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  try{const pool=require('../database/config.js').promise();if(req.pipelineActor.categoryKey!=='7network_sales')await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){fail(res,error);}
 });
 
@@ -415,7 +415,7 @@ router.post("/leads", async (req, res) => {
   } catch (error) { fail(res, error); }
 });
 
-// Internal SaleMaX Sales lead imports are intentionally restricted to the
+// Internal 7Network Sales lead imports are intentionally restricted to the
 // business owner. Validate the complete batch before writing, then create all
 // rows in one transaction so a bad row cannot leave a partial import behind.
 router.post('/leads/import', async (req,res) => {

@@ -16,9 +16,9 @@ async function render(access,fixtures,language='en'){
   vm.runInNewContext(source,context,{timeout:1000});await new Promise(r=>setTimeout(r,20));return{elements,containers,requests};
 }
 
-test('SaleMaX category dashboard presents scoped leads, call, campaign and finance data',async()=>{
+test('7Network category dashboard presents scoped leads, call, campaign and finance data',async()=>{
   const month=new Date().toISOString().slice(0,7);
-  const access={categoryKey:'salemax_sales',role:'owner',currency:'QAR',timezone:'Asia/Qatar',roleNavigation:['leads','campaigns','campaign-dashboard','call-center','sales-targets','sales-finance'],assignedNavigation:null,permissions:{'sales.receipt.record':true}};
+  const access={categoryKey:'7network_sales',role:'owner',currency:'QAR',timezone:'Asia/Qatar',roleNavigation:['leads','campaigns','campaign-dashboard','call-center','sales-targets','sales-finance'],assignedNavigation:null,permissions:{'sales.receipt.record':true}};
   const fixtures={
     '/api/pipeline/stage-summary':{total:12,stages:[{stageKey:'new',total:7},{stageKey:'qualified',total:5}]},
     '/api/pipeline/follow-ups?period=all&page=1&limit=6':{items:[{contact_name:'Amina',lead_id:'lead-1',next_follow_up_at:'Today'}],summary:{overdue:2,upcoming:4}},
@@ -39,7 +39,7 @@ test('SaleMaX category dashboard presents scoped leads, call, campaign and finan
 
 test('Sales accountant and manager only request finance details their role can read',async()=>{
   const month=new Date().toISOString().slice(0,7);
-  const base={categoryKey:'salemax_sales',currency:'QAR',timezone:'Asia/Qatar',roleNavigation:['sales-finance'],assignedNavigation:null};
+  const base={categoryKey:'7network_sales',currency:'QAR',timezone:'Asia/Qatar',roleNavigation:['sales-finance'],assignedNavigation:null};
   const common={'/api/user/sales-finance/overview':{role:'manager',billedByCurrency:[{currency:'QAR',invoiceCount:2,billedMinor:'20000'}]}};
   const manager=await render({...base,role:'manager'},common);
   assert.ok(manager.requests.includes('/api/user/sales-finance/overview'));

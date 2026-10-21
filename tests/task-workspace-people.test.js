@@ -34,7 +34,7 @@ test('foreign or inactive recipients are rejected before any task is written',as
  }
 });
 test('Sales agent restrictions and Training Center team-queue denial remain unchanged',async()=>{
- const f=fixture(),sales={...ctx,tenant:{categoryKey:'salemax_sales'}};
+ const f=fixture(),sales={...ctx,tenant:{categoryKey:'7network_sales'}};
  assert.deepEqual(await tasks.listParticipants(f.db,sales),[{actorType:'agent',actorId:'7',role:'agent',label:'Me'}]);
  await assert.rejects(tasks.create(f.db,sales,{title:'Sales role boundary',participants:[{actorType:'agent',actorId:'8',role:'assignee'}]}),{code:'PERMISSION_DENIED'});
  await assert.rejects(tasks.list(f.db,ctx,{scope:'team'}),{code:'PERMISSION_DENIED'});

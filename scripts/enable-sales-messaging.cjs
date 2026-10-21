@@ -6,6 +6,7 @@ const messaging=Object.freeze(['messaging.qr','messaging.meta','messaging.templa
 const parse=value=>typeof value==='string'?JSON.parse(value):value;
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
 const fail=code=>{throw Object.assign(Error(code),{code});};
+const categories=require('../modules/platform/categories');
 async function enable(db,{email,apply=false,expectedAssignmentId=null,saveBackup=null}={}){
  if(email!=='admin@salemax.qa')fail('DESIGNATED_OWNER_REQUIRED');
  await db.beginTransaction();
@@ -14,28 +15,28 @@ async function enable(db,{email,apply=false,expectedAssignmentId=null,saveBackup
    FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
    JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
    WHERE LOWER(u.email)=? AND t.status='active' AND m.status='active' FOR UPDATE`,[email]);
-  if(owners.length!==1||owners[0].categoryKey!=='salemax_sales'||owners[0].role!=='owner')fail('ACTIVE_SALES_OWNER_REQUIRED');
+  if(owners.length!==1||!categories.categoryKeyMatches(owners[0].categoryKey,categories.sevenNetworkSales.key)||owners[0].role!=='owner')fail('ACTIVE_SALES_OWNER_REQUIRED');
   const owner=owners[0];
   const [assignments]=await db.query(`SELECT a.*,v.plan_id,v.category_key,v.category_version,v.capabilities,v.role_limits AS versionRoleLimits
    FROM sx_plan_assignments a JOIN sx_plan_versions v ON v.id=a.plan_version_id
    WHERE a.tenant_id=? AND a.status IN ('active','trial','grace') AND a.effective_from<=UTC_TIMESTAMP(3)
    AND (a.expires_at IS NULL OR a.expires_at>UTC_TIMESTAMP(3)) FOR UPDATE`,[owner.tenantId]);
   if(assignments.length!==1)fail('UNIQUE_ACTIVE_PLAN_REQUIRED');const current=assignments[0];
-  if(current.category_key!=='salemax_sales')fail('SALES_PLAN_REQUIRED');
+  if(!categories.categoryKeyMatches(current.category_key,categories.sevenNetworkSales.key))fail('SALES_PLAN_REQUIRED');
   const capabilities=parse(current.capabilities),missing=messaging.filter(key=>!capabilities.includes(key));
   const preview={tenantId:owner.tenantId,assignmentId:current.id,previousVersionId:current.plan_version_id,missing,legacyPlanHash:hash(owner.plan),legacyExpiry:String(owner.plan_expire),seatLimitsUnchanged:true,commercialTermsUnchanged:true};
   if(!missing.length){await db.rollback();return {...preview,alreadyEnabled:true};}
   if(!apply){await db.rollback();return {...preview,preview:true};}
   if(expectedAssignmentId!==current.id)fail('STALE_ASSIGNMENT');
   const expanded=[...new Set([...capabilities,...messaging])].sort();
-  require('../modules/platform/plans').definition({categoryKey:'salemax_sales',categoryVersion:Number(current.category_version),capabilities:expanded,roleLimits:parse(current.versionRoleLimits)});
+  require('../modules/platform/plans').definition({categoryKey:categories.sevenNetworkSales.key,categoryVersion:Number(current.category_version),capabilities:expanded,roleLimits:parse(current.versionRoleLimits)});
   const [[plan]]=await db.query('SELECT next_version FROM sx_plans WHERE id=? FOR UPDATE',[current.plan_id]);if(!plan)fail('PLAN_NOT_FOUND');
   const [contracts]=await db.query('SELECT * FROM sx_legacy_plan_contracts WHERE version_id=?',[current.plan_version_id]);if(contracts.length!==1)fail('EXISTING_CONTRACT_REQUIRED');
   if(saveBackup)await saveBackup({tenantId:owner.tenantId,priorAssignment:current,legacyPlanHash:preview.legacyPlanHash,legacyExpiry:preview.legacyExpiry});
   const contract=contracts[0],versionId=crypto.randomUUID(),assignmentId=crypto.randomUUID();
-  const definition=require('../modules/platform/plans').definition({categoryKey:'salemax_sales',categoryVersion:Number(current.category_version),capabilities:expanded,roleLimits:parse(current.versionRoleLimits)});
+  const definition=require('../modules/platform/plans').definition({categoryKey:categories.sevenNetworkSales.key,categoryVersion:Number(current.category_version),capabilities:expanded,roleLimits:parse(current.versionRoleLimits)});
   await db.query(`INSERT INTO sx_plan_versions(id,plan_id,version,category_key,category_version,status,capabilities,role_limits,published_at)
-   VALUES (?,?,?,'salemax_sales',?,'published',?,?,UTC_TIMESTAMP(3))`,[versionId,current.plan_id,plan.next_version,current.category_version,JSON.stringify(expanded),current.versionRoleLimits]);
+   VALUES (?,?,?,?,?,'published',?,?,UTC_TIMESTAMP(3))`,[versionId,current.plan_id,plan.next_version,categories.sevenNetworkSales.key,current.category_version,JSON.stringify(expanded),current.versionRoleLimits]);
   await db.query('UPDATE sx_plans SET next_version=next_version+1 WHERE id=?',[current.plan_id]);
   await db.query(`INSERT INTO sx_legacy_plan_contracts(version_id,legacy_plan_id,request_id,actor_identity_id,commercial_snapshot,definition_hash,commercial_hash)
    VALUES (?,?,?,?,?,?,?)`,[versionId,contract.legacy_plan_id,crypto.randomUUID(),contract.actor_identity_id,contract.commercial_snapshot,hash(JSON.stringify(definition)),contract.commercial_hash]);

@@ -38,10 +38,10 @@ test('task selectors remain catalogue-backed and popup accessibility labels foll
   assert.match(fs.readFileSync(path.join(__dirname, '../client/public/sales-workspace/index.html'), 'utf8'), /id="scheduledCallsPanel"/);
 });
 
-test('shared Tasks screen uses authenticated category context for SaleMaX Sales labels', () => {
+test('shared Tasks screen uses authenticated category context for 7Network Sales labels', () => {
   assert.match(html, /tasks-context\.js\?v=20261014-sales-category2/);
   assert.match(context, /\/api\/user\/team-invitations\/sidebar-access/);
-  assert.match(context, /result\?\.data\?\.categoryKey!=='salemax_sales'/);
+  assert.match(context, /result\?\.data\?\.categoryKey!=='7network_sales'/);
   assert.match(context, /Shared work queue for leads, calls, deals and team actions\./);
   assert.match(context, /SALES WORKSPACE/);
   assert.match(context, /قائمة عمل مشتركة للعملاء والمكالمات والصفقات وإجراءات الفريق/);

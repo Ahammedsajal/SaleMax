@@ -12,7 +12,7 @@ test('bot owner context uses current period, published plan and exact category r
   const f=fixture(category),result=await access.resolveOwnerAccess(f.db,f.uid);assert.equal(result.context.category.key,category.key);assert.equal(result.context.tenant.slug,'synthetic');assert.equal(result.context.subscription.assignmentId,'current-plan');
   const sql=f.state.calls.find(c=>c.sql.includes('FROM sx_plan_assignments')).sql;assert.match(sql,/current_tenant IS NOT NULL/);assert.match(sql,/p.status='published'/);assert.match(sql,/expires_at>UTC_TIMESTAMP/);
   f.state.plan.current_period=0;assert.equal((await access.resolveOwnerAccess(f.db,f.uid)).context,null);
-  f.state.plan.current_period=1;f.state.plan.category_key=category.key==='training_center'?'salemax_sales':'training_center';f.state.plan.role_limits=JSON.stringify({owner:1,manager:3,accountant:3,agent:3});assert.equal((await access.resolveOwnerAccess(f.db,f.uid)).context,null);
+  f.state.plan.current_period=1;f.state.plan.category_key=category.key==='training_center'?'7network_sales':'training_center';f.state.plan.role_limits=JSON.stringify({owner:1,manager:3,accountant:3,agent:3});assert.equal((await access.resolveOwnerAccess(f.db,f.uid)).context,null);
  }
 });
 test('owner identity, exact ownership, membership and navigation restrictions are respected',async()=>{
@@ -24,7 +24,7 @@ test('owner identity, exact ownership, membership and navigation restrictions ar
 });
 test('a running turn cannot send under a replaced plan, category, tenant, owner identity or membership',async()=>{
  const f=fixture(),prior=(await access.resolveOwnerAccess(f.db,f.uid)).context;assert.equal(access.sameBoundary(prior,structuredClone(prior)),true);
- for(const mutate of [c=>c.tenant.id='foreign',c=>c.tenant.categoryVersion=2,c=>c.tenant.categoryKey='salemax_sales',c=>c.membership.id='replacement',c=>c.identity.id='replacement',c=>c.subscription.assignmentId='replacement']){const current=structuredClone(prior);mutate(current);assert.equal(access.sameBoundary(prior,current),false);}
+ for(const mutate of [c=>c.tenant.id='foreign',c=>c.tenant.categoryVersion=2,c=>c.tenant.categoryKey='7network_sales',c=>c.membership.id='replacement',c=>c.identity.id='replacement',c=>c.subscription.assignmentId='replacement']){const current=structuredClone(prior);mutate(current);assert.equal(access.sameBoundary(prior,current),false);}
  assert.equal(access.sameBoundary(prior,null),false);
 });
 test('denied assigned bot cannot fall through while unrelated legacy channels retain their flow path',async()=>{

@@ -5,12 +5,12 @@ function config(env=process.env){if(env.SALEMAX_TASK_EMAIL_ENABLED!=='true')fail
 function whatsappConfig(env=process.env){const template=String(env.SALEMAX_TASK_WHATSAPP_TEMPLATE||'').trim(),language=String(env.SALEMAX_TASK_WHATSAPP_LANGUAGE||'en_US').trim(),version=String(env.SALEMAX_META_GRAPH_VERSION||'v24.0').trim();if(!template)return null;if(!/^[a-z0-9_]{2,64}$/.test(template)||!/^[a-z]{2,3}_[A-Z]{2}$/.test(language)||!/^v\d+\.\d+$/.test(version))fail('TASK_WHATSAPP_CONFIG_INVALID');return {template,language,version};}
 function message({from,to,title,status,dueAt,taskId,baseUrl,categoryKey='training_center'}){
   const url=baseUrl?`${baseUrl.replace(/\/$/,'')}/user?page=tasks&task=${encodeURIComponent(taskId)}`:'';
-  const workspace=categoryKey==='salemax_sales'?'Sales Workspace':'Training Center';
+  const workspace=categoryKey==='7network_sales'?'Sales Workspace':'Training Center';
   const safeTitle=escape(title),safeStatus=escape(status||'open'),safeDue=escape(dueAt||'Not set'),safeUrl=escape(url),safeWorkspace=escape(workspace);
   return {
     from,to,subject:`Task update: ${title}`,
-    text:`SaleMaX ${workspace} task update\n\nTask: ${title}\nStatus: ${status||'open'}\nDue: ${dueAt||'Not set'}${url?`\nOpen Tasks: ${url}`:''}`,
-    html:`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#17202b"><h2 style="color:#a8003b">SaleMaX · ${safeWorkspace}</h2><p>A task assigned to you has changed.</p><dl><dt><strong>Task</strong></dt><dd>${safeTitle}</dd><dt><strong>Status</strong></dt><dd>${safeStatus}</dd><dt><strong>Due</strong></dt><dd>${safeDue}</dd></dl>${url?`<p><a href="${safeUrl}">Open Tasks</a></p>`:''}</div>`
+    text:`7Network ${workspace} task update\n\nTask: ${title}\nStatus: ${status||'open'}\nDue: ${dueAt||'Not set'}${url?`\nOpen Tasks: ${url}`:''}`,
+    html:`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#17202b"><h2 style="color:#a8003b">7Network · ${safeWorkspace}</h2><p>A task assigned to you has changed.</p><dl><dt><strong>Task</strong></dt><dd>${safeTitle}</dd><dt><strong>Status</strong></dt><dd>${safeStatus}</dd><dt><strong>Due</strong></dt><dd>${safeDue}</dd></dl>${url?`<p><a href="${safeUrl}">Open Tasks</a></p>`:''}</div>`
   };
 }
 async function claim(db,{workerId,limit=20,leaseSeconds=120}={}){

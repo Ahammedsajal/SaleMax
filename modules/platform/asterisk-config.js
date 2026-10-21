@@ -226,7 +226,7 @@ function gatewayPjsipPreview(row) {
     port,
     transport,
     config: [
-      '; SaleMaX starter peer for Dinstar UC2000-VE (four-channel model)',
+      '; 7Network starter peer for Dinstar UC2000-VE (four-channel model)',
       '; Review with the installed Asterisk version and existing PJSIP transports before applying.',
       '; The gateway address must be static/reserved. Restrict its source at the edge/SBC where possible; the shared TLS listener also serves mobile SIP clients.',
       '; Inbound calls land in an intentionally unrouted context until tenant DID/queue routing is configured.',
@@ -264,7 +264,7 @@ function gatewayPjsipPreview(row) {
       'This config requires TLS signaling and SDES-SRTP on the Dinstar peer. The datasheet lists both, but confirm the exact firmware and configure matching TLS/SRTP settings there.',
       'This config defines only the gateway PJSIP peer. Mobile softphones share the same TLS transport; do not create a second TLS listener on the same Asterisk IP family. It does not configure a dialplan, SIM ports, carrier routes, tenant extensions, queues, or call-control events.',
       'Create an explicit inbound route in context from-dinstar-unrouted before routing calls to any tenant.',
-      `Ensure an Asterisk PJSIP ${transport.toUpperCase()} transport already exists. The shared TLS listener serves the gateway and mobile SIP apps, so a gateway-only host firewall allowlist would block remote agents; use a VPN/SBC for mobile SIP or apply strong authenticated SIP rate limits and intrusion blocking. Restrict the Dinstar source at the network/SBC layer where possible, scope RTP media exposure, and keep ARI/AMI private to SaleMaX server addresses.`,
+      `Ensure an Asterisk PJSIP ${transport.toUpperCase()} transport already exists. The shared TLS listener serves the gateway and mobile SIP apps, so a gateway-only host firewall allowlist would block remote agents; use a VPN/SBC for mobile SIP or apply strong authenticated SIP rate limits and intrusion blocking. Restrict the Dinstar source at the network/SBC layer where possible, scope RTP media exposure, and keep ARI/AMI private to 7Network server addresses.`,
       'Apply through your normal Asterisk configuration-management process, then verify the endpoint and a synthetic call before enabling users.',
     ],
   };
@@ -389,7 +389,7 @@ async function previewAgentEndpoints(db, context) {
     JOIN sx_tenants t ON t.id=x.tenant_id AND t.status='active'
     WHERE m.role IN ('owner','manager','agent') AND x.extension REGEXP '^[0-9]{3,8}$' ORDER BY x.extension`);
   const lines = [
-    '; SaleMaX agent endpoint templates for Asterisk 20 PJSIP. See https://docs.asterisk.org/Configuration/WebRTC/Configuring-Asterisk-for-WebRTC-Clients/.',
+    '; 7Network agent endpoint templates for Asterisk 20 PJSIP. See https://docs.asterisk.org/Configuration/WebRTC/Configuring-Asterisk-for-WebRTC-Clients/.',
     '; Mobile softphones and the Dinstar peer share one TLS listener (transport-salemax-tls); do not define duplicate TLS transports.',
     '; Apply only after setting up the TLS/WSS listeners, certificates, RTP firewall limits, and unrouted contexts.',
     '; Passwords below are unique derived SIP endpoint secrets; they are separate from the ARI credential.',
@@ -428,7 +428,7 @@ async function previewAgentEndpoints(db, context) {
       'This privileged preview contains derived endpoint passwords. Restrict access, copy it only into protected Asterisk config, and never attach or log the output.',
       'The browser profile requires a valid HTTPS/WSS certificate, Asterisk HTTP/WebSocket support, reachable ICE/STUN/TURN media, and browser codec testing.',
       'The mobile profile requires a compatible SIP app configured for TLS signaling and SDES-SRTP; confirm these options in the selected app.',
-      'Agent dialplan is intentionally unrouted for direct inbound dialing. SaleMaX locally implements tenant-bound call authorization and the ARI call controller; this endpoint preview does not install/reload configuration or enable live calls.',
+      'Agent dialplan is intentionally unrouted for direct inbound dialing. 7Network locally implements tenant-bound call authorization and the ARI call controller; this endpoint preview does not install/reload configuration or enable live calls.',
       'Do not open SIP, WSS, or RTP to all internet sources. Restrict signaling and media exposure and apply rate limits before activating listeners.',
     ],
   };
@@ -444,7 +444,7 @@ function previewHostSetup(context) {
     },
     {
       path: '/etc/asterisk/ari.conf',
-      purpose: 'Asterisk control account; substitute the exact username and password entered in SaleMaX Admin.',
+      purpose: 'Asterisk control account; substitute the exact username and password entered in 7Network Admin.',
       content: [
         '[general]', 'enabled=yes', 'pretty=no', '', '[REPLACE_WITH_SALEMAX_ARI_USERNAME]',
         'type=user', 'read_only=no', 'password=REPLACE_WITH_THE_SAME_PASSWORD_SAVED_IN_SALEMAX',
@@ -469,18 +469,18 @@ function previewHostSetup(context) {
     },
     {
       path: '/etc/asterisk/extensions.conf',
-      purpose: 'Static generic routes; SaleMaX resolves the DID and call policy at call time.',
+      purpose: 'Static generic routes; 7Network resolves the DID and call policy at call time.',
       content: [
         '[from-dinstar-unrouted]',
-        'exten => _+X.,1,NoOp(SaleMaX inbound DID ${EXTEN})',
+        'exten => _+X.,1,NoOp(7Network inbound DID ${EXTEN})',
         ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
         ' same => n,Hangup()',
-        'exten => _X.,1,NoOp(SaleMaX inbound DID ${EXTEN})',
+        'exten => _X.,1,NoOp(7Network inbound DID ${EXTEN})',
         ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
         ' same => n,Hangup()',
         '',
         '[from-salemax-agents-unrouted]',
-        'exten => _X!,1,NoOp(SaleMaX agent calls are controlled through ARI)',
+        'exten => _X!,1,NoOp(7Network agent calls are controlled through ARI)',
         ' same => n,Hangup(21)',
       ].join('\n'),
     },
@@ -505,7 +505,7 @@ function previewHostSetup(context) {
       'Preview only. It does not write files, restart Asterisk, open firewall ports, or configure the Dinstar gateway.',
       'Back up each existing file and merge the snippets; do not replace a file that contains unrelated Asterisk configuration.',
       'Protect the SIP TLS private key at the listed path. Install the host certificate there with read access limited to Asterisk.',
-      'Create the ARI user in ari.conf with the same username/password saved in SaleMaX; this preview never returns the saved password.',
+      'Create the ARI user in ari.conf with the same username/password saved in 7Network; this preview never returns the saved password.',
       'Replace both ari.conf placeholders before restarting Asterisk; never commit the actual ARI password.',
       'Asterisk HTTP must stay bound to loopback. Public browser WSS is routed through Nginx /ws; private ARI is routed through the app-only /ari/ location.',
       'Set RTP bounds and firewall policy only after the direct gateway IP and mobile VPN/SBC or public SIP access design are confirmed.',

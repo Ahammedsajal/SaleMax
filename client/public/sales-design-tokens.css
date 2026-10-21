@@ -1,8 +1,8 @@
 /* Shared visual tokens for the first-party Sales workspace screens. */
 :root {
-  --sx-brand: #a8003b;
-  --sx-brand-dark: #85002f;
-  --sx-brand-soft: #fff3f7;
+  --sx-brand: #1768d4;
+  --sx-brand-dark: #0d4fae;
+  --sx-brand-soft: #eef6ff;
   --sx-ink: #17212f;
   --sx-muted: #596579;
   --sx-subtle: #667085;
@@ -16,9 +16,9 @@
   --sx-danger: #b42318;
   --sx-page-padding: 26px 24px 44px;
   --sx-page-padding-mobile: 17px 13px 28px;
-  --sx-brand-pill-bg: #fce7ef;
-  --sx-brand-pill-ink: #9c0037;
-  --sx-focus-ring: rgb(168 0 59 / 28%);
+  --sx-brand-pill-bg: #e5f2ff;
+  --sx-brand-pill-ink: #174b83;
+  --sx-focus-ring: rgb(23 104 212 / 28%);
   --sx-content-width: 1280px;
   --sx-panel-radius: 12px;
   --sx-control-radius: 8px;

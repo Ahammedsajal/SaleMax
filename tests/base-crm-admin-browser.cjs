@@ -1,8 +1,8 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{chromium}=require('playwright');
-(async()=>{const browser=await chromium.launch({channel:'msedge',headless:true});let cases=0;try{for(const lang of ['en','ar'])for(const width of [390,1280])for(const key of ['base_crm','training_center','salemax_sales']){
+(async()=>{const browser=await chromium.launch({channel:'msedge',headless:true});let cases=0;try{for(const lang of ['en','ar'])for(const width of [390,1280])for(const key of ['base_crm','training_center','7network_sales']){
  const page=await browser.newPage({viewport:{width,height:1000}});page.setDefaultTimeout(7000);const errors=[],calls=[];page.on('pageerror',e=>errors.push(e.message));
- const category={key,version:2,title:{en:key==='base_crm'?'Base CRM':key==='training_center'?'Training center':'SaleMaX Sales',ar:key==='base_crm'?'إدارة علاقات العملاء الأساسية':key==='training_center'?'مركز تدريب':'مبيعات SaleMaX'},seatRoles:key==='salemax_sales'?['owner','accountant','manager','team_leader','agent']:['owner','accountant','manager','agent']};
+ const category={key,version:2,title:{en:key==='base_crm'?'Base CRM':key==='training_center'?'Training center':'7Network Sales',ar:key==='base_crm'?'إدارة علاقات العملاء الأساسية':key==='training_center'?'مركز تدريب':'مبيعات 7Network'},seatRoles:key==='7network_sales'?['owner','accountant','manager','team_leader','agent']:['owner','accountant','manager','agent']};
  const limits=Object.fromEntries(category.seatRoles.map(role=>[role,role==='owner'?1:2]));let linked=false;
  await page.route('**/*',route=>route.fulfill({contentType:'text/html',body:`<html><head><meta charset="utf-8"></head><body><h5>${lang==='ar'?'إدارة المستخدمين':'Manage Users'}</h5><div class="MuiDataGrid-row Mui-selected" data-id="7"></div><div role="dialog"><h6>Editing — Synthetic user</h6><div><button>Update User</button></div></div></body></html>`}));
  await page.goto('http://127.0.0.1/admin?page=manage-users');
@@ -11,7 +11,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
  const select=page.locator('[data-sx-category-editor] select');try{await select.waitFor();}catch(e){console.error(JSON.stringify({errors,state:await page.evaluate(()=>({url:location.href,body:document.body.innerHTML,token:!!localStorage.getItem('wacrm_admin')}))}));throw e;}await select.selectOption(key+'@2');await page.locator('[data-category-start]').click();await page.locator('[data-category-flow] button').filter({hasText:category.title[lang]}).click();await page.locator('[data-provision-form]').waitFor();
  assert.equal(await page.locator('[data-provision-form] output').innerText(),category.title[lang]+' · v2');
  for(const role of category.seatRoles)assert.equal(await page.locator('[data-provision-form] [name='+role+']').count(),1);
- if(key!=='salemax_sales')assert.equal(await page.locator('[name=team_leader]').count(),0);
+ if(key!=='7network_sales')assert.equal(await page.locator('[name=team_leader]').count(),0);
  await page.locator('[data-provision-form] [type=submit]').click();await page.locator('[data-provision-confirm]').waitFor();
  const recorded=await page.evaluate(()=>window.testCalls);const options=recorded.find(c=>c.url.includes('provision-options'));assert.match(options.url,/categoryVersion=2/);const preview=recorded.find(c=>c.url.endsWith('provision-preview'));assert.equal(preview.body.categoryKey,key);assert.equal(preview.body.categoryVersion,2);assert.deepEqual(preview.body.roleLimits,limits);
  assert.deepEqual(errors,[]);await page.close();cases++;

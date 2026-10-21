@@ -197,7 +197,7 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   assert.match(ui,/VERIFIED_ADMIN_LINK_REQUIRED:tr\(/);
 });
 
-test('production deployment routes ARI only from the SaleMaX app container to loopback Asterisk', () => {
+test('production deployment routes ARI only from the 7Network app container to loopback Asterisk', () => {
   const compose=fs.readFileSync(path.join(__dirname,'../deploy/compose.yml'),'utf8');
   const nginx=fs.readFileSync(path.join(__dirname,'../deploy/nginx-https.conf'),'utf8');
   assert.match(compose,/crm\.salemax\.qa:host-gateway/);
@@ -236,8 +236,8 @@ test('Call Center status reports call readiness only with live Asterisk and endp
   assert.match(router,/freeOutboundChannels>0/);
   assert.match(router,/AGENT_ENDPOINT_NOT_REGISTERED/);
   assert.match(client,/Call events \$\{eventReady\?'connected':eventStatus\}/);
-  assert.match(client,/SaleMaX is not receiving Asterisk call events/);
-  assert.match(client,/لا يستقبل SaleMaX أحداث المكالمات من أستريسك/);
+  assert.match(client,/7Network is not receiving Asterisk call events/);
+  assert.match(client,/لا يستقبل 7Network أحداث المكالمات من أستريسك/);
   assert.match(client,/calls\/\$\{encodeURIComponent\(call\.callId\)\}\/end/);
   assert.match(client,/text\('End call','إنهاء المكالمة'\)/);
   assert.match(client,/node\('outgoingSection'\)\.hidden=true/);

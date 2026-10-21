@@ -27,7 +27,7 @@ function params(payload){
 }
 function textPayload(payload){
   const a=payload?.answers||{};const p=params(payload).map(x=>x.text);
-  const lines=['New SaleMaX sales associate application','',`Name: ${p[0]}`,`WhatsApp: ${p[1]}`,`Contact: ${p[2]}`,`Email: ${p[3]}`,`Currently working: ${p[4]}`,`Total experience: ${p[5]}`,`Sales experience: ${p[6]}`,`Computer and reliable internet: ${p[7]}`,`Comfortable with system-led sales calls: ${p[8]}`,`English: ${p[9]}`,`Hindi: ${p[10]}`,`Availability: ${p[11]}`];
+  const lines=['New 7Network sales associate application','',`Name: ${p[0]}`,`WhatsApp: ${p[1]}`,`Contact: ${p[2]}`,`Email: ${p[3]}`,`Currently working: ${p[4]}`,`Total experience: ${p[5]}`,`Sales experience: ${p[6]}`,`Computer and reliable internet: ${p[7]}`,`Comfortable with system-led sales calls: ${p[8]}`,`English: ${p[9]}`,`Hindi: ${p[10]}`,`Availability: ${p[11]}`];
   if(a.crmSaasExperience)lines.push(`CRM/SaaS/IT sales background: ${clean(a.crmSaasExperience,600)}`);
   if(a.referenceCode)lines.push(`Application reference: ${clean(a.referenceCode,40)}`);
   if(a.cvFileName)lines.push(`CV uploaded: ${clean(a.cvFileName,180)}`);

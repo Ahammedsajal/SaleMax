@@ -6,7 +6,7 @@ const fail=(code,status)=>{throw Object.assign(new Error(code),{code,status});};
 
 async function resolveLeadLink(db,context,leadId){
   if(!UUID.test(String(leadId||'')))fail('INVALID_CALL_LEAD_ID',400);
-  if(context?.tenant?.categoryKey!=='salemax_sales')fail('CALL_LEAD_CATEGORY_UNAVAILABLE',409);
+  if(context?.tenant?.categoryKey!=='7network_sales')fail('CALL_LEAD_CATEGORY_UNAVAILABLE',409);
   const [owners]=await db.query(`SELECT u.uid,o.legacy_uid_hash AS legacyUidHash FROM sx_legacy_ownership o
     JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED)
     JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='owner' AND m.status='active'
@@ -43,7 +43,7 @@ async function resolveLeadLink(db,context,leadId){
 }
 
 async function resolveOutboundRecipient(db,context,input){
-  const sales=context?.tenant?.categoryKey==='salemax_sales';
+  const sales=context?.tenant?.categoryKey==='7network_sales';
   if(sales&&!input?.leadId)fail('OUTBOUND_LEAD_REQUIRED',400);
   const leadLink=input?.leadId?await resolveLeadLink(db,context,input.leadId):null;
   const destination=sales?leadLink.destination:input?.destination;

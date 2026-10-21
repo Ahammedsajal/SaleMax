@@ -6,7 +6,7 @@
 .sx-faqs-heading h1{margin:4px 0 5px;font-size:30px;line-height:1.2;color:#243442}
 .sx-faqs-heading p{max-width:760px;margin:0;color:#667585}
 .sx-faqs-primary,.sx-faq-actions button,.sx-faq-form footer button{min-height:42px;padding:9px 15px;border:1px solid #c6a6b4;border-radius:8px;background:#fff;color:#742241;font:600 14px Roboto,Arial,sans-serif;cursor:pointer}
-.sx-faqs-primary{background:#a8003b;border-color:#a8003b;color:#fff;white-space:nowrap}
+.sx-faqs-primary{background:#1768d4;border-color:#1768d4;color:#fff;white-space:nowrap}
 .sx-faqs-primary:disabled,.sx-faq-actions button:disabled{opacity:.55;cursor:wait}
 .sx-faqs-status{min-height:24px;margin:0 0 12px;color:#8a3856}
 .sx-faqs-list{display:grid;gap:14px}
@@ -35,7 +35,7 @@
 .sx-faq-form label{display:grid;gap:6px;font-weight:600}
 .sx-faq-form input,.sx-faq-form textarea{width:100%;min-height:42px;padding:10px 12px;border:1px solid #cfd8e1;border-radius:8px;background:#fff;color:#263442;font:400 15px/1.45 Roboto,Arial,sans-serif}
 .sx-faq-form textarea{resize:vertical}
-.sx-faq-form input:focus,.sx-faq-form textarea:focus{outline:3px solid rgba(168,0,59,.16);border-color:#a8003b}
+.sx-faq-form input:focus,.sx-faq-form textarea:focus{outline:3px solid rgba(23,104,212,.16);border-color:#1768d4}
 .sx-faq-error{min-height:20px;color:#aa1c36;font-size:13px}
 .sx-faq-form footer{display:flex;justify-content:flex-end;gap:10px;padding-top:4px}
 @media(max-width:700px){#sx-faqs-screen{padding:16px}.sx-faqs-heading{display:grid;gap:14px}.sx-faqs-heading h1{font-size:26px}.sx-faqs-heading>.sx-faqs-primary{justify-self:start}.sx-faq-languages{grid-template-columns:minmax(0,1fr)}.sx-faq-card{padding:15px}.sx-faq-card-head{align-items:flex-start}.sx-faq-form{padding:18px}}
@@ -47,7 +47,7 @@
 .sx-faq-locale h3{margin:0;padding-bottom:8px;border-bottom:1px solid #edf0f3;color:#8a3856;font-size:13px;letter-spacing:.04em}
 .sx-faq-locale label{min-width:0}
 .sx-faq-locale textarea{min-height:104px;resize:vertical}
-.sx-faq-form input:focus-visible,.sx-faq-form textarea:focus-visible,.sx-faq-form button:focus-visible{outline:3px solid rgba(168,0,59,.2);outline-offset:2px;border-color:#a8003b}
+.sx-faq-form input:focus-visible,.sx-faq-form textarea:focus-visible,.sx-faq-form button:focus-visible{outline:3px solid rgba(23,104,212,.2);outline-offset:2px;border-color:#1768d4}
 .sx-faq-form footer{position:sticky;bottom:-24px;z-index:1;margin:0 -24px -24px;padding:12px 24px 18px;border-top:1px solid #edf0f3;background:rgba(255,255,255,.96);backdrop-filter:blur(10px)}
 @media(max-width:700px){.sx-faq-locale-grid{grid-template-columns:minmax(0,1fr)}.sx-faq-locale{padding:13px}.sx-faq-locale textarea{min-height:88px}.sx-faq-form footer{bottom:-18px;margin:0 -18px -18px;padding:10px 18px 14px}}
 .sx-faq-dialog{position:fixed;inset:0;margin:auto}

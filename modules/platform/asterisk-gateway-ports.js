@@ -94,17 +94,17 @@ async function previewRouting(db, context) {
   const inbound = active.filter(row => row.inbound_enabled && row.inbound_queue_id && row.inbound_queue_enabled
     && /^\+[1-9][0-9]{7,14}$/.test(row.inbound_did || ''));
   const lines = [
-    '; SaleMaX generic UC2000-VE inbound route preview; apply once, then manage DID/queue mappings in SaleMaX.',
-    '; The ARI controller resolves each presented DID against current enabled SaleMaX channel policy.',
+    '; 7Network generic UC2000-VE inbound route preview; apply once, then manage DID/queue mappings in 7Network.',
+    '; The ARI controller resolves each presented DID against current enabled 7Network channel policy.',
     '', '[from-dinstar-unrouted]',
-    'exten => _+X.,1,NoOp(SaleMaX inbound DID ${EXTEN})',
+    'exten => _+X.,1,NoOp(7Network inbound DID ${EXTEN})',
     ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
     ' same => n,Hangup()',
-    'exten => _X.,1,NoOp(SaleMaX inbound DID ${EXTEN})',
+    'exten => _X.,1,NoOp(7Network inbound DID ${EXTEN})',
     ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
     ' same => n,Hangup()',
   ];
-  if (!inbound.length) lines.push('; No enabled eligible inbound DID is currently assigned; unknown calls are rejected by SaleMaX.');
+  if (!inbound.length) lines.push('; No enabled eligible inbound DID is currently assigned; unknown calls are rejected by 7Network.');
   const outboundChannels = active.filter(row => row.outbound_enabled);
   const outboundTenants = [...new Map(outboundChannels.map(row => [row.tenant_id, row])).values()];
   const dinstarOutboundRoutes = outboundChannels.map(row => ({
@@ -112,7 +112,7 @@ async function previewRouting(db, context) {
     gatewayPort: Number(row.channel_no) - 1, routePrefix: dinstarRoutePrefix(Number(row.channel_no)), digitsToDelete: 4,
   }));
   lines.push('', '; Dinstar UC2000-VE IP->Tel rules; configure manually in Call Configuration -> IP->Tel Routing.',
-    '; SaleMaX must prepend the per-channel route prefix only after tenant/channel authorization.',
+    '; 7Network must prepend the per-channel route prefix only after tenant/channel authorization.',
     '; Dinstar removes the selector before sending the unchanged destination number to the SIM.');
   for (const route of dinstarOutboundRoutes) {
     lines.push('', `; Tenant ${route.tenantId} channel ${route.channelNo} -> gateway Port-${route.gatewayPort}`,
@@ -121,7 +121,7 @@ async function previewRouting(db, context) {
       `; Digits to be Deleted: ${route.digitsToDelete}`, '; Number of Digits Reserved: (blank)');
   }
   if (!dinstarOutboundRoutes.length) lines.push('; No currently eligible outbound channel is enabled.');
-  lines.push('', '; SaleMaX locally implements an ARI outbound controller that enforces tenant entitlement,',
+  lines.push('', '; 7Network locally implements an ARI outbound controller that enforces tenant entitlement,',
     '; assigned extension, available channel, agent-first answer, and the matching 9901-9904 selector.',
     '; It originates directly through PJSIP and does not require an agent dialplan route.');
   return {
@@ -132,9 +132,9 @@ async function previewRouting(db, context) {
     outboundEligibleTenants: outboundTenants.map(row => ({ tenantId: row.tenant_id, tenantName: row.tenant_name })),
     warnings: [
       'Preview only. It does not write or reload Asterisk configuration.',
-      'Generic _+X. and _X. patterns accept plus-prefixed or digits-only DIDs; SaleMaX normalizes then requires an exact enabled mapping.',
+      'Generic _+X. and _X. patterns accept plus-prefixed or digits-only DIDs; 7Network normalizes then requires an exact enabled mapping.',
       'The singleton ARI event worker and tenant-aware Stasis call controller are implemented locally; production use still requires deploying the matching source/migrations and operating the worker.',
-      'The Dinstar IP->Tel rules map SaleMaX route prefixes 9901–9904 to gateway ports 0–3 and strip four selector digits. Configure these rules manually and test the exact firmware behavior before enabling outbound calls.',
+      'The Dinstar IP->Tel rules map 7Network route prefixes 9901–9904 to gateway ports 0–3 and strip four selector digits. Configure these rules manually and test the exact firmware behavior before enabling outbound calls.',
       'Outbound ARI call control is implemented locally and selects only enabled tenant-assigned channels. It is not live until the source/migrations, endpoint profiles, Dinstar routes and worker are deployed and verified together.',
       `${outboundTenants.length} eligible tenant(s) currently have outbound channel policy; this is policy state, not call readiness.`,
     ],

@@ -6,7 +6,7 @@ const path=require('node:path');
 const {decision}=require('./policy');
 
 const MAX_CV_BYTES=8*1024*1024;
-const CONSENT='I agree that SaleMaX may save my WhatsApp application answers and CV in its private Applications & CVs area, assess me for the SaleMaX sales associate role, and contact me about recruitment.';
+const CONSENT='I agree that 7Network may save my WhatsApp application answers and CV in its private Applications & CVs area, assess me for the 7Network sales associate role, and contact me about recruitment.';
 const SCREENING_CONSENT='Candidate agreed to save WhatsApp application answers in the private Applications & CVs area for recruitment review and follow-up; a CV is optional and is saved only if submitted.';
 const STATUSES=new Set(['new','reviewing','shortlisted','interview','rejected','hired','archived']);
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
@@ -14,7 +14,7 @@ const hash=value=>crypto.createHash('sha256').update(String(value)).digest();
 const uuid=()=>crypto.randomUUID();
 
 function authorize(ctx){
-  if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.categoryKey!=='salemax_sales')fail('CATEGORY_UNAVAILABLE',404);
+  if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.categoryKey!=='7network_sales')fail('CATEGORY_UNAVAILABLE',404);
   const result=decision(ctx,{capability:'hr.recruitment',permission:'recruitment.manage'});
   if(!result.allowed)fail(result.code,result.code==='PERMISSION_DENIED'?403:409);
   if(ctx.membership.role!=='owner')fail('PERMISSION_DENIED',403);
@@ -55,7 +55,7 @@ async function queueApplicationNotification(db,{tenantId,application},enqueue=re
   return result||{queued:false,reason:'QUEUE_UNAVAILABLE'};
 }
 async function issuePrefillToken(db,{tenantId,applicationId,answers}){const token=crypto.randomBytes(32).toString('base64url');await db.query('INSERT INTO sx_recruitment_prefill_tokens(id,tenant_id,application_id,token_hash,answers,expires_at) VALUES (?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 14 DAY))',[uuid(),tenantId,applicationId||null,hash(token),JSON.stringify(cleanScreeningAnswers(answers))]);return token;}
-async function getPrefill(pool,{tenantSlug,token}){if(typeof token!=='string'||!/^[A-Za-z0-9_-]{40,60}$/.test(token))fail('PREFILL_NOT_FOUND',404);const [rows]=await pool.query(`SELECT p.answers FROM sx_recruitment_prefill_tokens p JOIN sx_tenants t ON t.id=p.tenant_id WHERE t.slug=? AND t.category_key='salemax_sales' AND t.status='active' AND p.token_hash=? AND p.expires_at>UTC_TIMESTAMP(3) AND p.consumed_at IS NULL LIMIT 1`,[tenantSlug,hash(token)]);if(!rows.length)fail('PREFILL_NOT_FOUND',404);return typeof rows[0].answers==='string'?JSON.parse(rows[0].answers):rows[0].answers;}
+async function getPrefill(pool,{tenantSlug,token}){if(typeof token!=='string'||!/^[A-Za-z0-9_-]{40,60}$/.test(token))fail('PREFILL_NOT_FOUND',404);const [rows]=await pool.query(`SELECT p.answers FROM sx_recruitment_prefill_tokens p JOIN sx_tenants t ON t.id=p.tenant_id WHERE t.slug=? AND t.category_key='7network_sales' AND t.status='active' AND p.token_hash=? AND p.expires_at>UTC_TIMESTAMP(3) AND p.consumed_at IS NULL LIMIT 1`,[tenantSlug,hash(token)]);if(!rows.length)fail('PREFILL_NOT_FOUND',404);return typeof rows[0].answers==='string'?JSON.parse(rows[0].answers):rows[0].answers;}
 function cleanFileName(value){const name=path.basename(String(value||'CV').replace(/[\r\n\0]/g,'')).trim();return (name||'CV').slice(0,180);}
 function stableSubmissionToken(value){const bytes=crypto.createHash('sha256').update(String(value)).digest().subarray(0,16);bytes[6]=(bytes[6]&0x0f)|0x50;bytes[8]=(bytes[8]&0x3f)|0x80;const hex=bytes.toString('hex');return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;}
 function whatsappApplicationBody({answers,mobile,tenantId,channelKind,channelRef,conversationId}){
@@ -153,7 +153,7 @@ async function createPublic(pool,{tenantSlug,body,file,visitorHash,conversation=
     await db.beginTransaction();begun=true;
     const [[tenant]]=await db.query(`SELECT t.id,t.slug,t.status,t.category_key AS categoryKey,t.category_version AS categoryVersion,u.uid,o.legacy_uid_hash AS uidHash
       FROM sx_tenants t JOIN sx_legacy_ownership o ON o.tenant_id=t.id AND o.source_table='user' JOIN user u ON CAST(u.id AS CHAR)=o.source_id
-      WHERE t.slug=? AND t.category_key='salemax_sales' AND t.status='active' LIMIT 1 FOR UPDATE`,[tenantSlug]);
+      WHERE t.slug=? AND t.category_key='7network_sales' AND t.status='active' LIMIT 1 FOR UPDATE`,[tenantSlug]);
     if(!tenant)fail('TENANT_NOT_FOUND',404);
     const prefillToken=String(body.prefillToken||'');
     if(prefillToken){

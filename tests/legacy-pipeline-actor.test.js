@@ -26,18 +26,18 @@ test('linked manager resolves to the verified tenant owner pipeline with manager
 test('linked training center managers can open their shared owner pipeline',()=>{
   assert.equal(canUsePipeline({role:'manager',categoryKey:'training_center'}),true);
   assert.equal(canUsePipeline({role:'owner',categoryKey:'training_center'}),true);
-  assert.equal(canUsePipeline({role:'manager',categoryKey:'salemax_sales'}),true);
+  assert.equal(canUsePipeline({role:'manager',categoryKey:'7network_sales'}),true);
   assert.equal(canUsePipeline({role:'agent',categoryKey:'training_center'}),false);
-  assert.equal(canUsePipeline({role:'accountant',categoryKey:'salemax_sales'}),false);
+  assert.equal(canUsePipeline({role:'accountant',categoryKey:'7network_sales'}),false);
   assert.equal(canUsePipeline({role:'manager',categoryKey:'training_center',denied:true}),false);
 });
 
-test('SaleMaX Sales managers and team leaders receive only currently assigned active agent ids',async()=>{
+test('7Network Sales managers and team leaders receive only currently assigned active agent ids',async()=>{
   for(const role of ['manager','team_leader']){
-    const f=fixture(role,{categoryKey:'salemax_sales'});
+    const f=fixture(role,{categoryKey:'7network_sales'});
     const actor=await resolve(f.pool,f.staff,{loadEntitlements:async()=>({status:'active',capabilities:['crm.leads']})});
     assert.equal(actor.role,role);
-    assert.equal(actor.categoryKey,'salemax_sales');
+    assert.equal(actor.categoryKey,'7network_sales');
     assert.deepEqual(actor.scopeAgentIds,[7]);
     assert.match(f.calls[2],role==='manager'?/manager_membership_id/ : /team_leader_membership_id/);
   }

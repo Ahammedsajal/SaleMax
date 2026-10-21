@@ -1,13 +1,13 @@
 const fs=require('fs'),path=require('path'),http=require('http'),jwt=require('jsonwebtoken');const {chromium}=require(process.env.SALEMAX_PLAYWRIGHT_PATH||'playwright');const assert=require('node:assert/strict');
 const root=path.resolve('client/public'),out=path.resolve(process.env.SALEMAX_UI_OUTPUT||'database/local-runtime/ui-page-review');fs.mkdirSync(out,{recursive:true});
-const nav=require('../modules/platform/navigation'),{salemaxSales}=require('../modules/platform/categories');const context={audience:'tenant',identity:{id:'synthetic-owner'},tenant:{id:'synthetic-tenant',status:'active',categoryKey:'salemax_sales',categoryVersion:1},membership:{id:'synthetic-member',role:'owner',status:'active'},category:salemaxSales,subscription:{status:'active',capabilities:salemaxSales.capabilities}};context.membership.tenantId=context.tenant.id;
-const session={role:'owner',categoryKey:'salemax_sales',assignedNavigation:null,roleNavigation:nav.navigationFor(context).map(x=>x.key),modules:{products:true,courses:false,inbox:true,phonebook:true},permissions:{'products.read':true,'products.manage':true},quickReplyCatalog:'products'};
+const nav=require('../modules/platform/navigation'),{salemaxSales}=require('../modules/platform/categories');const context={audience:'tenant',identity:{id:'synthetic-owner'},tenant:{id:'synthetic-tenant',status:'active',categoryKey:'7network_sales',categoryVersion:1},membership:{id:'synthetic-member',role:'owner',status:'active'},category:salemaxSales,subscription:{status:'active',capabilities:salemaxSales.capabilities}};context.membership.tenantId=context.tenant.id;
+const session={role:'owner',categoryKey:'7network_sales',assignedNavigation:null,roleNavigation:nav.navigationFor(context).map(x=>x.key),modules:{products:true,courses:false,inbox:true,phonebook:true},permissions:{'products.read':true,'products.manage':true},quickReplyCatalog:'products'};
 const profile={id:1,uid:'synthetic-owner',name:'Synthetic Sales',email:'sales@example.invalid',role:'user',plan:JSON.stringify({contact_limit:1000,qr_account:3}),plan_expire:String(Date.now()+86400000)};let mode='empty';
 const member=(membershipId,displayName,role,extra={})=>({membershipId,displayName,email:membershipId+'@example.invalid',role,status:'active',...extra});
 const members=[member('owner','Sales Admin','owner'),member('manager','Mariam Ahmed','manager'),member('leader','Omar Ali','team_leader',{managerMembershipId:'manager'}),member('agent','Sara Khan','agent',{managerMembershipId:'manager',teamLeaderMembershipId:'leader'})];
 function api(url){const p=url.pathname;let data=[];
  if(p==='/api/workspace/session'||p.endsWith('/sidebar-access'))return session;
- if(p==='/api/web/get_web_public')return {siteName:'SaleMaX'};
+ if(p==='/api/web/get_web_public')return {siteName:'7Network'};
  if(p==='/api/user/get_me')return profile;
  if(p==='/api/user/get_dashboard')return {user:{...profile,plan:JSON.parse(profile.plan)},stats:{},recentConversations:[],performanceData:[],unreadSummary:[],activeChatbots:[],addons:[]};
  if(p.endsWith('/optional-features'))return {features:{}};

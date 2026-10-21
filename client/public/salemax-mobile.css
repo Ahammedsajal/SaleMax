@@ -125,8 +125,8 @@
   .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:first-child,
   .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:nth-child(2),
   .MuiDrawer-modal .MuiDrawer-paper>.MuiBox-root>.MuiBox-root:last-child{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
-  .MuiDrawer-modal .MuiDrawer-paper .MuiBox-root:has(>img[alt="SaleMaX"]){width:156px!important;min-width:156px!important;max-width:156px!important;height:44px!important;flex:0 0 156px!important;overflow:visible!important}
-  .MuiDrawer-modal .MuiDrawer-paper img[alt="SaleMaX"]{width:156px!important;height:44px!important;max-width:156px!important;flex:0 0 156px!important;object-fit:contain!important;overflow:visible!important}
+  .MuiDrawer-modal .MuiDrawer-paper .MuiBox-root:has(>img[alt="7Network"]){width:156px!important;min-width:156px!important;max-width:156px!important;height:44px!important;flex:0 0 156px!important;overflow:visible!important}
+  .MuiDrawer-modal .MuiDrawer-paper img[alt="7Network"]{width:156px!important;height:44px!important;max-width:156px!important;flex:0 0 156px!important;object-fit:contain!important;overflow:visible!important}
   .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list]{width:100%!important;min-width:100%!important;max-width:100%!important;box-sizing:border-box!important}
   .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list]>li{width:100%!important;box-sizing:border-box!important}
   .MuiDrawer-modal .MuiDrawer-paper ul[data-sx-sidebar-list]>li[data-sx-nav-section]{display:block!important;width:100%!important;margin:12px 0 4px!important;padding:4px 18px!important;box-sizing:border-box!important}
@@ -549,11 +549,11 @@
   .sx-faq-form footer{flex-direction:column;align-items:stretch}
   .sx-faq-form footer button{width:100%}
 }
-/* Preserve the existing WhatsApp mark in a smaller header slot; never substitute the SaleMaX logo. */
+/* Preserve the existing WhatsApp mark in a smaller header slot; never substitute the 7Network logo. */
 @media(max-width:600px){
   #root .MuiAppBar-root .MuiToolbar-root>.MuiBox-root:nth-child(2){
     width:34px!important;height:48px!important;flex:0 0 34px!important;
-    border-radius:20px!important;background-color:#a8003b!important;
+    border-radius:20px!important;background-color:#1768d4!important;
     background-image:none!important;background-size:auto!important;background-position:initial!important;background-repeat:initial!important
   }
   #root .MuiAppBar-root .MuiToolbar-root>.MuiBox-root:nth-child(2)>svg{display:block!important}
@@ -599,7 +599,7 @@
   }
 }
 
-/* Show the complete SaleMaX wordmark at standard narrow-phone widths. */
+/* Show the complete 7Network wordmark at standard narrow-phone widths. */
 @media(min-width:320px) and (max-width:380px){
   #root header .MuiToolbar-root:has([aria-label="Account menu"]){gap:0!important;padding-inline:0!important}
   #root header .MuiToolbar-root:has([aria-label="Account menu"])>p{
@@ -636,7 +636,7 @@
     border-bottom:2px solid transparent!important
   }
   #root main .MuiTabs-list:has(>.MuiTab-root.MuiTab-labelIcon:nth-child(2):last-child)>.MuiTab-root.Mui-selected{
-    border-bottom-color:#a8003b!important
+    border-bottom-color:#1768d4!important
   }
   #root main .MuiTabs-root:has(.MuiTabs-list:has(>.MuiTab-root.MuiTab-labelIcon:nth-child(2):last-child)) .MuiTabs-indicator{
     display:none!important

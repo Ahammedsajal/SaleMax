@@ -23,8 +23,8 @@
     );
     document.title =
       language === "ar"
-        ? "SaleMaX — أعمالك. مترابطة."
-        : "SaleMaX — Your business. Connected.";
+        ? "7Network — أعمالك. مترابطة."
+        : "7Network — Your business. Connected.";
     renderPlans();
     if (statusMessage)
       status.textContent = statusMessage[language === "ar" ? 1 : 0];
@@ -353,9 +353,9 @@
       submissionToken = crypto.randomUUID();
       submittedPayload = null;
       message(
-        "Thank you — your request is with the SaleMaX sales team. We’ll follow up using the details you provided. Reference: " +
+        "Thank you — your request is with the 7Network sales team. We’ll follow up using the details you provided. Reference: " +
           result.reference,
-        "شكراً — وصل طلبك إلى فريق مبيعات SaleMaX. سنتواصل معك باستخدام البيانات المقدمة. المرجع: " +
+        "شكراً — وصل طلبك إلى فريق مبيعات 7Network. سنتواصل معك باستخدام البيانات المقدمة. المرجع: " +
           result.reference,
         "success",
       );

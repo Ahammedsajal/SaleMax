@@ -7,7 +7,7 @@ const {createCallCenterRouter}=require('../modules/platform/call-center-router')
 const {AsteriskCallControl}=require('../modules/platform/asterisk-call-control');
 const {getCategory}=require('../modules/platform/categories');
 
-test('SaleMaX Sales managers and team leaders receive only calls belonging to current reporting memberships',async t=>{
+test('7Network Sales managers and team leaders receive only calls belonging to current reporting memberships',async t=>{
   for(const role of ['manager','team_leader']){
     const tenantId='11111111-1111-4111-8111-111111111111',selfId=`${role}-membership`,teamIds=[selfId,'agent-membership-1','agent-membership-2'];
     const calls=[];
@@ -19,8 +19,8 @@ test('SaleMaX Sales managers and team leaders receive only calls belonging to cu
         startedByName:'Agent One',startedByRole:'agent',callOutcomeDetails:JSON.stringify({outcome:'interested',followUpRequired:true,nextFollowUpAt:'2026-10-16 10:00:00.000',note:'Asked for details'}),hasAssignedActiveLeg:0}],[]];
       throw new Error(`Unexpected Call Center query: ${sql}`);
     }};
-    const context={audience:'tenant',identity:{id:`identity-${role}`},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
-      membership:{id:selfId,tenantId,role,status:'active'},category:getCategory('salemax_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
+    const context={audience:'tenant',identity:{id:`identity-${role}`},tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},
+      membership:{id:selfId,tenantId,role,status:'active'},category:getCategory('7network_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
     const app=express();app.use('/call-center',createCallCenterRouter({pool:{async getConnection(){return db;}},userGuard(){throw new Error('legacy guard should not run')},canonicalGuard(req,_res,next){req.businessContext=context;next();},origin:'http://127.0.0.1'}));
     const server=http.createServer(app);await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
     t.after(()=>new Promise(resolve=>server.close(resolve)));
@@ -52,7 +52,7 @@ test('call review roster and per-agent history remain limited to current manager
     if(sql.includes('SELECT c.id,c.direction,c.status'))return [[{id:'55555555-5555-4555-8555-555555555555',direction:'outbound',status:'ended',gatewayChannelNo:1,startedAt:'2026-10-14T09:00:00.000Z',answeredAt:null,endedAt:null,durationSeconds:20,startedByMembershipId:agentId,answeredByMembershipId:agentId,startedByName:'Scoped Agent',startedByRole:'agent',answeredByName:'Scoped Agent',answeredByRole:'agent',recordingState:'ready',recordingExpiresAt:new Date(Date.now()+86400000),hasAssignedActiveLeg:0}],[]];
     throw new Error(`Unexpected call review query: ${sql}`);
   }};
-  const context={audience:'tenant',identity:{id:'identity-manager'},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},membership:{id:managerId,tenantId,role:'manager',status:'active'},category:getCategory('salemax_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
+  const context={audience:'tenant',identity:{id:'identity-manager'},tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},membership:{id:managerId,tenantId,role:'manager',status:'active'},category:getCategory('7network_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
   const app=express();app.use('/call-center',createCallCenterRouter({pool:{async getConnection(){return db;}},userGuard(){throw new Error('legacy guard should not run')},canonicalGuard(req,_res,next){req.businessContext=context;next();},origin:'http://127.0.0.1'}));
   const server=http.createServer(app);await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});t.after(()=>new Promise(resolve=>server.close(resolve)));
   const base=`http://127.0.0.1:${server.address().port}/call-center`;
@@ -92,8 +92,8 @@ test('Call Center call history loads older pages with a stable tenant-scoped cur
     if(sql.includes('c.started_at < ?'))return [[makeRow(101)],[]];
     return [[...Array.from({length:101},(_,index)=>makeRow(index+1))],[]];
   }};
-  const context={audience:'tenant',identity:{id:'identity-owner'},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
-    membership:{id:memberId,tenantId,role:'owner',status:'active'},category:getCategory('salemax_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
+  const context={audience:'tenant',identity:{id:'identity-owner'},tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},
+    membership:{id:memberId,tenantId,role:'owner',status:'active'},category:getCategory('7network_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
   const app=express();app.use('/call-center',createCallCenterRouter({pool:{async getConnection(){return db;}},userGuard(){throw new Error('legacy guard should not run')},canonicalGuard(req,_res,next){req.businessContext=context;next();},origin:'http://127.0.0.1'}));
   const server=http.createServer(app);await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});t.after(()=>new Promise(resolve=>server.close(resolve)));
   const first=await fetch(`http://127.0.0.1:${server.address().port}/call-center/calls`),firstBody=await first.json();
@@ -119,8 +119,8 @@ test('Sales managers and team leaders cannot end a call outside their current or
       if(sql.includes('FROM sx_telephony_call_legs'))return [[],[]];
       throw new Error(`Unexpected call-control query: ${sql}`);
     }};
-    const context={audience:'tenant',identity:{id:`identity-${role}`},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},
-      membership:{id:selfId,tenantId,role,status:'active'},category:getCategory('salemax_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
+    const context={audience:'tenant',identity:{id:`identity-${role}`},tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},
+      membership:{id:selfId,tenantId,role,status:'active'},category:getCategory('7network_sales',1),subscription:{status:'active',capabilities:['telephony.call-center']}};
     const control=new AsteriskCallControl({pool:{async getConnection(){return db;}},ariClientFactory(){ariRequested=true;return {};}});
     await assert.rejects(control.endCall(context,callId),error=>error.code==='PERMISSION_DENIED');
     assert.equal(ariRequested,false);

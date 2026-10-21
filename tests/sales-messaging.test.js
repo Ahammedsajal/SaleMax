@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {salemaxSales,trainingCenter}=require('../modules/platform/categories'),policy=require('../modules/platform/policy'),navigation=require('../modules/platform/navigation');
 const {messaging}=require('../scripts/enable-sales-messaging.cjs');
-function context(role='owner',capabilities=salemaxSales.capabilities){return {audience:'tenant',tenant:{id:'sales',status:'active',categoryKey:'salemax_sales',categoryVersion:1},membership:{id:'member',tenantId:'sales',status:'active',role},category:salemaxSales,subscription:{status:'active',capabilities}};}
+function context(role='owner',capabilities=salemaxSales.capabilities){return {audience:'tenant',tenant:{id:'sales',status:'active',categoryKey:'7network_sales',categoryVersion:1},membership:{id:'member',tenantId:'sales',status:'active',role},category:salemaxSales,subscription:{status:'active',capabilities}};}
 test('Sales includes all existing messaging/automation features while keeping Training-specific records separate',()=>{
  const keys=navigation.navigationFor(context()).map(x=>x.key);
  for(const key of ['whatsapp-qr','whatsapp-meta','templates','campaigns','campaign-dashboard','flows','chatbot','faqs','products-services'])assert.ok(keys.includes(key),key);

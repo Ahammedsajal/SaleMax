@@ -26,7 +26,7 @@ async function create(db,context,userId){
       FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
       JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.tenant_id=t.id AND m.id=o.membership_id
       JOIN sx_identities i ON i.id=m.identity_id WHERE u.id=? FOR UPDATE`,[Number(userId)]);
-    if(!owner||owner.categoryKey!=='salemax_sales'||owner.role!=='owner'||owner.membershipStatus!=='active'||owner.identityStatus!=='active'||owner.tenantStatus!=='active')fail('SALES_OWNER_NOT_READY');
+    if(!owner||owner.categoryKey!=='7network_sales'||owner.role!=='owner'||owner.membershipStatus!=='active'||owner.identityStatus!=='active'||owner.tenantStatus!=='active')fail('SALES_OWNER_NOT_READY');
     if(String(owner.email).trim().toLowerCase()!=='admin@salemax.qa')fail('DESIGNATED_OWNER_REQUIRED');
     if(owner.passwordHash)fail('OWNER_ALREADY_ACTIVATED');
     const [[legacyCheck]]=await db.query('SELECT id,uid FROM user WHERE id=? FOR UPDATE',[owner.userId]);
@@ -52,7 +52,7 @@ async function accept(db,input){
       JOIN sx_tenants t ON t.id=v.tenant_id JOIN user u ON u.id=v.legacy_user_id
       JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR) AND o.tenant_id=v.tenant_id AND o.membership_id=m.id
       WHERE v.token_hash=? AND v.expires_at>UTC_TIMESTAMP(3) FOR UPDATE`,[tokenHash]);
-    if(!invite||invite.status!=='pending'||invite.currentPasswordHash||invite.identityStatus!=='active'||invite.membershipStatus!=='active'||invite.role!=='owner'||invite.tenantStatus!=='active'||invite.categoryKey!=='salemax_sales'||invite.email!=='admin@salemax.qa'||invite.legacyEmail!==invite.email)fail('INVITE_INVALID');
+    if(!invite||invite.status!=='pending'||invite.currentPasswordHash||invite.identityStatus!=='active'||invite.membershipStatus!=='active'||invite.role!=='owner'||invite.tenantStatus!=='active'||invite.categoryKey!=='7network_sales'||invite.email!=='admin@salemax.qa'||invite.legacyEmail!==invite.email)fail('INVITE_INVALID');
     const [sameUid]=await db.query('SELECT id FROM user WHERE uid=? FOR UPDATE',[invite.uid]);if(sameUid.length!==1)fail('INVITE_INVALID');
     const passwordHash=await bcrypt.hash(password,12);
     const [updated]=await db.query('UPDATE user SET name=?,password=? WHERE id=?',[input.name.trim(),passwordHash,invite.legacyUserId]);if(updated.affectedRows!==1)fail('INVITE_INVALID');

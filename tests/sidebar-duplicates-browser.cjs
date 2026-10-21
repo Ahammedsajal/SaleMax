@@ -17,7 +17,7 @@ const row=(name,attrs='')=>`<li ${attrs}><button class="MuiListItemButton-root">
    await page.setContent(`<html lang="${ar?'ar':'en'}" dir="${ar?'rtl':'ltr'}"><body>`+[0,1].map(()=>`<div class="MuiDrawer-paper" style="width:250px"><input><ul>${row('Dashboard')}${delayed?'':row('Lead Pipeline','data-salemax-pipeline-link="1"')}${row('WA Chatbot')}${row('Agent Task')}</ul></div>`).join('')+'</body></html>');
    const allowed=role==='accountant'?['sales-finance','sales-commissions']:role==='owner'?keys:keys.filter(k=>!['commission-policy','sales-audit','recruitment','team'].includes(k));
    await page.evaluate(({role,allowed,delayed})=>{
-    window.fixtureAccess={role,categoryKey:'salemax_sales',roleNavigation:allowed,assignedNavigation:null};
+    window.fixtureAccess={role,categoryKey:'7network_sales',roleNavigation:allowed,assignedNavigation:null};
     window.SaleMaxWorkspace={session:async()=>{if(delayed)await new Promise(resolve=>setTimeout(resolve,60));return window.fixtureAccess;}};
     window.__sxChatbotAdminLoader=window.__sxFaqManagerLoader=window.__sxTrainingFormsEditorLayoutLoader=true;
    },{role,allowed,delayed});

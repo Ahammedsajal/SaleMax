@@ -33,7 +33,7 @@ test('accountants can verify payments but only read billing-linked leads',()=>{
   assert.equal(decision(c,{capability:'crm.leads',permission:'leads.read',resource:{tenantId:'tenant-a',billingLinked:false}}).allowed,false);
   assert.equal(decision(c,{capability:'crm.leads',permission:'leads.read',resource:{tenantId:'tenant-a',billingLinked:true}}).scope,'billing');
 });
-test('SaleMaX Sales accountants are finance-only while Training Center billing-linked lead access remains compatible',()=>{
+test('7Network Sales accountants are finance-only while Training Center billing-linked lead access remains compatible',()=>{
   const c=context('accountant');
   c.category=salemaxSales;c.tenant.categoryKey=salemaxSales.key;c.tenant.categoryVersion=salemaxSales.version;
   c.subscription.capabilities=[...salemaxSales.capabilities];
@@ -86,7 +86,7 @@ test('navigation reflects backend decisions and future category fixture excludes
   assert.ok(!navigationFor(fixture).some(i=>i.key==='courses'));
   const stale=context(); stale.membership.tenantId='tenant-b'; assert.deepEqual(navigationFor(stale),[]);
 });
-test('SaleMaX Sales team leaders receive team-scoped sales, call, task and report navigation',()=>{
+test('7Network Sales team leaders receive team-scoped sales, call, task and report navigation',()=>{
   const sales={...context('team_leader'),category:salemaxSales};
   sales.tenant.categoryKey=salemaxSales.key;
   sales.subscription.capabilities=[...salemaxSales.capabilities];
@@ -97,7 +97,7 @@ test('SaleMaX Sales team leaders receive team-scoped sales, call, task and repor
   assert.equal(decision(sales,{capability:'telephony.call-center',permission:'calls.read'}).scope,'team');
   assert.equal(decision(sales,{capability:'reports.read',permission:'reports.read'}).scope,'team');
 });
-test('SaleMaX Sales deal and commission permissions follow role boundaries and stay outside Training Center',()=>{
+test('7Network Sales deal and commission permissions follow role boundaries and stay outside Training Center',()=>{
   const roleContext=role=>{const sales={...context(role),category:salemaxSales};sales.tenant.categoryKey=salemaxSales.key;sales.subscription.capabilities=[...salemaxSales.capabilities];return sales;};
   assert.equal(decision(roleContext('owner'),{capability:'sales.deals',permission:'deals.approve'}).allowed,true);
   assert.equal(decision(roleContext('agent'),{capability:'sales.deals',permission:'deals.request'}).scope,'assigned');

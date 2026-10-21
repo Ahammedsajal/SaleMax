@@ -35,6 +35,6 @@ async function verify(db,{tenantId,to,code,env=process.env,http=require('axios')
   const from=await sender(db,tenantId);if(!from)return {errorCode:'REPORT_QR_SENDER_UNAVAILABLE'};
   const [[recipient]]=await db.query("SELECT id FROM sx_training_report_recipients WHERE tenant_id=? AND channel='whatsapp' AND destination=? AND status IN ('pending','verified') LIMIT 1",[tenantId,to]);
   if(!recipient||!/^\+[1-9]\d{7,14}$/.test(String(to))||!/^\d{10}$/.test(String(code)))return {errorCode:'REPORT_DESTINATION_NOT_ENABLED'};
-  try{const response=await http.post(c.url,{...from,to:to.slice(1),text:`SaleMaX owner report verification code: ${code}\nValid for 10 minutes.`},{headers:{'x-internal-secret':c.secret},timeout:20000});const id=response?.data?.data?.messageId;return response?.data?.success&&id?{accepted:String(id).slice(0,191)}:{unknown:true,errorCode:'REPORT_QR_ACCEPTANCE_UNCONFIRMED'};}catch{return {unknown:true,errorCode:'REPORT_QR_SEND_UNCONFIRMED'};}
+  try{const response=await http.post(c.url,{...from,to:to.slice(1),text:`7Network owner report verification code: ${code}\nValid for 10 minutes.`},{headers:{'x-internal-secret':c.secret},timeout:20000});const id=response?.data?.data?.messageId;return response?.data?.success&&id?{accepted:String(id).slice(0,191)}:{unknown:true,errorCode:'REPORT_QR_ACCEPTANCE_UNCONFIRMED'};}catch{return {unknown:true,errorCode:'REPORT_QR_SEND_UNCONFIRMED'};}
 }
 module.exports={config,sender,send,verify};

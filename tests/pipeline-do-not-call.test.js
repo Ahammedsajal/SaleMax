@@ -6,7 +6,7 @@ const path=require('node:path');
 const pipeline=require('../helper/pipeline/leadPipeline');
 
 const lead={id:'lead-1',title:'Demo lead',contact_name:'Lead One',mobile:'+919876543210',stage_key:'new',owner_agent_id:9,status:'open',priority:'normal',expected_value:100,currency:'INR',last_activity_at:'2026-10-14T00:00:00.000Z',created_at:'2026-10-13T00:00:00.000Z'};
-function fixture({categoryKey='salemax_sales',suppressed=true}={}){
+function fixture({categoryKey='7network_sales',suppressed=true}={}){
   const calls=[];
   const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql,args=[]){
     calls.push({sql,args});
@@ -37,14 +37,14 @@ test('other categories do not run the Sales suppression lookup',async()=>{
   assert.equal(f.calls.some(call=>call.sql.startsWith('SELECT DISTINCT lead_id')),false);
 });
 
-test('Pipeline displays bilingual do-not-call status and only offers the disposition in SaleMaX Sales',()=>{
+test('Pipeline displays bilingual do-not-call status and only offers the disposition in 7Network Sales',()=>{
   const root=path.join(__dirname,'..');
   const screen=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.js'),'utf8');
   const reports=fs.readFileSync(path.join(root,'client/public/pipeline/reports.js'),'utf8');
   const html=fs.readFileSync(path.join(root,'client/public/pipeline/index.html'),'utf8');
   const router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8');
   assert.match(screen,/doNotCall:'Do not call'/);assert.match(screen,/doNotCall:'ممنوع الاتصال'/);
-  assert.match(screen,/lead\.doNotCall/);assert.match(screen,/x\.doNotCall/);assert.match(screen,/state\.data\.categoryKey==='salemax_sales'/);
+  assert.match(screen,/lead\.doNotCall/);assert.match(screen,/x\.doNotCall/);assert.match(screen,/state\.data\.categoryKey==='7network_sales'/);
   assert.match(router,/categoryKey: req\.pipelineActor\.categoryKey/);assert.match(router,/categoryKey:req\.pipelineActor\.categoryKey/);
   assert.match(reports,/do_not_call:'Do not call'/);assert.match(reports,/do_not_call:'عدم الاتصال'/);
   assert.match(html,/reports\.js\?v=[^"\s<>]+/); // Current release cache key, independent of an older deployment stamp.

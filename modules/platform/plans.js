@@ -1,6 +1,6 @@
 const crypto=require('node:crypto');
 const {platformDecision,decision}=require('./policy');
-const {getCategory}=require('./categories');
+const {getCategory,canonicalCategoryKey,categoryKeyMatches}=require('./categories');
 function fail(code){throw Object.assign(new Error(code),{code});}
 function json(value){return typeof value==='string'?JSON.parse(value):value;}
 function uuid(value){if(typeof value!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value))fail('INVALID_ID');return value;}
@@ -20,7 +20,7 @@ function definition(input){
   const category=getCategory(input.categoryKey,input.categoryVersion);
   if(!category?.planable)fail('CATEGORY_UNAVAILABLE');
   if(!Array.isArray(input.capabilities)||!input.capabilities.length||input.capabilities.some(c=>!category.capabilities.includes(c))||new Set(input.capabilities).size!==input.capabilities.length)fail('INVALID_CAPABILITIES');
-  return {category,categoryKey:input.categoryKey,categoryVersion:input.categoryVersion,capabilities:[...input.capabilities].sort(),roleLimits:limits(input.roleLimits,category.seatRoles)};
+  return {category,categoryKey:category.key,categoryVersion:input.categoryVersion,capabilities:[...input.capabilities].sort(),roleLimits:limits(input.roleLimits,category.seatRoles)};
 }
 function authorizeCategory(ctx,category){if(category?.public===false&&!platformDecision(ctx,'categories.manage'))fail('PERMISSION_DENIED');}
 async function transaction(db,fn){await db.beginTransaction();try{const result=await fn();await db.commit();return result;}catch(error){await db.rollback();throw error;}}
@@ -99,7 +99,7 @@ async function previewAssignment(db,ctx,input){
     const proposed=limits(input.roleLimits,definitionData.category.seatRoles),used=await readUsage(db,input.tenantId),ceiling=limits(json(plan.role_limits),definitionData.category.seatRoles),current=await loadEntitlements(db,input.tenantId);
     const blockers=[];
     if(tenant.status!=='active')blockers.push('ACCOUNT_INACTIVE');
-    if(plan.category_key!==tenant.category_key||plan.category_version!==tenant.category_version)blockers.push('CATEGORY_UNAVAILABLE');
+    if(!categoryKeyMatches(plan.category_key,tenant.category_key)||Number(plan.category_version)!==Number(tenant.category_version))blockers.push('CATEGORY_UNAVAILABLE');
     for(const role of Object.keys(ceiling)){
       if(proposed[role]>ceiling[role])blockers.push('PLAN_LIMIT_EXCEEDED:'+role);
       if(proposed[role]<used[role])blockers.push('SEATS_IN_USE:'+role);
@@ -122,7 +122,7 @@ async function assign(db,ctx,input){
     if(!plan||plan.status!=='published')fail('PUBLISHED_PLAN_REQUIRED');
     const definitionData=definition({categoryKey:plan.category_key,categoryVersion:Number(plan.category_version),capabilities:json(plan.capabilities),roleLimits:json(plan.role_limits)});authorizeCategory(ctx,definitionData.category);
     const roleLimits=limits(input.roleLimits,definitionData.category.seatRoles);
-    if(plan.category_key!==tenant.category_key||plan.category_version!==tenant.category_version)fail('CATEGORY_UNAVAILABLE');
+    if(!categoryKeyMatches(plan.category_key,tenant.category_key)||Number(plan.category_version)!==Number(tenant.category_version))fail('CATEGORY_UNAVAILABLE');
     const ceiling=limits(json(plan.role_limits),definitionData.category.seatRoles),used=await usage(db,tenant.id);
     for(const role of Object.keys(ceiling)){if(roleLimits[role]>ceiling[role])fail('PLAN_LIMIT_EXCEEDED');if(roleLimits[role]<used[role])fail('SEATS_IN_USE');}
     const id=crypto.randomUUID();
@@ -138,11 +138,11 @@ async function loadEntitlements(db,tenantId){
   const [[row]]=await db.query(`SELECT a.id,a.status,a.role_limits,p.capabilities,p.category_key,p.category_version,
     (a.effective_from<=UTC_TIMESTAMP(3) AND a.expires_at>UTC_TIMESTAMP(3)) AS current_period
     FROM sx_plan_assignments a JOIN sx_plan_versions p ON p.id=a.plan_version_id AND p.status='published'
-    JOIN sx_tenants t ON t.id=a.tenant_id AND t.category_key=p.category_key AND t.category_version=p.category_version
+    JOIN sx_tenants t ON t.id=a.tenant_id AND (t.category_key=p.category_key OR (t.category_key='7network_sales' AND p.category_key='salemax_sales')) AND t.category_version=p.category_version
     WHERE a.tenant_id=? AND a.current_tenant IS NOT NULL`,[uuid(tenantId)]);
   if(!row)return null;
   const category=getCategory(row.category_key,Number(row.category_version));if(!category)fail('CATEGORY_UNAVAILABLE');
-  return {assignmentId:row.id,status:row.current_period?row.status:'expired',roleLimits:limits(json(row.role_limits),category.seatRoles),capabilities:json(row.capabilities),categoryKey:row.category_key,categoryVersion:row.category_version};
+  return {assignmentId:row.id,status:row.current_period?row.status:'expired',roleLimits:limits(json(row.role_limits),category.seatRoles),capabilities:json(row.capabilities),categoryKey:category.key,categoryVersion:Number(row.category_version)};
 }
 async function reserveInvite(db,ctx,input){
   if(!decision(ctx,{capability:'team.members',permission:'team.invite'}).allowed)fail('PERMISSION_DENIED');
@@ -179,12 +179,12 @@ async function listVersions(db,ctx,{search='',offset=0,status=''}={}){
   if(typeof search!=='string'||search.length>100||!Number.isSafeInteger(offset)||offset<0||offset>10000||!['','draft','published'].includes(status))fail('INVALID_QUERY');
   const [rows]=await db.query(`SELECT v.id,v.plan_id AS planId,p.name,v.version,v.status,v.revision,v.role_limits AS roleLimits,v.capabilities,v.category_key AS categoryKey,v.category_version AS categoryVersion
     FROM sx_plan_versions v JOIN sx_plans p ON p.id=v.plan_id WHERE p.name LIKE ? AND (?='' OR v.status=?) ORDER BY v.created_at DESC,v.id LIMIT 51 OFFSET ?`,['%'+search+'%',status,status,offset]);
-  const more=rows.length>50;return {items:rows.slice(0,50).map(row=>({...row,roleLimits:json(row.roleLimits),capabilities:json(row.capabilities)})),nextOffset:more?offset+50:null};
+  const more=rows.length>50;return {items:rows.slice(0,50).map(row=>({...row,categoryKey:canonicalCategoryKey(row.categoryKey),roleLimits:json(row.roleLimits),capabilities:json(row.capabilities)})),nextOffset:more?offset+50:null};
 }
 async function getVersion(db,ctx,id){
   authorize(ctx,'plans.read');uuid(id);
   const [[row]]=await db.query(`SELECT v.id,v.plan_id AS planId,p.name,v.version,v.status,v.revision,v.role_limits AS roleLimits,v.capabilities,v.category_key AS categoryKey,v.category_version AS categoryVersion
     FROM sx_plan_versions v JOIN sx_plans p ON p.id=v.plan_id WHERE v.id=?`,[id]);
-  if(!row)fail('PLAN_NOT_FOUND');return {...row,roleLimits:json(row.roleLimits),capabilities:json(row.capabilities)};
+  if(!row)fail('PLAN_NOT_FOUND');return {...row,categoryKey:canonicalCategoryKey(row.categoryKey),roleLimits:json(row.roleLimits),capabilities:json(row.capabilities)};
 }
 module.exports={definition,limits,authorizeCategory,createDraft,updateDraft,publish,previewAssignment,assign,loadEntitlements,reserveInvite,listVersions,getVersion,readUsage,audit};

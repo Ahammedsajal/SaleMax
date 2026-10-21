@@ -8,7 +8,7 @@ const qualities=new Set(['effective','needs_improvement','follow_up_required']);
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 
 function authorize(context,permission){
-  if(context?.tenant?.categoryKey!=='salemax_sales')fail('CATEGORY_UNAVAILABLE');
+  if(context?.tenant?.categoryKey!=='7network_sales')fail('CATEGORY_UNAVAILABLE');
   const result=decision(context,{capability:'telephony.call-center',permission});
   if(!result.allowed)fail(result.code);
   return result;

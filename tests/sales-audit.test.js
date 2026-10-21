@@ -7,7 +7,7 @@ const audit=require('../modules/platform/sales-audit');
 const navigation=require('../modules/platform/navigation');
 const {salemaxSales}=require('../modules/platform/categories');
 
-function context(role='owner',overrides={}){return{audience:'tenant',identity:{id:'identity-1'},tenant:{id:'tenant-1',status:'active',categoryKey:'salemax_sales',categoryVersion:1},membership:{id:`${role}-1`,tenantId:'tenant-1',role,status:'active'},category:salemaxSales,subscription:{status:'active',capabilities:[...salemaxSales.capabilities]},...overrides}}
+function context(role='owner',overrides={}){return{audience:'tenant',identity:{id:'identity-1'},tenant:{id:'tenant-1',status:'active',categoryKey:'7network_sales',categoryVersion:1},membership:{id:`${role}-1`,tenantId:'tenant-1',role,status:'active'},category:salemaxSales,subscription:{status:'active',capabilities:[...salemaxSales.capabilities]},...overrides}}
 function fakeDb(rows){return{calls:[],async query(sql,args){this.calls.push({sql,args});return[rows]}}}
 
 test('Sales Audit is visible to Business Admin only and uses the existing settings entitlement',()=>{

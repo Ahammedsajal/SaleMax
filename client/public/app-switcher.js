@@ -24,7 +24,7 @@
       "padding:0 18px",
       "border:1px solid rgba(255,255,255,.24)",
       "border-radius:999px",
-      "background:#a8003b",
+      "background:#1768d4",
       "box-shadow:0 8px 24px rgba(14,55,49,.24)",
       "color:#fff",
       "font:600 14px/1.2 Roboto,Arial,sans-serif",

@@ -8,7 +8,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('both SaleMaX process entrypoints parse Meta callbacks without a global app-secret gate', () => {
+test('both 7Network process entrypoints parse Meta callbacks without a global app-secret gate', () => {
   for (const file of ['app.js', 'server.js']) {
     const source = read(file);
     assert.match(source, /express\.json\(\{\s*limit:\s*["']10mb["'],\s*verify:\s*require\(["']\.\/modules\/platform\/meta-webhook-signature["']\)\.captureRawBody\s*\}\)/);
@@ -48,7 +48,7 @@ test('inbox processing still checks the callback phone number against the select
   assert.match(inbox, /if \(checkNumber !== myNumberId\)\s*\{\s*console\.log\("⚠️ Phone number mismatch"\);\s*return;/);
 });
 
-test('manual Meta connection subscribes its WABA to the SaleMaX app', () => {
+test('manual Meta connection subscribes its WABA to the 7Network app', () => {
   const user = read('routes/user.js');
   const start = user.indexOf('router.post("/update_meta"');
   const end = user.indexOf('// update embed meta', start);

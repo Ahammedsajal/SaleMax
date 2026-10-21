@@ -9,7 +9,9 @@ const ui=fs.readFileSync(path.join(root,'client/public/admin-signin-mfa.js'),'ut
 const router=fs.readFileSync(path.join(root,'modules/platform/auth-router.js'),'utf8');
 const admin=fs.readFileSync(path.join(root,'routes/admin.js'),'utf8');
 test('the existing administrator sign-in is the one-time MFA entry point',()=>{
-  assert.match(html,/<script defer="defer" src="\/static\/js\/main\.[^"]+"><\/script><script defer="defer" src="\/admin-signin-mfa\.js\?v=[^"]+"><\/script>/);
+  const mainBundle=html.indexOf('/static/js/main.');
+  const mfaAdapter=html.indexOf('/admin-signin-mfa.js?v=');
+  assert.ok(mainBundle>=0&&mfaAdapter>mainBundle,'the existing React shell must load before its MFA adapter');
   assert.match(ui,/location\.pathname !== '\/admin\/login'/);
   assert.match(ui,/\/api\/admin\/login/);
   assert.match(ui,/platformApi\('login-policy'/);
