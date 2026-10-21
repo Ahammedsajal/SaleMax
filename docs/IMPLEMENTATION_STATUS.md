@@ -1917,6 +1917,24 @@ Source `cdbc6a1` plus support/live-acceptance fixes `6a8d2d1`, `31ee5d7`, `ed199
 
 Live acceptance also repaired existing Pipeline board/filter/detail collation conflicts and empty contact-field defaults. Admin persistence is proven but admin-authenticated visual review remains open. Existing legal pages need owner-reviewed copy, and the unrelated Training sale-review panel in Sales detail still reports `CATEGORY_UNAVAILABLE`. The full 42-ticket/provider/finance/load/restore objective remains in progress; this website release does not redefine those gates.
 
+## Upgraded router-factory ownership inventory — source update, 21 October 2026
+
+The route audit now discovers router factories mounted by
+`mount-existing-upgrade.js`, joins their static handlers to mount prefixes, and
+captures routes across 33 mounts and 23 modules (397 bindings including path
+aliases). This closes the previous scanner blind spot for the maintained
+workspace/vertical router factories. The 17 routes without a recognizable
+named guard are a manual review queue, not a finding that those handlers are
+unprotected; inline middleware, service checks and tenant-scoped SQL still need
+review. Representative property, course, finance and recruitment routes are
+covered by an inventory test. The 3 route-audit checks pass. This is source-only:
+no authorization behavior, category assignment, migration or production state
+changed. Next, link routes to reviewed capabilities, data owners and trusted
+tenant-context sources, then add cross-category and cross-tenant API tests.
+Legacy jobs, sockets, provider callbacks, public/static routes, and complete
+authenticated EN/AR acceptance remain open; the broader 42-ticket upgrade is
+not complete.
+
 ### Original public logo and icon — production, 20 October 2026
 
 `def8d24` is deployed in `public-logo-def8d24-20261020`. Public header/footer use the original SaleMaX horizontal logo; the hero and browser icon use the supplied icon assets. Desktop image loading, mobile bounds, source/runtime/HTTPS hashes and health passed. This is an HTML/CSS-only branding correction, with no migration or business-data change; release/rollback evidence is in `DEPLOYMENT.md`.
