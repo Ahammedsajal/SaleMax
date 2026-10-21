@@ -1,4 +1,4 @@
-## Tenant-local menu visibility — source implementation, 21 October 2026
+## Tenant-local menu visibility — production, 21 October 2026
 
 The existing owner-only workspace customization now supports schema 3 with a
 category-validated list of menu sections hidden for that tenant. The published
@@ -10,12 +10,17 @@ the manager shared-QR grant, including for older saved member assignments.
 Schema 1/2 settings remain readable
 and no database migration is required. Five focused customization tests pass,
 including different hidden menus for two same-category tenants. Syntax and diff
-checks pass. Thirty focused customization, policy, Team Access and HTTP
-tests pass. Eight synthetic browser cases pass across English/Arabic, desktop/
-mobile and cookie/bearer paths, including preview, publish, reset and rollback.
-No production deployment or customer setting change has occurred; see
-`docs/SCALABLE_CRM_CUSTOMIZATION.md` for live acceptance and full customization
-gates.
+checks pass. Thirty focused customization, policy, Team Access and HTTP tests
+pass. Eight synthetic browser cases pass across English/Arabic, desktop/mobile
+and cookie/bearer paths, including preview, hidden-menu preview, publish, reset
+and rollback. Source `64a3b6f106f366aaefafb63b74598e15d8d5de7b` is pushed to
+GitHub `main` and deployed in `/opt/salemax/releases/tenant-menu-visibility-64a3b6f-20261021`.
+The app image's runtime hashes match the release and the served cache-busted
+editor; health, public page and both login routes return HTTP 200. The database
+and background workers were not recreated; no migration or tenant setting was
+changed. Signed-in live owner/staff screen acceptance and category-wide
+workflow customization remain open. Rollback and production-only source
+preservation details are in `DEPLOYMENT.md`.
 
 ## SaleMaX Sales applicant error copy — production, 21 October 2026
 

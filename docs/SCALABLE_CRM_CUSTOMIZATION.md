@@ -205,12 +205,18 @@ authorization. Each tenant is still loaded by its authenticated tenant ID.
 
 Focused contract tests pass across two same-category tenants with different
 published navigation, other-category rejection and legacy schema compatibility.
-The existing owner editor and HTTP preview route are extended in source. Thirty
-focused customization, policy, Team Access and HTTP tests pass; eight
-synthetic browser cases pass in EN/AR, desktop/mobile and cookie/bearer modes,
-including draft, preview, publication, reset and rollback. These fixtures do not
-prove signed-in live acceptance. No production code or tenant settings changed;
-live acceptance and source publication remain open.
+The existing owner editor and HTTP preview route are extended. Thirty focused
+customization, policy, Team Access and HTTP tests pass; eight synthetic browser
+cases pass in EN/AR, desktop/mobile and cookie/bearer modes, including draft,
+preview of hidden sections, publication, reset and rollback. Source
+`64a3b6f106f366aaefafb63b74598e15d8d5de7b` is pushed and deployed in
+`/opt/salemax/releases/tenant-menu-visibility-64a3b6f-20261021`. Production
+health, login routes, public editor asset, and release/container hashes pass.
+The deployment preserved a production-only omission of the unfinished Real
+Estate module mapping in `feature-contract.js`; its deployed hash is recorded in
+`DEPLOYMENT.md`. No migration or tenant setting was changed. These checks do
+not prove signed-in live owner/staff acceptance, broad category workflow
+customization, or the full multi-category isolation matrix.
 
 
 ## Next adoption boundary: lead fields and legacy Pipeline — 20 October 2026
