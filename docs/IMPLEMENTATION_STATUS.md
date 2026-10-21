@@ -2157,3 +2157,19 @@ existing-screen acceptance remain open for these route surfaces.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+
+## Training Finance route-to-table ownership contract — source update, 21 October 2026
+
+The existing `/api/workspace/finance` route now maps both `training.finance`
+and `training.report-schedules` to the Training Center package. The finance
+module owns its invoice, payment, journal, credit, refund, dispute, document,
+reminder, sale review/conversion and invoice-generator records. The report
+module separately owns scheduled reports, runs, recipients, delivery,
+verification and recipient-challenge records. Course, form, identity, tenant,
+and legacy lead/user tables are classified as references. A focused test walks
+the complete route service graph, compares every referenced SQL table against
+the contracts, checks that owned tables have tracked migrations, and ensures
+the two modules do not claim the same table. This remains source inventory
+only: no authorization or runtime behavior changed, production was not
+updated, and authenticated workflow plus database-isolation acceptance remain
+open.

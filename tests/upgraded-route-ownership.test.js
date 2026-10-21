@@ -24,7 +24,7 @@ test('vertical route ownership follows category module contracts without merging
   assert.deepEqual(route('/api/workspace/courses').ownership.categoryModules,{training_center:['training.core']});
   assert.deepEqual(route('/api/workspace/products-services').ownership.categoryModules,{'7network_sales':['sales.products-services']});
   assert.deepEqual(route('/api/workspace/properties').ownership.categoryModules,{real_estate:['real-estate.properties']});
-  assert.deepEqual(route('/api/workspace/finance').ownership.categoryModules,{training_center:['training.finance']});
+  assert.deepEqual(route('/api/workspace/finance').ownership.categoryModules,{training_center:['training.finance','training.report-schedules']});
   assert.deepEqual(route('/api/admin/plan-contracts').ownership.modules,[]);
   assert.equal(Object.hasOwn(route('/api/crm').ownership.categoryModules,'restaurant_fixture'),false);
   assert.equal(route('/api/workspace/properties').ownership.moduleContracts['real-estate.properties'].dataBoundary,'tenant_scoped');
@@ -124,4 +124,32 @@ test('Training course route owns its course workflow tables and classifies Finan
   for(const table of module.dataOwnership.ownedTables)assert.ok(created.has(table),`${table} must have a tracked migration`);
   const productRoute=ownership.routes.find(item=>item.mount==='/api/workspace/products-services');
   assert.deepEqual(productRoute.ownership.categoryModules,{'7network_sales':['sales.products-services']});
+});
+
+test('Training Finance route separates accounting data from scheduled report ownership',()=>{
+  const ownership=ownershipForInventory(routerInventory(),{moduleRegistry:categoryRegistry.moduleRegistry,categories:{list:categoryRegistry.listCategories,get:categoryRegistry.getCategory}});
+  const route=ownership.routes.find(item=>item.mount==='/api/workspace/finance');
+  assert.deepEqual(route.ownership.modules,['training.finance','training.report-schedules']);
+  assert.deepEqual(route.ownership.categoryModules,{training_center:['training.finance','training.report-schedules']});
+  const accessedTables=new Set();
+  for(const file of route.ownership.services){
+    const source=fs.readFileSync(path.join(root,file),'utf8');
+    for(const [,table] of source.matchAll(/\b(?:FROM|JOIN|INTO|UPDATE)\s+([a-z][a-z0-9_]*)/gi))if(table.startsWith('sx_')||['pipeline_leads','user'].includes(table))accessedTables.add(table);
+  }
+  const declared=new Set();
+  for(const id of route.ownership.modules){
+    const module=route.ownership.moduleContracts[id];
+    assert.equal(module.dataOwnership.status,'reviewed');
+    for(const table of module.dataOwnership.ownedTables)assert.ok(!declared.has(table),`${table} must have exactly one module owner`);
+    for(const table of [...module.dataOwnership.ownedTables,...module.dataOwnership.referencedTables.map(item=>item.name)])declared.add(table);
+  }
+  assert.deepEqual([...accessedTables].sort(),[...declared].sort(),'finance route SQL must be fully classified as owned or referenced');
+  const finance=route.ownership.moduleContracts['training.finance'].dataOwnership;
+  const reports=route.ownership.moduleContracts['training.report-schedules'].dataOwnership;
+  assert.ok(finance.ownedTables.includes('sx_training_invoices'));
+  assert.ok(!finance.ownedTables.some(table=>table.startsWith('sx_training_report_')));
+  assert.deepEqual(reports.ownedTables,['sx_training_report_deliveries','sx_training_report_recipient_challenges','sx_training_report_recipients','sx_training_report_runs','sx_training_report_schedules','sx_training_report_verifications']);
+  const migrations=fs.readdirSync(path.join(root,'database/migrations')).filter(file=>file.endsWith('.sql')).map(file=>fs.readFileSync(path.join(root,'database/migrations',file),'utf8')).join('\n');
+  const created=new Set([...migrations.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?([a-z][a-z0-9_]*)/gi)].map(match=>match[1]));
+  for(const id of route.ownership.modules)for(const table of route.ownership.moduleContracts[id].dataOwnership.ownedTables)assert.ok(created.has(table),`${table} must have a tracked migration`);
 });
