@@ -77,12 +77,14 @@ bindings, counting aliases separately, with no unresolved dynamic paths.
 
 `modules/platform/upgraded-route-ownership.js` now assigns all 44 distinct
 router/mount pairs to an explicit platform, identity, shared-module or
-category-module owner. The join expands to every discovered route. The
-ownership test rejects unowned bindings, stale contracts, unknown module IDs,
-and category/module combinations not present in the category registry. It also
-locks the catalogue boundary: Training Center courses map to `training.core`,
-Sales products/services map to `sales.products-services`, and properties map
-to `real-estate.properties` only.
+category-module owner. The join expands to every discovered route and carries
+the registered module's capabilities, primary service pointer and current data
+boundary classification. The ownership test rejects unowned bindings,
+stale contracts, unknown module IDs, and category/module combinations not
+present in the category registry. It also locks the catalogue boundary:
+Training Center courses map to `training.core`, Sales products/services map to
+`sales.products-services`, and properties map to `real-estate.properties`
+only. These classifications still need exact SQL-table and query review.
 
 All 451 bindings remain `review_required` for actual enforcement. The inventory
 marks ownership as mapped while policy review remains unverified; ownership

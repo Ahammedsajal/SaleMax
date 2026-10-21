@@ -61,7 +61,11 @@ function ownershipForInventory(inventory,{moduleRegistry,categories}){
     used.add(key);
     if(!['platform','identity','tenant_module','public_tenant_module'].includes(contract.routeClass)
       ||typeof contract.owner!=='string'||!contract.owner||typeof contract.contextBoundary!=='string')throw new Error(`INVALID_ROUTE_OWNERSHIP_CONTRACT:${key}`);
-    for(const id of contract.modules){const entry=moduleRegistry.get(id,1);if(!entry)throw new Error(`UNKNOWN_ROUTE_MODULE:${key}:${id}`);}
+    const moduleContracts={};
+    for(const id of contract.modules){
+      const entry=moduleRegistry.get(id,1);if(!entry)throw new Error(`UNKNOWN_ROUTE_MODULE:${key}:${id}`);
+      moduleContracts[id]={version:entry.version,capabilities:[...entry.capabilities],primaryService:entry.primaryService,dataBoundary:entry.dataBoundary};
+    }
     const categoryModules=contract.moduleByCategory||(!contract.modules.length?{}:Object.fromEntries(categories.list().flatMap(category=>{
       const modules=contract.modules.filter(id=>category.modules?.some(ref=>ref.id===id&&ref.version===1));
       return modules.length===contract.modules.length?[[category.key,modules]]:[];
@@ -71,7 +75,7 @@ function ownershipForInventory(inventory,{moduleRegistry,categories}){
       if(!category||!Array.isArray(moduleIds)||!moduleIds.length||moduleIds.some(moduleId=>!contract.modules.includes(moduleId)||!category.modules?.some(ref=>ref.id===moduleId&&ref.version===1)))throw new Error(`INVALID_CATEGORY_ROUTE_OWNER:${key}:${categoryKey}`);
     }
     if(contract.routeClass==='tenant_module'&&!Object.keys(categoryModules).length)throw new Error(`TENANT_ROUTE_WITHOUT_CATEGORY_OWNER:${key}`);
-    return {...route,ownership:{...contract,categoryModules},ownershipStatus:'mapped_policy_unverified'};
+    return {...route,ownership:{...contract,moduleContracts,categoryModules},ownershipStatus:'mapped_policy_unverified'};
   });
   const stale=[...byKey.keys()].filter(key=>!used.has(key));
   return {routes,unowned:[...new Set(unowned)].sort(),stale:stale.sort(),contractCount:contracts.length};

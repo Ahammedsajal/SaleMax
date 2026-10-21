@@ -24,4 +24,7 @@ test('vertical route ownership follows category module contracts without merging
   assert.deepEqual(route('/api/workspace/finance').ownership.categoryModules,{training_center:['training.finance']});
   assert.deepEqual(route('/api/admin/plan-contracts').ownership.modules,[]);
   assert.equal(Object.hasOwn(route('/api/crm').ownership.categoryModules,'restaurant_fixture'),false);
+  assert.equal(route('/api/workspace/properties').ownership.moduleContracts['real-estate.properties'].dataBoundary,'tenant_scoped');
+  assert.equal(route('/api/workspace/properties').ownership.moduleContracts['real-estate.properties'].primaryService,'modules/platform/real-estate-properties-router.js');
+  assert.equal(route('/api/workspace/courses').ownership.moduleContracts['training.core'].dataBoundary,'mixed_legacy_and_tenant');
 });

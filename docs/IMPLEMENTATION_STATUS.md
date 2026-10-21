@@ -61,8 +61,10 @@ route bindings. All 451 bindings across 36 mounts and 25 modules now join to 44
 explicit module/platform ownership contracts. Tests reject missing/stale
 contracts, invalid module IDs, and category/module mismatches; they confirm
 Training courses, Sales products/services and Real Estate listings retain
-separate module ownership. This is an inventory and ownership improvement,
-not route authorization: all bindings still require service/data-scope review,
+separate module ownership. Each mapped route also exposes its registry-owned
+capabilities, primary service and data-boundary class for review. This is an
+inventory and ownership improvement, not route authorization: all bindings
+still require table/query and data-scope review,
 and 64 have no recognizable named guard in their declaration. Source only;
 legacy direct routes, jobs, sockets, provider callbacks, authenticated UI
 acceptance, and production release remain open. The full 42-ticket objective
