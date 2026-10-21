@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const {decision} = require('./policy');
 const fail = (code,status=400) => {throw Object.assign(new Error(code),{code,status});};
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-const defaults = () => ({schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]});
+const defaults = () => ({schemaVersion:6,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,enabledModules:null,moduleSettings:{}});
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function authorize(ctx) {
   const result=decision(ctx,{capability:'tenant.settings',permission:'tenant.manage'});
@@ -19,9 +19,30 @@ function fieldsFor(ctx) {
 function categoryNavigationKeys(ctx) {
   return new Set(fieldsFor(ctx).map(item=>item.key));
 }
+function moduleOptions(ctx) {
+  const registry=require('./categories').moduleRegistry;
+  const navigation=require('./navigation').items;
+  return (ctx.category?.modules||[]).map(ref=>registry.get(ref.id,ref.version)).filter(module=>module&&module.activation!=='locked_compatibility').map(module=>{
+    const screen=module.screens.map(key=>navigation.find(item=>item.key===key)).find(Boolean);
+    const planAvailable=!!ctx.subscription&&['active','trial','grace'].includes(ctx.subscription.status)&&module.capabilities.every(capability=>ctx.subscription.capabilities.includes(capability));
+    return {key:`${module.id}@${module.version}`,label:screen?.label||{en:module.id,ar:module.id},required:module.activation==='required',planAvailable};
+  });
+}
+function moduleSettingsOptions(ctx,document=defaults()) {
+  const registry=require('./categories').moduleRegistry,settings=require('./module-settings');
+  const labels=new Map(moduleOptions(ctx).map(option=>[option.key,option.label]));
+  return (ctx.category?.modules||[]).map(ref=>registry.get(ref.id,ref.version)).filter(module=>module&&module.configSchemaVersion!==null&&module.activation!=='locked_compatibility').map(module=>{
+    const key=settings.moduleKey(module.id,module.version),definition=settings.describe(module);
+    const planAvailable=!!ctx.subscription&&['active','trial','grace'].includes(ctx.subscription.status)&&module.capabilities.every(capability=>ctx.subscription.capabilities.includes(capability));
+    const enabled=!Array.isArray(document.enabledModules)||document.enabledModules.includes(key);
+    const stored=document.moduleSettings?.[key]||settings.defaults(module);
+    return {key,label:labels.get(key)||{en:module.id,ar:module.id},schemaVersion:definition.schemaVersion,planAvailable,enabled,fields:definition.fields,values:settings.migrate(module,stored)};
+  });
+}
 function normalize(ctx,input) {
-  const allowedKeys=input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
-  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
+  const schema=input?.schemaVersion;
+  const allowedKeys=schema===6?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','enabledModules','moduleSettings']:schema===5?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','enabledModules']:schema===4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes']:schema===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:schema===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
+  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4,5,6].includes(schema)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
   const allowed=categoryNavigationKeys(ctx);
   const labels={};
   for(const key of Object.keys(input.navigationLabels).sort()) {
@@ -30,17 +51,49 @@ function normalize(ctx,input) {
     labels[key]={en:value.en.trim(),ar:value.ar.trim()};
   }
   const leadFields=input.schemaVersion===2?require('./lead-field-contract').definitions(input.leadFields):null;
-  const schema3LeadFields=input.schemaVersion===3?require('./lead-field-contract').definitions(input.leadFields):null;
-  const hiddenNavigation=input.schemaVersion===3?input.hiddenNavigation:[];
+  const schema3LeadFields=input.schemaVersion>=3?require('./lead-field-contract').definitions(input.leadFields):null;
+  const hiddenNavigation=input.schemaVersion>=3?input.hiddenNavigation:[];
   if(!Array.isArray(hiddenNavigation)||hiddenNavigation.length>allowed.size||new Set(hiddenNavigation).size!==hiddenNavigation.length||hiddenNavigation.some(key=>typeof key!=='string'||!allowed.has(key)))fail('INVALID_CUSTOMIZATION_NAVIGATION');
+  const taskAdapters=require('./task-type-adapters');
+  const taskOptions=taskAdapters.configurable(ctx);
+  const enabledTaskTypes=input.schemaVersion>=4?input.enabledTaskTypes:null;
+  if(enabledTaskTypes!==null&&(!Array.isArray(enabledTaskTypes)||enabledTaskTypes.length>taskOptions.length||new Set(enabledTaskTypes).size!==enabledTaskTypes.length||enabledTaskTypes.some(key=>typeof key!=='string'||!taskOptions.some(item=>item.key===key))))fail('INVALID_CUSTOMIZATION_TASK_TYPES');
+  let enabledModules=null;
+  if(schema>=5) {
+    enabledModules=input.enabledModules;
+    if(enabledModules!==null) {
+      const registry=require('./categories').moduleRegistry;
+      const eligible=(ctx.category?.modules||[]).map(ref=>registry.get(ref.id,ref.version)).filter(module=>module&&module.activation!=='locked_compatibility');
+      const allowedModules=new Set(eligible.map(module=>`${module.id}@${module.version}`));
+      if(!Array.isArray(enabledModules)||enabledModules.length>eligible.length||new Set(enabledModules).size!==enabledModules.length||enabledModules.some(key=>typeof key!=='string'||!allowedModules.has(key))||eligible.some(module=>module.activation==='required'&&!enabledModules.includes(`${module.id}@${module.version}`)))fail('INVALID_CUSTOMIZATION_MODULES');
+      enabledModules=[...enabledModules].sort();
+    }
+  }
+  let moduleSettings={};
+  if(schema===6) {
+    if(!plain(input.moduleSettings))fail('INVALID_CUSTOMIZATION_MODULE_SETTINGS');
+    const registry=require('./categories').moduleRegistry,settings=require('./module-settings');
+    const available=new Map((ctx.category?.modules||[]).map(ref=>registry.get(ref.id,ref.version)).filter(module=>module&&module.configSchemaVersion!==null&&module.activation!=='locked_compatibility').map(module=>[settings.moduleKey(module.id,module.version),module]));
+    if(Object.keys(input.moduleSettings).length>available.size)fail('INVALID_CUSTOMIZATION_MODULE_SETTINGS');
+    for(const key of Object.keys(input.moduleSettings).sort()) {
+      const module=available.get(key);
+      // Settings may be retained while a module is disabled or outside the
+      // current plan. They never unlock its API; policy independently gates
+      // every use. This also avoids destroying a tenant's saved preferences
+      // when a plan expires or the owner temporarily turns the module off.
+      if(!module)fail('INVALID_CUSTOMIZATION_MODULE_SETTINGS');
+      try{moduleSettings[key]=settings.normalize(module,input.moduleSettings[key]);}
+      catch(_error){fail('INVALID_CUSTOMIZATION_MODULE_SETTINGS');}
+    }
+  }
   const fields=schema3LeadFields||leadFields;
   if(fields?.length&&!ctx.category?.capabilities.includes('crm.leads'))fail('CATEGORY_UNAVAILABLE',409);
-  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion===3?{hiddenNavigation:[...hiddenNavigation].sort()}:{})};
+  return {schemaVersion:schema,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(schema>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{}),...(schema>=4?{enabledTaskTypes:enabledTaskTypes===null?null:[...enabledTaskTypes].sort()}:{}),...(schema>=5?{enabledModules}:{}),...(schema===6?{moduleSettings}: {})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
 function decode(ctx,row) {
   if(!row)return null;
-  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4,5,6].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   const document=normalize(ctx,typeof row.document==='string'?JSON.parse(row.document):row.document);
   if(document.schemaVersion!==Number(row.schema_version)||checksum(document)!==row.checksum)fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {id:row.id,revision:Number(row.revision),kind:row.kind,document,checksum:row.checksum,createdAt:row.created_at};
@@ -57,15 +110,16 @@ async function state(db,ctx) {
   const [history]=await db.query("SELECT id,revision,checksum,created_at AS createdAt FROM sx_tenant_customization_revisions WHERE tenant_id=? AND kind='published' AND category_key=? AND category_version=? ORDER BY revision DESC LIMIT 20",[ctx.tenant.id,ctx.tenant.categoryKey,ctx.tenant.categoryVersion]);
   const active=await revision(db,ctx,head?.active_id),draft=await revision(db,ctx,head?.draft_id);
   if(active&&active.kind!=='published'||draft&&draft.kind!=='draft')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
+  const document=draft?.document||active?.document||defaults();
   return {revision:Number(head?.revision||0),active,draft,history,
-    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label}))};
+    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),taskTypes:require('./task-type-adapters').configurable(ctx).map(item=>({...item,planAvailable:require('./task-type-adapters').supports(ctx,item.key)})),moduleOptions:moduleOptions(ctx),moduleSettingsOptions:moduleSettingsOptions(ctx,document)};
 }
 function preview(ctx,document) {authorize(ctx);return {document:normalize(ctx,document),readOnly:true};}
 async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
   authorize(ctx);
   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0||expectedRevision>=Number.MAX_SAFE_INTEGER)fail('INVALID_CUSTOMIZATION_REVISION');
   if(!['draft','publish','rollback'].includes(action))fail('INVALID_CUSTOMIZATION_ACTION');
-  const normalized=action==='draft'?normalize(ctx,document):null;
+  let normalized=null;
   if(action==='rollback'&&!uuid(targetId))fail('INVALID_CUSTOMIZATION_REVISION');
   await db.beginTransaction();
   try {
@@ -76,7 +130,8 @@ async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
     if(!member||member.role!=='owner'||member.status!=='active'||member.identityStatus!=='active')fail('PERMISSION_DENIED',403);
     const subscription=await require('./plans').loadEntitlements(db,ctx.tenant.id);
     if(subscription&&(subscription.categoryKey!==ctx.tenant.categoryKey||Number(subscription.categoryVersion)!==ctx.tenant.categoryVersion))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
-    authorize({...ctx,subscription});
+    const currentContext={...ctx,subscription};authorize(currentContext);
+    if(action==='draft')normalized=normalize(currentContext,document);
     const [[head]]=await db.query('SELECT revision,active_id,draft_id FROM sx_tenant_customization_heads WHERE tenant_id=? FOR UPDATE',[ctx.tenant.id]);
     if(Number(head?.revision||0)!==expectedRevision)fail('STALE_CUSTOMIZATION_REVISION',409);
     const [[rate]]=await db.query('SELECT COUNT(*) AS total FROM sx_tenant_customization_revisions WHERE tenant_id=? AND created_at>TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3))',[ctx.tenant.id]);
@@ -102,11 +157,21 @@ async function effective(db,ctx) {
   // For internal runtime consumers. Authenticated context is mandatory; no
   // tenant ID supplied by a browser can select a different configuration.
   if(ctx?.audience!=='tenant'||ctx.tenant?.id!==ctx.membership?.tenantId||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active')fail('PERMISSION_DENIED',403);
-  const [[head]]=await db.query('SELECT revision,active_id FROM sx_tenant_customization_heads WHERE tenant_id=?',[ctx.tenant.id]);
-  const active=await revision(db,ctx,head?.active_id);
+  const [[row]]=await db.query(`SELECT r.*,h.revision AS head_revision FROM sx_tenant_customization_heads h
+    LEFT JOIN sx_tenant_customization_revisions r ON r.tenant_id=h.tenant_id AND r.id=h.active_id WHERE h.tenant_id=?`,[ctx.tenant.id]);
+  const active=row?.id?decode(ctx,row):null;
   if(active&&active.kind!=='published')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:active?active.revision:0,document:active?.document||defaults()};
 }
+async function withActivation(db,ctx) {
+  const value=await effective(db,ctx);
+  return {...ctx,enabledModules:value.document.schemaVersion>=5?value.document.enabledModules:null,moduleSettings:value.document.schemaVersion>=6?value.document.moduleSettings:{}};
+}
+function moduleSettingsFor(ctx,moduleId,moduleVersion){
+  const registry=require('./categories').moduleRegistry,module=registry.get(moduleId,moduleVersion),settings=require('./module-settings');
+  if(!module||!ctx?.category?.modules?.some(ref=>ref.id===moduleId&&ref.version===moduleVersion))fail('CATEGORY_UNAVAILABLE',409);
+  return settings.migrate(module,ctx.moduleSettings?.[settings.moduleKey(moduleId,moduleVersion)]||settings.defaults(module));
+}
 function visibleNavigationKeys(keys,document){const hidden=new Set(Array.isArray(document?.hiddenNavigation)?document.hiddenNavigation:[]);return keys.filter(key=>!hidden.has(key));}
 function visibleNavigation(rows,document){const visible=new Set(visibleNavigationKeys(rows.map(item=>item.key),document));return rows.filter(item=>visible.has(item.key));}
-module.exports={authorize,normalize,checksum,decode,defaults,state,preview,mutate,effective,visibleNavigation,visibleNavigationKeys};
+module.exports={authorize,normalize,checksum,decode,defaults,moduleOptions,moduleSettingsOptions,moduleSettingsFor,state,preview,mutate,effective,withActivation,visibleNavigation,visibleNavigationKeys};

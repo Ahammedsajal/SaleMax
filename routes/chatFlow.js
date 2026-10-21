@@ -12,9 +12,18 @@ const {
   executeMySQLQuery,
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
-const validateUser = require("../middlewares/user.js");
+const validateUserAuth = require("../middlewares/user.js");
 const { checkPlan } = require("../middlewares/plan.js");
-const validateAgent = require("../middlewares/agent.js");
+const validateAgentAuth = require("../middlewares/agent.js");
+const flowAccess = require("../modules/platform/automation-flow-access").createAutomationFlowAccess({
+  pool: require("../database/config.js").promise(),
+});
+const withFlowAccess = (authenticate) => (req, res, next) => authenticate(req, res, (error) => {
+  if (error) return next(error);
+  return flowAccess(req, res, next);
+});
+const validateUser = withFlowAccess(validateUserAuth);
+const validateAgent = withFlowAccess(validateAgentAuth);
 const { returnAddons } = require("../utils/addons.js");
 const isSafeFlowId = (value) => typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
 

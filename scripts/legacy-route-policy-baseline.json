@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "scope": "Static, directly mounted legacy routers in server.js with recognized authentication middleware. Entries remain review-required; this baseline prevents new unmapped routes and does not certify category or tenant isolation.",
+  "unmapped": [
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/add_ins_to_warm",
+      "status": "review_required",
+      "reviewArea": "legacy_shared_feature"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/add_widget",
+      "status": "review_required",
+      "reviewArea": "legacy_shared_feature"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/create_mercadopago_preference",
+      "status": "review_required",
+      "reviewArea": "legacy_platform_billing"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/create_stripe_session",
+      "status": "review_required",
+      "reviewArea": "legacy_platform_billing"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/del_quick_r",
+      "status": "review_required",
+      "reviewArea": "legacy_messaging"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/del_widget",
+      "status": "review_required",
+      "reviewArea": "legacy_shared_feature"
+    },
+    {
+      "mount": "/api/user",
+      "method": "GET",
+      "path": "/get_my_g_creds",
+      "status": "review_required",
+      "reviewArea": "legacy_shared_feature"
+    },
+    {
+      "mount": "/api/user",
+      "method": "GET",
+      "path": "/get_my_widget",
+      "status": "review_required",
+      "reviewArea": "legacy_shared_feature"
+    },
+    {
+      "mount": "/api/user",
+      "method": "GET",
+      "path": "/get_payment_details",
+      "status": "review_required",
+      "reviewArea": "legacy_platform_billing"
+    },
+    {
+      "mount": "/api/user",
+      "method": "GET",
+      "path": "/modify_password",
+      "status": "review_required",
+      "reviewArea": "account_security_and_notifications"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/pay_with_paypal",
+      "status": "review_required",
+      "reviewArea": "legacy_platform_billing"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/pay_with_paystack",
+      "status": "review_required",
+      "reviewArea": "legacy_platform_billing"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/pay_with_rz",
+      "status": "review_required",
+      "reviewArea": "legacy_platform_billing"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/save_note",
+      "status": "review_required",
+      "reviewArea": "legacy_messaging"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/start_free_trial",
+      "status": "review_required",
+      "reviewArea": "legacy_platform_billing"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/update_fcm_choice",
+      "status": "review_required",
+      "reviewArea": "account_security_and_notifications"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/update_fcm_token",
+      "status": "review_required",
+      "reviewArea": "account_security_and_notifications"
+    },
+    {
+      "mount": "/api/user",
+      "method": "POST",
+      "path": "/update_web_fcm_token",
+      "status": "review_required",
+      "reviewArea": "legacy_shared_feature"
+    },
+    {
+      "mount": "/sso",
+      "method": "POST",
+      "path": "/node/agent-start",
+      "status": "review_required",
+      "reviewArea": "legacy_identity_bridge"
+    },
+    {
+      "mount": "/sso",
+      "method": "POST",
+      "path": "/node/start",
+      "status": "review_required",
+      "reviewArea": "legacy_identity_bridge"
+    }
+  ]
+}

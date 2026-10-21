@@ -10,6 +10,11 @@ module.exports = async function chatbotMigrationIntegration(connection, { t1, t2
   }
   const addChannel = (id, tenantId, chatbotId, identityId, ref) => connection.query(`INSERT INTO sx_chatbot_channel_assignments(id,tenant_id,chatbot_id,channel_kind,channel_ref,assigned_by_identity_id) VALUES (?,?,?,'whatsapp_qr',?,?)`, [id, tenantId, chatbotId, ref, identityId]);
   const channelId = crypto.randomUUID(), channelRef = `test-${channelId}`;
+  const sharedFaqId = crypto.randomUUID(), botFaqId = crypto.randomUUID();
+  const addFaq = (id, tenantId, profileId, identityId, question, answer) => connection.query(`INSERT INTO sx_chatbot_faqs(id,tenant_id,profile_id,question_en,answer_en,created_by_identity_id,updated_by_identity_id) VALUES (?,?,?,?,?,?,?)`, [id, tenantId, profileId, question, answer, identityId, identityId]);
+  await addFaq(sharedFaqId, t1, null, i1, 'Shared FAQ question', 'Shared tenant answer.');
+  await addFaq(botFaqId, t1, ownerBot, i1, 'Bot FAQ question', 'Private profile answer.');
+  await assert.rejects(addFaq(crypto.randomUUID(), t1, otherBot, i1, 'Foreign FAQ question', 'Must not cross tenants.'), error => ['ER_NO_REFERENCED_ROW_2','ER_NO_REFERENCED_ROW'].includes(error.code));
   await addChannel(channelId, t1, ownerBot, i1, channelRef);
   await assert.rejects(addChannel(crypto.randomUUID(), t1, ownerBot, i1, channelRef), { code: 'ER_DUP_ENTRY' });
   await assert.rejects(addChannel(crypto.randomUUID(), t1, otherBot, i1, `other-${crypto.randomUUID()}`), error => ['ER_NO_REFERENCED_ROW_2','ER_NO_REFERENCED_ROW'].includes(error.code));
@@ -31,8 +36,12 @@ module.exports = async function chatbotMigrationIntegration(connection, { t1, t2
   await connection.query(`DELETE FROM sx_chatbot_profiles WHERE tenant_id=? AND id=?`, [t1, ownerBot]);
   const [[counts]] = await connection.query(`SELECT
       (SELECT COUNT(*) FROM sx_chatbot_channel_assignments WHERE tenant_id=? AND chatbot_id=?) AS channels,
-      (SELECT COUNT(*) FROM sx_chatbot_turns WHERE tenant_id=? AND profile_id=?) AS turns`, [t1, ownerBot, t1, ownerBot]);
+      (SELECT COUNT(*) FROM sx_chatbot_turns WHERE tenant_id=? AND profile_id=?) AS turns,
+      (SELECT COUNT(*) FROM sx_chatbot_faqs WHERE tenant_id=? AND profile_id=?) AS botFaqs,
+      (SELECT COUNT(*) FROM sx_chatbot_faqs WHERE tenant_id=? AND id=?) AS sharedFaqs`, [t1, ownerBot, t1, ownerBot, t1, ownerBot, t1, sharedFaqId]);
   assert.equal(Number(counts.channels), 0);
   assert.equal(Number(counts.turns), 0);
-  return { tenantBoundProfiles: true, uniqueNumberAssignment: true, crossTenantBotReferenceRejected: true, channelScopedConversationControls: true, identityAndSystemConversationActors: true, conversationActorCheck: true, inboundIdempotency: true, profileDeleteCascades: true };
+  assert.equal(Number(counts.botFaqs), 0);
+  assert.equal(Number(counts.sharedFaqs), 1);
+  return { tenantBoundProfiles: true, uniqueNumberAssignment: true, crossTenantBotReferenceRejected: true, faqTenantAndProfileForeignKey: true, faqProfileDeletePreservesSharedFallback: true, channelScopedConversationControls: true, identityAndSystemConversationActors: true, conversationActorCheck: true, inboundIdempotency: true, profileDeleteCascades: true };
 };

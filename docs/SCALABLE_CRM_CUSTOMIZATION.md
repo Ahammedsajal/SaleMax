@@ -1,14 +1,56 @@
 # 7Network scalable CRM customization and isolation
 
-> The current platform brand is **7Network**. Existing source identifiers, routes and schema names retain their historical SaleMaX spelling until a separately reviewed compatibility migration is appropriate.
+> The current platform brand is **7Network**. Existing source identifiers, routes and schema names may retain their historical SaleMaX spelling until a separately reviewed compatibility migration is appropriate.
 
 Evidence review: 20 October 2026. Status: implementation in progress. This extends the existing 42-ticket program; it does not replace its acceptance criteria.
 
 ## Product decision
 
-Keep one maintained SaleMaX application, current logins and panels, and shared messaging/CRM services. Treat a business as the tenant; its staff are members, not separate customization owners. Compose its experience from explicit core capabilities, a versioned category contract, an assigned plan, a published tenant configuration, and member permissions. A clinic cannot obtain Training Center courses just by changing a menu label. Two training centers must be able to use different fields, stages, forms, bot content, branding, automations, and enabled modules without editing each other's settings.
+Keep one maintained 7Network application, current logins and panels, and shared messaging/CRM services. Treat a business as the tenant; its staff are members, not separate customization owners. Compose its experience from explicit core capabilities, a versioned category contract, an assigned plan, a published tenant configuration, and member permissions. A clinic cannot obtain Training Center courses just by changing a menu label. Two training centers must be able to use different fields, stages, forms, bot content, branding, automations, and enabled modules without editing each other's settings.
 
 Configuration isolation can prevent one business's settings affecting another. It cannot guarantee that a defect in shared application code never affects other businesses. Version pinning, gradual rollout and contract tests reduce that blast radius; dedicated deployment stamps and resource isolation are the stronger option for customers needing separate runtime failure boundaries. Do not sell an absolute guarantee of zero shared-code impact.
+
+## Shared task-type extension boundary — 21 October 2026
+
+The shared Tasks module now treats its selectable type set as a category adapter
+contract, rather than assuming that every business uses Training Center task
+types or embedding 7Network Sales rules in generic CRUD. Each category manifest
+pins reviewed adapter versions; startup validation requires the shared Tasks
+capability plus each adapter's declared category capability. At request time,
+the service additionally requires the active plan entitlement, exact tenant
+category/version and authenticated actor before offering, filtering, creating
+or editing a specialized type. The API returns bilingual labels and the current
+category title to the existing Tasks screen. Legacy contexts retain only core
+general/lead-follow-up types until they are explicitly mapped. No tenant can
+submit adapter code or choose another tenant's category configuration.
+
+This improves category isolation and demonstrates a reusable backend/UI seam,
+but it does not give each tenant a self-service custom task catalogue. Tenant
+authors still need a bounded declarative configuration with versioning,
+publication, rollback and schema migration rules; domain actions must remain
+source-owned adapters with tenant-owned data. A future CRM vertical can select
+its reviewed type adapters without changing the shared task service, while
+individual workspaces can configure reviewed task availability through the
+tenant-scoped publication workflow described below; arbitrary domain behavior
+still requires source-owned adapters.
+
+## Tenant-specific task choices — schema 4, 21 October 2026
+
+The existing owner-only Workspace Customization editor now publishes a bounded
+`enabledTaskTypes` allow-list. Its options come only from the tenant's pinned
+category adapters; each Task API list response additionally intersects that
+preference with active plan entitlements. Task creation and type changes enforce
+the same allow-list server-side. Core `general` and `lead_follow_up` remain
+governed by their existing category/plan checks. A plan or permission change is
+never overridden by tenant configuration, and an existing specialized task may
+stay in history after its type is disabled. Tenants with no schema-4 preference
+retain the earlier all-eligible-types behavior, so schema 1–3 revisions remain
+compatible. The preference lives in the existing immutable revision document;
+no migration or separate catalogue is introduced.
+
+This lets each tenant select among reviewed, source-owned task types. It does
+not let a customer add executable handlers, loosen task authorization, or
+create a new business workflow without a reviewed category adapter.
 
 ## Training lifecycle boundary correction — 21 October 2026
 
@@ -41,7 +83,7 @@ RESO's live Data Dictionary page identifies DD 2.0 as active for certification a
 The aggregate-only `scripts/audit-tenant-adoption.cjs` preflight runs inside a
 read-only transaction and emits no tenant IDs, names, account identifiers,
 credentials or contact details. Its live production result confirms three active
-tenants: one SaleMaX Sales v1 and two Training Center v1. There are three current
+tenants: one 7Network Sales v1 and two Training Center v1. There are three current
 plan assignments; all three resolve to an existing plan version with the exact
 tenant category and version. No Base CRM tenant is currently assigned, so the
 new Base CRM capture adapter has not yet had a real-tenant screen or channel
@@ -65,13 +107,13 @@ temporary files were removed. No production code, tenant, membership, plan or
 customer record changed. Re-run this audit before any legacy-category adoption,
 then require a reviewed mapping manifest and a before/after count/hash report.
 
-## Research and application to SaleMaX
+## Research and application to 7Network
 
-AWS distinguishes pooled, silo and bridge isolation models. SaleMaX can keep pooled infrastructure for ordinary tenants while introducing dedicated resources where a customer's requirements justify them. Authentication alone does not replace application-level ownership checks. See [AWS isolation concepts](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/core-isolation-concepts.html) and [bridge model](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/the-bridge-model.html).
+AWS distinguishes pooled, silo and bridge isolation models. 7Network can keep pooled infrastructure for ordinary tenants while introducing dedicated resources where a customer's requirements justify them. Authentication alone does not replace application-level ownership checks. See [AWS isolation concepts](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/core-isolation-concepts.html) and [bridge model](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/the-bridge-model.html).
 
-Microsoft describes deployment stamps, feature flags, and rollout rings as complementary ways to control multitenant updates, and calls for visibility into the version each tenant uses. The proposed SaleMaX control plane therefore records active category/config revisions and rollout state; feature flags select tested behavior but never substitute for entitlements. See [multitenant update guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/updates).
+Microsoft describes deployment stamps, feature flags, and rollout rings as complementary ways to control multitenant updates, and calls for visibility into the version each tenant uses. The proposed 7Network control plane therefore records active category/config revisions and rollout state; feature flags select tested behavior but never substitute for entitlements. See [multitenant update guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/updates).
 
-These are architectural inputs, not a recommendation to migrate SaleMaX to AWS or Azure. Keep the existing Node/Express and MariaDB stack while strengthening its boundaries.
+These are architectural inputs, not a recommendation to migrate 7Network to AWS or Azure. Keep the existing Node/Express and MariaDB stack while strengthening its boundaries.
 
 ### Current multitenant rollout guidance refresh — 21 October 2026
 
@@ -79,9 +121,26 @@ The current AWS SaaS Lens continues to describe pooled, silo and bridge tenancy 
 
 For 7Network, this supports one shared application and identity/control plane, immutable category adapters, tenant-published configuration stored as tenant data, and existing plan entitlements as the commercial gate. Rollout rings may select a reviewed code version for a cohort, but neither a ring nor a tenant setting may grant a paid capability. Dedicated deployment stamps remain an operational tier for measured isolation needs; they must retain the same onboarding, support, audit and release controls. This confirms the existing architecture decision rather than changing provider, database or hosting choices.
 
+### Tenant configuration snapshot isolation — research refresh, 22 October 2026
+
+Microsoft's current multitenant App Configuration guidance distinguishes shared
+settings from tenant-specific settings and warns that a snapshot reference does
+not filter the contents of the referenced snapshot: every key in that snapshot
+is loaded. A tenant-specific pointer is therefore not, by itself, a tenant-data
+boundary. See [Microsoft's multitenant App Configuration guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/service/app-configuration).
+
+For 7Network, keep tenant customization in authenticated, immutable, typed
+revisions whose contents are validated for one tenant, exact category/module
+version and schema. Resolve tenant identity from the server session; never let
+the browser select a tenant's revision or configuration-store key. Any future
+external configuration cache must contain only reviewed non-secret settings,
+use tenant-and-revision-scoped keys, and preserve the same authorization checks
+as the database-backed source. Plans and permissions remain independent gates;
+a setting or rollout snapshot cannot grant a paid feature or widen access.
+
 ### Deployment and data-boundary decision — 21 October 2026
 
-The vendor guidance supports a progressive isolation model rather than one deployment or database per category. AWS describes pooled, silo and bridge partitioning; bridge lets a service choose a tenant-specific partition while retaining a shared application. Microsoft recommends explicit tenant configuration and staged update rings, with tenant-visible version state. For SaleMaX, keep the current pooled release and tenant-keyed data path as the default; introduce a bridge boundary only for a measured workload, residency, contractual or failure-isolation need. A category or customer configuration must not select arbitrary code, a database name, or a release image. A dedicated stamp is an operational isolation tier with an audited control-plane assignment and a tested migration/restore path.
+The vendor guidance supports a progressive isolation model rather than one deployment or database per category. AWS describes pooled, silo and bridge partitioning; bridge lets a service choose a tenant-specific partition while retaining a shared application. Microsoft recommends explicit tenant configuration and staged update rings, with tenant-visible version state. For 7Network, keep the current pooled release and tenant-keyed data path as the default; introduce a bridge boundary only for a measured workload, residency, contractual or failure-isolation need. A category or customer configuration must not select arbitrary code, a database name, or a release image. A dedicated stamp is an operational isolation tier with an audited control-plane assignment and a tested migration/restore path.
 
 Apply rollout rings to code compatibility, not commercial access: category capability, paid entitlement, tenant module enablement and member permission remain independent runtime gates. Record the running release and active category/configuration revisions for each tenant so support can identify whether a defect follows shared code, a category contract, or one tenant's published settings. Roll out first to synthetic tenants, then internal tenants, then a bounded customer cohort; retain a tested rollback image and backward-compatible readers during the adoption window. Feature flags may select a reviewed implementation, but they cannot grant a plan feature or relax tenant authorization.
 
@@ -89,7 +148,7 @@ For bot collection, reuse the existing tenant-published Forms workflow as the au
 
 This decision reduces duplicate schema and consent logic and makes an answer's form version auditable. It still leaves generic form/category adapters and authenticated live bot-to-submission acceptance open; selecting a form in the editor alone does not prove that a real channel delivered or submitted it.
 
-Sources: [AWS SaaS partitioning models](https://docs.aws.amazon.com/whitepapers/latest/multi-tenant-saas-storage-strategies/saas-partitioning-models.html), [AWS bridge isolation model](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/the-bridge-model.html), and [Microsoft multitenant deployment and configuration guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/deployment-configuration). These inform deployment boundaries and staged rollout; the SaleMaX choices above are architecture decisions based on the repository's current tenant and Forms contracts.
+Sources: [AWS SaaS partitioning models](https://docs.aws.amazon.com/whitepapers/latest/multi-tenant-saas-storage-strategies/saas-partitioning-models.html), [AWS bridge isolation model](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/the-bridge-model.html), and [Microsoft multitenant deployment and configuration guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/deployment-configuration). These inform deployment boundaries and staged rollout; the 7Network choices above are architecture decisions based on the repository's current tenant and Forms contracts.
 
 ## Contract layers and precedence
 
@@ -98,6 +157,30 @@ Sources: [AWS SaaS partitioning models](https://docs.aws.amazon.com/whitepapers/
 3. Commercial assignment: existing plan IDs and compatible adapters remain authoritative for the sold capability set and limits. No duplicate plan catalogue. A category contract does not automatically grant paid features.
 4. Tenant configuration: immutable published revisions pinned to one tenant, category version and schema version. Typed permitted overrides include labels, optional fields, stage settings, guide copy, layout choices and registered workflow bindings. No arbitrary JavaScript, SQL, server paths, class names or unrestricted HTML.
 5. Membership: owner-managed roles, scope and navigation further restrict the effective contract. A staff preference cannot change company-wide configuration or increase its privileges.
+
+### Shared Inbox access on legacy routes — 21 October 2026
+
+The existing `/api/inbox` router now applies the shared policy after its legacy
+authentication middleware and before authenticated handlers. Permission is
+resolved from the actual route: reads use `conversations.read`; sends and
+mutations use `conversations.reply`. The policy also checks the exact pinned
+category/version, active plan entitlement, and tenant-enabled `core.inbox@1`
+module. The `/api/workspace/inbox` alias uses the same route contract, so adding
+that compatibility mount cannot create a weaker authorization path. The
+runtime admits only the reviewed method/path pairs; an unknown endpoint does
+not inherit the legacy route mapper's generic POST permission.
+
+This keeps Inbox a reusable shared module while letting each category and
+tenant independently control whether it is available. It does not change
+provider callbacks: signed Meta callbacks continue through their dedicated
+signature and phone-number/WABA tenant binding. Historically unmapped accounts
+still use their compatibility path until reviewed adoption; they have not
+received category/module enforcement yet. The current route scanner inventories
+the authenticated legacy Inbox endpoints but does not inventory those provider
+callback declarations, which remains part of the route-audit work. Source-only
+tests cover permission mapping, category/plan/module denial, tenant isolation,
+legacy compatibility, and authentication/policy/handler order; production and
+authenticated screen acceptance remain open.
 
 ## Category-declared bot-to-Pipeline lead capture — 21 October 2026
 
@@ -116,6 +199,94 @@ Extend existing Business Settings and platform Manage Users. Introduce reviewed 
 Publishing validates every key against the category's schema, checks module dependencies and plan rights, compares an expected revision atomically, and writes the new active pointer and audit event in the same transaction. Preview uses the draft without affecting the active tenant. Rollback selects a previously validated compatible revision through the same audited operation. Resetting a field restores that tenant's pinned default; it does not mutate the category default. Concurrent edits return a conflict and preserve the winning revision.
 
 Cache key: tenant ID + category key/version + configuration revision + relevant module schema version. Never cache effective settings by category alone. Resolve the tenant from authenticated context; domain routing identifies the intended tenant but does not authorize access. Background jobs retain tenant ID and explicit execution/version semantics. Idempotency keys include tenant ID. Workers recheck suspension, revocation and provider readiness before external effects.
+
+### Campaign dispatch across application processes — 21 October 2026
+
+The campaign worker now uses a MariaDB named lock keyed by a hash of both the
+business owner UID and campaign ID. The lock stays on a dedicated pooled
+connection for the send batch, and the worker checks that the same database
+session still owns it before dispatch and persistence. MariaDB documents named
+locks as exclusive across sessions on the same server, released explicitly or
+when the owning connection ends; lock names are case-insensitive and limited
+to 64 characters. The implementation therefore uses lowercase hexadecimal
+hashing and the current shared-primary MariaDB topology. See the [MariaDB
+GET_LOCK reference](https://mariadb.com/docs/server/reference/sql-functions/secondary-functions/miscellaneous-functions/get_lock)
+and [IS_USED_LOCK reference](https://mariadb.com/docs/server/reference/sql-functions/secondary-functions/miscellaneous-functions/is_used_lock).
+
+This is cooperative process coordination for the current shared database, not
+a multi-primary lock service. It does not make a Meta send and its database
+acknowledgement atomic: a process or connection failure after provider
+acceptance and before message-ID persistence can leave an uncertain result.
+Keep that boundary visible in retries and operational reconciliation; do not
+claim exactly-once delivery. QR connector ownership, Socket.IO routing, and
+real separate-application-process/failover tests remain separate TC37 work.
+The opt-in integration script was exercised against an isolated MySQL 9.6
+server with separate server sessions; production MariaDB compatibility still
+needs its own test. It creates and drops only a randomly named local synthetic
+database when explicitly selected through `CAMPAIGN_LOCK_TEST_TARGET`.
+
+### QR session ownership and deployment topology — 21 October 2026
+
+The database instance row is the source of truth for a QR session owner; never
+derive a tenant from a caller-supplied session ID. Resolve exactly one row and
+carry its instance ID, UID and session ID into status, contact and delete
+operations. Missing or ambiguous session IDs fail closed. A read-only live
+aggregate found two instance rows with no duplicate non-empty IDs, but the
+existing session-ID index is non-unique. A forward migration now adds a unique
+150-character prefix index, with an explicit rollback counterpart, and both
+QR creation routes reject caller-supplied IDs longer than that indexed prefix.
+The live aggregate showed no duplicate IDs or prefix collisions and a maximum
+ID length of 41 characters. The migration remains unapplied in production.
+The opt-in owner-resolution integration script passed on an isolated MySQL 9.6
+server, including a session whose ID prefix differs from its database owner and
+an ambiguous ID that must be rejected.
+
+This closes incorrect owner inference and cross-owner mutation through the
+current single-process session map. It does not make the Baileys socket,
+reconnect timer, credential writer or QR event listener safe to own from
+multiple app replicas. Multi-node operation requires one fenced owner per
+session, recovery/transfer rules, and tests proving old owners stop before
+writing after ownership changes; a shared socket registry alone is not enough.
+
+### Socket.IO room routing research — 21 October 2026
+
+The application used Socket.IO's default in-memory adapter and scanned only
+the current process's sockets when sending Inbox refreshes. Authenticated
+sockets now join server-derived account rooms for their own UID and verified
+owner UID; notifications use those rooms, and shared-inbox routing obtains
+minimal presence through `fetchSockets()` and `socket.data`. Client payloads do
+not choose room names. This preserves single-process behavior and makes the
+application code compatible with a cluster adapter, but it does not itself
+enable cross-process routing.
+
+The Socket.IO Redis Pub/Sub adapter forwards room broadcasts between servers
+but does not support the application's configured connection-state recovery.
+Its Redis Streams adapter supports inter-server broadcasts and recovery, and
+retains events across temporary Redis disconnects; this is the better fit for
+the existing recovery behavior. Both require trusted, private Redis access,
+and long-polling deployments still require load-balancer affinity. See the
+[Socket.IO Redis Streams adapter guide](https://socket.io/docs/v4/redis-streams-adapter/),
+[Redis adapter guide](https://socket.io/docs/v4/redis-adapter/), and
+[multi-node adapter overview](https://socket.io/docs/v4/adapter/).
+
+No Redis adapter or endpoint is configured in the current release, so do not
+claim multi-node readiness yet. Before enabling replicas, provision isolated
+Redis with ACL/TLS/private networking, pin compatible adapter/client versions,
+initialize the adapter before accepting sockets, and run two real app
+processes behind the target load balancer. Verify cross-node owner and agent
+updates, unauthorized room denial, state recovery, Redis interruption,
+membership revocation and rejoin behavior. The adapter's bounded stream
+retention and overflow/recovery behavior also need explicit operational tests.
+
+The opt-in source configuration uses `SOCKET_IO_REDIS_URL` from the runtime
+environment, `SOCKET_IO_REDIS_NAMESPACE` for environment isolation, and
+`SOCKET_IO_CLUSTER_REQUIRED=true` on every intended replica. Cluster-required
+startup fails before binding the HTTP port if the URL is missing or the Redis
+connection cannot be established. The credential URL must stay outside Git.
+The two-process acceptance command is `npm run test:socket:cluster`; it requires
+`SOCKET_IO_CLUSTER_TEST_TARGET=local-disposable` and a dedicated local Redis
+instance. No local Redis server is available in this worktree environment, so
+the cross-process integration script is authored but has not yet been run.
 
 ## Extensibility and domain boundaries
 
@@ -153,7 +324,7 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 | --- | --- | --- |
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
-| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) deployed as tenant-customization-10354f7 after MariaDB isolation tests; broader schema/module settings pending |
+| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | Existing typed settings cover bilingual labels, lead fields, hidden navigation and schema-4 per-tenant task choices; broader domain schemas and module enablement pending |
 | Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields and schema-3 tenant-only hidden menu sections; browser rerun and live acceptance pending |
 | Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through the shared workspace session and legacy sidebar-access contract; API permissions remain independent; other modules/workers pending |
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
@@ -659,7 +830,7 @@ migration backfill and reconciliation. Do not index every
 customer-defined value without a measured access pattern.
 
 Research basis: AWS documents pooled, bridge and silo storage as trade-offs by
-resource and customer needs, supporting SaleMaX's current pooled tenant-keyed
+resource and customer needs, supporting 7Network's current pooled tenant-keyed
 model with a future bridge/silo option for exceptional accounts ([partitioning
 models](https://docs.aws.amazon.com/whitepapers/latest/multi-tenant-saas-storage-strategies/saas-partitioning-models.html),
 [tier-based isolation](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/tier-based-isolation.html)).
@@ -667,5 +838,61 @@ Microsoft recommends feature flags, deployment rings and deployment stamps as
 complementary controls for tenant-aware updates ([multitenant update guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/updates)).
 MariaDB's JSON_TABLE converts JSON values into relational rows and supports the
 wildcard path used by this bounded value search ([MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)).
-These are design inputs, not a change to SaleMaX's existing Node/MariaDB
+These are design inputs, not a change to 7Network's existing Node/MariaDB
 deployment or an assertion of unlimited pooled scale.
+
+## Tenant module activation in existing Workspace Customization — schema 5, source update, 21 October 2026
+
+The existing owner-only Workspace Customization editor now lets each business
+turn category-pinned optional modules on or off for its own tenant. Required
+Business Settings stay available; Training Center v1 compatibility and internal
+Sales recruitment remain locked on so historical behavior cannot be silently
+removed. Existing schema 1–4 revisions retain their normalized document shape
+and checksums, and keep category-default access until an owner publishes schema
+5.
+
+The shared policy now denies a disabled module at the API decision boundary for
+canonical sessions and legacy sessions adapted into upgraded feature routers.
+Navigation and the existing Team Access screen catalog consume the same tenant
+activation; re-enabling a module does not bypass category, plan, member,
+record-scope or provider checks. The allow-list accepts only exact module
+versions pinned to the tenant's category. No database migration is needed.
+This does not secure every legacy route: unmapped routes, jobs, sockets,
+callbacks and route-to-table ownership remain open audit items. Module-owned
+versioned settings and full signed-in English/Arabic acceptance remain required
+before additional vertical categories are offered.
+
+## Bot-specific knowledge — source increment, 21 October 2026
+
+The existing FAQ editor now has a shared library and a selectable library for
+each bot profile. Shared entries remain available as fallback; a matching
+bot-specific entry takes precedence for that bot. Precedence is resolved per
+language so a bot can override its English answer while inheriting the tenant's
+Arabic fallback (or the reverse). The browser sends only a profile ID; the API
+resolves that profile under the authenticated tenant and exact category version.
+The new nullable `profile_id` is protected by a composite tenant/profile
+foreign key, and deleting a bot removes only its own FAQ rows. Existing FAQ
+rows remain shared and are not rewritten.
+
+This is a source implementation increment, not a release-complete module.
+Migration rehearsal against a disposable database, authenticated screen checks
+in English and Arabic, and production preflight remain open. The pattern is
+intended for other per-user bot settings only where ownership and fallback
+semantics are explicit; it does not create a generic executable customization
+surface.
+
+## Tenant-versioned Real Estate area preference — source increment, 22 October 2026
+
+The existing owner-only Workspace Customization screen now includes a per-tenant
+area unit for the private Real Estate module. Module settings schema 2 adds
+`areaUnit` (`sqm` or `sqft`) without rewriting schema 1 revisions: the stored
+document and integrity checksum remain unchanged until an owner next saves a
+draft, while runtime reads safely add the new square-metre default. The
+existing Properties screen converts entered and displayed values at the UI
+boundary; the service and `area_sqm` column remain canonical square metres.
+The preference is not an entitlement and cannot change another tenant's
+configuration. Focused tests cover legacy checksum verification, additive
+migration, tenant separation, conversion and existing API policy. No production
+deployment or tenant data change has occurred. Authenticated bilingual browser
+acceptance, full property workflows and the remaining 42-ticket gates stay
+open.

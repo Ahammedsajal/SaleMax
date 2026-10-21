@@ -27,10 +27,13 @@ test('task selectors remain catalogue-backed and popup accessibility labels foll
   assert.match(source, /\$\('#statusFilter'\)\.setAttribute\('aria-label',tr\('Status filter','تصفية الحالة'\)\)/);
   assert.match(source, /\$\('#refresh'\)\.setAttribute\('aria-label',tr\('Refresh','تحديث'\)\)/);
   assert.match(source, /querySelectorAll\('\.close'\)\.forEach\(button=>button\.setAttribute\('aria-label',tr\('Close','إغلاق'\)\)\)/);
-  assert.match(html, /tasks\.js\?v=20261012-chat-label1/);
+  assert.match(html, /tasks\.js\?v=20261018-followup1/);
   assert.match(html, /tasks-sales\.js\?v=20261014-sales-calls1/);
   assert.match(fs.readFileSync(path.join(__dirname, '../client/public/tasks/tasks-sales.js'), 'utf8'), /due\.required=active/);
-  assert.match(context, /option\.value='sales_call'/);
+  assert.match(context, /\/api\/pipeline\/tasks\?scope=mine&status=all&limit=1/);
+  assert.match(context, /const data = result\?\.data/);
+  assert.match(context, /item\.label\.en/);
+  assert.match(context, /item\.label\.ar/);
   const workspace=fs.readFileSync(path.join(__dirname, '../client/public/sales-workspace/sales-workspace.js'), 'utf8');
   assert.match(workspace, /scheduledCalls/);
   assert.match(workspace, /delta<0\?'overdue'/);
@@ -39,11 +42,12 @@ test('task selectors remain catalogue-backed and popup accessibility labels foll
 });
 
 test('shared Tasks screen uses authenticated category context for 7Network Sales labels', () => {
-  assert.match(html, /tasks-context\.js\?v=20261014-sales-category2/);
-  assert.match(context, /\/api\/user\/team-invitations\/sidebar-access/);
-  assert.match(context, /result\?\.data\?\.categoryKey!=='7network_sales'/);
-  assert.match(context, /Shared work queue for leads, calls, deals and team actions\./);
-  assert.match(context, /SALES WORKSPACE/);
-  assert.match(context, /قائمة عمل مشتركة للعملاء والمكالمات والصفقات وإجراءات الفريق/);
-  assert.match(context, /element\.dataset\.en=en;[\s\S]*element\.dataset\.ar=ar/);
+  assert.match(html, /tasks-context\.js\?v=20261021-category-task-types1/);
+  assert.match(html, /7NETWORK · TEAM TASKS/);
+  assert.match(context, /workspaceCategory/);
+  assert.match(context, /category\?\.key === '7network_sales'/);
+  assert.match(context, /7NETWORK SALES/);
+  assert.match(html, /Shared work queue for your team\./);
+  assert.match(context, /7Network · المبيعات/);
+  assert.match(context, /element\.dataset\.en = en;[\s\S]*element\.dataset\.ar = ar/);
 });

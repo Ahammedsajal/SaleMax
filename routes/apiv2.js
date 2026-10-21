@@ -21,6 +21,7 @@ const { recoverEmail } = require("../emails/returnEmails.js");
 const moment = require("moment");
 const jwt = require("jsonwebtoken");
 const { getMetaTempletByName } = require("../loops/loopFunctions.js");
+const { normalizeApiLogIds } = require("../modules/platform/api-log-ids");
 
 function decodeToken(token) {
   return new Promise((resolve) => {
@@ -334,12 +335,12 @@ router.get("/get_logs", validateUser, async (req, res) => {
 // delete logs
 router.post("/delete_logs", validateUser, async (req, res) => {
   try {
-    const { ids } = req.body;
-
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    const ids = normalizeApiLogIds(req.body?.ids);
+    if (!ids) {
       return res.json({
         success: false,
-        msg: "Invalid or missing log IDs",
+        code: "INVALID_API_LOG_IDS",
+        msg: "Provide between 1 and 200 valid log IDs.",
       });
     }
 

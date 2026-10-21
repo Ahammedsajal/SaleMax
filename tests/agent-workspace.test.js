@@ -13,6 +13,7 @@ test('custom staff roles can grant business modules without granting platform au
  const session={context:ctx(catalog),agent:true};
  assert.equal(access.authorize({baseUrl:'/api/qr',path:'/gen_qr',method:'POST'},session).permission,'channels.configure');
  assert.equal(access.authorize({baseUrl:'/api/workspace/channels/qr',path:'/gen_qr',method:'POST'},session).permission,'channels.configure');
+ assert.equal(access.authorize({baseUrl:'/api/ai',path:'/suggest_reply',method:'POST'},session).scope,'assigned');
  assert.throws(()=>access.authorize({baseUrl:'/api/user',path:'/unknown_privileged_operation',method:'POST'},session),{code:'TEAM_ROLE_ROUTE_UNMAPPED'});
 });
 test('revoked grants, removed sidebar screens and disabled plan capabilities deny the same APIs',()=>{

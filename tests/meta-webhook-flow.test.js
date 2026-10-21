@@ -8,14 +8,16 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('both 7Network process entrypoints parse Meta callbacks without a global app-secret gate', () => {
+test('both 7Network process entrypoints preserve raw Meta callback bytes for signature checks', () => {
   for (const file of ['app.js', 'server.js']) {
     const source = read(file);
     assert.match(source, /express\.json\(\{\s*limit:\s*["']10mb["'],\s*verify:\s*require\(["']\.\/modules\/platform\/meta-webhook-signature["']\)\.captureRawBody\s*\}\)/);
   }
 
   const inbox = read('routes/inbox.js');
-  assert.doesNotMatch(inbox, /verifyMetaWebhookRequest|requireMetaSignature|META_WEBHOOK_SIGNATURE_NOT_CONFIGURED/);
+  assert.match(inbox, /createMetaWebhookSignatureGuard/);
+  assert.match(inbox, /router\.post\("\/embed\/webhook\/:uid", requireEmbeddedMetaWebhookSignature,/);
+  assert.match(inbox, /router\.post\("\/webhook\/:uid", requireMetaWebhookSignature,/);
 });
 
 test('WhatsApp webhook entrypoints acknowledge Meta without waiting for optional pipeline work', () => {
@@ -25,7 +27,7 @@ test('WhatsApp webhook entrypoints acknowledge Meta without waiting for optional
   assert.ok(embedStart >= 0 && embedEnd > embedStart);
   const embedRoute = inbox.slice(embedStart, embedEnd);
   assert.ok(embedRoute.indexOf('res.sendStatus(200)') > 0);
-  assert.doesNotMatch(embedRoute, /verifyMetaWebhookRequest/);
+  assert.ok(embedRoute.indexOf('resolveMetaWebhookOwner') < embedRoute.indexOf('res.sendStatus(200)'));
 
   const start = inbox.indexOf('router.post("/webhook/:uid"');
   const end = inbox.indexOf('// Helper function to update broadcast contact permission', start);
@@ -38,7 +40,19 @@ test('WhatsApp webhook entrypoints acknowledge Meta without waiting for optional
   assert.ok(acknowledge >= 0 && pipelineDispatch > acknowledge);
   assert.ok(pipelineCapture > pipelineDispatch && inboxHandling > acknowledge);
   assert.match(route, /Pipeline webhook capture failed; inbox handling continues/);
+  assert.ok(route.indexOf('resolveMetaWebhookOwner') < acknowledge);
+  assert.match(route, /updateBroadcastContactPermission\(\s*userUID,/);
   assert.doesNotMatch(route, /console\.log\(JSON\.stringify\(\{\s*body\s*\}\)\)/);
+});
+
+test('call permission updates require the trusted owner UID for both reads and writes', () => {
+  const inbox = read('routes/inbox.js');
+  const start = inbox.indexOf('async function updateBroadcastContactPermission(');
+  const end = inbox.indexOf('\nasync function handleMessages', start);
+  assert.ok(start >= 0 && end > start);
+  const helper = inbox.slice(start, end);
+  assert.match(helper, /WHERE uid = \? AND status IN/);
+  assert.match(helper, /WHERE campaign_id = \? AND uid = \?/);
 });
 
 test('inbox processing still checks the callback phone number against the selected tenant connection', () => {

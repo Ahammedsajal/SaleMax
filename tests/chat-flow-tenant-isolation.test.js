@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const path=require('node:path');
 const express=require('express');
 
-async function withFlowRouter(run){
+async function withFlowRouter(run,{mapped=false}={}){
   const state={beta:[{id:1,uid:'owner-b',flow_id:'shared-id',name:'Owner B flow',source:'wa_chatbot',data:'{}'}],flows:[{id:4,uid:'owner-b',flow_id:'legacy-id',title:'Owner B legacy flow'}],sessions:[{id:9,uid:'owner-b',flow_id:'shared-id',sender_mobile:'+10000000002',data:'{}'}],queries:[]};
   const fakeQuery=async(sql,args=[])=>{
     state.queries.push({sql,args});
@@ -23,9 +23,11 @@ async function withFlowRouter(run){
   };
   const stubs={
     '../database/dbpromise.js':{query:fakeQuery},
-    '../middlewares/user.js':(req,res,next)=>{req.decode={uid:'owner-a'};next();},
+    '../middlewares/user.js':(req,res,next)=>{req.decode={uid:'owner-a',...(mapped?{userData:{id:1,uid:'owner-a',role:'user'}}:{})};next();},
     '../middlewares/plan.js':{checkPlan:(req,res,next)=>next()},
     '../middlewares/agent.js':(req,res,next)=>{req.owner={uid:'owner-a'};next();},
+    '../database/config.js':{promise:()=>({})},
+    '../modules/platform/automation-flow-access':{createAutomationFlowAccess:({pool})=>{assert.ok(pool);return (req,res,next)=>{state.guardCalls=(state.guardCalls||0)+1;if(mapped)return res.status(403).json({success:false,code:'CATEGORY_UNAVAILABLE'});next();};}},
     '../functions/function.js':{writeJsonToFile:async()=>{},deleteFileIfExists:()=>{},readJsonFromFile:()=>({}),makeRequestBeta:async()=>({}),getFileExtension:()=>'',isValidEmail:()=>true,executeMySQLQuery:async()=>({})},
     '../utils/addons.js':{returnAddons:async()=>[]},
   };
@@ -88,4 +90,12 @@ test('legacy flow file lookup rejects traversal-shaped IDs before reading files'
     const response=await fetch(`${base}/get_by_flow_id`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({flowId:'../../server'})});
     assert.equal(response.status,200);assert.equal((await response.json()).success,false);assert.equal(state.queries.length,0);
   });
+});
+
+test('the mapped-tenant category and module guard runs before legacy flow handlers',async()=>{
+  await withFlowRouter(async({state,base})=>{
+    const response=await fetch(`${base}/add_new`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title:'Should be denied',flowId:'blocked-id',nodes:[{id:'a'}],edges:[]})});
+    assert.equal(response.status,403);assert.deepEqual(await response.json(),{success:false,code:'CATEGORY_UNAVAILABLE'});
+    assert.equal(state.guardCalls,1);assert.equal(state.queries.length,0);
+  },{mapped:true});
 });

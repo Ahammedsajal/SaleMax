@@ -1,10 +1,9 @@
 'use strict';
-const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/workspace/automation/flows':'/api/chat_flow','/api/workspace/automation/chatbot':'/api/chatbot','/api/workspace/templates':'/api/templet','/api/workspace/campaigns':'/api/broadcast','/api/workspace/inbox':'/api/inbox','/api/workspace/pipeline':'/api/pipeline'}[String(value||'').replace(/\/$/,'')]||String(value||'').replace(/\/$/,''));
-
 const jwt=require('jsonwebtoken');
 const policy=require('./policy');
 const sessions=require('./business-feature-session');
 const {routePermission}=require('./team-role-request-guard');
+const {canonicalMount}=require('./legacy-route-policy');
 const fail=(code,status=403)=>{throw Object.assign(Error(code),{code,status});};
 function capabilityFor(req,permission,context){
  const mount=String(req.baseUrl||'');
@@ -21,7 +20,7 @@ function authorize(req,session){
  const capability=capabilityFor(req,permission,session.context);if(!capability)fail('FEATURE_UNAVAILABLE');
  const result=policy.decision(session.context,{capability,permission});if(!result.allowed)fail(result.code);
  // Narrow scopes are handled only by modules with resource-aware guards.
- if(result.scope!=='tenant'&&!['/api/inbox','/api/pipeline','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies','/api/workspace/courses','/api/workspace/products-services','/api/workspace/students','/api/workspace/forms','/api/workspace/finance','/api/user/call-center'].includes(req.baseUrl))fail('PERMISSION_DENIED');
+ if(result.scope!=='tenant'&&!['/api/inbox','/api/pipeline','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies','/api/workspace/courses','/api/workspace/products-services','/api/workspace/students','/api/workspace/forms','/api/workspace/finance','/api/user/call-center','/api/ai'].includes(req.baseUrl))fail('PERMISSION_DENIED');
  return {...result,permission};
 }
 function profile(session){

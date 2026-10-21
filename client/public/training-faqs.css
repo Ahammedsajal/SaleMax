@@ -5,6 +5,10 @@
 .sx-faqs-eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:#8a3856}
 .sx-faqs-heading h1{margin:4px 0 5px;font-size:30px;line-height:1.2;color:#243442}
 .sx-faqs-heading p{max-width:760px;margin:0;color:#667585}
+.sx-faqs-heading-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.sx-faqs-heading-controls label{display:grid;gap:5px;color:#526273;font-size:12px;font-weight:700}
+.sx-faqs-heading-controls select{min-width:min(280px,72vw);min-height:42px;padding:8px 34px 8px 11px;border:1px solid #cfd8e1;border-radius:8px;background:#fff;color:#263442;font:500 14px Roboto,Arial,sans-serif}
+.sx-faqs-scope-note{margin:0 0 14px;padding:11px 14px;border:1px solid #dce6f2;border-radius:9px;background:#edf5ff;color:#38536f}
 .sx-faqs-primary,.sx-faq-actions button,.sx-faq-form footer button{min-height:42px;padding:9px 15px;border:1px solid #c6a6b4;border-radius:8px;background:#fff;color:#742241;font:600 14px Roboto,Arial,sans-serif;cursor:pointer}
 .sx-faqs-primary{background:#1768d4;border-color:#1768d4;color:#fff;white-space:nowrap}
 .sx-faqs-primary:disabled,.sx-faq-actions button:disabled{opacity:.55;cursor:wait}
@@ -38,7 +42,7 @@
 .sx-faq-form input:focus,.sx-faq-form textarea:focus{outline:3px solid rgba(23,104,212,.16);border-color:#1768d4}
 .sx-faq-error{min-height:20px;color:#aa1c36;font-size:13px}
 .sx-faq-form footer{display:flex;justify-content:flex-end;gap:10px;padding-top:4px}
-@media(max-width:700px){#sx-faqs-screen{padding:16px}.sx-faqs-heading{display:grid;gap:14px}.sx-faqs-heading h1{font-size:26px}.sx-faqs-heading>.sx-faqs-primary{justify-self:start}.sx-faq-languages{grid-template-columns:minmax(0,1fr)}.sx-faq-card{padding:15px}.sx-faq-card-head{align-items:flex-start}.sx-faq-form{padding:18px}}
+@media(max-width:700px){#sx-faqs-screen{padding:16px}.sx-faqs-heading{display:grid;gap:14px}.sx-faqs-heading h1{font-size:26px}.sx-faqs-heading-controls{align-items:stretch}.sx-faqs-heading-controls label,.sx-faqs-heading-controls select{width:100%}.sx-faqs-heading-controls>.sx-faqs-primary{justify-self:start}.sx-faq-languages{grid-template-columns:minmax(0,1fr)}.sx-faq-card{padding:15px}.sx-faq-card-head{align-items:flex-start}.sx-faq-form{padding:18px}}
 /* FAQ editor: group the paired translations so staff can compare both languages at a glance. */
 .sx-faq-dialog{max-height:calc(100dvh - 28px);overflow-y:auto;overscroll-behavior:contain}
 .sx-faq-form{max-height:calc(100dvh - 28px);overflow-y:auto;overscroll-behavior:contain}

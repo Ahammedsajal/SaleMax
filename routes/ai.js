@@ -2,6 +2,17 @@ const router = require("express").Router();
 const { query } = require("../database/dbpromise.js");
 const randomstring = require("randomstring");
 const validateUser = require("../middlewares/user.js");
+const inboxScope = require('../modules/platform/team-inbox-scope');
+const aiContract = require('../modules/platform/ai-assistant-contract');
+const aiAccess = require('../modules/platform/legacy-module-access').createLegacyModuleAccess({
+  pool: require('../database/config.js').promise(),
+  capability: 'messaging.inbox',
+  permission: 'conversations.reply',
+});
+const validateAssistantUser = (req, res, next) => validateUser(req, res, error => {
+  if (error) return next(error);
+  return aiAccess(req, res, next);
+});
 const {
   getRecentMessages,
   suggestReplyWithOpenAI,
@@ -37,7 +48,7 @@ const validate = (validations) => {
     const errors = [];
 
     validations.forEach((validation) => {
-      const value = req.body[validation.field];
+      const value = req.body?.[validation.field];
       if (!value || (typeof value === "string" && value.trim() === "")) {
         errors.push({
           field: validation.field,
@@ -59,14 +70,17 @@ router.post(
     check("provider", "AI provider is required").notEmpty(),
     check("apiKey", "API key is required").notEmpty(),
   ]),
-  validateUser,
+  validateAssistantUser,
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { text, targetLanguage, provider, apiKey } = req.body;
+    let input;
+    try { input = aiContract.translationInput(req.body); }
+    catch { return res.status(400).json({ success: false, code: 'INVALID_AI_REQUEST', msg: 'Please check the text, language, and AI provider settings.' }); }
+    const { text, targetLanguage, provider, apiKey } = input;
 
     try {
       let translatedText = "";
@@ -105,10 +119,11 @@ router.post(
         translatedText,
       });
     } catch (error) {
-      console.error("Translation error:", error);
-      return res.json({
+      console.error("Translation provider request failed");
+      return res.status(502).json({
         success: false,
-        msg: error.message || "Translation failed",
+        code: 'AI_PROVIDER_REQUEST_FAILED',
+        msg: 'Translation is unavailable right now. Please try again. [AI_PROVIDER_REQUEST_FAILED]',
       });
     }
   }
@@ -121,15 +136,30 @@ router.post(
     check("provider", "AI provider is required").notEmpty(),
     check("apiKey", "API key is required").notEmpty(),
   ]),
-  validateUser,
+  validateAssistantUser,
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { chatId, lastMessage, provider, apiKey } = req.body;
+    let input;
+    try { input = aiContract.replyInput(req.body); }
+    catch { return res.status(400).json({ success: false, code: 'INVALID_AI_REQUEST', msg: 'Please check the conversation and AI provider settings.' }); }
+    const { chatId, lastMessage, provider, apiKey } = input;
     const { uid } = req.decode;
+
+    try {
+      const inboxUser = { ...req.decode.userData, uid, isAgent: req.decode.role === 'agent' || req.decode.userData?.role === 'agent' };
+      const scope = await inboxScope.resolveInboxScope(query, inboxUser, 'suggest_reply');
+      await inboxScope.authorizeInboxPayload(query, scope, 'suggest_reply', { chatId });
+    } catch (error) {
+      if (error.code === 'TEAM_INBOX_PERMISSION_DENIED') {
+        return res.status(403).json({ success: false, code: 'CONVERSATION_ACCESS_DENIED', msg: 'You can’t create a reply for this conversation. [CONVERSATION_ACCESS_DENIED]' });
+      }
+      console.error('AI conversation access check failed');
+      return res.status(503).json({ success: false, code: 'AI_CONTEXT_UNAVAILABLE', msg: 'We can’t check this conversation right now. Please try again. [AI_CONTEXT_UNAVAILABLE]' });
+    }
 
     try {
       // Get recent conversation messages for context
@@ -171,10 +201,11 @@ router.post(
         suggestion,
       });
     } catch (error) {
-      console.error("Suggestion error:", error);
-      return res.json({
+      console.error("AI reply suggestion request failed");
+      return res.status(502).json({
         success: false,
-        msg: error.message || "Failed to generate suggestion",
+        code: 'AI_PROVIDER_REQUEST_FAILED',
+        msg: 'A reply suggestion is unavailable right now. Please try again. [AI_PROVIDER_REQUEST_FAILED]',
       });
     }
   }

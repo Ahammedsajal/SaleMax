@@ -3,6 +3,8 @@ const bcrypt = require("bcrypt");
 const randomstring = require("randomstring");
 const { sign } = require("jsonwebtoken");
 const { query } = require("../database/dbpromise.js");
+const { requireInternalAuth: internalOnly } = require("../modules/platform/internal-request-auth");
+const { resolveQrSessionOwner } = require("../modules/platform/qr-session-owner");
 const {
   createSession,
   getSession,
@@ -11,36 +13,6 @@ const {
 const {
   runWhatsAppRetentionCleanup,
 } = require("../helper/maintenance/whatsappRetention.js");
-
-function getInternalSecret() {
-  return String(process.env.CRM_INTERNAL_SECRET || "").trim();
-}
-
-function isAuthorized(req) {
-  const expected = getInternalSecret();
-  if (!expected) return false;
-
-  const byHeader = String(req.get("x-internal-secret") || "").trim();
-  if (byHeader && byHeader === expected) return true;
-
-  const auth = String(req.get("Authorization") || "").trim();
-  if (auth.toLowerCase().startsWith("bearer ")) {
-    const token = auth.slice(7).trim();
-    return token !== "" && token === expected;
-  }
-
-  return false;
-}
-
-function internalOnly(req, res, next) {
-  if (!isAuthorized(req)) {
-    return res.status(401).json({
-      success: false,
-      msg: "Unauthorized internal request",
-    });
-  }
-  next();
-}
 
 function crmUidFromId(id) {
   return `crm_user_${id}`;
@@ -414,6 +386,9 @@ router.post("/qr/gen", internalOnly, async (req, res) => {
         msg: "uid, title and uniqueId are required",
       });
     }
+    if (uniqueId.length > 150) {
+      return res.status(422).json({ success: false, code: "QR_SESSION_ID_TOO_LONG" });
+    }
 
     const exists = await query(`SELECT id FROM instance WHERE uniqueId = ?`, [
       uniqueId,
@@ -422,10 +397,17 @@ router.post("/qr/gen", internalOnly, async (req, res) => {
       return res.json({ success: false, msg: "Instance already exists" });
     }
 
-    await query(
-      `INSERT INTO instance (uid, title, uniqueId, status) VALUES (?,?,?,?)`,
-      [uid, title, uniqueId, "GENERATING"],
-    );
+    try {
+      await query(
+        `INSERT INTO instance (uid, title, uniqueId, status) VALUES (?,?,?,?)`,
+        [uid, title, uniqueId, "GENERATING"],
+      );
+    } catch (insertError) {
+      if (insertError?.code === "ER_DUP_ENTRY") {
+        return res.status(409).json({ success: false, code: "QR_SESSION_ID_ALREADY_EXISTS" });
+      }
+      throw insertError;
+    }
 
     await createSession(uniqueId, title.length > 20 ? title.slice(0, 20) : title);
     return res.json({ success: true, msg: "Qr code is generating" });
@@ -467,13 +449,18 @@ router.post("/qr/delete", internalOnly, async (req, res) => {
       });
     }
 
+    const owner = await resolveQrSessionOwner(query, uniqueId, uid);
+    if (!owner) return res.status(404).json({ success: false, code: "QR_CHANNEL_NOT_FOUND" });
+
     const session = getSession(uniqueId);
     if (session) {
       try {
         await session.logout();
       } catch {
       } finally {
-        deleteSession(uniqueId);
+        if (!await deleteSession(uniqueId, uid)) {
+          return res.status(409).json({ success: false, code: "QR_CHANNEL_OWNERSHIP_CHANGED" });
+        }
       }
     }
 
@@ -485,9 +472,10 @@ router.post("/qr/delete", internalOnly, async (req, res) => {
       console.error("internal.qr.delete auth cleanup failed", err?.message || err);
     }
 
-    await query(`DELETE FROM instance WHERE uniqueId = ? AND uid = ?`, [
-      uniqueId,
-      uid,
+    await query(`DELETE FROM instance WHERE id = ? AND uid = ? AND uniqueId = ?`, [
+      owner.instanceId,
+      owner.uid,
+      owner.uniqueId,
     ]);
 
     return res.json({ success: true, msg: "WhatsApp deleted successfully" });

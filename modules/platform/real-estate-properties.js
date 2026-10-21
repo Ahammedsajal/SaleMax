@@ -2,6 +2,7 @@
 
 const crypto=require('node:crypto');
 const {decision}=require('./policy');
+const tenantCustomization=require('./tenant-customization');
 
 const STATUSES=new Set(['draft','active','under_offer','sold','rented','withdrawn','archived']);
 const TYPES=new Set(['apartment','house','villa','townhouse','land','commercial','office','warehouse','other']);
@@ -67,7 +68,7 @@ async function list(db,context,query={}){
   const clause=where.join(' AND ');
   const [[count]]=await db.query(`SELECT COUNT(*) AS total FROM sx_real_estate_properties p WHERE ${clause}`,params);
   const [rows]=await db.query(`SELECT p.id,p.reference_code AS referenceCode,p.title_en AS titleEn,p.title_ar AS titleAr,p.property_type AS propertyType,p.transaction_type AS transactionType,p.status,p.price_minor AS priceMinor,p.currency,p.area_sqm AS areaSqm,p.bedrooms,p.bathrooms,p.city,p.description_en AS descriptionEn,p.description_ar AS descriptionAr,p.assigned_membership_id AS assignedMembershipId,assignee.display_name AS assignedName,p.revision,p.created_at AS createdAt,p.updated_at AS updatedAt FROM sx_real_estate_properties p LEFT JOIN sx_memberships assigned ON assigned.tenant_id=p.tenant_id AND assigned.id=p.assigned_membership_id LEFT JOIN sx_identities assignee ON assignee.id=assigned.identity_id WHERE ${clause} ORDER BY p.updated_at DESC,p.id LIMIT ? OFFSET ?`,[...params,limit,(page-1)*limit]);
-  return {items:rows,total:Number(count.total),page,limit};
+  return {items:rows,total:Number(count.total),page,limit,settings:tenantCustomization.moduleSettingsFor(context,'real-estate.properties',1)};
 }
 async function validateAssignee(db,context,membershipId){
   if(membershipId===null)return null;
@@ -86,7 +87,8 @@ async function listAssignees(db,context){
   return {items:rows,scope};
 }
 async function create(db,context,input){
-  authorize(context,'properties.manage');const data=clean(input);
+  authorize(context,'properties.manage');const configuration=tenantCustomization.moduleSettingsFor(context,'real-estate.properties',1);
+  const data=clean({...input,transactionType:input?.transactionType??configuration.defaultTransactionType,currency:input?.currency??configuration.defaultCurrency});
   if(data.status!=='draft')fail('INVALID_PROPERTY_TRANSITION',409);
   const id=uuid(),referenceCode=`RE-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
   await db.beginTransaction();

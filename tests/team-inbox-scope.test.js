@@ -90,7 +90,7 @@ test('staff Inbox drops transferred chats and rejects stale direct reads/replies
   assert.equal(reply.chatInfo.sender_mobile, current.sender_mobile);
   assert.equal(reply.chatInfo.origin, 'qr');
   stored = transferred;
-  for (const [event, payload] of [['load_conversation',{chat:{chat_id:'shared-chat'}}],['send_chat_message',{chatInfo:{chat_id:'shared-chat'}}],['export_conversation',{chatId:'shared-chat'}],['assign_agent_to_chat',{chatId:'shared-chat'}]]) {
+  for (const [event, payload] of [['load_conversation',{chat:{chat_id:'shared-chat'}}],['send_chat_message',{chatInfo:{chat_id:'shared-chat'}}],['export_conversation',{chatId:'shared-chat'}],['suggest_reply',{chatId:'shared-chat'}],['assign_agent_to_chat',{chatId:'shared-chat'}]]) {
     await assert.rejects(authorizeInboxPayload(lookup,scope,event,payload),{code:'TEAM_INBOX_PERMISSION_DENIED'});
   }
 });

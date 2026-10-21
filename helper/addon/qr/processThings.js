@@ -470,10 +470,11 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
   }
 }
 
-async function getUserDetails(sessionId, userData) {
+async function getUserDetails(sessionId, userData, ownerUid) {
   try {
+    if (typeof ownerUid !== 'string' || !ownerUid) return null;
     // Only get instance data, user data is already provided
-    const [instance] = await query(
+    const instances = await query(
       `SELECT 
         id,
         uid,
@@ -482,12 +483,13 @@ async function getUserDetails(sessionId, userData) {
         data,
         other
       FROM instance
-      WHERE uniqueId = ?
-      LIMIT 1`,
-      [sessionId]
+      WHERE uniqueId = ? AND uid = ?
+      LIMIT 2`,
+      [sessionId, ownerUid]
     );
 
-    if (!instance) return null;
+    if (!Array.isArray(instances) || instances.length !== 1) return null;
+    const [instance] = instances;
 
     // Combine userData with instance
     return {
@@ -517,7 +519,7 @@ async function processMessageQr({
   uid,
 }) {
   try {
-    const userDetails = await getUserDetails(sessionId, userData);
+    const userDetails = await getUserDetails(sessionId, userData, uid);
 
     if (!userDetails) {
       return;

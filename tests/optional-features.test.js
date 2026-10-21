@@ -13,6 +13,9 @@ test('optional gates leave internal training APIs and ordinary messaging availab
   assert.equal(features.featureForRequest({baseUrl:'/api/user',path:'/get_my_widget'}),'chat_widget');
   assert.equal(features.featureForRequest({baseUrl:'/api/user',path:'/add_ins_to_warm'}),'whatsapp_warmer');
   assert.equal(features.featureForRequest({baseUrl:'/api/webhook',path:'/get_webhook_logs'}),'webhooks');
+  assert.equal(features.featureForRequest({baseUrl:'/api/v1',path:'/get_logs'}),'customer_api');
+  assert.equal(features.featureForRequest({baseUrl:'/api/v1',path:'/delete_logs'}),'customer_api');
+  assert.equal(features.featureForRequest({baseUrl:'/api/v1',path:'/send-message'}),null);
 });
 test('optional changes require MFA permission, valid switches and expected revision',async()=>{
   const ctx={audience:'platform',identity:{id:'owner'},membership:{role:'super_admin',status:'active'},mfaVerified:true};

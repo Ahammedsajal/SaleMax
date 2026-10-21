@@ -93,6 +93,18 @@ test('generic lead capture is visible only when the server advertises the plan-a
   assert.match(chatbotRouter,/genericCaptureEnabled\(ctx\)/);
 });
 
+test('existing FAQ screen supports shared and per-bot answers with bot-specific priority',()=>{
+  const faqs = read('client/public/training-faqs.js');
+  assert.match(faqs, /Shared · all bots/);
+  assert.match(faqs, /profileId=\$\{encodeURIComponent\(selectedProfileId\)\}/);
+  assert.match(faqs, /payload\.profileId = selectedProfileId \|\| null/);
+  assert.match(faqs, /Shared answers are available to all bots as fallback/);
+  assert.match(faqs, /Answers saved for one bot take priority for that bot only/);
+  assert.match(sidebar, /training-faqs\.js\?v=20261021-bot-scope1/);
+  assert.match(admin, /Bot-specific answers take priority for this bot/);
+  assert.match(admin, /profileId:bot\.id\|\|null/);
+});
+
 test('bot editor keeps save actions visible while its long form scrolls', () => {
   assert.match(admin, /class="sx-dialog sx-bot-editor-dialog"[\s\S]*?<form><div class="sx-bot-editor-scroll"><div class="sx-form-grid">/);
   assert.match(admin, /<div class="sx-error" role="alert"><\/div><\/div><div class="sx-footer">[\s\S]*?Save bot/);

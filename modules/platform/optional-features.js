@@ -35,6 +35,7 @@ async function enabledForUid(uid,key,query=require('../../database/dbpromise').q
 }
 function featureForRequest(req){
   const path=(req.baseUrl||'')+(req.path||'');
+  if(req.baseUrl==='/api/v1'&&['/get_logs','/delete_logs'].includes(req.path))return 'customer_api';
   if(path.startsWith('/api/webhook/'))return 'webhooks';
   if(path.startsWith('/api/user/')){
     if(['/add_widget','/get_my_widget','/del_widget'].includes(req.path))return 'chat_widget';

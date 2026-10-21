@@ -9,7 +9,8 @@ const { ENGINES, botInput, cleanText, botRequirements } = require('./chatbot-con
 const { previewGuidedTurn } = require('./chatbot-guide-preview');
 const { getDomainPack } = require('./chatbot-domain-packs');
 const { SUPPORTED_CHANNEL_KINDS } = require('./chatbot-channels');
-const { validateFaqInput } = require('./chatbot-faq');
+const { validateFaqInput, mergeKnowledgeEntries } = require('./chatbot-faq');
+const faqScope = require('./chatbot-faq-scope');
 
 // Until the other adapters have inbound and outbound coverage, expose only
 // WhatsApp channels supported by the current inbox dispatch path.
@@ -114,9 +115,11 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   }));
   router.post('/guided-preview', wrap(async (req, res) => {
     const ctx = context(req);
+    const requestedProfileId = faqScope.profileId(req.body.profileId);
     const pack = getDomainPack(ctx.category.key, ctx.category.version);
     const result = await withDb(async db => {
-      const [knowledgeEntries] = await db.query(`SELECT question_en AS questionEn,answer_en AS answerEn,question_ar AS questionAr,answer_ar AS answerAr FROM sx_chatbot_faqs WHERE tenant_id=? AND is_active=1 ORDER BY position,created_at,id LIMIT 60`, [ctx.tenant.id]);
+      const profileId = await faqScope.assertProfileScope(db, ctx, requestedProfileId);
+      const knowledgeEntries = mergeKnowledgeEntries(await faqScope.loadForBot(db, ctx.tenant.id, profileId));
       return previewGuidedTurn({ body: req.body, pack, db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, knowledgeEntries, context:ctx });
     });
     res.json({ success: true, data: result });
@@ -125,7 +128,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   router.get('/', wrap(async (req, res) => {
     const ctx = context(req);
     const data = await withDb(async db => {
-      const [bots] = await db.query(`SELECT id,name,engine,status,config,revision,updated_at AS updatedAt FROM sx_chatbot_profiles WHERE tenant_id=? ORDER BY updated_at DESC`, [ctx.tenant.id]);
+      const [bots] = await db.query(`SELECT id,name,engine,status,config,category_key AS categoryKey,category_version AS categoryVersion,revision,updated_at AS updatedAt FROM sx_chatbot_profiles WHERE tenant_id=? ORDER BY updated_at DESC`, [ctx.tenant.id]);
       for (const bot of bots) {
         bot.config = typeof bot.config === 'string' ? JSON.parse(bot.config) : bot.config;
         const [channels] = await db.query(`SELECT channel_kind AS kind,channel_ref AS reference FROM sx_chatbot_channel_assignments WHERE tenant_id=? AND chatbot_id=? ORDER BY created_at`, [ctx.tenant.id, bot.id]);
@@ -150,53 +153,56 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
 
   router.get('/faqs', wrap(async (req, res) => {
     const ctx = context(req);
+    const requestedProfileId = faqScope.profileId(req.query.profileId);
     const data = await withDb(async db => {
-      const [items] = await db.query(`SELECT id,question_en AS questionEn,answer_en AS answerEn,question_ar AS questionAr,answer_ar AS answerAr,
-        is_active AS active,position,revision,updated_at AS updatedAt FROM sx_chatbot_faqs WHERE tenant_id=? ORDER BY is_active DESC,position,created_at,id`, [ctx.tenant.id]);
-      return { items: items.map(item => ({ ...item, active: !!item.active, position: Number(item.position), revision: Number(item.revision) })) };
+      const profileId = await faqScope.assertProfileScope(db, ctx, requestedProfileId);
+      return { scope: { profileId }, items: await faqScope.listForEditor(db, ctx.tenant.id, profileId) };
     });
     res.json({ success: true, data });
   }));
   router.post('/faqs', wrap(async (req, res) => {
-    const ctx = context(req); const faq = validateFaqInput(req.body);
+    const ctx = context(req); const faq = validateFaqInput(req.body); const requestedProfileId = faqScope.profileId(req.body.profileId);
     const data = await withDb(async db => {
       await db.beginTransaction(); try {
-        const [[position]] = await db.query(`SELECT COALESCE(MAX(position),0)+1 AS nextPosition FROM sx_chatbot_faqs WHERE tenant_id=?`, [ctx.tenant.id]);
+        const profileId = await faqScope.assertProfileScope(db, ctx, requestedProfileId);
+        const [[position]] = await db.query(`SELECT COALESCE(MAX(position),0)+1 AS nextPosition FROM sx_chatbot_faqs WHERE tenant_id=? AND profile_id <=> ?`, [ctx.tenant.id, profileId]);
         if (Number(position.nextPosition) > 60) fail('FAQ_LIMIT_REACHED');
         const id = uuid();
-        await db.query(`INSERT INTO sx_chatbot_faqs(id,tenant_id,question_en,answer_en,question_ar,answer_ar,position,created_by_identity_id,updated_by_identity_id)
-          VALUES (?,?,?,?,?,?,?,?,?)`, [id, ctx.tenant.id, faq.questionEn, faq.answerEn, faq.questionAr, faq.answerAr, position.nextPosition, ctx.identity.id, ctx.identity.id]);
-        await audit(db, ctx, 'chatbot.faq-created', id, { languages: [faq.questionEn && faq.answerEn ? 'en' : null, faq.questionAr && faq.answerAr ? 'ar' : null].filter(Boolean) });
-        await db.commit(); return { id, ...faq, active: true, position: Number(position.nextPosition), revision: 1 };
+        await db.query(`INSERT INTO sx_chatbot_faqs(id,tenant_id,profile_id,question_en,answer_en,question_ar,answer_ar,position,created_by_identity_id,updated_by_identity_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?)`, [id, ctx.tenant.id, profileId, faq.questionEn, faq.answerEn, faq.questionAr, faq.answerAr, position.nextPosition, ctx.identity.id, ctx.identity.id]);
+        await audit(db, ctx, 'chatbot.faq-created', id, { profileId, scope: profileId ? 'bot' : 'shared', languages: [faq.questionEn && faq.answerEn ? 'en' : null, faq.questionAr && faq.answerAr ? 'ar' : null].filter(Boolean) });
+        await db.commit(); return { id, profileId, ...faq, active: true, position: Number(position.nextPosition), revision: 1 };
       } catch (error) { await db.rollback(); throw error; }
     });
     res.status(201).json({ success: true, data });
   }));
   router.put('/faqs/:id', wrap(async (req, res) => {
-    const ctx = context(req); const faq = validateFaqInput(req.body); const expectedRevision = req.body.expectedRevision;
+    const ctx = context(req); const faq = validateFaqInput(req.body); const expectedRevision = req.body.expectedRevision; const requestedProfileId = faqScope.profileId(req.body.profileId);
     const nextActive = req.body.active == null ? null : req.body.active === true ? 1 : req.body.active === false ? 0 : fail('INVALID_FAQ');
     if (!/^[0-9a-f-]{36}$/i.test(req.params.id) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1) fail('INVALID_REVISION');
     const data = await withDb(async db => {
       await db.beginTransaction(); try {
-        const [[row]] = await db.query(`SELECT revision,is_active AS active,position FROM sx_chatbot_faqs WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
-        if (!row) fail('FAQ_NOT_FOUND'); if (Number(row.revision) !== expectedRevision) fail('STALE_REVISION');
+        const profileId = await faqScope.assertProfileScope(db, ctx, requestedProfileId);
+        const [[row]] = await db.query(`SELECT revision,is_active AS active,position,profile_id AS profileId FROM sx_chatbot_faqs WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
+        if (!row || (row.profileId || null) !== profileId) fail('FAQ_NOT_FOUND'); if (Number(row.revision) !== expectedRevision) fail('STALE_REVISION');
         await db.query(`UPDATE sx_chatbot_faqs SET question_en=?,answer_en=?,question_ar=?,answer_ar=?,is_active=COALESCE(?,is_active),revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=?`, [faq.questionEn, faq.answerEn, faq.questionAr, faq.answerAr, nextActive, ctx.identity.id, ctx.tenant.id, req.params.id]);
-        await audit(db, ctx, 'chatbot.faq-updated', req.params.id, { revision: expectedRevision + 1, active: nextActive == null ? !!row.active : !!nextActive }); await db.commit();
-        return { id: req.params.id, ...faq, active: nextActive == null ? !!row.active : !!nextActive, position: Number(row.position), revision: expectedRevision + 1 };
+        await audit(db, ctx, 'chatbot.faq-updated', req.params.id, { profileId, revision: expectedRevision + 1, active: nextActive == null ? !!row.active : !!nextActive }); await db.commit();
+        return { id: req.params.id, profileId, ...faq, active: nextActive == null ? !!row.active : !!nextActive, position: Number(row.position), revision: expectedRevision + 1 };
       } catch (error) { await db.rollback(); throw error; }
     });
     res.json({ success: true, data });
   }));
   router.delete('/faqs/:id', wrap(async (req, res) => {
-    const ctx = context(req); const expectedRevision = Number(req.body.expectedRevision);
+    const ctx = context(req); const expectedRevision = Number(req.body.expectedRevision); const requestedProfileId = faqScope.profileId(req.body.profileId);
     if (!/^[0-9a-f-]{36}$/i.test(req.params.id) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1) fail('INVALID_REVISION');
     const data = await withDb(async db => {
       await db.beginTransaction(); try {
-        const [[row]] = await db.query(`SELECT revision,is_active AS active FROM sx_chatbot_faqs WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
-        if (!row) fail('FAQ_NOT_FOUND'); if (Number(row.revision) !== expectedRevision) fail('STALE_REVISION');
+        const profileId = await faqScope.assertProfileScope(db, ctx, requestedProfileId);
+        const [[row]] = await db.query(`SELECT revision,is_active AS active,profile_id AS profileId FROM sx_chatbot_faqs WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
+        if (!row || (row.profileId || null) !== profileId) fail('FAQ_NOT_FOUND'); if (Number(row.revision) !== expectedRevision) fail('STALE_REVISION');
         await db.query(`UPDATE sx_chatbot_faqs SET is_active=0,revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=?`, [ctx.identity.id, ctx.tenant.id, req.params.id]);
-        await audit(db, ctx, 'chatbot.faq-archived', req.params.id, { active: false, revision: expectedRevision + 1 }); await db.commit();
-        return { id: req.params.id, active: false, revision: expectedRevision + 1 };
+        await audit(db, ctx, 'chatbot.faq-archived', req.params.id, { profileId, active: false, revision: expectedRevision + 1 }); await db.commit();
+        return { id: req.params.id, profileId, active: false, revision: expectedRevision + 1 };
       } catch (error) { await db.rollback(); throw error; }
     });
     res.json({ success: true, data });

@@ -23,4 +23,24 @@ function requireMetaSignature(req, appSecret) {
   return verifySignature(req?.rawBody, req?.headers?.['x-hub-signature-256'], appSecret);
 }
 
-module.exports = { isMetaWebhookRequest, captureRawBody, verifySignature, requireMetaSignature };
+function createMetaWebhookSignatureGuard({ getSecret }) {
+  if (typeof getSecret !== 'function') throw new TypeError('getSecret is required');
+  return async function metaWebhookSignatureGuard(req, res, next) {
+    let secret;
+    try {
+      secret = await getSecret(req);
+    } catch (error) {
+      console.error('[meta-webhook] signature configuration lookup failed:', error?.code || 'unknown');
+      return res.status(503).json({ success: false, code: 'META_WEBHOOK_SIGNATURE_NOT_CONFIGURED' });
+    }
+    if (typeof secret !== 'string' || !secret.trim()) {
+      return res.status(503).json({ success: false, code: 'META_WEBHOOK_SIGNATURE_NOT_CONFIGURED' });
+    }
+    if (!requireMetaSignature(req, secret)) {
+      return res.status(401).json({ success: false, code: 'META_WEBHOOK_SIGNATURE_INVALID' });
+    }
+    return next();
+  };
+}
+
+module.exports = { isMetaWebhookRequest, captureRawBody, verifySignature, requireMetaSignature, createMetaWebhookSignatureGuard };

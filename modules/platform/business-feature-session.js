@@ -25,8 +25,9 @@ async function legacyContext(db,actor,agent=false){
   const delegatedPermissions=parseGrants(row.delegatedPermissions);
   if(!delegatedPermissions||(row.roleProfileId&&(!customPermissions||row.seatRole!==row.role||!['active','archived'].includes(row.roleStatus)))||(row.assignedNavigation!=null&&!assignedNavigation))fail('BUSINESS_LINK_INVALID');
   const category=getCategory(row.categoryKey,Number(row.categoryVersion));if(!category)fail('CATEGORY_UNAVAILABLE');
-  return {audience:'tenant',identity:{id:row.identityId},tenant:{id:row.tenantId,name:row.tenantName,status:row.tenantStatus,categoryKey:row.categoryKey,categoryVersion:Number(row.categoryVersion),currency:row.currency,timezone:row.timezone},
+  const context={audience:'tenant',identity:{id:row.identityId},tenant:{id:row.tenantId,name:row.tenantName,status:row.tenantStatus,categoryKey:row.categoryKey,categoryVersion:Number(row.categoryVersion),currency:row.currency,timezone:row.timezone},
     membership:{id:row.membershipId,tenantId:row.tenantId,identityId:row.identityId,role:row.role,status:row.membershipStatus,roleProfileId:row.roleProfileId,customPermissions,assignedNavigation,delegatedPermissions},category,subscription:await loadEntitlements(db,row.tenantId),runtimeReady:{}};
+  return require('./tenant-customization').withActivation(db,context);
 }
 async function resolve(pool,{context,actor,agent=false,owner=null,refreshContext}){
   const db=await pool.getConnection();

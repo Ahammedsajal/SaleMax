@@ -20,9 +20,14 @@ const {
   parseJson,
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
-const validateUser = require("../middlewares/user.js");
+const validateUserAuth = require("../middlewares/user.js");
 const { getIOInstance } = require("../socket.js");
 const { checkPlan } = require("../middlewares/plan.js");
+const { createInboxModuleAccess, withInboxModuleAccess } = require("../modules/platform/inbox-module-access");
+const inboxModuleAccess = createInboxModuleAccess({
+  pool: require("../database/config.js").promise(),
+});
+const validateUser = withInboxModuleAccess(validateUserAuth, inboxModuleAccess);
 const { processMessage } = require("../helper/inbox/inbox.js");
 const con = require("../database/config.js");
 const { updateMessageStatus } = require("../loops/campaignBeta.js");
@@ -44,6 +49,29 @@ const {
   handleBroadcastCallTerminate,
   outgoingCallStates,
 } = require("../helper/addon/wacall/broadcastProcessor.js");
+const { createMetaWebhookSignatureGuard } = require("../modules/platform/meta-webhook-signature");
+const { resolveMetaWebhookOwner } = require("../modules/platform/meta-webhook-authorization");
+
+const META_WEBHOOK_SECRET_CACHE_MS = 30_000;
+let metaWebhookSecretCache = { value: null, checkedAt: 0 };
+let metaWebhookSecretLookup = null;
+
+async function getEmbeddedMetaAppSecret() {
+  if (Date.now() - metaWebhookSecretCache.checkedAt < META_WEBHOOK_SECRET_CACHE_MS) return metaWebhookSecretCache.value;
+  if (!metaWebhookSecretLookup) {
+    metaWebhookSecretLookup = query("SELECT embed_app_sec FROM web_private LIMIT 1", []).then(([settings]) => {
+      const value = String(settings?.embed_app_sec || "").trim() || null;
+      metaWebhookSecretCache = { value, checkedAt: Date.now() };
+      return value;
+    }).finally(() => { metaWebhookSecretLookup = null; });
+  }
+  return metaWebhookSecretLookup;
+}
+
+const requireMetaWebhookSignature = createMetaWebhookSignatureGuard({
+  getSecret: async () => String(process.env.META_APP_SECRET || "").trim() || null,
+});
+const requireEmbeddedMetaWebhookSignature = createMetaWebhookSignatureGuard({ getSecret: getEmbeddedMetaAppSecret });
 
 // WhatsApp Webhook Verification
 router.get("/embed/webhook/:uid", async (req, res) => {
@@ -76,9 +104,14 @@ router.get("/embed/webhook/:uid", async (req, res) => {
 });
 
 // handle embed webhook
-router.post("/embed/webhook/:uid", async (req, res) => {
+router.post("/embed/webhook/:uid", requireEmbeddedMetaWebhookSignature, async (req, res) => {
   try {
     const body = req.body;
+    const [admin] = await query("SELECT uid FROM admin LIMIT 1", []);
+    if (!admin?.uid || String(admin.uid) !== String(req.params.uid)) {
+      return res.status(403).json({ success: false, code: "META_WEBHOOK_OWNER_MISMATCH" });
+    }
+    const userUID = await resolveMetaWebhookOwner({ body, query, embedded: true });
     res.sendStatus(200);
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses;
 
@@ -142,38 +175,13 @@ router.post("/embed/webhook/:uid", async (req, res) => {
 
     console.log("2");
 
-    const changes = body?.entry[0]?.changes[0];
-    const phoneNumId = changes?.value?.metadata?.phone_number_id;
-    const wabaId = body?.entry[0]?.id;
-
-    console.log("3");
-
-    let userUID = null;
-
-    if (phoneNumId) {
-      const getMyMetaApi = await query(
-        `SELECT * FROM meta_api WHERE JSON_EXTRACT(embed_data, '$.waba.id') = ?`,
-        [wabaId],
-      );
-
-      userUID = getMyMetaApi[0]?.uid;
-      const getDays = await getUserPlayDays(userUID);
-      if (getDays < 1) {
-        console.log("User plan expired");
-        return;
-      }
-
-      if (getMyMetaApi?.length > 0) {
-        const myNumberId = getMyMetaApi[0]?.business_phone_number_id;
-        if (phoneNumId !== myNumberId) {
-          return;
-        }
-      }
+    const getDays = await getUserPlayDays(userUID);
+    if (getDays < 1) {
+      console.log("User plan expired");
+      return;
     }
 
-    console.log("4");
-
-    if (!userUID) return;
+    console.log("3");
 
     // ✅ Handle different webhook types
     const entry = body?.entry?.[0];
@@ -207,12 +215,14 @@ router.post("/embed/webhook/:uid", async (req, res) => {
 
             if (reply.response === "accept") {
               await updateBroadcastContactPermission(
+                userUID,
                 fromNumber,
                 "granted",
                 reply,
               );
             } else if (reply.response === "reject") {
               await updateBroadcastContactPermission(
+                userUID,
                 fromNumber,
                 "denied",
                 reply,
@@ -309,15 +319,15 @@ router.post("/embed/webhook/:uid", async (req, res) => {
         break;
     }
   } catch (err) {
-    console.log(err);
-    res.json({ err, success: false, msg: "Something went wrong" });
+    console.error("[meta-webhook] embedded callback failed:", err?.code || err?.name || "unknown");
+    if (!res.headersSent) return res.status(Number(err?.status) || 503).json({ success: false, code: err?.code || "META_WEBHOOK_UNAVAILABLE" });
   }
 });
 
-router.post("/webhook/:uid", async (req, res) => {
+router.post("/webhook/:uid", requireMetaWebhookSignature, async (req, res) => {
   try {
     const body = req.body;
-    const userUID = req.params.uid;
+    const userUID = await resolveMetaWebhookOwner({ body, query, expectedUid: req.params.uid });
 
     // Match GCCBOT's Meta webhook flow: acknowledge Meta before optional
     // pipeline capture so a pipeline-only schema issue cannot block Inbox.
@@ -357,12 +367,14 @@ router.post("/webhook/:uid", async (req, res) => {
 
             if (reply.response === "accept") {
               await updateBroadcastContactPermission(
+                userUID,
                 fromNumber,
                 "granted",
                 reply,
               );
             } else if (reply.response === "reject") {
               await updateBroadcastContactPermission(
+                userUID,
                 fromNumber,
                 "denied",
                 reply,
@@ -459,18 +471,20 @@ router.post("/webhook/:uid", async (req, res) => {
         break;
     }
   } catch (err) {
-    console.error("❌ Webhook error:", err);
-    if (!res.headersSent) return res.sendStatus(503);
+    console.error("[meta-webhook] direct callback failed:", err?.code || err?.name || "unknown");
+    if (!res.headersSent) return res.status(Number(err?.status) || 503).json({ success: false, code: err?.code || "META_WEBHOOK_UNAVAILABLE" });
   }
 });
 
 // Helper function to update broadcast contact permission
-async function updateBroadcastContactPermission(mobile, status, reply) {
+async function updateBroadcastContactPermission(uid, mobile, status, reply) {
   try {
+    if (typeof uid !== "string" || !uid) return;
     console.log(`🔄 Updating permission for ${mobile} to ${status}...`);
 
     const broadcasts = await query(
-      `SELECT * FROM wa_call_broadcasts WHERE status IN ('requesting_permissions', 'ready', 'running', 'draft')`,
+      `SELECT * FROM wa_call_broadcasts WHERE uid = ? AND status IN ('requesting_permissions', 'ready', 'running', 'draft')`,
+      [uid],
     );
 
     let updated = false;
@@ -516,8 +530,8 @@ async function updateBroadcastContactPermission(mobile, status, reply) {
             updateParams.push(statsUpdate[key]);
           });
 
-          updateQuery += ` WHERE campaign_id = ?`;
-          updateParams.push(broadcast.campaign_id);
+          updateQuery += ` WHERE campaign_id = ? AND uid = ?`;
+          updateParams.push(broadcast.campaign_id, uid);
 
           await query(updateQuery, updateParams);
 
