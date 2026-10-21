@@ -22,6 +22,46 @@ The route map in `modules/platform/team-role-request-guard.js` primarily transla
 
 Selected canonical Agent requests do apply `policy.decision()` through `agent-workspace-access.js`. The upgraded vertical routers also apply modern policy. The remaining legacy owner routes continue to rely on their existing route-specific checks, which are not uniformly represented by `policy.decision()`. This is the exact boundary that needs route-by-route coverage work before a new category or a tenant-selectable module can be considered isolated end to end.
 
+## Executable legacy route audit — 21 October 2026
+
+`scripts/audit-legacy-route-policy.cjs` now parses the direct `./routes/*` mounts
+in `server.js`, enumerates static Express route methods and aliases, and compares
+the existing legacy role-permission resolver against a checked-in review
+baseline. The route policy was extracted unchanged to
+`modules/platform/legacy-route-policy.js` so tests and the audit can evaluate it
+without loading the database-backed guard. `agent-workspace-access.js` and the
+legacy team-role guard use the same alias canonicalizer.
+
+The source audit finds 444 authenticated static route/mount bindings: 342 have
+an existing `routePermission()` classification, 78 are separately guarded
+platform-admin routes, and 24 authenticated business/identity routes have no
+legacy role-permission mapping. They are retained as explicit
+`review_required` entries in `scripts/legacy-route-policy-baseline.json`; a new
+unmapped route or a dynamic route declaration makes the audit fail. The current
+24 are two AI helper routes, eighteen legacy `/api/user` routes (billing,
+account security/notifications, messaging and optional shared features), two
+tenant log endpoints under `/api/v1`, and two SSO identity-bridge routes.
+
+This is a migration backlog, not proof those routes lack all authorization.
+The current `validateUser` path still performs authentication, ownership/session,
+legacy optional-feature and route-specific checks. But a membership with a
+custom role profile is denied with `TEAM_ROLE_ROUTE_UNMAPPED` when its route has
+no mapping, regardless of whether the owner intended to grant an appropriate
+existing permission. Default memberships with no custom role profile still use
+the established compatibility path. The next change must classify each route's
+data owner, module capability and safe role scope before adding mappings; billing,
+self-security and platform identity actions must not be made available through
+a generic tenant permission. Existing behavior remains unchanged by this
+inventory.
+
+Audit limits: this scanner covers static routes declared inside router files
+directly mounted from `server.js` and recognizes named auth middleware. It does
+not enumerate route factories mounted by `mount-existing-upgrade.js`,
+programmatically generated route paths, background jobs, WebSocket events,
+provider callbacks or static/public pages. The reported 444 count is a source
+inventory, not a whole-application authorization audit. Tests currently assert
+the review baseline is stable and canonical aliases resolve consistently.
+
 A read-only production count found 3 active mapped tenants: 1 `7network_sales` and 2 `training_center`. All 3 have a legacy user mapping and a current active/trial plan assignment. These counts reduce uncertainty for the current tenant set, but do not make compatibility-only/unmapped legacy accounts safe to auto-adopt and do not prove every route is covered.
 
 ## Enforcement and migration plan

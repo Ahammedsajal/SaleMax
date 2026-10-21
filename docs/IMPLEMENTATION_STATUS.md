@@ -17,6 +17,17 @@ categories until route enumeration and cross-tenant/category denial coverage
 are complete. This source audit does not change production data or complete the
 42-ticket program.
 
+The executable source audit now covers 444 authenticated static route/mount
+bindings from direct legacy routers: 342 map to a legacy role permission, 78
+use a distinct platform-admin boundary, and 24 business/identity endpoints
+remain review-required because the legacy role map has no entry. The baseline
+fails on newly unmapped routes and dynamic route declarations. These 24 are
+not treated as unprotected: existing authentication, optional-feature and
+route-specific checks remain active, while custom-role profiles currently fail
+closed on the missing role map. The scanner does not yet cover the upgraded
+router factories, jobs, socket events or provider callbacks, so this is a
+bounded inventory step rather than completion of the authorization audit.
+
 ## 7Network category and tenant customization architecture audit — source, 21 October 2026
 
 The category system already has a sound starting point: version-pinned category
@@ -36,9 +47,10 @@ production category list; the restaurant definition is a test fixture. The
 production/source category difference must remain explicit during releases.
 The architecture decision and researched roadmap are in
 `docs/7NETWORK_CATEGORY_CUSTOMIZATION_ARCHITECTURE.md`. The next implementation
-step is to inventory legacy routes, tables, jobs and policy coverage, then
-extend cross-tenant denial tests before enabling additional categories. This is
-not completion of the broader 42-ticket CRM program.
+step is to include the upgraded router factories, data owners and asynchronous
+paths in the inventory, then close route-by-route category/tenant policy gaps
+before enabling additional categories. This is not completion of the broader
+42-ticket CRM program.
 
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
@@ -47,14 +59,17 @@ guidance and places a safe technical cause in brackets for technical failures.
 The backend now preserves more safe MySQL protocol and Node network error codes
 instead of reducing them to `UNEXPECTED_SERVER_ERROR`; arbitrary error messages
 that could expose SQL, paths or applicant information stay hidden. The focused
-error tests pass 2/2. Source commit `9a23a15` is deployed in
-`/opt/salemax/releases/recruitment-diagnostic-causes-9a23a15-20261021`; no
-migration or customer data change occurred, and only the app container was
-recreated. Production health, login routes, release/container helper hashes and
-unchanged database/worker container IDs were verified. No matching failure was
-recorded in the prior 72 hours, so no real applicant submission failure was
-reproduced. Authenticated live submission acceptance and the full 42-ticket
-program remain open; see `DEPLOYMENT.md` for rollback and release evidence.
+error tests pass 2/2. Source commit `9a23a15` was deployed in
+`/opt/salemax/releases/recruitment-diagnostic-causes-9a23a15-20261021`; the
+current active release was later read-only verified as
+`/opt/salemax/releases/7network-final-logo-060dee2-20261021`, which still
+contains the diagnostic helper. No migration or customer data change occurred
+during the diagnostic release; only the app container was recreated. Production
+health, login routes, release/container helper hashes and unchanged
+database/worker container IDs were verified. No matching failure was recorded
+in the prior 72 hours, so no real applicant submission failure was reproduced.
+Authenticated live submission acceptance and the full 42-ticket program remain
+open; see `DEPLOYMENT.md` for rollback and release evidence.
 
 ## Category-versioned task-type adapters — source update, 21 October 2026
 

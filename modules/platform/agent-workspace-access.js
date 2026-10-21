@@ -1,10 +1,9 @@
 'use strict';
-const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/workspace/automation/flows':'/api/chat_flow','/api/workspace/automation/chatbot':'/api/chatbot','/api/workspace/templates':'/api/templet','/api/workspace/campaigns':'/api/broadcast','/api/workspace/inbox':'/api/inbox','/api/workspace/pipeline':'/api/pipeline'}[String(value||'').replace(/\/$/,'')]||String(value||'').replace(/\/$/,''));
-
 const jwt=require('jsonwebtoken');
 const policy=require('./policy');
 const sessions=require('./business-feature-session');
 const {routePermission}=require('./team-role-request-guard');
+const {canonicalMount}=require('./legacy-route-policy');
 const fail=(code,status=403)=>{throw Object.assign(Error(code),{code,status});};
 function capabilityFor(req,permission,context){
  const mount=String(req.baseUrl||'');
