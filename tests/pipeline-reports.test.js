@@ -202,7 +202,7 @@ test('finance report summary remains owner-only and presents exact bilingual Qat
   assert.match(ui,/Payments received this period/);assert.match(ui,/المدفوعات المستلمة خلال الفترة/);
   assert.match(ui,/Period activity is separate from the current receivables position/);assert.match(ui,/نشاط الفترة منفصل عن الذمم المدينة الحالية/);
   assert.match(ui,/journeyTitle:'Lead journey overview'/);assert.match(ui,/journeyTitle:'نظرة عامة على رحلة العميل'/);assert.match(ui,/journey\.agents/);assert.match(ui,/periodPaymentReceipts:'Payment receipts issued'/);assert.match(ui,/periodPaymentReceipts:'إيصالات الدفع الصادرة'/);
-  assert.match(ui,/journey&&trainingWorkspace\?/);assert.doesNotMatch(ui,/journey&&!salesWorkspace\?/);
+  assert.match(ui,/journey&&trainingWorkspace\?/);assert.match(ui,/trainingWorkspace\?`<h4>\$\{t\('learnerJourney'\)\}/);assert.match(ui,/finance&&trainingWorkspace\?/);assert.doesNotMatch(ui,/journey&&!salesWorkspace\?/);
 });
 
 test('activity reports apply assigned and QR instance filters to counts and event rows',async()=>{

@@ -1980,5 +1980,7 @@ Training Center; known Sales, Real Estate, Base CRM, future Retail and future
 Clinic workspaces receive no Training finance payload and the service skips
 Training tenant/finance table discovery. The existing scheduled Training
 report runner now passes its category explicitly; absent/unknown context omits
-finance. Focused report/team/category-isolation checks pass 25/25. This is
-source-only; production was not updated.
+finance. The existing Reports renderer also requires a Training journey context
+before showing Training learner or finance cards, even if an unexpected response
+contains that payload. Focused report/team/category-isolation checks pass 25/25.
+This is source-only; production was not updated.

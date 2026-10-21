@@ -10,6 +10,43 @@ Keep one maintained 7Network application, current logins and panels, and shared 
 
 Configuration isolation can prevent one business's settings affecting another. It cannot guarantee that a defect in shared application code never affects other businesses. Version pinning, gradual rollout and contract tests reduce that blast radius; dedicated deployment stamps and resource isolation are the stronger option for customers needing separate runtime failure boundaries. Do not sell an absolute guarantee of zero shared-code impact.
 
+## Architecture decision from multitenant SaaS research — 22 October 2026
+
+Use the existing pooled application and tenant-keyed relational data model as
+the default. Microsoft's multitenant storage guidance describes shared databases
+as the highest-density, lowest-operations-cost option, while warning about
+noisy-neighbor limits, recovery complexity and tenant-specific schema changes.
+It recommends avoiding per-tenant columns and table sets in favor of dedicated
+custom-data structures, tracking schema versions, and planning repeatable
+tenant migration and offboarding. Accordingly, customer differences belong in
+validated tenant configuration and typed tenant-owned records; they must not
+become one-off SQL columns, customer-specific code forks or cloned applications.
+See [Microsoft's multitenant storage and data guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/storage-data).
+
+Keep a future hybrid path for customers whose contractual requirements justify
+isolated databases or deployment stamps, such as independent restore, regional
+residency, customer-managed keys or stronger noisy-neighbor boundaries. Do not
+pay that operational cost for every standard account; provision isolation from
+a repeatable control plane with automated migration and health checks. This
+matches [Microsoft's multitenant architecture guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/saas-multitenant-solution-architecture/),
+which treats shared and dedicated deployment patterns as selectable tenancy
+models rather than requiring one topology for every tenant.
+
+For each request, derive tenant, exact category/version, current plan,
+membership and active configuration from the authenticated server context.
+Apply the intersection of those grants on every API and worker action; a hidden
+menu or client-supplied tenant/category value is never authorization. Unknown
+categories, absent settings and unsupported adapters fail closed or use an
+explicitly versioned compatibility path. OWASP specifically recommends
+deny-by-default authorization and permission checks on every request; see the
+[OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html).
+
+This research supports the current 7Network implementation direction: immutable
+category contracts, published per-tenant revisions, typed extension fields,
+and separate domain adapters. It also confirms remaining launch evidence must
+include tenant-level restore/recovery, load fairness, authenticated user flows
+and cross-tenant API/cache/worker/media tests before calling the system scalable.
+
 ## Category task adapters — 21 October 2026
 
 The existing shared Tasks screen now receives its available task types from the authenticated category/plan contract. Reviewed immutable adapters define labels and validation; category versions pin adapter versions, while tenant customization may only hide an approved type. It cannot add types, grant category capabilities, or bypass plan entitlements. Existing task history remains readable when an administrator disables a type. Training Center invoice/enrollment and 7Network Sales call choices are wired through this path. Manage Users' legacy-plan fallback now sends mapped accounts to a reviewed category contract using category-neutral English/Arabic guidance; the setup screen reads the actual tenant category and version from the authenticated context. Production source parity was inspected read-only; production-only task adapters, upload-size handling and rollback source were recovered, while the 14 local-only Real Estate source files remain unpublished. A clean `origin/main` full-suite baseline passes 1,019/1,045; this feature branch passes 1,057/1,079, adds 34 tests and resolves four baseline failures without introducing new failing test names. This is source work only: production has not been changed, and production release remains deferred pending renewed host-capacity and authenticated UI verification. Tenant adoption and the complete 42-ticket objective remain open.
@@ -816,8 +853,8 @@ null for Training-only cohort and learner metrics. The existing no-category
 call remains as a compatibility path for legacy scheduled Training reports;
 authenticated Pipeline routes always pass the resolved category.
 
-The existing Reports view now renders cohort, learner and course milestone
-panels only for Training Center. Category fixtures for Sales, Real Estate, Base
+The existing Reports view now renders cohort, learner, course milestone and
+Training finance panels only for Training Center. Category fixtures for Sales, Real Estate, Base
 CRM, future Retail and a future Clinic verify the shared query contains no
 Training table references and returns the caller's category key. The focused
 Pipeline report/team/isolation suite passes 24/24. This is source-only; no
@@ -834,5 +871,7 @@ declares that category explicitly; missing/unknown category context does not
 load finance. Known Sales, Real Estate, Base CRM, future Retail and future
 Clinic contexts return no Training finance payload and do not inspect Training
 tenant/finance tables. Fixtures verify this alongside the journey isolation
-and filter-preservation checks; the focused Pipeline report/team/category suite
-passes 25/25. This is source-only; no production report or data was changed.
+and filter-preservation checks. The Reports renderer independently hides
+Training learner and finance panels unless the journey response identifies
+Training Center. The focused Pipeline report/team/category suite passes 25/25.
+This is source-only; no production report or data was changed.
