@@ -70,6 +70,24 @@ preservation details are in `DEPLOYMENT.md`.
 
 The existing recruitment form now keeps ordinary validation feedback in plain customer language. Technical/server and network failures show a general bilingual message with a bracketed safe cause code; SQL text and candidate details stay out of the public response. The update is live in `/opt/salemax/releases/recruitment-user-error-copy-20261021`. All 25 focused recruitment tests pass, served HTML/script hashes match, and health is green. No candidate data or schema changed. The signed-out visual test and controlled synthetic production failure remain open; see `DEPLOYMENT.md` for rollback evidence.
 
+## SaleMaX Sales applicant recovery guidance — production, 21 October 2026
+
+The general English and Arabic submission-failure message now tells applicants
+to retry shortly and contact the 7Network recruitment team if the problem
+continues, while sharing the safe cause code shown in brackets. SQL text and
+applicant details remain hidden. Source commit `5714a198a09a0ca103df749531dbc8869d0482e4`
+is deployed in `/opt/salemax/releases/recruitment-error-guidance-5714a19-20261021`.
+The release was built from the exact active production tree and changed only
+the public error helper and form HTML; the application script and all other
+production files were preserved. The server's 8 MB upload response was synced
+into source and retained. All 28 focused recruitment tests pass. The live form
+and cache-busted helper return HTTP 200 with matching hashes; the app is
+healthy with zero restarts, and database/background-worker containers were
+unchanged. No candidate submission, migration or customer-data write occurred.
+No recruitment error codes were found in the preceding 72-hour app-log
+lookback. Signed-out visual acceptance and a controlled synthetic production
+failure remain open; see `DEPLOYMENT.md` for release and rollback evidence.
+
 ## Real Estate private listing slice — source implementation, 21 October 2026
 
 Added a private `real_estate@1` category contract and a typed listing service inside the existing `/user` workspace. Listings use their own tenant-keyed table, tenant-qualified reads and writes, bilingual content, explicit sale/rent and lifecycle fields, optimistic revisions, optional team assignment and transactional audit events. Owners/managers see tenant inventory; managers assign only active agents in their team; agents see only their listings; team leaders see their own and their current team's listings. The existing CRM shell opens the bilingual listing view through its maintained sidebar/pipeline hooks. The category remains non-public and non-planable, with no production assignment or schema migration.
