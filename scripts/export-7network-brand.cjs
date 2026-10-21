@@ -11,22 +11,19 @@ const brand = path.join(root, 'client/public/branding/7network');
 const media = path.join(root, 'client/public/media');
 const logoSource = path.join(brand, 'logo-source.svg');
 const iconSource = path.join(brand, 'icon-source.png');
-const globeNo7Source = path.join(brand, 'globe-no7-source.png');
 const iconMaster = path.join(brand, 'icon-master.png');
 
 async function main() {
   await fs.mkdir(media, { recursive: true });
   const source = await fs.readFile(logoSource, 'utf8');
   const hero = await fs.readFile(iconSource);
-  const globe = await fs.readFile(globeNo7Source);
   const heroMeta = await sharp(hero).metadata();
-  const globeMeta = await sharp(globe).metadata();
-  if (!heroMeta.hasAlpha || !globeMeta.hasAlpha) throw new Error('Globe artwork sources must retain transparency');
-  if (!source.includes('icon-source.png') || !source.includes('globe-no7-source.png')) throw new Error('Logo source must use the approved globe artwork and the no-7 globe');
+  if (!heroMeta.hasAlpha) throw new Error('The approved globe artwork must retain transparency');
+  if (!source.includes('icon-source.png') || source.includes('globe-no7-source.png')) throw new Error('The logo must use only the approved globe-and-7 icon, with a plain readable wordmark');
   const dataUri = (buffer) => `data:image/png;base64,${buffer.toString('base64')}`;
-  const composedSource = source.replace('icon-source.png', dataUri(hero)).replace('globe-no7-source.png', dataUri(globe));
+  const composedSource = source.replace('icon-source.png', dataUri(hero));
   const lightSvg = Buffer.from(composedSource);
-  const darkSvg = Buffer.from(composedSource.replace(/fill="#071A33"/g, 'fill="#FFFFFF"'));
+  const darkSvg = Buffer.from(composedSource.replace(/fill="#0B2748"/g, 'fill="#EAF1FF"').replace(/#D94A3A/g, '#F26C54').replace(/#E05131/g, '#FF8153').replace(/#D96A2B/g, '#FFB35C'));
   const logoBuffer = await sharp(lightSvg).ensureAlpha().png().toBuffer();
   const darkLogoBuffer = await sharp(darkSvg).ensureAlpha().png().toBuffer();
   const logo = sharp(logoBuffer).trim().extend({
@@ -99,8 +96,8 @@ async function main() {
     id: '/', start_url: '/', scope: '/', display: 'standalone',
     theme_color: '#081630', background_color: '#081630',
     icons: [192, 512].flatMap(size => [
-      { src: `/branding/7network/icon-${size}.png?v=20261022-clear1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
-      { src: `/branding/7network/maskable-${size}.png?v=20261022-clear1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
+      { src: `/branding/7network/icon-${size}.png?v=20261021-color-wordmark1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
+      { src: `/branding/7network/maskable-${size}.png?v=20261021-color-wordmark1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
     ]),
   };
   const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
