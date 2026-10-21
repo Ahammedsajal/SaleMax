@@ -66,8 +66,8 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   });
   const contextGuard = (req,res,next) => {
     if(!req.courseContext)return res.status(401).json({success:false,code:'AUTH_REQUIRED'});
-    const expected=products?'salemax_sales':'training_center';
-    if(req.courseContext.tenant.categoryKey!==expected)return res.status(403).json({success:false,code:'CATEGORY_UNAVAILABLE'});
+    const expected=products?'products':'courses';
+    if(require('./product-catalog').kind(req.courseContext)!==expected)return res.status(403).json({success:false,code:'CATEGORY_UNAVAILABLE'});
     return next();
   };
   router.use(contextGuard);

@@ -36,7 +36,7 @@ module.exports=function createRouter({agent=false,pool:injectedPool,authenticate
     const items=await service.options(pool,c);
     const auth=Buffer.from(JSON.stringify(req.get('Authorization')?{mode:'bearer',agent:req.featureSession?.agent??agent,token:req.get('Authorization')}:{mode:'cookie'})).toString('base64url');
     for(const path of ['/api/inbox/course-replies/files','/api/workspace/inbox/course-replies/files'])res.cookie('sx_course_reply',auth,{httpOnly:true,secure:origin?.startsWith('https:'),sameSite:'strict',path,maxAge:3600000});
-    res.json({success:true,data:{courses:items,catalogKind:c.ctx.tenant.categoryKey==='salemax_sales'?'products':'courses'}});
+    res.json({success:true,data:{courses:items,catalogKind:require('./product-catalog').kind(c.ctx)}});
   }));
   router.get('/preview/:id',wrap(async(req,res)=>{await service.conversation(req.courseReplyContext,req.query.chatId);res.json({success:true,data:await service.plan(pool,req.courseReplyContext,req.params.id,req.query.language==='ar'?'ar':'en')});}));
   router.get('/jobs/:id',wrap(async(req,res)=>res.json({success:true,data:service.publicJob(await service.job(pool,req.courseReplyContext,req.params.id))})));

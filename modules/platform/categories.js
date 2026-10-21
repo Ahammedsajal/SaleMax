@@ -18,13 +18,13 @@ const trainingCapabilities = Object.freeze([
   // Preserve assigned contracts here; remove only through reviewed v2 adoption.
   'sales.finance', 'hr.recruitment',
 ]);
-const trainingCenter = Object.freeze({ key: 'training_center', version: 1, title: Object.freeze({ en: 'Training center', ar: 'مركز تدريب' }), public: true, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'agent']), capabilities: trainingCapabilities, migration: '20261001_platform_identity.sql' });
+const trainingCenter = Object.freeze({ key: 'training_center', version: 1, catalogue:'courses', title: Object.freeze({ en: 'Training center', ar: 'مركز تدريب' }), public: true, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'agent']), capabilities: trainingCapabilities, migration: '20261001_platform_identity.sql' });
 // First-party SaleMaX sales operations. This category is intentionally private:
 // it must be provisioned by an audited platform operation, never selected by a
 // customer during self-service onboarding. Training-center course catalogue and
 // finance capabilities remain excluded; deals and commissions have their own
 // contracts in this category.
-const salemaxSales = Object.freeze({ key: 'salemax_sales', version: 1, title: Object.freeze({ en: 'SaleMaX Sales', ar: 'مبيعات SaleMaX' }), public: false, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'team_leader', 'agent']), capabilities: Object.freeze([...sharedCapabilities, 'sales.deals', 'sales.commissions','sales.finance','sales.targets','products.catalog','hr.recruitment']), migration: '20261001_platform_identity.sql' });
+const salemaxSales = Object.freeze({ key: 'salemax_sales', version: 1, catalogue:'products', title: Object.freeze({ en: 'SaleMaX Sales', ar: 'مبيعات SaleMaX' }), public: false, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'team_leader', 'agent']), capabilities: Object.freeze([...sharedCapabilities, 'sales.deals', 'sales.commissions','sales.finance','sales.targets','products.catalog','hr.recruitment']), migration: '20261001_platform_identity.sql' });
 // Contract fixture only; never offered for production tenant onboarding.
 const restaurantFixture = Object.freeze({ key: 'restaurant_fixture', version: 1, title: Object.freeze({ en: 'Restaurant fixture', ar: 'نموذج مطعم للاختبار' }), public: false, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'agent']), capabilities: Object.freeze(['messaging.inbox', 'crm.contacts', 'team.tasks', 'tenant.settings']), migration: '20261001_platform_identity.sql' });
 const registry = require('./category-registry').createCategoryRegistry([trainingCenter, salemaxSales, restaurantFixture], capabilities);

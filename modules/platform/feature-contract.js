@@ -5,8 +5,9 @@ function describe(session){
   const context=session.context;if(!context)throw Object.assign(Error('VERIFIED_BUSINESS_OWNER_REQUIRED'),{code:'VERIFIED_BUSINESS_OWNER_REQUIRED',status:403});
   const assignedNavigation=Array.isArray(context.membership.assignedNavigation)?[...context.membership.assignedNavigation]:null;
   if(assignedNavigation?.some(key=>['invoices','installments','payments','receipts'].includes(key))&&!assignedNavigation.includes('invoices'))assignedNavigation.push('invoices');
-  const catalogCapability=context.tenant.categoryKey==='salemax_sales'?'products.catalog':'training.courses';
-  const quickReplyCatalog=['salemax_sales','training_center'].includes(context.tenant.categoryKey)&&context.category?.capabilities.includes(catalogCapability)&&context.subscription?.capabilities.includes(catalogCapability)&&['active','trial','grace'].includes(context.subscription?.status)?(context.tenant.categoryKey==='salemax_sales'?'products':'courses'):null;
+  const catalogue=require('./product-catalog').kind(context);
+  const catalogCapability=catalogue==='products'?'products.catalog':catalogue==='courses'?'training.courses':null;
+  const quickReplyCatalog=catalogCapability&&context.subscription?.capabilities.includes(catalogCapability)&&['active','trial','grace'].includes(context.subscription?.status)?catalogue:null;
   return {quickReplyCatalog,role:context.membership.role,tenantId:context.tenant.id,categoryKey:context.tenant.categoryKey,currency:context.tenant.currency||'QAR',timezone:context.tenant.timezone||'Asia/Qatar',roleProfileId:context.membership.roleProfileId||null,customPermissions:context.membership.customPermissions||null,assignedNavigation,roleNavigation:require('./navigation').navigationFor(context).map(item=>item.key),modules:Object.fromEntries(Object.entries(modules).map(([key,[capability,permission]])=>[key,decision(context,{capability,permission}).allowed])),permissions:Object.fromEntries(Object.keys(permissions).map(permission=>{
     const capability=Object.keys(capabilities).find(key=>capabilities[key].includes(permission));
     return [permission,capability?decision(context,{capability,permission}).allowed:false];

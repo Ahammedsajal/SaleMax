@@ -399,3 +399,39 @@ for expanding those adapters, not evidence that new vertical workflows are ready
 New categories must not be exposed for sale solely by registering display names.
 
 Production: `334b58b` is live in `plan-category-334b58b-20261021`. Thirty-three focused checks and actual cookie/bearer/shared-auth/MariaDB API mismatch tests pass. All three current production assignments resolve; exact two-file runtime parity and health pass. No customer plan/data was rewritten; local files are synchronized with backups. See DEPLOYMENT.md.
+
+
+## Reviewed catalogue extension per category version — 21 October 2026
+
+Category manifests now declare an optional `catalogue` adapter: `courses`,
+`products`, null or absent. Registry validation refuses unknown adapter names and
+adapters without their required capability. This is reviewed source metadata, not
+tenant-provided SQL or a runtime plugin path. Capability assignment alone never
+selects storage. Existing Training Center v1 explicitly declares courses; Sales
+v1 explicitly declares products. Other existing fixture behavior remains absent.
+No capability, commercial assignment, role, category key/version or stored record
+is changed by this declaration.
+
+Shared session catalogue metadata, Inbox quick-reply lookup/labels, fixed table
+adapter selection, catalogue route guards, legacy owner context and transactional
+create checks now use this declaration and exact context category/version rather
+than hardcoded business names. The products adapter retains its fixed server table
+mapping and separate storage. Course/product request permissions, member/inbox
+scope, published offers, media checks and tenant predicates remain authoritative.
+The historical `sales(ctx)` helper name is retained for callers but now means the
+products adapter; it is not a brand check. No new category is registered/exposed.
+
+A future-category registry fixture proves explicit version selection, immutability,
+no implicit opt-in from capability lists, product table selection, shared session
+metadata and exact-category creation without adding a brand branch. Thirty-eight
+focused checks and actual shared-auth/MariaDB integration across all 113 migrations
+pass for current category APIs, separate historical course/product storage and
+Inbox quick replies. This is adapter extensibility, not a delivered retail,
+clinical, property, inventory or reservation domain model. Product editing still
+reuses maintained catalogue fields; further vertical contracts need their own
+invariants and existing-screen adoption evidence.
+
+Remaining extension work includes generic legacy Pipeline actor adoption, forms,
+bot packs, navigation-specific presentation and operational scale/restore gates.
+Published category versions need reviewed semantic change/adoption rules before
+altering an existing adapter selection; do not mutate it for a customer in place.

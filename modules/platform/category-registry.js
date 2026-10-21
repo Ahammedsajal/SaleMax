@@ -15,6 +15,9 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       || !Array.isArray(source.seatRoles) || !source.seatRoles.includes('owner')
       || source.seatRoles.some(role => !['owner', 'accountant', 'manager', 'team_leader', 'agent'].includes(role))
       || new Set(source.seatRoles).size !== source.seatRoles.length
+      || (source.catalogue!==undefined&&source.catalogue!==null&&!['courses','products'].includes(source.catalogue))
+      || (source.catalogue==='courses'&&!source.capabilities.includes('training.courses'))
+      || (source.catalogue==='products'&&!source.capabilities.includes('products.catalog'))
       || typeof source.migration !== 'string' || !/^\d{8}_[a-z0-9_]+\.sql$/.test(source.migration)) invalid();
     const id = `${source.key}@${source.version}`;
     if (entries.has(id)) invalid();
@@ -22,6 +25,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
     const manifest = Object.freeze({ key: source.key, version: source.version,
       title: Object.freeze({ en: source.title.en, ar: source.title.ar }),
       public: source.public, ...(source.planable === undefined ? {} : { planable: source.planable }),
+      ...(source.catalogue===undefined?{}:{catalogue:source.catalogue}),
       capabilities: Object.freeze([...source.capabilities]), seatRoles: Object.freeze([...source.seatRoles]), migration: source.migration });
     entries.set(id, manifest);
   }

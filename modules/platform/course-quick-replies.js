@@ -3,8 +3,8 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const courses = require('./training-courses');
 const catalog = require('./product-catalog');
-function catalogCapability(ctx){return catalog.sales(ctx)?'products.catalog':'training.courses';}
-function requireCatalog(ctx){const capability=catalogCapability(ctx);if(!['active','trial','grace'].includes(ctx.subscription?.status)||!['training_center','salemax_sales'].includes(ctx.tenant.categoryKey)||!ctx.category?.capabilities.includes(capability)||!ctx.subscription?.capabilities.includes(capability))fail('FEATURE_UNAVAILABLE',403);}
+function catalogCapability(ctx){const kind=catalog.kind(ctx);return kind==='products'?'products.catalog':kind==='courses'?'training.courses':null;}
+function requireCatalog(ctx){const capability=catalogCapability(ctx);if(!['active','trial','grace'].includes(ctx.subscription?.status)||!capability||!ctx.category?.capabilities.includes(capability)||!ctx.subscription?.capabilities.includes(capability))fail('FEATURE_UNAVAILABLE',403);}
 const media = require('./training-course-media');
 const access = require('./team-inbox-scope');
 const fail = (code, status = 409) => { throw Object.assign(new Error(code), { code, status }); };

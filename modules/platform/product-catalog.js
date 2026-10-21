@@ -12,6 +12,13 @@ function database(db){
   }});
   cache.set(db,adapter);cache.set(adapter,adapter);return adapter;
 }
-const sales=ctx=>ctx?.tenant?.categoryKey==='salemax_sales';
+function kind(ctx){
+ const category=ctx?.category;
+ if(!category||category.key!==ctx.tenant?.categoryKey||category.version!==ctx.tenant?.categoryVersion)return null;
+ const value=category.catalogue,capability=value==='products'?'products.catalog':value==='courses'?'training.courses':null;
+ return capability&&category.capabilities?.includes(capability)?value:null;
+}
+// Compatibility name retained for maintained services; selects products, not a brand.
+const sales=ctx=>kind(ctx)==='products';
 const forContext=(db,ctx)=>sales(ctx)?database(db):db;
-module.exports={database,forContext,sales,tables};
+module.exports={database,forContext,sales,kind,tables};
