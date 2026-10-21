@@ -27,16 +27,23 @@ test('every supported UI translation uses the 7Network name and retains its curr
   }
 });
 
-test('Sales chatbot migration renames first-party brand copy without rewriting category or plan history', () => {
-  const file = path.join(__dirname, '../database/migrations/20261222_7network_sales_bot_brand.sql');
-  const sql = fs.readFileSync(file, 'utf8');
-  const statements = splitSql(sql);
-  assert.equal(statements.length, 1);
-  assert.match(sql, /UPDATE sx_chatbot_profiles/i);
-  assert.match(sql, /WHERE category_key = '7network_sales'/i);
-  assert.match(sql, /SET name = REPLACE\(name, 'SaleMaX', '7Network'\)/i);
-  assert.match(sql, /'salemaxsales', '7network_sales'/i);
-  assert.match(sql, /revision = revision \+ 1/i);
-  assert.doesNotMatch(sql, /UPDATE\s+sx_(?:tenants|plans|plan_versions|plan_assignments)/i);
-  assert.doesNotMatch(sql, /DELETE\s+FROM\s+sx_category_identity_aliases/i);
+test('Sales chatbot migrations normalize first-party bot branding and its category key without rewriting history', () => {
+  const textFile = path.join(__dirname, '../database/migrations/20261222_7network_sales_bot_brand.sql');
+  const textSql = fs.readFileSync(textFile, 'utf8');
+  assert.equal(splitSql(textSql).length, 1);
+  assert.match(textSql, /UPDATE sx_chatbot_profiles/i);
+  assert.match(textSql, /WHERE category_key = '7network_sales'/i);
+  assert.match(textSql, /SET name = REPLACE\(name, 'SaleMaX', '7Network'\)/i);
+  assert.match(textSql, /revision = revision \+ 1/i);
+
+  const keyFile = path.join(__dirname, '../database/migrations/20261223_7network_sales_domainpack_key.sql');
+  const keySql = fs.readFileSync(keyFile, 'utf8');
+  assert.equal(splitSql(keySql).length, 1);
+  assert.match(keySql, /JSON_SET\(config, '\$\.domainPack', '7network_sales'\)/i);
+  assert.match(keySql, /IN \('salemax_sales', 'salemaxsales'\)/i);
+  assert.match(keySql, /WHERE category_key = '7network_sales'/i);
+  for (const sql of [textSql, keySql]) {
+    assert.doesNotMatch(sql, /UPDATE\s+sx_(?:tenants|plans|plan_versions|plan_assignments)/i);
+    assert.doesNotMatch(sql, /DELETE\s+FROM\s+sx_category_identity_aliases/i);
+  }
 });
