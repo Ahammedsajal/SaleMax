@@ -1,12 +1,12 @@
 # 7Network scalable CRM customization and isolation
 
-> The current platform brand is **7Network**. Existing source identifiers, routes and schema names retain their historical SaleMaX spelling until a separately reviewed compatibility migration is appropriate.
+> The current platform brand is **7Network**. Existing source identifiers, routes and schema names may retain their historical SaleMaX spelling until a separately reviewed compatibility migration is appropriate.
 
 Evidence review: 20 October 2026. Status: implementation in progress. This extends the existing 42-ticket program; it does not replace its acceptance criteria.
 
 ## Product decision
 
-Keep one maintained SaleMaX application, current logins and panels, and shared messaging/CRM services. Treat a business as the tenant; its staff are members, not separate customization owners. Compose its experience from explicit core capabilities, a versioned category contract, an assigned plan, a published tenant configuration, and member permissions. A clinic cannot obtain Training Center courses just by changing a menu label. Two training centers must be able to use different fields, stages, forms, bot content, branding, automations, and enabled modules without editing each other's settings.
+Keep one maintained 7Network application, current logins and panels, and shared messaging/CRM services. Treat a business as the tenant; its staff are members, not separate customization owners. Compose its experience from explicit core capabilities, a versioned category contract, an assigned plan, a published tenant configuration, and member permissions. A clinic cannot obtain Training Center courses just by changing a menu label. Two training centers must be able to use different fields, stages, forms, bot content, branding, automations, and enabled modules without editing each other's settings.
 
 Configuration isolation can prevent one business's settings affecting another. It cannot guarantee that a defect in shared application code never affects other businesses. Version pinning, gradual rollout and contract tests reduce that blast radius; dedicated deployment stamps and resource isolation are the stronger option for customers needing separate runtime failure boundaries. Do not sell an absolute guarantee of zero shared-code impact.
 
@@ -83,7 +83,7 @@ RESO's live Data Dictionary page identifies DD 2.0 as active for certification a
 The aggregate-only `scripts/audit-tenant-adoption.cjs` preflight runs inside a
 read-only transaction and emits no tenant IDs, names, account identifiers,
 credentials or contact details. Its live production result confirms three active
-tenants: one SaleMaX Sales v1 and two Training Center v1. There are three current
+tenants: one 7Network Sales v1 and two Training Center v1. There are three current
 plan assignments; all three resolve to an existing plan version with the exact
 tenant category and version. No Base CRM tenant is currently assigned, so the
 new Base CRM capture adapter has not yet had a real-tenant screen or channel
@@ -107,13 +107,13 @@ temporary files were removed. No production code, tenant, membership, plan or
 customer record changed. Re-run this audit before any legacy-category adoption,
 then require a reviewed mapping manifest and a before/after count/hash report.
 
-## Research and application to SaleMaX
+## Research and application to 7Network
 
-AWS distinguishes pooled, silo and bridge isolation models. SaleMaX can keep pooled infrastructure for ordinary tenants while introducing dedicated resources where a customer's requirements justify them. Authentication alone does not replace application-level ownership checks. See [AWS isolation concepts](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/core-isolation-concepts.html) and [bridge model](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/the-bridge-model.html).
+AWS distinguishes pooled, silo and bridge isolation models. 7Network can keep pooled infrastructure for ordinary tenants while introducing dedicated resources where a customer's requirements justify them. Authentication alone does not replace application-level ownership checks. See [AWS isolation concepts](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/core-isolation-concepts.html) and [bridge model](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/the-bridge-model.html).
 
-Microsoft describes deployment stamps, feature flags, and rollout rings as complementary ways to control multitenant updates, and calls for visibility into the version each tenant uses. The proposed SaleMaX control plane therefore records active category/config revisions and rollout state; feature flags select tested behavior but never substitute for entitlements. See [multitenant update guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/updates).
+Microsoft describes deployment stamps, feature flags, and rollout rings as complementary ways to control multitenant updates, and calls for visibility into the version each tenant uses. The proposed 7Network control plane therefore records active category/config revisions and rollout state; feature flags select tested behavior but never substitute for entitlements. See [multitenant update guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/updates).
 
-These are architectural inputs, not a recommendation to migrate SaleMaX to AWS or Azure. Keep the existing Node/Express and MariaDB stack while strengthening its boundaries.
+These are architectural inputs, not a recommendation to migrate 7Network to AWS or Azure. Keep the existing Node/Express and MariaDB stack while strengthening its boundaries.
 
 ### Current multitenant rollout guidance refresh — 21 October 2026
 
@@ -121,9 +121,26 @@ The current AWS SaaS Lens continues to describe pooled, silo and bridge tenancy 
 
 For 7Network, this supports one shared application and identity/control plane, immutable category adapters, tenant-published configuration stored as tenant data, and existing plan entitlements as the commercial gate. Rollout rings may select a reviewed code version for a cohort, but neither a ring nor a tenant setting may grant a paid capability. Dedicated deployment stamps remain an operational tier for measured isolation needs; they must retain the same onboarding, support, audit and release controls. This confirms the existing architecture decision rather than changing provider, database or hosting choices.
 
+### Tenant configuration snapshot isolation — research refresh, 22 October 2026
+
+Microsoft's current multitenant App Configuration guidance distinguishes shared
+settings from tenant-specific settings and warns that a snapshot reference does
+not filter the contents of the referenced snapshot: every key in that snapshot
+is loaded. A tenant-specific pointer is therefore not, by itself, a tenant-data
+boundary. See [Microsoft's multitenant App Configuration guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/service/app-configuration).
+
+For 7Network, keep tenant customization in authenticated, immutable, typed
+revisions whose contents are validated for one tenant, exact category/module
+version and schema. Resolve tenant identity from the server session; never let
+the browser select a tenant's revision or configuration-store key. Any future
+external configuration cache must contain only reviewed non-secret settings,
+use tenant-and-revision-scoped keys, and preserve the same authorization checks
+as the database-backed source. Plans and permissions remain independent gates;
+a setting or rollout snapshot cannot grant a paid feature or widen access.
+
 ### Deployment and data-boundary decision — 21 October 2026
 
-The vendor guidance supports a progressive isolation model rather than one deployment or database per category. AWS describes pooled, silo and bridge partitioning; bridge lets a service choose a tenant-specific partition while retaining a shared application. Microsoft recommends explicit tenant configuration and staged update rings, with tenant-visible version state. For SaleMaX, keep the current pooled release and tenant-keyed data path as the default; introduce a bridge boundary only for a measured workload, residency, contractual or failure-isolation need. A category or customer configuration must not select arbitrary code, a database name, or a release image. A dedicated stamp is an operational isolation tier with an audited control-plane assignment and a tested migration/restore path.
+The vendor guidance supports a progressive isolation model rather than one deployment or database per category. AWS describes pooled, silo and bridge partitioning; bridge lets a service choose a tenant-specific partition while retaining a shared application. Microsoft recommends explicit tenant configuration and staged update rings, with tenant-visible version state. For 7Network, keep the current pooled release and tenant-keyed data path as the default; introduce a bridge boundary only for a measured workload, residency, contractual or failure-isolation need. A category or customer configuration must not select arbitrary code, a database name, or a release image. A dedicated stamp is an operational isolation tier with an audited control-plane assignment and a tested migration/restore path.
 
 Apply rollout rings to code compatibility, not commercial access: category capability, paid entitlement, tenant module enablement and member permission remain independent runtime gates. Record the running release and active category/configuration revisions for each tenant so support can identify whether a defect follows shared code, a category contract, or one tenant's published settings. Roll out first to synthetic tenants, then internal tenants, then a bounded customer cohort; retain a tested rollback image and backward-compatible readers during the adoption window. Feature flags may select a reviewed implementation, but they cannot grant a plan feature or relax tenant authorization.
 
@@ -131,7 +148,7 @@ For bot collection, reuse the existing tenant-published Forms workflow as the au
 
 This decision reduces duplicate schema and consent logic and makes an answer's form version auditable. It still leaves generic form/category adapters and authenticated live bot-to-submission acceptance open; selecting a form in the editor alone does not prove that a real channel delivered or submitted it.
 
-Sources: [AWS SaaS partitioning models](https://docs.aws.amazon.com/whitepapers/latest/multi-tenant-saas-storage-strategies/saas-partitioning-models.html), [AWS bridge isolation model](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/the-bridge-model.html), and [Microsoft multitenant deployment and configuration guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/deployment-configuration). These inform deployment boundaries and staged rollout; the SaleMaX choices above are architecture decisions based on the repository's current tenant and Forms contracts.
+Sources: [AWS SaaS partitioning models](https://docs.aws.amazon.com/whitepapers/latest/multi-tenant-saas-storage-strategies/saas-partitioning-models.html), [AWS bridge isolation model](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/the-bridge-model.html), and [Microsoft multitenant deployment and configuration guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/approaches/deployment-configuration). These inform deployment boundaries and staged rollout; the 7Network choices above are architecture decisions based on the repository's current tenant and Forms contracts.
 
 ## Contract layers and precedence
 
@@ -789,7 +806,7 @@ migration backfill and reconciliation. Do not index every
 customer-defined value without a measured access pattern.
 
 Research basis: AWS documents pooled, bridge and silo storage as trade-offs by
-resource and customer needs, supporting SaleMaX's current pooled tenant-keyed
+resource and customer needs, supporting 7Network's current pooled tenant-keyed
 model with a future bridge/silo option for exceptional accounts ([partitioning
 models](https://docs.aws.amazon.com/whitepapers/latest/multi-tenant-saas-storage-strategies/saas-partitioning-models.html),
 [tier-based isolation](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/tier-based-isolation.html)).
@@ -797,7 +814,7 @@ Microsoft recommends feature flags, deployment rings and deployment stamps as
 complementary controls for tenant-aware updates ([multitenant update guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/updates)).
 MariaDB's JSON_TABLE converts JSON values into relational rows and supports the
 wildcard path used by this bounded value search ([MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)).
-These are design inputs, not a change to SaleMaX's existing Node/MariaDB
+These are design inputs, not a change to 7Network's existing Node/MariaDB
 deployment or an assertion of unlimited pooled scale.
 
 ## Tenant module activation in existing Workspace Customization — schema 5, source update, 21 October 2026

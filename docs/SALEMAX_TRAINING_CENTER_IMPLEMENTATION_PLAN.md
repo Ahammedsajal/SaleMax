@@ -1,10 +1,10 @@
-# SaleMaX SaaS Upgrade and Training Center Implementation Plan
+# 7Network SaaS Upgrade and Training Center Implementation Plan
 
 Version 1.3 | Existing-project scope confirmed 1 October 2026 | Product owner and implementation team
 
 ## 1 Executive decision and product promise
 
-**Upgrade the existing SaleMaX application into a category-based business SaaS, launching with a complete training-center sales and collections workspace.** Reuse its working modules, admin and user panels, messaging and agent experience. Add the missing requirements to this project and connect every enquiry to an accountable agent, a course, an enrollment, an invoice, an installment schedule, and verified receipts.
+**Upgrade the existing 7Network application into a category-based business SaaS, launching with a complete training-center sales and collections workspace.** Reuse its working modules, admin and user panels, messaging and agent experience. Add the missing requirements to this project and connect every enquiry to an accountable agent, a course, an enrollment, an invoice, an installment schedule, and verified receipts.
 
 The customer promise is simple: **Know who is handling every lead, what needs to happen next, and what money is still due.** The main user should run their center from the existing business panel; an agent should start the day with a clear work queue; an accountant should reconcile collections without chasing spreadsheets. Upgrade the existing admin panel for owner and delegated staff operations, with Super Admin authority available only to the platform owner.
 
@@ -14,7 +14,7 @@ This plan is the build specification for the active upgrade. The Markdown and Wo
 
 ### Mandatory existing-project implementation scope
 
-The owner confirmed that this is an upgrade of the supplied SaleMaX project. No new project, replacement application, recreated shell, separate CRM, duplicate plan catalogue, or parallel login is authorized. Preserve the existing backend, admin panel, user panel, working modules, navigation, branding and English/Arabic behavior. Improve existing screens in place; add screens only for requirements the application does not already provide, inside the appropriate existing panel.
+The owner confirmed that this is an upgrade of the supplied project, whose current platform brand is 7Network; historical source, repository and schema identifiers may still use SaleMaX spelling. No new project, replacement application, recreated shell, separate CRM, duplicate plan catalogue, or parallel login is authorized. Preserve the existing backend, admin panel, user panel, working modules, navigation, branding and English/Arabic behavior. Improve existing screens in place; add screens only for requirements the application does not already provide, inside the appropriate existing panel.
 
 Preserve the /admin and /admin/login entry points for platform administration, and /user and /user/login for business users. Business login must not offer an administration switch. Owner and staff permissions change what the existing admin panel permits; they do not require another application shell. Existing agent entry points remain compatible with the shared identity upgrade.
 
@@ -43,7 +43,7 @@ Missing original frontend source does not authorize rebuilding the whole UI. Rec
 
 | Area | Result |
 | --- | --- |
-| Platform | Owner-only Super Admin, delegated SaleMaX Staff Admin, tenant accounts, plans, limits, audit, health monitoring |
+| Platform | Owner-only Super Admin, delegated 7Network Staff Admin, tenant accounts, plans, limits, audit, health monitoring |
 | Category system | Versioned business-category modules and server-enforced feature access; training center first |
 | Training center | Owner, accountant, manager, and configurable agent seats; existing messaging features preserved |
 | Sales | Unified lead record, assignment history, follow-ups, course offers, enrollment and conversion |
@@ -64,7 +64,7 @@ The owner confirmed the application source as `A:\Salemax - Training center\Sale
 
 | Verified source item | Finding | Upgrade implication |
 | --- | --- | --- |
-| `package.json` and `server.js` | SaleMaX Node 3.6 package; Express backend, Socket.IO, mysql2, Baileys and Nodemailer dependencies | Extend Node/Express and the existing channel adapters; dependency presence is not provider verification |
+| `package.json` and `server.js` | Historical SaleMaX Node 3.6 package, now branded 7Network; Express backend, Socket.IO, mysql2, Baileys and Nodemailer dependencies | Extend Node/Express and the existing channel adapters; dependency presence is not provider verification |
 | `LOCAL-RUN.md` | Documents loopback app port 3010 and MariaDB port 3307; local providers disconnected | Preserve the local-only boundary; run baseline smoke in P0 before claiming runtime health |
 | `routes/admin.js` | Existing admin plan/user operations and auto-login route | Refactor into owner/staff capabilities; replace silent support login with audited session flow |
 | `middlewares/user.js`, `admin.js`, `agent.js` | Separate user/admin/agent tables and role checks; agent has `owner_uid` | Introduce shared identity/membership gradually, preserving legacy IDs and login compatibility |
@@ -81,7 +81,7 @@ Existing route mounts include user, web, admin, phonebook, chat flow, inbox, tem
 
 Authentication currently uses email/password-related JWT claims and some error responses echo token data. Replace these with stable user/session identifiers, limited claims and sanitized error responses during the identity upgrade. This observation is a design prerequisite, not a completed security audit. Revalidate tenant ownership on every existing mutation as well as new routes.
 
-Do not substitute another SaleMaX/GCCBOT checkout for this product. Do not read or copy credentials or personal backup data into the plan. Preserve the existing project and its panels. Recover relevant frontend source where available; otherwise extend the existing maintained modules/hooks and document the affected component limitation. Recreating the shell or starting another frontend project is outside this upgrade's scope. Continue backend and existing-module work that does not depend on missing inputs.
+Do not substitute another 7Network/GCCBOT checkout for this product. Do not read or copy credentials or personal backup data into the plan. Preserve the existing project and its panels. Recover relevant frontend source where available; otherwise extend the existing maintained modules/hooks and document the affected component limitation. Recreating the shell or starting another frontend project is outside this upgrade's scope. Continue backend and existing-module work that does not depend on missing inputs.
 
 ### Recommended defaults
 
@@ -90,19 +90,19 @@ Do not substitute another SaleMaX/GCCBOT checkout for this product. Do not read 
 | First market | Owner-confirmed Qatar first, QAR, Asia/Qatar, English and Arabic; country configurable | Expansion into another market |
 | Business category | One primary category per tenant in release one | A business needs separately governed multi-category workspaces |
 | Tenant boundary | One business is one tenant; branches remain within it | Separate legal entity or independent data ownership |
-| Accounts | One tenant owner, one accountant, one manager, up to seven agents initially | SaleMaX staff assign an approved higher/lower limit |
+| Accounts | One tenant owner, one accountant, one manager, up to seven agents initially | 7Network staff assign an approved higher/lower limit |
 | Stack | Extend verified Node/Express and MariaDB with modules and workers | Source audit proves a component cannot meet requirements |
 | Payments | Verified cash/bank records first; provider adapter for online payments | Merchant account, settlement and sandbox tests approved |
 | Tax and revenue | Configurable tax profiles and accountant-approved revenue policy | Launch jurisdiction and business rules confirmed |
-| Branding | SaleMaX platform with tenant-branded forms and documents | Approved white-label plan |
+| Branding | 7Network platform with tenant-branded forms and documents | Approved white-label plan |
 
 Country, tax, invoice numbering, terms, retention and gateway selection are implementation decisions that must be recorded before their relevant release gates. They do not prevent building tenant isolation, courses, lead workflows or provider-free local tests.
 
 ## 3 Research translated into product choices
 
-**Summary:** Combine the training-provider registration model with SaleMaX messaging, then differentiate through agent accountability and collections visibility.
+**Summary:** Combine the training-provider registration model with 7Network messaging, then differentiate through agent accountability and collections visibility.
 
-Arlo's registration offering links forms, course registrations, invoicing and learner records, and supports course transfers and cancellations. This supports treating enrollment as its own record rather than making a pipeline column the only proof of a course sale. SaleMaX should connect its existing lead experience to that record and retain the sales history. [Arlo course registration](https://www.arlo.co/features/course-registration-software)
+Arlo's registration offering links forms, course registrations, invoicing and learner records, and supports course transfers and cancellations. This supports treating enrollment as its own record rather than making a pipeline column the only proof of a course sale. 7Network should connect its existing lead experience to that record and retain the sales history. [Arlo course registration](https://www.arlo.co/features/course-registration-software)
 
 AWS describes pooled, silo and bridge tenant models. A shared schema with explicit tenant boundaries is the recommended initial operating model; a future dedicated database option should use the same product and provisioning process. This is an architecture recommendation, not a requirement to host on AWS. [AWS SaaS partitioning](https://docs.aws.amazon.com/whitepapers/latest/multi-tenant-saas-storage-strategies/saas-partitioning-models.html)
 
@@ -145,7 +145,7 @@ Owner controls include tenant suspension/reactivation, controlled category chang
 
 Full control does not require storing plaintext passwords or routinely exposing all customer messages. Provide audited, time-limited support access with an explicit tenant banner; default to read-only. Log owner access to tenant data. A supervised write session requires a reason and reauthentication. Never imitate a tenant user invisibly.
 
-### SaleMaX Staff Admin
+### 7Network Staff Admin
 
 Use the existing `/admin` panel and administration login with a delegated staff role and a permission-scoped menu. Staff manage tenant onboarding through Manage Users, plans through Manage Plans, account recovery assistance, approved plan assignments, seats within delegation, account status and support tickets. The owner grants granular permissions rather than a single unrestricted staff role. Staff cannot access owner-only Super Admin operations.
 
@@ -335,7 +335,7 @@ Rescheduling future installments creates a new schedule version, preserves paid 
 
 Cash/bank: an authorized recorder creates a pending payment with method, date, reference and restricted proof. Accountant verifies; duplicate-reference warnings and permission rules protect against accidental double entry. Optional second approver applies above a tenant-configured amount. A screenshot is supporting evidence, not automatic proof of settlement.
 
-Online: the customer uses hosted provider checkout owned by the training center's merchant account. Verified signed callbacks and server-side provider retrieval confirm amount, currency, merchant and invoice. A return URL alone never marks paid. Deduplicate both provider event IDs and underlying transaction IDs; reconcile unresolved and out-of-order events. Card data never enters SaleMaX form fields.
+Online: the customer uses hosted provider checkout owned by the training center's merchant account. Verified signed callbacks and server-side provider retrieval confirm amount, currency, merchant and invoice. A return URL alone never marks paid. Deduplicate both provider event IDs and underlying transaction IDs; reconcile unresolved and out-of-order events. Card data never enters 7Network form fields.
 
 Only a posted verified payment creates a numbered receipt. One posted payment creates one receipt, even if allocated to several installments; receipt lists allocations, method, date, amount, invoice references and remaining balance. Queue separate authorized deliveries to customer, accountant and owner. Failed delivery does not undo a payment; the receipt remains downloadable and delivery can be retried without creating a new receipt.
 
@@ -548,7 +548,7 @@ Execute by dependency order, not ticket number. TC35 precedes tenant implementat
 
 P0 classifies each existing feature as verified, partially verified, unavailable or unknown. Preserve dashboard, inbox, QR link, Meta link, flows, chatbot, template creation, campaigns, campaign dashboard, pipeline, phonebook, agent login and agent tasks. Record actual routes, provider adapters, permission behavior and regression evidence; do not mark a feature preserved solely because its label appears.
 
-Map existing main accounts to tenants and tenant owners. Map agents to memberships with stable historical actor references. Existing administrator maps to Super Admin only after owner identity confirmation; newly created SaleMaX staff get explicit staff roles. Never mass-upgrade historical admin-like accounts to platform owner.
+Map existing main accounts to tenants and tenant owners. Map agents to memberships with stable historical actor references. Existing administrator maps to Super Admin only after owner identity confirmation; newly created 7Network staff get explicit staff roles. Never mass-upgrade historical admin-like accounts to platform owner.
 
 Backfill tenant ownership on contacts, conversations, channels, campaigns and tasks. Quarantine orphaned or ambiguous records for review instead of guessing their business. Map existing course/custom fields only when semantics match. Do not invent invoices for historical Won leads; import historical sales through an explicitly approved opening-balance process with source references and accountant sign-off.
 
@@ -598,7 +598,7 @@ Learner self-service can show registrations, balances and receipt downloads with
 
 Use the following instruction with an implementation agent or engineering team:
 
-> Upgrade the verified source repository for this specific existing SaleMaX product. Read repository instructions and this plan first. Reuse the current admin/user panels and working modules; do not create a replacement project, shell, login, CRM or duplicate catalogue. Start plan work in existing Manage Plans and account assignment in existing Manage Users. Add only missing screens inside those panels. Record actual integration points and preserve old routes, IDs, fields, records and working journeys. Implement unblocked tickets in dependency order, using tested backend services behind the corresponding existing screens. Enforce tenant, category, role and plan constraints in the backend. Keep finance posting transactional and idempotent. Verify old and added functionality in English/Arabic, document evidence, and commit intended files. Test-only standalone screens do not count as integrated delivery. Do not expose secrets or claim provider verification from simulated tests. Continue useful work while external gates remain open, preserve the full scope, and release only after the paid-launch gate passes.
+> Upgrade the verified source repository for this specific existing 7Network product. Read repository instructions and this plan first. Reuse the current admin/user panels and working modules; do not create a replacement project, shell, login, CRM or duplicate catalogue. Start plan work in existing Manage Plans and account assignment in existing Manage Users. Add only missing screens inside those panels. Record actual integration points and preserve old routes, IDs, fields, records and working journeys. Implement unblocked tickets in dependency order, using tested backend services behind the corresponding existing screens. Enforce tenant, category, role and plan constraints in the backend. Keep finance posting transactional and idempotent. Verify old and added functionality in English/Arabic, document evidence, and commit intended files. Test-only standalone screens do not count as integrated delivery. Do not expose secrets or claim provider verification from simulated tests. Continue useful work while external gates remain open, preserve the full scope, and release only after the paid-launch gate passes.
 
 After source audit, create a live implementation status ledger with all TC IDs marked Planned, Implementing, Locally Verified, Staging Verified, Provider Verified where relevant, and Release Approved. Include blockers and exact evidence. Refine route/file locations and estimates; retain requirement traceability if a ticket is split. Plan refinement must not silently remove requested features.
 
@@ -753,7 +753,7 @@ Production runtime owns only its tenant/product resources. Package allowlists ex
 
 Keep the section 14 targets, but record separate tests for interactive reads/writes, two-node socket broadcasts, QR ownership handover, concurrent campaign claims, receipt generation and scheduled report bursts. Use synthetic data; public forms and provider workers must not contact retained customer records. Test worker crash after financial commit but before delivery, expired leases, unavailable queue/storage, one noisy tenant, DB connection exhaustion and restore of a posted-payment dataset.
 
-Record accepted throughput per workload and resource use, not just a total user count. Define overload behavior: bounded payloads/queues, rate-limit responses, retry-after, delayed exports and visible delivery status. Reports/receipts get protected capacity ahead of bulk campaigns. Prove shared-host separation or move SaleMaX to its own approved infrastructure before advertising scale that exceeds the measured budget.
+Record accepted throughput per workload and resource use, not just a total user count. Define overload behavior: bounded payloads/queues, rate-limit responses, retry-after, delayed exports and visible delivery status. Reports/receipts get protected capacity ahead of bulk campaigns. Prove shared-host separation or move 7Network to its own approved infrastructure before advertising scale that exceeds the measured budget.
 
 ## 25 Audit findings and updated readiness verdict
 
@@ -803,7 +803,7 @@ Verification is limited to 50 passing automated tests and the 13-migration dispo
 
 The next increment extends the existing `/user` and `/agent` API surfaces, using the existing legacy agent login and tenant membership model. Migration `20261003_team_invitation_activation.sql` adds hashed, one-time activation data to the existing invitation reservation table. Owner actions verify the reviewed business-owner link, active training-center tenant, plan entitlement and agent seat limit; acceptance rechecks tenant, plan and seat capacity transactionally, then creates the compatible existing `agents` login plus canonical membership and ownership mapping. Accountant and manager roles remain unavailable because the existing business APIs do not yet enforce their distinct permissions.
 
-The existing `/user` shell now exposes a bilingual Team Invitations screen adjacent to Agent Login, and a fragment link opens one-time activation over the same SaleMaX login shell. The view reports active agents, pending reservations, the assigned limit and available seats; concurrent attempts at the final seat are tested against synthetic MariaDB and only one can succeed. Local unit tests pass 55/55; the 13-migration synthetic MariaDB run covers hashed tokens, rotation invalidation, one-time agent activation, reissue after expiry, owner/tenant linking, seat usage and concurrent reservation. Authenticated owner acceptance in both languages and mobile/tablet review remain open. Delivery is copy-link only; email/WhatsApp dispatch and accountant/manager onboarding are not implemented. Git push and release gates remain open. Do not deploy this increment until those checks and release gates are complete.
+The existing `/user` shell now exposes a bilingual Team Invitations screen adjacent to Agent Login, and a fragment link opens one-time activation over the same 7Network login shell. The view reports active agents, pending reservations, the assigned limit and available seats; concurrent attempts at the final seat are tested against synthetic MariaDB and only one can succeed. Local unit tests pass 55/55; the 13-migration synthetic MariaDB run covers hashed tokens, rotation invalidation, one-time agent activation, reissue after expiry, owner/tenant linking, seat usage and concurrent reservation. Authenticated owner acceptance in both languages and mobile/tablet review remain open. Delivery is copy-link only; email/WhatsApp dispatch and accountant/manager onboarding are not implemented. Git push and release gates remain open. Do not deploy this increment until those checks and release gates are complete.
 
 ## 29 Implementation progress — Reports page CSV export
 
@@ -832,7 +832,7 @@ TC00/TC03 route-preservation work now removes the Meta app secret from both exis
 
 This increment adds the first training-center course catalogue to the existing `/user` workspace and existing sidebar. Courses have bilingual names/descriptions, bounded search and pagination, draft/publish/retire lifecycle, duration and delivery mode, QAR price and registration-fee offers with immutable version history, and scheduled batches with capacity/reservation safeguards. The additive migration `20261005_training_catalogue.sql` uses tenant-scoped keys and foreign keys. The routes derive tenant scope from the authenticated legacy owner and reviewed ownership mapping, enforce active training-center plan capability and permission, same-origin mutation checks and audit events. API documentation and the user manual describe current behavior.
 
-Verification: `npm test` passes 58/58. The 14-migration disposable MariaDB suite passes actual HTTP route, origin-denial, tenant-isolation, offer-history, batch-capacity, stale-revision and publish precondition checks; `customerDataTouched=false` and `externalWrites=false`. The existing compiled SaleMaX login/workspace was exercised with a synthetic business account: login, sidebar entry, empty catalogue, course creation and QAR display rendered. The new script recognizes the app's `Lang-Arabic` setting and requests RTL localization; after that fix, rendered Arabic screen acceptance still needs a fresh browser run. The synthetic legacy dashboard has unrelated denied routes in this limited fixture.
+Verification: `npm test` passes 58/58. The 14-migration disposable MariaDB suite passes actual HTTP route, origin-denial, tenant-isolation, offer-history, batch-capacity, stale-revision and publish precondition checks; `customerDataTouched=false` and `externalWrites=false`. The existing compiled 7Network login/workspace was exercised with a synthetic business account: login, sidebar entry, empty catalogue, course creation and QAR display rendered. The new script recognizes the app's `Lang-Arabic` setting and requests RTL localization; after that fix, rendered Arabic screen acceptance still needs a fresh browser run. The synthetic legacy dashboard has unrelated denied routes in this limited fixture.
 
 TC09 remains Implementing. Existing browser CRUD beyond create, Arabic visual verification, phone/tablet review, accountant/manager access, enrollments, sale/invoice snapshot integration, public lead forms, billing, communications and all other TC00–TC41 work remain open. This local slice is not production proof, deployment approval or completion of the full upgrade. Do not deploy before release gates pass.
 
@@ -845,7 +845,7 @@ Unit and synthetic MariaDB acceptance verifies create/read/update persistence, A
 
 ## TC10 implementation progress — contacts and opportunities (1 October 2026)
 
-This increment extends the existing SaleMaX lead pipeline in place. Each course opportunity can link to a tenant-owned contact; phone/email match suggestions are review-only; and staff may create a separate learner contact when family members share a phone. No existing leads are automatically merged. Implementation has disposable MariaDB evidence for tenant isolation, contact reuse, multiple opportunities and separate shared-phone learners. Historical contact migration/reconciliation, editable contact profiles, authenticated English/Arabic browser acceptance, and downstream enrollment/sales/finance integration remain open. TC10 is still in progress; this does not satisfy rollout or production gates.
+This increment extends the existing 7Network lead pipeline in place. Each course opportunity can link to a tenant-owned contact; phone/email match suggestions are review-only; and staff may create a separate learner contact when family members share a phone. No existing leads are automatically merged. Implementation has disposable MariaDB evidence for tenant isolation, contact reuse, multiple opportunities and separate shared-phone learners. Historical contact migration/reconciliation, editable contact profiles, authenticated English/Arabic browser acceptance, and downstream enrollment/sales/finance integration remain open. TC10 is still in progress; this does not satisfy rollout or production gates.
 
 ## TC11 implementation progress — accountable follow-ups (1 October 2026)
 
@@ -891,9 +891,9 @@ The existing pipeline authentication now resolves an invited manager's distinct 
 
 Verification: `npm test` passes 117/117; focused manager identity, accountant denial, stale/expired access, contact matching, follow-up and sales-report tests pass; pipeline JavaScript syntax and `git diff --check` pass. `npm run test:baseline` returns HTTP 200 on all four baseline routes with `externalWrites=false` and `customerDataTouched=false`. The migration integration is now verified through a dedicated local MariaDB instance on loopback. The Windows harness provisions a `salemax_test` account with privileges scoped to `salemax_migration_test_local`; its password is kept in the ignored local config under `database/local-runtime/`. The instance is stopped after the test and no application/customer database or external provider is touched. The full 28-migration synthetic workflow now passes, including real MariaDB assertions for manager identity/tenant resolution, report access without finance totals, tenant-scoped contacts, and manager follow-up access. Authenticated browser EN/AR acceptance and deployed role/API verification remain open. This increment is local and not deployed.
 
-## First-party SaleMaX Sales workspace addendum (13 October 2026)
+## First-party 7Network Sales workspace addendum (13 October 2026)
 
-The product owner has expanded the existing-project objective to include a first-party **SaleMaX Sales** workspace for SaleMaX's own internal sales operation. This is a new category/workspace in the existing SaleMaX application, not a second CRM, a replacement login, or a change to existing training-center customer tenants. Keep the platform Super Admin distinct from the SaleMaX business owner/admin. Use the existing `/user` business shell and the existing `/user/login` and agent entry points for the internal business workspace; use platform administration only to provision and govern the first-party tenant/category.
+The product owner has expanded the existing-project objective to include a first-party **7Network Sales** workspace for 7Network's own internal sales operation. This is a new category/workspace in the existing 7Network application, not a second CRM, a replacement login, or a change to existing training-center customer tenants. Keep the platform Super Admin distinct from the 7Network business owner/admin. Use the existing `/user` business shell and the existing `/user/login` and agent entry points for the internal business workspace; use platform administration only to provision and govern the first-party tenant/category.
 
 ### Internal role and organisation contract
 
@@ -918,13 +918,13 @@ Recording storage and playback must be tenant-scoped, private, access-audited an
 1. Add the first-party category as non-public to customer self-service; provision it only through an audited owner/platform-admin workflow. Keep `training_center` assignments and routes unchanged.
 2. Add a first-class Team Leader membership, role permissions, seat accounting and hierarchy/reassignment history. Enforce hierarchy in lead, task, call, recording, reports, sales and commission APIs, exports and live events, not only in sidebar visibility.
 3. Add immutable sale/commission attribution and a versioned, owner-approved commission policy with product-and-role rates before calculating payable values. Keep Accountant review and payment posting separate from sales approval; do not invent rates or mark unpaid amounts as paid.
-4. Build each role's screens in the existing shell using the current SaleMaX design tokens, responsive layout and English/Arabic direction support. Monthly targets support connected call counts and approved sales amounts per currency; manager and team leader performance rolls up through the current organisation assignment. Every visible action must reach a permission-checked API and have loading, empty, error and denied states.
+4. Build each role's screens in the existing shell using the current 7Network design tokens, responsive layout and English/Arabic direction support. Monthly targets support connected call counts and approved sales amounts per currency; manager and team leader performance rolls up through the current organisation assignment. Every visible action must reach a permission-checked API and have loading, empty, error and denied states.
 5. Verify with disposable internal-category fixtures, concurrency and scope tests, authenticated role-by-role English/Arabic browser flows, and production release evidence. Do not use real employee credentials, customer leads, calls or payments as test fixtures.
 
 This addendum is an extension of the existing 42-ticket objective, not a replacement for it. The new organization, target and performance, commission, and recording work remains open until it passes the requirements above and is recorded with its own source commit, production release, migration/rollback, live evidence and remaining gates.
 
 
-## First-party SaleMaX Sales call coaching update — production, 13 October 2026
+## First-party 7Network Sales call coaching update — production, 13 October 2026
 
 The existing Call Center now stores immutable coaching reviews against a call and an active participating Sales Agent. The Owner can review across the tenant; Managers and Team Leaders are limited to their current organization scope. Agents can see only notes explicitly shared with them. Each review records a quality outcome, coaching feedback and optional next action; the audit event captures metadata without duplicating the feedback text. The UI uses the existing Call Center surface and English/Arabic labels.
 
