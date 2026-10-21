@@ -1,3 +1,7 @@
+## SaleMaX Sales applicant error copy — production, 21 October 2026
+
+The existing recruitment form now keeps ordinary validation feedback in plain customer language. Technical/server and network failures show a general bilingual message with a bracketed safe cause code; SQL text and candidate details stay out of the public response. The update is live in `/opt/salemax/releases/recruitment-user-error-copy-20261021`. All 25 focused recruitment tests pass, served HTML/script hashes match, and health is green. No candidate data or schema changed. The signed-out visual test and controlled synthetic production failure remain open; see `DEPLOYMENT.md` for rollback evidence.
+
 ## Per-bot Base CRM lead capture — 21 October 2026
 
 The reviewed category manifest now declares a lead-capture adapter (`none`,
