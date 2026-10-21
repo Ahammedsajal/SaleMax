@@ -27,7 +27,7 @@ const contracts=Object.freeze([
   {mount:'/api/user/sales-commissions',router:'sales-commission-router',routeClass:'tenant_module',owner:'sales.commissions',modules:['sales.commissions'],contextBoundary:'tenant_session'},
   {mount:'/api/user/sales-finance',router:'sales-finance-router',routeClass:'tenant_module',owner:'sales.finance',modules:['sales.finance'],contextBoundary:'tenant_session'},
   {mount:'/api/user/sales-organization',router:'sales-organization-router',routeClass:'tenant_module',owner:'sales.deals',modules:['sales.deals'],contextBoundary:'tenant_session'},
-  {mount:'/api/user/sales-targets',router:'sales-targets-router',routeClass:'tenant_module',owner:'sales.targets',modules:['sales.targets'],contextBoundary:'tenant_session'},
+  {mount:'/api/user/sales-targets',router:'sales-targets-router',routeClass:'tenant_module',owner:'sales.targets',modules:['sales.targets'],service:'modules/platform/sales-targets.js',contextBoundary:'tenant_session'},
   {mount:'/api/user/training/tasks',router:'task-router',routeClass:'tenant_module',owner:'core.tasks',modules:['core.tasks'],contextBoundary:'tenant_session'},
   {mount:'/api/workspace/tasks',router:'task-router',routeClass:'tenant_module',owner:'core.tasks',modules:['core.tasks'],contextBoundary:'tenant_session'},
   {mount:'/api/agent/invitations',router:'team-invitation-router',routeClass:'tenant_module',owner:'core.team',modules:['core.team'],contextBoundary:'canonical_or_legacy_tenant'},

@@ -51,3 +51,25 @@ test('Real Estate route ownership resolves to its tenant-owned table and scoped 
   assert.match(migration,/CREATE TABLE sx_real_estate_properties/);
   assert.match(migration,/tenant_id CHAR\(36\)/);
 });
+
+test('7Network Sales Targets owns only its target table and scopes cross-module reads',()=>{
+  const ownership=ownershipForInventory(routerInventory(),{moduleRegistry:categoryRegistry.moduleRegistry,categories:{list:categoryRegistry.listCategories,get:categoryRegistry.getCategory}});
+  const route=ownership.routes.find(item=>item.mount==='/api/user/sales-targets');
+  const module=route.ownership.moduleContracts['sales.targets'];
+  assert.deepEqual(route.ownership.categoryModules,{'7network_sales':['sales.targets']});
+  assert.equal(route.ownership.service,'modules/platform/sales-targets.js');
+  assert.equal(module.dataOwnership.status,'reviewed');
+  assert.deepEqual(module.dataOwnership.ownedTables,['sx_sales_targets']);
+  const service=fs.readFileSync(path.join(root,route.ownership.service),'utf8');
+  const router=fs.readFileSync(path.join(root,module.primaryService),'utf8');
+  assert.match(router,/require\('\.\/sales-targets'\)/);
+  assert.match(router,/targets\.(list|save)\(/);
+  const referenced=new Set([...service.matchAll(/\b(?:FROM|JOIN|INTO|UPDATE)\s+(sx_[a-z0-9_]+)/gi)].map(match=>match[1]));
+  const declared=new Set([...module.dataOwnership.ownedTables,...module.dataOwnership.referencedTables.map(item=>item.name)]);
+  assert.deepEqual([...referenced].sort(),[...declared].sort(),'every queried sx_ table must have a reviewed owner/reference classification');
+  const migration=fs.readFileSync(path.join(root,'database/migrations/20261116_sales_targets.sql'),'utf8');
+  assert.match(migration,/CREATE TABLE sx_sales_targets/);
+  assert.match(migration,/UNIQUE KEY uq_sx_sales_target_scope \(tenant_id,membership_id,period_start,metric,currency\)/);
+  assert.match(service,/FROM sx_sales_commissions c JOIN sx_sales_deals d ON d\.tenant_id=c\.tenant_id/);
+  assert.match(service,/commissionReportEnabled=decision\(ctx,\{capability:'sales\.commissions'/);
+});

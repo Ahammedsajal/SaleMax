@@ -2101,6 +2101,21 @@ the other module services, all legacy routes, jobs, sockets, callbacks and
 authenticated screen acceptance remain open. The full suite passes 1,045/1,069;
 the same 24 known Manage Users, Pipeline, Training/Finance and public-form
 source-contract failures remain.
+
+## 7Network Sales Targets route-to-table ownership contract — source update, 21 October 2026
+
+The same route inventory now traces `/api/user/sales-targets` through its
+router to `sales-targets.js`. The module owns `sx_sales_targets` and declares
+the tenant-qualified references used for membership, historical organization,
+approved deals, telephony calls, commissions and audit records. The SQL/table
+set is checked against the module metadata and the owning migration. Commission
+amounts remain conditionally queried only when the separate
+`sales.commissions` capability is allowed; the Targets module does not grant
+that capability. The focused category registry, route ownership and Sales
+Targets suite passes 23/23. The full suite passes 1,046/1,070 with the same 24
+known failures. Source only; production was not changed. Other module services
+and legacy/asynchronous routes still need the same query/table audit and policy
+tests.
 ## Tenant custom-field search in the existing Pipeline — 21 October 2026
 
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
