@@ -142,6 +142,20 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal((await call('/faqs', 'POST', { questionEn:'Evening?',answerEn:'Ask the centre.' })).code, 'FAQ_QUESTION_NEEDS_TWO_WORDS');
     assert.equal((await call('/faqs', 'GET', undefined, { 'X-Test-Tenant': t2 })).data.items.some(item => item.id === faqId), false);
     const faqListed = await call('/faqs'); assert.equal(faqListed.data.items.some(item => item.id === faqId), true);
+    const botFaq = await call('/faqs', 'POST', { profileId: botId, questionEn:'Do you offer evening classes?',answerEn:'This bot offers weekday evening classes.',questionAr:'هل تتوفر حصص مسائية؟',answerAr:'يوفر هذا الروبوت حصصاً مسائية في أيام الأسبوع.' });
+    assert.equal(botFaq.status, 201); assert.equal(botFaq.data.profileId, botId);
+    const sharedFaqList = await call('/faqs'); assert.equal(sharedFaqList.data.items.some(item => item.id === botFaq.data.id), false);
+    const botFaqList = await call('/faqs?profileId=' + encodeURIComponent(botId)); assert.equal(botFaqList.data.scope.profileId, botId); assert.equal(botFaqList.data.items.some(item => item.id === botFaq.data.id), true);
+    const faqScope = require('../modules/platform/chatbot-faq-scope');
+    const runtimeFaqs = await faqScope.loadForBot(connection, t1, botId);
+    assert.equal(runtimeFaqs[0].answerEn, 'This bot offers weekday evening classes.', 'a bot-specific answer is ordered ahead of its shared fallback');
+    assert.equal(runtimeFaqs.some(item => item.answerEn === 'Evening classes are available in selected batches.'), true, 'the bot can still use shared fallback answers');
+    const botFaqPreview = await call('/guided-preview', 'POST', { profileId:botId, message:'evening classes please', guidedContent:{} });
+    assert.equal(botFaqPreview.status, 200); assert.match(botFaqPreview.data.reply,/This bot offers weekday evening classes\./);
+    const foreignBot = await call('/', 'POST', { name:'Synthetic other tenant bot', engine:'guided', config:{ guidedMode:'domain_default' } }, { 'X-Test-Tenant': t2 });
+    assert.equal(foreignBot.status, 201);
+    assert.equal((await call('/faqs?profileId=' + encodeURIComponent(foreignBot.data.id))).code, 'BOT_NOT_FOUND');
+    assert.equal((await call('/faqs', 'POST', { profileId:foreignBot.data.id, questionEn:'Foreign FAQ test', answerEn:'Must never be stored.' })).code, 'BOT_NOT_FOUND');
     const guideFaqPreview = await call('/guided-preview', 'POST', { message:'evening classes please', guidedContent:{} });
     assert.equal(guideFaqPreview.status, 200); assert.match(guideFaqPreview.data.reply,/Evening classes are available in selected batches\./);
 
@@ -480,7 +494,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal((await call(`/${guideId}/status`,'PUT',{status:'paused',expectedRevision:3})).status,200);
 
     return {
-      profileCrudAndRevisionConflicts: true, tenantIsolationAndPermissionChecks: true,
+      profileCrudAndRevisionConflicts: true, tenantIsolationAndPermissionChecks: true, perBotFaqPriorityAndFallback: true,
       botLeadNameCourseAndScheduleCaptureWhilePaused: true, concurrentBotLeadReuse: true, botCaptureDoesNotEnableGlobalPipelineSettings: true,
       guidedNameAndNumericCourseSavedToLead: true, coursePdfOnceAndExplicitResend: true, testResetAfterGuidedHandover: true,
       providerKeyMaskedAndEncrypted: true, savedFactAiPreviewWithoutWhatsAppTurn: true,
@@ -489,7 +503,7 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       pausedConversationSuppressesAiAndChannelSend: true, liveProfileEditsAreAtomicAndPreserveActivationSafety: true,
       hybridDeterministicGreetingAndAiFallbackWithFakeChannelTransport: true, liveHybridGuidedCopyEditAppliedToNextTurn: true,
       hybridProviderInvalidOutputIsHumanReadableAndNeverSent: true,
-      guidedFlowOptionsAndRuntimeLookup: true, guidedPreviewUsesTenantPublishedFactsWithoutWritesOrProviderCalls: true,
+      guidedFlowOptionsAndRuntimeLookup: true, guidedPreviewUsesTenantPublishedFactsWithoutWritesOrProviderCalls: true, perBotFaqPreviewUsesScopedAnswers: true,
     };
   } finally {
     mediaModule.sendCourseMedia = originalMediaSend;

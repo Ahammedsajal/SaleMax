@@ -14,6 +14,8 @@ const businessContext = require('./chatbot-business-context');
 const replyCache = new Map();
 const CACHE_MAX = 250;
 const { recipientAllowed } = require('./chatbot-audience');
+const chatbotFaqScope = require('./chatbot-faq-scope');
+const { mergeKnowledgeEntries } = require('./chatbot-faq');
 let nextGuidedSessionPruneAt = 0;
 let guidedSessionPrunePromise = null;
 
@@ -22,21 +24,10 @@ const textOf = message => {
   const body = message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title;
   return typeof body === 'string' ? body.trim().slice(0, 2000) : '';
 };
-function mergeKnowledgeEntries(...groups) {
-  const seen = new Set();
-  return groups.flat().filter(item => item && typeof item === 'object').filter(item => {
-    const key = `${businessContext.normalized(item.questionEn)}|${businessContext.normalized(item.questionAr)}`;
-    if (seen.has(key)) return false;
-    seen.add(key); return true;
-  });
-}
-async function loadApprovedFaqs(tenantId) {
+async function loadApprovedFaqs(tenantId, botId = null) {
   const db = await dbPool.getConnection();
-  try {
-    const [rows] = await db.query(`SELECT question_en AS questionEn,answer_en AS answerEn,question_ar AS questionAr,answer_ar AS answerAr
-      FROM sx_chatbot_faqs WHERE tenant_id=? AND is_active=1 ORDER BY position,created_at,id LIMIT 60`, [tenantId]);
-    return rows;
-  } finally { db.release(); }
+  try { return await chatbotFaqScope.loadForBot(db, tenantId, botId); }
+  finally { db.release(); }
 }
 
 async function currentOwnerAccess(uid) {
@@ -214,7 +205,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     const facts = leadInfo?.facts || (pack.requiresDatabase
       ? await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config })
       : []);
-    const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
+    const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id, profile.id));
     await db.beginTransaction();
     await db.query(`INSERT IGNORE INTO sx_chatbot_guided_sessions(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,conversation_hash,state,expires_at)
       VALUES (?,?,?,?,?,?,?,JSON_OBJECT(),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR))`,
@@ -356,7 +347,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   };
   const facts = factsOverride || await loadFacts();
   const session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
-  const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
+  const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id, profile.id));
   const context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
   const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
   const courseOverview = profile.engine === 'hybrid' && profile.config?.aiFallback !== false && businessContext.isCourseOverviewRequest(customerMessage, context);
@@ -421,7 +412,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   }
   // Re-read live facts after the model call; never deliver a price or date
   // generated from data that changed while the provider was working.
-  const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id)), message: customerMessage, state: session, profileRevision: profile.revision });
+  const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id, profile.id)), message: customerMessage, state: session, profileRevision: profile.revision });
   if (fresh.revision !== context.revision) return factualOverviewFallback(fresh) || { canAnswer: true, confidence: 0, reply: businessContext.clarification(profile.config, context.language), state: nextState, route: 'clarification', reason: 'BUSINESS_DATA_CHANGED', metrics };
   const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
   if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;

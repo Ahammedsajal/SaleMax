@@ -2309,3 +2309,28 @@ existing Manage Users, Pipeline, Training/Finance and public-form
 source-contract failures remain. Authenticated provider delivery and live UI
 acceptance remain open. This is source only; production was not updated. The
 complete 42-ticket 7Network CRM program remains active.
+
+## Per-bot chatbot FAQ isolation — source update, 21 October 2026
+
+The existing FAQ page now selects either the tenant-wide shared library or a
+single bot profile's FAQ library. Shared answers remain a fallback and
+bot-specific answers take precedence only for that bot; matching and fallback
+are independent per language. The API verifies every selected profile against
+the authenticated tenant and its pinned category/version. A nullable
+`sx_chatbot_faqs.profile_id` and composite tenant/profile foreign key preserve
+existing shared rows and prevent cross-tenant association. The runtime loads
+only the selected bot's entries plus that tenant's shared entries, and
+per-language duplicate-question merging prevents a lower-priority shared row
+from making the bot's answer ambiguous. Focused helper/screen/chatbot checks
+pass 23/23; syntax checks and `git diff --check` pass. The new migration was
+applied to an isolated local MySQL schema; a cross-tenant profile link was
+rejected and bot deletion preserved the shared FAQ row. The complete MariaDB
+migration harness could not run on this host: its earliest existing migration
+uses MariaDB `PERSISTENT` generated-column syntax, which the installed MySQL
+9.6 server rejects before reaching the new FAQ migration. No production database
+was accessed. Authenticated English/Arabic screen acceptance, a full MariaDB
+migration rehearsal, release-capacity preflight and production deployment
+remain open. The full test suite reports 1,091/1,115 passing, with the same 24
+known legacy Manage Users, Pipeline, Training/Finance and public-form contract
+failures; this increment adds no new suite failures. This closes only the previously identified per-bot FAQ
+customization gap; the broader 42-ticket 7Network CRM objective remains active.

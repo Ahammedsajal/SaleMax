@@ -32,4 +32,23 @@ function findApprovedFaq(message, entries, language = 'en', options = {}) {
   return typeof answer === 'string' && answer.trim() ? { answer: answer.trim(), index: match.index, score: match.score } : null;
 }
 
-module.exports = { findApprovedFaq, keywords, validateFaqInput };
+function mergeKnowledgeEntries(...groups) {
+  const seen = { En: new Set(), Ar: new Set() }, result = [];
+  for (const item of groups.flat()) {
+    if (!item || typeof item !== 'object') continue;
+    const entry = {};
+    for (const language of ['En', 'Ar']) {
+      const question = typeof item[`question${language}`] === 'string' ? item[`question${language}`].trim() : '';
+      const answer = typeof item[`answer${language}`] === 'string' ? item[`answer${language}`].trim() : '';
+      const key = normalize(question);
+      if (!question || !answer || seen[language].has(key)) continue;
+      seen[language].add(key);
+      entry[`question${language}`] = question;
+      entry[`answer${language}`] = answer;
+    }
+    if (entry.questionEn || entry.questionAr) result.push(entry);
+  }
+  return result;
+}
+
+module.exports = { findApprovedFaq, keywords, validateFaqInput, mergeKnowledgeEntries };

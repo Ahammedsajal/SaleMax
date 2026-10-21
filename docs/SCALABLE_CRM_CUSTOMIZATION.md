@@ -732,3 +732,22 @@ This does not secure every legacy route: unmapped routes, jobs, sockets,
 callbacks and route-to-table ownership remain open audit items. Module-owned
 versioned settings and full signed-in English/Arabic acceptance remain required
 before additional vertical categories are offered.
+
+## Bot-specific knowledge — source increment, 21 October 2026
+
+The existing FAQ editor now has a shared library and a selectable library for
+each bot profile. Shared entries remain available as fallback; a matching
+bot-specific entry takes precedence for that bot. Precedence is resolved per
+language so a bot can override its English answer while inheriting the tenant's
+Arabic fallback (or the reverse). The browser sends only a profile ID; the API
+resolves that profile under the authenticated tenant and exact category version.
+The new nullable `profile_id` is protected by a composite tenant/profile
+foreign key, and deleting a bot removes only its own FAQ rows. Existing FAQ
+rows remain shared and are not rewritten.
+
+This is a source implementation increment, not a release-complete module.
+Migration rehearsal against a disposable database, authenticated screen checks
+in English and Arabic, and production preflight remain open. The pattern is
+intended for other per-user bot settings only where ownership and fallback
+semantics are explicit; it does not create a generic executable customization
+surface.

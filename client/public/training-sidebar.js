@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261021-base-lead-capture1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261021-bot-faq-scope1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
@@ -21,7 +21,7 @@
   if (!window.__sxFaqManagerLoader) {
     window.__sxFaqManagerLoader = true;
     const faqStyle = document.createElement('link'); faqStyle.rel = 'stylesheet'; faqStyle.href = '/training-faqs.css?v=20261012-faq-library5'; document.head.append(faqStyle);
-    const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261019-uplift2'; faqScript.defer = true; document.head.append(faqScript);
+    const faqScript = document.createElement('script'); faqScript.src = '/training-faqs.js?v=20261021-bot-scope1'; faqScript.defer = true; document.head.append(faqScript);
   }
   if (!window.__sxRecruitmentLoader) {
     window.__sxRecruitmentLoader = true;
