@@ -19,7 +19,9 @@ test('registry rejects duplicate identity, unknown capabilities, invalid roles a
   assert.throws(()=>createCategoryRegistry([trainingCenter,trainingCenter],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
   for (const patch of [{version:'2'},{version:0},{key:'../clinic'},{title:{en:'Clinic'}},{public:'yes'},
     {planable:'yes'},{capabilities:['unknown.feature']},{capabilities:['messaging.inbox','messaging.inbox']},
-    {seatRoles:['agent']},{seatRoles:['owner','super_admin']},{migration:'../schema.sql'}]) {
+    {seatRoles:['agent']},{seatRoles:['owner','super_admin']},{migration:'../schema.sql'},
+    {chatbotLeadCapture:'unreviewed'},{chatbotLeadCapture:'generic',capabilities:['messaging.inbox']},
+    {chatbotLeadCapture:'training',capabilities:['messaging.inbox','crm.leads']}]) {
     assert.throws(()=>createCategoryRegistry([{...trainingCenter,...patch}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
   }
 });

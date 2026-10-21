@@ -141,6 +141,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         guidedContentSchema: pack.guidedContentSchema,
         captureFormsSupported:require('./chatbot-capture-forms').supports(ctx.category),
         captureForms:await require('./chatbot-capture-forms').options(db,ctx),
+        chatbotLeadCaptureSupported:require('./chatbot-lead-capture').genericCaptureEnabled(ctx),
         items: bots,
       };
     });
@@ -217,6 +218,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   }));
   router.post('/', wrap(async (req, res) => {
     const ctx = context(req); const input = botInput(req.body, ctx.category.key, ctx.category.version);
+    if(input.config.captureLeads===true&&!require('./chatbot-lead-capture').genericCaptureEnabled(ctx))fail('FEATURE_UNAVAILABLE');
     const id = uuid();
     const data = await withDb(async db => {
       await db.beginTransaction(); try {
@@ -230,6 +232,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   }));
   router.put('/:id', wrap(async (req, res) => {
     const ctx = context(req); const input = botInput(req.body, ctx.category.key, ctx.category.version);
+    if(input.config.captureLeads===true&&!require('./chatbot-lead-capture').genericCaptureEnabled(ctx))fail('FEATURE_UNAVAILABLE');
     if (!/^[0-9a-f-]{36}$/i.test(req.params.id) || !Number.isSafeInteger(req.body.expectedRevision) || req.body.expectedRevision < 1) fail('INVALID_REVISION');
     const data = await withDb(async db => {
       await db.beginTransaction(); try {

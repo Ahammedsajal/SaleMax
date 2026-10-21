@@ -547,6 +547,15 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => {});
       return { handled: true, handedOff: true, code: 'LEAD_CAPTURE_UNAVAILABLE' };
     }
+  } else if (ctx.category.chatbotLeadCapture === 'generic' && profile.config?.captureLeads === true) {
+    if (require('./chatbot-lead-capture').genericCaptureEnabled(ctx)) {
+      try {
+        leadInfo = await require('./chatbot-lead-capture').captureGenericLead(dbPool, { ctx, profile, uid, chatId, origin, message });
+      } catch (error) {
+        await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => {});
+        return { handled: true, handedOff: true, code: 'LEAD_CAPTURE_UNAVAILABLE' };
+      }
+    }
   }
 
   if (profile.config?.sharedInboxRouting === true) {

@@ -1,3 +1,22 @@
+## Per-bot Base CRM lead capture — 21 October 2026
+
+The reviewed category manifest now declares a lead-capture adapter (`none`,
+`generic`, or `training`); the registry validates the adapter against the
+category's CRM/course capabilities. Base CRM owners with an active `crm.leads`
+plan entitlement can opt an individual bot into creating/updating leads through
+the existing tenant-scoped Pipeline inbound adapter. Existing bots remain off by
+default. The bot editor copy is bilingual. Training keeps its current capture
+behavior; SaleMaX Sales recruitment and test fixtures cannot enable generic
+capture. The API and runtime recheck the exact category, plan entitlement and
+owner permission. No migration or profile/customer-data update is required.
+
+Sixty focused configuration, category, authorization, editor-contract and
+runtime-adapter checks pass; syntax and diff checks pass. The repository browser
+fixture could not run because Playwright is not installed in the clean checkout,
+and no local disposable MariaDB is configured. Production deployment and
+authenticated Base CRM screen/WhatsApp acceptance remain open. This is one
+increment in the full category and 42-ticket program.
+
 ## Existing Pipeline export for tenant lead fields — 21 October 2026
 
 The existing authenticated Pipeline screen exports its current search/source/QR-filtered set (up to 300 leads) with typed custom-field values and immutable label/type/revision snapshots. The export reuses the tenant and team/agent scoped board query, omits full qualification data from ordinary board responses, neutralizes spreadsheet formulas and rejects oversized output. Sixteen focused tests pass across authenticated/anonymous HTTP route behavior, export formatting, custom-field search, team scope and Sales behavior; syntax and diff checks pass. Deployed in `/opt/salemax/releases/pipeline-custom-field-export-68fe5b7-20261021`; public page/script hashes and health pass, and anonymous API access returns 401. Authenticated live browser/download acceptance remains open. No migration or customer-data change occurred. Report/bot consumption and the full category/42-ticket objective remain open.

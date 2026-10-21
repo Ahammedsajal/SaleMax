@@ -4,6 +4,11 @@ const context = require('./chatbot-business-context');
 const { recipientAllowed } = require('./chatbot-audience');
 const parse = value => typeof value === 'string' ? JSON.parse(value) : value || {};
 
+function genericCaptureEnabled(ctx) {
+  return ctx?.category?.chatbotLeadCapture === 'generic'
+    && require('./policy').decision(ctx, { capability: 'crm.leads', permission: 'leads.manage' }).allowed;
+}
+
 function customerName(text, waitingForName = false) {
   const explicit = String(text || '').match(/(?:^|[.!?،]\s*)(?:my name is|my name's|call me|اسمي|انا اسمي)\s+([^.!?؟،\n]+)/iu);
   let value = explicit?.[1]?.split(/\s+(?:and\b|(?:و?اريد|و?أريد|و?مهتم)(?=\s|$)|interested\b|looking\b|i want\b)/iu)[0]?.trim();
@@ -83,6 +88,17 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
   finally { db.release(); }
 }
 
+async function captureGenericLead(pool, { ctx, profile, uid, chatId, origin, message }) {
+  if (!genericCaptureEnabled(ctx) || profile?.config?.captureLeads !== true
+    || !recipientAllowed(profile.config, message?.senderMobile)) return null;
+  const captured = await require('../../helper/pipeline/leadPipeline').captureBotInbound({
+    uid, origin, chatId, senderMobile: message.senderMobile, senderName: message.senderName,
+    normalizedMessage: message, providerMessageId: message.metaChatId, timestamp: message.timestamp, pool,
+  });
+  if (captured.skipped || !captured.leadId) throw Object.assign(new Error('BOT_LEAD_NOT_CAPTURED'), { code: 'BOT_LEAD_NOT_CAPTURED' });
+  return { leadId: captured.leadId, duplicate: captured.duplicate === true };
+}
+
 function addQuestion(reply, info, config, defaults) {
   if (!info?.questionKey) return reply;
   const text = config?.guidedContent?.messages?.[info.questionKey]?.[info.language] || defaults?.messages?.[info.questionKey]?.[info.language];
@@ -98,4 +114,4 @@ async function markAsked(pool, info, uid) {
     await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),?,true,'$.botCapture.waitingFor',?) WHERE uid_hash=? AND uid=? AND id=?`, ['$.botCapture.' + key + 'Asked', key, info.uidHash, uid, info.leadId]);
   } finally { db.release(); }
 }
-module.exports = { captureLead, customerName, qualificationFromText, addQuestion, markAsked };
+module.exports = { captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, markAsked };

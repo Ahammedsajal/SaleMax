@@ -52,6 +52,14 @@ Sources: [AWS SaaS partitioning models](https://docs.aws.amazon.com/whitepapers/
 4. Tenant configuration: immutable published revisions pinned to one tenant, category version and schema version. Typed permitted overrides include labels, optional fields, stage settings, guide copy, layout choices and registered workflow bindings. No arbitrary JavaScript, SQL, server paths, class names or unrestricted HTML.
 5. Membership: owner-managed roles, scope and navigation further restrict the effective contract. A staff preference cannot change company-wide configuration or increase its privileges.
 
+## Category-declared bot-to-Pipeline lead capture — 21 October 2026
+
+Category manifests now declare a reviewed chatbot lead-capture adapter. `base_crm@1` uses the shared generic Pipeline adapter, `training_center@1` retains its established learner/course enrichment, and `salemax_sales@1` explicitly disables generic lead capture so candidate applications stay in their dedicated workflow. Unspecified/future categories default to `none`; adding a category cannot silently start creating leads.
+
+For Base CRM, lead creation is a per-profile owner choice in the existing Chatbot editor. It defaults off, is displayed only when the current owner context has the active matching `crm.leads` plan entitlement, and is checked again by both the write API and inbound runtime. When enabled, existing Pipeline identity locking, inbound-event idempotency, tenant owner UID scope and contact association create or update the lead; no raw message is copied into a new qualification store. The original message remains in Inbox. No migration or customer bot configuration change is involved.
+
+This closes shared lead capture for the category-neutral base contract, not generic conversational collection of each tenant's custom fields. Those answers still use the published Forms route until a separate category-approved conversational schema, consent and stop/skip design is implemented. Tests cover category adapter immutability/validation, plan denial, opt-in/default-off behavior, Sales/Training denial and the adapter's passed data; live browser, MariaDB integration and provider acceptance remain release gates.
+
 Effective access is the intersection of category capability, plan entitlement, enabled tenant configuration, member permission/scope and runtime readiness. Restrictions accumulate. Tenant overrides cannot change `tenant_id`, category identity, subscription rights, audit requirements, resource ownership checks or accounting invariants. Missing/invalid configuration must produce a controlled error or a specifically versioned compatibility default; never fall back to another tenant or arbitrary category.
 
 ## Configuration persistence and publication design

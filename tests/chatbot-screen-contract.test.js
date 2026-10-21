@@ -85,6 +85,14 @@ test('bot editor renders editable bilingual category guide fields without traini
   assert.doesNotMatch(admin, /Training center guided conversation|published course data|course number/);
 });
 
+test('generic lead capture is visible only when the server advertises the plan-authorized category capability',()=>{
+  assert.match(admin,/chatbotLeadCaptureSupported\?`<label class="sx-full"><input type="checkbox" name="captureLeads"/);
+  assert.match(admin,/Save new WhatsApp conversations as CRM leads/);
+  assert.match(admin,/حفظ محادثات واتساب الجديدة كعملاء محتملين/);
+  assert.match(admin,/captureLeads:state\.chatbotLeadCaptureSupported\?data\.get\('captureLeads'\)==='on':undefined/);
+  assert.match(chatbotRouter,/genericCaptureEnabled\(ctx\)/);
+});
+
 test('bot editor keeps save actions visible while its long form scrolls', () => {
   assert.match(admin, /class="sx-dialog sx-bot-editor-dialog"[\s\S]*?<form><div class="sx-bot-editor-scroll"><div class="sx-form-grid">/);
   assert.match(admin, /<div class="sx-error" role="alert"><\/div><\/div><div class="sx-footer">[\s\S]*?Save bot/);
