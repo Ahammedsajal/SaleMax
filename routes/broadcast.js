@@ -7,8 +7,19 @@ const {
   getMetaNumberDetail,
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
-const validateUser = require("../middlewares/user.js");
+const validateUserAuth = require("../middlewares/user.js");
 const { checkPlan } = require("../middlewares/plan.js");
+const makeCampaignAccess = capability => require("../modules/platform/legacy-module-access").createLegacyModuleAccess({
+  pool: require("../database/config.js").promise(),
+  capability,
+  permission: "campaigns.manage",
+});
+const campaignSendAccess = makeCampaignAccess("campaigns.send");
+const campaignDashboardAccess = makeCampaignAccess("campaigns.dashboard");
+const validateUser = (req, res, next) => validateUserAuth(req, res, error => {
+  if (error) return next(error);
+  return (req.path === "/dashboard" ? campaignDashboardAccess : campaignSendAccess)(req, res, next);
+});
 const phonebookImport = require("../modules/platform/phonebook-import");
 
 // adding campaign

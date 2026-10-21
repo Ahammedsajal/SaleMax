@@ -2238,3 +2238,29 @@ existing Manage Users, Pipeline, Training and Finance/public-form
 source-contract tests remain failing. Source only: no production files or data
 changed. Authenticated live owner/agent acceptance and the broader legacy route
 adoption inventory remain open; the complete 42-ticket program continues.
+
+## Legacy Campaign tenant authorization and send-time enforcement — source update, 21 October 2026
+
+The existing `/api/broadcast` endpoints now require the category-pinned
+Campaign module, the current plan entitlement, tenant activation and member
+permission before accessing the legacy owner-UID campaign records. The
+scheduled Meta Campaign worker resolves each owner through the current
+legacy-to-tenant mapping and rechecks `campaigns.send` before starting a
+campaign and immediately before each recipient send. If a mapped workspace
+loses access, the campaign is saved as `PAUSED`; accepted provider results are
+persisted before pausing so a later retry cannot resend those recipients.
+Paused campaigns are rechecked in bounded ID batches and resume when access is
+restored. Unmapped existing owners keep the legacy delivery path. A read-only
+production schema check confirmed the current campaign `status` column accepts
+the pause state; no live data was changed. The existing compiled campaign
+screen has no maintained source available here, so the pause reason is not yet
+shown in that screen.
+
+Nine focused campaign authorization, route and worker tests pass, including
+category/module denial, legacy compatibility, fail-closed owner mapping,
+no-send behavior, recipient-level access revocation, persistence of prior Meta
+acceptance and bounded resume. Full `npm test` passes 1,074/1,098; the same 24
+existing Manage Users, Pipeline, Training/Finance and public-form
+source-contract failures remain. Authenticated provider delivery and live UI
+acceptance remain open. This is source only; production was not updated. The
+complete 42-ticket 7Network CRM program remains active.

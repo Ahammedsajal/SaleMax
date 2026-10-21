@@ -1,8 +1,12 @@
 const { query } = require("../database/dbpromise");
 const { sendTemplateMessage } = require("../functions/function");
+const canSendCampaignByModule = require("../modules/platform/campaign-module-access").createCampaignModuleAccess({
+  pool: require("../database/config").promise(),
+});
 
 // Simple processing flags
 const processingCampaigns = new Set();
+let pausedCampaignCursor = 0;
 
 // Configuration
 const CONFIG = {
@@ -88,6 +92,7 @@ async function handleLegacyCampaigns() {
  */
 async function processPendingCampaigns() {
   try {
+    await resumeEligiblePausedCampaigns();
     // Get campaigns that need processing
     const campaigns = await query(
       `SELECT * FROM beta_campaign 
@@ -123,6 +128,26 @@ async function processPendingCampaigns() {
     }
   } catch (error) {
     console.error("Error in processPendingCampaigns:", error);
+  }
+}
+
+async function resumeEligiblePausedCampaigns(){
+  let paused=await query(`SELECT * FROM beta_campaign
+    WHERE status='PAUSED' AND (schedule IS NULL OR schedule<=NOW()) AND id>?
+    ORDER BY id ASC LIMIT 20`,[pausedCampaignCursor]);
+  if(!paused?.length&&pausedCampaignCursor){
+    pausedCampaignCursor=0;
+    paused=await query(`SELECT * FROM beta_campaign
+      WHERE status='PAUSED' AND (schedule IS NULL OR schedule<=NOW()) AND id>?
+      ORDER BY id ASC LIMIT 20`,[pausedCampaignCursor]);
+  }
+  if(!paused?.length)return;
+  pausedCampaignCursor=Number(paused.at(-1).id)||pausedCampaignCursor;
+  for(const campaign of paused){
+    const access=await canSendCampaignByModule(campaign.uid);
+    if(access?.allowed){
+      await query(`UPDATE beta_campaign SET status='PENDING' WHERE campaign_id=? AND status='PAUSED'`,[campaign.campaign_id]);
+    }
   }
 }
 
@@ -298,7 +323,14 @@ async function sendCatalogTemplateMessage(
 /**
  * Process a single campaign
  */
-async function processSingleCampaign(campaign) {
+async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignByModule,messageDelay=CONFIG.messageDelay}={}) {
+  const initialAccess=await canSendCampaign(campaign.uid);
+  if(initialAccess!==true&&initialAccess?.allowed!==true){
+    console.warn('Campaign paused by current tenant access policy.',initialAccess?.code||'FEATURE_UNAVAILABLE');
+    await pauseCampaign(campaign.campaign_id);
+    return;
+  }
+
   // Update status to IN_PROGRESS if PENDING
   if (campaign.status === "PENDING") {
     await query(
@@ -377,6 +409,14 @@ async function processSingleCampaign(campaign) {
   const failedUpdates = [];
 
   for (const log of pendingLogs) {
+    const currentAccess=await canSendCampaign(campaign.uid);
+    if(currentAccess!==true&&currentAccess?.allowed!==true){
+      console.warn('Campaign paused by current tenant access policy.',currentAccess?.code||'FEATURE_UNAVAILABLE');
+      await persistCampaignResults(campaign.campaign_id,successfulIds,failedUpdates);
+      await updateCampaignCounts(campaign.campaign_id);
+      await pauseCampaign(campaign.campaign_id);
+      return;
+    }
     try {
       // Get contact details for variable replacement
       const contact = await getContactForLog(log, campaign);
@@ -460,14 +500,26 @@ async function processSingleCampaign(campaign) {
         failedUpdates.push({ id: log.id, error: errorMsg });
       }
 
-      await new Promise((resolve) => setTimeout(resolve, CONFIG.messageDelay));
+      await new Promise((resolve) => setTimeout(resolve, messageDelay));
     } catch (error) {
       console.error(`Error sending to ${log.contact_mobile}:`, error.message);
       failedUpdates.push({ id: log.id, error: error.message });
     }
   }
 
-  // Batch update successful sends (unchanged)
+  await persistCampaignResults(campaign.campaign_id,successfulIds,failedUpdates);
+
+  await updateCampaignCounts(campaign.campaign_id);
+  await checkAndMarkCampaignComplete(campaign);
+}
+
+async function pauseCampaign(campaignId){
+  await query(`UPDATE beta_campaign SET status='PAUSED' WHERE campaign_id=? AND status IN ('PENDING','IN_PROGRESS')`,[campaignId]);
+}
+
+async function persistCampaignResults(campaignId,successfulIds,failedUpdates){
+  // Persist each completed provider result before an access-denied return so
+  // the next worker pass cannot resend a message already accepted by Meta.
   if (successfulIds.length > 0) {
     for (const success of successfulIds) {
       await query(
@@ -479,7 +531,6 @@ async function processSingleCampaign(campaign) {
     }
   }
 
-  // Batch update failed sends (unchanged)
   if (failedUpdates.length > 0) {
     for (const failed of failedUpdates) {
       await query(
@@ -491,8 +542,6 @@ async function processSingleCampaign(campaign) {
     }
   }
 
-  await updateCampaignCounts(campaign.campaign_id);
-  await checkAndMarkCampaignComplete(campaign);
 }
 
 /**
@@ -642,6 +691,9 @@ async function updateMessageStatus(metaMsgId, status, errorMessage = null) {
 
 module.exports = {
   initCampaign,
+  processPendingCampaigns,
+  processSingleCampaign,
+  resumeEligiblePausedCampaigns,
   updateMessageStatus,
   sendCarouselTemplateMessage,
   sendCatalogTemplateMessage,
