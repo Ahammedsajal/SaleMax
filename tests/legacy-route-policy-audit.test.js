@@ -3,6 +3,8 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {audit,routeInventory}=require('../scripts/audit-legacy-route-policy.cjs');
 const baseline=require('../scripts/legacy-route-policy-baseline.json');
+const {routePermission}=require('../modules/platform/legacy-route-policy');
+const {resolveInboxPermission}=require('../modules/platform/inbox-module-access');
 const signature=route=>`${route.mount} ${route.method} ${route.path}`;
 
 test('legacy router inventory stays within the reviewed unknown-route baseline',()=>{
@@ -27,4 +29,16 @@ test('canonical legacy aliases use the same role permission classification',()=>
   assert.equal(get('/api/v1','/delete_logs','POST')?.permission,'tenant.manage');
   assert.equal(get('/api/ai','/suggest_reply','POST')?.permission,'conversations.reply');
   assert.equal(get('/api/ai','/translate','POST')?.permission,'conversations.reply');
+});
+
+test('every authenticated legacy Inbox route has a shared read or reply permission',()=>{
+  const routes=routeInventory().routes;
+  const inbox=routes.filter(route=>route.file==='routes/inbox.js'&&route.auth.includes('validateUser'));
+  assert.ok(inbox.length>=13,'the source inventory should include the existing authenticated Inbox surface');
+  for(const route of inbox){
+    const permission=routePermission({baseUrl:route.mount,path:route.path,method:route.method});
+    assert.ok(['conversations.read','conversations.reply'].includes(permission),`${signature(route)} must be mapped to shared Inbox permission`);
+    assert.equal(route.permission,permission,`${signature(route)} must keep the reviewed route inventory mapping`);
+    assert.equal(resolveInboxPermission(route),permission,`${signature(route)} must be explicitly admitted by the module gate`);
+  }
 });

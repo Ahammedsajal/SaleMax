@@ -20,9 +20,14 @@ const {
   parseJson,
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
-const validateUser = require("../middlewares/user.js");
+const validateUserAuth = require("../middlewares/user.js");
 const { getIOInstance } = require("../socket.js");
 const { checkPlan } = require("../middlewares/plan.js");
+const { createInboxModuleAccess, withInboxModuleAccess } = require("../modules/platform/inbox-module-access");
+const inboxModuleAccess = createInboxModuleAccess({
+  pool: require("../database/config.js").promise(),
+});
+const validateUser = withInboxModuleAccess(validateUserAuth, inboxModuleAccess);
 const { processMessage } = require("../helper/inbox/inbox.js");
 const con = require("../database/config.js");
 const { updateMessageStatus } = require("../loops/campaignBeta.js");

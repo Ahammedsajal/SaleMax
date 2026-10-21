@@ -158,6 +158,30 @@ Sources: [AWS SaaS partitioning models](https://docs.aws.amazon.com/whitepapers/
 4. Tenant configuration: immutable published revisions pinned to one tenant, category version and schema version. Typed permitted overrides include labels, optional fields, stage settings, guide copy, layout choices and registered workflow bindings. No arbitrary JavaScript, SQL, server paths, class names or unrestricted HTML.
 5. Membership: owner-managed roles, scope and navigation further restrict the effective contract. A staff preference cannot change company-wide configuration or increase its privileges.
 
+### Shared Inbox access on legacy routes — 21 October 2026
+
+The existing `/api/inbox` router now applies the shared policy after its legacy
+authentication middleware and before authenticated handlers. Permission is
+resolved from the actual route: reads use `conversations.read`; sends and
+mutations use `conversations.reply`. The policy also checks the exact pinned
+category/version, active plan entitlement, and tenant-enabled `core.inbox@1`
+module. The `/api/workspace/inbox` alias uses the same route contract, so adding
+that compatibility mount cannot create a weaker authorization path. The
+runtime admits only the reviewed method/path pairs; an unknown endpoint does
+not inherit the legacy route mapper's generic POST permission.
+
+This keeps Inbox a reusable shared module while letting each category and
+tenant independently control whether it is available. It does not change
+provider callbacks: signed Meta callbacks continue through their dedicated
+signature and phone-number/WABA tenant binding. Historically unmapped accounts
+still use their compatibility path until reviewed adoption; they have not
+received category/module enforcement yet. The current route scanner inventories
+the authenticated legacy Inbox endpoints but does not inventory those provider
+callback declarations, which remains part of the route-audit work. Source-only
+tests cover permission mapping, category/plan/module denial, tenant isolation,
+legacy compatibility, and authentication/policy/handler order; production and
+authenticated screen acceptance remain open.
+
 ## Category-declared bot-to-Pipeline lead capture — 21 October 2026
 
 Category manifests now declare a reviewed chatbot lead-capture adapter. `base_crm@1` uses the shared generic Pipeline adapter, `training_center@1` retains its established learner/course enrichment, and `salemax_sales@1` explicitly disables generic lead capture so candidate applications stay in their dedicated workflow. Unspecified/future categories default to `none`; adding a category cannot silently start creating leads.

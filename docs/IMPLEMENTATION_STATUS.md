@@ -1,3 +1,28 @@
+## Shared legacy Inbox policy gate — source update, 21 October 2026
+
+The existing authenticated Inbox routes now run the shared tenant policy after
+legacy authentication and before their handlers. For mapped businesses, access
+requires the category's `messaging.inbox` capability, the active plan
+entitlement, tenant module activation, and the member's existing
+`conversations.read` or `conversations.reply` permission. The existing
+`/api/inbox` and `/api/workspace/inbox` mounts retain the same permission map;
+public/provider callback handlers keep their separate signature and tenant
+checks. Historic accounts without a reviewed tenant mapping retain their
+current compatibility path and remain an adoption/security-review gate.
+
+Route inventory now asserts that every discovered authenticated Inbox endpoint
+maps to one of the shared Inbox permissions, and the runtime admits only the
+reviewed method/path pairs; unknown endpoints fail closed rather than inheriting
+the legacy router's broad POST permission. Category-disabled, plan-disabled,
+unsupported-category, other-tenant, historical-account and middleware-order
+tests pass with the existing Flow, Chatbot, Template, Campaign, Inbox/QR and
+route-ownership suites: 47/47. Syntax and whitespace checks pass. Source only;
+production was not changed. The existing release has limited disk headroom,
+and a rebuilt application image is not part of this source increment. Signed-in
+English/Arabic existing-screen verification, production release and full legacy
+account adoption remain open. This closes one mapped-tenant legacy API boundary
+within the continuing 42-ticket 7Network CRM objective.
+
 ## Campaign worker tenant scoping — source update, 21 October 2026
 
 Campaign worker database operations carry the campaign owner UID through
