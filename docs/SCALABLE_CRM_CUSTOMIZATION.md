@@ -998,3 +998,35 @@ indexed relational projection when query plans or latency require one. See the
 These sources reinforce the current design and do not prove 7Network's load,
 recovery, privacy or authenticated UI acceptance. The broad SaaS completion
 gates remain in the implementation ledger.
+
+## Explicit catalogue storage adapters — source implementation, 22 October 2026
+
+The Sales product compatibility layer previously wrapped database pools and
+rewrote Training Center table names inside arbitrary SQL strings. That made
+storage selection implicit, affected every query passing through the wrapper,
+and left the shared media and durable Inbox reply code coupled to course table
+names. The SQL rewrite is removed.
+
+A fixed server-owned adapter now selects the catalogue, offer, media, batch and
+reply-job tables from the authenticated category/version contract. The shared
+media and reply services build queries from those allowlisted descriptors; they
+never accept a table or column name from a request. Training Center continues to
+use its existing tables. Sales products, offers, media, batches and reply jobs
+continue to use their separate Sales tables. The historical product-side
+`course_id` column remains behind the adapter until a reviewed expand/contract
+migration can replace it without breaking older readers. Product media audit
+events now use Sales product action/resource names; Training audit history
+retains its existing names and `courseId` detail.
+
+The product lifecycle remains on its dedicated service, and the shared API
+router no longer changes the pool before handling a product request. Focused
+category, media-token, media-route, chatbot-media, reply, transport and
+course-router tests pass 17/17. Regression fixtures assert that only the fixed
+Training or product tables are selected for each verified category. The
+product disposable-MariaDB integration now asserts direct product-service
+reads, media storage, cross-route token denial and Sales-specific media audit
+classification, but it remains unrun because no disposable database target is
+configured in this checkout. No schema, customer data or production state
+changed. Remaining work includes the neutral private-file storage service,
+category-neutral reply-job API names with compatibility adapters, disposable
+MariaDB/browser acceptance and Retail's independent inventory ledger.

@@ -25,7 +25,7 @@ module.exports=function createRouter({agent=false,pool:injectedPool,authenticate
     const c=await contextFor(req);
     const row=await service.job(pool,c,req.params.id),parts=JSON.parse(row.parts_json),index=Number(req.params.index);
     if(!Number.isInteger(index)||index<0||index>=parts.length||!parts[index].mediaId)return res.sendStatus(404);
-    const file=await media.getFile(require('./product-catalog').forContext(pool,c.ctx),c.ctx.tenant.id,row.course_id,parts[index].mediaId);
+    const file=await media.getFile(pool,c.ctx.tenant.id,row.course_id,parts[index].mediaId,require('./product-catalog').kind(c.ctx));
     res.set({'Content-Type':file.mimeType,'X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; sandbox",'Content-Disposition':`${file.kind==='document'?'attachment':'inline'}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`});
     res.sendFile(file.path,{dotfiles:'deny'});
   }));

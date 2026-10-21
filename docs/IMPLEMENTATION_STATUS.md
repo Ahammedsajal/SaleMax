@@ -2079,3 +2079,20 @@ disposable database. No production code, database, private media or tenant
 settings were changed. The product SQL adapter and shared course-compatible
 media storage remain for a later extraction; authenticated browser acceptance
 and full CRM/category rollout gates remain open.
+
+## Explicit catalogue storage adapters — source only, 22 October 2026
+
+Removed the Sales database proxy that rewrote Training Center table names in
+SQL strings. Fixed category-derived storage descriptors now select separate
+Training and Sales catalogue, offer, media and reply-job tables; shared media
+and Inbox reply services use those descriptors directly. The product API router
+uses the original pool and the dedicated product lifecycle service. Product
+media uploads/removals write Sales-specific audit action/resource types, while
+Training event names and historical `courseId` details remain unchanged. The
+legacy product `course_id` column stays as an adapter detail pending a reviewed
+expand/contract migration. Focused adapter, route, media, chatbot, reply,
+transport and router tests pass 17/17. Product disposable MariaDB integration
+assertions were expanded but could not run without a configured disposable DB.
+No migration, production deployment, media rewrite or tenant-data change
+occurred. Neutral private-media storage and full product/course browser and DB
+acceptance remain open.

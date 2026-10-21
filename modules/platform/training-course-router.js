@@ -11,7 +11,6 @@ const enrollmentProgress = require('./training-enrollment-progress');
 function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, sessionGuard, products = false }) {
   const catalogueService=products?productCatalogue:courses;
   const resolveLegacyOwnerContext=products?require('./legacy-catalogue-context').legacyOwnerContext:courses.legacyOwnerContext;
-  if(products)pool=require('./product-catalog').database(pool);
   const router = express.Router();
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
   let activeCourseUploads = 0;
@@ -49,7 +48,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
     if (payload.resourceType !== resourceType || payload.courseId !== req.params.courseId || payload.mediaId !== req.params.mediaId) throw Object.assign(new Error('COURSE_MEDIA_ACCESS_REQUIRED'), { code: 'COURSE_MEDIA_ACCESS_REQUIRED', status: 401 });
     const db = await pool.getConnection();
     let file;
-    try { file = await courseMedia.getFile(db, payload.tenantId, payload.courseId, payload.mediaId); }
+    try { file = await courseMedia.getFile(db, payload.tenantId, payload.courseId, payload.mediaId, resourceType); }
     finally { db.release(); }
     await fs.access(file.path);
     const disposition = file.kind === 'document' ? 'attachment' : 'inline';
