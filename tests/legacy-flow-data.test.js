@@ -26,6 +26,18 @@ test('legacy flow state resolves and mutates by owner UID as well as the convers
   assert.ok(calls.filter(call=>call.sql.startsWith('SELECT')||call.sql.startsWith('UPDATE')).every(call=>/uid\s*=\s*\?\s+AND uniqueId\s*=\s*\?/.test(call.sql)));
 });
 
+test('profile conversation keys isolate chatbot profiles and reject missing scope',()=>{
+  const first=flowData.profileConversationKey('owner-a',41,'97450000001','chat-a');
+  const second=flowData.profileConversationKey('owner-a',42,'97450000001','chat-a');
+  assert.notEqual(first,second);
+  assert.notEqual(first,flowData.profileConversationKey('owner-a',41,'97450000002','chat-a'));
+  assert.notEqual(first,flowData.profileConversationKey('owner-a',41,'97450000001','chat-b'));
+  assert.notEqual(first,'owner-a-97450000001-chat-a');
+  assert.match(first,/^profile:41:/);
+  assert.throws(()=>flowData.profileConversationKey('owner-a',null,'97450000001','chat-a'),{code:'LEGACY_FLOW_PROFILE_REQUIRED'});
+  assert.throws(()=>flowData.profileConversationKey('','41','97450000001','chat-a'),{code:'LEGACY_FLOW_OWNER_REQUIRED'});
+});
+
 test('legacy QR and Meta bot adapters send every flow-state access through the owner-scoped helper',()=>{
   const root=path.join(__dirname,'..');
   const runtime=fs.readFileSync(path.join(root,'functions/chatbot.js'),'utf8');
@@ -37,5 +49,7 @@ test('legacy QR and Meta bot adapters send every flow-state access through the o
   }
   assert.match(runtime,/returnVariables\(\{\s*uid,/);
   assert.match(runtime,/flowData\.find\(query,\s*uid,\s*uniqueId\)/);
+  assert.match(runtime,/flowData\.profileConversationKey\(\s*uid,\s*chatbotFromMysq\?\.id,/);
   assert.match(meta,/flowData\.find\(query,\s*uid,\s*uniqueId\)/);
+  assert.match(meta,/flowData\.profileConversationKey\(\s*uid,\s*chatbot\?\.id,/);
 });

@@ -10,6 +10,19 @@ function keys(uid, uniqueId) {
   return [String(uid), String(uniqueId)];
 }
 
+function profileConversationKey(uid, profileId, senderNumber, chatId) {
+  keys(uid, 'conversation');
+  const profile = String(profileId ?? '').trim();
+  const sender = String(senderNumber ?? '').trim();
+  const conversation = String(chatId ?? '').trim();
+  if (!/^[1-9]\d*$/.test(profile) || !sender || !conversation) {
+    throw Object.assign(new Error('LEGACY_FLOW_PROFILE_REQUIRED'), {
+      code: 'LEGACY_FLOW_PROFILE_REQUIRED', status: 403,
+    });
+  }
+  return `profile:${profile}:${sender}:${conversation}`;
+}
+
 async function find(query, uid, uniqueId) {
   const [owner, key] = keys(uid, uniqueId);
   const rows = await query(
@@ -44,4 +57,4 @@ async function saveAnswer(query, uid, uniqueId, inputs) {
   return query('UPDATE flow_data SET inputs = ?, other = ? WHERE uid = ? AND uniqueId = ?', [inputs, null, owner, key]);
 }
 
-module.exports = { find, insertOther, insertInputs, setOther, setInputs, saveAnswer };
+module.exports = { profileConversationKey, find, insertOther, insertInputs, setOther, setInputs, saveAnswer };

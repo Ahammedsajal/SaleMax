@@ -25,6 +25,15 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  assert.deepEqual(flowRows.map(row=>[row.uid,row.inputs]),[[flowOwnerA,'{"owner":"a-updated"}'],[flowOwnerB,'{"owner":"b"}']]);
  const [flowIndexes]=await pool.query("SELECT index_name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='flow_data'");
  assert.ok(flowIndexes.some(row=>row.index_name==='idx_flow_data_owner_unique'));
+ const profileFlowA=flowData.profileConversationKey(flowOwnerA,101,'97450000001','synthetic-chat');
+ const profileFlowB=flowData.profileConversationKey(flowOwnerA,102,'97450000001','synthetic-chat');
+ assert.notEqual(profileFlowA,profileFlowB);
+ await flowData.insertInputs(flowQuery,flowOwnerA,profileFlowA,'{"profile":"a"}',null);
+ await flowData.insertInputs(flowQuery,flowOwnerA,profileFlowB,'{"profile":"b"}',null);
+ assert.equal((await flowData.find(flowQuery,flowOwnerA,profileFlowA)).inputs,'{"profile":"a"}');
+ await flowData.setInputs(flowQuery,flowOwnerA,profileFlowA,'{"profile":"a-updated"}');
+ const [profileRows]=await pool.query('SELECT uniqueId,inputs FROM flow_data WHERE uid=? AND uniqueId IN (?,?) ORDER BY uniqueId',[flowOwnerA,profileFlowA,profileFlowB]);
+ assert.deepEqual(profileRows.map(row=>[row.uniqueId,row.inputs]),[[profileFlowA,'{"profile":"a-updated"}'],[profileFlowB,'{"profile":"b"}']]);
 
  process.env.DBNAME=name;process.env.JWTKEY='synthetic-unified-jwt-key';process.env.LOCAL_ONLY_MODE='true';
  const express=require('express'),app=express(),origin='http://127.0.0.1';

@@ -89,7 +89,12 @@ async function runChatbot(
           let answer = getReply(nodes, edges, incomingMsg);
 
           if (answer?.length < 1) {
-            const uniqueId = `${uid}-${senderNumber}-${chatId}`;
+            const uniqueId = flowData.profileConversationKey(
+              uid,
+              chatbot?.id,
+              senderNumber,
+              chatId,
+            );
             const flow_data = await flowData.find(query, uid, uniqueId);
             if (flow_data && flow_data?.other) {
               const savedNode = JSON.parse(flow_data.other) || {};
@@ -138,7 +143,12 @@ async function runChatbot(
         let answer = getReply(nodes, edges, incomingMsg);
 
         if (answer?.length < 1) {
-          const uniqueId = `${uid}-${senderNumber}-${chatId}`;
+          const uniqueId = flowData.profileConversationKey(
+            uid,
+            chatbot?.id,
+            senderNumber,
+            chatId,
+          );
           const flow_data = await flowData.find(query, uid, uniqueId);
           if (flow_data && flow_data?.other) {
             const savedNode = JSON.parse(flow_data.other) || {};

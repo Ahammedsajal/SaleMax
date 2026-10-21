@@ -704,11 +704,16 @@ schema remains unchanged. Do not infer or backfill missing owners by parsing
 the concatenated key. Legacy per-node authorization and durable message
 idempotency remain separate requirements.
 
-This owner guard does not yet isolate two legacy chatbot profiles that match
-the same owner's conversation: old `uniqueId` values contain the owner and
-conversation but no chatbot profile or flow ID, and the QR/Meta adapters may
-run multiple matching profiles concurrently. A profile-key migration must
-preserve or explicitly retire ambiguous in-flight state before claiming
-profile-level bot isolation. The active production `user.uid` index is also
-non-unique; current read-only counts show seven rows with seven distinct
-nonempty UIDs, but future uniqueness enforcement remains open.
+QR and Meta Flow Builder state keys now include the stable chatbot profile ID
+as well as sender and conversation, while database reads and writes remain
+owner-scoped. Separate profiles therefore do not share newly created state,
+even when they process the same owner's conversation concurrently. A read-only
+production audit found six existing `flow_data` rows, all with saved state;
+two also have a pending-node marker. Their legacy keys do not identify a
+profile, so runtime code preserves but does not auto-adopt or rewrite them.
+Profile-scoped handlers cannot resume these sessions. In-flight legacy state
+needs a reviewed mapping or an explicit restart policy before deploying this
+behavior. The
+active production `user.uid` index is also non-unique; current read-only counts
+show seven rows with seven distinct nonempty UIDs, but future uniqueness
+enforcement remains open.

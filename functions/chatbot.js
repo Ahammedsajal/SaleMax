@@ -1016,7 +1016,12 @@ async function destributeTaskFlow({
 }) {
   // console.log(JSON.stringify({ k }));
   console.log("destributeTaskFlow");
-  const uniqueId = `${uid}-${senderNumber}-${chatId}`;
+  const uniqueId = flowData.profileConversationKey(
+    uid,
+    chatbotFromMysq?.id,
+    senderNumber,
+    chatId,
+  );
   const { variables, flow_data, updatedK } = await returnVariables({
     uid,
     uniqueId,
