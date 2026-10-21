@@ -370,3 +370,5 @@ this code, deployment overlays must preserve the current public template and
 source preimages. Older code rejects version-bearing payloads, so rollback must
 retain version-aware API acceptance for browser tabs loaded from this release,
 or coordinate a compatible repair. Never restore customer tables for code rollback.
+
+Production: `1c6c442` is live in `form-version-1c6c442-20261021`. Twenty-three focused checks, 12 browser fixtures and actual public/staff/shared-auth/MariaDB integration pass. Runtime/public hashes, health and three current published-form reads pass. Six paths are synchronized locally with backups; no customer form/data mutation occurred. See DEPLOYMENT.md for rollback and compatibility limits.
