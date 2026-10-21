@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const settings=require('../modules/platform/tenant-customization');
-const {trainingCenter,salemaxSales}=require('../modules/platform/categories');
+const {trainingCenter,salemaxSales,realEstate}=require('../modules/platform/categories');
 const ctx={audience:'tenant',identity:{id:'owner'},tenant:{id:'tenant-a',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member',tenantId:'tenant-a',status:'active',role:'owner'},category:trainingCenter,subscription:{status:'active',capabilities:[...trainingCenter.capabilities]}};
 const doc={schemaVersion:1,navigationLabels:{courses:{en:'Programmes',ar:'البرامج'}}};
 test('label customization is bounded, category-scoped data rather than executable configuration',()=>{
@@ -63,6 +63,32 @@ test('schema 5 enables only exact modules pinned to this category and requires b
   ])assert.throws(()=>settings.normalize(ctx,invalid),{code:'INVALID_CUSTOMIZATION_MODULES'});
   const old={schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null};
   assert.deepEqual(settings.normalize(ctx,old),old,'schema 4 remains byte-for-byte compatible for revision checksums');
+  const previousSchema={schemaVersion:5,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,enabledModules:null};
+  assert.deepEqual(settings.normalize(ctx,previousSchema),previousSchema,'schema 5 documents retain their exact shape and checksum');
+  const previousRow={id:'revision-v5',kind:'published',category_key:'training_center',category_version:1,schema_version:5,revision:5,document:JSON.stringify(previousSchema),checksum:settings.checksum(previousSchema)};
+  assert.deepEqual(settings.decode(ctx,previousRow).document,previousSchema,'published schema 5 checksum remains readable');
+});
+test('schema 6 accepts only bounded settings owned by the exact pinned module version',()=>{
+  const propertyCtx={...ctx,tenant:{...ctx.tenant,categoryKey:'real_estate'},category:realEstate,subscription:{status:'active',capabilities:[...realEstate.capabilities]}};
+  const all=realEstate.modules.map(ref=>`${ref.id}@${ref.version}`);
+  const configured={...settings.defaults(),enabledModules:all,moduleSettings:{'real-estate.properties@1':{schemaVersion:1,defaultTransactionType:'rent',defaultCurrency:'AED'}}};
+  const normalized=settings.normalize(propertyCtx,configured);
+  assert.deepEqual(normalized,{...configured,enabledModules:[...all].sort()});
+  assert.deepEqual(settings.moduleSettingsFor({...propertyCtx,moduleSettings:configured.moduleSettings},'real-estate.properties',1),configured.moduleSettings['real-estate.properties@1']);
+  assert.deepEqual(settings.moduleSettingsFor(propertyCtx,'real-estate.properties',1),{schemaVersion:1,defaultTransactionType:'sale',defaultCurrency:'QAR'});
+  assert.throws(()=>settings.moduleSettingsFor({...propertyCtx,moduleSettings:{'real-estate.properties@1':{schemaVersion:1,defaultTransactionType:'admin',defaultCurrency:'QAR'}}},'real-estate.properties',1),{code:'INVALID_MODULE_SETTINGS'});
+  for(const invalid of [
+    {...configured,moduleSettings:{'real-estate.properties@2':configured.moduleSettings['real-estate.properties@1']}},
+    {...configured,moduleSettings:{'sales.products-services@1':configured.moduleSettings['real-estate.properties@1']}},
+    {...configured,moduleSettings:{'real-estate.properties@1':{...configured.moduleSettings['real-estate.properties@1'],defaultCurrency:'QAR;'}}},
+    {...configured,moduleSettings:{'real-estate.properties@1':{...configured.moduleSettings['real-estate.properties@1'],admin:true}}},
+    {...configured,moduleSettings:[]},
+  ])assert.throws(()=>settings.normalize(propertyCtx,invalid),{code:'INVALID_CUSTOMIZATION_MODULE_SETTINGS'});
+  const wrongPlan={...propertyCtx,subscription:{status:'active',capabilities:['tenant.settings']}};
+  assert.deepEqual(settings.normalize(wrongPlan,configured),{...configured,enabledModules:[...all].sort()},'bounded preferences may be retained without granting plan access');
+  assert.equal(require('../modules/platform/policy').decision({...wrongPlan,moduleSettings:configured.moduleSettings},{capability:'realestate.listings',permission:'properties.read'}).code,'FEATURE_UNAVAILABLE');
+  const wrongCategory={...propertyCtx,tenant:{...propertyCtx.tenant,categoryKey:'training_center'},category:trainingCenter};
+  assert.throws(()=>settings.normalize(wrongCategory,{...configured,enabledModules:null}),{code:'INVALID_CUSTOMIZATION_MODULE_SETTINGS'});
 });
 test('module activation is tenant-scoped and composes with plan, category, and compatibility policy',()=>{
   const {decision}=require('../modules/platform/policy');
@@ -91,6 +117,18 @@ test('activation loader is tenant-scoped and treats pre-schema-5 documents as ca
   const a=await settings.withActivation(db,ctx),b=await settings.withActivation(db,bctx);
   assert.deepEqual(a.enabledModules,aDoc.enabledModules);
   assert.equal(b.enabledModules,null,'older published tenant configurations retain category defaults');
+});
+test('schema 6 module settings load only from the authenticated tenant revision',async()=>{
+  const propertyContext=id=>({...ctx,tenant:{...ctx.tenant,id,categoryKey:'real_estate'},membership:{...ctx.membership,tenantId:id},category:realEstate,subscription:{status:'active',capabilities:[...realEstate.capabilities]}});
+  const aContext=propertyContext('tenant-a'),bContext=propertyContext('tenant-b'),all=realEstate.modules.map(ref=>`${ref.id}@${ref.version}`).sort();
+  const aDocument=settings.normalize(aContext,{...settings.defaults(),enabledModules:all,moduleSettings:{'real-estate.properties@1':{schemaVersion:1,defaultTransactionType:'rent',defaultCurrency:'AED'}}});
+  const bDocument=settings.normalize(bContext,{...settings.defaults(),enabledModules:null,moduleSettings:{}});
+  const rowFor=(context,document,revision)=>({id:`00000000-0000-4000-8000-${String(revision).padStart(12,'0')}`,tenant_id:context.tenant.id,category_key:'real_estate',category_version:1,schema_version:6,revision,kind:'published',document:JSON.stringify(document),checksum:settings.checksum(document),created_at:'2026-10-21 00:00:00.000'});
+  const rows=new Map([['tenant-a',rowFor(aContext,aDocument,1)],['tenant-b',rowFor(bContext,bDocument,1)]]);
+  const db={query:async(_sql,args)=>[[rows.get(args[0])||null]]};
+  const a=await settings.withActivation(db,aContext),b=await settings.withActivation(db,bContext);
+  assert.deepEqual(settings.moduleSettingsFor(a,'real-estate.properties',1),{schemaVersion:1,defaultTransactionType:'rent',defaultCurrency:'AED'});
+  assert.deepEqual(settings.moduleSettingsFor(b,'real-estate.properties',1),{schemaVersion:1,defaultTransactionType:'sale',defaultCurrency:'QAR'});
 });
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');

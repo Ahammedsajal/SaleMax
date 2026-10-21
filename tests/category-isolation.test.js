@@ -11,6 +11,7 @@ function withFutureFeature() {
   const sandbox = { module: { exports: {} }, require: name => {
     if (name === './category-registry') return require('../modules/platform/category-registry');
     if (name === './module-registry') return require('../modules/platform/module-registry');
+    if (name === './module-settings') return require('../modules/platform/module-settings');
     if (name === './task-type-adapters') return require('../modules/platform/task-type-adapters');
     assert.equal(name, './policy');
     return { capabilities: { ...policy.capabilities, 'clinic.patient-records': ['patients.read'] } };
@@ -21,7 +22,7 @@ function withFutureFeature() {
 
 test('new platform features do not silently enroll any existing category', () => {
   const future = withFutureFeature();
-  for (const name of ['trainingCenter', 'salemaxSales', 'restaurantFixture']) {
+  for (const name of ['trainingCenter', 'salemaxSales', 'realEstate', 'restaurantFixture']) {
     assert.equal(future[name].capabilities.includes('clinic.patient-records'), false);
     assert.deepEqual([...future[name].capabilities], [...categories[name].capabilities]);
   }

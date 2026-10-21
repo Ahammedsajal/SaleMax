@@ -12,7 +12,7 @@ const activationDoc=tenant=>{
   const enabled=trainingCenter.modules.map(ref=>({ref,module:require('../modules/platform/categories').moduleRegistry.get(ref.id,ref.version)})).filter(({module})=>module.activation!=='locked_compatibility').map(({ref})=>`${ref.id}@${ref.version}`).filter(key=>key!=='core.inbox@1');
   return customization.normalize(tenant,{...customization.defaults(),enabledModules:enabled});
 };
-const rowFor=(tenant,document)=>({id:`00000000-0000-4000-8000-${tenant.tenant.id.padEnd(12,'0').slice(0,12)}`,tenant_id:tenant.tenant.id,category_key:'training_center',category_version:1,schema_version:5,revision:1,kind:'published',document:JSON.stringify(document),checksum:customization.checksum(document),created_at:'2026-10-21 00:00:00.000'});
+const rowFor=(tenant,document)=>({id:`00000000-0000-4000-8000-${tenant.tenant.id.padEnd(12,'0').slice(0,12)}`,tenant_id:tenant.tenant.id,category_key:'training_center',category_version:1,schema_version:document.schemaVersion,revision:1,kind:'published',document:JSON.stringify(document),checksum:customization.checksum(document),created_at:'2026-10-21 00:00:00.000'});
 
 test('canonical /me session attaches only the authenticated tenant activation',async t=>{
   const sessions=require('../modules/platform/sessions'),plans=require('../modules/platform/plans');

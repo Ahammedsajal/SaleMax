@@ -2054,6 +2054,35 @@ customization/task/bot FAQ isolation and specialized API denial, with bearer/coo
 shared-feature checks. Twelve EN/AR desktop/mobile Manage Users fixtures pass.
 Production verification and rollback are recorded in DEPLOYMENT.md. Legacy
 automated adoption, new vertical workflows and full live acceptance remain open.
+
+## Tenant-owned module settings, first Real Estate contract — source update, 21 October 2026
+
+The existing owner Workspace Customization flow now supports schema 6 while
+continuing to decode schemas 1–5 with their existing canonical shapes and
+checksums. A reviewed module-settings registry binds each schema to an exact
+module ID/version. The first bounded contract belongs to
+`real-estate.properties@1`: default transaction type and listing currency.
+Those values are stored inside the tenant's immutable customization revision,
+loaded only from that tenant's trusted context, displayed in the existing
+customization editor in English and Arabic, and consumed as defaults by the
+existing Real Estate API and listing form. Unknown modules, versions, keys and
+enum values fail closed. Configuration never grants a capability; category,
+plan, module activation, member permission and record scope remain separate
+policy checks. Turning a module off or losing its plan does not erase saved
+preferences.
+
+Focused registry, customization, property API/runtime, HTTP and canonical and
+adapted session checks pass 47/47; JavaScript syntax and `git diff --check`
+pass. The full suite passes 1,044/1,068; the same 24 known failures remain in
+legacy Manage Users, Pipeline, Training, Finance and public-form UI/source
+contracts, with no new failure from this increment. The editor's Playwright
+browser run could not start because this checkout does not include the
+Playwright package, and no disposable MariaDB configuration is available for
+the customization integration suite. This is a source-only increment: Real
+Estate remains private and non-planable, no migration or customer assignment
+changed, and no production rollout is claimed. Authenticated English/Arabic
+screen acceptance, disposable database coverage, all other module settings,
+legacy-route/data ownership and the full 42-ticket upgrade remain open.
 ## Tenant custom-field search in the existing Pipeline — 21 October 2026
 
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.

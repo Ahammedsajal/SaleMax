@@ -63,6 +63,17 @@ test('listing reads, creates and revision updates stay tenant-scoped',async()=>{
   assert.match(calls[5].sql,/WHERE tenant_id=\? AND id=\?/);assert.equal(calls[5].args.at(-2),tenantId);
   assert.match(calls[6].sql,/real-estate\.property-updated/);assert.equal(calls[6].args[1],tenantId);
 });
+test('tenant module settings affect only property form defaults and stay outside listing authority',async()=>{
+  const configured={...base,moduleSettings:{'real-estate.properties@1':{schemaVersion:1,defaultTransactionType:'rent',defaultCurrency:'AED'}}},calls=[];
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:0}]];if(sql.startsWith('SELECT p.id'))return [[]];if(sql.startsWith('INSERT INTO sx_real_estate_properties'))return [{affectedRows:1}];if(sql.includes('real-estate.property-created'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
+  const listed=await properties.list(db,configured);assert.deepEqual(listed.settings,configured.moduleSettings['real-estate.properties@1']);
+  const input={...listing};delete input.transactionType;delete input.currency;
+  const created=await properties.create(db,configured,input);assert.equal(created.transactionType,'rent');assert.equal(created.currency,'AED');
+  const insert=calls.find(call=>call.sql.startsWith('INSERT INTO sx_real_estate_properties'));
+  assert.ok(insert.args.includes('rent'));assert.ok(insert.args.includes('AED'));assert.ok(insert.args.includes(tenantId));
+  const otherTenant={...base,tenant:{...base.tenant,id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},membership:{...base.membership,tenantId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}};
+  assert.deepEqual((await properties.list({...db,query:async(sql,args)=>sql.startsWith('SELECT COUNT')?[[{total:0}]]:[[]]},otherTenant)).settings,{schemaVersion:1,defaultTransactionType:'sale',defaultCurrency:'QAR'});
+});
 
 test('agent and team-leader listing reads are restricted to their persisted assignment scope',async()=>{
   for(const [role,sqlFragment] of [['agent','p.assigned_membership_id=?'],['team_leader','org.team_leader_membership_id=?']]){

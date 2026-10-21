@@ -29,7 +29,7 @@ const definitions=[
   {id:'sales.targets',version:1,capabilities:['sales.targets'],screens:['sales-targets'],primaryService:'modules/platform/sales-targets-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'sales.products-services',version:1,capabilities:['products.catalog'],screens:['products-services'],primaryService:'modules/platform/product-catalog.js',dataBoundary:'mixed_legacy_and_tenant',configSchemaVersion:null},
   {id:'sales.recruitment',version:1,activation:'locked_compatibility',capabilities:['hr.recruitment'],screens:['recruitment'],primaryService:'modules/platform/recruitment-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
-  {id:'real-estate.properties',version:1,capabilities:['realestate.listings'],screens:['properties'],primaryService:'modules/platform/real-estate-properties-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
+  {id:'real-estate.properties',version:1,capabilities:['realestate.listings'],screens:['properties'],primaryService:'modules/platform/real-estate-properties-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:1},
 ];
 
 function createModuleRegistry(sources,knownCapabilities){

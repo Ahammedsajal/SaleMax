@@ -2,6 +2,7 @@
 const { capabilities } = require('./policy');
 const moduleDefinitions=require('./module-registry');
 const moduleRegistry=moduleDefinitions.createModuleRegistry(moduleDefinitions.definitions,capabilities);
+require('./module-settings').assertRegistry(moduleRegistry);
 
 // Explicit contracts: adding a permission to policy must never enroll an
 // existing category into that feature. Version changes require reviewed adoption.
