@@ -1903,5 +1903,12 @@ and the full 118-migration MariaDB 11.4.13 integration verifies the new index
 and owner-filtered reads/writes. A read-only aggregate audit of the active
 production database found six rows, no missing owner UIDs or conversation
 keys, and no duplicate `(uid, uniqueId)` pairs; no conversation contents were
-read. The migration has not run in production. Legacy flow delivery/idempotency,
-per-node authority, and authenticated EN/AR acceptance remain separate gates.
+read. The seven legacy user rows have seven distinct nonempty UIDs, but their
+UID index is non-unique, so future uniqueness enforcement remains open. The
+migration has not run in production. This increment scopes state by owner and
+conversation only: the legacy key does not include chatbot profile/flow ID, and
+QR/Meta can execute multiple matching profiles for one conversation. Same-owner
+profile state can therefore still overlap until a profile-key migration and a
+safe policy for unidentifiable in-flight legacy rows are implemented. Legacy
+flow delivery/idempotency, per-node authority, and authenticated EN/AR
+acceptance remain separate gates.

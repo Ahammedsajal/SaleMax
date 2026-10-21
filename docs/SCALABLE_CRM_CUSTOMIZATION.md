@@ -703,3 +703,12 @@ zero missing owner UIDs, zero missing conversation keys, and zero duplicate
 schema remains unchanged. Do not infer or backfill missing owners by parsing
 the concatenated key. Legacy per-node authorization and durable message
 idempotency remain separate requirements.
+
+This owner guard does not yet isolate two legacy chatbot profiles that match
+the same owner's conversation: old `uniqueId` values contain the owner and
+conversation but no chatbot profile or flow ID, and the QR/Meta adapters may
+run multiple matching profiles concurrently. A profile-key migration must
+preserve or explicitly retire ambiguous in-flight state before claiming
+profile-level bot isolation. The active production `user.uid` index is also
+non-unique; current read-only counts show seven rows with seven distinct
+nonempty UIDs, but future uniqueness enforcement remains open.
