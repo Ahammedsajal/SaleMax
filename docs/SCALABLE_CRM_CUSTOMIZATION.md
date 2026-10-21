@@ -437,3 +437,28 @@ Published category versions need reviewed semantic change/adoption rules before
 altering an existing adapter selection; do not mutate it for a customer in place.
 
 Production: `8685b36` is live in `catalogue-extension-8685b36-20261021`. Thirty-eight focused checks and real shared-auth/MariaDB API integration pass. Eight-file runtime parity/health pass; two Training Center tenants still resolve courses and Sales products. No customer configuration or catalogue record changed. Exact files are synced locally with backups; see DEPLOYMENT.md.
+
+
+## Registry-aware Pipeline actors — 21 October 2026
+
+The maintained legacy Pipeline adapter now resolves exact registered planable
+category versions with `crm.leads`, instead of accepting only two category names
+and version 1. New category owner/manager actors receive that category's canonical
+context and current entitlement, never a Sales context by default. Agent resolution
+binds the same owner tenant/category/version and member identity before existing
+assigned-lead checks. The shared route accepts such verified canonical agents.
+Malformed custom-role scope/status/seat metadata is rejected before using it.
+
+Sales org-history manager/team-leader scope remains specialized to Sales. Future
+categories do not inherit that hierarchy or team-leader access merely from a role
+name. Existing accountant exclusion remains. Training Center v1 owner's historical
+legacy path and its manager adapter remain explicit compatibility behavior; this
+increment does not prove their full canonical permission migration. Unmapped
+legacy accounts are not silently provisioned or assigned a category.
+
+Future-category v2 fixtures prove owner/manager/agent resolution, no Sales org
+queries, malformed scopes, wrong plan/version and absent capability rejection.
+Read-only production comparison of seven mapped users finds zero changes in
+access decisions: three mapped canonical actors, two legacy paths, two expected
+permission denials. No new category is registered/exposed; catalogue declarations
+and Pipeline support alone do not deliver a new vertical workflow.

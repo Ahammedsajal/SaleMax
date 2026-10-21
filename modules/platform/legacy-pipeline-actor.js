@@ -8,24 +8,24 @@ const sha=value=>crypto.createHash('sha256').update(String(value),'utf8').digest
 const normalizedEmail=value=>String(value||'').trim().toLowerCase();
 const deny=code=>({denied:true,code});
 const parseValue=value=>{if(typeof value!=='string')return value;try{return JSON.parse(value);}catch{return null;}};
-function privateSalesContext(linked,subscription){
+function categoryContext(linked,subscription,category){
   const customPermissions=linked.roleProfileId?parseValue(linked.rolePermissions):null;
   const assignedNavigation=parseValue(linked.assignedNavigation);
-  if((linked.roleProfileId&&!Array.isArray(customPermissions))||(assignedNavigation!==null&&!Array.isArray(assignedNavigation)))return null;
-  return {audience:'tenant',identity:{id:linked.identityId},tenant:{id:linked.tenantId,status:linked.tenantStatus,categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version},
-    category:getCategory(salemaxSales.key,salemaxSales.version),subscription,membership:{id:linked.membershipId,tenantId:linked.tenantId,role:linked.role,status:'active',
+  if((linked.roleProfileId&&(!Array.isArray(customPermissions)||customPermissions.some(value=>typeof value!=='string')||linked.seatRole!==linked.role||!['active','archived'].includes(linked.roleStatus)))||(assignedNavigation!==null&&(!Array.isArray(assignedNavigation)||assignedNavigation.some(value=>typeof value!=='string'))))return null;
+  return {audience:'tenant',identity:{id:linked.identityId},tenant:{id:linked.tenantId,status:linked.tenantStatus,categoryKey:category.key,categoryVersion:category.version},
+    category,subscription,membership:{id:linked.membershipId,tenantId:linked.tenantId,role:linked.role,status:'active',
       customPermissions,assignedNavigation,delegatedPermissions:[]},runtimeReady:{}};
 }
 
-// Resolve only explicitly linked team users. Unmapped users and verified tenant
-// owners keep the original legacy pipeline behavior during the migration.
-async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements}={}){
+// Resolve verified owners/staff for registered lead-capable categories.
+// Unmapped actors and Training Center v1 owners retain their explicit legacy path.
+async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements,categoryFor=getCategory}={}){
   if(!user||!Number.isSafeInteger(Number(user.id))||Number(user.id)<1||typeof user.uid!=='string'||!user.uid)return deny('AUTH_REQUIRED');
   const db=await pool.getConnection();
   try{
     const [rows]=await db.query(`SELECT t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,
         m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.role_profile_id AS roleProfileId,
-        m.assigned_navigation AS assignedNavigation,r.permissions AS rolePermissions,
+        m.assigned_navigation AS assignedNavigation,r.permissions AS rolePermissions,r.status AS roleStatus,r.seat_role AS seatRole,
         i.email_normalized AS identityEmail,i.status AS identityStatus,o.legacy_uid_hash AS legacyUidHash
       FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
       JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
@@ -34,14 +34,17 @@ async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements}={}){
     if(!rows.length)return null;
     if(rows.length!==1)return deny('BUSINESS_LINK_INVALID');
     const linked=rows[0];
-    if(linked.legacyUidHash!==sha(user.uid)||normalizedEmail(linked.identityEmail)!==normalizedEmail(user.email)||linked.identityStatus!=='active'||linked.membershipStatus!=='active'||linked.tenantStatus!=='active'||!['training_center',salemaxSales.key].includes(linked.categoryKey)||Number(linked.categoryVersion)!==1)return deny('BUSINESS_ACCESS_INACTIVE');
-    if(linked.role==='owner'&&linked.categoryKey!=='salemax_sales')return null;
+    if(linked.legacyUidHash!==sha(user.uid)||normalizedEmail(linked.identityEmail)!==normalizedEmail(user.email)||linked.identityStatus!=='active'||linked.membershipStatus!=='active'||linked.tenantStatus!=='active')return deny('BUSINESS_ACCESS_INACTIVE');
+    const category=categoryFor(linked.categoryKey,Number(linked.categoryVersion));
+    if(!pipelineCategory(category))return deny('CATEGORY_UNAVAILABLE');
+    const legacyTraining=category.key==='training_center'&&category.version===1;
+    if(linked.role==='owner'&&legacyTraining)return null;
     if(linked.role==='accountant')return deny('PERMISSION_DENIED');
     if(linked.role!=='owner'&&linked.role!=='manager'&&!(linked.categoryKey===salemaxSales.key&&linked.role==='team_leader'))return deny('PERMISSION_DENIED');
     const entitlement=await loadEntitlements(db,linked.tenantId);
     if(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities?.includes('crm.leads'))return deny('FEATURE_UNAVAILABLE');
-    const canonicalContext=privateSalesContext(linked,entitlement);
-    if(linked.categoryKey===salemaxSales.key){
+    const canonicalContext=categoryContext(linked,entitlement,category);
+    if(!legacyTraining){
       if(!canonicalContext)return deny('BUSINESS_LINK_INVALID');
       const access=decision(canonicalContext,{capability:'crm.leads',permission:'leads.read'});
       if(!access.allowed)return deny(access.code);
@@ -70,30 +73,30 @@ async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements}={}){
       scopeIdentityIds=[...new Set([linked.identityId,...identities.map(row=>row.identityId)])];
     }
     return {uid:owners[0].uid,role:linked.role,actorType:'user',actorId:linked.identityId,identityId:linked.identityId,membershipId:linked.membershipId,
-      tenantId:linked.tenantId,categoryKey:linked.categoryKey,legacyUserId:Number(user.id),legacyUid:user.uid,timezone:owners[0].timezone||'Asia/Qatar',
-      ...(linked.categoryKey===salemaxSales.key?{canonicalContext}:{}),...(scopeAgentIds?{scopeAgentIds,scopeIdentityIds}:{})};
+      tenantId:linked.tenantId,categoryKey:linked.categoryKey,categoryVersion:category.version,legacyUserId:Number(user.id),legacyUid:user.uid,timezone:owners[0].timezone||'Asia/Qatar',
+      ...(!legacyTraining?{canonicalContext}:{}),...(scopeAgentIds?{scopeAgentIds,scopeIdentityIds}:{})};
   }finally{db.release();}
 }
-async function resolveAgent(pool,agent){
+async function resolveAgent(pool,agent,options={}){
   if(!agent||!Number.isSafeInteger(Number(agent.id))||typeof agent.uid!=='string'||!agent.uid||typeof agent.owner_uid!=='string'||!agent.owner_uid)return null;
   const db=await pool.getConnection();
   try{
     const [owners]=await db.query('SELECT id,uid,email,timezone FROM user WHERE uid=? LIMIT 2',[agent.owner_uid]);
     if(owners.length!==1)return owners.length?deny('BUSINESS_LINK_INVALID'):null;
-    const ownerActor=await resolve(pool,owners[0]);
+    const ownerActor=await resolve(pool,owners[0],options);
     if(ownerActor?.denied)return ownerActor;
-    if(ownerActor?.categoryKey!==salemaxSales.key)return null;
+    if(!ownerActor?.canonicalContext)return null;
     const [rows]=await db.query(`SELECT t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,
         m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,m.role_profile_id AS roleProfileId,
-        m.assigned_navigation AS assignedNavigation,r.permissions AS rolePermissions,i.email_normalized AS identityEmail,i.status AS identityStatus,
+        m.assigned_navigation AS assignedNavigation,r.permissions AS rolePermissions,r.status AS roleStatus,r.seat_role AS seatRole,i.email_normalized AS identityEmail,i.status AS identityStatus,
         o.legacy_uid_hash AS legacyUidHash
       FROM sx_legacy_ownership o JOIN sx_tenants t ON t.id=o.tenant_id JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=t.id
       JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_team_roles r ON r.id=m.role_profile_id AND r.tenant_id=m.tenant_id
       WHERE o.source_table='agents' AND o.source_id=CAST(? AS CHAR) AND o.tenant_id=? LIMIT 2`,[Number(agent.id),ownerActor.tenantId]);
     if(rows.length!==1)return deny('BUSINESS_LINK_INVALID');
     const linked=rows[0];
-    if(linked.legacyUidHash!==sha(agent.uid)||linked.categoryKey!==salemaxSales.key||Number(linked.categoryVersion)!==salemaxSales.version||linked.tenantStatus!=='active'||linked.membershipStatus!=='active'||linked.identityStatus!=='active'||linked.role!=='agent'||normalizedEmail(linked.identityEmail)!==normalizedEmail(agent.email))return deny('BUSINESS_ACCESS_INACTIVE');
-    const canonicalContext=privateSalesContext(linked,ownerActor.canonicalContext.subscription);
+    if(linked.legacyUidHash!==sha(agent.uid)||linked.categoryKey!==ownerActor.categoryKey||Number(linked.categoryVersion)!==ownerActor.categoryVersion||linked.tenantStatus!=='active'||linked.membershipStatus!=='active'||linked.identityStatus!=='active'||linked.role!=='agent'||normalizedEmail(linked.identityEmail)!==normalizedEmail(agent.email))return deny('BUSINESS_ACCESS_INACTIVE');
+    const canonicalContext=categoryContext(linked,ownerActor.canonicalContext.subscription,ownerActor.canonicalContext.category);
     if(!canonicalContext)return deny('BUSINESS_LINK_INVALID');
     const access=decision(canonicalContext,{capability:'crm.leads',permission:'leads.read'});
     if(!access.allowed)return deny(access.code);
@@ -101,8 +104,9 @@ async function resolveAgent(pool,agent){
       identityId:linked.identityId,membershipId:linked.membershipId,canonicalContext,scopeAgentIds:undefined};
   }finally{db.release();}
 }
+function pipelineCategory(category){return Boolean(category?.planable&&category.capabilities?.includes('crm.leads'));}
 function canUsePipeline(actor){
   return Boolean(actor&&!actor.denied&&['owner','manager','team_leader'].includes(actor.role)&&
-    ['training_center',salemaxSales.key].includes(actor.categoryKey));
+    pipelineCategory(actor.canonicalContext?.category||getCategory(actor.categoryKey,actor.categoryVersion??1)));
 }
-module.exports={resolve,resolveAgent,canUsePipeline};
+module.exports={resolve,resolveAgent,canUsePipeline,pipelineCategory};

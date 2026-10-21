@@ -47,5 +47,5 @@ test('Pipeline displays bilingual do-not-call status and only offers the disposi
   assert.match(screen,/lead\.doNotCall/);assert.match(screen,/x\.doNotCall/);assert.match(screen,/state\.data\.categoryKey==='salemax_sales'/);
   assert.match(router,/categoryKey: req\.pipelineActor\.categoryKey/);assert.match(router,/categoryKey:req\.pipelineActor\.categoryKey/);
   assert.match(reports,/do_not_call:'Do not call'/);assert.match(reports,/do_not_call:'عدم الاتصال'/);
-  assert.match(html,/reports\.js\?v=20261014-sales-do-not-call1/);
+  assert.match(html,/reports\.js\?v=[^"\s<>]+/); // Current release cache key, independent of an older deployment stamp.
 });

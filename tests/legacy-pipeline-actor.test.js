@@ -19,7 +19,7 @@ test('linked manager resolves to the verified tenant owner pipeline with manager
   const f=fixture();let entitlementTenant;
   const actor=await resolve(f.pool,f.staff,{loadEntitlements:async(_db,tenantId)=>{entitlementTenant=tenantId;return {status:'active',capabilities:['crm.leads']};}});
   assert.equal(entitlementTenant,'tenant-1');
-  assert.deepEqual(actor,{uid:'business-owner-uid',role:'manager',actorType:'user',actorId:'identity-manager',identityId:'identity-manager',membershipId:'member-manager',tenantId:'tenant-1',categoryKey:'training_center',legacyUserId:42,legacyUid:'staff-uid-42',timezone:'Asia/Qatar'});
+  assert.deepEqual(actor,{uid:'business-owner-uid',role:'manager',actorType:'user',actorId:'identity-manager',identityId:'identity-manager',membershipId:'member-manager',tenantId:'tenant-1',categoryKey:'training_center',categoryVersion:1,legacyUserId:42,legacyUid:'staff-uid-42',timezone:'Asia/Qatar'});
   assert.equal(f.calls.length,2);
 });
 

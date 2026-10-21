@@ -85,7 +85,7 @@ async function pipelineAuth(req, res, next) {
     if(process.env.SALEMAX_PLATFORM_ENABLED==='true'){
       const linkedAgent=await legacyPipelineActor.resolveAgent(require('../database/config.js').promise(),agent);
       if(linkedAgent?.denied)return res.status(403).json({success:false,code:linkedAgent.code});
-      if(linkedAgent?.categoryKey==='salemax_sales'){
+      if(linkedAgent?.canonicalContext){
         req.pipelineActor=linkedAgent;
         return next();
       }
