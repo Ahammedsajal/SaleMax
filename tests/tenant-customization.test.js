@@ -37,6 +37,18 @@ test('schema 3 hides only category-owned navigation keys while schema 1 and 2 re
   assert.deepEqual(settings.visibleNavigation(rows,doc3),[{key:'tasks'}]);
   assert.deepEqual(settings.visibleNavigation(rows,{schemaVersion:2}),rows);
 });
+test('schema 4 customizes only task types pinned to the active category and never grants plan access',()=>{
+  const configured={schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:['enrollment']};
+  assert.deepEqual(settings.normalize(ctx,configured),configured);
+  assert.throws(()=>settings.normalize(ctx,{...configured,enabledTaskTypes:['sales_call']}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
+  const noPlan={...ctx,subscription:{status:'active',capabilities:['team.tasks']}};
+  assert.deepEqual(settings.normalize(noPlan,configured),configured);
+  assert.deepEqual(require('../modules/platform/task-type-adapters').available(noPlan,['enrollment']).map(item=>item.key),['general']);
+  const sales={...ctx,tenant:{...ctx.tenant,categoryKey:'7network_sales'},category:salemaxSales};
+  assert.throws(()=>settings.normalize(sales,{...configured,enabledTaskTypes:['enrollment']}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
+  assert.deepEqual(require('../modules/platform/task-type-adapters').available(ctx,['enrollment']).map(item=>item.key),['lead_follow_up','general','enrollment']);
+  assert.deepEqual(require('../modules/platform/task-type-adapters').available(sales,[]).map(item=>item.key),['lead_follow_up','general']);
+});
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');
   const original=customization.effective;

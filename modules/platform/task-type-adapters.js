@@ -40,6 +40,14 @@ function categoryTaskAdapter(ctx,key){
   const category=categoryFor(ctx),version=category?.taskAdapters?.[key];
   return Number.isSafeInteger(version)?getAdapter(key,version):null;
 }
+function configurable(ctx){
+  const category=categoryFor(ctx);
+  if(!category?.capabilities.includes('team.tasks'))return [];
+  return Object.entries(category.taskAdapters||{}).flatMap(([key,version])=>{
+    const adapter=getAdapter(key,version);
+    return adapter&&adapter.requiredCapabilities.every(capability=>category.capabilities.includes(capability))?[{key,label:adapter.label}]:[];
+  });
+}
 function supports(ctx,key){
   if(key==='general')return true;
   if(key==='lead_follow_up'){
@@ -54,13 +62,13 @@ function supports(ctx,key){
   const entitlements=ctx?.subscription?.capabilities;
   return Array.isArray(entitlements)&&adapter.requiredCapabilities.every(capability=>entitlements.includes(capability));
 }
-function available(ctx){
+function available(ctx,enabledSpecialTypes=null){
   const result=[{key:'general',label:{en:'General',ar:'عام'}}];
   if(supports(ctx,'lead_follow_up'))result.unshift({key:'lead_follow_up',label:{en:'Lead follow-up',ar:'متابعة عميل محتمل'}});
   const category=categoryFor(ctx);
   for(const [key,version] of Object.entries(category?.taskAdapters||{})){
     const adapter=getAdapter(key,version);
-    if(adapter)result.push({key,label:adapter.label});
+    if(adapter&&(!Array.isArray(enabledSpecialTypes)||enabledSpecialTypes.includes(key))&&supports(ctx,key))result.push({key,label:adapter.label});
   }
   return result;
 }
@@ -70,4 +78,4 @@ function presentation(ctx){
 }
 function validate(ctx,key,details){if(key==='general'||key==='lead_follow_up')return;const adapter=categoryTaskAdapter(ctx,key);if(!adapter)fail('INVALID_TASK_TYPE');adapter.validate(details);}
 
-module.exports={knownAdapters,getAdapter,categoryTaskAdapter,supports,available,presentation,validate};
+module.exports={knownAdapters,getAdapter,categoryTaskAdapter,configurable,supports,available,presentation,validate};

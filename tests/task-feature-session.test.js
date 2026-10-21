@@ -10,6 +10,7 @@ test('existing Task handlers accept the panel Agent session and enforce current 
   let grants=['tasks.read','tasks.manage'],active=true;const seen=[];
   const actor={id:7,uid:'agent-uid',owner_uid:'owner-uid',password:'synthetic',is_active:1},owner={id:1,uid:'owner-uid',role:'user'};
   const query=async(sql,args)=>{
+    if(sql.includes('FROM sx_tenant_customization_heads'))return [[],[]];
     if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:owner.uid,uidHash:hash(owner.uid),legacy_uid_hash:hash(owner.uid)}]];
     if(sql.includes('SELECT u.uid,m.id AS membershipId'))return [[{uid:owner.uid,uidHash:hash(owner.uid),membershipId:'owner-member',identityId:'owner-identity'}]];
     if(sql.includes('o.legacy_uid_hash AS uidHash'))return [[{uidHash:hash(actor.uid),tenantId,tenantStatus:'active',categoryKey:'training_center',categoryVersion:1,membershipId:'member',identityId:'identity-agent',role:'agent',membershipStatus:active?'active':'revoked',identityStatus:'active',delegatedPermissions:'[]',assignedNavigation:null,roleProfileId:'profile',rolePermissions:JSON.stringify(grants),seatRole:'agent',roleStatus:'active'}]];

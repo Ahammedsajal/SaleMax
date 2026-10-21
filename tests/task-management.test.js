@@ -125,6 +125,18 @@ test('task type filters scope scheduled Sales calls and cannot be used by other 
   assert.deepEqual(basic.taskTypes.map(item=>item.key),['general']);
 });
 
+test('published tenant task selection restricts specialized types without changing category or plan grants',async()=>{
+  const tenantContext={...ctx,tenant:{id:ctx.tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},category:sevenNetworkSales,subscription:{capabilities:sevenNetworkSales.capabilities},customization:{revision:4,document:{enabledTaskTypes:[]}}};
+  const db={query:async()=>[[],[]]};
+  const result=await tasks.list(db,tenantContext,{scope:'mine'});
+  assert.deepEqual(result.taskTypes.map(item=>item.key),['lead_follow_up','general']);
+  await assert.rejects(tasks.list(db,tenantContext,{scope:'mine',taskType:'sales_call'}),{code:'INVALID_TASK_FILTER'});
+  await assert.rejects(tasks.create(db,tenantContext,{title:'Synthetic call',taskType:'sales_call',participants:[{actorType:'identity',actorId:ctx.actorId,role:'assignee'}]}),{code:'INVALID_TASK_TYPE'});
+  const otherTenant={...tenantContext,tenant:{...tenantContext.tenant,id:'33333333-3333-4333-8333-333333333333'},tenantId:'33333333-3333-4333-8333-333333333333',customization:{revision:0,document:{enabledTaskTypes:['sales_call']}}};
+  const other=await tasks.list(db,otherTenant,{scope:'mine'});
+  assert.deepEqual(other.taskTypes.map(item=>item.key),['lead_follow_up','general','sales_call']);
+});
+
 test('task detail resolves participant names without exposing their email addresses',async()=>{
   const taskId='88888888-8888-4888-8888-888888888888',task={id:taskId,revision:1,status:'open',lead_id:null};
   const participant={actorType:'agent',actorId:'7',role:'assignee',label:'Amina',addedAt:'2026-10-05 10:00:00'};

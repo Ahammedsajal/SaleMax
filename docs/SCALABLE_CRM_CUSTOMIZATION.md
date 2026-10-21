@@ -30,8 +30,27 @@ authors still need a bounded declarative configuration with versioning,
 publication, rollback and schema migration rules; domain actions must remain
 source-owned adapters with tenant-owned data. A future CRM vertical can select
 its reviewed type adapters without changing the shared task service, while
-individual workspaces can only configure labels/order/availability through a
-tenant-scoped contract after that publication workflow is implemented.
+individual workspaces can configure reviewed task availability through the
+tenant-scoped publication workflow described below; arbitrary domain behavior
+still requires source-owned adapters.
+
+## Tenant-specific task choices — schema 4, 21 October 2026
+
+The existing owner-only Workspace Customization editor now publishes a bounded
+`enabledTaskTypes` allow-list. Its options come only from the tenant's pinned
+category adapters; each Task API list response additionally intersects that
+preference with active plan entitlements. Task creation and type changes enforce
+the same allow-list server-side. Core `general` and `lead_follow_up` remain
+governed by their existing category/plan checks. A plan or permission change is
+never overridden by tenant configuration, and an existing specialized task may
+stay in history after its type is disabled. Tenants with no schema-4 preference
+retain the earlier all-eligible-types behavior, so schema 1–3 revisions remain
+compatible. The preference lives in the existing immutable revision document;
+no migration or separate catalogue is introduced.
+
+This lets each tenant select among reviewed, source-owned task types. It does
+not let a customer add executable handlers, loosen task authorization, or
+create a new business workflow without a reviewed category adapter.
 
 ## Training lifecycle boundary correction — 21 October 2026
 
@@ -176,7 +195,7 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 | --- | --- | --- |
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
-| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) deployed as tenant-customization-10354f7 after MariaDB isolation tests; broader schema/module settings pending |
+| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | Existing typed settings cover bilingual labels, lead fields, hidden navigation and schema-4 per-tenant task choices; broader domain schemas and module enablement pending |
 | Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields and schema-3 tenant-only hidden menu sections; browser rerun and live acceptance pending |
 | Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through the shared workspace session and legacy sidebar-access contract; API permissions remain independent; other modules/workers pending |
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |

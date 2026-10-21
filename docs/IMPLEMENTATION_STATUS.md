@@ -17,6 +17,23 @@ still open. This does not yet provide per-tenant task-type authoring; tenant-spe
 customization stays limited to reviewed declarative settings and source-owned
 adapters until a bounded versioned configuration workflow is added.
 
+## Tenant-specific task choices — source update, 21 October 2026
+
+The existing owner-only Workspace Customization editor now publishes a
+tenant-specific allow-list for specialized task types. Options are limited to
+reviewed adapters pinned to the tenant category; the Task API intersects them
+with active plan entitlements and rejects disabled types on create, filter and
+type changes. Generic task types keep their existing category/plan gates, and
+older configuration revisions retain the previous all-eligible behavior.
+Schema 4 remains in the existing immutable customization document; no migration
+or parallel catalogue was added. The 38 focused category, customization,
+authenticated Task API and task-service checks pass, as do JavaScript syntax
+and whitespace checks. Eight synthetic existing-screen browser cases pass in
+English/Arabic, desktop/mobile and bearer/cookie contexts, covering preview,
+draft, publish, reset, rollback and stale revisions. This is a source increment
+only; authenticated live acceptance and deployment remain open. The full
+42-ticket program and broader tenant/module customization remain in progress.
+
 ## Finance conversion policy guard — source update, 21 October 2026
 
 The training invoice-total helper now rejects missing, unsupported or malformed
