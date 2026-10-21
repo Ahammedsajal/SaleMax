@@ -1,3 +1,22 @@
+## Legacy route and tenant-policy inventory — source audit, 21 October 2026
+
+The first route-boundary pass confirms that `mountConfiguredUpgrade()` runs
+before the legacy `/api/*` routers and explicitly intercepts selected modern
+workspace and vertical APIs. Canonical Agent requests use the shared
+`policy.decision()` path. The existing legacy role guard does not yet provide
+full category/plan enforcement: default memberships bypass its custom-role
+permission map, and unmapped legacy actors remain on a compatibility path.
+This is a confirmed migration gap, not evidence of a production data leak.
+
+A read-only production aggregate found three active mapped tenants (one
+7Network Sales and two Training Center); each has a current plan. That does not
+cover compatibility-only accounts or every route. The route and table ownership
+baseline, guard responsibilities and ordered enforcement approach are recorded
+in `docs/7NETWORK_LEGACY_ROUTE_OWNERSHIP_INVENTORY.md`. Do not open additional
+categories until route enumeration and cross-tenant/category denial coverage
+are complete. This source audit does not change production data or complete the
+42-ticket program.
+
 ## 7Network category and tenant customization architecture audit — source, 21 October 2026
 
 The category system already has a sound starting point: version-pinned category
