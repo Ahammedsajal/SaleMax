@@ -519,3 +519,39 @@ and mobile, across Base/Training/Sales and a synthetic version-2 metadata contra
 This proves exact version/role rendering and preview payloads, not authenticated
 production browser or provider acceptance. Additional real-estate, clinical,
 retail, hospitality and restaurant domain workflows remain separate work.
+
+
+## Tenant-specific custom-field search in the existing Pipeline — 21 October 2026
+
+The existing Pipeline's tenant-configured typed lead fields are now searchable
+from its normal lead search. A MariaDB `JSON_TABLE` projection reads only each
+saved custom field's `value`, so field labels, schema metadata and configuration
+revisions do not create false matches. The JSON validity guard tolerates older
+malformed qualification snapshots. The filter remains in both the page query
+and result count, beneath the existing tenant UID hash and member/agent scope;
+it does not accept a client tenant or field path. Text, integer and boolean
+snapshot values are compared as display strings, and English/Arabic search hints
+describe the additional coverage.
+
+This extends per-business flexibility through the maintained `/user` Pipeline;
+it does not change category manifests, permissions, stages or any other tenant's
+configuration. It also exposes a scale boundary: custom values live in bounded
+JSON snapshots, and searching them requires a per-row projection when a search
+is active. Current field definitions allow at most 24 active fields and saved
+history is bounded to 120 values/128 KiB per lead. Before large-account search
+claims, capture production-sized row counts and query plans; if those exceed the
+latency budget, add a tenant/lead/field-key/value projection with transactional
+write-through, migration backfill and reconciliation. Do not index every
+customer-defined value without a measured access pattern.
+
+Research basis: AWS documents pooled, bridge and silo storage as trade-offs by
+resource and customer needs, supporting SaleMaX's current pooled tenant-keyed
+model with a future bridge/silo option for exceptional accounts ([partitioning
+models](https://docs.aws.amazon.com/whitepapers/latest/multi-tenant-saas-storage-strategies/saas-partitioning-models.html),
+[tier-based isolation](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/tier-based-isolation.html)).
+Microsoft recommends feature flags, deployment rings and deployment stamps as
+complementary controls for tenant-aware updates ([multitenant update guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/considerations/updates)).
+MariaDB's JSON_TABLE converts JSON values into relational rows and supports the
+wildcard path used by this bounded value search ([MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)).
+These are design inputs, not a change to SaleMaX's existing Node/MariaDB
+deployment or an assertion of unlimited pooled scale.

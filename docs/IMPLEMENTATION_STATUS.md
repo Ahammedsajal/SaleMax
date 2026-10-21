@@ -1752,3 +1752,8 @@ customization/task/bot FAQ isolation and specialized API denial, with bearer/coo
 shared-feature checks. Twelve EN/AR desktop/mobile Manage Users fixtures pass.
 Production verification and rollback are recorded in DEPLOYMENT.md. Legacy
 automated adoption, new vertical workflows and full live acceptance remain open.
+## Tenant custom-field search in the existing Pipeline — 21 October 2026
+
+The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
+
+Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits but remains a scan-time filter; high-volume deployments need measured query plans and an indexed tenant/lead/field-value projection before claiming large-account search performance. Production deployment and authenticated existing-screen acceptance remain open for this increment; the full customization/42-ticket objective remains active.

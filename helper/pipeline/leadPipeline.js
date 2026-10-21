@@ -591,8 +591,14 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezo
     if (filters.owner && role !== "agent") { conditions.push("l.owner_agent_id = ?"); values.push(Number(filters.owner)); }
     if (filters.search) {
       const like = `%${text(filters.search, 100).replace(/[\\%_]/g, "\\$&")}%`;
-      conditions.push("(l.title LIKE ? OR l.contact_name LIKE ? OR l.mobile LIKE ? OR l.source_headline LIKE ? OR c.display_name LIKE ? OR c.normalized_email LIKE ?)");
-      values.push(like, like, like, like, like, like);
+      conditions.push(`(l.title LIKE ? OR l.contact_name LIKE ? OR l.mobile LIKE ? OR l.source_headline LIKE ? OR c.display_name LIKE ? OR c.normalized_email LIKE ? OR EXISTS (
+        SELECT 1 FROM JSON_TABLE(
+          CASE WHEN JSON_VALID(l.qualification_data) THEN l.qualification_data ELSE JSON_OBJECT() END,
+          '$.customFields.*' COLUMNS(field_value VARCHAR(1000) PATH '$.value' NULL ON EMPTY NULL ON ERROR)
+        ) AS custom_field_values
+        WHERE custom_field_values.field_value LIKE ?
+      ))`);
+      values.push(like, like, like, like, like, like, like);
     }
     const page = Math.max(1, Number(filters.page) || 1);
     const limit = Math.min(500, Math.max(20, Number(filters.limit) || 300));
