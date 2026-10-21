@@ -397,3 +397,5 @@ The audit also found hardcoded category adoption gates in legacy Pipeline actors
 product/catalog adapters and bot/form packs. Exact plan binding is a prerequisite
 for expanding those adapters, not evidence that new vertical workflows are ready.
 New categories must not be exposed for sale solely by registering display names.
+
+Production: `334b58b` is live in `plan-category-334b58b-20261021`. Thirty-three focused checks and actual cookie/bearer/shared-auth/MariaDB API mismatch tests pass. All three current production assignments resolve; exact two-file runtime parity and health pass. No customer plan/data was rewritten; local files are synchronized with backups. See DEPLOYMENT.md.
