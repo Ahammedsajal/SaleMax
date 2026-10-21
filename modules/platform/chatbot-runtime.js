@@ -567,9 +567,10 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
 
   if (profile.config?.sharedInboxRouting === true) {
-    const { getConnectedUsers, sendToUid } = require('../../socket');
+    const { getConnectedUsersAcrossNodes, sendToUid } = require('../../socket');
+    const connectedUsers = await getConnectedUsersAcrossNodes();
     const routed = await require('./team-conversation-assignment').routeIncomingConversation(dbPool, {
-      ctx, profile, uid, chatId, connectedUids: getConnectedUsers().map(item => item.uid),
+      ctx, profile, uid, chatId, connectedUids: connectedUsers.map(item => item.uid),
     });
     if (routed) sendToUid(uid, { chatId }, 'request_update_chat_list');
   }

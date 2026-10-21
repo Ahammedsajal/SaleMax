@@ -1,9 +1,6 @@
 const { query } = require("../../database/dbpromise");
 const {
-  getConnectionsByUid,
   sendToUid,
-  sendRingToUid,
-  sendToSocket,
 } = require("../../socket");
 const { mergeArraysWithPhonebook } = require("../socket/function");
 const { processMetaMessage } = require("./meta");
@@ -305,23 +302,11 @@ async function processMessage({
     }
 
     // Send the latest chat list to all sockets of the user.
-    const socketConnections = getConnectionsByUid(uid, true) || [];
-
-    socketConnections.forEach(async (socket) => {
-      sendToSocket(
-        socket?.socketId,
-        { chatId: latestConversation?.chatId },
-        "request_update_chat_list",
-      );
-      if (latestConversation?.newMessage) {
-        sendToSocket(
-          socket?.socketId,
-          { chatId: latestConversation?.chatId },
-          "request_update_opened_chat",
-        );
-        sendToSocket(socket?.socketId, {}, "ring");
-      }
-    });
+    sendToUid(uid, { chatId: latestConversation?.chatId }, "request_update_chat_list");
+    if (latestConversation?.newMessage) {
+      sendToUid(uid, { chatId: latestConversation?.chatId }, "request_update_opened_chat");
+      sendToUid(uid, {}, "ring");
+    }
 
     // chatbot init
     if (latestConversation?.newMessage && uid) {
@@ -408,8 +393,8 @@ async function processMessage({
       }
 
       if (configuredBot?.sent && latestConversation?.chatId) {
-        const { getConnectionsByUid, sendToSocket } = require("../../socket");
-        (getConnectionsByUid(uid, true) || []).forEach(socket => sendToSocket(socket.socketId, { chatId: latestConversation.chatId }, "request_update_opened_chat"));
+        const { sendToUid } = require("../../socket");
+        sendToUid(uid, { chatId: latestConversation.chatId }, "request_update_opened_chat");
       }
 
       if (msg?.route === "INCOMING") {

@@ -207,6 +207,36 @@ multiple app replicas. Multi-node operation requires one fenced owner per
 session, recovery/transfer rules, and tests proving old owners stop before
 writing after ownership changes; a shared socket registry alone is not enough.
 
+### Socket.IO room routing research — 21 October 2026
+
+The application used Socket.IO's default in-memory adapter and scanned only
+the current process's sockets when sending Inbox refreshes. Authenticated
+sockets now join server-derived account rooms for their own UID and verified
+owner UID; notifications use those rooms, and shared-inbox routing obtains
+minimal presence through `fetchSockets()` and `socket.data`. Client payloads do
+not choose room names. This preserves single-process behavior and makes the
+application code compatible with a cluster adapter, but it does not itself
+enable cross-process routing.
+
+The Socket.IO Redis Pub/Sub adapter forwards room broadcasts between servers
+but does not support the application's configured connection-state recovery.
+Its Redis Streams adapter supports inter-server broadcasts and recovery, and
+retains events across temporary Redis disconnects; this is the better fit for
+the existing recovery behavior. Both require trusted, private Redis access,
+and long-polling deployments still require load-balancer affinity. See the
+[Socket.IO Redis Streams adapter guide](https://socket.io/docs/v4/redis-streams-adapter/),
+[Redis adapter guide](https://socket.io/docs/v4/redis-adapter/), and
+[multi-node adapter overview](https://socket.io/docs/v4/adapter/).
+
+No Redis adapter or endpoint is configured in the current release, so do not
+claim multi-node readiness yet. Before enabling replicas, provision isolated
+Redis with ACL/TLS/private networking, pin compatible adapter/client versions,
+initialize the adapter before accepting sockets, and run two real app
+processes behind the target load balancer. Verify cross-node owner and agent
+updates, unauthorized room denial, state recovery, Redis interruption,
+membership revocation and rejoin behavior. The adapter's bounded stream
+retention and overflow/recovery behavior also need explicit operational tests.
+
 ## Extensibility and domain boundaries
 
 | Category | Candidate modules, subject to implementation and acceptance |

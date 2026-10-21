@@ -2399,3 +2399,23 @@ remain open. The full test suite reports 1,091/1,115 passing, with the same 24
 known legacy Manage Users, Pipeline, Training/Finance and public-form contract
 failures; this increment adds no new suite failures. This closes only the previously identified per-bot FAQ
 customization gap; the broader 42-ticket 7Network CRM objective remains active.
+
+## Server-derived Socket.IO routing — source update, 21 October 2026
+
+Authenticated sockets now join server-derived rooms for their own account and
+verified owner account. Inbox notifications use room broadcasts instead of
+scanning only the current process, and shared-inbox online routing reads a
+minimal presence record through Socket.IO's adapter-aware `fetchSockets()` API.
+Room membership and cross-node presence carry only account identifiers and
+agent flags, not the full user record. Focused tests cover room isolation,
+agent-to-owner membership, reduced presence data, and targeted room broadcasts.
+
+This prepares application behavior for an inter-node adapter; the default
+in-memory adapter is still active. Official Socket.IO documentation shows the
+Redis Pub/Sub adapter does not support connection-state recovery, while the
+Redis Streams adapter supports both inter-server communication and recovery.
+Sticky sessions remain required when long-polling is enabled. No Redis service
+or adapter was added or deployed. Secure Redis provisioning, target load
+balancer configuration, two-process acceptance, outage/recovery and membership
+revocation tests remain open TC37/TC41 gates. The full 42-ticket objective
+remains active.

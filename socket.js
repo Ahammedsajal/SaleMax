@@ -3,6 +3,13 @@ const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const { query } = require("./database/dbpromise");
 const { processSocketEvent } = require("./helper/socket");
+const {
+  accountRoom,
+  joinAccountRooms,
+  presenceForUserData,
+  connectedUidsFromSockets,
+  emitToAccount,
+} = require("./modules/platform/socket-account-rooms");
 
 let ioInstance = null;
 
@@ -112,6 +119,8 @@ function initializeSocket(server) {
           if (scope.canonical) socket.userData.teamOwnerUid = scope.uid;
         } catch { /* Accounts without Inbox permission keep their own socket scope. */ }
       }
+      await joinAccountRooms(socket, socket.userData);
+      socket.data.crmPresence = presenceForUserData(socket.userData);
 
       // Success response
       socket.emit("connection_ack", {
@@ -175,20 +184,7 @@ function sendToUid(uid, data, event = "message") {
     return false;
   }
 
-  let sentCount = 0;
-  ioInstance.sockets.sockets.forEach((socket) => {
-    if (
-      socket.userData &&
-      (socket.userData.uid === uid ||
-        socket.userData.teamOwnerUid === uid ||
-        (socket.userData.isAgent && socket.userData.owner_uid === uid))
-    ) {
-      socket.emit(event, data);
-      sentCount++;
-    }
-  });
-
-  return sentCount;
+  return emitToAccount(ioInstance, uid, event, data);
 }
 
 function sendToSocket(socketId, data, event = "message") {
@@ -197,14 +193,10 @@ function sendToSocket(socketId, data, event = "message") {
     return false;
   }
 
-  const socket = ioInstance.sockets.sockets.get(socketId);
-  if (socket) {
-    socket.emit(event, data);
-    return true;
-  }
-
-  console.warn(`Socket not found: ${socketId}`);
-  return false;
+  // Every socket owns a private room named by its ID; cluster adapters route
+  // this through to the process that owns the connection.
+  ioInstance.to(socketId).emit(event, data);
+  return true;
 }
 
 function sendToAll(data, event = "message") {
@@ -233,6 +225,12 @@ function getConnectedUsers() {
     }
   });
   return users;
+}
+
+async function getConnectedUsersAcrossNodes() {
+  if (!ioInstance) return [];
+  const sockets = await ioInstance.fetchSockets();
+  return connectedUidsFromSockets(sockets);
 }
 
 function getConnectionsByUid(uid, includeAgents = false) {
@@ -344,6 +342,7 @@ module.exports = {
   sendToSocket,
   sendToAll,
   getConnectedUsers,
+  getConnectedUsersAcrossNodes,
   getConnectionsByUid,
   getConnectionBySocketId,
   getAllSocketData,
