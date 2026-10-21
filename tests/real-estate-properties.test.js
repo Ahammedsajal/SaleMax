@@ -21,7 +21,7 @@ test('real estate contract is isolated, immutable, private and excluded from pla
 });
 
 test('listing validation rejects malformed domain values and normalizes accepted data',()=>{
-  assert.deepEqual(properties.clean(listing),listing);
+  assert.deepEqual(properties.clean(listing),{...listing,assignedMembershipId:null});
   assert.throws(()=>properties.clean({...listing,priceMinor:-1}),{code:'INVALID_PROPERTY_PRICE'});
   assert.throws(()=>properties.clean({...listing,propertyType:'course'}),{code:'INVALID_PROPERTY_TYPE'});
   assert.throws(()=>properties.clean({...listing,transactionType:'lease'}),{code:'INVALID_TRANSACTION_TYPE'});
@@ -35,7 +35,9 @@ test('real estate access requires the exact category, version, plan, membership 
   assert.throws(()=>properties.authorize({...base,tenant:{...base.tenant,categoryKey:'training_center'},category:category.trainingCenter},'properties.read'),{code:'CATEGORY_UNAVAILABLE'});
   assert.throws(()=>properties.authorize({...base,tenant:{...base.tenant,categoryVersion:2}},'properties.read'),{code:'CATEGORY_UNAVAILABLE'});
   assert.throws(()=>properties.authorize({...base,subscription:{...base.subscription,capabilities:[]}},'properties.read'),{code:'FEATURE_UNAVAILABLE'});
-  for(const role of ['agent','team_leader'])assert.throws(()=>properties.authorize({...base,membership:{...base.membership,role,customPermissions:['properties.read','properties.manage']}},'properties.read'),{code:'PERMISSION_DENIED'});
+  assert.equal(require('../modules/platform/policy').scopeFor({role:'agent',customPermissions:['properties.read']},'properties.read'),'assigned');
+  assert.equal(require('../modules/platform/policy').scopeFor({role:'team_leader',customPermissions:['properties.read']},'properties.read'),'team');
+  assert.equal(require('../modules/platform/policy').scopeFor({role:'team_leader',customPermissions:['properties.assign']},'properties.assign'),null);
   assert.throws(()=>properties.authorize({...base,membership:{...base.membership,role:'agent',customPermissions:['properties.manage']}},'properties.manage'),{code:'PERMISSION_DENIED'});
   assert.equal(properties.authorize({...base,membership:{...base.membership,role:'manager'}},'properties.read').tenant.id,tenantId);
 });
@@ -51,7 +53,7 @@ test('property lifecycle disallows reopening sold or rented listings',()=>{
 
 test('listing reads, creates and revision updates stay tenant-scoped',async()=>{
   const calls=[];
-  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:1}]];if(sql.startsWith('SELECT id,reference_code'))return [[{id:'property-1'}]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'draft',transactionType:'sale',revision:3}]];if(sql.startsWith('UPDATE'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:1}]];if(sql.startsWith('SELECT p.id'))return [[{id:'property-1'}]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'draft',transactionType:'sale',revision:3}]];if(sql.startsWith('UPDATE'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
   const listed=await properties.list(db,base,{status:'active',search:'Doha%_'});
   assert.equal(listed.total,1);assert.ok(calls[0].sql.includes('tenant_id=?'));assert.equal(calls[0].args[0],tenantId);
   assert.match(calls[0].sql,/LIKE \? ESCAPE '!'/);assert.ok(calls[0].args.slice(2,6).every(value=>value==='%Doha!%!_%'));
@@ -60,6 +62,36 @@ test('listing reads, creates and revision updates stay tenant-scoped',async()=>{
   assert.equal(updated.revision,4);assert.match(calls[4].sql,/tenant_id=\? AND id=\? FOR UPDATE/);assert.equal(calls[4].args[0],tenantId);
   assert.match(calls[5].sql,/WHERE tenant_id=\? AND id=\?/);assert.equal(calls[5].args.at(-2),tenantId);
   assert.match(calls[6].sql,/real-estate\.property-updated/);assert.equal(calls[6].args[1],tenantId);
+});
+
+test('agent and team-leader listing reads are restricted to their persisted assignment scope',async()=>{
+  for(const [role,sqlFragment] of [['agent','p.assigned_membership_id=?'],['team_leader','org.team_leader_membership_id=?']]){
+    const calls=[],membershipId='55555555-5555-4555-8555-555555555555',context={...base,membership:{...base.membership,id:membershipId,role}};
+    const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:0}]];if(sql.startsWith('SELECT p.id'))return [[]];throw Error('unexpected query');}};
+    const result=await properties.list(db,context);
+    assert.equal(result.total,0);assert.ok(calls[0].sql.includes(sqlFragment));assert.ok(calls[0].sql.includes('p.tenant_id=?'));assert.ok(calls[0].args.includes(membershipId));
+  }
+});
+
+test('manager assignments are limited to active agents in that manager team and audited',async()=>{
+  const managerId='66666666-6666-4666-8666-666666666666',agentId='77777777-7777-4777-8777-777777777777',calls=[];
+  const context={...base,membership:{...base.membership,id:managerId,role:'manager'}};
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT m.id FROM sx_memberships'))return [[{id:agentId}]];if(sql.startsWith('INSERT INTO sx_real_estate_properties'))return [{affectedRows:1}];if(sql.includes('real-estate.property-created'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
+  const created=await properties.create(db,context,{...listing,assignedMembershipId:agentId});
+  assert.equal(created.assignedMembershipId,agentId);
+  assert.deepEqual(calls[0].args,[tenantId,agentId,managerId]);assert.match(calls[0].sql,/m\.role='agent'.*m\.status='active'.*org\.manager_membership_id=\?/);
+  const insert=calls.find(call=>call.sql.startsWith('INSERT INTO sx_real_estate_properties'));
+  assert.ok(insert.args.includes(agentId));
+  const audit=calls.find(call=>call.sql.includes('real-estate.property-created'));
+  assert.match(audit.args[4],new RegExp(agentId));
+});
+
+test('assignee lookup stays tenant and manager scoped',async()=>{
+  const managerId='66666666-6666-4666-8666-666666666666',calls=[],context={...base,membership:{...base.membership,id:managerId,role:'manager'}};
+  const db={query:async(sql,args)=>{calls.push({sql,args});return [[{membershipId:'77777777-7777-4777-8777-777777777777',name:'Agent'}]];}};
+  const result=await properties.listAssignees(db,context);
+  assert.equal(result.scope,'tenant');assert.equal(result.items.length,1);
+  assert.deepEqual(calls[0].args,[tenantId,managerId]);assert.match(calls[0].sql,/m\.tenant_id=\?.*m\.role='agent'.*org\.manager_membership_id=\?/);
 });
 
 test('stale and invalid transitions cannot mutate a listing',async()=>{
@@ -79,6 +111,7 @@ test('real estate storage keys and current-panel entry are registered without a 
   assert.match(migration,/UNIQUE KEY uq_sx_real_estate_tenant_id \(tenant_id,id\)/);
   assert.match(migration,/FOREIGN KEY \(tenant_id\) REFERENCES sx_tenants\(id\)/);
   assert.match(migration,/FOREIGN KEY \(tenant_id,created_by_identity_id\) REFERENCES sx_memberships\(tenant_id,identity_id\)/);
+  assert.match(migration,/FOREIGN KEY \(tenant_id,assigned_membership_id\) REFERENCES sx_memberships\(tenant_id,id\)/);
   assert.doesNotMatch(migration,/ON DELETE CASCADE/i);
   assert.match(migration,/idx_sx_real_estate_inventory \(tenant_id,status,transaction_type,property_type,updated_at\)/);
   const shell=fs.readFileSync(path.join(__dirname,'../client/public/training-sidebar.js'),'utf8');
@@ -86,5 +119,5 @@ test('real estate storage keys and current-panel entry are registered without a 
   const entry=fs.readFileSync(path.join(__dirname,'../client/public/pipeline-entry.js'),'utf8');
   assert.match(entry,/salemax-properties-workspace/);assert.match(entry,/\/property-listings\//);
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/properties.js'),'utf8');
-  assert.match(ui,/aria-modal="true"/);assert.match(ui,/statusLabels/);assert.doesNotMatch(ui,/prompt\(/);
+  assert.match(ui,/aria-modal="true"/);assert.match(ui,/statusLabels/);assert.match(ui,/data-save-assignee/);assert.match(ui,/assignedMembershipId/);assert.doesNotMatch(ui,/prompt\(/);
 });

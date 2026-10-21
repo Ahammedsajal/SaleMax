@@ -109,15 +109,17 @@ test('7Network Sales deal and commission permissions follow role boundaries and 
   assert.equal(decision(context('owner'),{capability:'sales.deals',permission:'deals.approve'}).code,'CATEGORY_UNAVAILABLE');
 });
 
-test('real-estate inventory is owner/manager-only until team and listing assignment scopes exist',()=>{
+test('real-estate inventory scopes agents and team leaders to assigned listings',()=>{
   const realEstate=require('../modules/platform/categories').realEstate;
   for(const role of ['owner','manager','team_leader','agent']){
     const c=context(role);c.category=realEstate;c.tenant.categoryKey=realEstate.key;c.tenant.categoryVersion=realEstate.version;
     c.subscription.capabilities=[...realEstate.capabilities];c.membership.customPermissions=['properties.read','properties.manage'];
     const result=decision(c,{capability:'realestate.listings',permission:'properties.read'});
-    assert.equal(result.allowed,['owner','manager'].includes(role),role);
+    assert.equal(result.allowed,true,role);
+    assert.equal(result.scope,{owner:'tenant',manager:'tenant',team_leader:'team',agent:'assigned'}[role],role);
     const nav=navigationFor(c).map(item=>item.key);
-    assert.equal(nav.includes('properties'),['owner','manager'].includes(role),role);
+    assert.equal(nav.includes('properties'),true,role);
+    assert.equal(decision(c,{capability:'realestate.listings',permission:'properties.manage'}).allowed,['owner','manager'].includes(role),role);
   }
 });
 test('member navigation assignment hides unselected sections and denies their canonical APIs',()=>{

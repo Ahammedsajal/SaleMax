@@ -12,14 +12,17 @@ if(process.env.REALESTATE_SYNTHETIC_ONLY!=='true')throw Error('REALESTATE_SYNTHE
 const config=JSON.parse(fs.readFileSync(process.env.REALESTATE_TEST_CONFIG,'utf8'));
 if(!/^sx_real_estate_test_[a-f0-9]+$/.test(config.database)||config.database!==config.user)throw Error('DISPOSABLE_REALESTATE_SCHEMA_REQUIRED');
 const pool=mysql.createPool({...config,connectionLimit:6,multipleStatements:false});
-const tenantId=crypto.randomUUID(),otherTenantId=crypto.randomUUID(),identityId=crypto.randomUUID(),otherIdentityId=crypto.randomUUID();
+const tenantId=crypto.randomUUID(),otherTenantId=crypto.randomUUID();
+const ids=Object.fromEntries(['owner','otherOwner','manager','leader','agent','otherAgent','foreignAgent'].map(key=>[key,crypto.randomUUID()]));
+const memberIds=Object.fromEntries(Object.keys(ids).map(key=>[key,crypto.randomUUID()]));
 const schema=[
   'CREATE TABLE sx_tenants(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,category_key VARCHAR(80),category_version INT,status VARCHAR(20)) ENGINE=InnoDB',
-  'CREATE TABLE sx_identities(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,status VARCHAR(20)) ENGINE=InnoDB',
-  'CREATE TABLE sx_memberships(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,role VARCHAR(20),status VARCHAR(20),UNIQUE KEY uq_membership_tenant_identity(tenant_id,identity_id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),FOREIGN KEY(identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB',
+  'CREATE TABLE sx_identities(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,status VARCHAR(20),display_name VARCHAR(120) NOT NULL) ENGINE=InnoDB',
+  'CREATE TABLE sx_memberships(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,role VARCHAR(20),status VARCHAR(20),UNIQUE KEY uq_membership_tenant_id(tenant_id,id),UNIQUE KEY uq_membership_tenant_identity(tenant_id,identity_id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),FOREIGN KEY(identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB',
+  'CREATE TABLE sx_sales_org_history(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,membership_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,manager_membership_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,team_leader_membership_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,ended_at DATETIME(3) NULL) ENGINE=InnoDB',
   'CREATE TABLE sx_audit_events(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_kind VARCHAR(24) NOT NULL,action VARCHAR(100) NOT NULL,resource_type VARCHAR(100) NOT NULL,resource_id VARCHAR(120) NOT NULL,changes JSON NOT NULL,correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),FOREIGN KEY(actor_identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB'
 ];
-const context=(tenant,identity)=>({audience:'tenant',tenant:{id:tenant,status:'active',categoryKey:category.key,categoryVersion:category.version},membership:{id:crypto.randomUUID(),tenantId:tenant,role:'owner',status:'active'},category,subscription:{status:'active',categoryKey:category.key,categoryVersion:category.version,capabilities:[...category.capabilities]},identity:{id:identity}});
+const context=(tenant,identity,membershipId,role='owner')=>({audience:'tenant',tenant:{id:tenant,status:'active',categoryKey:category.key,categoryVersion:category.version},membership:{id:membershipId,tenantId:tenant,role,status:'active'},category,subscription:{status:'active',categoryKey:category.key,categoryVersion:category.version,capabilities:[...category.capabilities]},identity:{id:identity}});
 const listing={titleEn:'Synthetic Doha apartment',titleAr:'شقة اختبارية في الدوحة',propertyType:'apartment',transactionType:'sale',status:'draft',priceMinor:125000,currency:'QAR',areaSqm:82.5,bedrooms:2,bathrooms:2,city:'Synthetic Doha',descriptionEn:'Synthetic test record',descriptionAr:'سجل اختبار'};
 async function use(fn){const db=await pool.getConnection();try{return await fn(db)}finally{db.release()}}
 
@@ -30,12 +33,25 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261222_real_estate_properties.sql'),'utf8');
   for(const sql of require('../database/migration-runner').splitSql(migration))await pool.query(sql);
   await pool.query("INSERT INTO sx_tenants VALUES (?,?,?,'active'),(?,?,?,'active')",[tenantId,category.key,category.version,otherTenantId,category.key,category.version]);
-  await pool.query("INSERT INTO sx_identities VALUES (?,'active'),(?,'active')",[identityId,otherIdentityId]);
-  await pool.query("INSERT INTO sx_memberships VALUES (?,?,?,'owner','active'),(?,?,?,'owner','active')",[crypto.randomUUID(),tenantId,identityId,crypto.randomUUID(),otherTenantId,otherIdentityId]);
-  const a=context(tenantId,identityId),b=context(otherTenantId,otherIdentityId);
-  const foreignActor={...a,identity:{id:otherIdentityId}};
+  for(const [key,identity] of Object.entries(ids))await pool.query("INSERT INTO sx_identities VALUES (?,'active',?)",[identity,`Synthetic ${key}`]);
+  const memberRows=[
+    ['owner',tenantId,'owner'],['manager',tenantId,'manager'],['leader',tenantId,'team_leader'],['agent',tenantId,'agent'],['otherAgent',tenantId,'agent'],
+    ['otherOwner',otherTenantId,'owner'],['foreignAgent',otherTenantId,'agent'],
+  ];
+  for(const [key,tenant,role] of memberRows)await pool.query('INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?, ?,\'active\')',[memberIds[key],tenant,ids[key],role]);
+  await pool.query('INSERT INTO sx_sales_org_history(id,tenant_id,membership_id,manager_membership_id,team_leader_membership_id,ended_at) VALUES (?,?,?,?,?,NULL)',[crypto.randomUUID(),tenantId,memberIds.agent,memberIds.manager,memberIds.leader]);
+  await pool.query('INSERT INTO sx_sales_org_history(id,tenant_id,membership_id,manager_membership_id,team_leader_membership_id,ended_at) VALUES (?,?,?,?,?,NULL)',[crypto.randomUUID(),tenantId,memberIds.otherAgent,memberIds.manager,null]);
+  const a=context(tenantId,ids.owner,memberIds.owner),b=context(otherTenantId,ids.otherOwner,memberIds.otherOwner);
+  const foreignActor={...a,identity:{id:ids.foreignAgent}};
   await assert.rejects(use(db=>properties.create(db,foreignActor,listing)),error=>['ER_NO_REFERENCED_ROW_2','ER_NO_REFERENCED_ROW'].includes(error.code));
-  const created=await use(db=>properties.create(db,a,listing));
+  const manager=context(tenantId,ids.manager,memberIds.manager,'manager'),leader=context(tenantId,ids.leader,memberIds.leader,'team_leader'),agent=context(tenantId,ids.agent,memberIds.agent,'agent'),otherAgent=context(tenantId,ids.otherAgent,memberIds.otherAgent,'agent');
+  const created=await use(db=>properties.create(db,manager,{...listing,assignedMembershipId:memberIds.agent}));
+  assert.equal((await use(db=>properties.list(db,agent))).total,1);
+  assert.equal((await use(db=>properties.list(db,otherAgent))).total,0);
+  assert.equal((await use(db=>properties.list(db,leader))).total,1);
+  assert.equal((await use(db=>properties.list(db,manager))).total,1);
+  assert.equal((await use(db=>properties.listAssignees(db,manager))).items.length,2);
+  await assert.rejects(use(db=>properties.create(db,manager,{...listing,assignedMembershipId:memberIds.foreignAgent})),{code:'PROPERTY_ASSIGNEE_UNAVAILABLE'});
   assert.equal((await use(db=>properties.list(db,a))).total,1);
   assert.equal((await use(db=>properties.list(db,b))).total,0);
   await assert.rejects(use(db=>properties.update(db,b,created.id,{expectedRevision:1,status:'active'})),{code:'PROPERTY_NOT_FOUND'});
@@ -56,5 +72,5 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   try{await assert.rejects(properties.create(failingDb,a,{...listing,titleEn:'Audit rollback candidate'}),/SYNTHETIC_AUDIT_FAILURE/);}finally{connection.release();}
   const after=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
   assert.equal(after,before,'listing insert must roll back with its audit event');
-  console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MariaDB','creator identity must be a member of the same tenant','tenant-scoped listing reads','cross-tenant listing ID denied','new listings start as drafts','two concurrent edits yield one revision winner','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
+  console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MariaDB','creator identity must be a member of the same tenant','manager assignment is limited to active same-team agents','agents see only their assigned listings','team leaders see listings assigned to current team members','foreign-tenant assignee denied','tenant-scoped listing reads','cross-tenant listing ID denied','new listings start as drafts','two concurrent edits yield one revision winner','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
 }finally{await pool.end();}})().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message}));process.exitCode=1;});
