@@ -1,3 +1,7 @@
+## 7Network category setup and form-audit verification — source update, 21 October 2026
+
+The existing Manage Users category selector is now tested as a versioned category list, preserving the current account and login instead of asserting a fixed Training Center-only setup. The static form audit now recognizes multiline closing labels and excludes controls explicitly hidden from assistive technology; its current inventory reports zero unlabeled static fields. The relevant three focused tests pass. The full `npm test` run currently reports 1,014/1,045 passing with 31 remaining failures across Agent transfer fixtures and stale Pipeline, Tasks, Finance, report and route source-contract assertions. This is source/test work only; it has not been deployed. Resolve the full-suite failures and complete authenticated EN/AR acceptance before claiming the associated launch gates.
+
 ## Forward migration direction guard — source verified, 21 October 2026
 
 The maintained forward runner excludes migration filenames marked `rollback`, `down`, or `revert`, rejects destructive forward table/column/database statements, and applies remaining migrations with a per-database lock and checksum ledger. Regression coverage now exercises destructive files in all three rollback naming forms. This closes the previously listed source-level discovery defect; it does not prove a production migration rehearsal, full schema recovery drill, or completion of TC00/TC29/TC35.

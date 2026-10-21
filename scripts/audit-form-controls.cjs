@@ -74,12 +74,13 @@ for (const absolute of files.sort()) {
       if (['input', 'select', 'textarea'].includes(kind) && (kind !== 'input' || !['hidden', 'submit', 'reset', 'button', 'image'].includes((attr(tag, 'type') || 'text').toLowerCase()))) {
         const id = attr(tag, 'id');
         const openingLabel = match[2].lastIndexOf('<label', control.index);
-        const previousClosingLabel = match[2].lastIndexOf('</label>', control.index);
-        const closingLabel = match[2].indexOf('</label>', control.index + tag.length);
+        const previousClosingLabel = match[2].lastIndexOf('</label', control.index);
+        const closingLabel = match[2].slice(control.index + tag.length).search(/<\/label\s*>/i);
         const wrapped = openingLabel > previousClosingLabel && closingLabel >= 0;
         const explicit = id && new RegExp(`<label\\b[^>]*\\bfor\\s*=\\s*(?:"${id.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}"|'${id.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}'|${id.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}(?=[\\s>]))`, 'i').test(match[2]);
+        const hiddenFromAccessibilityTree = attr(tag, 'aria-hidden') === 'true';
         const named = ['aria-label', 'aria-labelledby', 'title'].some(name => Boolean(attr(tag, name)));
-        if (!wrapped && !explicit && !named) unlabelled.push({ line: lineOf(match.index + control.index), field: fieldLabel(tag, kind) });
+        if (!hiddenFromAccessibilityTree && !wrapped && !explicit && !named) unlabelled.push({ line: lineOf(match.index + control.index), field: fieldLabel(tag, kind) });
       }
       return fieldLabel(tag, kind);
     });

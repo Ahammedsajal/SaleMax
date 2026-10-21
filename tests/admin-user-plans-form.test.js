@@ -6,8 +6,10 @@ const assert=require('node:assert/strict');
 
 const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-user-plans.js'),'utf8');
 
-test('business setup shows its fixed Training Center category as a labelled output',()=>{
-  assert.match(ui,/<output aria-label="\$\{t\('Business category','فئة النشاط'\)\}">\$\{t\('Training center','مركز تدريب'\)\}<\/output>/);
-  assert.doesNotMatch(ui,/<input value="\$\{t\('Training center','مركز تدريب'\)\}" disabled>/);
-  assert.match(ui,/\.sx-user-category-assignment output\{display:flex/);
+test('Manage Users selects from reviewed versioned categories and preserves the existing account',()=>{
+  assert.match(ui,/<select aria-label="\$\{t\('Business category','فئة النشاط'\)\}">/);
+  assert.match(ui,/current\.categories\|\|\[\]/);
+  assert.match(ui,/category\.key\+'@'\+category\.version/);
+  assert.match(ui,/The user keeps the existing business sign-in/);
+  assert.match(ui,/\.sx-user-category-assignment select\{display:block/);
 });
