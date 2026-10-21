@@ -373,7 +373,13 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   }
   if (!settings) return { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
   const historySafe = Array.isArray(session.recentConversation) ? session.recentConversation.slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
-  const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode });
+  const key = businessContext.replyCacheKey({
+    tenantId:ctx.tenant.id,categoryKey:ctx.category.key,categoryVersion:ctx.category.version,
+    packKey:pack.key,packVersion:pack.version,profileId:profile.id,profileRevision:profile.revision,
+    contextRevision:context.revision,model:settings.model,provider:settings.provider,
+    question:businessContext.normalized(customerMessage),language:context.language,history:historySafe,
+    selectedCourseCode:session.selectedCourseCode,
+  });
   const cached = replyCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0 } };
   const sourceAliases = new Map();

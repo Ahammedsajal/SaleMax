@@ -8,6 +8,9 @@ const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions شهادة الشهادة شهادات احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
 const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+function replyCacheKey({tenantId,categoryKey,categoryVersion,packKey,packVersion,profileId,profileRevision,contextRevision,provider,model,question,language,history,selectedCourseCode}) {
+  return fingerprint({tenantId,category:{key:categoryKey,version:categoryVersion},domainPack:{key:packKey,version:packVersion},profile:{id:profileId,revision:profileRevision},contextRevision,provider,model,question,language,history,selectedCourseCode});
+}
 const durationUnit = (unit, amount, language) => { const ar = {hours:['ساعة','ساعتان','ساعات'],days:['يوم','يومان','أيام'],weeks:['أسبوع','أسبوعان','أسابيع'],months:['شهر','شهران','أشهر']}; return language === 'ar' && ar[unit] ? ar[unit][Number(amount) === 2 ? 1 : Number(amount) >= 3 && Number(amount) <= 10 ? 2 : 0] : Number(amount) === 1 ? String(unit).replace(/s$/, '') : unit; };
 const local = (item, field, language) => item[field + (language === 'ar' ? 'Ar' : 'En')] || item[field + (language === 'ar' ? 'En' : 'Ar')] || '';
 
@@ -222,4 +225,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, replyCacheKey, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
