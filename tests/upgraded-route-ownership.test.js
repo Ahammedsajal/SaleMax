@@ -73,3 +73,31 @@ test('7Network Sales Targets owns only its target table and scopes cross-module 
   assert.match(service,/FROM sx_sales_commissions c JOIN sx_sales_deals d ON d\.tenant_id=c\.tenant_id/);
   assert.match(service,/commissionReportEnabled=decision\(ctx,\{capability:'sales\.commissions'/);
 });
+
+test('Sales products use a separate physical catalogue from Training courses and replies',()=>{
+  const ownership=ownershipForInventory(routerInventory(),{moduleRegistry:categoryRegistry.moduleRegistry,categories:{list:categoryRegistry.listCategories,get:categoryRegistry.getCategory}});
+  const route=ownership.routes.find(item=>item.mount==='/api/workspace/products-services');
+  const module=route.ownership.moduleContracts['sales.products-services'];
+  const catalog=require('../modules/platform/product-catalog');
+  assert.deepEqual(route.ownership.categoryModules,{'7network_sales':['sales.products-services']});
+  assert.equal(route.ownership.service,'modules/platform/product-catalog.js');
+  assert.deepEqual([...Object.values(catalog.tables)].sort(),[...module.dataOwnership.ownedTables].sort());
+  const productAdapter=fs.readFileSync(path.join(root,route.ownership.service),'utf8');
+  const courseRouter=fs.readFileSync(path.join(root,'modules/platform/training-course-router.js'),'utf8');
+  assert.match(courseRouter,/if\(products\)pool=require\('\.\/product-catalog'\)\.database\(pool\)/);
+  assert.match(courseRouter,/expected=products\?'products':'courses'/);
+  assert.match(courseRouter,/if\(products\)router\.use\(.*\/enrollments/s);
+  assert.match(productAdapter,/sql\.replace\(\/\\b\(\?:sx_training_courses\|sx_training_offers\|sx_training_course_media\|sx_training_batches\|sx_course_reply_jobs\)\\b\/g,name=>tables\[name\]\)/);
+  const physicalTables=new Set();
+  for(const file of ['modules/platform/training-courses.js','modules/platform/training-course-media.js','modules/platform/course-quick-replies.js']){
+    const source=fs.readFileSync(path.join(root,file),'utf8');
+    for(const [,table] of source.matchAll(/\b(?:FROM|JOIN|INTO|UPDATE)\s+(sx_[a-z0-9_]+)/gi))physicalTables.add(catalog.tables[table]||table);
+  }
+  const declared=new Set([...module.dataOwnership.ownedTables,...module.dataOwnership.referencedTables.map(item=>item.name)]);
+  assert.deepEqual([...physicalTables].sort(),[...declared].sort(),'all mapped shared catalogue queries must resolve to Sales-owned tables or declared shared references');
+  const migration=fs.readFileSync(path.join(root,'database/migrations/20261215_category_product_catalog.sql'),'utf8');
+  const created=new Set([...migration.matchAll(/CREATE TABLE (sx_product_[a-z_]+)/g)].map(match=>match[1]));
+  assert.deepEqual([...created].sort(),[...module.dataOwnership.ownedTables].sort());
+  const replyRoute=ownership.routes.find(item=>item.mount==='/api/workspace/inbox/course-replies');
+  assert.deepEqual(replyRoute.ownership.categoryModules,{training_center:['training.core'],'7network_sales':['sales.products-services']});
+});

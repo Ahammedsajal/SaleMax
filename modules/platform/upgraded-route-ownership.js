@@ -39,7 +39,7 @@ const contracts=Object.freeze([
   {mount:'/api/workspace/profile',router:'training-center-profile-router',routeClass:'tenant_module',owner:'training.core',modules:['training.core'],contextBoundary:'canonical_or_legacy_tenant'},
   {mount:'/api/user/training/courses',router:'training-course-router',routeClass:'tenant_module',owner:'training.core',modules:['training.core'],contextBoundary:'canonical_or_legacy_tenant'},
   {mount:'/api/workspace/courses',router:'training-course-router',routeClass:'tenant_module',owner:'training.core',modules:['training.core'],contextBoundary:'canonical_or_legacy_tenant'},
-  {mount:'/api/workspace/products-services',router:'training-course-router',routeClass:'tenant_module',owner:'sales.products-services',modules:['sales.products-services'],contextBoundary:'canonical_or_legacy_tenant'},
+  {mount:'/api/workspace/products-services',router:'training-course-router',routeClass:'tenant_module',owner:'sales.products-services',modules:['sales.products-services'],service:'modules/platform/product-catalog.js',contextBoundary:'canonical_or_legacy_tenant'},
   {mount:'/api/public/training/documents',router:'training-finance-router',routeClass:'public_tenant_module',owner:'training.finance',modules:['training.finance'],contextBoundary:'public_document_token'},
   {mount:'/api/public/training/reminder-preferences',router:'training-finance-router',routeClass:'public_tenant_module',owner:'training.finance',modules:['training.finance'],contextBoundary:'public_tenant_token'},
   {mount:'/api/user/training/finance-policies',router:'training-finance-router',routeClass:'tenant_module',owner:'training.finance',modules:['training.finance'],contextBoundary:'canonical_or_legacy_tenant'},

@@ -2116,6 +2116,25 @@ Targets suite passes 23/23. The full suite passes 1,046/1,070 with the same 24
 known failures. Source only; production was not changed. Other module services
 and legacy/asynchronous routes still need the same query/table audit and policy
 tests.
+
+## Separate Sales product storage from Training course storage — source update, 21 October 2026
+
+The `/api/workspace/products-services` route now has an auditable data
+ownership declaration for the Sales product catalogue. The maintained course
+handlers use a fixed server-owned SQL table adapter for Sales, mapping course,
+offer, media, batch and quick-reply table names to five distinct
+`sx_product_*` tables. Training requests retain the original `sx_training_*`
+tables. The route contract remains pinned to `sales.products-services`; the
+Training route remains pinned to `training.core`, and the shared catalogue
+reply route resolves to the appropriate category module. The source test
+compares the mapping, all relevant service query table references and the
+category storage migration, and checks that product enrollment paths are
+rejected. Category catalogue, route ownership, Sales Targets and Real Estate
+focused tests pass 38/38. The full suite passes 1,047/1,071 with the same 24
+known failures. This is source-only, with no customer data or
+migration changed in production. Sales/Training APIs still need full
+authenticated user and agent acceptance, and the remaining legacy module data
+owners are not yet inventoried.
 ## Tenant custom-field search in the existing Pipeline — 21 October 2026
 
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
