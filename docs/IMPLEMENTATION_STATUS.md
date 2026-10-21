@@ -26,10 +26,14 @@ English/Arabic reply previews and idempotent send, with zero Training Center
 catalogue or reply-job writes from Sales. The existing `/user?page=products-services`
 screen passes synthetic owner-session browser checks in English and Arabic at
 1440px and 390px, including type/tag editing, course-field isolation and
-delete cancellation. The full suite passes 1,074/1,090. A clean checkout of the current
-`origin/main` baseline passes 1,019/1,045, and all 16 current failure names
-also fail on that baseline. JavaScript syntax and
-diff checks pass. These are synthetic API/browser checks; signed-in production
+delete cancellation. The full suite passes 1,076/1,091. A clean checkout of the
+current `origin/main` baseline passes 1,019/1,045; all 15 remaining failure names
+also fail on that baseline, while 11 baseline failures now pass on this branch.
+The focused category/tenant suite passes 239/239. Existing-screen browser
+fixtures pass 20 cases across tenant customization and Real Estate fields,
+including English/Arabic desktop/mobile; the Sales catalogue browser fixture
+also passes. JavaScript syntax and diff checks pass. These are synthetic
+API/browser checks; signed-in production
 owner/staff acceptance remains open.
 The router, product media and durable Inbox reply adapter still retain
 course-compatible plumbing and remain the next extraction boundary. Source
@@ -1982,6 +1986,9 @@ accepted Training Center batch operations through the shared catalogue router,
 even though the Sales product screen hides those controls. Product mode now
 returns 404 for batch GET/POST/PUT before database access; Training Center
 batch operations remain available. Focused router/catalogue tests pass 7/7.
+Duplicate SKU unique-key failures are returned as HTTP 409 with the public
+`PRODUCT_SKU_EXISTS` code; a route regression verifies database error text is
+not sent to the customer and the failed create transaction is rolled back.
 
 The audit also confirmed a larger remaining architecture gap: product catalogue
 tables are cloned from the Training Center schema, and product CRUD still uses

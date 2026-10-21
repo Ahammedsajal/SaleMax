@@ -278,12 +278,12 @@ workflow-specific settings and authenticated EN/AR acceptance remain open.
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
 | Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) deployed as tenant-customization-10354f7 after MariaDB isolation tests; typed lead fields and hidden-navigation restrictions are implemented; module/workflow settings pending |
-| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields and schema-3 tenant-only hidden menu sections; browser rerun and live acceptance pending |
+| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead/property fields, task labels and schema-6 settings; eight browser combinations pass across EN/AR, desktop/mobile and bearer/cookie sessions. Authenticated live acceptance remains pending |
 | Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through the shared workspace session and legacy sidebar-access contract; API permissions remain independent; other modules/workers pending |
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Profiles, guided sessions and approved facts are tenant/profile-scoped; AI reply-cache keys now include tenant, category/version, domain-pack key/version, profile revision and the current business-content fingerprint. Unit and source-wiring tests pass; actual two-tenant live conversation/provider acceptance and non-chatbot cache/queue audit remain pending |
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |
-| New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Real Estate has private, non-planable v1 listings, v2 buyer requirements and a v3 viewing workflow in source; DB concurrency/migration and authenticated acceptance remain pending. Owner management and other listed category modules remain pending; adding names to a dropdown is not delivery. |
+| New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Real Estate has private, non-planable v1 listings, v2 buyer requirements and a v3 viewing workflow in source; disposable MariaDB migration/concurrency tests and existing-screen EN/AR desktop/mobile property-field tests pass. Authenticated live acceptance, full owner-management operations, and clinic/retail/supermarket/hotel/restaurant modules remain pending; adding names to a dropdown is not delivery. |
 | Operational scale | Measured tenant load/fairness, recoverable backups, restore drill, rollout rings and health telemetry | Pending |
 | Publication | Verified source push, targeted production backup/deploy, hashes, API/browser acceptance and deployment record | Category foundation deployed. Real Estate source is not deployed and its migration is not applied; tenant configuration, broad category isolation and the full objective remain in progress. |
 
@@ -838,8 +838,9 @@ values, typed/required validation, immutable snapshots, custom-value search,
 concurrent edit revision protection, assignment scope, cross-tenant denial and
 transactional audit rollback. Existing-screen browser fixtures pass 12/12 across
 English/Arabic and mobile/desktop for schema editing, preview, create and edit.
-The complete Node suite has 1,083 tests: 1,061 pass and 22 existing failures
-remain; the 4 tests added in this increment pass. These are source and disposable
+The complete Node suite now has 1,091 tests: 1,076 pass, and the 15 remaining
+failure names also fail on the clean baseline; no new failure name was added.
+These are source and disposable
 test results, not authenticated production UI or performance acceptance. No
 production migration, release or customer-data change has occurred. The category
 remains private pending migration/release review, authenticated owner/staff

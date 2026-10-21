@@ -71,3 +71,38 @@ test('product tenants cannot call Training Center batch endpoints through the sh
     assert.equal(databaseCalls,0);
   }finally{await new Promise(resolve=>server.close(resolve));}
 });
+
+test('duplicate Sales product codes return the localized SKU conflict contract',async()=>{
+  let rollbacks=0;
+  const productContext={
+    audience:'tenant',identity:{id:'identity-product-owner'},
+    tenant:{id:'tenant-products',status:'active',categoryKey:sevenNetworkSales.key,categoryVersion:sevenNetworkSales.version},
+    membership:{id:'member-product-owner',tenantId:'tenant-products',role:'owner',status:'active',delegatedPermissions:[]},
+    category:sevenNetworkSales,subscription:{status:'active',capabilities:['products.catalog']},runtimeReady:{}
+  };
+  const db={
+    beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{rollbacks++;},release(){},
+    query:async sql=>{
+      if(sql.startsWith('SELECT id,status,category_key,category_version'))return [[{id:'tenant-products',status:'active',category_key:sevenNetworkSales.key,category_version:sevenNetworkSales.version}]];
+      if(sql.startsWith('INSERT INTO sx_product_catalog'))throw Object.assign(new Error('duplicate database detail'),{code:'ER_DUP_ENTRY'});
+      throw new Error(`Unexpected product query: ${sql}`);
+    }
+  };
+  const pool={query:db.query,getConnection:async()=>db};
+  const app=express();
+  app.use('/api/workspace/products-services',createTrainingCourseRouter({
+    pool,origin:'http://localhost',products:true,
+    sessionGuard(req,_res,next){req.featureSession={context:productContext};next();}
+  }));
+  const server=app.listen(0,'127.0.0.1');
+  try{
+    await new Promise(resolve=>server.once('listening',resolve));
+    const response=await fetch(`http://127.0.0.1:${server.address().port}/api/workspace/products-services`,{
+      method:'POST',headers:{Origin:'http://localhost','Content-Type':'application/json'},
+      body:JSON.stringify({code:'DUP-CODE',itemKind:'product',nameEn:'Product',nameAr:'منتج'})
+    });
+    assert.equal(response.status,409);
+    assert.deepEqual(await response.json(),{success:false,code:'PRODUCT_SKU_EXISTS'});
+    assert.equal(rollbacks,1);
+  }finally{await new Promise(resolve=>server.close(resolve));}
+});
