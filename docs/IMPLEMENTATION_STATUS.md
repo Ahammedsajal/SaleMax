@@ -2213,24 +2213,27 @@ chatbot access and screen-contract tests pass 40/40; the full suite passes
 1,051/1,075 with the same 24 known Manage Users, Pipeline, Training/Finance
 and public-form source-contract failures. Production was not changed.
 
-## Legacy Flow Builder module enforcement — source update, 21 October 2026
+## Legacy Flow Builder and chatbot module enforcement — source update, 21 October 2026
 
-The existing `/api/chat_flow` endpoints now apply the shared tenant policy
-after their existing user/agent authentication and before reaching legacy flow
-handlers. Mapped tenants must have an active membership and plan, a category
-that pins `core.automation-flows`, the module enabled in the tenant's published
-customization, and the required permission. Agent session controls retain
-their assigned Inbox permission check. Unmapped historical accounts keep the
-legacy path until reviewed ownership adoption; lookup failures for mapped
-actors fail closed. The middleware uses the same activation context and policy
-as adapted business sessions, so the tenant's choice cannot affect another
-workspace or grant a capability outside its category.
+The existing `/api/chat_flow` endpoints and legacy `/api/chatbot` editor APIs now
+apply the shared tenant policy after their existing authentication and before
+reaching legacy handlers. Mapped tenants must have an active membership and
+plan, a category that pins the corresponding module, the module enabled in the
+tenant's published customization, and the required permission. Agent Flow
+Builder session controls retain their assigned Inbox permission check. The
+existing owner-UID flow and chatbot stores remain intact. Unmapped historical
+accounts keep the legacy path until reviewed ownership adoption; lookup
+failures for mapped actors fail closed. The middleware uses the same activation
+context and policy as adapted business sessions, so one tenant's settings
+cannot affect another workspace or grant a capability outside its category.
 
-Six focused policy tests cover shared-category access, disabled modules,
+Focused policy and route tests cover shared-category access, disabled modules,
 unsupported categories, agent session scope, unmapped legacy compatibility,
-and fail-closed lookup errors. The existing Flow Builder integration tests now
-also verify the guard runs before the legacy handler; 42 focused policy,
-category, activation, Flow Builder ownership and execution-authority tests
-pass. Source only: no production files or data changed. Authenticated live
-owner/agent acceptance and the broader legacy route adoption inventory remain
-open; the complete 42-ticket program continues.
+fail-closed lookup errors, and denial before either legacy handler reads or
+writes owner data. The 47 focused Flow Builder, chatbot, category, activation,
+tenant-customization and execution-authority checks pass. Full `npm test`
+passes 1,063/1,087; the same 24 existing Manage Users, Pipeline, Training and
+Finance/public-form source-contract tests remain failing. Source only: no
+production files or data changed. Authenticated live owner/agent acceptance
+and the broader legacy route adoption inventory remain open; the complete
+42-ticket program continues.

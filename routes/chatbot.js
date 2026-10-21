@@ -9,8 +9,17 @@ const {
   readJsonFromFile,
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
-const validateUser = require("../middlewares/user.js");
+const validateUserAuth = require("../middlewares/user.js");
 const { checkPlan } = require("../middlewares/plan.js");
+const chatbotAccess = require("../modules/platform/legacy-module-access").createLegacyModuleAccess({
+  pool: require("../database/config.js").promise(),
+  capability: "automation.chatbot",
+  permission: "automation.manage",
+});
+const validateUser = (req, res, next) => validateUserAuth(req, res, (error) => {
+  if (error) return next(error);
+  return chatbotAccess(req, res, next);
+});
 
 function hasPropertyWithValue(arr, property, value) {
   return arr.some((item) => item[property] === value);
