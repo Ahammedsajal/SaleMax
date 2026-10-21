@@ -1,6 +1,6 @@
 'use strict';
 const {decision,permissions,capabilities}=require('./policy');
-const modules=Object.freeze({inbox:['messaging.inbox','conversations.read'],phonebook:['crm.contacts','contacts.read'],products:['products.catalog','products.read'],courses:['training.courses','courses.read'],finance:['finance.invoices','invoices.read'],receipts:['finance.receipts','receipts.read'],payments:['finance.payments','payments.verify'],reports:['reports.read','reports.read']});
+const modules=Object.freeze({inbox:['messaging.inbox','conversations.read'],phonebook:['crm.contacts','contacts.read'],products:['products.catalog','products.read'],properties:['realestate.listings','properties.read'],courses:['training.courses','courses.read'],finance:['finance.invoices','invoices.read'],receipts:['finance.receipts','receipts.read'],payments:['finance.payments','payments.verify'],reports:['reports.read','reports.read']});
 function describe(session){
   const context=session.context;if(!context)throw Object.assign(Error('VERIFIED_BUSINESS_OWNER_REQUIRED'),{code:'VERIFIED_BUSINESS_OWNER_REQUIRED',status:403});
   const assignedNavigation=Array.isArray(context.membership.assignedNavigation)?[...context.membership.assignedNavigation]:null;

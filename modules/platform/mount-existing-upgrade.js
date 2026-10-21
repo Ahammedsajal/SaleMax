@@ -61,6 +61,8 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/user/team-invitations',team.owner);
   app.use('/api/agent/invitations',team.accept);
   app.use('/api/workspace/products-services',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard,products:true}));
+  app.use('/api/workspace/properties',require('./real-estate-properties-router').createRouter({pool,authenticate:featureSession.guard}));
+  app.get('/property-listings/',(req,res)=>{res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Referrer-Policy','same-origin');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'");res.sendFile(require('node:path').resolve(__dirname,'../../client/public/property-listings/index.html'));});
   app.use(['/api/workspace/courses','/api/user/training/courses'],createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard}));
   app.use(['/api/workspace/tasks','/api/user/training/tasks'],featureSession.guard,createTaskRouter({pool,contextFor:(req,permission)=>createTaskContext(pool,req.businessContext,permission)}));
   app.use(['/api/workspace/students','/api/user/training/students'],createTrainingStudentsRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard}));

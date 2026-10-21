@@ -1,5 +1,7 @@
 # SaleMaX scalable CRM customization and isolation
 
+> The current platform brand is **7Network**. Existing source identifiers, routes and schema names retain their historical SaleMaX spelling until a separately reviewed compatibility migration is appropriate.
+
 Evidence review: 20 October 2026. Status: implementation in progress. This extends the existing 42-ticket program; it does not replace its acceptance criteria.
 
 ## Product decision
@@ -23,6 +25,12 @@ Configuration isolation can prevent one business's settings affecting another. I
 | Frontend recovery | Existing implementation plan | Maintained screen hooks coexist with a generated legacy frontend. Extend the existing screens; do not manually edit minified logic or introduce another panel. |
 
 This is a targeted architecture assessment, not an exhaustive proof of every query, queue, websocket or legacy route. The verification ledger below defines the remaining work.
+
+### Tenant-isolation and real-estate interoperability research — 21 October 2026
+
+OWASP's current multitenant security guidance recommends deriving tenant context from verified identity/membership, enforcing ownership at every access path, including tenant identity in tenant-varying caches and quotas, authorizing async consumers, and testing cross-tenant denial through the ordinary request role. These reinforce the current service pattern: the browser never selects `tenant_id`; the shared authenticated feature session supplies tenant and membership, and the property service keeps tenant predicates in every query. They also add explicit backlog gates for tenant-scoped cache/media/queue coverage, offboarding retention and tenant-only restore testing. See the [OWASP Multi-Tenant Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html).
+
+RESO's live Data Dictionary page identifies DD 2.0 as active for certification and DD 2.1 as a draft; RESO Web API Core is a REST/OData interoperability contract centered on the Data Dictionary, and RESO states that it publishes standards rather than MLS listing data. For 7Network, keep the internal property model typed and business-oriented, then build a separately versioned mapping/transport adapter if a customer later needs MLS exchange. Do not force the CRM's internal lifecycle or custom fields to masquerade as RESO lookups, and do not promise listing data access without the relevant local MLS/provider agreement. See the [RESO Data Dictionary](https://dd.reso.org/), [RESO Web API specification](https://transport.reso.org/proposals/web-api-core/), and [RESO Web API overview and access FAQ](https://www.reso.org/reso-web-api/).
 
 ## Read-only production adoption baseline — 21 October 2026
 
@@ -114,6 +122,12 @@ Cache key: tenant ID + category key/version + configuration revision + relevant 
 
 Use dedicated tables and services for domain invariants. Use bounded, typed custom fields for customer-specific metadata and indexed promoted fields for important search/report dimensions. Do not store invoices, stock balances, medical records, or reservation constraints in an unrestricted JSON entity table. Reference another module through tenant-constrained foreign keys or validated service boundaries; category labels do not change financial meanings.
 
+## Real Estate v1 implementation slice — 22 October 2026
+
+The first domain slice is a private `real_estate@1` contract and a tenant-scoped listing service in the existing `/user` panel. It introduces a typed property table instead of reusing training courses or generic custom-field JSON. Each listing has bilingual titles/descriptions, property and transaction types, explicit lifecycle states, price/currency, area, room counts, city, revision and actor audit events. Query predicates include the authenticated tenant on every listing read and mutation. Edits lock the tenant/listing row, require an expected revision, validate lifecycle transitions, and write the audit event in the same transaction. Sold/rented listings are immutable except for archival; hard deletion is not exposed. Until a property-assignment model exists, only owners and managers can read or manage listings; agent/team-leader custom permissions cannot widen access to the whole tenant inventory.
+
+The category is `public:false` and `planable:false`; it is deliberately absent from customer plan selection while the workflow is incomplete. `realestate.listings` is a distinct entitlement and is independently gated by category version, active subscription, role permission and assigned navigation. This establishes a vertical-module pattern, not a claim that the full category or multi-tenant acceptance is complete. A disposable MariaDB migration/concurrency check now passes, but buyer/tenant requirements, owners, viewings, listing pipelines, search ranking, media uploads, RESO mapping, bilingual browser/device review and an authenticated existing-panel acceptance remain open before plan publication or production migration. The local tests do not replace those runtime gates.
+
 ## Isolation beyond database reads
 
 - All canonical repositories require tenant context and tenant predicates on reads, writes, joins, exports and deletes. Review raw legacy UID ownership adapters rather than assuming canonical guards cover them.
@@ -135,9 +149,9 @@ Use dedicated tables and services for domain invariants. Use bounded, typed cust
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Partly existing; broader proof pending |
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |
-| New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Pending; not delivered by adding names to a dropdown |
+| New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Real Estate has a private, non-planable typed listing slice in source; category workflow and migration acceptance remain incomplete. Clinic, retail, supermarket, hotel and restaurant modules remain pending; adding names to a dropdown is not delivery. |
 | Operational scale | Measured tenant load/fairness, recoverable backups, restore drill, rollout rings and health telemetry | Pending |
-| Publication | Verified source push, targeted production backup/deploy, hashes, API/browser acceptance and deployment record | Category foundation deployed; tenant configuration and full objective still in progress |
+| Publication | Verified source push, targeted production backup/deploy, hashes, API/browser acceptance and deployment record | Category foundation deployed. Real Estate source is not deployed and its migration is not applied; tenant configuration, broad category isolation and the full objective remain in progress. |
 
 Acceptance requires a matrix covering two businesses in the same category, two different categories, and an unmapped legacy business. Change A's draft, publish it, run its workflow, revoke permissions and roll back; B's active revision, visible modules, API decisions, bot content and stored data must remain unchanged throughout. Also cover concurrent publish, malformed/unknown fields, unsupported category version, expired plan, cross-tenant ID substitution, stale worker/cache state, migration failure and partial provider failure. Fixtures cannot stand in for authenticated existing-screen verification.
 

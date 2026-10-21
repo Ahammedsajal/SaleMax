@@ -54,6 +54,10 @@ const permissions = {
   'calls.manage': { owner: 'tenant', manager: 'tenant' },
   'templates.manage': { owner: 'tenant' },
   'recruitment.manage': { owner: 'tenant' },
+  // The first real-estate slice has no listing assignment/team ownership model.
+  // Keep reads owner/manager-only until that model is implemented and audited.
+  'properties.read': { owner: 'tenant', manager: 'tenant' },
+  'properties.manage': { owner: 'tenant', manager: 'tenant' },
 };
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);
 const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read', 'telephony.configure']);
@@ -70,6 +74,7 @@ const capabilities = Object.freeze({
   'sales.targets': ['targets.read','targets.manage'],
   'products.catalog': ['products.read','products.manage'],
   'hr.recruitment': ['recruitment.manage'],
+  'realestate.listings': ['properties.read','properties.manage'],
   'campaigns.dashboard': ['campaigns.manage'], 'crm.leads': ['leads.read', 'leads.manage', 'leads.assign'],
   'crm.contacts': ['contacts.read', 'contacts.manage'], 'team.members': ['team.read', 'team.invite'],
   'team.tasks': ['tasks.read', 'tasks.manage'], 'training.courses': ['courses.read', 'courses.manage'],
@@ -83,6 +88,9 @@ const capabilities = Object.freeze({
 });
 function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
+  // Real-estate lists do not yet have per-listing/team assignment scopes.
+  // Custom grants therefore cannot widen access beyond tenant owners/managers.
+  if (permission.startsWith('properties.') && !['owner', 'manager'].includes(membership.role)) return null;
   // A custom role is an additional restriction on its fixed seat role. It can
   // never create a permission or scope that the seat role itself lacks.
   if (Array.isArray(membership.customPermissions) && !membership.customPermissions.includes(permission)) return null;

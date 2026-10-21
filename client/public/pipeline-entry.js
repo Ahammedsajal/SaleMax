@@ -13,6 +13,7 @@
   const isSalesFinanceRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-finance';
   const isSalesOrganizationRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-organization';
   const isSalesAuditRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-audit';
+  const isPropertiesRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'properties';
   const isDashboardRoute = () => location.pathname.replace(/\/$/, '') === '/user' && (!new URLSearchParams(location.search).get('page') || new URLSearchParams(location.search).get('page') === 'dashboard');
   const isPipelineRoute = () => location.pathname.replace(/\/$/, '') === '/user' && ['lead-pipeline','lead-reports'].includes(new URLSearchParams(location.search).get('page'));
   const pipelineLabel = () => isArabic() ? (isLeadReportsRoute()?'تقارير العملاء المحتملين':'مسار العملاء المحتملين') : (isLeadReportsRoute()?'Lead Reports':'Lead Pipeline');
@@ -245,6 +246,15 @@
     frame.style.left=`${left}px`;frame.style.top=`${top}px`;frame.style.width=`${width}px`;frame.style.height=`${height}px`;
   }
 
+  function syncPropertiesWorkspace(){
+    const existing=document.getElementById('salemax-properties-workspace');
+    if(!isPropertiesRoute()){existing?.remove();return;}
+    const {left,top,width,height,topbar}=workspaceBounds();
+    if(topbar){const crumb=[...topbar.querySelectorAll('*')].find(el=>el.childElementCount===0&&['Dashboard','لوحة التحكم'].includes((el.textContent||'').trim()));if(crumb)crumb.textContent=isArabic()?'العقارات':'Properties';}
+    let frame=existing;if(!frame){frame=document.createElement('iframe');frame.id='salemax-properties-workspace';frame.title=isArabic()?'العقارات':'Properties';frame.src='/property-listings/?embed=1';frame.style.cssText='position:fixed;z-index:1100;border:0;background:#f7f5f6;display:block;';document.body.append(frame);}
+    bindWorkspaceNavigation(frame);frame.style.left=`${left}px`;frame.style.top=`${top}px`;frame.style.width=`${width}px`;frame.style.height=`${height}px`;
+  }
+
   function update() {
     addNavigationItem();
     syncBusinessDashboard();
@@ -256,6 +266,7 @@
     syncSalesFinanceWorkspace();
     syncSalesOrganizationWorkspace();
     syncSalesAuditWorkspace();
+    syncPropertiesWorkspace();
   }
 
   let scheduled = false;

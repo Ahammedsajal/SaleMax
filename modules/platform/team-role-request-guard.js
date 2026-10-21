@@ -18,6 +18,7 @@ function routePermission(req){
   if(mount==='/api/workspace/phonebook')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
   if(mount==='/api/workspace/courses')return read?'courses.read':'courses.manage';
   if(mount==='/api/workspace/products-services')return read?'products.read':'products.manage';
+  if(mount==='/api/workspace/properties')return read?'properties.read':'properties.manage';
   if(mount==='/api/workspace/students')return read?'sales.request':'sales.approve';
   if(mount==='/api/workspace/profile')return 'tenant.manage';
   if(mount==='/api/workspace/forms')return read?'forms.manage':'forms.capture';

@@ -61,7 +61,7 @@
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
     'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'recruitment', 'Invoices & Payments':'invoices',
     'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
-    'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit'
+    'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit',Properties:'properties','العقارات':'properties'
   };
   const salesNavLabels={
     overview:{owner:['Business Overview','نظرة عامة على الأعمال'],manager:['Team Overview','نظرة عامة على الفريق'],team_leader:['Team Overview','نظرة عامة على الفريق'],agent:['My Day','مهامي اليوم']},
@@ -266,6 +266,12 @@
       copy.setAttribute('aria-label',tr('Tasks','المهام'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
       button.setAttribute('aria-label',tr('Tasks','المهام'));
       button.onclick=event=>{event.preventDefault();location.href='/user?page=tasks';};list.append(copy);
+    }
+    if(membershipCategoryKey==='real_estate'&&roleNavigation?.has('properties')&&(assignedNavigation===null||assignedNavigation.has('properties'))&&pipelineSource&&!list.querySelector('[data-sx-properties-nav]')){
+      const copy=cloneNavigationRow(pipelineSource);copy.dataset.sxPropertiesNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Properties','العقارات');
+      copy.setAttribute('aria-label',tr('Properties','العقارات'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.setAttribute('aria-label',tr('Properties','العقارات'));button.onclick=event=>{event.preventDefault();location.href='/user?page=properties';};list.append(copy);
     }
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
     if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')&&!hasNavigationKey(list,'reports')){
@@ -540,7 +546,7 @@
     });
     const page=new URLSearchParams(location.search).get('page');
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
-    const routeKeys={students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
+    const routeKeys={properties:'properties',students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
     const required=routeKeys[page];
     // Team access is available to any membership whose role/navigation grants
     // it. The API still enforces team.invite (including owner-approved manager

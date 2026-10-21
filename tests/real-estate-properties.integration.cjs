@@ -1,0 +1,60 @@
+'use strict';
+
+// Run only against an empty, disposable sx_real_estate_test_<hex> schema.
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const crypto=require('node:crypto');
+const mysql=require('mysql2/promise');
+const properties=require('../modules/platform/real-estate-properties');
+const category=require('../modules/platform/categories').realEstate;
+if(process.env.REALESTATE_SYNTHETIC_ONLY!=='true')throw Error('REALESTATE_SYNTHETIC_ONLY_REQUIRED');
+const config=JSON.parse(fs.readFileSync(process.env.REALESTATE_TEST_CONFIG,'utf8'));
+if(!/^sx_real_estate_test_[a-f0-9]+$/.test(config.database)||config.database!==config.user)throw Error('DISPOSABLE_REALESTATE_SCHEMA_REQUIRED');
+const pool=mysql.createPool({...config,connectionLimit:6,multipleStatements:false});
+const tenantId=crypto.randomUUID(),otherTenantId=crypto.randomUUID(),identityId=crypto.randomUUID(),otherIdentityId=crypto.randomUUID();
+const schema=[
+  'CREATE TABLE sx_tenants(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,category_key VARCHAR(80),category_version INT,status VARCHAR(20)) ENGINE=InnoDB',
+  'CREATE TABLE sx_identities(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,status VARCHAR(20)) ENGINE=InnoDB',
+  'CREATE TABLE sx_memberships(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,role VARCHAR(20),status VARCHAR(20),UNIQUE KEY uq_membership_tenant_identity(tenant_id,identity_id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),FOREIGN KEY(identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB',
+  'CREATE TABLE sx_audit_events(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_kind VARCHAR(24) NOT NULL,action VARCHAR(100) NOT NULL,resource_type VARCHAR(100) NOT NULL,resource_id VARCHAR(120) NOT NULL,changes JSON NOT NULL,correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),FOREIGN KEY(actor_identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB'
+];
+const context=(tenant,identity)=>({audience:'tenant',tenant:{id:tenant,status:'active',categoryKey:category.key,categoryVersion:category.version},membership:{id:crypto.randomUUID(),tenantId:tenant,role:'owner',status:'active'},category,subscription:{status:'active',categoryKey:category.key,categoryVersion:category.version,capabilities:[...category.capabilities]},identity:{id:identity}});
+const listing={titleEn:'Synthetic Doha apartment',titleAr:'شقة اختبارية في الدوحة',propertyType:'apartment',transactionType:'sale',status:'draft',priceMinor:125000,currency:'QAR',areaSqm:82.5,bedrooms:2,bathrooms:2,city:'Synthetic Doha',descriptionEn:'Synthetic test record',descriptionAr:'سجل اختبار'};
+async function use(fn){const db=await pool.getConnection();try{return await fn(db)}finally{db.release()}}
+
+(async()=>{try{
+  const [[existing]]=await pool.query('SELECT COUNT(*) AS total FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()');
+  assert.equal(Number(existing.total),0,'synthetic schema must be empty');
+  for(const sql of schema)await pool.query(sql);
+  const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261222_real_estate_properties.sql'),'utf8');
+  for(const sql of require('../database/migration-runner').splitSql(migration))await pool.query(sql);
+  await pool.query("INSERT INTO sx_tenants VALUES (?,?,?,'active'),(?,?,?,'active')",[tenantId,category.key,category.version,otherTenantId,category.key,category.version]);
+  await pool.query("INSERT INTO sx_identities VALUES (?,'active'),(?,'active')",[identityId,otherIdentityId]);
+  await pool.query("INSERT INTO sx_memberships VALUES (?,?,?,'owner','active'),(?,?,?,'owner','active')",[crypto.randomUUID(),tenantId,identityId,crypto.randomUUID(),otherTenantId,otherIdentityId]);
+  const a=context(tenantId,identityId),b=context(otherTenantId,otherIdentityId);
+  const foreignActor={...a,identity:{id:otherIdentityId}};
+  await assert.rejects(use(db=>properties.create(db,foreignActor,listing)),error=>['ER_NO_REFERENCED_ROW_2','ER_NO_REFERENCED_ROW'].includes(error.code));
+  const created=await use(db=>properties.create(db,a,listing));
+  assert.equal((await use(db=>properties.list(db,a))).total,1);
+  assert.equal((await use(db=>properties.list(db,b))).total,0);
+  await assert.rejects(use(db=>properties.update(db,b,created.id,{expectedRevision:1,status:'active'})),{code:'PROPERTY_NOT_FOUND'});
+  await assert.rejects(use(db=>properties.create(db,a,{...listing,status:'active'})),{code:'INVALID_PROPERTY_TRANSITION'});
+
+  const results=await Promise.allSettled([
+    use(db=>properties.update(db,a,created.id,{expectedRevision:1,status:'active'})),
+    use(db=>properties.update(db,a,created.id,{expectedRevision:1,priceMinor:130000})),
+  ]);
+  assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
+  assert.equal(results.filter(result=>result.status==='rejected'&&result.reason.code==='STALE_REVISION').length,1);
+  const [[row]]=await pool.query('SELECT revision,status FROM sx_real_estate_properties WHERE tenant_id=? AND id=?',[tenantId,created.id]);
+  assert.equal(Number(row.revision),2);
+
+  const before=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
+  const connection=await pool.getConnection();
+  const failingDb={beginTransaction:()=>connection.beginTransaction(),commit:()=>connection.commit(),rollback:()=>connection.rollback(),query:(sql,args)=>String(sql).includes('INSERT INTO sx_audit_events')?Promise.reject(Error('SYNTHETIC_AUDIT_FAILURE')):connection.query(sql,args)};
+  try{await assert.rejects(properties.create(failingDb,a,{...listing,titleEn:'Audit rollback candidate'}),/SYNTHETIC_AUDIT_FAILURE/);}finally{connection.release();}
+  const after=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
+  assert.equal(after,before,'listing insert must roll back with its audit event');
+  console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MariaDB','creator identity must be a member of the same tenant','tenant-scoped listing reads','cross-tenant listing ID denied','new listings start as drafts','two concurrent edits yield one revision winner','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
+}finally{await pool.end();}})().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message}));process.exitCode=1;});

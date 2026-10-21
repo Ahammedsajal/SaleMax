@@ -23,6 +23,7 @@ const items = [
   ['sales-organization', 'team.members', 'team.read', 'Organization', 'الهيكل التنظيمي', 'Sales', 'المبيعات'],
   ['commission-policy', 'sales.commissions', 'commission.policy.manage', 'Commission Policy', 'سياسة العمولات', 'Administration', 'الإدارة'],
   ['products-services', 'products.catalog', 'products.read', 'Products & services', 'المنتجات والخدمات', 'Sales', 'المبيعات'],
+  ['properties', 'realestate.listings', 'properties.read', 'Properties', 'العقارات', 'Real Estate', 'العقارات'],
   ['courses', 'training.courses', 'courses.read', 'Courses', 'الدورات', 'Training', 'التدريب'],
   ['batches', 'training.batches', 'courses.read', 'Batches', 'المجموعات', 'Training', 'التدريب'],
   ['enrollments', 'training.enrollments', 'sales.request', 'Enrollments', 'التسجيلات', 'Training', 'التدريب'],
