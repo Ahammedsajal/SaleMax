@@ -2048,14 +2048,18 @@ change occurred.
 The public application form now gives applicants clear bilingual guidance when
 secure CV storage or recruitment-owner delivery is unavailable, while retaining
 the safe diagnostic code in brackets for support. It does not expose internal
-error messages or candidate data. Focused recruitment form and error tests pass
-22/22. Production was inspected read-only: the current error-handling assets
-match the deployed source, recruitment migrations are applied, the configured CV
-directory is present and writable, and no public-submission server failures were
-recorded in the app logs over the previous 72 hours. The host has about 867 MB
-free disk space, which remains an operational risk. No production update was
-made; the cause of the reported individual failure remains unconfirmed without
-its diagnostic code.
+error messages or candidate data. The source branch includes expanded
+plain-language explanations for storage, network, database and upload causes,
+with the safe exact code alongside each explanation. Focused recruitment form
+and error tests pass 22/22. Production was inspected read-only: its current
+application page and error script return HTTP 200, the public form API responds
+successfully, recruitment migrations are applied, the configured CV directory
+is present and writable, and no public-submission server failures were recorded
+in the app logs over the previous 72 hours. The live form still uses the earlier
+error-copy asset version, so exact source parity has not been achieved and no
+production update was made. The cause of the reported individual failure remains
+unconfirmed without its diagnostic code. Production disk has 847 MB free (99%
+used), which remains an operational risk.
 
 ## Tenant-specific module access — source only, 22 October 2026
 
