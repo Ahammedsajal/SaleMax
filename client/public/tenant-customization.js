@@ -12,6 +12,7 @@
     INVALID_LEAD_FIELD_LABEL:['Enter the English and Arabic field labels.','أدخل اسم الحقل بالإنجليزية والعربية.'],
     CUSTOMIZATION_RATE_LIMITED:['Too many changes. Try again later.','تغييرات كثيرة. حاول لاحقًا.'],
     INVALID_CUSTOMIZATION_TASK_TYPES:['Choose only task types available for your business category.','اختر أنواع المهام المتاحة لفئة نشاطك فقط.'],
+    INVALID_CUSTOMIZATION_TASK_LABELS:['Enter both English and Arabic task names, up to 80 characters each.','أدخل أسماء المهام بالإنجليزية والعربية، بحد أقصى 80 حرفًا لكل اسم.'],
   };
   async function mount(host){
     if(!host?.isConnected||host.querySelector('[data-sx-customization]')||!window.SaleMaxWorkspace)return;
@@ -32,7 +33,14 @@
       }
       const hiddenNavigation=[...panel.querySelectorAll('[data-hide-navigation]:checked')].map(input=>input.value);
       const enabledTaskTypes=[...panel.querySelectorAll('[data-task-type]:checked')].map(input=>input.value);
-      return {schemaVersion:4,navigationLabels,leadFields:window.SaleMaxLeadFieldEditor?.collect(panel)||[],hiddenNavigation,enabledTaskTypes};
+      const taskTypeLabels={};
+      for(const item of state.taskTypeLabelOptions||[]){
+        const row=panel.querySelector(`[data-task-label-key="${item.key}"]`),en=row.querySelector('[data-task-label-en]').value.trim(),ar=row.querySelector('[data-task-label-ar]').value.trim();
+        if(!en&&!ar)continue;
+        if(!en||!ar)throw Error('INVALID_CUSTOMIZATION_TASK_LABELS');
+        taskTypeLabels[item.key]={en,ar};
+      }
+      return {schemaVersion:5,navigationLabels,leadFields:window.SaleMaxLeadFieldEditor?.collect(panel)||[],hiddenNavigation,enabledTaskTypes,taskTypeLabels};
     }
     async function load(notice=''){
       const data=await request();if(!panel.isConnected)return;state=data;dirty=false;
@@ -42,13 +50,15 @@
       panel.querySelector('form').prepend(hideMenu);
       const taskTypes=window.document.createElement('details');taskTypes.innerHTML=`<summary>${tr('Choose task types for your business','اختر أنواع المهام لنشاطك')}</summary><p>${tr('This only changes task choices for your business. Category and plan access still apply. Existing tasks remain in history.','يغيّر هذا خيارات المهام لنشاطك فقط. تظل الفئة والباقة محددتين للصلاحيات، وتبقى المهام الحالية محفوظة.')}</p>${(state.taskTypes||[]).map(item=>`<label style="display:flex;gap:9px;align-items:center;margin:10px 0"><input type="checkbox" data-task-type value="${esc(item.key)}" ${(document.enabledTaskTypes==null||document.enabledTaskTypes.includes(item.key))?'checked':''} ${item.planAvailable?'':'disabled data-plan-unavailable'}>${esc(tr(item.label.en,item.label.ar))}${item.planAvailable?'':` · ${tr('Not included in your plan','غير متاح في باقتك')}`}</label>`).join('')||`<p>${tr('No additional task types are available for this category.','لا توجد أنواع مهام إضافية متاحة لهذه الفئة.')}</p>`}`;
       panel.querySelector('form').prepend(taskTypes);
+      const taskLabels=window.document.createElement('details');taskLabels.innerHTML=`<summary>${tr('Use your business names for tasks','استخدم أسماء نشاطك للمهام')}</summary><p>${tr('These names are shown only to your business and team. They do not change task access or behavior. Leave both boxes empty to use the standard names.','تظهر هذه الأسماء لنشاطك وفريقك فقط. ولا تغيّر صلاحية المهام أو طريقة عملها. اترك الحقلين فارغين لاستخدام الأسماء المعتادة.')}</p>${(state.taskTypeLabelOptions||[]).map(item=>{const value=document.taskTypeLabels?.[item.key]||{};return `<fieldset data-task-label-key="${esc(item.key)}" style="border:1px solid #e4e8ef;border-radius:9px;margin:12px 0;padding:12px"><legend>${esc(tr(item.label.en,item.label.ar))}</legend><label>${tr('English','الإنجليزية')}<input data-task-label-en lang="en" dir="ltr" maxlength="80" placeholder="${esc(item.label.en)}" value="${esc(value.en||'')}"></label><label>${tr('Arabic','العربية')}<input data-task-label-ar lang="ar" dir="rtl" maxlength="80" placeholder="${esc(item.label.ar)}" value="${esc(value.ar||'')}"></label></fieldset>`;}).join('')||`<p>${tr('No task names can be customized for this category.','لا يمكن تخصيص أسماء المهام لهذه الفئة.')}</p>`}`;
+      panel.querySelector('form').prepend(taskLabels);
       window.SaleMaxLeadFieldEditor?.mount(panel,document.leadFields||[]);
       announce(notice||tr('Changes stay in the draft until you publish.','تبقى التغييرات في المسودة حتى تنشرها.'));
       const markDirty=()=>{dirty=true;panel.querySelector('[data-publish]').disabled=true;announce(tr('Save this draft before publishing.','احفظ هذه المسودة قبل نشرها.'));};
       panel.querySelector('form').oninput=markDirty;
       panel.querySelector('form').onsubmit=event=>{event.preventDefault();act(async()=>{await request('/draft','PUT',{expectedRevision:state.revision,document:collect()});await load(tr('Draft saved. Review and publish when ready.','تم حفظ المسودة. راجعها وانشرها عندما تكون جاهزًا.'));});};
       panel.querySelector('[data-preview]').onclick=()=>act(async()=>{const result=await request('/preview','POST',{document:collect()}),rows=Object.entries(result.document.navigationLabels),hidden=(result.document.hiddenNavigation||[]).map(key=>state.fields.find(field=>field.key===key)).filter(Boolean);panel.querySelector('[data-preview-result]').innerHTML=`<h3>${tr('Draft preview','معاينة المسودة')}</h3>${rows.length?`<ul>${rows.map(([key,value])=>`<li>${esc(state.fields.find(field=>field.key===key)?.label.en||key)}: ${esc(value.en)} · <span lang="ar" dir="rtl">${esc(value.ar)}</span></li>`).join('')}</ul>`:`<p>${tr('No custom menu labels.','لا توجد أسماء قائمة مخصصة.')}</p>`}<p data-hidden-preview>${hidden.length?`${tr('Menu sections to hide','أقسام القائمة التي سيتم إخفاؤها')}: ${hidden.map(field=>esc(tr(field.label.en,field.label.ar))).join(', ')}`:tr('No menu sections are hidden.','لا توجد أقسام قائمة مخفية.')}</p><p>${tr('Custom lead fields','حقول العملاء المخصصة')}: ${(result.document.leadFields||[]).filter(field=>field.active).length}</p>`;window.SaleMaxLeadFieldEditor?.preview(panel.querySelector('[data-preview-result]'),result.document.leadFields||[]);});
-      panel.querySelector('[data-defaults]').onclick=()=>{window.SaleMaxLeadFieldEditor?.reset(panel);panel.querySelectorAll('[data-en],[data-ar]').forEach(input=>input.value='');panel.querySelectorAll('[data-hide-navigation]').forEach(input=>input.checked=false);panel.querySelectorAll('[data-task-type]').forEach(input=>{input.checked=true;});markDirty();};
+      panel.querySelector('[data-defaults]').onclick=()=>{window.SaleMaxLeadFieldEditor?.reset(panel);panel.querySelectorAll('[data-en],[data-ar],[data-task-label-en],[data-task-label-ar]').forEach(input=>input.value='');panel.querySelectorAll('[data-hide-navigation]').forEach(input=>input.checked=false);panel.querySelectorAll('[data-task-type]').forEach(input=>{input.checked=true;});markDirty();};
       const published=async notice=>{window.SaleMaxWorkspace.invalidateSession?.();window.dispatchEvent(new Event('salemax:customization-published'));await load(notice);};
       panel.querySelector('[data-publish]').onclick=()=>act(async()=>{if(dirty)return;await request('/publish','POST',{expectedRevision:state.revision});await published(tr('Published for your business and team.','تم النشر لنشاطك وفريقك.'));});
       panel.querySelector('[data-reload]').onclick=()=>act(()=>load());

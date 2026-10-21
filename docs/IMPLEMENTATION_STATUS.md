@@ -1,3 +1,20 @@
+## Tenant-specific task terminology — source implementation, 21 October 2026
+
+The existing owner-only workspace customizer now supports bilingual labels for
+the reviewed task types available to that category. Labels are stored in the
+tenant's immutable, audited customization revision and are resolved from the
+authenticated tenant context in the existing Tasks API. They affect task
+presentation only: category, plan, role, enabled-type and assignment checks
+remain authoritative. The normalizer rejects unknown task types, incomplete
+translations, markup/control characters and overlong values. Existing schema
+versions remain readable; this increment uses customization schema version 5
+and needs no database migration. Forty-one focused customization, task adapter,
+task management and screen-contract tests pass. A synthetic two-tenant database
+test now covers persistence and runtime label separation but was not run in
+this checkout. Source only; no production upload or tenant setting change.
+Authenticated English/Arabic browser acceptance and the broader category,
+tenant-adoption, production parity and 42-ticket gates remain open.
+
 ## Tenant-custom field and QR lead-filter audit — source verification, 21 October 2026
 
 Traced the tenant-specific lead-field contract through the existing Pipeline: definitions are loaded from the mapped active tenant customization, category/plan decoding remains server-side, and lead writes validate the active revision while preserving field-definition snapshots. Verified the QR instance filter joins the selected instance to its QR source conversation, the lead's tenant hash, and the current assigned lead scope; updated the stale SQL-shape regression to require both explicit collation and instance identity constraints. The focused QR filter test passes 2/2. Full suite is now 1,055/1,077 with 22 remaining app-shell, Pipeline/Reports, Training, Finance, and public-form failures. This was source/test validation only; no production or customer data changed.

@@ -23,6 +23,8 @@ test('preview cannot grant access and denied staff never reach persistence',asyn
 test('saved revisions must match tenant category version and canonical checksum',()=>{
   const row={id:'revision',kind:'published',category_key:'training_center',category_version:1,schema_version:1,revision:1,document:JSON.stringify(doc),checksum:settings.checksum(doc)};
   assert.deepEqual(settings.decode(ctx,row).document,doc);
+  const v5={schemaVersion:5,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,taskTypeLabels:{general:{en:'Other',ar:'أخرى'}}};
+  assert.deepEqual(settings.decode(ctx,{...row,schema_version:5,document:JSON.stringify(v5),checksum:settings.checksum(v5)}).document,v5);
   assert.throws(()=>settings.decode(ctx,{...row,checksum:'0'.repeat(64)}),{code:'CUSTOMIZATION_INTEGRITY_ERROR'});
   assert.throws(()=>settings.decode(ctx,{...row,category_version:2}),{code:'CUSTOMIZATION_VERSION_MISMATCH'});
 });
@@ -43,6 +45,33 @@ test('schema 4 enables only reviewed category task types and preserves legacy co
   assert.throws(()=>settings.normalize(ctx,{...doc4,enabledTaskTypes:['sales_call']}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
   assert.throws(()=>settings.normalize(ctx,{...doc4,enabledTaskTypes:['enrollment','enrollment']}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
   assert.deepEqual(settings.normalize(ctx,{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]}),{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]});
+});
+test('schema 5 personalizes only reviewed task labels for this tenant and category',()=>{
+  const labels={general:{en:'Other work',ar:'أعمال أخرى'},enrollment:{en:'New learner',ar:'متدرب جديد'}};
+  const doc5={schemaVersion:5,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:['enrollment'],taskTypeLabels:labels};
+  assert.deepEqual(settings.normalize(ctx,doc5),doc5);
+  for(const taskTypeLabels of [
+    {...labels,sales_call:{en:'Sales call',ar:'مكالمة مبيعات'}},
+    {enrollment:{en:'Only English',ar:''}},
+    {enrollment:{en:'<script>',ar:'متدرب'}},
+    JSON.parse('{"__proto__":{"en":"Injected","ar":"حقن"}}')
+  ])assert.throws(()=>settings.normalize(ctx,{...doc5,taskTypeLabels}),{code:'INVALID_CUSTOMIZATION_TASK_LABELS'});
+  const taskAdapters=require('../modules/platform/task-type-adapters');
+  const tenantA={...ctx,customization:{document:doc5}},tenantB={...ctx,tenant:{...ctx.tenant,id:'tenant-b'},membership:{...ctx.membership,tenantId:'tenant-b'}};
+  assert.equal(taskAdapters.available(tenantA,doc5.enabledTaskTypes).find(item=>item.key==='enrollment').label.en,'New learner');
+  assert.equal(taskAdapters.available(tenantB).find(item=>item.key==='enrollment').label.en,'Enrollment');
+  assert.deepEqual(settings.normalize(ctx,{schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null}),{schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null});
+});
+test('existing workspace customizer collects bilingual task labels into the tenant draft',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const client=fs.readFileSync(path.join(__dirname,'../client/public/tenant-customization.js'),'utf8');
+  const shell=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
+  assert.match(client,/schemaVersion:5[\s\S]*taskTypeLabels/);
+  assert.match(client,/Use your business names for tasks/);
+  assert.match(client,/data-task-label-en/);
+  assert.match(client,/data-task-label-ar/);
+  assert.match(client,/Changes stay in the draft until you publish/);
+  assert.match(shell,/tenant-customization\.js\?v=20261022-tenant-task-labels1/);
 });
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');

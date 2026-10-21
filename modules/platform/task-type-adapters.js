@@ -48,6 +48,14 @@ function configurable(ctx){
     return adapter&&adapter.requiredCapabilities.every(capability=>category.capabilities.includes(capability))?[{key,label:adapter.label}]:[];
   });
 }
+function customizable(ctx){
+  const category=categoryFor(ctx);
+  const types=[];
+  if(!category||category.capabilities.includes('crm.leads'))types.push({key:'lead_follow_up',label:{en:'Lead follow-up',ar:'متابعة عميل محتمل'}});
+  types.push({key:'general',label:{en:'General',ar:'عام'}});
+  for(const item of configurable(ctx))types.push(item);
+  return types;
+}
 function supports(ctx,key){
   if(key==='general')return true;
   if(key==='lead_follow_up'){
@@ -63,12 +71,15 @@ function supports(ctx,key){
   return Array.isArray(entitlements)&&adapter.requiredCapabilities.every(capability=>entitlements.includes(capability));
 }
 function available(ctx,enabledSpecialTypes=null){
-  const result=[{key:'general',label:{en:'General',ar:'عام'}}];
-  if(supports(ctx,'lead_follow_up'))result.unshift({key:'lead_follow_up',label:{en:'Lead follow-up',ar:'متابعة عميل محتمل'}});
+  const labels=ctx?.customization?.document?.taskTypeLabels;
+  const labelFor=(item)=>({key:item.key,label:labels?.[item.key]||item.label});
+  const options=customizable(ctx),byKey=new Map(options.map(item=>[item.key,item]));
+  const result=options.filter(item=>item.key==='general'||item.key==='lead_follow_up'&&supports(ctx,item.key)).map(labelFor);
   const category=categoryFor(ctx);
   for(const [key,version] of Object.entries(category?.taskAdapters||{})){
     const adapter=getAdapter(key,version);
-    if(adapter&&(!Array.isArray(enabledSpecialTypes)||enabledSpecialTypes.includes(key))&&supports(ctx,key))result.push({key,label:adapter.label});
+    const item=adapter&&byKey.get(key);
+    if(item&&(!Array.isArray(enabledSpecialTypes)||enabledSpecialTypes.includes(key))&&supports(ctx,key))result.push(labelFor(item));
   }
   return result;
 }
@@ -78,4 +89,4 @@ function presentation(ctx){
 }
 function validate(ctx,key,details){if(key==='general'||key==='lead_follow_up')return;const adapter=categoryTaskAdapter(ctx,key);if(!adapter)fail('INVALID_TASK_TYPE');adapter.validate(details);}
 
-module.exports={knownAdapters,getAdapter,categoryTaskAdapter,configurable,supports,available,presentation,validate};
+module.exports={knownAdapters,getAdapter,categoryTaskAdapter,configurable,customizable,supports,available,presentation,validate};

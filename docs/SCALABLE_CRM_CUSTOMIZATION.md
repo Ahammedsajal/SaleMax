@@ -171,6 +171,19 @@ The migration, API, UI and focused category/HTTP tests are source-only. The 58 f
 
 ## Implementation and verification ledger
 
+### Tenant-specific task terminology — source implementation, 21 October 2026
+
+The existing tenant customization schema v5 permits a business owner to relabel
+only task types declared by its exact category contract, in English and Arabic.
+Labels are validated as bounded text, saved in the tenant's checksummed immutable
+revision, and applied by the existing task-type adapter when it builds the
+authenticated task list. A tenant cannot create a task type, expose a plan- or
+category-denied type, change its validation rules, or affect another tenant.
+Older schema versions remain readable. No table change is needed. Unit and
+screen-contract tests pass; the updated disposable two-tenant integration check
+has not been run in this checkout. This extends business vocabulary only;
+workflow-specific settings and authenticated EN/AR acceptance remain open.
+
 | Workstream | Required evidence | State |
 | --- | --- | --- |
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
