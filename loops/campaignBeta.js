@@ -49,11 +49,11 @@ async function handleLegacyCampaigns() {
 
     // Find campaigns that are PENDING/IN_PROGRESS but have no logs
     const legacyCampaigns = await query(
-      `SELECT c.campaign_id, c.title 
+      `SELECT c.campaign_id, c.uid, c.title
        FROM beta_campaign c
-       LEFT JOIN beta_campaign_logs l ON c.campaign_id = l.campaign_id
+       LEFT JOIN beta_campaign_logs l ON c.campaign_id = l.campaign_id AND c.uid = l.uid
        WHERE c.status IN ('PENDING', 'IN_PROGRESS')
-       AND l.campaign_id IS NULL`,
+       AND c.uid IS NOT NULL AND l.campaign_id IS NULL`,
       [],
     );
 
@@ -67,8 +67,8 @@ async function handleLegacyCampaigns() {
         await query(
           `UPDATE beta_campaign 
            SET status = 'COMPLETED' 
-           WHERE campaign_id = ?`,
-          [campaign.campaign_id],
+          WHERE campaign_id = ? AND uid = ?`,
+          [campaign.campaign_id, campaign.uid],
         );
 
         // console.log(
@@ -109,11 +109,12 @@ async function processPendingCampaigns() {
 
     // Process each campaign
     for (const campaign of campaigns) {
-      if (processingCampaigns.has(campaign.campaign_id)) {
+      const processingKey = `${campaign.uid}:${campaign.campaign_id}`;
+      if (processingCampaigns.has(processingKey)) {
         continue; // Skip if already processing
       }
 
-      processingCampaigns.add(campaign.campaign_id);
+      processingCampaigns.add(processingKey);
 
       try {
         await processSingleCampaign(campaign);
@@ -123,7 +124,7 @@ async function processPendingCampaigns() {
           error,
         );
       } finally {
-        processingCampaigns.delete(campaign.campaign_id);
+        processingCampaigns.delete(processingKey);
       }
     }
   } catch (error) {
@@ -146,7 +147,7 @@ async function resumeEligiblePausedCampaigns(){
   for(const campaign of paused){
     const access=await canSendCampaignByModule(campaign.uid);
     if(access?.allowed){
-      await query(`UPDATE beta_campaign SET status='PENDING' WHERE campaign_id=? AND status='PAUSED'`,[campaign.campaign_id]);
+      await query(`UPDATE beta_campaign SET status='PENDING' WHERE campaign_id=? AND uid=? AND status='PAUSED'`,[campaign.campaign_id,campaign.uid]);
     }
   }
 }
@@ -324,29 +325,33 @@ async function sendCatalogTemplateMessage(
  * Process a single campaign
  */
 async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignByModule,messageDelay=CONFIG.messageDelay}={}) {
+  if (typeof campaign?.uid !== 'string' || !campaign.uid || !campaign.campaign_id) {
+    console.warn('Campaign skipped because its owner could not be verified.','OWNER_NOT_FOUND');
+    return;
+  }
   const initialAccess=await canSendCampaign(campaign.uid);
   if(initialAccess!==true&&initialAccess?.allowed!==true){
     console.warn('Campaign paused by current tenant access policy.',initialAccess?.code||'FEATURE_UNAVAILABLE');
-    await pauseCampaign(campaign.campaign_id);
+    await pauseCampaign(campaign.campaign_id, campaign.uid);
     return;
   }
 
   // Update status to IN_PROGRESS if PENDING
   if (campaign.status === "PENDING") {
     await query(
-      "UPDATE beta_campaign SET status = 'IN_PROGRESS' WHERE campaign_id = ?",
-      [campaign.campaign_id],
+      "UPDATE beta_campaign SET status = 'IN_PROGRESS' WHERE campaign_id = ? AND uid = ?",
+      [campaign.campaign_id, campaign.uid],
     );
   }
 
   // Get pending logs for this campaign
   const pendingLogs = await query(
     `SELECT * FROM beta_campaign_logs 
-     WHERE campaign_id = ? 
+     WHERE campaign_id = ? AND uid = ?
      AND status = 'PENDING'
      ORDER BY id ASC
      LIMIT ?`,
-    [campaign.campaign_id, CONFIG.batchSize],
+    [campaign.campaign_id, campaign.uid, CONFIG.batchSize],
   );
 
   if (!pendingLogs || pendingLogs.length === 0) {
@@ -364,10 +369,10 @@ async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignBy
     await query(
       `UPDATE beta_campaign_logs 
        SET status = 'FAILED', error_message = 'Meta API credentials not found'
-       WHERE campaign_id = ? AND status = 'PENDING'`,
-      [campaign.campaign_id],
+       WHERE campaign_id = ? AND uid = ? AND status = 'PENDING'`,
+      [campaign.campaign_id, campaign.uid],
     );
-    await updateCampaignCounts(campaign.campaign_id);
+    await updateCampaignCounts(campaign.campaign_id, campaign.uid);
     await checkAndMarkCampaignComplete(campaign);
     return;
   }
@@ -412,9 +417,9 @@ async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignBy
     const currentAccess=await canSendCampaign(campaign.uid);
     if(currentAccess!==true&&currentAccess?.allowed!==true){
       console.warn('Campaign paused by current tenant access policy.',currentAccess?.code||'FEATURE_UNAVAILABLE');
-      await persistCampaignResults(campaign.campaign_id,successfulIds,failedUpdates);
-      await updateCampaignCounts(campaign.campaign_id);
-      await pauseCampaign(campaign.campaign_id);
+      await persistCampaignResults(campaign.campaign_id,campaign.uid,successfulIds,failedUpdates);
+      await updateCampaignCounts(campaign.campaign_id, campaign.uid);
+      await pauseCampaign(campaign.campaign_id, campaign.uid);
       return;
     }
     try {
@@ -507,17 +512,18 @@ async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignBy
     }
   }
 
-  await persistCampaignResults(campaign.campaign_id,successfulIds,failedUpdates);
+  await persistCampaignResults(campaign.campaign_id,campaign.uid,successfulIds,failedUpdates);
 
-  await updateCampaignCounts(campaign.campaign_id);
+  await updateCampaignCounts(campaign.campaign_id, campaign.uid);
   await checkAndMarkCampaignComplete(campaign);
 }
 
-async function pauseCampaign(campaignId){
-  await query(`UPDATE beta_campaign SET status='PAUSED' WHERE campaign_id=? AND status IN ('PENDING','IN_PROGRESS')`,[campaignId]);
+async function pauseCampaign(campaignId,uid){
+  if(typeof uid!=='string'||!uid)return;
+  await query(`UPDATE beta_campaign SET status='PAUSED' WHERE campaign_id=? AND uid=? AND status IN ('PENDING','IN_PROGRESS')`,[campaignId,uid]);
 }
 
-async function persistCampaignResults(campaignId,successfulIds,failedUpdates){
+async function persistCampaignResults(campaignId,uid,successfulIds,failedUpdates){
   // Persist each completed provider result before an access-denied return so
   // the next worker pass cannot resend a message already accepted by Meta.
   if (successfulIds.length > 0) {
@@ -525,8 +531,8 @@ async function persistCampaignResults(campaignId,successfulIds,failedUpdates){
       await query(
         `UPDATE beta_campaign_logs 
          SET status = 'SENT', meta_msg_id = ?, delivery_time = NOW()
-         WHERE id = ?`,
-        [success.messageId, success.id],
+         WHERE id = ? AND campaign_id = ? AND uid = ?`,
+        [success.messageId, success.id, campaignId, uid],
       );
     }
   }
@@ -536,8 +542,8 @@ async function persistCampaignResults(campaignId,successfulIds,failedUpdates){
       await query(
         `UPDATE beta_campaign_logs 
          SET status = 'FAILED', error_message = ?
-         WHERE id = ?`,
-        [failed.error, failed.id],
+         WHERE id = ? AND campaign_id = ? AND uid = ?`,
+        [failed.error, failed.id, campaignId, uid],
       );
     }
   }
@@ -574,16 +580,17 @@ async function getContactForLog(log, campaign) {
 /**
  * Update campaign counts based on current log statuses
  */
-async function updateCampaignCounts(campaignId) {
+async function updateCampaignCounts(campaignId, uid) {
+  if(typeof uid!=='string'||!uid)return;
   try {
     await query(
       `UPDATE beta_campaign SET
-        sent_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND status = 'SENT'),
-        failed_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND status = 'FAILED'),
-        delivered_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND delivery_status = 'delivered'),
-        read_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND delivery_status = 'read')
-       WHERE campaign_id = ?`,
-      [campaignId, campaignId, campaignId, campaignId, campaignId],
+        sent_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND uid = ? AND status = 'SENT'),
+        failed_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND uid = ? AND status = 'FAILED'),
+        delivered_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND uid = ? AND delivery_status = 'delivered'),
+        read_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND uid = ? AND delivery_status = 'read')
+       WHERE campaign_id = ? AND uid = ?`,
+      [campaignId, uid, campaignId, uid, campaignId, uid, campaignId, uid, campaignId, uid],
     );
   } catch (error) {
     console.error(`Error updating campaign counts for ${campaignId}:`, error);
@@ -594,31 +601,32 @@ async function updateCampaignCounts(campaignId) {
  * Check if campaign is complete and mark it
  */
 async function checkAndMarkCampaignComplete(campaign) {
+  if(typeof campaign?.uid!=='string'||!campaign.uid)return;
   const [pendingCount] = await query(
     `SELECT COUNT(*) as count FROM beta_campaign_logs 
-     WHERE campaign_id = ? AND status = 'PENDING'`,
-    [campaign.campaign_id],
+     WHERE campaign_id = ? AND uid = ? AND status = 'PENDING'`,
+    [campaign.campaign_id, campaign.uid],
   );
 
   const [totalLogsCount] = await query(
     `SELECT COUNT(*) as count FROM beta_campaign_logs 
-     WHERE campaign_id = ?`,
-    [campaign.campaign_id],
+     WHERE campaign_id = ? AND uid = ?`,
+    [campaign.campaign_id, campaign.uid],
   );
 
   // If no pending logs and we have some logs, mark as complete
   if (pendingCount.count === 0 && totalLogsCount.count > 0) {
     await query(
-      "UPDATE beta_campaign SET status = 'COMPLETED' WHERE campaign_id = ?",
-      [campaign.campaign_id],
+      "UPDATE beta_campaign SET status = 'COMPLETED' WHERE campaign_id = ? AND uid = ?",
+      [campaign.campaign_id, campaign.uid],
     );
     // console.log(`✅ Campaign ${campaign.campaign_id} marked as COMPLETED`);
   }
   // If no logs at all, mark as completed (legacy case)
   else if (totalLogsCount.count === 0) {
     await query(
-      "UPDATE beta_campaign SET status = 'COMPLETED' WHERE campaign_id = ?",
-      [campaign.campaign_id],
+      "UPDATE beta_campaign SET status = 'COMPLETED' WHERE campaign_id = ? AND uid = ?",
+      [campaign.campaign_id, campaign.uid],
     );
     // console.log(
     //   `✅ Campaign ${campaign.campaign_id} marked as COMPLETED (no logs - legacy)`
@@ -676,12 +684,12 @@ async function updateMessageStatus(metaMsgId, status, errorMessage = null) {
     await query(
       `UPDATE beta_campaign_logs 
        SET delivery_status = ?, delivery_time = NOW(), error_message = ?
-       WHERE meta_msg_id = ?`,
-      [status, errorMessage, metaMsgId],
+       WHERE meta_msg_id = ? AND uid = ?`,
+      [status, errorMessage, metaMsgId, log.uid],
     );
 
     // Update campaign counters
-    await updateCampaignCounts(log.campaign_id);
+    await updateCampaignCounts(log.campaign_id, log.uid);
 
     // console.log(`✅ Updated message ${metaMsgId} status to ${status}`);
   } catch (error) {

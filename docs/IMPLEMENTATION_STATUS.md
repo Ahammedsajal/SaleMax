@@ -1,3 +1,18 @@
+## Campaign worker tenant scoping — source update, 21 October 2026
+
+Campaign worker database operations now carry the campaign owner UID through
+legacy cleanup, pause/resume, pending-log selection, result persistence,
+counters, completion checks and delivery-status updates. The worker skips
+campaigns without a verified owner, and its in-process lock includes both the
+owner and campaign ID. A synthetic same-campaign-ID cross-tenant test confirms
+the worker reads and changes only the selected owner's logs.
+
+Focused campaign-worker tests pass 5/5; syntax and whitespace checks pass. No
+migration, production release or customer data change was made. This closes
+one worker SQL scoping gap; cross-process worker leases, broader asynchronous
+job/socket ownership and the rest of the 42-ticket tenant-isolation acceptance
+remain open.
+
 ## Legacy call callback tenant boundary — source update, 21 October 2026
 
 The previously unauthenticated `/api/wa_call/update_broadcast_contact` endpoint
@@ -242,6 +257,17 @@ preservation details are in `DEPLOYMENT.md`.
 ## SaleMaX Sales applicant error copy — production, 21 October 2026
 
 The existing recruitment form now keeps ordinary validation feedback in plain customer language. Technical/server and network failures show a general bilingual message with a bracketed safe cause code; SQL text and candidate details stay out of the public response. The update is live in `/opt/salemax/releases/recruitment-user-error-copy-20261021`. All 25 focused recruitment tests pass, served HTML/script hashes match, and health is green. No candidate data or schema changed. The signed-out visual test and controlled synthetic production failure remain open; see `DEPLOYMENT.md` for rollback evidence.
+
+## SaleMaX Sales applicant recovery guidance — source update, 21 October 2026
+
+The general English and Arabic submission-failure message now tells applicants
+to retry shortly and contact the 7Network recruitment team if the problem
+continues, while sharing the safe cause code shown in brackets. SQL text and
+applicant details remain hidden. The error helper cache key is bumped to ensure
+browsers fetch the updated copy. Focused recruitment error-copy and branding
+tests pass 3/3, and `git diff --check` passes. Source only; production was not
+changed. The controlled synthetic production failure and signed-out visual
+acceptance remain open.
 
 ## Real Estate private listing slice — source implementation, 21 October 2026
 
