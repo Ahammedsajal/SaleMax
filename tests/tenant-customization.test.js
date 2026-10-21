@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const settings=require('../modules/platform/tenant-customization');
-const {trainingCenter,salemaxSales}=require('../modules/platform/categories');
+const {trainingCenter,salemaxSales,realEstate}=require('../modules/platform/categories');
 const ctx={audience:'tenant',identity:{id:'owner'},tenant:{id:'tenant-a',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member',tenantId:'tenant-a',status:'active',role:'owner'},category:trainingCenter,subscription:{status:'active',capabilities:[...trainingCenter.capabilities]}};
 const doc={schemaVersion:1,navigationLabels:{courses:{en:'Programmes',ar:'البرامج'}}};
 test('label customization is bounded, category-scoped data rather than executable configuration',()=>{
@@ -25,6 +25,17 @@ test('saved revisions must match tenant category version and canonical checksum'
   assert.deepEqual(settings.decode(ctx,row).document,doc);
   const v5={schemaVersion:5,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,taskTypeLabels:{general:{en:'Other',ar:'أخرى'}}};
   assert.deepEqual(settings.decode(ctx,{...row,schema_version:5,document:JSON.stringify(v5),checksum:settings.checksum(v5)}).document,v5);
+  const v6={schemaVersion:6,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,taskTypeLabels:{},propertyFields:[]};
+  const realEstateCtx={...ctx,tenant:{...ctx.tenant,categoryKey:'real_estate'},category:realEstate,subscription:{status:'active',capabilities:[...realEstate.capabilities]}};
+  const propertyField={key:'pf_text_0123456789abcdef',type:'text',label:{en:'Parking spaces',ar:'مواقف السيارات'},required:false,active:true,version:1};
+  const propertyDoc={...v6,propertyFields:[propertyField]};
+  assert.deepEqual(settings.normalize(realEstateCtx,propertyDoc).propertyFields,[propertyField]);
+  const propertyAgent={...realEstateCtx,membership:{...realEstateCtx.membership,role:'agent'}};
+  assert.deepEqual(settings.normalize(propertyAgent,propertyDoc).propertyFields,[propertyField],'assigned agents must be able to read an owner-published field contract');
+  assert.throws(()=>settings.normalize({...realEstateCtx,subscription:{...realEstateCtx.subscription,capabilities:[]}},propertyDoc),{code:'FEATURE_UNAVAILABLE'});
+  assert.throws(()=>settings.normalize(ctx,{...v6,propertyFields:[propertyField]}),{code:'CATEGORY_UNAVAILABLE'});
+  assert.throws(()=>settings.normalize(realEstateCtx,{...propertyDoc,propertyFields:[{...propertyField,key:'cf_text_0123456789abcdef'}]}),{code:'INVALID_PROPERTY_FIELD'});
+  assert.deepEqual(settings.decode(realEstateCtx,{...row,category_key:'real_estate',schema_version:6,document:JSON.stringify(propertyDoc),checksum:settings.checksum(propertyDoc)}).document,propertyDoc);
   assert.throws(()=>settings.decode(ctx,{...row,checksum:'0'.repeat(64)}),{code:'CUSTOMIZATION_INTEGRITY_ERROR'});
   assert.throws(()=>settings.decode(ctx,{...row,category_version:2}),{code:'CUSTOMIZATION_VERSION_MISMATCH'});
 });
@@ -66,12 +77,13 @@ test('existing workspace customizer collects bilingual task labels into the tena
   const fs=require('node:fs'),path=require('node:path');
   const client=fs.readFileSync(path.join(__dirname,'../client/public/tenant-customization.js'),'utf8');
   const shell=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
-  assert.match(client,/schemaVersion:5[\s\S]*taskTypeLabels/);
+  assert.match(client,/schemaVersion:6[\s\S]*propertyFields/);
+  assert.match(client,/taskTypeLabels/);
   assert.match(client,/Use your business names for tasks/);
   assert.match(client,/data-task-label-en/);
   assert.match(client,/data-task-label-ar/);
   assert.match(client,/Changes stay in the draft until you publish/);
-  assert.match(shell,/tenant-customization\.js\?v=20261022-tenant-task-labels1/);
+  assert.match(shell,/tenant-customization\.js\?v=20261022-property-fields1/);
 });
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');

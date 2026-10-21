@@ -1912,3 +1912,26 @@ automated adoption, new vertical workflows and full live acceptance remain open.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+
+
+## Tenant-isolated Real Estate property customization — 22 October 2026
+
+The existing owner customizer now supports typed, bilingual property-field
+definitions in tenant schema v6, with distinct `pf_` keys from existing lead
+fields. The shared field engine validates text, integer, boolean and date values;
+property access follows the existing Real Estate category, plan and member
+permissions. Staff may read the owner's published field contract without gaining
+configuration authority. The existing Properties screen now creates, edits,
+displays and searches tenant-defined values, while saved bilingual definitions
+remain attached to historical snapshots after rename/archive. Existing rows use a
+nullable additive JSON column and require no rewrite.
+
+Focused unit/API tests pass 40/40. Disposable MariaDB integration applies the
+customization and property migrations and passes tenant-isolation, search,
+concurrency, assignment, typed-value and rollback checks. Browser fixtures pass
+12/12 English/Arabic desktop/mobile cases. Full `npm test` reports 1,061/1,083
+passing; the same 22 known baseline test names remain failing, with no new
+failure. No production migration or release was made; production capacity,
+private-category acceptance, query/load measurements, tenant restore and the
+full 42-ticket programme remain open. The additive column should remain during
+application rollback once property values may exist.

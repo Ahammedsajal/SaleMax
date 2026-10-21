@@ -45,5 +45,5 @@ test('route is mounted under the shared workspace and protected by the existing 
   const workspaceApi=fs.readFileSync(path.join(__dirname,'../client/public/workspace-api.js'),'utf8');
   const page=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/index.html'),'utf8');
   assert.match(client,/Buyer requirements/);assert.match(client,/Find matching properties/);assert.match(client,/existing Pipeline leads/i);
-  assert.match(workspaceApi,/requirements:'\/api\/workspace\/real-estate\/requirements'/);assert.match(page,/workspace-api\.js\?v=20261021-viewings1/);
+  assert.match(workspaceApi,/requirements:'\/api\/workspace\/real-estate\/requirements'/);assert.match(page,/workspace-api\.js\?v=20261022-property-fields1/);
 });

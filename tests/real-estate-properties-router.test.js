@@ -10,7 +10,7 @@ const listing={titleEn:'Test home',titleAr:'منزل اختبار',propertyType:
 
 async function start(context){
   const calls=[];
-  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:0}]];if(sql.startsWith('SELECT p.id'))return [[]];if(sql.startsWith('SELECT m.id AS membershipId'))return [[]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];throw Error('UNEXPECTED_QUERY');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release(){}};
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:0}]];if(sql.startsWith('SELECT p.id'))return [[]];if(sql.startsWith('SELECT revision,active_id FROM sx_tenant_customization_heads'))return [[]];if(sql.startsWith('SELECT id FROM sx_tenants'))return [[{id:tenantId}]];if(sql.startsWith('SELECT m.id AS membershipId'))return [[]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];throw Error('UNEXPECTED_QUERY');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release(){}};
   const app=express();app.use('/api/workspace/properties',createRouter({pool:{getConnection:async()=>db},authenticate(req,_res,next){req.businessContext=context;next();}}));
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
   return {origin:`http://127.0.0.1:${server.address().port}`,server,calls};
@@ -30,7 +30,7 @@ test('agent property reads are assigned-only and custom grants cannot widen the 
   const membershipId='55555555-5555-4555-8555-555555555555';
   const agent=await start({...base,membership:{...base.membership,id:membershipId,role:'agent',customPermissions:['properties.read','properties.assign']}});t.after(()=>new Promise(resolve=>agent.server.close(resolve)));
   const response=await fetch(agent.origin+'/api/workspace/properties');assert.equal(response.status,200);assert.deepEqual((await response.json()).data.items,[]);
-  assert.equal(agent.calls.length,2);assert.ok(agent.calls[0].sql.includes('p.assigned_membership_id=?'));assert.ok(agent.calls[0].args.includes(membershipId));
+  assert.equal(agent.calls.length,3);assert.ok(agent.calls[0].sql.includes('p.assigned_membership_id=?'));assert.ok(agent.calls[0].args.includes(membershipId));
   const assignees=await fetch(agent.origin+'/api/workspace/properties/assignees');assert.equal(assignees.status,403);
 });
 

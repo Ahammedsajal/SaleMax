@@ -30,6 +30,14 @@ test('listing validation rejects malformed domain values and normalizes accepted
   assert.throws(()=>properties.clean({...listing,unexpectedTenantId:tenantId}),{code:'INVALID_PROPERTY'});
 });
 
+test('saved property custom values decode only bounded, typed historical snapshots',()=>{
+  const field={key:'pf_boolean_0123456789abcdef',type:'boolean',label:{en:'Pets allowed',ar:'السماح بالحيوانات'},required:false,active:true,version:1};
+  const saved=require('../modules/platform/property-field-contract').save({revision:3,fields:[field]},{configurationRevision:3,values:{[field.key]:false}});
+  assert.deepEqual(properties.decodeCustomFields(JSON.stringify(saved)),saved);
+  assert.throws(()=>properties.decodeCustomFields('{broken'),{code:'PROPERTY_FIELD_INTEGRITY_ERROR',status:503});
+  assert.throws(()=>properties.decodeCustomFields({other:{value:false,definition:field,configurationRevision:3}}),{code:'PROPERTY_FIELD_INTEGRITY_ERROR',status:503});
+});
+
 test('real estate access requires the exact category, version, plan, membership and permission',()=>{
   assert.equal(properties.authorize(base,'properties.manage'),base);
   assert.throws(()=>properties.authorize({...base,tenant:{...base.tenant,categoryKey:'training_center'},category:category.trainingCenter},'properties.read'),{code:'CATEGORY_UNAVAILABLE'});
@@ -53,21 +61,21 @@ test('property lifecycle disallows reopening sold or rented listings',()=>{
 
 test('listing reads, creates and revision updates stay tenant-scoped',async()=>{
   const calls=[];
-  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:1}]];if(sql.startsWith('SELECT p.id'))return [[{id:'property-1'}]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'draft',transactionType:'sale',revision:3}]];if(sql.startsWith('UPDATE'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:1}]];if(sql.startsWith('SELECT p.id'))return [[{id:'property-1',customFields:null}]];if(sql.startsWith('SELECT revision,active_id FROM sx_tenant_customization_heads'))return [[]];if(sql.startsWith('SELECT id FROM sx_tenants'))return [[{id:tenantId}]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'draft',transactionType:'sale',revision:3,customFields:null}]];if(sql.startsWith('UPDATE'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
   const listed=await properties.list(db,base,{status:'active',search:'Doha%_'});
   assert.equal(listed.total,1);assert.ok(calls[0].sql.includes('tenant_id=?'));assert.equal(calls[0].args[0],tenantId);
-  assert.match(calls[0].sql,/LIKE \? ESCAPE '!'/);assert.ok(calls[0].args.slice(2,6).every(value=>value==='%Doha!%!_%'));
-  const created=await properties.create(db,base,listing);assert.equal(created.revision,1);assert.ok(calls[2].sql.includes('tenant_id'));
+  assert.match(calls[0].sql,/JSON_TABLE/);assert.match(calls[0].sql,/LIKE \? ESCAPE '!'/);assert.ok(calls[0].args.slice(2,7).every(value=>value==='%Doha!%!_%'));
+  const created=await properties.create(db,base,listing);assert.equal(created.revision,1);assert.match(calls.find(call=>call.sql.startsWith('INSERT INTO sx_real_estate_properties')).sql,/custom_fields/);
   const updated=await properties.update(db,base,'44444444-4444-4444-8444-444444444444',{status:'active',expectedRevision:3});
-  assert.equal(updated.revision,4);assert.match(calls[4].sql,/tenant_id=\? AND id=\? FOR UPDATE/);assert.equal(calls[4].args[0],tenantId);
-  assert.match(calls[5].sql,/WHERE tenant_id=\? AND id=\?/);assert.equal(calls[5].args.at(-2),tenantId);
-  assert.match(calls[6].sql,/real-estate\.property-updated/);assert.equal(calls[6].args[1],tenantId);
+  assert.equal(updated.revision,4);const locked=calls.find(call=>call.sql.startsWith('SELECT status,transaction_type'));assert.match(locked.sql,/tenant_id=\? AND id=\? FOR UPDATE/);assert.equal(locked.args[0],tenantId);
+  const update=calls.find(call=>call.sql.startsWith('UPDATE sx_real_estate_properties'));assert.match(update.sql,/WHERE tenant_id=\? AND id=\?/);assert.equal(update.args.at(-2),tenantId);
+  const audit=calls.find(call=>call.sql.includes('real-estate.property-updated'));assert.equal(audit.args[1],tenantId);
 });
 
 test('agent and team-leader listing reads are restricted to their persisted assignment scope',async()=>{
   for(const [role,sqlFragment] of [['agent','p.assigned_membership_id=?'],['team_leader','org.team_leader_membership_id=?']]){
     const calls=[],membershipId='55555555-5555-4555-8555-555555555555',context={...base,membership:{...base.membership,id:membershipId,role}};
-    const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:0}]];if(sql.startsWith('SELECT p.id'))return [[]];throw Error('unexpected query');}};
+    const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:0}]];if(sql.startsWith('SELECT p.id'))return [[]];if(sql.startsWith('SELECT revision,active_id FROM sx_tenant_customization_heads'))return [[]];throw Error('unexpected query');}};
     const result=await properties.list(db,context);
     assert.equal(result.total,0);assert.ok(calls[0].sql.includes(sqlFragment));assert.ok(calls[0].sql.includes('p.tenant_id=?'));assert.ok(calls[0].args.includes(membershipId));
   }
@@ -76,10 +84,10 @@ test('agent and team-leader listing reads are restricted to their persisted assi
 test('manager assignments are limited to active agents in that manager team and audited',async()=>{
   const managerId='66666666-6666-4666-8666-666666666666',agentId='77777777-7777-4777-8777-777777777777',calls=[];
   const context={...base,membership:{...base.membership,id:managerId,role:'manager'}};
-  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT m.id FROM sx_memberships'))return [[{id:agentId}]];if(sql.startsWith('INSERT INTO sx_real_estate_properties'))return [{affectedRows:1}];if(sql.includes('real-estate.property-created'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT id FROM sx_tenants'))return [[{id:tenantId}]];if(sql.startsWith('SELECT revision,active_id FROM sx_tenant_customization_heads'))return [[]];if(sql.startsWith('SELECT m.id FROM sx_memberships'))return [[{id:agentId}]];if(sql.startsWith('INSERT INTO sx_real_estate_properties'))return [{affectedRows:1}];if(sql.includes('real-estate.property-created'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
   const created=await properties.create(db,context,{...listing,assignedMembershipId:agentId});
   assert.equal(created.assignedMembershipId,agentId);
-  assert.deepEqual(calls[0].args,[tenantId,agentId,managerId]);assert.match(calls[0].sql,/m\.role='agent'.*m\.status='active'.*org\.manager_membership_id=\?/);
+  const assignment=calls.find(call=>call.sql.startsWith('SELECT m.id FROM sx_memberships'));assert.deepEqual(assignment.args,[tenantId,agentId,managerId]);assert.match(assignment.sql,/m\.role='agent'.*m\.status='active'.*org\.manager_membership_id=\?/);
   const insert=calls.find(call=>call.sql.startsWith('INSERT INTO sx_real_estate_properties'));
   assert.ok(insert.args.includes(agentId));
   const audit=calls.find(call=>call.sql.includes('real-estate.property-created'));
@@ -114,6 +122,8 @@ test('real estate storage keys and current-panel entry are registered without a 
   const migration=fs.readFileSync(migrationPath,'utf8');
   const discovered=migrations.discover(path.join(__dirname,'../database/migrations')).find(item=>item.file==='20261222_real_estate_properties.sql');
   assert.ok(discovered);assert.equal(discovered.statements.length,1);
+  const customMigration=migrations.discover(path.join(__dirname,'../database/migrations')).find(item=>item.file==='20261225_real_estate_property_custom_fields.sql');
+  assert.ok(customMigration);assert.equal(customMigration.statements.length,1);assert.match(customMigration.statements[0],/ADD COLUMN custom_fields JSON NULL/);
   assert.match(migration,/UNIQUE KEY uq_sx_real_estate_tenant_id \(tenant_id,id\)/);
   assert.match(migration,/FOREIGN KEY \(tenant_id\) REFERENCES sx_tenants\(id\)/);
   assert.match(migration,/FOREIGN KEY \(tenant_id,created_by_identity_id\) REFERENCES sx_memberships\(tenant_id,identity_id\)/);
@@ -126,4 +136,6 @@ test('real estate storage keys and current-panel entry are registered without a 
   assert.match(entry,/salemax-properties-workspace/);assert.match(entry,/\/property-listings\//);
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/properties.js'),'utf8');
   assert.match(ui,/aria-modal="true"/);assert.match(ui,/statusLabels/);assert.match(ui,/data-save-assignee/);assert.match(ui,/assignedMembershipId/);assert.doesNotMatch(ui,/prompt\(/);
+  assert.match(ui,/data-property-field/);assert.match(ui,/item\.customFields/);assert.match(ui,/expectedRevision=item\.revision/);
+  const editor=fs.readFileSync(path.join(__dirname,'../client/public/lead-field-editor.js'),'utf8');assert.match(editor,/Add property field/);assert.match(editor,/pf_/);
 });

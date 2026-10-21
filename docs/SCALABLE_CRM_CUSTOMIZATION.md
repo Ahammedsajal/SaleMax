@@ -2,7 +2,7 @@
 
 > The current platform brand is **7Network**. Existing source identifiers, routes and schema names retain their historical SaleMaX spelling until a separately reviewed compatibility migration is appropriate.
 
-Evidence review: 20 October 2026. Status: implementation in progress. This extends the existing 42-ticket program; it does not replace its acceptance criteria.
+Evidence review: 22 October 2026. Status: implementation in progress. This extends the existing 42-ticket program; it does not replace its acceptance criteria.
 
 ## Product decision
 
@@ -710,3 +710,54 @@ MariaDB's JSON_TABLE converts JSON values into relational rows and supports the
 wildcard path used by this bounded value search ([MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)).
 These are design inputs, not a change to SaleMaX's existing Node/MariaDB
 deployment or an assertion of unlimited pooled scale.
+
+
+## Tenant-specific property fields in the existing Real Estate workspace — 22 October 2026
+
+The shared typed custom-field validator now has explicit `lead` and `property`
+scopes, with distinct stable key prefixes (`cf_` and `pf_`). The existing
+owner-only workspace customizer publishes property definitions in tenant
+customization schema v6. Schemas v1–v5 remain readable. Property definitions are
+accepted only when the tenant has the Real Estate category capability and active
+plan entitlement; the editor stays hidden elsewhere. Published definitions are
+readable by assigned staff, while editing configuration still goes through the
+existing owner-only authorization path. This separates permission to use a
+listing from permission to configure its schema.
+
+The existing `/user` Properties screen now renders active bilingual typed fields
+when creating or editing listings, stores exact values and immutable definition
+snapshots, keeps archived or renamed historical labels readable, and searches
+those values in the normal tenant-scoped listing search. The additive
+`custom_fields` JSON column is nullable, so existing listing rows keep their
+current behavior. The server derives tenant scope from the authenticated
+feature-session context. Property writes that include custom values lock the
+tenant row before reading the active configuration, so publishing and listing
+updates serialize on the same tenant boundary. The value write, listing update
+and audit event remain in one transaction. A custom field cannot grant a module,
+permission, plan entitlement, or cross-tenant access.
+
+Search uses a `JSON_TABLE` value projection only after applying the current
+tenant and assignment/team predicates; both the paged list and count use the
+same filter. Definitions remain bounded to 24 active fields and saved snapshots
+to 120 entries / 128 KiB per listing. This is suitable for the current
+low-volume Real Estate slice, not proof of high-cardinality search capacity.
+Measure query plans and latency with representative tenant sizes before enabling
+the private category for customers. If the budget is exceeded, add a
+tenant/property/field-key/value projection with transactional write-through,
+backfill, reconciliation and a reviewed index; do not add one index per
+customer field. The additive nullable migration can remain in place when rolling
+back application code, avoiding data loss if a tenant has started using the
+fields.
+
+Focused unit and route tests pass 40/40. Disposable MariaDB 9.6 integration
+passes with synthetic tenants and confirms tenant-isolated configuration and
+values, typed/required validation, immutable snapshots, custom-value search,
+concurrent edit revision protection, assignment scope, cross-tenant denial and
+transactional audit rollback. Existing-screen browser fixtures pass 12/12 across
+English/Arabic and mobile/desktop for schema editing, preview, create and edit.
+The complete Node suite has 1,083 tests: 1,061 pass and 22 existing failures
+remain; the 4 tests added in this increment pass. These are source and disposable
+test results, not authenticated production UI or performance acceptance. No
+production migration, release or customer-data change has occurred. The category
+remains private pending migration/release review, authenticated owner/staff
+acceptance, load/restore checks and safe production capacity.

@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const {decision} = require('./policy');
 const fail = (code,status=400) => {throw Object.assign(new Error(code),{code,status});};
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-const defaults = () => ({schemaVersion:5,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,taskTypeLabels:{}});
+const defaults = () => ({schemaVersion:6,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,taskTypeLabels:{},propertyFields:[]});
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function authorize(ctx) {
   const result=decision(ctx,{capability:'tenant.settings',permission:'tenant.manage'});
@@ -20,8 +20,8 @@ function categoryNavigationKeys(ctx) {
   return new Set(fieldsFor(ctx).map(item=>item.key));
 }
 function normalize(ctx,input) {
-  const allowedKeys=input?.schemaVersion===5?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','taskTypeLabels']:input?.schemaVersion===4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
-  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4,5].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
+  const allowedKeys=input?.schemaVersion===6?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','taskTypeLabels','propertyFields']:input?.schemaVersion===5?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','taskTypeLabels']:input?.schemaVersion===4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
+  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4,5,6].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
   const allowed=categoryNavigationKeys(ctx);
   const labels={};
   for(const key of Object.keys(input.navigationLabels).sort()) {
@@ -37,8 +37,8 @@ function normalize(ctx,input) {
   const taskOptions=taskAdapters.configurable(ctx);
   const enabledTaskTypes=input.schemaVersion>=4?input.enabledTaskTypes:null;
   if(enabledTaskTypes!==null&&(!Array.isArray(enabledTaskTypes)||enabledTaskTypes.length>taskOptions.length||new Set(enabledTaskTypes).size!==enabledTaskTypes.length||enabledTaskTypes.some(key=>typeof key!=='string'||!taskOptions.some(item=>item.key===key))))fail('INVALID_CUSTOMIZATION_TASK_TYPES');
-  const typeOptions=input.schemaVersion===5?require('./task-type-adapters').customizable(ctx):[];
-  const taskTypeLabels=input.schemaVersion===5?input.taskTypeLabels:{};
+  const typeOptions=input.schemaVersion>=5?require('./task-type-adapters').customizable(ctx):[];
+  const taskTypeLabels=input.schemaVersion>=5?input.taskTypeLabels:{};
   if(!plain(taskTypeLabels)||Object.keys(taskTypeLabels).length>typeOptions.length)fail('INVALID_CUSTOMIZATION_TASK_LABELS');
   const taskLabels={};
   for(const key of Object.keys(taskTypeLabels).sort()){
@@ -46,14 +46,24 @@ function normalize(ctx,input) {
     if(!typeOptions.some(item=>item.key===key)||!plain(value)||Object.keys(value).length!==2||!['en','ar'].every(lang=>Object.hasOwn(value,lang)&&typeof value[lang]==='string'&&value[lang].trim().length>0&&value[lang].length<=80&&!/[<>\u0000-\u001f\u007f]/.test(value[lang])))fail('INVALID_CUSTOMIZATION_TASK_LABELS');
     taskLabels[key]={en:value.en.trim(),ar:value.ar.trim()};
   }
+  const propertyFields=input.schemaVersion===6?require('./property-field-contract').definitions(input.propertyFields):null;
+  if(propertyFields?.length){
+    // Runtime employees also need to decode the owner's published definitions;
+    // permission to edit those definitions is enforced by authorize() on the
+    // existing owner-only customization endpoints.
+    const categoryHasProperties=ctx.category?.key==='real_estate'&&ctx.category.capabilities.includes('realestate.listings');
+    const planHasProperties=ctx.subscription?.capabilities?.includes('realestate.listings');
+    if(!categoryHasProperties)fail('CATEGORY_UNAVAILABLE',409);
+    if(!planHasProperties)fail('FEATURE_UNAVAILABLE',409);
+  }
   const fields=schema3LeadFields||leadFields;
   if(fields?.length&&!ctx.category?.capabilities.includes('crm.leads'))fail('CATEGORY_UNAVAILABLE',409);
-  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{ }),...(input.schemaVersion>=4?{enabledTaskTypes:enabledTaskTypes===null?null:[...enabledTaskTypes].sort()}:{ }),...(input.schemaVersion===5?{taskTypeLabels:taskLabels}:{})};
+  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{ }),...(input.schemaVersion>=4?{enabledTaskTypes:enabledTaskTypes===null?null:[...enabledTaskTypes].sort()}:{ }),...(input.schemaVersion>=5?{taskTypeLabels:taskLabels}:{ }),...(propertyFields?{propertyFields}:{})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
 function decode(ctx,row) {
   if(!row)return null;
-  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4,5].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4,5,6].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   const document=normalize(ctx,typeof row.document==='string'?JSON.parse(row.document):row.document);
   if(document.schemaVersion!==Number(row.schema_version)||checksum(document)!==row.checksum)fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {id:row.id,revision:Number(row.revision),kind:row.kind,document,checksum:row.checksum,createdAt:row.created_at};
@@ -71,7 +81,7 @@ async function state(db,ctx) {
   const active=await revision(db,ctx,head?.active_id),draft=await revision(db,ctx,head?.draft_id);
   if(active&&active.kind!=='published'||draft&&draft.kind!=='draft')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:Number(head?.revision||0),active,draft,history,
-    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),taskTypes:require('./task-type-adapters').configurable(ctx).map(item=>({...item,planAvailable:require('./task-type-adapters').supports(ctx,item.key)})),taskTypeLabelOptions:require('./task-type-adapters').customizable(ctx)};
+    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),taskTypes:require('./task-type-adapters').configurable(ctx).map(item=>({...item,planAvailable:require('./task-type-adapters').supports(ctx,item.key)})),taskTypeLabelOptions:require('./task-type-adapters').customizable(ctx),propertyFieldsAvailable:decision(ctx,{capability:'realestate.listings',permission:'properties.manage'}).allowed};
 }
 function preview(ctx,document) {authorize(ctx);return {document:normalize(ctx,document),readOnly:true};}
 async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
