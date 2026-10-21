@@ -8,6 +8,7 @@ function fixture(){
   const query=async(sql,args)=>{
     if(sql.includes('WHERE o.source_table'))return [[{tenantId:'tenant',tenantStatus:'active',identityId:'agent-one',role:'agent',membershipStatus:'active',identityStatus:'active',uidHash:hash('one'),delegatedPermissions:[]}]];
     if(sql.includes("m.role='owner'") && !sql.includes('FROM sx_memberships m JOIN sx_identities'))return [[{uid:'owner',uidHash:hash('owner')}]];
+    if(sql.includes('FROM sx_qr_channel_shares share'))return [[]];
     if(sql.includes('SELECT assigned_agent')||sql.includes('SELECT * FROM beta_chats'))return [[{assigned_agent:JSON.stringify([{kind:'identity',identityId:assigned}])}]];
     if(sql.includes('FROM sx_memberships m JOIN sx_identities'))return [[{identityId:'agent-two',name:'Agent Two',uid:'two',role:'agent',uidHash:hash('two')}]];
     if(sql.startsWith('UPDATE beta_chats')){assigned=JSON.parse(args[0])[0].identityId;return [{affectedRows:1}];}

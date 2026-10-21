@@ -25,7 +25,11 @@ function todayQatar(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Qat
 function leadTimestampMatches(dbValue,snapshot){const actual=dbValue instanceof Date?dbValue.toISOString():new Date(String(dbValue).replace(' ','T')+'Z').toISOString();return actual===new Date(snapshot).toISOString();}
 function roundRatio(amount,numerator,denominator){const result=(BigInt(amount)*BigInt(numerator)+BigInt(denominator)/2n)/BigInt(denominator);if(result>BigInt(Number.MAX_SAFE_INTEGER))fail('INVALID_INVOICE_AMOUNT');return Number(result);}
 function totals(netMinor,policy){
-  if(!Number.isSafeInteger(netMinor)||netMinor<1)fail('INVALID_INVOICE_AMOUNT');const rate=policy.taxMode==='no_tax'?0:Number(policy.taxRateBps);let subtotalMinor=netMinor,taxMinor=0,totalMinor=netMinor;
+  if(!Number.isSafeInteger(netMinor)||netMinor<1)fail('INVALID_INVOICE_AMOUNT');
+  if(!policy||!['no_tax','exclusive','inclusive'].includes(policy.taxMode))fail('FINANCE_POLICY_INCOMPLETE');
+  const rate=policy.taxMode==='no_tax'?0:Number(policy.taxRateBps);
+  if(policy.taxMode!=='no_tax'&&(!Number.isSafeInteger(rate)||rate<0||rate>10000))fail('FINANCE_POLICY_INCOMPLETE');
+  let subtotalMinor=netMinor,taxMinor=0,totalMinor=netMinor;
   if(policy.taxMode==='exclusive'){taxMinor=roundRatio(netMinor,rate,10000);totalMinor=netMinor+taxMinor;}
   else if(policy.taxMode==='inclusive'){taxMinor=roundRatio(netMinor,rate,10000+rate);subtotalMinor=netMinor-taxMinor;}
   else if(policy.taxMode!=='no_tax')fail('FINANCE_POLICY_INCOMPLETE');

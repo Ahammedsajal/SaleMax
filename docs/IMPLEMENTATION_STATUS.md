@@ -1,3 +1,16 @@
+## Finance conversion policy guard — source update, 21 October 2026
+
+The training invoice-total helper now rejects missing, unsupported or malformed
+tax-policy input with the established finance-policy error instead of leaking a
+raw JavaScript `TypeError`; tax rates are bounded before arithmetic. Regression
+coverage now reflects the approved-policy requirement and verifies proportional
+installment rounding. The Agent transfer test fixture also handles the current
+shared-QR scope query, and the Agent credential test supplies the browser history
+and storage primitives used by the maintained hook. Seven focused checks pass.
+The full suite reports 1,019/1,045 passing with 26 failures still open, mostly
+legacy source/asset-contract assertions plus existing Manage Users/Pipeline/Tasks/
+Finance/Reports checks. This is source/test work only; production is unchanged.
+
 ## 7Network category setup and form-audit verification — source update, 21 October 2026
 
 The existing Manage Users category selector is now tested as a versioned category list, preserving the current account and login instead of asserting a fixed Training Center-only setup. The static form audit now recognizes multiline closing labels and excludes controls explicitly hidden from assistive technology; its current inventory reports zero unlabeled static fields. The relevant three focused tests pass. The full `npm test` run currently reports 1,014/1,045 passing with 31 remaining failures across Agent transfer fixtures and stale Pipeline, Tasks, Finance, report and route source-contract assertions. This is source/test work only; it has not been deployed. Resolve the full-suite failures and complete authenticated EN/AR acceptance before claiming the associated launch gates.
