@@ -24,7 +24,7 @@ test('prefill links use opaque expiring tokens and return only consented candida
   let inserted;const db={query:async(sql,params)=>{inserted={sql,params};return [{affectedRows:1}];}};
   const token=await recruitment.issuePrefillToken(db,{tenantId:owner.tenant.id,answers:{fullName:'Asha',email:'asha@example.in',whatsappNumber:'+919876543210',privateNote:'do not retain'}});
   assert.match(token,/^[A-Za-z0-9_-]{40,60}$/);assert.match(inserted.sql,/INTERVAL 14 DAY/);assert.doesNotMatch(JSON.stringify(inserted.params),/privateNote/);
-  const dbRead={query:async(sql,params)=>{assert.match(sql,/expires_at>UTC_TIMESTAMP/);assert.deepEqual(params,['salemax-sales',require('node:crypto').createHash('sha256').update(token).digest()]);return [[{answers:JSON.stringify({fullName:'Asha'})}]];}};
+  const dbRead={query:async(sql,params)=>{assert.match(sql,/expires_at>UTC_TIMESTAMP/);assert.match(sql,/t\.category_key IN \(\?,\?\)/);assert.deepEqual(params,['salemax-sales','7network_sales','salemax_sales',require('node:crypto').createHash('sha256').update(token).digest()]);return [[{answers:JSON.stringify({fullName:'Asha'})}]];}};
   assert.deepEqual(await recruitment.getPrefill(dbRead,{tenantSlug:'salemax-sales',token}),{fullName:'Asha'});
   await assert.rejects(recruitment.getPrefill(dbRead,{tenantSlug:'salemax-sales',token:'bad'}),{code:'PREFILL_NOT_FOUND'});
 });
@@ -62,8 +62,13 @@ test('WhatsApp answers map to a repeat-safe application and CV links are same-or
 });
 test('only an active 7Network Sales owner can review hiring records',()=>{
   assert.equal(recruitment.authorize(owner),owner);
+  assert.equal(recruitment.authorize({...owner,tenant:{...owner.tenant,categoryKey:'salemax_sales'},subscription:{...owner.subscription,categoryKey:'salemax_sales',categoryVersion:1}}).tenant.categoryKey,'salemax_sales');
   assert.throws(()=>recruitment.authorize({...owner,membership:{...owner.membership,role:'manager'}}),{code:'PERMISSION_DENIED'});
   assert.throws(()=>recruitment.authorize({...owner,tenant:{...owner.tenant,categoryKey:'training_center'},category:getCategory('training_center',1)}),{code:'CATEGORY_UNAVAILABLE'});
+});
+
+test('recruitment queries retain the active legacy Sales category as a compatible identity alias',()=>{
+  assert.deepEqual(recruitment.SALES_CATEGORY_KEYS,['7network_sales','salemax_sales']);
 });
 test('recruitment CV storage requires a private absolute path',()=>{
   assert.equal(recruitment.storageRoot({SALEMAX_RECRUITMENT_CV_ROOT:'/private/salemax/cv'}),'/private/salemax/cv');

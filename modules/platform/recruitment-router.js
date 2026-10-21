@@ -5,6 +5,7 @@ const crypto=require('node:crypto');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const recruitment=require('./recruitment-applications');
+const SALES_CATEGORY_FILTER=`(${recruitment.SALES_CATEGORY_KEYS.map(()=>'?').join(',')})`;
 const {publicSubmissionError}=require('./recruitment-public-errors');
 const COPY={
   companyName:'Sitta Arbaa Sitta for Software Solutions',crNumber:'251489',
@@ -18,7 +19,7 @@ function createPublicRecruitmentRouter({pool,origin,key}){
  router.use(express.json({limit:'8kb',strict:true}));
  router.get('/:tenantSlug/prefill/:token',wrap(async(req,res)=>{res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');const answers=await recruitment.getPrefill(pool,{tenantSlug:req.params.tenantSlug,token:req.params.token});res.json({success:true,data:answers});}));
  router.get('/:tenantSlug',wrap(async(req,res)=>{
-  const [[tenant]]=await pool.query("SELECT id,slug FROM sx_tenants WHERE slug=? AND category_key='7network_sales' AND status='active' LIMIT 1",[req.params.tenantSlug]);
+  const [[tenant]]=await pool.query(`SELECT id,slug FROM sx_tenants WHERE slug=? AND category_key IN ${SALES_CATEGORY_FILTER} AND status='active' LIMIT 1`,[req.params.tenantSlug,...recruitment.SALES_CATEGORY_KEYS]);
   if(!tenant)return res.status(404).json({success:false,code:'TENANT_NOT_FOUND'});
   res.setHeader('Cache-Control','no-store');res.json({success:true,data:{companyName:'7Network',role:COPY.role,roleSummary:COPY.roleSummary,talabApple:COPY.talabApple,talabAndroid:COPY.talabAndroid,tenantSlug:tenant.slug,consent:recruitment.CONSENT}});
  }));
@@ -53,7 +54,7 @@ function createRecruitmentRouter({pool,origin,key,userGuard,canonicalGuard}){
 }
 function createRecruitmentPageRouter(app,{pool,origin}){
  app.get('/careers/:tenantSlug',(req,res,next)=>Promise.resolve().then(async()=>{
-  const [[tenant]]=await pool.query("SELECT id FROM sx_tenants WHERE slug=? AND category_key='7network_sales' AND status='active' LIMIT 1",[req.params.tenantSlug]);
+  const [[tenant]]=await pool.query(`SELECT id FROM sx_tenants WHERE slug=? AND category_key IN ${SALES_CATEGORY_FILTER} AND status='active' LIMIT 1`,[req.params.tenantSlug,...recruitment.SALES_CATEGORY_KEYS]);
   if(!tenant)return res.status(404).send('Application page not found');
   res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
   return res.sendFile(path.resolve(__dirname,'../../client/public/recruitment-application.html'));

@@ -4,6 +4,10 @@ const crypto=require('node:crypto');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {decision}=require('./policy');
+const {categoryKeysFor,categoryKeyMatches,canonicalCategoryKey,getCategory}=require('./categories');
+
+const SALES_CATEGORY_KEYS=categoryKeysFor('7network_sales');
+const SALES_CATEGORY_FILTER=`(${SALES_CATEGORY_KEYS.map(()=>'?').join(',')})`;
 
 const MAX_CV_BYTES=8*1024*1024;
 const CONSENT='I agree that 7Network may save my WhatsApp application answers and CV in its private Applications & CVs area, assess me for the 7Network sales associate role, and contact me about recruitment.';
@@ -14,8 +18,10 @@ const hash=value=>crypto.createHash('sha256').update(String(value)).digest();
 const uuid=()=>crypto.randomUUID();
 
 function authorize(ctx){
-  if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.categoryKey!=='7network_sales')fail('CATEGORY_UNAVAILABLE',404);
-  const result=decision(ctx,{capability:'hr.recruitment',permission:'recruitment.manage'});
+  if(!ctx||ctx.audience!=='tenant'||!categoryKeyMatches(ctx.tenant?.categoryKey,'7network_sales'))fail('CATEGORY_UNAVAILABLE',404);
+  const normalized={...ctx,tenant:{...ctx.tenant,categoryKey:canonicalCategoryKey(ctx.tenant.categoryKey)},category:getCategory('7network_sales',ctx.tenant.categoryVersion)};
+  if(normalized.subscription&&Object.hasOwn(normalized.subscription,'categoryKey'))normalized.subscription={...normalized.subscription,categoryKey:canonicalCategoryKey(normalized.subscription.categoryKey)};
+  const result=decision(normalized,{capability:'hr.recruitment',permission:'recruitment.manage'});
   if(!result.allowed)fail(result.code,result.code==='PERMISSION_DENIED'?403:409);
   if(ctx.membership.role!=='owner')fail('PERMISSION_DENIED',403);
   return ctx;
@@ -55,7 +61,7 @@ async function queueApplicationNotification(db,{tenantId,application},enqueue=re
   return result||{queued:false,reason:'QUEUE_UNAVAILABLE'};
 }
 async function issuePrefillToken(db,{tenantId,applicationId,answers}){const token=crypto.randomBytes(32).toString('base64url');await db.query('INSERT INTO sx_recruitment_prefill_tokens(id,tenant_id,application_id,token_hash,answers,expires_at) VALUES (?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 14 DAY))',[uuid(),tenantId,applicationId||null,hash(token),JSON.stringify(cleanScreeningAnswers(answers))]);return token;}
-async function getPrefill(pool,{tenantSlug,token}){if(typeof token!=='string'||!/^[A-Za-z0-9_-]{40,60}$/.test(token))fail('PREFILL_NOT_FOUND',404);const [rows]=await pool.query(`SELECT p.answers FROM sx_recruitment_prefill_tokens p JOIN sx_tenants t ON t.id=p.tenant_id WHERE t.slug=? AND t.category_key='7network_sales' AND t.status='active' AND p.token_hash=? AND p.expires_at>UTC_TIMESTAMP(3) AND p.consumed_at IS NULL LIMIT 1`,[tenantSlug,hash(token)]);if(!rows.length)fail('PREFILL_NOT_FOUND',404);return typeof rows[0].answers==='string'?JSON.parse(rows[0].answers):rows[0].answers;}
+async function getPrefill(pool,{tenantSlug,token}){if(typeof token!=='string'||!/^[A-Za-z0-9_-]{40,60}$/.test(token))fail('PREFILL_NOT_FOUND',404);const [rows]=await pool.query(`SELECT p.answers FROM sx_recruitment_prefill_tokens p JOIN sx_tenants t ON t.id=p.tenant_id WHERE t.slug=? AND t.category_key IN ${SALES_CATEGORY_FILTER} AND t.status='active' AND p.token_hash=? AND p.expires_at>UTC_TIMESTAMP(3) AND p.consumed_at IS NULL LIMIT 1`,[tenantSlug,...SALES_CATEGORY_KEYS,hash(token)]);if(!rows.length)fail('PREFILL_NOT_FOUND',404);return typeof rows[0].answers==='string'?JSON.parse(rows[0].answers):rows[0].answers;}
 function cleanFileName(value){const name=path.basename(String(value||'CV').replace(/[\r\n\0]/g,'')).trim();return (name||'CV').slice(0,180);}
 function stableSubmissionToken(value){const bytes=crypto.createHash('sha256').update(String(value)).digest().subarray(0,16);bytes[6]=(bytes[6]&0x0f)|0x50;bytes[8]=(bytes[8]&0x3f)|0x80;const hex=bytes.toString('hex');return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;}
 function whatsappApplicationBody({answers,mobile,tenantId,channelKind,channelRef,conversationId}){
@@ -153,7 +159,7 @@ async function createPublic(pool,{tenantSlug,body,file,visitorHash,conversation=
     await db.beginTransaction();begun=true;
     const [[tenant]]=await db.query(`SELECT t.id,t.slug,t.status,t.category_key AS categoryKey,t.category_version AS categoryVersion,u.uid,o.legacy_uid_hash AS uidHash
       FROM sx_tenants t JOIN sx_legacy_ownership o ON o.tenant_id=t.id AND o.source_table='user' JOIN user u ON CAST(u.id AS CHAR)=o.source_id
-      WHERE t.slug=? AND t.category_key='7network_sales' AND t.status='active' LIMIT 1 FOR UPDATE`,[tenantSlug]);
+      WHERE t.slug=? AND t.category_key IN ${SALES_CATEGORY_FILTER} AND t.status='active' LIMIT 1 FOR UPDATE`,[tenantSlug,...SALES_CATEGORY_KEYS]);
     if(!tenant)fail('TENANT_NOT_FOUND',404);
     const prefillToken=String(body.prefillToken||'');
     if(prefillToken){
@@ -209,4 +215,4 @@ async function updateStatus(db,ctx,id,expectedRevision,status){
 async function getCv(db,ctx,id,{env=process.env}={}){
   authorize(ctx);if(!/^[0-9a-f-]{36}$/i.test(id))fail('APPLICATION_NOT_FOUND',404);const [[row]]=await db.query('SELECT cv_storage_key AS storageKey,cv_file_name AS fileName,cv_mime_type AS mimeType,cv_bytes AS bytes FROM sx_recruitment_applications WHERE tenant_id=? AND id=?',[ctx.tenant.id,id]);if(!row)fail('APPLICATION_NOT_FOUND',404);if(!row.storageKey)fail('CV_NOT_FOUND',404);const root=storageRoot(env);if(!row.storageKey.startsWith(`${ctx.tenant.id}/${id}/`)||row.storageKey.includes('..'))fail('CV_NOT_FOUND',404);const filePath=path.resolve(root,row.storageKey);if(!filePath.startsWith(root+path.sep))fail('CV_NOT_FOUND',404);await fs.access(filePath);return {...row,filePath,bytes:Number(row.bytes)};
 }
-module.exports={MAX_CV_BYTES,CONSENT,SCREENING_CONSENT,STATUSES,authorize,storageRoot,detectCv,normalizeMobile,cleanApplication,cleanScreeningAnswers,whatsappApplicationBody,resolveWhatsAppCv,createFromWhatsApp,issuePrefillToken,getPrefill,createPublic,list,listScreenings,saveScreening,updateStatus,getCv,matchExistingLead,queueApplicationNotification};
+module.exports={MAX_CV_BYTES,CONSENT,SCREENING_CONSENT,STATUSES,SALES_CATEGORY_KEYS,authorize,storageRoot,detectCv,normalizeMobile,cleanApplication,cleanScreeningAnswers,whatsappApplicationBody,resolveWhatsAppCv,createFromWhatsApp,issuePrefillToken,getPrefill,createPublic,list,listScreenings,saveScreening,updateStatus,getCv,matchExistingLead,queueApplicationNotification};
