@@ -10,7 +10,10 @@ const SAFE_DIAGNOSTIC_CODES=new Set([
 function diagnosticCode(error){
   const code=error?.code;
   if(typeof code!=='string')return 'UNEXPECTED_SERVER_ERROR';
-  if(SAFE_DIAGNOSTIC_CODES.has(code)||/^ER_[A-Z0-9_]{1,72}$/.test(code)||['EACCES','ECONNREFUSED','ECONNRESET','ENOSPC','ETIMEDOUT'].includes(code))return code;
+  // Error codes are useful for support, but error.message may contain SQL,
+  // filesystem paths, or applicant data. Only return machine-generated code
+  // tokens with well-known prefixes; never return arbitrary strings.
+  if(SAFE_DIAGNOSTIC_CODES.has(code)||/^ER_[A-Z0-9_]{1,72}$/.test(code)||/^PROTOCOL_[A-Z0-9_]{1,64}$/.test(code)||['EACCES','EADDRINUSE','ECONNABORTED','ECONNREFUSED','ECONNRESET','EHOSTUNREACH','EPIPE','ENETUNREACH','ENOSPC','ETIMEDOUT','EAI_AGAIN','ENOTFOUND'].includes(code))return code;
   return 'UNEXPECTED_SERVER_ERROR';
 }
 
