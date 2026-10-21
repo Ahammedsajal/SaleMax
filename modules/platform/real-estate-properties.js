@@ -112,6 +112,10 @@ async function update(db,context,id,input){
     const transactionType=patch.transactionType||row.transactionType,status=patch.status||row.status;
     if((status==='sold'&&transactionType!=='sale')||(status==='rented'&&transactionType!=='rent'))fail('INVALID_PROPERTY_TRANSITION',409);
     if(['sold','rented'].includes(row.status)&&patch.transactionType&&patch.transactionType!==row.transactionType)fail('INVALID_PROPERTY_TRANSITION',409);
+    if(context.tenant.categoryVersion>=3&&status!==row.status&&['sold','rented','withdrawn','archived'].includes(status)){
+      const [scheduled]=await db.query("SELECT id FROM sx_real_estate_viewings WHERE tenant_id=? AND property_id=? AND status='scheduled' LIMIT 1 FOR UPDATE",[context.tenant.id,id]);
+      if(scheduled.length)fail('PROPERTY_HAS_SCHEDULED_VIEWINGS',409);
+    }
     if(Object.hasOwn(patch,'assignedMembershipId'))patch.assignedMembershipId=await validateAssignee(db,context,patch.assignedMembershipId);
     const columns={titleEn:'title_en',titleAr:'title_ar',propertyType:'property_type',transactionType:'transaction_type',status:'status',priceMinor:'price_minor',currency:'currency',areaSqm:'area_sqm',bedrooms:'bedrooms',bathrooms:'bathrooms',city:'city',descriptionEn:'description_en',descriptionAr:'description_ar',assignedMembershipId:'assigned_membership_id'};
     const keys=Object.keys(patch),sets=keys.map(key=>`${columns[key]}=?`);
