@@ -70,10 +70,29 @@ test('owner finance separates period cash from invoice cohorts and flags, rather
     if(sql.includes('SELECT pa.id'))return [[]];
     throw new Error(`Unexpected finance report query: ${sql}`);
   }};
-  const report=await getActivityReport({pool:{async getConnection(){return connection;}},uid:'synthetic-owner',role:'owner',period:'daily',at:'2026-10-01'});
+  const report=await getActivityReport({pool:{async getConnection(){return connection;}},uid:'synthetic-owner',role:'owner',categoryKey:'training_center',period:'daily',at:'2026-10-01'});
   assert.equal(report.finance.billedMinor,'20000');assert.equal(report.finance.collectedOnPeriodIssuedInvoicesMinor,'5000');assert.equal(report.finance.cashReceivedMinor,'3000');assert.equal(report.finance.refundsPaidMinor,'500');assert.equal(report.finance.creditsIssuedMinor,'250');
   assert.equal(report.finance.allOutstandingMinor,'15000');assert.equal(report.finance.overdueReceivablesMinor,'2500');assert.equal(report.finance.reconciliation.status,'attention');
   for(const query of queries)assert.equal(query.params.length,(query.sql.match(/\?/g)||[]).length,`placeholder count for ${query.sql.slice(0,90)}`);
+});
+
+test('known non-Training categories never attach Training finance to the shared activity report',async()=>{
+  const router=require('node:fs').readFileSync(require('node:path').join(__dirname,'../routes/pipeline.js'),'utf8');
+  assert.match(router,/router\.get\("\/reports\/activity"[\s\S]*?categoryKey:req\.pipelineActor\.categoryKey/);
+  for(const categoryKey of ['7network_sales','real_estate','base_crm','future_retail','future_clinic',undefined]){
+    const queries=[];
+    const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
+      if(sql.includes('SELECT COUNT(*) AS n'))return [[{n:0}]];
+      if(sql.includes('AS outcomes'))return [[{outcomes:0,notes:0,agent_replies:0,leads_touched:0}]];
+      if(sql.includes('AS contacted'))return [[{contacted:0}]];
+      if(sql.includes('GROUP BY outcome'))return [[]];
+      if(sql.includes('SELECT pa.id'))return [[],[]];
+      throw new Error(`Unexpected shared activity query: ${sql}`);
+    }};
+    const report=await getActivityReport({pool:{async getConnection(){return connection;}},uid:'synthetic-owner',role:'owner',categoryKey,period:'daily',at:'2026-10-01'});
+    assert.equal(Object.hasOwn(report,'finance'),false,categoryKey);
+    assert.equal(queries.some(sql=>sql.includes('information_schema.TABLES')||/sx_training_|sx_tenants|sx_memberships/.test(sql)),false,categoryKey);
+  }
 });
 
 test('journey report combines current pipeline stages, period sources and agent sales credit',async()=>{

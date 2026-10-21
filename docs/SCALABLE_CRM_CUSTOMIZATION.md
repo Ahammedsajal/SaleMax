@@ -820,5 +820,19 @@ The existing Reports view now renders cohort, learner and course milestone
 panels only for Training Center. Category fixtures for Sales, Real Estate, Base
 CRM, future Retail and a future Clinic verify the shared query contains no
 Training table references and returns the caller's category key. The focused
-Pipeline report/team/isolation suite passes 19/19. This is source-only; no
+Pipeline report/team/isolation suite passes 24/24. This is source-only; no
 production report or data was changed.
+
+## Activity report finance category boundary — source only, 22 October 2026
+
+The existing shared Pipeline activity endpoint could attach the owner-only
+Training Center finance summary to any owner's activity report because the
+route did not pass the authenticated category into the report service. The
+route now forwards its resolved category, and the finance summary is queried
+only for Training Center. The existing scheduled Training report runner now
+declares that category explicitly; missing/unknown category context does not
+load finance. Known Sales, Real Estate, Base CRM, future Retail and future
+Clinic contexts return no Training finance payload and do not inspect Training
+tenant/finance tables. Fixtures verify this alongside the journey isolation
+and filter-preservation checks; the focused Pipeline report/team/category suite
+passes 25/25. This is source-only; no production report or data was changed.

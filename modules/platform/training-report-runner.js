@@ -66,14 +66,14 @@ async function buildSnapshot(pool,run){
     if(owners.length!==1||owners[0].legacy_uid_hash!==sha(owners[0].uid))fail('REPORT_OWNER_LINK_UNAVAILABLE');ownerUid=owners[0].uid;
   }finally{db.release();}
   const window=windowFor({period:run.period,timezone:run.timezone,scheduledAt:run.cutoff_at});
-  const report=await reports.getActivityReport({pool,uid:ownerUid,role:'owner',period:run.period,at:window.date,timezone:run.timezone,cutoffAt:window.cutoffAt,page:1,limit:1});
+  const report=await reports.getActivityReport({pool,uid:ownerUid,role:'owner',categoryKey:'training_center',period:run.period,at:window.date,timezone:run.timezone,cutoffAt:window.cutoffAt,page:1,limit:1});
   const journey=await reports.getJourneyReport({pool,uid:ownerUid,role:'owner',period:run.period,at:window.date,timezone:run.timezone});
   const comparisonDates=run.period==='daily'?[['yesterday',-1],['sameWeekdayLastWeek',-7]]:run.period==='weekly'?[['previousWeek',-1]]:[['previousMonth',-1]];
   const comparisons={};
   for(const [key,offset] of comparisonDates){
     const date=moment.tz(window.date,run.timezone).add(offset,run.period==='daily'?'day':run.period==='weekly'?'week':'month').format('YYYY-MM-DD');
     const cutoffAt=moment.utc(window.cutoffAt).add(offset,run.period==='daily'?'day':run.period==='weekly'?'week':'month').toISOString();
-    const prior=await reports.getActivityReport({pool,uid:ownerUid,role:'owner',period:run.period,at:date,timezone:run.timezone,cutoffAt,page:1,limit:1});
+    const prior=await reports.getActivityReport({pool,uid:ownerUid,role:'owner',categoryKey:'training_center',period:run.period,at:date,timezone:run.timezone,cutoffAt,page:1,limit:1});
     const priorJourney=await reports.getJourneyReport({pool,uid:ownerUid,role:'owner',period:run.period,at:date,timezone:run.timezone});
     comparisons[key]={from:prior.from,to:prior.to,activityCount:prior.total,summary:prior.summary,finance:prior.finance||null,journey:{summary:priorJourney.summary,cohortFunnel:priorJourney.cohortFunnel}};
   }

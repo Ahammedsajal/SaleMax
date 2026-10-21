@@ -1970,4 +1970,15 @@ is retained for legacy scheduled Training reports. The Reports UI renders
 Training cohort and learner panels only for Training Center. Regression fixtures
 cover Sales, Real Estate, Base CRM, future Retail and future Clinic categories,
 asserting no Training-table queries. Focused report/team/isolation tests pass
-19/19. This change is source-only; production was not updated.
+24/24. This change is source-only; production was not updated.
+
+## Activity report finance category boundary — source only, 22 October 2026
+
+The authenticated Pipeline activity route now passes its resolved category to
+the report service. The owner-only Training finance summary is queried only for
+Training Center; known Sales, Real Estate, Base CRM, future Retail and future
+Clinic workspaces receive no Training finance payload and the service skips
+Training tenant/finance table discovery. The existing scheduled Training
+report runner now passes its category explicitly; absent/unknown context omits
+finance. Focused report/team/category-isolation checks pass 25/25. This is
+source-only; production was not updated.

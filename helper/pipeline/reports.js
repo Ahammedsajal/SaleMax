@@ -95,7 +95,7 @@ async function getFinanceSummary(connection,uid,window,cutoffAt){
     receivablesAsOf:moment.utc(asOf).toISOString(),allOutstandingMinor:String(receivable.outstanding_minor||0),overdueReceivablesMinor:Object.entries(aging).filter(([key])=>key!=='current').reduce((sum,[,value])=>sum+BigInt(value.outstandingMinor),0n).toString(),receivablesAging:aging,reconciliation:{status:Number(totals.mismatched||0)+Number(receivable.mismatch_count||0)>0?'attention':'clear',
       periodIssuedInvoiceMismatchCount:Number(totals.mismatched||0),allInvoiceMismatchCount:Number(receivable.mismatch_count||0)}};
 }
-async function getActivityReport({pool,uid,role='owner',agentId,scopeAgentIds,period='daily',at,timezone='Asia/Qatar',cutoffAt,page=1,limit=50,assignment,qrInstanceId}){
+async function getActivityReport({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,period='daily',at,timezone='Asia/Qatar',cutoffAt,page=1,limit=50,assignment,qrInstanceId}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view the legacy lead activity report.',403);
   if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
@@ -129,7 +129,7 @@ async function getActivityReport({pool,uid,role='owner',agentId,scopeAgentIds,pe
       WHERE pa.uid_hash=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='contact_outcome'
       AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.followUpRequired'))='true'${leadScope.sql}`,[uidHash,window.start,window.end,...leadScope.args]);
     const [[overdue]]=await connection.query(`SELECT COUNT(*) AS n FROM pipeline_leads l WHERE l.uid_hash=? AND l.next_follow_up_at<COALESCE(?,UTC_TIMESTAMP(3)) AND l.status='open'${leadScope.sql}`,[uidHash,cutoffAt?moment.utc(cutoffAt).format('YYYY-MM-DD HH:mm:ss.SSS'):null,...leadScope.args]);
-    const finance=role==='owner'&&!selected.assignment&&!selected.qrInstanceId?await getFinanceSummary(connection,uid,window,cutoffAt):null;
+    const finance=role==='owner'&&!selected.assignment&&!selected.qrInstanceId&&categoryKeyMatches(categoryKey,'training_center')?await getFinanceSummary(connection,uid,window,cutoffAt):null;
     const offset=(currentPage-1)*pageSize;
     const [events]=await connection.query(`SELECT pa.id,pa.lead_id AS leadId,pa.actor_type AS actorType,
       CASE WHEN pa.actor_type='agent' THEN COALESCE(a.name,'Agent') WHEN pa.actor_type='system' THEN 'System' ELSE 'Business user' END AS attendedBy,
