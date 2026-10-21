@@ -761,3 +761,35 @@ test results, not authenticated production UI or performance acceptance. No
 production migration, release or customer-data change has occurred. The category
 remains private pending migration/release review, authenticated owner/staff
 acceptance, load/restore checks and safe production capacity.
+
+## Product catalogue isolation audit — 22 October 2026
+
+Reviewing the actual products API found that it mounts the maintained Training
+Center course router with a fixed table-name adapter. The product tables are
+separate from course tables, and the existing Products & services screen hides
+student prefixes, durations and batch controls. However, the shared router still
+accepted direct requests to Training-only batch endpoints. Product tenants
+could therefore create, read and update batch records even though the screen did
+not offer that workflow. The product route now returns 404 for every batch
+endpoint before opening a database connection; direct GET, POST and PUT
+regressions verify the boundary. Training Center keeps its existing batch API.
+
+This closes a category workflow leak; it does not make the current catalogue a
+retail inventory system. `sx_product_catalog` and related tables are cloned from
+the Training Center schema and generic product editing still passes through
+course-named service functions. Replace this compatibility layer in reviewed
+increments: first a neutral product/service contract for bilingual identity,
+description, status, media and immutable price offers; then separate category
+capabilities and adapters for physical inventory (variants, units, stock
+movements, reservations and returns) or appointments/services. Do not add
+inventory columns to course tables or infer stock behavior from
+`products.catalog`. Each adapter needs tenant-bound transactional writes,
+audit/revision rules, historical sale snapshots and category-specific
+migration/acceptance. The current product module is a Sales-compatible
+catalogue, not evidence that retail, supermarket, hotel or restaurant workflows
+are complete.
+
+Production was inspected read-only at
+`/opt/salemax/releases/recruitment-customer-guidance-5ab3315-20261022`; the root
+filesystem has 848 MB free (99% used). This source-only router correction is not
+deployed. Recheck capacity and rollback readiness before any release.

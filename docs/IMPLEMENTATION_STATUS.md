@@ -1935,3 +1935,20 @@ failure. No production migration or release was made; production capacity,
 private-category acceptance, query/load measurements, tenant restore and the
 full 42-ticket programme remain open. The additive column should remain during
 application rollback once property values may exist.
+
+## Product catalogue category-boundary correction — source only, 22 October 2026
+
+Direct API inspection found that `/api/workspace/products-services` still
+accepted Training Center batch operations through the shared catalogue router,
+even though the Sales product screen hides those controls. Product mode now
+returns 404 for batch GET/POST/PUT before database access; Training Center
+batch operations remain available. Focused router/catalogue tests pass 7/7.
+
+The audit also confirmed a larger remaining architecture gap: product catalogue
+tables are cloned from the Training Center schema, and product CRUD still uses
+course-named service code. The current adapter protects category storage and
+feature gates but does not implement retail inventory, hotel reservations or
+clinic appointments. Those need reviewed domain contracts and isolated data
+models before a category is offered. Production was inspected read-only; the
+active root filesystem is 99% full (848 MB free), so this change is source only
+and was not deployed. Full TC00–TC41 and release acceptance remain open.

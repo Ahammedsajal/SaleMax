@@ -71,7 +71,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
     return next();
   };
   router.use(contextGuard);
-  if(products)router.use((req,res,next)=>/^(?:\/enrollments|\/import-procatalyst)(?:\/|$)/.test(req.path)?res.sendStatus(404):next());
+  if(products)router.use((req,res,next)=>/^(?:\/enrollments|\/import-procatalyst|\/[^/]+\/batches)(?:\/|$)/.test(req.path)?res.sendStatus(404):next());
 
   router.get('/', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.list(pool, req.courseContext, {
     page: req.query.page === undefined ? 1 : Number(req.query.page),
