@@ -1,17 +1,28 @@
 ## Campaign worker tenant scoping — source update, 21 October 2026
 
-Campaign worker database operations now carry the campaign owner UID through
+Campaign worker database operations carry the campaign owner UID through
 legacy cleanup, pause/resume, pending-log selection, result persistence,
 counters, completion checks and delivery-status updates. The worker skips
-campaigns without a verified owner, and its in-process lock includes both the
-owner and campaign ID. A synthetic same-campaign-ID cross-tenant test confirms
-the worker reads and changes only the selected owner's logs.
+campaigns without a verified owner. In addition to its local duplicate guard,
+each send batch now holds a tenant-and-campaign-keyed MariaDB advisory lock on
+a dedicated database session and verifies that lock before provider sends and
+worker writes. The hashed, lowercase lock name avoids exposing owner data and
+fits the database lock-name limit. No schema migration is required.
 
-Focused campaign-worker tests pass 5/5; syntax and whitespace checks pass. No
-migration, production release or customer data change was made. This closes
-one worker SQL scoping gap; cross-process worker leases, broader asynchronous
-job/socket ownership and the rest of the 42-ticket tenant-isolation acceptance
-remain open.
+The focused campaign, lock, authorization and Meta callback suite passes
+27/27, including two independent database sessions contending for one
+campaign, different tenants remaining independent, cross-tenant log isolation
+and fail-closed behavior after lock loss. Syntax and whitespace checks pass.
+The full suite passes 1,098/1,122; the 24 remaining failures are existing
+Manage Users, Pipeline, QR, Training/Finance, Reports and public-form
+source-contract assertions, with no campaign-worker or lock failures. This
+source increment has not been deployed. The lock coordinates processes using
+the same MariaDB server; QR ownership, Socket.IO multi-node routing, real
+multi-process database testing and failover testing remain open. Provider
+acceptance and SQL persistence cannot be one atomic operation, so a process
+failure after Meta accepts a message but before its message ID is saved can
+still require reconciliation and may lead to a retry. The full TC37 and
+42-ticket acceptance remain open.
 
 ## Legacy call callback tenant boundary — source update, 21 October 2026
 

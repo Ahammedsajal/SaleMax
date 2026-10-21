@@ -1,8 +1,10 @@
 const { query } = require("../database/dbpromise");
 const { sendTemplateMessage } = require("../functions/function");
+const campaignPool = require("../database/config").promise();
 const canSendCampaignByModule = require("../modules/platform/campaign-module-access").createCampaignModuleAccess({
-  pool: require("../database/config").promise(),
+  pool: campaignPool,
 });
+const { acquireCampaignWorkerLock } = require("../modules/platform/campaign-worker-lock");
 
 // Simple processing flags
 const processingCampaigns = new Set();
@@ -324,20 +326,33 @@ async function sendCatalogTemplateMessage(
 /**
  * Process a single campaign
  */
-async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignByModule,messageDelay=CONFIG.messageDelay}={}) {
+async function processSingleCampaign(campaign, options = {}) {
   if (typeof campaign?.uid !== 'string' || !campaign.uid || !campaign.campaign_id) {
     console.warn('Campaign skipped because its owner could not be verified.','OWNER_NOT_FOUND');
     return;
   }
+  const lock = await acquireCampaignWorkerLock(campaignPool, campaign.uid, String(campaign.campaign_id));
+  if (!lock) return;
+  try {
+    await lock.assertHeld();
+    return await processSingleCampaignWithLock(campaign, { ...options, assertLockHeld: lock.assertHeld });
+  } finally {
+    await lock.release();
+  }
+}
+
+async function processSingleCampaignWithLock(campaign,{canSendCampaign=canSendCampaignByModule,messageDelay=CONFIG.messageDelay,assertLockHeld=async()=>{}}={}) {
+  await assertLockHeld();
   const initialAccess=await canSendCampaign(campaign.uid);
   if(initialAccess!==true&&initialAccess?.allowed!==true){
     console.warn('Campaign paused by current tenant access policy.',initialAccess?.code||'FEATURE_UNAVAILABLE');
-    await pauseCampaign(campaign.campaign_id, campaign.uid);
+    await pauseCampaign(campaign.campaign_id, campaign.uid, assertLockHeld);
     return;
   }
 
   // Update status to IN_PROGRESS if PENDING
   if (campaign.status === "PENDING") {
+    await assertLockHeld();
     await query(
       "UPDATE beta_campaign SET status = 'IN_PROGRESS' WHERE campaign_id = ? AND uid = ?",
       [campaign.campaign_id, campaign.uid],
@@ -355,7 +370,7 @@ async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignBy
   );
 
   if (!pendingLogs || pendingLogs.length === 0) {
-    await checkAndMarkCampaignComplete(campaign);
+    await checkAndMarkCampaignComplete(campaign, assertLockHeld);
     return;
   }
 
@@ -366,14 +381,15 @@ async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignBy
   );
 
   if (!metaCredentials || metaCredentials.length === 0) {
+    await assertLockHeld();
     await query(
       `UPDATE beta_campaign_logs 
        SET status = 'FAILED', error_message = 'Meta API credentials not found'
        WHERE campaign_id = ? AND uid = ? AND status = 'PENDING'`,
       [campaign.campaign_id, campaign.uid],
     );
-    await updateCampaignCounts(campaign.campaign_id, campaign.uid);
-    await checkAndMarkCampaignComplete(campaign);
+    await updateCampaignCounts(campaign.campaign_id, campaign.uid, assertLockHeld);
+    await checkAndMarkCampaignComplete(campaign, assertLockHeld);
     return;
   }
 
@@ -417,14 +433,15 @@ async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignBy
     const currentAccess=await canSendCampaign(campaign.uid);
     if(currentAccess!==true&&currentAccess?.allowed!==true){
       console.warn('Campaign paused by current tenant access policy.',currentAccess?.code||'FEATURE_UNAVAILABLE');
-      await persistCampaignResults(campaign.campaign_id,campaign.uid,successfulIds,failedUpdates);
-      await updateCampaignCounts(campaign.campaign_id, campaign.uid);
-      await pauseCampaign(campaign.campaign_id, campaign.uid);
+      await persistCampaignResults(campaign.campaign_id,campaign.uid,successfulIds,failedUpdates,assertLockHeld);
+      await updateCampaignCounts(campaign.campaign_id, campaign.uid, assertLockHeld);
+      await pauseCampaign(campaign.campaign_id, campaign.uid, assertLockHeld);
       return;
     }
     try {
       // Get contact details for variable replacement
       const contact = await getContactForLog(log, campaign);
+      await assertLockHeld();
 
       let result;
 
@@ -512,22 +529,24 @@ async function processSingleCampaign(campaign,{canSendCampaign=canSendCampaignBy
     }
   }
 
-  await persistCampaignResults(campaign.campaign_id,campaign.uid,successfulIds,failedUpdates);
+  await persistCampaignResults(campaign.campaign_id,campaign.uid,successfulIds,failedUpdates,assertLockHeld);
 
-  await updateCampaignCounts(campaign.campaign_id, campaign.uid);
-  await checkAndMarkCampaignComplete(campaign);
+  await updateCampaignCounts(campaign.campaign_id, campaign.uid, assertLockHeld);
+  await checkAndMarkCampaignComplete(campaign, assertLockHeld);
 }
 
-async function pauseCampaign(campaignId,uid){
+async function pauseCampaign(campaignId,uid,assertLockHeld=async()=>{}){
   if(typeof uid!=='string'||!uid)return;
+  await assertLockHeld();
   await query(`UPDATE beta_campaign SET status='PAUSED' WHERE campaign_id=? AND uid=? AND status IN ('PENDING','IN_PROGRESS')`,[campaignId,uid]);
 }
 
-async function persistCampaignResults(campaignId,uid,successfulIds,failedUpdates){
+async function persistCampaignResults(campaignId,uid,successfulIds,failedUpdates,assertLockHeld=async()=>{}){
   // Persist each completed provider result before an access-denied return so
   // the next worker pass cannot resend a message already accepted by Meta.
   if (successfulIds.length > 0) {
     for (const success of successfulIds) {
+      await assertLockHeld();
       await query(
         `UPDATE beta_campaign_logs 
          SET status = 'SENT', meta_msg_id = ?, delivery_time = NOW()
@@ -539,6 +558,7 @@ async function persistCampaignResults(campaignId,uid,successfulIds,failedUpdates
 
   if (failedUpdates.length > 0) {
     for (const failed of failedUpdates) {
+      await assertLockHeld();
       await query(
         `UPDATE beta_campaign_logs 
          SET status = 'FAILED', error_message = ?
@@ -580,9 +600,10 @@ async function getContactForLog(log, campaign) {
 /**
  * Update campaign counts based on current log statuses
  */
-async function updateCampaignCounts(campaignId, uid) {
+async function updateCampaignCounts(campaignId, uid, assertLockHeld=async()=>{}) {
   if(typeof uid!=='string'||!uid)return;
   try {
+    await assertLockHeld();
     await query(
       `UPDATE beta_campaign SET
         sent_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND uid = ? AND status = 'SENT'),
@@ -600,8 +621,9 @@ async function updateCampaignCounts(campaignId, uid) {
 /**
  * Check if campaign is complete and mark it
  */
-async function checkAndMarkCampaignComplete(campaign) {
+async function checkAndMarkCampaignComplete(campaign, assertLockHeld=async()=>{}) {
   if(typeof campaign?.uid!=='string'||!campaign.uid)return;
+  await assertLockHeld();
   const [pendingCount] = await query(
     `SELECT COUNT(*) as count FROM beta_campaign_logs 
      WHERE campaign_id = ? AND uid = ? AND status = 'PENDING'`,
@@ -616,6 +638,7 @@ async function checkAndMarkCampaignComplete(campaign) {
 
   // If no pending logs and we have some logs, mark as complete
   if (pendingCount.count === 0 && totalLogsCount.count > 0) {
+    await assertLockHeld();
     await query(
       "UPDATE beta_campaign SET status = 'COMPLETED' WHERE campaign_id = ? AND uid = ?",
       [campaign.campaign_id, campaign.uid],
@@ -624,6 +647,7 @@ async function checkAndMarkCampaignComplete(campaign) {
   }
   // If no logs at all, mark as completed (legacy case)
   else if (totalLogsCount.count === 0) {
+    await assertLockHeld();
     await query(
       "UPDATE beta_campaign SET status = 'COMPLETED' WHERE campaign_id = ? AND uid = ?",
       [campaign.campaign_id, campaign.uid],

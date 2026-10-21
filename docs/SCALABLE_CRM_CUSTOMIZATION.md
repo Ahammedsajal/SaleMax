@@ -159,6 +159,27 @@ Publishing validates every key against the category's schema, checks module depe
 
 Cache key: tenant ID + category key/version + configuration revision + relevant module schema version. Never cache effective settings by category alone. Resolve the tenant from authenticated context; domain routing identifies the intended tenant but does not authorize access. Background jobs retain tenant ID and explicit execution/version semantics. Idempotency keys include tenant ID. Workers recheck suspension, revocation and provider readiness before external effects.
 
+### Campaign dispatch across application processes — 21 October 2026
+
+The campaign worker now uses a MariaDB named lock keyed by a hash of both the
+business owner UID and campaign ID. The lock stays on a dedicated pooled
+connection for the send batch, and the worker checks that the same database
+session still owns it before dispatch and persistence. MariaDB documents named
+locks as exclusive across sessions on the same server, released explicitly or
+when the owning connection ends; lock names are case-insensitive and limited
+to 64 characters. The implementation therefore uses lowercase hexadecimal
+hashing and the current shared-primary MariaDB topology. See the [MariaDB
+GET_LOCK reference](https://mariadb.com/docs/server/reference/sql-functions/secondary-functions/miscellaneous-functions/get_lock)
+and [IS_USED_LOCK reference](https://mariadb.com/docs/server/reference/sql-functions/secondary-functions/miscellaneous-functions/is_used_lock).
+
+This is cooperative process coordination for the current shared database, not
+a multi-primary lock service. It does not make a Meta send and its database
+acknowledgement atomic: a process or connection failure after provider
+acceptance and before message-ID persistence can leave an uncertain result.
+Keep that boundary visible in retries and operational reconciliation; do not
+claim exactly-once delivery. QR connector ownership, Socket.IO routing, and
+real multi-process/failover tests remain separate TC37 work.
+
 ## Extensibility and domain boundaries
 
 | Category | Candidate modules, subject to implementation and acceptance |

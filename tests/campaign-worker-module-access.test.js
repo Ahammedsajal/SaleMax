@@ -19,11 +19,12 @@ async function withWorker(run){
     if(sql.includes('SELECT COUNT(*)'))return [{count:0}];
     return {affectedRows:1};
   };
-  const fakePool={getConnection:async()=>({query:async()=>[[],[]],release(){}})};
+  const lockOwners=new Map();let nextConnectionId=100;
+  const fakePool={getConnection:async()=>{const connectionId=nextConnectionId++;let released=false;return {query:async(sql,args=[])=>{if(released)throw Object.assign(new Error('released'),{code:'CONNECTION_RELEASED'});const name=args[0];if(sql.includes('GET_LOCK')){if(lockOwners.has(name))return [[{acquired:0}],[]];lockOwners.set(name,connectionId);return [[{acquired:1}],[]];}if(sql.includes('CONNECTION_ID'))return [[{connectionId}],[]];if(sql.includes('IS_USED_LOCK'))return [[{ownerConnectionId:lockOwners.get(name)??null}],[]];if(sql.includes('RELEASE_LOCK')){const owned=lockOwners.get(name)===connectionId;if(owned)lockOwners.delete(name);return [[{released:owned?1:0}],[]];}throw new Error(`Unexpected lock query: ${sql}`);},release(){released=true;},destroy(){released=true;for(const [name,owner] of lockOwners)if(owner===connectionId)lockOwners.delete(name);}};}};
   const stubs={
     '../database/dbpromise':{query:fakeQuery},
     '../database/config':{promise:()=>fakePool},
-    '../functions/function':{sendTemplateMessage:async(...args)=>{state.sends.push(args);return {messages:[{id:`meta-${state.sends.length}`}]} ;}},
+    '../functions/function':{sendTemplateMessage:async(...args)=>{state.sends.push(args);await new Promise(resolve=>setTimeout(resolve,10));return {messages:[{id:`meta-${state.sends.length}`}]} ;}},
     '../modules/platform/campaign-module-access':{createCampaignModuleAccess:()=>async()=>({allowed:true})},
   };
   const cacheKeys=[];
@@ -82,5 +83,16 @@ test('campaign without a verified owner cannot trigger database writes or provid
     await worker.processSingleCampaign(unowned,{canSendCampaign:async()=>({allowed:true}),messageDelay:0});
     assert.equal(state.sends.length,0);
     assert.equal(state.queries.length,0);
+  });
+});
+
+test('concurrent worker sessions dispatch a campaign only once',async()=>{
+  await withWorker(async(worker,state)=>{
+    await Promise.all([
+      worker.processSingleCampaign(campaign,{messageDelay:0,canSendCampaign:async()=>({allowed:true})}),
+      worker.processSingleCampaign(campaign,{messageDelay:0,canSendCampaign:async()=>({allowed:true})}),
+    ]);
+    assert.equal(state.sends.length,2);
+    assert.equal(state.queries.filter(item=>item.sql.includes("SET status = 'IN_PROGRESS'")).length,1);
   });
 });
