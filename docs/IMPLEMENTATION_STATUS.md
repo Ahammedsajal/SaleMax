@@ -2042,3 +2042,17 @@ This prevents accidental in-place changes to contracts already assigned to
 tenants. Four focused registry checks pass, including modified-contract and
 missing-lock rejection. No migration, plan/tenant assignment or production
 change occurred.
+
+## Recruitment application error guidance — source only, 22 October 2026
+
+The public application form now gives applicants clear bilingual guidance when
+secure CV storage or recruitment-owner delivery is unavailable, while retaining
+the safe diagnostic code in brackets for support. It does not expose internal
+error messages or candidate data. Focused recruitment form and error tests pass
+22/22. Production was inspected read-only: the current error-handling assets
+match the deployed source, recruitment migrations are applied, the configured CV
+directory is present and writable, and no public-submission server failures were
+recorded in the app logs over the previous 72 hours. The host has about 867 MB
+free disk space, which remains an operational risk. No production update was
+made; the cause of the reported individual failure remains unconfirmed without
+its diagnostic code.
