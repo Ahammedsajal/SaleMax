@@ -1,4 +1,4 @@
-# SaleMaX existing application upgrade
+# 7Network existing application upgrade
 
 Read docs/SALEMAX_TRAINING_CENTER_IMPLEMENTATION_PLAN.md and docs/IMPLEMENTATION_STATUS.md before continuing implementation. The full 42-ticket upgrade and production/Git deliverables remain the objective.
 
@@ -20,3 +20,4 @@ Read docs/SALEMAX_TRAINING_CENTER_IMPLEMENTATION_PLAN.md and docs/IMPLEMENTATION
 - Every production update must also update the tracked production record in DEPLOYMENT.md: include the source commit, deployed release, migrations, rollback reference, verification evidence and remaining gates. Commit and push that record after the live result is verified. Follow docs/PRODUCTION_ACCESS.md; never put credentials or private access material in Git.
 - Retain meaningful database/concurrency tests and use disposable synthetic data for verification. Record remaining legacy adoption, provider, finance, load/restore and release gates honestly; never redefine the full goal around a smaller passing increment.
 - For every production change, follow `skills/7network-production-change/SKILL.md` and append the verified source/release/migration/rollback/evidence record to `DEPLOYMENT.md` so other checkouts, including Windows, can follow the live state. Keep `docs/7NETWORK_REBRAND.md` current for brand and compatibility decisions.
+- The platform's customer-facing brand is now **7Network**. Use `7Network` and `7Network Sales` in platform-owned labels, bot profiles, help copy, and supported translations. Retain the current hostname, email addresses, schema/API/environment identifiers, customer-owned brands, and historical plan/category aliases until their separately reviewed migrations are ready.

@@ -13,6 +13,7 @@ This file is the cross-machine source of truth for the SaleMaX-to-7Network platf
 ## Compatibility boundaries
 
 - `7network_sales` is the canonical category key. Existing code accepts `salemax_sales` as a compatibility alias. The production migration renames tenant/profile/settings references, but preserves published plan-version keys, plan IDs, assignments, and their history. Do not rewrite or delete those historical plan contracts; make new versions with the canonical key.
+- The first-party Sales tenant already uses `7network_sales`; the human-facing category name is `7Network Sales`. Migration `20261222_7network_sales_bot_brand.sql` updates the saved recruitment profile name, English/Arabic greetings, and stored domain-pack key. Keep the old key available only as a compatibility path for legacy settings and published plan contracts.
 - The hostname `crm.salemax.qa`, `SALEMAX_*` environment settings, legacy static URLs, schema migration ledger, and existing recruitment route are retained until the separately planned domain and infrastructure migration. These are operational identifiers, not customer-facing brand copy.
 - Persistent chatbot config keys such as `buttonSalemax` remain compatible with saved profiles while the visible bot text and replies use 7Network.
 - Do not rename tenant/customer businesses, uploaded brand assets, legal company names, email addresses, or customer records as part of the platform rebrand.
@@ -21,3 +22,7 @@ This file is the cross-machine source of truth for the SaleMaX-to-7Network platf
 ## Production workflow
 
 Before every production update, follow [`skills/7network-production-change/SKILL.md`](../skills/7network-production-change/SKILL.md) and `docs/PRODUCTION_ACCESS.md`. After verification, append the source commit, active release, migration status, protected rollback reference, evidence, and open gates to `DEPLOYMENT.md`, then commit and push that record so Windows and other checkouts can see the live state.
+
+## Windows and other checkout handoff
+
+`DEPLOYMENT.md` is the current production ledger; it records each deployed source commit and any live-only state. Before editing on another machine, fetch `origin/main`, read the latest deployment entry and this brand guide, then fast-forward the intended source branch after preserving any local edits. Pushing source does not deploy it. Keep production environment files, database exports, customer data, sessions, and backups outside Git. Until the separate domain migration is completed, `crm.salemax.qa` and `info@salemax.qa` remain operational addresses, not the platform's display name.
