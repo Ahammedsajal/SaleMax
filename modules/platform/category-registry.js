@@ -3,6 +3,7 @@
 // Registries are assembled at boot from reviewed source, never tenant input.
 function createCategoryRegistry(definitions, knownCapabilities) {
   const invalid = () => { throw Object.assign(new Error('INVALID_CATEGORY_MANIFEST'), { code: 'INVALID_CATEGORY_MANIFEST' }); };
+  const knownTaskAdapters=new Map(require('./task-type-adapters').knownAdapters().map(adapter=>[adapter.key,adapter]));
   if (!Array.isArray(definitions) || !knownCapabilities || typeof knownCapabilities !== 'object') invalid();
   const entries = new Map();
   for (const source of definitions) {
@@ -21,6 +22,8 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       || (source.chatbotLeadCapture!==undefined&&!['none','generic','training'].includes(source.chatbotLeadCapture))
       || (source.chatbotLeadCapture==='generic'&&!source.capabilities.includes('crm.leads'))
       || (source.chatbotLeadCapture==='training'&&(!source.capabilities.includes('crm.leads')||!source.capabilities.includes('training.courses')))
+      || (source.taskAdapters!==undefined&&(!source.taskAdapters||typeof source.taskAdapters!=='object'||Array.isArray(source.taskAdapters)||!(Object.getPrototypeOf(source.taskAdapters)===null||Object.getPrototypeOf(Object.getPrototypeOf(source.taskAdapters))===null)
+        ||Object.entries(source.taskAdapters).some(([key,version])=>!knownTaskAdapters.has(key)||knownTaskAdapters.get(key).version!==version||!source.capabilities.includes('team.tasks')||knownTaskAdapters.get(key).requiredCapabilities.some(capability=>!source.capabilities.includes(capability)))))
       || typeof source.migration !== 'string' || !/^\d{8}_[a-z0-9_]+\.sql$/.test(source.migration)) invalid();
     const id = `${source.key}@${source.version}`;
     if (entries.has(id)) invalid();
@@ -30,6 +33,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       public: source.public, ...(source.planable === undefined ? {} : { planable: source.planable }),
       ...(source.catalogue===undefined?{}:{catalogue:source.catalogue}),
       chatbotLeadCapture: source.chatbotLeadCapture || 'none',
+      taskAdapters:Object.freeze({...source.taskAdapters}),
       capabilities: Object.freeze([...source.capabilities]), seatRoles: Object.freeze([...source.seatRoles]), migration: source.migration });
     entries.set(id, manifest);
   }

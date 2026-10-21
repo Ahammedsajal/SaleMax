@@ -36,3 +36,16 @@ test('registry copies caller input and exposes immutable manifests and listings'
   assert.throws(()=>registry.list().pop(),TypeError);
   assert.throws(()=>{registry.get(input.key,1).title.en='Other';},TypeError);
 });
+
+test('task adapter declarations are exact-version capability contracts and immutable', () => {
+  const sales = createCategoryRegistry([sevenNetworkSales], capabilities).get('7network_sales', 1);
+  assert.deepEqual(sales.taskAdapters, {sales_call: 1});
+  assert.equal(Object.isFrozen(sales.taskAdapters), true);
+  assert.equal(trainingCenter.taskAdapters.invoice_follow_up, 1);
+  for (const patch of [
+    {taskAdapters:{unreviewed_task:1}},
+    {taskAdapters:{sales_call:2}},
+    {taskAdapters:{sales_call:1},capabilities:sevenNetworkSales.capabilities.filter(key=>key!=='telephony.call-center')},
+    {taskAdapters:{sales_call:1},capabilities:sevenNetworkSales.capabilities.filter(key=>key!=='team.tasks')},
+  ]) assert.throws(()=>createCategoryRegistry([{...sevenNetworkSales,...patch}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
+});

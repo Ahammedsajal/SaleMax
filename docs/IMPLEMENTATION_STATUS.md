@@ -1,3 +1,22 @@
+## Category-versioned task-type adapters — source update, 21 October 2026
+
+The shared Tasks workflow now gets its allowed task types from the authenticated
+tenant's exact category/version and active plan capabilities. Reviewed adapters
+declare bilingual labels and required capabilities; the registry rejects unknown
+adapter versions or missing category capabilities. Sales call rules are no
+longer embedded in generic task CRUD/filter code. The existing Tasks screen now
+starts with neutral 7Network copy and populates its type selector and category
+label from the shared API, preserving the legacy core task types and leaving the
+minified task application unchanged. Cross-category, stale-version and
+plan-entitlement denial tests pass. Thirty-five focused category/Tasks tests,
+syntax checks and `git diff --check` pass. Source only; production deployment,
+signed-in English/Arabic browser acceptance and legacy actor adoption remain
+open. The full `npm test` run reports 1,022/1,046 passing, with the remaining 24
+known stale Manage Users, Pipeline, Reports and Finance source-contract checks
+still open. This does not yet provide per-tenant task-type authoring; tenant-specific
+customization stays limited to reviewed declarative settings and source-owned
+adapters until a bounded versioned configuration workflow is added.
+
 ## Finance conversion policy guard — source update, 21 October 2026
 
 The training invoice-total helper now rejects missing, unsupported or malformed

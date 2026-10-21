@@ -10,6 +10,7 @@ const categories = require('../modules/platform/categories');
 function withFutureFeature() {
   const sandbox = { module: { exports: {} }, require: name => {
     if (name === './category-registry') return require('../modules/platform/category-registry');
+    if (name === './task-type-adapters') return require('../modules/platform/task-type-adapters');
     assert.equal(name, './policy');
     return { capabilities: { ...policy.capabilities, 'clinic.patient-records': ['patients.read'] } };
   } };

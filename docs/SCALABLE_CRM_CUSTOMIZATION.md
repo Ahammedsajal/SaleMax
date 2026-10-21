@@ -10,6 +10,29 @@ Keep one maintained SaleMaX application, current logins and panels, and shared m
 
 Configuration isolation can prevent one business's settings affecting another. It cannot guarantee that a defect in shared application code never affects other businesses. Version pinning, gradual rollout and contract tests reduce that blast radius; dedicated deployment stamps and resource isolation are the stronger option for customers needing separate runtime failure boundaries. Do not sell an absolute guarantee of zero shared-code impact.
 
+## Shared task-type extension boundary — 21 October 2026
+
+The shared Tasks module now treats its selectable type set as a category adapter
+contract, rather than assuming that every business uses Training Center task
+types or embedding 7Network Sales rules in generic CRUD. Each category manifest
+pins reviewed adapter versions; startup validation requires the shared Tasks
+capability plus each adapter's declared category capability. At request time,
+the service additionally requires the active plan entitlement, exact tenant
+category/version and authenticated actor before offering, filtering, creating
+or editing a specialized type. The API returns bilingual labels and the current
+category title to the existing Tasks screen. Legacy contexts retain only core
+general/lead-follow-up types until they are explicitly mapped. No tenant can
+submit adapter code or choose another tenant's category configuration.
+
+This improves category isolation and demonstrates a reusable backend/UI seam,
+but it does not give each tenant a self-service custom task catalogue. Tenant
+authors still need a bounded declarative configuration with versioning,
+publication, rollback and schema migration rules; domain actions must remain
+source-owned adapters with tenant-owned data. A future CRM vertical can select
+its reviewed type adapters without changing the shared task service, while
+individual workspaces can only configure labels/order/availability through a
+tenant-scoped contract after that publication workflow is implemented.
+
 ## Training lifecycle boundary correction — 21 October 2026
 
 The existing Training Center learner-progress reconciler can move won Pipeline leads through invoice, payment, course and certificate stages. It now requires the authenticated actor's registered category to be `training_center` before it reads or updates those records. All shared Pipeline entry points pass the category, and the service rejects known other categories before opening a database connection. Unmapped legacy workspaces retain their prior behavior pending explicit adoption. This closes a cross-category stage mutation path; it does not make the rest of the legacy Pipeline data model category-aware or complete the separate domain workflows. Focused service/registry/category tests pass; full route/report and authenticated customer acceptance remain separate gates.
