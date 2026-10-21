@@ -13,7 +13,18 @@ test('recruitment introduction builds trust before describing the role',()=>{
   assert.match(result.reply,/I’m Lucy, 7Network’s chatbot/);
   assert.match(result.reply,/7Network is a CRM and business-management system/);
   assert.equal(result.buttons.length,3);
-  assert.deepEqual(result.buttons.map(button=>button.id),['about_talab','about_salemax','about_role']);
+  assert.deepEqual(result.buttons.map(button=>button.id),['about_talab','about_7network','about_role']);
+});
+
+test('legacy SaleMaX buttons and conversation steps remain compatible with 7Network copy',()=>{
+  const legacyButton=recruitmentReply({message:'about_salemax',state:{step:'welcome'},facts:{},config:{messages:{button7Network:{en:'About SaleMaX'}}}});
+  assert.equal(legacyButton.state.step,'7network');
+  assert.match(legacyButton.reply,/7Network is our CRM/);
+  const welcome=recruitmentReply({message:'hello',state:{step:'welcome'},facts:{},config:{messages:{button7Network:{en:'About SaleMaX'}}}});
+  assert.equal(welcome.buttons[1].title,'About 7Network');
+  const legacyStep=recruitmentReply({message:'hello',state:{step:'salemax'},facts:{}});
+  assert.equal(legacyStep.state.step,'7network');
+  assert.match(legacyStep.reply,/7Network is our CRM/);
 });
 
 test('role and commission replies state qualification and payment terms accurately',()=>{

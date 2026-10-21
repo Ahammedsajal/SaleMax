@@ -52,7 +52,7 @@ async function mount(host,plan){
   }
   function recover(codes){
     area.innerHTML=heading()+`<p>${t('Save your recovery codes before continuing. Each works once.','احفظ رموز الاسترداد قبل المتابعة. يُستخدم كل رمز مرة واحدة.')}</p><button type="button" data-download>${t('Download recovery codes','تنزيل رموز الاسترداد')}</button><button type="button" data-show>${t('Show codes to copy','عرض الرموز للنسخ')}</button><label class="sx-plan-field" data-recovery-view hidden>${t('Recovery codes','رموز الاسترداد')}<textarea readonly aria-label="${t('Recovery codes','رموز الاسترداد')}">${esc(codes.join('\n'))}</textarea></label><form><label><input type="checkbox" name="saved" required> ${t('I saved my recovery codes','حفظت رموز الاسترداد')}</label><div class="sx-plan-buttons"><button type="submit">${t('Continue','متابعة')}</button></div></form>`;
-    area.querySelector('[data-download]').onclick=()=>{const url=URL.createObjectURL(new Blob([codes.join('\n')+'\n'],{type:'text/plain'})),link=document.createElement('a');link.href=url;link.download='salemax-recovery-codes.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+    area.querySelector('[data-download]').onclick=()=>{const url=URL.createObjectURL(new Blob([codes.join('\n')+'\n'],{type:'text/plain'})),link=document.createElement('a');link.href=url;link.download='7network-recovery-codes.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
     area.querySelector('[data-show]').onclick=()=>{const view=area.querySelector('[data-recovery-view]');view.hidden=!view.hidden;};
     run(area.querySelector('form'),async()=>{codes=[];await load();});
   }

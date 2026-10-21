@@ -46,7 +46,7 @@ export async function connectBrowserSip(config, remoteAudio, onState = () => {})
     userAgentOptions: {
       authorizationUsername: config.authorizationUsername,
       authorizationPassword: config.authorizationPassword,
-      displayName: 'SaleMaX Call Center',
+      displayName: '7Network Call Center',
     },
   });
   user = candidate;

@@ -3,7 +3,7 @@ function normalize(value){return String(value||'').normalize('NFKC').toLowerCase
 
 const APPLE='https://apps.apple.com/qa/app/%D8%B9%D8%B1%D8%B6-%D9%88-%D8%B7%D9%84%D8%A8-%D9%82%D8%B7%D8%B1-talab-qtr/id6744091784';
 const ANDROID='https://play.google.com/store/apps/details?id=com.talab.white';
-function text(config,key,language,fallback){return config?.messages?.[key]?.[language]||fallback;}
+function text(config,key,language,fallback){return String(config?.messages?.[key]?.[language]||fallback).replace(/\bSaleMaX\b(?![.-])/gi,'7Network');}
 function buttons(items){return items.slice(0,3).map(([id,title])=>({id,title}));}
 const SCREENING={
  screen_consent:{
@@ -40,18 +40,18 @@ function screeningQuestion(step,language){
 }
 function recruitmentReply({message,state,facts,config={}}){
  const language=/[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/u.test(String(message||''))||state?.language==='ar'?'ar':'en';
- const input=normalize(String(message||''));const previous=state||{};let step=previous.step||'welcome',reply='',choices=[];
+ const input=normalize(String(message||''));const previous=state||{};let step=previous.step==='salemax'?'7network':previous.step||'welcome',reply='',choices=[];
  if(['awaiting_cv','application_saved','application_submitted'].includes(step)){
   const recruiter=['talk_to_recruiter','talk to recruiter','تحدث مع مسؤول التوظيف'].includes(String(message||'').trim().toLowerCase());
   return {reply:recruiter?(language==='ar'?'أبلغت مسؤول التوظيف، وسينضم إلى المحادثة قريباً.':'I’ve notified the recruiter. They’ll join this chat soon.'):'',state:previous,buttons:[],handoff:true,handoffReason:'recruitment-recruiter-requested',notifyRecruiter:recruiter,terminal:true};
  }
- const labels={talab:text(config,'buttonTalab',language,language==='ar'?'عن طلب':'About Talab'),salemax:text(config,'buttonSalemax',language,language==='ar'?'عن 7Network':'About 7Network'),role:text(config,'buttonRole',language,language==='ar'?'عن الوظيفة':'About the role'),commission:text(config,'buttonCommission',language,language==='ar'?'العمولة':'Commission details'),apply:text(config,'buttonApply',language,language==='ar'?'قدّم الآن':'Apply now'),menu:text(config,'buttonMenu',language,language==='ar'?'القائمة':'Main menu'),human:text(config,'buttonHuman',language,language==='ar'?'تحدث مع مسؤول التوظيف':'Talk to recruiter'),screening:text(config,'buttonScreening',language,language==='ar'?'قدّم الآن':'Apply now')};
+ const labels={talab:text(config,'buttonTalab',language,language==='ar'?'عن طلب':'About Talab'),sevenNetwork:text(config,'button7Network',language,language==='ar'?'عن 7Network':'About 7Network'),role:text(config,'buttonRole',language,language==='ar'?'عن الوظيفة':'About the role'),commission:text(config,'buttonCommission',language,language==='ar'?'العمولة':'Commission details'),apply:text(config,'buttonApply',language,language==='ar'?'قدّم الآن':'Apply now'),menu:text(config,'buttonMenu',language,language==='ar'?'القائمة':'Main menu'),human:text(config,'buttonHuman',language,language==='ar'?'تحدث مع مسؤول التوظيف':'Talk to recruiter'),screening:text(config,'buttonScreening',language,language==='ar'?'قدّم الآن':'Apply now')};
  const match=(...terms)=>terms.some(term=>input===normalize(term)||input.includes(normalize(term)));
  const screeningStep=Object.hasOwn(SCREENING,step)||['screen_name','screen_email','screen_contact_number'].includes(step);
  let command=null;
  if(match('main_menu','main menu','القائمة','الرئيسية','start over',labels.menu))command='welcome';
  else if(match('about_talab','about talab','طلب','talab',labels.talab))command='talab';
- else if(match('about_salemax','about salemax','salemax','7Network',labels.salemax))command='salemax';
+ else if(match('about_7network','about 7network','about_salemax','about salemax','salemax','7network',labels.sevenNetwork))command='7network';
  else if(match('commission_details','commission details','commission only','pay and commission','pay commission','commission','pay','العمولة','الراتب','عمولة',labels.commission))command='commission';
  else if(match('continue_application','yes continue','continue','نعم أكمل'))command='continue_application';
  else if(match('apply_now','apply now','apply and upload cv','apply upload cv','application','apply','cv','resume','ابدأ التقديم','قدم الآن','قدّم الآن',labels.apply))command='apply';
@@ -109,13 +109,13 @@ function recruitmentReply({message,state,facts,config={}}){
   const base=text(config,'welcome',language,language==='ar'?'مرحباً بك!':'Hello and welcome!');
   const company=`${language==='ar'?'نحن':'We are'} Sitta Arbaa Sitta for Software Solutions (${language==='ar'?'السجل التجاري':'CR'} 251489), ${language==='ar'?'شركة برمجيات وتسويق مقرها قطر. طلب هو سوقنا الإلكتروني في قطر':'a Qatar-based software and marketing company. Talab is our marketplace app for Qatar'}.`;
   const apps=`Talab · Apple: ${APPLE}\nGoogle Play: ${ANDROID}`;
-  const salemax=language==='ar'?'أنا لوسي، مساعدة 7Network. 7Network هو CRM لإدارة الأعمال، قابل للتخصيص حسب كل شركة. يساعد على تنظيم العملاء المحتملين، متابعة العملاء، أتمتة المهام، حملات واتساب والتسويق، وإدارة أعمالك من مكان واحد. تعرّف عليه عبر crm.salemax.qa.':'I’m Lucy, 7Network’s chatbot. 7Network is a CRM and business-management system that can be customised for each business. It helps manage leads and customer follow-ups, automate tasks, run WhatsApp campaigns and marketing, and organise business operations. Learn more at crm.salemax.qa.';
-  reply=[base,company,apps,salemax,text(config,'menuPrompt',language,language==='ar'?'اختر موضوعاً للمتابعة:':'Choose what you would like to know next:')].join('\n\n');
-  choices=buttons([['about_talab',labels.talab],['about_salemax',labels.salemax],['about_role',labels.role]]);
+  const sevenNetwork=language==='ar'?'أنا لوسي، مساعدة 7Network. 7Network هو CRM لإدارة الأعمال، قابل للتخصيص حسب كل شركة. يساعد على تنظيم العملاء المحتملين، متابعة العملاء، أتمتة المهام، حملات واتساب والتسويق، وإدارة أعمالك من مكان واحد. تعرّف عليه عبر crm.salemax.qa.':'I’m Lucy, 7Network’s chatbot. 7Network is a CRM and business-management system that can be customised for each business. It helps manage leads and customer follow-ups, automate tasks, run WhatsApp campaigns and marketing, and organise business operations. Learn more at crm.salemax.qa.';
+  reply=[base,company,apps,sevenNetwork,text(config,'menuPrompt',language,language==='ar'?'اختر موضوعاً للمتابعة:':'Choose what you would like to know next:')].join('\n\n');
+  choices=buttons([['about_talab',labels.talab],['about_7network',labels.sevenNetwork],['about_role',labels.role]]);
  }else if(step==='talab'){
   reply=language==='ar'?`طلب هو تطبيق سوق إلكتروني يساعد الناس والأعمال في قطر على عرض المنتجات والخدمات والعثور عليها.\nApple: ${APPLE}\nGoogle Play: ${ANDROID}`:`Talab is our marketplace app for people and businesses in Qatar to discover and list products and services.\nApple App Store: ${APPLE}\nGoogle Play: ${ANDROID}`;
-  choices=buttons([['about_salemax',labels.salemax],['about_role',labels.role],['main_menu',labels.menu]]);
- }else if(step==='salemax'){
+  choices=buttons([['about_7network',labels.sevenNetwork],['about_role',labels.role],['main_menu',labels.menu]]);
+ }else if(step==='7network'){
   reply=language==='ar'?'7Network هو نظام CRM وإدارة أعمال نطوره ونخصصه لكل شركة. يشمل إدارة العملاء المحتملين ومتابعة العملاء، أتمتة المهام، حملات واتساب والتسويق، وأدوات لإدارة الأعمال من مكان واحد. للمزيد: crm.salemax.qa.':'7Network is our CRM and business-management software, customised for each business. It helps teams manage leads and customer follow-ups, automate tasks, run WhatsApp campaigns and marketing, and organise business operations in one place. Learn more at crm.salemax.qa.';
   choices=buttons([['about_role',labels.role],['about_talab',labels.talab],['main_menu',labels.menu]]);
  }else if(step==='role'){

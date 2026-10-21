@@ -96,7 +96,7 @@ app.get("*", function (request, response) {
 
 // ─── Server ───────────────────────────────────────────────────────────────────
 const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0.1", () => {
-  console.log(`SaleMaX server is running on port ${process.env.PORT}`);
+  console.log(`7Network server is running on port ${process.env.PORT}`);
   init();
   setTimeout(() => {
     warmerLoopInit();

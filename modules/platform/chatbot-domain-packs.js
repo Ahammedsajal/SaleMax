@@ -308,7 +308,7 @@ registerDomainPack({
 const RECRUITMENT_GUIDED_DEFAULTS={version:1,messages:{
   welcome:{en:'Hello and welcome to 7Network.',ar:'مرحباً بك في 7Network.'},
   menuPrompt:{en:'Before we discuss the role, feel free to learn more about our company and products.',ar:'قبل أن نتحدث عن الوظيفة، يمكنك التعرف على الشركة ومنتجاتها.'},
-  buttonTalab:{en:'About Talab',ar:'عن طلب'},buttonSalemax:{en:'About 7Network',ar:'عن 7Network'},buttonRole:{en:'About the role',ar:'عن الوظيفة'},
+  buttonTalab:{en:'About Talab',ar:'عن طلب'},button7Network:{en:'About 7Network',ar:'عن 7Network'},buttonRole:{en:'About the role',ar:'عن الوظيفة'},
   buttonCommission:{en:'Commission',ar:'العمولة'},buttonApply:{en:'Apply now',ar:'قدّم الآن'},buttonMenu:{en:'Main menu',ar:'القائمة'},buttonHuman:{en:'Talk to owner',ar:'تحدث مع المالك'},
 }};
 const recruitField=(path,labelEn,labelAr)=>({path,type:'localized-text',label:{en:labelEn,ar:labelAr},maxLength:400});
@@ -324,7 +324,7 @@ registerDomainPack({
   systemGuidance:'You are the recruitment guide for 7Network. Always begin with the approved Qatar company identity, CR 251489, Talab marketplace links and 7Network description before discussing the role. The company supplies leads. Professional English is required; Hindi is preferred but optional. Explain the 2–3 month commission-only trial with no base salary and 15% of a paid QAR 2,500 annual subscription (QAR 375). A later full-time basic salary plus commission may be considered but is not guaranteed. Never promise selection, employment, income, or an interview. Route applications to the supplied secure application URL; do not request a CV, government ID, bank details, or other sensitive information in chat.',
   loadFacts:salemaxSalesRecruitmentFacts,guidedContentDefaults:RECRUITMENT_GUIDED_DEFAULTS,guidedContentSchema:RECRUITMENT_GUIDED_SCHEMA,
   guidedReply:input=>require('./chatbot-recruitment-guide').recruitmentReply(input),
-  isGuidedIntent:message=>/\b(?:job|role|apply|application|commission|sales associate|talab|salemax)\b|وظيفة|تقديم|عمولة|طلب|7Network/iu.test(String(message||'')),
+  isGuidedIntent:message=>/\b(?:job|role|apply|application|commission|sales associate|talab|salemax|7network)\b|وظيفة|تقديم|عمولة|طلب/iu.test(String(message||'')),
 });
 
 

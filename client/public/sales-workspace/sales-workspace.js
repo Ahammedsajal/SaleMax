@@ -198,7 +198,7 @@ function downloadSalesReport(){
   if(state.targetsPeriod!==period)throw new Error('REPORT_NOT_LOADED');
   const content=window.SaleMaXSalesReportCsv.toCsv(period,state.targets);
   const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
-  const link=document.createElement('a');link.href=url;link.download=`salemax-sales-report-${period}.csv`;link.hidden=true;
+  const link=document.createElement('a');link.href=url;link.download=`7network-sales-report-${period}.csv`;link.hidden=true;
   document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   message('success',tr('Monthly report downloaded. It contains only the members and figures in your current scope.','تم تنزيل التقرير الشهري. يتضمن فقط الأعضاء والبيانات ضمن نطاقك الحالي.'));
 }

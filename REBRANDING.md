@@ -1,5 +1,7 @@
 # SaleMaX rebranding — 30 September 2026
 
+> Historical record for the original SaleMaX identity rollout. The current platform identity is 7Network; follow [docs/7NETWORK_REBRAND.md](docs/7NETWORK_REBRAND.md) for approved artwork, palette, compatibility rules and asset generation. Production release evidence belongs in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 Project: A:\Salemax - Training center\Salemax-Node
 Local preview: http://127.0.0.1:3010/
 Target public domain: https://salemax.qa/

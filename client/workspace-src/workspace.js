@@ -6,7 +6,7 @@ const copy={
   role:['Preview role','دور المعاينة'], workspace:['Workspace','مساحة العمل'], today:['Your business, at a glance','أعمالك في لمحة'],
   agentToday:['Your next conversations','محادثاتك التالية'], financeToday:['Your collections workday','يوم عمل التحصيل'], platformToday:['Keep every business moving','متابعة سير العمل لكل مؤسسة'],
   introduction:['One place for your leads, your team and the next action.','مكان واحد للعملاء المحتملين وفريقك والإجراء التالي.'], platformIntro:['Manage accounts, plans and operational exceptions from one workspace.','إدارة الحسابات والخطط والاستثناءات التشغيلية من مساحة واحدة.'],
-  platform:['SALEMAX OPERATIONS','إدارة SALEMAX'], training:['TRAINING CENTER','مركز تدريب'], fixture:['CATEGORY CONTRACT FIXTURE','نموذج عقد الفئة'],
+  platform:['7NETWORK OPERATIONS','إدارة 7NETWORK'], training:['TRAINING CENTER','مركز تدريب'], fixture:['CATEGORY CONTRACT FIXTURE','نموذج عقد الفئة'],
   business:['Doha Skills Center · Demo','مركز مهارات الدوحة · عرض تجريبي'], overview:['Dashboard','لوحة التحكم'],
   visibleLeads:['Visible leads','العملاء المحتملون المرئيون'], attention:['Need attention','بحاجة إلى اهتمام'], available:['Role navigation items','عناصر التنقل للدور'], sample:['Illustrative records only','سجلات توضيحية فقط'], roleFiltered:['Filtered by this role','مصفاة حسب هذا الدور'],
   queue:['Today’s work queue','قائمة مهام اليوم'], checkTitle:['Access checks','فحوص الصلاحيات'], learner:['Learner / course','المتعلم / الدورة'], outcome:['Outcome / next action','النتيجة / الإجراء التالي'], action:['Action','الإجراء'],
@@ -21,7 +21,7 @@ const copy={
   businesses:['Businesses','الأعمال'], plans:['Plans requiring attention','خطط بحاجة إلى اهتمام'], audit:['Audited authority','صلاحيات مسجلة'],
   platformQueue:['Operations priorities','أولويات العمليات'], platformRows:[['Demo center · Published plan assignment','مركز تجريبي · تعيين خطة منشورة'],['Demo account · Onboarding review','حساب تجريبي · مراجعة الانضمام'],['Demo channel · Connection setup pending','قناة تجريبية · انتظار إعداد الاتصال']],
 };
-const roleNames={super_admin:['Super Admin','المشرف العام'],staff:['SaleMaX Staff','موظف SaleMaX'],owner:['Business Owner','مالك المؤسسة'],accountant:['Accountant','محاسب'],manager:['Manager','مدير'],agent:['Agent','وكيل']};
+const roleNames={super_admin:['Super Admin','المشرف العام'],staff:['7Network Staff','موظف 7Network'],owner:['Business Owner','مالك المؤسسة'],accountant:['Accountant','محاسب'],manager:['Manager','مدير'],agent:['Agent','وكيل']};
 const scopes={tenant:['Business-wide','المؤسسة بأكملها'],assigned:['Assigned records','السجلات المعينة'],own:['Own performance','الأداء الشخصي'],billing:['Billing-related','متعلق بالفوترة'],summary:['Summary only','ملخص فقط'],finance:['Finance only','المالية فقط'],sales:['Team sales','مبيعات الفريق'],platform:['Platform delegation','تفويض المنصة']};
 const txt=key=>copy[key][lang==='ar'?1:0];
 const local=value=>value?.[lang]||'';
@@ -77,7 +77,7 @@ function render() {
   $('#menu-close').setAttribute('aria-label',lang==='ar'?'إغلاق التنقل':'Close navigation');
   for(const option of $('#role-select').options)option.textContent=roleNames[option.value][lang==='ar'?1:0];
   const platform=current.audience==='platform';
-  $('#business-name').replaceChildren(node('span',{text:platform?'SaleMaX':txt('business')}),node('small',{text:platform?txt('platform'):local(current.category.title)}));
+  $('#business-name').replaceChildren(node('span',{text:platform?'7Network':txt('business')}),node('small',{text:platform?txt('platform'):local(current.category.title)}));
   $('#breadcrumb').replaceChildren(node('span',{text:txt('workspace')+' / '}),node('b',{text:txt('overview')}));
   const nav=$('#navigation');nav.replaceChildren();let group='';
   for(const item of current.nav){const nextGroup=local(item.group);if(nextGroup!==group){group=nextGroup;nav.append(node('div',{class:'group-label',text:group}));}nav.append(node('button',{class:item.key==='dashboard'?'active':'','data-nav':item.key,onclick:()=>{if(item.key==='dashboard'){$('#content').focus();document.body.classList.remove('menu-open');}else inspect(item);}},[node('span',{class:'nav-icon','aria-hidden':'true',text:icon(item.key)}),local(item.label)]));}

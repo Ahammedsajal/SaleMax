@@ -27,8 +27,9 @@ html { accent-color: var(--7network-blue); }
 #root .MuiDrawer-paper .Mui-selected { color: var(--7network-blue); }
 #root .MuiDrawer-paper .Mui-selected .MuiListItemIcon-root { color: var(--7network-cyan); }
 
-.logo-box { background: transparent !important; padding-inline: 0 !important; }
-.logo-box img { max-width: 100%; object-fit: contain !important; }
+.logo-box + .brand-text { display: none !important; }
+.logo-box { height: 54px !important; max-width: 220px !important; background: transparent !important; padding: 2px 4px !important; }
+.logo-box img { width: 100%; height: 100%; max-width: 220px; max-height: 50px; object-fit: contain !important; }
 img[data-seven-network-brand="logo"] { object-fit: contain; }
 
 @media (prefers-reduced-motion: reduce) {

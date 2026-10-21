@@ -1,10 +1,10 @@
 {
-  "primary_light": "#A8003B",
-  "primary_dark": "#E85D8C",
-  "secondary_light": "#85002F",
-  "secondary_dark": "#C93168",
-  "accent_light": "#A8003B",
-  "accent_dark": "#E85D8C",
+  "primary_light": "#1768D4",
+  "primary_dark": "#12C9F4",
+  "secondary_light": "#0D4FAE",
+  "secondary_dark": "#4DABFF",
+  "accent_light": "#1768D4",
+  "accent_dark": "#12C9F4",
   "success": "#10B981",
   "warning": "#F59E0B",
   "error": "#EF4444",
@@ -23,10 +23,10 @@
   "divider_dark": "#21262D",
   "border_light": "#E5E7EB",
   "border_dark": "#21262D",
-  "action_hover_light": "rgba(168,0,59, 0.08)",
-  "action_hover_dark": "rgba(168,0,59, 0.12)",
-  "action_selected_light": "rgba(168,0,59, 0.12)",
-  "action_selected_dark": "rgba(168,0,59, 0.18)",
+  "action_hover_light": "rgba(23,104,212, 0.08)",
+  "action_hover_dark": "rgba(23,104,212, 0.12)",
+  "action_selected_light": "rgba(23,104,212, 0.12)",
+  "action_selected_dark": "rgba(23,104,212, 0.18)",
   "button": {
     "contained": {
       "borderRadius": 8,
@@ -34,12 +34,12 @@
       "fontSize": "0.75rem",
       "fontWeight": 600,
       "textTransform": "none",
-      "boxShadow": "0 1px 4px 0 rgba(168,0,59, 0.25)",
-      "hoverBoxShadow": "0 4px 12px 0 rgba(168,0,59, 0.35)",
+      "boxShadow": "0 1px 4px 0 rgba(23,104,212, 0.25)",
+      "hoverBoxShadow": "0 4px 12px 0 rgba(23,104,212, 0.35)",
       "hoverTransform": "translateY(-1px)",
       "transition": "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-      "backgroundColor_light": "#A8003B",
-      "backgroundColor_dark": "#E85D8C",
+      "backgroundColor_light": "#1768D4",
+      "backgroundColor_dark": "#12C9F4",
       "color_light": "#FFFFFF",
       "color_dark": "#111827"
     },
@@ -52,10 +52,10 @@
       "borderWidth": "1.5px",
       "hoverBorderWidth": "1.5px",
       "hoverBgOpacity": 0.06,
-      "borderColor_light": "#A8003B",
-      "borderColor_dark": "#E85D8C",
-      "color_light": "#A8003B",
-      "color_dark": "#E85D8C"
+      "borderColor_light": "#1768D4",
+      "borderColor_dark": "#12C9F4",
+      "color_light": "#1768D4",
+      "color_dark": "#12C9F4"
     },
     "text": {
       "borderRadius": 8,
@@ -64,8 +64,8 @@
       "fontWeight": 600,
       "textTransform": "none",
       "hoverBgOpacity": 0.06,
-      "color_light": "#A8003B",
-      "color_dark": "#E85D8C"
+      "color_light": "#1768D4",
+      "color_dark": "#12C9F4"
     },
     "small": {
       "padding": "4px 10px",
@@ -110,11 +110,11 @@
     "fontSize": "0.875rem",
     "borderColor_light": "#E5E7EB",
     "borderColor_dark": "#21262D",
-    "focusBorderColor_light": "#A8003B",
-    "focusBorderColor_dark": "#E85D8C",
+    "focusBorderColor_light": "#1768D4",
+    "focusBorderColor_dark": "#12C9F4",
     "focusBorderWidth": "2px",
-    "hoverBorderColor_light": "#85002F",
-    "hoverBorderColor_dark": "rgba(168,0,59, 0.4)",
+    "hoverBorderColor_light": "#0D4FAE",
+    "hoverBorderColor_dark": "rgba(23,104,212, 0.4)",
     "errorBorderColor": "#EF4444",
     "backgroundColor_light": "#FFFFFF",
     "backgroundColor_dark": "#161B22"
@@ -126,10 +126,10 @@
     "fontWeight": 600,
     "height": 22,
     "deleteIconSize": 14,
-    "backgroundColor_light": "#E6F7F3",
+    "backgroundColor_light": "#EAF5FF",
     "backgroundColor_dark": "#1A2E28",
-    "color_light": "#A8003B",
-    "color_dark": "#E85D8C"
+    "color_light": "#1768D4",
+    "color_dark": "#12C9F4"
   },
   "dialog": {
     "borderRadius": 16,
@@ -154,12 +154,12 @@
     "backgroundColor_dark": "#0D1117",
     "itemPadding": "7px 12px",
     "itemBorderRadius": 8,
-    "itemHoverBg_light": "rgba(168,0,59, 0.08)",
-    "itemHoverBg_dark": "rgba(168,0,59, 0.12)",
-    "itemActiveBg_light": "rgba(168,0,59, 0.14)",
-    "itemActiveBg_dark": "rgba(168,0,59, 0.20)",
-    "itemActiveColor_light": "#A8003B",
-    "itemActiveColor_dark": "#E85D8C"
+    "itemHoverBg_light": "rgba(23,104,212, 0.08)",
+    "itemHoverBg_dark": "rgba(23,104,212, 0.12)",
+    "itemActiveBg_light": "rgba(23,104,212, 0.14)",
+    "itemActiveBg_dark": "rgba(23,104,212, 0.20)",
+    "itemActiveColor_light": "#1768D4",
+    "itemActiveColor_dark": "#12C9F4"
   },
   "tooltip": {
     "borderRadius": 6,
@@ -187,19 +187,19 @@
     "autoHideDuration": 5000
   },
   "table": {
-    "headerBg_light": "#F3FAF8",
+    "headerBg_light": "#F2F8FF",
     "headerBg_dark": "#161B22",
     "headerFontWeight": 600,
     "headerFontSize": "0.6875rem",
-    "rowHoverBg_light": "rgba(168,0,59, 0.04)",
-    "rowHoverBg_dark": "rgba(168,0,59, 0.06)",
+    "rowHoverBg_light": "rgba(23,104,212, 0.04)",
+    "rowHoverBg_dark": "rgba(23,104,212, 0.06)",
     "cellPadding": "10px 14px",
     "borderColor_light": "#E5E7EB",
     "borderColor_dark": "#21262D"
   },
   "tabs": {
-    "indicatorColor_light": "#A8003B",
-    "indicatorColor_dark": "#E85D8C",
+    "indicatorColor_light": "#1768D4",
+    "indicatorColor_dark": "#12C9F4",
     "indicatorHeight": 2,
     "tabPadding": "8px 16px",
     "tabFontSize": "0.75rem",
@@ -210,8 +210,8 @@
     "borderRadius": 10,
     "padding": 14,
     "boxShadow": "0 1px 3px 0 rgba(0, 0, 0, 0.06)",
-    "expandIconColor_light": "#A8003B",
-    "expandIconColor_dark": "#E85D8C"
+    "expandIconColor_light": "#1768D4",
+    "expandIconColor_dark": "#12C9F4"
   },
   "menu": {
     "borderRadius": 10,
@@ -220,37 +220,37 @@
     "itemPadding": "7px 14px",
     "itemBorderRadius": 6,
     "itemFontSize": "0.75rem",
-    "itemHoverBg_light": "rgba(168,0,59, 0.08)",
-    "itemHoverBg_dark": "rgba(168,0,59, 0.12)"
+    "itemHoverBg_light": "rgba(23,104,212, 0.08)",
+    "itemHoverBg_dark": "rgba(23,104,212, 0.12)"
   },
   "switch": {
     "width": 36,
     "height": 20,
     "thumbSize": 14,
     "trackBorderRadius": 10,
-    "checkedColor_light": "#A8003B",
-    "checkedColor_dark": "#E85D8C",
+    "checkedColor_light": "#1768D4",
+    "checkedColor_dark": "#12C9F4",
     "uncheckedColor_light": "#D1D5DB",
     "uncheckedColor_dark": "#21262D"
   },
   "checkbox": {
     "size": 16,
     "borderRadius": 4,
-    "checkedColor_light": "#A8003B",
-    "checkedColor_dark": "#E85D8C",
+    "checkedColor_light": "#1768D4",
+    "checkedColor_dark": "#12C9F4",
     "borderWidth": 1.5
   },
   "radio": {
     "size": 16,
-    "checkedColor_light": "#A8003B",
-    "checkedColor_dark": "#E85D8C",
+    "checkedColor_light": "#1768D4",
+    "checkedColor_dark": "#12C9F4",
     "borderWidth": 1.5
   },
   "slider": {
     "height": 3,
     "thumbSize": 12,
-    "trackColor_light": "#A8003B",
-    "trackColor_dark": "#E85D8C",
+    "trackColor_light": "#1768D4",
+    "trackColor_dark": "#12C9F4",
     "railColor_light": "#E5E7EB",
     "railColor_dark": "#21262D",
     "borderRadius": 2
@@ -260,8 +260,8 @@
     "medium": 32,
     "large": 44,
     "borderRadius": "50%",
-    "border_light": "2px solid rgba(168,0,59, 0.15)",
-    "border_dark": "2px solid rgba(168,0,59, 0.20)"
+    "border_light": "2px solid rgba(23,104,212, 0.15)",
+    "border_dark": "2px solid rgba(23,104,212, 0.20)"
   },
   "badge": {
     "fontSize": "0.625rem",
@@ -270,8 +270,8 @@
     "minWidth": 16,
     "padding": "0 4px",
     "borderRadius": 8,
-    "backgroundColor_light": "#A8003B",
-    "backgroundColor_dark": "#E85D8C",
+    "backgroundColor_light": "#1768D4",
+    "backgroundColor_dark": "#12C9F4",
     "color_light": "#FFFFFF",
     "color_dark": "#FFFFFF"
   },
@@ -283,8 +283,8 @@
   "stepper": {
     "connectorHeight": 1,
     "connectorColor": "#E5E7EB",
-    "activeColor_light": "#A8003B",
-    "activeColor_dark": "#E85D8C",
+    "activeColor_light": "#1768D4",
+    "activeColor_dark": "#12C9F4",
     "completedColor": "#10B981",
     "iconSize": 20
   },
@@ -292,12 +292,12 @@
     "borderRadius": 8,
     "itemSize": 30,
     "fontSize": "0.6875rem",
-    "selectedBg_light": "#A8003B",
-    "selectedBg_dark": "#E85D8C",
+    "selectedBg_light": "#1768D4",
+    "selectedBg_dark": "#12C9F4",
     "selectedColor_light": "#FFFFFF",
     "selectedColor_dark": "#FFFFFF",
-    "hoverBg_light": "rgba(168,0,59, 0.08)",
-    "hoverBg_dark": "rgba(168,0,59, 0.12)"
+    "hoverBg_light": "rgba(23,104,212, 0.08)",
+    "hoverBg_dark": "rgba(23,104,212, 0.12)"
   },
   "divider": {
     "thickness": 1,
@@ -308,10 +308,10 @@
   "list": {
     "itemPadding": "7px 12px",
     "itemBorderRadius": 8,
-    "itemHoverBg_light": "rgba(168,0,59, 0.08)",
-    "itemHoverBg_dark": "rgba(168,0,59, 0.12)",
-    "itemSelectedBg_light": "rgba(168,0,59, 0.14)",
-    "itemSelectedBg_dark": "rgba(168,0,59, 0.20)"
+    "itemHoverBg_light": "rgba(23,104,212, 0.08)",
+    "itemHoverBg_dark": "rgba(23,104,212, 0.12)",
+    "itemSelectedBg_light": "rgba(23,104,212, 0.14)",
+    "itemSelectedBg_dark": "rgba(23,104,212, 0.20)"
   },
   "font_family": "\"Inter\", \"SF Pro Display\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
   "font_size_base": 14,
@@ -323,9 +323,9 @@
   "spacing_unit": 6,
   "transition_duration": "0.2s",
   "transition_easing": "cubic-bezier(0.4, 0, 0.2, 1)",
-  "gradient_primary_light": "linear-gradient(135deg, #A8003B 0%, #85002F 100%)",
-  "gradient_primary_dark": "linear-gradient(135deg, #E85D8C 0%, #C93168 100%)",
-  "gradient_secondary": "linear-gradient(135deg, #85002F 0%, #A8003B 100%)",
+  "gradient_primary_light": "linear-gradient(135deg, #1768D4 0%, #0D4FAE 100%)",
+  "gradient_primary_dark": "linear-gradient(135deg, #12C9F4 0%, #4DABFF 100%)",
+  "gradient_secondary": "linear-gradient(135deg, #0D4FAE 0%, #1768D4 100%)",
   "gradient_success": "linear-gradient(135deg, #10B981 0%, #34D399 100%)",
   "glass_bg_light": "rgba(247, 248, 250, 0.85)",
   "glass_bg_dark": "rgba(13, 17, 23, 0.85)",

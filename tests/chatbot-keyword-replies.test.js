@@ -6,6 +6,7 @@ const { botInput, normalizeGuidedContent } = require('../modules/platform/chatbo
 const { getDomainPack } = require('../modules/platform/chatbot-domain-packs');
 const { previewGuidedTurn } = require('../modules/platform/chatbot-guide-preview');
 const pack = getDomainPack('training_center', 1);
+const salesPack = getDomainPack('7network_sales', 1);
 const rule = (keywords, match = 'contains', enabled = true) => ({ keywords, match, enabled, reply: { en: 'We’re here until 8pm.\nDrop by when it suits you!', ar: 'يسعدنا زيارتك حتى الساعة ٨ مساءً.' } });
 
 test('keyword matching supports ordered any/all/exact rules, phrases and Arabic normalization', () => {
@@ -57,4 +58,9 @@ test('every edited canned message is used without hidden shortening', () => {
   const details = pack.guidedReply({ message: '1', state: list.state, facts, config });
   assert.match(details.reply, /DETAIL CUSTOM/); assert.match(details.reply, /DATES CUSTOM/);
   assert.match(pack.guidedReply({ message: 'unrecognized', state: first.state, facts, config }).reply, /FALLBACK CUSTOM/);
+});
+
+test('legacy recruitment button settings normalize into the canonical 7Network field',()=>{
+  const normalized=normalizeGuidedContent({messages:{buttonSalemax:{en:'About SaleMaX',ar:'عن سليماكس'}}},salesPack);
+  assert.deepEqual(normalized.messages.button7Network,{en:'About SaleMaX',ar:'عن سليماكس'});
 });

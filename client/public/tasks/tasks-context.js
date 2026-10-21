@@ -3,7 +3,7 @@
   const arabic=language==='ar'||language.startsWith('ar-')||language.includes('arab');
   const token=localStorage.getItem('wacrm_user');
   const copy=[
-    ['small[data-en="SALEMAX · TRAINING CENTER"]','SALEMAX · SALES','سليماكس · المبيعات'],
+    ['small[data-en="7NETWORK · TRAINING CENTER"]','7NETWORK SALES','7Network · المبيعات'],
     ['main.app > header p','Shared work queue for leads, calls, deals and team actions.','قائمة عمل مشتركة للعملاء والمكالمات والصفقات وإجراءات الفريق.'],
     ['#taskDialog header small','SALES WORKSPACE','مساحة عمل المبيعات']
   ];

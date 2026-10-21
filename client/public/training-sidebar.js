@@ -473,7 +473,7 @@
         brand.dataset.sxSidebarBrand = '1';
         let logo = brand.querySelector('[data-sx-sidebar-logo]');
         if (!logo) { logo = document.createElement('img'); logo.dataset.sxSidebarLogo = '1'; logo.alt = '7Network'; brand.append(logo); }
-        const src = collapsed ? '/logo192.png' : '/media/salemax-logo.png';
+        const src = collapsed ? '/logo192.png' : '/media/7network-logo.png';
         if (logo.getAttribute('src') !== src) logo.src = src;
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();

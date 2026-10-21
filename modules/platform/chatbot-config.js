@@ -65,7 +65,11 @@ function normalizeGuidedContent(value, pack) {
     if (source != null && (typeof source !== 'object' || Array.isArray(source))) throw Object.assign(new Error('INVALID_GUIDED_CONTENT'), { code: 'INVALID_GUIDED_CONTENT' });
     return Object.fromEntries(Object.entries(fallback).map(([key, child]) => [key, visit(source?.[key], child, path ? `${path}.${key}` : key)]));
   }
-  const content = visit(value, defaults, '');
+  let compatibleValue=value;
+  if(pack?.key==='7network_sales'&&value?.messages&&typeof value.messages==='object'&&value.messages.button7Network==null&&value.messages.buttonSalemax!=null){
+    compatibleValue={...value,messages:{...value.messages,button7Network:value.messages.buttonSalemax}};
+  }
+  const content = visit(compatibleValue, defaults, '');
   content.keywordReplies = normalizeKeywordReplies(value?.keywordReplies);
   return content;
 }

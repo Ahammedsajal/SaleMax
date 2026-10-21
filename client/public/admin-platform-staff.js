@@ -119,7 +119,7 @@
     };
   }
   function showRecovery(active,codes){
-    let saved=false;const download=()=>{const blob=new Blob([codes.join('\n')+'\n'],{type:'text/plain'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='salemax-platform-recovery-codes.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+    let saved=false;const download=()=>{const blob=new Blob([codes.join('\n')+'\n'],{type:'text/plain'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='7network-platform-recovery-codes.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
     active.innerHTML=`<h2>${t('Save your recovery codes','احفظ رموز الاسترداد')}</h2><p>${t('These codes are shown once. Store them privately before continuing. Each code works once.','تظهر هذه الرموز مرة واحدة. احفظها في مكان آمن قبل المتابعة. يعمل كل رمز مرة واحدة.')}</p><pre class="sx-staff-card">${esc(codes.join('\n'))}</pre><div class="sx-staff-actions"><button type="button" data-download>${t('Download codes','تنزيل الرموز')}</button><label><input type="checkbox" data-saved> ${t('I saved my recovery codes','حفظت رموز الاسترداد')}</label><button class="primary" type="button" data-continue disabled>${t('Continue','متابعة')}</button></div>`;
     active.querySelector('[data-download]').onclick=download;active.querySelector('[data-saved]').onchange=event=>{saved=event.target.checked;active.querySelector('[data-continue]').disabled=!saved;};active.querySelector('[data-continue]').onclick=()=>{if(saved){codes=[];load(active);}};
   }

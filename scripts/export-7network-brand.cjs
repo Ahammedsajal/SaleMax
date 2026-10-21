@@ -1,7 +1,7 @@
 'use strict';
 
-// Package the approved transparent logo and existing globe icon for web use.
-// The left globe contains the red 7; the wordmark globe used for O does not.
+// Compose the supplied globe artwork with an exact, high-contrast vector wordmark,
+// then derive every shipped logo and icon size from these tracked sources.
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const sharp = require('sharp');
@@ -9,31 +9,50 @@ const sharp = require('sharp');
 const root = path.resolve(__dirname, '..');
 const brand = path.join(root, 'client/public/branding/7network');
 const media = path.join(root, 'client/public/media');
-const logoMaster = path.join(brand, 'logo-horizontal-master-transparent.png');
+const logoSource = path.join(brand, 'logo-source.svg');
+const iconSource = path.join(brand, 'icon-source.png');
+const globeNo7Source = path.join(brand, 'globe-no7-source.png');
 const iconMaster = path.join(brand, 'icon-master.png');
 
 async function main() {
   await fs.mkdir(media, { recursive: true });
-  const logo = sharp(logoMaster).ensureAlpha().trim().extend({
+  const source = await fs.readFile(logoSource, 'utf8');
+  const hero = await fs.readFile(iconSource);
+  const globe = await fs.readFile(globeNo7Source);
+  const heroMeta = await sharp(hero).metadata();
+  const globeMeta = await sharp(globe).metadata();
+  if (!heroMeta.hasAlpha || !globeMeta.hasAlpha) throw new Error('Globe artwork sources must retain transparency');
+  if (!source.includes('icon-source.png') || !source.includes('globe-no7-source.png')) throw new Error('Logo source must use the approved globe artwork and the no-7 globe');
+  const dataUri = (buffer) => `data:image/png;base64,${buffer.toString('base64')}`;
+  const composedSource = source.replace('icon-source.png', dataUri(hero)).replace('globe-no7-source.png', dataUri(globe));
+  const lightSvg = Buffer.from(composedSource);
+  const darkSvg = Buffer.from(composedSource.replace(/fill="#102A4C"/g, 'fill="#F5F9FF"'));
+  const logoBuffer = await sharp(lightSvg).ensureAlpha().png().toBuffer();
+  const darkLogoBuffer = await sharp(darkSvg).ensureAlpha().png().toBuffer();
+  const logo = sharp(logoBuffer).trim().extend({
     top: 18, bottom: 18, left: 24, right: 24, background: '#00000000',
   });
-  const logoBuffer = await logo.png().toBuffer();
-  const logoMeta = await sharp(logoBuffer).metadata();
+  const logoPngBuffer = await logo.png().toBuffer();
+  const darkLogoPngBuffer = await sharp(darkLogoBuffer).trim().extend({
+    top: 18, bottom: 18, left: 24, right: 24, background: '#00000000',
+  }).png().toBuffer();
+  const logoMeta = await sharp(logoPngBuffer).metadata();
   if (!logoMeta.hasAlpha) throw new Error('Approved logo must retain transparency');
 
-  // The approved artwork has a dark outline and luminous galaxy lettering, so
-  // the same exact mark is legible on light and dark surfaces without edits.
-  for (const mode of ['light', 'dark']) {
-    await sharp(logoBuffer).png().toFile(path.join(brand, `logo-${mode}.png`));
+  for (const [mode, buffer] of [['light', logoPngBuffer], ['dark', darkLogoPngBuffer]]) {
+    await fs.writeFile(path.join(brand, `logo-${mode}.png`), buffer);
     for (const width of [480, 960, 1920]) {
-      await sharp(logoBuffer).resize({ width }).png().toFile(path.join(brand, `logo-${mode}-${width}.png`));
+      await sharp(buffer).resize({ width }).png().toFile(path.join(brand, `logo-${mode}-${width}.png`));
     }
   }
-  await fs.copyFile(logoMaster, path.join(brand, 'logo-horizontal-master-transparent.png'));
+  await fs.writeFile(path.join(brand, 'logo-horizontal-master-transparent.png'), logoPngBuffer);
+
+  const iconBuffer = await sharp(iconSource).trim().png().toBuffer();
+  await fs.writeFile(path.join(brand, 'icon-master.png'), iconBuffer);
 
   const sizes = [16, 24, 32, 48, 64, 128, 180, 192, 256, 512, 1024];
   for (const size of sizes) {
-    const inner = Math.round(size * 0.82);
+    const inner = Math.round(size * 0.88);
     const before = Math.floor((size - inner) / 2);
     await sharp(iconMaster).ensureAlpha().trim().resize(inner, inner, { fit: 'contain', background: '#00000000' })
       .extend({ top: before, bottom: size - inner - before, left: before, right: size - inner - before, background: '#00000000' })
@@ -80,8 +99,8 @@ async function main() {
     id: '/', start_url: '/', scope: '/', display: 'standalone',
     theme_color: '#081630', background_color: '#081630',
     icons: [192, 512].flatMap(size => [
-      { src: `/branding/7network/icon-${size}.png`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
-      { src: `/branding/7network/maskable-${size}.png`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
+      { src: `/branding/7network/icon-${size}.png?v=20261021-2`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
+      { src: `/branding/7network/maskable-${size}.png?v=20261021-2`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
     ]),
   };
   const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;

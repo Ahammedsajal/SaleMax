@@ -1,7 +1,7 @@
 {
   "name": "salemax-node",
   "version": "3.6",
-  "description": "SaleMaX business messaging and automation platform",
+  "description": "7Network business messaging and automation platform",
   "main": "server.js",
   "scripts": {
     "test": "node scripts/run-tests.cjs",

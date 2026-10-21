@@ -9,6 +9,7 @@ client/public/media/*
 !client/public/media/salemax-logo.png
 !client/public/media/7network-logo.png
 !client/public/media/7network-icon.png
+!client/public/media/salemax-icon.png
 client/public/recordings/
 client/public/telegram/
 .env.*

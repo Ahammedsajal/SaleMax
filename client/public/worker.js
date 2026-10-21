@@ -1,4 +1,4 @@
-var CACHE_NAME = "salemax-20261010-tenantcrm2"; // Increment version to force update
+var CACHE_NAME = "7network-20261021-brand2"; // Refresh the platform brand shell
 var PLATFORM_HOST = "crm.salemax.qa";
 var urlsToCache = ["/", "/completed"];
 
@@ -73,7 +73,7 @@ self.addEventListener("fetch", (event) => {
 // Update a service worker
 self.addEventListener("activate", (event) => {
   console.log("Service Worker: Activating...");
-  var cacheWhitelist = ["salemax-20261010"]; // Update this with new version
+  var cacheWhitelist = [CACHE_NAME];
 
   event.waitUntil(
     caches

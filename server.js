@@ -122,7 +122,7 @@ app.get("/healthz", (request, response) => {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/sso", (req, res, next) => {
   if (process.env.CRM_INTEGRATION_ENABLED === "false") {
-    return res.status(503).json({ success: false, message: "External CRM sign-in is disabled for this Salemax deployment." });
+    return res.status(503).json({ success: false, message: "External CRM sign-in is disabled for this 7Network deployment." });
   }
   next();
 }, require("./routes/sso"));
@@ -256,7 +256,7 @@ app.get("*", function (request, response) {
 
 // ─── Server ───────────────────────────────────────────────────────────────────
 const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0.1", () => {
-  console.log(`SaleMaX server is running on port ${process.env.PORT}`);
+  console.log(`7Network server is running on port ${process.env.PORT}`);
   receiptWorkerProcess = receiptWorkerRuntime.start();
   if (receiptWorkerProcess) {
     receiptWorkerProcess.once("error", () => console.error("Receipt email worker could not start."));

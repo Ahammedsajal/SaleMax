@@ -212,7 +212,7 @@
     };
     const csv='\uFEFF'+[headers,...rows].map(row=>row.map(cell).join(',')).join('\r\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
-    link.href=url;link.download=`salemax-activity-${state.period}-${state.at}-page-${report.page}.csv`;link.hidden=true;
+    link.href=url;link.download=`7network-activity-${state.period}-${state.at}-page-${report.page}.csv`;link.hidden=true;
     document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     const toast=$('#toast');if(toast){toast.textContent=t('exportReady');toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2500);}
   }

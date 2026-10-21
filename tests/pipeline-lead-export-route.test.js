@@ -28,7 +28,7 @@ test('authenticated Pipeline export returns bounded CSV using the session tenant
   const response=await fetch(`${base}/api/pipeline/leads/export?search=reference&sourceType=manual&qrInstanceId=8`,{headers:{Authorization:`Bearer ${token}`}});
   assert.equal(response.status,200);
   assert.match(response.headers.get('content-type'),/text\/csv/);
-  assert.match(response.headers.get('content-disposition'),/salemax-pipeline-leads\.csv/);
+  assert.match(response.headers.get('content-disposition'),/7network-pipeline-leads\.csv/);
   const csv=await response.text();assert.match(csv,/A-17/);assert.match(csv,/""configurationRevision"":3/);
   assert.equal(fakeCalls.length,1);
   assert.equal(fakeCalls[0].uid,'tenant-from-session');

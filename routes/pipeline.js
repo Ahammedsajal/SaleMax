@@ -246,7 +246,7 @@ router.get('/leads/export', async (req,res)=>{
     }});
     const csv=require('../modules/platform/pipeline-lead-export').toCsv(data.leads);
     res.setHeader('Content-Type','text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition','attachment; filename="salemax-pipeline-leads.csv"');
+    res.setHeader('Content-Disposition','attachment; filename="7network-pipeline-leads.csv"');
     return res.status(200).send(csv);
   }catch(error){return fail(res,error);}
 });
