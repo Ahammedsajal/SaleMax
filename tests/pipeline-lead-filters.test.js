@@ -15,6 +15,7 @@ test('QR lead filters match only conversations linked to the selected tenant ins
   assert.deepEqual(filter.args,[17]);
   assert.match(filter.sql,/lead\.owner_agent_id IS NOT NULL/);
   assert.match(filter.sql,/pcf\.uid_hash = lead\.uid_hash AND pcf\.lead_id = lead\.id/);
-  assert.match(filter.sql,/bcf\.uid = lead\.uid AND bcf\.chat_id = pcf\.chat_id AND bcf\.origin = 'qr'/);
+  assert.match(filter.sql,/bcf\.uid = lead\.uid COLLATE utf8mb4_unicode_ci AND bcf\.chat_id = pcf\.chat_id COLLATE utf8mb4_unicode_ci AND bcf\.origin = 'qr'/);
+  assert.match(filter.sql,/qif\.uid = bcf\.uid AND qif\.uniqueId = bcf\.origin_instance_unique_id/);
   assert.match(filter.sql,/qif\.id = \?/);
 });
