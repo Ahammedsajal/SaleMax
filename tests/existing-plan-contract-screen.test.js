@@ -61,10 +61,11 @@ test('legacy Manage Users assignment denial offers the reviewed contract flow', 
   assert.match(shell, /admin-user-plans\.js\?v=[^" ]+/);
   assert.match(userPlans, /CANONICAL_ASSIGNMENT_REQUIRED/);
   assert.match(userPlans, /MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT/);
-  assert.match(userPlans, /Open training-center contract/);
-  assert.match(userPlans, /فتح عقد مركز التدريب/);
+  assert.match(userPlans, /Open business contract/);
+  assert.match(userPlans, /فتح عقد النشاط/);
+  assert.match(userPlans, /reviewed category contract/);
   assert.match(userPlans, /openBusiness\(userId,active/);
-  assert.match(userPlans, /Set up training-center account/);
+  assert.match(userPlans, /Set up business workspace/);
   assert.match(userPlans, /مركز التدريب/);
   assert.match(userPlans, /provision-options/);
   assert.match(userPlans, /provision-preview/);
@@ -73,7 +74,7 @@ test('legacy Manage Users assignment denial offers the reviewed contract flow', 
 });
 
 test('Manage Users links missing 7Network Sales contracts to the existing Manage Plans screen', () => {
-  assert.match(shell, /admin-user-plans\.js\?v=20261014-sales-owner-guard1/);
+  assert.match(shell, /admin-user-plans\.js\?v=20261021-category-contract-copy1/);
   assert.match(userPlans, /No published 7Network Sales contracts are available/);
   assert.match(userPlans, /Open Manage Plans to publish a 7Network Sales contract/);
   assert.match(userPlans, /href="\/admin\?page=manage-plans"/);

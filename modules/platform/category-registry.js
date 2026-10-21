@@ -22,7 +22,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       || (source.chatbotLeadCapture!==undefined&&!['none','generic','training'].includes(source.chatbotLeadCapture))
       || (source.chatbotLeadCapture==='generic'&&!source.capabilities.includes('crm.leads'))
       || (source.chatbotLeadCapture==='training'&&(!source.capabilities.includes('crm.leads')||!source.capabilities.includes('training.courses')))
-      || (source.taskAdapters!==undefined&&(!source.taskAdapters||typeof source.taskAdapters!=='object'||Array.isArray(source.taskAdapters)||![Object.prototype,null].includes(Object.getPrototypeOf(source.taskAdapters))
+      || (source.taskAdapters!==undefined&&(!source.taskAdapters||typeof source.taskAdapters!=='object'||Array.isArray(source.taskAdapters)||Object.prototype.toString.call(source.taskAdapters)!=='[object Object]'
         ||Object.entries(source.taskAdapters).some(([key,version])=>!knownTaskAdapters.has(key)||knownTaskAdapters.get(key).version!==version||!source.capabilities.includes('team.tasks')||knownTaskAdapters.get(key).requiredCapabilities.some(capability=>!source.capabilities.includes(capability)))))
       || typeof source.migration !== 'string' || !/^\d{8}_[a-z0-9_]+\.sql$/.test(source.migration)) invalid();
     const id = `${source.key}@${source.version}`;
