@@ -435,3 +435,5 @@ Remaining extension work includes generic legacy Pipeline actor adoption, forms,
 bot packs, navigation-specific presentation and operational scale/restore gates.
 Published category versions need reviewed semantic change/adoption rules before
 altering an existing adapter selection; do not mutate it for a customer in place.
+
+Production: `8685b36` is live in `catalogue-extension-8685b36-20261021`. Thirty-eight focused checks and real shared-auth/MariaDB API integration pass. Eight-file runtime parity/health pass; two Training Center tenants still resolve courses and Sales products. No customer configuration or catalogue record changed. Exact files are synced locally with backups; see DEPLOYMENT.md.
