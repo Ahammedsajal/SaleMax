@@ -70,6 +70,17 @@ preservation details are in `DEPLOYMENT.md`.
 
 The existing recruitment form now keeps ordinary validation feedback in plain customer language. Technical/server and network failures show a general bilingual message with a bracketed safe cause code; SQL text and candidate details stay out of the public response. The update is live in `/opt/salemax/releases/recruitment-user-error-copy-20261021`. All 25 focused recruitment tests pass, served HTML/script hashes match, and health is green. No candidate data or schema changed. The signed-out visual test and controlled synthetic production failure remain open; see `DEPLOYMENT.md` for rollback evidence.
 
+## SaleMaX Sales applicant recovery guidance — source update, 21 October 2026
+
+The general English and Arabic submission-failure message now tells applicants
+to retry shortly and contact the 7Network recruitment team if the problem
+continues, while sharing the safe cause code shown in brackets. SQL text and
+applicant details remain hidden. The error helper cache key is bumped to ensure
+browsers fetch the updated copy. Focused recruitment error-copy and branding
+tests pass; `git diff --check` passes. Source only; production was not changed.
+The controlled synthetic production failure and signed-out visual acceptance
+remain open.
+
 ## Real Estate private listing slice — source implementation, 21 October 2026
 
 Added a private `real_estate@1` category contract and a typed listing service inside the existing `/user` workspace. Listings use their own tenant-keyed table, tenant-qualified reads and writes, bilingual content, explicit sale/rent and lifecycle fields, optimistic revisions, optional team assignment and transactional audit events. Owners/managers see tenant inventory; managers assign only active agents in their team; agents see only their listings; team leaders see their own and their current team's listings. The existing CRM shell opens the bilingual listing view through its maintained sidebar/pipeline hooks. The category remains non-public and non-planable, with no production assignment or schema migration.
