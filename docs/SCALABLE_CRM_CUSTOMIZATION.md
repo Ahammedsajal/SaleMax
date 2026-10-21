@@ -679,8 +679,10 @@ field contract and rejects newly submitted custom values with
 `FEATURE_UNAVAILABLE`. Ordinary lead edits remain available, and existing
 custom-field snapshots stay attached to the lead. This is application-layer
 MariaDB enforcement; it does not claim database row-level security. The
-integration test covers plan revocation and snapshot preservation, but must be
-run against the disposable synthetic database before release. Tenant isolation
+integration test covers plan revocation and snapshot preservation, but is not
+verified yet: the only local database is Oracle MySQL 9.6, which rejects the
+MariaDB `PERSISTENT` generated-column syntax in the platform identity migration.
+Run the harness on the supported MariaDB version before release. Tenant isolation
 follows OWASP's guidance to derive tenant context from verified identity and
 apply it consistently at every access path ([OWASP Multi-Tenant Security
 Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)); AWS also describes runtime policy enforcement for pooled SaaS systems

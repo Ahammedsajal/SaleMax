@@ -1868,8 +1868,11 @@ Focused Pipeline custom-field search, existing team-scope and Sales-only behavio
 Custom lead-field definitions now follow the current tenant plan's `crm.leads`
 capability through the central policy decision. Revoked plans cannot expose or
 accept new custom values; ordinary edits and stored field snapshots remain
-available. Focused unit/router tests pass. Disposable database integration
-coverage was added but not executed because no synthetic database credentials
-are configured. Source-only branch; production is unchanged. Release gates
-include running that integration and the standard authenticated EN/AR workflow
-acceptance.
+available. Focused tenant-customization, bot-runtime, HTTP and lead-field tests pass
+32/32. The synthetic MariaDB integration case was added, but its harness cannot
+run against the only local database: Oracle MySQL 9.6 rejects the MariaDB
+`PERSISTENT` generated-column syntax in migration `20261001_platform_identity.sql`.
+No synthetic MariaDB server is available here, so database integration remains
+unverified. Source-only branch; production is unchanged. Release gates include
+running the harness on the supported MariaDB version and authenticated EN/AR
+workflow acceptance.
