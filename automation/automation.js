@@ -14,6 +14,7 @@ async function processFlow({
   origin,
   chatId,
   element,
+  beforeNode,
   webhookVariables = {},
   loopDetection = { visitedNodes: new Map(), startTime: Date.now() }, // Add loop detection
 }) {
@@ -83,6 +84,16 @@ async function processFlow({
     webhookVariables,
   });
 
+  const activeNode=flowSession?.data?.node||flowSession?.data?.assignedToAi?.node;
+  if(typeof beforeNode==='function'&&activeNode){
+    const authorization=await beforeNode({uid,flowId,node:activeNode,flowSession});
+    if(authorization!=='allowed'){
+      if(authorization==='paused')return 'paused';
+      await query(`DELETE FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1`,[uid,flowId,message.senderMobile]);
+      return false;
+    }
+  }
+
   // returning if chat is disabled
   const checkIfDisabled = await flowProcessor.checkIfChatDisabled({
     flowSession,
@@ -145,6 +156,7 @@ async function processFlow({
       origin,
       chatId,
       element,
+      beforeNode,
       loopDetection, // Pass loop detection
     });
     return;
@@ -442,6 +454,7 @@ async function processFlow({
         origin,
         chatId,
         element,
+        beforeNode,
         webhookVariables,
         loopDetection, // ✅ Pass loop detection to next iteration
       });

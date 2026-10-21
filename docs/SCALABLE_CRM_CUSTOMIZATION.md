@@ -392,6 +392,12 @@ adoption remain separate implementation work.
 
 Production: `7672d59` is live in `bot-runtime-access-7672d59-20261020`. Thirty-seven focused checks and actual runtime/shared-auth/MariaDB integration pass. The existing live owner still qualifies; health and exact two-file runtime parity pass. No bot configuration, migration or provider message was changed. See DEPLOYMENT.md for rollback and remaining gates.
 
+## Per-node chatbot flow authority — implementation increment, 21 October 2026
+
+Configured and intro chatbot flows now accept an executor hook before every active node, including each delayed continuation. The runtime rechecks the same tenant, category/version, member identity, plan assignment, live profile revision, channel assignment, recipient policy and conversation pause state using the existing authority loader. A denied node does not execute; its profile/channel-scoped flow session is cleared. If authority changes after dispatch, the conversation is handed to a human. An existing manual pause remains authoritative and keeps its pause/session state. General automations and webhook flows omit the hook and keep their existing behavior.
+
+Three executor tests simulate revocation before and between nodes and a manual pause; they confirm no unauthorized send, stale session removal only for revoked flows, and preservation of manual pause state. Production deployment, actual provider acceptance and a race/load test remain pending. This closes the legacy per-node gap for configured chatbot flows only; other shared automation entry points require a separate inventory and authority contract.
+
 
 ## Explicit form selection per bot profile — 20 October 2026
 

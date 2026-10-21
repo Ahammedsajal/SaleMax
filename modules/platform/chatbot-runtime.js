@@ -141,23 +141,23 @@ async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin,
     }
     if(introId&&channelKind&&await claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef:sessionId})){
       const intro=await loadGuidedFlow(uid,introId);if(!intro)return false;
-      if(!await canSendNow({ctx,profile,uid,origin,sessionId,chatId,message}))return false;
+      if(!await canSendNow({ctx,profile,uid,origin,sessionId,chatId,message}))return await shouldPause(uid,chatId,channelKind,sessionId)?{paused:true}:false;
       const {processFlow}=require('../../automation/automation'),flowSessionId=executionFlowId(profile);
-      await processFlow({nodes:intro.nodes,edges:intro.edges,uid,flowId:flowSessionId,message,incomingText:textOf(message),user,sessionId,origin,chatId,element:{...intro,flow_id:flowSessionId},loopDetection:{visitedNodes:new Map(),startTime:Date.now()}});
-      return true;
+      const result=await processFlow({nodes:intro.nodes,edges:intro.edges,uid,flowId:flowSessionId,message,incomingText:textOf(message),user,sessionId,origin,chatId,element:{...intro,flow_id:flowSessionId},beforeNode:guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}),loopDetection:{visitedNodes:new Map(),startTime:Date.now()}});
+      return result==='paused'?{paused:true}:result!==false;
     }
     return trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo });
   }
   const flow = await loadGuidedFlow(uid, profile.config?.flowId);
   if (!flow) return false;
-  if(!await canSendNow({ctx,profile,uid,origin,sessionId,chatId,message}))return false;
+  if(!await canSendNow({ctx,profile,uid,origin,sessionId,chatId,message}))return await shouldPause(uid,chatId,channelFor(origin),sessionId)?{paused:true}:false;
   const { processFlow } = require('../../automation/automation');
   // Legacy flow_session keys omit the connected channel and profile ID. Give
   // each profile/channel pair its own opaque execution ID to prevent a shared
   // phone contact from continuing another bot's guided conversation.
   const flowSessionId = executionFlowId(profile);
-  await processFlow({ nodes: flow.nodes, edges: flow.edges, uid, flowId: flowSessionId, message, incomingText: textOf(message), user, sessionId, origin, chatId, element: { ...flow, flow_id: flowSessionId }, loopDetection: { visitedNodes: new Map(), startTime: Date.now() } });
-  return true;
+  const result=await processFlow({ nodes: flow.nodes, edges: flow.edges, uid, flowId: flowSessionId, message, incomingText: textOf(message), user, sessionId, origin, chatId, element: { ...flow, flow_id: flowSessionId }, beforeNode: guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}), loopDetection: { visitedNodes: new Map(), startTime: Date.now() } });
+  return result==='paused'?{paused:true}:result!==false;
 }
 
 function guidedConversationHash(chatId) {
@@ -317,13 +317,30 @@ async function saveConversationalState({ ctx, profile, chatId, channelKind, chan
   [crypto.randomUUID(), ctx.tenant.id, profile.id, channelKind, channelRef, chatId, guidedConversationHash(chatId), JSON.stringify(state)]);
 }
 
-async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message }) {
+async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause=true }) {
   const access=await currentOwnerAccess(uid);
   if(!require('./chatbot-runtime-access').sameBoundary(ctx,access.context))return false;
   const current = await profileFor(access.context, uid, origin, sessionId);
   return current?.id === profile.id && Number(current.revision) === Number(profile.revision)
     && recipientAllowed(current.config, message?.senderMobile)
-    && !await shouldPause(uid, chatId, channelFor(origin), sessionId);
+    && (!checkPause||!await shouldPause(uid, chatId, channelFor(origin), sessionId));
+}
+
+function guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}){
+  let checks=0;
+  return async()=>{
+    try{
+      const allowed=await canSendNow({ctx,profile,uid,origin,sessionId,chatId,message,checkPause:false});
+      checks++;
+      if(!allowed){if(checks>1)await handoffConversation(ctx,chatId,channelFor(origin),sessionId,'guided-flow-authority-changed',profile,uid).catch(()=>{});return false;}
+      return await shouldPause(uid,chatId,channelFor(origin),sessionId)?'paused':'allowed';
+    }catch(error){
+      console.warn('[chatbot] guided flow authority check failed',error.code||'AUTHORITY_CHECK_FAILED');
+      checks++;
+      if(checks>1)await handoffConversation(ctx,chatId,channelFor(origin),sessionId,'guided-flow-authority-changed',profile,uid).catch(()=>{});
+      return false;
+    }
+  };
 }
 
 async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null }) {
@@ -591,7 +608,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     let result;
     if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
-    else if (profile.engine === 'guided') result = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) ? { sent: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
+    else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:'GUIDED_FLOW_UNAVAILABLE'}; }
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
     if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, reason: result.reason || null, ...result.metrics }), crypto.randomUUID()]);
     if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
