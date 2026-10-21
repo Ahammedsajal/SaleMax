@@ -133,6 +133,7 @@ function decision(context, { capability, permission, resource, external = false 
   // Recruitment is an owner-only internal 7Network workspace feature, not a customer plan add-on.
   // Keep the tenant's active-plan requirement while avoiding mutation of its published plan version.
   if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || (!internalRecruitmentOwner && !subscription.capabilities.includes(capability))) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
+  if (require('./tenant-module-contract').isDisabled(context,capability)) return { allowed: false, code: 'MODULE_DISABLED' };
   // Internal 7Network accountants work from Finance and payout records. The
   // legacy Sales Lead Pipeline does not provide the finance-only detail view.
   // Keep Training Center billing-linked lead access unchanged.

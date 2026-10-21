@@ -18,6 +18,7 @@ function fixture(role='manager'){
   if(sql.includes('SELECT source_table,source_id'))return [[{source_table:role==='agent'?'agents':'user',source_id:'2',legacy_uid_hash:sha(actor.uid)}]];
   if(sql.includes('SELECT * FROM user WHERE id=')||sql.includes('SELECT * FROM agents WHERE id='))return [[actor]];
   if(sql.includes('sx_qr_channel_shares'))return [[]];
+  if(sql.includes('FROM sx_tenant_customization_heads'))return [[]];
   throw Error('Unexpected synthetic query: '+sql);
  };
  const db={query,release(){}},pool={query,getConnection:async()=>db};

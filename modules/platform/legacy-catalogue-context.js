@@ -18,7 +18,9 @@ async function legacyOwnerContext(pool,ownerUid,{catalogues=['courses']}={}){
     if(!category||!catalogues.includes(category.catalogue))fail('CATEGORY_UNAVAILABLE',403);
     const subscription=await plans.loadEntitlements(db,row.tenantId);
     if(!subscription||!['active','trial','grace'].includes(subscription.status))fail('FEATURE_UNAVAILABLE',403);
-    return {audience:'tenant',identity:{id:row.identityId},tenant:{id:row.tenantId,status:row.tenantStatus,categoryKey:row.categoryKey,categoryVersion:Number(row.categoryVersion)},membership:{id:row.membershipId,tenantId:row.tenantId,role:row.role,status:row.membershipStatus,delegatedPermissions:[]},category,subscription,runtimeReady:{}};
+    const context={audience:'tenant',identity:{id:row.identityId},tenant:{id:row.tenantId,status:row.tenantStatus,categoryKey:row.categoryKey,categoryVersion:Number(row.categoryVersion)},membership:{id:row.membershipId,tenantId:row.tenantId,role:row.role,status:row.membershipStatus,delegatedPermissions:[]},category,subscription,runtimeReady:{}};
+    await require('./tenant-customization').prepareRuntimeContext(db,context);
+    return context;
   }finally{db.release();}
 }
 

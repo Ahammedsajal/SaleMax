@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const {decision} = require('./policy');
 const fail = (code,status=400) => {throw Object.assign(new Error(code),{code,status});};
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-const defaults = () => ({schemaVersion:6,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,taskTypeLabels:{},propertyFields:[]});
+const defaults = () => ({schemaVersion:7,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,taskTypeLabels:{},propertyFields:[],disabledModules:[]});
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function authorize(ctx) {
   const result=decision(ctx,{capability:'tenant.settings',permission:'tenant.manage'});
@@ -20,8 +20,8 @@ function categoryNavigationKeys(ctx) {
   return new Set(fieldsFor(ctx).map(item=>item.key));
 }
 function normalize(ctx,input) {
-  const allowedKeys=input?.schemaVersion===6?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','taskTypeLabels','propertyFields']:input?.schemaVersion===5?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','taskTypeLabels']:input?.schemaVersion===4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
-  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4,5,6].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
+  const allowedKeys=input?.schemaVersion>=7?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','taskTypeLabels','propertyFields','disabledModules']:input?.schemaVersion===6?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','taskTypeLabels','propertyFields']:input?.schemaVersion===5?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes','taskTypeLabels']:input?.schemaVersion===4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
+  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4,5,6,7].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
   const allowed=categoryNavigationKeys(ctx);
   const labels={};
   for(const key of Object.keys(input.navigationLabels).sort()) {
@@ -46,7 +46,7 @@ function normalize(ctx,input) {
     if(!typeOptions.some(item=>item.key===key)||!plain(value)||Object.keys(value).length!==2||!['en','ar'].every(lang=>Object.hasOwn(value,lang)&&typeof value[lang]==='string'&&value[lang].trim().length>0&&value[lang].length<=80&&!/[<>\u0000-\u001f\u007f]/.test(value[lang])))fail('INVALID_CUSTOMIZATION_TASK_LABELS');
     taskLabels[key]={en:value.en.trim(),ar:value.ar.trim()};
   }
-  const propertyFields=input.schemaVersion===6?require('./property-field-contract').definitions(input.propertyFields):null;
+  const propertyFields=input.schemaVersion>=6?require('./property-field-contract').definitions(input.propertyFields):null;
   if(propertyFields?.length){
     // Runtime employees also need to decode the owner's published definitions;
     // permission to edit those definitions is enforced by authorize() on the
@@ -58,12 +58,16 @@ function normalize(ctx,input) {
   }
   const fields=schema3LeadFields||leadFields;
   if(fields?.length&&!ctx.category?.capabilities.includes('crm.leads'))fail('CATEGORY_UNAVAILABLE',409);
-  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{ }),...(input.schemaVersion>=4?{enabledTaskTypes:enabledTaskTypes===null?null:[...enabledTaskTypes].sort()}:{ }),...(input.schemaVersion>=5?{taskTypeLabels:taskLabels}:{ }),...(propertyFields?{propertyFields}:{})};
+  const moduleContract=require('./tenant-module-contract');
+  const disabledModules=input.schemaVersion>=7?input.disabledModules:[];
+  const availableModules=moduleContract.allowedKeys(ctx);
+  if(!Array.isArray(disabledModules)||disabledModules.length>availableModules.size||new Set(disabledModules).size!==disabledModules.length||disabledModules.some(key=>typeof key!=='string'||!availableModules.has(key)))fail('INVALID_CUSTOMIZATION_MODULES');
+  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{ }),...(input.schemaVersion>=4?{enabledTaskTypes:enabledTaskTypes===null?null:[...enabledTaskTypes].sort()}:{ }),...(input.schemaVersion>=5?{taskTypeLabels:taskLabels}:{ }),...(propertyFields?{propertyFields}:{}),...(input.schemaVersion>=7?{disabledModules:[...disabledModules].sort()}:{})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
 function decode(ctx,row) {
   if(!row)return null;
-  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4,5,6].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4,5,6,7].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   const document=normalize(ctx,typeof row.document==='string'?JSON.parse(row.document):row.document);
   if(document.schemaVersion!==Number(row.schema_version)||checksum(document)!==row.checksum)fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {id:row.id,revision:Number(row.revision),kind:row.kind,document,checksum:row.checksum,createdAt:row.created_at};
@@ -81,7 +85,7 @@ async function state(db,ctx) {
   const active=await revision(db,ctx,head?.active_id),draft=await revision(db,ctx,head?.draft_id);
   if(active&&active.kind!=='published'||draft&&draft.kind!=='draft')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:Number(head?.revision||0),active,draft,history,
-    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),taskTypes:require('./task-type-adapters').configurable(ctx).map(item=>({...item,planAvailable:require('./task-type-adapters').supports(ctx,item.key)})),taskTypeLabelOptions:require('./task-type-adapters').customizable(ctx),propertyFieldsAvailable:decision(ctx,{capability:'realestate.listings',permission:'properties.manage'}).allowed};
+    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),moduleOptions:require('./tenant-module-contract').options(ctx),taskTypes:require('./task-type-adapters').configurable(ctx).map(item=>({...item,planAvailable:require('./task-type-adapters').supports(ctx,item.key)})),taskTypeLabelOptions:require('./task-type-adapters').customizable(ctx),propertyFieldsAvailable:decision(ctx,{capability:'realestate.listings',permission:'properties.manage'}).allowed};
 }
 function preview(ctx,document) {authorize(ctx);return {document:normalize(ctx,document),readOnly:true};}
 async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
@@ -125,11 +129,30 @@ async function effective(db,ctx) {
   // For internal runtime consumers. Authenticated context is mandatory; no
   // tenant ID supplied by a browser can select a different configuration.
   if(ctx?.audience!=='tenant'||ctx.tenant?.id!==ctx.membership?.tenantId||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active')fail('PERMISSION_DENIED',403);
+  if(ctx.runtimeCustomization)return ctx.runtimeCustomization;
   const [[head]]=await db.query('SELECT revision,active_id FROM sx_tenant_customization_heads WHERE tenant_id=?',[ctx.tenant.id]);
   const active=await revision(db,ctx,head?.active_id);
   if(active&&active.kind!=='published')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:active?active.revision:0,document:active?.document||defaults()};
 }
+function attachRuntimeRestrictions(ctx,document){
+  if(!ctx?.tenant||ctx.tenant.id!==ctx.membership?.tenantId)fail('TENANT_CONTEXT_INVALID',403);
+  const normalized=normalize(ctx,document||defaults());
+  Object.defineProperty(ctx.tenant,'disabledModules',{configurable:true,enumerable:false,value:Object.freeze([...normalized.disabledModules||[]])});
+  return ctx;
+}
+async function prepareRuntimeContext(db,ctx){
+  if(ctx?.audience!=='tenant'||ctx.tenant?.id!==ctx.membership?.tenantId||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active')fail('PERMISSION_DENIED',403);
+  const [[row]]=await db.query(`SELECT r.* FROM sx_tenant_customization_heads h
+    LEFT JOIN sx_tenant_customization_revisions r ON r.tenant_id=h.tenant_id AND r.id=h.active_id
+    WHERE h.tenant_id=?`,[ctx.tenant.id]);
+  const active=row?.id?decode(ctx,row):null;
+  if(active&&active.kind!=='published')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
+  const configuration={revision:active?active.revision:0,document:active?.document||defaults()};
+  attachRuntimeRestrictions(ctx,configuration.document);
+  Object.defineProperty(ctx,'runtimeCustomization',{configurable:true,enumerable:false,value:configuration});
+  return configuration;
+}
 function visibleNavigationKeys(keys,document){const hidden=new Set(Array.isArray(document?.hiddenNavigation)?document.hiddenNavigation:[]);return keys.filter(key=>!hidden.has(key));}
 function visibleNavigation(rows,document){const visible=new Set(visibleNavigationKeys(rows.map(item=>item.key),document));return rows.filter(item=>visible.has(item.key));}
-module.exports={authorize,normalize,checksum,decode,defaults,state,preview,mutate,effective,visibleNavigation,visibleNavigationKeys};
+module.exports={authorize,normalize,checksum,decode,defaults,state,preview,mutate,effective,attachRuntimeRestrictions,prepareRuntimeContext,visibleNavigation,visibleNavigationKeys};

@@ -922,3 +922,21 @@ and filter-preservation checks. The Reports renderer independently hides
 Training learner and finance panels unless the journey response identifies
 Training Center. The focused Pipeline report/team/category suite passes 25/25.
 This is source-only; no production report or data was changed.
+
+## Tenant-specific module access — source implementation, 22 October 2026
+
+The existing tenant customization revision now supports an owner-controlled
+`disabledModules` setting for category capabilities with reviewed shared API
+policy coverage. It is an opt-out layered under category, current plan and member
+permission: it cannot grant an unentitled capability. The initial API-enforced
+set covers Sales catalogue/deal/finance/commission/target workflows, Real Estate
+listings/requirements/viewings, Training courses/batches/enrollments and invoice-
+linked Finance modules. Dependencies are applied in the server policy as well as
+the editor. Shared legacy screens remain outside this setting until their entire
+API route surface has reviewed enforcement. Both canonical and legacy business
+contexts load the active tenant revision before capability checks, so a setting
+for one tenant does not affect another. The existing draft/publish/rollback and
+audited immutable revision workflow remains the control surface. Focused unit,
+policy, route and API checks pass; the fresh disposable-schema integration check
+and authenticated EN/AR browser acceptance remain open. This is source-only;
+production and tenant settings were not changed.

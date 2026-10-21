@@ -39,7 +39,7 @@ test('7Network Sales managers and team leaders receive only currently assigned a
     assert.equal(actor.role,role);
     assert.equal(actor.categoryKey,'7network_sales');
     assert.deepEqual(actor.scopeAgentIds,[7]);
-    assert.match(f.calls[2],role==='manager'?/manager_membership_id/ : /team_leader_membership_id/);
+    assert.ok(f.calls.some(sql=>sql.includes(role==='manager'?'manager_membership_id':'team_leader_membership_id')));
   }
 });
 

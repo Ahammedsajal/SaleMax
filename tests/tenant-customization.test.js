@@ -39,6 +39,28 @@ test('saved revisions must match tenant category version and canonical checksum'
   assert.throws(()=>settings.decode(ctx,{...row,checksum:'0'.repeat(64)}),{code:'CUSTOMIZATION_INTEGRITY_ERROR'});
   assert.throws(()=>settings.decode(ctx,{...row,category_version:2}),{code:'CUSTOMIZATION_VERSION_MISMATCH'});
 });
+test('schema 7 disables only reviewed category modules and policy blocks dependent APIs per tenant',()=>{
+  const v6={schemaVersion:6,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null,taskTypeLabels:{},propertyFields:[]};
+  const v7={...v6,schemaVersion:7,disabledModules:['training.courses']};
+  assert.deepEqual(settings.normalize(ctx,v7),v7);
+  for(const disabledModules of [['realestate.listings'],['tenant.settings'],['training.courses','training.courses'],['not-a-module']])assert.throws(()=>settings.normalize(ctx,{...v7,disabledModules}),{code:'INVALID_CUSTOMIZATION_MODULES'});
+  const moduleOptions=require('../modules/platform/tenant-module-contract').options(ctx).map(item=>item.key);
+  assert.ok(moduleOptions.includes('training.courses'));
+  assert.ok(moduleOptions.includes('training.batches'));
+  assert.ok(!moduleOptions.includes('products.catalog'));
+  const policy=require('../modules/platform/policy');
+  const tenantA=structuredClone(ctx),tenantB={...ctx,tenant:{...ctx.tenant,id:'tenant-b'},membership:{...ctx.membership,tenantId:'tenant-b'}};
+  settings.attachRuntimeRestrictions(tenantA,v7);
+  assert.deepEqual(tenantA.tenant.disabledModules,['training.courses']);
+  assert.equal(Object.keys(tenantA.tenant).includes('disabledModules'),false,'runtime restrictions are not serialized into public tenant identity');
+  assert.equal(policy.decision(tenantA,{capability:'training.courses',permission:'courses.read'}).code,'MODULE_DISABLED');
+  assert.equal(policy.decision(tenantA,{capability:'training.enrollments',permission:'sales.request'}).code,'MODULE_DISABLED','enrollment APIs require the courses module');
+  assert.equal(policy.decision(tenantB,{capability:'training.courses',permission:'courses.read'}).allowed,true,'another tenant keeps the category module');
+  const withoutPlan={...tenantB,subscription:{status:'active',capabilities:[]}};
+  settings.attachRuntimeRestrictions(withoutPlan,{...v7,disabledModules:[]});
+  assert.equal(policy.decision(withoutPlan,{capability:'training.courses',permission:'courses.read'}).code,'FEATURE_UNAVAILABLE','module settings cannot grant plan access');
+  assert.deepEqual(settings.normalize(ctx,v6),v6,'schema 6 revisions remain readable');
+});
 test('schema 3 hides only category-owned navigation keys while schema 1 and 2 remain readable',()=>{
   const doc3={schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['courses','inbox']};
   assert.deepEqual(settings.normalize(ctx,doc3),doc3);
@@ -77,13 +99,13 @@ test('existing workspace customizer collects bilingual task labels into the tena
   const fs=require('node:fs'),path=require('node:path');
   const client=fs.readFileSync(path.join(__dirname,'../client/public/tenant-customization.js'),'utf8');
   const shell=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
-  assert.match(client,/schemaVersion:6[\s\S]*propertyFields/);
+  assert.match(client,/schemaVersion:7[\s\S]*disabledModules/);
   assert.match(client,/taskTypeLabels/);
   assert.match(client,/Use your business names for tasks/);
   assert.match(client,/data-task-label-en/);
   assert.match(client,/data-task-label-ar/);
   assert.match(client,/Changes stay in the draft until you publish/);
-  assert.match(shell,/tenant-customization\.js\?v=20261022-property-fields1/);
+  assert.match(shell,/tenant-customization\.js\?v=20261022-module-access1/);
 });
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');
