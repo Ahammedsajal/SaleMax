@@ -31,6 +31,16 @@ test('destructive forward files fail before database execution', () => {
   try { fs.writeFileSync(path.join(folder, '20261001_bad.sql'), 'DROP TABLE invoice;'); assert.throws(() => discover(folder), { code: 'DESTRUCTIVE_FORWARD_MIGRATION' }); }
   finally { fs.rmSync(folder, { recursive: true, force: true }); }
 });
+test('rollback, down and revert files are never selected as forward migrations', () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), '7network-migration-directions-'));
+  try {
+    fs.writeFileSync(path.join(folder, '20261001_safe.sql'), 'CREATE TABLE safe_table (id INT PRIMARY KEY);');
+    fs.writeFileSync(path.join(folder, '20261002_cleanup_rollback.sql'), 'DROP TABLE customer_data;');
+    fs.writeFileSync(path.join(folder, '20261003_cleanup_down.sql'), 'DROP TABLE customer_data;');
+    fs.writeFileSync(path.join(folder, '20261004_revert_cleanup.sql'), 'DROP TABLE customer_data;');
+    assert.deepEqual(discover(folder).map(migration => migration.file), ['20261001_safe.sql']);
+  } finally { fs.rmSync(folder, { recursive: true, force: true }); }
+});
 function fake({ locked = false, rows = [], fail = false } = {}) {
   const calls = [];
   return { calls, async query(sql, params) {

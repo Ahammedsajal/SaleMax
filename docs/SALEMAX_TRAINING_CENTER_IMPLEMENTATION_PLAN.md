@@ -762,7 +762,7 @@ Record accepted throughput per workload and resource use, not just a total user 
 | Finding | Priority | Required treatment and ticket |
 | --- | --- | --- |
 | Compiled frontend without all original build inputs | Limits affected component edits | Recover relevant inputs or extend maintained existing modules/hooks; preserve the shell and forbid replacement-project work; TC00 and TC40 |
-| Forward migration runner can select DROP TABLE rollback file | Blocks migration execution | Safe discovery, checksum ledger and rehearsal; TC00 TC29 TC35 |
+| Forward migration runner can select DROP TABLE rollback file | Resolved in current source; production use still requires a reviewed plan and environment-specific rehearsal | Discovery excludes rollback/down/revert filename variants, rejects destructive forward table/column/database DDL, and applies a checksum ledger under a database lock. Regression tests cover each excluded direction. Keep deployment rehearsal and recovery evidence under TC00 TC29 TC35. |
 | Tenant mapping and legacy authentication lack a complete contract pack | High | Canonical tenant/membership mapping and all-route compatibility; TC02 TC03 TC35 TC40 |
 | Process-local campaign/QR/socket state prevents assumed replica safety | High | Exclusive connector ownership, worker leases, inter-node socket adapter; TC37 TC41 |
 | Sale/outbox and receipt/delivery dependencies omitted | High | Correct TC15 and TC23 dependency edges; graph validation |
