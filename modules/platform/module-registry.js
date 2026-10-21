@@ -29,22 +29,25 @@ const definitions=[
   {id:'sales.targets',version:1,capabilities:['sales.targets'],screens:['sales-targets'],primaryService:'modules/platform/sales-targets-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
   {id:'sales.products-services',version:1,capabilities:['products.catalog'],screens:['products-services'],primaryService:'modules/platform/product-catalog.js',dataBoundary:'mixed_legacy_and_tenant',configSchemaVersion:null},
   {id:'sales.recruitment',version:1,activation:'locked_compatibility',capabilities:['hr.recruitment'],screens:['recruitment'],primaryService:'modules/platform/recruitment-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:null},
-  {id:'real-estate.properties',version:1,capabilities:['realestate.listings'],screens:['properties'],primaryService:'modules/platform/real-estate-properties-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:1},
+  {id:'real-estate.properties',version:1,capabilities:['realestate.listings'],screens:['properties'],primaryService:'modules/platform/real-estate-properties-router.js',dataBoundary:'tenant_scoped',configSchemaVersion:1,dataOwnership:{status:'reviewed',ownedTables:['sx_real_estate_properties'],referencedTables:[{name:'sx_audit_events',scope:'tenant_qualified'},{name:'sx_identities',scope:'tenant_qualified_through_membership'},{name:'sx_memberships',scope:'tenant_qualified'},{name:'sx_sales_org_history',scope:'tenant_qualified'}]}},
 ];
 
 function createModuleRegistry(sources,knownCapabilities){
   const invalid=()=>{throw Object.assign(new Error('INVALID_MODULE_MANIFEST'),{code:'INVALID_MODULE_MANIFEST'});};
   if(!Array.isArray(sources)||!knownCapabilities||typeof knownCapabilities!=='object')invalid();
-  const entries=new Map();
+  const entries=new Map(),ownedTables=new Set();
   for(const source of sources){
     if(!source||typeof source.id!=='string'||!/^[a-z][a-z0-9.-]{1,79}$/.test(source.id)||!Number.isSafeInteger(source.version)||source.version<1
       ||!Array.isArray(source.capabilities)||!source.capabilities.length||new Set(source.capabilities).size!==source.capabilities.length||source.capabilities.some(key=>!Object.hasOwn(knownCapabilities,key))
       ||!Array.isArray(source.screens)||new Set(source.screens).size!==source.screens.length||source.screens.some(key=>typeof key!=='string'||!/^[a-z][a-z0-9-]{0,79}$/.test(key))
       ||typeof source.primaryService!=='string'||!/^[-A-Za-z0-9_./]{1,180}$/.test(source.primaryService)||source.primaryService.split('/').includes('..')||!['tenant_scoped','legacy_owner_uid','mixed_legacy_and_tenant','compatibility_only'].includes(source.dataBoundary)
       ||(source.activation!==undefined&&!['required','optional','locked_compatibility'].includes(source.activation))
+      ||(source.dataOwnership!==undefined&&(!source.dataOwnership||source.dataOwnership.status!=='reviewed'||!Array.isArray(source.dataOwnership.ownedTables)||!source.dataOwnership.ownedTables.length||!Array.isArray(source.dataOwnership.referencedTables)||source.dataOwnership.ownedTables.some(table=>typeof table!=='string'||!/^sx_[a-z0-9_]{1,62}$/.test(table))||new Set(source.dataOwnership.ownedTables).size!==source.dataOwnership.ownedTables.length||source.dataOwnership.referencedTables.some(item=>!item||typeof item.name!=='string'||!/^sx_[a-z0-9_]{1,62}$/.test(item.name)||!['tenant_qualified','tenant_qualified_through_membership'].includes(item.scope))||new Set(source.dataOwnership.referencedTables.map(item=>item.name)).size!==source.dataOwnership.referencedTables.length||source.dataOwnership.ownedTables.some(table=>source.dataOwnership.referencedTables.some(item=>item.name===table))))
       ||(source.configSchemaVersion!==null&&(!Number.isSafeInteger(source.configSchemaVersion)||source.configSchemaVersion<1)))invalid();
     const identity=`${source.id}@${source.version}`;if(entries.has(identity))invalid();
-    entries.set(identity,Object.freeze({...source,activation:source.activation||'optional',capabilities:Object.freeze([...source.capabilities]),screens:Object.freeze([...source.screens])}));
+    for(const table of source.dataOwnership?.ownedTables||[]){if(ownedTables.has(table))invalid();ownedTables.add(table);}
+    const dataOwnership=source.dataOwnership?Object.freeze({status:'reviewed',ownedTables:Object.freeze([...source.dataOwnership.ownedTables]),referencedTables:Object.freeze(source.dataOwnership.referencedTables.map(item=>Object.freeze({...item})))}):null;
+    entries.set(identity,Object.freeze({...source,activation:source.activation||'optional',capabilities:Object.freeze([...source.capabilities]),screens:Object.freeze([...source.screens]),dataOwnership}));
   }
   return Object.freeze({
     get(id,version){return typeof id==='string'&&Number.isSafeInteger(version)?entries.get(`${id}@${version}`)||null:null;},

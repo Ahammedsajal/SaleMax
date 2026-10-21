@@ -2083,6 +2083,24 @@ Estate remains private and non-planable, no migration or customer assignment
 changed, and no production rollout is claimed. Authenticated English/Arabic
 screen acceptance, disposable database coverage, all other module settings,
 legacy-route/data ownership and the full 42-ticket upgrade remain open.
+
+## Real Estate route-to-table ownership contract — source update, 21 October 2026
+
+The upgraded route inventory now traces `/api/workspace/properties` through its
+router to `real-estate-properties.js` and declares the module's owned
+`sx_real_estate_properties` table plus its tenant-qualified shared references
+(`sx_memberships`, `sx_sales_org_history`, `sx_audit_events`, and identities
+reached through tenant membership). The manifest validates safe table names,
+reference scope labels, immutability and unique ownership of declared tables.
+An executable source test compares every `sx_` table referenced by the service
+SQL with this declaration and checks the owning migration. This metadata is an
+audit contract only; it grants no access and does not prove authorization for
+other modules. The focused registry, route-ownership and property suite passes
+24/24. Source only; production was not changed. Exact table/query ownership for
+the other module services, all legacy routes, jobs, sockets, callbacks and
+authenticated screen acceptance remain open. The full suite passes 1,045/1,069;
+the same 24 known Manage Users, Pipeline, Training/Finance and public-form
+source-contract failures remain.
 ## Tenant custom-field search in the existing Pipeline — 21 October 2026
 
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.

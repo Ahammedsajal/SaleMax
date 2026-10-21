@@ -108,8 +108,14 @@ test('module manifests reject unsafe contracts and copy immutable ownership meta
   assert.deepEqual(stored.capabilities,['team.tasks']);assert.deepEqual(stored.screens,['appointments']);
   assert.equal(Object.isFrozen(stored),true);assert.equal(Object.isFrozen(stored.capabilities),true);assert.equal(Object.isFrozen(registry.list()),true);
   assert.throws(()=>createModuleRegistry([source,source],capabilities),{code:'INVALID_MODULE_MANIFEST'});
-  for(const patch of [{id:'../clinic'},{version:0},{activation:'grant-all'},{capabilities:['not.a.capability']},{screens:['<script>']},{primaryService:'../secret.js'},{dataBoundary:'global'},{configSchemaVersion:0}])
+  for(const patch of [{id:'../clinic'},{version:0},{activation:'grant-all'},{capabilities:['not.a.capability']},{screens:['<script>']},{primaryService:'../secret.js'},{dataBoundary:'global'},{configSchemaVersion:0},{dataOwnership:{status:'reviewed',ownedTables:[],referencedTables:[]}},{dataOwnership:{status:'reviewed',ownedTables:['sx_bad-name'],referencedTables:[]}},{dataOwnership:{status:'reviewed',ownedTables:['sx_a'],referencedTables:[{name:'sx_a',scope:'tenant_qualified'}]}},{dataOwnership:{status:'reviewed',ownedTables:['sx_a'],referencedTables:[{name:'sx_b',scope:'global'}]}}])
     assert.throws(()=>createModuleRegistry([{...source,...patch}],capabilities),{code:'INVALID_MODULE_MANIFEST'});
+  const ownership={status:'reviewed',ownedTables:['sx_clinic_appointments'],referencedTables:[{name:'sx_tenants',scope:'tenant_qualified'}]};
+  const ownerSource={...source,dataOwnership:ownership},owned=createModuleRegistry([ownerSource],capabilities).get(source.id,source.version);
+  ownership.ownedTables.push('sx_mutated');ownership.referencedTables[0].name='sx_mutated';
+  assert.deepEqual(owned.dataOwnership,{status:'reviewed',ownedTables:['sx_clinic_appointments'],referencedTables:[{name:'sx_tenants',scope:'tenant_qualified'}]});
+  assert.equal(Object.isFrozen(owned.dataOwnership),true);assert.equal(Object.isFrozen(owned.dataOwnership.ownedTables),true);assert.equal(Object.isFrozen(owned.dataOwnership.referencedTables[0]),true);
+  assert.throws(()=>createModuleRegistry([{...ownerSource,id:'clinic.other',dataOwnership:{status:'reviewed',ownedTables:['sx_clinic_appointments'],referencedTables:[]}},ownerSource],capabilities),{code:'INVALID_MODULE_MANIFEST'});
   assert.equal(moduleRegistry.get('core.business-settings',1).activation,'required');
   assert.equal(moduleRegistry.get('compat.training-center-v1',1).activation,'locked_compatibility');
 });

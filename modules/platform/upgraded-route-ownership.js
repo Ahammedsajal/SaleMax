@@ -20,7 +20,7 @@ const contracts=Object.freeze([
   {mount:'/api/agent/phonebook',router:'phonebook-workspace-router',routeClass:'tenant_module',owner:'core.contacts',modules:['core.contacts'],contextBoundary:'canonical_or_legacy_tenant'},
   {mount:'/api/phonebook/workspace',router:'phonebook-workspace-router',routeClass:'tenant_module',owner:'core.contacts',modules:['core.contacts'],contextBoundary:'canonical_or_legacy_tenant'},
   {mount:'/api/workspace/phonebook',router:'phonebook-workspace-router',routeClass:'tenant_module',owner:'core.contacts',modules:['core.contacts'],contextBoundary:'canonical_or_legacy_tenant'},
-  {mount:'/api/workspace/properties',router:'real-estate-properties-router',routeClass:'tenant_module',owner:'real-estate.properties',modules:['real-estate.properties'],contextBoundary:'tenant_session'},
+  {mount:'/api/workspace/properties',router:'real-estate-properties-router',routeClass:'tenant_module',owner:'real-estate.properties',modules:['real-estate.properties'],service:'modules/platform/real-estate-properties.js',contextBoundary:'tenant_session'},
   {mount:'/api/public/recruitment',router:'recruitment-router',routeClass:'public_tenant_module',owner:'sales.recruitment',modules:['sales.recruitment'],contextBoundary:'public_tenant_slug'},
   {mount:'/api/user/recruitment',router:'recruitment-router',routeClass:'tenant_module',owner:'sales.recruitment',modules:['sales.recruitment'],contextBoundary:'canonical_or_legacy_tenant'},
   {mount:'/api/user/sales-audit',router:'sales-audit-router',routeClass:'tenant_module',owner:'sales.deals',modules:['sales.deals'],contextBoundary:'tenant_session'},
@@ -64,7 +64,7 @@ function ownershipForInventory(inventory,{moduleRegistry,categories}){
     const moduleContracts={};
     for(const id of contract.modules){
       const entry=moduleRegistry.get(id,1);if(!entry)throw new Error(`UNKNOWN_ROUTE_MODULE:${key}:${id}`);
-      moduleContracts[id]={version:entry.version,capabilities:[...entry.capabilities],primaryService:entry.primaryService,dataBoundary:entry.dataBoundary};
+      moduleContracts[id]={version:entry.version,capabilities:[...entry.capabilities],primaryService:entry.primaryService,dataBoundary:entry.dataBoundary,dataOwnership:entry.dataOwnership};
     }
     const categoryModules=contract.moduleByCategory||(!contract.modules.length?{}:Object.fromEntries(categories.list().flatMap(category=>{
       const modules=contract.modules.filter(id=>category.modules?.some(ref=>ref.id===id&&ref.version===1));
