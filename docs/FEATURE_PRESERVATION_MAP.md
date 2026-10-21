@@ -13,6 +13,7 @@ This maps the requested existing features to inspected route families. Static ro
 | Create Meta Template | /api/user template routes, /api/templet | Editor variables, category, rejection/approval and actual submission status |
 | Send Campaign | /api/broadcast | Audience, template, consent, quotas, schedule and unique worker claims |
 | Campaign Dashboard | /api/broadcast/dashboard and campaign detail | Actual provider statuses, failure/retry, filters and export |
+| WhatsApp calling | /api/wa_call and verified inbound callback adapter | Category/plan authorization, owner-scoped workflows, consent, authenticated callbacks and bounded retry; provider worker and full-category gate remain incomplete |
 | Lead Pipeline | /api/pipeline, editable client/public/pipeline | Ownership, stages, movement and activity; finance-safe terminal stages |
 | Phonebook | /api/phonebook | Contacts/groups/import, validation, duplicates and tenant-scoped access |
 | Agent Login | /api/agent/login, /agent/login shell | Stable membership/session migration, scoped identity and immediate revocation |

@@ -89,6 +89,18 @@ For every module and category version, verify:
 7. Existing English/Arabic screens and the real authenticated workflow are tested inside the existing panels. API tests and a standalone fixture are necessary but do not prove integrated release acceptance.
 8. Release proof separately records source commit, candidate/live release, image/container, migration state, rollback snapshot, unchanged unrelated services, health, exact feature behavior, and remaining gates in `DEPLOYMENT.md`.
 
+### Legacy call callback security note
+
+The legacy `/api/wa_call/update_broadcast_contact` callback now requires the
+shared internal request secret. It also requires both campaign ID and owner
+UID, scopes the read and write by both values, accepts only known permission
+and call state fields, and counts transitions idempotently. Repository search
+found no in-app caller, and the call processor is still a stub. Real external
+provider callbacks must use a provider-specific signed adapter; the global
+internal secret must never be given to a provider. This closes one unauthenticated
+mutation path but does not certify category activation or the rest of the
+legacy WhatsApp-call router.
+
 ## Ordered implementation plan
 
 1. **Inventory and lock boundaries:** map each existing screen, API route, job, webhook, table, authorization helper and feature flag to shared platform or domain module. Identify legacy routes that bypass category/plan policy and map legacy accounts to a compatibility cohort. Add automated category/plan/tenant/member cross-product denial checks.

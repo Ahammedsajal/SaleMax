@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const { query } = require("../database/dbpromise.js");
+const pool = require("../database/config.js").promise();
 const validateUser = require("../middlewares/user.js");
 const Stripe = require("stripe");
 const {
@@ -16,6 +17,8 @@ const {
 } = require("../helper/addon/wacall/broadcastProcessor.js");
 const axios = require("axios");
 const phonebookImport = require("../modules/platform/phonebook-import");
+const { requireInternalAuth } = require("../modules/platform/internal-request-auth");
+const { updateBroadcastContact } = require("../modules/platform/wa-call-broadcast-update");
 
 // add new beta
 router.post("/insert_flow", validateUser, checkPlan, async (req, res) => {
@@ -593,73 +596,18 @@ router.post("/delete_broadcast", validateUser, checkPlan, async (req, res) => {
   }
 });
 
-// Update contact status (called by webhook)
-router.post("/update_broadcast_contact", async (req, res) => {
+// Internal callback only. Public provider callbacks must use a verified adapter.
+router.post("/update_broadcast_contact", requireInternalAuth, async (req, res) => {
   try {
-    const { campaignId, contactMobile, updates } = req.body;
-
-    const [broadcast] = await query(
-      `SELECT * FROM wa_call_broadcasts WHERE campaign_id = ?`,
-      [campaignId],
-    );
-
-    if (!broadcast) {
-      return res.json({ success: false, msg: "Broadcast not found" });
-    }
-
-    const contacts = JSON.parse(broadcast.contacts || "[]");
-    const contactIndex = contacts.findIndex((c) => c.mobile === contactMobile);
-
-    if (contactIndex === -1) {
-      return res.json({ success: false, msg: "Contact not found" });
-    }
-
-    // Update contact
-    contacts[contactIndex] = {
-      ...contacts[contactIndex],
-      ...updates,
-    };
-
-    // Update statistics
-    let statsUpdate = {};
-
-    if (updates.permission_status === "requested") {
-      statsUpdate.permission_requested = broadcast.permission_requested + 1;
-    }
-    if (updates.permission_status === "granted") {
-      statsUpdate.permission_granted = broadcast.permission_granted + 1;
-    }
-    if (updates.permission_status === "denied") {
-      statsUpdate.permission_denied = broadcast.permission_denied + 1;
-    }
-    if (updates.call_status === "ringing") {
-      statsUpdate.calls_initiated = broadcast.calls_initiated + 1;
-    }
-    if (updates.call_status === "completed") {
-      statsUpdate.calls_completed = broadcast.calls_completed + 1;
-    }
-    if (updates.call_status === "failed") {
-      statsUpdate.calls_failed = broadcast.calls_failed + 1;
-    }
-
-    // Build update query
-    let updateQuery = `UPDATE wa_call_broadcasts SET contacts = ?`;
-    let updateParams = [JSON.stringify(contacts)];
-
-    Object.keys(statsUpdate).forEach((key) => {
-      updateQuery += `, ${key} = ?`;
-      updateParams.push(statsUpdate[key]);
-    });
-
-    updateQuery += ` WHERE campaign_id = ?`;
-    updateParams.push(campaignId);
-
-    await query(updateQuery, updateParams);
-
-    res.json({ success: true, msg: "Contact updated" });
+    const { campaignId, uid, contactMobile, updates } = req.body || {};
+    const result = await updateBroadcastContact(pool, { campaignId, uid, contactMobile, updates });
+    if (!result.updated) return res.status(404).json({ success: false, msg: result.code === "CONTACT_NOT_FOUND" ? "Contact not found" : "Broadcast not found" });
+    return res.json({ success: true, msg: "Contact updated" });
   } catch (err) {
-    console.error("Error updating contact:", err);
-    res.json({ success: false, msg: "Failed to update contact" });
+    if (err.code === "INVALID_CALLBACK") return res.status(400).json({ success: false, code: err.code });
+    if (err.code === "CAMPAIGN_DATA_INVALID") return res.status(409).json({ success: false, code: err.code });
+    console.error("Error updating call campaign contact:", err.code || "CALLBACK_UPDATE_FAILED");
+    return res.status(503).json({ success: false, msg: "Failed to update contact" });
   }
 });
 

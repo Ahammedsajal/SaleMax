@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const randomstring = require("randomstring");
 const { sign } = require("jsonwebtoken");
 const { query } = require("../database/dbpromise.js");
+const { requireInternalAuth: internalOnly } = require("../modules/platform/internal-request-auth");
 const {
   createSession,
   getSession,
@@ -11,36 +12,6 @@ const {
 const {
   runWhatsAppRetentionCleanup,
 } = require("../helper/maintenance/whatsappRetention.js");
-
-function getInternalSecret() {
-  return String(process.env.CRM_INTERNAL_SECRET || "").trim();
-}
-
-function isAuthorized(req) {
-  const expected = getInternalSecret();
-  if (!expected) return false;
-
-  const byHeader = String(req.get("x-internal-secret") || "").trim();
-  if (byHeader && byHeader === expected) return true;
-
-  const auth = String(req.get("Authorization") || "").trim();
-  if (auth.toLowerCase().startsWith("bearer ")) {
-    const token = auth.slice(7).trim();
-    return token !== "" && token === expected;
-  }
-
-  return false;
-}
-
-function internalOnly(req, res, next) {
-  if (!isAuthorized(req)) {
-    return res.status(401).json({
-      success: false,
-      msg: "Unauthorized internal request",
-    });
-  }
-  next();
-}
 
 function crmUidFromId(id) {
   return `crm_user_${id}`;

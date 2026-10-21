@@ -5,102 +5,137 @@
     {
       "prefix": "/sso",
       "source": "routes/sso.js",
-      "line": 113
+      "line": 123
     },
     {
       "prefix": "/api/user",
       "source": "routes/user.js",
-      "line": 119
+      "line": 129
     },
     {
       "prefix": "/api/web",
       "source": "routes/web.js",
-      "line": 120
+      "line": 130
     },
     {
       "prefix": "/api/admin",
       "source": "routes/admin.js",
-      "line": 121
+      "line": 131
     },
     {
       "prefix": "/api/phonebook",
       "source": "routes/phonebook.js",
-      "line": 122
+      "line": 132
     },
     {
       "prefix": "/api/chat_flow",
       "source": "routes/chatFlow.js",
-      "line": 123
+      "line": 133
+    },
+    {
+      "prefix": "/api/workspace/automation/flows",
+      "source": "routes/chatFlow.js",
+      "line": 133
     },
     {
       "prefix": "/api/inbox",
       "source": "routes/inbox.js",
-      "line": 124
+      "line": 134
+    },
+    {
+      "prefix": "/api/workspace/inbox",
+      "source": "routes/inbox.js",
+      "line": 134
     },
     {
       "prefix": "/api/templet",
       "source": "routes/templet.js",
-      "line": 125
+      "line": 135
+    },
+    {
+      "prefix": "/api/workspace/templates",
+      "source": "routes/templet.js",
+      "line": 135
     },
     {
       "prefix": "/api/chatbot",
       "source": "routes/chatbot.js",
-      "line": 126
+      "line": 136
+    },
+    {
+      "prefix": "/api/workspace/automation/chatbot",
+      "source": "routes/chatbot.js",
+      "line": 136
     },
     {
       "prefix": "/api/broadcast",
       "source": "routes/broadcast.js",
-      "line": 127
+      "line": 137
+    },
+    {
+      "prefix": "/api/workspace/campaigns",
+      "source": "routes/broadcast.js",
+      "line": 137
     },
     {
       "prefix": "/api/v1",
       "source": "routes/apiv2.js",
-      "line": 128
+      "line": 138
     },
     {
       "prefix": "/api/agent",
       "source": "routes/agent.js",
-      "line": 129
+      "line": 139
     },
     {
       "prefix": "/api/qr",
       "source": "routes/qr.js",
-      "line": 130
+      "line": 140
+    },
+    {
+      "prefix": "/api/workspace/channels/qr",
+      "source": "routes/qr.js",
+      "line": 140
     },
     {
       "prefix": "/api/ai",
       "source": "routes/ai.js",
-      "line": 131
+      "line": 141
     },
     {
       "prefix": "/api/webhook",
       "source": "routes/webhook.js",
-      "line": 132
+      "line": 142
     },
     {
       "prefix": "/api/wa_call",
       "source": "routes/waCall.js",
-      "line": 133
+      "line": 143
     },
     {
       "prefix": "/api/telegram",
       "source": "routes/telegram.js",
-      "line": 134
+      "line": 144
     },
     {
       "prefix": "/api/theme",
       "source": "routes/theme.js",
-      "line": 135
+      "line": 145
     },
     {
       "prefix": "/api/pipeline",
       "source": "routes/pipeline.js",
-      "line": 136
+      "line": 146
+    },
+    {
+      "prefix": "/api/workspace/pipeline",
+      "source": "routes/pipeline.js",
+      "line": 146
     },
     {
       "prefix": "/api/internal",
       "source": "routes/internal.js",
-      "line": 137
+      "line": 147
     }
   ],
   "direct": [
@@ -108,25 +143,25 @@
       "method": "GET",
       "path": "/healthz",
       "source": "server.js",
-      "line": 94
+      "line": 104
     },
     {
       "method": "GET",
       "path": "/admin-setup",
       "source": "server.js",
-      "line": 190
+      "line": 200
     },
     {
       "method": "GET",
       "path": "*",
       "source": "server.js",
-      "line": 195
+      "line": 205
     },
     {
       "method": "GET",
       "path": "*",
       "source": "server.js",
-      "line": 238
+      "line": 248
     }
   ],
   "routes": [
@@ -166,35 +201,35 @@
       "method": "POST",
       "path": "/api/user/login_with_facebook",
       "source": "routes/user.js",
-      "line": 61,
+      "line": 67,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/user/login_with_google",
       "source": "routes/user.js",
-      "line": 148,
+      "line": 154,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/user/signup",
       "source": "routes/user.js",
-      "line": 216,
+      "line": 222,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/user/login",
       "source": "routes/user.js",
-      "line": 268,
+      "line": 274,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/user/return_media_url",
       "source": "routes/user.js",
-      "line": 312,
+      "line": 323,
       "declaredGuards": [
         "validateUser"
       ]
@@ -203,7 +238,7 @@
       "method": "POST",
       "path": "/api/user/convert_audio",
       "source": "routes/user.js",
-      "line": 499,
+      "line": 510,
       "declaredGuards": [
         "validateUser"
       ]
@@ -212,7 +247,7 @@
       "method": "GET",
       "path": "/api/user/get_me",
       "source": "routes/user.js",
-      "line": 636,
+      "line": 647,
       "declaredGuards": [
         "validateUser"
       ]
@@ -221,7 +256,7 @@
       "method": "POST",
       "path": "/api/user/save_note",
       "source": "routes/user.js",
-      "line": 666,
+      "line": 677,
       "declaredGuards": [
         "validateUser",
         "checkPlan",
@@ -232,7 +267,7 @@
       "method": "POST",
       "path": "/api/user/push_tag",
       "source": "routes/user.js",
-      "line": 688,
+      "line": 699,
       "declaredGuards": [
         "validateUser",
         "checkPlan",
@@ -243,7 +278,7 @@
       "method": "POST",
       "path": "/api/user/del_tag",
       "source": "routes/user.js",
-      "line": 727,
+      "line": 738,
       "declaredGuards": [
         "validateUser"
       ]
@@ -252,7 +287,7 @@
       "method": "POST",
       "path": "/api/user/check_contact",
       "source": "routes/user.js",
-      "line": 759,
+      "line": 770,
       "declaredGuards": [
         "validateUser"
       ]
@@ -261,7 +296,7 @@
       "method": "POST",
       "path": "/api/user/save_contact",
       "source": "routes/user.js",
-      "line": 792,
+      "line": 803,
       "declaredGuards": [
         "validateUser",
         "checkPlan",
@@ -272,7 +307,7 @@
       "method": "POST",
       "path": "/api/user/del_contact",
       "source": "routes/user.js",
-      "line": 848,
+      "line": 859,
       "declaredGuards": [
         "validateUser"
       ]
@@ -281,7 +316,7 @@
       "method": "POST",
       "path": "/api/user/update_meta",
       "source": "routes/user.js",
-      "line": 859,
+      "line": 870,
       "declaredGuards": [
         "validateUser"
       ]
@@ -290,7 +325,7 @@
       "method": "POST",
       "path": "/api/user/update_embed_meta",
       "source": "routes/user.js",
-      "line": 921,
+      "line": 951,
       "declaredGuards": [
         "validateUser"
       ]
@@ -299,7 +334,7 @@
       "method": "GET",
       "path": "/api/user/get_meta_keys",
       "source": "routes/user.js",
-      "line": 954,
+      "line": 984,
       "declaredGuards": [
         "validateUser"
       ]
@@ -308,7 +343,7 @@
       "method": "POST",
       "path": "/api/user/add_meta_templet",
       "source": "routes/user.js",
-      "line": 991,
+      "line": 1021,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -318,7 +353,7 @@
       "method": "GET",
       "path": "/api/user/get_my_meta_templets",
       "source": "routes/user.js",
-      "line": 1027,
+      "line": 1060,
       "declaredGuards": [
         "validateUser"
       ]
@@ -327,7 +362,7 @@
       "method": "POST",
       "path": "/api/user/del_meta_templet",
       "source": "routes/user.js",
-      "line": 1060,
+      "line": 1093,
       "declaredGuards": [
         "validateUser"
       ]
@@ -336,7 +371,7 @@
       "method": "POST",
       "path": "/api/user/return_media_url_meta",
       "source": "routes/user.js",
-      "line": 1100,
+      "line": 1133,
       "declaredGuards": [
         "validateUser"
       ]
@@ -345,7 +380,7 @@
       "method": "POST",
       "path": "/api/user/get_plan_details",
       "source": "routes/user.js",
-      "line": 1180,
+      "line": 1213,
       "declaredGuards": [
         "validateUser"
       ]
@@ -354,7 +389,7 @@
       "method": "GET",
       "path": "/api/user/get_payment_details",
       "source": "routes/user.js",
-      "line": 1197,
+      "line": 1230,
       "declaredGuards": [
         "validateUser"
       ]
@@ -363,7 +398,7 @@
       "method": "POST",
       "path": "/api/user/create_stripe_session",
       "source": "routes/user.js",
-      "line": 1214,
+      "line": 1247,
       "declaredGuards": [
         "validateUser"
       ]
@@ -372,7 +407,7 @@
       "method": "POST",
       "path": "/api/user/pay_with_rz",
       "source": "routes/user.js",
-      "line": 1286,
+      "line": 1319,
       "declaredGuards": [
         "validateUser"
       ]
@@ -381,7 +416,7 @@
       "method": "POST",
       "path": "/api/user/pay_with_paypal",
       "source": "routes/user.js",
-      "line": 1348,
+      "line": 1381,
       "declaredGuards": [
         "validateUser"
       ]
@@ -390,14 +425,14 @@
       "method": "GET",
       "path": "/api/user/stripe_payment",
       "source": "routes/user.js",
-      "line": 1490,
+      "line": 1523,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/user/pay_with_paystack",
       "source": "routes/user.js",
-      "line": 1535,
+      "line": 1568,
       "declaredGuards": [
         "validateUser"
       ]
@@ -406,16 +441,16 @@
       "method": "POST",
       "path": "/api/user/update_profile",
       "source": "routes/user.js",
-      "line": 1596,
+      "line": 1629,
       "declaredGuards": [
-        "validateUser"
+        "selfProfileAuth"
       ]
     },
     {
       "method": "GET",
       "path": "/api/user/get_dashboard_old",
       "source": "routes/user.js",
-      "line": 1645,
+      "line": 1662,
       "declaredGuards": [
         "validateUser"
       ]
@@ -424,7 +459,7 @@
       "method": "GET",
       "path": "/api/user/get_dashboard",
       "source": "routes/user.js",
-      "line": 1716,
+      "line": 1733,
       "declaredGuards": [
         "validateUser"
       ]
@@ -433,7 +468,7 @@
       "method": "POST",
       "path": "/api/user/start_free_trial",
       "source": "routes/user.js",
-      "line": 1815,
+      "line": 1824,
       "declaredGuards": [
         "validateUser"
       ]
@@ -442,14 +477,23 @@
       "method": "POST",
       "path": "/api/user/send_resovery",
       "source": "routes/user.js",
-      "line": 1857,
+      "line": 1866,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/user/modify_password",
       "source": "routes/user.js",
-      "line": 1932,
+      "line": 1941,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/user/optional-features",
+      "source": "routes/user.js",
+      "line": 1972,
       "declaredGuards": [
         "validateUser"
       ]
@@ -458,7 +502,7 @@
       "method": "GET",
       "path": "/api/user/generate_api_keys",
       "source": "routes/user.js",
-      "line": 1963,
+      "line": 1978,
       "declaredGuards": [
         "validateUser"
       ]
@@ -467,7 +511,7 @@
       "method": "GET",
       "path": "/api/user/fetch_profile",
       "source": "routes/user.js",
-      "line": 1984,
+      "line": 1999,
       "declaredGuards": [
         "validateUser"
       ]
@@ -476,7 +520,7 @@
       "method": "POST",
       "path": "/api/user/add_task_for_agent",
       "source": "routes/user.js",
-      "line": 2011,
+      "line": 2026,
       "declaredGuards": [
         "validateUser"
       ]
@@ -485,7 +529,7 @@
       "method": "GET",
       "path": "/api/user/get_my_agent_tasks",
       "source": "routes/user.js",
-      "line": 2035,
+      "line": 2050,
       "declaredGuards": [
         "validateUser"
       ]
@@ -494,7 +538,7 @@
       "method": "POST",
       "path": "/api/user/del_task_for_agent",
       "source": "routes/user.js",
-      "line": 2055,
+      "line": 2070,
       "declaredGuards": [
         "validateUser"
       ]
@@ -503,7 +547,7 @@
       "method": "POST",
       "path": "/api/user/add_widget",
       "source": "routes/user.js",
-      "line": 2071,
+      "line": 2086,
       "declaredGuards": [
         "validateUser"
       ]
@@ -512,7 +556,7 @@
       "method": "GET",
       "path": "/api/user/get_my_widget",
       "source": "routes/user.js",
-      "line": 2128,
+      "line": 2143,
       "declaredGuards": [
         "validateUser"
       ]
@@ -521,7 +565,7 @@
       "method": "POST",
       "path": "/api/user/del_widget",
       "source": "routes/user.js",
-      "line": 2142,
+      "line": 2157,
       "declaredGuards": [
         "validateUser"
       ]
@@ -530,14 +574,14 @@
       "method": "GET",
       "path": "/api/user/widget",
       "source": "routes/user.js",
-      "line": 2155,
+      "line": 2170,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/user/update_agent_profile",
       "source": "routes/user.js",
-      "line": 2192,
+      "line": 2209,
       "declaredGuards": [
         "validateUser"
       ]
@@ -546,7 +590,7 @@
       "method": "POST",
       "path": "/api/user/auto_agent_login",
       "source": "routes/user.js",
-      "line": 2223,
+      "line": 2240,
       "declaredGuards": [
         "validateUser"
       ]
@@ -555,7 +599,7 @@
       "method": "POST",
       "path": "/api/user/add_warmer_message",
       "source": "routes/user.js",
-      "line": 2248,
+      "line": 2265,
       "declaredGuards": [
         "validateUser"
       ]
@@ -564,7 +608,7 @@
       "method": "GET",
       "path": "/api/user/get_warmer_script",
       "source": "routes/user.js",
-      "line": 2268,
+      "line": 2285,
       "declaredGuards": [
         "validateUser"
       ]
@@ -573,7 +617,7 @@
       "method": "POST",
       "path": "/api/user/del_warmer_msg",
       "source": "routes/user.js",
-      "line": 2281,
+      "line": 2298,
       "declaredGuards": [
         "validateUser"
       ]
@@ -582,7 +626,7 @@
       "method": "POST",
       "path": "/api/user/add_ins_to_warm",
       "source": "routes/user.js",
-      "line": 2296,
+      "line": 2313,
       "declaredGuards": [
         "validateUser",
         "checkPlan",
@@ -593,7 +637,7 @@
       "method": "GET",
       "path": "/api/user/get_my_warmer",
       "source": "routes/user.js",
-      "line": 2338,
+      "line": 2355,
       "declaredGuards": [
         "validateUser"
       ]
@@ -602,7 +646,7 @@
       "method": "POST",
       "path": "/api/user/change_warmer_status",
       "source": "routes/user.js",
-      "line": 2367,
+      "line": 2384,
       "declaredGuards": [
         "validateUser"
       ]
@@ -611,7 +655,7 @@
       "method": "POST",
       "path": "/api/user/add_g_auth",
       "source": "routes/user.js",
-      "line": 2384,
+      "line": 2401,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -621,7 +665,7 @@
       "method": "GET",
       "path": "/api/user/get_my_g_creds",
       "source": "routes/user.js",
-      "line": 2408,
+      "line": 2425,
       "declaredGuards": [
         "validateUser"
       ]
@@ -630,7 +674,7 @@
       "method": "POST",
       "path": "/api/user/get_agent_report_old",
       "source": "routes/user.js",
-      "line": 2474,
+      "line": 2491,
       "declaredGuards": [
         "validateUser"
       ]
@@ -639,7 +683,7 @@
       "method": "POST",
       "path": "/api/user/get_agent_report",
       "source": "routes/user.js",
-      "line": 2758,
+      "line": 2775,
       "declaredGuards": [
         "validateUser"
       ]
@@ -648,7 +692,7 @@
       "method": "GET",
       "path": "/api/user/get_my_meta_templets_beta",
       "source": "routes/user.js",
-      "line": 2911,
+      "line": 2928,
       "declaredGuards": [
         "validateUser"
       ]
@@ -657,7 +701,7 @@
       "method": "POST",
       "path": "/api/user/send_template_message",
       "source": "routes/user.js",
-      "line": 2967,
+      "line": 2984,
       "declaredGuards": [
         "validateUser"
       ]
@@ -666,7 +710,7 @@
       "method": "POST",
       "path": "/api/user/add_quick_reply",
       "source": "routes/user.js",
-      "line": 3038,
+      "line": 3055,
       "declaredGuards": [
         "validateUser"
       ]
@@ -675,7 +719,7 @@
       "method": "GET",
       "path": "/api/user/get_all_quick_reply",
       "source": "routes/user.js",
-      "line": 3060,
+      "line": 3077,
       "declaredGuards": [
         "validateUser"
       ]
@@ -684,7 +728,7 @@
       "method": "POST",
       "path": "/api/user/del_quick_r",
       "source": "routes/user.js",
-      "line": 3077,
+      "line": 3094,
       "declaredGuards": [
         "validateUser"
       ]
@@ -693,7 +737,7 @@
       "method": "POST",
       "path": "/api/user/update_fcm_token",
       "source": "routes/user.js",
-      "line": 3098,
+      "line": 3115,
       "declaredGuards": [
         "validateUser"
       ]
@@ -702,7 +746,7 @@
       "method": "POST",
       "path": "/api/user/exchange_embed_token",
       "source": "routes/user.js",
-      "line": 3149,
+      "line": 3166,
       "declaredGuards": [
         "validateUser"
       ]
@@ -711,7 +755,7 @@
       "method": "GET",
       "path": "/api/user/get_embed_keys",
       "source": "routes/user.js",
-      "line": 3276,
+      "line": 3293,
       "declaredGuards": [
         "validateUser"
       ]
@@ -720,14 +764,14 @@
       "method": "POST",
       "path": "/api/user/try_js",
       "source": "routes/user.js",
-      "line": 3291,
+      "line": 3308,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/user/create_mercadopago_preference",
       "source": "routes/user.js",
-      "line": 3355,
+      "line": 3372,
       "declaredGuards": [
         "validateUser"
       ]
@@ -736,21 +780,21 @@
       "method": "GET",
       "path": "/api/user/mercadopago_payment",
       "source": "routes/user.js",
-      "line": 3448,
+      "line": 3465,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/user/mercadopago_webhook",
       "source": "routes/user.js",
-      "line": 3506,
+      "line": 3523,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/user/get_fcm_data",
       "source": "routes/user.js",
-      "line": 3558,
+      "line": 3575,
       "declaredGuards": [
         "validateUser"
       ]
@@ -759,7 +803,7 @@
       "method": "POST",
       "path": "/api/user/update_web_fcm_token",
       "source": "routes/user.js",
-      "line": 3578,
+      "line": 3595,
       "declaredGuards": [
         "validateUser"
       ]
@@ -768,7 +812,7 @@
       "method": "POST",
       "path": "/api/user/update_fcm_choice",
       "source": "routes/user.js",
-      "line": 3615,
+      "line": 3632,
       "declaredGuards": [
         "validateUser"
       ]
@@ -777,35 +821,35 @@
       "method": "GET",
       "path": "/api/web/get_all",
       "source": "routes/web.js",
-      "line": 35,
+      "line": 36,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/web/return_module",
       "source": "routes/web.js",
-      "line": 45,
+      "line": 46,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/web/get-one-translation",
       "source": "routes/web.js",
-      "line": 57,
+      "line": 58,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/web/get-all-translation-name",
       "source": "routes/web.js",
-      "line": 144,
+      "line": 145,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/web/update-one-translation",
       "source": "routes/web.js",
-      "line": 159,
+      "line": 160,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -814,14 +858,14 @@
       "method": "POST",
       "path": "/api/web/submit_contact_form",
       "source": "routes/web.js",
-      "line": 185,
+      "line": 186,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/web/update_web_config",
       "source": "routes/web.js",
-      "line": 213,
+      "line": 214,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -830,7 +874,7 @@
       "method": "POST",
       "path": "/api/web/add-new-translation",
       "source": "routes/web.js",
-      "line": 295,
+      "line": 296,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -839,14 +883,14 @@
       "method": "GET",
       "path": "/api/web/get-all-translation-name",
       "source": "routes/web.js",
-      "line": 348,
+      "line": 349,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/web/del-one-translation",
       "source": "routes/web.js",
-      "line": 364,
+      "line": 365,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -855,49 +899,49 @@
       "method": "GET",
       "path": "/api/web/check_install",
       "source": "routes/web.js",
-      "line": 405,
+      "line": 406,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/web/get_app_version",
       "source": "routes/web.js",
-      "line": 423,
+      "line": 424,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/web/install_app",
       "source": "routes/web.js",
-      "line": 433,
+      "line": 434,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/web/update_app",
       "source": "routes/web.js",
-      "line": 455,
+      "line": 456,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/web/update_to_be_shown",
       "source": "routes/web.js",
-      "line": 518,
+      "line": 519,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/web/get_web_public",
       "source": "routes/web.js",
-      "line": 528,
+      "line": 529,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/web/get_theme",
       "source": "routes/web.js",
-      "line": 540,
+      "line": 541,
       "declaredGuards": [
         "checkLicense"
       ]
@@ -906,7 +950,7 @@
       "method": "POST",
       "path": "/api/web/verify_license",
       "source": "routes/web.js",
-      "line": 553,
+      "line": 554,
       "declaredGuards": []
     },
     {
@@ -946,20 +990,22 @@
       "path": "/api/web/get_web_pvt",
       "source": "routes/web.js",
       "line": 716,
-      "declaredGuards": []
+      "declaredGuards": [
+        "adminValidator"
+      ]
     },
     {
       "method": "POST",
       "path": "/api/admin/login",
       "source": "routes/admin.js",
-      "line": 21,
+      "line": 56,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/add_plan",
       "source": "routes/admin.js",
-      "line": 67,
+      "line": 108,
       "declaredGuards": [
         "adminValidator",
         "legacyPlanHandlers.add"
@@ -969,7 +1015,7 @@
       "method": "POST",
       "path": "/api/admin/edit_plan",
       "source": "routes/admin.js",
-      "line": 68,
+      "line": 109,
       "declaredGuards": [
         "adminValidator",
         "legacyPlanHandlers.edit"
@@ -979,21 +1025,21 @@
       "method": "GET",
       "path": "/api/admin/get_plans",
       "source": "routes/admin.js",
-      "line": 71,
+      "line": 112,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/admin/get_web_public",
       "source": "routes/admin.js",
-      "line": 82,
+      "line": 123,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_plan",
       "source": "routes/admin.js",
-      "line": 93,
+      "line": 134,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1002,7 +1048,16 @@
       "method": "GET",
       "path": "/api/admin/get_users",
       "source": "routes/admin.js",
-      "line": 106,
+      "line": 147,
+      "declaredGuards": [
+        "adminValidator"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/get_user_team_tree",
+      "source": "routes/admin.js",
+      "line": 168,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1011,7 +1066,7 @@
       "method": "POST",
       "path": "/api/admin/add_user",
       "source": "routes/admin.js",
-      "line": 122,
+      "line": 182,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1020,7 +1075,7 @@
       "method": "POST",
       "path": "/api/admin/update_user",
       "source": "routes/admin.js",
-      "line": 167,
+      "line": 234,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1029,9 +1084,10 @@
       "method": "POST",
       "path": "/api/admin/update_plan",
       "source": "routes/admin.js",
-      "line": 232,
+      "line": 303,
       "declaredGuards": [
         "adminValidator",
+        "CallExpression",
         "legacyAssignmentHandler"
       ]
     },
@@ -1039,9 +1095,10 @@
       "method": "GET",
       "path": "/api/admin/user_plan_context",
       "source": "routes/admin.js",
-      "line": 234,
+      "line": 305,
       "declaredGuards": [
         "adminValidator",
+        "CallExpression",
         "CallExpression"
       ]
     },
@@ -1049,9 +1106,10 @@
       "method": "POST",
       "path": "/api/admin/preview_user_plan",
       "source": "routes/admin.js",
-      "line": 235,
+      "line": 306,
       "declaredGuards": [
         "adminValidator",
+        "CallExpression",
         "CallExpression"
       ]
     },
@@ -1059,7 +1117,7 @@
       "method": "GET",
       "path": "/api/admin/get_payment_gateway_admin",
       "source": "routes/admin.js",
-      "line": 238,
+      "line": 309,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1068,7 +1126,7 @@
       "method": "POST",
       "path": "/api/admin/update_pay_gateway",
       "source": "routes/admin.js",
-      "line": 252,
+      "line": 323,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1077,7 +1135,7 @@
       "method": "POST",
       "path": "/api/admin/add_brand_image",
       "source": "routes/admin.js",
-      "line": 328,
+      "line": 399,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1086,14 +1144,14 @@
       "method": "GET",
       "path": "/api/admin/get_brands",
       "source": "routes/admin.js",
-      "line": 356,
+      "line": 427,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_brand_logo",
       "source": "routes/admin.js",
-      "line": 367,
+      "line": 438,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1102,7 +1160,7 @@
       "method": "POST",
       "path": "/api/admin/add_faq",
       "source": "routes/admin.js",
-      "line": 380,
+      "line": 451,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1111,14 +1169,14 @@
       "method": "GET",
       "path": "/api/admin/get_faq",
       "source": "routes/admin.js",
-      "line": 404,
+      "line": 475,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_faq",
       "source": "routes/admin.js",
-      "line": 415,
+      "line": 486,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1127,7 +1185,7 @@
       "method": "POST",
       "path": "/api/admin/add_page",
       "source": "routes/admin.js",
-      "line": 427,
+      "line": 498,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1136,14 +1194,14 @@
       "method": "GET",
       "path": "/api/admin/get_pages",
       "source": "routes/admin.js",
-      "line": 486,
+      "line": 557,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_page",
       "source": "routes/admin.js",
-      "line": 497,
+      "line": 568,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1152,7 +1210,7 @@
       "method": "POST",
       "path": "/api/admin/auto_login",
       "source": "routes/admin.js",
-      "line": 510,
+      "line": 581,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1161,7 +1219,7 @@
       "method": "POST",
       "path": "/api/admin/add_testimonial",
       "source": "routes/admin.js",
-      "line": 541,
+      "line": 617,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1170,14 +1228,14 @@
       "method": "GET",
       "path": "/api/admin/get_testi",
       "source": "routes/admin.js",
-      "line": 562,
+      "line": 638,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/del_testi",
       "source": "routes/admin.js",
-      "line": 573,
+      "line": 649,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1186,7 +1244,7 @@
       "method": "GET",
       "path": "/api/admin/get_orders",
       "source": "routes/admin.js",
-      "line": 586,
+      "line": 662,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1195,7 +1253,7 @@
       "method": "POST",
       "path": "/api/admin/del_order",
       "source": "routes/admin.js",
-      "line": 622,
+      "line": 698,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1204,7 +1262,7 @@
       "method": "GET",
       "path": "/api/admin/get_contact_leads",
       "source": "routes/admin.js",
-      "line": 637,
+      "line": 713,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1213,7 +1271,7 @@
       "method": "POST",
       "path": "/api/admin/del_cotact_entry",
       "source": "routes/admin.js",
-      "line": 648,
+      "line": 724,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1222,14 +1280,14 @@
       "method": "POST",
       "path": "/api/admin/get_page_slug",
       "source": "routes/admin.js",
-      "line": 660,
+      "line": 736,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/update_terms",
       "source": "routes/admin.js",
-      "line": 676,
+      "line": 752,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1238,7 +1296,7 @@
       "method": "POST",
       "path": "/api/admin/update_privacy_policy",
       "source": "routes/admin.js",
-      "line": 706,
+      "line": 782,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1247,7 +1305,7 @@
       "method": "GET",
       "path": "/api/admin/get_smtp",
       "source": "routes/admin.js",
-      "line": 736,
+      "line": 812,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1256,7 +1314,7 @@
       "method": "POST",
       "path": "/api/admin/update_smtp",
       "source": "routes/admin.js",
-      "line": 751,
+      "line": 827,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1265,7 +1323,7 @@
       "method": "POST",
       "path": "/api/admin/send_test_email",
       "source": "routes/admin.js",
-      "line": 780,
+      "line": 856,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1274,7 +1332,7 @@
       "method": "GET",
       "path": "/api/admin/get_dashboard_for_user",
       "source": "routes/admin.js",
-      "line": 812,
+      "line": 888,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1283,7 +1341,7 @@
       "method": "GET",
       "path": "/api/admin/get_admin",
       "source": "routes/admin.js",
-      "line": 1085,
+      "line": 1185,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1292,7 +1350,7 @@
       "method": "POST",
       "path": "/api/admin/update-admin",
       "source": "routes/admin.js",
-      "line": 1096,
+      "line": 1196,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1301,14 +1359,14 @@
       "method": "POST",
       "path": "/api/admin/send_resovery",
       "source": "routes/admin.js",
-      "line": 1120,
+      "line": 1220,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/admin/modify_password",
       "source": "routes/admin.js",
-      "line": 1195,
+      "line": 1295,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1317,7 +1375,7 @@
       "method": "POST",
       "path": "/api/admin/del_user",
       "source": "routes/admin.js",
-      "line": 1226,
+      "line": 1326,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1326,7 +1384,7 @@
       "method": "GET",
       "path": "/api/admin/get_wa_gen",
       "source": "routes/admin.js",
-      "line": 1238,
+      "line": 1342,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1335,7 +1393,7 @@
       "method": "POST",
       "path": "/api/admin/de_wa_den_link",
       "source": "routes/admin.js",
-      "line": 1249,
+      "line": 1353,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1344,14 +1402,16 @@
       "method": "GET",
       "path": "/api/admin/get_social_login",
       "source": "routes/admin.js",
-      "line": 1261,
-      "declaredGuards": []
+      "line": 1365,
+      "declaredGuards": [
+        "adminValidator"
+      ]
     },
     {
       "method": "POST",
       "path": "/api/admin/update_social_login",
       "source": "routes/admin.js",
-      "line": 1272,
+      "line": 1376,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1360,7 +1420,7 @@
       "method": "POST",
       "path": "/api/admin/update_rtl",
       "source": "routes/admin.js",
-      "line": 1301,
+      "line": 1405,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1369,7 +1429,7 @@
       "method": "GET",
       "path": "/api/admin/get_qr_set",
       "source": "routes/admin.js",
-      "line": 1315,
+      "line": 1419,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1378,7 +1438,7 @@
       "method": "POST",
       "path": "/api/admin/update_qr_set",
       "source": "routes/admin.js",
-      "line": 1328,
+      "line": 1432,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1387,7 +1447,7 @@
       "method": "GET",
       "path": "/api/admin/get_mobile_app_dt",
       "source": "routes/admin.js",
-      "line": 1359,
+      "line": 1463,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1396,7 +1456,7 @@
       "method": "POST",
       "path": "/api/admin/update_mb",
       "source": "routes/admin.js",
-      "line": 1370,
+      "line": 1474,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1405,7 +1465,7 @@
       "method": "POST",
       "path": "/api/admin/update_embed_config",
       "source": "routes/admin.js",
-      "line": 1394,
+      "line": 1498,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1414,7 +1474,7 @@
       "method": "GET",
       "path": "/api/admin/get_tele_config",
       "source": "routes/admin.js",
-      "line": 1409,
+      "line": 1513,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1423,7 +1483,7 @@
       "method": "POST",
       "path": "/api/admin/update_tele_config",
       "source": "routes/admin.js",
-      "line": 1423,
+      "line": 1527,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1432,7 +1492,7 @@
       "method": "POST",
       "path": "/api/admin/add_flow_template",
       "source": "routes/admin.js",
-      "line": 1496,
+      "line": 1600,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1441,14 +1501,14 @@
       "method": "GET",
       "path": "/api/admin/get_flow_templates",
       "source": "routes/admin.js",
-      "line": 1542,
+      "line": 1646,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/admin/delete_flow_template",
       "source": "routes/admin.js",
-      "line": 1553,
+      "line": 1657,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1457,7 +1517,7 @@
       "method": "GET",
       "path": "/api/admin/get_fcm_data",
       "source": "routes/admin.js",
-      "line": 1571,
+      "line": 1675,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1466,7 +1526,7 @@
       "method": "POST",
       "path": "/api/admin/update_fcm_data",
       "source": "routes/admin.js",
-      "line": 1593,
+      "line": 1697,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1475,7 +1535,7 @@
       "method": "GET",
       "path": "/api/admin/get_fcm_subs",
       "source": "routes/admin.js",
-      "line": 1642,
+      "line": 1746,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1484,7 +1544,7 @@
       "method": "POST",
       "path": "/api/admin/send_fcm_manul",
       "source": "routes/admin.js",
-      "line": 1693,
+      "line": 1797,
       "declaredGuards": [
         "adminValidator"
       ]
@@ -1493,9 +1553,10 @@
       "method": "POST",
       "path": "/api/phonebook/add",
       "source": "routes/phonebook.js",
-      "line": 16,
+      "line": 18,
       "declaredGuards": [
         "validateUser",
+        "phonebookOwnerScope",
         "checkPlan",
         "checkContactLimit"
       ]
@@ -1504,36 +1565,40 @@
       "method": "GET",
       "path": "/api/phonebook/get_by_uid",
       "source": "routes/phonebook.js",
-      "line": 58,
+      "line": 61,
       "declaredGuards": [
-        "validateUser"
+        "validateUser",
+        "phonebookOwnerScope"
       ]
     },
     {
       "method": "PUT",
       "path": "/api/phonebook/edit_contact",
       "source": "routes/phonebook.js",
-      "line": 82,
+      "line": 90,
       "declaredGuards": [
-        "validateUser"
+        "validateUser",
+        "phonebookOwnerScope"
       ]
     },
     {
       "method": "POST",
       "path": "/api/phonebook/del_phonebook",
       "source": "routes/phonebook.js",
-      "line": 115,
+      "line": 123,
       "declaredGuards": [
-        "validateUser"
+        "validateUser",
+        "phonebookOwnerScope"
       ]
     },
     {
       "method": "POST",
       "path": "/api/phonebook/import_contacts",
       "source": "routes/phonebook.js",
-      "line": 167,
+      "line": 172,
       "declaredGuards": [
         "validateUser",
+        "phonebookOwnerScope",
         "checkPlan",
         "checkContactLimit"
       ]
@@ -1542,9 +1607,10 @@
       "method": "POST",
       "path": "/api/phonebook/add_single_contact",
       "source": "routes/phonebook.js",
-      "line": 222,
+      "line": 221,
       "declaredGuards": [
         "validateUser",
+        "phonebookOwnerScope",
         "checkPlan",
         "checkContactLimit"
       ]
@@ -1553,25 +1619,27 @@
       "method": "GET",
       "path": "/api/phonebook/get_uid_contacts",
       "source": "routes/phonebook.js",
-      "line": 261,
+      "line": 264,
       "declaredGuards": [
-        "validateUser"
+        "validateUser",
+        "phonebookOwnerScope"
       ]
     },
     {
       "method": "POST",
       "path": "/api/phonebook/del_contacts",
       "source": "routes/phonebook.js",
-      "line": 274,
+      "line": 282,
       "declaredGuards": [
-        "validateUser"
+        "validateUser",
+        "phonebookOwnerScope"
       ]
     },
     {
       "method": "POST",
       "path": "/api/chat_flow/add_new",
       "source": "routes/chatFlow.js",
-      "line": 20,
+      "line": 30,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1581,7 +1649,7 @@
       "method": "POST",
       "path": "/api/chat_flow/insert_flow_beta",
       "source": "routes/chatFlow.js",
-      "line": 123,
+      "line": 132,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1591,7 +1659,7 @@
       "method": "GET",
       "path": "/api/chat_flow/get_flows_beta",
       "source": "routes/chatFlow.js",
-      "line": 179,
+      "line": 188,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1601,7 +1669,7 @@
       "method": "POST",
       "path": "/api/chat_flow/del_flow_beta",
       "source": "routes/chatFlow.js",
-      "line": 209,
+      "line": 218,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1610,7 +1678,7 @@
       "method": "GET",
       "path": "/api/chat_flow/get_mine",
       "source": "routes/chatFlow.js",
-      "line": 224,
+      "line": 233,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1619,7 +1687,7 @@
       "method": "POST",
       "path": "/api/chat_flow/del_flow",
       "source": "routes/chatFlow.js",
-      "line": 237,
+      "line": 246,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1628,7 +1696,7 @@
       "method": "POST",
       "path": "/api/chat_flow/get_by_flow_id",
       "source": "routes/chatFlow.js",
-      "line": 260,
+      "line": 270,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1637,7 +1705,7 @@
       "method": "POST",
       "path": "/api/chat_flow/get_activity",
       "source": "routes/chatFlow.js",
-      "line": 281,
+      "line": 294,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1647,7 +1715,7 @@
       "method": "POST",
       "path": "/api/chat_flow/remove_number_from_activity",
       "source": "routes/chatFlow.js",
-      "line": 321,
+      "line": 334,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1656,7 +1724,7 @@
       "method": "POST",
       "path": "/api/chat_flow/session_mine",
       "source": "routes/chatFlow.js",
-      "line": 361,
+      "line": 375,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1665,7 +1733,7 @@
       "method": "POST",
       "path": "/api/chat_flow/session_mine_agent",
       "source": "routes/chatFlow.js",
-      "line": 377,
+      "line": 391,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -1674,7 +1742,7 @@
       "method": "POST",
       "path": "/api/chat_flow/enable_chat_agent",
       "source": "routes/chatFlow.js",
-      "line": 392,
+      "line": 406,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -1683,7 +1751,7 @@
       "method": "POST",
       "path": "/api/chat_flow/enable_chat",
       "source": "routes/chatFlow.js",
-      "line": 404,
+      "line": 418,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1692,7 +1760,7 @@
       "method": "POST",
       "path": "/api/chat_flow/disable_chat",
       "source": "routes/chatFlow.js",
-      "line": 417,
+      "line": 431,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1701,7 +1769,7 @@
       "method": "POST",
       "path": "/api/chat_flow/disable_chat_agent",
       "source": "routes/chatFlow.js",
-      "line": 449,
+      "line": 464,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -1710,7 +1778,7 @@
       "method": "POST",
       "path": "/api/chat_flow/get_beta_flow_sessions",
       "source": "routes/chatFlow.js",
-      "line": 482,
+      "line": 498,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1719,7 +1787,7 @@
       "method": "POST",
       "path": "/api/chat_flow/del_flow_sess",
       "source": "routes/chatFlow.js",
-      "line": 498,
+      "line": 514,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1728,7 +1796,7 @@
       "method": "POST",
       "path": "/api/chat_flow/reset_dc_sess",
       "source": "routes/chatFlow.js",
-      "line": 513,
+      "line": 529,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1737,7 +1805,7 @@
       "method": "POST",
       "path": "/api/chat_flow/del_multiple_flow_sess",
       "source": "routes/chatFlow.js",
-      "line": 538,
+      "line": 555,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1746,7 +1814,7 @@
       "method": "POST",
       "path": "/api/chat_flow/make_request_try_beta",
       "source": "routes/chatFlow.js",
-      "line": 562,
+      "line": 579,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1755,7 +1823,7 @@
       "method": "POST",
       "path": "/api/chat_flow/try_con",
       "source": "routes/chatFlow.js",
-      "line": 583,
+      "line": 600,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1764,7 +1832,209 @@
       "method": "GET",
       "path": "/api/chat_flow/get_origians",
       "source": "routes/chatFlow.js",
-      "line": 602,
+      "line": 619,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/add_new",
+      "source": "routes/chatFlow.js",
+      "line": 30,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/insert_flow_beta",
+      "source": "routes/chatFlow.js",
+      "line": 132,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/automation/flows/get_flows_beta",
+      "source": "routes/chatFlow.js",
+      "line": 188,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/del_flow_beta",
+      "source": "routes/chatFlow.js",
+      "line": 218,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/automation/flows/get_mine",
+      "source": "routes/chatFlow.js",
+      "line": 233,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/del_flow",
+      "source": "routes/chatFlow.js",
+      "line": 246,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/get_by_flow_id",
+      "source": "routes/chatFlow.js",
+      "line": 270,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/get_activity",
+      "source": "routes/chatFlow.js",
+      "line": 294,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/remove_number_from_activity",
+      "source": "routes/chatFlow.js",
+      "line": 334,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/session_mine",
+      "source": "routes/chatFlow.js",
+      "line": 375,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/session_mine_agent",
+      "source": "routes/chatFlow.js",
+      "line": 391,
+      "declaredGuards": [
+        "validateAgent"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/enable_chat_agent",
+      "source": "routes/chatFlow.js",
+      "line": 406,
+      "declaredGuards": [
+        "validateAgent"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/enable_chat",
+      "source": "routes/chatFlow.js",
+      "line": 418,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/disable_chat",
+      "source": "routes/chatFlow.js",
+      "line": 431,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/disable_chat_agent",
+      "source": "routes/chatFlow.js",
+      "line": 464,
+      "declaredGuards": [
+        "validateAgent"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/get_beta_flow_sessions",
+      "source": "routes/chatFlow.js",
+      "line": 498,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/del_flow_sess",
+      "source": "routes/chatFlow.js",
+      "line": 514,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/reset_dc_sess",
+      "source": "routes/chatFlow.js",
+      "line": 529,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/del_multiple_flow_sess",
+      "source": "routes/chatFlow.js",
+      "line": 555,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/make_request_try_beta",
+      "source": "routes/chatFlow.js",
+      "line": 579,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/flows/try_con",
+      "source": "routes/chatFlow.js",
+      "line": 600,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/automation/flows/get_origians",
+      "source": "routes/chatFlow.js",
+      "line": 619,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1787,14 +2057,14 @@
       "method": "POST",
       "path": "/api/inbox/webhook/:uid",
       "source": "routes/inbox.js",
-      "line": 319,
+      "line": 317,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/inbox/get_chats",
       "source": "routes/inbox.js",
-      "line": 614,
+      "line": 617,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1803,7 +2073,7 @@
       "method": "POST",
       "path": "/api/inbox/get_convo",
       "source": "routes/inbox.js",
-      "line": 666,
+      "line": 677,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1812,21 +2082,21 @@
       "method": "GET",
       "path": "/api/inbox/webhook/:uid",
       "source": "routes/inbox.js",
-      "line": 703,
+      "line": 721,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/inbox/",
       "source": "routes/inbox.js",
-      "line": 758,
+      "line": 776,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/inbox/send_templet",
       "source": "routes/inbox.js",
-      "line": 780,
+      "line": 798,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1836,7 +2106,7 @@
       "method": "POST",
       "path": "/api/inbox/send_image",
       "source": "routes/inbox.js",
-      "line": 818,
+      "line": 836,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1846,7 +2116,7 @@
       "method": "POST",
       "path": "/api/inbox/send_video",
       "source": "routes/inbox.js",
-      "line": 868,
+      "line": 886,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1856,7 +2126,7 @@
       "method": "POST",
       "path": "/api/inbox/send_doc",
       "source": "routes/inbox.js",
-      "line": 918,
+      "line": 936,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1866,7 +2136,7 @@
       "method": "POST",
       "path": "/api/inbox/send_audio",
       "source": "routes/inbox.js",
-      "line": 968,
+      "line": 986,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1876,7 +2146,7 @@
       "method": "POST",
       "path": "/api/inbox/send_text",
       "source": "routes/inbox.js",
-      "line": 1016,
+      "line": 1034,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1886,7 +2156,7 @@
       "method": "POST",
       "path": "/api/inbox/send_meta_templet",
       "source": "routes/inbox.js",
-      "line": 1066,
+      "line": 1084,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1896,7 +2166,7 @@
       "method": "POST",
       "path": "/api/inbox/del_chat",
       "source": "routes/inbox.js",
-      "line": 1133,
+      "line": 1151,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1905,7 +2175,7 @@
       "method": "POST",
       "path": "/api/inbox/merge_chats",
       "source": "routes/inbox.js",
-      "line": 1178,
+      "line": 1196,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1914,7 +2184,7 @@
       "method": "POST",
       "path": "/api/inbox/import_convo_from_v3",
       "source": "routes/inbox.js",
-      "line": 1209,
+      "line": 1227,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1923,7 +2193,166 @@
       "method": "GET",
       "path": "/api/inbox/import_chats_from_v3",
       "source": "routes/inbox.js",
-      "line": 1248,
+      "line": 1266,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/inbox/embed/webhook/:uid",
+      "source": "routes/inbox.js",
+      "line": 49,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/embed/webhook/:uid",
+      "source": "routes/inbox.js",
+      "line": 79,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/webhook/:uid",
+      "source": "routes/inbox.js",
+      "line": 317,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/inbox/get_chats",
+      "source": "routes/inbox.js",
+      "line": 617,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/get_convo",
+      "source": "routes/inbox.js",
+      "line": 677,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/inbox/webhook/:uid",
+      "source": "routes/inbox.js",
+      "line": 721,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/inbox/",
+      "source": "routes/inbox.js",
+      "line": 776,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/send_templet",
+      "source": "routes/inbox.js",
+      "line": 798,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/send_image",
+      "source": "routes/inbox.js",
+      "line": 836,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/send_video",
+      "source": "routes/inbox.js",
+      "line": 886,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/send_doc",
+      "source": "routes/inbox.js",
+      "line": 936,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/send_audio",
+      "source": "routes/inbox.js",
+      "line": 986,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/send_text",
+      "source": "routes/inbox.js",
+      "line": 1034,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/send_meta_templet",
+      "source": "routes/inbox.js",
+      "line": 1084,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/del_chat",
+      "source": "routes/inbox.js",
+      "line": 1151,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/merge_chats",
+      "source": "routes/inbox.js",
+      "line": 1196,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/inbox/import_convo_from_v3",
+      "source": "routes/inbox.js",
+      "line": 1227,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/inbox/import_chats_from_v3",
+      "source": "routes/inbox.js",
+      "line": 1266,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1932,7 +2361,7 @@
       "method": "POST",
       "path": "/api/templet/add_new",
       "source": "routes/templet.js",
-      "line": 11,
+      "line": 20,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1942,7 +2371,7 @@
       "method": "GET",
       "path": "/api/templet/get_templets",
       "source": "routes/templet.js",
-      "line": 35,
+      "line": 44,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1951,7 +2380,35 @@
       "method": "POST",
       "path": "/api/templet/del_templets",
       "source": "routes/templet.js",
-      "line": 47,
+      "line": 56,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/templates/add_new",
+      "source": "routes/templet.js",
+      "line": 20,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/templates/get_templets",
+      "source": "routes/templet.js",
+      "line": 44,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/templates/del_templets",
+      "source": "routes/templet.js",
+      "line": 56,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1960,7 +2417,7 @@
       "method": "POST",
       "path": "/api/chatbot/add_chatbot",
       "source": "routes/chatbot.js",
-      "line": 19,
+      "line": 28,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1970,7 +2427,7 @@
       "method": "POST",
       "path": "/api/chatbot/update_chatbot",
       "source": "routes/chatbot.js",
-      "line": 83,
+      "line": 92,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1980,7 +2437,7 @@
       "method": "GET",
       "path": "/api/chatbot/get_chatbot",
       "source": "routes/chatbot.js",
-      "line": 153,
+      "line": 162,
       "declaredGuards": [
         "validateUser"
       ]
@@ -1989,7 +2446,7 @@
       "method": "POST",
       "path": "/api/chatbot/change_bot_status",
       "source": "routes/chatbot.js",
-      "line": 166,
+      "line": 175,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -1999,7 +2456,7 @@
       "method": "POST",
       "path": "/api/chatbot/del_chatbot",
       "source": "routes/chatbot.js",
-      "line": 191,
+      "line": 200,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2008,7 +2465,7 @@
       "method": "POST",
       "path": "/api/chatbot/make_request_api",
       "source": "routes/chatbot.js",
-      "line": 206,
+      "line": 215,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2018,7 +2475,7 @@
       "method": "POST",
       "path": "/api/chatbot/add_beta_chatbot",
       "source": "routes/chatbot.js",
-      "line": 228,
+      "line": 237,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2028,7 +2485,7 @@
       "method": "GET",
       "path": "/api/chatbot/get_beta_chatbots",
       "source": "routes/chatbot.js",
-      "line": 370,
+      "line": 379,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2037,7 +2494,7 @@
       "method": "POST",
       "path": "/api/chatbot/change_beta_bot_status",
       "source": "routes/chatbot.js",
-      "line": 385,
+      "line": 394,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2046,7 +2503,102 @@
       "method": "POST",
       "path": "/api/chatbot/del_beta_chatbot",
       "source": "routes/chatbot.js",
-      "line": 401,
+      "line": 410,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/chatbot/add_chatbot",
+      "source": "routes/chatbot.js",
+      "line": 28,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/chatbot/update_chatbot",
+      "source": "routes/chatbot.js",
+      "line": 92,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/automation/chatbot/get_chatbot",
+      "source": "routes/chatbot.js",
+      "line": 162,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/chatbot/change_bot_status",
+      "source": "routes/chatbot.js",
+      "line": 175,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/chatbot/del_chatbot",
+      "source": "routes/chatbot.js",
+      "line": 200,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/chatbot/make_request_api",
+      "source": "routes/chatbot.js",
+      "line": 215,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/chatbot/add_beta_chatbot",
+      "source": "routes/chatbot.js",
+      "line": 237,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/automation/chatbot/get_beta_chatbots",
+      "source": "routes/chatbot.js",
+      "line": 379,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/chatbot/change_beta_bot_status",
+      "source": "routes/chatbot.js",
+      "line": 394,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/automation/chatbot/del_beta_chatbot",
+      "source": "routes/chatbot.js",
+      "line": 410,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2055,7 +2607,7 @@
       "method": "POST",
       "path": "/api/broadcast/add_new",
       "source": "routes/broadcast.js",
-      "line": 14,
+      "line": 26,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2065,7 +2617,7 @@
       "method": "GET",
       "path": "/api/broadcast/get_broadcast",
       "source": "routes/broadcast.js",
-      "line": 119,
+      "line": 131,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2074,7 +2626,7 @@
       "method": "POST",
       "path": "/api/broadcast/get_broadcast_logs",
       "source": "routes/broadcast.js",
-      "line": 132,
+      "line": 144,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2083,7 +2635,7 @@
       "method": "POST",
       "path": "/api/broadcast/change_broadcast_status",
       "source": "routes/broadcast.js",
-      "line": 178,
+      "line": 190,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2092,7 +2644,7 @@
       "method": "POST",
       "path": "/api/broadcast/del_broadcast",
       "source": "routes/broadcast.js",
-      "line": 199,
+      "line": 211,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2101,7 +2653,7 @@
       "method": "POST",
       "path": "/api/broadcast/create_template_campaign",
       "source": "routes/broadcast.js",
-      "line": 219,
+      "line": 231,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2111,7 +2663,7 @@
       "method": "GET",
       "path": "/api/broadcast/get_campaigns",
       "source": "routes/broadcast.js",
-      "line": 411,
+      "line": 433,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2121,7 +2673,7 @@
       "method": "GET",
       "path": "/api/broadcast/get_campaign_details/:campaignId",
       "source": "routes/broadcast.js",
-      "line": 432,
+      "line": 454,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2131,7 +2683,7 @@
       "method": "GET",
       "path": "/api/broadcast/campaigns",
       "source": "routes/broadcast.js",
-      "line": 506,
+      "line": 528,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2140,7 +2692,7 @@
       "method": "POST",
       "path": "/api/broadcast/download_csv",
       "source": "routes/broadcast.js",
-      "line": 581,
+      "line": 603,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2149,7 +2701,7 @@
       "method": "GET",
       "path": "/api/broadcast/campaign/:campaignId",
       "source": "routes/broadcast.js",
-      "line": 775,
+      "line": 797,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2158,7 +2710,7 @@
       "method": "GET",
       "path": "/api/broadcast/dashboard",
       "source": "routes/broadcast.js",
-      "line": 1002,
+      "line": 1024,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2167,7 +2719,7 @@
       "method": "GET",
       "path": "/api/broadcast/export/:campaignId",
       "source": "routes/broadcast.js",
-      "line": 1105,
+      "line": 1127,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2176,7 +2728,137 @@
       "method": "POST",
       "path": "/api/broadcast/del_campaign",
       "source": "routes/broadcast.js",
-      "line": 1177,
+      "line": 1199,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/campaigns/add_new",
+      "source": "routes/broadcast.js",
+      "line": 26,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/campaigns/get_broadcast",
+      "source": "routes/broadcast.js",
+      "line": 131,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/campaigns/get_broadcast_logs",
+      "source": "routes/broadcast.js",
+      "line": 144,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/campaigns/change_broadcast_status",
+      "source": "routes/broadcast.js",
+      "line": 190,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/campaigns/del_broadcast",
+      "source": "routes/broadcast.js",
+      "line": 211,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/campaigns/create_template_campaign",
+      "source": "routes/broadcast.js",
+      "line": 231,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/campaigns/get_campaigns",
+      "source": "routes/broadcast.js",
+      "line": 433,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/campaigns/get_campaign_details/:campaignId",
+      "source": "routes/broadcast.js",
+      "line": 454,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/campaigns/campaigns",
+      "source": "routes/broadcast.js",
+      "line": 528,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/campaigns/download_csv",
+      "source": "routes/broadcast.js",
+      "line": 603,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/campaigns/campaign/:campaignId",
+      "source": "routes/broadcast.js",
+      "line": 797,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/campaigns/dashboard",
+      "source": "routes/broadcast.js",
+      "line": 1024,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/campaigns/export/:campaignId",
+      "source": "routes/broadcast.js",
+      "line": 1127,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/campaigns/del_campaign",
+      "source": "routes/broadcast.js",
+      "line": 1199,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2217,7 +2899,7 @@
       "method": "POST",
       "path": "/api/agent/add_agent",
       "source": "routes/agent.js",
-      "line": 41,
+      "line": 47,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2227,7 +2909,16 @@
       "method": "GET",
       "path": "/api/agent/get_my_agents",
       "source": "routes/agent.js",
-      "line": 96,
+      "line": 123,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/agent/team-login/:agentUid/password",
+      "source": "routes/agent.js",
+      "line": 135,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2236,7 +2927,7 @@
       "method": "POST",
       "path": "/api/agent/change_status_mask",
       "source": "routes/agent.js",
-      "line": 110,
+      "line": 155,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2245,7 +2936,7 @@
       "method": "POST",
       "path": "/api/agent/change_status_allow_send",
       "source": "routes/agent.js",
-      "line": 130,
+      "line": 177,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2254,7 +2945,7 @@
       "method": "POST",
       "path": "/api/agent/change_agent_activeness",
       "source": "routes/agent.js",
-      "line": 150,
+      "line": 199,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2263,7 +2954,7 @@
       "method": "POST",
       "path": "/api/agent/del_agent",
       "source": "routes/agent.js",
-      "line": 170,
+      "line": 236,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2272,7 +2963,7 @@
       "method": "POST",
       "path": "/api/agent/get_agent_chats_owner",
       "source": "routes/agent.js",
-      "line": 189,
+      "line": 266,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2281,7 +2972,7 @@
       "method": "POST",
       "path": "/api/agent/get_assigned_chat_agent",
       "source": "routes/agent.js",
-      "line": 218,
+      "line": 296,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2290,7 +2981,7 @@
       "method": "POST",
       "path": "/api/agent/update_agent_in_chat",
       "source": "routes/agent.js",
-      "line": 252,
+      "line": 328,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2299,7 +2990,7 @@
       "method": "POST",
       "path": "/api/agent/del_assign_chat_by_owner",
       "source": "routes/agent.js",
-      "line": 281,
+      "line": 362,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2308,14 +2999,14 @@
       "method": "POST",
       "path": "/api/agent/login",
       "source": "routes/agent.js",
-      "line": 346,
+      "line": 427,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/agent/logout",
       "source": "routes/agent.js",
-      "line": 427,
+      "line": 517,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2324,7 +3015,7 @@
       "method": "GET",
       "path": "/api/agent/get_me",
       "source": "routes/agent.js",
-      "line": 488,
+      "line": 578,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2333,7 +3024,7 @@
       "method": "GET",
       "path": "/api/agent/get_my_assigned_chats",
       "source": "routes/agent.js",
-      "line": 501,
+      "line": 601,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2342,7 +3033,7 @@
       "method": "POST",
       "path": "/api/agent/get_convo",
       "source": "routes/agent.js",
-      "line": 552,
+      "line": 652,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2351,7 +3042,7 @@
       "method": "POST",
       "path": "/api/agent/send_text",
       "source": "routes/agent.js",
-      "line": 567,
+      "line": 667,
       "declaredGuards": [
         "validateAgent",
         "checkPlan"
@@ -2361,7 +3052,7 @@
       "method": "POST",
       "path": "/api/agent/send_audio",
       "source": "routes/agent.js",
-      "line": 618,
+      "line": 718,
       "declaredGuards": [
         "validateAgent",
         "checkPlan"
@@ -2371,7 +3062,7 @@
       "method": "POST",
       "path": "/api/agent/return_media_url",
       "source": "routes/agent.js",
-      "line": 667,
+      "line": 767,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2380,7 +3071,7 @@
       "method": "POST",
       "path": "/api/agent/convert_audio",
       "source": "routes/agent.js",
-      "line": 854,
+      "line": 954,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2389,7 +3080,7 @@
       "method": "POST",
       "path": "/api/agent/send_doc",
       "source": "routes/agent.js",
-      "line": 991,
+      "line": 1091,
       "declaredGuards": [
         "validateAgent",
         "checkPlan"
@@ -2399,7 +3090,7 @@
       "method": "POST",
       "path": "/api/agent/send_video",
       "source": "routes/agent.js",
-      "line": 1044,
+      "line": 1144,
       "declaredGuards": [
         "validateAgent",
         "checkPlan"
@@ -2409,7 +3100,7 @@
       "method": "POST",
       "path": "/api/agent/send_image",
       "source": "routes/agent.js",
-      "line": 1095,
+      "line": 1195,
       "declaredGuards": [
         "validateAgent",
         "checkPlan"
@@ -2419,7 +3110,7 @@
       "method": "GET",
       "path": "/api/agent/get_my_task",
       "source": "routes/agent.js",
-      "line": 1146,
+      "line": 1246,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2428,7 +3119,7 @@
       "method": "POST",
       "path": "/api/agent/mark_task_complete",
       "source": "routes/agent.js",
-      "line": 1160,
+      "line": 1263,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2437,7 +3128,7 @@
       "method": "POST",
       "path": "/api/agent/change_chat_ticket_status",
       "source": "routes/agent.js",
-      "line": 1181,
+      "line": 1321,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2446,7 +3137,7 @@
       "method": "GET",
       "path": "/api/agent/get_all_quick_reply",
       "source": "routes/agent.js",
-      "line": 1205,
+      "line": 1345,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2455,7 +3146,7 @@
       "method": "POST",
       "path": "/api/agent/save_contact_agent",
       "source": "routes/agent.js",
-      "line": 1222,
+      "line": 1362,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2464,7 +3155,7 @@
       "method": "POST",
       "path": "/api/agent/update_fcm_token",
       "source": "routes/agent.js",
-      "line": 1241,
+      "line": 1381,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2480,14 +3171,14 @@
       "method": "GET",
       "path": "/api/qr/send",
       "source": "routes/qr.js",
-      "line": 94,
+      "line": 99,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/qr/gen_qr",
       "source": "routes/qr.js",
-      "line": 122,
+      "line": 101,
       "declaredGuards": [
         "validateUser",
         "checkPlan",
@@ -2498,7 +3189,7 @@
       "method": "GET",
       "path": "/api/qr/get_all_agent",
       "source": "routes/qr.js",
-      "line": 204,
+      "line": 188,
       "declaredGuards": [
         "validateAgent"
       ]
@@ -2507,7 +3198,7 @@
       "method": "GET",
       "path": "/api/qr/get_all",
       "source": "routes/qr.js",
-      "line": 244,
+      "line": 228,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2516,7 +3207,7 @@
       "method": "POST",
       "path": "/api/qr/sync_status_to_crm",
       "source": "routes/qr.js",
-      "line": 293,
+      "line": 301,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2525,7 +3216,7 @@
       "method": "POST",
       "path": "/api/qr/del_instance",
       "source": "routes/qr.js",
-      "line": 338,
+      "line": 346,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2534,7 +3225,7 @@
       "method": "POST",
       "path": "/api/qr/change_instance_status",
       "source": "routes/qr.js",
-      "line": 391,
+      "line": 400,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2543,14 +3234,98 @@
       "method": "POST",
       "path": "/api/qr/rest/send_message",
       "source": "routes/qr.js",
-      "line": 436,
+      "line": 446,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/qr/rest/send_message",
       "source": "routes/qr.js",
-      "line": 484,
+      "line": 492,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/channels/qr/create",
+      "source": "routes/qr.js",
+      "line": 75,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/channels/qr/send",
+      "source": "routes/qr.js",
+      "line": 99,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/channels/qr/gen_qr",
+      "source": "routes/qr.js",
+      "line": 101,
+      "declaredGuards": [
+        "validateUser",
+        "checkPlan",
+        "checkQrScan"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/channels/qr/get_all_agent",
+      "source": "routes/qr.js",
+      "line": 188,
+      "declaredGuards": [
+        "validateAgent"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/channels/qr/get_all",
+      "source": "routes/qr.js",
+      "line": 228,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/channels/qr/sync_status_to_crm",
+      "source": "routes/qr.js",
+      "line": 301,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/channels/qr/del_instance",
+      "source": "routes/qr.js",
+      "line": 346,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/channels/qr/change_instance_status",
+      "source": "routes/qr.js",
+      "line": 400,
+      "declaredGuards": [
+        "validateUser"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/channels/qr/rest/send_message",
+      "source": "routes/qr.js",
+      "line": 446,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/channels/qr/rest/send_message",
+      "source": "routes/qr.js",
+      "line": 492,
       "declaredGuards": []
     },
     {
@@ -2620,14 +3395,14 @@
       "method": "GET",
       "path": "/api/webhook/webhook/:webhook_id",
       "source": "routes/webhook.js",
-      "line": 253,
+      "line": 255,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/webhook/get_webhook_logs",
       "source": "routes/webhook.js",
-      "line": 317,
+      "line": 321,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2636,7 +3411,7 @@
       "method": "POST",
       "path": "/api/webhook/delete_webhook_logs",
       "source": "routes/webhook.js",
-      "line": 341,
+      "line": 345,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2645,7 +3420,7 @@
       "method": "POST",
       "path": "/api/wa_call/insert_flow",
       "source": "routes/waCall.js",
-      "line": 20,
+      "line": 24,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2655,7 +3430,7 @@
       "method": "GET",
       "path": "/api/wa_call/get_flows",
       "source": "routes/waCall.js",
-      "line": 64,
+      "line": 68,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2665,7 +3440,7 @@
       "method": "POST",
       "path": "/api/wa_call/del_flow",
       "source": "routes/waCall.js",
-      "line": 85,
+      "line": 89,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2674,7 +3449,7 @@
       "method": "POST",
       "path": "/api/wa_call/fetch_el_voice",
       "source": "routes/waCall.js",
-      "line": 100,
+      "line": 104,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2683,7 +3458,7 @@
       "method": "GET",
       "path": "/api/wa_call/call_logs",
       "source": "routes/waCall.js",
-      "line": 116,
+      "line": 120,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2692,7 +3467,7 @@
       "method": "POST",
       "path": "/api/wa_call/bulk_delete",
       "source": "routes/waCall.js",
-      "line": 129,
+      "line": 133,
       "declaredGuards": [
         "validateUser"
       ]
@@ -2701,7 +3476,7 @@
       "method": "POST",
       "path": "/api/wa_call/add_in_bot",
       "source": "routes/waCall.js",
-      "line": 171,
+      "line": 175,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2711,7 +3486,7 @@
       "method": "POST",
       "path": "/api/wa_call/change_wa_call_bot_status",
       "source": "routes/waCall.js",
-      "line": 212,
+      "line": 216,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2721,7 +3496,7 @@
       "method": "GET",
       "path": "/api/wa_call/get_call_bot",
       "source": "routes/waCall.js",
-      "line": 250,
+      "line": 254,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2731,7 +3506,7 @@
       "method": "POST",
       "path": "/api/wa_call/del_call_bot",
       "source": "routes/waCall.js",
-      "line": 267,
+      "line": 271,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2741,7 +3516,7 @@
       "method": "POST",
       "path": "/api/wa_call/create_broadcast",
       "source": "routes/waCall.js",
-      "line": 286,
+      "line": 290,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2751,7 +3526,7 @@
       "method": "GET",
       "path": "/api/wa_call/get_broadcasts",
       "source": "routes/waCall.js",
-      "line": 379,
+      "line": 383,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2761,7 +3536,7 @@
       "method": "GET",
       "path": "/api/wa_call/get_broadcast/:campaignId",
       "source": "routes/waCall.js",
-      "line": 401,
+      "line": 405,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2771,7 +3546,7 @@
       "method": "POST",
       "path": "/api/wa_call/start_permission_request",
       "source": "routes/waCall.js",
-      "line": 434,
+      "line": 438,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2781,7 +3556,7 @@
       "method": "POST",
       "path": "/api/wa_call/start_calling",
       "source": "routes/waCall.js",
-      "line": 491,
+      "line": 495,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2791,7 +3566,7 @@
       "method": "POST",
       "path": "/api/wa_call/pause_broadcast",
       "source": "routes/waCall.js",
-      "line": 546,
+      "line": 550,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2801,7 +3576,7 @@
       "method": "POST",
       "path": "/api/wa_call/delete_broadcast",
       "source": "routes/waCall.js",
-      "line": 563,
+      "line": 567,
       "declaredGuards": [
         "validateUser",
         "checkPlan"
@@ -2811,14 +3586,16 @@
       "method": "POST",
       "path": "/api/wa_call/update_broadcast_contact",
       "source": "routes/waCall.js",
-      "line": 596,
-      "declaredGuards": []
+      "line": 600,
+      "declaredGuards": [
+        "requireInternalAuth"
+      ]
     },
     {
       "method": "POST",
       "path": "/api/wa_call/check_and_enable_call_permission",
       "source": "routes/waCall.js",
-      "line": 666,
+      "line": 615,
       "declaredGuards": [
         "validateUser"
       ]
@@ -3185,65 +3962,287 @@
     },
     {
       "method": "GET",
+      "path": "/api/pipeline/opening-routing",
+      "source": "routes/pipeline.js",
+      "line": 120,
+      "declaredGuards": [
+        "openingAdmin"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/opening-routing",
+      "source": "routes/pipeline.js",
+      "line": 121,
+      "declaredGuards": [
+        "openingAdmin"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/pipeline/opening-routing/:id",
+      "source": "routes/pipeline.js",
+      "line": 122,
+      "declaredGuards": [
+        "openingAdmin"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/pipeline/opening-routing/:id",
+      "source": "routes/pipeline.js",
+      "line": 123,
+      "declaredGuards": [
+        "openingAdmin"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/routing-notifications",
+      "source": "routes/pipeline.js",
+      "line": 124,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/routing-notifications/:id/read",
+      "source": "routes/pipeline.js",
+      "line": 125,
+      "declaredGuards": []
+    },
+    {
+      "method": "USE",
+      "path": "/api/pipeline/tasks",
+      "source": "routes/pipeline.js",
+      "line": 126,
+      "declaredGuards": [
+        "CallExpression"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/training-forms",
+      "source": "routes/pipeline.js",
+      "line": 128,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/training-forms/:formSlug",
+      "source": "routes/pipeline.js",
+      "line": 134,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/training-forms/:formSlug/leads",
+      "source": "routes/pipeline.js",
+      "line": 145,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/training-forms/:formSlug/leads/:leadId",
+      "source": "routes/pipeline.js",
+      "line": 158,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/training-forms/:formSlug/submissions",
+      "source": "routes/pipeline.js",
+      "line": 170,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/stage-summary",
+      "source": "routes/pipeline.js",
+      "line": 187,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
       "path": "/api/pipeline/board",
       "source": "routes/pipeline.js",
-      "line": 50,
+      "line": 207,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/leads/export",
+      "source": "routes/pipeline.js",
+      "line": 237,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/filter-options",
+      "source": "routes/pipeline.js",
+      "line": 254,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/follow-ups",
+      "source": "routes/pipeline.js",
+      "line": 272,
       "declaredGuards": []
     },
     {
       "method": "GET",
       "path": "/api/pipeline/settings",
       "source": "routes/pipeline.js",
-      "line": 70,
+      "line": 284,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/contacts/matches",
+      "source": "routes/pipeline.js",
+      "line": 291,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/sale-options",
+      "source": "routes/pipeline.js",
+      "line": 302,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/course-options",
+      "source": "routes/pipeline.js",
+      "line": 307,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/reports/activity",
+      "source": "routes/pipeline.js",
+      "line": 312,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/reports/summary",
+      "source": "routes/pipeline.js",
+      "line": 324,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/reports/leads",
+      "source": "routes/pipeline.js",
+      "line": 329,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/reports/journey",
+      "source": "routes/pipeline.js",
+      "line": 334,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/reports/schedules",
+      "source": "routes/pipeline.js",
+      "line": 339,
+      "declaredGuards": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/pipeline/reports/schedules",
+      "source": "routes/pipeline.js",
+      "line": 344,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/reports/schedules/:scheduleId/verifications",
+      "source": "routes/pipeline.js",
+      "line": 349,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/reports/schedules/:scheduleId/verifications/:challengeId/confirm",
+      "source": "routes/pipeline.js",
+      "line": 354,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/reports/schedules/:scheduleId/runs/:runId/revisions",
+      "source": "routes/pipeline.js",
+      "line": 359,
       "declaredGuards": []
     },
     {
       "method": "PUT",
       "path": "/api/pipeline/settings",
       "source": "routes/pipeline.js",
-      "line": 77,
+      "line": 371,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/pipeline/stages",
       "source": "routes/pipeline.js",
-      "line": 85,
+      "line": 379,
       "declaredGuards": []
     },
     {
       "method": "PUT",
       "path": "/api/pipeline/stages/order",
       "source": "routes/pipeline.js",
-      "line": 91,
+      "line": 385,
       "declaredGuards": []
     },
     {
       "method": "PATCH",
       "path": "/api/pipeline/stages/:stageKey",
       "source": "routes/pipeline.js",
-      "line": 97,
+      "line": 391,
       "declaredGuards": []
     },
     {
       "method": "DELETE",
       "path": "/api/pipeline/stages/:stageKey",
       "source": "routes/pipeline.js",
-      "line": 103,
+      "line": 397,
       "declaredGuards": []
     },
     {
       "method": "POST",
       "path": "/api/pipeline/leads",
       "source": "routes/pipeline.js",
-      "line": 109,
+      "line": 403,
       "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/leads/import",
+      "source": "routes/pipeline.js",
+      "line": 421,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/leads/:id/follow-up/:action",
+      "source": "routes/pipeline.js",
+      "line": 449,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
     },
     {
       "method": "GET",
       "path": "/api/pipeline/leads/:id",
       "source": "routes/pipeline.js",
-      "line": 135,
+      "line": 462,
       "declaredGuards": [
         "authorizeLead"
       ]
@@ -3252,7 +4251,43 @@
       "method": "GET",
       "path": "/api/pipeline/leads/:id/activity",
       "source": "routes/pipeline.js",
-      "line": 139,
+      "line": 466,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/pipeline/leads/:id/sale-reviews",
+      "source": "routes/pipeline.js",
+      "line": 470,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/leads/:id/sale-reviews",
+      "source": "routes/pipeline.js",
+      "line": 475,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/leads/:id/sale-reviews/:reviewId/decision",
+      "source": "routes/pipeline.js",
+      "line": 480,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/pipeline/leads/:id/sale-reviews/:reviewId/convert",
+      "source": "routes/pipeline.js",
+      "line": 485,
       "declaredGuards": [
         "authorizeLead"
       ]
@@ -3261,7 +4296,7 @@
       "method": "PATCH",
       "path": "/api/pipeline/leads/:id",
       "source": "routes/pipeline.js",
-      "line": 143,
+      "line": 490,
       "declaredGuards": [
         "authorizeLead"
       ]
@@ -3270,7 +4305,357 @@
       "method": "POST",
       "path": "/api/pipeline/leads/:id/move",
       "source": "routes/pipeline.js",
+      "line": 553,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/opening-routing",
+      "source": "routes/pipeline.js",
+      "line": 120,
+      "declaredGuards": [
+        "openingAdmin"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/opening-routing",
+      "source": "routes/pipeline.js",
+      "line": 121,
+      "declaredGuards": [
+        "openingAdmin"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/workspace/pipeline/opening-routing/:id",
+      "source": "routes/pipeline.js",
+      "line": 122,
+      "declaredGuards": [
+        "openingAdmin"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/workspace/pipeline/opening-routing/:id",
+      "source": "routes/pipeline.js",
+      "line": 123,
+      "declaredGuards": [
+        "openingAdmin"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/routing-notifications",
+      "source": "routes/pipeline.js",
+      "line": 124,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/routing-notifications/:id/read",
+      "source": "routes/pipeline.js",
+      "line": 125,
+      "declaredGuards": []
+    },
+    {
+      "method": "USE",
+      "path": "/api/workspace/pipeline/tasks",
+      "source": "routes/pipeline.js",
+      "line": 126,
+      "declaredGuards": [
+        "CallExpression"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/training-forms",
+      "source": "routes/pipeline.js",
+      "line": 128,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/training-forms/:formSlug",
+      "source": "routes/pipeline.js",
+      "line": 134,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/training-forms/:formSlug/leads",
+      "source": "routes/pipeline.js",
+      "line": 145,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/training-forms/:formSlug/leads/:leadId",
+      "source": "routes/pipeline.js",
       "line": 158,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/training-forms/:formSlug/submissions",
+      "source": "routes/pipeline.js",
+      "line": 170,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/stage-summary",
+      "source": "routes/pipeline.js",
+      "line": 187,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/board",
+      "source": "routes/pipeline.js",
+      "line": 207,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/leads/export",
+      "source": "routes/pipeline.js",
+      "line": 237,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/filter-options",
+      "source": "routes/pipeline.js",
+      "line": 254,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/follow-ups",
+      "source": "routes/pipeline.js",
+      "line": 272,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/settings",
+      "source": "routes/pipeline.js",
+      "line": 284,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/contacts/matches",
+      "source": "routes/pipeline.js",
+      "line": 291,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/sale-options",
+      "source": "routes/pipeline.js",
+      "line": 302,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/course-options",
+      "source": "routes/pipeline.js",
+      "line": 307,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/reports/activity",
+      "source": "routes/pipeline.js",
+      "line": 312,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/reports/summary",
+      "source": "routes/pipeline.js",
+      "line": 324,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/reports/leads",
+      "source": "routes/pipeline.js",
+      "line": 329,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/reports/journey",
+      "source": "routes/pipeline.js",
+      "line": 334,
+      "declaredGuards": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/reports/schedules",
+      "source": "routes/pipeline.js",
+      "line": 339,
+      "declaredGuards": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/workspace/pipeline/reports/schedules",
+      "source": "routes/pipeline.js",
+      "line": 344,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/reports/schedules/:scheduleId/verifications",
+      "source": "routes/pipeline.js",
+      "line": 349,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/reports/schedules/:scheduleId/verifications/:challengeId/confirm",
+      "source": "routes/pipeline.js",
+      "line": 354,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/reports/schedules/:scheduleId/runs/:runId/revisions",
+      "source": "routes/pipeline.js",
+      "line": 359,
+      "declaredGuards": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/workspace/pipeline/settings",
+      "source": "routes/pipeline.js",
+      "line": 371,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/stages",
+      "source": "routes/pipeline.js",
+      "line": 379,
+      "declaredGuards": []
+    },
+    {
+      "method": "PUT",
+      "path": "/api/workspace/pipeline/stages/order",
+      "source": "routes/pipeline.js",
+      "line": 385,
+      "declaredGuards": []
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/workspace/pipeline/stages/:stageKey",
+      "source": "routes/pipeline.js",
+      "line": 391,
+      "declaredGuards": []
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/workspace/pipeline/stages/:stageKey",
+      "source": "routes/pipeline.js",
+      "line": 397,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/leads",
+      "source": "routes/pipeline.js",
+      "line": 403,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/leads/import",
+      "source": "routes/pipeline.js",
+      "line": 421,
+      "declaredGuards": []
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/leads/:id/follow-up/:action",
+      "source": "routes/pipeline.js",
+      "line": 449,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/leads/:id",
+      "source": "routes/pipeline.js",
+      "line": 462,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/leads/:id/activity",
+      "source": "routes/pipeline.js",
+      "line": 466,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/pipeline/leads/:id/sale-reviews",
+      "source": "routes/pipeline.js",
+      "line": 470,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/leads/:id/sale-reviews",
+      "source": "routes/pipeline.js",
+      "line": 475,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/leads/:id/sale-reviews/:reviewId/decision",
+      "source": "routes/pipeline.js",
+      "line": 480,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/leads/:id/sale-reviews/:reviewId/convert",
+      "source": "routes/pipeline.js",
+      "line": 485,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/workspace/pipeline/leads/:id",
+      "source": "routes/pipeline.js",
+      "line": 490,
+      "declaredGuards": [
+        "authorizeLead"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/pipeline/leads/:id/move",
+      "source": "routes/pipeline.js",
+      "line": 553,
       "declaredGuards": [
         "authorizeLead"
       ]
@@ -3279,7 +4664,7 @@
       "method": "GET",
       "path": "/api/internal/users/list",
       "source": "routes/internal.js",
-      "line": 104,
+      "line": 75,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3288,7 +4673,7 @@
       "method": "GET",
       "path": "/api/internal/agents/list",
       "source": "routes/internal.js",
-      "line": 172,
+      "line": 143,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3297,7 +4682,7 @@
       "method": "GET",
       "path": "/api/internal/identity/lookup",
       "source": "routes/internal.js",
-      "line": 215,
+      "line": 186,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3306,7 +4691,7 @@
       "method": "GET",
       "path": "/api/internal/inbox/threads",
       "source": "routes/internal.js",
-      "line": 244,
+      "line": 215,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3315,7 +4700,7 @@
       "method": "GET",
       "path": "/api/internal/inbox/messages",
       "source": "routes/internal.js",
-      "line": 286,
+      "line": 257,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3324,7 +4709,7 @@
       "method": "POST",
       "path": "/api/internal/users/upsert",
       "source": "routes/internal.js",
-      "line": 323,
+      "line": 294,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3333,7 +4718,7 @@
       "method": "POST",
       "path": "/api/internal/qr/gen",
       "source": "routes/internal.js",
-      "line": 405,
+      "line": 376,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3342,7 +4727,7 @@
       "method": "GET",
       "path": "/api/internal/qr/list",
       "source": "routes/internal.js",
-      "line": 441,
+      "line": 412,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3351,7 +4736,7 @@
       "method": "POST",
       "path": "/api/internal/qr/delete",
       "source": "routes/internal.js",
-      "line": 459,
+      "line": 430,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3360,7 +4745,7 @@
       "method": "POST",
       "path": "/api/internal/qr/send-text",
       "source": "routes/internal.js",
-      "line": 503,
+      "line": 474,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3369,7 +4754,7 @@
       "method": "POST",
       "path": "/api/internal/qr/send-message",
       "source": "routes/internal.js",
-      "line": 554,
+      "line": 525,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3378,7 +4763,7 @@
       "method": "POST",
       "path": "/api/internal/messages/media",
       "source": "routes/internal.js",
-      "line": 665,
+      "line": 636,
       "declaredGuards": [
         "internalOnly"
       ]
@@ -3387,7 +4772,7 @@
       "method": "POST",
       "path": "/api/internal/retention/cleanup",
       "source": "routes/internal.js",
-      "line": 711,
+      "line": 682,
       "declaredGuards": [
         "internalOnly"
       ]

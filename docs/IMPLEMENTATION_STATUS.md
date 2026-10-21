@@ -1,3 +1,22 @@
+## Legacy call callback tenant boundary — source update, 21 October 2026
+
+The previously unauthenticated `/api/wa_call/update_broadcast_contact` endpoint
+could update a campaign by ID and merge arbitrary request fields into its
+contact record. It now requires `CRM_INTERNAL_SECRET` through the shared
+internal-request middleware, requires a campaign owner UID, and scopes both
+the lookup and write by campaign ID plus UID. Callback fields and state values
+are allow-listed; repeated status events no longer double-count campaign
+totals. Existing `/api/internal` routes use the same constant-time secret
+comparison while preserving their response contract.
+
+Focused callback/auth/route-audit tests pass 9/9; syntax and whitespace checks
+pass. No migration or production change was made. Repository search found no
+caller for this callback, and the call processor is still a stub; a real
+provider callback adapter, authenticated call workflow, per-category module
+gate for the full legacy `/api/wa_call` router, and production/browser acceptance
+remain open. This is one security increment toward the full 42-ticket 7Network
+CRM objective.
+
 ## Legacy route and tenant-policy inventory — source audit, 21 October 2026
 
 The first route-boundary pass confirms that `mountConfiguredUpgrade()` runs
