@@ -669,3 +669,19 @@ MariaDB's JSON_TABLE converts JSON values into relational rows and supports the
 wildcard path used by this bounded value search ([MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)).
 These are design inputs, not a change to SaleMaX's existing Node/MariaDB
 deployment or an assertion of unlimited pooled scale.
+
+## Current plan entitlement for custom lead fields
+
+The published field contract is now loaded only when the owner's active plan
+allows `crm.leads` under the same tenant, category, membership and policy
+context used by other tenant capabilities. A revoked entitlement hides the
+field contract and rejects newly submitted custom values with
+`FEATURE_UNAVAILABLE`. Ordinary lead edits remain available, and existing
+custom-field snapshots stay attached to the lead. This is application-layer
+MariaDB enforcement; it does not claim database row-level security. The
+integration test covers plan revocation and snapshot preservation, but must be
+run against the disposable synthetic database before release. Tenant isolation
+follows OWASP's guidance to derive tenant context from verified identity and
+apply it consistently at every access path ([OWASP Multi-Tenant Security
+Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)); AWS also describes runtime policy enforcement for pooled SaaS systems
+([AWS runtime policy isolation](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/run-time-policy-based-isolation-with-iam.html)).

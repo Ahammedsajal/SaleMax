@@ -1862,3 +1862,14 @@ automated adoption, new vertical workflows and full live acceptance remain open.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+
+### Custom lead-field entitlement guard — source update, 22 October 2026
+
+Custom lead-field definitions now follow the current tenant plan's `crm.leads`
+capability through the central policy decision. Revoked plans cannot expose or
+accept new custom values; ordinary edits and stored field snapshots remain
+available. Focused unit/router tests pass. Disposable database integration
+coverage was added but not executed because no synthetic database credentials
+are configured. Source-only branch; production is unchanged. Release gates
+include running that integration and the standard authenticated EN/AR workflow
+acceptance.

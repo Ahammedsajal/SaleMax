@@ -104,6 +104,14 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  [[customRow]]=await pool.query('SELECT qualification_data FROM pipeline_leads WHERE id=?',[customLead.id]);customSaved=typeof customRow.qualification_data==='string'?JSON.parse(customRow.qualification_data):customRow.qualification_data;assert.equal(customSaved.customFields[leadField.key].value,'Reference A');
  await assert.rejects(pipeline.updateLead({uid:people.owner.uid,id:customLead.id,role:'agent',agentId:people.agent.id,actorType:'agent',actorId:String(people.agent.id),pool,input:{customFields:{configurationRevision:fieldContract.revision,values:{[leadField.key]:'Not assigned'}}}}));
  await assert.rejects(pipeline.updateLead({uid:people.owner.uid,id:customLead.id,role:'owner',actorType:'user',actorId:people.owner.uid,pool,input:{customFields:{configurationRevision:fieldContract.revision-1,values:{[leadField.key]:'Stale'}}}}),{code:'STALE_LEAD_FIELD_CONFIGURATION'});
+ const [[savedCapabilities]]=await pool.query('SELECT capabilities FROM sx_plan_versions WHERE id=?',[version]);
+ try{
+  await pool.query('UPDATE sx_plan_versions SET capabilities=? WHERE id=?',[JSON.stringify(category.capabilities.filter(capability=>capability!=='crm.leads')),version]);
+  const revokedContract=await require('../modules/platform/lead-field-runtime').contractForOwner(pool,people.owner.uid);assert.deepEqual(revokedContract.fields,[]);assert.equal(revokedContract.available,false);
+  await assert.rejects(pipeline.updateLead({uid:people.owner.uid,id:customLead.id,role:'owner',actorType:'user',actorId:people.owner.uid,pool,input:{customFields:{configurationRevision:fieldContract.revision,values:{[leadField.key]:'Blocked after revocation'}}}}),{code:'FEATURE_UNAVAILABLE'});
+  await pipeline.updateLead({uid:people.owner.uid,id:customLead.id,role:'owner',actorType:'user',actorId:people.owner.uid,pool,input:{qualificationData:{preferredContactMethod:'email'}}});
+  [[customRow]]=await pool.query('SELECT qualification_data FROM pipeline_leads WHERE id=?',[customLead.id]);customSaved=typeof customRow.qualification_data==='string'?JSON.parse(customRow.qualification_data):customRow.qualification_data;assert.equal(customSaved.customFields[leadField.key].value,'Reference A');
+ }finally{await pool.query('UPDATE sx_plan_versions SET capabilities=? WHERE id=?',[JSON.stringify(savedCapabilities.capabilities),version]);}
  // Category contract mismatches must deny even shared-capability APIs.
  const entitlementLoader=require('../modules/platform/plans');
  const correctEntitlement=await entitlementLoader.loadEntitlements(pool,tenant);assert.equal(correctEntitlement.categoryKey,'training_center');
