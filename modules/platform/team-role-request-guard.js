@@ -29,7 +29,7 @@ function authorizeLegacyMembership(req,row){
   if(!permission)return {allowed:false,code:'TEAM_ROLE_ROUTE_UNMAPPED'};
   const scope=policy.scopeFor({role:row.role,delegatedPermissions:permissions,customPermissions:permissions},permission);
   if(!permissions.includes(permission)||!scope)return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
-  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies'].includes(String(req.baseUrl||'').replace(/\/$/,'')))&&!(['/api/workspace/finance','/api/user/training/finance-policies'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
+  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies','/api/ai'].includes(String(req.baseUrl||'').replace(/\/$/,'')))&&!(['/api/workspace/finance','/api/user/training/finance-policies'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
   return {allowed:true,permission};
 }
 const mountFor=req=>String(req.baseUrl||'').replace(/\/$/,'');

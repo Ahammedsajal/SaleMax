@@ -3,20 +3,6 @@
   "scope": "Static, directly mounted legacy routers in server.js with recognized authentication middleware. Entries remain review-required; this baseline prevents new unmapped routes and does not certify category or tenant isolation.",
   "unmapped": [
     {
-      "mount": "/api/ai",
-      "method": "POST",
-      "path": "/suggest_reply",
-      "status": "review_required",
-      "reviewArea": "assistant_ai"
-    },
-    {
-      "mount": "/api/ai",
-      "method": "POST",
-      "path": "/translate",
-      "status": "review_required",
-      "reviewArea": "assistant_ai"
-    },
-    {
       "mount": "/api/user",
       "method": "POST",
       "path": "/add_ins_to_warm",

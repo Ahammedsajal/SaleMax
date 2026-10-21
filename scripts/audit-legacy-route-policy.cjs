@@ -9,7 +9,7 @@ const {routePermission}=require('../modules/platform/legacy-route-policy');
 const root=path.resolve(__dirname,'..');
 const authNames=new Set(['validateUser','validateAgent','validateAdmin','pipelineAuth','userGuard','agentGuard','authenticate','requireAuth','authMiddleware','canonicalGuard','sessionGuard','featureAccess','businessGuard']);
 const routeMethods=new Set(['get','post','put','patch','delete','all']);
-function isAuthName(name){return authNames.has(name)||/(?:auth|guard|protect|validator|session)/i.test(name)||/^validate(?:User|Agent|Admin|Member|Business)$/i.test(name)||/^require(?:User|Agent|Admin|Auth|Session)/i.test(name);}
+function isAuthName(name){return authNames.has(name)||/(?:auth|guard|protect|validator|session)/i.test(name)||/^validate(?:User|Agent|Admin|Member|Business|Assistant)/i.test(name)||/^require(?:User|Agent|Admin|Auth|Session)/i.test(name);}
 
 function walk(node,visit){
   if(!node||typeof node!=='object')return;

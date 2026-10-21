@@ -15,6 +15,7 @@ async function run(guard,req={}){
 }
 function chatbotGuard(resolveContext){return createLegacyModuleAccess({pool,capability:'automation.chatbot',permission:'automation.manage',resolveContext});}
 function templateGuard(resolveContext){return createLegacyModuleAccess({pool,capability:'messaging.templates',permission:'templates.manage',resolveContext});}
+function assistantGuard(resolveContext){return createLegacyModuleAccess({pool,capability:'messaging.inbox',permission:'conversations.reply',resolveContext});}
 
 test('legacy chatbot endpoints allow mapped categories with the enabled chatbot module',async()=>{
   const req={decode:{userData:{id:1,uid:'owner-a',role:'user'}}};
@@ -46,4 +47,12 @@ test('shared templates are independently gated by category, plan and tenant acti
   assert.equal(disabled.status,403);assert.equal(disabled.body.code,'MODULE_DISABLED');
   const unsupported=await run(templateGuard(async()=>context(categories.restaurantFixture)),{decode:{userData:{id:1,uid:'owner-a',role:'user'}}});
   assert.equal(unsupported.status,403);assert.equal(unsupported.body.code,'CATEGORY_UNAVAILABLE');
+});
+
+test('shared AI assistant is available only when the tenant has the shared Inbox module and entitlement',async()=>{
+  const allowed=await run(assistantGuard(async()=>context(categories.baseCrm)),{decode:{userData:{id:1,uid:'owner-a',role:'user'}}});
+  assert.equal(allowed.status,undefined);
+  const noEntitlement=context(categories.baseCrm);noEntitlement.subscription.capabilities=[];
+  const denied=await run(assistantGuard(async()=>noEntitlement),{decode:{userData:{id:1,uid:'owner-a',role:'user'}}});
+  assert.equal(denied.status,403);assert.equal(denied.body.code,'FEATURE_UNAVAILABLE');
 });

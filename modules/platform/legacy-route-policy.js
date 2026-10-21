@@ -12,6 +12,7 @@ function routePermission(req){
   // numbers. Keep these account-owned records owner-only.
   if(mount==='/api/v1'&&path==='/get_logs'&&read)return 'tenant.manage';
   if(mount==='/api/v1'&&path==='/delete_logs'&&method==='POST')return 'tenant.manage';
+  if(mount==='/api/ai'&&['/suggest_reply','/translate'].includes(path)&&method==='POST')return 'conversations.reply';
   if(mount==='/api/crm')return path==='/tenant-context'&&read?'tenant.read':'tenant.manage';
   if(mount==='/api/user/business-auth'&&path==='/me'&&read)return 'tenant.read';
   if(mount==='/api/workspace/session')return 'tenant.read';

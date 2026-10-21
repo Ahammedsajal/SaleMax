@@ -25,4 +25,6 @@ test('canonical legacy aliases use the same role permission classification',()=>
   assert.equal(get('/api/workspace/automation/flows','/add_new','POST')?.permission,'automation.manage');
   assert.equal(get('/api/v1','/get_logs','GET')?.permission,'tenant.manage');
   assert.equal(get('/api/v1','/delete_logs','POST')?.permission,'tenant.manage');
+  assert.equal(get('/api/ai','/suggest_reply','POST')?.permission,'conversations.reply');
+  assert.equal(get('/api/ai','/translate','POST')?.permission,'conversations.reply');
 });

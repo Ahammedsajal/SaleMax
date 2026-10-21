@@ -2445,6 +2445,29 @@ distinct positive legacy INT IDs, rejecting malformed, oversized and out-of-rang
 requests with a stable validation code. Both routes have been removed from the
 explicit legacy route review backlog after policy mapping. Focused policy,
 feature-gate and input tests pass 7/7; syntax checks and `git diff --check` pass.
-Full-suite and authenticated owner/staff API acceptance are pending. No
-production data or deployment was changed. The full 42-ticket 7Network CRM
-objective remains active.
+The full suite reports 1,110/1,134 passing with the same 24 known existing
+source-contract failures. Authenticated owner/staff API acceptance remains
+open. No production data or deployment was changed. The full 42-ticket
+7Network CRM objective remains active.
+
+## Shared AI assistant tenant and conversation scope — source update, 21 October 2026
+
+The existing AI translation and suggested-reply endpoints now pass through the
+shared Inbox category, plan, tenant-activation and member-permission checks.
+Legacy accounts without an adopted tenant mapping retain their current route.
+Suggested replies verify the requested conversation through the existing
+owner Inbox scope and assigned-chat check before loading message context or
+calling a provider, so an Agent cannot use another Agent's conversation ID.
+Mapped Agents can use reply suggestions only for assigned conversations.
+Provider inputs are bounded, unsupported providers are rejected, and API keys
+or provider error text are not returned in client-facing failures. Customer
+messages still leave SaleMaX for the provider selected by the business; confirm
+the customer's privacy notice and provider configuration before enabling use.
+
+Focused route, category/plan, request-validation, Agent-scope and Inbox checks
+pass 26/26; the static route audit reports no new unmapped routes. The full
+suite reports 1,114/1,138 passing, with the same 24 known Manage Users,
+Pipeline, QR, Training/Finance, Reports and public-form source-contract
+failures. Provider delivery and authenticated English/Arabic screen acceptance
+remain open. No production data or deployment was changed. The 42-ticket
+7Network CRM objective remains active.
