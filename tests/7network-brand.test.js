@@ -27,6 +27,16 @@ test('every supported UI translation uses the 7Network name and retains its curr
   }
 });
 
+test('compact sidebar branding uses the approved 7Network icon and preserves full wordmarks elsewhere', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../client/public/7network-brand.js'), 'utf8');
+  const styles = fs.readFileSync(path.join(__dirname, '../client/public/7network-brand.css'), 'utf8');
+  assert.match(script, /const compactBrand = Boolean\(img\.closest\('\.logo-box'\)\)/);
+  assert.match(script, /const icon = compactBrand \|\|/);
+  assert.match(script, /logo-dark\.png\?v=20261022-sidebar-icon1/);
+  assert.match(script, /logo-light\.png\?v=20261022-sidebar-icon1/);
+  assert.match(styles, /\.logo-box img\[data-seven-network-brand="icon"\][^{]*\{[^}]*width: 50px/);
+});
+
 test('Sales chatbot migrations normalize first-party bot branding and its category key without rewriting history', () => {
   const textFile = path.join(__dirname, '../database/migrations/20261222_7network_sales_bot_brand.sql');
   const textSql = fs.readFileSync(textFile, 'utf8');
