@@ -180,3 +180,30 @@ test('Training Forms route owns its submission and registration workflow without
     assert.deepEqual(formRoute.ownership.modules,['training.forms']);
   }
 });
+
+test('Each chatbot profile is tenant-owned and bound to that tenant category and WhatsApp channel',()=>{
+  const ownership=ownershipForInventory(routerInventory(),{moduleRegistry:categoryRegistry.moduleRegistry,categories:{list:categoryRegistry.listCategories,get:categoryRegistry.getCategory}});
+  const route=ownership.routes.find(item=>item.mount==='/api/user/chatbots');
+  const module=route.ownership.moduleContracts['core.chatbot'];
+  assert.deepEqual(route.ownership.categoryModules,{training_center:['core.chatbot'],'7network_sales':['core.chatbot'],real_estate:['core.chatbot'],base_crm:['core.chatbot']});
+  assert.equal(module.dataOwnership.status,'reviewed');
+  const accessedTables=new Set();
+  for(const file of route.ownership.services){
+    const source=fs.readFileSync(path.join(root,file),'utf8');
+    for(const [,table] of source.matchAll(/\b(?:FROM|JOIN|INTO|UPDATE|DELETE FROM)\s+([a-z][a-z0-9_]*)/gi))if(table.startsWith('sx_')||/^(beta_|pipeline_|user$|chats$|instance$|meta_api$)/.test(table))accessedTables.add(table);
+  }
+  const declared=new Set([...module.dataOwnership.ownedTables,...module.dataOwnership.referencedTables.map(item=>item.name)]);
+  assert.deepEqual([...accessedTables].sort(),[...declared].sort(),'chatbot service SQL must be classified as bot-owned data or scoped shared references');
+  assert.deepEqual(module.dataOwnership.ownedTables,['sx_chatbot_channel_assignments','sx_chatbot_conversation_controls','sx_chatbot_faqs','sx_chatbot_guided_sessions','sx_chatbot_profiles','sx_chatbot_provider_configs','sx_chatbot_turns','sx_chatbot_usage_daily']);
+  const migrations=fs.readdirSync(path.join(root,'database/migrations')).filter(file=>file.endsWith('.sql')).map(file=>fs.readFileSync(path.join(root,'database/migrations',file),'utf8')).join('\n');
+  const created=new Set([...migrations.matchAll(/CREATE TABLE (?:IF NOT EXISTS )?([a-z][a-z0-9_]*)/gi)].map(match=>match[1]));
+  for(const table of module.dataOwnership.ownedTables)assert.ok(created.has(table),`${table} must have a tracked migration`);
+  const profile=fs.readFileSync(path.join(root,'modules/platform/chatbot-runtime.js'),'utf8');
+  assert.match(profile,/FROM sx_chatbot_profiles b JOIN sx_chatbot_channel_assignments ca ON ca\.tenant_id=b\.tenant_id AND ca\.chatbot_id=b\.id[\s\S]*?WHERE b\.tenant_id=\? AND b\.status='live' AND b\.category_key=\? AND b\.category_version=\? AND ca\.channel_kind=\? AND ca\.channel_ref=\?/);
+  const schema=fs.readFileSync(path.join(root,'database/migrations/20261030_chatbot_profiles.sql'),'utf8');
+  assert.match(schema,/UNIQUE KEY sx_chatbot_profiles_tenant_id \(tenant_id, id\)/);
+  assert.match(schema,/UNIQUE KEY sx_chatbot_channel_unique \(tenant_id, channel_kind, channel_ref\)/);
+  assert.match(schema,/FOREIGN KEY \(tenant_id, chatbot_id\) REFERENCES sx_chatbot_profiles\(tenant_id, id\)/);
+  const databaseTest=fs.readFileSync(path.join(root,'tests/chatbot-migration-integration.cjs'),'utf8');
+  assert.match(databaseTest,/crossTenantBotReferenceRejected: true/);
+});

@@ -2191,3 +2191,24 @@ migrations for each owned table. This is still source inventory, not
 authorization or cross-tenant runtime proof. The registration delivery worker
 is asynchronous and remains a separate audit item; no production files or data
 changed.
+
+## Shared chatbot tenant-isolation ownership contract — source update, 21 October 2026
+
+The shared `core.chatbot` module now declares its eight owned tables: bot
+profiles, channel assignments, conversation controls, FAQs, guided sessions,
+provider credentials, usage counters and turns. CRM/legacy inbox, identity,
+training-domain and handoff-task records are separately classified as
+references. The existing `/api/user/chatbots` and runtime service graph is
+checked against that table map and each owned table's migration. The runtime
+selects a live bot by tenant ID, pinned category/version and assigned channel;
+composite tenant/profile foreign keys and tenant-scoped unique channel
+assignment protect the stored boundary. Existing database integration tests
+contain cross-tenant profile and assignment rejection cases; they were not run
+here because local DB credentials are unavailable. The FAQ collection is
+intentionally tenant-wide across a tenant's profiles today, not separately
+editable per bot. This is still source-level ownership evidence, not a new
+runtime policy. Provider/webhook jobs, legacy flow-builder data and
+cross-tenant database test execution remain open. Focused registry, route,
+chatbot access and screen-contract tests pass 40/40; the full suite passes
+1,051/1,075 with the same 24 known Manage Users, Pipeline, Training/Finance
+and public-form source-contract failures. Production was not changed.
