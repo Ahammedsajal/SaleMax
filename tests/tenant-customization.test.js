@@ -49,3 +49,12 @@ test('published hidden navigation affects only the current tenant session contra
     assert.equal(b.navigationLabels.courses.en,'Learning');
   }finally{customization.effective=original;}
 });
+
+test('lead-field previews require a current crm.leads entitlement while other settings remain editable',()=>{
+  const field={key:'cf_text_0123456789abcdef',type:'text',label:{en:'Reference',ar:'مرجع'},required:false,active:true,version:1};
+  const document={schemaVersion:3,navigationLabels:{},leadFields:[field],hiddenNavigation:[]};
+  const withoutLeads={...ctx,subscription:{...ctx.subscription,capabilities:ctx.subscription.capabilities.filter(capability=>capability!=='crm.leads')}};
+  assert.throws(()=>settings.preview(withoutLeads,document),{code:'FEATURE_UNAVAILABLE'});
+  assert.deepEqual(settings.preview(withoutLeads,{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]}).document.leadFields,[]);
+  assert.deepEqual(settings.preview(ctx,document).document.leadFields,[field]);
+});

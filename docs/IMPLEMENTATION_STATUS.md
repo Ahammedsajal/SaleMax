@@ -1868,11 +1868,22 @@ Focused Pipeline custom-field search, existing team-scope and Sales-only behavio
 Custom lead-field definitions now follow the current tenant plan's `crm.leads`
 capability through the central policy decision. Revoked plans cannot expose or
 accept new custom values; ordinary edits and stored field snapshots remain
-available. Focused tenant-customization, bot-runtime, HTTP and lead-field tests pass
-32/32. The synthetic MariaDB integration case was added, but its harness cannot
-run against the only local database: Oracle MySQL 9.6 rejects the MariaDB
+available. Focused tenant-customization, bot-runtime, HTTP, Pipeline-search and Real
+Estate regression tests pass 49/49. The synthetic MariaDB integration case was
+added, but its harness cannot run against the only local database: Oracle MySQL 9.6 rejects the MariaDB
 `PERSISTENT` generated-column syntax in migration `20261001_platform_identity.sql`.
 No synthetic MariaDB server is available here, so database integration remains
 unverified. Source-only branch; production is unchanged. Release gates include
 running the harness on the supported MariaDB version and authenticated EN/AR
 workflow acceptance.
+
+### Revoked-plan tenant editor guard — source update, 22 October 2026
+
+The existing customization preview now denies lead-field definitions without
+current `crm.leads` access. Draft, publish and rollback operations revalidate the
+plan entitlement inside their transaction before accepting or activating a
+revision with lead fields. Other settings remain editable, and historical
+revisions remain readable for owner recovery. Unit/API coverage passes; the
+synthetic MariaDB integration extends the plan-revocation scenario to preview
+and draft denial but is still awaiting a supported MariaDB runtime. Production
+is unchanged.

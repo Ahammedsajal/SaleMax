@@ -107,6 +107,9 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  const [[savedCapabilities]]=await pool.query('SELECT capabilities FROM sx_plan_versions WHERE id=?',[version]);
  try{
   await pool.query('UPDATE sx_plan_versions SET capabilities=? WHERE id=?',[JSON.stringify(category.capabilities.filter(capability=>capability!=='crm.leads')),version]);
+  const customizationPreview=await request('owner','bearer','/api/workspace/customization/preview','POST',{document:{schemaVersion:2,navigationLabels:{},leadFields:[leadField]}});assert.equal(customizationPreview.status,409);assert.equal(customizationPreview.code,'FEATURE_UNAVAILABLE');
+  const revokedSettings=await request('owner','cookie','/api/workspace/customization');assert.equal(revokedSettings.status,200);
+  const revokedDraft=await request('owner','cookie','/api/workspace/customization/draft','PUT',{expectedRevision:revokedSettings.data.revision,document:{schemaVersion:2,navigationLabels:{},leadFields:[leadField]}});assert.equal(revokedDraft.status,409);assert.equal(revokedDraft.code,'FEATURE_UNAVAILABLE');
   const revokedContract=await require('../modules/platform/lead-field-runtime').contractForOwner(pool,people.owner.uid);assert.deepEqual(revokedContract.fields,[]);assert.equal(revokedContract.available,false);
   await assert.rejects(pipeline.updateLead({uid:people.owner.uid,id:customLead.id,role:'owner',actorType:'user',actorId:people.owner.uid,pool,input:{customFields:{configurationRevision:fieldContract.revision,values:{[leadField.key]:'Blocked after revocation'}}}}),{code:'FEATURE_UNAVAILABLE'});
   await pipeline.updateLead({uid:people.owner.uid,id:customLead.id,role:'owner',actorType:'user',actorId:people.owner.uid,pool,input:{qualificationData:{preferredContactMethod:'email'}}});
