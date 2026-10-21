@@ -1,3 +1,31 @@
+## Sales product/service catalogue boundary — source implementation, 22 October 2026
+
+The existing authenticated catalogue screen now sends an explicit product or
+service type for Sales items. A dedicated product lifecycle service reads and
+writes `sx_product_catalog` and `sx_product_offers` directly; Training Center
+continues through its course service. Sales create/edit requests now contain
+product fields only, including SKU/code, bilingual title/description and tags;
+duration, delivery, learner outcomes, enrollment and batch controls are hidden
+from the Sales screen. Product records have versioned prices, lifecycle and
+audit events. Training batch and enrollment routes remain unavailable to
+Sales. The additive migration leaves legacy course-shaped columns in place for
+the rollback window and marks pre-existing product rows `unclassified`; those
+rows cannot be newly published or sent by product quick replies until an owner
+reviews the type. Product-specific bilingual guidance now explains required
+classification and active pricing. The existing Pipeline Reports route also
+loads its IANA timezone selector before the report renderer; prior source
+omitted that dependency. Focused category/router/reply/editor and report tests
+pass. The full suite passes 1,074/1,090. A clean checkout of the current
+`origin/main` baseline passes 1,019/1,045, and all 16 current failure names
+also fail on that baseline. JavaScript syntax and
+diff checks pass. Browser acceptance could not run because Playwright is absent
+from this clean worktree; disposable database integration is still required.
+The router, product media and durable Inbox reply adapter still retain
+course-compatible plumbing and remain the next extraction boundary. Source
+only; no production upload or customer data change occurred. Production disk,
+authenticated EN/AR acceptance and the complete category/42-ticket gates remain
+open.
+
 ## Tenant-specific task terminology — source implementation, 21 October 2026
 
 The existing owner-only workspace customizer now supports bilingual labels for

@@ -36,7 +36,8 @@ async function sessionContext(pool,session){
   return {scope,ctx,actor:session.actor||{uid:session.ownerUid},agent:session.agent,query,refresh:async()=>sessionContext(pool,await session.refresh())};
 }
 async function options(pool,c){
-  requireCatalog(c.ctx);pool=catalog.forContext(pool,c.ctx);
+  requireCatalog(c.ctx);
+  if(catalog.sales(c.ctx))return (await pool.query("SELECT id,name_en AS nameEn,name_ar AS nameAr FROM sx_product_catalog WHERE tenant_id=? AND item_kind IN ('product','service') AND status='active' AND deleted_at IS NULL ORDER BY name_en,name_ar,id",[c.ctx.tenant.id]))[0];
   return (await pool.query("SELECT id,name_en AS nameEn,name_ar AS nameAr FROM sx_training_courses WHERE tenant_id=? AND status='active' AND deleted_at IS NULL ORDER BY name_en,name_ar,id",[c.ctx.tenant.id]))[0];
 }
 async function conversation(c, chatId) {
@@ -73,25 +74,38 @@ function textParts(course, offer, language, products=false) {
   if (details.length) add(details.join('\n\n'));
   return parts;
 }
+function productTextParts(product,offer,language){
+  const ar=language==='ar',title=product[ar?'name_ar':'name_en']||product[ar?'name_en':'name_ar']||'',description=product[ar?'description_ar':'description_en']||product[ar?'description_en':'description_ar']||'';
+  const parts=[],add=text=>{for(let i=0;i<text.length;i+=3500)parts.push({kind:'text',text:text.slice(i,i+3500)});};
+  add([title,description].filter(Boolean).join('\n\n'));
+  if(offer){const details=[`${ar?'السعر':'Price'}: ${offer.currency} ${(Number(offer.price_minor)/100).toFixed(2)}`];let inclusions;try{inclusions=typeof offer.inclusions==='string'?JSON.parse(offer.inclusions):offer.inclusions;}catch{inclusions=[];}if(Array.isArray(inclusions)&&inclusions.length)details.push(`${ar?'يشمل':'Includes'}:\n${inclusions.join('\n')}`);add(details.join('\n\n'));}
+  return parts;
+}
 async function plan(pool, c, courseId, language) {
-  requireCatalog(c.ctx);pool=catalog.forContext(pool,c.ctx);
+  requireCatalog(c.ctx);
   if (!validId(courseId)) fail('INVALID_COURSE', 400);
-  const [[course]] = await pool.query("SELECT * FROM sx_training_courses WHERE tenant_id=? AND id=? AND status='active' AND deleted_at IS NULL", [c.ctx.tenant.id, courseId]);
-  if (!course) fail('COURSE_NOT_AVAILABLE', 404);
+  const products=catalog.sales(c.ctx);
+  const [[course]] = products
+    ? await pool.query("SELECT * FROM sx_product_catalog WHERE tenant_id=? AND id=? AND item_kind IN ('product','service') AND status='active' AND deleted_at IS NULL",[c.ctx.tenant.id,courseId])
+    : await pool.query("SELECT * FROM sx_training_courses WHERE tenant_id=? AND id=? AND status='active' AND deleted_at IS NULL",[c.ctx.tenant.id,courseId]);
+  if (!course) fail(products?'PRODUCT_NOT_AVAILABLE':'COURSE_NOT_AVAILABLE', 404);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Qatar', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const [[offer]] = await pool.query("SELECT * FROM sx_training_offers WHERE tenant_id=? AND course_id=? AND status='active' AND (valid_from IS NULL OR valid_from<=?) AND (valid_until IS NULL OR valid_until>=?) ORDER BY version DESC LIMIT 1", [c.ctx.tenant.id, courseId, today, today]);
+  const [[offer]] = products
+    ? await pool.query("SELECT * FROM sx_product_offers WHERE tenant_id=? AND course_id=? AND status='active' AND (valid_from IS NULL OR valid_from<=?) AND (valid_until IS NULL OR valid_until>=?) ORDER BY version DESC LIMIT 1",[c.ctx.tenant.id,courseId,today,today])
+    : await pool.query("SELECT * FROM sx_training_offers WHERE tenant_id=? AND course_id=? AND status='active' AND (valid_from IS NULL OR valid_from<=?) AND (valid_until IS NULL OR valid_until>=?) ORDER BY version DESC LIMIT 1",[c.ctx.tenant.id,courseId,today,today]);
   // Published course attachments are part of an authorized Inbox reply. Staff
   // do not need catalogue-management/sidebar access to send these public facts.
-  const [files] = await pool.query('SELECT id,media_kind AS kind,mime_type AS mimeType,original_name AS originalName,file_size_bytes AS sizeBytes FROM sx_training_course_media WHERE tenant_id=? AND course_id=? AND deleted_at IS NULL ORDER BY created_at,id',[c.ctx.tenant.id,courseId]);
+  const mediaTable=products?'sx_product_media':'sx_training_course_media';
+  const [files] = await pool.query(`SELECT id,media_kind AS kind,mime_type AS mimeType,original_name AS originalName,file_size_bytes AS sizeBytes FROM ${mediaTable} WHERE tenant_id=? AND course_id=? AND deleted_at IS NULL ORDER BY created_at,id`,[c.ctx.tenant.id,courseId]);
   const parts = files.sort((a,b) => ({image:0,document:1,video:2}[a.kind] - {image:0,document:1,video:2}[b.kind])).map(f => ({kind:f.kind, mediaId:f.id, name:f.originalName, mimeType:f.mimeType, sizeBytes:f.sizeBytes}));
   for (const p of parts) {
     const max = {image:5,document:20,video:16}[p.kind];
     if (!max || p.sizeBytes > max * 1024 * 1024 || (p.kind === 'document' && p.mimeType !== 'application/pdf') || (p.kind === 'image' && !['image/jpeg','image/png'].includes(p.mimeType)) || (p.kind === 'video' && p.mimeType !== 'video/mp4')) fail('COURSE_MEDIA_NOT_SENDABLE');
-    const file = await media.getFile(pool, c.ctx.tenant.id, courseId, p.mediaId);
+    const file = await media.getFile(products?catalog.database(pool):pool, c.ctx.tenant.id, courseId, p.mediaId);
     const stat = await fs.stat(file.path);
     if (stat.size !== p.sizeBytes) fail('COURSE_MEDIA_NOT_AVAILABLE');
   }
-  const texts=textParts(course,offer,language,catalog.sales(c.ctx));
+  const texts=products?productTextParts(course,offer,language):textParts(course,offer,language);
   parts.push(...texts);
   return { courseId, name:language==='ar'?course.name_ar:course.name_en, language, parts };
 }
@@ -140,10 +154,10 @@ async function execute(pool, c, input, send = require('./course-reply-transport'
         const current=c.refresh?await c.refresh():c;
         if(current.scope.uid!==c.scope.uid||current.ctx.tenant.id!==c.ctx.tenant.id)fail('PERMISSION_DENIED',403);
         const chat=await conversation(current,chatId);
-        const [[active]]=await pool.query("SELECT id FROM sx_training_courses WHERE id=? AND tenant_id=? AND status='active' AND deleted_at IS NULL",[courseId,c.ctx.tenant.id]);
-        if(!active)fail('COURSE_NOT_AVAILABLE');
+        const [[active]]=products?await pool.query("SELECT id FROM sx_product_catalog WHERE id=? AND tenant_id=? AND item_kind IN ('product','service') AND status='active' AND deleted_at IS NULL",[courseId,c.ctx.tenant.id]):await pool.query("SELECT id FROM sx_training_courses WHERE id=? AND tenant_id=? AND status='active' AND deleted_at IS NULL",[courseId,c.ctx.tenant.id]);
+        if(!active)fail(products?'PRODUCT_NOT_AVAILABLE':'COURSE_NOT_AVAILABLE');
         const p=prepared.parts[index];
-        const file=p.mediaId?await media.getFile(pool,c.ctx.tenant.id,courseId,p.mediaId):null;
+        const file=p.mediaId?await media.getFile(products?catalog.database(pool):pool,c.ctx.tenant.id,courseId,p.mediaId):null;
         let timer;
         try {await Promise.race([send({c:current,chat,part:p,file,jobId:requestId,index}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Object.assign(new Error('SEND_TIMEOUT'),{code:'SEND_TIMEOUT'})),90000);})]);}
         finally {clearTimeout(timer);}

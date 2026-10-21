@@ -194,6 +194,37 @@ Cache key: tenant ID + category key/version + configuration revision + relevant 
 
 Use dedicated tables and services for domain invariants. Use bounded, typed custom fields for customer-specific metadata and indexed promoted fields for important search/report dimensions. Do not store invoices, stock balances, medical records, or reservation constraints in an unrestricted JSON entity table. Reference another module through tenant-constrained foreign keys or validated service boundaries; category labels do not change financial meanings.
 
+### Sales products and services boundary — 22 October 2026
+
+The Sales catalogue now has an explicit product/service lifecycle service over
+its own product and price tables. It does not call the Training Center course
+creation, update, pricing, batch or enrollment service. Its contract contains a
+reviewed `product` or `service` kind, SKU/code, bilingual title and description,
+bounded tags, revisioned active/retired state, versioned price terms and audit
+events. The existing business screen remains the entry point and sends the type
+through its authenticated Sales API. The category contract and plan permission
+remain separate gates; product labels do not grant Sales access to course
+records or course capabilities.
+
+The migration is additive. It keeps legacy course-shaped columns on the
+separate product table during rollback compatibility, while adding product
+fields and making unused course-only fields nullable. Existing rows default to
+`unclassified`, rather than guessing whether a historical record is a product
+or a service. Owners can review and classify those rows; publication and
+product quick replies reject them until then. This avoids silently changing
+customer catalogue meaning during migration.
+
+This is not the final domain extraction. The existing shared catalogue router,
+private media handlers, and durable Inbox reply jobs still use course-compatible
+plumbing and the fixed legacy table adapter for compatibility. The next
+boundary is a resource-neutral private-media service and catalogue-reply job
+contract with explicit product/course adapters, followed by removing product
+SQL rewriting. Retail inventory must then be a separately entitled stock
+movement ledger with transactional reservations; it must not be inferred from
+catalogue quantity fields. The new migration and product lifecycle need a fresh
+disposable MySQL integration run, browser EN/AR role acceptance, and a safe
+production rollout after capacity and rollback readiness are rechecked.
+
 ## Real Estate v1 implementation slice — 21 October 2026
 
 The first domain slice is a private `real_estate@1` contract and a tenant-scoped listing service in the existing `/user` panel. It introduces a typed property table instead of reusing training courses or generic custom-field JSON. Each listing has bilingual titles/descriptions, property and transaction types, explicit lifecycle states, price/currency, area, room counts, city, revision, an optional assigned membership and actor audit events. Query predicates include the authenticated tenant on every listing read and mutation. Edits lock the tenant/listing row, require an expected revision, validate lifecycle transitions, and write the audit event in the same transaction. Sold/rented listings are immutable except for archival; hard deletion is not exposed. Owners and managers can see tenant inventory; managers assign listings only to active agents in their current team. Agents see only listings assigned to them; team leaders see their own and their current team's assigned listings. The assignment foreign key includes tenant identity, stale/out-of-team assignees are rejected, and custom permissions cannot widen these scopes.
