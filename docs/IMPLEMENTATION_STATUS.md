@@ -2435,3 +2435,16 @@ Inbox and assignment focused suite passes 183/183; the full test suite reports
 1,108/1,132 with the same 24 known failures. Production remains unchanged and
 has no Redis endpoint configured. Redis ACL/network setup, long-polling affinity,
 two-process integration, interruption/recovery and revocation tests remain open.
+
+## Tenant-scoped API log access — source update, 21 October 2026
+
+The existing `/api/v1/get_logs` and `/api/v1/delete_logs` endpoints now require
+the tenant owner permission and the `customer_api` entitlement. Log deletion
+continues to filter by the authenticated user's UID and now accepts only 1–200
+distinct positive legacy INT IDs, rejecting malformed, oversized and out-of-range
+requests with a stable validation code. Both routes have been removed from the
+explicit legacy route review backlog after policy mapping. Focused policy,
+feature-gate and input tests pass 7/7; syntax checks and `git diff --check` pass.
+Full-suite and authenticated owner/staff API acceptance are pending. No
+production data or deployment was changed. The full 42-ticket 7Network CRM
+objective remains active.

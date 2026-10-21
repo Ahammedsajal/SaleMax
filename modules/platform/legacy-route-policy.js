@@ -8,6 +8,10 @@ const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/works
 // authorization, which belongs to policy.decision() at module boundaries.
 function routePermission(req){
   const mount=canonicalMount(req.baseUrl),path=String(req.path||'/').toLowerCase(),method=String(req.method||'GET').toUpperCase(),read=method==='GET'||method==='HEAD';
+  // API request/response logs can contain customer message content and phone
+  // numbers. Keep these account-owned records owner-only.
+  if(mount==='/api/v1'&&path==='/get_logs'&&read)return 'tenant.manage';
+  if(mount==='/api/v1'&&path==='/delete_logs'&&method==='POST')return 'tenant.manage';
   if(mount==='/api/crm')return path==='/tenant-context'&&read?'tenant.read':'tenant.manage';
   if(mount==='/api/user/business-auth'&&path==='/me'&&read)return 'tenant.read';
   if(mount==='/api/workspace/session')return 'tenant.read';

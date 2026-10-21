@@ -143,20 +143,6 @@
       "reviewArea": "legacy_shared_feature"
     },
     {
-      "mount": "/api/v1",
-      "method": "POST",
-      "path": "/delete_logs",
-      "status": "review_required",
-      "reviewArea": "tenant_system_logs"
-    },
-    {
-      "mount": "/api/v1",
-      "method": "GET",
-      "path": "/get_logs",
-      "status": "review_required",
-      "reviewArea": "tenant_system_logs"
-    },
-    {
       "mount": "/sso",
       "method": "POST",
       "path": "/node/agent-start",
