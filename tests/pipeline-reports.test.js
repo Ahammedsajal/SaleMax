@@ -119,6 +119,38 @@ test('journey report combines current pipeline stages, period sources and agent 
   for(const sql of queries.filter(item=>item.includes('FROM pipeline_stages')||item.includes('GROUP BY l.source_type')||item.includes('AS new_leads')||item.includes('FROM agents a')||item.includes("JSON_EXTRACT(pa.details,'$.stageTo')")))assert.match(sql,/sx_report_lead_scope/);
 });
 
+test('known non-Training categories receive shared journey metrics without querying Training data',async()=>{
+  for(const categoryKey of ['7network_sales','real_estate','base_crm','future_retail','future_clinic']){
+    const queries=[];
+    const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){
+      queries.push(sql);
+      if(sql.includes('FROM pipeline_stages')||sql.includes('GROUP BY l.source_type')||sql.includes('FROM agents a')||sql.includes("JSON_EXTRACT(pa.details,'$.stageTo')"))return [[],[]];
+      if(sql.includes('AS new_leads'))return [[{}],[]];
+      throw new Error(`Unexpected category report query: ${sql}`);
+    }};
+    const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'synthetic-owner',role:'owner',categoryKey,period:'daily',at:'2026-10-01'});
+    assert.equal(report.categoryKey,categoryKey);
+    assert.equal(report.cohortFunnel,null);
+    assert.equal(report.journeyActivity,null);
+    assert.equal(report.learnerJourney,null);
+    assert.equal(queries.some(sql=>/sx_training_(?:enrollments|invoices|receipts|certificates|sale_conversions)/.test(sql)),false,categoryKey);
+  }
+});
+
+test('shared journey categories keep assignment and QR filters on every report metric',async()=>{
+  const queries=[];
+  const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql,args=[]){queries.push({sql,args});
+    if(sql.includes('FROM pipeline_stages')||sql.includes('GROUP BY l.source_type')||sql.includes('FROM agents a')||sql.includes("JSON_EXTRACT(pa.details,'$.stageTo')"))return [[],[]];
+    if(sql.includes('AS new_leads'))return [[{}],[]];
+    throw new Error(`Unexpected filtered category report query: ${sql}`);
+  }};
+  await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'synthetic-owner',role:'owner',categoryKey:'real_estate',period:'daily',at:'2026-10-01',assignment:'assigned',qrInstanceId:17});
+  const filtered=queries.filter(({sql})=>sql.includes('qif.id = ?'));
+  assert.equal(filtered.length,5);
+  assert.ok(filtered.every(({args})=>args.includes(17)));
+  assert.ok(queries.filter(({sql})=>/FROM pipeline_stages|GROUP BY l.source_type|AS new_leads|FROM agents a|JSON_EXTRACT\(pa.details,'\$\.stageTo'\)/.test(sql)).every(({sql})=>sql.includes('owner_agent_id IS NOT NULL')));
+});
+
 test('legacy enrollment reconciliation uses a compatible collation for tenant uid joins',async()=>{
   const queries=[];
   const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
@@ -151,6 +183,7 @@ test('finance report summary remains owner-only and presents exact bilingual Qat
   assert.match(ui,/Payments received this period/);assert.match(ui,/المدفوعات المستلمة خلال الفترة/);
   assert.match(ui,/Period activity is separate from the current receivables position/);assert.match(ui,/نشاط الفترة منفصل عن الذمم المدينة الحالية/);
   assert.match(ui,/journeyTitle:'Lead journey overview'/);assert.match(ui,/journeyTitle:'نظرة عامة على رحلة العميل'/);assert.match(ui,/journey\.agents/);assert.match(ui,/periodPaymentReceipts:'Payment receipts issued'/);assert.match(ui,/periodPaymentReceipts:'إيصالات الدفع الصادرة'/);
+  assert.match(ui,/journey&&trainingWorkspace\?/);assert.doesNotMatch(ui,/journey&&!salesWorkspace\?/);
 });
 
 test('activity reports apply assigned and QR instance filters to counts and event rows',async()=>{

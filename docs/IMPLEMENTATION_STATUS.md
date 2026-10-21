@@ -1958,3 +1958,16 @@ to select the product view. It now follows the server's plan-checked catalogue
 adapter, and a `future_retail` fixture verifies adapter-based selection in the
 existing hook. This supports a reviewed future product-category integration
 without granting or exposing a new category.
+
+## Pipeline journey report domain isolation — source only, 22 October 2026
+
+The shared Pipeline journey endpoint previously routed all known categories
+except 7Network Sales through Training Center enrollment, invoice, payment and
+certificate queries. It now reserves that query path for explicit Training
+Center context. Sales and other known categories receive shared lead/stage/agent
+metrics with Training-only response fields null; the existing no-category path
+is retained for legacy scheduled Training reports. The Reports UI renders
+Training cohort and learner panels only for Training Center. Regression fixtures
+cover Sales, Real Estate, Base CRM, future Retail and future Clinic categories,
+asserting no Training-table queries. Focused report/team/isolation tests pass
+19/19. This change is source-only; production was not updated.
