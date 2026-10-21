@@ -1,3 +1,7 @@
+## 7Network current-production brand source sync — 21 October 2026
+
+The existing `/user` CRM shell already serves 7Network branding in production. This source increment syncs the production brand hook, CSS, PWA manifest and approved logo artwork into the maintained repository, updates cache keys for the current live assets, and keeps the existing tenant-owned logos protected from platform branding. A focused test covers the shell and hook behavior, including tenant logo/text preservation. Production was inspected read-only; no production upload or release was needed because these assets already match the running app container. No authenticated visual browser acceptance was available in this session. Category adoption and the remaining 42-ticket upgrade stay open.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language

@@ -6,7 +6,7 @@ Evidence review: 20 October 2026. Status: implementation in progress. This exten
 
 ## Product decision
 
-Keep one maintained SaleMaX application, current logins and panels, and shared messaging/CRM services. Treat a business as the tenant; its staff are members, not separate customization owners. Compose its experience from explicit core capabilities, a versioned category contract, an assigned plan, a published tenant configuration, and member permissions. A clinic cannot obtain Training Center courses just by changing a menu label. Two training centers must be able to use different fields, stages, forms, bot content, branding, automations, and enabled modules without editing each other's settings.
+Keep one maintained 7Network application, current logins and panels, and shared messaging/CRM services. Treat a business as the tenant; its staff are members, not separate customization owners. Compose its experience from explicit core capabilities, a versioned category contract, an assigned plan, a published tenant configuration, and member permissions. A clinic cannot obtain Training Center courses just by changing a menu label. Two training centers must be able to use different fields, stages, forms, bot content, branding, automations, and enabled modules without editing each other's settings.
 
 Configuration isolation can prevent one business's settings affecting another. It cannot guarantee that a defect in shared application code never affects other businesses. Version pinning, gradual rollout and contract tests reduce that blast radius; dedicated deployment stamps and resource isolation are the stronger option for customers needing separate runtime failure boundaries. Do not sell an absolute guarantee of zero shared-code impact.
 
@@ -29,6 +29,12 @@ The existing Training Center learner-progress reconciler can move won Pipeline l
 | Frontend recovery | Existing implementation plan | Maintained screen hooks coexist with a generated legacy frontend. Extend the existing screens; do not manually edit minified logic or introduce another panel. |
 
 This is a targeted architecture assessment, not an exhaustive proof of every query, queue, websocket or legacy route. The verification ledger below defines the remaining work.
+
+### Healthcare-category data gate — 21 October 2026
+
+Qatar's Personal Data Privacy Protection Law classifies health and physical or psychological condition data as data of a special nature. Article 16 says processing this class requires permission from the competent department under ministerial controls. The health-practitioner rules also require confidentiality for beneficiary information. Before enabling a clinic category, obtain qualified Qatar legal/privacy review and confirm the applicable permission, controller/processor roles, lawful basis, retention and breach-response duties. These sources establish a design gate; they do not establish that 7Network is compliant or replace legal advice. See [Qatar Law No. 13 of 2016, Article 16](https://www.almeezan.qa/EnglishLaws/132016.pdf), [Law No. 22 of 2021](https://www.almeezan.qa/LawArticles.aspx?LawTreeSectionID=19980&language=en&lawId=8761), and [MOPH Decision No. 8 of 2022, Article 73](https://www.almeezan.qa/LawArticles.aspx?LawArticleID=84043&LawID=8980&language=ar).
+
+Keep clinical records behind separately reviewed permissions, explicit data-purpose schemas and auditable retention/deletion controls. Do not send health details to general AI prompts, analytics, notifications or application logs by default. Validate encrypted file handling, tenant-scoped export/restore, access reviews and incident procedures before handling real patient records. This gate applies to future healthcare-category work; it does not change existing Sales or Training Center data flows.
 
 ### Tenant-isolation and real-estate interoperability research — 21 October 2026
 
