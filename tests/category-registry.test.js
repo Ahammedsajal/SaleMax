@@ -3,7 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {createCategoryRegistry} = require('../modules/platform/category-registry');
 const {capabilities} = require('../modules/platform/policy');
-const {trainingCenter, sevenNetworkSales, restaurantFixture, listCategories} = require('../modules/platform/categories');
+const {baseCrm,trainingCenter,sevenNetworkSales,realEstate,restaurantFixture,listCategories} = require('../modules/platform/categories');
+const {decision}=require('../modules/platform/policy');
 
 test('category registry pins versions instead of selecting latest implicitly', () => {
   const v2 = {...trainingCenter, version:2, capabilities:trainingCenter.capabilities.filter(key => !['sales.finance','hr.recruitment'].includes(key))};
@@ -48,4 +49,35 @@ test('task adapter declarations are exact-version capability contracts and immut
     {taskAdapters:{sales_call:1},capabilities:sevenNetworkSales.capabilities.filter(key=>key!=='telephony.call-center')},
     {taskAdapters:{sales_call:1},capabilities:sevenNetworkSales.capabilities.filter(key=>key!=='team.tasks')},
   ]) assert.throws(()=>createCategoryRegistry([{...sevenNetworkSales,...patch}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
+});
+
+test('vertical categories share the base CRM contract without inheriting unrelated modules',()=>{
+  const shared=new Set(baseCrm.capabilities);
+  for(const category of [trainingCenter,sevenNetworkSales,realEstate])for(const capability of shared)assert.ok(category.capabilities.includes(capability),`${category.key} must preserve shared capability ${capability}`);
+  assert.ok(trainingCenter.capabilities.includes('training.courses'));
+  assert.ok(!trainingCenter.capabilities.includes('products.catalog'));
+  assert.ok(!trainingCenter.capabilities.includes('realestate.listings'));
+  assert.ok(sevenNetworkSales.capabilities.includes('products.catalog'));
+  assert.ok(!sevenNetworkSales.capabilities.includes('training.courses'));
+  assert.ok(!sevenNetworkSales.capabilities.includes('realestate.listings'));
+  assert.ok(realEstate.capabilities.includes('realestate.listings'));
+  assert.ok(!realEstate.capabilities.includes('training.courses'));
+  assert.ok(!realEstate.capabilities.includes('products.catalog'));
+  assert.ok(!baseCrm.capabilities.some(key=>key.startsWith('training.')||key.startsWith('sales.')||key.startsWith('realestate.')));
+  // Training Center v1 retains two historical capabilities until a reviewed v2 migration.
+  assert.ok(trainingCenter.capabilities.includes('sales.finance'));
+  assert.ok(trainingCenter.capabilities.includes('hr.recruitment'));
+  assert.equal(realEstate.planable,false);
+});
+
+test('a plan entitlement cannot bypass the active category capability contract',()=>{
+  for(const [category,capability,permission] of [
+    [baseCrm,'training.courses','courses.read'],
+    [trainingCenter,'products.catalog','products.read'],
+    [sevenNetworkSales,'realestate.listings','properties.read'],
+    [realEstate,'training.courses','courses.read'],
+  ]){
+    const context={audience:'tenant',tenant:{id:'tenant-a',status:'active',categoryKey:category.key,categoryVersion:category.version},membership:{tenantId:'tenant-a',status:'active',role:'owner'},category,subscription:{status:'active',categoryKey:category.key,categoryVersion:category.version,capabilities:Object.keys(capabilities)}};
+    assert.equal(decision(context,{capability,permission}).code,'CATEGORY_UNAVAILABLE',`${category.key} must reject ${capability} even when the plan grants it`);
+  }
 });

@@ -1,3 +1,26 @@
+## 7Network category and tenant customization architecture audit — source, 21 October 2026
+
+The category system already has a sound starting point: version-pinned category
+manifests, shared CRM capabilities, independent plan and role gates, immutable
+tenant-owned configuration revisions, per-tenant bot profiles, and reviewed
+category-bound task adapters. New tests now lock shared Base CRM capabilities,
+vertical capability separation and the rule that a plan cannot bypass a
+category. The category registry, tenant customization and feature-session
+checks pass 13/13.
+
+The audit also confirms this is not yet a fully configurable category platform.
+Category manifests and most module selection are source-owned; tenant setup
+currently customizes a bounded set of labels, lead fields, navigation and task
+types. Legacy APIs still need an endpoint-by-endpoint isolation audit. Real
+Estate exists only in source as a non-planable v1 and is absent from the active
+production category list; the restaurant definition is a test fixture. The
+production/source category difference must remain explicit during releases.
+The architecture decision and researched roadmap are in
+`docs/7NETWORK_CATEGORY_CUSTOMIZATION_ARCHITECTURE.md`. The next implementation
+step is to inventory legacy routes, tables, jobs and policy coverage, then
+extend cross-tenant denial tests before enabling additional categories. This is
+not completion of the broader 42-ticket CRM program.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
