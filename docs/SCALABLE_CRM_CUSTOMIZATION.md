@@ -341,3 +341,5 @@ runtime ignores the property and may resume automatic catalogue choice. Before
 adoption, the exact previous release/image is safe; after adoption use a compatible
 repair image, or explicitly review profile configuration rollback while preserving
 submitted form/lead history. Never silently erase selected references.
+
+Production verified 21 October: `76e3c5b` plus loader correction `88fc425` are live in `bot-capture-forms-88fc425-20261020`. Runtime/public hashes and health pass. Nine deployed paths are synchronized locally with backups; zero customer profiles adopted explicit selection. See DEPLOYMENT.md.
