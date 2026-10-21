@@ -18,17 +18,18 @@
     INVALID_AVAILABILITY:['Please choose your preferred working arrangement.','يرجى اختيار نظام العمل المفضل.'],
     ORIGIN_DENIED:['This application link could not be verified. Please reopen the official 7Network recruitment link and try again.','تعذر التحقق من رابط التقديم. يرجى فتح رابط التوظيف الرسمي من 7Network والمحاولة مرة أخرى.'],
     PREFILL_NOT_FOUND:['This saved application link has expired. Please request a fresh link from the 7Network recruitment team.','انتهت صلاحية رابط الطلب المحفوظ. يرجى طلب رابط جديد من فريق التوظيف في 7Network.'],
-    RECRUITMENT_UNAVAILABLE:['We could not submit your application right now. Please try again in a few minutes.','تعذر إرسال طلبك الآن. يرجى المحاولة مرة أخرى بعد بضع دقائق.'],
-    APPLICATION_SUBMIT_FAILED:['We could not submit your application right now. Please try again in a few minutes.','تعذر إرسال طلبك الآن. يرجى المحاولة مرة أخرى بعد بضع دقائق.'],
-    HTTP_413:['Your CV could not be uploaded. Please choose a file under 8 MB and try again.','تعذر رفع سيرتك الذاتية. يرجى اختيار ملف أقل من ٨ ميغابايت والمحاولة مرة أخرى.']
+    RECRUITMENT_UNAVAILABLE:['We could not send your application just now. Please try again. If it still does not work, contact the 7Network recruitment team and include the cause shown in brackets.','تعذر إرسال طلبك الآن. يرجى المحاولة مرة أخرى. إذا لم ينجح ذلك، تواصل مع فريق التوظيف في 7Network وأرسل لهم السبب الظاهر بين القوسين.'],
+    APPLICATION_SUBMIT_FAILED:['We could not send your application just now. Please try again. If it still does not work, contact the 7Network recruitment team and include the cause shown in brackets.','تعذر إرسال طلبك الآن. يرجى المحاولة مرة أخرى. إذا لم ينجح ذلك، تواصل مع فريق التوظيف في 7Network وأرسل لهم السبب الظاهر بين القوسين.'],
+    HTTP_413:['Your CV could not be uploaded. Please choose a file under 8 MB and try again.','تعذر رفع سيرتك الذاتية. يرجى اختيار ملف أقل من ٨ ميغابايت والمحاولة مرة أخرى.'],
+    LIMIT_FILE_SIZE:['Your CV is larger than 8 MB. Please choose a smaller file and try again.','حجم سيرتك الذاتية أكبر من ٨ ميغابايت. يرجى اختيار ملف أصغر والمحاولة مرة أخرى.']
   };
   const safeCode=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{1,79}$/.test(value)?value:'UNEXPECTED_SERVER_ERROR';
   function format(code,cause,language='en'){
     const key=safeCode(code),ar=/^ar(?:-|$)/i.test(language),index=ar?1:0;
-    const fallback=ar?'تعذر إرسال طلبك الآن. يرجى المحاولة مرة أخرى بعد بضع دقائق.':'We could not submit your application right now. Please try again in a few minutes.';
+    const fallback=ar?'تعذر إرسال طلبك الآن. يرجى المحاولة مرة أخرى. إذا لم ينجح ذلك، تواصل مع فريق التوظيف في 7Network وأرسل لهم السبب الظاهر بين القوسين.':'We could not send your application just now. Please try again. If it still does not work, contact the 7Network recruitment team and include the cause shown in brackets.';
     const detail=safeCode(cause||key);
-    const message=((/^HTTP_413$/.test(detail)?messages[detail]:null)||messages[key]||[fallback,fallback])[index];
-    const technical=key==='RECRUITMENT_UNAVAILABLE'||key==='APPLICATION_SUBMIT_FAILED'||key==='UNEXPECTED_SERVER_ERROR'||!messages[key]||/^HTTP_[45]\d\d$/.test(detail);
+    const message=((/^HTTP_413$|^LIMIT_FILE_SIZE$/.test(detail)?messages[detail]:null)||messages[key]||[fallback,fallback])[index];
+    const technical=key==='RECRUITMENT_UNAVAILABLE'||key==='APPLICATION_SUBMIT_FAILED'||key==='UNEXPECTED_SERVER_ERROR'||!messages[key]||/^HTTP_[45]\d\d$|^LIMIT_FILE_SIZE$/.test(detail);
     return `${message}${technical?` [${ar?'السبب':'Cause'}: ${detail}]`:''}`;
   }
 
