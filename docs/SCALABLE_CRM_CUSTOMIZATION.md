@@ -464,3 +464,22 @@ permission denials. No new category is registered/exposed; catalogue declaration
 and Pipeline support alone do not deliver a new vertical workflow.
 
 Production: `ee29b8f` is live in `pipeline-category-ee29b8f-20261021`. Forty focused checks and actual shared-auth/MariaDB API integration pass. Both runtime hashes and health pass; seven current mapped-user access outcomes are preserved. Two exact deployed paths are synced locally with backups. No category/customer data mutation occurred; see DEPLOYMENT.md.
+
+
+## Shared task adapter authority — 21 October 2026
+
+The existing Pipeline task endpoint and lead-assignment reminder path now load
+current membership/category/plan grants through the shared feature-session loader
+and use the existing task-context adapter. Previously the Pipeline adapter omitted
+the required storage tenant identifier; adding that identifier alone also exposed
+that legacy Training Center contexts omitted assigned navigation. Reusing the
+shared loaders fixes both without duplicating task storage or category services.
+The task tenant and owner UID are server-derived; verified Sales team scopes stay
+on the context. Unmapped accounts cannot create tenant-owned tasks implicitly.
+
+Disposable real-API regressions cover Training Center and Sales owner creation,
+assigned-agent access, team-queue denial, current task-navigation revocation,
+inactive owner denial, foreign-task rejection/list isolation even with the same
+legacy owner hash, and ignored client-supplied tenant IDs. These are backend API
+checks, not authenticated production browser acceptance. Category-free base
+provisioning and new vertical workflows remain unfinished.

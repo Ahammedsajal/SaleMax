@@ -30,13 +30,17 @@ async function saleContext(actor) {
 }
 
 async function taskContext(actor,permission='tasks.read'){
-  const ctx=await saleContext(actor);
-  ctx.uidHash=crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex');
-  if(actor.role==='agent'){ctx.actorType='agent';ctx.actorId=String(actor.agentId);ctx.agentId=actor.agentId;}
-  else if(actor.role==='manager'){ctx.actorType='identity';ctx.actorId=actor.identityId;}
-  else {ctx.actorType='identity';ctx.actorId=ctx.identity.id;}
-  ctx.uid=actor.uid;ctx.role=actor.role;
-  trainingTasks.authorize(ctx,permission);
+  const pool=require('../database/config.js').promise();
+  const agent=actor.role==='agent';
+  const [rows]=agent
+    ? await pool.query('SELECT * FROM agents WHERE id=? AND owner_uid=? AND is_active=1 LIMIT 1',[actor.agentId,actor.uid])
+    : await pool.query('SELECT * FROM user WHERE uid=? LIMIT 1',[actor.legacyUid||actor.uid]);
+  if(!rows.length)throw Object.assign(Error('AUTH_REQUIRED'),{code:'AUTH_REQUIRED',status:401});
+  // Reload current grants for legacy and canonical actors through the shared loader.
+  const context=await require('../modules/platform/business-feature-session').legacyContext(pool,rows[0],agent);
+  if(!context)throw Object.assign(Error('VERIFIED_BUSINESS_OWNER_REQUIRED'),{code:'VERIFIED_BUSINESS_OWNER_REQUIRED',status:403});
+  const ctx=await require('../modules/platform/training-task-context').createTaskContext(pool,{...context,scopeAgentIds:actor.scopeAgentIds,scopeIdentityIds:actor.scopeIdentityIds},permission);
+  if(ctx.uid!==actor.uid)throw Object.assign(Error('BUSINESS_LINK_INVALID'),{code:'BUSINESS_LINK_INVALID',status:409});
   return ctx;
 }
 

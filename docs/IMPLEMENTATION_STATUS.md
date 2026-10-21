@@ -1727,3 +1727,14 @@ Live acceptance also repaired existing Pipeline board/filter/detail collation co
 `3a9956e` and `bab620c` are pushed to main and live in `/opt/salemax/releases/public-crm-plans-bab620c-20261020`. The public offer presents a customizable CRM for any industry with category-based views/features/workflows; Training Center is one implementation. Existing paid catalogue IDs 26 and 25 are Monthly CRM (QAR 350 / 30 days) and Yearly CRM (QAR 3,700 / 365 days). Two public cards share nine verified cross-category CRM/messaging/campaign/automation/team/reporting features, with QAR 500 annual savings. Industry-specific modules and bespoke work are separately scoped. The trial remains in administration/history. This does not publish new industry categories or duplicate the catalogue.
 
 Six focused source tests, three deployment-image checks, English/Arabic DOM checks using live catalogue responses, production health/route/hash checks and customer-snapshot/limits preservation checks passed. No migration or customer-assignment rewrite occurred. Browser control is disabled, so rendered visual and authenticated admin browser review remain open. DEPLOYMENT.md records the transactional catalogue update, backups, rollback and remaining 42-ticket/provider/finance/release gates.
+
+
+## Shared Pipeline task authority — 21 October 2026
+
+The existing Pipeline task and assignment-reminder context now reuses current
+shared membership and task loaders, fixing missing task tenant scope and the
+legacy Training Center omission of navigation grants. Actual disposable API
+regressions cover owner/assigned-agent tasks in Training Center and Sales,
+revocation/inactive membership, foreign tenant isolation and server-derived storage
+scope. Production rollout and exact-source sync are recorded in DEPLOYMENT.md
+after verification; broader base/category/vertical adoption remains open.
