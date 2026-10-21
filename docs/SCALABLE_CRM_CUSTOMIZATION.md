@@ -39,8 +39,8 @@ Seven legacy `user` records map to active canonical memberships, identities and
 tenants (three owners, two accountants, two managers), with no unmapped rows,
 UID-hash mismatches or inactive links. Eleven current legacy agents map to active
 agent memberships. Two additional active legacy agent rows have no ownership
-mapping, and their owners cannot be resolved through a canonical user-to-tenant
-link. The ownership table also retains six agent mappings whose legacy source
+mapping, and neither agent's `owner_uid` matches a current legacy user record.
+The ownership table also retains six agent mappings whose legacy source
 rows no longer exist; all retained mappings have a membership reference. These
 two active agents must remain on their existing legacy path until an operator
 reviews their owner relationship. Do not infer a category or backfill them from

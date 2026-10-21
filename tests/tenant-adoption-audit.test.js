@@ -14,7 +14,7 @@ test('tenant adoption audit returns only aggregate tenant, identity and assignme
     [[{ sourceTable: 'agents', mappingCount: 17, withoutMembership: 0, withoutLegacyRecord: 6 }]],
     [[{ legacyRole: 'user', membershipRole: 'owner', membershipStatus: 'active', identityStatus: 'active', tenantStatus: 'active', rowCount: 2, unmapped: 0, hashMismatch: 0, inactiveMapping: 0 }]],
     [[{ isActive: 1, membershipRole: 'agent', membershipStatus: 'active', identityStatus: 'active', tenantStatus: 'active', rowCount: 2, unmapped: 0, hashMismatch: 0, invalidActiveMapping: 0 }]],
-    [[{ ownerCategory: 'unresolved-owner', isActive: 1, agentCount: 2, linkedOwnerCount: 0 }]],
+    [[{ ownerCategory: 'unresolved-owner', isActive: 1, agentCount: 2, ownerUserExists: 0, ownerHasTenantMapping: 0, linkedOwnerCount: 0 }]],
     [[{ assignmentCount: 2, missingVersion: 0, categoryMismatch: 0 }]],
   ];
   const connection = { query: async sql => { calls.push(sql); return responses[calls.length - 1]; } };

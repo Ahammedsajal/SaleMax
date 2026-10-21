@@ -35,7 +35,9 @@ const QUERIES = Object.freeze({
     LEFT JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_tenants t ON t.id=o.tenant_id
     GROUP BY a.is_active,m.role,m.status,i.status,t.status ORDER BY a.is_active DESC,rowCount DESC`,
   unmappedAgents: `SELECT COALESCE(t.category_key,'unresolved-owner') AS ownerCategory,a.is_active AS isActive,
-      COUNT(*) AS agentCount,SUM(t.status='active' AND uo.membership_id IS NOT NULL) AS linkedOwnerCount
+      COUNT(*) AS agentCount,SUM(u.id IS NOT NULL) AS ownerUserExists,
+      SUM(uo.source_id IS NOT NULL) AS ownerHasTenantMapping,
+      SUM(t.status='active' AND uo.membership_id IS NOT NULL) AS linkedOwnerCount
     FROM agents a LEFT JOIN sx_legacy_ownership ao ON ao.source_table='agents' AND BINARY ao.source_id=BINARY CAST(a.id AS CHAR)
     LEFT JOIN user u ON u.uid=a.owner_uid
     LEFT JOIN sx_legacy_ownership uo ON uo.source_table='user' AND BINARY uo.source_id=BINARY CAST(u.id AS CHAR)
