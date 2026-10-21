@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto=require('node:crypto');
+const {canonicalCategoryKey}=require('./categories');
 
 const STAGES=[
   {key:'training_invoice_issued',title:'Sale converted · invoice issued',color:'#12806a'},
@@ -41,7 +42,8 @@ async function advance(db,{uidHash,uid,leadId,milestone},{stagesReady=false}={})
   return true;
 }
 
-async function reconcileExisting(pool,{uid}){
+async function reconcileExisting(pool,{uid,categoryKey}){
+  if(categoryKey!==undefined&&categoryKey!==null&&canonicalCategoryKey(categoryKey)!=='training_center')return 0;
   if(typeof uid!=='string'||!uid)return 0;
   const db=typeof pool.promise==='function'?pool.promise():pool,uidHash=crypto.createHash('sha256').update(uid).digest('hex');
   const connection=await db.getConnection();let advanced=0;

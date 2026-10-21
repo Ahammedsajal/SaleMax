@@ -127,7 +127,7 @@ test('legacy enrollment reconciliation uses a compatible collation for tenant ui
     if(sql.includes('FROM pipeline_leads l JOIN sx_training_enrollments e'))return [[],[]];
     throw new Error(`Unexpected query: ${sql}`);
   }};
-  const advanced=await reconcileExisting({async getConnection(){return connection;}},{uid:'tenant-owner'});
+  const advanced=await reconcileExisting({async getConnection(){return connection;}},{uid:'tenant-owner',categoryKey:'training_center'});
   assert.equal(advanced,0);
   const join=queries.find(sql=>sql.includes('FROM pipeline_leads l JOIN sx_training_enrollments e'));
   assert.match(join,/e\.legacy_uid COLLATE utf8mb4_general_ci=l\.uid COLLATE utf8mb4_general_ci/);

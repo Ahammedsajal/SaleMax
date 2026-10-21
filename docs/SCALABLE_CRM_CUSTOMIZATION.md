@@ -10,6 +10,10 @@ Keep one maintained SaleMaX application, current logins and panels, and shared m
 
 Configuration isolation can prevent one business's settings affecting another. It cannot guarantee that a defect in shared application code never affects other businesses. Version pinning, gradual rollout and contract tests reduce that blast radius; dedicated deployment stamps and resource isolation are the stronger option for customers needing separate runtime failure boundaries. Do not sell an absolute guarantee of zero shared-code impact.
 
+## Training lifecycle boundary correction — 21 October 2026
+
+The existing Training Center learner-progress reconciler can move won Pipeline leads through invoice, payment, course and certificate stages. It now requires the authenticated actor's registered category to be `training_center` before it reads or updates those records. All shared Pipeline entry points pass the category, and the service rejects known other categories before opening a database connection. Unmapped legacy workspaces retain their prior behavior pending explicit adoption. This closes a cross-category stage mutation path; it does not make the rest of the legacy Pipeline data model category-aware or complete the separate domain workflows. Focused service/registry/category tests pass; full route/report and authenticated customer acceptance remain separate gates.
+
 ## Confirmed source findings
 
 | Area | Owning source | Current finding and consequence |

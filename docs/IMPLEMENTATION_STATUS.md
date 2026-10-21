@@ -1,3 +1,7 @@
+## Training journey category isolation — source increment, 21 October 2026
+
+Training Center enrollment reconciliation now receives the authenticated Pipeline actor's assigned category and exits before database access for every known non-Training category. Training Center keeps its existing automatic learner-stage progression; unmapped legacy workspaces retain the prior compatibility path. The guard covers Pipeline stage summaries, board, exports and journey reports, preventing Training enrollment rows for a shared legacy owner from moving another category's leads into Training-only stages. Thirteen focused registry/category/isolation checks pass; route/module syntax and diff checks pass. The broader report test bundle could not start in this checkout because `moment-timezone` and `jsonwebtoken` are not installed. No schema or customer data changes. Production rollout and live source parity remain pending; category-specific workflow design and full category acceptance remain open.
+
 ## Tenant-local menu visibility — production, 21 October 2026
 
 The existing owner-only workspace customization now supports schema 3 with a

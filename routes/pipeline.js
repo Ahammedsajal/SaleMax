@@ -187,7 +187,7 @@ router.post('/training-forms/:formSlug/submissions', async (req,res) => {
 router.get('/stage-summary',async(req,res)=>{
   try{
     const pool=require('../database/config.js').promise(),actor=req.pipelineActor;
-    await trainingLeadJourney.reconcileExisting(pool,{uid:actor.uid});
+    await trainingLeadJourney.reconcileExisting(pool,{uid:actor.uid,categoryKey:actor.categoryKey});
     const uidHash=crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex');
     const conditions=['l.uid_hash=?'],args=[uidHash];
     if(actor.role==='agent'){conditions.push('l.owner_agent_id=?');args.push(actor.agentId);}
@@ -207,7 +207,7 @@ router.get('/stage-summary',async(req,res)=>{
 router.get("/board", async (req, res) => {
   try {
     const pool=require('../database/config.js').promise();
-    await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});
+    await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid,categoryKey:req.pipelineActor.categoryKey});
     const data = await pipeline.getBoard({
       uid: req.pipelineActor.uid,
       role: req.pipelineActor.role,
@@ -239,7 +239,7 @@ router.get('/leads/export', async (req,res)=>{
   try{
     const actor=req.pipelineActor;
     const pool=require('../database/config.js').promise();
-    await trainingLeadJourney.reconcileExisting(pool,{uid:actor.uid});
+    await trainingLeadJourney.reconcileExisting(pool,{uid:actor.uid,categoryKey:actor.categoryKey});
     const data=await pipeline.getBoard({uid:actor.uid,role:actor.role,agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,categoryKey:actor.categoryKey,timezone:actor.timezone,includeQualificationData:true,filters:{
       search:req.query.search,stage:req.query.stage,origin:req.query.origin,sourceType:req.query.sourceType,assignment:req.query.assignment,
       qrInstanceId:req.query.qrInstanceId,owner:req.query.owner,page:1,limit:300,
@@ -332,7 +332,7 @@ router.get('/reports/leads',async(req,res)=>{
 });
 
 router.get('/reports/journey',async(req,res)=>{
-  try{const pool=require('../database/config.js').promise();if(req.pipelineActor.categoryKey!=='7network_sales')await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  try{const pool=require('../database/config.js').promise();await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid,categoryKey:req.pipelineActor.categoryKey});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){fail(res,error);}
 });
 
