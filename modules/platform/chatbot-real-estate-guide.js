@@ -31,7 +31,7 @@ async function loadFacts({ db, tenantId, context }) {
       property_type AS propertyType,transaction_type AS transactionType,price_minor AS priceMinor,currency,
       area_sqm AS areaSqm,bedrooms,city,description_en AS descriptionEn,description_ar AS descriptionAr
     FROM sx_real_estate_properties
-    WHERE tenant_id=? AND status='active' AND deleted_at IS NULL
+    WHERE tenant_id=? AND status='active'
     ORDER BY updated_at DESC,id LIMIT 100`, [tenantId]);
   return rows.map(row => ({ ...row, kind: 'property', priceMinor: Number(row.priceMinor), areaSqm: row.areaSqm == null ? null : Number(row.areaSqm) }));
 }

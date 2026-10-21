@@ -1023,13 +1023,15 @@ router no longer changes the pool before handling a product request. Focused
 category, media-token, media-route, chatbot-media, reply, transport and
 course-router tests pass 17/17. Regression fixtures assert that only the fixed
 Training or product tables are selected for each verified category. The
-product disposable-MariaDB integration now asserts direct product-service
-reads, media storage, cross-route token denial and Sales-specific media audit
-classification, but it remains unrun because no disposable database target is
-configured in this checkout. No schema, customer data or production state
-changed. Remaining work includes the neutral private-file storage service,
-category-neutral reply-job API names with compatibility adapters, disposable
-MariaDB/browser acceptance and Retail's independent inventory ledger.
+product disposable-MariaDB integration applies all 121 forward migrations and
+verifies direct product-service reads, media storage/access, cross-route token
+denial, Sales-specific media audit classification and unchanged Training data.
+That real-database run found and fixed a product access route that had requested
+the Training media adapter. The test ran on a temporary loopback-only database;
+no production schema, customer data or deployment changed. Remaining work
+includes the neutral private-file storage service, category-neutral reply-job
+API names with compatibility adapters, browser acceptance and Retail's
+independent inventory ledger.
 
 ## Tenant-scoped Real Estate chatbot guide — source implementation, 22 October 2026
 
@@ -1053,9 +1055,11 @@ validation recognizes their evidenced values. The existing generic chatbot
 editor renders the pack's schema without adding another screen or shell.
 
 All chatbot domain-pack, editor contract, preview, runtime and answer-context
-tests pass 281/281. Database-backed and authenticated English/Arabic browser
-acceptance remain open because no disposable MariaDB target is configured here. This is a
-source increment only: no migration, production state, customer record or
+tests pass 281/281. A temporary loopback-only MariaDB integration applies the
+existing Real Estate and tenant-customization migrations and checks tenant
+isolation, draft exclusion, disabled-module behavior and the authenticated
+preview service. Authenticated English/Arabic browser acceptance remains open.
+This is a source increment only: no production state, customer record or
 provider was changed. The Real Estate category remains private and
 non-planable, and the other vertical workflows plus full release evidence are
 still required before broader rollout.

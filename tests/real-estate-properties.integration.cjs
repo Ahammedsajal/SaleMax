@@ -8,6 +8,8 @@ const crypto=require('node:crypto');
 const mysql=require('mysql2/promise');
 const properties=require('../modules/platform/real-estate-properties');
 const category=require('../modules/platform/categories').realEstate;
+const realEstateV3=require('../modules/platform/categories').realEstateV3;
+const realEstateBot=require('../modules/platform/chatbot-domain-packs').getDomainPack('real_estate',3);
 const customization=require('../modules/platform/tenant-customization');
 if(process.env.REALESTATE_SYNTHETIC_ONLY!=='true')throw Error('REALESTATE_SYNTHETIC_ONLY_REQUIRED');
 const config=JSON.parse(fs.readFileSync(process.env.REALESTATE_TEST_CONFIG,'utf8'));
@@ -82,11 +84,27 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   const [[row]]=await pool.query('SELECT revision,status FROM sx_real_estate_properties WHERE tenant_id=? AND id=?',[tenantId,created.id]);
   assert.equal(Number(row.revision),3);
 
+  const botContext={...a,category:realEstateV3,tenant:{...a.tenant,categoryVersion:3},subscription:{...a.subscription,categoryKey:'real_estate',categoryVersion:3,capabilities:[...realEstateV3.capabilities]}};
+  const otherBotContext={...b,category:realEstateV3,tenant:{...b.tenant,categoryVersion:3},subscription:{...b.subscription,categoryKey:'real_estate',categoryVersion:3,capabilities:[...realEstateV3.capabilities]}};
+  const draftBotListing=await use(db=>properties.create(db,a,{...listing,titleEn:'Draft bot listing',titleAr:'عقار روبوت مسودة'}));
+  const botListing=await use(db=>properties.create(db,a,{...listing,titleEn:'Bot-visible listing',titleAr:'عقار ظاهر للروبوت'}));
+  await use(db=>properties.update(db,a,botListing.id,{expectedRevision:1,status:'active'}));
+  const otherBotListing=await use(db=>properties.create(db,b,{...listing,titleEn:'Other tenant listing',titleAr:'عقار المستأجر الآخر'}));
+  await use(db=>properties.update(db,b,otherBotListing.id,{expectedRevision:1,status:'active'}));
+  const botFacts=await use(db=>realEstateBot.loadFacts({db,tenantId,context:botContext}));
+  const [activeIds]=await pool.query("SELECT id FROM sx_real_estate_properties WHERE tenant_id=? AND status='active' ORDER BY updated_at DESC,id LIMIT 100",[tenantId]);
+  assert.deepEqual(botFacts.map(item=>item.id),activeIds.map(item=>item.id),'the guide includes only this tenant\'s active listings');
+  assert.ok(botFacts.some(item=>item.id===botListing.id));assert.ok(!botFacts.some(item=>item.id===draftBotListing.id||item.id===otherBotListing.id));
+  assert.deepEqual((await use(db=>realEstateBot.loadFacts({db,tenantId:otherTenantId,context:otherBotContext}))).map(item=>item.id),[otherBotListing.id],'each tenant receives only its own listing facts');
+  const botPreview=await use(db=>require('../modules/platform/chatbot-guide-preview').previewGuidedTurn({body:{message:'show listings'},pack:realEstateBot,db,tenantId,context:botContext}));
+  assert.match(botPreview.reply,/Bot-visible listing/);assert.doesNotMatch(botPreview.reply,/Other tenant listing|Draft bot listing/,'authenticated preview only shows active listings owned by the current tenant');
+  assert.deepEqual(await use(db=>realEstateBot.loadFacts({db,tenantId,context:{...botContext,tenant:{...botContext.tenant,disabledModules:['realestate.listings']}}})),[],'disabled Properties module is excluded from bot facts');
+
   const before=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
   const connection=await pool.getConnection();
   const failingDb={beginTransaction:()=>connection.beginTransaction(),commit:()=>connection.commit(),rollback:()=>connection.rollback(),query:(sql,args)=>String(sql).includes('INSERT INTO sx_audit_events')?Promise.reject(Error('SYNTHETIC_AUDIT_FAILURE')):connection.query(sql,args)};
   try{await assert.rejects(properties.create(failingDb,a,{...listing,titleEn:'Audit rollback candidate'}),/SYNTHETIC_AUDIT_FAILURE/);}finally{connection.release();}
   const after=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
   assert.equal(after,before,'listing insert must roll back with its audit event');
-  console.log(JSON.stringify({passed:true,checks:['property and customization migrations apply to disposable MariaDB','creator identity must be a member of the same tenant','manager assignment is limited to active same-team agents','agents see only their assigned listings','team leaders see listings assigned to current team members','foreign-tenant assignee denied','tenant-scoped listing reads','custom field config and values remain tenant-isolated','custom values validate, retain bilingual snapshots and update transactionally','custom values are searchable inside the tenant scope','cross-tenant listing ID denied','new listings start as drafts','two concurrent edits yield one revision winner','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
+  console.log(JSON.stringify({passed:true,checks:['property and customization migrations apply to disposable MariaDB','creator identity must be a member of the same tenant','manager assignment is limited to active same-team agents','agents see only their assigned listings','team leaders see listings assigned to current team members','foreign-tenant assignee denied','tenant-scoped listing reads','custom field config and values remain tenant-isolated','custom values validate, retain bilingual snapshots and update transactionally','custom values are searchable inside the tenant scope','cross-tenant listing ID denied','new listings start as drafts','two concurrent edits yield one revision winner','Real Estate bot facts include only tenant active listings','disabled Properties module excludes bot facts','authenticated domain guide preview is tenant-scoped','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
 }finally{await pool.end();}})().catch(error=>{console.error(error.stack||String(error));process.exitCode=1;});

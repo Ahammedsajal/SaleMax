@@ -42,7 +42,7 @@ const {discover,applyMigrations}=require('../database/migration-runner');
   const ctx=contexts['7network_sales'];
   const form=new FormData();form.append('file',new Blob([Buffer.from('%PDF-1.4\nSynthetic brochure\n%%EOF')],{type:'application/pdf'}),'brochure.pdf');
   const attached=await request('/products/'+id+'/media',{method:'POST',body:form});assert.equal(attached.status,201);
-  const [[mediaAudit]]=await db.query("SELECT action,resource_type FROM sx_audit_events WHERE tenant_id=? AND action='sales.product-media-uploaded' AND resource_id=? ORDER BY created_at DESC LIMIT 1",[ctx.tenant.id,attached.body.data.id]);assert.deepEqual(mediaAudit,{action:'sales.product-media-uploaded',resource_type:'sales-product-media'});
+  const [[mediaAudit]]=await db.query("SELECT action,resource_type FROM sx_audit_events WHERE tenant_id=? AND action='sales.product-media-uploaded' AND resource_id=? ORDER BY occurred_at DESC LIMIT 1",[ctx.tenant.id,attached.body.data.id]);assert.deepEqual(mediaAudit,{action:'sales.product-media-uploaded',resource_type:'sales-product-media'});
   const published=await request('/products/'+id+'/publish',{method:'POST',body:{expectedRevision:1}});assert.equal(published.status,200);
   const c={ctx,scope:{uid:'synthetic-owner'}};
   assert.equal((await replies.options(pool,c)).length,1);

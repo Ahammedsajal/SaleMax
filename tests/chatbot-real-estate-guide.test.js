@@ -22,7 +22,7 @@ test('real-estate bot facts query only active listings for the authenticated ten
   const queries=[],db={query:async(sql,args)=>{queries.push({sql,args});return [[row]];}};
   const facts=await pack.loadFacts({db,tenantId,context:context()});
   assert.equal(facts.length,1);assert.equal(facts[0].referenceCode,'RE-AAA');assert.deepEqual(queries[0].args,[tenantId]);
-  assert.match(queries[0].sql,/tenant_id=\? AND status='active' AND deleted_at IS NULL/);
+  assert.match(queries[0].sql,/tenant_id=\? AND status='active'/);
   assert.deepEqual(await pack.loadFacts({db,tenantId,context:context({tenant:{disabledModules:['realestate.listings']}})}),[]);
   assert.deepEqual(await pack.loadFacts({db,tenantId:'tenant-foreign',context:context()}),[]);
   assert.equal(queries.length,1);

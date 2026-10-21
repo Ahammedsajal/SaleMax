@@ -2091,11 +2091,15 @@ media uploads/removals write Sales-specific audit action/resource types, while
 Training event names and historical `courseId` details remain unchanged. The
 legacy product `course_id` column stays as an adapter detail pending a reviewed
 expand/contract migration. Focused adapter, route, media, chatbot, reply,
-transport and router tests pass 17/17. Product disposable MariaDB integration
-assertions were expanded but could not run without a configured disposable DB.
-No migration, production deployment, media rewrite or tenant-data change
-occurred. Neutral private-media storage and full product/course browser and DB
-acceptance remain open.
+transport and router tests pass 17/17. The product integration also passes
+against an isolated MariaDB database after applying all 121 forward migrations;
+it verifies product creation, Sales-specific media audit, private media access,
+cross-category token rejection, English/Arabic product replies, idempotent send,
+and unchanged Training Center storage. Its first run exposed that the product
+media access route selected the Training adapter; the route now passes the
+category-validated product resource type. No production deployment, media
+rewrite or customer-data change occurred. Neutral private-media storage and
+authenticated product/course browser acceptance remain open.
 
 ## Tenant-scoped Real Estate chatbot guide — source only, 22 October 2026
 
@@ -2112,10 +2116,13 @@ invent availability. AI fallback retrieval now includes matched property facts,
 and factual-answer validation recognizes evidenced property prices and amounts.
 
 The complete chatbot test set, including the domain-pack, editor contract,
-guide-preview, runtime and answer-context checks, passes 281/281. These are
-source-level and unit checks; the disposable MariaDB test and authenticated
-English/Arabic Inbox acceptance have
-not run in this checkout. No migration, production change, customer data access
-or provider message was performed. Real Estate remains private and non-planable
-until its workflow, screen, role and release gates are reviewed; other category
-packs and the wider TC00–TC41 objective remain incomplete.
+guide-preview, runtime and answer-context checks, passes 281/281. A temporary,
+loopback-only MariaDB integration also applies the existing Real Estate and
+tenant customization migrations and verifies tenant-isolated listing facts,
+draft exclusion, disabled-module denial and authenticated guide preview.
+Customer-data and external-write flags are both false. Authenticated English/
+Arabic browser and Inbox acceptance have not run. No production migration,
+deployment, customer-data access or provider message was performed. Real Estate
+remains private and non-planable until its workflow, screen, role and release
+gates are reviewed; other category packs and the wider TC00–TC41 objective
+remain incomplete.

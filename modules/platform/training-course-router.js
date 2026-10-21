@@ -125,7 +125,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   router.get('/:id/media/:mediaId/access', contextGuard, wrap(async (req, res) => {
     courses.object(req.courseContext, 'courses.read');
     const db = await pool.getConnection();
-    try { await courseMedia.getFile(db, req.courseContext.tenant.id, req.params.id, req.params.mediaId); }
+    try { await courseMedia.getFile(db, req.courseContext.tenant.id, req.params.id, req.params.mediaId, products ? 'products' : 'courses'); }
     finally { db.release(); }
     const access = courseMedia.accessToken(req.courseContext, req.params.id, req.params.mediaId);
     const mediaPath = `${req.baseUrl}/${encodeURIComponent(req.params.id)}/media/${encodeURIComponent(req.params.mediaId)}/stream`;
