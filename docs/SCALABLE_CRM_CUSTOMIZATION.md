@@ -538,10 +538,16 @@ it does not change category manifests, permissions, stages or any other tenant's
 configuration. It also exposes a scale boundary: custom values live in bounded
 JSON snapshots, and searching them requires a per-row projection when a search
 is active. Current field definitions allow at most 24 active fields and saved
-history is bounded to 120 values/128 KiB per lead. Before large-account search
-claims, capture production-sized row counts and query plans; if those exceed the
-latency budget, add a tenant/lead/field-key/value projection with transactional
-write-through, migration backfill and reconciliation. Do not index every
+history is bounded to 120 values/128 KiB per lead. Production currently has six
+businesses with Pipeline data (median 10 leads; maximum 242). MariaDB first
+planned a full-table scan in this small 398-row table, so both page and count
+queries now force the existing `idx_pipeline_board` index, whose leading key is
+`uid_hash`; a live EXPLAIN for the largest tenant changed from `ALL` over 398
+rows to `ref` over that tenant's estimated 242 rows before the JSON projection.
+This is a current production snapshot, not a capacity guarantee. Repeat plans and
+latency measurements as data grows; if they exceed the budget, add a
+tenant/lead/field-key/value projection with transactional write-through,
+migration backfill and reconciliation. Do not index every
 customer-defined value without a measured access pattern.
 
 Research basis: AWS documents pooled, bridge and silo storage as trade-offs by

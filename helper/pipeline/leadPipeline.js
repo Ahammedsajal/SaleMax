@@ -616,7 +616,7 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezo
         (SELECT pc.chat_id FROM pipeline_conversations pc WHERE pc.uid_hash = l.uid_hash AND pc.lead_id = l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS latest_chat_id,
         (SELECT i.number FROM pipeline_conversations pc JOIN beta_chats bc ON bc.uid=l.uid COLLATE utf8mb4_unicode_ci AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci AND bc.origin='qr' JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE pc.uid_hash=l.uid_hash AND pc.lead_id=l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS source_instance_number,
         EXISTS (SELECT 1 FROM pipeline_attributions pa WHERE pa.uid_hash = l.uid_hash AND pa.lead_id = l.id AND pa.is_verified_ad = 1) AS has_verified_ad_attribution
-       FROM pipeline_leads l LEFT JOIN agents a ON a.id = l.owner_agent_id
+       FROM pipeline_leads l FORCE INDEX (idx_pipeline_board) LEFT JOIN agents a ON a.id = l.owner_agent_id
         AND a.owner_uid COLLATE utf8mb4_general_ci = l.uid COLLATE utf8mb4_general_ci
        LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
        WHERE ${conditions.join(" AND ")}
@@ -635,7 +635,7 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezo
     const todayStart = today.clone().startOf("day").utc().format("YYYY-MM-DD HH:mm:ss.SSS");
     const todayEnd = today.clone().add(1, "day").startOf("day").utc().format("YYYY-MM-DD HH:mm:ss.SSS");
     const [countRows] = await connection.query(
-      `SELECT COUNT(*) AS total, COALESCE(SUM(l.created_at >= ? AND l.created_at < ?),0) AS today_new_leads FROM pipeline_leads l
+      `SELECT COUNT(*) AS total, COALESCE(SUM(l.created_at >= ? AND l.created_at < ?),0) AS today_new_leads FROM pipeline_leads l FORCE INDEX (idx_pipeline_board)
        LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
        WHERE ${conditions.join(" AND ")}`,
       [todayStart, todayEnd, ...values],

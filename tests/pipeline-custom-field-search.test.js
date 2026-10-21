@@ -26,9 +26,11 @@ test('Pipeline search searches custom field values within tenant-scoped lead que
   assert.match(leads.sql,/\$\.customFields\.\*/);
   assert.match(leads.sql,/PATH '\$\.value'/);
   assert.match(leads.sql,/l\.uid_hash = \?/);
+  assert.match(leads.sql,/FROM pipeline_leads l FORCE INDEX \(idx_pipeline_board\)/);
   assert.equal(leads.args.at(-3),'%architect%');
   const count=f.calls.find(call=>call.sql.startsWith('SELECT COUNT(*) AS total, COALESCE'));
   assert.match(count.sql,/JSON_TABLE\(/,'count and page use the same search filter');
+  assert.match(count.sql,/FROM pipeline_leads l FORCE INDEX \(idx_pipeline_board\)/);
   assert.equal(count.args.at(-1),'%architect%');
 });
 
