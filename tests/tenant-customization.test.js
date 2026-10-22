@@ -76,3 +76,21 @@ test('published hidden navigation affects only the current tenant session contra
     assert.equal(b.navigationLabels.courses.en,'Learning');
   }finally{customization.effective=original;}
 });
+test('owner settings draft accepts the preserved tenant alias with its canonical plan contract',async()=>{
+  const sales=salemaxSales,tenantId='22222222-2222-4222-8222-222222222222',writes=[];
+  const legacy={...ctx,identity:{id:'sales-owner-identity'},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},category:sales,
+    membership:{id:'sales-owner-member',tenantId,identityId:'sales-owner-identity',role:'owner',status:'active'},
+    subscription:{status:'active',categoryKey:'7network_sales',categoryVersion:1,capabilities:[...sales.capabilities]}};
+  const db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},query:async(sql,args)=>{
+    if(sql.includes('SELECT category_key,category_version,status FROM sx_tenants'))return [[{category_key:'salemax_sales',category_version:1,status:'active'}]];
+    if(sql.includes('SELECT m.role,m.status,i.status AS identityStatus'))return [[{role:'owner',status:'active',identityStatus:'active'}]];
+    if(sql.includes('FROM sx_plan_assignments'))return [[{id:'assignment',status:'active',role_limits:{owner:1,accountant:1,manager:1,team_leader:1,agent:1},capabilities:[...sales.capabilities],category_key:'7network_sales',category_version:1,current_period:1}]];
+    if(sql.includes('SELECT revision,active_id,draft_id FROM sx_tenant_customization_heads'))return [[]];
+    if(sql.includes('SELECT COUNT(*) AS total'))return [[{total:0}]];
+    if(sql.startsWith('INSERT INTO')||sql.startsWith('UPDATE')){writes.push({sql,args});return [{affectedRows:1}];}
+    throw Error('Unexpected query: '+sql);
+  }};
+  const salesDoc={schemaVersion:1,navigationLabels:{'sales-deals':{en:'Deals',ar:'الصفقات'}}};
+  const result=await settings.mutate(db,legacy,{expectedRevision:0,document:salesDoc},'draft');
+  assert.equal(result.revision,1);assert.equal(writes.length,4);
+});

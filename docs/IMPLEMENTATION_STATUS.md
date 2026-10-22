@@ -10,6 +10,8 @@ Central feature authorization now resolves preserved `salemax_sales` tenant and 
 
 The shared legacy feature-session adapter is now covered end-to-end at the context boundary: a synthetic aliased owner retains the raw tenant key, resolves the canonical category and plan, and receives only the policy decision allowed by that exact version. Combined legacy-session, category-identity and policy checks pass 23/23. No customer records or production services were touched.
 
+The tenant-customization draft transaction now also accepts the canonical plan contract for a tenant that still stores the `salemax_sales` alias. A synthetic owner write exercises category lookup, active subscription binding, revision creation, draft-head update and audit insertion while retaining the stored alias; focused customization, category and policy checks pass 28/28. There is no migration or customer-data change.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language

@@ -98,7 +98,7 @@ async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
     const [[member]]=await db.query("SELECT m.role,m.status,i.status AS identityStatus FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id WHERE m.tenant_id=? AND m.id=? AND m.identity_id=? FOR UPDATE",[ctx.tenant.id,ctx.membership.id,ctx.identity.id]);
     if(!member||member.role!=='owner'||member.status!=='active'||member.identityStatus!=='active')fail('PERMISSION_DENIED',403);
     const subscription=await require('./plans').loadEntitlements(db,ctx.tenant.id);
-    if(subscription&&(subscription.categoryKey!==ctx.tenant.categoryKey||Number(subscription.categoryVersion)!==ctx.tenant.categoryVersion))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+    if(subscription&&(!require('./categories').categoryKeyMatches(subscription.categoryKey,ctx.tenant.categoryKey)||Number(subscription.categoryVersion)!==ctx.tenant.categoryVersion))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
     authorize({...ctx,subscription});
     const [[head]]=await db.query('SELECT revision,active_id,draft_id FROM sx_tenant_customization_heads WHERE tenant_id=? FOR UPDATE',[ctx.tenant.id]);
     if(Number(head?.revision||0)!==expectedRevision)fail('STALE_CUSTOMIZATION_REVISION',409);
