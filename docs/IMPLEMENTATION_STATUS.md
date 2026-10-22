@@ -1953,3 +1953,5 @@ built image `sha256:f07a82bf3bc79cb3a12ce7882d073b2e717a231b207a2fb9f218a19065d8
 at 703,277,952 Docker-reported bytes and 8 layers; non-root smoke loaded the S3
 SDK and verified graceful signal relay. The PR artifact and registry image are
 not published from pull-request runs.
+
+The source-only capacity monitor now tracks Docker image-set virtual-size growth from its first-run baseline, with configurable warning/critical thresholds, deduplicated transitions, and baseline reset after the image set shrinks. Docker virtual image sizes may count shared layers more than once, so this is an early-warning metric and must not drive cleanup decisions. The focused monitor suite passes 15/15 and shell syntax/whitespace checks pass. It is not deployed: the live operator webhook destination is still not provisioned, and no alert delivery has been demonstrated.

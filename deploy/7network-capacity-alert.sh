@@ -8,13 +8,20 @@ releases_path="${SALEMAX_RELEASES_PATH:-/opt/salemax/releases}"
 release_baseline_file="$state_dir/releases-baseline-bytes"
 release_growth_warning_bytes="${SALEMAX_RELEASE_GROWTH_WARNING_BYTES:-2147483648}"
 release_growth_critical_bytes="${SALEMAX_RELEASE_GROWTH_CRITICAL_BYTES:-5368709120}"
+image_baseline_file="$state_dir/docker-image-baseline-bytes"
+image_growth_warning_bytes="${SALEMAX_IMAGE_GROWTH_WARNING_BYTES:-2147483648}"
+image_growth_critical_bytes="${SALEMAX_IMAGE_GROWTH_CRITICAL_BYTES:-5368709120}"
 free_warning_bytes=$((5 * 1024 * 1024 * 1024))
 
-for threshold in "$release_growth_warning_bytes" "$release_growth_critical_bytes"; do
+for threshold in "$release_growth_warning_bytes" "$release_growth_critical_bytes" "$image_growth_warning_bytes" "$image_growth_critical_bytes"; do
   [[ "$threshold" =~ ^[0-9]+$ ]] && (( threshold > 0 )) || { echo 'Release growth thresholds must be positive integers' >&2; exit 1; }
 done
 (( release_growth_critical_bytes >= release_growth_warning_bytes )) || {
   echo 'Critical release growth threshold must be at least the warning threshold' >&2
+  exit 1
+}
+(( image_growth_critical_bytes >= image_growth_warning_bytes )) || {
+  echo 'Critical Docker image growth threshold must be at least the warning threshold' >&2
   exit 1
 }
 
@@ -80,12 +87,63 @@ if (( baseline_changed )); then
   mv -f "$baseline_temporary" "$release_baseline_file"
 fi
 
+# Docker reports virtual image sizes and can count shared layers repeatedly.
+# Use this as a growth signal, never as an estimate of reclaimable disk bytes.
+image_ids_output="$(timeout 20 docker image ls --no-trunc --quiet | sort -u)" || {
+  echo 'Unable to list Docker images for growth monitoring' >&2
+  exit 1
+}
+image_bytes=0
+if [[ -n "$image_ids_output" ]]; then
+  IFS=$'\n' read -r -a image_ids <<< "$image_ids_output"
+  image_sizes="$(timeout 30 docker image inspect --format '{{.Size}}' "${image_ids[@]}")" || {
+    echo 'Unable to inspect Docker image sizes for growth monitoring' >&2
+    exit 1
+  }
+  while IFS= read -r image_size; do
+    [[ "$image_size" =~ ^[0-9]+$ ]] || { echo 'Docker returned an invalid image size' >&2; exit 1; }
+    image_bytes=$((image_bytes + image_size))
+  done <<< "$image_sizes"
+fi
+image_baseline=$image_bytes
+image_baseline_changed=0
+if [[ -f "$image_baseline_file" ]]; then
+  IFS= read -r image_baseline < "$image_baseline_file" || image_baseline=''
+else
+  image_baseline_changed=1
+fi
+if [[ ! "$image_baseline" =~ ^[0-9]+$ ]]; then
+  image_baseline=$image_bytes
+  image_baseline_changed=1
+fi
+image_growth_bytes=0
+if (( image_bytes >= image_baseline )); then
+  image_growth_bytes=$((image_bytes - image_baseline))
+else
+  image_baseline=$image_bytes
+  image_baseline_changed=1
+fi
+if (( image_baseline_changed )); then
+  image_baseline_temporary="$image_baseline_file.$$"
+  printf '%s\n' "$image_baseline" > "$image_baseline_temporary"
+  chmod 0640 "$image_baseline_temporary"
+  mv -f "$image_baseline_temporary" "$image_baseline_file"
+fi
+
 release_growth_state=none
 if (( release_growth_bytes >= release_growth_critical_bytes )); then
   release_growth_state=critical
   raise_severity critical 3
 elif (( release_growth_bytes >= release_growth_warning_bytes )); then
   release_growth_state=warning
+  raise_severity urgent 2
+fi
+image_growth_state=none
+if (( image_growth_bytes >= image_growth_critical_bytes )); then
+  image_growth_state=critical
+  raise_severity critical 3
+elif (( image_growth_bytes >= image_growth_warning_bytes )); then
+  image_growth_state=warning
   raise_severity urgent 2
 fi
 
@@ -122,14 +180,16 @@ health_state=none
 if (( ${#health_failures[@]} > 0 )); then
   health_state="$(IFS=,; printf '%s' "${health_failures[*]}")"
 fi
-current_state="$severity|$health_state|$release_growth_state"
-previous_state='normal|none|none'
-if [[ -f "$state_file" ]]; then IFS= read -r previous_state < "$state_file" || previous_state='normal|none|none'; fi
-# Read state written by the original severity-only monitor and the health-only extension.
-if [[ "$previous_state" != *'|'* ]]; then previous_state="$previous_state|none|none"
-elif [[ "${previous_state#*|}" != *'|'* ]]; then previous_state="$previous_state|none"
-fi
-IFS='|' read -r previous_severity previous_health_state previous_release_growth_state <<< "$previous_state"
+current_state="$severity|$health_state|$release_growth_state|$image_growth_state"
+previous_state='normal|none|none|none'
+if [[ -f "$state_file" ]]; then IFS= read -r previous_state < "$state_file" || previous_state='normal|none|none|none'; fi
+# Read state written by the original severity-only, health-only and release-growth monitors.
+IFS='|' read -r previous_severity previous_health_state previous_release_growth_state previous_image_growth_state <<< "$previous_state"
+[[ -n "$previous_severity" ]] || previous_severity=normal
+[[ -n "$previous_health_state" ]] || previous_health_state=none
+[[ -n "$previous_release_growth_state" ]] || previous_release_growth_state=none
+[[ -n "$previous_image_growth_state" ]] || previous_image_growth_state=none
+previous_state="$previous_severity|$previous_health_state|$previous_release_growth_state|$previous_image_growth_state"
 if [[ "$current_state" == "$previous_state" ]]; then exit 0; fi
 
 webhook="${SALEMAX_CAPACITY_ALERT_WEBHOOK_URL:-}"
@@ -145,12 +205,15 @@ timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if [[ "$severity" == normal ]]; then
   message="7Network host capacity and service health recovered on ${host} at ${timestamp}. Disk ${disk_percent}% used (${disk_free_bytes} bytes free); inodes ${inode_percent}% used."
   if [[ "$previous_release_growth_state" != none ]]; then message+=" Release tree growth returned below threshold."; fi
+  if [[ "$previous_image_growth_state" != none ]]; then message+=" Docker image growth returned below threshold (virtual sizes may include shared layers)."; fi
 else
   message="7Network host capacity ${severity} on ${host} at ${timestamp}. Disk ${disk_percent}% used (${disk_free_bytes} bytes free); inodes ${inode_percent}% used."
   if (( ${#health_failures[@]} > 0 )); then message+="; unhealthy or missing services: ${health_state}."; fi
   if [[ "$health_state" == none && "$previous_health_state" != none ]]; then message+=" Service health recovered; capacity remains ${severity}."; fi
   if [[ "$release_growth_state" != none ]]; then message+=" Release tree growth ${release_growth_state}: ${release_growth_bytes} bytes over baseline."; fi
   if [[ "$release_growth_state" == none && "$previous_release_growth_state" != none ]]; then message+=" Release tree growth returned below threshold; capacity remains ${severity}."; fi
+  if [[ "$image_growth_state" != none ]]; then message+=" Docker image virtual-size growth ${image_growth_state}: ${image_growth_bytes} bytes over baseline (shared layers may be counted more than once)."; fi
+  if [[ "$image_growth_state" == none && "$previous_image_growth_state" != none ]]; then message+=" Docker image growth returned below threshold; capacity remains ${severity}."; fi
 fi
 payload="$(printf '{\"text\":\"%s\"}' "$message")"
 response_code="$(curl --fail --silent --show-error --max-time 10 --retry 2 --output /dev/null --write-out '%{http_code}' \
@@ -161,5 +224,5 @@ temporary="$state_file.$$"
 printf '%s\n' "$current_state" > "$temporary"
 chmod 0640 "$temporary"
 mv -f "$temporary" "$state_file"
-printf '[7network-capacity] webhook_accepted severity=%s disk=%s%% free=%s bytes inode=%s%% services=%s release_growth=%s bytes\n' \
-  "$severity" "$disk_percent" "$disk_free_bytes" "$inode_percent" "$health_state" "$release_growth_bytes"
+printf '[7network-capacity] webhook_accepted severity=%s disk=%s%% free=%s bytes inode=%s%% services=%s release_growth=%s bytes image_growth=%s virtual-bytes\n' \
+  "$severity" "$disk_percent" "$disk_free_bytes" "$inode_percent" "$health_state" "$release_growth_bytes" "$image_growth_bytes"
