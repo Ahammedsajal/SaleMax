@@ -64,6 +64,9 @@ test('follow-up notices use the chat QR instance and include lead, assignee, and
 test('existing Inbox shell loads the maintained follow-up adapter',()=>{
   const fs=require('node:fs'),path=require('node:path'),html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   assert.match(html,/inbox-follow-up\.js\?v=/);
+  const adapter=fs.readFileSync(path.join(__dirname,'../client/public/inbox-follow-up.js'),'utf8');
+  assert.match(adapter,/requestHeaders\.set\('Content-Type','application\/json'\)/);
+  assert.doesNotMatch(adapter,/Object\.fromEntries\(new Headers\(headers\)\)/);
 });
 
 test('Inbox follow-up uses the selected conversation ID and validates the visible contact number',()=>{
