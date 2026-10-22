@@ -255,7 +255,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       const saved=await recruitment.saveScreening(db,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId,mobile:message.senderMobile,senderName:message.senderName,answers:reply.state.answers,complete:['awaiting_cv','application_saved','application_submitted'].includes(reply.state.step),consent:true});
       if(saved?.applicationId&&reply.state.step==='awaiting_cv'){
         const prefill=await recruitment.issuePrefillToken(db,{tenantId:ctx.tenant.id,applicationId:saved.applicationId,answers:reply.state.answers});
-        const url=new URL(`/careers/${encodeURIComponent(ctx.tenant.slug)}?source=whatsapp&prefill=${encodeURIComponent(prefill)}`,process.env.FRONTENDURI||'https://crm.salemax.qa').toString();
+        const url=new URL(`/careers/${encodeURIComponent(ctx.tenant.slug)}?source=whatsapp&prefill=${encodeURIComponent(prefill)}`,'https://7network.live').toString();
         reply.reply=`Please upload your CV here as a PDF or DOCX file (up to 8 MB) to complete your application. Your answers are saved. You can also review your details and upload your CV here: ${url}\n\nOur recruiter will contact you soon.`;
         reply.buttons=[{id:'talk_to_recruiter',title:'Talk to recruiter'}];
         reply.handoff=true;reply.handoffReason='recruitment-awaiting-cv';

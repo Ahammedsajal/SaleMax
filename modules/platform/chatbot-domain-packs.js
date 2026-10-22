@@ -317,7 +317,7 @@ const RECRUITMENT_GUIDED_SCHEMA={groups:[{id:'recruitment-messages',title:{en:'R
 async function salemaxSalesRecruitmentFacts({db,tenantId,platformOrigin}){
   const [[tenant]]=await db.query("SELECT slug FROM sx_tenants WHERE id=? AND category_key IN ('7network_sales','salemax_sales') AND status='active' LIMIT 1",[tenantId]);
   if(!tenant)return [];
-  let url='';try{url=new URL(`/careers/${encodeURIComponent(tenant.slug)}?source=whatsapp`,platformOrigin).href;}catch{}
+  let url='';try{url=new URL(`/careers/${encodeURIComponent(tenant.slug)}?source=whatsapp`,'https://7network.live').href;}catch{}
   return url?[{kind:'recruitment_application',url}]:[];
 }
 registerDomainPack({

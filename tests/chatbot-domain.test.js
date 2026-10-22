@@ -49,6 +49,16 @@ test('category guided packs reject defaults without editor fields and freeze the
   assert.equal(registered.guidedContentDefaults.messages.greeting.en, 'Hello');
 });
 
+test('7Network Sales recruitment links always use the public 7Network domain', async () => {
+  const sales = getDomainPack('7network_sales', 1);
+  const [fact] = await sales.loadFacts({
+    tenantId: 'tenant-sales',
+    platformOrigin: 'https://crm.salemax.qa',
+    db: { query: async () => [[{ slug: 'sales-workspace' }]] },
+  });
+  assert.equal(fact.url, 'https://7network.live/careers/sales-workspace?source=whatsapp');
+});
+
 test('guided profile accepts edited messages and bounded display settings', () => {
   const saved = botInput({
     name: 'Admissions guide', engine: 'guided', config: {

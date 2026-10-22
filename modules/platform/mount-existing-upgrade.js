@@ -51,6 +51,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/user/sales-finance',createSalesFinanceRouter({pool,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/sales-targets',createSalesTargetsRouter({pool,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/sales-audit',createSalesAuditRouter({pool,canonicalGuard:businessBoundary.guard}));
+  app.use('/api/workspace/icp',require('./sales-icp-router').createSalesIcpRouter({pool,sessionGuard:featureSession.guard}));
   app.use('/api/admin/plan-contracts',createExistingCatalogueRouter({pool,legacyGuard,canonicalGuard:boundary.guard}));
   app.use('/api/admin/business-contracts',createExistingBusinessRouter({pool,legacyGuard,canonicalGuard:boundary.guard}));
   const access=createExistingPlatformAccessRouters({pool,origin});

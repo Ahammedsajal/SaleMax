@@ -10,6 +10,7 @@ const coreModules=Object.freeze([
   {key:'receipts',capability:'finance.receipts',permission:'receipts.read'},
   {key:'payments',capability:'finance.payments',permission:'payments.verify'},
   {key:'reports',capability:'reports.read',permission:'reports.read'},
+  {key:'icp',capability:'sales.icp',permission:'icp.read'},
 ]);
 const moduleExtensions=new Map();
 function validateModuleContract(input){
