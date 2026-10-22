@@ -526,6 +526,7 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
             assigned=assigned.filter(item=>!previousUid||item?.uid!==previousUid);
             if(target&&!assigned.some(item=>String(item?.id)===String(target.id)||item?.uid===target.uid))assigned.push(target);
             await db.query('UPDATE beta_chats SET assigned_agent=? WHERE uid=? AND chat_id=?',[JSON.stringify(assigned),req.pipelineActor.uid,chatId]);
+            await require('../modules/platform/conversation-assignment-index').replaceConversationAssignments(db,{uid:req.pipelineActor.uid,chatId,assignedAgent:assigned});
           }
         }
         let reminderTask=null;

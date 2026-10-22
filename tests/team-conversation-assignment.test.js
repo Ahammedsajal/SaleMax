@@ -9,6 +9,9 @@ function fixture(overrides = {}) {
   const calls = [];
   const db = { query: async (sql, params) => {
     calls.push({ sql, params });
+    if(sql.includes("WHERE o.source_table='user'")&&sql.includes('JOIN sx_tenants t'))return [[{tenantId:'tenant-a'}]];
+    if(sql.includes('FROM sx_legacy_ownership o JOIN sx_memberships'))return [[{uidHash:hash('new-user'),identityId:'new-staff'}]];
+    if(sql.startsWith('DELETE FROM sx_conversation_assignments')||sql.startsWith('INSERT INTO sx_conversation_assignments'))return [{affectedRows:1}];
     if (sql.includes("m.role='owner'")) return [[{ uid: 'owner', uidHash: hash('owner') }]];
     if (sql.includes('FOR UPDATE')) return [[{ assigned_agent: JSON.stringify([{ kind: 'identity', identityId: 'old-staff', uid: 'old-user' }]) }]];
     if (sql.includes('i.id=?')) {
@@ -41,6 +44,9 @@ test('unassign requires lead-assignment authority, preserves other identities an
   ]);
   const db={query:async(sql,args)=>{
     calls.push({sql,args});
+    if(sql.includes("WHERE o.source_table='user'")&&sql.includes('JOIN sx_tenants t'))return [[{tenantId:'tenant-a'}]];
+    if(sql.includes('FROM sx_legacy_ownership o JOIN sx_memberships'))return [[{uidHash:hash('agent-b'),identityId:'staff-b'}]];
+    if(sql.startsWith('DELETE FROM sx_conversation_assignments')||sql.startsWith('INSERT INTO sx_conversation_assignments'))return [{affectedRows:1}];
     if(sql.includes("m.role='owner'"))return [[{uid:'owner',uidHash:hash('owner')}]];
     if(sql.includes('FOR UPDATE'))return [[{assigned_agent:assigned,origin:'meta',sender_name:'Synthetic',sender_mobile:'+97450000000'}]];
     return [{affectedRows:1}];
@@ -64,6 +70,15 @@ test('incoming routing chooses the online staff with least assigned work, then f
   assert.equal(chooseAvailableStaff(staff,['user-a'],chats,'m').identityId,'a');
   assert.equal(chooseAvailableStaff(staff,[],chats,'m').identityId,'m');
   assert.equal(chooseAvailableStaff(staff,[],chats,'missing'),null);
+});
+
+test('incoming routing uses normalized indexed workload counts when available', () => {
+  const staff=[
+    {identityId:'busy',uid:'busy-uid',role:'agent'},
+    {identityId:'free',uid:'free-uid',role:'agent'},
+  ];
+  const result=chooseAvailableStaff(staff,['busy-uid','free-uid'],[],null,{busy:4,free:1});
+  assert.equal(result.identityId,'free');
 });
 
 test('agents can transfer only a conversation currently assigned to them', async () => {

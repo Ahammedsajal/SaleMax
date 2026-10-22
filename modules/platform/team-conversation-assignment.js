@@ -51,6 +51,7 @@ async function assignConversation(db, { ctx, uid, chatId, identityId, reason = '
     lead=await require('./conversation-lead-assignment').assign(db,{ctx,uid,chatId,chat,agentId:Number(target.legacyId),agentName:target.name});
   }
   await db.query('UPDATE beta_chats SET assigned_agent=? WHERE uid=? AND chat_id=?', [JSON.stringify([assignee]), uid, chatId]);
+  await require('./conversation-assignment-index').replaceConversationAssignments(db, { uid, chatId, assignedAgent: [assignee] });
   await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
     VALUES (?,?,?,'identity','conversation.transferred','conversation',?,?,?)`,
   [crypto.randomUUID(), ctx.tenant.id, ctx.identity.id, chatId, JSON.stringify({ previousIdentityIds: previous.map(item => item.identityId).filter(Boolean), identityId, reason: String(reason).slice(0, 120) }), crypto.randomUUID()]);
@@ -81,6 +82,7 @@ async function unassignConversation(db, { ctx, uid, chatId, assigneeUid, reason 
     if(agent)lead=await require('./conversation-lead-assignment').unassign(db,{ctx,uid,chatId,chat,agentId:Number(agent.id),agentName:agent.name});
   }
   await db.query('UPDATE beta_chats SET assigned_agent=? WHERE uid=? AND chat_id=?',[JSON.stringify(remaining),uid,chatId]);
+  await require('./conversation-assignment-index').replaceConversationAssignments(db, { uid, chatId, assignedAgent: remaining });
   await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
     VALUES (?,?,?,'identity','conversation.unassigned','conversation',?,?,?)`,
   [crypto.randomUUID(),ctx.tenant.id,ctx.identity.id,chatId,JSON.stringify({removedIdentityId:target.identityId||null,removedUid:assigneeUid,remainingIdentityIds:remaining.map(item=>item.identityId).filter(Boolean),reason:String(reason).slice(0,120)}),crypto.randomUUID()]);
@@ -112,10 +114,12 @@ async function eligibleStaff(db, tenantId) {
   }).map(({ identityId, name, email, uid, role }) => ({ kind: 'identity', identityId, name, email, uid, role }));
 }
 
-function chooseAvailableStaff(staff, connectedUids, chats, fallbackIdentityId) {
+function chooseAvailableStaff(staff, connectedUids, chats, fallbackIdentityId, workloadByIdentity = null) {
   const online = new Set(connectedUids);
   const candidates = staff.filter(item => item.role !== 'owner' && online.has(item.uid));
-  const count = identityId => chats.filter(chat => ownsConversation(chat.assigned_agent, identityId)).length;
+  const count = identityId => workloadByIdentity
+    ? Number(workloadByIdentity[identityId] || 0)
+    : chats.filter(chat => ownsConversation(chat.assigned_agent, identityId)).length;
   candidates.sort((a, b) => count(a.identityId) - count(b.identityId) || a.identityId.localeCompare(b.identityId));
   return candidates[0] || staff.find(item => item.identityId === fallbackIdentityId) || null;
 }
@@ -130,8 +134,15 @@ async function routeIncomingConversation(pool, { ctx, profile, uid, chatId, conn
     const [[chat]] = await db.query('SELECT assigned_agent FROM beta_chats WHERE uid=? AND chat_id=? FOR UPDATE', [uid, chatId]);
     if (!chat || assignments(chat.assigned_agent).length) { await db.commit(); return null; }
     const staff = await eligibleStaff(db, ctx.tenant.id);
-    const [chats] = await db.query('SELECT assigned_agent FROM beta_chats WHERE uid=?', [uid]);
-    const target = chooseAvailableStaff(staff, connectedUids, chats, profile.config.handoffAssigneeIdentityId);
+    const [[tenant]] = await db.query('SELECT conversation_assignment_index_ready_at AS readyAt FROM sx_tenants WHERE id=?', [ctx.tenant.id]);
+    let chats=[],workloadByIdentity=null;
+    if(tenant?.readyAt){
+      const [counts]=await db.query(`SELECT identity_id AS identityId,COUNT(*) AS assignedCount
+        FROM sx_conversation_assignments WHERE tenant_id=? AND owner_uid_hash=? GROUP BY identity_id`,
+      [ctx.tenant.id,require('./conversation-assignment-index').hash(uid)]);
+      workloadByIdentity=Object.fromEntries(counts.map(row=>[row.identityId,Number(row.assignedCount)]));
+    }else [chats]=await db.query('SELECT assigned_agent FROM beta_chats WHERE uid=?', [uid]);
+    const target = chooseAvailableStaff(staff, connectedUids, chats, profile.config.handoffAssigneeIdentityId, workloadByIdentity);
     if (!target) { await db.commit(); return null; }
     const result = await assignConversation(db, { ctx, uid, chatId, identityId: target.identityId, reason: connectedUids.includes(target.uid) ? 'incoming-online-staff' : 'incoming-manager-queue' });
     await db.commit();

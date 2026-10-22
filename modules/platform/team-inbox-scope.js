@@ -13,7 +13,8 @@ const parse = value => { try { const list = typeof value === 'string' ? JSON.par
 
 async function resolveInboxScope(query, user, event) {
   const source=user.isAgent||user.role==='agent'?'agents':'user';
-  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
+  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,
+      t.conversation_assignment_index_ready_at AS conversationAssignmentIndexReadyAt,m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
       i.status AS identityStatus,o.legacy_uid_hash AS uidHash,m.role_profile_id AS roleProfileId,
       m.delegated_permissions AS delegatedPermissions,r.permissions AS rolePermissions,r.seat_role AS seatRole,r.status AS roleStatus
     FROM sx_legacy_ownership o JOIN sx_tenants t ON t.id=o.tenant_id
@@ -35,7 +36,9 @@ async function resolveInboxScope(query, user, event) {
     membership.customPermissions = permissions;
   }
   if (row.role !== 'owner' && !qrAccountant && !scopeFor(membership, permission)) fail();
-  const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId, ctx: { tenant: { id: row.tenantId, status: row.tenantStatus, categoryKey: row.categoryKey }, identity: { id: row.identityId }, membership } };
+  const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId,
+    assignmentIndexReady: Boolean(row.conversationAssignmentIndexReadyAt),
+    ctx: { tenant: { id: row.tenantId, status: row.tenantStatus, categoryKey: row.categoryKey }, identity: { id: row.identityId }, membership } };
   if (row.role === 'owner') return { ...base, uid: user.uid };
   const owners = await query(`SELECT u.uid,m.id AS membershipId,m.identity_id AS identityId,o.legacy_uid_hash AS uidHash FROM sx_memberships m
     JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
@@ -82,8 +85,14 @@ function assignedChatSql(scope, alias='bc') {
   if (!scope?.canonical || !scope.assignedOnly) return { sql:'', params:[] };
   const clauses=[],params=[];
   if (!scope.qrOnly && typeof scope.identityId==='string' && /^[A-Za-z0-9_-]{1,128}$/.test(scope.identityId)) {
-    clauses.push(`${alias}.assigned_agent LIKE ?`);
-    params.push(`%${scope.identityId}%`);
+    if (scope.assignmentIndexReady === true && typeof scope.ctx?.tenant?.id === 'string' && typeof scope.uid === 'string' && scope.uid) {
+      const ownerUidHash = crypto.createHash('sha256').update(scope.uid, 'utf8').digest('hex');
+      clauses.push(`EXISTS (SELECT 1 FROM sx_conversation_assignments ca WHERE ca.tenant_id=? AND ca.owner_uid_hash=? AND ca.identity_id=? AND ca.chat_id=${alias}.chat_id)`);
+      params.push(scope.ctx.tenant.id, ownerUidHash, scope.identityId);
+    } else {
+      clauses.push(`${alias}.assigned_agent LIKE ?`);
+      params.push(`%${scope.identityId}%`);
+    }
   }
   const channels=[...new Set((scope.sharedQrInstances||[]).map(item=>item?.uniqueId).filter(value=>typeof value==='string'&&value.length>0&&value.length<=255))];
   if (channels.length) {

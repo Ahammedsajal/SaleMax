@@ -1,3 +1,29 @@
+# Tenant-indexed Inbox assignments — source implementation, 22 October 2026
+
+Added the normalized `sx_conversation_assignments` index and tenant-level
+readiness marker. Canonical transfers, unassignments, Pipeline assignment
+changes and keyword routing now replace index rows in their existing
+transactions. The Inbox uses the composite tenant/owner/identity index only
+after a tenant is explicitly backfilled; before that point it retains the
+existing JSON candidate filter. Incoming chat routing also uses indexed
+workload counts after backfill instead of loading every assigned JSON row.
+`scripts/backfill-conversation-assignment-index.cjs`
+scans existing chats in locked batches and marks a tenant ready only after the
+scan completes and the expected-versus-indexed row counts match. Canonical
+identity/UID mapping mismatches stop the backfill instead of silently hiding a
+staff conversation. Tenants with active legacy agents that have not been linked to
+canonical memberships remain on the JSON read path until identity adoption is
+complete. Assignment rows store identity IDs and a hash of the legacy
+owner UID, not raw UIDs or applicant/customer details. Focused transfer, routing
+and Inbox-scope unit tests pass 29/29. The disposable MariaDB integration is
+updated but was not run because its explicit database configuration is not
+available in this checkout. Source only: migration and backfill have not been
+run in production, and no production files or data were changed. Before a live
+rollout, deploy the migration and dual-write code, run the bounded backfill per
+tenant, compare indexed counts with legacy assignments, then verify the
+existing owner/manager/agent Inbox in English and Arabic. The full 42-ticket
+upgrade and production parity gates remain open.
+
 ## Tenant-scoped contact deletion — source implementation, 22 October 2026
 
 Both existing contact-delete entry points (`/api/user/del_contact` and the
