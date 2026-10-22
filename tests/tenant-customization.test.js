@@ -18,8 +18,9 @@ test('label customization is bounded, category-scoped data rather than executabl
   assert.throws(()=>settings.resolved({...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['not-a-category-key']}}},null,0),{code:'CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',status:503});
   assert.throws(()=>settings.resolved({...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[{key:'cf_text_0123456789abcdef',type:'text',label:{en:'Reference',ar:'مرجع'},required:false,active:true,version:1}],hiddenNavigation:[]}}},null,0),{code:'CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',status:503});
   const source=structuredClone(doc),normalized=settings.normalize(ctx,source);source.navigationLabels.courses.en='Changed';assert.equal(normalized.navigationLabels.courses.en,'Programmes');
+  assert.throws(()=>settings.normalize({...ctx,tenant:{...ctx.tenant,categoryVersion:2}},doc),{code:'CUSTOMIZATION_VERSION_MISMATCH'});
   for(const value of [{...doc,tenantId:'other'},{...doc,schemaVersion:4},{...doc,disabledCapabilities:[]},{schemaVersion:1,navigationLabels:{recruitment:{en:'Recruitment',ar:'توظيف'}}},{schemaVersion:1,navigationLabels:{'products-services':{en:'Products',ar:'منتجات'}}},{schemaVersion:1,navigationLabels:{courses:{en:'<script>',ar:'الدورات'}}},JSON.parse('{"schemaVersion":1,"navigationLabels":{"__proto__":{"en":"x","ar":"x"}}}')])assert.throws(()=>settings.normalize(ctx,value));
-  assert.throws(()=>settings.normalize({...ctx,category:salemaxSales},{schemaVersion:1,navigationLabels:{courses:{en:'Courses',ar:'دورات'}}}),{code:'INVALID_CUSTOMIZATION_LABEL'});
+  assert.throws(()=>settings.normalize({...ctx,tenant:{...ctx.tenant,categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version},category:salemaxSales},{schemaVersion:1,navigationLabels:{courses:{en:'Courses',ar:'دورات'}}}),{code:'INVALID_CUSTOMIZATION_LABEL'});
 });
 test('preview cannot grant access and denied staff never reach persistence',async()=>{
   const db={query(){throw Error('must not access database')}};

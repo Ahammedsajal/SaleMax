@@ -10,6 +10,8 @@ function authorize(ctx) {
   if(!result.allowed || ctx.membership?.role!=='owner' || !ctx.identity?.id) fail(result.allowed?'PERMISSION_DENIED':result.code,403);
 }
 function fieldsFor(ctx) {
+  const categories=require('./categories');
+  if(!ctx?.tenant||!ctx.category||!categories.categoryKeyMatches(ctx.category.key,ctx.tenant.categoryKey)||Number(ctx.category.version)!==Number(ctx.tenant.categoryVersion))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   // Historical Training Center v1 accidentally inherited these two grants.
   // Do not expose Sales-only screens as new customization options; retaining
   // the published entitlement contract does not make those screens compatible.
@@ -50,8 +52,8 @@ function resolved(ctx,document,revisionNumber=0) {
     if(categoryDefaults.leadFields?.length)fail('CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',503);
   }
   return require('./tenant-setting-resolver').resolve({
-    platform,category:categoryDefaults,tenant:document||{},categoryKey:ctx.tenant.categoryKey,
-    categoryVersion:ctx.tenant.categoryVersion,tenantRevision:revisionNumber,
+    platform,category:categoryDefaults,tenant:document||{},categoryKey:ctx.category.key,
+    categoryVersion:ctx.category.version,tenantRevision:revisionNumber,
   });
 }
 function decode(ctx,row) {
