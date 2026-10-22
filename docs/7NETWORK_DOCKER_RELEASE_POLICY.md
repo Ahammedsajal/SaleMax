@@ -14,13 +14,14 @@
 ## Shared production deployment lock
 
 - Every production mutation must run inside one process holding `/opt/salemax/shared/7network-production-deploy.lock` from the start of preflight through verification and any rollback. The lock is an OS-level `flock`; the file's existence alone is not mutual exclusion.
-- `deploy/with-production-lock.sh` is a synchronous wrapper. It refuses to run without `flock`, creates a missing lock file exclusively with a restrictive umask, rejects symlink and non-regular lock paths, acquires the shared lock non-blocking, resolves `/opt/salemax/current` only after acquisition, requires the target to remain beneath `/opt/salemax/releases/`, and exports `SALEMAX_ACTIVE_RELEASE_BEFORE` for the operation. Concurrent first runs converge on the same lock inode; they do not replace or unlink it.
+- `deploy/with-production-lock.sh` is the tracked source for a synchronous production wrapper installed at `/opt/salemax/shared/with-production-lock.sh`. Keeping the installed helper outside versioned app releases lets every release and workstream call the same implementation. It refuses to run without `flock`, creates a missing lock file exclusively with a restrictive umask, rejects symlink and non-regular lock paths, acquires the shared lock non-blocking, resolves `/opt/salemax/current` only after acquisition, requires the target to remain beneath `/opt/salemax/releases/`, and exports `SALEMAX_ACTIVE_RELEASE_BEFORE` for the operation. Concurrent first runs converge on the same lock inode; they do not replace or unlink it.
+- If the shared helper is absent, bootstrap it inside one remote command that first acquires `/opt/salemax/shared/7network-production-deploy.lock` inline with util-linux `flock`, then verifies host/release/disk state, backs up any existing helper, installs the reviewed tracked wrapper at the shared path with mode `0700`, verifies its source hash and held-lock status, and records rollback evidence before releasing the lock. Do not split this bootstrap across SSH calls.
 - Pass one command or script that performs the complete preflight/migration/deploy/verify/rollback sequence. Do not split a production mutation across independent SSH calls, background the operation, unlink or replace the lock file, or bypass the wrapper. Other chats and operators must use the same exact path and locking semantics.
 
 Example from an authorized SSH session:
 
 ```sh
-/opt/salemax/current/deploy/with-production-lock.sh bash -s <<'REMOTE'
+/opt/salemax/shared/with-production-lock.sh bash -s <<'REMOTE'
 set -euo pipefail
 # Recheck the active release, services, disk and rollback state here.
 # Keep migration, activation, verification and any rollback in this process.
