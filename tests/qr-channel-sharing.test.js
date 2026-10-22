@@ -52,7 +52,7 @@ test('manager delegation requires an owner-shared QR connection and an active ag
   assert.deepEqual(result,{instanceId:7,agentMembershipIds:[agentId]});
   assert.ok(fixture.calls.some(call=>call.sql.startsWith('INSERT INTO sx_qr_channel_shares')));
   assert.ok(fixture.calls.some(call=>call.sql.includes('whatsapp.qr-agent-access-updated')));
-  assert.ok(fixture.calls.some(call=>call.sql.includes("?='training_center' OR org.manager_membership_id=?")));
+  assert.ok(fixture.calls.some(call=>call.sql.includes("?='tenant' OR org.manager_membership_id=?")&&call.args.includes('tenant')));
   assert.equal(fixture.calls.at(-1).sql,'COMMIT');
 });
 

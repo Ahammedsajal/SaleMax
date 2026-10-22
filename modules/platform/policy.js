@@ -57,6 +57,8 @@ const permissions = {
   'properties.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
   'properties.manage': { owner: 'tenant', manager: 'tenant' },
   'properties.assign': { owner: 'tenant', manager: 'tenant' },
+  'inventory.read': { owner: 'tenant', accountant: 'tenant', manager: 'tenant', agent: 'tenant' },
+  'inventory.adjust': { owner: 'tenant', manager: 'tenant' },
 };
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);
 const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read', 'telephony.configure']);
@@ -74,6 +76,7 @@ const capabilities = Object.freeze({
   'products.catalog': ['products.read','products.manage'],
   'hr.recruitment': ['recruitment.manage'],
   'realestate.listings': ['properties.read','properties.manage','properties.assign'],
+  'retail.inventory': ['inventory.read','inventory.adjust'],
   'campaigns.dashboard': ['campaigns.manage'], 'crm.leads': ['leads.read', 'leads.manage', 'leads.assign'],
   'crm.contacts': ['contacts.read', 'contacts.manage'], 'team.members': ['team.read', 'team.invite'],
   'team.tasks': ['tasks.read', 'tasks.manage'], 'training.courses': ['courses.read', 'courses.manage'],
@@ -117,22 +120,19 @@ function decision(context, { capability, permission, resource, external = false 
   if (!Object.hasOwn(capabilities, capability) || !capabilities[capability].includes(permission)) return { allowed: false, code: 'CAPABILITY_PERMISSION_INVALID' };
   if (!category || category.key !== tenant.categoryKey || category.version !== tenant.categoryVersion || !Array.isArray(category.capabilities) || !category.capabilities.includes(capability)) return { allowed: false, code: 'CATEGORY_UNAVAILABLE' };
   // Canonical entitlements carry both fields. Reject explicit/partial mismatches
-  // before category-specific exceptions; old in-process contexts may omit both.
+  // before reviewed manifest access policies; old in-process contexts may omit both.
   if(subscription&&(Object.hasOwn(subscription,'categoryKey')||Object.hasOwn(subscription,'categoryVersion'))&&
       (subscription.categoryKey!==category.key||subscription.categoryVersion!==category.version))return {allowed:false,code:'FEATURE_UNAVAILABLE'};
-  const internalRecruitmentOwner = capability === 'hr.recruitment' && category.key === '7network_sales' && membership.role === 'owner';
-  // Recruitment is an owner-only internal 7Network workspace feature, not a customer plan add-on.
-  // Keep the tenant's active-plan requirement while avoiding mutation of its published plan version.
+  const internalRecruitmentOwner = membership.role === 'owner' && category.accessPolicy?.planExemptOwnerCapabilities?.includes(capability) === true;
+  // Reviewed manifests may declare owner-only capabilities outside a plan;
+  // the active subscription and category capability remain required.
   if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || (!internalRecruitmentOwner && !subscription.capabilities.includes(capability))) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
-  // Internal 7Network accountants work from Finance and payout records. The
-  // legacy Sales Lead Pipeline does not provide the finance-only detail view.
-  // Keep Training Center billing-linked lead access unchanged.
-  if (category.key === '7network_sales' && membership.role === 'accountant' &&
-      ['leads.read', 'contacts.read'].includes(permission)) {
+  const deniedPermissions=category.accessPolicy?.deniedRolePermissions;
+  if (deniedPermissions&&Object.hasOwn(deniedPermissions,membership.role)&&Array.isArray(deniedPermissions[membership.role])&&deniedPermissions[membership.role].includes(permission)) {
     return { allowed: false, code: 'PERMISSION_DENIED' };
   }
-  const canManageTeam = ['7network_sales','training_center'].includes(category.key) &&
-    membership.role === 'manager' && permission === 'team.invite' &&
+  const tenantRolePermissions=category.accessPolicy?.tenantRolePermissions;
+  const canManageTeam = Boolean(tenantRolePermissions&&Object.hasOwn(tenantRolePermissions,membership.role)&&Array.isArray(tenantRolePermissions[membership.role])&&tenantRolePermissions[membership.role].includes(permission)) &&
     (!Array.isArray(membership.customPermissions) || membership.customPermissions.includes(permission));
   const scope = canManageTeam ? 'tenant' : scopeFor(membership, permission);
   if (!scope) return { allowed: false, code: 'PERMISSION_DENIED' };

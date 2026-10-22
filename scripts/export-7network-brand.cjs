@@ -1,7 +1,6 @@
 'use strict';
 
-// Compose the supplied globe artwork with an exact, high-contrast vector wordmark,
-// then derive every shipped logo and icon size from these tracked sources.
+// Package the approved live horizontal logo masters, then derive each shipped size.
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const sharp = require('sharp');
@@ -9,30 +8,23 @@ const sharp = require('sharp');
 const root = path.resolve(__dirname, '..');
 const brand = path.join(root, 'client/public/branding/7network');
 const media = path.join(root, 'client/public/media');
-const logoSource = path.join(brand, 'logo-source.svg');
+const horizontalSource = path.join(brand, 'logo-horizontal-source.png');
+const darkSource = path.join(brand, 'logo-dark-source.png');
 const iconSource = path.join(brand, 'icon-source.png');
 const iconMaster = path.join(brand, 'icon-master.png');
 
 async function main() {
   await fs.mkdir(media, { recursive: true });
-  const source = await fs.readFile(logoSource, 'utf8');
+  const horizontal = await fs.readFile(horizontalSource);
+  const darkMaster = await fs.readFile(darkSource);
   const hero = await fs.readFile(iconSource);
   const heroMeta = await sharp(hero).metadata();
-  if (!heroMeta.hasAlpha) throw new Error('The approved globe artwork must retain transparency');
-  if (!source.includes('icon-source.png') || source.includes('globe-no7-source.png')) throw new Error('The logo must use only the approved globe-and-7 icon, with a plain readable wordmark');
-  const dataUri = (buffer) => `data:image/png;base64,${buffer.toString('base64')}`;
-  const composedSource = source.replace('icon-source.png', dataUri(hero));
-  const lightSvg = Buffer.from(composedSource);
-  const darkSvg = Buffer.from(composedSource.replace(/fill="#0B2748"/g, 'fill="#EAF1FF"').replace(/#D94A3A/g, '#F26C54').replace(/#E05131/g, '#FF8153').replace(/#D96A2B/g, '#FFB35C'));
-  const logoBuffer = await sharp(lightSvg).ensureAlpha().png().toBuffer();
-  const darkLogoBuffer = await sharp(darkSvg).ensureAlpha().png().toBuffer();
-  const logo = sharp(logoBuffer).trim().extend({
-    top: 18, bottom: 18, left: 24, right: 24, background: '#00000000',
-  });
-  const logoPngBuffer = await logo.png().toBuffer();
-  const darkLogoPngBuffer = await sharp(darkLogoBuffer).trim().extend({
+  const darkMeta = await sharp(darkMaster).metadata();
+  if (!heroMeta.hasAlpha || !darkMeta.hasAlpha) throw new Error('The approved 7Network artwork must retain transparency');
+  const logoPngBuffer = await sharp(horizontal).trim().extend({
     top: 18, bottom: 18, left: 24, right: 24, background: '#00000000',
   }).png().toBuffer();
+  const darkLogoPngBuffer = await sharp(darkMaster).png().toBuffer();
   const logoMeta = await sharp(logoPngBuffer).metadata();
   if (!logoMeta.hasAlpha) throw new Error('Approved logo must retain transparency');
 
@@ -85,7 +77,7 @@ async function main() {
   await fs.copyFile(path.join(brand, 'favicon.ico'), path.join(root, 'client/public/favicon.ico'));
 
   // Preserve the legacy file route used by the compiled application shell.
-  const compatibilityLogo = await sharp(logoBuffer).resize({ width: 1440 }).png().toBuffer();
+  const compatibilityLogo = await sharp(logoPngBuffer).resize({ width: 1440 }).png().toBuffer();
   await fs.writeFile(path.join(media, '7network-logo.png'), compatibilityLogo);
   await fs.writeFile(path.join(media, 'salemax-logo.png'), compatibilityLogo);
   await fs.copyFile(path.join(brand, 'icon-192.png'), path.join(media, '7network-icon.png'));
@@ -96,8 +88,8 @@ async function main() {
     id: '/', start_url: '/', scope: '/', display: 'standalone',
     theme_color: '#081630', background_color: '#081630',
     icons: [192, 512].flatMap(size => [
-      { src: `/branding/7network/icon-${size}.png?v=20261021-color-wordmark1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
-      { src: `/branding/7network/maskable-${size}.png?v=20261021-color-wordmark1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
+      { src: `/branding/7network/icon-${size}.png?v=20261022-clear1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' },
+      { src: `/branding/7network/maskable-${size}.png?v=20261022-clear1`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'maskable' },
     ]),
   };
   const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;

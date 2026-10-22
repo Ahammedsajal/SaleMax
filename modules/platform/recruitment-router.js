@@ -35,7 +35,7 @@ function createPublicRecruitmentRouter({pool,origin,key}){
   try{const result=await recruitment.createPublic(pool,{tenantSlug:req.params.tenantSlug,body:req.body,file,visitorHash});res.status(result.repeated?200:201).json({success:true,data:{referenceCode:result.referenceCode,repeated:result.repeated,linkedLead:result.leadLinked||false,linkedContact:result.contactLinked||false,linkedChat:result.chatLinked||false}});}
   finally{if(file?.tempFilePath)await fs.rm(file.tempFilePath,{force:true}).catch(()=>{});}
  }));
- router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const result=publicSubmissionError(error);if(result.status>=500)console.error('[recruitment] Public application submission failed',JSON.stringify({requestId:crypto.randomUUID(),diagnosticCode:result.body.diagnosticCode}));res.status(result.status).json(result.body);});
+ router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const result=publicSubmissionError(error);if(result.status>=500){const requestId=crypto.randomUUID();console.error('[recruitment] Public application submission failed',JSON.stringify({requestId,diagnosticCode:result.body.diagnosticCode}));result.body.requestId=requestId;}res.status(result.status).json(result.body);});
  return router;
 }
 

@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { decision, platformDecision, capabilities } = require('../modules/platform/policy');
-const { trainingCenter, salemaxSales, restaurantFixture } = require('../modules/platform/categories');
+const { trainingCenter, salemaxSales, restaurantFixture, baseCrm } = require('../modules/platform/categories');
+const { createCategoryRegistry } = require('../modules/platform/category-registry');
 const { navigationFor } = require('../modules/platform/navigation');
 const { canAgentAccessLead } = require('../helper/pipeline/access');
 function context(role='owner') {
@@ -64,6 +65,22 @@ test('Training Center managers can manage tenant team access within the team.mem
   const sales={...context('manager'),category:salemaxSales};
   sales.tenant.categoryKey=salemaxSales.key;sales.subscription.capabilities=[...salemaxSales.capabilities];
   assert.equal(decision(sales,{capability:'team.members',permission:'team.invite'}).scope,'tenant');
+});
+test('owner plan exceptions stay category-declared and still require an active subscription',()=>{
+  const c=context('owner');c.category=salemaxSales;c.tenant.categoryKey=salemaxSales.key;c.tenant.categoryVersion=salemaxSales.version;
+  c.subscription.capabilities=salemaxSales.capabilities.filter(capability=>capability!=='hr.recruitment');
+  assert.equal(decision(c,{capability:'hr.recruitment',permission:'recruitment.manage'}).allowed,true);
+  c.membership.role='agent';
+  assert.equal(decision(c,{capability:'hr.recruitment',permission:'recruitment.manage'}).code,'FEATURE_UNAVAILABLE');
+  c.membership.role='owner';c.subscription.status='expired';
+  assert.equal(decision(c,{capability:'hr.recruitment',permission:'recruitment.manage'}).code,'FEATURE_UNAVAILABLE');
+});
+test('a reviewed future category can declare tenant-scoped manager team invitations',()=>{
+  const category=createCategoryRegistry([{...baseCrm,key:'future_services',accessPolicy:{tenantRolePermissions:{manager:['team.invite']}}}],capabilities).get('future_services',1);
+  const c=context('manager');c.category=category;c.tenant.categoryKey=category.key;c.tenant.categoryVersion=category.version;c.subscription.capabilities=[...category.capabilities];
+  assert.equal(decision(c,{capability:'team.members',permission:'team.invite'}).scope,'tenant');
+  c.membership.customPermissions=[];
+  assert.equal(decision(c,{capability:'team.members',permission:'team.invite'}).code,'PERMISSION_DENIED');
 });
 test('category, plan, inactive state and provider readiness remain separate gates',()=>{
   const request={capability:'training.courses',permission:'courses.read'};

@@ -24,6 +24,24 @@ test('training-center pack exposes versioned, editable bilingual guided content'
   assert.match(pack.guidedContentDefaults.messages.greeting.en, /Welcome to Pro Catalyst Training Center/);
   assert.match(pack.guidedContentDefaults.messages.greeting.ar, /مرحباً بك في مركز برو كاتاليست للتدريب/);
   assert.ok(pack.guidedContentSchema.groups.some(group => group.id === 'course-list'));
+  assert.deepEqual(pack.botProfileContract.workflow,{key:'workflow',default:'course_admissions',choices:['course_admissions','course_enquiry'],collect:['name','course_interest','preferred_schedule','phone','consent'],label:{en:'Conversation type',ar:'نوع المحادثة'},labels:{course_admissions:{en:'Course admission',ar:'الالتحاق بدورة'},course_enquiry:{en:'Course enquiry',ar:'استفسار عن دورة'}}});
+  assert.equal(pack.botProfileContract.defaultGuidedMode,'domain_default');
+  assert.equal(pack.botProfileContract.catalogueHref,'/user?page=courses');
+});
+
+test('domain pack profile contracts are validated, frozen, and category-owned',()=>{
+  const base={key:'profile_fixture',version:1,title:'Profile fixture',systemGuidance:'Use approved facts only.',loadFacts:async()=>[]};
+  assert.throws(()=>registerDomainPack({...base,botProfileContract:{supportsIntroFlow:'yes'}}),{code:'INVALID_CHATBOT_PROFILE_CONTRACT'});
+  assert.throws(()=>registerDomainPack({...base,botProfileContract:{unreviewed:true}}),{code:'INVALID_CHATBOT_PROFILE_CONTRACT'});
+  assert.throws(()=>registerDomainPack({...base,botProfileContract:{catalogueHref:'https://evil.example'}}),{code:'INVALID_CHATBOT_PROFILE_CONTRACT'});
+  assert.throws(()=>registerDomainPack({...base,botProfileContract:{defaultGuidedMode:'domain_default'}}),{code:'INVALID_CHATBOT_PROFILE_CONTRACT'});
+  assert.throws(()=>registerDomainPack({...base,botProfileContract:{supportsIntroFlow:true}}),{code:'INVALID_CHATBOT_PROFILE_CONTRACT'});
+  assert.throws(()=>registerDomainPack({...base,botProfileContract:{workflow:{key:'workflow',default:'support',choices:['support'],collect:[],label:{en:'Workflow',ar:'سير العمل'},labels:{support:{en:'Support'}}}}}),{code:'INVALID_CHATBOT_PROFILE_CONTRACT'});
+  const contract={workflow:{key:'workflow',default:'support',choices:['support'],collect:['name'],label:{en:'Conversation type',ar:'نوع المحادثة'},labels:{support:{en:'Support',ar:'الدعم'}}}};
+  const registered=registerDomainPack({...base,botProfileContract:contract});
+  contract.workflow.choices[0]='other';
+  assert.equal(registered.botProfileContract.workflow.default,'support');
+  assert.throws(()=>{registered.botProfileContract.workflow.choices[0]='other';},TypeError);
 });
 
 test('category guided packs reject defaults without editor fields and freeze the registered contract', () => {
@@ -64,6 +82,22 @@ test('guided profile accepts edited messages and bounded display settings', () =
   assert.equal(saved.config.guidedContent.messages.currentFeeLabel.en, 'Tuition');
   assert.equal(saved.config.guidedContent.messages.currentFeeLabel.ar, 'الرسوم الدراسية');
   assert.equal(saved.config.guidedContent.messages.courseListHeading.en, 'Available courses');
+  assert.equal(saved.config.workflow,'course_admissions');
+  assert.deepEqual(saved.config.collect,pack.botProfileContract.workflow.collect);
+  const enquiry=botInput({name:'Course enquiry',engine:'guided',config:{workflow:'course_enquiry'}},'training_center',1);
+  assert.equal(enquiry.config.workflow,'course_enquiry');
+  assert.throws(()=>botInput({name:'Invalid workflow',engine:'guided',config:{workflow:'hotel_booking'}},'training_center',1),{code:'INVALID_BOT_WORKFLOW'});
+});
+
+test('same-category bot profiles keep their own normalized response copy',()=>{
+  const make=(welcome)=>botInput({name:'Business guide',engine:'guided',config:{guidedContent:{messages:{greeting:{en:welcome,ar:`مرحباً ${welcome}`}}}}},'training_center',1);
+  const first=make('Welcome to Cedar Clinic.');
+  const second=make('Welcome to Bay Dental.');
+  assert.equal(first.config.guidedContent.messages.greeting.en,'Welcome to Cedar Clinic.');
+  assert.equal(second.config.guidedContent.messages.greeting.en,'Welcome to Bay Dental.');
+  first.config.guidedContent.messages.greeting.en='changed';
+  assert.equal(second.config.guidedContent.messages.greeting.en,'Welcome to Bay Dental.');
+  assert.notEqual(first.config.guidedContent,second.config.guidedContent);
 });
 
 test('guided-content validation rejects wrong types and overlong text', () => {

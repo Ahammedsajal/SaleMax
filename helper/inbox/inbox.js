@@ -377,40 +377,24 @@ async function processMessage({
         console.warn('Phonebook opening routing unavailable', error.code || 'PHONEBOOK_ROUTING_ERROR');
       }
 
-      // Process the message through the flow builder
-      await processWebhook(latestConversation?.newMessage, user);
-
-      let configuredBot = { handled: false };
-      try {
-        configuredBot = await runConfiguredBot({
-          uid,
-          message: msg,
-          user,
-          sessionId: latestConversation?.channelExternalId || sessionId,
-          origin,
-          chatId: latestConversation?.chatId,
-        });
-      } catch (error) {
-        // A missing/unavailable additive chatbot schema must never interrupt
-        // the legacy automation flow for existing accounts.
-        console.warn('Configured chatbot runtime unavailable; preserving legacy flow dispatch.', error.code || 'CHATBOT_RUNTIME_ERROR');
-      }
-
-      if (!configuredBot?.handled) {
-        await processAutomation({
-          uid,
-          message: msg,
-          user,
-          sessionId,
-          origin,
-          chatId: latestConversation?.chatId,
-        });
-      }
-
-      if (configuredBot?.sent && latestConversation?.chatId) {
-        const { getConnectionsByUid, sendToSocket } = require("../../socket");
-        (getConnectionsByUid(uid, true) || []).forEach(socket => sendToSocket(socket.socketId, { chatId: latestConversation.chatId }, "request_update_opened_chat"));
-      }
+      await require('./automation-dispatch').dispatch({
+        uid,
+        message: msg,
+        user,
+        sessionId,
+        configuredSessionId: latestConversation?.channelExternalId || sessionId,
+        origin,
+        chatId: latestConversation?.chatId,
+        db: require('../../database/config').promise(),
+        reconcileConversation: (...args) => require('../pipeline/openingRouting').reconcileConversation(...args),
+        processWebhook,
+        runConfiguredBot,
+        processAutomation,
+        notifyBotSent: chatId => {
+          const { getConnectionsByUid, sendToSocket } = require('../../socket');
+          (getConnectionsByUid(uid, true) || []).forEach(socket => sendToSocket(socket.socketId, { chatId }, 'request_update_opened_chat'));
+        },
+      });
 
       if (msg?.route === "INCOMING") {
         await processMobileNotificaion({

@@ -5,7 +5,7 @@ const crypto = require('node:crypto');
 const { resolveInboxUid, resolveInboxScope, filterAssignedChats, authorizeInboxPayload } = require('../modules/platform/team-inbox-scope');
 const hash = uid => crypto.createHash('sha256').update(uid).digest('hex');
 const user = { id: 2, uid: 'synthetic-manager' };
-const member = { tenantId: 'synthetic-tenant', tenantStatus: 'active', identityId: 'staff-a', role: 'manager', membershipStatus: 'active', identityStatus: 'active', uidHash: hash(user.uid), delegatedPermissions: [] };
+const member = { tenantId: 'synthetic-tenant', tenantStatus: 'active', categoryKey:'base_crm',categoryVersion:1,identityId: 'staff-a', role: 'manager', membershipStatus: 'active', identityStatus: 'active', uidHash: hash(user.uid), delegatedPermissions: [] };
 const query = row => async sql => sql.includes('WHERE o.source_table') ? [row] : [{ uid: 'synthetic-owner', uidHash: hash('synthetic-owner') }];
 test('real Agent-seat source uses the agents ownership link and rejects foreign owner bindings',async()=>{
   const agent={...user,isAgent:true,role:'agent',is_active:1,owner_uid:'synthetic-owner'};
@@ -61,7 +61,7 @@ test('accountant QR share grants access only to shared QR conversations and repl
   const accountant={...user,uid:'synthetic-accountant'};
   const channel={instanceId:61,uniqueId:'accountant-qr',number:'97450000000',title:'Team QR',status:'ACTIVE'};
   const lookup=async sql=>{
-    if(sql.includes('WHERE o.source_table'))return [{...member,uidHash:hash(accountant.uid),role:'accountant',categoryKey:'training_center'}];
+    if(sql.includes('WHERE o.source_table'))return [{...member,uidHash:hash(accountant.uid),role:'accountant',categoryKey:'training_center',categoryVersion:1}];
     if(sql.includes("m.role='owner'"))return [{uid:'synthetic-owner',membershipId:'owner-member',identityId:'owner-identity',uidHash:hash('synthetic-owner')}];
     if(sql.includes('FROM sx_qr_channel_shares share'))return [channel];
     return [];
@@ -76,7 +76,15 @@ test('accountant QR share grants access only to shared QR conversations and repl
   const allowed=await authorizeInboxPayload(async()=>[{chat_id:'shared',origin:'qr',origin_instance_unique_id:'accountant-qr'}],scope,'send_chat_message',{chatInfo:{chat_id:'shared'}});
   assert.equal(allowed.chatInfo.origin,'qr');
   await assert.rejects(authorizeInboxPayload(async()=>[],scope,'assign_agent_to_chat',{chatId:'shared'}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
-  await assert.rejects(resolveInboxScope(async sql=>sql.includes('WHERE o.source_table')?[{...member,uidHash:hash(accountant.uid),role:'accountant',categoryKey:'training_center'}]:sql.includes("m.role='owner'")?[{uid:'synthetic-owner',identityId:'owner-identity',uidHash:hash('synthetic-owner')}]:[],accountant,'get_chat_list'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(resolveInboxScope(async sql=>sql.includes('WHERE o.source_table')?[{...member,uidHash:hash(accountant.uid),role:'accountant',categoryKey:'training_center',categoryVersion:1}]:sql.includes("m.role='owner'")?[{uid:'synthetic-owner',identityId:'owner-identity',uidHash:hash('synthetic-owner')}]:[],accountant,'get_chat_list'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});
+
+test('QR accountant access is opt-in by exact category version',async()=>{
+  const accountant={...user,uid:'synthetic-accountant'};
+  const lookup=async sql=>sql.includes('WHERE o.source_table')?[{...member,uidHash:hash(accountant.uid),role:'accountant'}]:[];
+  await assert.rejects(resolveInboxScope(lookup,accountant,'get_chat_list'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  const unsupportedVersion=async sql=>sql.includes('WHERE o.source_table')?[{...member,uidHash:hash(accountant.uid),role:'accountant',categoryKey:'training_center',categoryVersion:2}]:[];
+  await assert.rejects(resolveInboxScope(unsupportedVersion,accountant,'get_chat_list'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });
 
 test('staff Inbox drops transferred chats and rejects stale direct reads/replies and forged targets', async () => {

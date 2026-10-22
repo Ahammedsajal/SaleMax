@@ -4,6 +4,7 @@ const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/works
 const {query}=require('../../database/dbpromise');
 const policy=require('./policy');
 const {isSelfProfileRequest}=require('./self-profile-policy');
+const {getCategory}=require('./categories');
 
 function routePermission(req){
   const mount=canonicalMount(req.baseUrl);
@@ -117,7 +118,7 @@ function authorizeLegacyMembership(req,row){
 }
 const mountFor=req=>String(req.baseUrl||'').replace(/\/$/,'');
 
-async function authorizeLegacyRequest(req,{sourceTable,sourceId}){
+async function authorizeLegacyRequest(req,{sourceTable,sourceId},queryImpl=query){
   // Updating the authenticated account's own Profile is a core account
   // capability, independent of its optional module grants. The route is
   // still protected by user/agent authentication and only targets that actor.
@@ -125,8 +126,8 @@ async function authorizeLegacyRequest(req,{sourceTable,sourceId}){
     return {allowed:true,permission:'account.profile.update'};
   let rows;
   try{
-    rows=await query(`SELECT m.role,m.role_profile_id AS roleProfileId,r.seat_role AS seatRole,r.permissions AS rolePermissions,
-        t.category_key AS categoryKey
+    rows=await queryImpl(`SELECT m.role,m.role_profile_id AS roleProfileId,r.seat_role AS seatRole,r.permissions AS rolePermissions,
+        t.category_key AS categoryKey,t.category_version AS categoryVersion
       FROM sx_legacy_ownership o JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id
       JOIN sx_tenants t ON t.id=o.tenant_id
       LEFT JOIN sx_team_roles r ON r.tenant_id=m.tenant_id AND r.id=m.role_profile_id
@@ -134,10 +135,11 @@ async function authorizeLegacyRequest(req,{sourceTable,sourceId}){
   }catch(error){if(error.code==='ER_NO_SUCH_TABLE'||error.code==='ER_BAD_FIELD_ERROR')return {allowed:false,code:'TEAM_ROLE_STORAGE_NOT_READY'};throw error;}
   if(!rows?.length)return {allowed:true};
   if(rows.length!==1)return {allowed:false,code:'TEAM_ROLE_LINK_INVALID'};
-  const mount=mountFor(req), permission=routePermission(req);
-  if(rows[0].role==='accountant'&&rows[0].categoryKey==='training_center'&&['conversations.read','conversations.reply'].includes(permission)&&['/api/inbox','/api/qr'].includes(mount)){
+  const mount=mountFor(req), permission=routePermission(req),category=getCategory(rows[0].categoryKey,Number(rows[0].categoryVersion));
+  if(!category)return {allowed:false,code:'CATEGORY_UNAVAILABLE'};
+  if(rows[0].role==='accountant'&&category.qrSharing.accountantAccess&&['conversations.read','conversations.reply'].includes(permission)&&['/api/inbox','/api/qr'].includes(mount)){
     try{
-      const shares=await query(`SELECT 1 FROM sx_legacy_ownership o JOIN sx_memberships member ON member.tenant_id=o.tenant_id AND member.id=o.membership_id
+      const shares=await queryImpl(`SELECT 1 FROM sx_legacy_ownership o JOIN sx_memberships member ON member.tenant_id=o.tenant_id AND member.id=o.membership_id
         JOIN sx_qr_channel_shares share ON share.tenant_id=member.tenant_id AND share.membership_id=member.id
         JOIN sx_memberships manager ON manager.tenant_id=share.tenant_id AND manager.identity_id=share.granted_by_identity_id AND manager.role='manager' AND manager.status='active'
         JOIN sx_qr_channel_shares manager_share ON manager_share.tenant_id=share.tenant_id AND manager_share.instance_id=share.instance_id AND manager_share.membership_id=manager.id

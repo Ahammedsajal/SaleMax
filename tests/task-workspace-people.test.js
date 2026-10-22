@@ -1,7 +1,8 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const tasks=require('../modules/platform/task-management');
-const ctx={tenantId:'11111111-1111-4111-8111-111111111111',uidHash:'a'.repeat(64),uid:'owner-uid',role:'agent',actorType:'agent',actorId:'7',agentId:7,tenant:{categoryKey:'training_center'}};
+const {trainingCenter,sevenNetworkSales}=require('../modules/platform/categories');
+const ctx={tenantId:'11111111-1111-4111-8111-111111111111',uidHash:'a'.repeat(64),uid:'owner-uid',role:'agent',actorType:'agent',actorId:'7',agentId:7,tenant:{categoryKey:'training_center',categoryVersion:1},category:trainingCenter,subscription:{status:'active',capabilities:[...trainingCenter.capabilities]},enabledTaskTypes:null};
 function fixture(){
  const calls=[];let foreign=false;
  const db={beginTransaction:async()=>calls.push(['BEGIN']),commit:async()=>calls.push(['COMMIT']),rollback:async()=>calls.push(['ROLLBACK']),query:async(sql,args)=>{
@@ -34,7 +35,7 @@ test('foreign or inactive recipients are rejected before any task is written',as
  }
 });
 test('Sales agent restrictions and Training Center team-queue denial remain unchanged',async()=>{
- const f=fixture(),sales={...ctx,tenant:{categoryKey:'7network_sales'}};
+ const f=fixture(),sales={...ctx,tenant:{categoryKey:sevenNetworkSales.key,categoryVersion:sevenNetworkSales.version},category:sevenNetworkSales,subscription:{status:'active',capabilities:[...sevenNetworkSales.capabilities]}};
  assert.deepEqual(await tasks.listParticipants(f.db,sales),[{actorType:'agent',actorId:'7',role:'agent',label:'Me'}]);
  await assert.rejects(tasks.create(f.db,sales,{title:'Sales role boundary',participants:[{actorType:'agent',actorId:'8',role:'assignee'}]}),{code:'PERMISSION_DENIED'});
  await assert.rejects(tasks.list(f.db,ctx,{scope:'team'}),{code:'PERMISSION_DENIED'});

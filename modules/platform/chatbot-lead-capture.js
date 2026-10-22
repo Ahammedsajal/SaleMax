@@ -9,6 +9,10 @@ function genericCaptureEnabled(ctx) {
     && require('./policy').decision(ctx, { capability: 'crm.leads', permission: 'leads.manage' }).allowed;
 }
 
+function usesTrainingLeadCapture(ctx) {
+  return ctx?.category?.chatbotLeadCapture === 'training';
+}
+
 function customerName(text, waitingForName = false) {
   const explicit = String(text || '').match(/(?:^|[.!?،]\s*)(?:my name is|my name's|call me|اسمي|انا اسمي)\s+([^.!?؟،\n]+)/iu);
   let value = explicit?.[1]?.split(/\s+(?:and\b|(?:و?اريد|و?أريد|و?مهتم)(?=\s|$)|interested\b|looking\b|i want\b)/iu)[0]?.trim();
@@ -31,7 +35,7 @@ function qualificationFromText(text) {
 }
 
 async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, facts }) {
-  if (ctx.tenant.categoryKey !== 'training_center' || !recipientAllowed(profile.config, message.senderMobile)) return null;
+  if (!usesTrainingLeadCapture(ctx) || !recipientAllowed(profile.config, message.senderMobile)) return null;
   const text = String(message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title ?? '').trim().slice(0, 2000);
   const captured = await require('../../helper/pipeline/leadPipeline').captureBotInbound({ uid, origin, chatId, senderMobile: message.senderMobile, senderName: message.senderName, normalizedMessage: message, providerMessageId: message.metaChatId, timestamp: message.timestamp, pool });
   if (!captured.leadId) throw Object.assign(new Error('BOT_LEAD_NOT_CAPTURED'), { code: 'BOT_LEAD_NOT_CAPTURED' });
@@ -114,4 +118,4 @@ async function markAsked(pool, info, uid) {
     await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),?,true,'$.botCapture.waitingFor',?) WHERE uid_hash=? AND uid=? AND id=?`, ['$.botCapture.' + key + 'Asked', key, info.uidHash, uid, info.leadId]);
   } finally { db.release(); }
 }
-module.exports = { captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, markAsked };
+module.exports = { captureLead, captureGenericLead, genericCaptureEnabled, usesTrainingLeadCapture, customerName, qualificationFromText, addQuestion, markAsked };

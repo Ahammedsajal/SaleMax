@@ -1,4 +1,5 @@
 const { query } = require("../database/dbpromise");
+const flowStateData = require("../modules/platform/legacy-flow-data");
 const moment = require("moment-timezone");
 const fetch = require("node-fetch");
 const { addON } = require("../env.js");
@@ -472,7 +473,6 @@ async function completeTools({
   conversationPath,
   newMessage,
   incomingMsg,
-  flowData,
 }) {
   try {
     // assigning chat to agent
@@ -498,23 +498,14 @@ async function completeTools({
 
     if (k?.type === "TAKE_INPUT") {
       if (flow_data?.id) {
-        await query(`UPDATE flow_data SET other = ? WHERE uniqueId = ?`, [
-          JSON.stringify(k),
-          uniqueId,
-        ]);
+        await flowStateData.setOther(query, uid, uniqueId,JSON.stringify(k));
       } else {
-        await query(
-          `INSERT INTO flow_data (uid, uniqueId, other) VALUES (?,?,?)`,
-          [uid, uniqueId, JSON.stringify(k)]
-        );
+        await flowStateData.insertOther(query, uid, uniqueId,JSON.stringify(k));
       }
     }
 
     if (k?.type == "SAVE_AS_VAR") {
-      const [getFlowData] = await query(
-        `SELECT * FROM flow_data WHERE uniqueId = ?`,
-        [uniqueId]
-      );
+      const getFlowData = await flowStateData.find(query, uid, uniqueId);
 
       function createObjectFromFullPath(globalScope, variableName, fullPath) {
         try {
@@ -543,10 +534,7 @@ async function completeTools({
           k?.data?.variableName,
           k?.data?.keyToSave
         );
-        await query(
-          `INSERT INTO flow_data (uid, uniqueId, inputs, other) VALUES (?,?,?,?)`,
-          [uid, uniqueId, JSON.stringify(varData), JSON.stringify(varData)]
-        );
+        await flowStateData.insertInputs(query, uid, uniqueId,JSON.stringify(varData),JSON.stringify(varData));
       } else {
         // Parse the old inputs to make sure you have a valid object
         const oldInputs = getFlowData?.inputs
@@ -586,10 +574,7 @@ async function completeTools({
         console.log({ newInputs });
 
         // Save the updated inputs
-        await query(`UPDATE flow_data SET inputs = ? WHERE uniqueId = ?`, [
-          JSON.stringify(oldInputs), // Make sure you're saving the object correctly
-          uniqueId,
-        ]);
+        await flowStateData.setInputs(query, uid, uniqueId,JSON.stringify(oldInputs));
       }
 
       // moving to the next connected node
@@ -970,6 +955,7 @@ async function manupulateAiForAll({
 }
 
 async function returnVariables({
+  uid,
   uniqueId,
   k,
   incomingMsg,
@@ -980,10 +966,7 @@ async function returnVariables({
   conversationPath,
 }) {
   // getting the flow data
-  const [flow_data] = await query(
-    `SELECT * FROM flow_data WHERE uniqueId = ?`,
-    [uniqueId]
-  );
+  const flow_data = await flowStateData.find(query, uid, uniqueId);
 
   if (flow_data && Object.keys(flow_data).length > 0) {
     let inputs = flow_data?.inputs ? JSON.parse(flow_data.inputs) : {};
@@ -996,10 +979,7 @@ async function returnVariables({
       inputs = { ...inputs, [savedNode?.data?.variableName]: incomingMsg };
 
       // Update the database with the new inputs and clear the 'other' column
-      await query(
-        `UPDATE flow_data SET inputs = ?, other = ? WHERE uniqueId = ?`,
-        [JSON.stringify(inputs), null, uniqueId]
-      );
+      await flowStateData.saveAnswer(query, uid, uniqueId,JSON.stringify(inputs));
 
       const findSourceFromEdge = edges?.find((x) => x.source == savedNode?.id);
       if (findSourceFromEdge) {
@@ -1035,8 +1015,14 @@ async function destributeTaskFlow({
 }) {
   // console.log(JSON.stringify({ k }));
   console.log("destributeTaskFlow");
-  const uniqueId = `${uid}-${senderNumber}-${chatId}`;
+  const uniqueId = flowStateData.profileConversationKey(
+    uid,
+    chatbotFromMysq?.id,
+    senderNumber,
+    chatId,
+  );
   const { variables, flow_data, updatedK } = await returnVariables({
+    uid,
     uniqueId,
     k,
     incomingMsg,
@@ -1146,7 +1132,6 @@ async function destributeTaskFlow({
       conversationPath,
       newMessage,
       incomingMsg,
-      flowData,
     });
   }
 }

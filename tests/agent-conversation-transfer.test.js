@@ -6,7 +6,7 @@ const hash=x=>crypto.createHash('sha256').update(x).digest('hex');
 function fixture(){
   let assigned='agent-one',commits=0,rollbacks=0;
   const query=async(sql,args)=>{
-    if(sql.includes('WHERE o.source_table'))return [[{tenantId:'tenant',tenantStatus:'active',identityId:'agent-one',role:'agent',membershipStatus:'active',identityStatus:'active',uidHash:hash('one'),delegatedPermissions:[]}]];
+    if(sql.includes('WHERE o.source_table'))return [[{tenantId:'tenant',tenantStatus:'active',categoryKey:'base_crm',categoryVersion:1,identityId:'agent-one',role:'agent',membershipStatus:'active',identityStatus:'active',uidHash:hash('one'),delegatedPermissions:[]}]];
     if(sql.includes("m.role='owner'") && !sql.includes('FROM sx_memberships m JOIN sx_identities'))return [[{uid:'owner',uidHash:hash('owner')}]];
     if(sql.includes('FROM sx_qr_channel_shares share'))return [[]];
     if(sql.includes('SELECT assigned_agent')||sql.includes('SELECT * FROM beta_chats'))return [[{assigned_agent:JSON.stringify([{kind:'identity',identityId:assigned}])}]];

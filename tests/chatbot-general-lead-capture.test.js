@@ -13,6 +13,12 @@ test('chatbot lead capture is an explicit reviewed category contract',()=>{
  assert.equal(categories.trainingCenter.chatbotLeadCapture,'training');
  assert.equal(categories.salemaxSales.chatbotLeadCapture,'none');
  assert.equal(categories.getCategory('restaurant_fixture',1).chatbotLeadCapture,'none');
+ const futureTrainingCategory=require('../modules/platform/category-registry').createCategoryRegistry(
+  [{...categories.trainingCenter,key:'education_demo'}],require('../modules/platform/policy').capabilities
+ ).get('education_demo',1);
+ assert.equal(capture.usesTrainingLeadCapture({category:futureTrainingCategory}),true,'reuses the declared adapter without a category-name branch');
+ assert.equal(capture.usesTrainingLeadCapture({category:categories.baseCrm}),false);
+ assert.equal(capture.usesTrainingLeadCapture({category:categories.salemaxSales}),false);
 });
 
 test('generic lead capture requires the tenant CRM plan entitlement and owner permission',()=>{

@@ -22,18 +22,21 @@ const schema=[
 async function use(fn){const db=await pool.getConnection();try{return await fn(db)}finally{db.release()}}
 async function fixture(category=trainingCenter){const tenantId=crypto.randomUUID(),identityId=crypto.randomUUID(),membershipId=crypto.randomUUID(),versionId=crypto.randomUUID();await pool.query("INSERT INTO sx_tenants VALUES (?,?,?,'active')",[tenantId,category.key,category.version]);await pool.query("INSERT INTO sx_identities VALUES (?,'active')",[identityId]);await pool.query("INSERT INTO sx_memberships VALUES (?,?,?,'owner','active')",[membershipId,tenantId,identityId]);await pool.query("INSERT INTO sx_plan_versions VALUES (?,?,?,?,'published')",[versionId,category.key,category.version,JSON.stringify(category.capabilities)]);await pool.query("INSERT INTO sx_plan_assignments VALUES (?,?,?,?,'active',?,TIMESTAMPADD(DAY,-1,UTC_TIMESTAMP(3)),TIMESTAMPADD(DAY,1,UTC_TIMESTAMP(3)))",[crypto.randomUUID(),tenantId,versionId,tenantId,JSON.stringify(Object.fromEntries(category.seatRoles.map(role=>[role,role==='owner'?1:5])))]);return {audience:'tenant',identity:{id:identityId},tenant:{id:tenantId,status:'active',categoryKey:category.key,categoryVersion:category.version},membership:{id:membershipId,tenantId,role:'owner',status:'active'},category,subscription:{status:'active',capabilities:[...category.capabilities]}};}
 process.env.SALEMAX_PLATFORM_ENABLED='true';
-const doc=name=>({schemaVersion:1,navigationLabels:{courses:{en:name,ar:'برامج '+name}}});
+const doc=(name,enabledTaskTypes=['general'])=>({schemaVersion:4,navigationLabels:{courses:{en:name,ar:'برامج '+name}},leadFields:[],hiddenNavigation:[],enabledTaskTypes});
 const change=(ctx,body,action)=>use(db=>settings.mutate(db,ctx,body,action));
 (async()=>{try{
  const [[existing]]=await pool.query('SELECT COUNT(*) AS total FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()');assert.equal(Number(existing.total),0,'schema must be empty');
  for(const sql of schema)await pool.query(sql);
  const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261220_tenant_customization.sql'),'utf8');for(const sql of require('../database/migration-runner').splitSql(migration))await pool.query(sql);
  const a=await fixture(),b=await fixture();
- await Promise.all([change(a,{expectedRevision:0,document:doc('A')},'draft'),change(b,{expectedRevision:0,document:doc('B')},'draft')]);
+ await Promise.all([change(a,{expectedRevision:0,document:doc('A',['general','enrollment'])},'draft'),change(b,{expectedRevision:0,document:doc('B',['general'])},'draft')]);
  assert.deepEqual((await use(db=>settings.effective(db,a))).document,settings.defaults());
  const publishedA=await change(a,{expectedRevision:1},'publish');const publishedB=await change(b,{expectedRevision:1},'publish');
  assert.equal((await use(db=>settings.effective(db,a))).document.navigationLabels.courses.en,'A');assert.equal((await use(db=>settings.effective(db,b))).document.navigationLabels.courses.en,'B');
- const sales=await fixture(salemaxSales),salesDocument={schemaVersion:1,navigationLabels:{'products-services':{en:'Inventory C',ar:'منتجات ج'}}};
+ assert.deepEqual((await use(db=>settings.effective(db,a))).document.enabledTaskTypes,['enrollment','general']);
+ assert.deepEqual((await use(db=>settings.effective(db,b))).document.enabledTaskTypes,['general'],'same-category businesses retain separate task choices');
+ assert.deepEqual((await use(db=>settings.effective(db,b))).document,settings.normalize(b,doc('B',['general'])));
+ const sales=await fixture(salemaxSales),salesDocument={schemaVersion:4,navigationLabels:{'products-services':{en:'Inventory C',ar:'منتجات ج'}},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null};
  await change(sales,{expectedRevision:0,document:salesDocument},'draft');await change(sales,{expectedRevision:1},'publish');
  assert.deepEqual((await use(db=>settings.effective(db,sales))).document,salesDocument);
  const contract=require('../modules/platform/feature-contract');
@@ -50,5 +53,5 @@ const change=(ctx,body,action)=>use(db=>settings.mutate(db,ctx,body,action));
  assert.deepEqual(await use(db=>settings.state(db,a)),before);
  await pool.query("UPDATE sx_memberships SET status='inactive' WHERE tenant_id=?",[a.tenant.id]);await assert.rejects(change(a,{expectedRevision:5,document:doc('No')},'draft'),{code:'PERMISSION_DENIED'});await pool.query("UPDATE sx_memberships SET status='active' WHERE tenant_id=?",[a.tenant.id]);
  await pool.query('UPDATE sx_plan_assignments SET expires_at=TIMESTAMPADD(DAY,-1,UTC_TIMESTAMP(3)) WHERE tenant_id=?',[a.tenant.id]);await assert.rejects(change(a,{expectedRevision:5,document:doc('No')},'draft'),{code:'FEATURE_UNAVAILABLE'});
- console.log(JSON.stringify({passed:true,checks:['draft isolation','published session contract isolation','different category isolation','denied navigation excludes custom labels','publish isolation for same-category tenants','exactly one concurrent draft winner','cross-tenant rollback denial','composite foreign key ownership','rollback restores historical revision','audit failure rolls back changes','membership revocation','expired plan'],externalMessages:0}));
+ console.log(JSON.stringify({passed:true,checks:['draft isolation','published session contract isolation','different category isolation','denied navigation excludes custom labels','publish isolation for same-category tenants','tenant-specific task choices remain isolated','exactly one concurrent draft winner','cross-tenant rollback denial','composite foreign key ownership','rollback restores historical revision','audit failure rolls back changes','membership revocation','expired plan'],externalMessages:0}));
  }finally{await pool.end();}})().catch(error=>{console.error({code:error.code||error.name,message:error.message});process.exitCode=1});

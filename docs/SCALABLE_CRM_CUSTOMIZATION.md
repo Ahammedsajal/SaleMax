@@ -22,9 +22,9 @@ The existing Training Center learner-progress reconciler can move won Pipeline l
 | Historical assignments | Same source | Training Center v1 already includes `sales.finance` and `hr.recruitment`. Pinning preserves that historical contract; removing these requires a reviewed successor version and assignment impact review, not silently editing customer rights. Recruitment handlers independently check the Sales category. |
 | Authorization | `modules/platform/policy.js` | Category, active subscription, member scope, tenant resource ownership and external readiness are separate gates. Retain these gates; a configurable screen must not grant permission. |
 | Shared feature authentication | `modules/platform/business-feature-session.js` | Resolves legacy users/agents to canonical tenant membership and entitlements. Unmapped legacy actors can retain a null canonical context; a base-category migration must preserve those working users through verified ownership mappings. |
-| UI feature contract | `modules/platform/feature-contract.js` | Modules and quick-reply catalogues still contain fixed category comparisons. This is not yet a general extension registry. |
+| UI feature contract | `modules/platform/feature-contract.js` | Existing session module keys and permission names are a curated compatibility API. Catalogue selection now resolves from the pinned category adapter, but arbitrary category modules still need reviewed server navigation, API and client adapters. |
 | Plan administration | `modules/platform/existing-catalogue-router.js` | Manage Plans now enumerates reviewed planable registry entries and looks up an explicit category version. The original version-1 default is retained for old callers. Adding a manifest alone still does not deliver a new category workflow. |
-| Bot editing/runtime | `modules/platform/chatbot-router.js`, `chatbot-domain-packs.js`, `docs/CHATBOT_CATEGORY_ARCHITECTURE.md` | Reusable typed guided-content schemas and tenant/category-bound profiles already exist. Extend this design. Shared runtime contains category-specific branches that need adoption tests before replacement. |
+| Bot editing/runtime | `modules/platform/chatbot-router.js`, `chatbot-domain-packs.js`, `modules/platform/chatbot-runtime.js` | Reusable typed guided-content schemas, tenant/category-bound profiles, and manifest-declared lead-capture adapters exist. Runtime must select reusable behavior from the exact registered category contract; keep genuinely private workflows such as recruitment explicitly scoped. |
 | Navigation | `modules/platform/navigation.js` | Server decisions determine visible modules. Configured visibility must remain a restriction over authorized routes, with matching API enforcement. |
 | Frontend recovery | Existing implementation plan | Maintained screen hooks coexist with a generated legacy frontend. Extend the existing screens; do not manually edit minified logic or introduce another panel. |
 
@@ -107,6 +107,29 @@ For Base CRM, lead creation is a per-profile owner choice in the existing Chatbo
 
 This closes shared lead capture for the category-neutral base contract, not generic conversational collection of each tenant's custom fields. Those answers still use the published Forms route until a separate category-approved conversational schema, consent and stop/skip design is implemented. Tests cover category adapter immutability/validation, plan denial, opt-in/default-off behavior, Sales/Training denial and the adapter's passed data; live browser, MariaDB integration and provider acceptance remain release gates.
 
+## Manifest-driven chatbot training adapter — source update, 22 October 2026
+
+The registry already permits a reviewed category to declare the reusable
+`chatbotLeadCapture: training` adapter, but the runtime had three remaining
+`training_center` key comparisons for guided onboarding, lead enrichment and
+capture. Those checks now use the pinned category manifest property. A
+synthetic future category proves the shared adapter can be selected without
+adding a category-name branch, while Base CRM and Sales remain excluded by their
+own adapter declarations. This does not add or publish a new category, change
+the Sales recruitment workflow, or collect additional customer data. The
+focused registry and chatbot capture checks pass 8/8; full chatbot, authenticated
+channel, MariaDB and provider acceptance remain open.
+
+Category role exceptions belong to the same reviewed, immutable manifest
+contract. The shared policy engine now reads manifest declarations for owner
+capabilities excluded from plan add-ons, role-specific denied permissions, and
+tenant-scoped role permissions. Registry validation requires every declaration
+to reference a role, category capability and known permission; arbitrary
+customer configuration cannot alter access policy. Existing Sales accountant
+restrictions and Training/Sales manager team-invite scope are preserved. The
+generic contract lets a later category opt into a reviewed rule without another
+category-name branch in the policy engine.
+
 Effective access is the intersection of category capability, plan entitlement, enabled tenant configuration, member permission/scope and runtime readiness. Restrictions accumulate. Tenant overrides cannot change `tenant_id`, category identity, subscription rights, audit requirements, resource ownership checks or accounting invariants. Missing/invalid configuration must produce a controlled error or a specifically versioned compatibility default; never fall back to another tenant or arbitrary category.
 
 ## Configuration persistence and publication design
@@ -126,15 +149,25 @@ Cache key: tenant ID + category key/version + configuration revision + relevant 
 | Sales | Products/services and its deals, commissions and Sales finance contracts; private first-party recruitment stays explicitly scoped |
 | Real estate | Properties, owners, buyer/tenant requirements, viewings and listing-specific pipelines |
 | Dental / clinic | Appointments, practitioners and service catalogue first; patient records require separately designed sensitive-data access and retention boundaries |
-| Retail / supermarket | Product variants, stock movements, suppliers and POS integration; inventory is a ledger with concurrency control, not a renamed course table |
+| Retail / supermarket | Product variants, stock movements, suppliers and POS integration; inventory is a ledger with concurrency control, not a renamed course table | Retail has a private, non-planable inventory ledger slice in source; variants, purchasing, suppliers, POS and supermarket workflows remain pending |
 | Hotels | Rooms, availability, reservations and rate rules; allocation/overbooking needs database invariants |
 | Restaurants | Menu, modifiers, orders, tables and kitchen workflow; the existing restaurant fixture is a test fixture, not this implementation |
 
 Use dedicated tables and services for domain invariants. Use bounded, typed custom fields for customer-specific metadata and indexed promoted fields for important search/report dimensions. Do not store invoices, stock balances, medical records, or reservation constraints in an unrestricted JSON entity table. Reference another module through tenant-constrained foreign keys or validated service boundaries; category labels do not change financial meanings.
 
+### Qatar clinic and dental data gate — 22 October 2026
+
+The current official Qatar privacy materials materially change the clinic launch sequence. The National Cyber Security Agency's version 3.0 Special Nature Processing Guidelines identify health, physical condition, psychological condition and children's data as special-nature personal data. They direct controllers to document a permitted reason and an additional processing condition, complete a DPIA, and obtain the required permission before that processing begins; a permission is tied to the stated purpose and changed processing requires review. The underlying [Law No. 13 of 2016](https://almeezan.qa/EnglishLaws/132016.pdf), [NCSA Special Nature Processing Guidelines v3](https://ncsa.gov.qa/shared/document_library/94787172324409/33000/8880/1.0~be43a21b-0e16-448e-8a54-7c58963f421e?filename=Guidelines-for-Special-Nature-Processing-EN-v3.pdf&mimetype=application%2Fpdf), and [NCSA permissions process](https://www.ncsa.gov.qa/en/pages/special-nature-permissions-request) are the primary references.
+
+The Ministry of Public Health's [DHP Circular DHP/2024/12](https://dhp.moph.gov.qa/en/QCHPCirculars/DHP-2024-12-E.pdf) assigns private healthcare facility medical directors responsibility for confidential patient files, access limited to authorized personnel, reliable patient-centred documentation and legally required retention. This is a healthcare-facility duty; the CRM must support it without representing that software alone makes a clinic compliant.
+
+Product boundary: do not enable a clinic/dental category for customer onboarding or plan assignment, and do not route patient data through generic lead custom fields, public Forms, FAQs, chatbot prompts, WhatsApp automation, analytics or ordinary support logs. Even an appointment linked to a named clinic may reveal a health relationship, so treating appointment data as ordinary contact data would be an unsafe assumption. The precise legal classification and the respective controller/processor roles require review for the actual processing and customer contract; this is a conservative product decision, not a legal conclusion.
+
+Before a clinical module is planable, require a reviewed controller/processor and purpose map, customer-provided lawful basis and special-nature permission evidence where applicable, DPIA and processing record, data-subject/access/retention procedures, and a distinct clinical data path with purpose-scoped roles, auditable access, tenant-bound storage and backups, private file handling, and explicit exclusions from AI/provider payloads. The initial module should have no diagnosis, treatment notes, medication, images or free-text clinical fields until those gates are complete. This is stricter than making the category private: private only hides onboarding; it does not make an unapproved processing path safe.
+
 ## Real Estate v1 implementation slice — 21 October 2026
 
-The first domain slice is a private `real_estate@1` contract and a tenant-scoped listing service in the existing `/user` panel. It introduces a typed property table instead of reusing training courses or generic custom-field JSON. Each listing has bilingual titles/descriptions, property and transaction types, explicit lifecycle states, price/currency, area, room counts, city, revision, an optional assigned membership and actor audit events. Query predicates include the authenticated tenant on every listing read and mutation. Edits lock the tenant/listing row, require an expected revision, validate lifecycle transitions, and write the audit event in the same transaction. Sold/rented listings are immutable except for archival; hard deletion is not exposed. Owners and managers can see tenant inventory; managers assign listings only to active agents in their current team. Agents see only listings assigned to them; team leaders see their own and their current team's assigned listings. The assignment foreign key includes tenant identity, stale/out-of-team assignees are rejected, and custom permissions cannot widen these scopes.
+The first domain slice is a private `real_estate@1` contract and a tenant-scoped listing service in the existing `/user` panel. It introduces a typed property table instead of reusing training courses or generic custom-field JSON. Each listing has bilingual titles/descriptions, property and transaction types, explicit lifecycle states, price/currency, area, room counts, city, revision, an optional assigned membership and actor audit events. Query predicates include the authenticated tenant on every listing read and mutation. Edits lock the tenant/listing row, require an expected revision, validate lifecycle transitions, and write the audit event in the same transaction. Sold/rented listings are immutable except for archival, and archived records stay immutable so archival cannot reopen edits to a completed transaction; hard deletion is not exposed. Owners and managers can see tenant inventory; managers assign listings only to active agents in their current team. Agents see only listings assigned to them; team leaders see their own and their current team's assigned listings. The assignment foreign key includes tenant identity, stale/out-of-team assignees are rejected, and custom permissions cannot widen these scopes.
 
 The category is `public:false` and `planable:false`; it is deliberately absent from customer plan selection while the workflow is incomplete. `realestate.listings` is a distinct entitlement and is independently gated by category version, active subscription, role permission and assigned navigation. Thirty focused unit/policy/migration/HTTP tests pass, and a disposable MariaDB run verifies manager-team assignment, agent and team-leader visibility, cross-tenant assignment denial, concurrent revision writes and audit rollback. This establishes a vertical-module pattern, not a claim that the full category or multi-tenant acceptance is complete. Buyer/tenant requirements, owners, viewings, listing pipelines, search ranking, media uploads, RESO mapping, bilingual browser/device review and authenticated existing-panel acceptance remain open before plan publication or production migration.
 
@@ -159,9 +192,9 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Partly existing; broader proof pending |
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |
-| New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Real Estate has a private, non-planable typed listing slice in source; category workflow and migration acceptance remain incomplete. Clinic, retail, supermarket, hotel and restaurant modules remain pending; adding names to a dropdown is not delivery. |
+| New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Real Estate has a private, non-planable typed listing slice in source; category workflow and migration acceptance remain incomplete. Retail has a private, non-planable tenant-scoped inventory ledger selected through a validated manifest adapter; category workflow and migration acceptance remain incomplete. A future grocery category can reuse that reviewed stock adapter only by explicitly declaring its catalogue and inventory capability. Clinic/dental is gated on official Qatar special-nature processing controls; supermarket, hotel and restaurant workflows remain pending. Adding names to a dropdown is not delivery. |
 | Operational scale | Measured tenant load/fairness, recoverable backups, restore drill, rollout rings and health telemetry | Pending |
-| Publication | Verified source push, targeted production backup/deploy, hashes, API/browser acceptance and deployment record | Category foundation deployed. Real Estate source is not deployed and its migration is not applied; tenant configuration, broad category isolation and the full objective remain in progress. |
+| Publication | Verified source push, targeted production backup/deploy, hashes, API/browser acceptance and deployment record | Category foundation deployed. Real Estate and Retail source slices are not deployed and their migrations are not applied; tenant configuration, broad category isolation and the full objective remain in progress. |
 
 Acceptance requires a matrix covering two businesses in the same category, two different categories, and an unmapped legacy business. Change A's draft, publish it, run its workflow, revoke permissions and roll back; B's active revision, visible modules, API decisions, bot content and stored data must remain unchanged throughout. Also cover concurrent publish, malformed/unknown fields, unsupported category version, expired plan, cross-tenant ID substitution, stale worker/cache state, migration failure and partial provider failure. Fixtures cannot stand in for authenticated existing-screen verification.
 
@@ -669,3 +702,187 @@ MariaDB's JSON_TABLE converts JSON values into relational rows and supports the
 wildcard path used by this bounded value search ([MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)).
 These are design inputs, not a change to SaleMaX's existing Node/MariaDB
 deployment or an assertion of unlimited pooled scale.
+
+## Current plan entitlement for custom lead fields
+
+The published field contract is now loaded only when the owner's active plan
+allows `crm.leads` under the same tenant, category, membership and policy
+context used by other tenant capabilities. A revoked entitlement hides the
+field contract and rejects newly submitted custom values with
+`FEATURE_UNAVAILABLE`. Ordinary lead edits remain available, and existing
+custom-field snapshots stay attached to the lead. This is application-layer
+MariaDB enforcement; it does not claim database row-level security. The full
+synthetic integration harness passes on MariaDB 11.4.13 after applying all 118
+discovered migrations, including plan revocation, category mismatch denial and
+snapshot preservation. This validates the database path without touching
+customer data; authenticated EN/AR browser acceptance remains open. Tenant
+isolation follows OWASP's guidance to derive tenant context from verified identity and
+apply it consistently at every access path ([OWASP Multi-Tenant Security
+Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)); AWS also describes runtime policy enforcement for pooled SaaS systems
+([AWS runtime policy isolation](https://docs.aws.amazon.com/whitepapers/latest/saas-tenant-isolation-strategies/run-time-policy-based-isolation-with-iam.html)).
+
+
+## Legacy Flow Builder state ownership
+
+A source audit found that the legacy `flow_data` table stores a nullable owner
+`uid` separately from `uniqueId`, and `uniqueId` is not unique. The QR and Meta
+runtimes previously read and updated state by the conversation key alone. Those
+paths now bind every read and mutation to both owner UID and conversation key;
+a composite prefix index supports the lookup. The migration and colliding-key
+reads/writes pass in the full synthetic MariaDB 11.4.13 integration harness.
+A read-only aggregate audit of the active production database found six rows,
+zero missing owner UIDs, zero missing conversation keys, and zero duplicate
+`(uid, uniqueId)` pairs; no conversation contents were read and production
+schema remains unchanged. Do not infer or backfill missing owners by parsing
+the concatenated key. Legacy per-node authorization and durable message
+idempotency remain separate requirements.
+
+QR and Meta Flow Builder state keys now include the stable chatbot profile ID
+as well as sender and conversation, while database reads and writes remain
+owner-scoped. Separate profiles therefore do not share newly created state,
+even when they process the same owner's conversation concurrently. A read-only
+production audit found six existing `flow_data` rows, all with saved state;
+two also have a pending-node marker. Their legacy keys do not identify a
+profile, so runtime code preserves but does not auto-adopt or rewrite them.
+Profile-scoped handlers cannot resume these sessions. In-flight legacy state
+needs a reviewed mapping or an explicit restart policy before deploying this
+behavior. An actual distributor test with a fake transport confirms that two
+profiles persist distinct input-node state for the same owner, sender and
+conversation. The
+active production `user.uid` index is also non-unique; current read-only counts
+show seven rows with seven distinct nonempty UIDs, but future uniqueness
+enforcement remains open.
+
+The legacy flow-state owner/key pair now also has a database-enforced unique
+digest. It is generated from the exact UTF-8 bytes of the two source values
+with a NUL separator and stored as a fixed-width binary value, keeping the
+constraint safe for the legacy 999-character columns. Runtime lookups include
+that digest and still compare both source identifiers. MariaDB integration
+proves same-owner duplicate and re-key attempts fail, racing inserts have one
+winner, and another owner may use the same conversation key independently.
+Production has not applied this migration; its DDL, duplicate preflight and
+rollback must be reviewed with the live migration ledger before release.
+
+## Channel-bound legacy Automation Flow sessions — 22 October 2026
+
+The shared Automation Flow Builder now treats owner, origin, connected channel,
+flow and sender as one session identity. QR and Meta conversations for the same
+person cannot resume or overwrite one another's legacy `flow_session` row. Node
+updates and reset/loop cleanup target the selected row ID plus owner, and Hybrid
+chatbot checks use the same channel-scoped lookup. Nullable origin fields use
+MariaDB null-safe equality so webhook and older null-valued identities remain
+explicit instead of broadening the match.
+
+This is a shared-core isolation repair; category-specific flow content and bot
+configuration remain tenant-owned. Focused regressions cover same-sender QR/Meta,
+two connected QR accounts, owner separation and scoped mutation contracts.
+Production deployment and runtime channel smoke remain pending; source testing
+did not change session data or schema.
+
+
+## Manifest-owned task assignment scope — 22 October 2026
+
+The shared Tasks service no longer checks the Training Center category key to
+decide whether an agent may assign colleagues. The pinned category manifest
+declares `taskAssignmentScope`; the safe default is `self`, and Training Center
+v1 explicitly retains its existing `workspace` behavior. Managers and owners
+keep their existing task-management authority. Future categories can declare
+their approved assignment model at registration, while a mismatched or missing
+category version fails closed for agents. This is a platform policy, not a
+client-editable tenant preference, so a business customization cannot silently
+expand an agent's authority.
+
+Task-type filtering and explicit due-date requirements also use the resolved
+category task-adapter contract. The shared Tasks service no longer names the
+Sales category or `sales_call` as special cases for those rules. Only types
+registered by the exact category version can be filtered; unknown type names
+are rejected. Existing Sales call requirements remain declared by its reviewed
+adapter, so future categories can add reviewed task behavior without editing
+shared task lifecycle code.
+
+## Manifest-owned conversation-transfer lead behavior — 22 October 2026
+
+The shared Inbox conversation-transfer service no longer selects the Training
+Center category by key before creating or reassigning a Pipeline lead. The exact
+pinned category manifest opts into the reviewed `whatsapp_inquiry_v1` adapter;
+all other categories default to no lead side effect. Registry validation requires
+both shared Inbox and CRM lead capabilities, and a missing/mismatched category
+version cannot trigger the workflow. The adapter remains responsible for its
+transactional lead/conversation association; the manifest selects reviewed
+server behavior and never contains executable tenant configuration.
+
+## Versioned chatbot profile defaults — 22 October 2026
+
+The existing category/version domain pack now owns a validated bot-profile
+contract: default guided mode, whether an opening Automation Flow is supported,
+category workflow choices/collection fields with bilingual labels, and an optional same-origin CRM
+catalogue link. Training Center v1 preserves its guided course admissions
+defaults; 7Network Sales v1 retains its optional opening Flow. Shared bot
+normalization and the existing chatbot editor consume this contract instead of
+checking category names. Unsupported workflow values and opening-Flow fields
+are rejected by the server.
+
+The contract supplies defaults only. Each bot still stores a separately
+normalized `guidedContent` object in its tenant-owned profile, so two businesses
+using the same category can use different bilingual replies. Tests cover profile
+copy isolation, immutable category-pack metadata, unsupported settings and the
+existing category-specific behavior. This does not yet generalize domain reply
+implementations or prove live provider delivery.
+
+The bot-profile workflow contract also supplies a localized field label and an
+English/Arabic label for every registered choice. The existing bot editor
+renders this selector only while the bot uses the category's built-in guide,
+submits the chosen workflow, and retains the category default when the profile
+predates the selector. Registry validation requires an exact label map for the
+registered choice set; unknown category workflow choices remain rejected by
+the server. This keeps future category workflows discoverable and editable
+without adding category-name checks to shared UI code.
+
+
+## Retail Shop inventory ledger — source update, 22 October 2026
+
+A private `retail_shop@1` category now mounts an inventory screen inside the existing authenticated business panel. Its tenant-scoped ledger supports locations, stock reads, audited adjustments, optimistic revisions, request idempotency and movement history. Tenant-composite foreign keys bind locations, products and actor memberships; balances cannot go negative. The category is not public or planable. It reuses the existing product catalogue, so product-variant management is not included.
+
+The existing-screen/API contract, category/policy, router and inventory regressions pass 55/55. A disposable MySQL integration passed nine checks for tenant isolation, replay conflicts, concurrency, nonnegative balances and audit rollback. No production migration or release was performed. Authenticated browser acceptance in English and Arabic remains open. Suppliers, purchasing, POS, automatic sales decrement, product variants and supermarket workflows remain unimplemented; this slice does not complete the Retail category or the full customization program.
+
+### Retail inventory pagination — source update, 22 October 2026
+
+The tenant-scoped product stock screen now consumes the API's bounded pagination
+instead of silently showing only the first 30 products. It displays the filtered
+range and total, offers English/Arabic page controls, resets the selected page
+on location/search changes and discards stale asynchronous responses. This
+improves catalogue scale inside the existing panel without broadening the
+private category or changing its non-planable status. Focused inventory, router
+and screen tests pass 12/12; authenticated browser acceptance remains open.
+
+### Retail catalogue search scale — source update, 22 October 2026
+
+Retail stock lookup now uses an explicit prefix search on product code and the
+English/Arabic names. A tenant/status-leading composite index is added to the
+shared product catalogue, and the search unions three separately indexable
+lookups with distinct product IDs before returning a bounded page. This avoids
+leading-wildcard scans and keeps identical matches from duplicating a product.
+A 5,000-row disposable MySQL 9.6 integration verified migration application,
+English/Arabic/code matching, deduplication, same-SKU tenant separation and
+index selection in `EXPLAIN`.
+Production MariaDB planning and index-build resource estimates remain release
+preflight gates; no production migration has been applied.
+
+### Category-owned shared QR delegation — source update, 22 October 2026
+
+The Training Center-only manager delegation and accountant QR-only Inbox
+exceptions are declared on its exact category manifest version and consumed by
+the existing QR-sharing service, socket scope and legacy route guard. Registry
+validation rejects unknown policy values and requires the capabilities needed
+by the declared behavior. Other categories default to manager-team scope and no
+accountant QR exception; unknown versions are denied. This preserves the
+existing Training Center v1 contract while allowing a future reviewed category
+to opt into the same behavior without editing shared authorization branches.
+The focused category/Inbox/QR/route suite passes 21/21, and the isolated MySQL
+9.6 team-agent integration passes its tenant/channel/assignment checks. The
+broader migration harness stopped at its first legacy DDL statement because
+MySQL 9.6 does not accept the MariaDB-specific syntax; it did not reach these
+authorization paths. Run that harness on supported MariaDB before release. No
+production change was made; authenticated bilingual and live-channel acceptance
+remain open. The full Node suite passes 1,069/1,090; the 21 branch failures all
+reproduce on clean `origin/main` (26 failures there), with no new regression.

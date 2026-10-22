@@ -74,6 +74,36 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 
+function normalizeBotProfileContract(value) {
+  if(value==null)return Object.freeze({defaultGuidedMode:'none',supportsIntroFlow:false,workflow:null,catalogueHref:null});
+  const invalid=()=>{throw Object.assign(new Error('INVALID_CHATBOT_PROFILE_CONTRACT'),{code:'INVALID_CHATBOT_PROFILE_CONTRACT'});};
+  if(!plainRecord(value)||Object.keys(value).some(key=>!['defaultGuidedMode','supportsIntroFlow','workflow','catalogueHref'].includes(key))
+    ||!['none','domain_default'].includes(value.defaultGuidedMode||'none')
+    ||(value.supportsIntroFlow!==undefined&&typeof value.supportsIntroFlow!=='boolean')
+    ||(value.catalogueHref!==undefined&&value.catalogueHref!==null&&(typeof value.catalogueHref!=='string'||!/^\/user\?page=[a-z][a-z0-9_-]{0,63}$/.test(value.catalogueHref))))invalid();
+  let workflow=null;
+  if(value.workflow!==undefined&&value.workflow!==null){
+    const item=value.workflow;
+    if(!plainRecord(item)||Object.keys(item).some(key=>!['key','default','choices','collect','label','labels'].includes(key))||item.key!=='workflow'||!Array.isArray(item.choices)||item.choices.length<1||item.choices.length>12
+      ||item.choices.some(choice=>typeof choice!=='string'||!/^[a-z][a-z0-9_-]{1,63}$/.test(choice))
+      ||new Set(item.choices).size!==item.choices.length||!item.choices.includes(item.default)
+      ||!Array.isArray(item.collect)||item.collect.length>32||item.collect.some(field=>typeof field!=='string'||!/^[a-z][a-z0-9_]{0,63}$/.test(field))
+      ||!plainRecord(item.label)||Object.keys(item.label).some(language=>!['en','ar'].includes(language))||['en','ar'].some(language=>typeof item.label[language]!=='string'||!item.label[language].trim()||item.label[language].length>120)
+      ||new Set(item.collect).size!==item.collect.length||!plainRecord(item.labels)
+      ||Object.keys(item.labels).length!==item.choices.length||Object.keys(item.labels).some(choice=>!item.choices.includes(choice)))invalid();
+    const labels={};
+    for(const choice of item.choices){
+      const label=item.labels[choice];
+      if(!plainRecord(label)||Object.keys(label).some(language=>!['en','ar'].includes(language))
+        ||['en','ar'].some(language=>typeof label[language]!=='string'||!label[language].trim()||label[language].length>120))invalid();
+      labels[choice]={en:label.en.trim(),ar:label.ar.trim()};
+    }
+    workflow=deepFreeze({key:'workflow',default:item.default,choices:[...item.choices],collect:[...item.collect],label:{en:item.label.en.trim(),ar:item.label.ar.trim()},labels});
+  }
+  const defaultGuidedMode=value.defaultGuidedMode||'none';
+  return deepFreeze({defaultGuidedMode,supportsIntroFlow:value.supportsIntroFlow===true,workflow,catalogueHref:value.catalogueHref||null});
+}
+
 const TRAINING_CENTER_GUIDED_DEFAULTS = {
   version: 1,
   messages: {
@@ -177,6 +207,8 @@ function registerDomainPack(pack) {
     throw Object.assign(new Error('INVALID_CHATBOT_DOMAIN_PACK'), { code: 'INVALID_CHATBOT_DOMAIN_PACK' });
   }
   validateGuidedContentContract(pack.guidedContentDefaults, pack.guidedContentSchema);
+  const botProfileContract=normalizeBotProfileContract(pack.botProfileContract);
+  if((botProfileContract.defaultGuidedMode==='domain_default'||botProfileContract.supportsIntroFlow)&&(!pack.guidedReply||!pack.guidedContentDefaults))throw Object.assign(new Error('INVALID_CHATBOT_PROFILE_CONTRACT'),{code:'INVALID_CHATBOT_PROFILE_CONTRACT'});
   const registryKey = `${pack.key}@${pack.version}`;
   if (registry.has(registryKey)) throw Object.assign(new Error('CHATBOT_DOMAIN_PACK_ALREADY_REGISTERED'), { code: 'CHATBOT_DOMAIN_PACK_ALREADY_REGISTERED' });
   const registered = Object.freeze({
@@ -190,6 +222,7 @@ function registerDomainPack(pack) {
     isGuidedIntent: pack.isGuidedIntent || null,
     guidedContentDefaults: pack.guidedContentDefaults ? deepFreeze(JSON.parse(JSON.stringify(pack.guidedContentDefaults))) : null,
     guidedContentSchema: pack.guidedContentSchema ? deepFreeze(JSON.parse(JSON.stringify(pack.guidedContentSchema))) : null,
+    botProfileContract,
   });
   registry.set(registryKey, registered);
   return registered;
@@ -204,6 +237,7 @@ function getDomainPack(key, version) {
     loadFacts: async () => [],
     guidedContentDefaults: null,
     guidedContentSchema: null,
+    botProfileContract:normalizeBotProfileContract(),
   });
 }
 
@@ -301,6 +335,7 @@ registerDomainPack({
   loadFacts: trainingCenterFacts,
   guidedContentDefaults: TRAINING_CENTER_GUIDED_DEFAULTS,
   guidedContentSchema: TRAINING_CENTER_GUIDED_SCHEMA,
+  botProfileContract:{defaultGuidedMode:'domain_default',supportsIntroFlow:false,workflow:{key:'workflow',default:'course_admissions',choices:['course_admissions','course_enquiry'],collect:['name','course_interest','preferred_schedule','phone','consent'],label:{en:'Conversation type',ar:'نوع المحادثة'},labels:{course_admissions:{en:'Course admission',ar:'الالتحاق بدورة'},course_enquiry:{en:'Course enquiry',ar:'استفسار عن دورة'}}},catalogueHref:'/user?page=courses'},
   guidedReply: ({ message, state, facts, config }) => require('./chatbot-training-guide').trainingCenterGuidedReply({ message, state, facts, config, defaults: TRAINING_CENTER_GUIDED_DEFAULTS }),
   isGuidedIntent: require('./chatbot-training-guide').shouldStartGuided,
 });
@@ -323,6 +358,7 @@ registerDomainPack({
   key:'7network_sales',version:1,title:'7Network Sales Recruitment',requiresDatabase:true,
   systemGuidance:'You are the recruitment guide for 7Network. Always begin with the approved Qatar company identity, CR 251489, Talab marketplace links and 7Network description before discussing the role. The company supplies leads. Professional English is required; Hindi is preferred but optional. Explain the 2–3 month commission-only trial with no base salary and 15% of a paid QAR 2,500 annual subscription (QAR 375). A later full-time basic salary plus commission may be considered but is not guaranteed. Never promise selection, employment, income, or an interview. Route applications to the supplied secure application URL; do not request a CV, government ID, bank details, or other sensitive information in chat.',
   loadFacts:salemaxSalesRecruitmentFacts,guidedContentDefaults:RECRUITMENT_GUIDED_DEFAULTS,guidedContentSchema:RECRUITMENT_GUIDED_SCHEMA,
+  botProfileContract:{defaultGuidedMode:'none',supportsIntroFlow:true},
   guidedReply:input=>require('./chatbot-recruitment-guide').recruitmentReply(input),
   isGuidedIntent:message=>/\b(?:job|role|apply|application|commission|sales associate|talab|salemax|7network)\b|وظيفة|تقديم|عمولة|طلب/iu.test(String(message||'')),
 });

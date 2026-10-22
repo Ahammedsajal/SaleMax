@@ -13,6 +13,144 @@ unchanged database/worker container IDs were verified. No matching failure was
 recorded in the prior 72 hours, so no real applicant submission failure was
 reproduced. Authenticated live submission acceptance and the full 42-ticket
 program remain open; see `DEPLOYMENT.md` for rollback and release evidence.
+
+## Recruitment application client copy — live-source reconciliation, 22 October 2026
+
+The current public application page was serving a newer customer-error helper
+than this source checkout. The live helper explains common network, request-size,
+and database failures in plain language, includes the safe cause code in
+parentheses, and tells applicants what to do next. The live page also uses the
+`20261022-error-copy-5` cache key; both the helper and page are now synchronized
+in this source branch. The application submission script was already byte-for-
+byte current. A read-only public-site audit found that the live 7Network logo
+image was newer than the local file, so its exact bytes are now synchronized;
+the local homepage cache key remains newer than the live page. The other checked
+public-site CSS and JavaScript already matched. Focused error tests pass 2/2,
+and the local helper, page, and logo hashes match the publicly served files.
+This is a source reconciliation only: no
+production upload, application submission, customer-data write, or schema change
+occurred. No actual applicant failure was reproduced, so its underlying
+technical cause remains unknown.
+
+## Recruitment application support correlation — production, 22 October 2026
+
+For a new server-side submission failure, the public form now returns the same
+random support reference that is written beside the sanitized diagnostic code
+in the app log. The applicant sees the plain-language guidance, safe cause, and
+reference together in brackets; malformed references are ignored and internal
+error messages remain private. Focused recruitment tests pass 22/22, syntax and
+whitespace checks pass. Source commit
+`e99dec041a0e102e3bff3ea75eb22f66020141df` is deployed in
+`/opt/salemax/releases/recruitment-support-reference-e99dec0-20261022`; the app
+is healthy, the public routes and served artifact hashes were verified, and no
+database or worker container was recreated. An isolated synthetic multipart
+request verified that the applicant response and sanitized app log carry the
+same support reference without exposing private error text. Production cleanup
+removed 4.733 GB of Docker build cache; dangling-image pruning reclaimed no
+additional bytes, and volumes, tagged rollback images, archives and logs were
+preserved. Host free space is 2.5 GB (95% used). No matching error event was
+found in reviewed logs, so the reported applicant failure's cause remains
+unknown; authenticated live application submission and the full 42-ticket
+program remain open. See `DEPLOYMENT.md` for rollback and release evidence.
+
+## Manifest-driven chatbot adapter selection — source update, 22 October 2026
+
+The chatbot runtime now selects the established Training Center lead-capture
+and onboarding behavior from the pinned category manifest's
+`chatbotLeadCapture` adapter instead of comparing the literal
+`training_center` category key. A synthetic future-category contract confirms
+the reusable adapter can be selected without a category-name branch; Base CRM
+and 7Network Sales remain excluded by their explicit adapter values. The
+registry and chatbot capture checks pass 8/8, and syntax/whitespace checks pass.
+No category was added or published, no bot configuration changed, and no
+production data or provider was touched. Authenticated channel, MariaDB and
+provider acceptance remain open; the full 42-ticket program continues.
+
+## Chatbot provider-prompt isolation regression — source update, 22 October 2026
+
+The chatbot API integration had expected an unrelated FAQ to be sent to the AI
+provider. Runtime retrieval intentionally passes only the best matching FAQ;
+unrelated same-tenant answers add noise and can conflict with the customer's
+question. The integration now seeds a distinct FAQ for a second tenant and
+asserts that a preview contains its matching business answer while excluding
+both unrelated same-tenant content and the second tenant's private answer. A
+focused retrieval regression covers the same relevance rule. The chatbot context
+and FAQ suites pass 160/160, and integration-source syntax and whitespace checks
+pass. The full MariaDB migration/API harness was not rerun because this worktree
+has no dedicated disposable MariaDB test instance; the unrelated local MySQL
+service was left untouched. This source-only test correction does not establish
+full authenticated browser or production acceptance.
+
+## Active-release source reconciliation — source update, 22 October 2026
+
+A read-only comparison against `/opt/salemax/current`, resolved to
+`/opt/salemax/releases/recruitment-customer-guidance-5ab3315-20261022`, covered
+hand-maintained source and documentation while excluding dependencies, the
+compiled public bundle, runtime/shared data, media and AppleDouble files. The
+manifest contains 857 production files and 985 local files: 732 match exactly,
+121 differ, four are production-only, and 132 are local-only. Production-only
+`feature-contract.js`, `pipeline-entry.js` and root `manifest.json` are not
+referenced by the deployed static entry points; the remaining production-only
+sidebar rollback has no reviewed local forward-migration pair, so it was not
+copied. The comparison is a source audit, not evidence of release or database
+parity.
+
+Reviewed live improvements were synchronized selectively: opening-keyword
+handoff reconciliation in the Inbox, Qatar as the fallback socket timezone,
+version-pinned category task adapters that retain tenant task toggles, current
+7Network wordmark/icon assets, and the missing Pipeline timezone-options script
+include. The brand exporter now regenerates byte-identical live light/dark logo
+masters and resized variants from tracked source assets. New tests verify adapter
+version/capability contracts, inbox flow suppression after a human handoff,
+relevant tenant-isolated chatbot prompts, brand packaging, and Pipeline timezone
+loading. The focused batch passes 212/212, and syntax plus whitespace checks pass.
+
+Newer local work was retained, including Real Estate category files, UUID-based
+Pipeline report identifiers, tenant-scoped chatbot flow state, and the legacy
+flow owner-scope migrations. The full `npm test` suite reports 1,043/1,068
+passing, with 25 remaining failures in legacy Manage Users, shell hook order,
+Pipeline/Finance screen contracts, Agent task recipients, training print
+controls and public-form challenge assertions. The timezone cache-key contract
+was refreshed as part of this sync. The remaining 121 changed files and 132
+local-only files require feature-by-feature review; this pass did not overwrite
+the local project from production. No production files, database, customer data,
+provider settings or runtime state were changed. The MariaDB integration
+harness and authenticated live application acceptance remain open; the 42-ticket
+upgrade is still in progress.
+
+## Real Estate terminal listing immutability — source update, 22 October 2026
+
+Review of the existing tenant-scoped property lifecycle found that a completed
+sale or rental could be archived and then edited because only the `sold` and
+`rented` statuses were treated as immutable. The property service now keeps
+archived records immutable too, while still allowing a terminal listing to be
+archived. Unit coverage verifies edits and reopening are rejected; the focused
+Real Estate service/router suite passes 15/15. The disposable MariaDB integration
+fixture now also exercises sold → archived → attempted edit, but was not rerun
+because this worktree has no dedicated disposable database. No production data,
+schema, or release was changed; browser acceptance and the incomplete Real Estate
+workflow remain open.
+
+## Clinic/dental privacy gate — architecture research, 22 October 2026
+
+Reviewed Qatar's official Law No. 13 of 2016, NCSA Special Nature Processing
+Guidelines v3 and permissions process, and MoPH DHP Circular DHP/2024/12. Health,
+physical/psychological-condition and children's data require a separate special-
+nature processing analysis; NCSA guidance calls for a documented permitted
+reason and additional condition, DPIA, and permission before the applicable
+processing begins. The clinic customer also has patient-file confidentiality,
+authorized-access and retention obligations under the MoPH facility guidance.
+
+The design record now gates clinic/dental onboarding and plan assignment until
+the controller/processor roles, purpose and lawful basis, special-nature
+permission applicability, DPIA, processing record, access/retention workflow and
+isolated clinical data path are reviewed. Generic custom lead fields, public
+forms, chatbot/AI payloads and routine logs are not approved storage paths for
+clinical content. Whether an appointment alone is special-nature data depends
+on its context; the product treats it as potentially sensitive pending review.
+No clinic category, medical schema, customer record or production setting was
+added or changed.
+
 ## Finance conversion policy guard — source update, 21 October 2026
 
 The training invoice-total helper now rejects missing, unsupported or malformed
@@ -1862,3 +2000,314 @@ automated adoption, new vertical workflows and full live acceptance remain open.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+
+### Custom lead-field entitlement guard — source update, 22 October 2026
+
+Custom lead-field definitions now follow the current tenant plan's `crm.leads`
+capability through the central policy decision. Revoked plans cannot expose or
+accept new custom values; ordinary edits and stored field snapshots remain
+available. Expanded focused tenant-customization, bot-runtime, HTTP,
+Pipeline-search, Real Estate and flow-isolation tests pass 73/73. The full
+disposable integration harness now
+passes all 118 discovered migrations on MariaDB 11.4.13, including plan
+revocation, category mismatch denial, historical field-value preservation and
+real bearer/cookie authorization. The same harness verifies that QR/Meta
+Flow Builder state reads and writes stay within the owner when conversation keys
+collide. It reports no customer data touched and no external messages sent.
+Source-only branch; production is unchanged. Authenticated EN/AR browser and
+device acceptance remains open.
+
+### Revoked-plan tenant editor guard — source update, 22 October 2026
+
+The existing customization preview now denies lead-field definitions without
+current `crm.leads` access. Draft, publish and rollback operations revalidate the
+plan entitlement inside their transaction before accepting or activating a
+revision with lead fields. Other settings remain editable, and historical
+revisions remain readable for owner recovery. Unit/API coverage and the full
+synthetic MariaDB integration pass, including preview and draft denial after
+plan revocation. Production is unchanged.
+
+
+### Legacy Flow Builder conversation-state owner guard — source update, 22 October 2026
+
+The legacy `flow_data` table has an auto-increment primary key, a nullable
+`uid`, and no uniqueness constraint on `uniqueId`. QR and Meta flow-state reads
+and updates previously queried by `uniqueId` alone. The existing adapters now
+require both owner UID and conversation key through one shared helper, and the
+forward/rollback migration adds a composite prefix index for that lookup. A
+synthetic collision test proves that identical conversation keys return and
+mutate only the matching owner row. The expanded focused suite passes 61/61;
+a runtime-level fake-transport test exercises the actual distributor and
+proves two chatbot profiles save distinct pending input nodes for the same
+owner, sender and conversation. The full 118-migration MariaDB 11.4.13
+integration verifies the new index and owner/profile-filtered reads/writes. A
+read-only aggregate audit of the active
+production database found six rows, no missing owner UIDs or conversation
+keys, and no duplicate `(uid, uniqueId)` pairs; no conversation contents were
+read. The seven legacy user rows have seven distinct nonempty UIDs, but their
+UID index is non-unique, so future uniqueness enforcement remains open. The
+migration has not run in production. QR and Meta state keys now also include
+the stable chatbot profile ID, so separate profiles for one owner and
+conversation use separate state rows. Synthetic tests verify both owner and
+profile collisions through the helper and MariaDB integration. The six
+production rows all contain state, and two retain a pending-node marker.
+Legacy keys do not identify a profile, so the runtime does not auto-adopt or
+rewrite them. They remain preserved in storage, but profile-scoped handlers
+cannot resume them. A reviewed mapping or explicit restart policy is required
+before this change is deployed. Legacy flow
+delivery/idempotency, per-node authority, and authenticated EN/AR acceptance
+remain separate gates.
+
+### Exact database uniqueness for owner-scoped Flow Builder state — source update, 22 October 2026
+
+Added a generated SHA-256 key over the exact owner UID and conversation key,
+with a unique database index. The legacy `VARCHAR(999)` identifiers remain
+unchanged; the bounded digest avoids prefix-only uniqueness and rejects a
+duplicate even when two workers attempt the same state insert concurrently.
+Reads and updates use the digest plus the original owner/key values, so a
+different owner or a different exact key cannot resolve the same state. The
+forward migration follows the existing owner-scope index and has a rollback
+that removes only the new index and generated column. Focused Flow Builder and
+migration tests pass. The full synthetic MariaDB 11.4.13 integration passes
+all 119 migrations, reports `customerDataTouched:false` and
+`externalMessages:0`; the direct real-database concurrency assertion is part
+of that harness. A disposable MariaDB DDL check also confirmed the generated
+hash matches Node for multibyte UTF-8 identifiers. Production schema and data
+are unchanged. The legacy six-state profile mapping/restart policy, production
+migration gate, per-node authority, and authenticated EN/AR acceptance remain
+open.
+
+The full local Node suite reports 1,026/1,052 passing. The same 26 existing
+screen-contract failures reproduce on clean `origin/main` (1,019/1,045), while
+all seven additional tests on this branch pass; the failures cover unrelated
+legacy Manage Users, Pipeline, Tasks, Finance, Courses and public-form assets.
+
+
+### Tenant-specific task choices — source update, 22 October 2026
+
+The existing Tasks screen now loads its category and plan-aware task catalog from
+the authenticated workspace Tasks API. Owners can follow category defaults or
+publish a tenant-specific subset; the API rejects disabled task types before a
+write begins, while historical tasks remain visible. The legacy Pipeline Tasks
+route uses the same context. Focused task, screen-contract, router, and
+customization tests pass 46/46; JavaScript syntax and diff checks pass. No
+production release or database migration was performed. Browser acceptance
+remains open because Playwright is not installed in this checkout; the full
+program's authenticated EN/AR, provider, finance, load/restore, and release
+gates remain open.
+
+### Task choice persistence, task collaboration, and legacy reporting fixes — source update, 22 October 2026
+
+Tenant-specific task type choices now pass the disposable MariaDB customization integration across two same-category tenants: each published a different task set, and the values remained separate through reads, publish, rollback, audit, and plan checks. The existing task screen/API enforces the same category/plan/tenant contract. A task assignee can read its linked lead after the owner explicitly assigns that task, while unrelated agents remain denied by the task participant check. Journey reports now use a UUID-compatible temporary lead scope key; synthetic scheduled report generation reaches `generated` with that key. Legacy Pipeline keeps old routes when the platform layer is disabled, preserves the existing assigned-agent staff-form path after per-request owner/category/plan checks, and denies unauthorized reassignment before loading task entitlements. The report integration assertions now compare against their captured cutoff, and test fixtures include the legacy tables required by current migrations. Fifty-eight focused Node tests pass; the tenant customization MariaDB integration passes 13 checks. The full disposable migration/business harness applies migrations and reaches chatbot API acceptance, then stops at `tests/chatbot-api-integration.cjs:184`, which expects an unrelated FAQ answer to be present in the provider prompt. That remaining integration failure is open for review. Source branch only; production is unchanged. Authenticated EN/AR browser/device acceptance and the full isolation, category, load/restore and release gates remain open.
+
+## Channel-bound legacy Automation Flow sessions — 22 October 2026
+
+Legacy shared-flow reads, mutations and cleanup now retain owner, origin,
+connected-channel, flow and sender identity. Row updates/deletes use the selected
+session ID plus owner; Hybrid chatbot session detection uses the same scoped key.
+Focused regressions cover same-sender QR/Meta sessions, separate QR accounts
+and row-owner binding. Production runtime acceptance is pending.
+
+
+## Manifest-owned task assignment scope — 22 October 2026
+
+The shared Tasks service now reads agent workspace-assignment behavior from
+the pinned category manifest instead of a Training Center name check. Training
+Center v1 keeps its current workspace behavior; other categories default to
+self-only. Registry and service tests cover invalid policy values, defaulting,
+category-version mismatch and manager behavior. Source only; production is
+unchanged.
+
+Task filtering and explicit due-date requirements also come from the pinned
+category adapter. Shared task logic no longer branches on the Sales category or
+the `sales_call` name for these behaviors; unregistered filters are rejected.
+The broad category, task, tenant-customization and chatbot regression set passes
+345/345. Source only; production is unchanged.
+
+Inbox conversation-transfer lead creation is now selected by the pinned
+category manifest (`whatsapp_inquiry_v1`) and requires the reviewed shared Inbox
+and CRM lead capabilities. Other categories default to no Pipeline side effect;
+unknown or mismatched category versions do not trigger the adapter. Focused
+registry and assignment tests cover the opt-in/default/mismatch cases. Source
+only; production is unchanged.
+
+The shared chatbot editor and profile validator now read category-specific
+defaults from the exact versioned domain pack: guided mode, opening-Flow support,
+workflow choices, collection keys, and an optional same-origin catalogue link.
+Training Center v1 and 7Network Sales v1 retain their existing behavior. Each
+bot keeps independent bilingual response content; unsupported profile settings
+are rejected. Category/task/customization/chatbot tests pass 347/347. Source
+only; production is unchanged.
+
+### Category-owned chatbot workflow selection — source update, 22 October 2026
+
+The existing bot editor now renders the pinned category pack's workflow
+choices with English/Arabic labels when the bot uses its built-in guide, and
+persists the selected value through the existing bot API. The immutable
+category contract rejects incomplete or mismatched label maps, while legacy
+profiles keep their existing workflow or use the pack default. The existing
+chatbot loader cache key is bumped. The broad category, task, tenant-customization and chatbot regression suite passes 347/347;
+syntax and whitespace checks pass. Source only, no production release or customer profile changed.
+
+
+### Retail Shop inventory ledger — source update, 22 October 2026
+
+The existing authenticated `/user` shell now has a private Retail inventory route and tenant-scoped API for locations, stock balances, audited adjustments and movement history. The forward migration binds tenant, location, product and actor identities; optimistic revisions and idempotency protect concurrent/retried adjustments, and negative balances are rejected. Retail remains private and non-planable.
+
+The related category, API, screen and existing-shell regression set passes 55/55; a disposable MySQL run passes nine integration checks. No production upload, migration or customer-data change occurred. Authenticated English/Arabic browser acceptance remains open. Product variants, suppliers, purchasing, POS, automatic decrement and supermarket workflows remain open, as do the broader category-isolation, provider, finance, load/restore and release gates.
+
+## Meta access-token masking hook — source update, 22 October 2026
+
+The existing manual Meta setup screen already has a maintained DOM hook that
+masks the access-token input, including fields rendered after initial page load.
+A comparison of the current active release and local source found the hook file
+was byte-identical in both, but the shared shell loaded the React bundle without
+loading that hook. The existing shell now loads the cache-busted hook before the
+bundle, and its ordering test passes 5/5. The complete current Node suite passes
+1,066/1,087; the 21 remaining failures also reproduce on clean `origin/main`
+(the baseline has 26 failures across 1,045 tests). No production file was
+changed. The Meta screen has not had authenticated visual acceptance, and the
+source branch remains subject to review before a release overlay can be built
+without replacing newer production-only shell content.
+
+## Recruitment application request-reference reconciliation — source update, 22 October 2026
+
+A read-only check of the active release found its backend already logs a random
+request ID with the safe diagnostic cause and returns that ID to the applicant.
+The live browser script discarded it, so applicants could not provide support a
+correlation reference. The maintained local form script now carries the ID into
+the English/Arabic bracketed error, with UUID validation before display; the
+helper and form loaders use a new cache key. The source commit is pushed on
+`7network/lead-field-plan-entitlement-20261022`, and all 22 focused recruitment
+checks pass. No application was submitted and no production files or data were
+changed. Deployment is deferred: active release `/opt/salemax/releases/contact-delete-scope-350e486-20261022` is healthy, but its host has 682 MB free (99% disk use), while its current application image is 475 MB before any build workspace or rollback image overhead. A seven-day aggregation of the active app's sanitized recruitment diagnostic logs returned zero events; no request ID or applicant submission was exposed by the check. The live public helper is bilingual and cause-aware, but its browser script discards the backend request reference. No customer application was submitted, and the reported failure still has no reproducible cause. Deployment remains pending safe release capacity.
+
+## Retail inventory catalogue pagination — source update, 22 October 2026
+
+The Retail inventory endpoint returned bounded pages, but its existing-panel
+screen always requested page 1. Stores with more than 30 products therefore
+could not find the remaining stock records. The screen now requests the selected
+page, shows the product range and total, adds bilingual Previous/Next controls,
+resets paging when location/search changes, recovers when a page becomes stale,
+and ignores late responses from older searches. Focused inventory/API/screen
+checks pass 12/12 and browser script syntax passes. No migration or production
+release occurred; authenticated desktop/mobile EN/AR acceptance is still open.
+
+The pagination increment also passes the broader category, policy, catalog,
+workspace-client, Real Estate and Retail regression set (55/55). The full suite
+now reports 1,066/1,087 passing. Its 21 remaining source-contract failures are
+a subset of the 26 reproduced on clean `origin/main`; no Retail pagination or
+Meta shell failure is present in this run.
+
+## Retail product search query planning — source update, 22 October 2026
+
+The inventory search previously used leading-wildcard substring matching, which
+could not use the catalogue's B-tree indexes. Search is now explicitly a prefix
+match on product code or the English/Arabic product name. A forward migration
+adds tenant/status-leading indexes to the shared products catalogue, and the
+query uses three separately indexed tenant-scoped lookups with `UNION DISTINCT`
+to avoid both the full scan and duplicate results when code and name match.
+Wildcard characters are escaped. On a fresh disposable MySQL 9.6 instance,
+the migration applied, 5,000 synthetic products were inserted, English/Arabic/
+code searches returned the tenant's product exactly once, and `EXPLAIN` used
+the name indexes. Two tenant fixtures shared the same SKU and names, and each
+search returned only its tenant's product. No local or production customer
+database was touched; the
+migration has not been applied to production. MariaDB production-version query
+plans and index-build capacity still require preflight before release.
+
+## Category-owned shared QR delegation — source update, 22 October 2026
+
+Shared Inbox and QR access previously encoded Training Center's tenant-wide
+manager-to-agent grants and accountant QR-only access as category-name checks
+inside three authorization paths. Those decisions now come from the exact
+versioned category manifest. Training Center v1 retains its reviewed behavior;
+other and unknown category versions fail closed unless their manifest declares
+the same reviewed policy. The registry validates allowed settings and required
+capabilities, while tenant membership, manager assignment, channel ownership,
+role permissions and record checks remain enforced independently. Focused
+category/Inbox/QR/route tests pass 21/21. The isolated MySQL 9.6 agent Inbox
+integration passes with synthetic rows, including owner-scoped channel lookup,
+assignment and transferred-agent denial. The broader MariaDB migration harness
+was not validated: the only available local server was MySQL 9.6, which stopped
+at the first legacy migration on a dialect syntax difference before reaching
+these paths. No production code or data changed; authenticated bilingual and
+supported-MariaDB integration acceptance remain open.
+
+The full Node suite passes 1,069/1,090. All 21 failures reproduce on clean
+`origin/main` (which has 26 failing tests); this increment introduces no new
+full-suite failure.
+
+## Public 7Network brand copy regression — source update, 22 October 2026
+
+The public application shell, marketing page and recruitment form HTML were
+audited for visible text, accessible labels and title/social metadata. Their
+customer-visible brand is 7Network; the remaining SaleMaX strings in these
+sources are compatibility URLs, asset filenames or script identifiers. The 13
+UI translation files also retain the 7Network app name and copyright. A focused
+regression test now guards those public labels and confirms the existing
+`crm.salemax.qa` host remains intact. Brand and recruitment checks pass 7/7,
+and `git diff --check` passes. This is static-source evidence only: rendered
+authenticated surfaces and a future domain migration remain separate gates.
+No production files, customer records or runtime settings changed; the full
+42-ticket upgrade remains in progress.
+
+## Manifest-owned shared inventory adapter — source update, 22 October 2026
+
+The existing Retail stock ledger selected its service by checking for the
+literal `retail_shop@1` category in authorization code. The immutable category
+registry now allows a reviewed `retail_stock_ledger_v1` adapter only when the
+manifest also declares a product catalogue and the `retail.inventory`
+capability. The service checks that exact adapter and continues to enforce the
+authenticated tenant, active plan, member role and tenant-bound queries. A
+synthetic future grocery category can reuse the stock workflow only by opting
+into that validated contract; another category cannot reach the service by
+changing client input. Category, Retail API, screen, policy, task-contract and
+tenant-customization unit tests pass 45/45; syntax and whitespace checks pass.
+The disposable MariaDB integration
+requires a dedicated test configuration and was not run in this increment.
+Retail remains private and non-planable, and no production release, migration,
+or customer data changed. Supplier, purchasing, POS and supermarket acceptance
+remain open, as do the broader 42-ticket category, tenant-isolation and release
+gates.
+
+## Manifest-owned shared authorization policy — source update, 22 October 2026
+
+The shared authorization engine selected three existing exceptions by literal
+category name: the internal Sales owner recruitment entitlement, Sales
+accountant lead/contact restrictions, and Training/Sales manager team invites.
+The immutable registry now validates category-declared owner plan exemptions,
+role-denied permissions and tenant-scoped role permissions against known roles,
+capabilities and permissions. The policy engine evaluates those declarations
+without category-name branching. Sales and Training manifests preserve their
+current decisions; regression tests cover accountant denial, manager scope,
+owner-only plan exemption, active-subscription requirement and a future category
+opting into team-scoped invitations. Malformed role lookups use own-key checks
+and fail closed. Category, policy, feature, task, tenant-customization and Retail
+tests pass 48/48; syntax and whitespace checks pass. No migration, production
+release or customer data changed. Platform Admin and tenant-category user
+acceptance, production-compatible MariaDB integration and the full 42-ticket
+isolation/release gates remain open.
+
+At this increment, the full Node suite passed 1,075/1,096. Its 21 remaining
+failures are the existing Manage Users, Pipeline, Finance, Courses and public-
+form source-contract assertions; the category-isolation regression passes
+again. No new full-suite failure was introduced by this increment.
+
+## Manifest-owned task notification workspace labels — source update, 22 October 2026
+
+The shared task email renderer previously labeled every non-Sales tenant as
+“Training Center”, which would misidentify Retail, Real Estate and future
+category tasks. The notification worker now reads the tenant's exact category
+key and version when claiming a job, then uses the reviewed manifest label or
+the category title. Unknown or unsupported versions receive the neutral
+“Business Workspace” label instead of borrowing another category's name.
+Training Center and Sales retain their current email labels. Focused category,
+notification, worker, task and task-adapter tests pass 54/54; syntax and
+whitespace checks pass. No provider message or customer record was sent or
+changed, and no migration applies. Authenticated bilingual notification copy,
+provider delivery and the full 42-ticket isolation/release gates remain open.
+
+After this notification change, the full Node suite passes 1,076/1,097 with the
+same 21 existing Manage Users, Pipeline, Finance, Courses and public-form
+source-contract failures. No new full-suite failure was introduced.

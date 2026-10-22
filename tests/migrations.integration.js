@@ -46,12 +46,112 @@ async function main() {
       for(const row of tables)await connection.query(`DROP TABLE IF EXISTS \`${String(row.TABLE_NAME).replace(/`/g,'``')}\``);
       await connection.query('SET FOREIGN_KEY_CHECKS=1');
     }
-    await connection.query('CREATE TABLE instance (id INT PRIMARY KEY, status VARCHAR(20))');
-    await connection.query("INSERT INTO instance VALUES (1, 'INACTIVE')");
+    await connection.query(`CREATE TABLE instance (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
+      uniqueId VARCHAR(255) NULL,
+      number VARCHAR(64) NULL,
+      status VARCHAR(20)
+    ) ENGINE=InnoDB`);
+    await connection.query("INSERT INTO instance(uid,uniqueId,number,status) VALUES ('synthetic-qr-owner','synthetic-instance','+97400000000','INACTIVE')");
+    await connection.query(`CREATE TABLE beta_chats (
+      id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
+      uniqueId VARCHAR(999) NULL,
+      chat_id VARCHAR(999) NULL,
+      origin VARCHAR(24) NULL,
+      origin_instance_id JSON NULL
+    ) ENGINE=InnoDB`);
+    // Later migrations transform these existing legacy campaign and account
+    // tables. Their empty synthetic shape is sufficient for migration checks.
+    await connection.query(`CREATE TABLE user (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      name VARCHAR(999) NULL,
+      timezone VARCHAR(999) NULL,
+      plan LONGTEXT NULL,
+      plan_expire VARCHAR(999) NULL,
+      trial INT NULL,
+      api_key VARCHAR(999) NULL,
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      fcm_data LONGTEXT NULL,
+      fcm_inbox LONGTEXT NULL
+    ) ENGINE=InnoDB`);
+    await connection.query(`CREATE TABLE broadcast (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      broadcast_id VARCHAR(999) NULL,
+      uid VARCHAR(999) NULL,
+      title VARCHAR(999) NULL,
+      templet LONGTEXT NULL,
+      phonebook LONGTEXT NULL,
+      status VARCHAR(999) NULL,
+      schedule DATETIME NULL,
+      timezone VARCHAR(999) NULL,
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB`);
+    await connection.query(`CREATE TABLE beta_campaign (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      campaign_id VARCHAR(999) NOT NULL,
+      uid VARCHAR(999) NOT NULL,
+      title VARCHAR(999) NOT NULL,
+      template_name VARCHAR(999) NOT NULL,
+      template_language VARCHAR(999) NOT NULL,
+      phonebook_id VARCHAR(999) NOT NULL,
+      phonebook_name VARCHAR(999) NOT NULL,
+      status VARCHAR(999) NOT NULL,
+      total_contacts INT NOT NULL,
+      sent_count INT NOT NULL,
+      delivered_count INT NOT NULL,
+      read_count INT NOT NULL,
+      failed_count INT NOT NULL,
+      body_variables LONGTEXT NULL,
+      header_variable LONGTEXT NULL,
+      button_variables LONGTEXT NULL,
+      schedule DATETIME NULL,
+      timezone VARCHAR(999) NULL,
+      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB`);
+    await connection.query(`CREATE TABLE contact (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      phonebook_id VARCHAR(999) NULL,
+      phonebook_name VARCHAR(255) NULL,
+      mobile VARCHAR(999) NULL,
+      name VARCHAR(999) NULL,
+      var1 TEXT NULL,
+      var2 TEXT NULL,
+      var3 TEXT NULL,
+      var4 TEXT NULL,
+      var5 TEXT NULL,
+      createdAt DATETIME NULL
+    ) ENGINE=InnoDB`);
+    // The verified production baseline already has this legacy table. Seed its
+    // minimum shape before applying migrations so owner-scope migrations are
+    // exercised against realistic legacy state instead of an impossible blank
+    // database. The same conversation key may belong to different owners.
+    await connection.query(`CREATE TABLE flow_data (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
+      uniqueId VARCHAR(999) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL,
+      inputs LONGTEXT NULL,
+      other LONGTEXT NULL,
+      meta_data LONGTEXT NULL,
+      createdAt TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB`);
+    await connection.query('INSERT INTO flow_data(uid,uniqueId,inputs) VALUES (?,?,?),(?,?,?),(NULL,?,?)', [
+      'synthetic-flow-owner-a','same-conversation','{"owner":"a"}',
+      'synthetic-flow-owner-b','same-conversation','{"owner":"b"}',
+      'legacy-null-owner-key','{"owner":"unscoped"}'
+    ]);
     const migrations = discover(path.join(__dirname, '../database/migrations'));
     const result = await applyMigrations(connection, migrations);
     assert.equal(result.applied.length, migrations.length);
     assert.equal((await applyMigrations(connection, migrations)).skipped.length, migrations.length);
+    const [flowRows]=await connection.query('SELECT uid,uniqueId,owner_key_hash FROM flow_data ORDER BY id');
+    assert.equal(flowRows.length,3);
+    assert.ok(Buffer.isBuffer(flowRows[0].owner_key_hash));
+    assert.notDeepEqual(flowRows[0].owner_key_hash,flowRows[1].owner_key_hash,'the same conversation key remains isolated by owner');
+    assert.equal(flowRows[2].owner_key_hash,null,'legacy rows without a complete owner key remain preserved');
     const [[instance]] = await connection.query('SELECT inactiveSince FROM instance WHERE id=1');
     assert.ok(instance.inactiveSince);
     await connection.query("INSERT INTO pipeline_settings(uid_hash, uid) VALUES (?, ?)", ['1'.repeat(64), 'synthetic-owner']);

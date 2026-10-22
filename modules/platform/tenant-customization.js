@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const {decision} = require('./policy');
 const fail = (code,status=400) => {throw Object.assign(new Error(code),{code,status});};
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-const defaults = () => ({schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]});
+const defaults = () => ({schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null});
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function authorize(ctx) {
   const result=decision(ctx,{capability:'tenant.settings',permission:'tenant.manage'});
@@ -19,9 +19,9 @@ function fieldsFor(ctx) {
 function categoryNavigationKeys(ctx) {
   return new Set(fieldsFor(ctx).map(item=>item.key));
 }
-function normalize(ctx,input) {
-  const allowedKeys=input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
-  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
+function normalize(ctx,input,{enforceEntitlements=false}={}) {
+  const allowedKeys=input?.schemaVersion===4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','enabledTaskTypes']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
+  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
   const allowed=categoryNavigationKeys(ctx);
   const labels={};
   for(const key of Object.keys(input.navigationLabels).sort()) {
@@ -30,17 +30,19 @@ function normalize(ctx,input) {
     labels[key]={en:value.en.trim(),ar:value.ar.trim()};
   }
   const leadFields=input.schemaVersion===2?require('./lead-field-contract').definitions(input.leadFields):null;
-  const schema3LeadFields=input.schemaVersion===3?require('./lead-field-contract').definitions(input.leadFields):null;
-  const hiddenNavigation=input.schemaVersion===3?input.hiddenNavigation:[];
+  const schema3LeadFields=input.schemaVersion>=3?require('./lead-field-contract').definitions(input.leadFields):null;
+  const hiddenNavigation=input.schemaVersion>=3?input.hiddenNavigation:[];
   if(!Array.isArray(hiddenNavigation)||hiddenNavigation.length>allowed.size||new Set(hiddenNavigation).size!==hiddenNavigation.length||hiddenNavigation.some(key=>typeof key!=='string'||!allowed.has(key)))fail('INVALID_CUSTOMIZATION_NAVIGATION');
   const fields=schema3LeadFields||leadFields;
   if(fields?.length&&!ctx.category?.capabilities.includes('crm.leads'))fail('CATEGORY_UNAVAILABLE',409);
-  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion===3?{hiddenNavigation:[...hiddenNavigation].sort()}:{})};
+  if(fields?.length&&enforceEntitlements&&!decision(ctx,{capability:'crm.leads',permission:'leads.read'}).allowed)fail('FEATURE_UNAVAILABLE',409);
+  const taskTypes=input.schemaVersion===4?require('./task-type-contract').normalizeEnabled(ctx,input.enabledTaskTypes,{enforcePlan:enforceEntitlements}):null;
+  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{}),...(input.schemaVersion===4?{enabledTaskTypes:taskTypes}:{})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
 function decode(ctx,row) {
   if(!row)return null;
-  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   const document=normalize(ctx,typeof row.document==='string'?JSON.parse(row.document):row.document);
   if(document.schemaVersion!==Number(row.schema_version)||checksum(document)!==row.checksum)fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {id:row.id,revision:Number(row.revision),kind:row.kind,document,checksum:row.checksum,createdAt:row.created_at};
@@ -58,14 +60,13 @@ async function state(db,ctx) {
   const active=await revision(db,ctx,head?.active_id),draft=await revision(db,ctx,head?.draft_id);
   if(active&&active.kind!=='published'||draft&&draft.kind!=='draft')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:Number(head?.revision||0),active,draft,history,
-    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label}))};
+    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),taskTypes:require('./task-type-contract').forContext(ctx)};
 }
-function preview(ctx,document) {authorize(ctx);return {document:normalize(ctx,document),readOnly:true};}
+function preview(ctx,document) {authorize(ctx);return {document:normalize(ctx,document,{enforceEntitlements:true}),readOnly:true};}
 async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
   authorize(ctx);
   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0||expectedRevision>=Number.MAX_SAFE_INTEGER)fail('INVALID_CUSTOMIZATION_REVISION');
   if(!['draft','publish','rollback'].includes(action))fail('INVALID_CUSTOMIZATION_ACTION');
-  const normalized=action==='draft'?normalize(ctx,document):null;
   if(action==='rollback'&&!uuid(targetId))fail('INVALID_CUSTOMIZATION_REVISION');
   await db.beginTransaction();
   try {
@@ -76,17 +77,18 @@ async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
     if(!member||member.role!=='owner'||member.status!=='active'||member.identityStatus!=='active')fail('PERMISSION_DENIED',403);
     const subscription=await require('./plans').loadEntitlements(db,ctx.tenant.id);
     if(subscription&&(subscription.categoryKey!==ctx.tenant.categoryKey||Number(subscription.categoryVersion)!==ctx.tenant.categoryVersion))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
-    authorize({...ctx,subscription});
+    const trusted={...ctx,subscription};
+    authorize(trusted);
     const [[head]]=await db.query('SELECT revision,active_id,draft_id FROM sx_tenant_customization_heads WHERE tenant_id=? FOR UPDATE',[ctx.tenant.id]);
     if(Number(head?.revision||0)!==expectedRevision)fail('STALE_CUSTOMIZATION_REVISION',409);
     const [[rate]]=await db.query('SELECT COUNT(*) AS total FROM sx_tenant_customization_revisions WHERE tenant_id=? AND created_at>TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3))',[ctx.tenant.id]);
     if(Number(rate.total)>=120)fail('CUSTOMIZATION_RATE_LIMITED',429);
-    let next=normalized,sourceId=null;
+    let next=action==='draft'?normalize(trusted,document,{enforceEntitlements:true}):null,sourceId=null;
     if(action!=='draft') {
       sourceId=action==='publish'?head?.draft_id:targetId;
       const source=await revision(db,ctx,sourceId);
       if(!source||source.kind!==(action==='publish'?'draft':'published'))fail('CUSTOMIZATION_NOT_FOUND',404);
-      next=source.document;
+      next=normalize(trusted,source.document,{enforceEntitlements:true});
     }
     const id=crypto.randomUUID(),kind=action==='draft'?'draft':'published',digest=checksum(next);
     await db.query('INSERT INTO sx_tenant_customization_revisions(id,tenant_id,category_key,category_version,schema_version,revision,kind,document,checksum,created_by_identity_id) VALUES (?,?,?,?,?,?,?,?,?,?)',[id,ctx.tenant.id,ctx.tenant.categoryKey,ctx.tenant.categoryVersion,next.schemaVersion,expectedRevision+1,kind,JSON.stringify(next),digest,ctx.identity.id]);

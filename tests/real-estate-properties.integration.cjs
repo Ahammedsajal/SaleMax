@@ -65,6 +65,11 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   assert.equal(results.filter(result=>result.status==='rejected'&&result.reason.code==='STALE_REVISION').length,1);
   const [[row]]=await pool.query('SELECT revision,status FROM sx_real_estate_properties WHERE tenant_id=? AND id=?',[tenantId,created.id]);
   assert.equal(Number(row.revision),2);
+  const restored=row.status==='draft'?await use(db=>properties.update(db,a,created.id,{expectedRevision:2,status:'active'})):{revision:2,status:row.status};
+  assert.equal(restored.status,'active');
+  const sold=await use(db=>properties.update(db,a,created.id,{expectedRevision:restored.revision,status:'sold'}));
+  const archived=await use(db=>properties.update(db,a,created.id,{expectedRevision:sold.revision,status:'archived'}));
+  await assert.rejects(use(db=>properties.update(db,a,created.id,{expectedRevision:archived.revision,priceMinor:999999})),{code:'INVALID_PROPERTY_TRANSITION'});
 
   const before=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
   const connection=await pool.getConnection();

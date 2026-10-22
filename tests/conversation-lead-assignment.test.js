@@ -2,7 +2,8 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const service=require('../modules/platform/conversation-lead-assignment');
 const pipeline=require('../helper/pipeline/leadPipeline');
-const input={ctx:{tenant:{categoryKey:'training_center'},identity:{id:'actor'}},uid:'owner',chatId:'chat',chat:{origin:'qr',sender_name:'Contact',sender_mobile:'97455555555'},agentId:8,agentName:'Agent Eight'};
+const {trainingCenter}=require('../modules/platform/categories');
+const input={ctx:{tenant:{id:'tenant',categoryKey:'training_center',categoryVersion:1},category:trainingCenter,identity:{id:'actor'}},uid:'owner',chatId:'chat',chat:{origin:'qr',sender_name:'Contact',sender_mobile:'97455555555'},agentId:8,agentName:'Agent Eight'};
 function fixture({linked=null,legacy=null,current=null}={}){
  const calls=[];const db={query:async(sql,args)=>{calls.push({sql,args});
  if(sql.startsWith('SELECT current_lead_id'))return [[{current_lead_id:current?.id||null}]];
@@ -32,5 +33,5 @@ test('retry preserves lead identity and avoids duplicate reassignment history',a
 test('current inbound or legacy conversation lead is reused and unsupported categories remain unchanged',async t=>{
  t.mock.method(pipeline,'prepareWorkspace',async()=>{});
  for(const option of [{legacy:{id:'old-link',owner_agent_id:null}},{current:{id:'inbound',owner_agent_id:null}}]){const f=fixture(option);const result=await service.assign(f.db,input);assert.equal(result.created,false);}
- const f=fixture();assert.equal(await service.assign(f.db,{...input,ctx:{tenant:{categoryKey:'7network_sales'}}}),null);assert.equal(f.calls.length,0);
+ const f=fixture();assert.equal(await service.assign(f.db,{...input,ctx:{tenant:{id:'tenant',categoryKey:'7network_sales',categoryVersion:1},identity:{id:'actor'}}}),null);assert.equal(f.calls.length,0);
 });

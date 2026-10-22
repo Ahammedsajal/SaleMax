@@ -80,8 +80,16 @@ test('bot editor renders editable bilingual category guide fields without traini
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:en/);
   assert.match(admin, /guidedContent:\$\{esc\(field\.path\)\}:ar/);
   assert.match(admin, /tr\('Guided conversation','المحادثة الموجّهة'\)/);
-  assert.match(admin, /const trainingCenter = state\.categoryKey === 'training_center'/);
-  assert.match(admin, /const catalogueLink = trainingCenter \?/);
+  assert.match(admin, /const catalogueHref=state\.botProfileContract\?\.catalogueHref/);
+  assert.match(admin, /const catalogueLink = catalogueHref \?/);
+  assert.match(admin, /state\.botProfileContract\?\.supportsIntroFlow/);
+  assert.match(admin, /const workflowContract=state\.botProfileContract\?\.workflow/);
+  assert.match(admin, /workflowContract\.choices\.map\(choice/);
+  assert.match(admin, /workflowContract\.labels\?\.\[choice\]\?\.\[workflowLanguage\]/);
+  assert.match(admin, /workflow:workflowContract\?\(data\.has\('workflow'\)/);
+  assert.match(admin, /data-domain-workflow/);
+  assert.match(admin, /if \(workflowSection\) workflowSection\.hidden = !usesDomainGuide/);
+  assert.doesNotMatch(admin, /state\.categoryKey === '(?:training_center|7network_sales)'/);
   assert.doesNotMatch(admin, /Training center guided conversation|published course data|course number/);
 });
 
@@ -188,6 +196,7 @@ test('HTML and sidebar loader each expose a cache-busted chatbot script URL', { 
   const botKey = sidebar.match(/chatbot-admin\.js\?v=([^"']+)/)?.[1];
   assert.ok(htmlKey);
   assert.ok(botKey);
+  assert.equal(botKey,'20261022-category-workflow1');
 });
 
 test('7Network Sales built-in guide can run a saved opening Flow once then continue guided chat',()=>{

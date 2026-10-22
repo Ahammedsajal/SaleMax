@@ -86,7 +86,7 @@ test('7Network Sales built-in guide can run a validated Automation Flow once bef
   assert.equal(bot.config.flowId,null);
   assert.equal(bot.config.introFlowId,'recruitment_intro');
   assert.throws(()=>botInput({name:'Bad',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'../bad'}},'7network_sales'),{code:'INVALID_FLOW_ID'});
-  assert.equal(botInput({name:'Guide',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'flow-1'}},'training_center').config.introFlowId,undefined);
+  assert.throws(()=>botInput({name:'Guide',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'flow-1'}},'training_center'),{code:'INVALID_FLOW_ID'});
 });
 
 test('guided bot validation retains bilingual approved FAQs', () => {

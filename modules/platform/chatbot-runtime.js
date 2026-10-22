@@ -9,6 +9,7 @@ const { parseGuidedFlow, executionFlowId, inboundMessageKey } = require('./chatb
 const { getDomainPack } = require('./chatbot-domain-packs');
 const { isGuidedChoice, hybridTurnPlan, supportsAiPreview } = require('./chatbot-config');
 const { channelFor } = require('./chatbot-channels');
+const { flowSessionScope } = require('./legacy-flow-session-scope');
 const { buildAiPrompt } = require('./chatbot-ai-prompt');
 const businessContext = require('./chatbot-business-context');
 const replyCache = new Map();
@@ -436,7 +437,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
 
 async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) {
   if (profile.engine === 'hybrid' && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
-  if (profile.config.guidedMode === 'domain_default' || (profile.engine === 'ai' && ctx.category.key === 'training_center')) {
+  const trainingCapture = require('./chatbot-lead-capture').usesTrainingLeadCapture(ctx);
+  if (profile.config.guidedMode === 'domain_default' || (profile.engine === 'ai' && trainingCapture)) {
     const channelKind = channelFor(origin);
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
     const incoming = textOf(message);
@@ -447,7 +449,10 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   } else if (profile.engine === 'hybrid' && profile.config.flowId) {
-    const [session] = await query(`SELECT id FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1`, [uid, executionFlowId(profile), message.senderMobile]);
+    const sessionScope = flowSessionScope({ uid, flowId: executionFlowId(profile), senderMobile: message.senderMobile, origin, sessionId });
+    const [session] = sessionScope
+      ? await query(`SELECT id FROM flow_session WHERE ${sessionScope.where} LIMIT 1`, sessionScope.params)
+      : [];
     const incoming = textOf(message);
     const plan = hybridTurnPlan({ hasSession: !!session, isChoice: isGuidedChoice(incoming), aiFallback: profile.config.aiFallback });
     if (plan.runGuided) {
@@ -458,7 +463,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId, factsOverride: leadInfo?.facts });
   if (answer.handedOff || answer.paused) return answer;
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
-  const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;
+  const onboarding = trainingCapture && !answer.state?.greeted;
   const questionLeadInfo = onboarding ? { ...leadInfo, questionKey: null } : leadInfo;
   if (onboarding && pack.guidedContentDefaults?.messages) {
     const language = businessContext.languageFor(textOf(message), answer.state || {});
@@ -553,7 +558,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   // A restricted chat is handled silently so it cannot fall through to legacy bots.
   if (!recipientAllowed(profile.config, message?.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   let leadInfo = null;
-  if (ctx.tenant.categoryKey === 'training_center') {
+  if (require('./chatbot-lead-capture').usesTrainingLeadCapture(ctx)) {
     try {
       const db = await dbPool.getConnection();
       let facts;

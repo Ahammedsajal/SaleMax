@@ -124,6 +124,12 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       return { status: response.status, ...payload };
     };
 
+    const profileOptions=await call('/');
+    assert.equal(profileOptions.status,200);
+    assert.equal(profileOptions.data.botProfileContract.defaultGuidedMode,'domain_default');
+    assert.deepEqual(profileOptions.data.botProfileContract.workflow.choices,['course_admissions','course_enquiry']);
+    assert.deepEqual(profileOptions.data.botProfileContract.workflow.labels.course_enquiry,{en:'Course enquiry',ar:'استفسار عن دورة'});
+
     const created = await call('/', 'POST', {
       name: 'Synthetic Training FAQ', engine: 'ai', config: {
         instructions: 'Answer only from approved course facts.', confidenceThreshold: 0.72,
@@ -139,8 +145,15 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(faqCreate.status, 201);
     assert.equal(faqCreate.data.active, true);
     const faqId = faqCreate.data.id;
+    const otherTenantFaqAnswer = 'Synthetic private FAQ for the other tenant; never include this in a provider prompt.';
+    const otherTenantFaq = await call('/faqs', 'POST', {
+      questionEn: 'How does the other business deliver?', answerEn: otherTenantFaqAnswer,
+      questionAr: 'كيف توصل المنشأة الأخرى؟', answerAr: 'بيانات خاصة بمنشأة أخرى.',
+    }, { 'X-Test-Tenant': t2 });
+    assert.equal(otherTenantFaq.status, 201);
     assert.equal((await call('/faqs', 'POST', { questionEn:'Evening?',answerEn:'Ask the centre.' })).code, 'FAQ_QUESTION_NEEDS_TWO_WORDS');
     assert.equal((await call('/faqs', 'GET', undefined, { 'X-Test-Tenant': t2 })).data.items.some(item => item.id === faqId), false);
+    assert.equal((await call('/faqs', 'GET', undefined, { 'X-Test-Tenant': t2 })).data.items.some(item => item.id === otherTenantFaq.data.id), true);
     const faqListed = await call('/faqs'); assert.equal(faqListed.data.items.some(item => item.id === faqId), true);
     const guideFaqPreview = await call('/guided-preview', 'POST', { message:'evening classes please', guidedContent:{} });
     assert.equal(guideFaqPreview.status, 200); assert.match(guideFaqPreview.data.reply,/Evening classes are available in selected batches\./);
@@ -181,7 +194,8 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(preview.data.reply, 'Our approved course information is available.');
     assert.equal(providerCalls, 1);
     assert.ok(previewInput.includes(faqAnswer));
-    assert.ok(previewInput.includes('Evening classes are available in selected batches.'));
+    assert.ok(!previewInput.includes('Evening classes are available in selected batches.'), 'the unrelated tenant FAQ is not sent to the provider');
+    assert.ok(!previewInput.includes(otherTenantFaqAnswer), 'another tenant FAQ is never sent to this tenant provider prompt');
     const [[turnCount]] = await connection.query('SELECT COUNT(*) AS count FROM sx_chatbot_turns WHERE tenant_id=?', [t1]);
     assert.equal(Number(turnCount.count), 0, 'preview does not create inbound WhatsApp turns');
 

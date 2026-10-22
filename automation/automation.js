@@ -1,9 +1,24 @@
 const flowProcessor = require("./functions");
 const { query } = require("../database/dbpromise");
 const { shouldPause } = require("../modules/platform/chatbot-conversation-control");
+const { flowSessionScope, flowSessionRowScope } = require("../modules/platform/legacy-flow-session-scope");
 const { createLegacyFlowNodeGuard } = require("../modules/platform/legacy-flow-authority");
 const platformDbPool = require("../database/config").promise();
 const optionalFeatures = require("../modules/platform/optional-features");
+
+async function deleteFlowSessionForContext({ uid, flowId, senderMobile, origin, sessionId }) {
+  const scope = flowSessionScope({ uid, flowId, senderMobile, origin, sessionId });
+  if (!scope) return false;
+  await query(`DELETE FROM flow_session WHERE ${scope.where} LIMIT 1`, scope.params);
+  return true;
+}
+
+async function deleteFlowSessionRow(flowSession, uid) {
+  const scope = flowSessionRowScope(flowSession, uid);
+  if (!scope) return false;
+  await query(`DELETE FROM flow_session WHERE ${scope.where} LIMIT 1`, scope.params);
+  return true;
+}
 
 function legacyFlowNodeGuard({uid,flowId,origin,sessionId,webhook}){
   return createLegacyFlowNodeGuard({
@@ -46,12 +61,7 @@ async function processFlow({
     });
 
     // Clean up the session to prevent future issues
-    await query(
-      `DELETE FROM flow_session 
-       WHERE uid = ? AND flow_id = ? AND sender_mobile = ?
-       LIMIT 1`,
-      [uid, flowId, message.senderMobile],
-    );
+    await deleteFlowSessionForContext({ uid, flowId, senderMobile: message.senderMobile, origin, sessionId });
 
     return console.log("Flow terminated due to timeout");
   }
@@ -71,12 +81,7 @@ async function processFlow({
     });
 
     // Clean up the session
-    await query(
-      `DELETE FROM flow_session 
-       WHERE uid = ? AND flow_id = ? AND sender_mobile = ?
-       LIMIT 1`,
-      [uid, flowId, message.senderMobile],
-    );
+    await deleteFlowSessionForContext({ uid, flowId, senderMobile: message.senderMobile, origin, sessionId });
 
     return console.log("Flow terminated due to infinite loop");
   }
@@ -94,13 +99,20 @@ async function processFlow({
     origin,
     webhookVariables,
   });
+  if (!flowSession) {
+    console.warn("Flow session could not be resolved for the current channel", {
+      flowId,
+      origin,
+    });
+    return;
+  }
 
   const activeNode=flowSession?.data?.node||flowSession?.data?.assignedToAi?.node;
   if(typeof beforeNode==='function'&&activeNode){
     const authorization=await beforeNode({uid,flowId,node:activeNode,flowSession});
     if(authorization!=='allowed'){
       if(authorization==='paused')return 'paused';
-      await query(`DELETE FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1`,[uid,flowId,message.senderMobile]);
+      await deleteFlowSessionRow(flowSession, uid);
       return false;
     }
   }
@@ -139,22 +151,7 @@ async function processFlow({
     console.log(
       "Flow looks incomplete trying to delete session and try again ",
     );
-    if (origin === "qr") {
-      await query(
-        `DELETE FROM flow_session WHERE uid = ? AND origin = ? AND origin_id = ? AND flow_id = ? AND sender_mobile = ? LIMIT 1`,
-        [uid, origin, sessionId, flowId, message.senderMobile],
-      );
-    } else if (origin?.toLowerCase() === "webhook_automation") {
-      await query(
-        `DELETE FROM flow_session WHERE uid = ? AND origin = ? AND flow_id = ? AND sender_mobile = ? LIMIT 1`,
-        [uid, origin, flowId, message.senderMobile],
-      );
-    } else {
-      await query(
-        `DELETE FROM flow_session WHERE uid = ? AND origin = ? AND origin_id = ? AND flow_id = ? AND sender_mobile = ? LIMIT 1`,
-        [uid, "meta", "META", flowId, message.senderMobile],
-      );
-    }
+    await deleteFlowSessionRow(flowSession, uid);
     await processFlow({
       nodes,
       edges,
@@ -197,12 +194,7 @@ async function processFlow({
       );
 
       // Clean up the session
-      await query(
-        `DELETE FROM flow_session 
-         WHERE uid = ? AND flow_id = ? AND sender_mobile = ?
-         LIMIT 1`,
-        [uid, flowId, message.senderMobile],
-      );
+      await deleteFlowSessionRow(flowSession, uid);
 
       return console.log("Flow terminated - node visited too many times");
     }

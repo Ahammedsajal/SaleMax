@@ -29,7 +29,7 @@ async function saleContext(actor) {
   return ctx;
 }
 
-async function taskContext(actor,permission='tasks.read'){
+async function taskContext(actor,permission='tasks.read',options={}){
   const pool=require('../database/config.js').promise();
   const agent=actor.role==='agent';
   const [rows]=agent
@@ -39,7 +39,7 @@ async function taskContext(actor,permission='tasks.read'){
   // Reload current grants for legacy and canonical actors through the shared loader.
   const context=await require('../modules/platform/business-feature-session').legacyContext(pool,rows[0],agent);
   if(!context)throw Object.assign(Error('VERIFIED_BUSINESS_OWNER_REQUIRED'),{code:'VERIFIED_BUSINESS_OWNER_REQUIRED',status:403});
-  const ctx=await require('../modules/platform/training-task-context').createTaskContext(pool,{...context,scopeAgentIds:actor.scopeAgentIds,scopeIdentityIds:actor.scopeIdentityIds},permission);
+  const ctx=await require('../modules/platform/training-task-context').createTaskContext(pool,{...context,scopeAgentIds:actor.scopeAgentIds,scopeIdentityIds:actor.scopeIdentityIds},permission,options);
   if(ctx.uid!==actor.uid)throw Object.assign(Error('BUSINESS_LINK_INVALID'),{code:'BUSINESS_LINK_INVALID',status:409});
   return ctx;
 }
@@ -104,10 +104,16 @@ async function pipelineAuth(req, res, next) {
 
 router.use(pipelineAuth);
 router.use(async(req,res,next)=>{
+ if(process.env.SALEMAX_PLATFORM_ENABLED!=='true')return next();
  if(req.pipelineActor?.role!=='agent')return next();
  try{
   const [rows]=await require('../database/config').promise().query('SELECT * FROM agents WHERE id=?',[req.pipelineActor.agentId]);
   const session=await require('../modules/platform/business-feature-session').resolve(require('../database/config').promise(),{actor:rows[0],agent:true});
+  // Older assigned agents can predate identity/membership adoption. Preserve
+  // their existing staff-form workflow only: trainingForms.staffContext
+  // independently resolves the owner tenant and rechecks category, plan,
+  // agent ownership and active status for every request in this route family.
+  if(!session.context&&rows[0]&&rows[0].role==='agent'&&Number(rows[0].is_active)===1&&rows[0].owner_uid===req.pipelineActor.uid&&/^\/training-forms(?:\/|$)/.test(req.path))return next();
   require('../modules/platform/agent-workspace-access').authorize(req,session);
   req.pipelineActor.canonicalContext=session.context;req.pipelineActor.identityId=session.context.identity.id;req.pipelineActor.membershipId=session.context.membership.id;
   next();
@@ -123,7 +129,7 @@ router.put('/opening-routing/:id',openingAdmin,async(req,res)=>{try{res.json({su
 router.delete('/opening-routing/:id',openingAdmin,async(req,res)=>{try{res.json({success:true,data:await openingDb(db=>openingRouting.remove(db,req.pipelineActor.uid,req.params.id,req.body?.expectedRevision))});}catch(error){fail(res,error);}});
 router.get('/routing-notifications',async(req,res)=>{try{res.setHeader('Cache-Control','no-store');res.json({success:true,data:req.pipelineActor.role==='agent'?await openingDb(db=>openingRouting.notifications(db,req.pipelineActor.uid,req.pipelineActor.agentId)):{items:[]}});}catch(error){fail(res,error);}});
 router.post('/routing-notifications/:id/read',async(req,res)=>{if(req.pipelineActor.role!=='agent')return res.status(403).json({success:false});try{res.json({success:true,data:await openingDb(db=>openingRouting.acknowledge(db,req.pipelineActor.uid,req.pipelineActor.agentId,req.params.id))});}catch(error){fail(res,error);}});
-router.use('/tasks',createTaskRouter({pool:require('../database/config.js').promise(),contextFor:(req,permission)=>taskContext(req.pipelineActor,permission)}));
+router.use('/tasks',createTaskRouter({pool:require('../database/config.js').promise(),contextFor:(req,permission,options)=>taskContext(req.pipelineActor,permission,options)}));
 
 router.get('/training-forms', async (req,res) => {
   res.setHeader('Cache-Control','no-store');
@@ -493,7 +499,7 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
     const input=req.body||{};
     const requestedOwner=input.ownerAgentId===undefined?undefined:(input.ownerAgentId===null||input.ownerAgentId===''?null:Number(input.ownerAgentId));
     const assignmentWillChange=requestedOwner!==undefined&&(requestedOwner===null?req.pipelineLead.owner_agent_id!=null:Number(req.pipelineLead.owner_agent_id)!==requestedOwner);
-    const reminderContext=assignmentWillChange&&requestedOwner!==null
+    const reminderContext=assignmentWillChange&&requestedOwner!==null&&req.pipelineActor.role!=='agent'
       ? await taskContext(req.pipelineActor,'tasks.manage') : null;
     const data = await pipeline.updateLead({
       uid: req.pipelineActor.uid,
@@ -540,8 +546,8 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
           };
           const [existingReminders]=await db.query("SELECT id,revision FROM sx_tasks WHERE tenant_id=? AND uid_hash=? AND lead_id=? AND task_type='lead_follow_up' AND status IN ('open','in_progress','blocked') AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[reminderContext.tenantId,reminderContext.uidHash,lead.id]);
           reminderTask=existingReminders.length
-            ? await trainingTasks.edit(db,reminderContext,existingReminders[0].id,{...reminderInput,expectedRevision:Number(existingReminders[0].revision)},{manageTransaction:false})
-            : await trainingTasks.create(db,reminderContext,reminderInput,{manageTransaction:false});
+            ? await trainingTasks.edit(db,reminderContext,existingReminders[0].id,{...reminderInput,expectedRevision:Number(existingReminders[0].revision)},{manageTransaction:false,systemManaged:true})
+            : await trainingTasks.create(db,reminderContext,reminderInput,{manageTransaction:false,systemManaged:true});
         }
         return { chatsAssigned:target?ids.length:0, reminderTaskId:reminderTask?.id||null };
       },

@@ -2,7 +2,7 @@
 const crypto=require('node:crypto');
 const taskManagement=require('./task-management');
 
-async function createTaskContext(pool,businessContext,permission='tasks.read'){
+async function createTaskContext(pool,businessContext,permission='tasks.read',{includeCustomization=false}={}){
   const tenantId=businessContext?.tenant?.id;
   const membership=businessContext?.membership;
   const identity=businessContext?.identity;
@@ -16,6 +16,10 @@ async function createTaskContext(pool,businessContext,permission='tasks.read'){
       WHERE m.tenant_id=? AND m.role='owner' AND m.status='active' AND u.role='user' LIMIT 2`,[tenantId]);
     if(owners.length!==1||owners[0].uidHash!==crypto.createHash('sha256').update(String(owners[0].uid),'utf8').digest('hex'))throw Object.assign(new Error('BUSINESS_LINK_INVALID'),{code:'BUSINESS_LINK_INVALID',status:409});
     const ctx={...businessContext,tenantId,uid:owners[0].uid,uidHash:owners[0].uidHash,role:membership.role,actorType:'identity',actorId:String(identity.id)};
+    if(permission==='tasks.manage'||includeCustomization){
+      const customization=await require('./tenant-customization').effective(db,ctx);
+      ctx.enabledTaskTypes=customization.document.enabledTaskTypes??null;
+    }
     if(membership.role==='agent'){
       const [agents]=await db.query(`SELECT a.id FROM sx_legacy_ownership o JOIN agents a ON o.source_table='agents' AND o.source_id=CAST(a.id AS CHAR)
         WHERE o.tenant_id=? AND o.membership_id=? AND a.owner_uid=? AND a.role='agent' AND a.is_active=1 LIMIT 2`,[tenantId,membership.id,owners[0].uid]);

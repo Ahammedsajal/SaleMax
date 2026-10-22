@@ -90,10 +90,10 @@ async function list(pool, ownerUid) {
       JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='agents'
       JOIN agents a ON CAST(a.id AS CHAR)=o.source_id AND a.owner_uid=?
       WHERE m.tenant_id=? AND m.role='agent' AND m.status='active' AND i.status='active' AND a.is_active=1
-        AND (?='training_center' OR org_scope.manager_membership_id=?)
-      ORDER BY i.display_name,i.email_normalized`, [owner.uid,scope.tenantId,scope.categoryKey,scope.membershipId]) : [[]];
+        AND (?='tenant' OR org_scope.manager_membership_id=?)
+      ORDER BY i.display_name,i.email_normalized`, [owner.uid,scope.tenantId,scope.category.qrSharing.managerAgentScope,scope.membershipId]) : [[]];
     const agents = agentRows.filter(agent => agent.uidHash === digest(agent.legacyUid)).map(({membershipId,displayName,email})=>({membershipId,displayName,email}));
-    const [accountantRows] = scope.role === 'manager' && scope.categoryKey === 'training_center' ? await db.query(`SELECT m.id AS membershipId,i.display_name AS displayName,i.email_normalized AS email,
+    const [accountantRows] = scope.role === 'manager' && scope.category.qrSharing.accountantAccess ? await db.query(`SELECT m.id AS membershipId,i.display_name AS displayName,i.email_normalized AS email,
         u.uid,o.legacy_uid_hash AS uidHash FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
       JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
       JOIN user u ON CAST(u.id AS CHAR)=o.source_id
@@ -167,7 +167,7 @@ async function saveAgentShares(pool, managerUid, instanceIdValue, agentMembershi
       JOIN agents a ON CAST(a.id AS CHAR)=o.source_id AND a.owner_uid=?
       LEFT JOIN sx_sales_org_history org ON org.tenant_id=m.tenant_id AND org.membership_id=m.id AND org.ended_at IS NULL
       WHERE m.tenant_id=? AND m.id IN (?) AND m.role='agent' AND m.status='active' AND i.status='active' AND a.is_active=1
-        AND (?='training_center' OR org.manager_membership_id=?) FOR UPDATE`,[owner.uid,scope.tenantId,agentMembershipIds,scope.categoryKey,scope.membershipId]):[[]];
+        AND (?='tenant' OR org.manager_membership_id=?) FOR UPDATE`,[owner.uid,scope.tenantId,agentMembershipIds,scope.category.qrSharing.managerAgentScope,scope.membershipId]):[[]];
     if(agents.length!==agentMembershipIds.length||agents.some(agent=>agent.uidHash!==digest(agent.legacyUid)))fail('INVALID_AGENT_ASSIGNMENTS');
     const [oldRows]=await db.query(`SELECT membership_id AS membershipId,granted_by_identity_id AS grantedByIdentityId FROM sx_qr_channel_shares WHERE tenant_id=? AND instance_id=? AND granted_by_identity_id=? FOR UPDATE`,[scope.tenantId,instanceId,scope.identityId]);
     const oldIds=oldRows.map(row=>row.membershipId);
@@ -208,7 +208,7 @@ async function saveMemberShares(pool, managerUid, instanceIdValue, memberIds) {
       JOIN sx_qr_channel_shares manager_share ON manager_share.instance_id=i.id AND manager_share.tenant_id=? AND manager_share.membership_id=?
       WHERE i.id=? AND i.uid=? FOR UPDATE`,[scope.tenantId,scope.membershipId,instanceId,owner.uid]);
     if(!channel)fail('QR_CHANNEL_NOT_SHARED');
-    const [users]=ids.length?await db.query(`SELECT m.id AS membershipId,m.identity_id AS identityId,m.role,u.uid,o.legacy_uid_hash AS uidHash
+    const [users]=ids.length&&scope.category.qrSharing.accountantAccess?await db.query(`SELECT m.id AS membershipId,m.identity_id AS identityId,m.role,u.uid,o.legacy_uid_hash AS uidHash
       FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
       JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
       JOIN user u ON CAST(u.id AS CHAR)=o.source_id
@@ -219,9 +219,9 @@ async function saveMemberShares(pool, managerUid, instanceIdValue, memberIds) {
       JOIN agents a ON CAST(a.id AS CHAR)=o.source_id AND a.owner_uid=?
       LEFT JOIN sx_sales_org_history org ON org.tenant_id=m.tenant_id AND org.membership_id=m.id AND org.ended_at IS NULL
       WHERE m.tenant_id=? AND m.id IN (?) AND m.role='agent' AND m.status='active' AND i.status='active' AND a.is_active=1
-        AND (?='training_center' OR org.manager_membership_id=?) FOR UPDATE`,[owner.uid,scope.tenantId,ids,scope.categoryKey,scope.membershipId]):[[]];
+        AND (?='tenant' OR org.manager_membership_id=?) FOR UPDATE`,[owner.uid,scope.tenantId,ids,scope.category.qrSharing.managerAgentScope,scope.membershipId]):[[]];
     const valid=[...users,...agents];
-    if(valid.length!==ids.length||valid.some(member=>member.uidHash!==digest(member.uid))||users.length&&scope.categoryKey!=='training_center')fail('INVALID_AGENT_ASSIGNMENTS');
+    if(valid.length!==ids.length||valid.some(member=>member.uidHash!==digest(member.uid)))fail('INVALID_AGENT_ASSIGNMENTS');
     const [oldRows]=await db.query(`SELECT membership_id AS membershipId,granted_by_identity_id AS grantedByIdentityId FROM sx_qr_channel_shares WHERE tenant_id=? AND instance_id=? AND granted_by_identity_id=? FOR UPDATE`,[scope.tenantId,instanceId,scope.identityId]);
     const oldIds=oldRows.map(row=>row.membershipId), removed=oldIds.filter(id=>!ids.includes(id));
     if(removed.length)await db.query(`DELETE FROM sx_qr_channel_shares WHERE tenant_id=? AND instance_id=? AND granted_by_identity_id=? AND membership_id IN (?)`,[scope.tenantId,instanceId,scope.identityId,removed]);
