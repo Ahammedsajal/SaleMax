@@ -104,9 +104,9 @@ test('stale and invalid transitions cannot mutate a listing',async()=>{
 });
 
 test('real estate storage keys and current-panel entry are registered without a duplicate app shell',()=>{
-  const migrationPath=path.join(__dirname,'../database/migrations/20261222_real_estate_properties.sql');
+  const migrationPath=path.join(__dirname,'../database/migrations/20261229_real_estate_properties.sql');
   const migration=fs.readFileSync(migrationPath,'utf8');
-  const discovered=migrations.discover(path.join(__dirname,'../database/migrations')).find(item=>item.file==='20261222_real_estate_properties.sql');
+  const discovered=migrations.discover(path.join(__dirname,'../database/migrations')).find(item=>item.file==='20261229_real_estate_properties.sql');
   assert.ok(discovered);assert.equal(discovered.statements.length,1);
   assert.match(migration,/UNIQUE KEY uq_sx_real_estate_tenant_id \(tenant_id,id\)/);
   assert.match(migration,/FOREIGN KEY \(tenant_id\) REFERENCES sx_tenants\(id\)/);

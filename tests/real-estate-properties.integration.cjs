@@ -31,7 +31,7 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   const [[existing]]=await pool.query('SELECT COUNT(*) AS total FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()');
   assert.equal(Number(existing.total),0,'synthetic schema must be empty');
   for(const sql of schema)await pool.query(sql);
-  const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261222_real_estate_properties.sql'),'utf8');
+  const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261229_real_estate_properties.sql'),'utf8');
   for(const sql of require('../database/migration-runner').splitSql(migration))await pool.query(sql);
   await pool.query("INSERT INTO sx_tenants VALUES (?,?,?,'active'),(?,?,?,'active')",[tenantId,category.key,category.version,otherTenantId,category.key,category.version]);
   for(const [key,identity] of Object.entries(ids))await pool.query("INSERT INTO sx_identities VALUES (?,'active',?)",[identity,`Synthetic ${key}`]);
