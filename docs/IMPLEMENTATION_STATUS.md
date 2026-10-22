@@ -22,8 +22,12 @@ and database failures in plain language, includes the safe cause code in
 parentheses, and tells applicants what to do next. The live page also uses the
 `20261022-error-copy-5` cache key; both the helper and page are now synchronized
 in this source branch. The application submission script was already byte-for-
-byte current. Focused error tests pass 2/2, and the local helper and page hashes
-match the publicly served files. This is a source reconciliation only: no
+byte current. A read-only public-site audit found that the live 7Network logo
+image was newer than the local file, so its exact bytes are now synchronized;
+the local homepage cache key remains newer than the live page. The other checked
+public-site CSS and JavaScript already matched. Focused error tests pass 2/2,
+and the local helper, page, and logo hashes match the publicly served files.
+This is a source reconciliation only: no
 production upload, application submission, customer-data write, or schema change
 occurred. No actual applicant failure was reproduced, so its underlying
 technical cause remains unknown.
@@ -1958,3 +1962,17 @@ The full local Node suite reports 1,026/1,052 passing. The same 26 existing
 screen-contract failures reproduce on clean `origin/main` (1,019/1,045), while
 all seven additional tests on this branch pass; the failures cover unrelated
 legacy Manage Users, Pipeline, Tasks, Finance, Courses and public-form assets.
+
+
+### Tenant-specific task choices — source update, 22 October 2026
+
+The existing Tasks screen now loads its category and plan-aware task catalog from
+the authenticated workspace Tasks API. Owners can follow category defaults or
+publish a tenant-specific subset; the API rejects disabled task types before a
+write begins, while historical tasks remain visible. The legacy Pipeline Tasks
+route uses the same context. Focused task, screen-contract, router, and
+customization tests pass 46/46; JavaScript syntax and diff checks pass. No
+production release or database migration was performed. Browser acceptance
+remains open because Playwright is not installed in this checkout; the full
+program's authenticated EN/AR, provider, finance, load/restore, and release
+gates remain open.

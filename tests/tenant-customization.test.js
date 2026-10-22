@@ -37,6 +37,15 @@ test('schema 3 hides only category-owned navigation keys while schema 1 and 2 re
   assert.deepEqual(settings.visibleNavigation(rows,doc3),[{key:'tasks'}]);
   assert.deepEqual(settings.visibleNavigation(rows,{schemaVersion:2}),rows);
 });
+test('schema 4 stores tenant task choices while preserving schema 1 to 3 reads',()=>{
+  const doc4={schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:['enrollment','general']};
+  assert.deepEqual(settings.normalize(ctx,doc4),doc4);
+  assert.throws(()=>settings.normalize(ctx,{...doc4,enabledTaskTypes:['sales_call']}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
+  assert.throws(()=>settings.normalize(ctx,{...doc4,enabledTaskTypes:['general','general']}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
+  const limited={...ctx,subscription:{...ctx.subscription,capabilities:['team.tasks']}};
+  assert.throws(()=>settings.normalize(limited,doc4,{enforceEntitlements:true}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
+  assert.deepEqual(settings.defaults(),{schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],enabledTaskTypes:null});
+});
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');
   const original=customization.effective;
