@@ -1,6 +1,7 @@
 'use strict';
 
-// Run only against an empty, disposable sx_real_estate_test_<hex> schema.
+// Run only against an empty local sx_real_estate_test_<hex> schema and its
+// matching database-scoped sxre_<hex> user.
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
@@ -11,7 +12,8 @@ const category=require('../modules/platform/categories').realEstate;
 const realEstateBot=require('../modules/platform/chatbot-domain-packs').getDomainPack('real_estate',1);
 if(process.env.REALESTATE_SYNTHETIC_ONLY!=='true')throw Error('REALESTATE_SYNTHETIC_ONLY_REQUIRED');
 const config=JSON.parse(fs.readFileSync(process.env.REALESTATE_TEST_CONFIG,'utf8'));
-if(!/^sx_real_estate_test_[a-f0-9]+$/.test(config.database)||config.database!==config.user)throw Error('DISPOSABLE_REALESTATE_SCHEMA_REQUIRED');
+const schemaMatch=/^sx_real_estate_test_([a-f0-9]{16})$/.exec(config.database||'');
+if(!schemaMatch||config.user!==`sxre_${schemaMatch[1]}`||!['127.0.0.1','localhost','::1'].includes(config.host))throw Error('DISPOSABLE_REALESTATE_SCHEMA_REQUIRED');
 const pool=mysql.createPool({...config,connectionLimit:6,multipleStatements:false});
 const tenantId=crypto.randomUUID(),otherTenantId=crypto.randomUUID();
 const ids=Object.fromEntries(['owner','otherOwner','manager','leader','agent','otherAgent','foreignAgent'].map(key=>[key,crypto.randomUUID()]));

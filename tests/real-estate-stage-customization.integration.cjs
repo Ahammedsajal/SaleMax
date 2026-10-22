@@ -14,7 +14,8 @@ if (process.env.REALESTATE_STAGE_SYNTHETIC_ONLY !== 'true') {
   throw Error('REALESTATE_STAGE_SYNTHETIC_ONLY_REQUIRED');
 }
 const config = JSON.parse(fs.readFileSync(process.env.REALESTATE_STAGE_TEST_CONFIG, 'utf8'));
-if (!/^sx_realestate_stage_test_[a-f0-9]+$/.test(config.database) || config.database !== config.user) {
+const schemaMatch = /^sx_realestate_stage_test_([a-f0-9]{16})$/.exec(config.database || '');
+if (!schemaMatch || config.user !== `sxrs_${schemaMatch[1]}` || !['127.0.0.1', 'localhost', '::1'].includes(config.host)) {
   throw Error('DISPOSABLE_REALESTATE_STAGE_SCHEMA_REQUIRED');
 }
 
