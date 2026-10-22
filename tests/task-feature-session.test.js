@@ -28,6 +28,7 @@ test('existing Task handlers accept the panel Agent session and enforce current 
     if(sql.includes('SELECT u.uid,m.id AS membershipId'))return [[{uid:owner.uid,uidHash:hash(owner.uid),membershipId:'owner-member',identityId:'owner-identity'}]];
     if(sql.includes('o.legacy_uid_hash AS uidHash'))return [[{uidHash:hash(actor.uid),tenantId,tenantStatus:'active',categoryKey:'training_center',categoryVersion:1,membershipId:'member',identityId:'identity-agent',role:'agent',membershipStatus:active?'active':'revoked',identityStatus:'active',delegatedPermissions:'[]',assignedNavigation:null,roleProfileId:'profile',rolePermissions:JSON.stringify(grants),seatRole:'agent',roleStatus:'active'}]];
     if(sql.includes('FROM sx_plan_assignments'))return [[{id:'assignment',status:'active',current_period:1,role_limits:JSON.stringify({owner:1,accountant:2,manager:2,agent:10}),capabilities:JSON.stringify(trainingCenter.capabilities),category_key:'training_center',category_version:1}]];
+    if(sql.includes('FROM sx_tenant_customization_heads'))return [[]];
     if(sql.includes('FROM sx_legacy_ownership o JOIN agents a'))return [[{id:7}]];
     if(sql.startsWith('SELECT id,COALESCE'))return [[{id:7,label:'Agent'}]];
     if(sql.startsWith('SELECT m.identity_id'))return [[{actorId:'owner-identity',role:'owner',label:'Main User'}]];
