@@ -7,7 +7,7 @@ const path = require('node:path');
 const objectStorage = require('./object-storage');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const NAMESPACES = new Set(['course-media', 'payment-proofs', 'recruitment-cvs']);
+const NAMESPACES = new Set(['course-media', 'payment-proofs', 'recruitment-cvs', 'tenant-crm-logos']);
 const fail = (code, status = 400) => { throw Object.assign(new Error(code), { code, status }); };
 
 function validateNamespace(namespace) {
@@ -19,7 +19,10 @@ function validateKey(namespace, key) {
   validateNamespace(namespace);
   const normalized = objectStorage.normalizeKey(namespace, key);
   const segments = normalized.split('/');
-  if (segments.length < 3 || !UUID.test(segments[0])) fail('OBJECT_MIGRATION_KEY_INVALID');
+  if (!UUID.test(segments[0])) fail('OBJECT_MIGRATION_KEY_INVALID');
+  if (namespace === 'tenant-crm-logos') {
+    if (segments.length !== 2 || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpg|png|webp)$/i.test(segments[1])) fail('OBJECT_MIGRATION_KEY_INVALID');
+  } else if (segments.length < 3) fail('OBJECT_MIGRATION_KEY_INVALID');
   return { key: normalized, tenantId: segments[0] };
 }
 

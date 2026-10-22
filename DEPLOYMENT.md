@@ -1,3 +1,9 @@
+## Tenant CRM logo storage root verification — read-only, 22 October 2026
+
+- At 09:52 UTC, the shared-lock wrapper on `carsqatar-prod-01` resolved `/opt/salemax/current` to `/opt/salemax/releases/follow-up-qr-route-3d274b0-20261022`. The active Compose configuration sets `SALEMAX_CRM_LOGO_ROOT=/app/private/crm-tenant-logos` and binds `/opt/salemax/shared/crm-tenant-logos` to that container path. The container mount resolved to that shared host directory, mode `0700`, owner `node:node`.
+- An aggregate-only scan found zero logo files and zero bytes in the mounted root; no filenames or image contents were read. No live migration or recovery was required at this snapshot. Production has a persistent single-host local logo volume; this does not establish multi-host sharing.
+- Operations source commit `8bc3cde7` identified the storage adapter gap. Source changes now add `tenant-crm-logos` as a local/S3 namespace and extend the locked manifest migration validator for its existing tenant/logo UUID keys. Synthetic adapter and migration tests pass; provider access, route streaming, authenticated logo reads, manifest generation, migration and driver cutover remain unverified/not performed. No production files, mounts, database rows, images, services, or customer data were changed; no rollback applies to this read-only verification.
+
 ## Primary and compatibility domain audit — read-only, 22 October 2026
 
 - At 09:45 UTC, public DNS resolved `7network.live` and `crm.salemax.qa` to `145.241.229.168`; `www.7network.live` is a CNAME to `7network.live`. HTTPS checks for all three returned HTTP 200 with certificate verification successful and no redirects. The certificate SAN includes all three names and expires 20 January 2027. Each root page publishes `https://7network.live/` as its canonical URL.

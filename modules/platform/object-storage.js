@@ -12,7 +12,8 @@ function driver(env = process.env, namespace) {
   const namespaceEnv = {
     'course-media': 'SALEMAX_COURSE_MEDIA_STORAGE_DRIVER',
     'payment-proofs': 'SALEMAX_PAYMENT_PROOFS_STORAGE_DRIVER',
-    'recruitment-cvs': 'SALEMAX_RECRUITMENT_CVS_STORAGE_DRIVER'
+    'recruitment-cvs': 'SALEMAX_RECRUITMENT_CVS_STORAGE_DRIVER',
+    'tenant-crm-logos': 'SALEMAX_TENANT_CRM_LOGOS_STORAGE_DRIVER'
   }[namespace];
   const value = String((namespaceEnv && env[namespaceEnv]) || env.SALEMAX_OBJECT_STORAGE_DRIVER || 'local').trim().toLowerCase();
   if (!['local', 's3'].includes(value)) fail('OBJECT_STORAGE_DRIVER_INVALID', 500);

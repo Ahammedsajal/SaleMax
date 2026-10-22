@@ -58,6 +58,29 @@ test('manifest hashes stable tenant keys and skips temporary files without expos
   assert.equal(JSON.stringify(manifest).includes(f.root), false);
 });
 
+test('tenant CRM logo manifests accept stable tenant/file keys and verify private S3 copies', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), '7network-logo-migration-'));
+  t.after(async () => { await fs.rm(root, { recursive: true, force: true }); });
+  const filename = '44444444-4444-4444-8444-444444444444.webp';
+  const key = `${tenantId}/${filename}`;
+  const bytes = Buffer.from('synthetic private tenant logo');
+  const source = path.join(root, tenantId, filename);
+  await fs.mkdir(path.dirname(source), { recursive: true });
+  await fs.writeFile(source, bytes);
+
+  const manifest = await migration.buildManifest({ root, namespace: 'tenant-crm-logos' });
+  assert.deepEqual(manifest.objects, [{ tenantId, key, bytes: bytes.length, sha256: crypto.createHash('sha256').update(bytes).digest('hex') }]);
+  assert.equal(migration.validateKey('tenant-crm-logos', key).tenantId, tenantId);
+  assert.throws(() => migration.validateKey('tenant-crm-logos', `${tenantId}/not-a-uuid.png`), { code: 'OBJECT_MIGRATION_KEY_INVALID' });
+  assert.throws(() => migration.validateKey('tenant-crm-logos', `${tenantId}/44444444-4444-4444-8444-444444444444.png/extra`), { code: 'OBJECT_MIGRATION_KEY_INVALID' });
+
+  const store = fakeS3();
+  const result = await migration.migrateManifest({ root, manifest, namespace: 'tenant-crm-logos', store });
+  assert.equal(result.copied, 1);
+  assert.equal(store.objects.get(key).bytes.equals(bytes), true);
+  assert.deepEqual(await fs.readFile(source), bytes);
+});
+
 test('migration copies and re-verifies S3 data, is idempotent, and retains source', async t => {
   const f = await fixture(t);
   const manifest = await migration.buildManifest({ root: f.root, namespace: 'course-media' });

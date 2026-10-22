@@ -124,5 +124,6 @@ test('each private namespace can switch drivers independently while the legacy d
   assert.equal(objectStorage.driver({ SALEMAX_OBJECT_STORAGE_DRIVER: 's3' }, 'course-media'), 's3');
   assert.equal(objectStorage.driver({ SALEMAX_OBJECT_STORAGE_DRIVER: 's3', SALEMAX_PAYMENT_PROOFS_STORAGE_DRIVER: 'local' }, 'payment-proofs'), 'local');
   assert.equal(objectStorage.driver({ SALEMAX_OBJECT_STORAGE_DRIVER: 'local', SALEMAX_RECRUITMENT_CVS_STORAGE_DRIVER: 's3' }, 'recruitment-cvs'), 's3');
+  assert.equal(objectStorage.driver({ SALEMAX_OBJECT_STORAGE_DRIVER: 's3', SALEMAX_TENANT_CRM_LOGOS_STORAGE_DRIVER: 'local' }, 'tenant-crm-logos'), 'local');
   assert.equal(objectStorage.driver({}, 'payment-proofs'), 'local');
 });
