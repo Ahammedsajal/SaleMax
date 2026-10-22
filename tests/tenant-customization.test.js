@@ -51,6 +51,36 @@ test('runtime effective settings resolve the published tenant overlay over platf
   const effective=await settings.effective(db,ctx);
   assert.equal(effective.revision,4);assert.equal(effective.document.navigationLabels.courses.en,'Programs');assert.equal(effective.document.navigationLabels.inbox.en,'Inbox');
 });
+test('effective settings read the current active pointer and remain isolated across same-category tenants',async()=>{
+  const tenantA={...ctx,tenant:{...ctx.tenant,id:'tenant-a'}};
+  const tenantB={...ctx,tenant:{...ctx.tenant,id:'tenant-b'},membership:{...ctx.membership,tenantId:'tenant-b'}};
+  const documents={
+    'a-r1':{schemaVersion:1,navigationLabels:{courses:{en:'A revision one',ar:'أ'}}},
+    'a-r2':{schemaVersion:1,navigationLabels:{courses:{en:'A revision two',ar:'أ'}}},
+    'b-r1':{schemaVersion:1,navigationLabels:{courses:{en:'B only',ar:'ب'}}},
+  };
+  const active={ 'tenant-a':'a-r1','tenant-b':'b-r1' };
+  const reads=[];
+  const db={query:async(sql,args)=>{
+    reads.push({sql,args});
+    if(sql.includes('FROM sx_tenant_customization_heads'))return [[{revision:1,active_id:active[args[0]]}]];
+    if(sql.includes('FROM sx_tenant_customization_revisions')){
+      const [tenantId,id]=args,document=documents[id];
+      return [[{id,tenant_id:tenantId,kind:'published',category_key:'training_center',category_version:1,schema_version:1,revision:id==='a-r2'?2:1,document:JSON.stringify(document),checksum:settings.checksum(document),created_at:new Date(0)}]];
+    }
+    throw Error('Unexpected query: '+sql);
+  }};
+  const firstA=await settings.effective(db,tenantA),firstB=await settings.effective(db,tenantB);
+  active['tenant-a']='a-r2';
+  const secondA=await settings.effective(db,tenantA),secondB=await settings.effective(db,tenantB);
+  assert.equal(firstA.document.navigationLabels.courses.en,'A revision one');
+  assert.equal(secondA.document.navigationLabels.courses.en,'A revision two','next resolution observes the newly published pointer');
+  assert.equal(secondA.revision,2);
+  assert.equal(firstB.document.navigationLabels.courses.en,'B only');
+  assert.equal(secondB.document.navigationLabels.courses.en,'B only','tenant A publication cannot affect tenant B');
+  assert.equal(reads.filter(read=>read.sql.includes('FROM sx_tenant_customization_heads')).length,4);
+  assert.ok(reads.filter(read=>read.sql.includes('FROM sx_tenant_customization_revisions')).every(read=>['tenant-a','tenant-b'].includes(read.args[0])));
+});
 test('schema 3 hides only category-owned navigation keys while schema 1 and 2 remain readable',()=>{
   const doc3={schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['courses','inbox']};
   assert.deepEqual(settings.normalize(ctx,doc3),doc3);
