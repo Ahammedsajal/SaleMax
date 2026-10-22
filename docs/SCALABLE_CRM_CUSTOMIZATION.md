@@ -857,3 +857,22 @@ English/Arabic/code matching, deduplication, same-SKU tenant separation and
 index selection in `EXPLAIN`.
 Production MariaDB planning and index-build resource estimates remain release
 preflight gates; no production migration has been applied.
+
+### Category-owned shared QR delegation — source update, 22 October 2026
+
+The Training Center-only manager delegation and accountant QR-only Inbox
+exceptions are declared on its exact category manifest version and consumed by
+the existing QR-sharing service, socket scope and legacy route guard. Registry
+validation rejects unknown policy values and requires the capabilities needed
+by the declared behavior. Other categories default to manager-team scope and no
+accountant QR exception; unknown versions are denied. This preserves the
+existing Training Center v1 contract while allowing a future reviewed category
+to opt into the same behavior without editing shared authorization branches.
+The focused category/Inbox/QR/route suite passes 21/21, and the isolated MySQL
+9.6 team-agent integration passes its tenant/channel/assignment checks. The
+broader migration harness stopped at its first legacy DDL statement because
+MySQL 9.6 does not accept the MariaDB-specific syntax; it did not reach these
+authorization paths. Run that harness on supported MariaDB before release. No
+production change was made; authenticated bilingual and live-channel acceptance
+remain open. The full Node suite passes 1,069/1,090; the 21 branch failures all
+reproduce on clean `origin/main` (26 failures there), with no new regression.

@@ -2206,3 +2206,25 @@ search returned only its tenant's product. No local or production customer
 database was touched; the
 migration has not been applied to production. MariaDB production-version query
 plans and index-build capacity still require preflight before release.
+
+## Category-owned shared QR delegation — source update, 22 October 2026
+
+Shared Inbox and QR access previously encoded Training Center's tenant-wide
+manager-to-agent grants and accountant QR-only access as category-name checks
+inside three authorization paths. Those decisions now come from the exact
+versioned category manifest. Training Center v1 retains its reviewed behavior;
+other and unknown category versions fail closed unless their manifest declares
+the same reviewed policy. The registry validates allowed settings and required
+capabilities, while tenant membership, manager assignment, channel ownership,
+role permissions and record checks remain enforced independently. Focused
+category/Inbox/QR/route tests pass 21/21. The isolated MySQL 9.6 agent Inbox
+integration passes with synthetic rows, including owner-scoped channel lookup,
+assignment and transferred-agent denial. The broader MariaDB migration harness
+was not validated: the only available local server was MySQL 9.6, which stopped
+at the first legacy migration on a dialect syntax difference before reaching
+these paths. No production code or data changed; authenticated bilingual and
+supported-MariaDB integration acceptance remain open.
+
+The full Node suite passes 1,069/1,090. All 21 failures reproduce on clean
+`origin/main` (which has 26 failing tests); this increment introduces no new
+full-suite failure.

@@ -6,7 +6,7 @@ const hash=x=>crypto.createHash('sha256').update(x).digest('hex');
 test('open-chat check follows persisted transfer and rejects invalid account scope',async()=>{
   let assigned='manager',active=true,chat={origin:'qr',origin_instance_unique_id:'unshared-instance'};
   const pool={query:async(sql,args)=>{
-    if(sql.includes('WHERE o.source_table'))return [[{tenantId:'tenant',tenantStatus:'active',identityId:'manager',role:'manager',membershipStatus:active?'active':'inactive',identityStatus:'active',uidHash:hash('staff'),delegatedPermissions:[]}]];
+    if(sql.includes('WHERE o.source_table'))return [[{tenantId:'tenant',tenantStatus:'active',categoryKey:'base_crm',categoryVersion:1,identityId:'manager',role:'manager',membershipStatus:active?'active':'inactive',identityStatus:'active',uidHash:hash('staff'),delegatedPermissions:[]}]];
     if(sql.includes("m.role='owner'"))return [[{uid:'owner',uidHash:hash('owner')}]];
     if(sql.includes('FROM sx_qr_channel_shares'))return [[{instanceId:7,uniqueId:'shared-instance'}]];
     if(sql.includes('FROM beta_chats')){assert.deepEqual(args,['owner','chat']);return [[{...chat,assigned_agent:JSON.stringify([{kind:'identity',identityId:assigned}])}]];}

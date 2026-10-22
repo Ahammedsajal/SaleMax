@@ -1,6 +1,7 @@
 'use strict';
 const crypto = require('node:crypto');
 const { scopeFor } = require('./policy');
+const { getCategory } = require('./categories');
 const EVENT_PERMISSIONS = Object.freeze({
   get_chat_list: 'conversations.read', load_conversation: 'conversations.read', export_chats: 'conversations.read', export_conversation: 'conversations.read',
   send_chat_message: 'conversations.reply', send_new_message: 'conversations.reply', save_chat_note: 'conversations.reply', delete_chat_note: 'conversations.reply',
@@ -13,7 +14,7 @@ const parse = value => { try { const list = typeof value === 'string' ? JSON.par
 
 async function resolveInboxScope(query, user, event) {
   const source=user.isAgent||user.role==='agent'?'agents':'user';
-  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
+  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,t.category_version AS categoryVersion,m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
       i.status AS identityStatus,o.legacy_uid_hash AS uidHash,m.role_profile_id AS roleProfileId,
       m.delegated_permissions AS delegatedPermissions,r.permissions AS rolePermissions,r.seat_role AS seatRole,r.status AS roleStatus
     FROM sx_legacy_ownership o JOIN sx_tenants t ON t.id=o.tenant_id
@@ -23,10 +24,12 @@ async function resolveInboxScope(query, user, event) {
   if (!rows.length) return { uid: user.uid, canonical: false, assignedOnly: false };
   const row = rows[0];
   if (rows.length !== 1 || row.uidHash !== crypto.createHash('sha256').update(user.uid).digest('hex') || row.tenantStatus !== 'active' || row.membershipStatus !== 'active' || row.identityStatus !== 'active') fail();
+  const category=getCategory(row.categoryKey,Number(row.categoryVersion));
+  if(!category)fail();
 
   const permission = EVENT_PERMISSIONS[event];
   if (!permission && row.role !== 'owner') fail();
-  const qrAccountant = row.role==='accountant' && row.categoryKey==='training_center' && ['conversations.read','conversations.reply'].includes(permission);
+  const qrAccountant = row.role==='accountant' && category.qrSharing.accountantAccess && ['conversations.read','conversations.reply'].includes(permission);
   const delegatedPermissions = parse(row.delegatedPermissions) || [];
   const membership = { role: row.role, delegatedPermissions };
   if (row.roleProfileId) {
@@ -53,13 +56,13 @@ async function resolveInboxScope(query, user, event) {
             JOIN sx_tenants tenant ON tenant.id=manager.tenant_id
             WHERE manager.tenant_id=share.tenant_id AND manager.role='manager' AND manager.status='active'
               AND manager.identity_id=share.granted_by_identity_id AND (
-                tenant.category_key='training_center' OR EXISTS (
+                ?='tenant' OR EXISTS (
                   SELECT 1 FROM sx_sales_org_history org WHERE org.tenant_id=share.tenant_id
                     AND org.membership_id=share.membership_id AND org.manager_membership_id=manager.id AND org.ended_at IS NULL
                 )
               )
           )
-        )`, [owners[0].uid,row.tenantId,row.membershipId,owners[0].identityId,row.identityId])
+        )`, [owners[0].uid,row.tenantId,row.membershipId,owners[0].identityId,row.identityId,category.qrSharing.managerAgentScope])
     : [];
   if(qrAccountant&&!sharedQrInstances.length)fail();
   return { ...base, uid: owners[0].uid, sharedQrInstances, sharedQrInstanceIds: sharedQrInstances.map(channel => Number(channel.instanceId)), qrOnly:qrAccountant };

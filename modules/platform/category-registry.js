@@ -23,6 +23,12 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       || (source.chatbotLeadCapture==='generic'&&!source.capabilities.includes('crm.leads'))
       || (source.chatbotLeadCapture==='training'&&(!source.capabilities.includes('crm.leads')||!source.capabilities.includes('training.courses')))
       || (source.taskAssignmentScope!==undefined&&!['self','workspace'].includes(source.taskAssignmentScope))
+      || (source.qrSharing!==undefined&&(!source.qrSharing||typeof source.qrSharing!=='object'||Array.isArray(source.qrSharing)||!(Object.getPrototypeOf(source.qrSharing)===null||Object.getPrototypeOf(Object.getPrototypeOf(source.qrSharing))===null)
+        ||Object.keys(source.qrSharing).some(key=>!['managerAgentScope','accountantAccess'].includes(key))
+        ||(source.qrSharing.managerAgentScope!==undefined&&!['manager_team','tenant'].includes(source.qrSharing.managerAgentScope))
+        ||(source.qrSharing.accountantAccess!==undefined&&typeof source.qrSharing.accountantAccess!=='boolean')
+        ||(source.qrSharing.managerAgentScope==='tenant'&&(!source.capabilities.includes('messaging.qr')||!source.capabilities.includes('team.members')))
+        ||(source.qrSharing.accountantAccess===true&&(!source.capabilities.includes('messaging.qr')||!source.capabilities.includes('messaging.inbox')||!source.capabilities.includes('team.members')))))
       || (source.conversationTransferLeadAdapter!==undefined&&(!['none','whatsapp_inquiry_v1'].includes(source.conversationTransferLeadAdapter)||(source.conversationTransferLeadAdapter==='whatsapp_inquiry_v1'&&(!source.capabilities.includes('crm.leads')||!source.capabilities.includes('messaging.inbox')))))
       || (source.taskAdapters!==undefined&&(!source.taskAdapters||typeof source.taskAdapters!=='object'||Array.isArray(source.taskAdapters)||!(Object.getPrototypeOf(source.taskAdapters)===null||Object.getPrototypeOf(Object.getPrototypeOf(source.taskAdapters))===null)
         ||Object.entries(source.taskAdapters).some(([key,version])=>{const adapter=knownTaskAdapters.get(key);return !Number.isSafeInteger(version)||!adapter||adapter.version!==version||!source.capabilities.includes('team.tasks')||adapter.requiredCapabilities.some(capability=>!source.capabilities.includes(capability))||(adapter.requiredAnyCapabilities.length&&!adapter.requiredAnyCapabilities.some(capability=>source.capabilities.includes(capability)));})))
@@ -37,6 +43,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       chatbotLeadCapture: source.chatbotLeadCapture || 'none',
       taskAdapters:Object.freeze({...source.taskAdapters}),
       taskAssignmentScope:source.taskAssignmentScope||'self',
+      qrSharing:Object.freeze({managerAgentScope:source.qrSharing?.managerAgentScope||'manager_team',accountantAccess:source.qrSharing?.accountantAccess===true}),
       conversationTransferLeadAdapter:source.conversationTransferLeadAdapter||'none',
       capabilities: Object.freeze([...source.capabilities]), seatRoles: Object.freeze([...source.seatRoles]), migration: source.migration });
     entries.set(id, manifest);

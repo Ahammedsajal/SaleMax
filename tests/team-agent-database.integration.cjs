@@ -7,23 +7,26 @@ const access=require('../modules/platform/team-inbox-scope');
 const hash=x=>crypto.createHash('sha256').update(x).digest('hex');
 async function main(){
   if(process.env.SALEMAX_AGENT_DATABASE_PROOF!=='isolated-container')throw new Error('ISOLATED_DATABASE_REQUIRED');
-  const db=await mysql.createConnection({host:'127.0.0.1',user:'root',password:'',multipleStatements:false});
+  const db=await mysql.createConnection({host:'127.0.0.1',port:Number(process.env.SALEMAX_AGENT_DB_PORT)||3306,user:'root',password:'',multipleStatements:false});
   const name='salemax_agent_proof_'+crypto.randomBytes(5).toString('hex');
   try{
     await db.query('CREATE DATABASE '+name+' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');await db.query('USE '+name);
     const tables=[
-      'sx_tenants (id VARCHAR(36) PRIMARY KEY,status VARCHAR(20))',
+      'sx_tenants (id VARCHAR(36) PRIMARY KEY,status VARCHAR(20),category_key VARCHAR(80),category_version INT)',
       'user (id INT PRIMARY KEY,uid VARCHAR(64),role VARCHAR(20))',
       'agents (id INT PRIMARY KEY,uid VARCHAR(64),owner_uid VARCHAR(64),is_active INT)',
       'sx_identities (id VARCHAR(36) PRIMARY KEY,display_name VARCHAR(100),email_normalized VARCHAR(100),status VARCHAR(20))',
       'sx_memberships (id VARCHAR(36) PRIMARY KEY,tenant_id VARCHAR(36),identity_id VARCHAR(36),role VARCHAR(20),status VARCHAR(20),role_profile_id VARCHAR(36),delegated_permissions TEXT)',
       'sx_legacy_ownership (source_table VARCHAR(20),source_id VARCHAR(20),tenant_id VARCHAR(36),membership_id VARCHAR(36),legacy_uid_hash VARCHAR(64))',
       'sx_team_roles (id VARCHAR(36),tenant_id VARCHAR(36),permissions TEXT,status VARCHAR(20),seat_role VARCHAR(20))',
-      'beta_chats (id INT PRIMARY KEY,uid VARCHAR(64),chat_id VARCHAR(255),assigned_agent TEXT)',
+      'beta_chats (id INT PRIMARY KEY,uid VARCHAR(64),chat_id VARCHAR(255),origin VARCHAR(30),origin_instance_unique_id VARCHAR(255),sender_name VARCHAR(100),sender_mobile VARCHAR(40),assigned_agent TEXT)',
+      'instance (id INT PRIMARY KEY,uid VARCHAR(64),title VARCHAR(100),number VARCHAR(40),status VARCHAR(20),uniqueId VARCHAR(255))',
+      'sx_qr_channel_shares (tenant_id VARCHAR(36),instance_id INT,membership_id VARCHAR(36),granted_by_identity_id VARCHAR(36))',
+      'sx_sales_org_history (tenant_id VARCHAR(36),membership_id VARCHAR(36),manager_membership_id VARCHAR(36),ended_at DATETIME NULL)',
       'sx_audit_events (id VARCHAR(36),tenant_id VARCHAR(36),actor_identity_id VARCHAR(36),actor_kind VARCHAR(20),action VARCHAR(100),resource_type VARCHAR(40),resource_id VARCHAR(255),changes TEXT,correlation_id VARCHAR(36))'
     ];
     for(const table of tables)await db.query('CREATE TABLE '+table+' ENGINE=InnoDB');
-    await db.query("INSERT INTO sx_tenants VALUES ('tenant','active')");
+    await db.query("INSERT INTO sx_tenants VALUES ('tenant','active','base_crm',1)");
     await db.query("INSERT INTO user VALUES (1,'owner','user'),(2,'manager','user')");
     await db.query("INSERT INTO agents VALUES (1,'agent-a','owner',1),(2,'agent-b','owner',1),(3,'foreign-agent','other-owner',1),(4,'inactive-agent','owner',0)");
     const people=[['owner','owner','user',1],['manager','manager','user',2],['agent-a','agent','agents',1],['agent-b','agent','agents',2],['foreign-agent','agent','agents',3],['inactive-agent','agent','agents',4]];
@@ -32,7 +35,8 @@ async function main(){
       await db.query("INSERT INTO sx_memberships VALUES (?,'tenant',?,?,'active',NULL,'[]')",[id,id,role]);
       await db.query("INSERT INTO sx_legacy_ownership VALUES (?,?,'tenant',?,?)",[source,String(legacyId),id,hash(id)]);
     }
-    await db.query("INSERT INTO beta_chats VALUES (1,'owner','shared-customer','[]')");
+    await db.query("INSERT INTO instance VALUES (1,'owner','Shared QR','97450000000','ACTIVE','owner-qr')");
+    await db.query("INSERT INTO beta_chats VALUES (1,'owner','shared-customer','meta',NULL,'Synthetic contact','+97400000000','[]')");
     const ctx={tenant:{id:'tenant'},identity:{id:'owner'},membership:{role:'owner'}};
     const staff=await assignments.eligibleStaff(db,'tenant');
     assert.deepEqual(staff.map(x=>x.uid).sort(),['agent-a','agent-b','manager','owner']);
@@ -42,6 +46,8 @@ async function main(){
     const pool={getConnection:async()=>({query:db.query.bind(db),beginTransaction:db.beginTransaction.bind(db),commit:db.commit.bind(db),rollback:db.rollback.bind(db),release:()=>{}})};
     const result=await assignments.routeIncomingConversation(pool,{ctx,uid:'owner',chatId:'shared-customer',profile:{config:{sharedInboxRouting:true,handoffAssigneeIdentityId:'manager'}},connectedUids:['agent-a']});
     assert.equal(result.assignee.uid,'agent-a');
+    await db.beginTransaction();
+    await assignments.assignConversation(db,{ctx,uid:'owner',chatId:'shared-customer',identityId:'agent-a'});await db.commit();
     await access.authorizeInboxPayload(query,scope,'send_chat_message',{chatInfo:{chat_id:'shared-customer',sender_mobile:'forged'}});
     await db.beginTransaction();
     await assignments.assignConversation(db,{ctx:scope.ctx,uid:'owner',chatId:'shared-customer',identityId:'agent-b'});await db.commit();
@@ -52,4 +58,4 @@ async function main(){
     console.log(JSON.stringify({realAgentRows:true,onlineRouting:true,singletonTransfer:true,oldAgentReplyDenied:true,foreignAndInactiveExcluded:true,sharedOwnerPreserved:true}));
   }finally{await db.query('DROP DATABASE '+name);await db.end();}
 }
-main().catch(error=>{console.error(error.code||error.message);process.exitCode=1;});
+main().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message}));process.exitCode=1;});
