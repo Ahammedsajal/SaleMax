@@ -2139,3 +2139,10 @@ category contract rejects incomplete or mismatched label maps, while legacy
 profiles keep their existing workflow or use the pack default. The existing
 chatbot loader cache key is bumped. The broad category, task, tenant-customization and chatbot regression suite passes 347/347;
 syntax and whitespace checks pass. Source only, no production release or customer profile changed.
+
+
+### Retail Shop inventory ledger — source update, 22 October 2026
+
+The existing authenticated `/user` shell now has a private Retail inventory route and tenant-scoped API for locations, stock balances, audited adjustments and movement history. The forward migration binds tenant, location, product and actor identities; optimistic revisions and idempotency protect concurrent/retried adjustments, and negative balances are rejected. Retail remains private and non-planable.
+
+The related category, API, screen and existing-shell regression set passes 55/55; a disposable MySQL run passes nine integration checks. No production upload, migration or customer-data change occurred. Authenticated English/Arabic browser acceptance remains open. Product variants, suppliers, purchasing, POS, automatic decrement and supermarket workflows remain open, as do the broader category-isolation, provider, finance, load/restore and release gates.

@@ -139,7 +139,7 @@ Cache key: tenant ID + category key/version + configuration revision + relevant 
 | Sales | Products/services and its deals, commissions and Sales finance contracts; private first-party recruitment stays explicitly scoped |
 | Real estate | Properties, owners, buyer/tenant requirements, viewings and listing-specific pipelines |
 | Dental / clinic | Appointments, practitioners and service catalogue first; patient records require separately designed sensitive-data access and retention boundaries |
-| Retail / supermarket | Product variants, stock movements, suppliers and POS integration; inventory is a ledger with concurrency control, not a renamed course table |
+| Retail / supermarket | Product variants, stock movements, suppliers and POS integration; inventory is a ledger with concurrency control, not a renamed course table | Retail has a private, non-planable inventory ledger slice in source; variants, purchasing, suppliers, POS and supermarket workflows remain pending |
 | Hotels | Rooms, availability, reservations and rate rules; allocation/overbooking needs database invariants |
 | Restaurants | Menu, modifiers, orders, tables and kitchen workflow; the existing restaurant fixture is a test fixture, not this implementation |
 
@@ -182,9 +182,9 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Partly existing; broader proof pending |
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |
-| New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Real Estate has a private, non-planable typed listing slice in source; category workflow and migration acceptance remain incomplete. Clinic/dental is gated on official Qatar special-nature processing controls; retail, supermarket, hotel and restaurant modules remain pending. Adding names to a dropdown is not delivery. |
+| New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Real Estate has a private, non-planable typed listing slice in source; category workflow and migration acceptance remain incomplete. Retail has a private, non-planable tenant-scoped inventory ledger in source; category workflow and migration acceptance remain incomplete. Clinic/dental is gated on official Qatar special-nature processing controls; supermarket, hotel and restaurant modules remain pending. Adding names to a dropdown is not delivery. |
 | Operational scale | Measured tenant load/fairness, recoverable backups, restore drill, rollout rings and health telemetry | Pending |
-| Publication | Verified source push, targeted production backup/deploy, hashes, API/browser acceptance and deployment record | Category foundation deployed. Real Estate source is not deployed and its migration is not applied; tenant configuration, broad category isolation and the full objective remain in progress. |
+| Publication | Verified source push, targeted production backup/deploy, hashes, API/browser acceptance and deployment record | Category foundation deployed. Real Estate and Retail source slices are not deployed and their migrations are not applied; tenant configuration, broad category isolation and the full objective remain in progress. |
 
 Acceptance requires a matrix covering two businesses in the same category, two different categories, and an unmapped legacy business. Change A's draft, publish it, run its workflow, revoke permissions and roll back; B's active revision, visible modules, API decisions, bot content and stored data must remain unchanged throughout. Also cover concurrent publish, malformed/unknown fields, unsupported category version, expired plan, cross-tenant ID substitution, stale worker/cache state, migration failure and partial provider failure. Fixtures cannot stand in for authenticated existing-screen verification.
 
@@ -827,3 +827,10 @@ predates the selector. Registry validation requires an exact label map for the
 registered choice set; unknown category workflow choices remain rejected by
 the server. This keeps future category workflows discoverable and editable
 without adding category-name checks to shared UI code.
+
+
+## Retail Shop inventory ledger — source update, 22 October 2026
+
+A private `retail_shop@1` category now mounts an inventory screen inside the existing authenticated business panel. Its tenant-scoped ledger supports locations, stock reads, audited adjustments, optimistic revisions, request idempotency and movement history. Tenant-composite foreign keys bind locations, products and actor memberships; balances cannot go negative. The category is not public or planable. It reuses the existing product catalogue, so product-variant management is not included.
+
+The existing-screen/API contract, category/policy, router and inventory regressions pass 55/55. A disposable MySQL integration passed nine checks for tenant isolation, replay conflicts, concurrency, nonnegative balances and audit rollback. No production migration or release was performed. Authenticated browser acceptance in English and Arabic remains open. Suppliers, purchasing, POS, automatic sales decrement, product variants and supermarket workflows remain unimplemented; this slice does not complete the Retail category or the full customization program.
