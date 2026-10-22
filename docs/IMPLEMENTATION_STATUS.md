@@ -1,3 +1,17 @@
+## Generic Forms agent staff authorization — source increment, 22 October 2026
+
+The shared route guards now classify `/staff/:slug` Forms reads and submissions
+as `forms.capture`, while draft administration and publication remain under
+`forms.manage`. The legacy `/api/user/training/forms` mount canonicalizes to
+the same workspace Forms API for agent authorization, and the custom-role guard
+allows assigned-scope access only to the resource-aware Forms service, which
+continues enforcing the agent's current lead assignments. Route tests cover
+canonical, legacy-alias and Pipeline staff paths, both authorization layers,
+and restricted administration. Focused Agent workspace, team invitation,
+Training Forms and workspace Forms suites pass 44/44; syntax and whitespace
+checks pass. No database, category declaration or production state changed.
+Authenticated existing-screen EN/AR acceptance and deployment remain open.
+
 ## Generic Forms MariaDB and service integration — source increment, 22 October 2026
 
 The focused Forms migration runner now accepts the explicit `DBPASS=__EMPTY__`

@@ -29,6 +29,33 @@ test('Agent Inbox can read saved quick replies through the legacy user endpoint'
  assert.equal(access.authorize(request,session).scope,'assigned');
  assert.throws(()=>access.authorize({...request,method:'POST'},session),{code:'PERMISSION_DENIED'});
 });
+test('staff form routes use assigned capture permission while form administration remains restricted',()=>{
+ const guard=require('../modules/platform/team-role-request-guard');
+ const session={context:ctx(['forms.capture']),agent:true};
+ session.context.membership.assignedNavigation=['forms'];
+ for(const request of [
+  {baseUrl:'/api/workspace/forms',path:'/staff/contact-request',method:'GET'},
+  {baseUrl:'/api/workspace/forms',path:'/staff/contact-request/leads',method:'GET'},
+  {baseUrl:'/api/workspace/forms',path:'/staff/contact-request/submissions',method:'POST'},
+  {baseUrl:'/api/user/training/forms',path:'/staff/contact-request',method:'GET'},
+  {baseUrl:'/api/pipeline',path:'/training-forms/contact-request',method:'GET'},
+  {baseUrl:'/api/pipeline',path:'/training-forms/contact-request/leads',method:'GET'},
+ ]){
+  assert.equal(guard.routePermission(request),'forms.capture');
+  assert.equal(access.authorize(request,session).scope,'assigned');
+ }
+ const scopedAgent={role:'agent',seatRole:'agent',roleProfileId:'profile',rolePermissions:['forms.capture'],categoryKey:'training_center'};
+ for(const request of [
+  {baseUrl:'/api/workspace/forms',path:'/staff/contact-request',method:'GET',sourceTable:'agents'},
+  {baseUrl:'/api/user/training/forms',path:'/staff/contact-request',method:'GET',sourceTable:'agents'},
+ ])assert.deepEqual(guard.authorizeLegacyMembership(request,scopedAgent),{allowed:true,permission:'forms.capture'});
+ for(const request of [
+  {baseUrl:'/api/workspace/forms',path:'/',method:'GET'},
+  {baseUrl:'/api/workspace/forms',path:'/',method:'POST'},
+  {baseUrl:'/api/workspace/forms',path:'/lead-fields',method:'GET'},
+  {baseUrl:'/api/workspace/forms',path:'/form-id/publish',method:'POST'},
+ ])assert.equal(guard.routePermission(request),'forms.manage');
+});
 test('agent shell profile never returns owner credentials or changes the actor identity',()=>{
  const data=access.profile({context:ctx([]),actor:{id:2,uid:'agent',name:'Synthetic Agent',email:'agent@example.invalid',password:'agent-secret'},owner:{id:1,uid:'owner',email:'owner@example.invalid',password:'owner-secret',api_key:'owner-api',plan:'{}',plan_expire:123}});
  assert.equal(data.uid,'agent');assert.equal(data.workspaceRole,'agent');assert.equal(data.role,'user');assert.ok(!JSON.stringify(data).includes('secret'));assert.ok(!JSON.stringify(data).includes('owner@'));assert.equal(data.api_key,undefined);
