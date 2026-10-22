@@ -146,6 +146,7 @@ test('production lock wrapper holds the shared OS lock for its synchronous comma
   const shared = path.join(tempRoot, 'shared');
   const current = path.join(tempRoot, 'current');
   const lockFile = path.join(shared, '7network-production-deploy.lock');
+  const lockContextHelper = path.resolve(__dirname, '../deploy/production-lock-context.cjs');
   fs.mkdirSync(active, { recursive: true });
   fs.mkdirSync(shared);
   fs.symlinkSync(active, current);
@@ -161,6 +162,7 @@ test('production lock wrapper holds the shared OS lock for its synchronous comma
     test "$SALEMAX_DEPLOY_LOCK_HELD" = 1
     test "$SALEMAX_ACTIVE_RELEASE_BEFORE" = "${active}"
     test "$PWD" = "${active}"
+    node -e 'const {assertSharedLockContext}=require(process.argv[1]); assertSharedLockContext({lockPath:process.argv[2]});' "${lockContextHelper}" "${lockFile}"
     sleep 1
     if flock -n -E 75 "${lockFile}" true; then exit 90; else status=$?; fi
     test "$status" -eq 75
