@@ -1,6 +1,6 @@
 ## Shared Inbox socket and legacy reply tenant scoping — source increment, 22 October 2026
 
-The legacy Meta template reply helper now includes the owner UID in both `chats` updates. Its derived conversation ID can be identical for the same customer phone across tenants, so chat ID alone was insufficient isolation. The focused Meta/inbox source-contract suite passes 8/8; JavaScript syntax and `git diff --check` pass. No migration or production state changed. Remaining legacy socket call sites, exports/media isolation, authenticated acceptance and deployment remain open.
+The legacy Meta template reply and media send helpers now include the owner UID in all four `chats` updates. Their derived conversation ID can be identical for the same customer phone across tenants, so chat ID alone was insufficient isolation. The focused Meta/inbox source-contract suite covers both helpers and passes 8/8; JavaScript syntax and `git diff --check` pass. No migration or production state changed. Remaining legacy socket call sites, exports/media isolation, authenticated acceptance and deployment remain open.
 
 ## Shared Inbox refresh endpoint authorization — source increment, 22 October 2026
 

@@ -1646,13 +1646,14 @@ function sendMetaMsg(uid, msgObj, toNumber, savObj, chatId) {
         addObjectToFile(finalSaveMsg, chatPath);
 
         await query(
-          `UPDATE chats SET last_message_came = ?, last_message = ?, is_opened = ? WHERE chat_id = ?`,
-          [userTimezone, JSON.stringify(finalSaveMsg), 1, chatId],
+          `UPDATE chats SET last_message_came = ?, last_message = ?, is_opened = ? WHERE chat_id = ? AND uid = ?`,
+          [userTimezone, JSON.stringify(finalSaveMsg), 1, chatId, uid],
         );
 
-        await query(`UPDATE chats SET is_opened = ? WHERE chat_id = ?`, [
+        await query(`UPDATE chats SET is_opened = ? WHERE chat_id = ? AND uid = ?`, [
           1,
           chatId,
+          uid,
         ]);
       }
 

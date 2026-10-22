@@ -28,7 +28,7 @@ The existing Training Center learner-progress reconciler can move won Pipeline l
 | Navigation | `modules/platform/navigation.js` | Server decisions determine visible modules. Configured visibility must remain a restriction over authorized routes, with matching API enforcement. |
 | Frontend recovery | Existing implementation plan | Maintained screen hooks coexist with a generated legacy frontend. Extend the existing screens; do not manually edit minified logic or introduce another panel. |
 | Inbox refresh route | `routes/inbox.js` | The root GET endpoint was unauthenticated and sent a refresh event to a hard-coded account. It now requires the existing business auth/Inbox scope and targets the authenticated actor's socket identity; focused source-contract coverage added. This does not certify all socket events or legacy inbox routes. |
-| Legacy Meta reply update | `functions/function.js` | Two updates in `updateMetaTempletInMsg` previously matched only `chat_id`, which is derived from the customer phone and can repeat across tenants. Both now include the owner UID; focused source-contract coverage added. Other legacy socket and conversation paths remain under audit. |
+| Legacy Meta send/reply updates | `functions/function.js` | Updates in `updateMetaTempletInMsg` and `sendMetaMsg` previously matched only `chat_id`, which is derived from the customer phone and can repeat across tenants. All four updates now include the owner UID; focused source-contract coverage added. Other legacy socket and conversation paths remain under audit. |
 
 This is a targeted architecture assessment, not an exhaustive proof of every query, queue, websocket or legacy route. The verification ledger below defines the remaining work.
 
@@ -204,8 +204,8 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 ### Shared-core ownership slice — 22 October 2026
 
 This chat owns `routes/inbox.js` for the unauthenticated hard-coded inbox
-refresh endpoint audit and `functions/function.js` for the scoped Meta template
-reply updates, with focused tests in `tests/meta-webhook-flow.test.js` and this
+refresh endpoint audit and `functions/function.js` for scoped Meta message
+updates, with focused tests in `tests/meta-webhook-flow.test.js` and this
 ledger. The endpoint is constrained to the authenticated caller and their
 resolved tenant Inbox permission. Socket payload authorization and the
 `sx_legacy_ownership` mapping migration remain read-only audit surfaces in this

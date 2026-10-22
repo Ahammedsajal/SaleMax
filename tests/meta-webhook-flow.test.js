@@ -71,6 +71,15 @@ test('legacy Meta template reply updates are constrained to the owner UID', () =
   assert.match(helper, /\[userTimezone, JSON\.stringify\(savObj\), 0, chatId, uid\]/);
   assert.match(helper, /UPDATE chats SET is_opened = \? WHERE chat_id = \? AND uid = \?/);
   assert.match(helper, /\[\s*1,\s*chatId,\s*uid,?\s*\]/);
+
+  const sendStart = functions.indexOf('function sendMetaMsg(');
+  const sendEnd = functions.indexOf('\nfunction ', sendStart + 1);
+  assert.ok(sendStart >= 0 && sendEnd > sendStart);
+  const sender = functions.slice(sendStart, sendEnd);
+  assert.match(sender, /UPDATE chats SET last_message_came = \?, last_message = \?, is_opened = \? WHERE chat_id = \? AND uid = \?/);
+  assert.match(sender, /\[userTimezone, JSON\.stringify\(finalSaveMsg\), 1, chatId, uid\]/);
+  assert.match(sender, /UPDATE chats SET is_opened = \? WHERE chat_id = \? AND uid = \?/);
+  assert.match(sender, /\[\s*1,\s*chatId,\s*uid,?\s*\]/);
 });
 
 test('manual Meta connection subscribes its WABA to the 7Network app', () => {
