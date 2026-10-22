@@ -2289,7 +2289,25 @@ release or customer data changed. Platform Admin and tenant-category user
 acceptance, production-compatible MariaDB integration and the full 42-ticket
 isolation/release gates remain open.
 
-The full Node suite passes 1,075/1,096. Its 21 remaining failures are the
-existing Manage Users, Pipeline, Finance, Courses and public-form source-contract
-assertions; the category-isolation regression passes again. No new full-suite
-failure was introduced by this increment.
+At this increment, the full Node suite passed 1,075/1,096. Its 21 remaining
+failures are the existing Manage Users, Pipeline, Finance, Courses and public-
+form source-contract assertions; the category-isolation regression passes
+again. No new full-suite failure was introduced by this increment.
+
+## Manifest-owned task notification workspace labels — source update, 22 October 2026
+
+The shared task email renderer previously labeled every non-Sales tenant as
+“Training Center”, which would misidentify Retail, Real Estate and future
+category tasks. The notification worker now reads the tenant's exact category
+key and version when claiming a job, then uses the reviewed manifest label or
+the category title. Unknown or unsupported versions receive the neutral
+“Business Workspace” label instead of borrowing another category's name.
+Training Center and Sales retain their current email labels. Focused category,
+notification, worker, task and task-adapter tests pass 54/54; syntax and
+whitespace checks pass. No provider message or customer record was sent or
+changed, and no migration applies. Authenticated bilingual notification copy,
+provider delivery and the full 42-ticket isolation/release gates remain open.
+
+After this notification change, the full Node suite passes 1,076/1,097 with the
+same 21 existing Manage Users, Pipeline, Finance, Courses and public-form
+source-contract failures. No new full-suite failure was introduced.

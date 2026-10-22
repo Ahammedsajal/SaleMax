@@ -27,6 +27,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
     if (!source || typeof source.key !== 'string' || !/^[a-z0-9][a-z0-9_]{1,79}$/.test(source.key)
       || !Number.isSafeInteger(source.version) || source.version < 1
       || typeof source.public !== 'boolean' || (source.planable !== undefined && typeof source.planable !== 'boolean')
+      || (source.taskWorkspaceLabel!==undefined&&(typeof source.taskWorkspaceLabel!=='string'||!source.taskWorkspaceLabel.trim()||source.taskWorkspaceLabel.length>80||/[<>\u0000-\u001f\u007f]/.test(source.taskWorkspaceLabel)))
       || !source.title || !['en', 'ar'].every(lang => typeof source.title[lang] === 'string' && source.title[lang].trim())
       || !Array.isArray(source.capabilities) || source.capabilities.some(key => typeof key !== 'string' || !Object.hasOwn(knownCapabilities, key))
       || new Set(source.capabilities).size !== source.capabilities.length
@@ -59,6 +60,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       title: Object.freeze({ en: source.title.en, ar: source.title.ar }),
       public: source.public, ...(source.planable === undefined ? {} : { planable: source.planable }),
       ...(source.catalogue===undefined?{}:{catalogue:source.catalogue}),
+      ...(source.taskWorkspaceLabel===undefined?{}:{taskWorkspaceLabel:source.taskWorkspaceLabel.trim()}),
       ...(source.inventoryAdapter===undefined?{}:{inventoryAdapter:source.inventoryAdapter}),
       accessPolicy:Object.freeze({
         planExemptOwnerCapabilities:Object.freeze([...(source.accessPolicy?.planExemptOwnerCapabilities||[])]),

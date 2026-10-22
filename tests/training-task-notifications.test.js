@@ -43,6 +43,15 @@ test('Sales-category task emails use Sales Workspace product branding',()=>{
   assert.doesNotMatch(rendered.text,/Training Center/);
 });
 
+test('task email workspace labels follow the exact category manifest version',()=>{
+  const realEstate=runner.message({from:'tasks@example.test',to:'agent@example.test',title:'Viewing',taskId:'real-estate-task',categoryKey:'real_estate',categoryVersion:1});
+  assert.match(realEstate.text,/7Network Real Estate task update/);
+  assert.doesNotMatch(realEstate.text,/Training Center/);
+  const stale=runner.message({from:'tasks@example.test',to:'agent@example.test',title:'Follow up',taskId:'stale-task',categoryKey:'real_estate',categoryVersion:2});
+  assert.match(stale.text,/7Network Business Workspace task update/);
+  assert.doesNotMatch(stale.text,/Real Estate|Training Center/);
+});
+
 test('email dispatch carries the claimed tenant category into the task message',async()=>{
   const item={id:9,tenant_id:'tenant-sales',task_id:'task-sales',recipient_type:'identity',recipient_id:'identity-sales',channel:'email',attempt:1,workerId:'tasks-worker-1',title:'Call lead',to_status:'open',due_at:null,category_key:'7network_sales'};
   const db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},query:async sql=>{
@@ -57,14 +66,16 @@ test('email dispatch carries the claimed tenant category into the task message',
   assert.match(sent.html,/7Network · Sales Workspace/);
 });
 
-test('task notification claim selects tenant category and uses tenant-active tasks with fenced leases',async()=>{
-  const calls=[],item={id:9,tenant_id:'11111111-1111-4111-8111-111111111111',task_id:'22222222-2222-4222-8222-222222222222',task_revision:2,recipient_type:'agent',recipient_id:'7',channel:'email',attempt_count:0,notification_status:'queued',title:'Follow up',due_at:null,to_status:'in_progress',category_key:'7network_sales'};
+test('task notification claim selects tenant category version and uses tenant-active tasks with fenced leases',async()=>{
+  const calls=[],item={id:9,tenant_id:'11111111-1111-4111-8111-111111111111',task_id:'22222222-2222-4222-8222-222222222222',task_revision:2,recipient_type:'agent',recipient_id:'7',channel:'email',attempt_count:0,notification_status:'queued',title:'Follow up',due_at:null,to_status:'in_progress',category_key:'7network_sales',category_version:1};
   const db={beginTransaction:async()=>calls.push('begin'),commit:async()=>calls.push('commit'),rollback:async()=>calls.push('rollback'),query:async(sql,args)=>{calls.push([sql,args]);if(sql.includes('SELECT n.id'))return [[item],[]];return [{affectedRows:1,insertId:1},[]];}};
   const claimed=await runner.claim(db,{workerId:'tasks-worker-1',limit:5,leaseSeconds:60});
   assert.equal(claimed.length,1);assert.equal(claimed[0].attempt,1);assert.equal(claimed[0].workerId,'tasks-worker-1');
   assert.equal(claimed[0].category_key,'7network_sales');
+  assert.equal(claimed[0].category_version,1);
   const select=calls.find(entry=>Array.isArray(entry)&&entry[0].includes('SELECT n.id'))[0];
   assert.match(select,/tenant\.category_key/);
+  assert.match(select,/tenant\.category_version/);
   assert.match(select, /SELECT e\.to_status[\s\S]*ORDER BY e\.id DESC LIMIT 1/);
   assert.doesNotMatch(select, /JOIN sx_task_events/);
   assert.ok(calls.some(entry=>Array.isArray(entry)&&entry[0].includes('FOR UPDATE SKIP LOCKED')));

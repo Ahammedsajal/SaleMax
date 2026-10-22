@@ -28,7 +28,7 @@ test('category registry pins versions instead of selecting latest implicitly', (
 
 test('registry rejects duplicate identity, unknown capabilities, invalid roles and malformed contracts', () => {
   assert.throws(()=>createCategoryRegistry([trainingCenter,trainingCenter],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
-  for (const patch of [{version:'2'},{version:0},{key:'../clinic'},{title:{en:'Clinic'}},{public:'yes'},
+  for (const patch of [{version:'2'},{version:0},{key:'../clinic'},{title:{en:'Clinic'}},{public:'yes'},{taskWorkspaceLabel:'<bad>'},{taskWorkspaceLabel:' '},
     {planable:'yes'},{capabilities:['unknown.feature']},{capabilities:['messaging.inbox','messaging.inbox']},
     {seatRoles:['agent']},{seatRoles:['owner','super_admin']},{migration:'../schema.sql'},
     {chatbotLeadCapture:'unreviewed'},{chatbotLeadCapture:'generic',capabilities:['messaging.inbox']},
