@@ -75,6 +75,7 @@ test('image builder rejects mutable and invalid release tags before building', (
 });
 
 test('ARM64 image CI is unprivileged and trusted publish accepts only its successful main push artifact', () => {
+  assert.match(imageWorkflow, /^  workflow_dispatch:$/m);
   assert.match(imageWorkflow, /platforms: linux\/arm64/);
   assert.match(imageWorkflow, /outputs: type=docker,dest=\/tmp\/7network-arm64-image\.tar/);
   assert.match(imageWorkflow, /VCS_REF=\$\{\{ github\.sha \}\}/);
