@@ -2564,6 +2564,20 @@ category declares module settings, so category adoption, authenticated rendered
 EN/AR acceptance and production deployment remain open. No production or
 customer state changed.
 
+## Same-category typed settings isolation — source verification, 22 October 2026
+
+The tenant customization disposable-database integration now declares a
+synthetic immutable module schema and verifies that two businesses in the same
+category retain independent typed settings across draft, publish and rollback.
+Both begin from the category default; publishing tenant A's value leaves
+tenant B's published value unchanged, and rollback of A preserves B. The full
+synthetic integration passed on an isolated temporary MySQL 9.6 instance, with
+13 checks including the existing concurrency, membership-revocation,
+entitlement-expiry, cross-tenant rollback and audit-atomicity cases. The server,
+database, credentials and files were removed afterward. This verifies database
+semantics on MySQL 9.6, not MariaDB production parity; no production/customer
+state changed.
+
 ## Tenant-defined fields in existing Pipeline report drill-down — source increment, 22 October 2026
 
 The existing Pipeline report lead lists now return the lead's saved typed
