@@ -92,6 +92,26 @@ test('manager receipt authority does not grant credit approval or owner authorit
   assert.equal(decision(c,{capability:'finance.credits',permission:'credits.approve'}).allowed,false);
   assert.equal(decision(c,{capability:'messaging.meta',permission:'channels.configure'}).allowed,true);
 });
+test('custom staff roles cannot elevate approval authority beyond their fixed seat role',()=>{
+  const cases=[
+    ['agent','training.enrollments','sales.approve'],
+    ['team_leader','training.enrollments','sales.approve'],
+    ['manager','finance.credits','credits.approve'],
+  ];
+  for(const [role,capability,permission] of cases){
+    const c=context(role);c.membership.customPermissions=[permission];
+    assert.equal(decision(c,{capability,permission}).code,'PERMISSION_DENIED',`${role} must not receive ${permission}`);
+  }
+  const manager=context('manager');manager.membership.customPermissions=['sales.approve'];
+  assert.equal(decision(manager,{capability:'training.enrollments',permission:'sales.approve'}).allowed,true);
+  const accountant=context('accountant');accountant.membership.customPermissions=['commission.payout.approve'];
+  const salesContext=role=>{const c=context(role);c.category=salemaxSales;c.tenant.categoryKey=salemaxSales.key;c.subscription.capabilities=[...salemaxSales.capabilities];return c;};
+  for(const [role,permission] of [['manager','commission.policy.manage'],['manager','commission.payout.approve'],['agent','commission.payout.pay']]){
+    const c=salesContext(role);c.membership.customPermissions=[permission];
+    assert.equal(decision(c,{capability:'sales.commissions',permission}).code,'PERMISSION_DENIED',`${role} must not receive ${permission}`);
+  }
+  assert.equal(decision(salesContext('accountant'),{capability:'sales.commissions',permission:'commission.payout.approve'}).allowed,true);
+});
 test('Training Center managers can manage tenant team access within the team.members entitlement',()=>{
   const c=context('manager');
   assert.equal(decision(c,{capability:'team.members',permission:'team.invite'}).scope,'tenant');

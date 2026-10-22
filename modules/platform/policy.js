@@ -99,8 +99,18 @@ const capabilities = Object.freeze({
 const realEstateOwnerManagerPermissions = Object.freeze([
   'requirements.manage','requirements.assign','viewings.manage','viewings.assign',
 ]);
+// Custom role profiles can add ordinary module access to a staff seat, but
+// cannot change approval authority defined by the fixed seat-role contract.
+const roleBoundPermissions = Object.freeze({
+  'sales.approve': Object.freeze(['owner','manager']),
+  'credits.approve': Object.freeze(['owner']),
+  'commission.policy.manage': Object.freeze(['owner']),
+  'commission.payout.approve': Object.freeze(['accountant']),
+  'commission.payout.pay': Object.freeze(['accountant']),
+});
 function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
+  if (roleBoundPermissions[permission] && !roleBoundPermissions[permission].includes(membership.role)) return null;
   // Real Estate assignment and mutation APIs operate on team-owned requirements
   // and viewings. A custom role may restrict this authority, never create it.
   if (realEstateOwnerManagerPermissions.includes(permission) && !['owner','manager'].includes(membership.role)) return null;
@@ -179,4 +189,4 @@ function platformDecision(context, permission) {
   if (context.membership.role === 'platform_admin') return platformAdminAllowlist.includes(permission);
   return context.membership.role === 'staff' && platformStaffAllowlist.includes(permission) && context.membership.delegatedPermissions?.includes(permission) === true;
 }
-module.exports = { permissions, capabilities, scopeFor, explicitlyGranted, decision, platformDecision, delegationAllowlist, platformStaffAllowlist, platformAdminAllowlist, platformPermissions };
+module.exports = { permissions, capabilities, scopeFor, explicitlyGranted, decision, platformDecision, delegationAllowlist, roleBoundPermissions, platformStaffAllowlist, platformAdminAllowlist, platformPermissions };
