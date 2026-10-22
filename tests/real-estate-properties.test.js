@@ -103,6 +103,12 @@ test('stale and invalid transitions cannot mutate a listing',async()=>{
   assert.equal(updates,0);assert.equal(rollbacks,3);
 });
 
+test('a listing cannot be closed while it still has scheduled viewings',async()=>{
+  const v3=require('../modules/platform/categories').realEstateV3,context={...base,tenant:{...base.tenant,categoryVersion:3},category:v3,subscription:{...base.subscription,categoryVersion:3,capabilities:[...v3.capabilities]}};
+  let rollbacks=0,updates=0;const db={query:async(sql)=>{if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'active',transactionType:'sale',revision:2}]];if(sql.includes('FROM sx_real_estate_viewings'))return [[{id:'scheduled-viewing'}]];if(sql.startsWith('UPDATE'))updates++;return [{affectedRows:1}];},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{rollbacks++;}};
+  await assert.rejects(properties.update(db,context,'44444444-4444-4444-8444-444444444444',{status:'sold',expectedRevision:2}),{code:'PROPERTY_HAS_SCHEDULED_VIEWINGS'});assert.equal(updates,0);assert.equal(rollbacks,1);
+});
+
 test('real estate storage keys and current-panel entry are registered without a duplicate app shell',()=>{
   const migrationPath=path.join(__dirname,'../database/migrations/20261229_real_estate_properties.sql');
   const migration=fs.readFileSync(migrationPath,'utf8');

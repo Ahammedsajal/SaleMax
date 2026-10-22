@@ -36,13 +36,13 @@ test('create route accepts typed requirements and returns no duplicated customer
   const leadQuery=service.calls.find(call=>call.sql.includes('FROM pipeline_leads l'));assert.deepEqual(leadQuery.args,[tenantId,uidHash,leadId]);
 });
 
-test('route is mounted under the shared workspace and protected by the existing role mapper',()=>{
+test('route is mounted under the shared workspace and uses feature-session authorization',()=>{
   const mount=fs.readFileSync(path.join(__dirname,'../modules/platform/mount-existing-upgrade.js'),'utf8');
   assert.match(mount,/\/api\/workspace\/real-estate\/requirements/);
-  assert.match(mount,/real-estate-requirements-router/);
+  assert.match(mount,/real-estate-requirements-router/);assert.match(mount,/featureSession.guard/);
   const client=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/properties.js'),'utf8');
   const workspaceApi=fs.readFileSync(path.join(__dirname,'../client/public/workspace-api.js'),'utf8');
   const page=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/index.html'),'utf8');
   assert.match(client,/Buyer requirements/);assert.match(client,/Find matching properties/);assert.match(client,/existing Pipeline leads/i);
-  assert.match(workspaceApi,/requirements:'\/api\/workspace\/real-estate\/requirements'/);assert.match(page,/workspace-api\.js\?v=20261022-requirements2/);
+  assert.match(workspaceApi,/requirements:'\/api\/workspace\/real-estate\/requirements'/);assert.match(page,/workspace-api\.js\?v=20261022-realestate-v3/);
 });
