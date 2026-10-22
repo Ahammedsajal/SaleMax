@@ -24,7 +24,7 @@ const hash=v=>crypto.createHash('sha256').update(v).digest('hex');
    await pool.query("INSERT INTO sx_identities VALUES(?,?,'active')",[id,id]);await pool.query("INSERT INTO sx_memberships VALUES(?, 'tenant-a',?,?,'active',NULL)",[id,id,role]);await pool.query("INSERT INTO sx_legacy_ownership VALUES(?,?,'tenant-a',?,?)",[source,String(sourceId),id,hash(uid)]);
   }
   await pool.query("INSERT INTO beta_chats VALUES('owner','chat-one',JSON_ARRAY(),'qr','Synthetic contact','97455555555'),('owner','chat-two',JSON_ARRAY(),'meta','Synthetic contact','97455555555'),('owner','rollback-chat',JSON_ARRAY(),'qr','Rollback contact','97455555556')");
-  const ctx={tenant:{id:'tenant-a',categoryKey:'training_center'},identity:{id:'owner-id'},membership:{role:'owner'}};
+  const ctx={tenant:{id:'tenant-a',categoryKey:'training_center',categoryVersion:1},category:require('../modules/platform/categories').trainingCenter,identity:{id:'owner-id'},membership:{role:'owner'}};
   const transfer=async(chatId,identityId,rollback=false)=>{const db=await pool.getConnection();try{await db.beginTransaction();const r=await assignConversation(db,{ctx,uid:'owner',chatId,identityId});if(rollback)await db.rollback();else await db.commit();return r;}catch(e){await db.rollback();throw e;}finally{db.release();}};
   const first=await transfer('chat-one','seven');assert.equal(first.lead.created,true);
   await pool.query("UPDATE pipeline_leads SET stage_key='qualified',expected_value=500,next_follow_up_at='2027-01-01' WHERE id=?",[first.lead.id]);

@@ -2,7 +2,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { assignConversation, ownsConversation, chooseAvailableStaff } = require('../modules/platform/team-conversation-assignment');
+const { assignConversation, ownsConversation, chooseAvailableStaff, conversationTransferLeadAdapter } = require('../modules/platform/team-conversation-assignment');
+const {trainingCenter,sevenNetworkSales}=require('../modules/platform/categories');
 const hash = uid => crypto.createHash('sha256').update(uid).digest('hex');
 const ctx = { tenant: { id: 'tenant-a' }, identity: { id: 'actor' }, membership: { role: 'manager' } };
 function fixture(overrides = {}) {
@@ -20,6 +21,16 @@ function fixture(overrides = {}) {
   return { db, calls };
 }
 const input = { ctx, uid: 'owner', chatId: 'same-number_same-contact_owner', identityId: 'new-staff' };
+
+test('conversation transfer side effects resolve from the pinned category contract',()=>{
+  const training={tenant:{id:'tenant-a',categoryKey:trainingCenter.key,categoryVersion:trainingCenter.version},category:trainingCenter};
+  const sales={tenant:{id:'tenant-a',categoryKey:sevenNetworkSales.key,categoryVersion:sevenNetworkSales.version},category:sevenNetworkSales};
+  assert.equal(conversationTransferLeadAdapter(training),'whatsapp_inquiry_v1');
+  assert.equal(conversationTransferLeadAdapter(sales),null);
+  assert.equal(conversationTransferLeadAdapter({...training,tenant:{...training.tenant,categoryVersion:2}}),null);
+  assert.equal(conversationTransferLeadAdapter({...training,category:sevenNetworkSales}),null);
+  assert.equal(conversationTransferLeadAdapter(ctx),null,'missing category version never guesses a vertical workflow');
+});
 
 test('transfer replaces the old staff assignment and preserves the shared owner and channel', async () => {
   const { db, calls } = fixture();

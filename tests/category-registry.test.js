@@ -6,7 +6,7 @@ const {capabilities} = require('../modules/platform/policy');
 const {trainingCenter, sevenNetworkSales, restaurantFixture, listCategories} = require('../modules/platform/categories');
 
 test('category registry pins versions instead of selecting latest implicitly', () => {
-  const v2 = {...trainingCenter, version:2, capabilities:trainingCenter.capabilities.filter(key => !['sales.finance','hr.recruitment'].includes(key))};
+  const v2 = {...trainingCenter, version:2, conversationTransferLeadAdapter:'none', capabilities:trainingCenter.capabilities.filter(key => !['sales.finance','hr.recruitment'].includes(key))};
   const registry = createCategoryRegistry([trainingCenter,v2], capabilities);
   assert.ok(registry.get('training_center',1).capabilities.includes('sales.finance'));
   assert.equal(registry.get('training_center',2).capabilities.includes('sales.finance'),false);
@@ -14,6 +14,8 @@ test('category registry pins versions instead of selecting latest implicitly', (
   assert.deepEqual(registry.list().map(row=>row.version),[1,2]);
   assert.equal(registry.get('training_center',1).taskAssignmentScope,'workspace');
   assert.equal(registry.get('training_center',2).taskAssignmentScope,'workspace');
+  assert.equal(registry.get('training_center',1).conversationTransferLeadAdapter,'whatsapp_inquiry_v1');
+  assert.equal(registry.get('training_center',2).conversationTransferLeadAdapter,'none');
   assert.equal(listCategories().some(row=>row.key===restaurantFixture.key&&row.planable===true),false);
   assert.equal(createCategoryRegistry([{...sevenNetworkSales}],capabilities).get('7network_sales',1).key,'7network_sales');
   assert.equal(createCategoryRegistry([{...sevenNetworkSales}],capabilities).get('7network_sales',1).taskAssignmentScope,'self');
@@ -27,6 +29,8 @@ test('registry rejects duplicate identity, unknown capabilities, invalid roles a
     {chatbotLeadCapture:'unreviewed'},{chatbotLeadCapture:'generic',capabilities:['messaging.inbox']},
     {chatbotLeadCapture:'training',capabilities:['messaging.inbox','crm.leads']},
     {taskAssignmentScope:'tenant'},{taskAssignmentScope:'anyone'},
+    {conversationTransferLeadAdapter:'unreviewed'},
+    {conversationTransferLeadAdapter:'whatsapp_inquiry_v1',capabilities:['messaging.inbox','team.tasks']},
     {taskAdapters:{unreviewed_task:1}},{taskAdapters:{enrollment:2}},
     {taskAdapters:{enrollment:1},capabilities:trainingCenter.capabilities.filter(key=>key!=='training.enrollments')}]) {
     assert.throws(()=>createCategoryRegistry([{...trainingCenter,...patch}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});

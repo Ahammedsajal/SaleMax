@@ -5,7 +5,8 @@ const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex'
 // Runs inside the caller's chat-transfer transaction. The phone lock is shared
 // with inbound capture so a transfer and a new message cannot create two leads.
 async function assign(db,{ctx,uid,chatId,chat,agentId,agentName}){
-  if(ctx.tenant?.categoryKey!=='training_center')return null;
+  const category=require('./categories').getCategory(ctx.tenant?.categoryKey,Number(ctx.tenant?.categoryVersion));
+  if(!category||ctx.category&&(ctx.category.key!==category.key||ctx.category.version!==category.version)||category.conversationTransferLeadAdapter!=='whatsapp_inquiry_v1')return null;
   if(!['qr','meta'].includes(chat.origin))throw Object.assign(Error('CONVERSATION_ORIGIN_INVALID'),{code:'CONVERSATION_ORIGIN_INVALID',status:409});
   const uidHash=hash(uid),conversationKey=hash(`${chat.origin}:${chatId}`);
   const phone=pipeline.normalizePhone(chat.sender_mobile),identityKey=hash(phone?`phone:${phone}`:`conversation:${conversationKey}`);

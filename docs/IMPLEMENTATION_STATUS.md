@@ -2114,3 +2114,10 @@ category adapter. Shared task logic no longer branches on the Sales category or
 the `sales_call` name for these behaviors; unregistered filters are rejected.
 The broad category, task, tenant-customization and chatbot regression set passes
 345/345. Source only; production is unchanged.
+
+Inbox conversation-transfer lead creation is now selected by the pinned
+category manifest (`whatsapp_inquiry_v1`) and requires the reviewed shared Inbox
+and CRM lead capabilities. Other categories default to no Pipeline side effect;
+unknown or mismatched category versions do not trigger the adapter. Focused
+registry and assignment tests cover the opt-in/default/mismatch cases. Source
+only; production is unchanged.

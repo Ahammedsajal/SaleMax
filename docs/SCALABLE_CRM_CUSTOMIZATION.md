@@ -789,3 +789,14 @@ registered by the exact category version can be filtered; unknown type names
 are rejected. Existing Sales call requirements remain declared by its reviewed
 adapter, so future categories can add reviewed task behavior without editing
 shared task lifecycle code.
+
+## Manifest-owned conversation-transfer lead behavior — 22 October 2026
+
+The shared Inbox conversation-transfer service no longer selects the Training
+Center category by key before creating or reassigning a Pipeline lead. The exact
+pinned category manifest opts into the reviewed `whatsapp_inquiry_v1` adapter;
+all other categories default to no lead side effect. Registry validation requires
+both shared Inbox and CRM lead capabilities, and a missing/mismatched category
+version cannot trigger the workflow. The adapter remains responsible for its
+transactional lead/conversation association; the manifest selects reviewed
+server behavior and never contains executable tenant configuration.

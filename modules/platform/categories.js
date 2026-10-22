@@ -18,7 +18,7 @@ const trainingCapabilities = Object.freeze([
   // Preserve assigned contracts here; remove only through reviewed v2 adoption.
   'sales.finance', 'hr.recruitment',
 ]);
-const trainingCenter = Object.freeze({ key: 'training_center', version: 1, catalogue:'courses', chatbotLeadCapture:'training', taskAdapters:Object.freeze({invoice_follow_up:1,enrollment:1}), taskAssignmentScope:'workspace', title: Object.freeze({ en: 'Training center', ar: 'مركز تدريب' }), public: true, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'agent']), capabilities: trainingCapabilities, migration: '20261001_platform_identity.sql' });
+const trainingCenter = Object.freeze({ key: 'training_center', version: 1, catalogue:'courses', chatbotLeadCapture:'training', taskAdapters:Object.freeze({invoice_follow_up:1,enrollment:1}), taskAssignmentScope:'workspace', conversationTransferLeadAdapter:'whatsapp_inquiry_v1', title: Object.freeze({ en: 'Training center', ar: 'مركز تدريب' }), public: true, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'agent']), capabilities: trainingCapabilities, migration: '20261001_platform_identity.sql' });
 // First-party 7Network Sales operations. This category is intentionally private:
 // it must be provisioned by an audited platform operation, never selected by a
 // customer during self-service onboarding. Training-center course catalogue and

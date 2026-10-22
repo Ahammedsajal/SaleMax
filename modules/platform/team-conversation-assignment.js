@@ -13,6 +13,13 @@ function permissions(value) {
   try { const parsed = typeof value === 'string' ? JSON.parse(value) : value; return Array.isArray(parsed) && parsed.every(item => typeof item === 'string') ? parsed : []; }
   catch { return []; }
 }
+function conversationTransferLeadAdapter(ctx) {
+  const key=ctx?.tenant?.categoryKey,version=Number(ctx?.tenant?.categoryVersion);
+  if(typeof key!=='string'||!Number.isSafeInteger(version)||version<1)return null;
+  const category=require('./categories').getCategory(key,version);
+  if(!category||(ctx.category&&(ctx.category.key!==category.key||ctx.category.version!==category.version)))return null;
+  return category.conversationTransferLeadAdapter==='none'?null:category.conversationTransferLeadAdapter;
+}
 
 // Caller owns the transaction. Row locking makes concurrent transfers replace
 // exactly one assignee while keeping the existing owner/channel/chat ID intact.
@@ -47,7 +54,7 @@ async function assignConversation(db, { ctx, uid, chatId, identityId, reason = '
   const assignee = { kind: 'identity', identityId: target.identityId, uid: target.uid, name: target.name };
   const previous = assignments(chat.assigned_agent);
   let lead=null;
-  if(ctx.tenant.categoryKey==='training_center'&&target.role==='agent'&&target.sourceTable==='agents'){
+  if(conversationTransferLeadAdapter(ctx)==='whatsapp_inquiry_v1'&&target.role==='agent'&&target.sourceTable==='agents'){
     lead=await require('./conversation-lead-assignment').assign(db,{ctx,uid,chatId,chat,agentId:Number(target.legacyId),agentName:target.name});
   }
   await db.query('UPDATE beta_chats SET assigned_agent=? WHERE uid=? AND chat_id=?', [JSON.stringify([assignee]), uid, chatId]);
@@ -110,4 +117,4 @@ async function routeIncomingConversation(pool, { ctx, profile, uid, chatId, conn
   finally { db.release(); }
 }
 
-module.exports = { assignConversation, assignments, ownsConversation, eligibleStaff, chooseAvailableStaff, routeIncomingConversation };
+module.exports = { assignConversation, assignments, ownsConversation, eligibleStaff, chooseAvailableStaff, routeIncomingConversation, conversationTransferLeadAdapter };
