@@ -2033,3 +2033,25 @@ read-only inspection changed no host, application, database, customer or
 provider state. Do not deploy until the shared lock implementation is present
 and verified under an exclusive lock; preserve deployment headroom during
 preflight. The shared customization source is not deployed.
+
+## Production adoption audit and release refresh — read-only, 22 October 2026, 08:19 UTC
+
+The updated aggregate adoption audit ran against the live MariaDB in a
+read-only transaction. It confirms three active tenants (one `7network_sales@1`,
+two `training_center@1`), three assignments, zero missing plan versions and
+zero true category mismatches; one Sales assignment uses the preserved
+`salemax_sales@1` plan alias. Seven legacy user records map to active canonical
+memberships with no UID-hash mismatch or inactive link. Eleven active legacy
+agents map to active memberships. Two additional active agents have no matching
+owner user and remain unresolved; six historic agent mappings point to legacy
+rows that no longer exist. The strengthened audit found no broken or
+cross-tenant membership references. No ownership/category inference or record
+write occurred.
+
+The production host is `carsqatar-prod-01`; `/opt/salemax/current` resolves to
+`/opt/salemax/releases/team-agent-password-reset-cfc23a3-20261022`. The app and
+MariaDB are healthy, report and recruitment workers are running, public
+`/healthz` returns HTTP 200 with `success: true` and `status: ok`, and disk is
+92% used with 4.3 GiB free. The required shared deployment lock is absent. No
+production state changed. Shared customization source remains undeployed;
+preflight still requires the shared exclusive lock and release-headroom review.

@@ -9,10 +9,11 @@ const QUERIES = Object.freeze({
     FROM sx_memberships m JOIN sx_tenants t ON t.id=m.tenant_id
     GROUP BY t.category_key,m.role,m.status ORDER BY t.category_key,m.role,m.status`,
   legacyMappings: `SELECT source_table AS sourceTable,COUNT(*) AS mappingCount,COUNT(DISTINCT tenant_id) AS tenantCount,
-      SUM(membership_id IS NULL) AS withoutMembership
-    FROM sx_legacy_ownership GROUP BY source_table ORDER BY source_table`,
+      SUM(o.membership_id IS NULL OR NOT EXISTS (SELECT 1 FROM sx_memberships m WHERE m.tenant_id=o.tenant_id AND m.id=o.membership_id)) AS withoutMembership
+    FROM sx_legacy_ownership o GROUP BY source_table ORDER BY source_table`,
   mappingIntegrity: `SELECT o.source_table AS sourceTable,COUNT(*) AS mappingCount,
       SUM(o.membership_id IS NULL) AS withoutMembership,
+      SUM(o.membership_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM sx_memberships m WHERE m.tenant_id=o.tenant_id AND m.id=o.membership_id)) AS invalidMembershipReference,
       SUM(CASE WHEN o.source_table='user' AND NOT EXISTS (SELECT 1 FROM user u WHERE BINARY o.source_id=BINARY CAST(u.id AS CHAR)) THEN 1
         WHEN o.source_table='agents' AND NOT EXISTS (SELECT 1 FROM agents a WHERE BINARY o.source_id=BINARY CAST(a.id AS CHAR)) THEN 1 ELSE 0 END) AS withoutLegacyRecord
     FROM sx_legacy_ownership o GROUP BY o.source_table ORDER BY o.source_table`,
@@ -20,7 +21,7 @@ const QUERIES = Object.freeze({
       COALESCE(m.status,'<unmapped>') AS membershipStatus,COALESCE(i.status,'<unmapped>') AS identityStatus,
       COALESCE(t.status,'<unmapped>') AS tenantStatus,COUNT(*) AS rowCount,SUM(o.source_id IS NULL) AS unmapped,
       SUM(o.source_id IS NOT NULL AND BINARY o.legacy_uid_hash<>BINARY LOWER(SHA2(u.uid,256))) AS hashMismatch,
-      SUM(o.source_id IS NOT NULL AND (o.membership_id IS NULL OR m.status<>'active' OR i.status<>'active' OR t.status<>'active')) AS inactiveMapping
+      SUM(o.source_id IS NOT NULL AND (m.id IS NULL OR i.id IS NULL OR t.id IS NULL OR m.status<>'active' OR i.status<>'active' OR t.status<>'active')) AS inactiveMapping
     FROM user u LEFT JOIN sx_legacy_ownership o ON o.source_table='user' AND BINARY o.source_id=BINARY CAST(u.id AS CHAR)
     LEFT JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id
     LEFT JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_tenants t ON t.id=o.tenant_id
@@ -29,7 +30,7 @@ const QUERIES = Object.freeze({
       COALESCE(m.status,'<unmapped>') AS membershipStatus,COALESCE(i.status,'<unmapped>') AS identityStatus,
       COALESCE(t.status,'<unmapped>') AS tenantStatus,COUNT(*) AS rowCount,SUM(o.source_id IS NULL) AS unmapped,
       SUM(o.source_id IS NOT NULL AND BINARY o.legacy_uid_hash<>BINARY LOWER(SHA2(a.uid,256))) AS hashMismatch,
-      SUM(a.is_active=1 AND o.source_id IS NOT NULL AND (o.membership_id IS NULL OR m.role NOT IN ('agent','manager','team_leader') OR m.status<>'active' OR i.status<>'active' OR t.status<>'active')) AS invalidActiveMapping
+      SUM(a.is_active=1 AND o.source_id IS NOT NULL AND (m.id IS NULL OR i.id IS NULL OR t.id IS NULL OR m.role NOT IN ('agent','manager','team_leader') OR m.status<>'active' OR i.status<>'active' OR t.status<>'active')) AS invalidActiveMapping
     FROM agents a LEFT JOIN sx_legacy_ownership o ON o.source_table='agents' AND BINARY o.source_id=BINARY CAST(a.id AS CHAR)
     LEFT JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id
     LEFT JOIN sx_identities i ON i.id=m.identity_id LEFT JOIN sx_tenants t ON t.id=o.tenant_id
@@ -44,7 +45,8 @@ const QUERIES = Object.freeze({
     LEFT JOIN sx_tenants t ON t.id=uo.tenant_id
     WHERE ao.source_id IS NULL GROUP BY t.category_key,a.is_active ORDER BY ownerCategory,a.is_active`,
   currentAssignments: `SELECT COUNT(*) AS assignmentCount,COALESCE(SUM(pv.id IS NULL),0) AS missingVersion,
-      COALESCE(SUM(BINARY pv.category_key<>BINARY t.category_key OR pv.category_version<>t.category_version),0) AS categoryMismatch
+      COALESCE(SUM(pv.id IS NOT NULL AND (pv.category_version<>t.category_version OR NOT (BINARY pv.category_key=BINARY t.category_key OR (pv.category_key IN ('7network_sales','salemax_sales') AND t.category_key IN ('7network_sales','salemax_sales'))))),0) AS categoryMismatch,
+      COALESCE(SUM(pv.id IS NOT NULL AND BINARY pv.category_key<>BINARY t.category_key AND pv.category_key IN ('7network_sales','salemax_sales') AND t.category_key IN ('7network_sales','salemax_sales') AND pv.category_version=t.category_version),0) AS historicalAliasAssignmentCount
     FROM sx_plan_assignments a JOIN sx_tenants t ON t.id=a.tenant_id
     LEFT JOIN sx_plan_versions pv ON pv.id=a.plan_version_id
     WHERE a.status IN ('trial','active','grace','suspended')`,

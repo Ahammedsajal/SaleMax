@@ -215,7 +215,7 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 | Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | Initial label schema is deployed; source now adds typed lead fields, hidden navigation, stable-key stage labels, schema-v5 tombstones, three-layer provenance, and an opt-in disposable MariaDB integration proving same-category isolation, stale-write conflict, rollback ownership and audit rollback. This source increment is not deployed. |
 | Existing settings UI | Authenticated owner EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields, schema-3 tenant-only hidden menu sections, stable-key stage labels, reset controls and resolved provenance; fresh rendered-browser and live acceptance pending. |
 | Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through shared workspace and legacy sidebar-access contracts; the settings response exposes layer provenance; API permissions remain independent and other consumers/workers are pending |
-| Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
+| Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | 22 October aggregate audit: seven mapped legacy users, eleven active mapped agents, two active orphan agents retained unresolved, one recognized historical Sales plan alias, and no Base CRM tenant; reviewed adoption and mapping manifest remain pending. |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Partly existing; broader proof pending |
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |
 | New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Real Estate has a private, non-planable typed listing slice in source; category workflow and migration acceptance remain incomplete. Clinic, retail, supermarket, hotel and restaurant modules remain pending; adding names to a dropdown is not delivery. |
@@ -728,3 +728,26 @@ MariaDB's JSON_TABLE converts JSON values into relational rows and supports the
 wildcard path used by this bounded value search ([MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)).
 These are design inputs, not a change to SaleMaX's existing Node/MariaDB
 deployment or an assertion of unlimited pooled scale.
+
+## Read-only production adoption audit refresh — 22 October 2026, 08:19 UTC
+
+The current aggregate-only audit returned three active tenants (one
+`7network_sales@1`, two `training_center@1`) and three current plan
+assignments. Two assignments match exact category keys; one maps tenant
+`7network_sales@1` to the preserved `salemax_sales@1` plan key. The revised
+compatibility-aware check reports one historical alias assignment, zero
+missing plan versions and zero true category/version mismatches.
+
+Seven legacy user rows map to active owner/accountant/manager memberships, with
+zero hash mismatches or inactive links. Eleven active legacy agents map to
+active agent memberships. Two more active agents are unmapped, and their owner
+UIDs have no corresponding legacy user; six retained agent mappings point to
+legacy agent rows that no longer exist. There are zero missing or cross-tenant
+membership references among the retained mappings. Keep the two active orphan
+agents on their current legacy path; do not infer a tenant or membership. No
+Base CRM tenant is currently assigned.
+
+The audit ran in a MariaDB read-only transaction and returned aggregate
+counts/categories/roles only. No customer, membership, plan or tenant rows were
+changed. Re-run it before adoption and require an operator-reviewed mapping
+manifest before any write.
