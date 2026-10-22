@@ -8,10 +8,12 @@ role and disabled-module policy; the socket path applies the same tenant
 authorization before deleting. Agents cannot use this operation. Database
 errors return a safe customer message without SQL details. The change closes
 the former unscoped `DELETE FROM contact WHERE id = ?` IDOR. Tenancy and
-authorization tests pass with synthetic records; no migration or production
-data write is required. This is source work pending a narrow production
-release. Signed-in owner/staff acceptance, disposable MariaDB integration and
-the broader category/42-ticket gates remain open.
+authorization tests pass with synthetic records. Source commit `350e486` is
+deployed in `/opt/salemax/releases/contact-delete-scope-350e486-20261022`;
+no migration or contact-data write occurred. Production health and runtime
+hashes pass. Signed-in owner/staff acceptance, disposable MariaDB integration
+and the broader category/42-ticket gates remain open; see `DEPLOYMENT.md` for
+the release and rollback evidence.
 
 ## Inbox agent time tracking — production, 22 October 2026
 
