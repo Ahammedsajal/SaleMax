@@ -49,3 +49,29 @@ test('generic submission listing always scopes count and records to the current 
   assert.equal(result.total,0);assert.equal(result.page,1);assert.equal(db.calls.filter(call=>call.sql.includes('sx_workspace_form_submissions')).every(call=>call.params.includes(ctx.tenant.id)),true);
   await assert.rejects(forms.submissions(db,ctx,{from:'2026-10-22',to:'2026-10-01'}),{code:'INVALID_DATE_RANGE'});
 });
+test('public generic submission validates the published contract, is idempotent and creates one Pipeline lead',async()=>{
+  const crypto=require('node:crypto'),plans=require('../modules/platform/plans'),categories=require('../modules/platform/categories'),pipeline=require('../helper/pipeline/leadPipeline');
+  const original={getCategory:categories.getCategory,entitlements:plans.loadEntitlements,createLead:pipeline.createManualLead};
+  const genericCategory=createCategoryRegistry([{...base,capabilities:[...base.capabilities,'portal.forms'],formsAdapter:'generic-lead-capture-v1'}],capabilities).get(base.key,base.version);
+  categories.getCategory=(key,version)=>key===base.key&&version===base.version?genericCategory:null;
+  plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms']});
+  const leadId='22222222-2222-4222-8222-222222222222',createdLeads=[];
+  pipeline.createManualLead=async input=>{createdLeads.push(input);return {id:leadId};};
+  const schema=require('../modules/platform/training-forms').formInput(input,'generic-lead-capture-v1').schema;
+  const ownerUid='synthetic-owner-uid';let prior=null;
+  const formRow={tenant_id:'tenant-1',tenant_slug:'synthetic-a',tenant_name:'Synthetic A',category_key:base.key,category_version:base.version,uid:ownerUid,legacy_uid_hash:require('node:crypto').createHash('sha256').update(ownerUid).digest('hex'),owner_identity_status:'active',form_id:'11111111-1111-4111-8111-111111111111',version:1,slug:input.slug,form_slug:input.slug,name_en:input.nameEn,name_ar:input.nameAr,schema_json:JSON.stringify(schema)};
+  const calls=[];let rollbacks=0,commits=0;const db={async beginTransaction(){},async commit(){commits++;},async rollback(){rollbacks++;},release(){},async query(sql,params){calls.push({sql,params});if(sql.startsWith('SELECT t.id AS tenant_id'))return [[formRow]];if(sql.startsWith('SELECT reference_code AS referenceCode'))return [[prior].filter(Boolean)];if(sql.startsWith('SELECT attempts'))return [[{attempts:1}]];return [[]];}};
+  const pool={async getConnection(){return db;}};
+  try{
+    const publicForm=await forms.publicForm(db,'synthetic-a',input.slug);assert.equal(publicForm.form.version,1);assert.equal(publicForm.tenant.slug,'synthetic-a');
+    const result=await forms.submitPublic(pool,{tenantSlug:'synthetic-a',formSlug:input.slug,submissionToken:'33333333-3333-4333-8333-333333333333',visitorHash:'a'.repeat(64),expectedFormVersion:1,values:{contact_name:'Synthetic Lead',phone:'+12025550123',email:'lead@example.invalid',consent:true}});
+    assert.equal(result.leadId,leadId);assert.equal(result.repeated,false);assert.equal(commits,1);assert.equal(createdLeads.length,1);assert.equal(createdLeads[0].input.sourceType,'public_form');
+    assert.ok(calls.some(call=>call.sql.startsWith('INSERT INTO sx_workspace_form_submissions')&&call.params[1]==='tenant-1'));
+    prior={referenceCode:'FORM00000001',leadId};
+    const replay=await forms.submitPublic(pool,{tenantSlug:'synthetic-a',formSlug:input.slug,submissionToken:'33333333-3333-4333-8333-333333333333',visitorHash:'a'.repeat(64),expectedFormVersion:99,values:{}});
+    assert.equal(replay.repeated,true);assert.equal(replay.leadId,leadId);assert.equal(createdLeads.length,1);assert.equal(commits,2);
+    prior=null;
+    await assert.rejects(forms.submitPublic(pool,{tenantSlug:'synthetic-a',formSlug:input.slug,submissionToken:'44444444-4444-4444-8444-444444444444',visitorHash:'b'.repeat(64),expectedFormVersion:2,values:{contact_name:'Synthetic Lead',phone:'+12025550123',consent:true}}),{code:'FORM_VERSION_CHANGED'});
+    assert.equal(rollbacks,1);
+  }finally{categories.getCategory=original.getCategory;plans.loadEntitlements=original.entitlements;pipeline.createManualLead=original.createLead;}
+});

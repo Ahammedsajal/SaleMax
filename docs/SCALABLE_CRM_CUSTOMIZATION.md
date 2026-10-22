@@ -828,8 +828,13 @@ limit tables with composite tenant/form/version references, preserving all
 historical Training tables. Static discovery checks pass and an opt-in disposable
 MariaDB integration is wired to assert tenant, version, idempotency and rate-
 limit constraints. The database integration has not yet run in this environment.
-The existing workspace Forms router now dispatches authenticated generic draft
-CRUD, publication, lead-field options and tenant-scoped submission reads to a
-shared service over these tables. Public submissions and staff capture are not
-yet implemented, the existing screen still needs category-aware bilingual
-presentation, and no category opts into generic Forms.
+The existing workspace Forms router dispatches authenticated generic draft CRUD,
+publication, lead-field options and tenant-scoped submission reads to the shared
+service. Public form lookup and submission now use that service for explicitly
+adapted, entitled tenants. Submission persistence snapshots consent and campaign
+attribution, enforces idempotency and hashed visitor/form rate limits, and creates
+a tenant-scoped Pipeline lead in the same transaction. Synthetic tests cover
+lookup, lead creation, exact-token replay and stale-version rollback. Staff capture,
+category-aware bilingual screen adaptation, MariaDB runtime integration,
+authenticated browser acceptance and category adoption remain open; no database
+or production runtime changed.

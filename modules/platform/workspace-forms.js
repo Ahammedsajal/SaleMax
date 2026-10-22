@@ -5,7 +5,8 @@ const adapters=require('./form-category-adapters');
 const {decision}=require('./policy');
 const plans=require('./plans');
 const leadFields=require('./lead-form-fields');
-const formInput=require('./training-forms').formInput;
+const trainingForms=require('./training-forms');
+const formInput=trainingForms.formInput;
 const uuid=()=>crypto.randomUUID();
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 
@@ -61,4 +62,39 @@ async function publicForm(db,tenantSlug,formSlug){
   return {tenant:{name:row.tenant_name,companyName:row.tenant_name,centerNameEn:row.tenant_name,centerNameAr:row.tenant_name,logoUrl:'',addressEn:'',addressAr:'',slug:row.tenant_slug},form:{slug:row.form_slug,nameEn:row.name_en,nameAr:row.name_ar,version:Number(row.version),schema},courses:[]};
 }
 
-module.exports={context,list,leadFieldOptions,submissions,create,update,publish,publicForm};
+function sha(value){return crypto.createHash('sha256').update(value,'utf8').digest('hex');}
+async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,visitorHash,campaignAttribution,expectedFormVersion}){
+  if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken)||typeof visitorHash!=='string'||!/^[0-9a-f]{64}$/.test(visitorHash))fail('INVALID_SUBMISSION');
+  require('./form-submission-version').normalize(expectedFormVersion);
+  campaignAttribution=trainingForms.cleanCampaignAttribution(campaignAttribution);
+  const db=await pool.getConnection();let begun=false;
+  try{
+    await db.beginTransaction();begun=true;
+    const [[form]]=await db.query(`SELECT t.id AS tenant_id,t.slug AS tenant_slug,t.category_key,t.category_version,u.uid,own.legacy_uid_hash,m.identity_id AS owner_identity_id,i.status AS owner_identity_status,f.id AS form_id,v.version,v.slug,v.name_en,v.name_ar,v.schema_json FROM sx_tenants t JOIN sx_legacy_ownership own ON own.tenant_id=t.id AND own.source_table='user' JOIN sx_memberships m ON m.tenant_id=own.tenant_id AND m.id=own.membership_id AND m.role='owner' AND m.status='active' JOIN sx_identities i ON i.id=m.identity_id JOIN user u ON CAST(u.id AS CHAR)=own.source_id JOIN sx_workspace_forms f ON f.tenant_id=t.id AND f.status='published' JOIN sx_workspace_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version WHERE t.slug=? AND t.status='active' AND v.slug=? LIMIT 1 FOR UPDATE`,[tenantSlug,formSlug]);
+    if(!form)fail('FORM_NOT_FOUND');
+    const category=require('./categories').getCategory(form.category_key,Number(form.category_version));
+    if(adapters.resolve(category)!=='generic-lead-capture-v1'||!category.capabilities.includes('portal.forms'))fail('FORM_NOT_FOUND');
+    if(!form.legacy_uid_hash||sha(form.uid)!==form.legacy_uid_hash||form.owner_identity_status!=='active')fail('BUSINESS_LINK_INVALID');
+    const entitlements=await plans.loadEntitlements(db,form.tenant_id);if(!entitlements||!['active','trial','grace'].includes(entitlements.status)||!entitlements.capabilities.includes('portal.forms'))fail('FORM_NOT_FOUND');
+    const tokenHash=sha(submissionToken);
+    const [[prior]]=await db.query('SELECT reference_code AS referenceCode,lead_id AS leadId FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=? LIMIT 1 FOR UPDATE',[form.tenant_id,form.form_id,tokenHash]);
+    if(prior){await db.commit();begun=false;return {referenceCode:prior.referenceCode,leadId:prior.leadId,repeated:true};}
+    require('./form-submission-version').assertCurrent(expectedFormVersion,form.version);
+    const schema=parse(form.schema_json);if(schema.templateKey)fail('INVALID_FORM_SCHEMA');
+    const data=trainingForms.cleanSubmission(schema,values,'generic-lead-capture-v1');
+    const visitors=[visitorHash,sha('form:'+form.tenant_id+':'+form.form_id)];
+    for(const visitor of visitors){
+      await db.query(`INSERT INTO sx_workspace_form_rate_limits(tenant_id,form_id,visitor_hash,window_started_at,attempts) VALUES (?,?,?,UTC_TIMESTAMP(3),1) ON DUPLICATE KEY UPDATE attempts=IF(window_started_at<TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3)),1,attempts+1),window_started_at=IF(window_started_at<TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3)),UTC_TIMESTAMP(3),window_started_at)`,[form.tenant_id,form.form_id,visitor]);
+      const [[limit]]=await db.query('SELECT attempts FROM sx_workspace_form_rate_limits WHERE tenant_id=? AND form_id=? AND visitor_hash=?',[form.tenant_id,form.form_id,visitor]);
+      if(Number(limit.attempts)>(visitor===visitorHash?10:500))fail('FORM_RATE_LIMITED');
+    }
+    const submissionId=uuid(),referenceCode=crypto.randomBytes(6).toString('hex').toUpperCase();
+    await db.query(`INSERT INTO sx_workspace_form_submissions(id,tenant_id,form_id,form_version,capture_mode,captured_by_identity_id,idempotency_hash,reference_code,submission_data,attribution_json,consent_text_en,consent_text_ar,consented_at) VALUES (?,?,?,?,'public',NULL,?,?,?,?,?,?,UTC_TIMESTAMP(3))`,[submissionId,form.tenant_id,form.form_id,form.version,tokenHash,referenceCode,JSON.stringify(data),campaignAttribution?JSON.stringify(campaignAttribution):null,schema.consentTextEn,schema.consentTextAr]);
+    const uidHash=sha(form.uid),customValues=schema.leadFields?leadFields.values(data.customFields):undefined;
+    const lead=await require('../../helper/pipeline/leadPipeline').createManualLead({uid:form.uid,actorType:'system',actorId:null,role:'owner',connection:db,captureFieldContract:leadFields.contract(schema.leadFields),input:{...(schema.leadFields?{customFields:{configurationRevision:schema.leadFields.configurationRevision,values:customValues}}:{}),title:form.name_en,contactName:data.contact_name,learnerName:data.contact_name,mobile:data.phone||'',email:data.email||'',sourceType:'public_form',qualificationData:campaignAttribution?{campaign:campaignAttribution}:undefined}});
+    await db.query('UPDATE sx_workspace_form_submissions SET lead_id=? WHERE tenant_id=? AND form_id=? AND id=?',[lead.id,form.tenant_id,form.form_id,submissionId]);
+    await db.commit();begun=false;return {referenceCode,leadId:lead.id,repeated:false};
+  }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
+}
+
+module.exports={context,list,leadFieldOptions,submissions,create,update,publish,publicForm,submitPublic};

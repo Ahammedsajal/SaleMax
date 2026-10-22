@@ -2217,6 +2217,4 @@ path continue through their existing service. No category is opted in.
 Synthetic service tests pass for category/capability/plan denial, draft CRUD,
 publish/version behavior, stale revisions, router adapter selection and tenant-
 scoped submission reads; the combined focused registry, Forms and migration
-suite passes 41/41. Generic
-public submission, staff capture, bilingual screen adaptation, MariaDB
-integration, authenticated browser acceptance and deployment remain open.
+suite passes 41/41. The generic public lookup and submission path now resolves only published forms for an active, entitled tenant and records consent, idempotency, rate-limit state and a normal Pipeline lead in one transaction. Synthetic lookup, submission, exact-token replay, stale-version rollback and lead creation checks pass. Staff capture, category-aware bilingual screen adaptation, MariaDB runtime integration, authenticated browser acceptance and deployment remain open.
