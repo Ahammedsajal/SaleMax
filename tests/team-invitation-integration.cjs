@@ -24,6 +24,7 @@ module.exports=async(db,other,pool,{i1})=>{
   await plans.assign(db,actor,{tenantId,planVersionId:version.id,roleLimits:limits,durationDays:30});
   const [user]=await db.query('INSERT INTO user(uid,name,email) VALUES (?,?,?)',[ownerUid,'Synthetic team owner',`owner-user-${crypto.randomUUID()}@example.invalid`]);
   await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user',?,?,?,?,UTC_TIMESTAMP(3))",[String(user.insertId),tenantId,membershipId,crypto.createHash('sha256').update(ownerUid).digest('hex')]);
+  let managerUid=null,managerMembershipId=null;
   const courseContext=await courses.legacyOwnerContext(pool,ownerUid);
   const course=await courses.create(db,courseContext,{code:'QAT-101',nameEn:'Synthetic customer care',nameAr:'خدمة العملاء التجريبية',descriptionEn:'Course fixture',descriptionAr:'وصف تجريبي',difficultyLevel:'beginner',outcomesEn:'Handle customer enquiries',outcomesAr:'التعامل مع استفسارات العملاء',prerequisitesEn:'None',prerequisitesAr:'لا يوجد',durationValue:4,durationUnit:'weeks',deliveryMode:'hybrid',offer:{priceMinor:125000,registrationFeeMinor:5000}});
   assert.equal(course.revision,1);assert.equal(course.offerVersion,1);
@@ -94,6 +95,7 @@ module.exports=async(db,other,pool,{i1})=>{
       const pipelineActor=require('../modules/platform/legacy-pipeline-actor');
       const resolved=await pipelineActor.resolve(pool,legacyUser,{loadEntitlements:async(_db,linkedTenant)=>{assert.equal(linkedTenant,tenantId);return {status:'active',capabilities:['crm.leads']};}});
       if(invitedRole==='manager'){
+        managerUid=legacyUser.uid;managerMembershipId=canonicalMember.membershipId;
         assert.equal(resolved.role,'manager');assert.equal(resolved.uid,ownerUid);assert.equal(resolved.tenantId,tenantId);
         assert.equal(resolved.identityId,canonicalMember.identityId);assert.equal(resolved.membershipId,canonicalMember.membershipId);
         const followups=await require('../helper/pipeline/leadPipeline').getFollowUps({uid:resolved.uid,role:resolved.role,pool});
@@ -115,6 +117,24 @@ module.exports=async(db,other,pool,{i1})=>{
     assert.equal(login.context.membership.role,invitedRole);await canonicalAuth.logout(db,login.token);
     const summary=await team.list(pool,ownerUid);assert.deepEqual(summary.seatUsage[invitedRole],{active:1,pending:0,limit:limits[invitedRole],available:limits[invitedRole]-1});
   }
+  assert.ok(managerUid,'synthetic manager account is linked to the same tenant');
+  const managerCreatedPassword='Synthetic-Manager-Created-Password-91';
+  const managerCreated=await team.create(pool,managerUid,{email:`manager-agent-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID(),temporaryPassword:managerCreatedPassword,displayName:'Synthetic manager agent',mobile:'+97450123456'});
+  const [[managerAgent]]=await db.query('SELECT id,uid,password,is_active FROM agents WHERE email=?',[managerCreated.email]);assert.ok(managerAgent);assert.equal(managerAgent.is_active,1);
+  const [[managerAgentMember]]=await db.query("SELECT m.id,m.identity_id AS identityId FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id WHERE o.source_table='agents' AND o.source_id=? AND o.tenant_id=?",[String(managerAgent.id),tenantId]);assert.ok(managerAgentMember);
+  const [[versionBeforeReset]]=await db.query('SELECT credential_version AS credentialVersion FROM sx_identities WHERE id=?',[managerAgentMember.identityId]);
+  const ownerResetPassword='Synthetic-Owner-Reset-Password-92';
+  assert.deepEqual(await team.updateMemberPassword(pool,ownerUid,managerAgentMember.id,{password:ownerResetPassword}),{memberId:managerAgentMember.id,updated:true});
+  let [[updatedManagerAgent]]=await db.query('SELECT password FROM agents WHERE id=?',[managerAgent.id]);assert.equal(await bcrypt.compare(ownerResetPassword,updatedManagerAgent.password),true);
+  let [[versionAfterOwnerReset]]=await db.query('SELECT credential_version AS credentialVersion FROM sx_identities WHERE id=?',[managerAgentMember.identityId]);assert.equal(Number(versionAfterOwnerReset.credentialVersion),Number(versionBeforeReset.credentialVersion)+1);
+  const ownerResetLogin=await canonicalAuth.login(db,{email:managerCreated.email,password:ownerResetPassword,audience:'tenant',tenantId},'127.0.0.1');assert.equal(ownerResetLogin.context.membership.role,'agent');await canonicalAuth.logout(db,ownerResetLogin.token);
+  await assert.rejects(canonicalAuth.login(db,{email:managerCreated.email,password:managerCreatedPassword,audience:'tenant',tenantId},'127.0.0.1'),{code:'AUTH_INVALID'});
+  const managerResetPassword='Synthetic-Manager-Reset-Password-93';
+  assert.deepEqual(await team.updateMemberPassword(pool,managerUid,managerAgentMember.id,{password:managerResetPassword}),{memberId:managerAgentMember.id,updated:true});
+  [[updatedManagerAgent]]=await db.query('SELECT password FROM agents WHERE id=?',[managerAgent.id]);assert.equal(await bcrypt.compare(managerResetPassword,updatedManagerAgent.password),true);
+  const managerResetLogin=await canonicalAuth.login(db,{email:managerCreated.email,password:managerResetPassword,audience:'tenant',tenantId},'127.0.0.1');await canonicalAuth.logout(db,managerResetLogin.token);
+  await assert.rejects(team.updateMemberPassword(pool,ownerUid,managerMembershipId,{password:'Synthetic-Forbidden-Password-94'}),{code:'PERMISSION_DENIED'});
+  await db.query("UPDATE sx_memberships SET status='inactive' WHERE id=?",[managerAgentMember.id]);await db.query('UPDATE agents SET is_active=0 WHERE id=?',[managerAgent.id]);
   await assert.rejects(team.create(pool,ownerUid,{email:`invalid-${crypto.randomUUID()}@example.invalid`,role:'super_admin',requestKey:crypto.randomUUID()}),{code:'INVALID_ROLE'});
   const first=await team.create(pool,ownerUid,{email:`agent-${crypto.randomUUID()}@example.invalid`,role:'agent',requestKey:crypto.randomUUID()});
   assert.equal(first.delivery,'copy-link');assert.equal(first.status,'pending');assert.equal(first.token.length,43);

@@ -203,6 +203,7 @@ async function updateMemberPassword(pool,ownerUid,memberId,input={}){
       FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
       WHERE m.tenant_id=? AND m.id=? AND m.status='active' FOR UPDATE`,[scope.tenantId,memberId]);
     if(!member||member.identityStatus!=='active')fail('MEMBER_NOT_FOUND');
+    if(member.role!=='agent')fail('PERMISSION_DENIED');
     const [links]=await db.query(`SELECT source_table AS sourceTable,source_id AS sourceId,legacy_uid_hash AS legacyUidHash FROM sx_legacy_ownership
       WHERE tenant_id=? AND membership_id=? AND source_table IN ('user','agents') FOR UPDATE`,[scope.tenantId,member.id]);
     if(links.length!==1)fail('BUSINESS_LINK_INVALID');
@@ -212,9 +213,9 @@ async function updateMemberPassword(pool,ownerUid,memberId,input={}){
     if(identity.affectedRows!==1)fail('MEMBER_NOT_FOUND');
     let legacy;
     if(links[0].sourceTable==='agents'){
-      const [[account]]=await db.query('SELECT uid FROM agents WHERE id=? AND owner_uid=? FOR UPDATE',[Number(links[0].sourceId),ownerUid]);
+      const [[account]]=await db.query('SELECT uid FROM agents WHERE id=? FOR UPDATE',[Number(links[0].sourceId)]);
       if(!account||digest(account.uid)!==links[0].legacyUidHash)fail('BUSINESS_LINK_INVALID');
-      [legacy]=await db.query('UPDATE agents SET password=? WHERE id=? AND owner_uid=?',[passwordHash,Number(links[0].sourceId),ownerUid]);
+      [legacy]=await db.query('UPDATE agents SET password=? WHERE id=?',[passwordHash,Number(links[0].sourceId)]);
     }else{
       const [[account]]=await db.query('SELECT uid FROM user WHERE id=? FOR UPDATE',[Number(links[0].sourceId)]);
       if(!account||digest(account.uid)!==links[0].legacyUidHash)fail('BUSINESS_LINK_INVALID');
