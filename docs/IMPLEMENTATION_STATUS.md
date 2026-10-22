@@ -2122,3 +2122,12 @@ runtime. No live or local application database was used. Base CRM generic Forms
 remain fail-closed pending the category scope's reviewed capability contract;
 no capability, category manifest, production release, or customer configuration
 was changed. Authenticated browser acceptance and deployment remain open.
+
+## Upstream Inbox parser integration — source verification, 22 October 2026
+
+Merged `origin/main` commit `d6836ed7` into the shared-core branch. The existing
+shell retains shared customization, category-field, and category-navigation
+asset versions while incorporating the Inbox follow-up cache bump and request
+header normalization. The combined customization, workspace task router, and
+Inbox follow-up focused suites pass 23/23. No database or production state was
+changed; authenticated acceptance and deployment remain open.
