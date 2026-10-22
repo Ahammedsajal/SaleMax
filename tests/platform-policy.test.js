@@ -31,6 +31,17 @@ test('Real Estate requirement and viewing permissions apply team scopes to manag
  }
  assert.equal(decision(contextFor('manager'),{capability:'realestate.requirements',permission:'requirements.assign'}).scope,'tenant');
  assert.equal(decision(contextFor('agent'),{capability:'realestate.requirements',permission:'requirements.assign'}).allowed,false);
+ for(const capability of capabilitiesForRole){
+  const prefix=capability==='realestate.requirements'?'requirements':'viewings';
+  for(const permission of [`${prefix}.manage`,`${prefix}.assign`])for(const role of ['team_leader','agent']){
+   const delegated={...contextFor(role),membership:{...contextFor(role).membership,customPermissions:[permission]}};
+   assert.equal(decision(delegated,{capability,permission}).allowed,false,`${role} must not receive ${permission}`);
+  }
+  for(const role of ['team_leader','agent']){
+   const customRead=`${prefix}.read`,delegated={...contextFor(role),membership:{...contextFor(role).membership,customPermissions:[customRead]}};
+   assert.equal(decision(delegated,{capability,permission:customRead}).scope,role==='agent'?'assigned':'team');
+  }
+ }
 });
 function context(role='owner') {
   return { audience:'tenant',tenant:{id:'tenant-a',status:'active',categoryKey:trainingCenter.key,categoryVersion:1},membership:{id:'member-a',tenantId:'tenant-a',role,status:'active',delegatedPermissions:[]},subscription:{status:'active',capabilities:Object.keys(capabilities)},category:trainingCenter,runtimeReady:{} };

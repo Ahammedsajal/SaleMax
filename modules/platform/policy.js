@@ -96,8 +96,14 @@ const capabilities = Object.freeze({
   'reports.schedule': ['reports.schedule'], 'portal.forms': ['forms.manage', 'forms.capture'],
   'tenant.settings': ['tenant.read', 'tenant.manage'],
 });
+const realEstateOwnerManagerPermissions = Object.freeze([
+  'requirements.manage','requirements.assign','viewings.manage','viewings.assign',
+]);
 function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
+  // Real Estate assignment and mutation APIs operate on team-owned requirements
+  // and viewings. A custom role may restrict this authority, never create it.
+  if (realEstateOwnerManagerPermissions.includes(permission) && !['owner','manager'].includes(membership.role)) return null;
   // Listing reads use the persisted assignee and current Sales Organization
   // hierarchy. Custom grants cannot widen these scopes.
   if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && permission!=='properties.read') return null;
