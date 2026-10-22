@@ -2066,3 +2066,12 @@ is published. The EN/AR desktop/mobile browser fixture now serves synthetic
 workspace labels and checks all four customer-facing views. Cache reference
 updated. Source-only; authenticated production acceptance and deployment
 remain open.
+
+## Workspace dashboard tenant stage labels — source increment, 22 October 2026
+
+The existing business dashboard now resolves Pipeline chart labels from the
+same authenticated workspace session's published stage-label map, retaining
+the existing translated defaults when no tenant override exists. Sales
+dashboard checks cover English and Arabic tenant labels. Cache reference
+updated. Source-only; authenticated production acceptance and deployment
+remain open.

@@ -18,7 +18,7 @@ async function render(access,fixtures,language='en'){
 
 test('7Network category dashboard presents scoped leads, call, campaign and finance data',async()=>{
   const month=new Date().toISOString().slice(0,7);
-  const access={categoryKey:'7network_sales',role:'owner',currency:'QAR',timezone:'Asia/Qatar',roleNavigation:['leads','campaigns','campaign-dashboard','call-center','sales-targets','sales-finance'],assignedNavigation:null,permissions:{'sales.receipt.record':true}};
+  const access={categoryKey:'7network_sales',role:'owner',currency:'QAR',timezone:'Asia/Qatar',roleNavigation:['leads','campaigns','campaign-dashboard','call-center','sales-targets','sales-finance'],assignedNavigation:null,permissions:{'sales.receipt.record':true},stageLabels:{new:{en:'Prospect Board',ar:'عميل محتمل'},qualified:{en:'Sales Ready',ar:'جاهز للبيع'}}};
   const fixtures={
     '/api/pipeline/stage-summary':{total:12,stages:[{stageKey:'new',total:7},{stageKey:'qualified',total:5}]},
     '/api/pipeline/follow-ups?period=all&page=1&limit=6':{items:[{contact_name:'Amina',lead_id:'lead-1',next_follow_up_at:'Today'}],summary:{overdue:2,upcoming:4}},
@@ -32,9 +32,16 @@ test('7Network category dashboard presents scoped leads, call, campaign and fina
   const {elements,containers,requests}=await render(access,fixtures);
   assert.match(elements.title.textContent,/Your sales at a glance/);
   assert.match(elements.metrics.innerHTML,/Leads in pipeline/);assert.match(elements.metrics.innerHTML,/Connected calls/);assert.match(elements.metrics.innerHTML,/Campaign delivery/);assert.match(elements.metrics.innerHTML,/Invoices issued/);assert.match(elements.metrics.innerHTML,/Payments received/);
-  assert.match(containers['.main-grid'].innerHTML,/Lead pipeline/);assert.match(containers['.main-grid'].innerHTML,/Connected calls by team/);assert.match(containers['.main-grid'].innerHTML,/Agent One/);
+  assert.match(containers['.main-grid'].innerHTML,/Lead pipeline/);assert.match(containers['.main-grid'].innerHTML,/Prospect Board/);assert.match(containers['.main-grid'].innerHTML,/Sales Ready/);assert.match(containers['.main-grid'].innerHTML,/Connected calls by team/);assert.match(containers['.main-grid'].innerHTML,/Agent One/);
   assert.match(containers['.bottom-grid'].innerHTML,/Campaign performance/);assert.match(containers['.bottom-grid'].innerHTML,/October offer/);assert.match(containers['.bottom-grid'].innerHTML,/Finance overview/);assert.match(containers['.bottom-grid'].innerHTML,/Recent invoices/);assert.match(containers['.bottom-grid'].innerHTML,/SMX-2026-0001/);assert.match(containers['.bottom-grid'].innerHTML,/Recent receipts/);assert.match(containers['.bottom-grid'].innerHTML,/RCPT-1042/);assert.match(containers['.bottom-grid'].innerHTML,/Needs attention/);
   assert.ok(requests.includes('/api/user/sales-finance/receipts?limit=5'));
+});
+
+
+test('workspace dashboard uses published Arabic stage labels',async()=>{
+ const access={categoryKey:'7network_sales',role:'owner',currency:'QAR',timezone:'Asia/Qatar',roleNavigation:['leads'],assignedNavigation:null,stageLabels:{new:{en:'Prospect Board',ar:'عميل محتمل'}}};
+ const fixtures={'/api/pipeline/stage-summary':{total:1,stages:[{stageKey:'new',total:1}]},'/api/pipeline/follow-ups?period=all&page=1&limit=6':{items:[],summary:{overdue:0,upcoming:0}}};
+ const {containers}=await render(access,fixtures,'ar');assert.match(containers['.main-grid'].innerHTML,/عميل محتمل/);
 });
 
 test('Sales accountant and manager only request finance details their role can read',async()=>{
