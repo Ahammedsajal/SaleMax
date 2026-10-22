@@ -816,13 +816,11 @@ pass the adapter resolved by category authorization into schema validation;
 submission normalization rejects schemas containing fields outside the
 selected adapter's allowlist.
 
-This is schema validation only. The generic adapter still has no executable
-service context, public form lookup, submission persistence route or staff
-management integration, and no category currently opts into it. Generic
-execution remains denied before database access until category adoption,
-service/API implementation and existing-screen acceptance are reviewed. Tests
-exercise the authorized adapter through synthetic draft create/update calls
-and verify that actual generic contexts remain denied before database access.
+This paragraph records the initial schema-validation boundary. It has since been
+superseded by the shared service and API implementation below: generic execution
+now resolves through the authorized adapter, tenant, capability, entitlement and
+member scope. No category currently opts into it, so existing tenants remain
+unchanged while category approval and existing-screen acceptance are pending.
 The focused schema, registry and isolation suites pass 28/28; no migration,
 customer data, database or production runtime changed.
 
@@ -846,7 +844,10 @@ or production runtime changed.
 The existing `/user?page=forms` hook now reads the authenticated adapter contract
 and uses neutral bilingual lead-form presentation and the common contact/consent
 field editor for `generic-lead-capture-v1`; Training Center keeps its original
-registration workflow. Generic staff-capture links remain unavailable pending a
-canonical staff actor/record-scope integration. These are source changes only:
-no category opts in, MariaDB runtime and authenticated screen acceptance remain
-open, and no production state changed.
+registration workflow. The existing authenticated staff-capture flow now uses
+canonical identity actors and preserves agent assigned-lead scope. Its additive
+Pipeline actor migration and the Forms schema's tenant/form/version,
+idempotency, and rate-limit constraints pass isolated disposable MariaDB
+integration checks. These are source changes only: no category opts in,
+authenticated bilingual screen acceptance and deployment remain open, and no
+production state changed.
