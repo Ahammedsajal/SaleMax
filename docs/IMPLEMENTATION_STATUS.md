@@ -1,3 +1,18 @@
+## Inbox agent time tracking — production, 22 October 2026
+
+Hardened the existing Inbox socket event so an authenticated agent can update
+only their own active seat's time under the verified business owner. A submitted
+UID must match the socket identity, the database confirms the active seat and
+owner, and each update is bounded to 1–300 whole seconds. Both the read and
+write are owner-qualified; managers and forged targets are rejected. The
+production increment was applied on top of the live release so its
+production-only files were preserved. Nineteen focused tests and a packaged
+authorization smoke pass. Production health, login routes and runtime/release
+hashes pass; no data was written, no migration ran, and only the app service
+was recreated. The live host remains critically low on disk space (about
+683 MB free). Signed-in agent acceptance and JSON log-update concurrency
+remain open. See `DEPLOYMENT.md` for source commit, active release and rollback.
+
 ## Sales product/service catalogue boundary — source implementation, 22 October 2026
 
 The existing authenticated catalogue screen now sends an explicit product or
