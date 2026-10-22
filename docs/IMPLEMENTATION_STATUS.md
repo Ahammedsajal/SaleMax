@@ -1944,3 +1944,12 @@ built image `sha256:1b0d8b9c0e89a5cc5e8afd7134d9b7a2b66bdd23e48f844cb37a84393425
 at 703,276,618 Docker-reported bytes and 8 layers. The runtime smoke loaded
 `bcrypt`, `sharp`, `@roamhq/wrtc` and `@aws-sdk/client-s3`; PR runs do not publish
 the image artifact or registry image.
+The migration CLI was then hardened to verify the shared lock with a live
+nonblocking `flock` probe (without creating the lock file), require the wrapper's
+active-release context, and reject symlinked or non-0600 manifests. Source
+`e51e0dcbbd66796387a3ce2fff73d51d78942812` passes 45 focused tests and hosted
+ARM64 run 39749024936. Its PR merge checkout `6a9430e3104a515e21ec822f04797a43e97167a4`
+built image `sha256:f07a82bf3bc79cb3a12ce7882d073b2e717a231b207a2fb9f218a19065d83c6e`
+at 703,277,952 Docker-reported bytes and 8 layers; non-root smoke loaded the S3
+SDK and verified graceful signal relay. The PR artifact and registry image are
+not published from pull-request runs.
