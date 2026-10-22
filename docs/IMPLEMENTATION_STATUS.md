@@ -1,3 +1,17 @@
+## Generic Forms MariaDB schema verification — source increment, 22 October 2026
+
+The focused Forms migration runner now accepts the explicit `DBPASS=__EMPTY__`
+sentinel for local disposable MariaDB instances configured with an empty
+password, matching the existing migration integration convention. Assertion
+failures emit their synthetic fixture stack so constraint mismatches can be
+diagnosed without suppressing details. The generic Forms service suite passes
+9/9. The migration integration passed on a fresh disposable MariaDB 11.4.13
+instance and verified tenant-bound form/version/submission/rate-limit foreign
+keys plus submission idempotency. The temporary database, data directory and
+server were removed; the unrelated MySQL service was left untouched. No
+production state or customer data changed. Authenticated EN/AR existing-screen
+acceptance, category opt-in review and deployment remain open.
+
 ## Lead Reports journey collation repair — source increment, 22 October 2026
 
 ### Follow-up: Sales actor collation resolved and existing screen accepted
@@ -2353,12 +2367,12 @@ historical Training Center adapter. Draft create/update now pass the adapter
 resolved by category authorization into schema validation. Submission
 normalization rejects schemas containing fields outside the selected adapter.
 
-This does not enable generic forms. The generic adapter still fails closed before
-database access; public form lookup, submissions, staff integration, category
-adoption and authenticated `/user` screen acceptance remain open. The focused
-registry, Forms and category isolation suites pass 28/28, including simulated
-adapter-enabled CRUD validation and real fail-closed create/update checks. No
-migration, customer data, database or production runtime changed.
+This historical checkpoint did not enable generic forms: the generic adapter
+then failed closed before database access. The shared management/public/staff
+implementation and its current acceptance gates are documented in later entries
+below. The focused registry, Forms and category isolation suites passed 28/28,
+including simulated adapter-enabled CRUD validation and fail-closed
+create/update checks. No production runtime changed in that checkpoint.
 
 ## Generic workspace Forms persistence schema — source increment, 22 October 2026
 
@@ -2376,7 +2390,7 @@ The dedicated `test:workspace-forms-schema:integration` check passed against a
 fresh disposable MariaDB 11.4.13 instance. It applies only this Forms migration
 and verifies tenant/form foreign keys, immutable-version binding, submission
 idempotency and rate-limit tenant binding using the existing synthetic helper.
-The temporary server, database and restricted account were removed. No category
+The temporary server, database and data directory were removed. No category
 opts into Forms, and no production runtime changed.
 
 ## Generic Forms shared management service — source increment, 22 October 2026

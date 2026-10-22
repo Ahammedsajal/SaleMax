@@ -9,7 +9,8 @@ const {discover,applyMigrations}=require('../database/migration-runner');
 async function main(){
   const host=process.env.DBHOST,port=Number(process.env.DBPORT),database=process.env.SALEMAX_TEST_DATABASE;
   if(process.env.LOCAL_ONLY_MODE!=='true'||!['127.0.0.1','localhost','::1'].includes(host)||!Number.isSafeInteger(port)||port<1||port>65535||!/^salemax_migration_test_[a-z0-9_]{1,40}$/.test(database||'')||!process.env.DBUSER||!process.env.DBPASS)throw Error('DISPOSABLE_LOCAL_MARIADB_REQUIRED');
-  const db=await mysql.createConnection({host,port,user:process.env.DBUSER,password:process.env.DBPASS,database,connectTimeout:5000});
+  const password=process.env.DBPASS==='__EMPTY__'?'':process.env.DBPASS;
+  const db=await mysql.createConnection({host,port,user:process.env.DBUSER,password,database,connectTimeout:5000});
   try{
     const [[server]]=await db.query('SELECT VERSION() AS version,DATABASE() AS databaseName');
     assert.match(server.version,/mariadb/i,'the focused Forms migration check requires MariaDB');
@@ -30,4 +31,4 @@ async function main(){
     console.log(JSON.stringify({mariaDb:server.version,databaseIsDisposable:true,migration:name,...evidence,customerDataTouched:false,externalWrites:false}));
   }finally{await db.end();}
 }
-main().catch(error=>{process.stderr.write(`${error.code||error.message||'WORKSPACE_FORMS_MIGRATION_FAILED'}\n`);process.exitCode=1;});
+main().catch(error=>{process.stderr.write(`${error.code==='ERR_ASSERTION'?error.stack:error.code||error.message||'WORKSPACE_FORMS_MIGRATION_FAILED'}\n`);process.exitCode=1;});
