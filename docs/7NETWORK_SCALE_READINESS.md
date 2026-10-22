@@ -32,6 +32,10 @@ The exact active release is still `/opt/salemax/releases/follow-up-message-4f7ed
 
 The app remains healthy with zero restarts, and the release/container server.js hashes still match at `9c5c9c3f7a0cedacf8516d825c5a08d5eb95cbbbf7384e9a93ece483b3c1fc51`. Cross-origin primary/legacy preflights both remain HTTP 204 with the existing wildcard allow-origin and requested authorization/content headers; unauthenticated API access was previously confirmed at HTTP 401. Public health remains `ok`. Disk use is still at the 90% critical threshold, operator alert delivery is not configured, and no cleanup, migration, or customer-data change occurred. Full image provenance, immutable artifact rollout, backup/restore, load, and authenticated bilingual acceptance remain open.
 
+### Capacity alert installation check — 22 October 2026, 12:13 UTC
+
+The active release `/opt/salemax/releases/follow-up-message-4f7ed6d-20261022` has no `deploy/7network-capacity-alert.sh`; the corresponding systemd service/timer unit files are absent from `/etc/systemd/system`, both units report `not-found` and `inactive`, and `/opt/salemax/shared/ops-alerts.env` is absent. The source monitor therefore is not installed on this host, and it has no operator destination. Do not enable the timer until both a reviewed release script/unit and a protected owner-provisioned HTTPS destination exist; then test simulated delivery and confirm operator receipt. No production state changed.
+
 ## Fresh host and container resource snapshot — 22 October 2026, 10:03 UTC
 
 The shared-lock wrapper on `carsqatar-prod-01` re-resolved `/opt/salemax/current` to `/opt/salemax/releases/follow-up-cards-a3ae455-20261022`. Root filesystem use is 96% with 2.3 GiB available; inode use is 23% with 4,998,197 available. The `salemax` Compose project reports the app and database healthy, with the recruitment notification and report workers running. A single `docker stats --no-stream` sample showed app 1.84% CPU and 188.5 MiB/1 GiB, database 0.29% and 407.1 MiB/768 MiB, recruitment notification worker 0% and 45.4 MiB/128 MiB, and report worker 0% and 36.28 MiB/256 MiB.
