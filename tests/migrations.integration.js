@@ -54,10 +54,6 @@ async function main() {
     assert.equal((await applyMigrations(connection, migrations)).skipped.length, migrations.length);
     const [[instance]] = await connection.query('SELECT inactiveSince FROM instance WHERE id=1');
     assert.ok(instance.inactiveSince);
-    const identityActivityId=crypto.randomUUID();
-    await connection.query("INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,actor_id,activity_type,summary) VALUES (?,?, 'identity',?,'staff_form_test','Synthetic canonical identity activity')",['2'.repeat(64),crypto.randomUUID(),identityActivityId]);
-    const [[identityActivity]]=await connection.query("SELECT actor_type AS actorType,actor_id AS actorId FROM pipeline_activity WHERE actor_type='identity' AND actor_id=? LIMIT 1",[identityActivityId]);
-    assert.deepEqual(identityActivity,{actorType:'identity',actorId:identityActivityId});
     await connection.query("INSERT INTO pipeline_settings(uid_hash, uid) VALUES (?, ?)", ['1'.repeat(64), 'synthetic-owner']);
     await applyMigrations(connection, migrations);
     const [[count]] = await connection.query('SELECT COUNT(*) AS n FROM pipeline_settings');
@@ -124,7 +120,7 @@ async function main() {
     const [[failed]] = await connection.query('SELECT status, statements_completed FROM salemax_schema_migrations WHERE migration_name=?', [broken.file]);
     assert.equal(failed.status, 'failed'); assert.equal(failed.statements_completed, 1);
     await assert.rejects(applyMigrations(other, [...migrations, broken]), { code: 'MIGRATION_RECOVERY_REQUIRED' });
-    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: migrations.length, repeatedRunsPreserveRecords: true, canonicalPipelineIdentityActor: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, memberNavigationAssignmentRoundTrip: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...taskEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...tenantCrmDomainEvidence,...workspaceFormsEvidence,...teamInvitationEvidence,...outboxEvidence,...chatbotMigrationEvidence,...chatbotApiEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
+    console.log(JSON.stringify({ realMariaDb: true, forwardMigrations: migrations.length, repeatedRunsPreserveRecords: true, twoConnectionLock: true, tenantSessionForeignKeys: true, identitySessionForeignKeys: true, singleActiveTenantOwner: true, singleActivePlatformOwner: true, firstOwnerBootstrapAndReviewedLegacyLink: true, repeatBootstrapDenied: true, crossTenantLegacyMappingDenied: true, memberNavigationAssignmentRoundTrip: true, ...sessionEvidence,...planEvidence,...authEvidence,...legacyPlanEvidence,...legacyAssignmentEvidence,...existingCatalogueHttpEvidence,...businessContractEvidence,...taskEvidence,...staffAccessEvidence,...businessProvisioningEvidence,...tenantCrmDomainEvidence,...workspaceFormsEvidence,...teamInvitationEvidence,...outboxEvidence,...chatbotMigrationEvidence,...chatbotApiEvidence, ddlFailureRecoveryGate: true, customerDataTouched: false, externalWrites: false }));
   } catch(error) {
     if(connection) {
       try {

@@ -2235,12 +2235,18 @@ migration. No legacy Training actor mapping is reused and no category opts in.
 
 The focused Forms, public-form, session and overlay suites pass 42/42; syntax,
 migration-discovery and whitespace checks pass. This proves service and loader
-contracts only. Category-aware bilingual existing-screen acceptance, a
-disposable MariaDB migration/runtime integration, authenticated desktop/mobile
-browser acceptance, and deployment remain open. No production runtime changed.
-The disposable migration suite now includes a synthetic insert/read assertion
-for `pipeline_activity.actor_type='identity'`; the assertion has not run here
-because this workstation has MySQL 9.6 and no isolated MariaDB service.
+contracts only. Category-aware bilingual existing-screen acceptance, authenticated
+desktop/mobile browser acceptance, and deployment remain open. No production
+runtime changed.
+
+The dedicated `test:pipeline-identity-actor:integration` check passed against a
+fresh disposable MariaDB 11.4.13 instance. It applies only
+`20261022_pipeline_identity_activity_actor.sql`, verifies the resulting enum,
+and inserts/reads all four values (`user`, `agent`, `identity`, `system`). The
+temporary server, database and account were removed. The full all-migrations
+integration remains a separate open gate: its fresh-schema fixture lacks
+legacy tables required by later historical migrations, so that broad run does
+not prove the complete migration chain.
 
 The follow-up full JavaScript suite run passes 1,093/1,117 tests and reports 24
 failures in unrelated authentication, Manage Users, Pipeline, task, Call Center,
