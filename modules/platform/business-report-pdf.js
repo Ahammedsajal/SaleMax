@@ -6,7 +6,7 @@ async function render(s,{test=false}={}){
  const navy='#081630',blue='#1768D4',muted='#66758A',light='#F0F5FC',width=515;
  doc.rect(0,0,595,156).fill(navy);doc.fillColor('#12C9F4').font('Helvetica-Bold').fontSize(14).text('7Network  /  BUSINESS REPORT',40,34);
  doc.fillColor('white').fontSize(26).text(test?'Sample daily report':'Your day in business',40,65);
- doc.font('Helvetica').fontSize(11).text(`${s.business}  |  ${s.day}`,40,106,{width});
+ doc.font('Helvetica').fontSize(11).text(`${s.business}  |  ${s.day}`,40,106,{width,height:15,ellipsis:true});
  doc.fillColor('#BCD0EB').fontSize(9).text(`${s.timezone}  ·  As of ${s.asOf}`,40,127,{width});
  if(test)doc.fillColor('#A94516').font('Helvetica-Bold').fontSize(10).text('TEST DATA — NOT A REAL INVOICE OR PAYMENT',40,173);
  const cards=[['NEW CHATS',s.newChats],['NEW LEADS',s.newLeads],['INVOICES',s.invoices],['PAYMENTS',s.payments]];

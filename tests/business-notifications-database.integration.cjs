@@ -30,7 +30,10 @@ async function main(){
   try{
    await c.beginTransaction();await n.prepare(c,{...event,kind:'payment_received'},{id:tenant,name:'Synthetic test center',timezone:'Asia/Qatar'});await c.commit();
    const [[count]]=await pool.query('SELECT COUNT(*) AS n FROM sx_business_notification_deliveries WHERE event_id=?',[event.id]);assert.equal(count.n,3,'owner, manager and customer get independent deliveries');
-   const otherConnection=await pool.getConnection();let first,second;try{[first,second]=await Promise.all([n.claim(c),n.claim(otherConnection)]);}finally{otherConnection.release();}assert.ok(first);assert.ok(second);assert.notEqual(first.id,second.id,'concurrent claims never acquire the same delivery');
+   const otherConnection=await pool.getConnection();let first,second;try{[first,second]=await Promise.all([n.claim(c),n.claim(otherConnection)]);}finally{otherConnection.release();}
+   // SKIP LOCKED may return no work while another claim locks a joined event.
+   // Once that short transaction completes, the remaining work must drain.
+   if(!first)first=await n.claim(c);if(!second)second=await n.claim(c);assert.ok(first);assert.ok(second);assert.notEqual(first.id,second.id,'concurrent claims never acquire the same delivery');
    const sent=[];const result=await n.dispatch(c,first,{authorize:async()=>true,send:async(db,payload)=>{sent.push(payload.to);return {status:'accepted',providerMessageId:'synthetic-provider-id'};}});assert.equal(result.status,'accepted');assert.equal(sent.length,1);await n.finish(c,first,result);
    await assert.rejects(()=>n.finish(c,{...second,token:'wrong-lease'},{status:'accepted'}),{code:'BUSINESS_NOTIFICATION_LEASE_LOST'});
    await pool.query('UPDATE sx_business_notification_deliveries SET lease_expires_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 SECOND) WHERE id=?',[second.id]);await n.claim(c);const [[expired]]=await pool.query('SELECT status FROM sx_business_notification_deliveries WHERE id=?',[second.id]);assert.equal(expired.status,'unknown','expired provider attempts are not resent');
@@ -41,5 +44,5 @@ async function main(){
   console.log(JSON.stringify({status:'passed',assertions:'transaction rollback, concurrent event deduplication, recipient scope, lease fencing, unknown-send safety, unique recipient delivery, tenant isolation',database:(await pool.query('SELECT VERSION() AS version'))[0][0].version}));
  }finally{if(pool)await pool.end();await root.query(`DROP DATABASE IF EXISTS \`${schema}\``);await root.end();}
 }
-if(require.main===module)main().catch(e=>{console.error(e.code||e.message);process.exitCode=1;});
+if(require.main===module)main().catch(e=>{console.error(e.stack||e.message);process.exitCode=1;});
 module.exports={main};

@@ -1,6 +1,6 @@
 'use strict';
 const parse=value=>typeof value==='string'?JSON.parse(value):value||{};
-const date=value=>value instanceof Date?value.toISOString().slice(0,10):String(value||'').slice(0,10);
+const date=value=>{if(!value)return '';if(typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value))return value;const d=new Date(value);return Number.isFinite(d.getTime())?new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Qatar',year:'numeric',month:'2-digit',day:'2-digit'}).format(d):'';};
 function minor(value){const n=Number(value||0);if(!Number.isSafeInteger(n)||n<0)throw Object.assign(Error('INVALID_FINANCIAL_AMOUNT'),{code:'INVALID_FINANCIAL_AMOUNT'});return n;}
 function money(value,currency='QAR'){return new Intl.NumberFormat('en-QA',{style:'currency',currency}).format(minor(value)/100);}
 async function invoice(db,tenantId,type,id){
