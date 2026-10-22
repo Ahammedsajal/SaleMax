@@ -5,6 +5,7 @@ const ari = require('./asterisk-ari-client');
 const gatewayPorts = require('./asterisk-gateway-ports');
 const callRecordings = require('./telephony-recordings');
 const callLeads = require('./telephony-call-leads');
+const { categoryKeyMatches } = require('./categories');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CHANNEL_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
@@ -143,7 +144,7 @@ class AsteriskCallControl {
     const { decision } = require('./policy');
     const access = decision(context, { capability: 'telephony.call-center', permission: 'calls.control' });
     if (!access.allowed) fail(access.code);
-    const salesLeadRequired=context?.tenant?.categoryKey==='7network_sales';
+    const salesLeadRequired=categoryKeyMatches(context?.tenant?.categoryKey,'7network_sales');
     if (!input || (!salesLeadRequired&&!/^\+[1-9][0-9]{7,14}$/.test(input.destination||'')) || !CLIENT_TYPES.has(input.clientType)) fail('INVALID_OUTBOUND_CALL');
     if(salesLeadRequired&&!input.leadId)fail('OUTBOUND_LEAD_REQUIRED');
     const db = await connection(this.pool);
@@ -220,7 +221,7 @@ class AsteriskCallControl {
       [context.tenant.id,callId]);
       if (!row) fail('CALL_NOT_FOUND');
       call=row;
-      const salesTeamRole=context.tenant.categoryKey==='7network_sales'&&['manager','team_leader'].includes(context.membership.role);
+      const salesTeamRole=categoryKeyMatches(context.tenant.categoryKey,'7network_sales')&&['manager','team_leader'].includes(context.membership.role);
       if (salesTeamRole) {
         const teamColumn=context.membership.role==='manager'?'manager_membership_id':'team_leader_membership_id';
         const [members]=await db.query(`SELECT id AS membershipId FROM sx_memberships WHERE tenant_id=? AND id=? AND status='active'

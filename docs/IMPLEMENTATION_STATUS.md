@@ -22,6 +22,8 @@ Existing chatbot access now resolves historical `salemax_sales` tenant, plan, an
 
 The existing owner Sales lead-import gate and telephony recording policy now recognize the same registered category alias before applying their existing owner/permission, entitlement, and category version checks. Synthetic tests exercise a tenant-bound lead import and an owner recording-policy read under the stored alias; the two focused suites pass 11/11. No call recording, provider action, schema, or customer data changed.
 
+The existing Asterisk call-control path now applies Sales lead-linked outbound rules and team-scoped manager call access through the registered category alias as well. Sales call creation still requires an authorized lead and its server-side phone. The focused Pipeline-call and recording suites pass 15/15; the unrelated ARI event suite could not load in this checkout because its `ws` dependency is absent. No PBX/provider action or customer data was touched.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
