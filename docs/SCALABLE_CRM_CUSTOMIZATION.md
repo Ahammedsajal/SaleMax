@@ -459,10 +459,12 @@ the shared `/api/workspace/forms` router (with `/api/user/training/forms` kept a
 an alias to the same handler). A category may opt into the generic adapter only
 through an exact, reviewed category-version declaration such as
 `formsAdapter: "generic-lead-capture-v1"`, together with the category's explicit
-Forms capability. Missing, unknown or future adapter values deny Forms by
-default. The shared core owns adapter validation and execution; category packages
-own whether their immutable category version opts in. This document does not
-grant that capability to Base CRM, Sales, Real Estate or any legacy tenant.
+`portal.forms` and `crm.leads` capabilities because each generic submission is
+also an ordinary Pipeline lead. Missing, unknown or future adapter values deny
+Forms by default. The shared core owns adapter validation and execution;
+category packages own whether their immutable category version opts in. This
+document does not grant that capability to Base CRM, Sales, Real Estate or any
+legacy tenant.
 
 The generic adapter owns the common form lifecycle: bilingual labels and copy,
 typed fields, pinned CRM lead-field definitions, draft revision checks, immutable
@@ -479,10 +481,11 @@ The editor and staff routes use the shared feature-session context and enforce
 category adapter, active tenant, current plan entitlement, fixed member
 permission and existing lead record scope independently on every operation. A
 public form resolves the tenant from its public slug, then verifies active tenant,
-exact category version, active Forms entitlement and the published immutable
-snapshot before accepting data. A tenant setting or client payload cannot choose
-an adapter, tenant ID, field definition or permission. Unknown fields and stale
-field-definition revisions fail closed. Generic and Training forms retain the
+exact category version, active Forms and CRM Leads entitlements, and the published
+immutable snapshot before accepting data. Staff capture also requires
+`leads.manage` and its existing record scope. A tenant setting or client payload
+cannot choose an adapter, tenant ID, field definition or permission. Unknown
+fields and stale field-definition revisions fail closed. Generic and Training forms retain the
 existing origin checks, bounded payloads, abuse controls, and submission
 idempotency behavior.
 

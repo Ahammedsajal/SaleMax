@@ -40,6 +40,7 @@ test('registry preserves only reviewed, capability-bound shared Forms adapters',
   assert.throws(() => createCategoryRegistry([{...manifest, formsAdapter: 'training-registration-v1'}], capabilities), {code:'INVALID_CATEGORY_MANIFEST'});
   assert.throws(() => createCategoryRegistry([{...manifest, formsAdapter: 'unreviewed'}], capabilities), {code:'INVALID_CATEGORY_MANIFEST'});
   assert.throws(() => createCategoryRegistry([{...manifest, capabilities: base.capabilities}], capabilities), {code:'INVALID_CATEGORY_MANIFEST'});
+  assert.throws(() => createCategoryRegistry([{...manifest, capabilities: base.capabilities.filter(capability=>capability!=='crm.leads').concat('portal.forms')}], capabilities), {code:'INVALID_CATEGORY_MANIFEST'});
   assert.equal(require('../modules/platform/form-category-adapters').resolve(trainingCenter), 'training-registration-v1');
   assert.equal(require('../modules/platform/form-category-adapters').resolve(sevenNetworkSales), null);
 });

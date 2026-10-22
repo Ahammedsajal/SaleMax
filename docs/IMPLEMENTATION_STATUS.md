@@ -1,3 +1,18 @@
+## Generic Forms Pipeline entitlement boundary — source increment, 22 October 2026
+
+The generic lead-capture adapter now requires both `portal.forms` and
+`crm.leads` in its immutable category declaration. Authenticated Forms CRUD,
+publication and submission history also require the actor's `leads.manage`
+permission. Public lookup/submission and authenticated staff capture recheck
+both active plan entitlements and category capabilities before creating a
+Pipeline lead; Forms entitlement alone cannot create CRM records. Tests cover
+registry rejection when either category capability is missing, owner/manager
+permission boundaries, and public/staff denial before lead creation when the
+plan lacks CRM Leads. The focused registry, Training Forms and workspace Forms
+suites pass 32/32; service syntax and whitespace checks pass. No category
+adoption, migration or production change is involved; authenticated bilingual
+screen acceptance and deployment remain open.
+
 ## Unmapped legacy Agent assignment enforcement — source increment, 22 October 2026
 
 The shared Inbox scope resolver now preserves active unmapped legacy Agents

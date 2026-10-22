@@ -14,6 +14,7 @@ function context(ctx,permission='forms.manage'){
   if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant?.id)fail('TENANT_CONTEXT_REQUIRED');
   if(adapters.resolve(ctx.category)!=='generic-lead-capture-v1')fail('CATEGORY_UNAVAILABLE');
   const access=decision(ctx,{capability:'portal.forms',permission});if(!access.allowed)fail(access.code);
+  const leadAccess=decision(ctx,{capability:'crm.leads',permission:'leads.manage'});if(!leadAccess.allowed)fail(leadAccess.code);
   return 'generic-lead-capture-v1';
 }
 function parse(value){return typeof value==='string'?JSON.parse(value):value;}
@@ -56,8 +57,8 @@ async function publish(db,ctx,id,expectedRevision){
 async function publicForm(db,tenantSlug,formSlug){
   if(typeof tenantSlug!=='string'||typeof formSlug!=='string'||!/^[-a-z0-9]{1,80}$/.test(tenantSlug)||!/^[-a-z0-9]{1,48}$/.test(formSlug))return null;
   const [[row]]=await db.query(`SELECT t.id AS tenant_id,t.slug AS tenant_slug,t.name AS tenant_name,t.category_key,t.category_version,t.status AS tenant_status,f.id AS form_id,v.slug AS form_slug,v.name_en,v.name_ar,v.version,v.schema_json FROM sx_tenants t JOIN sx_workspace_forms f ON f.tenant_id=t.id AND f.status='published' JOIN sx_workspace_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version WHERE t.slug=? AND v.slug=? AND t.status='active' LIMIT 1`,[tenantSlug,formSlug]);
-  if(!row)return null;const category=require('./categories').getCategory(row.category_key,Number(row.category_version));if(adapters.resolve(category)!=='generic-lead-capture-v1'||!category.capabilities.includes('portal.forms'))return null;
-  const entitlements=await plans.loadEntitlements(db,row.tenant_id);if(!entitlements||!['active','trial','grace'].includes(entitlements.status)||!entitlements.capabilities.includes('portal.forms'))return null;
+  if(!row)return null;const category=require('./categories').getCategory(row.category_key,Number(row.category_version));if(adapters.resolve(category)!=='generic-lead-capture-v1'||!category.capabilities.includes('portal.forms')||!category.capabilities.includes('crm.leads'))return null;
+  const entitlements=await plans.loadEntitlements(db,row.tenant_id);if(!entitlements||!['active','trial','grace'].includes(entitlements.status)||!entitlements.capabilities.includes('portal.forms')||!entitlements.capabilities.includes('crm.leads'))return null;
   const schema=parse(row.schema_json);if(schema.templateKey) return null;
   return {adapter:'generic-lead-capture-v1',tenant:{name:row.tenant_name,companyName:row.tenant_name,centerNameEn:row.tenant_name,centerNameAr:row.tenant_name,logoUrl:'',addressEn:'',addressAr:'',slug:row.tenant_slug},form:{slug:row.form_slug,nameEn:row.name_en,nameAr:row.name_ar,version:Number(row.version),schema},courses:[]};
 }
@@ -110,9 +111,9 @@ async function submitStaff(db,session,formSlug,{submissionToken,values,selectedL
       WHERE t.id=? AND t.status='active' AND v.slug=? LIMIT 1 FOR UPDATE`,[ctx.tenant.id,formSlug]);
     if(!form)fail('FORM_NOT_FOUND');
     const category=require('./categories').getCategory(form.category_key,Number(form.category_version));
-    if(adapters.resolve(category)!=='generic-lead-capture-v1'||!category.capabilities.includes('portal.forms'))fail('FORM_NOT_FOUND');
+    if(adapters.resolve(category)!=='generic-lead-capture-v1'||!category.capabilities.includes('portal.forms')||!category.capabilities.includes('crm.leads'))fail('FORM_NOT_FOUND');
     const entitlement=await plans.loadEntitlements(db,form.tenant_id);
-    if(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities?.includes('portal.forms'))fail('FEATURE_UNAVAILABLE');
+    if(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities?.includes('portal.forms')||!entitlement.capabilities?.includes('crm.leads'))fail('FEATURE_UNAVAILABLE');
     const tokenHash=sha(`${ctx.identity.id}:${submissionToken}`);
     const [[prior]]=await db.query('SELECT reference_code AS referenceCode,lead_id AS leadId FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=? LIMIT 1 FOR UPDATE',[form.tenant_id,form.form_id,tokenHash]);
     if(prior){await db.commit();return {referenceCode:prior.referenceCode,leadId:prior.leadId,repeated:true};}
@@ -152,9 +153,9 @@ async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,vis
     const [[form]]=await db.query(`SELECT t.id AS tenant_id,t.slug AS tenant_slug,t.category_key,t.category_version,u.uid,own.legacy_uid_hash,m.identity_id AS owner_identity_id,i.status AS owner_identity_status,f.id AS form_id,v.version,v.slug,v.name_en,v.name_ar,v.schema_json FROM sx_tenants t JOIN sx_legacy_ownership own ON own.tenant_id=t.id AND own.source_table='user' JOIN sx_memberships m ON m.tenant_id=own.tenant_id AND m.id=own.membership_id AND m.role='owner' AND m.status='active' JOIN sx_identities i ON i.id=m.identity_id JOIN user u ON CAST(u.id AS CHAR)=own.source_id JOIN sx_workspace_forms f ON f.tenant_id=t.id AND f.status='published' JOIN sx_workspace_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version WHERE t.slug=? AND t.status='active' AND v.slug=? LIMIT 1 FOR UPDATE`,[tenantSlug,formSlug]);
     if(!form)fail('FORM_NOT_FOUND');
     const category=require('./categories').getCategory(form.category_key,Number(form.category_version));
-    if(adapters.resolve(category)!=='generic-lead-capture-v1'||!category.capabilities.includes('portal.forms'))fail('FORM_NOT_FOUND');
+    if(adapters.resolve(category)!=='generic-lead-capture-v1'||!category.capabilities.includes('portal.forms')||!category.capabilities.includes('crm.leads'))fail('FORM_NOT_FOUND');
     if(!form.legacy_uid_hash||sha(form.uid)!==form.legacy_uid_hash||form.owner_identity_status!=='active')fail('BUSINESS_LINK_INVALID');
-    const entitlements=await plans.loadEntitlements(db,form.tenant_id);if(!entitlements||!['active','trial','grace'].includes(entitlements.status)||!entitlements.capabilities.includes('portal.forms'))fail('FORM_NOT_FOUND');
+    const entitlements=await plans.loadEntitlements(db,form.tenant_id);if(!entitlements||!['active','trial','grace'].includes(entitlements.status)||!entitlements.capabilities.includes('portal.forms')||!entitlements.capabilities.includes('crm.leads'))fail('FORM_NOT_FOUND');
     const tokenHash=sha(submissionToken);
     const [[prior]]=await db.query('SELECT reference_code AS referenceCode,lead_id AS leadId FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=? LIMIT 1 FOR UPDATE',[form.tenant_id,form.form_id,tokenHash]);
     if(prior){await db.commit();begun=false;return {referenceCode:prior.referenceCode,leadId:prior.leadId,repeated:true};}

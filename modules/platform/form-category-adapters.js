@@ -8,7 +8,9 @@ const definitions = Object.freeze({
   }),
   'generic-lead-capture-v1': Object.freeze({
     key: 'generic-lead-capture-v1',
-    requiredCapabilities: Object.freeze(['portal.forms']),
+    // Generic submissions are committed as ordinary Pipeline leads, so Forms
+    // support must never act as a parallel entitlement for CRM lead creation.
+    requiredCapabilities: Object.freeze(['portal.forms','crm.leads']),
     fieldKeys: Object.freeze(['contact_name','phone','email','consent']),
   }),
 });

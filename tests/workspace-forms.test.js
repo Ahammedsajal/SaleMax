@@ -15,6 +15,9 @@ test('generic Forms require the exact declared adapter, category capability, ten
   assert.equal(forms.context(ctx),'generic-lead-capture-v1');
   assert.throws(()=>forms.context({...ctx,category:base}),{code:'CATEGORY_UNAVAILABLE'});
   assert.throws(()=>forms.context({...ctx,subscription:{status:'active',capabilities:[]}}),{code:'FEATURE_UNAVAILABLE'});
+  assert.throws(()=>forms.context({...ctx,category:{...category,capabilities:category.capabilities.filter(capability=>capability!=='crm.leads')}}),{code:'CATEGORY_UNAVAILABLE'});
+  assert.throws(()=>forms.context({...ctx,subscription:{...ctx.subscription,capabilities:ctx.subscription.capabilities.filter(capability=>capability!=='crm.leads')}}),{code:'FEATURE_UNAVAILABLE'});
+  assert.throws(()=>forms.context({...ctx,membership:{...ctx.membership,role:'manager',customPermissions:['forms.manage']}}),{code:'PERMISSION_DENIED'});
   assert.throws(()=>forms.context({...ctx,membership:{...ctx.membership,tenantId:'tenant-2'}}),{code:'TENANT_CONTEXT_REQUIRED'});
 });
 test('shared Forms router selects the generic service only for its declared category adapter',()=>{
@@ -54,7 +57,7 @@ test('public generic submission validates the published contract, is idempotent 
   const original={getCategory:categories.getCategory,entitlements:plans.loadEntitlements,createLead:pipeline.createManualLead};
   const genericCategory=createCategoryRegistry([{...base,capabilities:[...base.capabilities,'portal.forms'],formsAdapter:'generic-lead-capture-v1'}],capabilities).get(base.key,base.version);
   categories.getCategory=(key,version)=>key===base.key&&version===base.version?genericCategory:null;
-  plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms']});
+  plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms','crm.leads']});
   const leadId='22222222-2222-4222-8222-222222222222',createdLeads=[];
   pipeline.createManualLead=async input=>{createdLeads.push(input);return {id:leadId};};
   const schema=require('../modules/platform/training-forms').formInput(input,'generic-lead-capture-v1').schema;
@@ -63,6 +66,11 @@ test('public generic submission validates the published contract, is idempotent 
   const calls=[];let rollbacks=0,commits=0;const db={async beginTransaction(){},async commit(){commits++;},async rollback(){rollbacks++;},release(){},async query(sql,params){calls.push({sql,params});if(sql.startsWith('SELECT t.id AS tenant_id'))return [[formRow]];if(sql.startsWith('SELECT reference_code AS referenceCode'))return [[prior].filter(Boolean)];if(sql.startsWith('SELECT attempts'))return [[{attempts:1}]];return [[]];}};
   const pool={async getConnection(){return db;}};
   try{
+    plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms']});
+    assert.equal(await forms.publicForm(db,'synthetic-a',input.slug),null,'public lookup requires the Pipeline entitlement as well as Forms');
+    await assert.rejects(forms.submitPublic(pool,{tenantSlug:'synthetic-a',formSlug:input.slug,submissionToken:'55555555-5555-4555-8555-555555555555',visitorHash:'c'.repeat(64),expectedFormVersion:1,values:{contact_name:'Synthetic Lead',phone:'+12025550123',consent:true}}),{code:'FORM_NOT_FOUND'});
+    assert.equal(createdLeads.length,0);
+    plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms','crm.leads']});
     const publicForm=await forms.publicForm(db,'synthetic-a',input.slug);assert.equal(publicForm.form.version,1);assert.equal(publicForm.tenant.slug,'synthetic-a');
     const result=await forms.submitPublic(pool,{tenantSlug:'synthetic-a',formSlug:input.slug,submissionToken:'33333333-3333-4333-8333-333333333333',visitorHash:'a'.repeat(64),expectedFormVersion:1,values:{contact_name:'Synthetic Lead',phone:'+12025550123',email:'lead@example.invalid',consent:true}});
     assert.equal(result.leadId,leadId);assert.equal(result.repeated,false);assert.equal(commits,1);assert.equal(createdLeads.length,1);assert.equal(createdLeads[0].input.sourceType,'public_form');
@@ -72,7 +80,7 @@ test('public generic submission validates the published contract, is idempotent 
     assert.equal(replay.repeated,true);assert.equal(replay.leadId,leadId);assert.equal(createdLeads.length,1);assert.equal(commits,2);
     prior=null;
     await assert.rejects(forms.submitPublic(pool,{tenantSlug:'synthetic-a',formSlug:input.slug,submissionToken:'44444444-4444-4444-8444-444444444444',visitorHash:'b'.repeat(64),expectedFormVersion:2,values:{contact_name:'Synthetic Lead',phone:'+12025550123',consent:true}}),{code:'FORM_VERSION_CHANGED'});
-    assert.equal(rollbacks,1);
+    assert.equal(rollbacks,2);
   }finally{categories.getCategory=original.getCategory;plans.loadEntitlements=original.entitlements;pipeline.createManualLead=original.createLead;}
 });
 test('generic staff capture uses canonical membership scope, records identity and replays idempotently',async()=>{
@@ -80,13 +88,17 @@ test('generic staff capture uses canonical membership scope, records identity an
   const original={getCategory:categories.getCategory,entitlements:plans.loadEntitlements,createLead:pipeline.createManualLead};
   const genericCategory=createCategoryRegistry([{...base,capabilities:[...base.capabilities,'portal.forms'],formsAdapter:'generic-lead-capture-v1'}],capabilities).get(base.key,base.version);
   categories.getCategory=(key,version)=>key===base.key&&version===base.version?genericCategory:null;
-  plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms']});
+  plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms','crm.leads']});
   const leadId='22222222-2222-4222-8222-222222222222',createdLeads=[];pipeline.createManualLead=async value=>{createdLeads.push(value);return {id:leadId};};
   const schema=require('../modules/platform/training-forms').formInput(input,'generic-lead-capture-v1').schema,session={context:{...ctx,category:genericCategory},actor:{id:17},ownerUid:'synthetic-owner-uid',agent:false};
   let prior=null,commits=0;const calls=[];const db={async beginTransaction(){},async commit(){commits++;},async rollback(){},async query(sql,params){calls.push({sql,params});if(sql.includes('FROM sx_tenants t JOIN sx_workspace_forms'))return [[{tenant_id:ctx.tenant.id,category_key:base.key,category_version:base.version,form_id:'11111111-1111-4111-8111-111111111111',version:1,name_en:input.nameEn,schema_json:JSON.stringify(schema)}]];if(sql.startsWith('SELECT reference_code AS referenceCode'))return [[prior].filter(Boolean)];if(sql.startsWith('INSERT IGNORE INTO sx_workspace_form_submissions'))return [{affectedRows:1}];return [[]];}};
   try{
     const canonicalOnlySession={...session,actor:null};
     const rendered=await forms.staffForm(db,canonicalOnlySession,input.slug);assert.equal(rendered.adapter,'generic-lead-capture-v1');assert.equal(rendered.captureMode,'staff');
+    plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms']});
+    await assert.rejects(forms.submitStaff(db,canonicalOnlySession,input.slug,{submissionToken:'55555555-5555-4555-8555-555555555555',expectedFormVersion:1,values:{contact_name:'Staff lead',phone:'+12025550123',consent:true}}),{code:'FEATURE_UNAVAILABLE'});
+    assert.equal(createdLeads.length,0,'staff Forms cannot create Pipeline leads without the lead entitlement');
+    plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms','crm.leads']});
     const result=await forms.submitStaff(db,canonicalOnlySession,input.slug,{submissionToken:'33333333-3333-4333-8333-333333333333',expectedFormVersion:1,values:{contact_name:'Staff lead',phone:'+12025550123',consent:true}});
     assert.equal(result.leadId,leadId);assert.equal(result.collectorRole,'owner');assert.equal(createdLeads.length,1);assert.equal(createdLeads[0].actorType,'identity');assert.equal(createdLeads[0].actorId,'identity-1');assert.equal(createdLeads[0].input.sourceType,'staff_form');
     assert.ok(calls.some(call=>call.sql.startsWith('INSERT IGNORE INTO sx_workspace_form_submissions')&&call.params[4]==='identity-1'));
