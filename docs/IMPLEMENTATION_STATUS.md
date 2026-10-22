@@ -18,6 +18,8 @@ The existing Sales Organization, Audit, Deals and Commission services now apply 
 
 The legacy Pipeline actor adapter now resolves `salemax_sales` through the registered 7Network Sales contract when deciding whether a Team Leader seat is supported and when loading its team-scoped lead identity/agent IDs. The raw stored category key remains on the legacy actor record; owner identity, plan, membership and category version continue to gate access. Focused Pipeline actor, team-scope, organization and policy suites pass 31/31 with the external dependency cache; no database or customer data changed.
 
+Existing chatbot access now resolves historical `salemax_sales` tenant, plan, and bot-profile keys against the canonical 7Network Sales category version. Domain-pack lookup uses the canonical registry key, and the recruitment-facts query permits only the canonical key and its reviewed alias while remaining tenant-ID scoped. Chatbot runtime/profile/domain and existing-screen contract suites pass 53/53; syntax and whitespace checks pass. No provider, tenant configuration, or customer data changed.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language

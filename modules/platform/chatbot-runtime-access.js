@@ -1,7 +1,7 @@
 'use strict';
 const {legacyContext}=require('./business-feature-session');
 const {decision}=require('./policy');
-const {supportsCategoryCapability}=require('./categories');
+const {supportsCategoryCapability,categoryKeyMatches}=require('./categories');
 const deniedCodes=new Set(['ACCOUNT_INACTIVE','BUSINESS_LINK_INVALID','CATEGORY_UNAVAILABLE','INVALID_ROLE_LIMITS','INVALID_GRANTS']);
 const denied=(code,tenantId)=>({linked:true,context:null,code,tenantId});
 async function resolveOwnerAccess(db,uid,capability='automation.chatbot'){
@@ -16,7 +16,7 @@ async function resolveOwnerAccess(db,uid,capability='automation.chatbot'){
  try{ctx=await legacyContext(db,rows[0]);}catch(error){if(deniedCodes.has(error.code))return deny(error.code);throw error;}
  if(!ctx||ctx.tenant.id!==rows[0].tenantId||ctx.membership.role!=='owner')return deny('BUSINESS_LINK_INVALID');
  if(!ctx.category?.planable||!supportsCategoryCapability(ctx.category,capability))return deny('CATEGORY_UNAVAILABLE');
- if(ctx.subscription?.categoryKey!==ctx.category.key||ctx.subscription?.categoryVersion!==ctx.category.version)return deny('FEATURE_UNAVAILABLE');
+ if(!categoryKeyMatches(ctx.subscription?.categoryKey,ctx.category.key)||ctx.subscription?.categoryVersion!==ctx.category.version)return deny('FEATURE_UNAVAILABLE');
  const gate=decision(ctx,{capability,permission:'automation.manage'});if(!gate.allowed)return deny(gate.code);
  ctx.tenant.slug=rows[0].tenantSlug;
  return {linked:true,tenantId:ctx.tenant.id,context:ctx};
