@@ -101,7 +101,7 @@ async function authorizeInboxPayload(query, scope, event, payload) {
   if (!scope.canonical) {
     if(!scope.legacyAgent)return payload;
     if(['send_new_message','delete_chat','assign_agent_to_chat','unasign_chat_agent'].includes(event))fail();
-    if(['get_chat_list','export_chats','add_label','on_label_delete','update_spend_time','translate_message'].includes(event))return payload;
+    if(['get_chat_list','export_chats','update_spend_time','translate_message'].includes(event))return payload;
     const ids={load_conversation:payload.chat?.chat_id,export_conversation:payload.chatId,send_chat_message:payload.chatInfo?.chat_id,suggest_reply:payload.chatId,save_as_context:payload.chatId};
     const rowIds={set_chat_label:payload.chatIdRow,remove_chat_label:payload.chatId,delete_chat_note:payload.chatRealId,save_chat_note:payload.id};
     const rowId=rowIds[event],chatId=ids[event];

@@ -31,7 +31,7 @@ test('unmapped legacy agents retain only their assigned chats and verified owner
   await assert.rejects(authorizeInboxPayload(async(_sql,args)=>{assert.deepEqual(args,['synthetic-owner','other']);return [other];},scope,'load_conversation',{chat:{chat_id:'other'}}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
   const reply=await authorizeInboxPayload(read,scope,'send_chat_message',{chatInfo:{chat_id:'own',sender_mobile:'forged'}});
   assert.equal(reply.chatInfo.sender_mobile,'5550001');
-  for(const event of ['send_new_message','delete_chat','assign_agent_to_chat'])await assert.rejects(authorizeInboxPayload(read,scope,event,{}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  for(const event of ['send_new_message','delete_chat','assign_agent_to_chat','add_label','on_label_delete'])await assert.rejects(authorizeInboxPayload(read,scope,event,{}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
   await assert.rejects(resolveInboxScope(async(sql)=>sql.includes('WHERE o.source_table')?[]:sql.includes('FROM agents')?[{uid:agent.uid,owner_uid:'other-owner',is_active:1,role:'agent'}]:[{uid:'other-owner'}],agent,'get_chat_list'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });
 

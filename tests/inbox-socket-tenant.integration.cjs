@@ -169,14 +169,24 @@ async function main() {
       const agentList = agentEmitted.find(item => item.event === 'chat_list');
       assert.ok(agentList);
       assert.deepEqual(agentList.payload.chats.map(chat => chat.chat_id), ['chat-a'], 'legacy agent list remains owner-scoped when another business has the same stale assignment ID');
-      await agentListeners.get('message')({ type: 'load_conversation', payload: { chat: { id: 303, chat_id: 'chat-c' }, filters: {} } });
-      await agentListeners.get('message')({ type: 'export_conversation', payload: { chatId: 'chat-c' } });
-      await agentListeners.get('message')({ type: 'send_chat_message', payload: { type: 'text', msgCon: { text: { body: 'unauthorized synthetic reply' } }, chatInfo: { id: 303, chat_id: 'chat-c', sender_mobile: '5550003', origin: 'meta' } } });
+      const originalConsoleError=console.error;
+      try {
+        console.error=()=>{};
+        await agentListeners.get('message')({ type: 'load_conversation', payload: { chat: { id: 303, chat_id: 'chat-c' }, filters: {} } });
+        await agentListeners.get('message')({ type: 'export_conversation', payload: { chatId: 'chat-c' } });
+        await agentListeners.get('message')({ type: 'send_chat_message', payload: { type: 'text', msgCon: { text: { body: 'unauthorized synthetic reply' } }, chatInfo: { id: 303, chat_id: 'chat-c', sender_mobile: '5550003', origin: 'meta' } } });
+        await agentListeners.get('message')({ type: 'add_label', payload: { label: 'Unauthorized tenant label', hex: '#000000' } });
+        await agentListeners.get('message')({ type: 'on_label_delete', payload: { labelId: 10 } });
+      } finally { console.error=originalConsoleError; }
       const [unassignedChat] = await db.query('SELECT unread_count FROM beta_chats WHERE uid=? AND id=?', [ownerA, 303]);
+      const [agentLabels] = await db.query('SELECT COUNT(*) AS count FROM chat_tags WHERE uid=?', [ownerA]);
+      const [tenantBLabel] = await db.query('SELECT COUNT(*) AS count FROM chat_tags WHERE uid=? AND id=?', [ownerB, 10]);
       assert.equal(unassignedChat[0].unread_count, 3, 'guessed read of another agent chat does not clear unread state');
+      assert.equal(agentLabels[0].count, 0, 'legacy agent cannot add a tenant-wide label');
+      assert.equal(tenantBLabel[0].count, 1, 'legacy agent cannot delete another tenant label');
       assert.equal(agentEmitted.filter(item => item.event === 'load_conversation').length, 0);
       assert.equal(agentEmitted.filter(item => item.event === 'export_conversation_result').length, 0);
-      assert.equal(agentEmitted.filter(item => item.event === 'error').length, 3, 'direct read, export and reply are denied before data/provider access');
+      assert.equal(agentEmitted.filter(item => item.event === 'error').length, 5, 'direct read, export, reply and tenant-wide label writes are denied');
 
       console.log(JSON.stringify({ success: true, database, mysqlVersion: (await db.query('SELECT VERSION() AS version'))[0][0].version, syntheticTenants: 2, crossTenantMutations: 0, customerDataTouched: false, externalWrites: false }));
     } finally {
