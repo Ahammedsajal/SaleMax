@@ -2108,3 +2108,9 @@ Center v1 keeps its current workspace behavior; other categories default to
 self-only. Registry and service tests cover invalid policy values, defaulting,
 category-version mismatch and manager behavior. Source only; production is
 unchanged.
+
+Task filtering and explicit due-date requirements also come from the pinned
+category adapter. Shared task logic no longer branches on the Sales category or
+the `sales_call` name for these behaviors; unregistered filters are rejected.
+The broad category, task, tenant-customization and chatbot regression set passes
+345/345. Source only; production is unchanged.

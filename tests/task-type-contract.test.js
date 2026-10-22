@@ -13,6 +13,7 @@ test('task catalog follows the category contract and current plan capabilities',
   assert.ok(training.some(item=>item.key==='enrollment'));
   assert.ok(!training.some(item=>item.key==='sales_call'));
   assert.ok(sales.some(item=>item.key==='sales_call'));
+  assert.equal(sales.find(item=>item.key==='sales_call').requiresExplicitDueAt,true);
   assert.ok(!sales.some(item=>item.key==='enrollment'));
   assert.ok(!realEstateTypes.some(item=>['enrollment','sales_call'].includes(item.key)));
   const limited=types.forContext(context(trainingCenter,['team.tasks']));

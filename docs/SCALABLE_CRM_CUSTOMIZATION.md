@@ -781,3 +781,11 @@ their approved assignment model at registration, while a mismatched or missing
 category version fails closed for agents. This is a platform policy, not a
 client-editable tenant preference, so a business customization cannot silently
 expand an agent's authority.
+
+Task-type filtering and explicit due-date requirements also use the resolved
+category task-adapter contract. The shared Tasks service no longer names the
+Sales category or `sales_call` as special cases for those rules. Only types
+registered by the exact category version can be filtered; unknown type names
+are rejected. Existing Sales call requirements remain declared by its reviewed
+adapter, so future categories can add reviewed task behavior without editing
+shared task lifecycle code.

@@ -10,11 +10,12 @@ function forContext(ctx) {
   const planCapabilities = new Set(ctx?.subscription?.capabilities || []);
   const planActive = ['active', 'trial', 'grace'].includes(ctx?.subscription?.status);
   const categoryAdapters=require('./task-type-adapters').configurable(ctx);
-  const specialized=categoryAdapters.map(item=>({key:item.key,label:item.label,categoryCapabilities:['team.tasks'],planCapabilities:['team.tasks'],adapter:true}));
+  const specialized=categoryAdapters.map(item=>({key:item.key,label:item.label,categoryCapabilities:['team.tasks'],planCapabilities:['team.tasks'],adapter:true,requiresExplicitDueAt:item.requiresExplicitDueAt}));
   return [...definitions,...specialized].filter(item => item.categoryCapabilities.every(key => categoryCapabilities.has(key)))
     .map(item => ({
       key: item.key,
       label: item.label,
+      ...(item.adapter ? { requiresExplicitDueAt: item.requiresExplicitDueAt } : {}),
       planAvailable: planActive && (item.adapter ? require('./task-type-adapters').supports(ctx,item.key) : (item.planCapabilities || []).every(key => planCapabilities.has(key))) &&
         (!item.planAnyCapabilities || item.planAnyCapabilities.some(key => planCapabilities.has(key))),
     }));

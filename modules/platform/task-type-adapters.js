@@ -53,7 +53,7 @@ function configurable(ctx){
     const capabilities=category.capabilities;
     return adapter&&adapter.requiredCapabilities.every(capability=>capabilities.includes(capability))
       &&(!adapter.requiredAnyCapabilities.length||adapter.requiredAnyCapabilities.some(capability=>capabilities.includes(capability)))
-      ?[{key,label:adapter.label}]:[];
+      ?[{key,label:adapter.label,requiresExplicitDueAt:adapter.requiresExplicitDueAt===true}]:[];
   });
 }
 function supports(ctx,key){
