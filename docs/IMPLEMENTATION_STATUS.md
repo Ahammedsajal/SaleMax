@@ -19,6 +19,17 @@ production migration, release, tenant setting or provider message was changed.
 Authenticated live role acceptance, migration rehearsal and the full category/
 42-ticket gates remain open.
 
+Read-only production comparison on 22 October confirmed the active release is
+`contact-delete-scope-350e486-20261022` and contains no Real Estate property
+service, chatbot guide or property migration. Its shared chatbot preview helper
+does not pass authenticated tenant context into domain fact loaders; this
+source branch does, which is required for the Real Estate category guard, and
+now also passes the validated tenant display choices. No live files were
+replaced. The host has 682 MB free at 99% disk use, so no production release or
+migration was attempted. Before a future release, preserve the current live-only
+files, validate the additive migration against disposable MariaDB, and recover
+deployment capacity.
+
 # Tenant-indexed Inbox assignments — source implementation, 22 October 2026
 
 Added the normalized `sx_conversation_assignments` index and tenant-level
