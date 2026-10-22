@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const courses = require('./training-courses');
+const objectStorage = require('./object-storage');
 
 const MiB = 1024 * 1024;
 const MAX_FILE_BYTES = 1024 * MiB;
@@ -87,6 +88,35 @@ function filePath(tenantId, courseId, storageKey) {
   return result;
 }
 
+function store() { return objectStorage.createStore({ namespace: 'course-media', root: MEDIA_ROOT }); }
+
+async function verifyFile(file) {
+  if (!file.storageKey && file.path) {
+    const stat = await fsp.stat(file.path);
+    if (!stat.isFile() || stat.size !== Number(file.sizeBytes)) fail('COURSE_MEDIA_STORAGE_INTEGRITY', 503);
+    return { contentLength: stat.size, path: file.path };
+  }
+  const details = await store().head(file.storageKey);
+  if (details.contentLength !== Number(file.sizeBytes) || (details.sha256 && details.sha256 !== String(file.sha256Hex || '').toLowerCase())) fail('COURSE_MEDIA_STORAGE_INTEGRITY', 503);
+  return details;
+}
+
+async function readFile(file, options) {
+  if (!file.storageKey && file.path) {
+    const bytes = await fsp.readFile(file.path);
+    if (options?.maxBytes !== undefined && bytes.length > options.maxBytes) fail('STORED_OBJECT_TOO_LARGE', 413);
+    return bytes;
+  }
+  return store().readBuffer(file.storageKey, options);
+}
+async function openRead(file, options) {
+  if (!file.storageKey && file.path) {
+    const details = await verifyFile(file);
+    return { driver: 'local', path: file.path, body: fs.createReadStream(file.path, options?.range ? { start: options.range.start, end: options.range.end } : undefined), contentLength: options?.range ? options.range.end - options.range.start + 1 : details.contentLength };
+  }
+  return store().openRead(file.storageKey, options);
+}
+
 async function list(db, ctx, courseId) {
   courses.object(ctx, 'courses.read');
   safeId(courseId);
@@ -103,10 +133,9 @@ async function attach(db, ctx, courseId, file) {
   const info = await inspectUpload(file);
   const id = uuid();
   const name = displayName(file.name);
-  const directory = path.join(MEDIA_ROOT, ctx.tenant.id, courseId);
-  const target = filePath(ctx.tenant.id, courseId, id);
-  await fsp.mkdir(directory, { recursive: true, mode: 0o700 });
-  let moved = false;
+  const storageKey = id;
+  filePath(ctx.tenant.id, courseId, storageKey);
+  let stored = false;
   try {
     await db.beginTransaction();
     const [[tenant]] = await db.query('SELECT id,status FROM sx_tenants WHERE id=? FOR UPDATE', [ctx.tenant.id]);
@@ -118,17 +147,19 @@ async function attach(db, ctx, courseId, file) {
     const [[courseUsage]] = await db.query(`SELECT COUNT(*) AS file_count FROM sx_training_course_media WHERE tenant_id=? AND course_id=? AND deleted_at IS NULL`, [ctx.tenant.id, courseId]);
     if (Number(courseUsage.file_count) >= MAX_COURSE_FILES) fail('COURSE_MEDIA_LIMIT_REACHED', 409);
     if (Number(usage.used_bytes) + info.size > TENANT_QUOTA_BYTES) fail('COURSE_MEDIA_QUOTA_EXCEEDED', 409);
-    await file.mv(target);
-    moved = true;
+    await store().putFile(`${ctx.tenant.id}/${courseId}/${storageKey}`, file.tempFilePath, {
+      contentLength: info.size, contentType: info.mime, sha256: info.sha256
+    });
+    stored = true;
     await db.query(`INSERT INTO sx_training_course_media(id,tenant_id,course_id,media_kind,mime_type,original_name,storage_key,file_size_bytes,sha256_hex,created_by_identity_id)
-      VALUES (?,?,?,?,?,?,?,?,?,?)`, [id, ctx.tenant.id, courseId, info.kind, info.mime, name, id, info.size, info.sha256, ctx.identity.id]);
+      VALUES (?,?,?,?,?,?,?,?,?,?)`, [id, ctx.tenant.id, courseId, info.kind, info.mime, name, storageKey, info.size, info.sha256, ctx.identity.id]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,?,'identity','training.course-media-uploaded','training-course-media',?,?,?)`, [uuid(), ctx.tenant.id, ctx.identity.id, id, JSON.stringify({ courseId, kind: info.kind, mimeType: info.mime, sizeBytes: info.size, sha256: info.sha256 }), uuid()]);
     await db.commit();
     return { id, kind: info.kind, mimeType: info.mime, originalName: name, sizeBytes: info.size };
   } catch (error) {
     try { await db.rollback(); } catch (_) {}
-    if (moved) await fsp.rm(target, { force: true }).catch(() => {});
+    if (stored) await store().remove(`${ctx.tenant.id}/${courseId}/${storageKey}`).catch(() => {});
     throw error;
   }
 }
@@ -145,7 +176,7 @@ async function remove(db, ctx, courseId, mediaId) {
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,?,'identity','training.course-media-removed','training-course-media',?,?,?)`, [uuid(), ctx.tenant.id, ctx.identity.id, mediaId, JSON.stringify({ courseId }), uuid()]);
     await db.commit();
-    await fsp.rm(filePath(ctx.tenant.id, courseId, row.storageKey), { force: true }).catch(() => {});
+    await store().remove(`${ctx.tenant.id}/${courseId}/${row.storageKey}`).catch(() => {});
     return { id: mediaId, removed: true };
   } catch (error) {
     try { await db.rollback(); } catch (_) {}
@@ -155,10 +186,12 @@ async function remove(db, ctx, courseId, mediaId) {
 
 async function getFile(db, tenantId, courseId, mediaId) {
   safeId(tenantId); safeId(courseId); safeId(mediaId);
-  const [[row]] = await db.query(`SELECT media_kind AS kind,mime_type AS mimeType,original_name AS originalName,storage_key AS storageKey,file_size_bytes AS sizeBytes
+  const [[row]] = await db.query(`SELECT media_kind AS kind,mime_type AS mimeType,original_name AS originalName,storage_key AS storageKey,file_size_bytes AS sizeBytes,sha256_hex AS sha256Hex
     FROM sx_training_course_media m JOIN sx_training_courses c ON c.tenant_id=m.tenant_id AND c.id=m.course_id AND c.deleted_at IS NULL WHERE m.tenant_id=? AND m.course_id=? AND m.id=? AND m.deleted_at IS NULL`, [tenantId, courseId, mediaId]);
   if (!row) fail('COURSE_MEDIA_NOT_FOUND', 404);
-  return { ...row, path: filePath(tenantId, courseId, row.storageKey), sizeBytes: Number(row.sizeBytes) };
+  const result = { ...row, sizeBytes: Number(row.sizeBytes) };
+  const stored = await verifyFile(result);
+  return { ...result, driver: store().driver, path: stored.path || null, storageKey: `${tenantId}/${courseId}/${row.storageKey}` };
 }
 
 function accessToken(ctx, courseId, mediaId) {
@@ -175,4 +208,4 @@ function verifyAccessToken(token) {
   return payload;
 }
 
-module.exports = { MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, getFile, accessToken, verifyAccessToken };
+module.exports = { MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, getFile, verifyFile, readFile, openRead, accessToken, verifyAccessToken };

@@ -64,11 +64,14 @@ async function main() {
   assert.equal(ffmpeg.status, 0, ffmpeg.stderr || ffmpeg.stdout);
   assert.match(ffmpeg.stdout, /ffmpeg version/i);
 
+  const s3 = require('@aws-sdk/client-s3');
+  assert.equal(typeof s3.S3Client, 'function');
+
   process.stdout.write(JSON.stringify({
     platform: process.platform,
     architecture: process.arch,
     nonRoot: true,
-    nativeModules: ['bcrypt', 'sharp', '@roamhq/wrtc'],
+    nativeModules: ['bcrypt', 'sharp', '@roamhq/wrtc', '@aws-sdk/client-s3'],
     gracefulShutdownSignalRelay: true,
     ffmpeg: 'available',
   }) + '\n');

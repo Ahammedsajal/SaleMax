@@ -77,7 +77,7 @@ test('ARM64 image CI is unprivileged and trusted publish accepts only its succes
   assert.match(imageWorkflow, /Report exact ARM64 image size and layers/);
   assert.match(imageWorkflow, /docker image inspect .*\.Id.*\.Size.*RootFS\.Layers/);
   assert.match(imageWorkflow, /tee -a "\$GITHUB_STEP_SUMMARY"/);
-  assert.match(imageWorkflow, /node --test tests\/docker-image-contract\.test\.cjs tests\/graceful-shutdown\.test\.cjs/);
+  assert.match(imageWorkflow, /node --test tests\/docker-image-contract\.test\.cjs tests\/graceful-shutdown\.test\.cjs tests\/7network-capacity-alert\.test\.cjs tests\/object-storage\.test\.cjs tests\/object-storage-migration\.test\.cjs/);
   assert.match(imageWorkflow, /deploy\/verify-container-runtime\.cjs/);
   assert.match(imageWorkflow, /dst=\/app\/verify-container-runtime\.cjs,readonly/);
   assert.ok(imageWorkflow.includes('/app/verify-container-runtime.cjs'));
@@ -133,5 +133,6 @@ test('ARM64 runtime smoke exercises all native packages and rejects root', () =>
   assert.match(runtimeSmoke, /probe-ready/);
   assert.match(runtimeSmoke, /graceful-signal-relay/);
   assert.match(runtimeSmoke, /require\('ffmpeg-static'\)/);
+  assert.match(runtimeSmoke, /require\('@aws-sdk\/client-s3'\)/);
   assert.match(runtimeSmoke, /ffmpeg version/i);
 });

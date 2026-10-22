@@ -1,6 +1,5 @@
 'use strict';
 const crypto = require('node:crypto');
-const fs = require('node:fs/promises');
 const courses = require('./training-courses');
 const catalog = require('./product-catalog');
 function catalogCapability(ctx){const kind=catalog.kind(ctx);return kind==='products'?'products.catalog':kind==='courses'?'training.courses':null;}
@@ -88,8 +87,7 @@ async function plan(pool, c, courseId, language) {
     const max = {image:5,document:20,video:16}[p.kind];
     if (!max || p.sizeBytes > max * 1024 * 1024 || (p.kind === 'document' && p.mimeType !== 'application/pdf') || (p.kind === 'image' && !['image/jpeg','image/png'].includes(p.mimeType)) || (p.kind === 'video' && p.mimeType !== 'video/mp4')) fail('COURSE_MEDIA_NOT_SENDABLE');
     const file = await media.getFile(pool, c.ctx.tenant.id, courseId, p.mediaId);
-    const stat = await fs.stat(file.path);
-    if (stat.size !== p.sizeBytes) fail('COURSE_MEDIA_NOT_AVAILABLE');
+    await media.verifyFile(file);
   }
   const texts=textParts(course,offer,language,catalog.sales(c.ctx));
   parts.push(...texts);

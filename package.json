@@ -27,6 +27,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1155.0",
     "@elevenlabs/elevenlabs-js": "^2.32.0",
     "@google/generative-ai": "^0.24.1",
     "@roamhq/wrtc": "^0.9.1",
@@ -58,6 +59,7 @@
     "qrcode": "^1.5.4",
     "randomstring": "^1.2.3",
     "sharp": "^0.34.5",
+    "sip.js": "0.21.2",
     "socket.io": "^4.7.4",
     "stripe": "^12.13.0",
     "telegram": "^2.26.22",
@@ -65,7 +67,6 @@
     "unzipper": "^0.10.14",
     "url": "^0.11.4",
     "vm2": "^3.10.2",
-    "sip.js": "0.21.2",
     "ws": "^8.20.0"
   },
   "overrides": {
