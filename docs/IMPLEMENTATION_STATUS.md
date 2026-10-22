@@ -1932,6 +1932,10 @@ The broader category verification now includes authenticated route tests: immuta
 ## Read-only production refresh — 22 October 2026, 08:20 UTC
 
 Authorized SSH confirmed host `carsqatar-prod-01`; `/opt/salemax/current` resolved to `/opt/salemax/releases/team-agent-password-reset-cfc23a3-20261022`. The app and MariaDB containers were healthy, report and recruitment workers were running, and `https://7network.live/healthz` returned HTTP 200. Root storage was 92% used with 4.3 GiB available. `/opt/salemax/shared/7network-production-deploy.lock` was absent. Goal 3's source branch contains `deploy/with-production-lock.sh`, but no production-held lock was present during this check. This was read-only; no production state changed.
+
+## Current mainline source integration — 22 October 2026
+
+Merged `origin/main` through `38751d0` into the category branch, bringing in the current Inbox follow-up and Team Access password-reset source and deployment history. The existing application shell now retains the Real Estate workspace/API, Pipeline terminology, and category-field hooks while using mainline Inbox and Team Access asset versions. Updated the Sales navigation cache-key assertion to match the current mainline Team Access asset. Focused category, Real Estate, chatbot/Flow Builder, Team Access, Inbox follow-up, and Sales navigation tests pass 111/111; the full repository suite remains 1,099/1,127 with the same 28 failures outside category/Real Estate. No migration or production state changed. Authenticated Real Estate acceptance, shared customization integration and locked deployment remain open.
 ## Shared settings resolution and provenance — source implementation, 22 October 2026
 
 The existing owner-managed customization response and preview now include a
