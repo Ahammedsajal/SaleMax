@@ -25,7 +25,7 @@ async function send(db,{tenantId,to,text,snapshot,env=process.env,http=require('
   // Recheck the recipient immediately before crossing the provider boundary.
   const [[recipient]]=await db.query("SELECT id FROM sx_training_report_recipients WHERE tenant_id=? AND channel='whatsapp' AND destination=? AND status='verified' LIMIT 1",[tenantId,to]);
   if(!recipient)return {status:'failed',errorCode:'REPORT_DESTINATION_NOT_VERIFIED'};
-  if(snapshot?.period==='daily')return require('./business-notifications').scheduledReport(db,{tenantId,to,snapshot});
+  if(snapshot?.period==='daily')return require('./business-notifications').scheduledReport(db,{tenantId,to,snapshot,text});
   try{const response=await http.post(c.url,{...from,to:to.slice(1),text},{headers:{'x-internal-secret':c.secret},timeout:20000});
     const id=response?.data?.data?.messageId;
     return response?.data?.success&&id?{status:'accepted',providerMessageId:String(id).slice(0,191)}:{status:'unknown',errorCode:'REPORT_QR_ACCEPTANCE_UNCONFIRMED'};

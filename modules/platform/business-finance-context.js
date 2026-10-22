@@ -58,7 +58,7 @@ async function load(db,event){
 function message(kind,data,{business='7Network',test=false}={}){
  const title={invoice_issued:'Invoice issued',payment_due:'Payment due reminder',payment_received:'Payment received'}[kind];if(!title)throw Error('INVALID_FINANCE_EVENT');
  const lines=[test?'TEST / SAMPLE — no real transaction':business,title,'',`Customer / Lead: ${data.customer||'Customer'}`,`Contact number: ${data.phone||'Not provided'}`,`Course / Product: ${data.product||'Service'}`];
- if(data.number)lines.push(`Invoice: ${data.number}`);if(data.receiptNumber)lines.push(`Receipt: ${data.receiptNumber}`);
+ if(data.number)lines.push(`Invoice: ${data.number}`);if(kind==='payment_received'&&data.receiptNumber)lines.push(`Receipt: ${data.receiptNumber}`);
  if(data.total!==null&&data.total!==undefined)lines.push(`Invoice amount: ${money(data.total,data.currency)}`);
  if(kind==='payment_received')lines.push(`Amount received: ${money(data.received,data.currency)}`,`Received on: ${date(data.receivedAt)}`);
  if(kind==='payment_due')lines.push(`Payment due: ${money(data.amountDue,data.currency)}`);
