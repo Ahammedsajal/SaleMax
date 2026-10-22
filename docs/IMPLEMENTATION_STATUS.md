@@ -1864,29 +1864,25 @@ The existing Pipeline search now also matches saved values from the active and h
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
 ## Immutable 7Network Docker image candidate — 22 October 2026
 
-The Dockerfile now separates native dependency installation from the runtime
-stage and pins the official Node 22.23.3 Bookworm slim multi-architecture
-manifest by digest. Git, Python, Make and the C++ compiler are kept in the build
-stage. Compose requires a release-specific image tag and uses the same prebuilt
-image for the app and both current workers, with no implicit build or pull.
-Production-only notification-worker configuration is preserved.
+The Docker source now uses a digest-pinned multi-stage Node build, immutable
+registry references, a non-root Linux ARM64 runtime smoke, and a separate
+trusted publish workflow. Compose pins app and both workers to one verified
+image digest. The shared `flock` production wrapper is tracked but is not
+installed on production. PR #172 remains a draft; its ARM64 build and native
+runtime smoke passed on commit `8b0764d10b1c173ead71e0b3975515be6755b037`.
 
-The production host was inspected read-only: active release
-`7network-domain-activation-485c2d0-20261022`, image
-`sha256:66b58843131e2b5112d81a363a679bfa729c86ba105e9207adb8fbb3266df8c1`,
-ARM64, healthy app and database, 85% root disk use with 7.8 GB available, and
-560 retained release directories. `crm.salemax.qa`, `7network.live`, and
-`www.7network.live` all return HTTP 200. Host memory/load and instantaneous
-container use plus seven-day host-level `sysstat` averages were recorded in
-`docs/7NETWORK_DOCKER_RELEASE_POLICY.md`; shared-host averages are not tenant
-capacity or load-test results. Oracle's monitoring agent and sysstat collector
-are active, but no host-side disk alert was found, and OCI alarm notification
-configuration remains unverified.
+A fresh read-only production inspection confirms the active release and
+container state, 85% root disk usage with 7.2 GiB free, and separate app versus
+worker image identities. A path/hash comparison found 52 differing tracked
+runtime files and five live-only paths against `origin/main`; the release marker
+(`cf60781`) also disagrees with the latest ledger source (`485c2d01`). The closer
+`rebrand/7network-current-production` ref still differs on 48 files and omits
+four live-only paths. A default-branch image cannot yet represent production
+safely. No registry image was published and no production mutation occurred.
 
-Five source contract tests cover the Dockerfile/Compose/image-builder boundary.
-They do not replace an image build. The local environment has no Docker CLI or
-daemon, and the production release was not changed. A disposable native build,
-runtime media/WebRTC smoke checks, image-size comparison, and operator-visible
-disk alerts remain release gates. The full category platform, tenant isolation,
-shared upload/session/job prerequisites, database recovery plan, and migration
-acceptance remain in progress.
+The exact source/release parity reconciliation, GHCR publish/read acceptance,
+production artifact identity alignment, rollback rehearsal, image-size
+comparison, disk/inode alerts, authenticated primary/legacy journeys, media,
+session, queue and socket safety, database/media recovery, representative load,
+and authenticated English/Arabic desktop/mobile acceptance remain open. The
+full existing 42-ticket objective remains active.
