@@ -1,3 +1,20 @@
+# Reviewed workspace module registry — source implementation, 22 October 2026
+
+The existing `/api/workspace/session` module map and the owner customization
+module catalogue now derive from one source-owned registry. Each workspace
+entry binds its existing response key to a reviewed capability and permission;
+each configurable module keeps its bilingual label and dependency metadata
+beside that same policy contract. Category, plan, tenant-disable and member
+permission decisions remain independent runtime gates, so adding a registry
+entry alone cannot enable it for an existing business. A synthetic future-retail
+contract confirms it can opt into the reviewed Products module without inheriting
+Training Center or Real Estate modules. Thirty-eight focused registry,
+customization, category and policy tests pass. No migration or customer setting
+changed. The disposable shared-session database integration remains unrun
+because this checkout has no synthetic database configuration; production is
+unchanged. Authenticated owner/staff UI acceptance and the wider category and
+42-ticket gates remain open.
+
 # Real Estate chatbot listing privacy — source implementation, 22 October 2026
 
 Added an explicit `Share this property with your chatbot` choice to the existing
