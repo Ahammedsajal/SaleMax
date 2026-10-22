@@ -12,6 +12,8 @@ The shared legacy feature-session adapter is now covered end-to-end at the conte
 
 The tenant-customization draft transaction now also accepts the canonical plan contract for a tenant that still stores the `salemax_sales` alias. A synthetic owner write exercises category lookup, active subscription binding, revision creation, draft-head update and audit insertion while retaining the stored alias; focused customization, category and policy checks pass 28/28. There is no migration or customer-data change.
 
+The existing product-catalogue adapter now resolves stored category aliases against the immutable category registry before choosing the existing fixed storage adapter. This preserves the 7Network Sales catalogue and quick-reply capability for legacy tenants and plan snapshots while retaining exact version and capability checks. Catalogue, category identity and platform policy checks pass 24/24; syntax and whitespace checks pass. No schema or tenant data changed.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
