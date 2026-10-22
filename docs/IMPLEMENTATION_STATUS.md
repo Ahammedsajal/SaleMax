@@ -1883,3 +1883,9 @@ missing host disk alert timer, and the pre-scale gates are recorded in
 `docs/7NETWORK_SCALE_READINESS.md`. Horizontal scaling remains explicitly
 gated until shared storage, channel ownership, socket fanout, scheduler claims,
 cross-instance tests, database recovery and operator-visible alerts are proven.
+Campaign delivery also has a provider/database crash window: a recipient remains
+`PENDING` until Meta returns and the response is persisted. Before adding campaign
+workers, claim recipient rows atomically and represent ambiguous external outcomes
+as `unknown`; never reclaim and resend them automatically without provider
+idempotency or reconciliation. The exact OCI Notifications topic OCID is still
+needed to create and verify the production disk alarm.
