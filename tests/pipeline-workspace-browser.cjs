@@ -10,6 +10,7 @@ const root=path.join(__dirname,'../client/public');
    if(!url.pathname.startsWith('/api/'))return route.fulfill({body:'',contentType:url.pathname.endsWith('.css')?'text/css':'text/plain'});
    requests.push(url.pathname);
    if(url.pathname.endsWith('/board'))data={leads:[],stages:[{stage_key:'new',title:'New',position:0,leads:[]}],agents:[],role:'owner',categoryKey:contract.category.key,total:0,leadWorkspaceContract:contract};
+   else if(url.pathname==='/api/workspace/session')data={stageLabels:{new:{en:'Prospect A',ar:'عميل أ'}}};
    else if(url.pathname.endsWith('/filter-options'))data={qrInstances:[]};
    else if(url.pathname.endsWith('/course-options')||url.pathname.endsWith('/contacts/matches')||url.pathname.endsWith('/sale-options')||url.pathname.endsWith('/sale-reviews'))data=[];
    else if(url.pathname.endsWith('/leads/lead-a')){data=lead;if(req.method()==='PATCH')writes.push(req.postDataJSON());}
@@ -24,6 +25,7 @@ const root=path.join(__dirname,'../client/public');
   await page.locator('#newLead [name=title]').fill('Synthetic title');await page.locator('#newLead [name=mobile]').fill('+12025550198');await page.locator('#newLead [name=contactName]').fill('Synthetic contact');await page.locator('#newLead .primary').click();await page.waitForFunction(()=>document.querySelector('#modal').classList.contains('hidden'));
   assert.equal(writes[0].learnerName,training?'':undefined);assert.equal(writes[0].qualificationData.qid,undefined);
   await page.evaluate(()=>window.salemaxPipelineOpenLead('lead-a'));await page.locator('#editLead').waitFor();
+  assert.equal(await page.locator('#editLeadStage option:checked').textContent(),lang==='ar'?'عميل أ':'Prospect A','edit stage selector uses the effective tenant label');
   assert.equal(await page.locator('#editLead [name=qualification_qid]').count(),training?1:0);assert.equal(await page.locator('#createLeadApplication').count(),training?1:0);assert.equal(await page.locator('#sale-review-area').count(),training?1:0);
   await page.locator('#editLeadTitle').fill('Updated title');await page.locator('#editLead button[type=submit]').click();await page.waitForFunction(()=>document.querySelector('#editLeadTitle')?.value==='Synthetic lead');
   assert.equal(writes[1].qualificationData.qid,'12345678901','hidden historical fields survive edit');assert.equal(writes[1].qualificationData.certificate_name,'Historical certificate');assert.equal(writes[1].qualificationData.courseInterest,'Historical course');

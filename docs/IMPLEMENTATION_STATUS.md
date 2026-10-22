@@ -2055,3 +2055,14 @@ MariaDB are healthy, report and recruitment workers are running, public
 92% used with 4.3 GiB free. The required shared deployment lock is absent. No
 production state changed. Shared customization source remains undeployed;
 preflight still requires the shared exclusive lock and release-headroom review.
+
+## Pipeline tenant stage labels in lead editing — source increment, 22 October 2026
+
+The existing lead edit form now renders stage options through the same effective
+label resolver used by Pipeline board columns and automation selectors. This
+keeps the tenant's published English or Arabic label visible when an owner or
+staff member edits a lead, while preserving the stable stage key submitted to
+the API. The existing EN/AR desktop/mobile Pipeline browser fixture now serves
+synthetic workspace stage labels and checks the selected edit option. Cache
+reference updated. Source-only; authenticated production acceptance and
+deployment remain open.
