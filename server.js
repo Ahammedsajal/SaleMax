@@ -24,6 +24,7 @@ const {
 } = require("./modules/web/meta-template-samples-shell");
 
 const app = express();
+let businessNotificationRuntime = null;
 let receiptWorkerProcess = null;
 let taskNotificationWorkerProcess = null;
 let asteriskAriEventsWorkerProcess = null;
@@ -260,6 +261,7 @@ app.get("*", function (request, response) {
 // ─── Server ───────────────────────────────────────────────────────────────────
 const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0.1", () => {
   console.log(`7Network server is running on port ${process.env.PORT}`);
+  businessNotificationRuntime = require('./modules/platform/business-notifications').start();
   receiptWorkerProcess = receiptWorkerRuntime.start();
   if (receiptWorkerProcess) {
     receiptWorkerProcess.once("error", () => console.error("Receipt email worker could not start."));
@@ -304,6 +306,7 @@ module.exports = io;
 
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 nodeCleanup(async (exitCode, signal) => {
+  businessNotificationRuntime?.stop();
   const receiptWorker = receiptWorkerProcess;
   if (receiptWorker && receiptWorker.exitCode === null) {
     await new Promise((resolve) => {

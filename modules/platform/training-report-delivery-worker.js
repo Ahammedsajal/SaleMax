@@ -37,7 +37,7 @@ async function sendEmail(message,{env=process.env,transport,sendEmail}={}){
 }
 async function sendWhatsapp(db,{tenantId,to,snapshot,env=process.env,http=require('axios'),sendWhatsapp:injected}={}){
   let config;try{config=delivery.whatsappConfig(env,'delivery');}catch(error){return {status:'failed',errorCode:error.code||'REPORT_WHATSAPP_NOT_CONFIGURED'};}
-  if(config.transport==='qr')return require('./training-report-qr').send(db,{tenantId,to,text:emailContent(snapshot,{to}).text,env,http});
+  if(config.transport==='qr')return require('./training-report-qr').send(db,{tenantId,to,text:emailContent(snapshot,{to}).text,snapshot,env,http});
   let credentials;try{credentials=await delivery.tenantMetaCredentials(db,tenantId);}catch{return {status:'retry',errorCode:'REPORT_WHATSAPP_ACCOUNT_LOOKUP_FAILED'};}if(!credentials)return {status:'failed',errorCode:'REPORT_WHATSAPP_ACCOUNT_UNAVAILABLE'};
   const parameters=whatsappParameters(snapshot),message={messaging_product:'whatsapp',to:String(to).replace(/^\+/,''),type:'template',template:{name:config.template,language:{code:config.language},components:[{type:'body',parameters:parameters.map(text=>({type:'text',text}))}]}};
   try{const response=injected?await injected({tenantId,to,snapshot,config,message}):await http.post(`https://graph.facebook.com/${config.version}/${credentials.phoneId}/messages`,message,{headers:{Authorization:`Bearer ${credentials.token}`},timeout:15000});const id=(response?.data?.messages?.[0]?.id||response?.providerMessageId||'').toString();return (id||response?.accepted)?{status:'accepted',providerMessageId:id.slice(0,191)||null}:{status:'unknown',errorCode:'REPORT_WHATSAPP_ACCEPTANCE_UNCONFIRMED'};}
