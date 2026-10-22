@@ -6,9 +6,10 @@ const path=require('node:path');
 const tasks=require('../modules/platform/task-management');
 const {createTaskContext}=require('../modules/platform/training-task-context');
 const linkedRecords=require('../modules/platform/task-linked-records');
-const {trainingCenter,restaurantFixture}=require('../modules/platform/categories');
+const {trainingCenter,restaurantFixture,getCategory}=require('../modules/platform/categories');
 
 const ctx={tenantId:'11111111-1111-4111-8111-111111111111',uidHash:'a'.repeat(64),uid:'owner-uid',role:'owner',actorType:'identity',actorId:'22222222-2222-4222-8222-222222222222'};
+const categoryContext=key=>{const category=getCategory(key,1);return {...ctx,tenant:{categoryKey:key,categoryVersion:1},category,subscription:{status:'active',capabilities:category.capabilities}};};
 
 test('invoice follow-up source calculates the open balance with exact minor-unit arithmetic and tenant scope',async()=>{
   let call;const db={query:async(sql,args)=>{call={sql,args};return [[{id:'33333333-3333-4333-8333-333333333333',invoice_number:'INV-12',status:'issued',currency:'QAR',total_minor:'90071992547409931',collected_minor:'20',credited_minor:'11',next_due_date:new Date('2026-11-01T00:00:00Z'),lead_id:'44444444-4444-4444-8444-444444444444',learner_name:'Learner',payer_name:'Payer',payer_phone:'123'}],[]];}};
@@ -101,7 +102,7 @@ test('task list reports whether another page exists and caps the page to the req
 
 test('active task filters exclude completed history before pagination',async()=>{
   let query;const db={query:async(sql,args)=>{query={sql,args};return [[],[]];}};
-  await tasks.list(db,{...ctx,tenant:{categoryKey:'7network_sales'}},{scope:'mine',status:'active',taskType:'sales_call'});
+  await tasks.list(db,categoryContext('7network_sales'),{scope:'mine',status:'active',taskType:'sales_call'});
   assert.match(query.sql,/t\.status IN \('open','in_progress','blocked'\)/);
   assert.match(query.sql,/t\.task_type=\?/);
   assert.ok(query.args.includes('sales_call'));
@@ -110,10 +111,10 @@ test('active task filters exclude completed history before pagination',async()=>
 
 test('task type filters scope scheduled Sales calls and cannot be used by other categories',async()=>{
   let query;const db={query:async(sql,args)=>{query={sql,args};return [[],[]];}};
-  await tasks.list(db,{...ctx,tenant:{categoryKey:'7network_sales'}},{scope:'mine',taskType:'sales_call'});
-  await tasks.list(db,{...ctx,tenant:{categoryKey:'salemax_sales'}},{scope:'mine',taskType:'sales_call'});
+  await tasks.list(db,categoryContext('7network_sales'),{scope:'mine',taskType:'sales_call'});
+  await tasks.list(db,categoryContext('salemax_sales'),{scope:'mine',taskType:'sales_call'});
   assert.match(query.sql,/t\.task_type=\?/);assert.ok(query.args.includes('sales_call'));
-  await assert.rejects(tasks.list(db,{...ctx,tenant:{categoryKey:'training_center'}},{scope:'mine',taskType:'sales_call'}),{code:'INVALID_TASK_FILTER'});
+  await assert.rejects(tasks.list(db,categoryContext('training_center'),{scope:'mine',taskType:'sales_call'}),{code:'INVALID_TASK_FILTER'});
 });
 
 test('task detail resolves participant names without exposing their email addresses',async()=>{
@@ -214,13 +215,13 @@ test('task lead lookup is constrained to the caller workspace and agent assignme
 });
 
 test('scheduled sales calls require Sales category, linked lead, time and agent assignee',()=>{
-  const validate=tasks._private.validateSalesCall,linked={leadId:'33333333-3333-4333-8333-333333333333'},due=new Date('2026-10-14T10:00:00Z'),agent=[{actorType:'agent',actorId:'7',role:'assignee'}];
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'sales_call',due,'lead',linked,agent),{code:'INVALID_TASK_TYPE',status:403});
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,null,null,agent),{code:'INVALID_SALES_CALL_LEAD'});
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',null,'lead',linked,agent),{code:'INVALID_SALES_CALL_DUE_DATE'});
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,'lead',linked,[{actorType:'identity',actorId:'member',role:'assignee'}]),{code:'TASK_ASSIGNEE_REQUIRED'});
-  assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,'lead',linked,agent));
-  assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',due,'lead',linked,agent));
+  const validate=tasks._private.validateTaskAdapter,linked={leadId:'33333333-3333-4333-8333-333333333333'},due=new Date('2026-10-14T10:00:00Z'),agent=[{actorType:'agent',actorId:'7',role:'assignee'}];
+  assert.throws(()=>validate(categoryContext('training_center'),'sales_call',due,'lead',linked,agent,true),{code:'INVALID_TASK_TYPE',status:403});
+  assert.throws(()=>validate(categoryContext('7network_sales'),'sales_call',due,null,null,agent,true),{code:'INVALID_SALES_CALL_LEAD'});
+  assert.throws(()=>validate(categoryContext('7network_sales'),'sales_call',null,'lead',linked,agent),{code:'INVALID_SALES_CALL_DUE_DATE'});
+  assert.throws(()=>validate(categoryContext('7network_sales'),'sales_call',due,'lead',linked,[{actorType:'identity',actorId:'member',role:'assignee'}],true),{code:'TASK_ASSIGNEE_REQUIRED'});
+  assert.doesNotThrow(()=>validate(categoryContext('7network_sales'),'sales_call',due,'lead',linked,agent,true));
+  assert.doesNotThrow(()=>validate(categoryContext('salemax_sales'),'sales_call',due,'lead',linked,agent,true));
   assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'general',null,null,null,[]));
 });
 
