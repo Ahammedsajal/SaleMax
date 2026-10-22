@@ -2713,3 +2713,19 @@ router execution, category adoption, authenticated English/Arabic screen
 acceptance, or production deployment. The local SQL runtime is MySQL 9.6, so
 the MariaDB integration was not rerun for this middleware-only change. No
 customer or production state changed.
+
+## Inbox media cleanup legacy reference guard — source increment, 22 October 2026
+
+The shared Inbox media cleanup now checks legacy `chats.last_message` rows as
+well as `beta_conversation` before unlinking a shared media file. This prevents
+deleting a file still referenced by another Meta Inbox tenant's latest-message
+record. Synthetic unit and disposable-MySQL cases cover both reference stores,
+including a cross-tenant legacy reference. The guard does not secure public
+`/meta-media` reads and does not cover legacy JSON fallback references, so it is
+a retention safeguard rather than tenant media isolation. The focused unit
+passes 1/1, and the disposable synthetic MySQL 9.6 Inbox isolation integration
+passes with two tenants, zero cross-tenant mutations or file deletions, and
+cleanup of its temporary database. The app's separate background pool logs
+local database credential denial during module load; it did not affect the
+disposable integration result. No production data, route or runtime changed;
+authenticated media delivery and legacy-reference migration remain open.

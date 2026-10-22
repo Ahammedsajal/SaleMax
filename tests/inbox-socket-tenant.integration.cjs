@@ -65,6 +65,12 @@ async function main() {
         star TINYINT
       ) ENGINE=InnoDB
     `);
+    await db.query(`CREATE TABLE chats (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(100) NOT NULL,
+      chat_id VARCHAR(191) NOT NULL,
+      last_message LONGTEXT
+    ) ENGINE=InnoDB`);
     await db.query('CREATE TABLE chat_tags (id BIGINT PRIMARY KEY, uid VARCHAR(100) NOT NULL, title VARCHAR(191)) ENGINE=InnoDB');
     await db.query('CREATE TABLE contact (id BIGINT PRIMARY KEY, uid VARCHAR(100) NOT NULL, mobile VARCHAR(50), name VARCHAR(191), var1 TEXT, var2 TEXT, var3 TEXT, var4 TEXT, var5 TEXT) ENGINE=InnoDB');
     await db.query('CREATE TABLE agents (id BIGINT PRIMARY KEY, uid VARCHAR(100), owner_uid VARCHAR(100), role VARCHAR(40)) ENGINE=InnoDB');
@@ -101,6 +107,10 @@ async function main() {
     await mediaService.deleteMediaFromConversation({mediaFolderPath:mediaDirectory,type:'media',uid:ownerA,chatId:'chat-a',conversationData:[{type:'image',msgContext:sharedMediaContext}],queryFn:sqlQuery});
     assert.equal(fs.existsSync(sharedMediaPath),true,'Tenant A cannot remove media still referenced by tenant B');
     await db.query('DELETE FROM beta_conversation WHERE uid=? AND chat_id=?',[ownerB,'chat-b']);
+    await db.query('INSERT INTO chats (uid,chat_id,last_message) VALUES (?,?,?)',[ownerB,'legacy-chat-b',sharedMediaContext]);
+    await mediaService.deleteMediaFromConversation({mediaFolderPath:mediaDirectory,type:'media',uid:ownerA,chatId:'chat-a',conversationData:[{type:'image',msgContext:sharedMediaContext}],queryFn:sqlQuery});
+    assert.equal(fs.existsSync(sharedMediaPath),true,'legacy chats.last_message keeps a cross-tenant file reference alive');
+    await db.query('DELETE FROM chats WHERE uid=? AND chat_id=?',[ownerB,'legacy-chat-b']);
     await mediaService.deleteMediaFromConversation({mediaFolderPath:mediaDirectory,type:'media',uid:ownerA,chatId:'chat-a',conversationData:[{type:'image',msgContext:sharedMediaContext}],queryFn:sqlQuery});
     assert.equal(fs.existsSync(sharedMediaPath),false,'An unshared media file can still be removed for its conversation');
     const modulePaths = [

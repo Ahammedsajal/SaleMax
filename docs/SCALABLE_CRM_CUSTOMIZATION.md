@@ -223,8 +223,10 @@ their full public URLs in `chats.last_message` and
 `conversations/inbox/<uid>/<chat-id>.json`. The function also emits these message
 objects to the owner's socket and to an assigned Agent socket. QR Inbox messages
 use the newer `beta_conversation` table and the current media cleanup helper
-checks references there, but that check does not cover legacy `chats`/JSON or
-other potential references. It is not a complete ownership or retention model.
+checks references there. The cleanup helper now also checks other tenants'
+legacy `chats.last_message` rows before unlinking a shared file. It still does
+not scan legacy JSON fallback files or establish read authorization; this is
+not a complete ownership or retention model.
 
 `/media` is also intentionally consumed by upload and provider flows, including
 Meta template media recorded in `meta_templet_media`; closing both static paths
@@ -236,8 +238,12 @@ reader/provider path before disabling legacy public access. The relevant
 acceptance includes two owners with colliding filenames, owner and assigned
 Agent reads, assignment revocation, cross-tenant token tampering, expired grants,
 range requests, exports, legacy JSON fallback, and retained template media.
-This is an audit finding and rollout plan only; no media, customer data or
-production route changed. Media isolation remains incomplete.
+The first cleanup safeguard is source-only and covered by synthetic unit and
+disposable-MySQL cases for both modern conversation rows and legacy
+`chats.last_message` references. No media, customer data or production route
+changed. Direct public reads, JSON fallback references, complete history
+migration and authenticated owner/assigned-Agent acceptance remain open; media
+isolation remains incomplete.
 
 ### Shared-core ownership slice — 22 October 2026
 

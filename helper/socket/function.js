@@ -137,6 +137,15 @@ async function deleteMediaFromConversation({
             [uid, chatId, `%${filename}%`],
           );
           if (references?.length) continue;
+          // Older Meta Inbox conversations still keep their latest message in
+          // `chats.last_message`. Preserve shared files referenced there too;
+          // cleanup must remain conservative while both Inbox generations are
+          // readable.
+          const legacyReferences = await queryFn(
+            "SELECT 1 FROM chats WHERE NOT (uid = ? AND chat_id = ?) AND last_message LIKE ? LIMIT 1",
+            [uid, chatId, `%${filename}%`],
+          );
+          if (legacyReferences?.length) continue;
           fs.unlinkSync(realFilePath);
         }
 
