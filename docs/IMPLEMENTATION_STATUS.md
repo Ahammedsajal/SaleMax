@@ -8,9 +8,25 @@ Training Center journey subqueries compared these columns directly when
 checking that enrollment records belonged to leads in the report scope. The
 report now applies the existing `utf8mb4_general_ci` collation explicitly to
 both operands in all six checks, retaining the tenant-hash and lead-ID
-predicates. A regression assertion checks all six scoped joins. This is a
-source-only fix; authenticated EN/AR acceptance, MariaDB integration and
-production deployment remain open.
+predicates. A regression assertion checks all six scoped joins. The source
+change is commit `7bff8a0ccfc1fd8c81e85bac18f6ce280b13689f` on the open shared
+core PR #173; the focused report tests pass 14/14.
+
+Current production evidence: the ICP release
+`/opt/salemax/releases/7network-sales-icp-be1f442-20261022` was built from the
+preceding report-collation release and retains its report helper
+(`dc7d19d63fd78b557e3e5f9d5d9c5a3a56a8dda67e8309ce061024611deab3b3`). The
+app is healthy. The authenticated existing Lead Reports route still returns
+HTTP 500 for `/api/pipeline/reports/journey`; its activity and summary endpoints
+return HTTP 200. Application logs report `ER_CANT_AGGREGATE_2COLLATIONS`.
+Calling `getJourneyReport` directly with a synthetic UID returns successfully,
+but this does not cover the route's preceding
+`trainingLeadJourney.reconcileExisting` call or an existing tenant's data.
+That route-level source remains unisolated, so the existing screen fails
+acceptance and the module is not complete. A five-minute aggregate found no
+recent system stage-change events during this inspection. No new migration was
+applied. See the current ICP release entry in `DEPLOYMENT.md`; it records the
+collation release as its predecessor and its rollback reference.
 
 ## Generic Forms staff replay scope — source increment, 22 October 2026
 
