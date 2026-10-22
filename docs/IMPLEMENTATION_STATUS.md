@@ -21,12 +21,15 @@ synthetic assignments: Tenant A had Forms and CRM Leads, Tenant B had Forms
 only, and Tenant A was later expired. B's denied capture and A's post-expiry
 capture created no leads. It also denied public capture for a database-suspended
 tenant and denied staff capture with an inactive membership context, without
-creating extra leads. Exact-token replays created no duplicate leads or
-visitor-rate attempts; consent, sanitized campaign attribution, contact fields,
-public and staff source types, identity/system activity attribution and linked
-lead IDs persisted in the real Pipeline tables. Only the generic category
-adapter and category lookup remain test-injected. Authenticated browser
-acceptance and category declaration remain separate gates.
+creating extra leads. A disposable MariaDB trigger then forced the real Pipeline
+activity write to fail after lead/contact creation began; the transaction left
+no lead, contact, submission, or visitor-rate attempt behind. Exact-token
+replays created no duplicate leads or visitor-rate attempts; consent, sanitized
+campaign attribution, contact fields, public and staff source types,
+identity/system activity attribution and linked lead IDs persisted in the real
+Pipeline tables. Only the generic category adapter and category lookup remain
+test-injected. Authenticated browser acceptance and category declaration remain
+separate gates.
 The temporary database, data directory and server were removed; the unrelated
 MySQL service was left untouched. No production state or customer data changed.
 Authenticated EN/AR existing-screen acceptance, category opt-in review and

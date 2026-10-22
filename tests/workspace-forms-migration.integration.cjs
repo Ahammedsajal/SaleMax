@@ -101,6 +101,17 @@ module.exports=async function workspaceFormsMigrationIntegration(db,{t1,t2,i1,i2
     const [rateRows]=await db.query('SELECT attempts FROM sx_workspace_form_rate_limits WHERE tenant_id=? AND form_id=?',[t1,formA.id]);
     assert.equal(rateRows.length,2);assert.ok(rateRows.every(row=>Number(row.attempts)===1),'an idempotent replay must not consume another visitor-rate attempt');
     assert.equal((await forms.submissions(db,ctxA)).total,4);assert.equal((await forms.submissions(db,ctxB)).total,1);
+    const failureToken='dddddddd-dddd-4ddd-8ddd-dddddddddddd',failureVisitor='e'.repeat(64);
+    await db.query(`CREATE TRIGGER fail_synthetic_pipeline_activity BEFORE INSERT ON pipeline_activity FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='synthetic activity failure'`);
+    try{
+      const failure=await forms.submitPublic(pool,{tenantSlug:ctxA.slug,formSlug:'service-contact',submissionToken:failureToken,visitorHash:failureVisitor,expectedFormVersion:1,values:{contact_name:'Rollback synthetic',phone:'+12025550129',consent:true}}).then(()=>null,error=>error);
+      assert.equal(failure?.code,'ER_SIGNAL_EXCEPTION');
+    }finally{await db.query('DROP TRIGGER fail_synthetic_pipeline_activity');}
+    assert.equal(await pipelineCount(),2,'Pipeline failure must roll back the lead, contact and activity transaction');
+    const [[failedSubmission]]=await db.query('SELECT COUNT(*) AS total FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=?',[t1,formA.id,sha(failureToken)]);
+    const [[failedRate]]=await db.query('SELECT COUNT(*) AS total FROM sx_workspace_form_rate_limits WHERE tenant_id=? AND form_id=? AND visitor_hash=?',[t1,formA.id,failureVisitor]);
+    const [[contactCount]]=await db.query('SELECT COUNT(*) AS total FROM pipeline_contacts WHERE uid_hash=?',[sha(ownerUidA)]);
+    assert.equal(Number(failedSubmission.total),0);assert.equal(Number(failedRate.total),0);assert.equal(Number(contactCount.total),2);
     await db.query("UPDATE sx_tenants SET status='suspended' WHERE id=?",[t1]);
     assert.equal(await forms.publicForm(db,ctxA.slug,'service-contact'),null,'a suspended tenant must not publish its generic form');
     const suspendedError=await forms.submitPublic(pool,{tenantSlug:ctxA.slug,formSlug:'service-contact',submissionToken:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',visitorHash:'d'.repeat(64),expectedFormVersion:1,values:{contact_name:'Suspended synthetic',phone:'+12025550128',consent:true}}).then(()=>null,error=>error);
@@ -112,5 +123,5 @@ module.exports=async function workspaceFormsMigrationIntegration(db,{t1,t2,i1,i2
     assert.equal(expiredError?.code,'FORM_NOT_FOUND');assert.equal(await pipelineCount(),2,'an expired assignment must not create a new Pipeline lead');
   }finally{categories.getCategory=original.getCategory;}
 
-  return {workspaceFormsTenantForeignKeys:true,workspaceFormsSubmissionIdempotency:true,workspaceFormsVersionReference:true,workspaceFormsRateLimitTenantBinding:true,workspaceFormsServiceTwoTenantIsolation:true,workspaceFormsCrossTenantIdDenial:true,workspaceFormsConcurrentStaleWrite:true,genericPublicSubmissionTransactional:true,genericPublicEntitlementDenial:true,genericPublicExpiredAssignmentDenial:true,genericPublicSuspendedTenantDenial:true,genericPublicIdempotencyAndRateSnapshot:true,genericPublicPipelinePersistence:true,genericStaffSubmissionTransactional:true,genericStaffRevokedMembershipContextDenial:true,genericStaffPipelinePersistenceAndIdentityAttribution:true,genericStaffIdentityAttributionAndReplay:true,actualPlanAssignmentResolver:true};
+  return {workspaceFormsTenantForeignKeys:true,workspaceFormsSubmissionIdempotency:true,workspaceFormsVersionReference:true,workspaceFormsRateLimitTenantBinding:true,workspaceFormsServiceTwoTenantIsolation:true,workspaceFormsCrossTenantIdDenial:true,workspaceFormsConcurrentStaleWrite:true,genericPublicSubmissionTransactional:true,genericPublicPipelineFailureRollsBackAllRows:true,genericPublicEntitlementDenial:true,genericPublicExpiredAssignmentDenial:true,genericPublicSuspendedTenantDenial:true,genericPublicIdempotencyAndRateSnapshot:true,genericPublicPipelinePersistence:true,genericStaffSubmissionTransactional:true,genericStaffRevokedMembershipContextDenial:true,genericStaffPipelinePersistenceAndIdentityAttribution:true,genericStaffIdentityAttributionAndReplay:true,actualPlanAssignmentResolver:true};
 };
