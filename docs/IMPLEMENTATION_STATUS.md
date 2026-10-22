@@ -4,13 +4,17 @@ The focused Forms migration runner now accepts the explicit `DBPASS=__EMPTY__`
 sentinel for local disposable MariaDB instances configured with an empty
 password, matching the existing migration integration convention. Assertion
 failures emit their synthetic fixture stack so constraint mismatches can be
-diagnosed without suppressing details. The generic Forms service suite passes
-9/9. The migration integration passed on a fresh disposable MariaDB 11.4.13
+diagnosed without suppressing details. The focused category/Forms regressions
+pass 38/38. The integration passed on a fresh disposable MariaDB 11.4.13
 instance and verified tenant-bound form/version/submission/rate-limit foreign
-keys plus submission idempotency. The temporary database, data directory and
-server were removed; the unrelated MySQL service was left untouched. No
-production state or customer data changed. Authenticated EN/AR existing-screen
-acceptance, category opt-in review and deployment remain open.
+keys plus idempotency. It then invoked the actual shared Forms service for two
+synthetic tenants using the same test-only generic adapter: same-slug creation
+remained tenant-local; list and submission reads were scoped; cross-tenant form
+IDs were denied for update/publication; and concurrent writes to one draft
+revision yielded one success and one `STALE_REVISION`. The temporary database,
+data directory and server were removed; the unrelated MySQL service was left
+untouched. No production state or customer data changed. Authenticated EN/AR
+existing-screen acceptance, category opt-in review and deployment remain open.
 
 ## Lead Reports journey collation repair — source increment, 22 October 2026
 
