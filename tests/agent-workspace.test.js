@@ -31,7 +31,7 @@ function browserSandbox(url){
  const localStorage=new Storage(),sessionStorage=new Storage(),u=new URL(url),calls=[],redirects=[],historyCalls=[];
  localStorage.setItem('wacrm_user','manager-token');localStorage.setItem('wacrm_agent','agent-token');
  class XHR{open(){}send(){}setRequestHeader(){}}
- const box={Storage,localStorage,sessionStorage,URL,URLSearchParams,Request,Headers,XMLHttpRequest:XHR,history:{pushState(...args){historyCalls.push(['pushState',...args]);},replaceState(...args){historyCalls.push(['replaceState',...args]);}},addEventListener(){},setInterval(){},queueMicrotask:fn=>fn(),location:{pathname:u.pathname,search:u.search,href:url,origin:u.origin,replace:target=>redirects.push(target)},window:{fetch:async(input,init)=>calls.push({input,init})}};
+ const box={Storage,localStorage,sessionStorage,URL,URLSearchParams,Request,Headers,XMLHttpRequest:XHR,history:{pushState(...args){historyCalls.push(['pushState',...args]);},replaceState(...args){historyCalls.push(['replaceState',...args]);}},document:{documentElement:{style:{visibility:''}}},addEventListener(){},setInterval(){},queueMicrotask:fn=>fn(),location:{pathname:u.pathname,search:u.search,href:url,origin:u.origin,replace:target=>redirects.push(target)},window:{fetch:async(input,init)=>calls.push({input,init})}};
  const originalGet=Storage.prototype.getItem;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../client/public/agent-workspace.js'),'utf8'),box);return {box,calls,redirects,historyCalls,originalGet};
 }
 test('shared business shell uses the Agent credential and preserves a separate Manager session',async()=>{
@@ -49,6 +49,7 @@ test('agent login bypasses the legacy Agent route before its screen can render',
  const {box,redirects,historyCalls}=browserSandbox('https://crm.example.invalid/agent/login');
  box.history.pushState({},'', '/agent');
  assert.deepEqual(redirects,['/user?actor=agent&page=dashboard']);
+ assert.equal(box.document.documentElement.style.visibility,'hidden');
  assert.deepEqual(historyCalls,[],'the shared-shell navigation must happen before legacy React route listeners run');
 });
 test('legacy Agent URLs map to the shared dashboard while preserving supported Inbox and Task aliases',()=>{
