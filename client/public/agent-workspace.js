@@ -11,15 +11,16 @@
    target.pathname='/user';target.search='';target.searchParams.set('actor','agent');target.searchParams.set('page',page);return target.pathname+target.search+target.hash;
   }catch{return value;}
  };
+ const redirectToSharedAgent=(url)=>{sessionStorage.setItem('sx_workspace_actor','agent');document.documentElement.style.visibility='hidden';location.replace(url);};
  if(location.pathname==='/user/login'||params.get('actor')==='user')sessionStorage.removeItem('sx_workspace_actor');
  if(params.get('actor')==='agent')sessionStorage.setItem('sx_workspace_actor','agent');
  if(location.pathname.startsWith('/agent/login')){
-  const enter=()=>{if(location.pathname.replace(/\/$/,'')==='/agent'&&raw('wacrm_agent')){sessionStorage.setItem('sx_workspace_actor','agent');location.replace('/user?actor=agent&page=dashboard');}};
-  for(const method of ['pushState','replaceState']){const original=history[method];history[method]=function(state,title,url,...rest){if(typeof url==='string'&&raw('wacrm_agent')){const destination=sharedAgentEntry(url);if(destination!==url){sessionStorage.setItem('sx_workspace_actor','agent');location.replace(destination);return;}}const result=original.call(this,state,title,url,...rest);enter();return result;};}
+  const enter=()=>{if(location.pathname.replace(/\/$/,'')==='/agent'&&raw('wacrm_agent'))redirectToSharedAgent(sharedAgentEntry(location.href));};
+  for(const method of ['pushState','replaceState']){const original=history[method];history[method]=function(state,title,url,...rest){if(typeof url==='string'&&raw('wacrm_agent')){const destination=sharedAgentEntry(url);if(destination!==url){redirectToSharedAgent(destination);return;}}const result=original.call(this,state,title,url,...rest);enter();return result;};}
   addEventListener('popstate',enter);setInterval(enter,500);
  }
  const agentEntry=location.pathname.replace(/\/$/,'')==='/agent';
- if(agentEntry&&raw('wacrm_agent')){sessionStorage.setItem('sx_workspace_actor','agent');location.replace(sharedAgentEntry(location.href));return;}
+ if(agentEntry&&raw('wacrm_agent')){redirectToSharedAgent(sharedAgentEntry(location.href));return;}
  if(!['/user','/pipeline','/call-center','/sales-workspace','/tasks'].includes(location.pathname.replace(/\/$/,''))||sessionStorage.getItem('sx_workspace_actor')!=='agent')return;
  window.SaleMaxActor='agent';
  Storage.prototype.getItem=function(key){return originalGet.call(this,this===localStorage&&key==='wacrm_user'?'wacrm_agent':key);};
