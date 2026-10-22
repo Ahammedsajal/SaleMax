@@ -44,7 +44,7 @@ async function resolveInboxScope(query, user, event) {
   if (owners.length !== 1 || owners[0].uidHash !== crypto.createHash('sha256').update(owners[0].uid).digest('hex')) fail();
   if(source==='agents'&&(user.is_active===0||user.owner_uid!==owners[0].uid))fail();
   const sharedQrInstances = ['manager','agent','accountant'].includes(row.role)
-    ? await query(`SELECT instance.id AS instanceId,instance.uniqueId,instance.number,instance.title,instance.status
+    ? await query(`SELECT instance.id AS instanceId,instance.uniqueId,instance.number,instance.title,instance.status,instance.other
         FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=?
         WHERE share.tenant_id=? AND share.membership_id=? AND (
           share.granted_by_identity_id=? OR share.granted_by_identity_id=? OR EXISTS (
