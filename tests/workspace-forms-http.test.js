@@ -23,6 +23,14 @@ function context(role='owner',tenantId='tenant-a'){
     subscription:{status:'active',categoryKey:genericCategory.key,categoryVersion:genericCategory.version,capabilities:[...genericCategory.capabilities]}
   };
 }
+function trainingContext(){
+  return {
+    audience:'tenant',identity:{id:'identity-training-owner'},
+    tenant:{id:'training-tenant',status:'active',categoryKey:categories.trainingCenter.key,categoryVersion:categories.trainingCenter.version},
+    membership:{id:'membership-training-owner',tenantId:'training-tenant',role:'owner',status:'active'},category:categories.trainingCenter,
+    subscription:{status:'active',categoryKey:categories.trainingCenter.key,categoryVersion:categories.trainingCenter.version,capabilities:[...categories.trainingCenter.capabilities]}
+  };
+}
 
 function listen(app){return new Promise((resolve,reject)=>{
   const server=app.listen(0,'127.0.0.1',()=>resolve(server));
@@ -42,11 +50,14 @@ test('authenticated Forms router serves canonical and legacy alias with server t
     draftRevision:1,publishedVersion:1,publishedDraftRevision:1,status:'published',updatedAt:'2026-10-22T00:00:00Z',tenantSlug:'tenant-a'
   }],[]];}};
   const pool={async getConnection(){acquired++;return {...db,release(){}};}};
+  const noFormPlan=context('owner');noFormPlan.subscription={...noFormPlan.subscription,capabilities:noFormPlan.subscription.capabilities.filter(value=>value!=='portal.forms')};
+  const unsupported=context('owner');unsupported.category=categories.realEstate;unsupported.tenant={...unsupported.tenant,categoryKey:categories.realEstate.key,categoryVersion:categories.realEstate.version};unsupported.subscription={status:'active',capabilities:[...categories.realEstate.capabilities]};
+  const sessions={'Bearer owner':context('owner'),'Bearer agent':context('agent'),'Bearer no-form-plan':noFormPlan,'Bearer unsupported-category':unsupported,'Bearer training-owner':trainingContext()};
   const guard=(req,res,next)=>{
     const token=req.get('Authorization')||'';
-    const role=token==='Bearer owner'?'owner':token==='Bearer agent'?'agent':null;
-    if(!role)return res.status(401).json({success:false,code:'AUTH_REQUIRED'});
-    req.featureSession={context:context(role),ownerUid:'synthetic-owner-uid',...(role==='agent'?{agent:{},actor:{id:17,uid:'synthetic-agent'}}:{})};
+    const sessionContext=sessions[token],role=sessionContext?.membership.role;
+    if(!sessionContext)return res.status(401).json({success:false,code:'AUTH_REQUIRED'});
+    req.featureSession={context:sessionContext,ownerUid:'synthetic-owner-uid',...(role==='agent'?{agent:{},actor:{id:17,uid:'synthetic-agent'}}:{})};
     next();
   };
   const app=express();
@@ -73,6 +84,18 @@ test('authenticated Forms router serves canonical and legacy alias with server t
   assert.equal(staff.status,200,'an Agent with forms.capture must pass the staff route gate');
   assert.equal((await json(staff)).data.staff.role,'agent');
   assert.equal(acquired,beforeDenied+1);
+
+  for(const [token,code] of [['Bearer no-form-plan','FEATURE_UNAVAILABLE'],['Bearer unsupported-category','CATEGORY_UNAVAILABLE']]){
+    const before=acquired;
+    const response=await fetch(`${root}/api/workspace/forms/`,{headers:{Authorization:token}});
+    assert.equal(response.status,409);
+    assert.equal((await json(response)).code,code);
+    assert.equal(acquired,before,`${code} must be rejected before borrowing a feature database connection`);
+  }
+
+  const training=await fetch(`${root}/api/user/training/forms/`,{headers:{Authorization:'Bearer training-owner'}});
+  assert.equal(training.status,200,'the historical Training Center adapter remains reachable');
+  assert.equal((await json(training)).data[0].id,'form-a');
 
   const missing=await fetch(`${root}/api/workspace/forms/`);
   assert.equal(missing.status,401);

@@ -2673,15 +2673,24 @@ MariaDB route integration, or production deployment. Those gates remain open.
 
 ## Generic Forms HTTP authorization preflight — source increment, 22 October 2026
 
-The shared Forms router now resolves generic category, tenant, plan, CRM Leads,
-and route-specific member permission before borrowing a database connection.
-The service-level checks remain in place. This prevents denied generic Forms
-management requests from consuming a database connection while preserving
-Agent access to the separate `forms.capture` routes. The loopback Express test
-also exercises both canonical and legacy authenticated mounts, foreign-Origin
-write denial, public lookup, public request version forwarding, and server-
-derived tenant/form scope. The focused Forms/Training HTTP, OpenAPI, and service
-suites pass 32/32; syntax and whitespace checks pass.
+The shared Forms router now preflights its exact adapter and route permission
+before borrowing a feature-service database connection. Generic Forms require
+the declared adapter, active tenant/member, Forms and CRM Leads capability and
+entitlement, plus `forms.manage` or `forms.capture` as appropriate. The exact
+historical Training Center v1 adapter continues through the existing
+`portal.forms` policy; categories with no executable Forms adapter fail before
+the feature-service connection. Service-level checks remain in place. This
+prevents denied requests from consuming a feature-service connection without
+changing the Training registration behavior.
+
+The loopback Express test exercises both authenticated mounts, owner and Agent
+permissions, rejected plan/category contexts before connection acquisition,
+Training Center route compatibility, foreign-Origin write denial, public
+lookup/submission, and server-derived tenant/form scope. The focused
+Forms/Training HTTP, OpenAPI, and service suites pass 32/32; syntax and
+whitespace checks pass. Base CRM remains fail-closed for generic Forms because
+its category declaration has not opted in; that cross-scope decision is tracked
+in [category PR #171](https://github.com/Ahammedsajal/SaleMax/pull/171).
 
 This is synthetic HTTP and service evidence; it does not establish MariaDB
 router execution, category adoption, authenticated English/Arabic screen

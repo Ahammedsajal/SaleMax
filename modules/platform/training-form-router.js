@@ -8,6 +8,7 @@ const forms=require('./training-forms');
 const workspaceForms=require('./workspace-forms');
 const formAdapters=require('./form-category-adapters');
 const courses=require('./training-courses');
+const {decision}=require('./policy');
 const {createTrainingTurnstile}=require('./training-turnstile');
 function publicFormMetadata(data,publicUrl,language='en'){
   const isArabic=language==='ar';const company=data.tenant.companyName||data.tenant.name;const center=(isArabic?data.tenant.centerNameAr:data.tenant.centerNameEn)||company;const address=isArabic?data.tenant.addressAr:data.tenant.addressEn;const description=[company,center,address].filter(Boolean).filter((value,index,list)=>list.indexOf(value)===index).join(' · ');const title=data.form.schema.templateKey==='procatalyst-registration-v1'?'Registration Form':(isArabic?data.form.nameAr:data.form.nameEn);const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));return {title,html:`<meta name="description" content="${escape(description)}"><meta property="og:type" content="website"><meta property="og:site_name" content="${escape(company)}"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${escape(description)}"><meta property="og:url" content="${escape(publicUrl)}"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${escape(title)}"><meta name="twitter:description" content="${escape(description)}">`};
@@ -21,8 +22,16 @@ function createTrainingFormRouter({pool,origin,userGuard,sessionGuard}){
   router.use(sessionGuard||userGuard);
   router.use((req,res,next)=>{if(req.featureSession){req.formContext=req.featureSession.context;return next();}return courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.formContext=ctx;next();}).catch(next);});
   router.use((req,res,next)=>{
-    if(formAdapters.resolve(req.formContext?.category)!=='generic-lead-capture-v1')return next();
-    try{workspaceForms.context(req.formContext,req.path.startsWith('/staff/')?'forms.capture':'forms.manage');next();}
+    const adapter=formAdapters.resolve(req.formContext?.category);
+    const permission=req.path.startsWith('/staff/')?'forms.capture':'forms.manage';
+    try{
+      if(adapter==='generic-lead-capture-v1')workspaceForms.context(req.formContext,permission);
+      else if(adapter==='training-registration-v1'&&permission==='forms.manage'){
+        const access=decision(req.formContext,{capability:'portal.forms',permission});
+        if(!access.allowed)throw Object.assign(new Error(access.code),{code:access.code});
+      }else throw Object.assign(new Error('CATEGORY_UNAVAILABLE'),{code:'CATEGORY_UNAVAILABLE'});
+      next();
+    }
     catch(error){next(error);}
   });
   const connection=fn=>async(...args)=>{const db=await pool.getConnection();try{return await fn(db,...args);}finally{db.release();}};
