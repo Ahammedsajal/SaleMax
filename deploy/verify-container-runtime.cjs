@@ -27,18 +27,25 @@ async function main() {
       require('node:fs').writeSync(1, 'graceful-signal-relay');
       process.kill(process.pid, 'SIGTERM');
     });
+    process.stdout.write('probe-ready\\n');
     setTimeout(() => {}, 10000);
   `]);
     let stdout = '';
     let stderr = '';
-    child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+    let signalSent = false;
+    child.stdout.setEncoding('utf8').on('data', (chunk) => {
+      stdout += chunk;
+      if (!signalSent && stdout.includes('probe-ready')) {
+        signalSent = true;
+        child.kill('SIGTERM');
+      }
+    });
     child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
     const deadline = setTimeout(() => {
       child.kill('SIGKILL');
       reject(new Error('graceful shutdown probe timed out'));
     }, 10000);
     child.once('error', (error) => { clearTimeout(deadline); reject(error); });
-    child.once('spawn', () => setTimeout(() => child.kill('SIGTERM'), 25));
     child.once('close', (status, signal) => {
       clearTimeout(deadline);
       resolve({ status, signal, stdout, stderr });
