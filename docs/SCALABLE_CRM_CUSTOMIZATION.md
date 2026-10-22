@@ -889,6 +889,12 @@ integration checks. These are source changes only: no category opts in,
 authenticated bilingual screen acceptance and deployment remain open, and no
 production state changed.
 
+The deployment overlay now stages both required forward migrations and checks
+their existing target checksums before changing runtime files. Its focused test
+proves the Forms schema cannot be omitted from the rollout artifact and that a
+conflicting migration stops the overlay before partial runtime writes. This is
+deployment preparation only; production Forms tables and code are not deployed.
+
 ## Versioned tenant module settings — source increment, 22 October 2026
 
 The shared category registry now accepts an immutable `customizationSchema` for

@@ -1,3 +1,18 @@
+## Generic Forms deployment-overlay migration preflight — source increment, 22 October 2026
+
+The Forms overlay helper now stages both required additive forward migrations:
+`20261022_pipeline_identity_activity_actor.sql` and
+`20261022_workspace_forms.sql`. Before changing any runtime files, it verifies
+that source migrations exist and refuses to overwrite a target migration with a
+different checksum. This prevents releasing the shared Forms API/UI without its
+tenant-bound storage schema or silently replacing a migration already present
+in a release. The overlay test proves both migration artifacts are staged and a
+checksum conflict fails before runtime changes. Focused Forms, overlay and
+Training Forms checks pass 34/34; existing browser fixtures pass 12/12 across
+English/Arabic and mobile/desktop. No production state or customer data changed.
+The generic adapter remains disabled until category approval; authenticated live
+screen acceptance and deployment remain open.
+
 ## Generic Forms agent staff authorization — source increment, 22 October 2026
 
 The shared route guards now classify `/staff/:slug` Forms reads and submissions
