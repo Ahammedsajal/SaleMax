@@ -15,6 +15,7 @@ test('Sales Audit is visible to Business Admin only and uses the existing settin
   assert.ok(owner.some(item=>item.key==='sales-audit'));
   for(const role of ['manager','team_leader','agent','accountant'])assert.ok(!navigation.navigationFor(context(role)).some(item=>item.key==='sales-audit'));
   assert.equal(salemaxSales.capabilities.includes('tenant.settings'),true);
+  assert.doesNotThrow(()=>audit.assertAccess(context('owner',{tenant:{...context().tenant,categoryKey:'salemax_sales'}})));
 });
 
 test('audit queries are tenant-scoped, newest-first, bounded, and return a cursor for older rows',async()=>{

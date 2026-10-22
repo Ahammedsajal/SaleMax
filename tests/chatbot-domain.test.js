@@ -7,6 +7,13 @@ const { botInput, hybridTurnPlan } = require('../modules/platform/chatbot-config
 const { trainingCenterGuidedReply, shouldStartGuided } = require('../modules/platform/chatbot-training-guide');
 
 const pack = getDomainPack('training_center', 1);
+test('7Network Sales chatbot domain pack resolves the preserved category alias',()=>{
+  assert.equal(getDomainPack('salemax_sales',1),getDomainPack('7network_sales',1));
+});
+test('Sales chatbot recruitment facts keep legacy-alias tenant access tenant-bound',async()=>{
+  let query='';const facts=await getDomainPack('salemax_sales',1).loadFacts({db:{query:async(sql,args)=>{query=sql;assert.deepEqual(args,['tenant-a']);return [[{slug:'synthetic-sales'}]];}},tenantId:'tenant-a',platformOrigin:'https://7network.live'});
+  assert.match(query,/category_key IN \('7network_sales','salemax_sales'\)/);assert.equal(facts[0].kind,'recruitment_application');assert.match(facts[0].url,/careers\/synthetic-sales/);
+});
 const courseFacts = [
   {
     code: 'EXCEL-101', nameEn: 'Excel Essentials', nameAr: 'أساسيات إكسل',

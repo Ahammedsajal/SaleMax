@@ -34,6 +34,10 @@ test('commission policy remains owner-only even when accountant has commission r
   assert.equal(queried,false);
 });
 
+test('commission policy accepts the preserved tenant category alias with the canonical registry contract',()=>{
+  const c=context();c.tenant.categoryKey='salemax_sales';assert.doesNotThrow(()=>policy.authorize(c));
+});
+
 test('approving a draft retires the previous version and keeps the new version audit-linked',async()=>{
   const calls=[];let committed=false;
   const db={async beginTransaction(){},async commit(){committed=true;},async rollback(){},async query(sql,args){calls.push({sql,args});

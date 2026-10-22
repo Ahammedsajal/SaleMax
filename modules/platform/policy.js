@@ -132,11 +132,11 @@ function decision(context, { capability, permission, resource, external = false 
   if (tenant.status !== 'active' || membership.status !== 'active') return { allowed: false, code: 'ACCOUNT_INACTIVE' };
   if (resource && resource.tenantId !== tenant.id) return { allowed: false, code: 'RESOURCE_NOT_FOUND' };
   if (!Object.hasOwn(capabilities, capability) || !capabilities[capability].includes(permission)) return { allowed: false, code: 'CAPABILITY_PERMISSION_INVALID' };
-  if (!category || category.key !== tenant.categoryKey || category.version !== tenant.categoryVersion || !Array.isArray(category.capabilities) || !category.capabilities.includes(capability)) return { allowed: false, code: 'CATEGORY_UNAVAILABLE' };
+  if (!category || !require('./categories').categoryKeyMatches(category.key,tenant.categoryKey) || category.version !== tenant.categoryVersion || !Array.isArray(category.capabilities) || !category.capabilities.includes(capability)) return { allowed: false, code: 'CATEGORY_UNAVAILABLE' };
   // Canonical entitlements carry both fields. Reject explicit/partial mismatches
   // before category-specific exceptions; old in-process contexts may omit both.
   if(subscription&&(Object.hasOwn(subscription,'categoryKey')||Object.hasOwn(subscription,'categoryVersion'))&&
-      (subscription.categoryKey!==category.key||subscription.categoryVersion!==category.version))return {allowed:false,code:'FEATURE_UNAVAILABLE'};
+      (!require('./categories').categoryKeyMatches(category.key,subscription.categoryKey)||subscription.categoryVersion!==category.version))return {allowed:false,code:'FEATURE_UNAVAILABLE'};
   const internalRecruitmentOwner = capability === 'hr.recruitment' && category.key === '7network_sales' && membership.role === 'owner';
   // Recruitment is an owner-only internal 7Network workspace feature, not a customer plan add-on.
   // Keep the tenant's active-plan requirement while avoiding mutation of its published plan version.

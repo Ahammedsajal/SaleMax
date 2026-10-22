@@ -1,3 +1,37 @@
+## Versioned task adapter registry contract — source integration, 22 October 2026
+
+The shared category registry now validates each optional `taskAdapters` manifest entry against the reviewed adapter key/version catalogue, requires its adapter capabilities in the category contract, and copies the map into an immutable manifest. This supports the Inbox follow-up task adapter integration merged to `main` while keeping task types pinned by category version. Registry and Inbox follow-up focused tests pass 9/9. The category workflow owner is adding the Training Center and 7Network Sales v1 declarations; until those declarations are integrated and the combined task suite passes, task adapter adoption and Sales scheduled-call preservation remain an open integration gate. No migration or production state changed in this increment.
+
+## Legacy Sales task category alias — source increment, 22 October 2026
+
+Shared task creation and filtering now recognize the preserved `salemax_sales` alias through the category registry matcher, so the scheduled Sales call task type remains available for historical Sales memberships while other categories continue to be denied. The focused task suite passes 28/28, including the existing-shell contract after its assertions were updated to the current drawer geometry and task labels. Syntax and whitespace checks pass. No migration, customer data or production state changed; authenticated live acceptance and deployment remain open.
+
+## Category defaults in existing Forms and Pipeline — source increment, 22 October 2026
+
+The shared three-layer customization resolver now accepts validated category-version lead-field defaults. The existing owner customization screen begins with the resolved fields, preserves category provenance when the list is unchanged, and restores inherited fields from its reset action. Existing Forms can select the same effective definitions, while Pipeline manual lead creation and edits read the tenant-bound merged contract; published form versions keep their pinned field snapshots. Omitted schema 3 `leadFields` now inherits category defaults, while an explicit empty list replaces them; actual GET/preview, runtime, and Forms tests cover both states. Focused resolver, HTTP, runtime, Forms, Pipeline, and English/Arabic desktop/mobile browser checks pass 40/40; authorization checks pass 18/18; syntax and whitespace checks pass. No category manifests changed and no production data was modified. This source-only increment is pushed on `shared-core-tenant-customization`; deployment, live owner/staff verification, and actual category adoption remain open.
+
+The category registry now preserves reviewed `customizationDefaults` on the exact immutable category version instead of silently dropping them before the resolver can read them. It copies and deeply freezes bounded JSON data, rejects unsupported category contracts, and leaves feature-schema validation to the resolver. Registry, resolver, runtime and Forms checks pass 20/20; syntax and whitespace checks pass. No production category defaults or customer data were changed. Source commit `b728bc5f3ed3c503787eb2b78b4f9c4e00cf9c09` is pushed on `shared-core-tenant-customization`; category adoption and authenticated release acceptance remain open.
+
+The existing Forms contract now accepts configuration revision `0` as the immutable category/platform baseline when no tenant revision has been published. Previously the options API returned baseline category fields at revision zero, but form metadata validation rejected that same revision, preventing the existing editor from saving or publishing a form with those defaults. Negative revisions remain invalid; selected definitions still pass exact-current-field validation and are snapshotted with the form. Focused field, Forms, resolver and runtime tests pass 34/34. No migration or customer data change is involved; authenticated existing-screen acceptance remains open.
+
+Central feature authorization now resolves preserved `salemax_sales` tenant and plan aliases against the canonical `7network_sales` registry contract. The aliases remain in source data; category version, entitlement, permission, role scope and resource gates are still independently checked. This closes the literal-key mismatch that could deny a correctly mapped legacy-category tenant. Category identity and platform policy tests pass 25/25; syntax and whitespace checks pass. No migration, entitlement change or customer data write is involved; authenticated acceptance for aliased tenants remains open.
+
+The shared legacy feature-session adapter is now covered end-to-end at the context boundary: a synthetic aliased owner retains the raw tenant key, resolves the canonical category and plan, and receives only the policy decision allowed by that exact version. Combined legacy-session, category-identity and policy checks pass 23/23. No customer records or production services were touched.
+
+The tenant-customization draft transaction now also accepts the canonical plan contract for a tenant that still stores the `salemax_sales` alias. A synthetic owner write exercises category lookup, active subscription binding, revision creation, draft-head update and audit insertion while retaining the stored alias; focused customization, category and policy checks pass 28/28. There is no migration or customer-data change.
+
+The existing product-catalogue adapter now resolves stored category aliases against the immutable category registry before choosing the existing fixed storage adapter. This preserves the 7Network Sales catalogue and quick-reply capability for legacy tenants and plan snapshots while retaining exact version and capability checks. Catalogue, category identity and platform policy checks pass 24/24; syntax and whitespace checks pass. No schema or tenant data changed.
+
+The existing Sales Organization, Audit, Deals and Commission services now apply the same alias-aware category boundary as shared policy. Their domain role checks and exact category version gates remain in place. Tests cover owner/manager organization access, owner-only audit and commission policy, and tenant-scoped Deals reads for a synthetic tenant that retains `salemax_sales`; the four focused suites pass 14/14. No migration or customer-data change is involved.
+
+The legacy Pipeline actor adapter now resolves `salemax_sales` through the registered 7Network Sales contract when deciding whether a Team Leader seat is supported and when loading its team-scoped lead identity/agent IDs. The raw stored category key remains on the legacy actor record; owner identity, plan, membership and category version continue to gate access. Focused Pipeline actor, team-scope, organization and policy suites pass 31/31 with the external dependency cache; no database or customer data changed.
+
+Existing chatbot access now resolves historical `salemax_sales` tenant, plan, and bot-profile keys against the canonical 7Network Sales category version. Domain-pack lookup uses the canonical registry key, and the recruitment-facts query permits only the canonical key and its reviewed alias while remaining tenant-ID scoped. Chatbot runtime/profile/domain and existing-screen contract suites pass 53/53; syntax and whitespace checks pass. No provider, tenant configuration, or customer data changed.
+
+The existing owner Sales lead-import gate and telephony recording policy now recognize the same registered category alias before applying their existing owner/permission, entitlement, and category version checks. Synthetic tests exercise a tenant-bound lead import and an owner recording-policy read under the stored alias; the two focused suites pass 11/11. No call recording, provider action, schema, or customer data changed.
+
+The existing Asterisk call-control path now applies Sales lead-linked outbound rules and team-scoped manager call access through the registered category alias as well. Sales call creation still requires an authorized lead and its server-side phone. The focused Pipeline-call and recording suites pass 15/15; the unrelated ARI event suite could not load in this checkout because its `ws` dependency is absent. No PBX/provider action or customer data was touched.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
@@ -1882,3 +1916,25 @@ Focused category, API, role-scope, validation and migration tests pass. The synt
 ## Real Estate chatbot category-version adoption — source, 22 October 2026
 
 The reviewed property-listing domain pack is now registered against the exact existing Real Estate category versions 1–4. These versions share the currently reviewed listing guide and tenant-scoped fact loader; category-specific capabilities remain enforced by their existing feature contracts. This fixes v2–v4 bot configuration resolving to FAQ-only behavior while retaining the legacy Flow Builder path. Focused regression coverage checks exact-version lookup, guided defaults, existing Flow Builder IDs, and unsupported v5 fallback. This source increment is not deployed; authenticated existing-screen EN/AR acceptance and release gates above remain open.
+## Shared settings resolution and provenance — source implementation, 22 October 2026
+
+The existing owner-managed customization response and preview now include a
+resolved settings view with per-value provenance across platform defaults, an
+optional immutable category-version defaults document, and the tenant revision.
+Object members inherit by key, `null` removes an inherited member, and arrays
+replace atomically; component schemas continue to validate values before the
+resolver sees them. The existing CRM appearance settings hook displays these
+sources in English and Arabic and states that customization does not grant plan
+or member access. No schema or production data change is included.
+
+Focused resolver, customization and HTTP tests pass 12/12; the existing owner
+editor's synthetic browser matrix passes 8/8 across English/Arabic, desktop/
+mobile and cookie/bearer sessions. Syntax and diff checks pass. This is
+implemented in the shared-core feature branch; deployment and live authenticated
+browser acceptance remain open. Existing category manifests do not
+yet provide category customization defaults, and forms, Pipeline stages,
+workers and other consumers have not adopted the resolver. The full
+customization and 42-ticket program remains in progress.
+## Legacy Sales accountant alias authorization — source increment, 22 October 2026
+
+The default 7Network Sales accountant boundary on legacy APIs now resolves the preserved `salemax_sales` category alias through the shared category matcher. This keeps the existing shell bootstrap reads available while denying other legacy routes for both canonical and historical category keys. Focused Sales navigation and authorization tests pass 17/17 with an external no-query `mysql2` stub because the worktree has no installed database driver; `git diff --check` passes. No database, migration, production data or runtime dependency files changed. Deployment and authenticated live role acceptance remain open.

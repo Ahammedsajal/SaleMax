@@ -14,7 +14,7 @@ async function fixture(){
 test('shared customization router and alias serve bearer and cookie contexts without tenant input',async()=>{
  const app=await fixture();try{
   for(const prefix of ['/api/workspace/customization','/api/crm/customization'])for(const headers of [{Authorization:'Bearer synthetic-owner'},{Cookie:'synthetic=owner'}]){
-   const response=await fetch(app.base+prefix,{headers});assert.equal(response.status,200);const result=await response.json();assert.equal(result.data.revision,0);assert.equal(result.data.active,null);assert.ok(result.data.fields.some(field=>field.key==='courses'));assert.match(response.headers.get('cache-control'),/no-store/);
+   const response=await fetch(app.base+prefix,{headers});assert.equal(response.status,200);const result=await response.json();assert.equal(result.data.revision,0);assert.equal(result.data.active,null);assert.ok(result.data.fields.some(field=>field.key==='courses'));assert.equal(result.data.resolved.value.navigationLabels.courses.en,'Courses');assert.deepEqual(result.data.resolved.provenance['navigationLabels.courses.en'],{scope:'platform'});assert.match(response.headers.get('cache-control'),/no-store/);
   }
   assert.equal(app.counts().refreshes,4);
  }finally{await app.close();}
@@ -27,10 +27,24 @@ test('preview rejects foreign schema keys, denied staff, missing credentials and
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document})})).status,403);
   assert.equal(app.counts().refreshes,0);
   headers.Origin='https://crm.example.test';
-  const response=await fetch(url,{method:'POST',headers,body:JSON.stringify({document})}),preview=await response.json();assert.equal(response.status,200);assert.equal(preview.data.readOnly,true);assert.deepEqual(preview.data.document.hiddenNavigation,['courses']);assert.equal(app.counts().queries,0);
+  const response=await fetch(url,{method:'POST',headers,body:JSON.stringify({document})}),preview=await response.json();assert.equal(response.status,200);assert.equal(preview.data.readOnly,true);assert.deepEqual(preview.data.document.hiddenNavigation,['courses']);assert.equal(preview.data.resolved.value.navigationLabels.courses.en,'Programmes A');assert.equal(preview.data.resolved.provenance['navigationLabels.courses.en'].scope,'tenant');assert.equal(app.counts().queries,0);
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document:{...document,tenantId:'tenant-b'}})})).status,400);
   app.setContext({...base,membership:{...base.membership,role:'agent'}});
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document})})).status,403);
   assert.equal(app.counts().queries,0);
+ }finally{await app.close();}
+});
+test('shared customization API exposes validated category lead-field inheritance in GET and preview',async()=>{
+ const app=await fixture();try{
+  const field={key:'cf_text_0123456789abcdef',type:'text',label:{en:'Property reference',ar:'مرجع العقار'},required:false,active:true,version:1};
+  app.setContext({...base,category:{...trainingCenter,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[field],hiddenNavigation:[]}}});
+  const headers={Authorization:'Bearer synthetic-owner'};
+  const response=await fetch(app.base+'/api/workspace/customization',{headers});assert.equal(response.status,200);
+  const state=(await response.json()).data;assert.deepEqual(state.inherited.leadFields,[field]);assert.deepEqual(state.resolved.provenance.leadFields,{scope:'category_version',categoryKey:'training_center',categoryVersion:1});
+  const queriesAfterGet=app.counts().queries;
+  const preview=await fetch(app.base+'/api/workspace/customization/preview',{method:'POST',headers:{...headers,'Content-Type':'application/json',Origin:'https://crm.example.test'},body:JSON.stringify({document:{schemaVersion:3,navigationLabels:{},hiddenNavigation:[]}})});
+  const previewPayload=await preview.json();assert.equal(preview.status,200,JSON.stringify(previewPayload));const result=previewPayload.data;assert.deepEqual(result.resolved.value.leadFields,[field]);assert.deepEqual(result.resolved.provenance.leadFields,{scope:'category_version',categoryKey:'training_center',categoryVersion:1});assert.equal(app.counts().queries,queriesAfterGet,'preview does not write category defaults');
+  const cleared=await fetch(app.base+'/api/workspace/customization/preview',{method:'POST',headers:{...headers,'Content-Type':'application/json',Origin:'https://crm.example.test'},body:JSON.stringify({document:{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]}})});
+  assert.equal(cleared.status,200);const clearedData=(await cleared.json()).data;assert.deepEqual(clearedData.resolved.value.leadFields,[]);assert.deepEqual(clearedData.resolved.provenance.leadFields,{scope:'tenant',revision:0});assert.equal(app.counts().queries,queriesAfterGet,'preview does not write explicit overrides either');
  }finally{await app.close();}
 });

@@ -111,6 +111,7 @@ test('active task filters exclude completed history before pagination',async()=>
 test('task type filters scope scheduled Sales calls and cannot be used by other categories',async()=>{
   let query;const db={query:async(sql,args)=>{query={sql,args};return [[],[]];}};
   await tasks.list(db,{...ctx,tenant:{categoryKey:'7network_sales'}},{scope:'mine',taskType:'sales_call'});
+  await tasks.list(db,{...ctx,tenant:{categoryKey:'salemax_sales'}},{scope:'mine',taskType:'sales_call'});
   assert.match(query.sql,/t\.task_type=\?/);assert.ok(query.args.includes('sales_call'));
   await assert.rejects(tasks.list(db,{...ctx,tenant:{categoryKey:'training_center'}},{scope:'mine',taskType:'sales_call'}),{code:'INVALID_TASK_FILTER'});
 });
@@ -219,6 +220,7 @@ test('scheduled sales calls require Sales category, linked lead, time and agent 
   assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',null,'lead',linked,agent),{code:'INVALID_SALES_CALL_DUE_DATE'});
   assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,'lead',linked,[{actorType:'identity',actorId:'member',role:'assignee'}]),{code:'TASK_ASSIGNEE_REQUIRED'});
   assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,'lead',linked,agent));
+  assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'salemax_sales'}},'sales_call',due,'lead',linked,agent));
   assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'general',null,null,null,[]));
 });
 
@@ -240,8 +242,8 @@ test('canonical business sessions map to the workspace owner data scope for Task
 
 test('Tasks stays in the existing business shell and supports legacy and canonical business sessions',()=>{
   const root=path.join(__dirname,'..');const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');const entry=fs.readFileSync(path.join(root,'client/public/pipeline-entry.js'),'utf8');const router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8');const taskRouter=fs.readFileSync(path.join(root,'modules/platform/task-router.js'),'utf8');const mount=fs.readFileSync(path.join(root,'modules/platform/mount-existing-upgrade.js'),'utf8');const session=fs.readFileSync(path.join(root,'client/public/tasks/tasks-session.js'),'utf8');const html=fs.readFileSync(path.join(root,'client/public/tasks/index.html'),'utf8');
-  assert.match(sidebar,/\['Team & Tasks'.*'Tasks'/);assert.match(sidebar,/user\?page=tasks/);assert.match(entry,/salemax-tasks-workspace/);assert.match(entry,/drawerRect\?\.right\|\|0/);assert.match(router,/router\.use\('\/tasks',createTaskRouter/);for(const route of ['messages','events','notifications','read','status','preferences'])assert.ok(taskRouter.includes(route));assert.match(mount,/api\/user\/training\/tasks/);assert.match(mount,/featureSession\.guard,createTaskRouter/);assert.match(session,/SaleMaxWorkspace\.headers/);assert.match(session,/X-CSRF-Token/);assert.match(html,/whatsappOptIn/);assert.match(html,/previousPage/);assert.match(html,/nextPage/);assert.match(html,/tasks\.js/);
-  for(const term of ['Title','Description','Priority','Due date and time','Assignees and observers','Save task'])assert.match(html,new RegExp(`data-en="${term}" data-ar="`));
+  assert.match(sidebar,/\['Team & Tasks'.*'Tasks'/);assert.match(sidebar,/user\?page=tasks/);assert.match(entry,/salemax-tasks-workspace/);assert.match(entry,/function workspaceBounds\(\)/);assert.match(entry,/drawer\.getBoundingClientRect\(\)/);assert.match(entry,/r\.left<=1/);assert.match(entry,/r\.right>=viewportWidth-1/);assert.match(router,/router\.use\('\/tasks',createTaskRouter/);for(const route of ['messages','events','notifications','read','status','preferences'])assert.ok(taskRouter.includes(route));assert.match(mount,/api\/user\/training\/tasks/);assert.match(mount,/featureSession\.guard,createTaskRouter/);assert.match(session,/SaleMaxWorkspace\.headers/);assert.match(session,/X-CSRF-Token/);assert.match(html,/whatsappOptIn/);assert.match(html,/previousPage/);assert.match(html,/nextPage/);assert.match(html,/tasks\.js/);
+  for(const term of ['Task title','Priority','Due date and time','Assignees and observers','Save task'])assert.match(html,new RegExp(`data-en="${term}" data-ar="`));assert.match(html,/data-en="Notes \(optional\)" data-ar="/);
   const taskUi=fs.readFileSync(path.join(root,'client/public/tasks/tasks.js'),'utf8');for(const kind of ['status','priority','type','role','event','notification'])assert.match(taskUi,new RegExp(`label\\('${kind}'`));assert.match(taskUi,/unread_count/);assert.match(taskUi,/lastReadMessageId/);assert.match(taskUi,/loadOlderMessages/);assert.match(taskUi,/loadOlderHistory/);assert.match(taskUi,/loadOlderNotifications/);assert.match(taskUi,/eventsHasMore/);assert.match(taskUi,/notificationsHasMore/);assert.match(taskUi,/latest=1/);assert.match(taskUi,/chatInitial=true;state\.chatHasOlder=false/);assert.match(taskUi,/Completed at/);assert.match(taskUi,/m\.senderName\|\|/);
 });
 

@@ -1,5 +1,6 @@
 'use strict';
 const crypto=require('node:crypto');
+const {categoryKeyMatches}=require('./categories');
 
 function fail(code,status=400,row){const error=new Error(code);error.code=code;error.status=status;if(row)error.row=row;throw error;}
 
@@ -31,7 +32,7 @@ function normalizeRows(rows,pipeline){
 }
 
 async function importBatch({pool,pipeline,actor,rows}){
-  if(actor?.categoryKey!=='7network_sales'||actor?.role!=='owner')fail('PERMISSION_DENIED',403);
+  if(!categoryKeyMatches(actor?.categoryKey,'7network_sales')||actor?.role!=='owner')fail('PERMISSION_DENIED',403);
   if(Buffer.byteLength(JSON.stringify({rows}),'utf8')>128*1024)fail('IMPORT_TOO_LARGE',413);
   const normalized=normalizeRows(rows,pipeline),db=await pool.getConnection();
   try{

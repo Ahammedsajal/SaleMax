@@ -28,6 +28,10 @@ test('recording policy starts off, requires notice acknowledgement and retention
   await assert.rejects(recordings.savePolicy(db,context('agent'),{enabled:false,noticeConfirmed:false,retentionDays:null,expectedRevision:1}),{code:'PERMISSION_DENIED'});
   assert.ok(updates.some(item=>item.sql.includes("'telephony.recording-policy.updated'")));
 });
+test('recording policy preserves access for the historical Sales category alias',async()=>{
+ const owner=context('owner'),aliased={...owner,tenant:{...owner.tenant,categoryKey:'salemax_sales'}};
+ assert.deepEqual(await recordings.getPolicy({query:async()=>[[]]},aliased),{enabled:false,noticeConfirmed:false,noticeVersion:1,retentionDays:null,revision:0});
+});
 
 test('recording begins only for a connected call under an enabled acknowledged policy and is idempotently reserved',async()=>{
   const callId=crypto.randomUUID(),bridgeId=crypto.randomUUID();let recordingRow=false,started=0;

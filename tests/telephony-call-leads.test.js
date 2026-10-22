@@ -53,6 +53,7 @@ test('Asterisk call origination rejects an unlinked 7Network Sales call before d
   const callContext={audience:'tenant',identity:{id:'agent-identity'},tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},
     membership:{id:'agent-membership',tenantId,role:'agent',status:'active'},category:salemaxSales,subscription:{status:'active',capabilities:['telephony.call-center']}};
   await assert.rejects(control.originateOutbound(callContext,{destination:'+919999999999',clientType:'mobile'}),{code:'OUTBOUND_LEAD_REQUIRED'});
+  await assert.rejects(control.originateOutbound({...callContext,tenant:{...callContext.tenant,categoryKey:'salemax_sales'}},{destination:'+919999999999',clientType:'mobile'}),{code:'OUTBOUND_LEAD_REQUIRED'});
   assert.equal(accessed,false);
 });
 

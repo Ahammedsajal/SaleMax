@@ -3,6 +3,7 @@ const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/works
 
 const {query}=require('../../database/dbpromise');
 const policy=require('./policy');
+const categories=require('./categories');
 const {isSelfProfileRequest}=require('./self-profile-policy');
 
 function routePermission(req){
@@ -99,7 +100,7 @@ function salesAccountantLegacyRouteAllowed(req){
 }
 
 function authorizeLegacyMembership(req,row){
-  if(row.categoryKey==='7network_sales'&&row.role==='accountant'&&!salesAccountantLegacyRouteAllowed(req))
+  if(categories.categoryKeyMatches(row.categoryKey,'7network_sales')&&row.role==='accountant'&&!salesAccountantLegacyRouteAllowed(req))
     return {allowed:false,code:'PERMISSION_DENIED'};
   // A default membership has no custom role profile. Keep its established
   // role policy, while still enforcing the internal Sales accountant boundary.

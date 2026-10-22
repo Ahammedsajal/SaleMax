@@ -10,6 +10,8 @@ function authorize(ctx) {
   if(!result.allowed || ctx.membership?.role!=='owner' || !ctx.identity?.id) fail(result.allowed?'PERMISSION_DENIED':result.code,403);
 }
 function fieldsFor(ctx) {
+  const categories=require('./categories');
+  if(!ctx?.tenant||!ctx.category||!categories.categoryKeyMatches(ctx.category.key,ctx.tenant.categoryKey)||Number(ctx.category.version)!==Number(ctx.tenant.categoryVersion))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   // Historical Training Center v1 accidentally inherited these two grants.
   // Do not expose Sales-only screens as new customization options; retaining
   // the published entitlement contract does not make those screens compatible.
@@ -30,7 +32,7 @@ function normalize(ctx,input) {
     labels[key]={en:value.en.trim(),ar:value.ar.trim()};
   }
   const leadFields=input.schemaVersion===2?require('./lead-field-contract').definitions(input.leadFields):null;
-  const schema3LeadFields=input.schemaVersion===3?require('./lead-field-contract').definitions(input.leadFields):null;
+  const schema3LeadFields=input.schemaVersion===3&&Object.hasOwn(input,'leadFields')?require('./lead-field-contract').definitions(input.leadFields):null;
   const hiddenNavigation=input.schemaVersion===3?input.hiddenNavigation:[];
   if(!Array.isArray(hiddenNavigation)||hiddenNavigation.length>allowed.size||new Set(hiddenNavigation).size!==hiddenNavigation.length||hiddenNavigation.some(key=>typeof key!=='string'||!allowed.has(key)))fail('INVALID_CUSTOMIZATION_NAVIGATION');
   const fields=schema3LeadFields||leadFields;
@@ -38,6 +40,21 @@ function normalize(ctx,input) {
   return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion===3?{hiddenNavigation:[...hiddenNavigation].sort()}:{})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
+function resolved(ctx,document,revisionNumber=0) {
+  const fields=fieldsFor(ctx);
+  const platform={schemaVersion:3,navigationLabels:Object.fromEntries(fields.map(item=>[item.key,item.label])),leadFields:[],hiddenNavigation:[]};
+  // Category defaults are immutable server-side contract data. They are optional
+  // until each category version publishes a reviewed customization contract.
+  let categoryDefaults={};
+  if(ctx.category?.customizationDefaults){
+    try{categoryDefaults=normalize(ctx,ctx.category.customizationDefaults);}
+    catch{fail('CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',503);}
+  }
+  return require('./tenant-setting-resolver').resolve({
+    platform,category:categoryDefaults,tenant:document||{},categoryKey:ctx.category.key,
+    categoryVersion:ctx.category.version,tenantRevision:revisionNumber,
+  });
+}
 function decode(ctx,row) {
   if(!row)return null;
   if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
@@ -58,9 +75,15 @@ async function state(db,ctx) {
   const active=await revision(db,ctx,head?.active_id),draft=await revision(db,ctx,head?.draft_id);
   if(active&&active.kind!=='published'||draft&&draft.kind!=='draft')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:Number(head?.revision||0),active,draft,history,
-    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label}))};
+    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),
+    inherited:resolved(ctx,null,0).value,
+    resolved:resolved(ctx,active?.document,active?.revision||0),
+    draftResolved:draft?resolved(ctx,draft.document,draft.revision):null};
 }
-function preview(ctx,document) {authorize(ctx);return {document:normalize(ctx,document),readOnly:true};}
+function preview(ctx,document) {
+  authorize(ctx);const normalized=normalize(ctx,document);
+  return {document:normalized,resolved:resolved(ctx,normalized,0),readOnly:true};
+}
 async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
   authorize(ctx);
   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0||expectedRevision>=Number.MAX_SAFE_INTEGER)fail('INVALID_CUSTOMIZATION_REVISION');
@@ -75,7 +98,7 @@ async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
     const [[member]]=await db.query("SELECT m.role,m.status,i.status AS identityStatus FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id WHERE m.tenant_id=? AND m.id=? AND m.identity_id=? FOR UPDATE",[ctx.tenant.id,ctx.membership.id,ctx.identity.id]);
     if(!member||member.role!=='owner'||member.status!=='active'||member.identityStatus!=='active')fail('PERMISSION_DENIED',403);
     const subscription=await require('./plans').loadEntitlements(db,ctx.tenant.id);
-    if(subscription&&(subscription.categoryKey!==ctx.tenant.categoryKey||Number(subscription.categoryVersion)!==ctx.tenant.categoryVersion))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+    if(subscription&&(!require('./categories').categoryKeyMatches(subscription.categoryKey,ctx.tenant.categoryKey)||Number(subscription.categoryVersion)!==ctx.tenant.categoryVersion))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
     authorize({...ctx,subscription});
     const [[head]]=await db.query('SELECT revision,active_id,draft_id FROM sx_tenant_customization_heads WHERE tenant_id=? FOR UPDATE',[ctx.tenant.id]);
     if(Number(head?.revision||0)!==expectedRevision)fail('STALE_CUSTOMIZATION_REVISION',409);
@@ -105,8 +128,8 @@ async function effective(db,ctx) {
   const [[head]]=await db.query('SELECT revision,active_id FROM sx_tenant_customization_heads WHERE tenant_id=?',[ctx.tenant.id]);
   const active=await revision(db,ctx,head?.active_id);
   if(active&&active.kind!=='published')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
-  return {revision:active?active.revision:0,document:active?.document||defaults()};
+  return {revision:active?active.revision:0,document:resolved(ctx,active?.document,active?.revision||0).value};
 }
 function visibleNavigationKeys(keys,document){const hidden=new Set(Array.isArray(document?.hiddenNavigation)?document.hiddenNavigation:[]);return keys.filter(key=>!hidden.has(key));}
 function visibleNavigation(rows,document){const visible=new Set(visibleNavigationKeys(rows.map(item=>item.key),document));return rows.filter(item=>visible.has(item.key));}
-module.exports={authorize,normalize,checksum,decode,defaults,state,preview,mutate,effective,visibleNavigation,visibleNavigationKeys};
+module.exports={authorize,normalize,checksum,decode,defaults,state,preview,mutate,effective,resolved,visibleNavigation,visibleNavigationKeys};

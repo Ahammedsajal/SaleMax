@@ -1,11 +1,11 @@
 'use strict';
 const crypto=require('node:crypto');
-const {salemaxSales}=require('./categories');
+const {salemaxSales,categoryKeyMatches}=require('./categories');
 const {decision}=require('./policy');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function assertContext(ctx){
-  if(ctx?.audience!=='tenant'||ctx.category?.key!==salemaxSales.key||ctx.category?.version!==salemaxSales.version||ctx.tenant?.categoryKey!==salemaxSales.key||Number(ctx.tenant?.categoryVersion)!==salemaxSales.version)fail('CATEGORY_UNAVAILABLE');
+  if(ctx?.audience!=='tenant'||!categoryKeyMatches(ctx.category?.key,salemaxSales.key)||ctx.category?.version!==salemaxSales.version||!categoryKeyMatches(ctx.tenant?.categoryKey,salemaxSales.key)||Number(ctx.tenant?.categoryVersion)!==salemaxSales.version)fail('CATEGORY_UNAVAILABLE');
   if(ctx.tenant.status!=='active'||!ctx.subscription||!['active','trial','grace'].includes(ctx.subscription.status)||!ctx.subscription.capabilities?.includes('team.members'))fail('FEATURE_UNAVAILABLE');
   if(!ctx.identity?.id||!ctx.membership?.id||ctx.membership.status!=='active'||ctx.membership.tenantId!==ctx.tenant.id)fail('PERMISSION_DENIED');
 }

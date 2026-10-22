@@ -6,10 +6,28 @@ const {trainingCenter,salemaxSales}=require('../modules/platform/categories');
 const ctx={audience:'tenant',identity:{id:'owner'},tenant:{id:'tenant-a',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member',tenantId:'tenant-a',status:'active',role:'owner'},category:trainingCenter,subscription:{status:'active',capabilities:[...trainingCenter.capabilities]}};
 const doc={schemaVersion:1,navigationLabels:{courses:{en:'Programmes',ar:'البرامج'}}};
 test('label customization is bounded, category-scoped data rather than executable configuration',()=>{
-  assert.deepEqual(settings.preview(ctx,doc),{readOnly:true,document:doc});
+  const preview=settings.preview(ctx,doc);
+  assert.deepEqual(preview.document,doc);assert.equal(preview.readOnly,true);
+  assert.equal(preview.resolved.value.navigationLabels.courses.en,'Programmes');
+  assert.deepEqual(preview.resolved.provenance['navigationLabels.courses.en'],{scope:'tenant',revision:0});
+  assert.deepEqual(settings.resolved(ctx,null,0).provenance['navigationLabels.courses.en'],{scope:'platform'});
+  const categorized={...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{courses:{en:'Learning',ar:'التعلم'}},leadFields:[],hiddenNavigation:[]}}};
+  const inherited=settings.resolved(categorized,{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]},2);
+  assert.equal(inherited.value.navigationLabels.courses.en,'Learning');
+  assert.deepEqual(inherited.provenance['navigationLabels.courses.en'],{scope:'category_version',categoryKey:'training_center',categoryVersion:1});
+  assert.throws(()=>settings.resolved({...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['not-a-category-key']}}},null,0),{code:'CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',status:503});
+  const categoryField={key:'cf_text_0123456789abcdef',type:'text',label:{en:'Reference',ar:'مرجع'},required:false,active:true,version:1};
+  const withCategoryField={...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[categoryField],hiddenNavigation:[]}}};
+  const inheritedField=settings.resolved(withCategoryField,null,0);
+  assert.deepEqual(inheritedField.value.leadFields,[categoryField]);
+  assert.deepEqual(inheritedField.provenance.leadFields,{scope:'category_version',categoryKey:'training_center',categoryVersion:1});
+  const replaced=settings.resolved(withCategoryField,{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]},2);
+  assert.deepEqual(replaced.value.leadFields,[]);
+  assert.deepEqual(replaced.provenance.leadFields,{scope:'tenant',revision:2});
   const source=structuredClone(doc),normalized=settings.normalize(ctx,source);source.navigationLabels.courses.en='Changed';assert.equal(normalized.navigationLabels.courses.en,'Programmes');
+  assert.throws(()=>settings.normalize({...ctx,tenant:{...ctx.tenant,categoryVersion:2}},doc),{code:'CUSTOMIZATION_VERSION_MISMATCH'});
   for(const value of [{...doc,tenantId:'other'},{...doc,schemaVersion:4},{...doc,disabledCapabilities:[]},{schemaVersion:1,navigationLabels:{recruitment:{en:'Recruitment',ar:'توظيف'}}},{schemaVersion:1,navigationLabels:{'products-services':{en:'Products',ar:'منتجات'}}},{schemaVersion:1,navigationLabels:{courses:{en:'<script>',ar:'الدورات'}}},JSON.parse('{"schemaVersion":1,"navigationLabels":{"__proto__":{"en":"x","ar":"x"}}}')])assert.throws(()=>settings.normalize(ctx,value));
-  assert.throws(()=>settings.normalize({...ctx,category:salemaxSales},{schemaVersion:1,navigationLabels:{courses:{en:'Courses',ar:'دورات'}}}),{code:'INVALID_CUSTOMIZATION_LABEL'});
+  assert.throws(()=>settings.normalize({...ctx,tenant:{...ctx.tenant,categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version},category:salemaxSales},{schemaVersion:1,navigationLabels:{courses:{en:'Courses',ar:'دورات'}}}),{code:'INVALID_CUSTOMIZATION_LABEL'});
 });
 test('preview cannot grant access and denied staff never reach persistence',async()=>{
   const db={query(){throw Error('must not access database')}};
@@ -26,9 +44,18 @@ test('saved revisions must match tenant category version and canonical checksum'
   assert.throws(()=>settings.decode(ctx,{...row,checksum:'0'.repeat(64)}),{code:'CUSTOMIZATION_INTEGRITY_ERROR'});
   assert.throws(()=>settings.decode(ctx,{...row,category_version:2}),{code:'CUSTOMIZATION_VERSION_MISMATCH'});
 });
+test('runtime effective settings resolve the published tenant overlay over platform labels',async()=>{
+  const published={schemaVersion:1,navigationLabels:{courses:{en:'Programs',ar:'البرامج'}}};
+  const row={id:'revision',kind:'published',category_key:'training_center',category_version:1,schema_version:1,revision:4,document:JSON.stringify(published),checksum:settings.checksum(published)};
+  const db={query:async sql=>sql.includes('FROM sx_tenant_customization_heads')?[[{revision:4,active_id:'revision'}]]:[[row]]};
+  const effective=await settings.effective(db,ctx);
+  assert.equal(effective.revision,4);assert.equal(effective.document.navigationLabels.courses.en,'Programs');assert.equal(effective.document.navigationLabels.inbox.en,'Inbox');
+});
 test('schema 3 hides only category-owned navigation keys while schema 1 and 2 remain readable',()=>{
   const doc3={schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['courses','inbox']};
   assert.deepEqual(settings.normalize(ctx,doc3),doc3);
+  const inheritedFields={schemaVersion:3,navigationLabels:{},hiddenNavigation:[]};
+  assert.deepEqual(settings.normalize(ctx,inheritedFields),inheritedFields,'omitted leadFields inherit category defaults');
   assert.throws(()=>settings.normalize(ctx,{...doc3,hiddenNavigation:['recruitment']}),{code:'INVALID_CUSTOMIZATION_NAVIGATION'});
   assert.throws(()=>settings.normalize(ctx,{...doc3,hiddenNavigation:['courses','courses']}),{code:'INVALID_CUSTOMIZATION_NAVIGATION'});
   const doc2={schemaVersion:2,navigationLabels:{},leadFields:[]};
@@ -48,4 +75,22 @@ test('published hidden navigation affects only the current tenant session contra
     assert.equal(b.roleNavigation.includes('courses'),true);
     assert.equal(b.navigationLabels.courses.en,'Learning');
   }finally{customization.effective=original;}
+});
+test('owner settings draft accepts the preserved tenant alias with its canonical plan contract',async()=>{
+  const sales=salemaxSales,tenantId='22222222-2222-4222-8222-222222222222',writes=[];
+  const legacy={...ctx,identity:{id:'sales-owner-identity'},tenant:{id:tenantId,status:'active',categoryKey:'salemax_sales',categoryVersion:1},category:sales,
+    membership:{id:'sales-owner-member',tenantId,identityId:'sales-owner-identity',role:'owner',status:'active'},
+    subscription:{status:'active',categoryKey:'7network_sales',categoryVersion:1,capabilities:[...sales.capabilities]}};
+  const db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},query:async(sql,args)=>{
+    if(sql.includes('SELECT category_key,category_version,status FROM sx_tenants'))return [[{category_key:'salemax_sales',category_version:1,status:'active'}]];
+    if(sql.includes('SELECT m.role,m.status,i.status AS identityStatus'))return [[{role:'owner',status:'active',identityStatus:'active'}]];
+    if(sql.includes('FROM sx_plan_assignments'))return [[{id:'assignment',status:'active',role_limits:{owner:1,accountant:1,manager:1,team_leader:1,agent:1},capabilities:[...sales.capabilities],category_key:'7network_sales',category_version:1,current_period:1}]];
+    if(sql.includes('SELECT revision,active_id,draft_id FROM sx_tenant_customization_heads'))return [[]];
+    if(sql.includes('SELECT COUNT(*) AS total'))return [[{total:0}]];
+    if(sql.startsWith('INSERT INTO')||sql.startsWith('UPDATE')){writes.push({sql,args});return [{affectedRows:1}];}
+    throw Error('Unexpected query: '+sql);
+  }};
+  const salesDoc={schemaVersion:1,navigationLabels:{'sales-deals':{en:'Deals',ar:'الصفقات'}}};
+  const result=await settings.mutate(db,legacy,{expectedRevision:0,document:salesDoc},'draft');
+  assert.equal(result.revision,1);assert.equal(writes.length,4);
 });

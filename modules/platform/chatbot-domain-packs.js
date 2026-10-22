@@ -196,7 +196,8 @@ function registerDomainPack(pack) {
 }
 
 function getDomainPack(key, version) {
-  return registry.get(`${key}@${Number(version)}`) || Object.freeze({
+  const canonicalKey=require('./categories').canonicalCategoryKey(key);
+  return registry.get(`${canonicalKey}@${Number(version)}`) || Object.freeze({
     key: 'faq_only',
     version: 1,
     title: String(key || 'business').replace(/[^a-z0-9 _-]/gi, '').slice(0, 80) || 'business',
@@ -329,7 +330,7 @@ const RECRUITMENT_GUIDED_DEFAULTS={version:1,messages:{
 const recruitField=(path,labelEn,labelAr)=>({path,type:'localized-text',label:{en:labelEn,ar:labelAr},maxLength:400});
 const RECRUITMENT_GUIDED_SCHEMA={groups:[{id:'recruitment-messages',title:{en:'Recruitment introduction and buttons',ar:'التعريف بالتوظيف والأزرار'},fields:Object.keys(RECRUITMENT_GUIDED_DEFAULTS.messages).map(key=>recruitField(`messages.${key}`,key.replaceAll(/([A-Z])/g,' $1'),key.replaceAll(/([A-Z])/g,' $1')))}]};
 async function salemaxSalesRecruitmentFacts({db,tenantId,platformOrigin}){
-  const [[tenant]]=await db.query("SELECT slug FROM sx_tenants WHERE id=? AND category_key='7network_sales' AND status='active' LIMIT 1",[tenantId]);
+  const [[tenant]]=await db.query("SELECT slug FROM sx_tenants WHERE id=? AND category_key IN ('7network_sales','salemax_sales') AND status='active' LIMIT 1",[tenantId]);
   if(!tenant)return [];
   let url='';try{url=new URL(`/careers/${encodeURIComponent(tenant.slug)}?source=whatsapp`,platformOrigin).href;}catch{}
   return url?[{kind:'recruitment_application',url}]:[];

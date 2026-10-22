@@ -14,6 +14,8 @@ test('shared session metadata and fixed storage adapters do not depend on a busi
  const queries=[],db={query:async(sql,args)=>{queries.push({sql,args});return [[]];}},mapped=adapter.forContext(db,ctx);await mapped.query('SELECT id FROM sx_training_courses WHERE tenant_id=?',['tenant-a']);assert.match(queries[0].sql,/FROM sx_product_catalog/);assert.deepEqual(queries[0].args,['tenant-a']);assert.equal(adapter.forContext(mapped,ctx),mapped);
  assert.equal(adapter.kind({...ctx,tenant:{...ctx.tenant,categoryVersion:2}}),null);assert.equal(adapter.kind({...ctx,tenant:{...ctx.tenant,categoryKey:'foreign'}}),null);
  const training=context(categories.trainingCenter);assert.equal(adapter.kind(training),'courses');assert.equal(adapter.forContext(db,training),db);assert.equal(adapter.kind(context(categories.salemaxSales)),'products');
+ const sales=context(categories.salemaxSales),legacySales={...sales,tenant:{...sales.tenant,categoryKey:'salemax_sales'},subscription:{...sales.subscription,categoryKey:'salemax_sales'}};
+ assert.equal(adapter.kind(legacySales),'products');assert.equal(require('../modules/platform/feature-contract').describe({context:legacySales}).quickReplyCatalog,'products');
 });
 test('catalogue service rejects missing adapter and binds creation to the actual category version',async()=>{
  const category=createCategoryRegistry([manifest],capabilities).get(manifest.key,1),ctx=context(category),calls=[];

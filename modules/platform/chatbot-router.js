@@ -10,6 +10,7 @@ const { previewGuidedTurn } = require('./chatbot-guide-preview');
 const { getDomainPack } = require('./chatbot-domain-packs');
 const { SUPPORTED_CHANNEL_KINDS } = require('./chatbot-channels');
 const { validateFaqInput } = require('./chatbot-faq');
+const {categoryKeyMatches}=require('./categories');
 
 // Until the other adapters have inbound and outbound coverage, expose only
 // WhatsApp channels supported by the current inbox dispatch path.
@@ -208,7 +209,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
       const [[row]] = await db.query(`SELECT id,engine,status,config,revision,category_key AS categoryKey,category_version AS categoryVersion FROM sx_chatbot_profiles WHERE tenant_id=? AND id=?`, [ctx.tenant.id, req.params.id]);
       if (!row) fail('BOT_NOT_FOUND');
       if (Number(row.revision) !== req.body.expectedRevision) fail('STALE_REVISION');
-      if (row.categoryKey !== ctx.category.key || Number(row.categoryVersion) !== ctx.category.version) fail('CATEGORY_UNAVAILABLE');
+      if (!categoryKeyMatches(row.categoryKey,ctx.category.key) || Number(row.categoryVersion) !== ctx.category.version) fail('CATEGORY_UNAVAILABLE');
       return { ...row, config: typeof row.config === 'string' ? JSON.parse(row.config) : row.config };
     });
     const uid = await withDb(db => legacyUidFor(db, req, ctx));
@@ -310,7 +311,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   async function assertLiveProfileReady(db, req, ctx, profile) {
     const [[assignment]] = await db.query(`SELECT COUNT(*) AS count FROM sx_chatbot_channel_assignments WHERE tenant_id=? AND chatbot_id=?`, [ctx.tenant.id, profile.id]);
     if (Number(assignment.count) < 1) fail('BOT_CHANNEL_REQUIRED');
-    if (profile.categoryKey !== ctx.category.key || Number(profile.categoryVersion) !== ctx.category.version) fail('CATEGORY_UNAVAILABLE');
+    if (!categoryKeyMatches(profile.categoryKey,ctx.category.key) || Number(profile.categoryVersion) !== ctx.category.version) fail('CATEGORY_UNAVAILABLE');
     const config = profile.config || {};
     await require('./chatbot-capture-forms').validate(db,ctx,config);
     const domainPack = require('./chatbot-domain-packs').getDomainPack(profile.categoryKey, Number(profile.categoryVersion));
@@ -323,7 +324,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
       if (!flow) fail('GUIDED_FLOW_UNAVAILABLE');
     }
     if (config.introFlowId) {
-      if (profile.categoryKey !== '7network_sales' || config.guidedMode !== 'domain_default') fail('INVALID_FLOW_ID');
+      if (!categoryKeyMatches(profile.categoryKey,'7network_sales') || config.guidedMode !== 'domain_default') fail('INVALID_FLOW_ID');
       const uid = await legacyUidFor(db, req, ctx);
       const introFlow = await require('../platform/chatbot-runtime').loadGuidedFlow(uid, config.introFlowId);
       if (!introFlow) fail('GUIDED_FLOW_UNAVAILABLE');
