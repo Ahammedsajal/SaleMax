@@ -23,6 +23,13 @@
     if(!response.ok||result.success===false||result.success===0||result.logout){const error=Error(result.code||(result.logout?'AUTH_REQUIRED':'REQUEST_FAILED'));error.details=result.details;throw error;}
     return result;
   }
+  async function requestBlob(module,path='',{method='GET',body}={}){
+    if(!paths[module])throw Error('UNKNOWN_WORKSPACE_MODULE');
+    const file=body instanceof FormData;
+    const response=await fetch(paths[module]+normalize(path),{method,credentials:'same-origin',cache:'no-store',headers:await headers(!file),body:body===undefined?undefined:file?body:JSON.stringify(body)});
+    if(!response.ok){let result={};try{result=await response.json();}catch{}const error=Error(result.code||'REQUEST_FAILED');error.details=result.details;error.displayMessage=result.message;error.status=response.status;throw error;}
+    return response.blob();
+  }
   let sessionPromise=null,sessionKey='',sessionUntil=0,sessionGeneration=0;
   const currentSessionKey=()=>{const kind=actor();return kind+':'+(localStorage.getItem(kind==='agent'?'wacrm_agent':'wacrm_user')||'cookie');};
   async function session(){
@@ -40,5 +47,5 @@
     return result;
   }
   const invalidateSession=()=>{sessionGeneration++;sessionPromise=null;sessionUntil=0;};
-  window.SaleMaxWorkspace=Object.freeze({paths,headers,request,session,invalidateSession});
+  window.SaleMaxWorkspace=Object.freeze({paths,headers,request,requestBlob,session,invalidateSession});
 })();

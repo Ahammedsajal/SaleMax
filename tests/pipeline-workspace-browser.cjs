@@ -18,7 +18,7 @@ const root=path.join(__dirname,'../client/public');
    return route.fulfill({contentType:'application/json',body:JSON.stringify({success:true,data})});
   });
   await page.goto('http://127.0.0.1/pipeline/?view=detail');await page.evaluate(lang=>{localStorage.setItem('wacrm_user','synthetic');localStorage.setItem('language',lang);document.documentElement.lang=lang;},lang);
-  for(const name of ['pipeline/workspace-fields.js','pipeline/lead-fields.js','pipeline/pipeline.js'])await page.addScriptTag({content:fs.readFileSync(path.join(root,name),'utf8')});await page.waitForSelector('#board .column');
+  for(const name of ['workspace-api.js','pipeline/workspace-fields.js','pipeline/lead-fields.js','pipeline/pipeline.js'])await page.addScriptTag({content:fs.readFileSync(path.join(root,name),'utf8')});await page.waitForSelector('#board .column');
   assert.ok((await page.locator('#board .colname').first().textContent()).includes(lang==='ar'?'عميل أ':'Prospect A'),'board uses the effective tenant label');
   await page.locator('#listMode').click();assert.ok((await page.locator('#list tbody tr td:nth-child(3)').first().textContent()).includes(lang==='ar'?'عميل أ':'Prospect A'),'list uses the effective tenant label');
   await page.locator('#boardMode').click();await page.locator('#addBtn').click();await page.locator('#newLead').waitFor();
