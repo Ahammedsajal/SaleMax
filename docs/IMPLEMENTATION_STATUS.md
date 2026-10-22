@@ -1,3 +1,7 @@
+## Legacy socket row-ID tenant predicates — source increment, 22 October 2026
+
+The remaining numeric-ID Inbox chat operations now constrain unread updates, chat detail reads, label changes and note reads/writes by both row ID and resolved owner UID. This protects legacy sessions that lack canonical payload authorization while retaining the existing ID-based event contract. The handler-level test invokes these operations with a synthetic legacy owner and checks every ID query carries the owner UID; the Inbox handler and scope suites pass 23/23. Syntax and whitespace checks pass. No migration or production state changed; MariaDB cross-tenant fixtures and authenticated legacy-screen acceptance remain open.
+
 ## Shared Inbox delete handler execution coverage — source increment, 22 October 2026
 
 Added a focused event-handler test that invokes the actual `on_label_delete` and `del_contact` socket handlers with a synthetic owner context and asserts both SQL parameter sets include that owner UID. The combined Meta/Inbox suite passes 12/12; syntax and whitespace checks pass. This is handler-level query-boundary coverage, not a disposable MariaDB cross-tenant fixture or authenticated browser acceptance. Production remains unchanged.

@@ -97,7 +97,7 @@ test('legacy inbox contact and label deletes include the tenant owner UID', () =
   assert.match(route, /DELETE FROM contact WHERE id = \? AND uid = \?/);
 });
 
-test('socket delete handlers pass the authenticated owner UID to both DELETE queries', async () => {
+test('socket ID-based Inbox reads and mutations pass the authenticated owner UID', async () => {
   const modulePaths = [
     '../database/dbpromise',
     '../modules/platform/team-inbox-scope',
@@ -112,18 +112,21 @@ test('socket delete handlers pass the authenticated owner UID to both DELETE que
   const calls = [];
   const query = async (sql, params = []) => {
     calls.push({ sql, params });
+    if (sql.includes('SELECT chat_label FROM beta_chats')) return [{ chat_label: '[]' }];
+    if (sql.includes('SELECT * FROM beta_chats WHERE id')) return [{ id: 805, chat_id: 'synthetic-chat', chat_note: '[]', assigned_agent: '[]', sender_mobile: '5550001', last_message: '{}' }];
+    if (sql.includes('SELECT * FROM user WHERE uid')) return [{ timezone: 'Asia/Qatar' }];
     return [];
   };
   const ownerUid = 'synthetic-tenant-owner';
   const stubs = new Map([
     [modulePaths[0], { query }],
     [modulePaths[1], {
-      resolveInboxScope: async () => ({ canonical: true, uid: ownerUid, assignedOnly: false, ctx: { membership: { role: 'owner' } } }),
+      resolveInboxScope: async () => ({ canonical: false, uid: ownerUid, assignedOnly: false }),
       authorizeInboxPayload: async (_query, _scope, _event, payload) => payload,
     }],
     [modulePaths[2], { assertDelegatedSession: async () => {} }],
-    [modulePaths[3], {}],
-    [modulePaths[4], {}],
+    [modulePaths[3], { getCurrentTimestampInTimeZone: () => 123 }],
+    [modulePaths[4], { getCurrentTimestampInTimeZone: () => 123, readJSONFile: () => [] }],
     [modulePaths[5], {}],
     [modulePaths[6], {}],
   ]);
@@ -144,9 +147,20 @@ test('socket delete handlers pass the authenticated owner UID to both DELETE que
     processSocketEvent({ socket });
     await listeners.get('message')({ type: 'on_label_delete', payload: { labelId: 701 } });
     await listeners.get('message')({ type: 'del_contact', payload: { contactId: 902 } });
+    await listeners.get('message')({ type: 'set_chat_label', payload: { labelData: { id: 4, title: 'Synthetic' }, chatIdRow: 801 } });
+    await listeners.get('message')({ type: 'remove_chat_label', payload: { labelId: 4, chatId: 802 } });
+    await listeners.get('message')({ type: 'delete_chat_note', payload: { chatNoteId: 'note-1', chatRealId: 803 } });
+    await listeners.get('message')({ type: 'save_chat_note', payload: { id: 804, chatNote: 'Synthetic note' } });
+    await listeners.get('message')({ type: 'load_conversation', payload: { chat: { id: 805, chat_id: 'synthetic-chat' }, filters: {} } });
 
     assert.deepEqual(calls.filter(call => call.sql.startsWith('DELETE FROM chat_tags')).map(call => call.params), [[701, ownerUid]]);
     assert.deepEqual(calls.filter(call => call.sql.startsWith('DELETE FROM contact')).map(call => call.params), [[902, ownerUid]]);
+    const idQueries = calls.filter(call => /WHERE id = \?/.test(call.sql));
+    assert.ok(idQueries.length >= 12);
+    for (const call of idQueries) {
+      assert.match(call.sql, /WHERE id = \? AND uid = \?/);
+      assert.equal(call.params.at(-1), ownerUid);
+    }
   } finally {
     for (const filename of modulePaths) {
       if (priorModules.get(filename)) require.cache[filename] = priorModules.get(filename);
