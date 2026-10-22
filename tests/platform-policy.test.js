@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { decision, platformDecision, capabilities, permissions } = require('../modules/platform/policy');
-const { trainingCenter, salemaxSales, restaurantFixture } = require('../modules/platform/categories');
+const { trainingCenter, salemaxSales, realEstate, restaurantFixture } = require('../modules/platform/categories');
 const { navigationFor } = require('../modules/platform/navigation');
 const { canAgentAccessLead } = require('../helper/pipeline/access');
 test('Real Estate workflow authorization contracts are defined without granting them to existing categories',()=>{
@@ -16,6 +16,21 @@ test('Real Estate workflow authorization contracts are defined without granting 
     assert.equal(trainingCenter.capabilities.includes(capability),false,capability);
     assert.equal(salemaxSales.capabilities.includes(capability),false,capability);
   }
+});
+test('Real Estate requirement and viewing permissions apply team scopes to managers and preserve assignment authority',()=>{
+ const capabilitiesForRole=['realestate.requirements','realestate.viewings'];
+ const category={...realEstate,capabilities:[...realEstate.capabilities,...capabilitiesForRole]};
+ const tenant={id:'realestate-tenant',status:'active',categoryKey:category.key,categoryVersion:category.version};
+ const contextFor=role=>({audience:'tenant',tenant,membership:{id:`${role}-member`,tenantId:tenant.id,role,status:'active'},category,subscription:{status:'active',categoryKey:category.key,categoryVersion:category.version,capabilities:capabilitiesForRole}});
+ for(const capability of capabilitiesForRole){
+  const prefix=capability==='realestate.requirements'?'requirements':'viewings';
+  for(const [permission,expected] of [['read','team'],['manage','team']])assert.equal(decision(contextFor('manager'),{capability,permission:`${prefix}.${permission}`}).scope,expected);
+  assert.equal(decision(contextFor('owner'),{capability,permission:`${prefix}.read`}).scope,'tenant');
+  assert.equal(decision(contextFor('team_leader'),{capability,permission:`${prefix}.read`}).scope,'team');
+  assert.equal(decision(contextFor('agent'),{capability,permission:`${prefix}.read`}).scope,'assigned');
+ }
+ assert.equal(decision(contextFor('manager'),{capability:'realestate.requirements',permission:'requirements.assign'}).scope,'tenant');
+ assert.equal(decision(contextFor('agent'),{capability:'realestate.requirements',permission:'requirements.assign'}).allowed,false);
 });
 function context(role='owner') {
   return { audience:'tenant',tenant:{id:'tenant-a',status:'active',categoryKey:trainingCenter.key,categoryVersion:1},membership:{id:'member-a',tenantId:'tenant-a',role,status:'active',delegatedPermissions:[]},subscription:{status:'active',capabilities:Object.keys(capabilities)},category:trainingCenter,runtimeReady:{} };
