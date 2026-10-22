@@ -6,7 +6,7 @@ const path=require('node:path');
 const tasks=require('../modules/platform/task-management');
 const {createTaskContext}=require('../modules/platform/training-task-context');
 const linkedRecords=require('../modules/platform/task-linked-records');
-const {trainingCenter,restaurantFixture}=require('../modules/platform/categories');
+const {trainingCenter,sevenNetworkSales,restaurantFixture}=require('../modules/platform/categories');
 
 const ctx={audience:'tenant',identity:{id:'22222222-2222-4222-8222-222222222222'},tenantId:'11111111-1111-4111-8111-111111111111',tenant:{id:'11111111-1111-4111-8111-111111111111',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'membership',tenantId:'11111111-1111-4111-8111-111111111111',role:'owner',status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:[...trainingCenter.capabilities]},enabledTaskTypes:null,uidHash:'a'.repeat(64),uid:'owner-uid',role:'owner',actorType:'identity',actorId:'22222222-2222-4222-8222-222222222222'};
 
@@ -227,10 +227,11 @@ test('task lead lookup is constrained to the caller workspace and agent assignme
 test('scheduled sales calls require Sales category, linked lead, time and agent assignee',()=>{
   const validate=tasks._private.validateSalesCall,linked={leadId:'33333333-3333-4333-8333-333333333333'},due=new Date('2026-10-14T10:00:00Z'),agent=[{actorType:'agent',actorId:'7',role:'assignee'}];
   assert.throws(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'sales_call',due,'lead',linked,agent),{code:'INVALID_TASK_TYPE',status:403});
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,null,null,agent),{code:'INVALID_SALES_CALL_LEAD'});
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',null,'lead',linked,agent),{code:'INVALID_SALES_CALL_DUE_DATE'});
-  assert.throws(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,'lead',linked,[{actorType:'identity',actorId:'member',role:'assignee'}]),{code:'TASK_ASSIGNEE_REQUIRED'});
-  assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'7network_sales'}},'sales_call',due,'lead',linked,agent));
+  const sales={...ctx,tenant:{...ctx.tenant,categoryKey:sevenNetworkSales.key,categoryVersion:sevenNetworkSales.version},category:sevenNetworkSales,subscription:{status:'active',capabilities:[...sevenNetworkSales.capabilities]}};
+  assert.throws(()=>validate(sales,'sales_call',due,null,null,agent),{code:'INVALID_SALES_CALL_LEAD'});
+  assert.throws(()=>validate(sales,'sales_call',null,'lead',linked,agent),{code:'INVALID_SALES_CALL_DUE_DATE'});
+  assert.throws(()=>validate(sales,'sales_call',due,'lead',linked,[{actorType:'identity',actorId:'member',role:'assignee'}]),{code:'TASK_ASSIGNEE_REQUIRED'});
+  assert.doesNotThrow(()=>validate(sales,'sales_call',due,'lead',linked,agent));
   assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'general',null,null,null,[]));
 });
 

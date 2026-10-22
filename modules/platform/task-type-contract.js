@@ -3,21 +3,19 @@
 const definitions = Object.freeze([
   { key: 'general', label: Object.freeze({ en: 'General', ar: 'عام' }), categoryCapabilities: ['team.tasks'], planCapabilities: ['team.tasks'] },
   { key: 'lead_follow_up', label: Object.freeze({ en: 'Lead follow-up', ar: 'متابعة عميل محتمل' }), categoryCapabilities: ['team.tasks', 'crm.leads'], planCapabilities: ['team.tasks', 'crm.leads'] },
-  { key: 'invoice_follow_up', label: Object.freeze({ en: 'Invoice follow-up', ar: 'متابعة فاتورة' }), categoryCapabilities: ['team.tasks'], planAnyCapabilities: ['finance.invoices', 'sales.finance'] },
-  { key: 'enrollment', label: Object.freeze({ en: 'Enrollment', ar: 'تسجيل' }), categoryCapabilities: ['team.tasks', 'training.enrollments'], planCapabilities: ['team.tasks', 'training.enrollments'] },
-  { key: 'sales_call', label: Object.freeze({ en: 'Scheduled sales call', ar: 'مكالمة مبيعات مجدولة' }), categoryCapabilities: ['team.tasks', 'sales.deals'], planCapabilities: ['team.tasks', 'sales.deals'], categoryKeys: ['7network_sales'] },
 ]);
 
 function forContext(ctx) {
   const categoryCapabilities = new Set(ctx?.category?.capabilities || []);
   const planCapabilities = new Set(ctx?.subscription?.capabilities || []);
   const planActive = ['active', 'trial', 'grace'].includes(ctx?.subscription?.status);
-  return definitions.filter(item => !item.categoryKeys || item.categoryKeys.includes(ctx?.category?.key))
-    .filter(item => item.categoryCapabilities.every(key => categoryCapabilities.has(key)))
+  const categoryAdapters=require('./task-type-adapters').configurable(ctx);
+  const specialized=categoryAdapters.map(item=>({key:item.key,label:item.label,categoryCapabilities:['team.tasks'],planCapabilities:['team.tasks'],adapter:true}));
+  return [...definitions,...specialized].filter(item => item.categoryCapabilities.every(key => categoryCapabilities.has(key)))
     .map(item => ({
       key: item.key,
       label: item.label,
-      planAvailable: planActive && (item.planCapabilities || []).every(key => planCapabilities.has(key)) &&
+      planAvailable: planActive && (item.adapter ? require('./task-type-adapters').supports(ctx,item.key) : (item.planCapabilities || []).every(key => planCapabilities.has(key))) &&
         (!item.planAnyCapabilities || item.planAnyCapabilities.some(key => planCapabilities.has(key))),
     }));
 }

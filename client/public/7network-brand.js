@@ -44,7 +44,7 @@
       const compactBrand = Boolean(img.closest('.logo-box'));
       const icon = compactBrand || (legacy ? /(?:icon|logo192|logo512)/i.test(path) && !/salemax-logo|7network-logo/i.test(path) : marked === 'icon');
       const kind = icon ? 'icon' : 'logo';
-      const target = root + (icon ? 'icon-192.png?v=20261021-color-wordmark1' : (darkSurface(img) ? 'logo-dark.png?v=20261021-color-wordmark1' : 'logo-light.png?v=20261021-color-wordmark1'));
+      const target = root + (icon ? 'icon-192.png?v=20261022-sidebar-icon1' : (darkSurface(img) ? 'logo-dark.png?v=20261021-final-horizontal1' : 'logo-light.png?v=20261021-final-horizontal1'));
       img.dataset.sevenNetworkBrand = kind;
       if (img.getAttribute('src') !== target) img.setAttribute('src', target);
       if (img.alt !== '7Network') img.alt = '7Network';

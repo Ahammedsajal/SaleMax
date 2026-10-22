@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const types=require('../modules/platform/task-type-contract');
 const {trainingCenter,sevenNetworkSales,realEstate}=require('../modules/platform/categories');
 
-const context=(category,capabilities=category.capabilities,enabledTaskTypes=null)=>({category,subscription:{status:'active',capabilities},enabledTaskTypes});
+const context=(category,capabilities=category.capabilities,enabledTaskTypes=null)=>({category,tenant:{categoryKey:category.key,categoryVersion:category.version},subscription:{status:'active',capabilities},enabledTaskTypes});
 
 test('task catalog follows the category contract and current plan capabilities',()=>{
   const training=types.forContext(context(trainingCenter));
@@ -38,4 +38,13 @@ test('published task-type customization rejects unknown, duplicate, and plan-ine
   assert.throws(()=>types.normalizeEnabled(ctx,['sales_call']),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
   assert.throws(()=>types.normalizeEnabled(ctx,['general','general']),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
   assert.throws(()=>types.normalizeEnabled(ctx,['enrollment'],{enforcePlan:true}),{code:'INVALID_CUSTOMIZATION_TASK_TYPES'});
+});
+
+test('special task behavior is pinned to the category adapter version',()=>{
+  const trainingV2={...trainingCenter,version:2,taskAdapters:{enrollment:99}};
+  assert.throws(()=>require('../modules/platform/category-registry').createCategoryRegistry([trainingV2],require('../modules/platform/policy').capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
+  const withoutAdapter={...trainingCenter,version:2,taskAdapters:{}};
+  const registry=require('../modules/platform/category-registry').createCategoryRegistry([withoutAdapter],require('../modules/platform/policy').capabilities);
+  assert.deepEqual(registry.get('training_center',2).taskAdapters,{});
+  assert.deepEqual(types.forContext(context(realEstate)).filter(item=>['invoice_follow_up','enrollment','sales_call'].includes(item.key)),[]);
 });

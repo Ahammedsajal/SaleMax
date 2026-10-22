@@ -32,16 +32,17 @@ test('compact sidebar branding uses the approved 7Network icon and preserves ful
   const styles = fs.readFileSync(path.join(__dirname, '../client/public/7network-brand.css'), 'utf8');
   assert.match(script, /const compactBrand = Boolean\(img\.closest\('\.logo-box'\)\)/);
   assert.match(script, /const icon = compactBrand \|\|/);
-  assert.match(script, /logo-dark\.png\?v=20261021-color-wordmark1/);
-  assert.match(script, /logo-light\.png\?v=20261021-color-wordmark1/);
+  assert.match(script, /logo-dark\.png\?v=20261021-final-horizontal1/);
+  assert.match(script, /logo-light\.png\?v=20261021-final-horizontal1/);
   assert.match(styles, /\.logo-box img\[data-seven-network-brand="icon"\][^{]*\{[^}]*width: 50px/);
   const source = fs.readFileSync(path.join(__dirname, '../client/public/branding/7network/logo-source.svg'), 'utf8');
-  assert.match(source, /<tspan fill="#0B2748">Net<\/tspan><tspan fill="url\(#sunrise-red\)">work<\/tspan>/);
-  assert.match(source, /<linearGradient id="sunrise-red"/);
-  assert.doesNotMatch(source, /globe-no7-source\.png/);
+  assert.match(source, /fill="#071A33">Netw<\/text>/);
+  assert.match(source, /<image href="globe-no7-source\.png"/);
+  assert.match(source, /fill="#071A33">rk<\/text>/);
   const exporter = fs.readFileSync(path.join(__dirname, '../scripts/export-7network-brand.cjs'), 'utf8');
-  assert.match(exporter, /fill="#EAF1FF"/);
-  assert.match(exporter, /#FF8153/);
+  assert.match(exporter, /logo-horizontal-source\.png/);
+  assert.match(exporter, /logo-dark-source\.png/);
+  assert.match(exporter, /20261022-clear1/);
 });
 
 test('Sales chatbot migrations normalize first-party bot branding and its category key without rewriting history', () => {

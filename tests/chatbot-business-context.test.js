@@ -83,6 +83,21 @@ test('approved FAQs match two meaningful question words and remain ambiguous-saf
  assert.ok(!retrieveContext({facts,message:'opening please',knowledgeEntries:faqs}).evidence.some(x=>x.kind==='approved_faq'));
  assert.ok(!retrieveContext({facts,message:'Business English price',knowledgeEntries:[{questionEn:'Business English price',answerEn:'1 QAR'}]}).evidence.some(x=>x.kind==='approved_faq'));
 });
+test('provider context includes the matching FAQ and excludes unrelated answers',()=>{
+ const matchingAnswer='Classes run in the evening.';
+ const unrelatedAnswer='The other program uses a different delivery method.';
+ const otherFaqAnswer='Private answer for another tenant.';
+ const knowledgeEntries=[
+  {questionEn:'When are classes?',answerEn:matchingAnswer},
+  {questionEn:'Do you offer evening classes?',answerEn:unrelatedAnswer},
+  {questionEn:'How does the other business deliver?',answerEn:otherFaqAnswer},
+ ];
+ const context=retrieveContext({facts,message:'When are classes?',knowledgeEntries});
+ const promptFacts=JSON.stringify(context.evidence);
+ assert.ok(promptFacts.includes(matchingAnswer));
+ assert.ok(!promptFacts.includes(unrelatedAnswer));
+ assert.ok(!promptFacts.includes(otherFaqAnswer));
+});
 test('unavailable Hybrid answers explain the missing business topic and handover route',()=>{
  const demo=unavailableReply('Can I attend a demo section?',{},'en');
  assert.match(demo,/demo or free-class policy/); assert.match(demo,/Type agent/);

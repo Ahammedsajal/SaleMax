@@ -32,6 +32,58 @@ production upload, application submission, customer-data write, or schema change
 occurred. No actual applicant failure was reproduced, so its underlying
 technical cause remains unknown.
 
+## Chatbot provider-prompt isolation regression — source update, 22 October 2026
+
+The chatbot API integration had expected an unrelated FAQ to be sent to the AI
+provider. Runtime retrieval intentionally passes only the best matching FAQ;
+unrelated same-tenant answers add noise and can conflict with the customer's
+question. The integration now seeds a distinct FAQ for a second tenant and
+asserts that a preview contains its matching business answer while excluding
+both unrelated same-tenant content and the second tenant's private answer. A
+focused retrieval regression covers the same relevance rule. The chatbot context
+and FAQ suites pass 160/160, and integration-source syntax and whitespace checks
+pass. The full MariaDB migration/API harness was not rerun because this worktree
+has no dedicated disposable MariaDB test instance; the unrelated local MySQL
+service was left untouched. This source-only test correction does not establish
+full authenticated browser or production acceptance.
+
+## Active-release source reconciliation — source update, 22 October 2026
+
+A read-only comparison against `/opt/salemax/current`, resolved to
+`/opt/salemax/releases/recruitment-customer-guidance-5ab3315-20261022`, covered
+hand-maintained source and documentation while excluding dependencies, the
+compiled public bundle, runtime/shared data, media and AppleDouble files. The
+manifest contains 857 production files and 985 local files: 732 match exactly,
+121 differ, four are production-only, and 132 are local-only. Production-only
+`feature-contract.js`, `pipeline-entry.js` and root `manifest.json` are not
+referenced by the deployed static entry points; the remaining production-only
+sidebar rollback has no reviewed local forward-migration pair, so it was not
+copied. The comparison is a source audit, not evidence of release or database
+parity.
+
+Reviewed live improvements were synchronized selectively: opening-keyword
+handoff reconciliation in the Inbox, Qatar as the fallback socket timezone,
+version-pinned category task adapters that retain tenant task toggles, current
+7Network wordmark/icon assets, and the missing Pipeline timezone-options script
+include. The brand exporter now regenerates byte-identical live light/dark logo
+masters and resized variants from tracked source assets. New tests verify adapter
+version/capability contracts, inbox flow suppression after a human handoff,
+relevant tenant-isolated chatbot prompts, brand packaging, and Pipeline timezone
+loading. The 203-test focused batch, syntax checks and `git diff --check` pass.
+
+Newer local work was retained, including Real Estate category files, UUID-based
+Pipeline report identifiers, tenant-scoped chatbot flow state, and the legacy
+flow owner-scope migrations. The full `npm test` suite reports 1,037/1,062
+passing, with 25 remaining failures in legacy Manage Users, shell hook order,
+Pipeline/Finance screen contracts, Agent task recipients, training print
+controls and public-form challenge assertions. The timezone cache-key contract
+was refreshed as part of this sync. The remaining 121 changed files and 132
+local-only files require feature-by-feature review; this pass did not overwrite
+the local project from production. No production files, database, customer data,
+provider settings or runtime state were changed. The MariaDB integration
+harness and authenticated live application acceptance remain open; the 42-ticket
+upgrade is still in progress.
+
 ## Finance conversion policy guard — source update, 21 October 2026
 
 The training invoice-total helper now rejects missing, unsupported or malformed
