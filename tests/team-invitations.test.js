@@ -25,6 +25,7 @@ test('team invitation inputs are bounded to tenant staff roles',()=>{
     assert.ok(!team.permissionsFor('agent',salemaxSales,{capabilities:salemaxSales.capabilities}).includes(permission),permission);
     assert.ok(!team.permissionsFor('manager',salemaxSales,{capabilities:salemaxSales.capabilities}).includes(permission),permission);
   }
+  for(const role of ['manager','team_leader','agent'])assert.ok(!team.permissionsFor(role,salemaxSales,{capabilities:salemaxSales.capabilities}).includes('calls.recording.manage'),`${role}:calls.recording.manage`);
   const guard=require('../modules/platform/team-role-request-guard');
   assert.equal(guard.routePermission({baseUrl:'/api/user/team-invitations',path:'/members/member-id/password',method:'PUT'}),'team.invite');
 });

@@ -107,6 +107,10 @@ test('custom staff roles cannot elevate approval authority beyond their fixed se
     const c=salesContext(role);c.membership.customPermissions=['deals.approve'];
     assert.equal(decision(c,{capability:'sales.deals',permission:'deals.approve'}).code,'PERMISSION_DENIED',`${role} must not receive deals.approve`);
   }
+  for(const role of ['manager','team_leader','agent']){
+    const c=salesContext(role);c.membership.customPermissions=['calls.recording.manage'];
+    assert.equal(decision(c,{capability:'telephony.call-center',permission:'calls.recording.manage'}).code,'PERMISSION_DENIED',`${role} must not manage tenant recording policy`);
+  }
   const manager=context('manager');manager.membership.customPermissions=['sales.approve'];
   assert.equal(decision(manager,{capability:'training.enrollments',permission:'sales.approve'}).allowed,true);
   const salesManager={...manager,category:salemaxSales,tenant:{...manager.tenant,categoryKey:salemaxSales.key},subscription:{...manager.subscription,capabilities:[...salemaxSales.capabilities]}};

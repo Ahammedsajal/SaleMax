@@ -108,6 +108,7 @@ const roleBoundPermissions = Object.freeze({
   'commission.policy.manage': Object.freeze(['owner']),
   'commission.payout.approve': Object.freeze(['accountant']),
   'commission.payout.pay': Object.freeze(['accountant']),
+  'calls.recording.manage': Object.freeze(['owner']),
 });
 function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
