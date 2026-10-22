@@ -14,6 +14,8 @@ The tenant-customization draft transaction now also accepts the canonical plan c
 
 The existing product-catalogue adapter now resolves stored category aliases against the immutable category registry before choosing the existing fixed storage adapter. This preserves the 7Network Sales catalogue and quick-reply capability for legacy tenants and plan snapshots while retaining exact version and capability checks. Catalogue, category identity and platform policy checks pass 24/24; syntax and whitespace checks pass. No schema or tenant data changed.
 
+The existing Sales Organization, Audit, Deals and Commission services now apply the same alias-aware category boundary as shared policy. Their domain role checks and exact category version gates remain in place. Tests cover owner/manager organization access, owner-only audit and commission policy, and tenant-scoped Deals reads for a synthetic tenant that retains `salemax_sales`; the four focused suites pass 14/14. No migration or customer-data change is involved.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language

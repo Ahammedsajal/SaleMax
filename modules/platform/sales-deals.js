@@ -1,12 +1,12 @@
 'use strict';
 const crypto=require('node:crypto');
-const {salemaxSales}=require('./categories');
+const {salemaxSales,categoryKeyMatches}=require('./categories');
 const {decision}=require('./policy');
 const calculator=require('./sales-commission-calculator');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 const sha=value=>crypto.createHash('sha256').update(String(value),'utf8').digest('hex');
-function assertCategory(ctx){if(ctx?.audience!=='tenant'||ctx.category?.key!==salemaxSales.key||ctx.category?.version!==salemaxSales.version||ctx.tenant?.categoryKey!==salemaxSales.key||Number(ctx.tenant?.categoryVersion)!==salemaxSales.version)fail('CATEGORY_UNAVAILABLE');if(!ctx.identity?.id||!ctx.membership?.id||ctx.membership.status!=='active')fail('PERMISSION_DENIED');}
+function assertCategory(ctx){if(ctx?.audience!=='tenant'||!categoryKeyMatches(ctx.category?.key,salemaxSales.key)||ctx.category?.version!==salemaxSales.version||!categoryKeyMatches(ctx.tenant?.categoryKey,salemaxSales.key)||Number(ctx.tenant?.categoryVersion)!==salemaxSales.version)fail('CATEGORY_UNAVAILABLE');if(!ctx.identity?.id||!ctx.membership?.id||ctx.membership.status!=='active')fail('PERMISSION_DENIED');}
 function authorize(ctx,permission,resource){assertCategory(ctx);const access=decision(ctx,{capability:'sales.deals',permission,resource});if(!access.allowed)fail(access.code);}
 async function audit(db,ctx,action,type,id,reason,changes){await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,reason,changes,correlation_id)
   VALUES (?,?,?,'identity',?,?,?,?,?,?)`,[crypto.randomUUID(),ctx.tenant.id,ctx.identity.id,action,type,id,reason||null,JSON.stringify(changes||{}),crypto.randomUUID()]);}

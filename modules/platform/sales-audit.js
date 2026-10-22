@@ -1,7 +1,7 @@
 'use strict';
 
 const {decision}=require('./policy');
-const {salemaxSales}=require('./categories');
+const {salemaxSales,categoryKeyMatches}=require('./categories');
 
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const secretKey=/password|secret|token|authorization|credential|recording|transcript|media|proof|signature|private.?key|cookie/i;
@@ -13,7 +13,7 @@ const safeDate=value=>{
   return value;
 };
 function assertAccess(ctx){
-  if(ctx?.audience!=='tenant'||ctx.category?.key!==salemaxSales.key||ctx.category?.version!==salemaxSales.version||ctx.tenant?.categoryKey!==salemaxSales.key||Number(ctx.tenant?.categoryVersion)!==salemaxSales.version)fail('CATEGORY_UNAVAILABLE');
+  if(ctx?.audience!=='tenant'||!categoryKeyMatches(ctx.category?.key,salemaxSales.key)||ctx.category?.version!==salemaxSales.version||!categoryKeyMatches(ctx.tenant?.categoryKey,salemaxSales.key)||Number(ctx.tenant?.categoryVersion)!==salemaxSales.version)fail('CATEGORY_UNAVAILABLE');
   if(ctx.membership?.role!=='owner')fail('PERMISSION_DENIED');
   if(Array.isArray(ctx.membership.assignedNavigation)&&!ctx.membership.assignedNavigation.includes('sales-audit'))fail('PERMISSION_DENIED');
   const access=decision(ctx,{capability:'tenant.settings',permission:'tenant.manage'});

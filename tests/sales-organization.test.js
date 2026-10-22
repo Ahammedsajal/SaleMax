@@ -30,6 +30,7 @@ function dbMock({targetRole='agent',current=null,followers=[]}={}){
 
 test('organisation context is restricted to active 7Network Sales tenants with an enabled team entitlement',()=>{
   assert.doesNotThrow(()=>organization.assertContext(context()));
+  assert.doesNotThrow(()=>organization.assertContext({...context(),tenant:{...context().tenant,categoryKey:'salemax_sales'}}));
   assert.throws(()=>organization.assertContext({...context(),category:trainingCenter}),{code:'CATEGORY_UNAVAILABLE'});
   assert.throws(()=>organization.assertContext({...context(),subscription:{status:'expired',capabilities:['team.members']}}),{code:'FEATURE_UNAVAILABLE'});
   assert.throws(()=>organization.assertContext({...context(),subscription:{status:'active',capabilities:[]}}),{code:'FEATURE_UNAVAILABLE'});
