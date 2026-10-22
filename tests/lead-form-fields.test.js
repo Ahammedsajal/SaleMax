@@ -21,6 +21,21 @@ test('draft publication verifies tenant-bound active revision and refuses label/
  const empty={query:async()=>[[]]};await assert.rejects(service.validateDraft(empty,ctx,selected),{code:'STALE_LEAD_FIELD_CONFIGURATION'});
 });
 test('invalid form metadata is bounded and unknown properties cannot become capture instructions',()=>{
- for(const input of [{configurationRevision:3,fields:[]},{...selected,tenantId:'foreign'},{...selected,fields:[{...field,active:false}]},{...selected,configurationRevision:0}])assert.throws(()=>service.normalize(input));
+ for(const input of [{configurationRevision:3,fields:[]},{...selected,tenantId:'foreign'},{...selected,fields:[{...field,active:false}]},{...selected,configurationRevision:-1}])assert.throws(()=>service.normalize(input));
  assert.equal(service.normalize(undefined),undefined);
+});
+test('existing Forms editor can select the exact category-version default field without a tenant override',async()=>{
+ const categoryWithDefaults={...category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[field],hiddenNavigation:[]}};
+ const result=await service.options({query:async()=>[[]]},{...ctx,category:categoryWithDefaults});
+ assert.deepEqual(result,{revision:0,fields:[field]});
+ const selectedAtBaseline={configurationRevision:result.revision,fields:[{...field,required:true}]};
+ assert.deepEqual(service.contract(selectedAtBaseline),{revision:0,fields:[{...field,required:true}]});
+ await service.validateDraft({query:async()=>[[]]},{...ctx,category:categoryWithDefaults},selectedAtBaseline);
+ assert.equal(service.save(selectedAtBaseline,{[field.key]:false})[field.key].configurationRevision,0);
+});
+test('Forms keeps inherited category fields selectable under a tenant revision that omits the field override',async()=>{
+ const settings=require('../modules/platform/tenant-customization'),categoryWithDefaults={...category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[field],hiddenNavigation:[]}},document={schemaVersion:3,navigationLabels:{},hiddenNavigation:[]};
+ const row={id:'revision-a',revision:3,kind:'published',category_key:category.key,category_version:1,schema_version:3,document:JSON.stringify(document),checksum:settings.checksum(settings.normalize({...ctx,category:categoryWithDefaults},document))};
+ const result=await service.options({query:async()=>[[row]]},{...ctx,category:categoryWithDefaults});
+ assert.deepEqual(result,{revision:3,fields:[field]});
 });

@@ -1,9 +1,48 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { decision, platformDecision, capabilities } = require('../modules/platform/policy');
-const { trainingCenter, salemaxSales, restaurantFixture } = require('../modules/platform/categories');
+const { decision, platformDecision, capabilities, permissions } = require('../modules/platform/policy');
+const { trainingCenter, salemaxSales, realEstate, restaurantFixture } = require('../modules/platform/categories');
 const { navigationFor } = require('../modules/platform/navigation');
 const { canAgentAccessLead } = require('../helper/pipeline/access');
+test('Real Estate workflow authorization contracts are defined without granting them to existing categories',()=>{
+  const expected={
+    'realestate.parties':['parties.read','parties.manage'],
+    'realestate.requirements':['requirements.read','requirements.manage','requirements.assign'],
+    'realestate.viewings':['viewings.read','viewings.manage','viewings.assign'],
+  };
+  for(const [capability,permissionList] of Object.entries(expected)) {
+    assert.deepEqual(capabilities[capability],permissionList);
+    for(const permission of permissionList) assert.equal(Object.hasOwn(permissions,permission),true,permission);
+    assert.equal(trainingCenter.capabilities.includes(capability),false,capability);
+    assert.equal(salemaxSales.capabilities.includes(capability),false,capability);
+  }
+});
+test('Real Estate requirement and viewing permissions apply team scopes to managers and preserve assignment authority',()=>{
+ const capabilitiesForRole=['realestate.requirements','realestate.viewings'];
+ const category={...realEstate,capabilities:[...realEstate.capabilities,...capabilitiesForRole]};
+ const tenant={id:'realestate-tenant',status:'active',categoryKey:category.key,categoryVersion:category.version};
+ const contextFor=role=>({audience:'tenant',tenant,membership:{id:`${role}-member`,tenantId:tenant.id,role,status:'active'},category,subscription:{status:'active',categoryKey:category.key,categoryVersion:category.version,capabilities:capabilitiesForRole}});
+ for(const capability of capabilitiesForRole){
+  const prefix=capability==='realestate.requirements'?'requirements':'viewings';
+  for(const [permission,expected] of [['read','team'],['manage','team']])assert.equal(decision(contextFor('manager'),{capability,permission:`${prefix}.${permission}`}).scope,expected);
+  assert.equal(decision(contextFor('owner'),{capability,permission:`${prefix}.read`}).scope,'tenant');
+  assert.equal(decision(contextFor('team_leader'),{capability,permission:`${prefix}.read`}).scope,'team');
+  assert.equal(decision(contextFor('agent'),{capability,permission:`${prefix}.read`}).scope,'assigned');
+ }
+ assert.equal(decision(contextFor('manager'),{capability:'realestate.requirements',permission:'requirements.assign'}).scope,'tenant');
+ assert.equal(decision(contextFor('agent'),{capability:'realestate.requirements',permission:'requirements.assign'}).allowed,false);
+ for(const capability of capabilitiesForRole){
+  const prefix=capability==='realestate.requirements'?'requirements':'viewings';
+  for(const permission of [`${prefix}.manage`,`${prefix}.assign`])for(const role of ['team_leader','agent']){
+   const delegated={...contextFor(role),membership:{...contextFor(role).membership,customPermissions:[permission]}};
+   assert.equal(decision(delegated,{capability,permission}).allowed,false,`${role} must not receive ${permission}`);
+  }
+  for(const role of ['team_leader','agent']){
+   const customRead=`${prefix}.read`,delegated={...contextFor(role),membership:{...contextFor(role).membership,customPermissions:[customRead]}};
+   assert.equal(decision(delegated,{capability,permission:customRead}).scope,role==='agent'?'assigned':'team');
+  }
+ }
+});
 function context(role='owner') {
   return { audience:'tenant',tenant:{id:'tenant-a',status:'active',categoryKey:trainingCenter.key,categoryVersion:1},membership:{id:'member-a',tenantId:'tenant-a',role,status:'active',delegatedPermissions:[]},subscription:{status:'active',capabilities:Object.keys(capabilities)},category:trainingCenter,runtimeReady:{} };
 }
@@ -52,6 +91,37 @@ test('manager receipt authority does not grant credit approval or owner authorit
   assert.equal(decision(c,{capability:'finance.payments',permission:'payments.verify'}).allowed,true);
   assert.equal(decision(c,{capability:'finance.credits',permission:'credits.approve'}).allowed,false);
   assert.equal(decision(c,{capability:'messaging.meta',permission:'channels.configure'}).allowed,true);
+});
+test('custom staff roles cannot elevate approval authority beyond their fixed seat role',()=>{
+  const salesContext=role=>{const c=context(role);c.category=salemaxSales;c.tenant.categoryKey=salemaxSales.key;c.subscription.capabilities=[...salemaxSales.capabilities];return c;};
+  const cases=[
+    ['agent','training.enrollments','sales.approve'],
+    ['team_leader','training.enrollments','sales.approve'],
+    ['manager','finance.credits','credits.approve'],
+  ];
+  for(const [role,capability,permission] of cases){
+    const c=context(role);c.membership.customPermissions=[permission];
+    assert.equal(decision(c,{capability,permission}).code,'PERMISSION_DENIED',`${role} must not receive ${permission}`);
+  }
+  for(const role of ['agent','team_leader']){
+    const c=salesContext(role);c.membership.customPermissions=['deals.approve'];
+    assert.equal(decision(c,{capability:'sales.deals',permission:'deals.approve'}).code,'PERMISSION_DENIED',`${role} must not receive deals.approve`);
+  }
+  for(const role of ['manager','team_leader','agent']){
+    const c=salesContext(role);c.membership.customPermissions=['calls.recording.manage'];
+    assert.equal(decision(c,{capability:'telephony.call-center',permission:'calls.recording.manage'}).code,'PERMISSION_DENIED',`${role} must not manage tenant recording policy`);
+  }
+  const manager=context('manager');manager.membership.customPermissions=['sales.approve'];
+  assert.equal(decision(manager,{capability:'training.enrollments',permission:'sales.approve'}).allowed,true);
+  const salesManager={...manager,category:salemaxSales,tenant:{...manager.tenant,categoryKey:salemaxSales.key},subscription:{...manager.subscription,capabilities:[...salemaxSales.capabilities]}};
+  salesManager.membership.customPermissions=['deals.approve'];
+  assert.equal(decision(salesManager,{capability:'sales.deals',permission:'deals.approve'}).allowed,true);
+  const accountant=context('accountant');accountant.membership.customPermissions=['commission.payout.approve'];
+  for(const [role,permission] of [['manager','commission.policy.manage'],['manager','commission.payout.approve'],['agent','commission.payout.pay']]){
+    const c=salesContext(role);c.membership.customPermissions=[permission];
+    assert.equal(decision(c,{capability:'sales.commissions',permission}).code,'PERMISSION_DENIED',`${role} must not receive ${permission}`);
+  }
+  assert.equal(decision(salesContext('accountant'),{capability:'sales.commissions',permission:'commission.payout.approve'}).allowed,true);
 });
 test('Training Center managers can manage tenant team access within the team.members entitlement',()=>{
   const c=context('manager');

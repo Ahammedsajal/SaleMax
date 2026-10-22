@@ -1,3 +1,286 @@
+## Generic Forms deployment-overlay migration preflight — source increment, 22 October 2026
+
+The Forms overlay helper now stages both required additive forward migrations:
+`20261022_pipeline_identity_activity_actor.sql` and
+`20261022_workspace_forms.sql`. Before changing any runtime files, it verifies
+that source migrations exist and refuses to overwrite a target migration with a
+different checksum. This prevents releasing the shared Forms API/UI without its
+tenant-bound storage schema or silently replacing a migration already present
+in a release. Overlay tests prove both migration artifacts are staged, a
+checksum conflict fails before runtime changes, and symlinked targets are
+rejected to prevent writes outside the release tree. Focused Forms, overlay and
+Training Forms checks pass 35/35; existing browser fixtures pass 12/12 across
+English/Arabic and mobile/desktop. No production state or customer data changed.
+The generic adapter remains disabled until category approval; authenticated live
+screen acceptance and deployment remain open.
+
+## Generic Forms agent staff authorization — source increment, 22 October 2026
+
+The shared route guards now classify `/staff/:slug` Forms reads and submissions
+as `forms.capture`, while draft administration and publication remain under
+`forms.manage`. The legacy `/api/user/training/forms` mount canonicalizes to
+the same workspace Forms API for agent authorization, and the custom-role guard
+allows assigned-scope access only to the resource-aware Forms service, which
+continues enforcing the agent's current lead assignments. Route tests cover
+canonical, legacy-alias and Pipeline staff paths, both authorization layers,
+and restricted administration. Focused Agent workspace, team invitation,
+Training Forms and workspace Forms suites pass 44/44; syntax and whitespace
+checks pass. No database, category declaration or production state changed.
+Authenticated existing-screen EN/AR acceptance and deployment remain open.
+
+## Generic Forms MariaDB and service integration — source increment, 22 October 2026
+
+The focused Forms migration runner now accepts the explicit `DBPASS=__EMPTY__`
+sentinel for local disposable MariaDB instances configured with an empty
+password, matching the existing migration integration convention. Assertion
+failures emit their synthetic fixture stack so constraint mismatches can be
+diagnosed without suppressing details. The focused category/Forms regressions
+pass 38/38. The integration passed on a fresh disposable MariaDB 11.4.13
+instance and verified tenant-bound form/version/submission/rate-limit foreign
+keys plus idempotency. It invoked the shared Forms service for two synthetic
+tenants using the same test-only generic adapter: same-slug creation remained
+tenant-local; list and submission reads were scoped; cross-tenant form IDs were
+denied for update/publication; and concurrent writes to one draft revision
+yielded one success and one `STALE_REVISION`. Public and owner staff capture
+then ran through the real Forms service transactions and the real Pipeline
+`createManualLead` helper on the same transaction connection. The disposable
+database applied the actual Pipeline, contact, identity-activity and
+qualification migrations plus the actual plan-assignment and Forms migrations.
+The integration used the real `plans.loadEntitlements` resolver over two
+synthetic assignments: Tenant A had Forms and CRM Leads, Tenant B had Forms
+only, and Tenant A was later expired. B's denied capture and A's post-expiry
+capture created no leads. It also denied public capture for a database-suspended
+tenant and denied staff capture with an inactive membership context, without
+creating extra leads. A disposable MariaDB trigger then forced the real Pipeline
+activity write to fail after lead/contact creation began; the transaction left
+no lead, contact, submission, or visitor-rate attempt behind. Exact-token
+replays created no duplicate leads or visitor-rate attempts; consent, sanitized
+campaign attribution, contact fields, public and staff source types,
+identity/system activity attribution and linked lead IDs persisted in the real
+Pipeline tables. Only the generic category adapter and category lookup remain
+test-injected. Authenticated browser acceptance and category declaration remain
+separate gates.
+The temporary database, data directory and server were removed; the unrelated
+MySQL service was left untouched. No production state or customer data changed.
+Authenticated EN/AR existing-screen acceptance, category opt-in review and
+deployment remain open.
+
+The shared feature API contract now documents schema-6 typed module settings,
+the owner-only draft/publish lifecycle, provenance, consumer context, and the
+rule that settings cannot grant category, plan, tenant, member, or provider
+access. Source inspection confirms no production category currently declares
+this schema, so the generic editor is not an operational module configuration
+feature yet. Category declaration, workflow consumers, and same-category
+two-tenant acceptance remain dependent implementation work.
+
+## Lead Reports journey collation repair — source increment, 22 October 2026
+
+### Follow-up: Sales actor collation resolved and existing screen accepted
+
+The remaining error was isolated to the `7network_sales` report's agent
+activity query: `pipeline_activity.actor_id` used the live
+`utf8mb4_general_ci` collation, while the cast agent ID used a different
+default collation. Source commit `c5cfecfbf026ed7ffe7fd0a74d7e9377b035aad2`
+explicitly applies `utf8mb4_general_ci` to both operands and adds a regression
+test. The focused Lead Reports tests pass 13/13; the helper passes `node
+--check` and `git diff --check`.
+
+This follow-up supersedes the acceptance-failed state documented below. The
+fix is deployed in the app-only release
+`/opt/salemax/releases/7network-lead-report-agent-collation-c5cfecfb-20261022`
+using image `salemax-app:7network-lead-report-agent-collation-c5cfecfb-20261022`
+(`sha256:d9d9cbda1f50641833da6860f4a11eb6928fd6280ade222f4e136d467cd5d000`).
+The deployed helper SHA-256 is
+`1a3c225fcb44e42cd2902df9d958edf9195b92a0a5a3ada0d9c6041679b7400c`, matching
+source. The deployment held the shared production lock continuously. No
+migration was applied; database, report-worker and recruitment-worker
+container IDs were unchanged. The prior release is
+`/opt/salemax/releases/7network-lead-report-uuid-cb38aaac-20261022`; protected
+rollback snapshot `/opt/salemax/shared/rollback-lead-report-agent-collation-c5cfecfb-20261022`
+(mode `0700`) preserves the prior helper, Compose and service state. App-only
+rollback uses that prior release with the documented Compose command in
+`DEPLOYMENT.md`.
+
+After deployment, the existing authenticated `/user?page=lead-reports` screen
+was reloaded in English/LTR and its embedded report completed successfully,
+showing the pipeline snapshot, daily intake table and agent attendance section
+without an error. Arabic/RTL acceptance also succeeded with translated report
+title and filters and rendered report sections. The browser was restored to
+English/LTR. Public `/healthz` and `/user/login` returned HTTP 200; the app was
+healthy. The report workflow's broader role, mobile, staff and tenant-isolation
+acceptance remains open; this resolves the production report error but does
+not complete the module or the 42-ticket program.
+
+The authenticated production Lead Reports screen previously failed with
+`ER_CANT_AGGREGATE_2COLLATIONS`. Read-only schema inspection confirmed
+`pipeline_leads.uid` uses `utf8mb4_general_ci` while
+`sx_training_enrollments.legacy_uid` uses `utf8mb4_uca1400_ai_ci`. Six
+Training Center journey subqueries compared these columns directly when
+checking that enrollment records belonged to leads in the report scope. The
+report now applies the existing `utf8mb4_general_ci` collation explicitly to
+both operands in all six checks, retaining the tenant-hash and lead-ID
+predicates. A regression assertion checks all six scoped joins. The source
+change is commit `7bff8a0ccfc1fd8c81e85bac18f6ce280b13689f` on the open shared
+core PR #173; the focused report tests pass 14/14.
+
+Current production evidence: the ICP release
+`/opt/salemax/releases/7network-sales-icp-be1f442-20261022` was built from the
+preceding report-collation release and retains its report helper
+(`dc7d19d63fd78b557e3e5f9d5d9c5a3a56a8dda67e8309ce061024611deab3b3`). The
+app is healthy. The authenticated existing Lead Reports route still returns
+HTTP 500 for `/api/pipeline/reports/journey`; its activity and summary endpoints
+return HTTP 200. Application logs report `ER_CANT_AGGREGATE_2COLLATIONS`.
+Calling `getJourneyReport` directly with a synthetic UID returns successfully,
+but this does not cover the route's preceding
+`trainingLeadJourney.reconcileExisting` call or an existing tenant's data.
+That route-level source remains unisolated, so the existing screen fails
+acceptance and the module is not complete. A five-minute aggregate found no
+recent system stage-change events during this inspection. No new migration was
+applied. See the current ICP release entry in `DEPLOYMENT.md`; it records the
+collation release as its predecessor and its rollback reference.
+
+A production MariaDB probe then exercised the active helper against disposable
+session-local shadow tables. It reached `journey-report`, query step 3, and
+failed with `ER_TRUNCATED_WRONG_VALUE_FOR_FIELD` while inserting a synthetic
+UUID lead ID into `sx_report_lead_scope`. Read-only schema metadata confirms
+`pipeline_leads.id` is `CHAR(36)`; the helper declared this temporary key as
+`BIGINT UNSIGNED`. Source now declares it as `CHAR(36) CHARACTER SET utf8mb4
+COLLATE utf8mb4_general_ci`, matching the live lead ID, with a focused SQL
+shape regression assertion. The report test file passes 12/12. The fix is now
+deployed in app-only release
+`/opt/salemax/releases/7network-lead-report-uuid-cb38aaac-20261022`; runtime
+and release helper hashes match. App health and public health/login endpoints
+pass, while the reloaded signed-in Lead Reports screen still fails with
+`ER_CANT_AGGREGATE_2COLLATIONS`. A synthetic-UID report call without a matching
+lead completes all 11 queries, so this evidence does not identify the
+remaining data-dependent collation error. No migration or persistent row
+change occurred; see `DEPLOYMENT.md` for the rollback reference and release
+verification. The module remains unaccepted.
+
+## Generic Forms staff replay scope — source increment, 22 October 2026
+
+Generic staff submission now resolves an existing Pipeline lead by both tenant
+hash and exact legacy owner UID, under a row lock. Agent submissions also verify
+the active agent UID/owner binding and current `owner_agent_id`. Idempotent replay
+repeats this same check before returning the prior lead reference; a submission
+with a missing lead link fails closed. Focused tests prove an agent whose lead
+assignment changed cannot replay its old submission, and verify exact UID and
+assignment predicates. The combined workspace Forms, Training Forms and
+category registry suites pass 33/33; syntax and whitespace checks pass. No
+migration, category adoption, customer data or production change is involved.
+
+## Generic Forms Pipeline entitlement boundary — source increment, 22 October 2026
+
+The generic lead-capture adapter now requires both `portal.forms` and
+`crm.leads` in its immutable category declaration. Authenticated Forms CRUD,
+publication and submission history also require the actor's `leads.manage`
+permission. Public lookup/submission and authenticated staff capture recheck
+both active plan entitlements and category capabilities before creating a
+Pipeline lead; Forms entitlement alone cannot create CRM records. Tests cover
+registry rejection when either category capability is missing, owner/manager
+permission boundaries, and public/staff denial before lead creation when the
+plan lacks CRM Leads. The focused registry, Training Forms and workspace Forms
+suites pass 32/32; service syntax and whitespace checks pass. No category
+adoption, migration or production change is involved; authenticated bilingual
+screen acceptance and deployment remain open.
+
+## Unmapped legacy Agent assignment enforcement — source increment, 22 October 2026
+
+The shared Inbox scope resolver now preserves active unmapped legacy Agents
+through a database-verified agent/owner binding while marking them
+assignment-scoped. Direct conversation loads, exports, notes, per-chat labels
+and replies must resolve to an assigned chat; replies use the stored chat row.
+Tenant-wide label catalogue changes, transfers, deletes and new outbound chats
+are denied. A focused
+scope test covers owner-binding failure and record checks. The disposable MySQL
+9.6 Socket.IO integration invokes the actual handler and confirms a guessed
+other-agent chat cannot be read, exported, or replied to and its unread state
+remains unchanged. Focused Inbox/scope tests pass 24/24; integration and syntax
+checks pass. MariaDB, broader legacy socket/media coverage, authenticated
+existing-screen acceptance and deployment remain open.
+
+## Legacy Inbox Agent list tenant predicate — source increment, 22 October 2026
+
+The existing legacy Agent chat-list query now constrains `beta_chats.uid` to the
+resolved owning business before matching assigned-agent IDs. This prevents a
+duplicate or stale assignment record in another business from entering the
+result set. The disposable MySQL 9.6 two-tenant Socket.IO integration now seeds
+the same synthetic assigned-agent ID in both businesses and invokes the actual
+Agent `get_chat_list` handler; only the owner business chat is returned. The
+fixture drops its database in `finally`; it reports no customer data touched and
+no external writes. Syntax checks pass. MariaDB coverage, broader socket/media
+audit, authenticated existing-screen acceptance and deployment remain open.
+
+## Inbox socket two-tenant database integration — local MySQL, 22 October 2026
+
+Added `npm run test:inbox-socket-tenant:integration`, which creates a uniquely named disposable InnoDB database, seeds two synthetic owners with overlapping row-ID attack attempts, invokes the actual Socket.IO event handler, and drops the database in `finally`. On local MySQL 9.6, Tenant B's unread count, labels, notes, tag and contact remained unchanged after Tenant A submitted B's IDs; Tenant A's own `load_conversation` still cleared its unread count. The harness reported `crossTenantMutations=0`, `customerDataTouched=false`, `externalWrites=false`; a follow-up database listing found no leftover fixture. This is MySQL 9.6 evidence, not the still-required MariaDB integration. The combined Inbox handler and authorization suites pass 23/23; syntax and whitespace checks pass.
+
+## Legacy socket row-ID tenant predicates — source increment, 22 October 2026
+
+The remaining numeric-ID Inbox chat operations now constrain unread updates, chat detail reads, label changes and note reads/writes by both row ID and resolved owner UID. This protects legacy sessions that lack canonical payload authorization while retaining the existing ID-based event contract. The handler-level test invokes these operations with a synthetic legacy owner and checks every ID query carries the owner UID; the Inbox handler and scope suites pass 23/23. Syntax and whitespace checks pass. No migration or production state changed; MariaDB cross-tenant fixtures and authenticated legacy-screen acceptance remain open.
+
+## Shared Inbox delete handler execution coverage — source increment, 22 October 2026
+
+Added a focused event-handler test that invokes the actual `on_label_delete` and `del_contact` socket handlers with a synthetic owner context and asserts both SQL parameter sets include that owner UID. The combined Meta/Inbox suite passes 12/12; syntax and whitespace checks pass. This is handler-level query-boundary coverage, not a disposable MariaDB cross-tenant fixture or authenticated browser acceptance. Production remains unchanged.
+
+## Legacy Inbox import tenant isolation — source increment, 22 October 2026
+
+The V3 import route now resolves Inbox scope, rejects agents and non-owner canonical members, and selects legacy chats only for the authenticated business owner UID before starting the existing migration. The importer also includes UID in its fallback Meta deduplication key, so identical customer phone numbers in different businesses remain distinct. The focused Meta/Inbox source-contract suite passes 11/11; syntax and whitespace checks pass. No migration or production state changed. Existing-screen migration acceptance and production deployment remain open.
+
+## Shared Inbox agent time tracking scope — source increment, 22 October 2026
+
+The existing UI timer sends the current agent UID and 1–5 seconds per update. The socket handler now rejects non-agent actors, UID substitution and out-of-range increments, then constrains both the agent log read and write by the authenticated agent UID and owning business UID. The focused Meta/Inbox source-contract suite passes 10/10; syntax and whitespace checks pass. No migration or production state changed; runtime socket acceptance and the broader shared socket audit remain open.
+
+## Shared Inbox delete ownership — source increment, 22 October 2026
+
+The existing `on_label_delete` and `del_contact` socket actions now constrain their deletes by the authenticated business owner UID as well as the row ID. A tenant owner can no longer delete a guessed contact or label ID belonging to another business through these actions. The focused Meta/Inbox contract suite passes 9/9 and `helper/socket/index.js` passes syntax and whitespace checks. No migration or production state changed; additional socket record mutations remain under audit.
+
+## Shared Inbox socket and legacy reply tenant scoping — source increment, 22 October 2026
+
+The legacy Meta template reply and media send helpers now include the owner UID in all four `chats` updates. Their derived conversation ID can be identical for the same customer phone across tenants, so chat ID alone was insufficient isolation. The focused Meta/inbox source-contract suite covers both helpers and passes 8/8; JavaScript syntax and `git diff --check` pass. No migration or production state changed. Remaining legacy socket call sites, exports/media isolation, authenticated acceptance and deployment remain open.
+
+## Shared Inbox refresh endpoint authorization — source increment, 22 October 2026
+
+The existing inbox root GET was unauthenticated and emitted an `update_conversations` event to a hard-coded account socket. It now passes through the existing user/agent authentication middleware, requires the resolved Inbox read scope, and sends the refresh only to sockets matching the authenticated actor UID. Focused source-contract coverage passes with the existing Meta webhook suite (7/7); syntax and whitespace checks pass. No migration or production state changed. Socket payload authorization, media/export isolation, authenticated screen acceptance and deployment remain open.
+
+## Existing Pipeline shared browser API adoption — source increment, 22 October 2026
+
+The existing Pipeline iframe now routes board and lead actions, settings, filters, CSV export, reports, follow-up tasks, CSV import, and opening-message routing through the shared credential/context adapter. Cookie writes use the common CSRF path; `/api/pipeline` remains a compatibility alias to the same handlers. The targeted release overlay preserves production-only files and the existing workspace-fields helper, ensures the common API client loads before all Pipeline dependencies, places the typed lead-fields helper before Pipeline logic, and ensures and copies the date-time conversion helper before timezone-options and reports, restores the existing bilingual intent-keyword picker in Pipeline settings with suggested/custom phrases and the existing array API contract, and inserts its helper plus opening-routing loader in dependency order. The current-production HTML simulation passes with 13 runtime paths and unique ordered loaders. Production lacks the intent-keyword loader, while the helper and its existing CSS both match source by SHA-256; the live typed lead-fields helper also matches source. The focused Pipeline/shared-client/custom-field/intent-keyword suite passes 34/34; the production-HTML overlay is also checked directly for unique ordered loaders. Current production is `/opt/salemax/releases/inbox-followup-agent-create-b93ecba-20261022`; the app is healthy, database and both background workers are running, and disk has 3.4 GB free. No production file or data changed in this source increment. Authenticated owner/Manager/Agent, cookie-only English/Arabic and mobile acceptance remain open; browser use is disabled in Work settings. Deployment remains pending those acceptance gates and the common-lock release procedure.
+
+## Versioned task adapter registry contract — source integration, 22 October 2026
+
+The shared category registry validates each optional `taskAdapters` manifest entry against the reviewed adapter key/version catalogue, requires its adapter capabilities in the category contract, and copies the map into an immutable manifest. `training_center@1` now pins invoice follow-up and enrollment adapters; `7network_sales@1` pins scheduled sales calls; Real Estate and Base CRM receive no task adapters by default. Combined registry, category-adapter, task-management, session, Inbox follow-up, task-screen, and Real Estate bot checks pass 49/49. No migration or production state changed. Authenticated live acceptance and deployment remain open.
+
+## Legacy Sales task category alias — source increment, 22 October 2026
+
+Shared task creation and filtering now recognize the preserved `salemax_sales` alias through the category registry matcher, so the scheduled Sales call task type remains available for historical Sales memberships while other categories continue to be denied. The focused task suite passes 35/35, including the existing-shell contract after its assertions were updated to the current drawer geometry and task labels. Syntax and whitespace checks pass. No migration, customer data or production state changed; authenticated live acceptance and deployment remain open.
+
+## Category defaults in existing Forms and Pipeline — source increment, 22 October 2026
+
+The shared three-layer customization resolver now accepts validated category-version lead-field defaults. The existing owner customization screen begins with the resolved fields, preserves category provenance when the list is unchanged, and restores inherited fields from its reset action. Existing Forms can select the same effective definitions, while Pipeline manual lead creation and edits read the tenant-bound merged contract; published form versions keep their pinned field snapshots. Omitted schema 3 `leadFields` now inherits category defaults, while an explicit empty list replaces them; actual GET/preview, runtime, and Forms tests cover both states. Focused resolver, HTTP, runtime, Forms, Pipeline, and English/Arabic desktop/mobile browser checks pass 40/40; authorization checks pass 18/18; syntax and whitespace checks pass. No category manifests changed and no production data was modified. This source-only increment is pushed on `shared-core-tenant-customization`; deployment, live owner/staff verification, and actual category adoption remain open.
+
+The category registry now preserves reviewed `customizationDefaults` on the exact immutable category version instead of silently dropping them before the resolver can read them. It copies and deeply freezes bounded JSON data, rejects unsupported category contracts, and leaves feature-schema validation to the resolver. Registry, resolver, runtime and Forms checks pass 20/20; syntax and whitespace checks pass. No production category defaults or customer data were changed. Source commit `b728bc5f3ed3c503787eb2b78b4f9c4e00cf9c09` is pushed on `shared-core-tenant-customization`; category adoption and authenticated release acceptance remain open.
+
+The existing Forms contract now accepts configuration revision `0` as the immutable category/platform baseline when no tenant revision has been published. Previously the options API returned baseline category fields at revision zero, but form metadata validation rejected that same revision, preventing the existing editor from saving or publishing a form with those defaults. Negative revisions remain invalid; selected definitions still pass exact-current-field validation and are snapshotted with the form. Focused field, Forms, resolver and runtime tests pass 34/34. No migration or customer data change is involved; authenticated existing-screen acceptance remains open.
+
+Central feature authorization now resolves preserved `salemax_sales` tenant and plan aliases against the canonical `7network_sales` registry contract. The aliases remain in source data; category version, entitlement, permission, role scope and resource gates are still independently checked. This closes the literal-key mismatch that could deny a correctly mapped legacy-category tenant. Category identity and platform policy tests pass 25/25; syntax and whitespace checks pass. No migration, entitlement change or customer data write is involved; authenticated acceptance for aliased tenants remains open.
+
+The shared legacy feature-session adapter is now covered end-to-end at the context boundary: a synthetic aliased owner retains the raw tenant key, resolves the canonical category and plan, and receives only the policy decision allowed by that exact version. Combined legacy-session, category-identity and policy checks pass 23/23. No customer records or production services were touched.
+
+The tenant-customization draft transaction now also accepts the canonical plan contract for a tenant that still stores the `salemax_sales` alias. A synthetic owner write exercises category lookup, active subscription binding, revision creation, draft-head update and audit insertion while retaining the stored alias; focused customization, category and policy checks pass 28/28. There is no migration or customer-data change.
+
+The existing product-catalogue adapter now resolves stored category aliases against the immutable category registry before choosing the existing fixed storage adapter. This preserves the 7Network Sales catalogue and quick-reply capability for legacy tenants and plan snapshots while retaining exact version and capability checks. Catalogue, category identity and platform policy checks pass 24/24; syntax and whitespace checks pass. No schema or tenant data changed.
+
+The existing Sales Organization, Audit, Deals and Commission services now apply the same alias-aware category boundary as shared policy. Their domain role checks and exact category version gates remain in place. Tests cover owner/manager organization access, owner-only audit and commission policy, and tenant-scoped Deals reads for a synthetic tenant that retains `salemax_sales`; the four focused suites pass 14/14. No migration or customer-data change is involved.
+
+The legacy Pipeline actor adapter now resolves `salemax_sales` through the registered 7Network Sales contract when deciding whether a Team Leader seat is supported and when loading its team-scoped lead identity/agent IDs. The raw stored category key remains on the legacy actor record; owner identity, plan, membership and category version continue to gate access. Focused Pipeline actor, team-scope, organization and policy suites pass 31/31 with the external dependency cache; no database or customer data changed.
+
+Existing chatbot access now resolves historical `salemax_sales` tenant, plan, and bot-profile keys against the canonical 7Network Sales category version. Domain-pack lookup uses the canonical registry key, and the recruitment-facts query permits only the canonical key and its reviewed alias while remaining tenant-ID scoped. Chatbot runtime/profile/domain and existing-screen contract suites pass 53/53; syntax and whitespace checks pass. No provider, tenant configuration, or customer data changed.
+
+The existing owner Sales lead-import gate and telephony recording policy now recognize the same registered category alias before applying their existing owner/permission, entitlement, and category version checks. Synthetic tests exercise a tenant-bound lead import and an owner recording-policy read under the stored alias; the two focused suites pass 11/11. No call recording, provider action, schema, or customer data changed.
+
+The existing Asterisk call-control path now applies Sales lead-linked outbound rules and team-scoped manager call access through the registered category alias as well. Sales call creation still requires an authorized lead and its server-side phone. The focused Pipeline-call and recording suites pass 15/15; the unrelated ARI event suite could not load in this checkout because its `ws` dependency is absent. No PBX/provider action or customer data was touched.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
@@ -1862,3 +2145,609 @@ automated adoption, new vertical workflows and full live acceptance remain open.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+
+## Shared settings resolution and provenance — source implementation, 22 October 2026
+
+The existing owner-managed customization response and preview now include a
+resolved settings view with per-value provenance across platform defaults, an
+optional immutable category-version defaults document, and the tenant revision.
+Object members inherit by key, `null` removes an inherited member, and arrays
+replace atomically; component schemas continue to validate values before the
+resolver sees them. The existing CRM appearance settings hook displays these
+sources in English and Arabic and states that customization does not grant plan
+or member access. No schema or production data change is included.
+
+Focused resolver, customization and HTTP tests pass 12/12; the existing owner's
+synthetic browser matrix passes 8/8 across English/Arabic, desktop/
+mobile and cookie/bearer sessions. Syntax and diff checks pass. This is
+implemented in the shared-core feature branch; deployment and live authenticated
+browser acceptance remain open. Generic Forms lead-field definitions and
+published values now resolve through the shared tenant/category field
+contract; scheduled workers have not adopted the resolver. The full
+customization and 42-ticket program remains in progress.
+
+### Versioned Pipeline stage labels — source implementation, 22 October 2026
+
+Tenant customization schema v4 accepts bilingual display labels keyed by stable
+Pipeline stage keys. Category defaults inherit through the shared resolver,
+tenant values override them, the owner customization screen edits declared
+category labels and tenant-owned existing stage keys, and the existing Pipeline reads the effective labels from the
+shared workspace session. Labels cannot change stage behavior or access. Existing
+schemas 1–3 remain readable. The integrated category, customization, resolver, session, Pipeline task and Inbox suite passes 54/54;
+browser automation could not run in this checkout because Playwright is absent.
+No production deployment or data change is included. Real vertical workflow
+capability mappings remain separate gates.
+## Legacy Sales accountant alias authorization — source increment, 22 October 2026
+
+The default 7Network Sales accountant boundary on legacy APIs now resolves the preserved `salemax_sales` category alias through the shared category matcher. This keeps the existing shell bootstrap reads available while denying other legacy routes for both canonical and historical category keys. Focused Sales navigation and authorization tests pass 17/17 with an external no-query `mysql2` stub because the worktree has no installed database driver; `git diff --check` passes. No database, migration, production data or runtime dependency files changed. Deployment and authenticated live role acceptance remain open.
+
+## Read-only production baseline — 22 October 2026, 07:50 UTC
+
+The authorized host identity resolved to `carsqatar-prod-01`. `/opt/salemax/current`
+points to `/opt/salemax/releases/agent-login-no-flash-d7c684f-20261022`. The
+SaleMaX app and MariaDB containers reported healthy; the report and recruitment
+notification workers were running. Public `/healthz` returned `success: true`
+and `status: ok`. Root storage was 87% used with 6.5 GiB available. This is a
+read-only snapshot; no host, application, database, customer or provider state
+was modified. The disk margin is tight enough to retain deployment headroom in
+the release gate. This source branch is not deployed, and its shared-core PR
+remains open and draft.
+
+## Tenant configuration null tombstones — source implementation, 22 October 2026
+
+Customization schema v5 adds explicit removal of inherited per-key navigation
+and Pipeline stage labels. Lists retain atomic replacement semantics, including
+empty lists to clear inherited members.
+The existing owner editor exposes bilingual per-item reset controls and preview
+identifies restored platform labels. Schemas 1–4 remain readable with their
+previous validation rules. The resolver keeps deleted-value provenance, and
+preview remains read-only. No route, capability, plan, permission or record scope
+can be granted by these values.
+
+The focused customization, resolver, HTTP and overlay suite passes 20/20; the
+HTTP preview confirms v5 tenant tombstones resolve with tenant deletion
+provenance and make no persistence query. The full suite reports 1,018/1,059
+with the same 41 failures seen before this increment; no new failures appeared.
+JavaScript syntax and `git diff --check` pass. The existing browser fixture was extended for eight EN/AR,
+desktop/mobile, cookie/bearer scenarios, but Playwright is unavailable in this
+checkout, so rendered interaction remains unverified. No production deployment
+or customer setting change occurred.
+
+## Read-only production refresh — 22 October 2026, 08:01 UTC
+
+The authorized host is `carsqatar-prod-01`; `/opt/salemax/current` resolves to
+`/opt/salemax/releases/agent-inbox-quick-replies-e7781c7-20261022`. The app and
+MariaDB containers are healthy, report and recruitment notification workers
+are running, and the filesystem has 4.9 GiB free (90% used). The required
+`/opt/salemax/shared/7network-production-deploy.lock` path is absent. Checked
+source deployment scripts only contain unrelated `flock` use for domain
+retirement and HTTPS activation; no shared production lock implementation was
+found. No production state was changed. Do not deploy until operations provides
+the shared exclusive-lock mechanism and preflight confirms it is held.
+
+## Read-only production refresh — 22 October 2026, 08:06 UTC
+
+The authorized host remains `carsqatar-prod-01`; `/opt/salemax/current` now
+resolves to `/opt/salemax/releases/inbox-follow-up-ui-0a6e1f0-20261022`. The
+app and MariaDB containers are healthy, report and recruitment notification
+workers are running, and root storage is 91% used with 4.5 GiB free. The
+required `/opt/salemax/shared/7network-production-deploy.lock` path remains
+absent. This read-only refresh reflects the latest known production release;
+no production state was changed. Deployment remains gated on the shared
+OS-level exclusive-lock mechanism and sufficient verified release headroom.
+
+## Tenant customization MariaDB integration refresh — source verification, 22 October 2026
+
+The opt-in integration test still asserted the pre-resolver blank document after
+`effective()` began returning platform defaults. Updated it to verify that
+unpublished drafts leave each tenant on its platform labels and that a Sales
+override preserves omitted platform labels. On a fresh, disposable MariaDB
+11.4.13 instance, the full synthetic integration passed: same-category tenant
+isolation, different-category behavior, one-winner optimistic concurrency,
+cross-tenant rollback denial and composite ownership, rollback to immutable
+history, atomic audit failure rollback, revoked membership and expired-plan
+denial. No external messages were sent. The temporary schema, restricted test
+user, server and test credentials were removed. Source is not deployed; rendered
+existing-screen and authenticated production acceptance remain open.
+
+## Shared customization reset and owner stage-query repair — source, 22 October 2026
+
+Rendered acceptance uncovered that the existing "Use the platform label"
+control sent a tenant tombstone, but the resolver removed the key entirely
+instead of revealing the platform value. Tenant tombstones now clear a tenant
+or category override and restore the platform value when present; category
+layer tombstones still remove a platform value. Effective provenance identifies
+the platform source while deletion provenance records the tenant reset. The
+stage-label settings query also quotes the reserved SQL alias `key`, restoring
+the owner-only Pipeline stage list on MySQL/MariaDB.
+
+The actual editor browser fixture passes 8/8 across English/Arabic, desktop/
+mobile and cookie/bearer contexts, including preview, save, publish, reset,
+default restore, historical rollback and stale revision handling. Focused
+customization/resolver/HTTP/overlay/lead-field/Forms/Pipeline tests pass 40/40.
+The disposable MariaDB 11.4.13 integration additionally exercises the quoted
+owner stage query and passes the same-category and cross-category isolation,
+concurrency, rollback and authorization checks. No production data or external
+messages were used; the temporary server/schema/credentials were removed.
+Source is not deployed, and authenticated production acceptance remains open.
+
+## Read-only production refresh — 22 October 2026, 08:14 UTC
+
+Using the authorized identity, the host resolves to `carsqatar-prod-01` and
+`/opt/salemax/current` resolves to
+`/opt/salemax/releases/inbox-follow-up-ui-0a6e1f0-20261022`. The app and
+MariaDB containers are healthy; report and recruitment notification workers
+are running. Public `/healthz` returned HTTP 200 with `success: true` and
+`status: ok`. Root storage is 91% used with 4.5 GiB available. The required
+`/opt/salemax/shared/7network-production-deploy.lock` path is absent. This
+read-only inspection changed no host, application, database, customer or
+provider state. Do not deploy until the shared lock implementation is present
+and verified under an exclusive lock; preserve deployment headroom during
+preflight. The shared customization source is not deployed.
+
+## Production adoption audit and release refresh — read-only, 22 October 2026, 08:19 UTC
+
+The updated aggregate adoption audit ran against the live MariaDB in a
+read-only transaction. It confirms three active tenants (one `7network_sales@1`,
+two `training_center@1`), three assignments, zero missing plan versions and
+zero true category mismatches; one Sales assignment uses the preserved
+`salemax_sales@1` plan alias. Seven legacy user records map to active canonical
+memberships with no UID-hash mismatch or inactive link. Eleven active legacy
+agents map to active memberships. Two additional active agents have no matching
+owner user and remain unresolved; six historic agent mappings point to legacy
+rows that no longer exist. The strengthened audit found no broken or
+cross-tenant membership references. No ownership/category inference or record
+write occurred.
+
+The production host is `carsqatar-prod-01`; `/opt/salemax/current` resolves to
+`/opt/salemax/releases/team-agent-password-reset-cfc23a3-20261022`. The app and
+MariaDB are healthy, report and recruitment workers are running, public
+`/healthz` returns HTTP 200 with `success: true` and `status: ok`, and disk is
+92% used with 4.3 GiB free. The required shared deployment lock is absent. No
+production state changed. Shared customization source remains undeployed;
+preflight still requires the shared exclusive lock and release-headroom review.
+
+## Pipeline tenant stage labels across existing views — source increment, 22 October 2026
+
+The existing Pipeline now consistently applies published English or Arabic
+stage labels on board columns, list rows, automation selectors, and both new
+and edit lead forms. Stable stage keys continue to be submitted to the API;
+Arabic fallback labels and stored titles remain available when no tenant label
+is published. The EN/AR desktop/mobile browser fixture now serves synthetic
+workspace labels and checks all four customer-facing views. Cache reference
+updated. Source-only; authenticated production acceptance and deployment
+remain open.
+
+## Shared sidebar compatibility for legacy Sales category — source increment, 22 October 2026
+
+The shared user sidebar now resolves the preserved `salemax_sales` session key
+to the canonical Sales key for presentation and existing role navigation. The
+raw API/session identity remains unchanged, and server authorization continues
+to decide available navigation and permissions. The existing desktop/mobile,
+English/Arabic multi-role browser fixture now runs against both canonical and
+legacy Sales keys. Source-only; production deployment and authenticated
+acceptance remain open.
+
+## Existing dashboard support for the Sales category alias — source increment, 22 October 2026
+
+The shared workspace session intentionally preserves a tenant's stored
+`salemax_sales` category key for compatibility. The business dashboard now
+resolves that reviewed alias to `7network_sales` for display and existing
+Sales module routing while retaining the original session context. A regression
+fixture verifies the existing Sales dashboard and its scoped campaign, call,
+target, and finance requests. Source-only; production acceptance remains open.
+
+## Workspace dashboard tenant stage labels — source increment, 22 October 2026
+
+The existing business dashboard now resolves Pipeline chart labels from the
+same authenticated workspace session's published stage-label map, retaining
+the existing translated defaults when no tenant override exists. Sales
+dashboard checks cover English and Arabic tenant labels. Cache reference
+updated. Source-only; authenticated production acceptance and deployment
+remain open.
+
+## Existing Pipeline and Tasks compatibility for legacy Sales category — source increment, 22 October 2026
+
+The existing Pipeline owner import action, Sales-only do-not-call outcome, and shared Tasks Sales labels/type now recognize the reviewed `salemax_sales` alias alongside `7network_sales`. The server's existing category and owner/permission checks remain authoritative; the change only makes compatible UI controls visible for legacy stored category keys. Cache keys were advanced on the existing Pipeline and Tasks loaders. Focused existing-screen contract, import, and detail-page tests pass 14/14; syntax and whitespace checks pass. No migration, tenant data, or production runtime changed. Authenticated bilingual browser acceptance and deployment remain open.
+
+## Explicit business category on provisioning — source increment, 22 October 2026
+
+The existing Manage Users provisioning service and `provision-options` API no longer silently assign `training_center` when a category is omitted. They reject missing category input before tenant storage access. The category selector already supplies the selected registry key/version; legacy Training Center contract actions now pass `training_center@1` explicitly, and synthetic provisioning integration fixtures specify their intended categories. This leaves `base_crm@1` as an explicit eligible contract for businesses without an industry and prevents accidental vertical access through an omitted field. Focused provisioning, Base CRM, category-context, and Manage Plans tests pass 9/9; syntax and whitespace checks pass. The disposable MariaDB provisioning integration was updated but not run in this turn. No migration, customer data, or production runtime changed; authenticated EN/AR acceptance and deployment remain open.
+
+## Shared customization and workspace task router verification refresh — 22 October 2026
+
+Installed the worktree's locked dependencies without lifecycle scripts and reran
+the shared customization unit, HTTP, and overlay tests plus the workspace task
+router JSON parsing regression: 17/17 pass. This covers tenant context derivation
+without caller-supplied tenant IDs, bearer/cookie aliases, denied staff before
+database access, category lead-field inheritance, preview non-persistence,
+tenant label deletion provenance, and task POST body parsing.
+
+The opt-in database integration was not rerun: this environment provides MySQL
+9.6 rather than the required disposable MariaDB 11.4 service and has no Docker
+runtime. No live or local application database was used. Base CRM generic Forms
+remain fail-closed pending the category scope's reviewed capability contract;
+no capability, category manifest, production release, or customer configuration
+was changed. Authenticated browser acceptance and deployment remain open.
+
+## Upstream Inbox parser integration — source verification, 22 October 2026
+
+Merged `origin/main` commit `d6836ed7` into the shared-core branch. The existing
+shell retains shared customization, category-field, and category-navigation
+asset versions while incorporating the Inbox follow-up cache bump and request
+header normalization. The combined customization, workspace task router, and
+Inbox follow-up focused suites pass 23/23. No database or production state was
+changed; authenticated acceptance and deployment remain open.
+
+## Tenant customization rendered-browser verification refresh — 22 October 2026
+
+Ran the existing shared sidebar browser fixture (4/4 cases) and tenant
+customization editor fixture (8/8 cases) with the available local Playwright
+runtime. Coverage includes English and Arabic, owner and agent sidebar context,
+tenant-switch isolation, preserved navigation click handlers, 1280px and 390px
+editor viewports, bearer and cookie clients, read-only preview, draft/publish,
+tenant reset to platform labels, historical rollback, and stale-revision errors.
+The API and identities are synthetic in-memory fixtures; this is rendered-screen
+regression evidence, not authenticated production acceptance. No dependency
+manifest, customer setting, database, or production runtime changed. Generic
+Forms route execution and category approval remain open.
+
+## Shared Forms adapter registry and execution guard — source increment, 22 October 2026
+
+The shared category registry now validates and preserves the reviewed
+`generic-lead-capture-v1` declaration only when its required Forms capability is
+also present. The Forms service resolves the historical `training_center@1`
+registration adapter explicitly and rejects every category whose adapter it
+does not execute before database access. No category manifest or capability was
+changed, so generic Forms remain disabled pending category adoption and the
+generic submission/API implementation.
+
+The focused category registry, category isolation and Training Forms suites pass
+26/26. Tests verify valid declaration retention, unknown/missing-capability
+rejection, preservation of the Training Center v1 adapter, Sales exclusion, and
+pre-query denial for a synthetic Base CRM generic adapter. No migration,
+customer data, database, or production runtime changed. Generic route execution,
+MariaDB integration, authenticated screen acceptance and deployment remain
+open.
+
+## Inbox follow-up deduplication merge — verification refresh, 22 October 2026
+
+Merged `origin/main` commit `69a608d3`, including open-task deduplication and its
+no-duplicate-notice regression. The existing shell retains this branch's shared
+customization and category asset versions and advances the Inbox follow-up
+loader to the dedupe release. Combined category registry, Forms, task-router and
+Inbox follow-up focused suites pass 34/34. No production data or runtime changed.
+
+## Generic Forms schema validation boundary — source increment, 22 October 2026
+
+The shared Forms validator now applies adapter-specific field allowlists.
+`generic-lead-capture-v1` accepts common contact and consent fields and retains
+the existing tenant-defined typed Pipeline fields. Training registration
+fields and the Pro Catalyst registration template remain available only to the
+historical Training Center adapter. Draft create/update now pass the adapter
+resolved by category authorization into schema validation. Submission
+normalization rejects schemas containing fields outside the selected adapter.
+
+This historical checkpoint did not enable generic forms: the generic adapter
+then failed closed before database access. The shared management/public/staff
+implementation and its current acceptance gates are documented in later entries
+below. The focused registry, Forms and category isolation suites passed 28/28,
+including simulated adapter-enabled CRUD validation and fail-closed
+create/update checks. No production runtime changed in that checkpoint.
+
+## Generic workspace Forms persistence schema — source increment, 22 October 2026
+
+Added additive migration `20261022_workspace_forms.sql` with separate tenant-
+bound draft forms, immutable published-version rows, consent-bearing submission
+history, idempotency keys and hashed visitor rate limits. Composite foreign keys
+bind versions and submissions to the same tenant/form, and submissions to an
+existing published version. Existing `sx_training_*` form and registration
+history is untouched. A disposable MariaDB migration integration now asserts
+cross-tenant form rejection, version and idempotency constraints, and rate-limit
+tenant binding; static migration discovery confirms the migration is safe and
+ordered after platform identity.
+
+The dedicated `test:workspace-forms-schema:integration` check passed against a
+fresh disposable MariaDB 11.4.13 instance. It applies only this Forms migration
+and verifies tenant/form foreign keys, immutable-version binding, submission
+idempotency and rate-limit tenant binding using the existing synthetic helper.
+The temporary server, database and data directory were removed. No category
+opts into Forms, and no production runtime changed.
+
+## Generic Forms shared management service — source increment, 22 October 2026
+
+The existing `/api/workspace/forms` handler now selects the generic management
+service from the authenticated category-version adapter. Generic owners with
+the category capability and active plan can create/update tenant-owned drafts,
+publish immutable versions, read submissions and fetch published lead-field
+definitions. All mutations use tenant predicates, optimistic draft revisions,
+transactions and shared audit events. Training Center CRUD and its registration
+path continue through their existing service. No category is opted in.
+
+Synthetic service tests pass for category/capability/plan denial, draft CRUD,
+publish/version behavior, stale revisions, router adapter selection and tenant-
+scoped submission reads; the combined focused registry, Forms and migration
+suite passes 41/41. The generic public lookup and submission path resolves only
+published forms for active, entitled tenants and records consent, idempotency,
+rate-limit state and Pipeline leads transactionally. Synthetic lookup,
+submission, exact-token replay, stale-version rollback and lead creation checks
+pass. Staff capture is implemented in source. Category-aware bilingual
+existing-screen acceptance, authenticated browser acceptance and deployment
+remain open.
+
+## Existing Forms screen adapter presentation — source increment, 22 October 2026
+
+The existing `/user?page=forms` hook now reads the authenticated Forms adapter
+contract before rendering. For `generic-lead-capture-v1` it presents lead-form
+headings and a generic contact/consent field editor with neutral English/Arabic
+copy, while retaining the existing Training Center form and registration editor.
+Published generic forms now expose staff-capture links in the existing Forms
+screen. The existing public-form page is reused, while authenticated lookup,
+lead search and staff submission run through `/api/workspace/forms` and the
+shared browser API. Owner/manager actions use the canonical identity; agent
+search and selected-lead access remain restricted to assigned leads. New leads
+retain the staff identity in Pipeline activity, with an additive actor enum
+migration. No legacy Training actor mapping is reused and no category opts in.
+
+The focused Forms, public-form, session and overlay suites pass 42/42; syntax,
+migration-discovery and whitespace checks pass. This proves service and loader
+contracts only. Category-aware bilingual existing-screen acceptance, authenticated
+desktop/mobile browser acceptance, and deployment remain open. No production
+runtime changed.
+
+The dedicated `test:pipeline-identity-actor:integration` check passed against a
+fresh disposable MariaDB 11.4.13 instance. It applies only
+`20261022_pipeline_identity_activity_actor.sql`, verifies the resulting enum,
+and inserts/reads all four values (`user`, `agent`, `identity`, `system`). The
+temporary server, database and account were removed. The full all-migrations
+integration remains a separate open gate: its fresh-schema fixture lacks
+legacy tables required by later historical migrations, so that broad run does
+not prove the complete migration chain.
+
+## Shared module feature extension contract — source increment, 22 October 2026
+
+`feature-contract.js` now supports trusted server-side module registrations in
+addition to its existing core module descriptors. Every contribution names a
+known capability and a permission granted by that capability. Category-scoped
+contributions must identify an existing immutable category version that
+declares the capability. Session resolution runs every contribution through
+the shared authorization decision; the resulting module flag cannot grant the
+permission or expose a route by itself. Existing core module flags and
+quick-reply catalog behavior remain compatible. No category package registered
+an additional module in this increment.
+
+Focused extension tests cover capability/permission mismatch, unknown category
+versions, duplicate module keys, exact category scoping and existing module
+behavior. Syntax and whitespace checks pass. Category package adoption,
+category-specific navigation and catalogue extension contracts, browser
+acceptance and deployment remain open.
+
+The follow-up full JavaScript suite run passes 1,093/1,117 tests and reports 24
+failures in unrelated authentication, Manage Users, Pipeline, task, Call Center,
+course, Finance, report and sale-review cases. No Forms or public-form checks
+fail. The run is not a release gate pass; the focused Forms/category/migration
+suite remains green. The dedicated identity-actor migration integration passes;
+the broad fresh-schema migration run remains incomplete because later historical
+migrations expect legacy application tables absent from its fixture.
+
+## Tenant CRM logo storage stream adapter — source increment, 22 October 2026
+
+The existing logo route now enforces the verified custom-host tenant or active
+canonical-session tenant match before storage access. When the operations-owned
+media adapter exposes `openManaged(url, tenantId)`, the route streams its body
+with private caching, `nosniff`, an allowlisted image content type, and validated
+content length. The existing managed local-file path remains as a compatibility
+fallback until the object-storage adapter is merged. Route tests cover
+custom-host and canonical-session delivery plus foreign-tenant rejection
+before media access. Focused logo/domain tests pass 9/9. An additional
+integration check loaded the exact `tenant-crm-logo-media.js` and
+`object-storage.js` sources from operations commit
+`e58bf3deacd9466b7ded017e3835f2d7346df022` and exercised the shared route
+through its `openManaged` adapter using an injected in-memory store: the
+authorized custom-host logo streamed with the expected image headers, and a
+foreign-tenant URL returned 404 without opening storage. This verifies source
+compatibility only; the operations adapter is not merged into this checkout,
+no real provider or authenticated live acceptance was tested, and nothing was
+deployed or changed in production.
+
+## Versioned tenant module settings — source increment, 22 October 2026
+
+The shared category registry now validates immutable typed module-setting
+schemas bound to capabilities declared by the exact category version. The
+existing tenant customization schema supports v6 while retaining readers for
+schema v1–v5; categories without a declared module schema continue writing v5.
+The existing owner editor renders bilingual Boolean, bounded
+integer, text and enumerated controls, persists sparse tenant overrides through
+the existing customization API, and exposes their platform/category/tenant
+provenance. These values remain configuration data and cannot grant plan
+features or member permissions. No category version declares module settings.
+
+Focused registry, customization and HTTP suites pass 26/26; syntax and
+`git diff --check` pass. The rendered-editor fixture was updated but could not
+run because Playwright is not installed. MariaDB runtime integration, category
+adoption, authenticated EN/AR screen acceptance and deployment remain open. No
+production state changed.
+
+## Bilingual module settings headings — source increment, 22 October 2026
+
+The immutable shared `customizationSchema.moduleSettings` contract now accepts
+an optional bilingual module heading, validates both labels, and displays the
+current language in the existing owner customization screen. Older declarations
+without a heading keep their module-key fallback. The maintained shell cache key
+was advanced for the editor update. Focused registry, customization, provenance
+and HTTP tests pass 26/26; syntax and whitespace checks pass. No current
+category declares module settings, so category adoption, authenticated rendered
+EN/AR acceptance and production deployment remain open. No production or
+customer state changed.
+
+## Same-category typed settings isolation — source verification, 22 October 2026
+
+The tenant customization disposable-database integration now declares a
+synthetic immutable module schema and verifies that two businesses in the same
+category retain independent typed settings across draft, publish and rollback.
+Both begin from the category default; publishing tenant A's value leaves
+tenant B's published value unchanged, and rollback of A preserves B. The full
+synthetic integration passed on an isolated temporary MySQL 9.6 instance, with
+13 checks including the existing concurrency, membership-revocation,
+entitlement-expiry, cross-tenant rollback and audit-atomicity cases. The server,
+database, credentials and files were removed afterward. This verifies database
+semantics on MySQL 9.6, not MariaDB production parity; no production/customer
+state changed.
+
+## Tenant-defined fields in existing Pipeline report drill-down — source increment, 22 October 2026
+
+The existing Pipeline report lead lists now return the lead's saved typed
+custom-field snapshots, including the bilingual field definition and the
+configuration revision that saved each value. The existing report dialog renders
+those answers in English or Arabic and escapes both labels and values. The report
+service removes the surrounding qualification payload before returning the API
+result, and it retains its existing tenant UID/hash, report filters, role and
+assigned-agent predicates. No generic form category was enabled and no database
+or production state changed.
+
+Focused report, report-screen, and bounded export checks pass 18/18; JavaScript
+syntax and whitespace checks pass. This source increment does not prove a live
+database query plan, authenticated desktop/mobile browser acceptance, category
+adoption or deployment. The full 42-ticket upgrade remains open.
+
+## Shared Inbox media deletion guard — source increment, 22 October 2026
+
+The existing Inbox media-delete event now validates that a link identifies one
+safe filename directly under the legacy `meta-media` directory, rejects path
+traversal and symlink targets, and checks for references from any other
+conversation before unlinking. The existing authenticated socket path passes the
+resolved business owner and the database query used for the reference check.
+The disposable MariaDB 9.6 integration uses two synthetic tenants: A's delete
+leaves the shared file while B references it, then succeeds after B's reference
+is removed. The isolated filesystem test also rejects traversal and verifies
+that an unreferenced local file can still be removed. No customer media or
+production state changed.
+
+Focused Inbox media/socket scope tests pass 27/27; JavaScript syntax and
+whitespace checks pass. This does not close the full media gate: the existing
+shared `/meta-media` serving route remains publicly readable, and the separate
+reference-check and unlink can race with a concurrent reference write. A
+tenant-aware media access and ownership lifecycle is still needed. Deployment
+and authenticated browser acceptance remain open.
+
+## Live Lead Reports acceptance observation — 22 October 2026
+
+The authenticated production `/user?page=lead-reports` screen opens inside the
+existing business shell, but displays its generic report-load error. The report
+iframe has no `window.SaleMaxWorkspace` client and its script list does not load
+the shared workspace API asset. No lead list was opened and no record was
+changed. This is a live existing-screen acceptance failure; the source branch
+contains an updated shared-client loader, but it is not deployed and this
+observation does not prove that the loader alone resolves the report request.
+Re-test the exact screen after an isolated deployment, then verify EN/AR and
+permitted/denied staff roles before claiming report acceptance.
+
+## Tenant CRM managed-logo storage errors — source increment, 22 October 2026
+
+The shared logo route maps a missing managed object to HTTP 404 even when the
+storage adapter omits an explicit status, and keeps storage outages at HTTP
+503 with a sanitized response. Regression coverage verifies successful streamed
+delivery with MIME/length/cache/security headers, HEAD behavior without a body,
+the local-file fallback before the object-storage adapter is merged, rejection
+of a foreign tenant before storage/path access, missing-object and
+unavailable-storage responses. The focused CRM logo/domain suite passes 10/10;
+syntax and whitespace checks pass. The real object storage adapter remains in
+the operations branch; the stream fixture is injected and does not prove
+S3/provider access or production delivery. No production state changed.
+
+## Shared tenant customization OpenAPI contract — source increment, 22 October 2026
+
+Added an OpenAPI 3.1 source contract for the existing shared customization API
+and its `/api/crm/customization` compatibility alias. It describes the live
+GET/preview/draft/publish/rollback routes, owner and entitlement gates,
+same-origin write requirement, optimistic revision conflicts, immutable
+history, resolved-value provenance, schema-version compatibility and typed
+category module settings. A route-contract test verifies method/path parity,
+mounted aliases, revision requirements, and the absence of a client tenant
+selector. The OpenAPI JSON parses, and the contract plus customization/HTTP
+suite passes 20/20, including local-reference resolution and unique operation
+IDs. This covers customization endpoints only; complete OpenAPI
+coverage for Forms and other shared APIs, authenticated screen acceptance and
+deployment remain open. No production state changed.
+
+## Shared workspace Forms API contract — source increment, 22 October 2026
+
+Added an OpenAPI 3.1 contract for the existing shared Forms router, including
+the owner editor, optimistic draft updates, immutable publication versions,
+tenant-scoped submission history, permission-scoped staff capture, public
+lookup/submission, and the Training Center registration compatibility route.
+The contract records the required category adapter, both Forms and CRM Leads
+capabilities/entitlements, server-derived tenant context, assigned-agent lead
+scope, origin checks, request bounds, idempotency, and consent/version snapshots.
+No category declaration, plan, tenant setting, customer record, migration, or
+production runtime was changed.
+
+The focused Forms OpenAPI route/parity/security tests pass 3/3; combined with
+the customization contract tests they pass 6/6. This documents source routes
+only; it is not evidence of category adoption, authenticated English/Arabic screen acceptance,
+MariaDB route integration, or production deployment. Those gates remain open.
+
+## Generic Forms HTTP authorization preflight — source increment, 22 October 2026
+
+The shared Forms router now preflights its exact adapter and route permission
+before borrowing a feature-service database connection. Generic Forms require
+the declared adapter, active tenant/member, Forms and CRM Leads capability and
+entitlement, plus `forms.manage` or `forms.capture` as appropriate. The exact
+historical Training Center v1 adapter continues through the existing
+`portal.forms` policy; categories with no executable Forms adapter fail before
+the feature-service connection. Service-level checks remain in place. This
+prevents denied requests from consuming a feature-service connection without
+changing the Training registration behavior.
+
+The loopback Express test exercises both authenticated mounts, owner and Agent
+permissions, rejected plan/category contexts before connection acquisition,
+Training Center route compatibility, foreign-Origin write denial, public
+lookup/submission, and server-derived tenant/form scope. The focused
+Forms/Training HTTP, OpenAPI, and service suites pass 32/32; syntax and
+whitespace checks pass. Base CRM remains fail-closed for generic Forms because
+its category declaration has not opted in; that cross-scope decision is tracked
+in [category PR #171](https://github.com/Ahammedsajal/SaleMax/pull/171).
+
+This is synthetic HTTP and service evidence; it does not establish MariaDB
+router execution, category adoption, authenticated English/Arabic screen
+acceptance, or production deployment. The local SQL runtime is MySQL 9.6, so
+the MariaDB integration was not rerun for this middleware-only change. No
+customer or production state changed.
+
+## Inbox media cleanup legacy reference guard — source increment, 22 October 2026
+
+The shared Inbox media cleanup now checks legacy `chats.last_message` rows as
+well as `beta_conversation` before unlinking a shared media file. This prevents
+deleting a file still referenced by another Meta Inbox tenant's latest-message
+record. Synthetic unit and disposable-MySQL cases cover both reference stores,
+including a cross-tenant legacy reference. The guard does not secure public
+`/meta-media` reads and does not cover legacy JSON fallback references, so it is
+a retention safeguard rather than tenant media isolation. The focused unit
+passes 1/1, and the disposable synthetic MySQL 9.6 Inbox isolation integration
+passes with two tenants, zero cross-tenant mutations or file deletions, and
+cleanup of its temporary database. The app's separate background pool logs
+local database credential denial during module load; it did not affect the
+disposable integration result. No production data, route or runtime changed;
+authenticated media delivery and legacy-reference migration remain open.
+
+## Inbox signed media reader migration — source increment, 22 October 2026
+
+Added `/api/inbox-media/:grant` as a short-lived, signed delivery path for
+Inbox media. New Meta and QR downloads are saved beneath an owner-specific
+directory on the existing shared media volume. The existing socket
+conversation/list/export responses and authenticated Inbox/Agent readers
+rewrite links at response time when the file is in that private directory;
+stored conversation rows remain unchanged for outbound provider use.
+Every media request rechecks the current actor, tenant/owner mapping, Inbox
+permission and current assignment, delegated-session validity when present,
+and the message's continued reference in database or exact legacy JSON history.
+Responses are private/no-store and retain byte-range support. The legacy public
+static route is deliberately still mounted while historical compatibility is
+validated, so public-media exposure is not yet closed.
+
+Focused grant/reader tests cover owner-specific storage and colliding names,
+same-origin path validation, short expiry,
+tampering, current assignment and delegated-session revocation, removed
+references, JSON fallback and range delivery. HTTP smoke and authenticated
+owner/Agent browser acceptance, the full socket/provider compatibility matrix,
+static-route closure, and production deployment remain open.

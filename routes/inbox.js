@@ -21,7 +21,7 @@ const {
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
-const { getIOInstance } = require("../socket.js");
+const { getConnectionsByUid, sendToSocket } = require("../socket.js");
 const { checkPlan } = require("../middlewares/plan.js");
 const { processMessage } = require("../helper/inbox/inbox.js");
 const con = require("../database/config.js");
@@ -36,6 +36,7 @@ const {
   normalizeOriginFilter,
   sanitizeMergedRows,
 } = require("../helper/inbox/chatData.js");
+const inboxMediaAccess = require("../modules/platform/inbox-media-access");
 
 const { handleCalls } = require("../helper/addon/wacall/wacall.js");
 const { captureMetaWebhook } = require("../helper/pipeline/leadPipeline.js");
@@ -666,7 +667,18 @@ router.get("/get_chats", validateUser, async (req, res) => {
       data = sanitizeMergedRows(data);
     }
 
-    res.json({ data, success: true });
+    res.json({
+      data: inboxMediaAccess.signChatLastMessages(data, {
+        key: process.env.JWTKEY,
+        origin: process.env.FRONTENDURI,
+        ownerUid,
+        actor: req.decode.userData,
+        delegatedSessionId: req.decode.delegatedSessionId,
+        sessionExpiresAt: req.decode.exp,
+        agent: Boolean(req.decode.userData?.isAgent || req.decode.userData?.role === 'agent'),
+      }),
+      success: true,
+    });
   } catch (err) {
     console.log(err);
     res.json({ err, success: false, msg: "Something went wrong" });
@@ -703,11 +715,21 @@ router.post("/get_convo", validateUser, async (req, res) => {
     const filePath = `${__dirname}/../conversations/inbox/${ownerUid}/${chatId}.json`;
     const legacyMessages = readJSONFile(filePath, limit);
 
-    const data = sanitizeMergedRows(
-      mergeConversationLists({
+    const data = inboxMediaAccess.signConversation(
+      sanitizeMergedRows(mergeConversationLists({
         dbMessages,
         fileMessages: legacyMessages,
-      }),
+      })),
+      {
+        key: process.env.JWTKEY,
+        origin: process.env.FRONTENDURI,
+        ownerUid,
+        chatId,
+        actor: req.decode.userData,
+        delegatedSessionId: req.decode.delegatedSessionId,
+        sessionExpiresAt: req.decode.exp,
+        agent: Boolean(req.decode.userData?.isAgent || req.decode.userData?.role === 'agent'),
+      },
     );
 
     res.json({ data, success: true });
@@ -773,19 +795,16 @@ router.get("/webhook/:uid", async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
+router.get("/", validateUser, async (req, res) => {
   try {
-    const uid = "lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8";
+    const inboxAccess = require('../modules/platform/team-inbox-scope');
+    await inboxAccess.resolveInboxScope(query, req.decode.userData, 'get_chat_list');
+    const uid = req.decode.actorUid || req.decode.uid;
     const { msg } = req.query;
 
-    // getting socket id
-    const sock = await query(`SELECT * FROM rooms WHERE uid = ?`, [uid]);
-
-    const io = getIOInstance();
-
-    console.log(sock[0]?.socket_id);
-
-    io.to(sock[0]?.socket_id).emit("update_conversations", "msg");
+    for (const connection of getConnectionsByUid(uid)) {
+      sendToSocket(connection.socketId, "msg", "update_conversations");
+    }
 
     res.json(msg);
   } catch (err) {
@@ -1265,7 +1284,17 @@ router.post("/import_convo_from_v3", validateUser, async (req, res) => {
 
 router.get("/import_chats_from_v3", validateUser, async (req, res) => {
   try {
-    const chatData = await query(`SELECT * FROM chats`, []);
+    const inboxAccess = require('../modules/platform/team-inbox-scope');
+    const inboxScope = await inboxAccess.resolveInboxScope(query, req.decode.userData, 'get_chat_list');
+    if (
+      req.decode.role === 'agent' ||
+      req.decode.userData?.role === 'agent' ||
+      (inboxScope.canonical && inboxScope.ctx.membership.role !== 'owner')
+    ) {
+      return res.status(403).json({ success: false, code: 'INBOX_IMPORT_OWNER_REQUIRED' });
+    }
+
+    const chatData = await query(`SELECT * FROM chats WHERE uid = ?`, [inboxScope.uid]);
     if (chatData?.length < 1) {
       return res.json({
         msg: "We could not find any chat list in older version, Please click Cancel icon to delete the [Import chats] button",

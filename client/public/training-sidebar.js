@@ -85,6 +85,7 @@
   let tenantNavigationLabels = {};
   let membershipRole = null;
   let membershipCategoryKey = null;
+  const displayCategoryKey = key => key === 'salemax_sales' ? '7network_sales' : key;
   let optionalFeatures = {};
   let navigationLoaded = false;
   let navigationChecksPending = 2;
@@ -109,7 +110,7 @@
         const allowedByRole=data?.data?.roleNavigation;
         tenantNavigationLabels=data?.data?.navigationLabels||{};
         membershipRole=data?.data?.role||null;
-        membershipCategoryKey=data?.data?.categoryKey||null;
+        membershipCategoryKey=displayCategoryKey(data?.data?.categoryKey||null);
         if(membershipCategoryKey==='7network_sales')applySalesRoleAliases();
         assignedNavigation=Array.isArray(value)?new Set(value):null;
         roleNavigation=Array.isArray(allowedByRole)?new Set(allowedByRole):new Set();

@@ -15,6 +15,11 @@ test('bot owner context uses current period, published plan and exact category r
   f.state.plan.current_period=1;f.state.plan.category_key=category.key==='training_center'?'7network_sales':'training_center';f.state.plan.role_limits=JSON.stringify({owner:1,manager:3,accountant:3,agent:3});assert.equal((await access.resolveOwnerAccess(f.db,f.uid)).context,null);
  }
 });
+test('chatbot runtime access preserves a historical Sales tenant and plan alias',async()=>{
+ const f=fixture(salemaxSales);f.state.linked.categoryKey='salemax_sales';f.state.plan.category_key='salemax_sales';
+ const result=await access.resolveOwnerAccess(f.db,f.uid);
+ assert.equal(result.linked,true);assert.equal(result.context.tenant.categoryKey,'salemax_sales');assert.equal(result.context.category.key,'7network_sales');assert.equal(result.context.subscription.categoryKey,'7network_sales');
+});
 test('owner identity, exact ownership, membership and navigation restrictions are respected',async()=>{
  for(const patch of [{uidHash:'foreign'},{role:'manager'},{membershipStatus:'revoked'},{identityStatus:'inactive'},{assignedNavigation:'[]'},{tenantStatus:'inactive'}]){
   const f=fixture();Object.assign(f.state.linked,patch);const result=await access.resolveOwnerAccess(f.db,f.uid);assert.equal(result.context,null,JSON.stringify(patch));assert.equal(result.linked,true);

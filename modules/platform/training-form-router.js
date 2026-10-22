@@ -5,33 +5,56 @@ const net=require('node:net');
 const path=require('node:path');
 const fs=require('node:fs/promises');
 const forms=require('./training-forms');
+const workspaceForms=require('./workspace-forms');
+const formAdapters=require('./form-category-adapters');
 const courses=require('./training-courses');
+const {decision}=require('./policy');
 const {createTrainingTurnstile}=require('./training-turnstile');
 function publicFormMetadata(data,publicUrl,language='en'){
   const isArabic=language==='ar';const company=data.tenant.companyName||data.tenant.name;const center=(isArabic?data.tenant.centerNameAr:data.tenant.centerNameEn)||company;const address=isArabic?data.tenant.addressAr:data.tenant.addressEn;const description=[company,center,address].filter(Boolean).filter((value,index,list)=>list.indexOf(value)===index).join(' · ');const title=data.form.schema.templateKey==='procatalyst-registration-v1'?'Registration Form':(isArabic?data.form.nameAr:data.form.nameEn);const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));return {title,html:`<meta name="description" content="${escape(description)}"><meta property="og:type" content="website"><meta property="og:site_name" content="${escape(company)}"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${escape(description)}"><meta property="og:url" content="${escape(publicUrl)}"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${escape(title)}"><meta name="twitter:description" content="${escape(description)}">`};
 }
+function formsServiceForCategory(category){return formAdapters.resolve(category)==='generic-lead-capture-v1'?workspaceForms:forms;}
+async function resolvePublicForm(db,tenantSlug,formSlug){const generic=typeof db?.query==='function'?await workspaceForms.publicForm(db,tenantSlug,formSlug):null;return generic||await forms.publicForm(db,tenantSlug,formSlug);}
 function createTrainingFormRouter({pool,origin,userGuard,sessionGuard}){
   const router=express.Router();const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
   router.use(express.json({limit:'32kb',strict:true}));
   router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(!require('./request-origin').matches(req,origin)||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(!require('./request-origin').matches(req,origin)?403:400).json({success:false,code:!require('./request-origin').matches(req,origin)?'ORIGIN_DENIED':'INVALID_BODY'});next();});
   router.use(sessionGuard||userGuard);
   router.use((req,res,next)=>{if(req.featureSession){req.formContext=req.featureSession.context;return next();}return courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.formContext=ctx;next();}).catch(next);});
+  router.use((req,res,next)=>{
+    const adapter=formAdapters.resolve(req.formContext?.category);
+    const permission=req.path.startsWith('/staff/')?'forms.capture':'forms.manage';
+    try{
+      if(adapter==='generic-lead-capture-v1')workspaceForms.context(req.formContext,permission);
+      else if(adapter==='training-registration-v1'&&permission==='forms.manage'){
+        const access=decision(req.formContext,{capability:'portal.forms',permission});
+        if(!access.allowed)throw Object.assign(new Error(access.code),{code:access.code});
+      }else throw Object.assign(new Error('CATEGORY_UNAVAILABLE'),{code:'CATEGORY_UNAVAILABLE'});
+      next();
+    }
+    catch(error){next(error);}
+  });
   const connection=fn=>async(...args)=>{const db=await pool.getConnection();try{return await fn(db,...args);}finally{db.release();}};
-  router.get('/',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.list)(req.formContext)})));
-  router.get('/lead-fields',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.leadFieldOptions)(req.formContext)})));
-  router.get('/submissions',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.submissions)(req.formContext,req.query)})));
-  router.post('/',wrap(async(req,res)=>res.status(201).json({success:true,data:await connection(forms.create)(req.formContext,req.body)})));
+  const serviceFor=req=>formsServiceForCategory(req.formContext?.category);
+  router.get('/context',wrap(async(req,res)=>{const adapter=formAdapters.resolve(req.formContext?.category);if(adapter==='generic-lead-capture-v1'){workspaceForms.context(req.formContext);return res.json({success:true,data:{adapter,registrationEnabled:false}});}if(adapter==='training-registration-v1'){await connection(forms.leadFieldOptions)(req.formContext);return res.json({success:true,data:{adapter,registrationEnabled:true}});}throw Object.assign(new Error('CATEGORY_UNAVAILABLE'),{code:'CATEGORY_UNAVAILABLE'});}));
+  router.get('/',wrap(async(req,res)=>res.json({success:true,data:await connection(serviceFor(req).list)(req.formContext)})));
+  router.get('/lead-fields',wrap(async(req,res)=>res.json({success:true,data:await connection(serviceFor(req).leadFieldOptions)(req.formContext)})));
+  router.get('/submissions',wrap(async(req,res)=>res.json({success:true,data:await connection(serviceFor(req).submissions)(req.formContext,req.query)})));
+  router.get('/staff/:formSlug',wrap(async(req,res)=>res.json({success:true,data:await connection(workspaceForms.staffForm)(req.featureSession,req.params.formSlug)})));
+  router.get('/staff/:formSlug/leads',wrap(async(req,res)=>res.json({success:true,data:await connection(workspaceForms.searchStaffLeads)(req.featureSession,req.query.search)})));
+  router.post('/staff/:formSlug/submissions',wrap(async(req,res)=>{const data=await connection(workspaceForms.submitStaff)(req.featureSession,req.params.formSlug,req.body);res.status(data.repeated?200:201).json({success:true,data});}));
+  router.post('/',wrap(async(req,res)=>res.status(201).json({success:true,data:await connection(serviceFor(req).create)(req.formContext,req.body)})));
   router.post('/registration',wrap(async(req,res)=>{const data=await connection(forms.createRegistration)(req.formContext,req.body);res.status(data.repeated?200:201).json({success:true,data});}));
-  router.put('/:id',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.update)(req.formContext,req.params.id,req.body.expectedRevision,req.body)})));
-  router.post('/:id/publish',wrap(async(req,res)=>res.json({success:true,data:await connection(forms.publish)(req.formContext,req.params.id,req.body.expectedRevision)})));
-  router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'TRAINING_FORM_UNAVAILABLE';const status=error.type==='entity.too.large'?413:error instanceof SyntaxError&&error.status===400?400:code==='PERMISSION_DENIED'?403:['FORM_NOT_FOUND','VERIFIED_BUSINESS_OWNER_REQUIRED','BUSINESS_LINK_INVALID'].includes(code)?404:['STALE_REVISION','FORM_SLUG_EXISTS','STALE_LEAD_FIELD_CONFIGURATION'].includes(code)?409:code.startsWith('INVALID_')||['FORM_REQUIRED_FIELDS_MISSING','UNKNOWN_LEAD_FIELD','REQUIRED_LEAD_FIELD'].includes(code)?400:['BUSINESS_INACTIVE','CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:503;res.status(status).json({success:false,code:error.type==='entity.too.large'?'PAYLOAD_TOO_LARGE':status===503?'TRAINING_FORM_UNAVAILABLE':code==='ER_DUP_ENTRY'?'FORM_SLUG_EXISTS':code});});
+  router.put('/:id',wrap(async(req,res)=>res.json({success:true,data:await connection(serviceFor(req).update)(req.formContext,req.params.id,req.body.expectedRevision,req.body)})));
+  router.post('/:id/publish',wrap(async(req,res)=>res.json({success:true,data:await connection(serviceFor(req).publish)(req.formContext,req.params.id,req.body.expectedRevision)})));
+  router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'TRAINING_FORM_UNAVAILABLE';const status=error.type==='entity.too.large'?413:error instanceof SyntaxError&&error.status===400?400:code==='PERMISSION_DENIED'||code==='LEAD_NOT_ACCESSIBLE'?403:['FORM_NOT_FOUND','VERIFIED_BUSINESS_OWNER_REQUIRED','BUSINESS_LINK_INVALID'].includes(code)?404:code==='SEARCH_TERM_TOO_SHORT'?400:['STALE_REVISION','FORM_SLUG_EXISTS','STALE_LEAD_FIELD_CONFIGURATION','FORM_VERSION_CHANGED'].includes(code)?409:code.startsWith('INVALID_')||['FORM_REQUIRED_FIELDS_MISSING','UNKNOWN_LEAD_FIELD','REQUIRED_LEAD_FIELD','CONSENT_REQUIRED','INVALID_PHONE','INVALID_EMAIL'].includes(code)?400:['BUSINESS_INACTIVE','CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:503;res.status(status).json({success:false,code:error.type==='entity.too.large'?'PAYLOAD_TOO_LARGE':status===503?'TRAINING_FORM_UNAVAILABLE':code==='ER_DUP_ENTRY'?'FORM_SLUG_EXISTS':code});});
   return router;
 }
 function createPublicTrainingFormRouter({app,pool,rateKey,origin,turnstile}){
   const challenge=turnstile||createTrainingTurnstile({siteKey:process.env.SALEMAX_TURNSTILE_SITE_KEY,secretKey:process.env.SALEMAX_TURNSTILE_SECRET_KEY,hostname:new URL(origin).hostname});
   const router=express.Router();router.use(express.json({limit:'96kb',strict:true}));
-  app.get('/p/:tenantSlug/forms/:formSlug',async(req,res,next)=>{res.setHeader('Cache-Control','no-store, private');let db;try{db=await pool.getConnection();const data=await forms.publicForm(db,req.params.tenantSlug,req.params.formSlug);if(!data)return res.status(404).send('Form not found');const template=await fs.readFile(path.resolve(__dirname,'../../client/public/training-form.html'),'utf8');const language=(req.query.lang||'').toLowerCase().startsWith('ar')?'ar':'en';const publicUrl=new URL(`/p/${encodeURIComponent(req.params.tenantSlug)}/forms/${encodeURIComponent(req.params.formSlug)}`,origin);if(language==='ar')publicUrl.searchParams.set('lang','ar');const metadata=publicFormMetadata(data,publicUrl.href,language);res.type('html').send(template.replace('<!--PUBLIC_FORM_META-->',metadata.html).replace('<title>Course enquiry</title>',`<title>${metadata.title}</title>`));}catch(error){next(error);}finally{db?.release();}});
-  router.get('/:tenantSlug/:formSlug',async(req,res,next)=>{res.setHeader('Cache-Control','no-store');try{const data=await forms.publicForm(pool,req.params.tenantSlug,req.params.formSlug);if(!data)return res.status(404).json({success:false,code:'FORM_NOT_FOUND'});return res.json({success:true,data:{...data,botChallenge:challenge.publicConfig}});}catch(error){return next(error);}});
+  app.get('/p/:tenantSlug/forms/:formSlug',async(req,res,next)=>{res.setHeader('Cache-Control','no-store, private');let db;try{db=await pool.getConnection();const data=await resolvePublicForm(db,req.params.tenantSlug,req.params.formSlug);if(!data)return res.status(404).send('Form not found');const template=await fs.readFile(path.resolve(__dirname,'../../client/public/training-form.html'),'utf8');const language=(req.query.lang||'').toLowerCase().startsWith('ar')?'ar':'en';const publicUrl=new URL(`/p/${encodeURIComponent(req.params.tenantSlug)}/forms/${encodeURIComponent(req.params.formSlug)}`,origin);if(language==='ar')publicUrl.searchParams.set('lang','ar');const metadata=publicFormMetadata(data,publicUrl.href,language);res.type('html').send(template.replace('<!--PUBLIC_FORM_META-->',metadata.html).replace('<title>Course enquiry</title>',`<title>${metadata.title}</title>`));}catch(error){next(error);}finally{db?.release();}});
+  router.get('/:tenantSlug/:formSlug',async(req,res,next)=>{res.setHeader('Cache-Control','no-store');try{const data=await resolvePublicForm(pool,req.params.tenantSlug,req.params.formSlug);if(!data)return res.status(404).json({success:false,code:'FORM_NOT_FOUND'});return res.json({success:true,data:{...data,botChallenge:challenge.publicConfig}});}catch(error){return next(error);}});
   router.post('/:tenantSlug/:formSlug/submissions',async(req,res,next)=>{
     res.setHeader('Cache-Control','no-store');
     if(!require('./request-origin').matches(req,origin))return res.status(403).json({success:false,code:'ORIGIN_DENIED'});
@@ -43,11 +66,13 @@ function createPublicTrainingFormRouter({app,pool,rateKey,origin,turnstile}){
       const remote=req.socket.remoteAddress||'';let clientIp=null;
       if(['127.0.0.1','::1','::ffff:127.0.0.1'].includes(remote)){const chain=(req.get('X-Forwarded-For')||'').split(',').map(value=>value.trim()).filter(Boolean);const last=chain.at(-1);if(last&&net.isIP(last))clientIp=last;}
       const visitorHash=crypto.createHmac('sha256',rateKey).update(clientIp||crypto.randomBytes(32)).digest('hex');
-      const result=await forms.submitPublic(pool,{tenantSlug:req.params.tenantSlug,formSlug:req.params.formSlug,submissionToken:req.body.submissionToken,values:req.body.values,visitorHash,campaignAttribution:req.body.campaignAttribution,expectedFormVersion:req.body.expectedFormVersion});
+      const genericForm=await workspaceForms.publicForm(pool,req.params.tenantSlug,req.params.formSlug);
+      const submitter=genericForm?workspaceForms:forms;
+      const result=await submitter.submitPublic(pool,{tenantSlug:req.params.tenantSlug,formSlug:req.params.formSlug,submissionToken:req.body.submissionToken,values:req.body.values,visitorHash,campaignAttribution:req.body.campaignAttribution,expectedFormVersion:req.body.expectedFormVersion});
       return res.status(result.repeated?200:201).json({success:true,data:{referenceCode:result.referenceCode,repeated:result.repeated,studentNumber:result.studentNumber,provisionalInvoiceNumber:result.provisionalInvoiceNumber,totalMinor:result.totalMinor,status:result.status,courseNameEn:result.courseNameEn,courseNameAr:result.courseNameAr,installments:result.installments}});
     }catch(error){return next(error);}
   });
-  router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'PUBLIC_FORM_UNAVAILABLE';const status=error.type==='entity.too.large'?413:error instanceof SyntaxError&&error.status===400?400:code==='FORM_NOT_FOUND'?404:code==='FORM_RATE_LIMITED'?429:Number.isInteger(error.status)?error.status:['INVALID_SUBMISSION','INVALID_ATTRIBUTION','INVALID_PHONE','INVALID_EMAIL','INVALID_COURSE','INVALID_PREFERRED_DATE','REQUIRED_FIELD_MISSING','CONSENT_REQUIRED','BOT_CHALLENGE_REQUIRED','BOT_CHALLENGE_FAILED'].includes(code)?400:code==='BUSINESS_LINK_INVALID'?409:503;res.status(status).json({success:false,code:error.type==='entity.too.large'?'PAYLOAD_TOO_LARGE':status===503?(code==='BOT_CHALLENGE_UNAVAILABLE'?'BOT_CHALLENGE_UNAVAILABLE':'PUBLIC_FORM_UNAVAILABLE'):code});});
+  router.use((error,req,res,next)=>{if(res.headersSent)return next(error);const code=error.code||'PUBLIC_FORM_UNAVAILABLE';const status=error.type==='entity.too.large'?413:error instanceof SyntaxError&&error.status===400?400:code==='FORM_NOT_FOUND'?404:code==='FORM_RATE_LIMITED'?429:Number.isInteger(error.status)?error.status:['INVALID_SUBMISSION','INVALID_ATTRIBUTION','INVALID_FORM_SCHEMA','INVALID_FORM_FIELD','INVALID_PHONE','INVALID_EMAIL','INVALID_COURSE','INVALID_PREFERRED_DATE','REQUIRED_FIELD_MISSING','CONSENT_REQUIRED','BOT_CHALLENGE_REQUIRED','BOT_CHALLENGE_FAILED'].includes(code)?400:['BUSINESS_LINK_INVALID','FORM_SUBMISSION_CONFLICT'].includes(code)?409:503;res.status(status).json({success:false,code:error.type==='entity.too.large'?'PAYLOAD_TOO_LARGE':status===503?(code==='BOT_CHALLENGE_UNAVAILABLE'?'BOT_CHALLENGE_UNAVAILABLE':'PUBLIC_FORM_UNAVAILABLE'):code});});
   return router;
 }
-module.exports={createTrainingFormRouter,createPublicTrainingFormRouter,publicFormMetadata};
+module.exports={createTrainingFormRouter,createPublicTrainingFormRouter,publicFormMetadata,formsServiceForCategory,resolvePublicForm};

@@ -28,6 +28,12 @@ test('import validates bounded required fields, international phones, amounts an
   assert.throws(()=>normalizeRows(Array.from({length:101},(_,index)=>prospect({phone:`+9198765432${String(index).padStart(2,'0')}`})),pipeline),{code:'INVALID_IMPORT_ROWS'});
 });
 
+test('existing Sales lead import accepts the preserved category alias for an owner',async()=>{
+ const f=fixture({agent:null}),legacyActor={...actor,categoryKey:'salemax_sales'};
+ const result=await importBatch({pool:f.pool,pipeline:f.service,actor:legacyActor,rows:[prospect({agent_email:undefined})]});
+ assert.equal(result.created,1);assert.equal(f.calls.creates.length,1);
+});
+
 test('import rejects non-owner and non-7Network-Sales actors before opening a connection',async()=>{
   const {pool}=fixture();await assert.rejects(importBatch({pool,pipeline,actor:{...actor,role:'manager'},rows:[prospect()]}),{code:'PERMISSION_DENIED'});
   await assert.rejects(importBatch({pool,pipeline,actor:{...actor,categoryKey:'training_center'},rows:[prospect()]}),{code:'PERMISSION_DENIED'});

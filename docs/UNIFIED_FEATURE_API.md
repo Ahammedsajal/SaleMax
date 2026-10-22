@@ -16,6 +16,20 @@ business feature. Add future changes to that implementation once.
 | Tenant customization | `/api/workspace/customization` | `/api/crm/customization` |
 | Forms | `/api/workspace/forms` | `/api/user/training/forms` |
 
+The authenticated owner settings endpoints and their category-bound typed
+document contract are specified in
+[`WORKSPACE_CUSTOMIZATION_OPENAPI.json`](WORKSPACE_CUSTOMIZATION_OPENAPI.json).
+Its schemas document revision-checked draft/publish/rollback, read-only preview,
+resolved-value provenance and the compatibility alias without allowing a
+client-supplied tenant selector.
+
+The Forms editor, owner submission history, staff capture, and public generic
+lead-capture operations are specified in
+[`WORKSPACE_FORMS_OPENAPI.json`](WORKSPACE_FORMS_OPENAPI.json). It records the
+legacy Training Center registration route as a compatibility operation and
+the generic adapter's separate category, capability, entitlement, member, and
+lead-scope gates. No category is opted into generic Forms by this contract.
+
 `business-feature-session.js` adapts existing bearer and business-cookie
 authentication to one current tenant/member context. It validates verified
 ownership mappings, active identity/membership/tenant state, role profiles,
@@ -112,12 +126,54 @@ category adoption and new vertical modules remain subsequent implementation work
 
 Configuration schema 2 supports typed custom lead fields and is backward-compatible
 with published schema 1 label documents. Existing `/api/workspace/pipeline` and
-`/api/pipeline` create/update handlers share the same lead service; no duplicate
-custom-field CRUD panel is introduced. The current Pipeline browser still uses its
-legacy bearer request path. Custom-field controls are added to its existing forms,
-and values are validated inside the scoped lead transaction. Canonical-cookie
-Pipeline UI adoption remains a separate legacy migration gate.
+`/api/pipeline` handlers share the same lead service; no duplicate custom-field CRUD
+panel is introduced. The maintained Pipeline iframe loads `workspace-api.js` and
+uses its shared credential/context adapter for the board, lead actions, settings,
+filters, exports, reports, CSV import, follow-ups, and opening-message routing.
+Cookie writes use the common CSRF path, and bearer requests keep the active panel
+identity. Custom-field controls remain in the existing forms, with values validated
+inside the scoped lead transaction. The source and production overlay are updated;
+release deployment and authenticated English/Arabic browser acceptance remain open.
 
+### Typed module customization contract, schema 6
+
+Category versions may declare an immutable `customizationSchema.moduleSettings`
+contract. Each module names a capability already present in that category,
+may provide an English and Arabic module heading, and defines a bounded set of
+typed fields (`boolean`, `integer`, `text`, or `enum`) with English and Arabic
+labels and validated defaults. The existing editor displays the heading in the
+current language; older declarations without a heading fall back to the module
+key. A category may publish
+matching `customizationDefaults.moduleSettings`; these are version-pinned
+category defaults, not tenant data. The registry rejects undeclared capabilities,
+unknown field types, malformed bounds, unsafe labels, and invalid defaults.
+
+Schema 6 tenant documents may store sparse overrides under the same module and
+field keys. False and zero are explicit values; absent keys inherit the
+category-version default. The existing owner-only customization API returns the
+declared schema, inherited values, effective published values, and per-field
+source provenance. Draft, preview, publish, and rollback use the same tenant
+context, optimistic revision, audit transaction, and immutable revision history
+as other customization. Older schema 1–5 documents remain readable and keep
+their existing validation rules.
+
+Runtime consumers use the internal `tenant-customization.effective(db, context)`
+resolver with the authenticated active tenant context; they must not accept a
+tenant ID or setting value from the browser to choose another tenant's settings.
+The resolver reads the current active pointer for immediate publication
+freshness. A consumer must still apply category support, active plan entitlement,
+tenant state, member permission, assigned-record scope, and provider readiness
+independently on every operation. A module setting can adjust an already
+authorized workflow but can never grant its required capability or permission.
+If a consumer adds caching later, cache keys must include tenant ID, category key
+and version, active configuration revision, and module schema version.
+
+The shared resolver and editor support this contract, but no production category
+currently declares `customizationSchema`; category-version declarations and
+actual workflow consumers remain separate adoption and acceptance work. Do not
+advertise a module setting as operational until its category contract, existing
+screen/API consumer, role and entitlement checks, two-tenant isolation, and
+English/Arabic acceptance are verified.
 
 ## 7Network Sales ICP pilot
 

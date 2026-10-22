@@ -1,8 +1,9 @@
 'use strict';
-const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/workspace/automation/flows':'/api/chat_flow','/api/workspace/automation/chatbot':'/api/chatbot','/api/workspace/templates':'/api/templet','/api/workspace/campaigns':'/api/broadcast','/api/workspace/inbox':'/api/inbox','/api/workspace/pipeline':'/api/pipeline'}[String(value||'').replace(/\/$/,'')]||String(value||'').replace(/\/$/,''));
+const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/workspace/automation/flows':'/api/chat_flow','/api/workspace/automation/chatbot':'/api/chatbot','/api/workspace/templates':'/api/templet','/api/workspace/campaigns':'/api/broadcast','/api/workspace/inbox':'/api/inbox','/api/workspace/pipeline':'/api/pipeline','/api/user/training/forms':'/api/workspace/forms'}[String(value||'').replace(/\/$/,'')]||String(value||'').replace(/\/$/,''));
 
 const {query}=require('../../database/dbpromise');
 const policy=require('./policy');
+const categories=require('./categories');
 const {isSelfProfileRequest}=require('./self-profile-policy');
 
 function routePermission(req){
@@ -21,7 +22,7 @@ function routePermission(req){
   if(mount==='/api/workspace/properties')return read?'properties.read':'properties.manage';
   if(mount==='/api/workspace/students')return read?'sales.request':'sales.approve';
   if(mount==='/api/workspace/profile')return 'tenant.manage';
-  if(mount==='/api/workspace/forms')return read?'forms.manage':'forms.capture';
+  if(mount==='/api/workspace/forms')return path.startsWith('/staff/')?'forms.capture':'forms.manage';
   if(mount==='/api/workspace/finance'||mount==='/api/user/training/finance-policies'){
     const endpoint=path.replace(/^\/(accountant|canonical)(?=\/|$)/,'');
     if(endpoint.startsWith('/receipts'))return 'receipts.read';
@@ -36,7 +37,7 @@ function routePermission(req){
   if(mount.startsWith('/api/user/training/courses'))return read?'courses.read':'courses.manage';
   if(mount.startsWith('/api/user/training/students'))return read?'sales.request':'sales.approve';
   if(mount.startsWith('/api/user/training/finance'))return read?'invoices.read':'payments.verify';
-  if(mount.startsWith('/api/user/training/forms'))return read?'forms.manage':'forms.capture';
+  if(mount.startsWith('/api/user/training/forms'))return path.startsWith('/staff/')?'forms.capture':'forms.manage';
   if(mount==='/api/user/training/profile')return 'tenant.manage';
   if(['/api/inbox/course-replies','/api/agent/course-replies'].includes(mount))return read?'conversations.read':'conversations.reply';
   if(mount==='/api/inbox')return read||/^\/(get_|import_chats)/.test(path)?'conversations.read':'conversations.reply';
@@ -62,7 +63,7 @@ function routePermission(req){
     if(path.startsWith('/tasks'))return read?'tasks.read':'tasks.manage';
     if(path.startsWith('/reports'))return path.includes('schedule')?'reports.schedule':'reports.read';
     if(path==='/settings')return read?'leads.read':'leads.assign';
-    if(path.startsWith('/training-forms'))return read?'forms.manage':'forms.capture';
+    if(path==='/training-forms'||path.startsWith('/training-forms/'))return 'forms.capture';
     if(path.includes('/assign')||path.endsWith('/move')||path==='/stages'||path.includes('/stages/'))return read?'leads.read':'leads.assign';
     return read?'leads.read':'leads.manage';
   }
@@ -70,7 +71,7 @@ function routePermission(req){
     if(path.startsWith('/training/courses'))return read?'courses.read':'courses.manage';
     if(path.startsWith('/training/students'))return read?'sales.request':'sales.approve';
     if(path.startsWith('/training/finance'))return read?'invoices.read':'payments.verify';
-    if(path.startsWith('/training/forms'))return read?'forms.manage':'forms.capture';
+    if(path==='/training/forms'||path.startsWith('/training/forms/'))return path.startsWith('/training/forms/staff/')?'forms.capture':'forms.manage';
     if(['/get_me','/fetch_profile','/get_dashboard','/get_dashboard_old','/optional-features','/get_fcm_data','/get_plan_details'].includes(path))return 'tenant.read';
     // The shared Inbox reads the tenant's saved quick replies through this
     // legacy endpoint. Agent seats with Inbox access may read them, while the
@@ -103,7 +104,7 @@ function salesAccountantLegacyRouteAllowed(req){
 }
 
 function authorizeLegacyMembership(req,row){
-  if(row.categoryKey==='7network_sales'&&row.role==='accountant'&&!salesAccountantLegacyRouteAllowed(req))
+  if(categories.categoryKeyMatches(row.categoryKey,'7network_sales')&&row.role==='accountant'&&!salesAccountantLegacyRouteAllowed(req))
     return {allowed:false,code:'PERMISSION_DENIED'};
   // A default membership has no custom role profile. Keep its established
   // role policy, while still enforcing the internal Sales accountant boundary.
@@ -116,7 +117,7 @@ function authorizeLegacyMembership(req,row){
   if(!permission)return {allowed:false,code:'TEAM_ROLE_ROUTE_UNMAPPED'};
   const scope=policy.scopeFor({role:row.role,delegatedPermissions:permissions,customPermissions:permissions},permission);
   if(!permissions.includes(permission)||!scope)return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
-  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies'].includes(String(req.baseUrl||'').replace(/\/$/,'')))&&!(['/api/workspace/finance','/api/user/training/finance-policies'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
+  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies','/api/workspace/forms'].includes(canonicalMount(req.baseUrl)))&&!(['/api/workspace/finance','/api/user/training/finance-policies'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
   return {allowed:true,permission};
 }
 const mountFor=req=>String(req.baseUrl||'').replace(/\/$/,'');

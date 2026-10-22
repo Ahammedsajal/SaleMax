@@ -8,7 +8,8 @@
     const value={Accept:'application/json',...(json?{'Content-Type':'application/json'}:{})};
     if(token){value.Authorization='Bearer '+token;value['X-Salemax-Actor']=kind;}
     else{
-      const response=await fetch('/api/user/business-auth/me',{credentials:'same-origin',cache:'no-store'});
+      value['X-Salemax-Actor']=kind;
+      const response=await fetch('/api/user/business-auth/me',{credentials:'same-origin',cache:'no-store',headers:{'X-Salemax-Actor':kind}});
       const session=await response.json();if(!response.ok||session.context?.audience!=='tenant')throw Error('AUTH_REQUIRED');
       value['X-CSRF-Token']=session.csrfToken;
     }
@@ -20,8 +21,15 @@
     const file=body instanceof FormData;
     const response=await fetch(paths[module]+normalize(path),{method,credentials:'same-origin',cache:'no-store',headers:await headers(!file),body:body===undefined?undefined:file?body:JSON.stringify(body)});
     let result;try{result=await response.json();}catch{throw Error('SERVER_ERROR');}
-    if(!response.ok||result.success===false||result.success===0||result.logout){const error=Error(result.code||(result.logout?'AUTH_REQUIRED':'REQUEST_FAILED'));error.details=result.details;throw error;}
+    if(!response.ok||result.success===false||result.success===0||result.logout){const error=Error(result.code||(result.logout?'AUTH_REQUIRED':'REQUEST_FAILED'));error.details=result.details;error.displayMessage=result.message;error.status=response.status;error.row=result.row;throw error;}
     return result;
+  }
+  async function requestBlob(module,path='',{method='GET',body}={}){
+    if(!paths[module])throw Error('UNKNOWN_WORKSPACE_MODULE');
+    const file=body instanceof FormData;
+    const response=await fetch(paths[module]+normalize(path),{method,credentials:'same-origin',cache:'no-store',headers:await headers(!file),body:body===undefined?undefined:file?body:JSON.stringify(body)});
+    if(!response.ok){let result={};try{result=await response.json();}catch{}const error=Error(result.code||'REQUEST_FAILED');error.details=result.details;error.displayMessage=result.message;error.status=response.status;throw error;}
+    return response.blob();
   }
   let sessionPromise=null,sessionKey='',sessionUntil=0,sessionGeneration=0;
   const currentSessionKey=()=>{const kind=actor();return kind+':'+(localStorage.getItem(kind==='agent'?'wacrm_agent':'wacrm_user')||'cookie');};
@@ -40,5 +48,5 @@
     return result;
   }
   const invalidateSession=()=>{sessionGeneration++;sessionPromise=null;sessionUntil=0;};
-  window.SaleMaxWorkspace=Object.freeze({paths,headers,request,session,invalidateSession});
+  window.SaleMaxWorkspace=Object.freeze({paths,headers,request,requestBlob,session,invalidateSession});
 })();

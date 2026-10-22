@@ -22,11 +22,19 @@ The existing Training Center learner-progress reconciler can move won Pipeline l
 | Historical assignments | Same source | Training Center v1 already includes `sales.finance` and `hr.recruitment`. Pinning preserves that historical contract; removing these requires a reviewed successor version and assignment impact review, not silently editing customer rights. Recruitment handlers independently check the Sales category. |
 | Authorization | `modules/platform/policy.js` | Category, active subscription, member scope, tenant resource ownership and external readiness are separate gates. Retain these gates; a configurable screen must not grant permission. |
 | Shared feature authentication | `modules/platform/business-feature-session.js` | Resolves legacy users/agents to canonical tenant membership and entitlements. Unmapped legacy actors can retain a null canonical context; a base-category migration must preserve those working users through verified ownership mappings. |
-| UI feature contract | `modules/platform/feature-contract.js` | Modules and quick-reply catalogues still contain fixed category comparisons. This is not yet a general extension registry. |
+| UI feature contract | `modules/platform/feature-contract.js` | The shared session now exposes a validated server module-registration contract. Category packages can add a module only for an exact registered category version and an existing capability/permission pair. Navigation contributions and quick-reply catalogues still have separate adapters; no new category was opted in by the registry change. |
 | Plan administration | `modules/platform/existing-catalogue-router.js` | Manage Plans now enumerates reviewed planable registry entries and looks up an explicit category version. The original version-1 default is retained for old callers. Adding a manifest alone still does not deliver a new category workflow. |
 | Bot editing/runtime | `modules/platform/chatbot-router.js`, `chatbot-domain-packs.js`, `docs/CHATBOT_CATEGORY_ARCHITECTURE.md` | Reusable typed guided-content schemas and tenant/category-bound profiles already exist. Extend this design. Shared runtime contains category-specific branches that need adoption tests before replacement. |
 | Navigation | `modules/platform/navigation.js` | Server decisions determine visible modules. Configured visibility must remain a restriction over authorized routes, with matching API enforcement. |
 | Frontend recovery | Existing implementation plan | Maintained screen hooks coexist with a generated legacy frontend. Extend the existing screens; do not manually edit minified logic or introduce another panel. |
+| Inbox refresh route | `routes/inbox.js` | The root GET endpoint was unauthenticated and sent a refresh event to a hard-coded account. It now requires the existing business auth/Inbox scope and targets the authenticated actor's socket identity; focused source-contract coverage added. This does not certify all socket events or legacy inbox routes. |
+| Legacy Meta send/reply updates | `functions/function.js` | Updates in `updateMetaTempletInMsg` and `sendMetaMsg` previously matched only `chat_id`, which is derived from the customer phone and can repeat across tenants. All four updates now include the owner UID; focused source-contract coverage added. Other legacy socket and conversation paths remain under audit. |
+| Legacy Inbox delete mutations | `helper/socket/index.js` | `on_label_delete` and `del_contact` previously deleted globally keyed rows by ID alone. Both now include the authenticated business owner UID in the delete predicate; a handler-level test invokes both events and verifies the actual query parameters. Other canonical socket record mutations remain under audit. |
+| Legacy Inbox row-ID access | `helper/socket/index.js` | Numeric-ID conversation loads, unread updates, label changes, and note reads/writes now pair the row ID with the resolved Inbox owner UID, including for legacy sessions that do not enter canonical payload authorization. A disposable MySQL 9.6 integration invokes the handlers for two synthetic owners and confirms B's chat, label, note, tag and contact remain unchanged when A submits B's IDs, while A's valid conversation read still works. MariaDB integration and existing-screen acceptance remain open. |
+| Shared Inbox media deletion | `helper/socket/function.js`, `helper/socket/index.js` | Media cleanup now accepts only a single safe basename below the legacy `/meta-media/` directory, rejects symlinks/path traversal, and keeps a file while any other conversation row references its name. A disposable MySQL 9.6 two-tenant integration confirms A cannot remove a file still referenced by B and can remove it after B's reference is removed. Shared-folder media serving is still public, and the check/unlink lifecycle is not concurrency-safe; tenant-aware media access and reference management remain required before claiming media isolation. |
+| Agent time tracking | `helper/socket/index.js` | The legacy UI sends the current agent UID in 1–5 second increments, but the handler previously trusted arbitrary target UIDs and durations. It now accepts only the authenticated agent's short increment and scopes both read/write to that agent and owner UID. Source-contract coverage added; runtime socket acceptance remains open. |
+| Legacy Agent chat access | `modules/platform/team-inbox-scope.js`, `helper/socket/index.js` | Unmapped legacy Agents now require a database-verified active agent/owner binding and retain assigned-chat-only scope. List and export results filter assignments; direct reads, exports, notes, per-chat labels and replies check the assigned row, replies use stored contact/channel data, and tenant-wide label catalogue changes, transfer/delete/new-chat actions are denied. Chat-list SQL also applies the owning business UID before matching legacy IDs. Focused tests and a disposable MySQL 9.6 two-tenant handler integration pass; MariaDB, remaining socket/media paths and authenticated existing-screen acceptance remain open. |
+| Legacy Inbox import | `routes/inbox.js`, `functions/function.js` | The V3 import endpoint previously selected all legacy chats and allowed any Inbox reader to start a global migration; fallback deduplication also omitted tenant identity. It now requires a business owner, selects only the resolved owner UID, and includes UID in fallback deduplication. Source-contract coverage added; migration runtime acceptance remains open. |
 
 This is a targeted architecture assessment, not an exhaustive proof of every query, queue, websocket or legacy route. The verification ledger below defines the remaining work.
 
@@ -117,6 +125,65 @@ Publishing validates every key against the category's schema, checks module depe
 
 Cache key: tenant ID + category key/version + configuration revision + relevant module schema version. Never cache effective settings by category alone. Resolve the tenant from authenticated context; domain routing identifies the intended tenant but does not authorize access. Background jobs retain tenant ID and explicit execution/version semantics. Idempotency keys include tenant ID. Workers recheck suspension, revocation and provider readiness before external effects.
 
+### Shared three-layer resolver and provenance contract — 22 October 2026
+
+The existing owner settings API now exposes a resolved view in addition to its
+version history: `resolved` describes the active revision and `draftResolved`
+describes the current draft. Preview returns the same shape without persistence.
+Every resolved value identifies whether it came from platform defaults, an
+exact category version, or the tenant revision. The existing editor shows this
+provenance in English and Arabic and continues to label it as configuration;
+the values cannot add a capability, plan entitlement, member permission or
+record scope.
+
+Merge semantics are explicit: omitted object members inherit; object members
+merge by key; a category `null` tombstone removes the platform member, while a
+tenant `null` tombstone clears that tenant/category override and restores the
+platform member when one exists; scalar values replace; and arrays replace
+atomically, including an explicit empty array. Deletion provenance records the
+tenant reset even when the resolved value now comes from the platform layer.
+Each feature schema must validate its own values before resolution.
+No generic setting layer may contain executable code, credentials, arbitrary
+paths, or user/customer records. Historical published documents remain
+immutable and tenant-bound.
+
+The category layer reads only the immutable optional
+`customizationDefaults` document on the exact `{key, version}` manifest. Its
+document uses the same supported schema version and typed validation as tenant
+overrides. Manifests without it contribute an empty layer. This increment
+supports category defaults for navigation labels, hidden-navigation settings
+and typed lead-field definitions. The existing owner customization editor
+begins with the resolved category field list, allows tenant-specific field
+changes, and omits an unchanged list so category provenance is retained. The
+existing Pipeline manual lead capture reads the merged tenant/category
+contract; the existing Forms editor can select fields from that same contract
+and continues pinning a published form's version. An explicit tenant empty
+list replaces category defaults. Current tenants without declared category
+customization defaults continue to inherit platform behavior. Schema version 4
+adds `stageLabels`, a map keyed by the stable `pipeline_stages.stage_key` whose
+values are bilingual `{ "en": "...", "ar": "..." }` display labels. The
+Pipeline renders the effective tenant label first, then its existing Arabic
+fallback, then the stored stage title. This value does not alter stage identity,
+type, transitions, automation, authorization or stored tenant titles. Category
+defaults and tenant overrides use the same shape; tenant labels override
+category-version labels, which override platform fallback. The owner
+customization screen edits labels declared by the category contract and any
+current tenant stage keys returned under the authenticated owner's existing
+business UID scope. Unmapped stage keys continue to use the current stage title.
+
+Schema version 5 enables explicit `null` tombstones for individual navigation
+and Pipeline stage labels. The existing owner editor exposes per-label resets
+to platform labels or stored stage wording; blank fields still inherit category
+values. A tenant navigation reset restores the platform label when available;
+a stage reset with no platform stage label removes the category label so the
+Pipeline uses its stored stage title. Preview reports the effective source and
+retains deletion provenance. Lists continue to replace atomically, so an empty
+custom-field or hidden-navigation list removes all category entries without
+changing the type to null. Schemas 1–4 retain their prior validation rules and
+remain readable. These defaults and resets affect presentation/configuration;
+they do not change capabilities, plan rights, member permissions or record
+scope.
+
 ## Extensibility and domain boundaries
 
 | Category | Candidate modules, subject to implementation and acceptance |
@@ -140,6 +207,81 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 
 ## Isolation beyond database reads
 
+### Legacy Inbox media exposure audit — 22 October 2026
+
+The current media paths are not tenant-private. `server.js` mounts both
+`/media` and `/meta-media` with `express.static`; `/meta-media` also sets
+`Cache-Control: public, max-age=31536000`, wildcard CORS and byte-range support.
+There is no authentication, tenant lookup or conversation authorization on
+that route. A filename URL therefore remains readable by anyone who has or
+guesses it, and the public cache policy can outlive a later authorization fix.
+
+Meta webhook attachments follow the legacy data path in `functions/function.js`:
+`downloadAndSaveMedia` writes files under
+`client/public/meta-media/<random-name>`, and `saveWebhookConversation` records
+their full public URLs in `chats.last_message` and
+`conversations/inbox/<uid>/<chat-id>.json`. The function also emits these message
+objects to the owner's socket and to an assigned Agent socket. QR Inbox messages
+use the newer `beta_conversation` table and the current media cleanup helper
+checks references there. The cleanup helper now also checks other tenants'
+legacy `chats.last_message` rows before unlinking a shared file. It still does
+not scan legacy JSON fallback files or establish read authorization; this is
+not a complete ownership or retention model.
+
+New Meta and QR Inbox downloads now use owner-specific storage under the
+existing shared media volume. For those files, the shared socket Inbox and
+existing user/Agent conversation readers rewrite recognized
+`/meta-media/<file>` links into two-minute signed URLs. The reader endpoint
+checks the current actor and assigned-chat scope again on each request, verifies
+that the active conversation still references the file, checks legacy JSON
+fallback history, and serves private no-store byte ranges. Delegated sessions
+are revalidated as well. Original message rows remain unchanged for
+WhatsApp/provider operations. Historical flat files are not migrated and keep
+their existing raw URLs. The unauthenticated static `/meta-media` route is
+still present during this reader migration, so historical direct URLs remain
+publicly readable until live compatibility acceptance is complete.
+
+`/media` is also intentionally consumed by upload and provider flows, including
+Meta template media recorded in `meta_templet_media`; closing both static paths
+as one change would break existing integrations. The remediation must separate
+private conversational attachments from deliberate public/provider uploads,
+preserve historical references, issue tenant- and conversation-scoped short-
+lived access only after the existing owner/Agent scope check, and migrate every
+reader/provider path before disabling legacy public access. The relevant
+acceptance includes two owners with colliding filenames, owner and assigned
+Agent reads, assignment revocation, cross-tenant token tampering, expired grants,
+range requests, exports, legacy JSON fallback, and retained template media.
+The cleanup safeguard and signed-reader implementation are source-only and
+covered by synthetic unit and disposable-MySQL cases. The signed-reader route
+also checks owner/assigned-Agent revocation, delegated-session revocation,
+reference removal, expiry, tampering and range delivery. No media, customer
+data or production route changed. The direct public route remains open pending
+authenticated browser/device acceptance and confirmed compatibility of every
+legacy reader/provider. Media isolation remains incomplete until that route is
+closed and the exact live surfaces pass.
+
+### Shared-core ownership slice — 22 October 2026
+
+This chat owns `routes/inbox.js` for the unauthenticated hard-coded inbox
+refresh endpoint audit, `functions/function.js` for scoped Meta message
+updates, and `helper/socket/index.js` for shared Inbox record scoping, with
+focused tests in `tests/meta-webhook-flow.test.js`, a disposable MySQL handler
+fixture in `tests/inbox-socket-tenant.integration.cjs`, its package script in
+`package.json`, and `modules/platform/tenant-customization.js` plus
+`tests/tenant-customization.test.js` for effective-setting freshness evidence,
+and this ledger. The
+endpoint is constrained to the authenticated caller and their
+resolved tenant Inbox permission. Socket payload authorization and the
+`sx_legacy_ownership` mapping migration remain read-only audit surfaces in this
+slice; no category package, deployment infrastructure, or production files are
+owned here.
+
+The legacy Agent chat-list query now applies the resolved business UID before
+matching assigned-agent IDs, so duplicate or stale assignment JSON across
+businesses cannot widen the SQL result set. Its disposable two-tenant handler
+fixture verifies this case; the broader socket payload and ownership-mapping
+audits remain open.
+
 - All canonical repositories require tenant context and tenant predicates on reads, writes, joins, exports and deletes. Review raw legacy UID ownership adapters rather than assuming canonical guards cover them.
 - Tenant-owned child relations need composite tenant/parent keys or transactional ownership validation. Globally unique IDs alone are insufficient.
 - Cache entries, websocket rooms, uploaded files, signed media grants, search indexes, vector stores, provider credential lookups and generated reports carry tenant identity. Shared bot defaults are immutable; tenant guide edits and conversation state are not process-global mutable objects.
@@ -153,10 +295,11 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 | --- | --- | --- |
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
-| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) deployed as tenant-customization-10354f7 after MariaDB isolation tests; broader schema/module settings pending |
-| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields and schema-3 tenant-only hidden menu sections; browser rerun and live acceptance pending |
-| Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through the shared workspace session and legacy sidebar-access contract; API permissions remain independent; other modules/workers pending |
-| Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
+| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | Initial label schema is deployed; source adds typed lead fields, hidden navigation, stable-key stage labels, schema-v5 tombstones, three-layer provenance, and schema-v6 typed module settings in the existing editor. Existing tests prove same-category isolation, stale-write conflict, rollback ownership, audit rollback, typed setting validation and source provenance. The module-settings increment is not deployed; rendered-browser and live acceptance remain pending. |
+| Member authorization | Fixed seat role, custom role grants, member scope and approval separation | Source now keeps Training and Sales deal approvals, credit approvals, commission policy management, commission payouts and call-recording policy management bound to their defined seat roles even when a custom profile requests those grants. Policy regressions and direct role-editor checks pass; the full `team-invitations` test file cannot load in this checkout because the local `bcrypt` dependency is absent. This increment is not deployed. |
+| Existing settings UI | Authenticated owner EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields, schema-3 tenant-only hidden menu sections, stable-key stage labels, reset controls and resolved provenance; fresh rendered-browser and live acceptance pending. |
+| Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; active-revision freshness and tenant isolation, plus invalidation if a cache is later justified | Published labels and hidden menu sections flow through shared workspace and legacy sidebar-access contracts; the settings response exposes layer provenance; API permissions remain independent and other consumers/workers are pending. There is currently no effective-settings process cache: each resolution reads the tenant's active pointer and revision, trading query work for immediate publication freshness. A future cache needs measured justification and tenant/category/version/revision/schema-version keys. A regression test verifies pointer freshness and same-category tenant isolation; other consumers/workers remain pending. |
+| Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | 22 October aggregate audit: seven mapped legacy users, eleven active mapped agents, two active orphan agents retained unresolved, one recognized historical Sales plan alias, and no Base CRM tenant; reviewed adoption and mapping manifest remain pending. |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Partly existing; broader proof pending |
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |
 | New categories | Real estate, clinic, retail, supermarket, hotel and restaurant domain modules integrated in existing panels | Real Estate has a private, non-planable typed listing slice in source; category workflow and migration acceptance remain incomplete. Clinic, retail, supermarket, hotel and restaurant modules remain pending; adding names to a dropdown is not delivery. |
@@ -286,8 +429,10 @@ and cannot submit another business's field keys. No account is auto-provisioned.
 The pre-existing training-oriented standard controls still require category-neutral
 adoption; this increment adds isolated custom fields without silently deleting or
 renaming historical standard fields. Pipeline search and its bounded CSV export
-consume custom fields with tenant scope. Reports, bot collection, public
-conversational forms and new industry invariants remain to be adapted.
+consume custom fields with tenant scope. The existing report lead drill-down now
+consumes the same typed snapshots under its existing role and lead scope. Bot
+collection, public conversational forms and new industry invariants remain to be
+adapted.
 
 Validation: 81 focused checks pass. Browser fixtures cover four typed-field builder
 cases, four actual existing Pipeline Add Lead cases, and eight existing editor
@@ -360,8 +505,66 @@ This adapter extends existing Training Center forms; it does not silently grant
 `portal.forms` to Sales, unmapped legacy businesses or new industry categories.
 Registration/accounting invariants and server permission checks remain unchanged.
 The category-neutral adapter is reusable when those categories receive reviewed
-form contracts. Pipeline search and bounded CSV export now consume custom fields;
-bot collection, report consumption and new industry modules remain separate work.
+form contracts. Pipeline search, bounded CSV export, and the existing report lead
+drill-down now consume custom fields; bot collection and new industry modules
+remain separate work.
+
+### Generic lead-capture Forms adapter contract — category adoption pending
+
+Generic business forms must continue in the existing `/user` Forms editor and
+the shared `/api/workspace/forms` router (with `/api/user/training/forms` kept as
+an alias to the same handler). A category may opt into the generic adapter only
+through an exact, reviewed category-version declaration such as
+`formsAdapter: "generic-lead-capture-v1"`, together with the category's explicit
+`portal.forms` and `crm.leads` capabilities because each generic submission is
+also an ordinary Pipeline lead. Missing, unknown or future adapter values deny
+Forms by default. The shared core owns adapter validation and execution;
+category packages own whether their immutable category version opts in. This
+document does not grant that capability to Base CRM, Sales, Real Estate or any
+legacy tenant.
+
+The generic adapter owns the common form lifecycle: bilingual labels and copy,
+typed fields, pinned CRM lead-field definitions, draft revision checks, immutable
+published form versions, consent snapshots, public/staff idempotency, and
+tenant-bound submission history. Generic submission may create a normal lead in
+the existing Pipeline and save pinned answers in its typed custom-field snapshot.
+It must not call Training registration, course, enrollment, invoice or student
+services. The existing `procatalyst-registration-v1` template remains a
+Training-only adapter selected by its exact category version. Historical forms,
+submissions and registrations keep their current readers and storage identities;
+generic support cannot rewrite or reclassify old records.
+
+The editor and staff routes use the shared feature-session context and enforce
+category adapter, active tenant, current plan entitlement, fixed member
+permission and existing lead record scope independently on every operation. A
+public form resolves the tenant from its public slug, then verifies active tenant,
+exact category version, active Forms and CRM Leads entitlements, and the published
+immutable snapshot before accepting data. Staff capture also requires
+`leads.manage` and its existing record scope. A tenant setting or client payload
+cannot choose an adapter, tenant ID, field definition or permission. Unknown
+fields and stale field-definition revisions fail closed. Generic and Training forms retain the
+existing origin checks, bounded payloads, abuse controls, and submission
+idempotency behavior.
+
+Before category adoption, the contract requires tests for two tenants in the same
+category, a different category, and unmapped legacy access; foreign tenant/form
+IDs; role denial and permission revocation; expired/revoked plans; stale fields;
+concurrent publication; immutable submission snapshots; rollback; and preservation
+of the Training-specific registration path. The category registry validates and
+preserves only the declared `generic-lead-capture-v1` adapter when the manifest
+also includes its Forms capability. The existing `/api/workspace/forms` handler
+now resolves that adapter for tenant-owned draft CRUD, immutable publication,
+submission reads, public lookup/submission, and authenticated staff capture.
+Public and staff writes create or update leads through the existing Pipeline
+contract; staff search and selected-lead access preserve tenant scope and agent
+assignment scope. Existing-lead attachment and idempotent replay lock the lead
+under the exact owner UID and recheck the agent's current assignment; incomplete
+submission-to-lead records fail closed. Training Center registration continues through its existing
+service and tables. Generic operations independently require the exact category
+adapter, category capability, active tenant, current plan entitlement, member
+permission and record scope. No category opts into the generic adapter yet, so
+it remains disabled for current tenants. Category capability approval,
+authenticated bilingual existing-screen acceptance and deployment remain open.
 
 Rollback after adoption must retain this adapter: older form validators reject the
 new `customFields` payload and older clients omit its controls. Before adoption,
@@ -669,3 +872,104 @@ MariaDB's JSON_TABLE converts JSON values into relational rows and supports the
 wildcard path used by this bounded value search ([MariaDB JSON_TABLE](https://mariadb.com/docs/server/reference/sql-functions/special-functions/json-functions/json_table)).
 These are design inputs, not a change to SaleMaX's existing Node/MariaDB
 deployment or an assertion of unlimited pooled scale.
+
+## Read-only production adoption audit refresh — 22 October 2026, 08:19 UTC
+
+The current aggregate-only audit returned three active tenants (one
+`7network_sales@1`, two `training_center@1`) and three current plan
+assignments. Two assignments match exact category keys; one maps tenant
+`7network_sales@1` to the preserved `salemax_sales@1` plan key. The revised
+compatibility-aware check reports one historical alias assignment, zero
+missing plan versions and zero true category/version mismatches.
+
+Seven legacy user rows map to active owner/accountant/manager memberships, with
+zero hash mismatches or inactive links. Eleven active legacy agents map to
+active agent memberships. Two more active agents are unmapped, and their owner
+UIDs have no corresponding legacy user; six retained agent mappings point to
+legacy agent rows that no longer exist. There are zero missing or cross-tenant
+membership references among the retained mappings. Keep the two active orphan
+agents on their current legacy path; do not infer a tenant or membership. No
+Base CRM tenant is currently assigned.
+
+The audit ran in a MariaDB read-only transaction and returned aggregate
+counts/categories/roles only. No customer, membership, plan or tenant rows were
+changed. Re-run it before adoption and require an operator-reviewed mapping
+manifest before any write.
+
+## Generic Forms schema validation boundary — 22 October 2026
+
+The shared Forms input validator now has a `generic-lead-capture-v1` field
+allowlist for common contact and consent fields, plus the existing typed,
+tenant-defined lead-field snapshots. Training-specific registration fields and
+the Pro Catalyst registration template remain restricted to the historical
+Training Center adapter. The existing draft create/update service paths now
+pass the adapter resolved by category authorization into schema validation;
+submission normalization rejects schemas containing fields outside the
+selected adapter's allowlist.
+
+This paragraph records the initial schema-validation boundary. It has since been
+superseded by the shared service and API implementation below: generic execution
+now resolves through the authorized adapter, tenant, capability, entitlement and
+member scope. No category currently opts into it, so existing tenants remain
+unchanged while category approval and existing-screen acceptance are pending.
+The focused schema, registry and isolation suites pass 28/28; no migration,
+customer data, database or production runtime changed.
+
+The next storage step is additive migration `20261022_workspace_forms.sql`.
+It creates distinct tenant-bound generic draft, version, submission and rate-
+limit tables with composite tenant/form/version references, preserving all
+historical Training tables. Static discovery checks pass and the disposable
+MariaDB integration verifies tenant, version, idempotency and rate-limit
+constraints against a fresh local MariaDB 11.4.13 instance.
+The existing workspace Forms router dispatches authenticated generic draft CRUD,
+publication, lead-field options and tenant-scoped submission reads to the shared
+service. Public form lookup and submission now use that service for explicitly
+adapted, entitled tenants. Submission persistence snapshots consent and campaign
+attribution, enforces idempotency and hashed visitor/form rate limits, and creates
+a tenant-scoped Pipeline lead in the same transaction. Synthetic tests cover
+lookup, lead creation, exact-token replay and stale-version rollback. Staff capture
+is implemented in source. Category-aware bilingual screen adaptation, authenticated
+browser acceptance and category adoption remain open; no production runtime changed.
+
+The existing `/user?page=forms` hook now reads the authenticated adapter contract
+and uses neutral bilingual lead-form presentation and the common contact/consent
+field editor for `generic-lead-capture-v1`; Training Center keeps its original
+registration workflow. The existing authenticated staff-capture flow now uses
+canonical identity actors and preserves agent assigned-lead scope. Its additive
+Pipeline actor migration and the Forms schema's tenant/form/version,
+idempotency, and rate-limit constraints pass isolated disposable MariaDB
+integration checks. These are source changes only: no category opts in,
+authenticated bilingual screen acceptance and deployment remain open, and no
+production state changed.
+
+The deployment overlay now stages both required forward migrations and checks
+their existing target checksums before changing runtime files. Its focused tests
+prove the Forms schema cannot be omitted from the rollout artifact, a conflicting
+migration stops the overlay before partial runtime writes, and symlinked targets
+are rejected. This is deployment preparation only; production Forms tables and
+code are not deployed.
+
+## Versioned tenant module settings — source increment, 22 October 2026
+
+The shared category registry now accepts an immutable `customizationSchema` for
+typed module settings. Each module declares a category capability and may
+provide a bilingual heading; each field is a bounded Boolean, integer, text or
+enumerated value with bilingual labels and a server-defined default. The
+existing editor renders the declared module heading in English or Arabic, with
+the module key retained as a compatibility fallback. Only a category version that declares
+module settings uses customization schema 6; older schema 1–5 documents remain
+readable, and categories without module settings keep writing schema 5. The
+existing business settings screen renders the schema, lets owners opt a value
+into the tenant layer, and submits sparse values through the existing
+revision-checked draft and publish API. The resolver reports platform,
+category-version and tenant provenance.
+Configuration remains data only and cannot grant a feature or member
+permission. No current category opts into module settings; category-specific
+declarations must use a reviewed immutable category version.
+
+Twenty-six focused registry, customization and HTTP tests pass, including
+typed-value bounds, false/zero preservation, category-version defaults,
+tenant provenance and invalid API values. Syntax and whitespace checks pass.
+The existing rendered-editor browser fixture was extended but could not run in
+this checkout because Playwright is not installed. No MariaDB integration,
+production mutation, category adoption or authenticated UI acceptance occurred.

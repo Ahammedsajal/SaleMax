@@ -2,6 +2,7 @@
   const language=(localStorage.getItem('language')||'').toLowerCase();
   const arabic=language==='ar'||language.startsWith('ar-')||language.includes('arab');
   const token=localStorage.getItem('wacrm_user');
+  const isSalesCategory=key=>key==='7network_sales'||key==='salemax_sales';
   const copy=[
     ['small[data-en="7NETWORK · TRAINING CENTER"]','7NETWORK SALES','7Network · المبيعات'],
     ['main.app > header p','Shared work queue for leads, calls, deals and team actions.','قائمة عمل مشتركة للعملاء والمكالمات والصفقات وإجراءات الفريق.'],
@@ -10,7 +11,7 @@
   fetch('/api/user/team-invitations/sidebar-access',{credentials:'same-origin',headers:{Accept:'application/json',...(token?{Authorization:`Bearer ${token}`}:{})}})
     .then(response=>response.ok?response.json():null)
     .then(result=>{
-      if(result?.data?.categoryKey!=='7network_sales')return;
+      if(!isSalesCategory(result?.data?.categoryKey))return;
       for(const [selector,en,ar] of copy){
         const element=document.querySelector(selector);
         if(!element)continue;

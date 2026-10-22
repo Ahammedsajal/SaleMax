@@ -56,6 +56,14 @@ const permissions = {
   'calls.manage': { owner: 'tenant', manager: 'tenant' },
   'templates.manage': { owner: 'tenant' },
   'recruitment.manage': { owner: 'tenant' },
+  'parties.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
+  'parties.manage': { owner: 'tenant', manager: 'tenant' },
+  'requirements.read': { owner: 'tenant', manager: 'team', team_leader: 'team', agent: 'assigned' },
+  'requirements.manage': { owner: 'tenant', manager: 'team' },
+  'requirements.assign': { owner: 'tenant', manager: 'tenant' },
+  'viewings.read': { owner: 'tenant', manager: 'team', team_leader: 'team', agent: 'assigned' },
+  'viewings.manage': { owner: 'tenant', manager: 'team' },
+  'viewings.assign': { owner: 'tenant', manager: 'tenant' },
   'properties.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
   'properties.manage': { owner: 'tenant', manager: 'tenant' },
   'properties.assign': { owner: 'tenant', manager: 'tenant' },
@@ -76,6 +84,9 @@ const capabilities = Object.freeze({
   'sales.icp': ['icp.read','icp.manage'],
   'products.catalog': ['products.read','products.manage'],
   'hr.recruitment': ['recruitment.manage'],
+  'realestate.parties': ['parties.read', 'parties.manage'],
+  'realestate.requirements': ['requirements.read', 'requirements.manage', 'requirements.assign'],
+  'realestate.viewings': ['viewings.read', 'viewings.manage', 'viewings.assign'],
   'realestate.listings': ['properties.read','properties.manage','properties.assign'],
   'campaigns.dashboard': ['campaigns.manage'], 'crm.leads': ['leads.read', 'leads.manage', 'leads.assign'],
   'crm.contacts': ['contacts.read', 'contacts.manage'], 'team.members': ['team.read', 'team.invite'],
@@ -88,8 +99,26 @@ const capabilities = Object.freeze({
   'reports.schedule': ['reports.schedule'], 'portal.forms': ['forms.manage', 'forms.capture'],
   'tenant.settings': ['tenant.read', 'tenant.manage'],
 });
+const realEstateOwnerManagerPermissions = Object.freeze([
+  'requirements.manage','requirements.assign','viewings.manage','viewings.assign',
+]);
+// Custom role profiles can add ordinary module access to a staff seat, but
+// cannot change approval authority defined by the fixed seat-role contract.
+const roleBoundPermissions = Object.freeze({
+  'sales.approve': Object.freeze(['owner','manager']),
+  'deals.approve': Object.freeze(['owner','manager']),
+  'credits.approve': Object.freeze(['owner']),
+  'commission.policy.manage': Object.freeze(['owner']),
+  'commission.payout.approve': Object.freeze(['accountant']),
+  'commission.payout.pay': Object.freeze(['accountant']),
+  'calls.recording.manage': Object.freeze(['owner']),
+});
 function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
+  if (roleBoundPermissions[permission] && !roleBoundPermissions[permission].includes(membership.role)) return null;
+  // Real Estate assignment and mutation APIs operate on team-owned requirements
+  // and viewings. A custom role may restrict this authority, never create it.
+  if (realEstateOwnerManagerPermissions.includes(permission) && !['owner','manager'].includes(membership.role)) return null;
   // Listing reads use the persisted assignee and current Sales Organization
   // hierarchy. Custom grants cannot widen these scopes.
   if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && permission!=='properties.read') return null;
@@ -118,11 +147,11 @@ function decision(context, { capability, permission, resource, external = false 
   if (tenant.status !== 'active' || membership.status !== 'active') return { allowed: false, code: 'ACCOUNT_INACTIVE' };
   if (resource && resource.tenantId !== tenant.id) return { allowed: false, code: 'RESOURCE_NOT_FOUND' };
   if (!Object.hasOwn(capabilities, capability) || !capabilities[capability].includes(permission)) return { allowed: false, code: 'CAPABILITY_PERMISSION_INVALID' };
-  if (!category || category.key !== tenant.categoryKey || category.version !== tenant.categoryVersion || !Array.isArray(category.capabilities) || !category.capabilities.includes(capability)) return { allowed: false, code: 'CATEGORY_UNAVAILABLE' };
+  if (!category || !require('./categories').categoryKeyMatches(category.key,tenant.categoryKey) || category.version !== tenant.categoryVersion || !Array.isArray(category.capabilities) || !category.capabilities.includes(capability)) return { allowed: false, code: 'CATEGORY_UNAVAILABLE' };
   // Canonical entitlements carry both fields. Reject explicit/partial mismatches
   // before category-specific exceptions; old in-process contexts may omit both.
   if(subscription&&(Object.hasOwn(subscription,'categoryKey')||Object.hasOwn(subscription,'categoryVersion'))&&
-      (subscription.categoryKey!==category.key||subscription.categoryVersion!==category.version))return {allowed:false,code:'FEATURE_UNAVAILABLE'};
+      (!require('./categories').categoryKeyMatches(category.key,subscription.categoryKey)||subscription.categoryVersion!==category.version))return {allowed:false,code:'FEATURE_UNAVAILABLE'};
   const internalRecruitmentOwner = capability === 'hr.recruitment' && category.key === '7network_sales' && membership.role === 'owner';
   const internalSalesIcp = capability === 'sales.icp' && category.key === '7network_sales';
   // Recruitment is an owner-only internal 7Network workspace feature, not a customer plan add-on.
@@ -166,4 +195,4 @@ function platformDecision(context, permission) {
   if (context.membership.role === 'platform_admin') return platformAdminAllowlist.includes(permission);
   return context.membership.role === 'staff' && platformStaffAllowlist.includes(permission) && context.membership.delegatedPermissions?.includes(permission) === true;
 }
-module.exports = { permissions, capabilities, scopeFor, explicitlyGranted, decision, platformDecision, delegationAllowlist, platformStaffAllowlist, platformAdminAllowlist, platformPermissions };
+module.exports = { permissions, capabilities, scopeFor, explicitlyGranted, decision, platformDecision, delegationAllowlist, roleBoundPermissions, platformStaffAllowlist, platformAdminAllowlist, platformPermissions };

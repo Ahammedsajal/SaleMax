@@ -3,14 +3,16 @@ const fields=require('./lead-field-contract');
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 function normalize(value){
  if(value===undefined)return undefined;
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==2||!Number.isSafeInteger(value.configurationRevision)||value.configurationRevision<1||!Array.isArray(value.fields)||!value.fields.length)fail('INVALID_FORM_LEAD_FIELDS');
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==2||!Number.isSafeInteger(value.configurationRevision)||value.configurationRevision<0||!Array.isArray(value.fields)||!value.fields.length)fail('INVALID_FORM_LEAD_FIELDS');
  const definitions=fields.definitions(value.fields);if(definitions.some(field=>!field.active))fail('INVALID_FORM_LEAD_FIELDS');
  return {configurationRevision:value.configurationRevision,fields:definitions};
 }
 async function options(db,ctx,{lock=false}={}){
  const [[row]]=await db.query(`SELECT r.* FROM sx_tenant_customization_heads h JOIN sx_tenant_customization_revisions r ON r.tenant_id=h.tenant_id AND r.id=h.active_id AND r.kind='published' WHERE h.tenant_id=?${lock?' FOR UPDATE':''}`,[ctx.tenant.id]);
- if(!row)return {revision:0,fields:[]};
- const active=require('./tenant-customization').decode(ctx,row);return fields.publicContract(active);
+ const customization=require('./tenant-customization');
+ if(!row)return fields.publicContract({revision:0,document:customization.resolved(ctx,null,0).value});
+ const active=customization.decode(ctx,row),resolved=customization.resolved(ctx,active.document,active.revision);
+ return fields.publicContract({revision:active.revision,document:resolved.value});
 }
 async function validateDraft(db,ctx,value){
  const selected=normalize(value);if(!selected)return;

@@ -47,12 +47,14 @@ test('Sales workspace exposes only each role assigned sections and keeps account
 });
 
 test('default 7Network Sales Accountant membership is limited to existing shell bootstrap on legacy APIs',()=>{
-  const row={categoryKey:'7network_sales',role:'accountant',roleProfileId:null};
+  const rows=['7network_sales','salemax_sales'].map(categoryKey=>({categoryKey,role:'accountant',roleProfileId:null}));
   const request=(method,path,baseUrl='/api/user')=>({method,path,baseUrl});
-  for(const path of ['/get_me','/fetch_profile','/get_plan_details','/optional-features','/get_fcm_data'])
-    assert.equal(legacyRoleGuard.authorizeLegacyMembership(request('GET',path),row).allowed,true,path);
-  for(const req of [request('GET','/get_dashboard'),request('GET','/get_contact'),request('POST','/update_profile'),request('GET','/get_me','/api/phonebook')])
-    assert.deepEqual(legacyRoleGuard.authorizeLegacyMembership(req,row),{allowed:false,code:'PERMISSION_DENIED'});
+  for(const row of rows){
+    for(const path of ['/get_me','/fetch_profile','/get_plan_details','/optional-features','/get_fcm_data'])
+      assert.equal(legacyRoleGuard.authorizeLegacyMembership(request('GET',path),row).allowed,true,`${row.categoryKey} ${path}`);
+    for(const req of [request('GET','/get_dashboard'),request('GET','/get_contact'),request('POST','/update_profile'),request('GET','/get_me','/api/phonebook')])
+      assert.deepEqual(legacyRoleGuard.authorizeLegacyMembership(req,row),{allowed:false,code:'PERMISSION_DENIED'},row.categoryKey);
+  }
 });
 
 test('shared QR list is read with inbox permission while QR mutations still require channel management',()=>{
@@ -136,7 +138,7 @@ test('7Network Sales owner gets one People & Roles entry while managers and team
   assert.match(team,/node\.dataset\.salesCategory='7network_sales'/);
   assert.match(team,/#sx-team-screen\[data-sales-category=\"7network_sales\"\] :focus-visible\{outline-color:#1768d4\}/);
   assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
-  assert.match(shell,/team-invitations\.js\?v=20261019-role-sidebar2/);
+  assert.match(shell,/team-invitations\.js\?v=20261022-agent-password-reset1/);
 });
 
 test('Sales Overview is integrated into existing navigation, refreshes scoped APIs and keeps nested routes in the parent URL',()=>{
@@ -239,7 +241,7 @@ test('Organization is connected to the existing user shell and the tenant-scoped
   const page=fs.readFileSync(path.join(root,'client/public/sales-organization/index.html'),'utf8');
   const client=fs.readFileSync(path.join(root,'client/public/sales-organization/sales-organization.js'),'utf8');
   const router=fs.readFileSync(path.join(root,'modules/platform/sales-organization-router.js'),'utf8');
-  assert.match(sidebar,/membershipCategoryKey=data\?\.data\?\.categoryKey/);
+  assert.match(sidebar,/membershipCategoryKey=displayCategoryKey\(data\?\.data\?\.categoryKey/);
   assert.match(sidebar,/roleNavigation\?\.has\('sales-organization'\)/);
   assert.match(sidebar,/sales-organization/);
   assert.match(shell,/isSalesOrganizationRoute/);

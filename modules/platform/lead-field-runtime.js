@@ -12,11 +12,13 @@ async function contractForOwner(db,uid,{lock=false}={}){
  if(rows.length!==1)fail('BUSINESS_LINK_INVALID');
  const row=rows[0];if(row.status!=='active')fail('ACCOUNT_INACTIVE',403);
  const category=require('./categories').getCategory(row.category_key,Number(row.category_version));if(!category)fail('CATEGORY_UNAVAILABLE');
- if(!row.active_id)return {revision:0,fields:[]};
+ const context={tenant:{id:row.id,categoryKey:category.key,categoryVersion:category.version},category};
+ if(!row.active_id)return require('./lead-field-contract').publicContract({revision:0,document:require('./tenant-customization').resolved(context,null,0).value});
  const [[document]]=await db.query("SELECT * FROM sx_tenant_customization_revisions WHERE tenant_id=? AND id=? AND kind='published'",[row.id,row.active_id]);
  if(!document)fail('CUSTOMIZATION_NOT_FOUND');
- const active=require('./tenant-customization').decode({tenant:{id:row.id,categoryKey:category.key,categoryVersion:category.version},category},document);
- return require('./lead-field-contract').publicContract({revision:active.revision,document:active.document});
+ const active=require('./tenant-customization').decode(context,document);
+ const resolved=require('./tenant-customization').resolved(context,active.document,active.revision);
+ return require('./lead-field-contract').publicContract({revision:active.revision,document:resolved.value});
 }
 function qualification(raw){if(typeof raw==='string'){try{return JSON.parse(raw)||{};}catch{return {};}}return raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};}
 async function save(db,uid,input,priorRaw,{creating=false}={}){

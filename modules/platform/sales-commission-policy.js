@@ -1,14 +1,14 @@
 'use strict';
 const crypto=require('node:crypto');
-const {salemaxSales}=require('./categories');
+const {salemaxSales,categoryKeyMatches}=require('./categories');
 const {decision}=require('./policy');
 const calculator=require('./sales-commission-calculator');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 function authorize(ctx){
-  if(ctx?.audience!=='tenant'||ctx.category?.key!==salemaxSales.key||ctx.category?.version!==salemaxSales.version
-    ||ctx.tenant?.categoryKey!==salemaxSales.key||Number(ctx.tenant?.categoryVersion)!==salemaxSales.version)fail('CATEGORY_UNAVAILABLE');
+  if(ctx?.audience!=='tenant'||!categoryKeyMatches(ctx.category?.key,salemaxSales.key)||ctx.category?.version!==salemaxSales.version
+    ||!categoryKeyMatches(ctx.tenant?.categoryKey,salemaxSales.key)||Number(ctx.tenant?.categoryVersion)!==salemaxSales.version)fail('CATEGORY_UNAVAILABLE');
   const access=decision(ctx,{capability:'sales.commissions',permission:'commission.policy.manage'});
   if(!access.allowed)fail(access.code);
   if(!ctx.identity?.id||ctx.membership?.role!=='owner')fail('PERMISSION_DENIED');

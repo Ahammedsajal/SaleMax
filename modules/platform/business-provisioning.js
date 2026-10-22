@@ -12,7 +12,8 @@ const email=value=>{const normalized=typeof value==='string'?value.trim().toLowe
 const tables=['user','sx_tenants','sx_identities','sx_memberships','sx_legacy_ownership','sx_plan_versions','sx_plan_assignments','sx_legacy_plan_contracts','sx_legacy_plan_assignments','sx_legacy_contract_assignments','sx_team_invites','sx_audit_events','sx_business_provisions'];
 async function transaction(db,fn){const [rows]=await db.query('SELECT TABLE_NAME,ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('+tables.map(()=>'?').join(',')+')',tables);if(rows.length!==tables.length||rows.some(row=>row.ENGINE!=='InnoDB'))fail('PROVISION_STORAGE_NOT_READY');await db.beginTransaction();try{const result=await fn();await db.commit();return result;}catch(error){await db.rollback();if(error.code==='ER_DUP_ENTRY')fail('BUSINESS_ALREADY_PROVISIONED');throw error;}}
 function authorize(ctx,permission){if(!platformDecision(ctx,permission))fail('PERMISSION_DENIED');}
-function provisionCategory(ctx,key='training_center',version=1){
+function provisionCategory(ctx,key,version=1){
+  if(typeof key!=='string'||!key)fail('INVALID_CATEGORY');
   const category=getCategory(key,version);
   if(!category||category.planable!==true)fail('CATEGORY_UNAVAILABLE');
   if(category.public===false&&!platformDecision(ctx,'categories.manage'))fail('PERMISSION_DENIED');
@@ -21,8 +22,9 @@ function provisionCategory(ctx,key='training_center',version=1){
 function roles(value,category){return plans.limits(value,category.seatRoles);}
 function normalizeName(value){const name=typeof value==='string'?value.trim():'';if(name.length<2||name.length>200)fail('BUSINESS_NAME_INVALID');return name;}
 function slug(name,uid){const base=name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,52)||'salemax-business';return `${base}-${crypto.createHash('sha256').update(uid).digest('hex').slice(0,10)}`;}
-async function context(db,ctx,userId,{locked=false,categoryKey='training_center',categoryVersion=1}={}){
+async function context(db,ctx,userId,{locked=false,categoryKey,categoryVersion=1}={}){
   authorize(ctx,'tenants.create');authorize(ctx,'plans.assign');authorize(ctx,'plans.read');
+  if(typeof categoryKey!=='string'||!categoryKey)fail('INVALID_CATEGORY');
   const category=provisionCategory(ctx,categoryKey,categoryVersion);
   if(!Number.isSafeInteger(userId)||userId<1||userId>2147483647)fail('INVALID_ASSIGNMENT');
   const suffix=locked?' FOR UPDATE':'';
@@ -52,7 +54,8 @@ async function context(db,ctx,userId,{locked=false,categoryKey='training_center'
 }
 function selection(ctx,input){
   const userId=Number(input?.userId);if(!Number.isSafeInteger(userId)||userId<1||userId>2147483647||!uuid(input?.planVersionId)||!uuid(input?.requestId)||typeof input?.expectedState!=='string'||!/^[a-f0-9]{64}$/.test(input.expectedState))fail('INVALID_PROVISION');
-  const businessName=normalizeName(input.businessName),category=provisionCategory(ctx,input.categoryKey||'training_center',input.categoryVersion===undefined?1:input.categoryVersion),roleLimits=roles(input.roleLimits,category);
+  if(typeof input?.categoryKey!=='string'||!input.categoryKey)fail('INVALID_CATEGORY');
+  const businessName=normalizeName(input.businessName),category=provisionCategory(ctx,input.categoryKey,input.categoryVersion===undefined?1:input.categoryVersion),roleLimits=roles(input.roleLimits,category);
   authorize(ctx,'tenants.create');authorize(ctx,'plans.assign');authorize(ctx,'plans.read');
   return {userId,planVersionId:input.planVersionId.toLowerCase(),requestId:input.requestId.toLowerCase(),expectedState:input.expectedState,businessName,roleLimits,category};
 }
@@ -63,7 +66,7 @@ async function preview(db,ctx,input){
   const state=hash(JSON.stringify({snapshot:base.snapshot,categoryKey:data.category.key,categoryVersion:data.category.version,versionId:base.version.id,commercialHash:hash(JSON.stringify(base.version.commercial)),businessName:data.businessName,roleLimits:data.roleLimits}));
   return {user:{id:base.user.id,name:base.user.name,email:base.normalizedEmail,currentPlan:base.current.plan},businessName:data.businessName,category:{key:data.category.key,version:data.category.version,title:data.category.title,seatRoles:data.category.seatRoles},contract:{id:base.version.id,version:base.version.version,commercial:base.version.commercial,capabilities:base.version.capabilities,ceiling:base.version.roleLimits},proposedLimits:data.roleLimits,used:Object.fromEntries(data.category.seatRoles.map(role=>[role,role==='owner'?1:0])),blockers,canProvision:!blockers.length,expectedState:state,readOnly:true};
 }
-async function options(db,ctx,userId,categoryKey='training_center',categoryVersion=1){
+async function options(db,ctx,userId,categoryKey,categoryVersion=1){
   const base=await context(db,ctx,userId,{categoryKey,categoryVersion});
   return {user:{id:base.user.id,name:base.user.name,email:base.normalizedEmail,currentPlan:base.current.plan},category:{key:base.category.key,version:base.category.version,title:base.category.title,seatRoles:base.category.seatRoles},contract:{id:base.version.id,version:base.version.version,commercial:base.version.commercial,capabilities:base.version.capabilities,ceiling:base.version.roleLimits},defaultLimits:base.version.roleLimits};
 }

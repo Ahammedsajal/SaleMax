@@ -1,10 +1,11 @@
 const randomstring = require("randomstring");
 const moment = require("moment");
+const path = require("node:path");
 const { query } = require("../../../database/dbpromise");
 const mime = require("mime-types");
 const { fetchProfileUrl } = require("./control");
-const fs = require("fs");
 const { captureQrMessage } = require("../../pipeline/leadPipeline.js");
+const inboxMediaAccess = require("../../../modules/platform/inbox-media-access");
 
 // Import downloadMediaMessage directly from baileys
 let downloadMediaMessage;
@@ -191,27 +192,21 @@ function getCurrentTimestampInTimeZone(timezone) {
   return Math.round(Date.now() / 1000);
 }
 
-function saveImageToFile(imageBuffer, filePath, mimetype) {
-  try {
-    fs.writeFileSync(filePath, imageBuffer);
-    console.log(`${mimetype || "IMG"} saved successfully as ${filePath}`);
-  } catch (error) {
-    console.error(`Error saving image: ${error.message}`);
-  }
-}
-
-async function downloadMediaPromise(m, mimetype) {
+async function downloadMediaPromise(m, mimetype, ownerUid) {
   try {
     // Ensure baileys is loaded
     await loadBaileys();
 
     const bufferMsg = await downloadMediaMessage(m, "buffer", {}, {});
-    const randomSt = randomstring.generate(6);
-    const mimeType = mime.extension(mimetype);
+    const randomSt = randomstring.generate(24);
+    const mimeType = mime.extension(mimetype) || 'bin';
     const fileName = `${randomSt}_qr.${mimeType}`;
-    const filePath = `${__dirname}/../../../client/public/meta-media/${fileName}`;
-
-    saveImageToFile(bufferMsg, filePath, mimetype);
+    inboxMediaAccess.savePrivateMedia({
+      mediaRoot: path.resolve(__dirname, '../../../client/public/meta-media'),
+      ownerUid,
+      filename: fileName,
+      bytes: bufferMsg,
+    });
 
     return { success: true, fileName };
   } catch (err) {
@@ -327,7 +322,7 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
       }
     } else if (body.message.imageMessage) {
       const img = body.message.imageMessage;
-      const downloadResult = await downloadMediaPromise(body, img.mimetype);
+      const downloadResult = await downloadMediaPromise(body, img.mimetype, uid);
       msgContext = {
         type: "image",
         image: {
@@ -339,7 +334,7 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
       };
     } else if (body.message.videoMessage) {
       const vid = body.message.videoMessage;
-      const downloadResult = await downloadMediaPromise(body, vid.mimetype);
+      const downloadResult = await downloadMediaPromise(body, vid.mimetype, uid);
       msgContext = {
         type: "video",
         video: {
@@ -360,7 +355,7 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
       };
     } else if (body.message.audioMessage) {
       const aud = body.message.audioMessage;
-      const downloadResult = await downloadMediaPromise(body, aud.mimetype);
+      const downloadResult = await downloadMediaPromise(body, aud.mimetype, uid);
       msgContext = {
         type: "audio",
         audio: {
@@ -387,7 +382,8 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
         body?.message?.documentWithCaptionMessage?.message?.documentMessage?.mimetype?.replace(
           "application/x-javascript",
           "application/javascript"
-        )
+        ),
+        uid,
       );
       msgContext = {
         type: "document",
@@ -405,7 +401,7 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
     } else if (body.message.documentMessage) {
       // Handle regular document messages without caption
       const doc = body.message.documentMessage;
-      const downloadResult = await downloadMediaPromise(body, doc.mimetype);
+      const downloadResult = await downloadMediaPromise(body, doc.mimetype, uid);
       msgContext = {
         type: "document",
         document: {

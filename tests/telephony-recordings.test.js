@@ -25,8 +25,16 @@ test('recording policy starts off, requires notice acknowledgement and retention
   const saved=await recordings.savePolicy(db,context(),{enabled:true,noticeConfirmed:true,retentionDays:30,expectedRevision:0});
   assert.equal(saved.enabled,true);assert.equal(saved.retentionDays,30);assert.equal(saved.revision,1);
   await assert.rejects(recordings.savePolicy(db,context(),{enabled:false,noticeConfirmed:true,retentionDays:30,expectedRevision:0}),{code:'STALE_RECORDING_POLICY'});
-  await assert.rejects(recordings.savePolicy(db,context('agent'),{enabled:false,noticeConfirmed:false,retentionDays:null,expectedRevision:1}),{code:'PERMISSION_DENIED'});
+  const untouched={query(){throw new Error('denied recording-policy writes must not reach persistence');},beginTransaction(){throw new Error('must not begin a transaction');}};
+  for(const role of ['manager','team_leader','agent']){
+    const staff=context(role);staff.membership.customPermissions=['calls.recording.manage'];
+    await assert.rejects(recordings.savePolicy(untouched,staff,{enabled:false,noticeConfirmed:false,retentionDays:null,expectedRevision:1}),{code:'PERMISSION_DENIED'});
+  }
   assert.ok(updates.some(item=>item.sql.includes("'telephony.recording-policy.updated'")));
+});
+test('recording policy preserves access for the historical Sales category alias',async()=>{
+ const owner=context('owner'),aliased={...owner,tenant:{...owner.tenant,categoryKey:'salemax_sales'}};
+ assert.deepEqual(await recordings.getPolicy({query:async()=>[[]]},aliased),{enabled:false,noticeConfirmed:false,noticeVersion:1,retentionDays:null,revision:0});
 });
 
 test('recording begins only for a connected call under an enabled acknowledged policy and is idempotently reserved',async()=>{

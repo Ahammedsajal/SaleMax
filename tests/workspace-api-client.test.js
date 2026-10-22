@@ -12,6 +12,15 @@ test('business cookie sessions use the same feature URL with CSRF and no legacy 
  vm.runInNewContext(source,sandbox);await sandbox.window.SaleMaxWorkspace.request('phonebook','/settings',{method:'PUT',body:{labels:[]}});
  assert.equal(calls[1].url,'/api/workspace/phonebook/settings');assert.equal(calls[1].options.headers['X-CSRF-Token'],'synthetic-csrf');assert.equal(calls[1].options.credentials,'same-origin');assert.equal(calls[1].options.headers.Authorization,undefined);
 });
+test('Pipeline CSV downloads use common bearer selection and credentials policy',async()=>{
+ const calls=[],blob={type:'text/csv'},sandbox={window:{},location:{pathname:'/pipeline/'},localStorage:{getItem:key=>key==='wacrm_user'?'owner-token':null},FormData:class {},fetch:async(url,options)=>{calls.push({url,options});return {ok:true,blob:async()=>blob};}};
+ vm.runInNewContext(source,sandbox);assert.equal(await sandbox.window.SaleMaxWorkspace.requestBlob('pipeline','/leads/export?search=test'),blob);
+ assert.equal(calls[0].url,'/api/workspace/pipeline/leads/export?search=test');assert.equal(calls[0].options.headers.Authorization,'Bearer owner-token');assert.equal(calls[0].options.headers['X-Salemax-Actor'],'user');assert.equal(calls[0].options.credentials,'same-origin');assert.equal(calls[0].options.cache,'no-store');
+});
+test('embedded Agent Pipeline requests select the Agent identity instead of the owner token',async()=>{
+ const calls=[],sandbox={window:{SaleMaxActor:'agent'},location:{pathname:'/pipeline/'},localStorage:{getItem:key=>key==='wacrm_agent'?'agent-seat-token':key==='wacrm_user'?'owner-token':null},FormData:class {},fetch:async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>({success:true,data:{}})};}};
+ vm.runInNewContext(source,sandbox);await sandbox.window.SaleMaxWorkspace.request('pipeline','/board');assert.equal(calls[0].url,'/api/workspace/pipeline/board');assert.equal(calls[0].options.headers.Authorization,'Bearer agent-seat-token');assert.equal(calls[0].options.headers['X-Salemax-Actor'],'agent');
+});
 test('cookie-only Courses access finishes the existing navigation admission check',async()=>{
  const screen=fs.readFileSync(path.join(__dirname,'../client/public/training-courses.js'),'utf8'),start=screen.indexOf('  async function checkCourseAccess(){'),end=screen.indexOf('  function addNav',start);
  const sandbox={getToken:()=>null,navToken:'canonical-session',navLoading:false,navChecked:false,navAllowed:false,api:async()=>{},addNav:()=>{},document:{querySelector:()=>null},window:{SaleMaxWorkspace:{session:async()=>({categoryKey:'training_center',modules:{courses:true}})}}};
@@ -20,6 +29,18 @@ test('cookie-only Courses access finishes the existing navigation admission chec
 test('the common client loads before dependent existing screen scripts',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8'),common=html.indexOf('/workspace-api.js?');assert.ok(common>=0);
  for(const module of ['training-courses','training-finance','training-forms','phonebook-workspace','course-quick-replies'])assert.ok(common<html.indexOf('/'+module+'.js?'));
+});
+test('the embedded existing Pipeline screen loads its common API client before Pipeline logic',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8'),common=html.indexOf('/workspace-api.js?'),pipeline=html.indexOf('/pipeline/pipeline.js?');assert.ok(common>=0&&common<pipeline);
+});
+test('Pipeline reports adapt legacy response handling through the shared feature client',async()=>{
+ const screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),start=screen.indexOf('  async function pipelineFetch('),end=screen.indexOf('\n  const escape',start);assert.ok(start>=0&&end>start);
+ const calls=[],sandbox={window:{SaleMaxWorkspace:{request:async(...args)=>{calls.push(args);return {success:true,data:{items:[1]}};}}},location:{origin:'https://crm.example.test'},URL};vm.runInNewContext(`${screen.slice(start,end)};this.pipelineFetch=pipelineFetch;`,sandbox);
+ const response=await sandbox.pipelineFetch('/api/pipeline/reports/summary?from=2026-10-01',{method:'POST',body:'{"range":"month"}'});assert.equal(response.ok,true);assert.equal(JSON.stringify(calls[0]),JSON.stringify(['pipeline','/reports/summary?from=2026-10-01',{method:'POST',body:{range:'month'}}]));assert.equal(JSON.stringify(await response.json()),JSON.stringify({success:true,data:{items:[1]}}));
+ const rejected={message:'PERMISSION_DENIED',status:403,details:{action:'reports.read'}},deniedSandbox={window:{SaleMaxWorkspace:{request:async()=>{throw rejected;}}},location:{origin:'https://crm.example.test'},URL};vm.runInNewContext(`${screen.slice(start,end)};this.pipelineFetch=pipelineFetch;`,deniedSandbox);const denied=await deniedSandbox.pipelineFetch('/api/pipeline/reports/summary');assert.equal(denied.ok,false);assert.equal(denied.status,403);assert.equal(JSON.stringify(await denied.json()),JSON.stringify({success:false,code:'PERMISSION_DENIED',message:undefined,row:undefined,details:{action:'reports.read'}}));
+});
+test('existing Pipeline reports, import and routing contain no direct legacy fetches',()=>{
+ const root=path.join(__dirname,'../client/public/pipeline');for(const file of ['pipeline.js','reports.js','lead-import.js','opening-routing.js'])assert.doesNotMatch(fs.readFileSync(path.join(root,file),'utf8'),/\bfetch\s*\(/,file);
 });
 
 

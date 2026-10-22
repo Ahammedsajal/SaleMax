@@ -140,6 +140,8 @@ test('active bot profiles stay editable while provider credentials and sensitive
   assert.match(chatbotRouter, /status='live' AND \(engine='ai' OR \(engine='hybrid'/);
   assert.match(chatbotRouter, /if \(liveAiBot\) fail\('LIVE_BOT_MUST_BE_PAUSED'\)/);
   assert.match(chatbotRouter, /async function assertLiveProfileReady/);
+  assert.match(chatbotRouter, /categoryKeyMatches\(profile\.categoryKey,ctx\.category\.key\)/);
+  assert.match(chatbotRouter, /categoryKeyMatches\(row\.categoryKey,ctx\.category\.key\)/);
 });
 
 test('bot assignments display connected channel labels instead of internal IDs', () => {

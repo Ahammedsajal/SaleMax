@@ -1,11 +1,25 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),express=require('express'),crypto=require('node:crypto');
-const {createBusinessFeatureSession}=require('../modules/platform/business-feature-session');
+const {createBusinessFeatureSession,legacyContext}=require('../modules/platform/business-feature-session');
 const {createTaskRouter}=require('../modules/platform/task-router');
 const {createTaskContext}=require('../modules/platform/training-task-context');
 const {trainingCenter}=require('../modules/platform/categories');
 const tenantId='11111111-1111-4111-8111-111111111111';
 const hash=v=>crypto.createHash('sha256').update(v).digest('hex');
+test('legacy feature context retains the stored category alias while policy resolves the canonical contract',async()=>{
+  const {salemaxSales}=require('../modules/platform/categories');
+  const actor={id:9,uid:'legacy-sales-owner'};
+  const db={query:async(sql,args)=>{
+    if(sql.includes('FROM sx_legacy_ownership o JOIN sx_tenants t'))return [[{uidHash:hash(actor.uid),tenantId:'11111111-1111-4111-8111-111111111111',tenantName:'Synthetic Sales',tenantStatus:'active',categoryKey:'salemax_sales',categoryVersion:1,currency:'QAR',timezone:'Asia/Qatar',membershipId:'sales-owner',identityId:'identity-sales-owner',role:'owner',membershipStatus:'active',identityStatus:'active',roleProfileId:null,delegatedPermissions:'[]',assignedNavigation:null,rolePermissions:null,seatRole:null,roleStatus:null}]];
+    if(sql.includes('FROM sx_plan_assignments'))return [[{id:'assignment',status:'active',role_limits:{owner:1,accountant:1,manager:1,team_leader:1,agent:2},capabilities:[...salemaxSales.capabilities],category_key:'7network_sales',category_version:1,current_period:1}]];
+    throw Error('Unexpected query: '+sql+' '+JSON.stringify(args));
+  }};
+  const context=await legacyContext(db,actor);
+  assert.equal(context.tenant.categoryKey,'salemax_sales');
+  assert.equal(context.category.key,'7network_sales');
+  assert.equal(context.subscription.categoryKey,'7network_sales');
+  assert.deepEqual(require('../modules/platform/policy').decision(context,{capability:'sales.deals',permission:'deals.read'}),{allowed:true,scope:'tenant'});
+});
 test('existing Task handlers accept the panel Agent session and enforce current scope, grants and origin',async t=>{
   let grants=['tasks.read','tasks.manage'],active=true;const seen=[];
   const actor={id:7,uid:'agent-uid',owner_uid:'owner-uid',password:'synthetic',is_active:1},owner={id:1,uid:'owner-uid',role:'user'};
@@ -14,6 +28,7 @@ test('existing Task handlers accept the panel Agent session and enforce current 
     if(sql.includes('SELECT u.uid,m.id AS membershipId'))return [[{uid:owner.uid,uidHash:hash(owner.uid),membershipId:'owner-member',identityId:'owner-identity'}]];
     if(sql.includes('o.legacy_uid_hash AS uidHash'))return [[{uidHash:hash(actor.uid),tenantId,tenantStatus:'active',categoryKey:'training_center',categoryVersion:1,membershipId:'member',identityId:'identity-agent',role:'agent',membershipStatus:active?'active':'revoked',identityStatus:'active',delegatedPermissions:'[]',assignedNavigation:null,roleProfileId:'profile',rolePermissions:JSON.stringify(grants),seatRole:'agent',roleStatus:'active'}]];
     if(sql.includes('FROM sx_plan_assignments'))return [[{id:'assignment',status:'active',current_period:1,role_limits:JSON.stringify({owner:1,accountant:2,manager:2,agent:10}),capabilities:JSON.stringify(trainingCenter.capabilities),category_key:'training_center',category_version:1}]];
+    if(sql.includes('FROM sx_tenant_customization_heads'))return [[]];
     if(sql.includes('FROM sx_legacy_ownership o JOIN agents a'))return [[{id:7}]];
     if(sql.startsWith('SELECT id,COALESCE'))return [[{id:7,label:'Agent'}]];
     if(sql.startsWith('SELECT m.identity_id'))return [[{actorId:'owner-identity',role:'owner',label:'Main User'}]];

@@ -1,5 +1,5 @@
 'use strict';
-const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/workspace/automation/flows':'/api/chat_flow','/api/workspace/automation/chatbot':'/api/chatbot','/api/workspace/templates':'/api/templet','/api/workspace/campaigns':'/api/broadcast','/api/workspace/inbox':'/api/inbox','/api/workspace/pipeline':'/api/pipeline'}[String(value||'').replace(/\/$/,'')]||String(value||'').replace(/\/$/,''));
+const canonicalMount=value=>({'/api/workspace/channels/qr':'/api/qr','/api/workspace/automation/flows':'/api/chat_flow','/api/workspace/automation/chatbot':'/api/chatbot','/api/workspace/templates':'/api/templet','/api/workspace/campaigns':'/api/broadcast','/api/workspace/inbox':'/api/inbox','/api/workspace/pipeline':'/api/pipeline','/api/user/training/forms':'/api/workspace/forms'}[String(value||'').replace(/\/$/,'')]||String(value||'').replace(/\/$/,''));
 
 const jwt=require('jsonwebtoken');
 const policy=require('./policy');

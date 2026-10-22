@@ -27,8 +27,8 @@
   button.disabled=controls.length>=24;addControls.append(types,button);section.append(addControls);form.querySelector('.actions')?.before(section);models.set(panel,controls);
  }
  function collect(panel){return (models.get(panel)||[]).map(entry=>({...entry.field,label:{en:entry.en.value.trim(),ar:entry.ar.value.trim()},required:entry.required.checked,active:entry.active.checked}));}
- // Reset archives definitions instead of losing their stable identity/history.
- function reset(panel){for(const entry of models.get(panel)||[])entry.active.checked=false;}
+ // Restore inherited definitions and discard tenant-only field changes.
+ function reset(panel,inherited=[]){mount(panel,inherited);}
  function preview(host,fields){const list=document.createElement('ul');for(const field of fields||[]){const line=document.createElement('li');line.textContent=field.label.en+' · '+field.label.ar+' · '+field.type+' · '+(field.active?tr('Active','نشط'):tr('Archived','مؤرشف'))+(field.required?' · '+tr('Required','مطلوب'):'');list.append(line);}host.append(list);}
  window.SaleMaxLeadFieldEditor=Object.freeze({mount,collect,reset,preview});
 })();

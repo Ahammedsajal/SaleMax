@@ -29,6 +29,7 @@ const {
   mergeConversationLists,
   sanitizeMergedRows,
 } = require("../inbox/chatData.js");
+const inboxMediaAccess = require("../../modules/platform/inbox-media-access");
 const {
   sendMessageTelegram,
 } = require("../addon/telegram/processTelegramInbox.js");
@@ -55,6 +56,7 @@ function processSocketEvent({
       if (type === "unasign_chat_agent" && agentAccount) throw Object.assign(new Error("TEAM_INBOX_PERMISSION_DENIED"), { code: "TEAM_INBOX_PERMISSION_DENIED" });
       const isAgent=agentAccount&&!inboxScope.canonical;
       const uid = inboxScope.uid;
+      const inboxOwnerUid = isAgent ? socket?.userData?.owner_uid : uid;
       payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {});
       switch (type) {
         case "get_chat_list":
@@ -77,8 +79,9 @@ function processSocketEvent({
           let chats = [];
 
           if (isAgent) {
-            let queryStr = `FROM beta_chats WHERE (assigned_agent LIKE ? OR assigned_agent LIKE ?)`;
+            let queryStr = `FROM beta_chats WHERE uid = ? AND (assigned_agent LIKE ? OR assigned_agent LIKE ?)`;
             const queryParams = [
+              chatListOwnerUid,
               `%"id":${socket.userData.id}%`,
               `%"id":${socket.userData.id}"%`,
             ];
@@ -185,9 +188,17 @@ function processSocketEvent({
           const contacts = await query(`SELECT * FROM contact WHERE uid = ?`, [
             chatListOwnerUid,
           ]);
-          const chatData = mergeArraysWithPhonebook(
-            sanitizeMergedRows(chats),
-            contacts,
+          const chatData = inboxMediaAccess.signChatLastMessages(
+            mergeArraysWithPhonebook(sanitizeMergedRows(chats), contacts),
+            {
+              key: process.env.JWTKEY,
+              origin: process.env.FRONTENDURI,
+              ownerUid: chatListOwnerUid,
+              actor: socket.userData,
+              delegatedSessionId: socket.decodedToken?.delegatedSessionId,
+              sessionExpiresAt: socket.decodedToken?.exp,
+              agent: agentAccount,
+            },
           );
 
           let agentData = await query(
@@ -356,12 +367,19 @@ function processSocketEvent({
                 ? new Date(m.timestamp * 1000).toISOString()
                 : "",
               message_body: ctx?.text?.body || "",
-              media_link:
-                ctx?.image?.link ||
-                ctx?.video?.link ||
-                ctx?.audio?.link ||
-                ctx?.document?.link ||
-                "",
+              media_link: inboxMediaAccess.signMediaLink(
+                ctx?.image?.link || ctx?.video?.link || ctx?.audio?.link || ctx?.document?.link || "",
+                {
+                  key: process.env.JWTKEY,
+                  origin: process.env.FRONTENDURI,
+                  ownerUid: exportConversationOwnerUid,
+                  chatId: exportChatId,
+                  actor: socket.userData,
+                  delegatedSessionId: socket.decodedToken?.delegatedSessionId,
+                  sessionExpiresAt: socket.decodedToken?.exp,
+                  agent: agentAccount,
+                },
+              ),
               media_caption:
                 ctx?.image?.caption ||
                 ctx?.video?.caption ||
@@ -411,14 +429,13 @@ function processSocketEvent({
           } = filters;
 
           // unreading the message count
-          await query(`UPDATE beta_chats SET unread_count = ? WHERE id = ?`, [
+          await query(`UPDATE beta_chats SET unread_count = ? WHERE id = ? AND uid = ?`, [
             0,
             chat?.id,
+            inboxOwnerUid,
           ]);
 
-          const conversationOwnerUid = isAgent
-            ? socket?.userData?.owner_uid
-            : uid;
+          const conversationOwnerUid = inboxOwnerUid;
           const conversationLimit = Math.min(
             500,
             Math.max(
@@ -465,8 +482,18 @@ function processSocketEvent({
           const displayConversation = [...mergedConversation].reverse();
 
           const conversationTotal = displayConversation.length;
-          const parsedChatList = sanitizeMergedRows(
-            displayConversation.slice(msgOffset, msgOffset + msgLimit),
+          const parsedChatList = inboxMediaAccess.signConversation(
+            sanitizeMergedRows(displayConversation.slice(msgOffset, msgOffset + msgLimit)),
+            {
+              key: process.env.JWTKEY,
+              origin: process.env.FRONTENDURI,
+              ownerUid: conversationOwnerUid,
+              chatId: chat.chat_id,
+              actor: socket.userData,
+              delegatedSessionId: socket.decodedToken?.delegatedSessionId,
+              sessionExpiresAt: socket.decodedToken?.exp,
+              agent: agentAccount,
+            },
           );
 
           const labelAdded = await query(
@@ -475,8 +502,8 @@ function processSocketEvent({
           );
 
           let [updatedChat] = await query(
-            `SELECT * FROM beta_chats WHERE id = ?`,
-            [chat?.id],
+            `SELECT * FROM beta_chats WHERE id = ? AND uid = ?`,
+            [chat?.id, conversationOwnerUid],
           );
           let agents = await query(
             `SELECT * FROM agents WHERE owner_uid = ?`,
@@ -580,7 +607,7 @@ function processSocketEvent({
 
         case "on_label_delete":
           const { labelId } = payload;
-          await query(`DELETE FROM chat_tags WHERE id = ?`, [labelId]);
+          await query(`DELETE FROM chat_tags WHERE id = ? AND uid = ?`, [labelId, uid]);
 
           const labelNew = await query(
             `SELECT * FROM chat_tags WHERE uid = ?`,
@@ -600,8 +627,8 @@ function processSocketEvent({
 
           // Get existing labels first
           const [existingLabelsRow] = await query(
-            `SELECT chat_label FROM beta_chats WHERE id = ?`,
-            [chatIdRow],
+            `SELECT chat_label FROM beta_chats WHERE id = ? AND uid = ?`,
+            [chatIdRow, inboxOwnerUid],
           );
 
           let existingLabels = [];
@@ -626,9 +653,10 @@ function processSocketEvent({
           }
 
           // Update with the new labels array
-          await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ?`, [
+          await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ? AND uid = ?`, [
             JSON.stringify(existingLabels),
             chatIdRow,
+            inboxOwnerUid,
           ]);
 
           socket.emit("request_update_opened_chat", {});
@@ -645,8 +673,8 @@ function processSocketEvent({
 
           // Get existing labels
           const [labelsRow] = await query(
-            `SELECT chat_label FROM beta_chats WHERE id = ?`,
-            [chatIdd],
+            `SELECT chat_label FROM beta_chats WHERE id = ? AND uid = ?`,
+            [chatIdd, inboxOwnerUid],
           );
 
           if (labelsRow?.chat_label) {
@@ -664,9 +692,10 @@ function processSocketEvent({
               );
 
               // Update the database
-              await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ?`, [
+              await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ? AND uid = ?`, [
                 JSON.stringify(updatedLabels),
                 chatIdd,
+                inboxOwnerUid,
               ]);
             } catch (err) {
               console.error("Error parsing labels:", err);
@@ -682,8 +711,8 @@ function processSocketEvent({
 
           if (chatNoteId && chatRealId) {
             const [getFirst] = await query(
-              `SELECT * FROM beta_chats WHERE id = ?`,
-              [chatRealId],
+              `SELECT * FROM beta_chats WHERE id = ? AND uid = ?`,
+              [chatRealId, inboxOwnerUid],
             );
 
             // get notes array
@@ -692,9 +721,10 @@ function processSocketEvent({
             // filter out the note to be deleted
             const newNotes = oldNotes.filter((note) => note.id !== chatNoteId);
 
-            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ?`, [
+            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ? AND uid = ?`, [
               JSON.stringify(newNotes),
               chatRealId,
+              inboxOwnerUid,
             ]);
           }
 
@@ -706,8 +736,8 @@ function processSocketEvent({
 
           if (id) {
             const [getFirst] = await query(
-              `SELECT * FROM beta_chats WHERE id = ?`,
-              [id],
+              `SELECT * FROM beta_chats WHERE id = ? AND uid = ?`,
+              [id, inboxOwnerUid],
             );
 
             // get notes array
@@ -735,9 +765,10 @@ function processSocketEvent({
               },
             ];
 
-            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ?`, [
+            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ? AND uid = ?`, [
               JSON.stringify(newArr),
               id,
+              inboxOwnerUid,
             ]);
           }
           socket.emit("request_update_opened_chat", {});
@@ -1089,6 +1120,7 @@ function processSocketEvent({
               uid: isAgent ? socket?.userData?.owner_uid : uid,
               chatId: delChatId,
               conversationData,
+              queryFn: query,
             });
 
             if (deleteType === "delete") {
@@ -1136,7 +1168,8 @@ function processSocketEvent({
 
         case "del_contact":
           const { contactId } = payload;
-          await query(`DELETE FROM contact WHERE id = ?`, [contactId]);
+          const deletionOwnerUid = isAgent ? socket?.userData?.owner_uid : uid;
+          await query(`DELETE FROM contact WHERE id = ? AND uid = ?`, [contactId, deletionOwnerUid]);
           socket.emit("request_update_chat_list");
           socket.emit("request_update_opened_chat");
 
@@ -1145,7 +1178,18 @@ function processSocketEvent({
         case "update_spend_time":
           const { uid: agentUidd, timeSpent } = payload;
 
-          if (!agentUidd || !timeSpent) {
+          if (
+            !agentAccount ||
+            !agentUidd ||
+            agentUidd !== actorUid ||
+            !Number.isInteger(timeSpent) ||
+            timeSpent < 1 ||
+            timeSpent > 5
+          ) {
+            return socket.emit("error", { msg: "Invalid time update request" });
+          }
+          const agentOwnerUid = socket.userData.owner_uid;
+          if (!agentOwnerUid) {
             return socket.emit("error", { msg: "Invalid time update request" });
           }
 
@@ -1154,13 +1198,17 @@ function processSocketEvent({
 
           // Get existing logs
           const [agentDataa] = await query(
-            `SELECT logs FROM agents WHERE uid = ?`,
-            [agentUidd],
+            `SELECT logs FROM agents WHERE uid = ? AND owner_uid = ? LIMIT 1`,
+            [agentUidd, agentOwnerUid],
           );
 
           let logs = {};
           try {
-            logs = agentDataa?.logs ? JSON.parse(agentDataa.logs) : {};
+            logs = agentDataa?.logs
+              ? typeof agentDataa.logs === "string"
+                ? JSON.parse(agentDataa.logs)
+                : agentDataa.logs
+              : {};
           } catch (e) {
             console.error("Error parsing logs:", e);
             logs = {};
@@ -1175,9 +1223,10 @@ function processSocketEvent({
           logs.spendTime[today] = (logs.spendTime[today] || 0) + timeSpent;
 
           // Save updated logs
-          await query(`UPDATE agents SET logs = ? WHERE uid = ?`, [
+          await query(`UPDATE agents SET logs = ? WHERE uid = ? AND owner_uid = ?`, [
             JSON.stringify(logs),
             agentUidd,
+            agentOwnerUid,
           ]);
 
           break;

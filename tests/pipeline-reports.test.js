@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {periodWindow,getActivityReport,getJourneyReport}=require('../helper/pipeline/reports');
+const {periodWindow,getActivityReport,getJourneyReport,getReportLeads}=require('../helper/pipeline/reports');
 const {reconcileExisting}=require('../modules/platform/training-lead-journey');
 
 test('pipeline reports define Qatar-local daily, Monday-weekly and monthly periods',()=>{
@@ -16,6 +16,24 @@ test('pipeline reports reject unsupported periods, invalid dates, roles and pagi
   const pool={getConnection(){throw new Error('must not connect')}};
   await assert.rejects(getActivityReport({pool,uid:'synthetic',role:'accountant'}),{status:403});
   await assert.rejects(getActivityReport({pool,uid:'synthetic',role:'owner',page:0}),{status:400});
+});
+
+test('report lead drill-down returns only typed custom-field snapshots within the existing actor scope',async()=>{
+  const queries=[];
+  const connection={release(){},async query(sql,params=[]){queries.push({sql,params});
+    if(sql.includes('SELECT COUNT(*) AS total FROM ('))return [[{total:1}]];
+    if(sql.includes('SELECT l.id AS leadId'))return [[{leadId:31,title:'Reference',contactName:'Sam',mobile:'+97455550000',stageKey:'new',agentId:9,agentName:'Mona',createdAt:'2026-10-01 10:00:00',qualificationData:JSON.stringify({email:'private@example.test',customFields:{cf_text_0123456789abcdef:{value:'A-17',definition:{key:'cf_text_0123456789abcdef',type:'text',label:{en:'Account reference',ar:'مرجع الحساب'},version:1},configurationRevision:8}}})}]];
+    throw new Error(`Unexpected report query: ${sql}`);
+  }};
+  const report=await getReportLeads({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'agent',agentId:9,kind:'created',date:'2026-10-01'});
+  assert.equal(report.total,1);
+  assert.deepEqual(report.items[0].customFields,{cf_text_0123456789abcdef:{value:'A-17',definition:{key:'cf_text_0123456789abcdef',type:'text',label:{en:'Account reference',ar:'مرجع الحساب'},version:1},configurationRevision:8}});
+  assert.equal(Object.hasOwn(report.items[0],'qualificationData'),false);
+  const leadQuery=queries.find(item=>item.sql.includes('SELECT l.id AS leadId'));
+  assert.match(leadQuery.sql,/l\.uid_hash=\? AND l\.id=report_leads\.id/);
+  assert.match(leadQuery.sql,/l\.owner_agent_id=\?/);
+  assert.ok(leadQuery.params.includes(9));
+  for(const {sql,params} of queries)assert.equal(params.length,(sql.match(/\?/g)||[]).length,`placeholder count for ${sql.slice(0,90)}`);
 });
 
 test('managers can read sales activity reports without receiving finance totals',async()=>{
@@ -91,6 +109,7 @@ test('journey report combines current pipeline stages, period sources and agent 
     throw new Error(`Unexpected query: ${sql}`);
   }};
   const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'owner',period:'daily',at:'2026-10-01',assignment:'assigned',qrInstanceId:17});
+  assert.match(queries[0],/lead_id CHAR\(36\) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci/);
   assert.deepEqual(report.summary,{newLeads:2,leadsAttended:2,stageChanges:3,salesConverted:1,salesClosedByAgents:1,openLeads:2,wonLeads:1,lostLeads:0});
   assert.equal(report.stages[0].total,2);assert.equal(report.sources[0].total,2);
   assert.equal(report.stages[0].cohortTotal,1);
@@ -112,11 +131,31 @@ test('journey report combines current pipeline stages, period sources and agent 
   assert.match(cohortQuery,/pa\.activity_type IN \('contact_outcome','agent_message_sent'\)/);assert.doesNotMatch(cohortQuery,/note_added/);
   const cohortJourneyQuery=queries.find(sql=>sql.includes('WITH cohort_leads AS'));
   assert.equal((cohortJourneyQuery.match(/e\.legacy_uid COLLATE utf8mb4_general_ci=c\.uid COLLATE utf8mb4_general_ci/g)||[]).length,7);
+  const scopedTenantUidJoins=queries.join('\n').match(/(?:scoped_lead|fl)\.uid COLLATE utf8mb4_general_ci=e\.legacy_uid COLLATE utf8mb4_general_ci/g)||[];
+  assert.equal(scopedTenantUidJoins.length,6);
+  assert.doesNotMatch(queries.join('\n'),/(?:scoped_lead|fl)\.uid\s*=\s*e\.legacy_uid/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_receipts/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_enrollment_events/);
   assert.equal(queries.length,11);
   assert.match(queries[2],/l.owner_agent_id IS NOT NULL/);assert.match(queries[2],/qif.id = \?/);
   for(const sql of queries.filter(item=>item.includes('FROM pipeline_stages')||item.includes('GROUP BY l.source_type')||item.includes('AS new_leads')||item.includes('FROM agents a')||item.includes("JSON_EXTRACT(pa.details,'$.stageTo')")))assert.match(sql,/sx_report_lead_scope/);
+});
+
+test('7Network Sales journey report compares agent activity IDs with a compatible collation',async()=>{
+  const queries=[];
+  const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
+    if(sql.includes('FROM pipeline_stages'))return [[{stageKey:'won',title:'Won',stageType:'won',position:10,total:'1',cohortTotal:'1'}]];
+    if(sql.includes('GROUP BY l.source_type'))return [[]];
+    if(sql.includes('AS new_leads'))return [[{new_leads:1,stage_changes:0,sales_converted:1,sales_closed_by_agents:1,leads_attended:0}]];
+    if(sql.includes('FROM agents a'))return [[{agentId:7,agentName:'Synthetic Agent',active:1,assignedLeads:1,newLeads:1,attendedLeads:0,agentReplies:0,followUpsDue:0,followUpsOverdue:0,salesAttributed:1,salesClosedByAgent:1}]];
+    if(sql.includes("JSON_EXTRACT(pa.details,'$.stageTo')"))return [[]];
+    throw new Error(`Unexpected sales journey query: ${sql}`);
+  }};
+  const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'synthetic-sales-owner',role:'owner',categoryKey:'7network_sales',period:'daily',at:'2026-10-22'});
+  assert.equal(report.categoryKey,'7network_sales');
+  const agentQuery=queries.find(sql=>sql.includes('FROM agents a'));
+  assert.match(agentQuery,/pa\.actor_id COLLATE utf8mb4_general_ci=CAST\(a\.id AS CHAR\) COLLATE utf8mb4_general_ci/);
+  assert.doesNotMatch(agentQuery,/pa\.actor_id\s*=\s*CAST\(a\.id AS CHAR\)/);
 });
 
 test('legacy enrollment reconciliation uses a compatible collation for tenant uid joins',async()=>{

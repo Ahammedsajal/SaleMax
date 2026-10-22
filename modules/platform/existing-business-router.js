@@ -54,7 +54,8 @@ function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
   }));
   router.get('/:userId/provision-options',wrap(async(req,res)=>{
     if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_ASSIGNMENT'});
-    const categoryKey=typeof req.query.categoryKey==='string'?req.query.categoryKey:'training_center';
+    const categoryKey=typeof req.query.categoryKey==='string'?req.query.categoryKey:'';
+    if(!categoryKey)throw Object.assign(new Error('INVALID_CATEGORY'),{code:'INVALID_CATEGORY'});
     const rawVersion=req.query.categoryVersion;
     if(rawVersion!==undefined&&(typeof rawVersion!=='string'||! /^[1-9][0-9]*$/.test(rawVersion)))throw Object.assign(new Error(),{code:'INVALID_CATEGORY_VERSION'});
     const categoryVersion=rawVersion===undefined?1:Number(rawVersion);
