@@ -2043,23 +2043,22 @@ tenants. Four focused registry checks pass, including modified-contract and
 missing-lock rejection. No migration, plan/tenant assignment or production
 change occurred.
 
-## Recruitment application error guidance — source only, 22 October 2026
+## Recruitment application error guidance — production, 22 October 2026
 
-The public application form now gives applicants clear bilingual guidance when
-secure CV storage or recruitment-owner delivery is unavailable, while retaining
-the safe diagnostic code in brackets for support. It does not expose internal
-error messages or candidate data. The source branch includes expanded
-plain-language explanations for storage, network, database and upload causes,
-with the safe exact code alongside each explanation. Focused recruitment form
-and error tests pass 22/22. Production was inspected read-only: its current
-application page and error script return HTTP 200, the public form API responds
-successfully, recruitment migrations are applied, the configured CV directory
-is present and writable, and no public-submission server failures were recorded
-in the app logs over the previous 72 hours. The live form still uses the earlier
-error-copy asset version, so exact source parity has not been achieved and no
-production update was made. The cause of the reported individual failure remains
-unconfirmed without its diagnostic code. Production disk has 847 MB free (99%
-used), which remains an operational risk.
+The existing public application form now explains CV storage, recruitment
+delivery, network, database and upload failures in clear English and Arabic,
+with the safe diagnostic code in brackets for support. Internal error text and
+candidate data remain private. Source commit `2a8f5ef` is recorded in
+`DEPLOYMENT.md`; only the maintained error formatter and cache-busting strings
+in the existing application HTML were overlaid onto a copy of the resolved live
+release, preserving production-only files. Focused recruitment tests pass 22/22.
+The production-derived release and running container hashes match, and the
+application page/API plus health and login routes return HTTP 200. No migrations
+or applicant data changes occurred. The reported individual failure was not
+reproduced; its specific cause remains unknown until its diagnostic code is
+shared. Production disk remains at 99% with 684 MB free. Authenticated
+submission, visual EN/AR acceptance, and the complete 42-ticket objective remain
+open. See `DEPLOYMENT.md` for release, rollback, and verification evidence.
 
 ## Tenant-specific module access — source only, 22 October 2026
 
