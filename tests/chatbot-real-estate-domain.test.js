@@ -42,7 +42,7 @@ test('property facts are loaded by tenant, category version, active state and a 
   assert.match(calls[0].sql, /p\.tenant_id=\?/);
   assert.match(calls[0].sql, /p\.status='active'/);
   assert.match(calls[0].sql, /t\.category_key='real_estate'/);
-  assert.match(calls[0].sql, /t\.category_version IN \(1,2,3\)/);
+  assert.match(calls[0].sql, /t\.category_version IN \(1,2,3,4\)/);
   assert.match(calls[0].sql, /p\.chatbot_visible=1/);
   assert.match(calls[0].sql, /LIMIT 50/);
   assert.deepEqual(calls.map(call => call.args), [['tenant-a'], ['tenant-b']]);

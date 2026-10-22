@@ -75,7 +75,7 @@ async function sidebarForMembership(pool,context,rows){
 // member's action permissions still decide which operations are available.
 function keysForCapability(capability){
   if(['finance.invoices','finance.installments','finance.payments','finance.receipts'].includes(capability))return ['invoices','installments','payments','receipts'];
-  if(['realestate.requirements','realestate.viewings'].includes(capability))return ['properties'];
+  if(['realestate.requirements','realestate.viewings','realestate.parties'].includes(capability))return ['properties'];
   return items.filter(item=>item.capability===capability).map(item=>item.key);
 }
 module.exports = { items, navigationFor, keysForCapability,parseSidebar,filterSidebar,sidebarForMembership };

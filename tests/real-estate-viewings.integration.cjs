@@ -9,6 +9,7 @@ const mysql=require('mysql2/promise');
 const categories=require('../modules/platform/categories');
 const properties=require('../modules/platform/real-estate-properties');
 const viewings=require('../modules/platform/real-estate-viewings');
+const parties=require('../modules/platform/real-estate-parties');
 if(process.env.REALESTATE_SYNTHETIC_ONLY!=='true')throw Error('REALESTATE_SYNTHETIC_ONLY_REQUIRED');
 const config=JSON.parse(fs.readFileSync(process.env.REALESTATE_TEST_CONFIG,'utf8'));
 if(!/^sx_real_estate_test_[a-f0-9]+$/.test(config.database)||config.database!==config.user)throw Error('DISPOSABLE_REALESTATE_SCHEMA_REQUIRED');
@@ -33,7 +34,7 @@ async function createActiveProperty(){const draft=await use(db=>properties.creat
   const [[existing]]=await pool.query('SELECT COUNT(*) AS total FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()');
   assert.equal(Number(existing.total),0,'synthetic schema must be empty');
   for(const sql of schema)await pool.query(sql);
-  for(const file of ['20261229_real_estate_properties.sql','20261230_real_estate_requirements.sql','20261231_real_estate_viewings.sql','20261232_real_estate_chatbot_visibility.sql']){
+  for(const file of ['20261229_real_estate_properties.sql','20261230_real_estate_requirements.sql','20261231_real_estate_viewings.sql','20261232_real_estate_chatbot_visibility.sql','20261233_real_estate_parties.sql']){
     const source=fs.readFileSync(path.join(__dirname,'../database/migrations',file),'utf8');
     for(const sql of require('../database/migration-runner').splitSql(source))await pool.query(sql);
   }
@@ -64,5 +65,13 @@ async function createActiveProperty(){const draft=await use(db=>properties.creat
   if(finalProperty.status==='active')assert.ok(closeRace.some(row=>row.status==='rejected'&&row.reason.code==='PROPERTY_HAS_SCHEDULED_VIEWINGS'));
   const [[audit]]=await pool.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE tenant_id=? AND action LIKE 'real-estate.viewing-%'",[tenantId]);
   assert.equal(Number(audit.total),3,'created views and completed update must be audited');
-  process.stdout.write(`${JSON.stringify({passed:true,checks:['v1-v3 migrations apply on a disposable database','viewing create and audit persist atomically','scheduled viewings prevent property closure','concurrent same-property bookings have one winner','concurrent completion and property closure preserve lock order and invariants'],customerDataTouched:false,externalWrites:false})}\n`);
+  await pool.query('UPDATE sx_tenants SET category_version=4 WHERE id=?',[tenantId]);
+  const partyContext={...context,tenant:{...context.tenant,categoryVersion:4},category:categories.realEstateV4,subscription:{...context.subscription,categoryVersion:4,capabilities:[...categories.realEstateV4.capabilities]}};
+  const partyAssignees=await use(db=>parties.listAssignees(db,partyContext));assert.equal(partyAssignees.items.length,1);assert.equal(partyAssignees.items[0].membershipId,agentMembership);
+  const partyAttempts=await Promise.allSettled([use(db=>parties.create(db,partyContext,{leadId:leadIds[0],propertyId:property.id,partyType:'buyer'})),use(db=>parties.create(db,partyContext,{leadId:leadIds[0],propertyId:property.id,partyType:'buyer'}))]);
+  assert.equal(partyAttempts.filter(row=>row.status==='fulfilled').length,1);assert.equal(partyAttempts.filter(row=>row.status==='rejected'&&row.reason.code==='PARTY_ALREADY_EXISTS').length,1);
+  const partyList=await use(db=>parties.list(db,partyContext,{status:'all'}));assert.equal(partyList.total,1);assert.equal(partyList.items[0].partyType,'buyer');const party=partyAttempts.find(row=>row.status==='fulfilled').value;
+  const closedParty=await use(db=>parties.update(db,partyContext,party.id,{status:'closed',expectedRevision:1}));assert.equal(closedParty.status,'closed');
+  const [[partyAudit]]=await pool.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE tenant_id=? AND action LIKE 'real-estate.party-%'",[tenantId]);assert.equal(Number(partyAudit.total),2);
+  process.stdout.write(`${JSON.stringify({passed:true,checks:['v1-v4 migrations apply on a disposable database','viewing create and audit persist atomically','scheduled viewings prevent property closure','concurrent same-property bookings have one winner','concurrent completion and property closure preserve lock order and invariants','party assignment options and concurrent duplicate links are tenant scoped and audited'],customerDataTouched:false,externalWrites:false})}\n`);
 }finally{await pool.end();}})().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message}));process.exitCode=1;});
