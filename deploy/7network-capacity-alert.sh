@@ -38,9 +38,46 @@ threshold_severity "$disk_percent"
 threshold_severity "$inode_percent"
 if (( disk_free_bytes < free_warning_bytes )); then raise_severity warning 1; fi
 
-previous=normal
-if [[ -f "$state_file" ]]; then IFS= read -r previous < "$state_file" || previous=normal; fi
-if [[ "$severity" == "$previous" || ( "$severity" == normal && "$previous" == normal ) ]]; then exit 0; fi
+health_failures=()
+inspect_service() {
+  local service="$1" requires_health="$2" ids id state running health
+  ids="$(timeout 10 docker ps -q \
+    --filter label=com.docker.compose.project=salemax \
+    --filter "label=com.docker.compose.service=$service" 2>/dev/null)" || ids=""
+  if [[ -z "$ids" ]]; then
+    health_failures+=("$service")
+    return
+  fi
+
+  for id in $ids; do
+    state="$(timeout 10 docker inspect --format '{{.State.Running}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null)" || state=unknown
+    IFS='|' read -r running health <<< "$state"
+    if [[ "$running" != true || ( "$requires_health" == true && "$health" != healthy ) ]]; then
+      health_failures+=("$service")
+      return
+    fi
+  done
+}
+
+# App and database expose Docker health checks. Workers do not, so their
+# running-container presence is the signal until dedicated checks are added.
+inspect_service app true
+inspect_service db true
+inspect_service report-worker false
+inspect_service recruitment-founder-notification-worker false
+if (( ${#health_failures[@]} > 0 )); then raise_severity critical 3; fi
+
+health_state=none
+if (( ${#health_failures[@]} > 0 )); then
+  health_state="$(IFS=,; printf '%s' "${health_failures[*]}")"
+fi
+current_state="$severity|$health_state"
+previous_state='normal|none'
+if [[ -f "$state_file" ]]; then IFS= read -r previous_state < "$state_file" || previous_state='normal|none'; fi
+# Read the previous severity-only format written by the original monitor.
+if [[ "$previous_state" != *'|'* ]]; then previous_state="$previous_state|none"; fi
+previous_health_state="${previous_state#*|}"
+if [[ "$current_state" == "$previous_state" ]]; then exit 0; fi
 
 webhook="${SALEMAX_CAPACITY_ALERT_WEBHOOK_URL:-}"
 if [[ ! "$webhook" =~ ^https://[^[:space:]]+$ ]]; then
@@ -53,9 +90,11 @@ host="$(hostname -f 2>/dev/null || hostname)"
 host="$(printf '%s' "$host" | tr -cd '[:alnum:]._-')"
 timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if [[ "$severity" == normal ]]; then
-  message="7Network host capacity recovered on ${host} at ${timestamp}. Disk ${disk_percent}% used (${disk_free_bytes} bytes free); inodes ${inode_percent}% used."
+  message="7Network host capacity and service health recovered on ${host} at ${timestamp}. Disk ${disk_percent}% used (${disk_free_bytes} bytes free); inodes ${inode_percent}% used."
 else
   message="7Network host capacity ${severity} on ${host} at ${timestamp}. Disk ${disk_percent}% used (${disk_free_bytes} bytes free); inodes ${inode_percent}% used."
+  if (( ${#health_failures[@]} > 0 )); then message+="; unhealthy or missing services: ${health_state}."; fi
+  if [[ "$health_state" == none && "$previous_health_state" != none ]]; then message+=" Service health recovered; capacity remains ${severity}."; fi
 fi
 payload="$(printf '{\"text\":\"%s\"}' "$message")"
 response_code="$(curl --fail --silent --show-error --max-time 10 --retry 2 --output /dev/null --write-out '%{http_code}' \
@@ -63,8 +102,8 @@ response_code="$(curl --fail --silent --show-error --max-time 10 --retry 2 --out
 [[ "$response_code" =~ ^2[0-9][0-9]$ ]] || { echo "Capacity webhook returned HTTP $response_code; alert state was not advanced" >&2; exit 1; }
 
 temporary="$state_file.$$"
-printf '%s\n' "$severity" > "$temporary"
+printf '%s\n' "$current_state" > "$temporary"
 chmod 0640 "$temporary"
 mv -f "$temporary" "$state_file"
-printf '[7network-capacity] webhook_accepted severity=%s disk=%s%% free=%s bytes inode=%s%%\n' \
-  "$severity" "$disk_percent" "$disk_free_bytes" "$inode_percent"
+printf '[7network-capacity] webhook_accepted severity=%s disk=%s%% free=%s bytes inode=%s%% services=%s\n' \
+  "$severity" "$disk_percent" "$disk_free_bytes" "$inode_percent" "$health_state"

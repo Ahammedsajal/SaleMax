@@ -23,6 +23,26 @@ case "$*" in
 esac
 `);
   fs.writeFileSync(path.join(bin, 'flock'), '#!/bin/sh\nexit 0\n');
+  fs.writeFileSync(path.join(bin, 'timeout'), '#!/bin/sh\nshift\nexec "$@"\n');
+  fs.writeFileSync(path.join(bin, 'docker'), `#!/bin/sh
+if [ "$1" = ps ]; then
+  service=
+  for arg do case "$arg" in label=com.docker.compose.service=*) service="${'${'}arg##*=}" ;; esac; done
+  case ",${'${'}TEST_DOCKER_MISSING:-}," in *",${'${'}service},"*) exit 0 ;; esac
+  printf 'id-%s\\n' "$service"
+  exit 0
+fi
+if [ "$1" = inspect ]; then
+  for arg do id="$arg"; done
+  service="${'${'}id#id-}"
+  status=none
+  [ "$service" != app ] || status="${'${'}TEST_DOCKER_APP_HEALTH:-healthy}"
+  [ "$service" != db ] || status="${'${'}TEST_DOCKER_DB_HEALTH:-healthy}"
+  printf 'true|%s\\n' "$status"
+  exit 0
+fi
+exit 1
+`);
   fs.writeFileSync(path.join(bin, 'curl'), `#!/bin/sh
 payload=
 while [ "$#" -gt 0 ]; do
@@ -33,7 +53,7 @@ printf '%s\\n' "$payload" >> "$TEST_CURL_LOG"
 [ "${'${'}TEST_CURL_FAIL:-0}" != 1 ] || exit 22
 printf '%s' "${'${'}TEST_HTTP_CODE:-200}"
 `);
-  for (const name of ['df', 'flock', 'curl']) fs.chmodSync(path.join(bin, name), 0o755);
+  for (const name of ['df', 'flock', 'timeout', 'docker', 'curl']) fs.chmodSync(path.join(bin, name), 0o755);
   const env = {
     ...process.env,
     PATH: `${bin}:${process.env.PATH || '/usr/bin:/bin'}`,
@@ -41,6 +61,9 @@ printf '%s' "${'${'}TEST_HTTP_CODE:-200}"
     SALEMAX_CAPACITY_PATH: '/',
     TEST_DISK_LINE: '100000000000 1000000000 99000000000 1%',
     TEST_INODE_LINE: '1000000 1000 999000 1%',
+    TEST_DOCKER_MISSING: '',
+    TEST_DOCKER_APP_HEALTH: 'healthy',
+    TEST_DOCKER_DB_HEALTH: 'healthy',
     TEST_CURL_LOG: path.join(root, 'payloads.log'),
     SALEMAX_CAPACITY_ALERT_WEBHOOK_URL: 'https://alerts.example.invalid/hook'
   };
@@ -80,7 +103,7 @@ test('disk critical transition sends once and deduplicates repeated checks', t =
   assert.equal(second.status, 0, second.stderr);
   assert.match(fs.readFileSync(f.payloadLog, 'utf8'), /capacity critical/);
   assert.equal(fs.readFileSync(f.payloadLog, 'utf8').trim().split('\n').length, 1);
-  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical');
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none');
 });
 
 test('inode thresholds and low-free-space thresholds can raise the alert level', t => {
@@ -105,8 +128,8 @@ test('recovery is reported after an alert clears', t => {
   assert.equal(run(f.env).status, 0);
   const payloads = fs.readFileSync(f.payloadLog, 'utf8').trim().split('\n');
   assert.equal(payloads.length, 2);
-  assert.match(payloads[1], /capacity recovered/);
-  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'normal');
+  assert.match(payloads[1], /capacity and service health recovered/);
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'normal|none');
 });
 
 test('delivery failure does not mark the alert as delivered', t => {
@@ -117,7 +140,7 @@ test('delivery failure does not mark the alert as delivered', t => {
   assert.equal(fs.existsSync(path.join(f.state, 'last-severity')), false);
   f.env.TEST_CURL_FAIL = '0';
   assert.equal(run(f.env).status, 0);
-  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical');
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none');
 });
 
 test('non-2xx webhook responses do not advance alert state', t => {
@@ -138,4 +161,55 @@ test('unsafe or missing webhook configuration fails closed when an alert is due'
   assert.equal(result.status, 2);
   assert.match(result.stderr, /HTTPS alert webhook is not configured/);
   assert.equal(fs.existsSync(path.join(f.state, 'last-severity')), false);
+});
+
+test('missing and unhealthy app or database services raise critical alerts', t => {
+  const f = fixture(t);
+  f.env.TEST_DOCKER_APP_HEALTH = 'unhealthy';
+  f.env.TEST_DOCKER_MISSING = 'recruitment-founder-notification-worker';
+  const result = run(f.env);
+  assert.equal(result.status, 0, result.stderr);
+  const payload = fs.readFileSync(f.payloadLog, 'utf8');
+  assert.match(payload, /capacity critical/);
+  assert.match(payload, /unhealthy or missing services: app,recruitment-founder-notification-worker/);
+  assert.equal(
+    fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(),
+    'critical|app,recruitment-founder-notification-worker'
+  );
+});
+
+test('service failure changes alert state and recovery is sent after services return', t => {
+  const f = fixture(t);
+  f.env.TEST_DOCKER_MISSING = 'report-worker';
+  assert.equal(run(f.env).status, 0);
+  f.env.TEST_DOCKER_MISSING = '';
+  assert.equal(run(f.env).status, 0);
+  const payloads = fs.readFileSync(f.payloadLog, 'utf8').trim().split('\n');
+  assert.equal(payloads.length, 2);
+  assert.match(payloads[0], /report-worker/);
+  assert.match(payloads[1], /capacity and service health recovered/);
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'normal|none');
+});
+
+test('service recovery is reported even when disk capacity remains critical', t => {
+  const f = fixture(t);
+  f.env.TEST_DISK_LINE = '100000000000 95000000000 5000000000 95%';
+  f.env.TEST_DOCKER_MISSING = 'report-worker';
+  assert.equal(run(f.env).status, 0);
+  f.env.TEST_DOCKER_MISSING = '';
+  assert.equal(run(f.env).status, 0);
+  const payloads = fs.readFileSync(f.payloadLog, 'utf8').trim().split('\n');
+  assert.equal(payloads.length, 2);
+  assert.match(payloads[1], /Service health recovered; capacity remains critical/);
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none');
+});
+
+test('legacy severity-only state migrates without sending a duplicate alert', t => {
+  const f = fixture(t);
+  fs.mkdirSync(f.state, { recursive: true });
+  fs.writeFileSync(path.join(f.state, 'last-severity'), 'critical\n');
+  f.env.TEST_DISK_LINE = '100000000000 95000000000 5000000000 95%';
+  const result = run(f.env);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(fs.existsSync(f.payloadLog), false);
 });
