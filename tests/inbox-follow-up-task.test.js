@@ -50,3 +50,11 @@ test('existing Inbox shell loads the maintained follow-up adapter',()=>{
   const fs=require('node:fs'),path=require('node:path'),html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   assert.match(html,/inbox-follow-up\.js\?v=/);
 });
+
+test('Inbox follow-up uses the selected conversation ID and validates the visible contact number',()=>{
+  const {chatIdFromCurrentChat}=require('../client/public/inbox-follow-up-chat-id');
+  assert.equal(chatIdFromCurrentChat({chat_id:'97450000002@s.whatsapp.net',sender_mobile:'+974 5000 0002'},'+97450000002'),'97450000002@s.whatsapp.net');
+  assert.equal(chatIdFromCurrentChat({chat_id:'synthetic-chat',sender_mobile:'+97450000002'},'+97450000002'),'synthetic-chat');
+  assert.equal(chatIdFromCurrentChat({chat_id:'other-chat',sender_mobile:'+97450000003'},'+97450000002'),null);
+  assert.equal(chatIdFromCurrentChat(null,'+97450000002'),null);
+});
