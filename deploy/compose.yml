@@ -20,7 +20,7 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
   app:
-    image: "salemax-app:${SALEMAX_IMAGE_TAG:?Set SALEMAX_IMAGE_TAG to the verified release image tag}"
+    image: "${SALEMAX_IMAGE_REF:?Set SALEMAX_IMAGE_REF to the verified immutable registry digest}"
     pull_policy: never
     restart: unless-stopped
     env_file: /opt/salemax/shared/runtime.env
@@ -59,7 +59,7 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
   report-worker:
-    image: "salemax-app:${SALEMAX_IMAGE_TAG:?Set SALEMAX_IMAGE_TAG to the verified release image tag}"
+    image: "${SALEMAX_IMAGE_REF:?Set SALEMAX_IMAGE_REF to the verified immutable registry digest}"
     pull_policy: never
     command: ["node", "scripts/training-report-worker.cjs"]
     restart: unless-stopped
@@ -77,7 +77,7 @@ services:
       options: {max-size: "10m", max-file: "3"}
 
   recruitment-founder-notification-worker:
-    image: "salemax-app:${SALEMAX_IMAGE_TAG:?Set SALEMAX_IMAGE_TAG to the verified release image tag}"
+    image: "${SALEMAX_IMAGE_REF:?Set SALEMAX_IMAGE_REF to the verified immutable registry digest}"
     pull_policy: never
     command: ["node", "scripts/recruitment-founder-notification-worker.cjs"]
     restart: unless-stopped

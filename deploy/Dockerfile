@@ -31,13 +31,12 @@ LABEL org.opencontainers.image.title="7Network CRM" \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
-        ffmpeg \
         libglib2.0-0 \
         libnspr4 \
         libnss3 \
     && rm -rf /var/lib/apt/lists/*
 
-ENV NODE_ENV=production FFMPEG_BIN=/usr/bin/ffmpeg
+ENV NODE_ENV=production
 WORKDIR /app
 
 COPY --from=build --chown=node:node /app /app

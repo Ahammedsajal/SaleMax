@@ -1,39 +1,58 @@
 # 7Network Docker build and release policy
 
-## Build the production artifact once
+## Build and publish the production artifact once
 
 - `deploy/Dockerfile` uses the official Node 22.23.3 Bookworm slim multi-architecture image pinned to the Docker Hub manifest digest `sha256:3ed98443660ff48413b5af19ecefce3b9d50845a901a43420d47cc63a9fddbe9`. Update that digest through a reviewed security update; do not use floating `node:22` tags for release builds.
-- Build dependencies (`git`, Python, Make and the C++ compiler) exist only in the build stage. The runtime stage retains the current ffmpeg and WebRTC libraries, production Node dependencies, application source and the existing non-root `node` account.
-- Build on the current single server from the staged release context, under a new release tag. The context can be derived from the active release to preserve reviewed production-only files; pass the full source commit SHA as `VCS_REF` and record any live-derived overlay hashes plus the resulting Docker image ID. A release tag is write-once; never retag it to different image bytes.
-- Set `SALEMAX_IMAGE_TAG` to that verified tag for Compose. The app, report worker and recruitment notification worker all resolve the same local image. Compose has no build section and uses `pull_policy: never`, so activation cannot rebuild or silently pull another image.
-- Preserve the active Compose file's production-only services, host mappings and persistent mounts when preparing each release. Run the candidate's configuration and runtime smoke checks before changing `/opt/salemax/current`; then verify the container image ID equals the built ID after activation.
+- Build dependencies (`git`, Python, Make and the C++ compiler) exist only in the build stage. The runtime stage retains the ARM64-aware `ffmpeg-static` binary, WebRTC system libraries, production Node dependencies, required application source and the existing non-root `node` account. The separately installed Debian `ffmpeg` duplicated the package binary and is removed after a runtime smoke check exercises the exact `ffmpeg-static` executable used by the existing routes.
+- `.dockerignore` excludes local environment files and key material, GitHub metadata, docs, tests, backups, logs, sessions, recordings, uploaded media and non-runtime deployment scripts. Review additions against actual runtime imports before excluding a source tree.
+- `.github/workflows/7network-arm64-image.yml` builds on pull requests and `main` for `linux/arm64` with read-only repository permissions. It uses pinned GitHub Action commit SHAs, labels the image with the full source commit, loads the built image into the runner, then smoke-tests the exact image. The smoke covers non-root execution, bcrypt, sharp, `@roamhq/wrtc`, ffmpeg, and ARM64 runtime architecture. Only a successful push build on `main` uploads the tested image archive.
+- `.github/workflows/7network-arm64-publish.yml` runs from the default branch after the image workflow completes. It accepts only a successful `push` workflow from `main` in this repository, downloads the artifact from that exact run ID, verifies the embedded commit and ARM64 architecture, and then pushes the already-tested image to `ghcr.io/ahammedsajal/salemax` with a run-unique source tag. Only this workflow receives package-write permission. It refuses to reuse an existing tag and records the registry digest. Deployments must pin `ghcr.io/ahammedsajal/salemax@sha256:…`; do not deploy by branch, `latest`, or a movable tag. The registry tag provides traceability while the digest is the immutable identity.
+- The production host must obtain the exact digest using its authorized read-only package access before activation. Keep registry credentials outside Git and protected runtime files; do not print them in command logs.
+- Compose requires `SALEMAX_IMAGE_REF` to be the verified registry digest for the app and both workers. It has no build section and uses `pull_policy: never`, so after the exact digest is present locally, activation cannot rebuild or fetch a different artifact. Verify that every running app/worker container reports the same requested image ID.
+- Preserve the active Compose file's production-only services, host mappings and persistent mounts when preparing each release. Use the current release as the starting point so verified production-only content is carried forward and record its hashes. Run candidate configuration and runtime smoke checks before changing `/opt/salemax/current`.
+
+## Shared production deployment lock
+
+- Every production mutation must run inside one process holding `/opt/salemax/shared/7network-production-deploy.lock` from the start of preflight through verification and any rollback. The lock is an OS-level `flock`; the file's existence alone is not mutual exclusion.
+- `deploy/with-production-lock.sh` is a synchronous wrapper. It refuses to run without `flock`, acquires the shared lock non-blocking, resolves `/opt/salemax/current` only after acquisition, requires the target to remain beneath `/opt/salemax/releases/`, and exports `SALEMAX_ACTIVE_RELEASE_BEFORE` for the operation.
+- Pass one command or script that performs the complete preflight/migration/deploy/verify/rollback sequence. Do not split a production mutation across independent SSH calls, background the operation, unlink or replace the lock file, or bypass the wrapper. Other chats and operators must use the same exact path and locking semantics.
+
+Example from an authorized SSH session:
+
+```sh
+/opt/salemax/current/deploy/with-production-lock.sh bash -s <<'REMOTE'
+set -euo pipefail
+# Recheck the active release, services, disk and rollback state here.
+# Keep migration, activation, verification and any rollback in this process.
+REMOTE
+```
 
 Build and preflight (run from a clean, reviewed source checkout):
 
 ```sh
-SOURCE_SHA="$(git rev-parse HEAD)"
-SALEMAX_IMAGE_TAG="7network-${SOURCE_SHA:0:12}-YYYYMMDD"
-BUILD_CONTEXT="$(pwd)"
-deploy/build-image.sh "$SALEMAX_IMAGE_TAG" "$SOURCE_SHA" "$BUILD_CONTEXT"
-SALEMAX_IMAGE_TAG="$SALEMAX_IMAGE_TAG" docker compose \
+SALEMAX_IMAGE_REF="ghcr.io/ahammedsajal/salemax@sha256:<verified-digest>"
+docker pull "$SALEMAX_IMAGE_REF"
+SALEMAX_IMAGE_REF="$SALEMAX_IMAGE_REF" docker compose \
   --env-file /opt/salemax/shared/stack.env \
   --file deploy/compose.yml config --quiet
 ```
 
-Do not activate an image until its embedded revision matches the reviewed source SHA, any live-derived overlay hashes match the record, and the Compose configuration resolves every application service to that tag. Compose activation uses the staged image and `--no-build`; it does not rebuild.
+Do not activate an image until its embedded revision matches the reviewed source SHA, the digest matches the workflow summary, any live-derived overlay hashes match the record, and the Compose configuration resolves every application service to that digest. Compose activation uses the pre-pulled image and `--no-build`; it does not rebuild. `deploy/build-image.sh` remains a local fallback for isolated runtime diagnosis and is not the production artifact publisher.
 
 ## Retention and disk controls
 
 - Keep the active release, the five most recent verified releases, and every release referenced by an active rollback snapshot or an unresolved deployment record. Keep the matching active and rollback image IDs/tags for the same set. Do not delete an image or release while any container, rollback procedure, or protected snapshot refers to it.
 - Perform cleanup as a dry-run inventory first. Prune only individually verified, unreferenced `salemax-app` release images; never use broad `docker system prune`, volume pruning, or age-only deletion. Keep other products' images, all customer volumes, uploads, database backups, sessions and rollback snapshots.
-- Alert at 75% root filesystem use (warning), 85% (urgent), and 90% (critical); also alert when less than 5 GiB remains. Resolve both percentage and free-space thresholds before a build. The 22 October 2026 production snapshot is 85% used with 7.8 GB free, 560 release directories and 16 GB in Docker images. The 7.8 GB measurement is a single point, not a capacity guarantee.
+- Alert at 75% root filesystem use (warning), 85% (urgent), and 90% (critical); also alert when less than 5 GiB remains. Resolve both percentage and free-space thresholds before a build. The initial 22 October 2026 production snapshot was 85% used with 7.8 GB free, 560 release directories and 16 GB in Docker images. The 7.8 GB measurement is a single point, not a capacity guarantee.
 - Seven-day host-level `sysstat` files (16–22 October; the 22nd is a partial day) show daily average CPU idle at 94.89–96.26% on the complete days and 92.94% so far on the 22nd. Average available memory stayed between 9.36 and 9.55 GiB on complete days (9.34 GiB so far on the 22nd); one-minute load averages stayed between 0.09 and 0.16 on complete days (0.20 so far on the 22nd). Average block-device utilization was 0.07–0.72% on complete days and 3.13% so far on the 22nd, which included cleanup work. These host-wide averages include Carsqatar and do not show peaks, tenant concurrency, app-only I/O or request latency.
 - The same point-in-time snapshot showed 11.65 GiB total host memory, 9.33 GiB available, load average 0.36/0.22/0.32, app 197 MiB of its 1 GiB limit and MariaDB 407 MiB of its 768 MiB limit. Collect peak/container and concurrency measurements for CPU, RSS, I/O, connection count, queue delay and disk growth before setting customer or tenant capacity promises.
+- A later same-day production recheck (22 October 2026, current release `7network-domain-activation-485c2d0-20261022`) measured 85% root filesystem use with 7.2 GiB free, 6,422,528 inodes with 1,317,473 used, and 109 total Docker images occupying 16 GiB. Docker build cache was 1.95 GiB; Docker volume data was 1.69 GiB and is shared with other services. Do not reclaim these figures with a broad prune. The ARM64 active app image was 475,069,960 bytes across 10 layers; the older report/recruitment worker image was 471,734,804 bytes across 10 layers. App/report/recruitment worker image identities were not aligned at this snapshot. A point-in-time sample cannot establish peak or tenant capacity.
+- Production domain recheck: `7network.live`, `www.7network.live`, and `crm.salemax.qa` all resolve to the same host, pass strict TLS hostname verification against a certificate whose SAN includes all three, and return HTTP 200 for `/` and `/user/login`. All three currently serve the same app without redirect. This proves public routing and TLS only; it does not prove authentication-cookie transfer or role-specific user workflows between hostnames.
 - The production host currently shares storage and Docker with Carsqatar. Disk cleanup and Docker build activity must account for that neighbor; never remove non-SaleMaX images or volumes.
 - Oracle's unified monitoring agent service and `sysstat` collection are active on the host. No SaleMaX disk-check timer or host-side alert destination was found; cloud alarm rules and notification topics were not inspectable through the current read-only SSH access. The thresholds above are policy, not a verified operational alert. The goal remains gated until an alert reaches an operator and a simulated threshold crossing is acknowledged.
 
 ## Current rollout gates
 
-This is a source candidate only. The local execution environment has no Docker CLI/daemon, so an image build, native dependency smoke check, and image-size comparison were not run. Production was inspected read-only and was not built or changed. Before this Docker increment can be released, build it from the exact reviewed source state, verify image identity and the existing voice, image, and WebRTC paths in a disposable runtime, and record release/rollback evidence in `DEPLOYMENT.md`. The existing production 7Network/SaleMaX domain behavior stays in place until the broader migration acceptance is complete.
+This is a source candidate only. The local execution environment has no Docker CLI/daemon, so an image build, native dependency smoke check, registry publication, and image-size comparison were not run. Production was inspected read-only and was not built or changed. Before this Docker increment can be released, run the ARM64 image and trusted publish workflows on the reviewed default-branch commit, confirm package read access, verify the published digest and the existing voice, image, and WebRTC paths, then record release/rollback evidence in `DEPLOYMENT.md`. The authenticated primary/legacy domain journeys, cookie behavior, provider callbacks, WebSockets, public forms, payment redirects, tenant domains, and installed clients still need separate migration acceptance.
 
 The policy does not authorize horizontal scaling. Before adding app instances, make every upload/media path shared and durable, move sessions to a supported shared store, and prove every scheduled job has a distributed claim/lease or another single-run guarantee. Database capacity, backups and restore drills remain separate release gates.
