@@ -1,6 +1,8 @@
 const permissions = {
   'tenant.read': { owner: 'tenant', accountant: 'tenant', manager: 'tenant', agent: 'tenant' },
   'tenant.manage': { owner: 'tenant' },
+  'icp.manage': { owner: 'tenant' },
+  'icp.read': { owner: 'tenant', manager: 'tenant', team_leader: 'tenant', agent: 'tenant' },
   'team.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team' },
   'team.invite': { owner: 'tenant' },
   'channels.configure': { owner: 'tenant' },
@@ -71,6 +73,7 @@ const capabilities = Object.freeze({
   'sales.commissions': ['commission.policy.manage', 'commissions.read', 'commission.payout.approve', 'commission.payout.pay'],
   'sales.finance': ['sales.finance.read','sales.invoice.issue','sales.receipt.record','sales.receipt.allocate','sales.finance.report'],
   'sales.targets': ['targets.read','targets.manage'],
+  'sales.icp': ['icp.read','icp.manage'],
   'products.catalog': ['products.read','products.manage'],
   'hr.recruitment': ['recruitment.manage'],
   'realestate.listings': ['properties.read','properties.manage','properties.assign'],
@@ -121,9 +124,10 @@ function decision(context, { capability, permission, resource, external = false 
   if(subscription&&(Object.hasOwn(subscription,'categoryKey')||Object.hasOwn(subscription,'categoryVersion'))&&
       (subscription.categoryKey!==category.key||subscription.categoryVersion!==category.version))return {allowed:false,code:'FEATURE_UNAVAILABLE'};
   const internalRecruitmentOwner = capability === 'hr.recruitment' && category.key === '7network_sales' && membership.role === 'owner';
+  const internalSalesIcp = capability === 'sales.icp' && category.key === '7network_sales';
   // Recruitment is an owner-only internal 7Network workspace feature, not a customer plan add-on.
   // Keep the tenant's active-plan requirement while avoiding mutation of its published plan version.
-  if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || (!internalRecruitmentOwner && !subscription.capabilities.includes(capability))) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
+  if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || (!internalRecruitmentOwner && !internalSalesIcp && !subscription.capabilities.includes(capability))) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
   // Internal 7Network accountants work from Finance and payout records. The
   // legacy Sales Lead Pipeline does not provide the finance-only detail view.
   // Keep Training Center billing-linked lead access unchanged.
