@@ -32,17 +32,26 @@ production upload, application submission, customer-data write, or schema change
 occurred. No actual applicant failure was reproduced, so its underlying
 technical cause remains unknown.
 
-## Recruitment application support correlation — source update, 22 October 2026
+## Recruitment application support correlation — production, 22 October 2026
 
 For a new server-side submission failure, the public form now returns the same
 random support reference that is written beside the sanitized diagnostic code
 in the app log. The applicant sees the plain-language guidance, safe cause, and
 reference together in brackets; malformed references are ignored and internal
 error messages remain private. Focused recruitment tests pass 22/22, syntax and
-whitespace checks pass. This source increment is not deployed. No application,
-CV, schema, or production data was changed, and the reported applicant failure
-still needs a reference or recurrence before its underlying cause can be
-identified.
+whitespace checks pass. Source commit
+`e99dec041a0e102e3bff3ea75eb22f66020141df` is deployed in
+`/opt/salemax/releases/recruitment-support-reference-e99dec0-20261022`; the app
+is healthy, the public routes and served artifact hashes were verified, and no
+database or worker container was recreated. An isolated synthetic multipart
+request verified that the applicant response and sanitized app log carry the
+same support reference without exposing private error text. Production cleanup
+removed 4.733 GB of Docker build cache; dangling-image pruning reclaimed no
+additional bytes, and volumes, tagged rollback images, archives and logs were
+preserved. Host free space is 2.5 GB (95% used). No matching error event was
+found in reviewed logs, so the reported applicant failure's cause remains
+unknown; authenticated live application submission and the full 42-ticket
+program remain open. See `DEPLOYMENT.md` for rollback and release evidence.
 
 ## Manifest-driven chatbot adapter selection — source update, 22 October 2026
 
