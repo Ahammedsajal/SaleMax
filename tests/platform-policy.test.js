@@ -1,9 +1,22 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { decision, platformDecision, capabilities } = require('../modules/platform/policy');
+const { decision, platformDecision, capabilities, permissions } = require('../modules/platform/policy');
 const { trainingCenter, salemaxSales, restaurantFixture } = require('../modules/platform/categories');
 const { navigationFor } = require('../modules/platform/navigation');
 const { canAgentAccessLead } = require('../helper/pipeline/access');
+test('Real Estate workflow authorization contracts are defined without granting them to existing categories',()=>{
+  const expected={
+    'realestate.parties':['parties.read','parties.manage'],
+    'realestate.requirements':['requirements.read','requirements.manage','requirements.assign'],
+    'realestate.viewings':['viewings.read','viewings.manage','viewings.assign'],
+  };
+  for(const [capability,permissionList] of Object.entries(expected)) {
+    assert.deepEqual(capabilities[capability],permissionList);
+    for(const permission of permissionList) assert.equal(Object.hasOwn(permissions,permission),true,permission);
+    assert.equal(trainingCenter.capabilities.includes(capability),false,capability);
+    assert.equal(salemaxSales.capabilities.includes(capability),false,capability);
+  }
+});
 function context(role='owner') {
   return { audience:'tenant',tenant:{id:'tenant-a',status:'active',categoryKey:trainingCenter.key,categoryVersion:1},membership:{id:'member-a',tenantId:'tenant-a',role,status:'active',delegatedPermissions:[]},subscription:{status:'active',capabilities:Object.keys(capabilities)},category:trainingCenter,runtimeReady:{} };
 }
