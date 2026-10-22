@@ -21,7 +21,8 @@ function authorize(req,session){
  const capability=capabilityFor(req,permission,session.context);if(!capability)fail('FEATURE_UNAVAILABLE');
  const result=policy.decision(session.context,{capability,permission});if(!result.allowed)fail(result.code);
  // Narrow scopes are handled only by modules with resource-aware guards.
- if(result.scope!=='tenant'&&!['/api/inbox','/api/pipeline','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies','/api/workspace/courses','/api/workspace/products-services','/api/workspace/students','/api/workspace/forms','/api/workspace/finance','/api/user/call-center'].includes(req.baseUrl))fail('PERMISSION_DENIED');
+ const scopedLegacyQuickReplies=req.baseUrl==='/api/user'&&req.path==='/get_all_quick_reply'&&req.method==='GET'&&permission==='conversations.read';
+ if(result.scope!=='tenant'&&!scopedLegacyQuickReplies&&!['/api/inbox','/api/pipeline','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies','/api/workspace/courses','/api/workspace/products-services','/api/workspace/students','/api/workspace/forms','/api/workspace/finance','/api/user/call-center'].includes(req.baseUrl))fail('PERMISSION_DENIED');
  return {...result,permission};
 }
 function profile(session){
