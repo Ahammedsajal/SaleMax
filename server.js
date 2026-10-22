@@ -147,6 +147,16 @@ app.use("/api/theme", require("./routes/theme"));
 app.use(["/api/pipeline","/api/workspace/pipeline"], require("./routes/pipeline"));
 app.use("/api/internal", require("./routes/internal"));
 
+// Short-lived Inbox media capabilities are revalidated against the current
+// tenant/member/chat assignment on every request. Legacy /meta-media URLs stay
+// available during the reader migration; /media remains for provider uploads.
+app.use("/api/inbox-media", require("./modules/platform/inbox-media-access").createRouter({
+  query,
+  key: process.env.JWTKEY,
+  mediaRoot: path.resolve(currentDir, "./client/public/meta-media"),
+  conversationRoot: path.resolve(currentDir, "./conversations/inbox"),
+}));
+
 // ─── Media Streaming Middleware ───────────────────────────────────────────────
 const createMediaMiddleware = (folderPath) => {
   const mimeTypes = {

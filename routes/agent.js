@@ -24,6 +24,7 @@ const {
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
 const validateAgent = require("../middlewares/agent.js");
+const inboxMediaAccess = require("../modules/platform/inbox-media-access");
 const Stripe = require("stripe");
 const {
   checkPlan,
@@ -600,6 +601,8 @@ router.get("/get_me", validateAgent, async (req, res) => {
 // get agent assign chats
 router.get("/get_my_assigned_chats", validateAgent, async (req, res) => {
   try {
+    const inboxAccess = require('../modules/platform/team-inbox-scope');
+    const inboxScope = await inboxAccess.resolveInboxScope(query, req.decode.userData, 'get_chat_list');
     let data = [];
 
     const getMyChatsId = await query(
@@ -624,8 +627,10 @@ router.get("/get_my_assigned_chats", validateAgent, async (req, res) => {
     // Using IN clause to match against multiple IDs
     data = await query(`SELECT * FROM chats WHERE chat_id IN (?) AND uid = ?`, [
       chatIds,
-      req.owner?.uid,
+      inboxScope.uid,
     ]);
+
+    if (inboxScope.canonical) data = inboxAccess.filterAssignedChats(data, inboxScope);
 
     console.log({
       data,
@@ -641,7 +646,18 @@ router.get("/get_my_assigned_chats", validateAgent, async (req, res) => {
       data = data;
     }
 
-    res.json({ data, success: true });
+    res.json({
+      data: inboxMediaAccess.signChatLastMessages(data, {
+        key: process.env.JWTKEY,
+        origin: process.env.FRONTENDURI,
+        ownerUid: inboxScope.uid,
+        actor: req.decode.userData,
+        delegatedSessionId: req.decode.delegatedSessionId,
+        sessionExpiresAt: req.decode.exp,
+        agent: true,
+      }),
+      success: true,
+    });
   } catch (err) {
     res.json({ success: false, msg: "something went wrong", err });
     console.log(err);
@@ -652,14 +668,32 @@ router.get("/get_my_assigned_chats", validateAgent, async (req, res) => {
 router.post("/get_convo", validateAgent, async (req, res) => {
   try {
     const { chatId } = req.body;
-
-    const filePath = `${__dirname}/../conversations/inbox/${req.owner.uid}/${chatId}.json`;
-    const data = readJSONFile(filePath, 100);
-
+    if (typeof chatId !== 'string' || !chatId || chatId.length > 191 || chatId.includes('/') || chatId.includes('\\')) {
+      return res.status(404).json({ data: [], success: false, code: 'CONVERSATION_NOT_FOUND' });
+    }
+    const inboxAccess = require('../modules/platform/team-inbox-scope');
+    const inboxScope = await inboxAccess.resolveInboxScope(query, req.decode.userData, 'load_conversation');
+    const [chat] = await query('SELECT * FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1', [inboxScope.uid, chatId]);
+    if (!chat) return res.status(404).json({ data: [], success: false, code: 'CONVERSATION_NOT_FOUND' });
+    await inboxAccess.authorizeInboxPayload(query, inboxScope, 'load_conversation', { chat });
+    const filePath = `${__dirname}/../conversations/inbox/${inboxScope.uid}/${chatId}.json`;
+    const data = inboxMediaAccess.signConversation(readJSONFile(filePath, 100), {
+      key: process.env.JWTKEY,
+      origin: process.env.FRONTENDURI,
+      ownerUid: inboxScope.uid,
+      chatId,
+      actor: req.decode.userData,
+      delegatedSessionId: req.decode.delegatedSessionId,
+      sessionExpiresAt: req.decode.exp,
+      agent: true,
+    });
     res.json({ data, success: true });
   } catch (err) {
-    console.log(err);
-    res.json({ err, success: false, msg: "Something went wrong" });
+    if (err.code === 'TEAM_INBOX_PERMISSION_DENIED') {
+      return res.status(404).json({ data: [], success: false, code: 'CONVERSATION_NOT_FOUND' });
+    }
+    console.error('Agent conversation read failed', err.code || 'INBOX_READ_FAILED');
+    return res.status(503).json({ data: [], success: false, code: 'INBOX_READ_FAILED' });
   }
 });
 

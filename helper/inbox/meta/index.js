@@ -3,8 +3,8 @@ const axios = require("axios");
 const randomstring = require("randomstring");
 const moment = require("moment");
 const mime = require("mime-types");
-const fs = require("fs");
 const path = require("path");
+const inboxMediaAccess = require("../../../modules/platform/inbox-media-access");
 
 // Utility Functions
 function getCurrentTimestamp() {
@@ -37,19 +37,13 @@ async function downloadAndSaveMedia(token, mediaId, uid) {
     });
 
     const ext = mime.extension(response.headers["content-type"]) || "bin";
-    const fileName = `${randomstring.generate(10)}.${ext}`;
-    const filePath = path.resolve(
-      __dirname,
-      "../../../client/public/meta-media",
-      fileName,
-    );
-
-    // Ensure directory exists
-    if (!fs.existsSync(path.dirname(filePath))) {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    }
-
-    fs.writeFileSync(filePath, response.data);
+    const fileName = `${randomstring.generate(24)}.${ext}`;
+    inboxMediaAccess.savePrivateMedia({
+      mediaRoot: path.resolve(__dirname, "../../../client/public/meta-media"),
+      ownerUid: uid,
+      filename: fileName,
+      bytes: response.data,
+    });
     return fileName;
   } catch (err) {
     console.error("Media download error:", err.message);

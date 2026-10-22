@@ -17,6 +17,7 @@ const mysql = require("mysql2/promise");
 const { MongoClient } = require("mongodb");
 const admin = require("firebase-admin");
 const sharp = require("sharp");
+const inboxMediaAccess = require("../modules/platform/inbox-media-access");
 
 async function executeMySQLQuery(config) {
   let connection;
@@ -783,11 +784,20 @@ async function saveMessage(body, uid, type, msgContext) {
     const getId = await query(`SELECT * FROM rooms WHERE uid = ?`, [uid]);
 
     const chats = await query(`SELECT * FROM chats WHERE uid = ?`, [uid]);
+    const ownerMediaOptions = {
+      key: process.env.JWTKEY,
+      origin: process.env.FRONTENDURI,
+      ownerUid: uid,
+      chatId,
+      actor: getUser[0],
+    };
 
-    io.to(getId[0]?.socket_id).emit("update_conversations", { chats: chats });
+    io.to(getId[0]?.socket_id).emit("update_conversations", {
+      chats: inboxMediaAccess.signChatLastMessages(chats, ownerMediaOptions),
+    });
 
     io.to(getId[0]?.socket_id).emit("push_new_msg", {
-      msg: actualMsg,
+      msg: inboxMediaAccess.signMessageMedia(actualMsg, ownerMediaOptions),
       chatId: chatId,
     });
 
@@ -813,12 +823,28 @@ async function saveMessage(body, uid, type, msgContext) {
       const getAgentSocket = await query(`SELECT * FROM rooms WHERE uid = ?`, [
         getAgentChat[0]?.uid,
       ]);
+      const [agentActor] = await query(
+        `SELECT * FROM agents WHERE uid = ? AND owner_uid = ? AND role = ? AND is_active = 1 LIMIT 1`,
+        [getAgentChat[0]?.uid, uid, 'agent'],
+      );
+      const agentMediaOptions = agentActor ? {
+        key: process.env.JWTKEY,
+        origin: process.env.FRONTENDURI,
+        ownerUid: uid,
+        chatId,
+        actor: { ...agentActor, isAgent: true },
+        agent: true,
+      } : null;
       io.to(getAgentSocket[0]?.socket_id).emit("update_conversations", {
-        chats: chatsNew || [],
+        chats: agentMediaOptions
+          ? inboxMediaAccess.signChatLastMessages(chatsNew || [], agentMediaOptions)
+          : chatsNew || [],
       });
 
       io.to(getAgentSocket[0]?.socket_id).emit("push_new_msg", {
-        msg: actualMsg,
+        msg: agentMediaOptions
+          ? inboxMediaAccess.signMessageMedia(actualMsg, agentMediaOptions)
+          : actualMsg,
         chatId: chatId,
       });
     }
@@ -866,6 +892,7 @@ async function saveWebhookConversation(body, uid) {
       const fileName = await downloadAndSaveMedia(
         metaToken,
         body?.entry[0]?.changes[0]?.value?.messages[0]?.image?.id,
+        uid,
       );
       console.log({ fileName });
       saveMessage(body, uid, "image", {
@@ -903,6 +930,7 @@ async function saveWebhookConversation(body, uid) {
       const fileName = await downloadAndSaveMedia(
         metaToken,
         body?.entry[0]?.changes[0]?.value?.messages[0]?.video?.id,
+        uid,
       );
       saveMessage(body, uid, "video", {
         type: "video",
@@ -939,6 +967,7 @@ async function saveWebhookConversation(body, uid) {
       const fileName = await downloadAndSaveMedia(
         metaToken,
         body?.entry[0]?.changes[0]?.value?.messages[0]?.document?.id,
+        uid,
       );
       saveMessage(body, uid, "document", {
         type: "document",
@@ -974,6 +1003,7 @@ async function saveWebhookConversation(body, uid) {
       const fileName = await downloadAndSaveMedia(
         metaToken,
         body?.entry[0]?.changes[0]?.value?.messages[0]?.audio?.id,
+        uid,
       );
       saveMessage(body, uid, "audio", {
         type: "audio",
@@ -1236,7 +1266,7 @@ function updateMessageObjectInFile(filePath, metaChatId, key, value) {
   });
 }
 
-async function downloadAndSaveMedia(token, mediaId) {
+async function downloadAndSaveMedia(token, mediaId, ownerUid) {
   try {
     const url = `https://graph.facebook.com/v19.0/${mediaId}/`;
     // retriving url
@@ -1258,10 +1288,15 @@ async function downloadAndSaveMedia(token, mediaId) {
     const response = await axios(config);
     const ext = response.headers["content-type"].split("/")[1];
 
-    const randomSt = randomstring.generate();
-    const savingPath = `${__dirname}/../client/public/meta-media/${randomSt}`;
-    fs.writeFileSync(`${savingPath}.${ext}`, response.data);
-    return `${randomSt}.${ext}`;
+    const randomSt = randomstring.generate(24);
+    const fileName = `${randomSt}.${ext}`;
+    inboxMediaAccess.savePrivateMedia({
+      mediaRoot: path.resolve(__dirname, '../client/public/meta-media'),
+      ownerUid,
+      filename: fileName,
+      bytes: response.data,
+    });
+    return fileName;
   } catch (error) {
     console.error("Error downloading media:", error);
   }
@@ -1530,14 +1565,21 @@ function updateMetaTempletInMsg(uid, savObj, chatId, msgId) {
       ]);
 
       const chats = await query(`SELECT * FROM chats WHERE uid = ?`, [uid]);
+      const mediaOptions = {
+        key: process.env.JWTKEY,
+        origin: process.env.FRONTENDURI,
+        ownerUid: uid,
+        chatId,
+        actor: getUser[0],
+      };
 
       io.to(getId[0]?.socket_id).emit("update_conversations", {
-        chats: chats,
+        chats: inboxMediaAccess.signChatLastMessages(chats, mediaOptions),
         notificationOff: true,
       });
 
       io.to(getId[0]?.socket_id).emit("push_new_msg", {
-        msg: finalSaveMsg,
+        msg: inboxMediaAccess.signMessageMedia(finalSaveMsg, mediaOptions),
         chatId: chatId,
       });
 

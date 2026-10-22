@@ -29,6 +29,7 @@ const {
   mergeConversationLists,
   sanitizeMergedRows,
 } = require("../inbox/chatData.js");
+const inboxMediaAccess = require("../../modules/platform/inbox-media-access");
 const {
   sendMessageTelegram,
 } = require("../addon/telegram/processTelegramInbox.js");
@@ -187,9 +188,17 @@ function processSocketEvent({
           const contacts = await query(`SELECT * FROM contact WHERE uid = ?`, [
             chatListOwnerUid,
           ]);
-          const chatData = mergeArraysWithPhonebook(
-            sanitizeMergedRows(chats),
-            contacts,
+          const chatData = inboxMediaAccess.signChatLastMessages(
+            mergeArraysWithPhonebook(sanitizeMergedRows(chats), contacts),
+            {
+              key: process.env.JWTKEY,
+              origin: process.env.FRONTENDURI,
+              ownerUid: chatListOwnerUid,
+              actor: socket.userData,
+              delegatedSessionId: socket.decodedToken?.delegatedSessionId,
+              sessionExpiresAt: socket.decodedToken?.exp,
+              agent: agentAccount,
+            },
           );
 
           let agentData = await query(
@@ -358,12 +367,19 @@ function processSocketEvent({
                 ? new Date(m.timestamp * 1000).toISOString()
                 : "",
               message_body: ctx?.text?.body || "",
-              media_link:
-                ctx?.image?.link ||
-                ctx?.video?.link ||
-                ctx?.audio?.link ||
-                ctx?.document?.link ||
-                "",
+              media_link: inboxMediaAccess.signMediaLink(
+                ctx?.image?.link || ctx?.video?.link || ctx?.audio?.link || ctx?.document?.link || "",
+                {
+                  key: process.env.JWTKEY,
+                  origin: process.env.FRONTENDURI,
+                  ownerUid: exportConversationOwnerUid,
+                  chatId: exportChatId,
+                  actor: socket.userData,
+                  delegatedSessionId: socket.decodedToken?.delegatedSessionId,
+                  sessionExpiresAt: socket.decodedToken?.exp,
+                  agent: agentAccount,
+                },
+              ),
               media_caption:
                 ctx?.image?.caption ||
                 ctx?.video?.caption ||
@@ -466,8 +482,18 @@ function processSocketEvent({
           const displayConversation = [...mergedConversation].reverse();
 
           const conversationTotal = displayConversation.length;
-          const parsedChatList = sanitizeMergedRows(
-            displayConversation.slice(msgOffset, msgOffset + msgLimit),
+          const parsedChatList = inboxMediaAccess.signConversation(
+            sanitizeMergedRows(displayConversation.slice(msgOffset, msgOffset + msgLimit)),
+            {
+              key: process.env.JWTKEY,
+              origin: process.env.FRONTENDURI,
+              ownerUid: conversationOwnerUid,
+              chatId: chat.chat_id,
+              actor: socket.userData,
+              delegatedSessionId: socket.decodedToken?.delegatedSessionId,
+              sessionExpiresAt: socket.decodedToken?.exp,
+              agent: agentAccount,
+            },
           );
 
           const labelAdded = await query(

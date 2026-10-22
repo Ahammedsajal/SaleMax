@@ -4,6 +4,7 @@ const { query } = require("../../database/dbpromise");
 const fetch = require("node-fetch");
 const mime = require("mime-types");
 const moment = require("moment-timezone");
+const inboxMediaAccess = require("../../modules/platform/inbox-media-access");
 
 function mergeArraysWithPhonebook(chatArray, phonebookArray) {
   // Iterate through the chat array and enrich with phonebook data
@@ -120,15 +121,19 @@ async function deleteMediaFromConversation({
             if (parts.length !== 2 || parts[0] !== "meta-media" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$/.test(filename) || filename === "." || filename === "..") continue;
           } catch { continue; }
           const mediaDirectory = path.resolve(mediaFolderPath);
-          const filePath = path.resolve(mediaDirectory, filename);
-          if (path.dirname(filePath) !== mediaDirectory) continue;
+          const privateFilePath = inboxMediaAccess.safeMediaFile(mediaDirectory, uid, filename);
+          const legacyFilePath = path.resolve(mediaDirectory, filename);
+          if (!privateFilePath && path.dirname(legacyFilePath) !== mediaDirectory) continue;
+          const filePath = privateFilePath || legacyFilePath;
           let directoryPath, realFilePath, stat;
           try {
             directoryPath = fs.realpathSync(mediaDirectory);
             stat = fs.lstatSync(filePath);
             if (!stat.isFile() || stat.isSymbolicLink()) continue;
             realFilePath = fs.realpathSync(filePath);
-            if (path.dirname(realFilePath) !== directoryPath) continue;
+            if (privateFilePath) {
+              if (!realFilePath.startsWith(`${path.resolve(mediaDirectory, '.private')}${path.sep}`)) continue;
+            } else if (path.dirname(realFilePath) !== directoryPath) continue;
           } catch { continue; }
           // The legacy media directory is shared. Keep the object while any other
           // tenant or conversation still points at this filename.
@@ -146,6 +151,13 @@ async function deleteMediaFromConversation({
             [uid, chatId, `%${filename}%`],
           );
           if (legacyReferences?.length) continue;
+          const jsonReference = inboxMediaAccess.ownerConversationReferences({
+            conversationRoot: path.resolve(__dirname, '../../conversations/inbox'),
+            ownerUid: uid,
+            filename,
+            origin: process.env.FRONTENDURI,
+          });
+          if (jsonReference) continue;
           fs.unlinkSync(realFilePath);
         }
 

@@ -228,6 +228,19 @@ legacy `chats.last_message` rows before unlinking a shared file. It still does
 not scan legacy JSON fallback files or establish read authorization; this is
 not a complete ownership or retention model.
 
+New Meta and QR Inbox downloads now use owner-specific storage under the
+existing shared media volume. For those files, the shared socket Inbox and
+existing user/Agent conversation readers rewrite recognized
+`/meta-media/<file>` links into two-minute signed URLs. The reader endpoint
+checks the current actor and assigned-chat scope again on each request, verifies
+that the active conversation still references the file, checks legacy JSON
+fallback history, and serves private no-store byte ranges. Delegated sessions
+are revalidated as well. Original message rows remain unchanged for
+WhatsApp/provider operations. Historical flat files are not migrated and keep
+their existing raw URLs. The unauthenticated static `/meta-media` route is
+still present during this reader migration, so historical direct URLs remain
+publicly readable until live compatibility acceptance is complete.
+
 `/media` is also intentionally consumed by upload and provider flows, including
 Meta template media recorded in `meta_templet_media`; closing both static paths
 as one change would break existing integrations. The remediation must separate
@@ -238,12 +251,14 @@ reader/provider path before disabling legacy public access. The relevant
 acceptance includes two owners with colliding filenames, owner and assigned
 Agent reads, assignment revocation, cross-tenant token tampering, expired grants,
 range requests, exports, legacy JSON fallback, and retained template media.
-The first cleanup safeguard is source-only and covered by synthetic unit and
-disposable-MySQL cases for both modern conversation rows and legacy
-`chats.last_message` references. No media, customer data or production route
-changed. Direct public reads, JSON fallback references, complete history
-migration and authenticated owner/assigned-Agent acceptance remain open; media
-isolation remains incomplete.
+The cleanup safeguard and signed-reader implementation are source-only and
+covered by synthetic unit and disposable-MySQL cases. The signed-reader route
+also checks owner/assigned-Agent revocation, delegated-session revocation,
+reference removal, expiry, tampering and range delivery. No media, customer
+data or production route changed. The direct public route remains open pending
+authenticated browser/device acceptance and confirmed compatibility of every
+legacy reader/provider. Media isolation remains incomplete until that route is
+closed and the exact live surfaces pass.
 
 ### Shared-core ownership slice — 22 October 2026
 

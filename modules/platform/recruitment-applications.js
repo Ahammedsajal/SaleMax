@@ -3,6 +3,7 @@
 const crypto=require('node:crypto');
 const fs=require('node:fs/promises');
 const path=require('node:path');
+const inboxMediaAccess=require('./inbox-media-access');
 const {decision}=require('./policy');
 const {categoryKeysFor,categoryKeyMatches,canonicalCategoryKey,getCategory}=require('./categories');
 
@@ -71,11 +72,12 @@ function whatsappApplicationBody({answers,mobile,tenantId,channelKind,channelRef
   const sourceReference=`whatsapp:${crypto.createHash('sha256').update(`${channelKind}\0${channelRef}\0${conversationId}`).digest('hex')}`;
   return {submissionToken:stableSubmissionToken(sourceReference),fullName:String(answers.fullName),mobile:String(mobile||answers.whatsappNumber||''),contactMobile:String(answers.contactNumber||mobile||answers.whatsappNumber||''),email:String(answers.email),currentWorkStatus:String(answers.currentlyWorking),englishLevel:String(answers.englishLevel),hindiLevel:String(answers.hindiLevel),experienceYears:String(years),totalExperienceRange:String(answers.totalExperienceRange),salesExperienceYears:String(answers.salesExperienceYears),hasComputerAndInternet:String(answers.hasComputerAndInternet),comfortableWithSalesCalls:String(answers.comfortableWithSalesCalls),crmSaasExperience:String(answers.crmSaasExperience||''),availability:String(answers.availability),consent:'on',source:'whatsapp',sourceReference,website:''};
 }
-async function resolveWhatsAppCv({mediaUrl,fileName,frontendUri=process.env.FRONTENDURI,mediaRoot=path.resolve(__dirname,'../../client/public/meta-media')}){
+async function resolveWhatsAppCv({mediaUrl,fileName,ownerUid,frontendUri=process.env.FRONTENDURI,mediaRoot=path.resolve(__dirname,'../../client/public/meta-media')}){
   let target,base;try{target=new URL(String(mediaUrl||''));base=new URL(String(frontendUri||''));}catch{fail('INVALID_CV_FILE',415);}
   if(target.origin!==base.origin||target.search||target.hash||!/^\/meta-media\/[A-Za-z0-9._-]+$/.test(target.pathname))fail('INVALID_CV_FILE',415);
   const name=decodeURIComponent(target.pathname.slice('/meta-media/'.length));if(name!==path.basename(name)||name==='.'||name==='..')fail('INVALID_CV_FILE',415);
-  const root=path.resolve(mediaRoot),filePath=path.resolve(root,name);if(!filePath.startsWith(root+path.sep))fail('INVALID_CV_FILE',415);
+  const root=path.resolve(mediaRoot),legacyFilePath=path.resolve(root,name);if(!legacyFilePath.startsWith(root+path.sep))fail('INVALID_CV_FILE',415);
+  const filePath=(ownerUid&&inboxMediaAccess.safeMediaFile(root,ownerUid,name))||legacyFilePath;
   const stat=await fs.lstat(filePath);if(!stat.isFile()||stat.isSymbolicLink()||stat.size<1||stat.size>MAX_CV_BYTES)fail('INVALID_CV_FILE',413);
   const bytes=await fs.readFile(filePath);if(bytes.length!==stat.size||!detectCv(bytes))fail('CV_TYPE_NOT_ALLOWED',415);
   const detected=detectCv(bytes),provided=cleanFileName(fileName),parsedName=path.parse(provided),extension=parsedName.ext.toLowerCase()===`.${detected.ext}`?parsedName.ext:`.${detected.ext}`;const finalName=`${parsedName.name||'candidate-cv'}${extension}`;
@@ -203,7 +205,14 @@ async function createPublic(pool,{tenantSlug,body,file,visitorHash,conversation=
 }
 async function createFromWhatsApp(pool,{tenantSlug,answers,mobile,channelKind,channelRef,conversationId,senderName,mediaUrl,fileName,env=process.env}){
   const body=whatsappApplicationBody({answers,mobile,tenantId:null,channelKind,channelRef,conversationId});
-  const file=await resolveWhatsAppCv({mediaUrl,fileName,frontendUri:env.FRONTENDURI,mediaRoot:path.resolve(__dirname,'../../client/public/meta-media')});
+  const [owners]=await pool.query(`SELECT u.uid FROM sx_tenants t
+    JOIN sx_memberships m ON m.tenant_id=t.id AND m.role='owner' AND m.status='active'
+    JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
+    JOIN user u ON CAST(u.id AS CHAR)=o.source_id AND SHA2(u.uid,256)=o.legacy_uid_hash AND u.role='user'
+    JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
+    WHERE t.slug=? AND t.status='active' LIMIT 2`,[tenantSlug]);
+  if(owners.length!==1)fail('INBOX_OWNER_UNAVAILABLE',503);
+  const file=await resolveWhatsAppCv({mediaUrl,fileName,ownerUid:owners[0].uid,frontendUri:env.FRONTENDURI,mediaRoot:path.resolve(__dirname,'../../client/public/meta-media')});
   const visitorHash=crypto.createHash('sha256').update(`${tenantSlug}\0${channelKind}\0${channelRef}\0${conversationId}`).digest('hex');
   const result=await createPublic(pool,{tenantSlug,body,file,visitorHash,conversation:{channelKind,channelRef,conversationId,senderName},env});
   await fs.rm(file.sourcePath,{force:true}).catch(()=>{});

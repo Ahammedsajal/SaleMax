@@ -2729,3 +2729,25 @@ cleanup of its temporary database. The app's separate background pool logs
 local database credential denial during module load; it did not affect the
 disposable integration result. No production data, route or runtime changed;
 authenticated media delivery and legacy-reference migration remain open.
+
+## Inbox signed media reader migration — source increment, 22 October 2026
+
+Added `/api/inbox-media/:grant` as a short-lived, signed delivery path for
+Inbox media. New Meta and QR downloads are saved beneath an owner-specific
+directory on the existing shared media volume. The existing socket
+conversation/list/export responses and authenticated Inbox/Agent readers
+rewrite links at response time when the file is in that private directory;
+stored conversation rows remain unchanged for outbound provider use.
+Every media request rechecks the current actor, tenant/owner mapping, Inbox
+permission and current assignment, delegated-session validity when present,
+and the message's continued reference in database or exact legacy JSON history.
+Responses are private/no-store and retain byte-range support. The legacy public
+static route is deliberately still mounted while historical compatibility is
+validated, so public-media exposure is not yet closed.
+
+Focused grant/reader tests cover owner-specific storage and colliding names,
+same-origin path validation, short expiry,
+tampering, current assignment and delegated-session revocation, removed
+references, JSON fallback and range delivery. HTTP smoke and authenticated
+owner/Agent browser acceptance, the full socket/provider compatibility matrix,
+static-route closure, and production deployment remain open.

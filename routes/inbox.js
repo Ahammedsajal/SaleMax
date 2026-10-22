@@ -36,6 +36,7 @@ const {
   normalizeOriginFilter,
   sanitizeMergedRows,
 } = require("../helper/inbox/chatData.js");
+const inboxMediaAccess = require("../modules/platform/inbox-media-access");
 
 const { handleCalls } = require("../helper/addon/wacall/wacall.js");
 const { captureMetaWebhook } = require("../helper/pipeline/leadPipeline.js");
@@ -666,7 +667,18 @@ router.get("/get_chats", validateUser, async (req, res) => {
       data = sanitizeMergedRows(data);
     }
 
-    res.json({ data, success: true });
+    res.json({
+      data: inboxMediaAccess.signChatLastMessages(data, {
+        key: process.env.JWTKEY,
+        origin: process.env.FRONTENDURI,
+        ownerUid,
+        actor: req.decode.userData,
+        delegatedSessionId: req.decode.delegatedSessionId,
+        sessionExpiresAt: req.decode.exp,
+        agent: Boolean(req.decode.userData?.isAgent || req.decode.userData?.role === 'agent'),
+      }),
+      success: true,
+    });
   } catch (err) {
     console.log(err);
     res.json({ err, success: false, msg: "Something went wrong" });
@@ -703,11 +715,21 @@ router.post("/get_convo", validateUser, async (req, res) => {
     const filePath = `${__dirname}/../conversations/inbox/${ownerUid}/${chatId}.json`;
     const legacyMessages = readJSONFile(filePath, limit);
 
-    const data = sanitizeMergedRows(
-      mergeConversationLists({
+    const data = inboxMediaAccess.signConversation(
+      sanitizeMergedRows(mergeConversationLists({
         dbMessages,
         fileMessages: legacyMessages,
-      }),
+      })),
+      {
+        key: process.env.JWTKEY,
+        origin: process.env.FRONTENDURI,
+        ownerUid,
+        chatId,
+        actor: req.decode.userData,
+        delegatedSessionId: req.decode.delegatedSessionId,
+        sessionExpiresAt: req.decode.exp,
+        agent: Boolean(req.decode.userData?.isAgent || req.decode.userData?.role === 'agent'),
+      },
     );
 
     res.json({ data, success: true });
