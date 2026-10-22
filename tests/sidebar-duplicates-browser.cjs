@@ -10,17 +10,17 @@ const row=(name,attrs='')=>`<li ${attrs}><button class="MuiListItemButton-root">
  const browser=await chromium.launch({channel:'msedge',headless:true});
  let cases=0;
  try{
-  for(const role of ['owner','manager','team_leader','agent','accountant'])for(const ar of [false,true])for(const delayed of [false,true]){
+  for(const categoryKey of ['7network_sales','salemax_sales'])for(const role of ['owner','manager','team_leader','agent','accountant'])for(const ar of [false,true])for(const delayed of [false,true]){
    const page=await browser.newPage({viewport:{width:390,height:844}});page.setDefaultTimeout(5000);
    await page.route('http://sidebar.invalid/**',route=>route.fulfill({contentType:'text/html',body:'<html><head></head><body></body></html>'}));
    await page.goto('http://sidebar.invalid/user?page=dashboard');
    await page.setContent(`<html lang="${ar?'ar':'en'}" dir="${ar?'rtl':'ltr'}"><body>`+[0,1].map(()=>`<div class="MuiDrawer-paper" style="width:250px"><input><ul>${row('Dashboard')}${delayed?'':row('Lead Pipeline','data-salemax-pipeline-link="1"')}${row('WA Chatbot')}${row('Agent Task')}</ul></div>`).join('')+'</body></html>');
    const allowed=role==='accountant'?['sales-finance','sales-commissions']:role==='owner'?keys:keys.filter(k=>!['commission-policy','sales-audit','recruitment','team'].includes(k));
-   await page.evaluate(({role,allowed,delayed})=>{
-    window.fixtureAccess={role,categoryKey:'7network_sales',roleNavigation:allowed,assignedNavigation:null};
+   await page.evaluate(({role,allowed,delayed,categoryKey})=>{
+    window.fixtureAccess={role,categoryKey,roleNavigation:allowed,assignedNavigation:null};
     window.SaleMaxWorkspace={session:async()=>{if(delayed)await new Promise(resolve=>setTimeout(resolve,60));return window.fixtureAccess;}};
     window.__sxChatbotAdminLoader=window.__sxFaqManagerLoader=window.__sxTrainingFormsEditorLayoutLoader=true;
-   },{role,allowed,delayed});
+   },{role,allowed,delayed,categoryKey});
    await page.addScriptTag({content:oldSource||source});
    await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-sx-navigation-loading'));
    await page.waitForFunction(()=>document.querySelector('[data-sx-sales-commissions-nav],[data-sx-canonical-sales-nav="sales-commissions"]'));
@@ -57,6 +57,6 @@ const row=(name,attrs='')=>`<li ${attrs}><button class="MuiListItemButton-root">
    await page.waitForFunction(()=>[...document.querySelectorAll('[data-native-fixture]')].every(r=>r.hasAttribute('data-sx-search-hidden')));
    await page.close();cases++;
   }
-  console.log(JSON.stringify({passed:true,cases,checks:['five roles','English and Arabic','two drawers','both session load orders','distinct overview/targets/reports','late native mount','repeat focus resize search mutation','permission revocation']}));
+  console.log(JSON.stringify({passed:true,cases,checks:['canonical and legacy Sales keys','five roles','English and Arabic','two drawers','both session load orders','distinct overview/targets/reports','late native mount','repeat focus resize search mutation','permission revocation']}));
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

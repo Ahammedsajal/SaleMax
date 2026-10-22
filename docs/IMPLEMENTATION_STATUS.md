@@ -2067,6 +2067,16 @@ workspace labels and checks all four customer-facing views. Cache reference
 updated. Source-only; authenticated production acceptance and deployment
 remain open.
 
+## Shared sidebar compatibility for legacy Sales category — source increment, 22 October 2026
+
+The shared user sidebar now resolves the preserved `salemax_sales` session key
+to the canonical Sales key for presentation and existing role navigation. The
+raw API/session identity remains unchanged, and server authorization continues
+to decide available navigation and permissions. The existing desktop/mobile,
+English/Arabic multi-role browser fixture now runs against both canonical and
+legacy Sales keys. Source-only; production deployment and authenticated
+acceptance remain open.
+
 ## Existing dashboard support for the Sales category alias — source increment, 22 October 2026
 
 The shared workspace session intentionally preserves a tenant's stored
