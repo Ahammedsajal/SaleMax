@@ -2,19 +2,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { assignConversation, ownsConversation, chooseAvailableStaff } = require('../modules/platform/team-conversation-assignment');
+const { assignConversation, addConversationAgent, ownsConversation, chooseAvailableStaff } = require('../modules/platform/team-conversation-assignment');
 const hash = uid => crypto.createHash('sha256').update(uid).digest('hex');
 const ctx = { tenant: { id: 'tenant-a' }, identity: { id: 'actor' }, membership: { role: 'manager' } };
 function fixture(overrides = {}) {
   const calls = [];
+  const staff = {identityId:'new-staff',name:'Staff',email:'staff@example.test',uid:'new-user',legacyId:7,sourceTable:'agents',role:'agent',uidHash:hash('new-user'),...overrides};
   const db = { query: async (sql, params) => {
     calls.push({ sql, params });
-    if (sql.includes("m.role='owner'")) return [[{ uid: 'owner', uidHash: hash('owner') }]];
-    if (sql.includes('FOR UPDATE')) return [[{ assigned_agent: JSON.stringify([{ kind: 'identity', identityId: 'old-staff', uid: 'old-user' }]) }]];
-    if (sql.includes('i.id=?')) {
-      assert.deepEqual(params, ['owner','tenant-a', 'new-staff']);
-      return [[{ identityId: 'new-staff', uid: 'new-user', name: 'Staff', role: 'agent', uidHash: hash('new-user'), ...overrides }]];
-    }
+    if (sql.includes("WHERE m.tenant_id=? AND m.role='owner'")) return [[{ uid: 'owner', uidHash: hash('owner') }]];
+    if (sql.includes('FOR UPDATE')) return [[{ assigned_agent: JSON.stringify([{ kind: 'identity', identityId: 'old-staff', uid: 'old-user', id:6 }]) }]];
+    if (sql.includes('SELECT i.id AS identityId')) return [[staff]];
     return [{ affectedRows: 1 }];
   } };
   return { db, calls };
@@ -33,6 +31,18 @@ test('transfer replaces the old staff assignment and preserves the shared owner 
   assert.equal(calls.filter(call => call.sql.includes('sx_audit_events')).length, 1);
 });
 
+
+test('Add agent appends a second assignee and both agents retain Inbox ownership', async () => {
+  const { db, calls } = fixture();
+  const result = await addConversationAgent(db, input);
+  const update = calls.find(call => call.sql.startsWith('UPDATE'));
+  const assigned = JSON.parse(update.params[0]);
+  assert.equal(assigned.length, 2);
+  assert.equal(ownsConversation(assigned, 'old-staff'), true);
+  assert.equal(ownsConversation(assigned, 'new-staff'), true);
+  assert.equal(result.added, true);
+  assert.equal(calls.some(call => call.sql.includes("conversation.agent-added")), true);
+});
 test('incoming routing chooses the online staff with least assigned work, then falls back to the manager', () => {
   const staff = [{identityId:'a',uid:'user-a',role:'agent'},{identityId:'b',uid:'user-b',role:'agent'},{identityId:'m',uid:'manager',role:'manager'},{identityId:'o',uid:'owner',role:'owner'}];
   const chats = [{assigned_agent:JSON.stringify([{kind:'identity',identityId:'a'}])}];

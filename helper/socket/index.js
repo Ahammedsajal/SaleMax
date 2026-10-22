@@ -899,7 +899,7 @@ function processSocketEvent({
               const target = staff.find(item => item.uid === agentUid);
               if (target) {
                 await db.beginTransaction();
-                await assignments.assignConversation(db, { ctx: inboxScope.ctx, uid, chatId, identityId: target.identityId });
+                await assignments.addConversationAgent(db, { ctx: inboxScope.ctx, uid, chatId, identityId: target.identityId });
                 await db.commit();
                 sendToUid(uid, { chatId }, 'request_update_chat_list');
                 sendToUid(uid, { chatId }, 'request_update_opened_chat');
