@@ -8,7 +8,7 @@ const propertyFields=require('./property-field-contract');
 const STATUSES=new Set(['draft','active','under_offer','sold','rented','withdrawn','archived']);
 const TYPES=new Set(['apartment','house','villa','townhouse','land','commercial','office','warehouse','other']);
 const TRANSACTIONS=new Set(['sale','rent']);
-const FIELDS=new Set(['titleEn','titleAr','propertyType','transactionType','status','priceMinor','currency','areaSqm','bedrooms','bathrooms','city','descriptionEn','descriptionAr','assignedMembershipId']);
+const FIELDS=new Set(['titleEn','titleAr','propertyType','transactionType','status','chatbotVisible','priceMinor','currency','areaSqm','bedrooms','bathrooms','city','descriptionEn','descriptionAr','assignedMembershipId']);
 const fail=(code,status=400)=>{throw Object.assign(Error(code),{code,status});};
 const uuid=()=>crypto.randomUUID();
 
@@ -17,6 +17,9 @@ function authorize(context,permission){
   const access=decision(context,{capability:'realestate.listings',permission});
   if(!access.allowed)fail(access.code,access.code==='PERMISSION_DENIED'?403:409);
   return context;
+}
+function validateChatbotVisibility(context,value){
+  if(value&&(context.category?.key!=='real_estate'||context.category?.version!==3))fail('CATEGORY_UNAVAILABLE',409);
 }
 function clean(input,{partial=false}={}){
   if(!input||typeof input!=='object'||Array.isArray(input))fail('INVALID_PROPERTY');
@@ -41,6 +44,7 @@ function clean(input,{partial=false}={}){
     out[key]=input[key];
   }
   if(partial&&!Object.hasOwn(input,'status')){}else{const value=input.status??'draft';if(!STATUSES.has(value))fail('INVALID_PROPERTY_STATUS');out.status=value;}
+  if(!partial||Object.hasOwn(input,'chatbotVisible')){const value=Object.hasOwn(input,'chatbotVisible')?input.chatbotVisible:false;if(typeof value!=='boolean')fail('INVALID_PROPERTY_CHATBOT_VISIBILITY');out.chatbotVisible=value;}
   if(partial&&!Object.hasOwn(input,'priceMinor')){}else{const value=input.priceMinor;if(!Number.isSafeInteger(value)||value<0||value>999999999999)fail('INVALID_PROPERTY_PRICE');out.priceMinor=value;}
   if(partial&&!Object.hasOwn(input,'currency')){}else{const value=input.currency??'QAR';if(typeof value!=='string'||!/^[A-Z]{3}$/.test(value))fail('INVALID_PROPERTY_CURRENCY');out.currency=value;}
   if(partial&&!Object.hasOwn(input,'areaSqm')){}else{const value=input.areaSqm??null;if(value!==null&&(typeof value!=='number'||!Number.isFinite(value)||value<=0||value>10000000))fail('INVALID_PROPERTY_AREA');out.areaSqm=value;}
@@ -91,9 +95,9 @@ async function list(db,context,query={}){
   if(search){const like=`%${search.replace(/[!%_]/g,'!$&')}%`;where.push("(p.reference_code LIKE ? ESCAPE '!' OR p.title_en LIKE ? ESCAPE '!' OR p.title_ar LIKE ? ESCAPE '!' OR p.city LIKE ? ESCAPE '!' OR EXISTS (SELECT 1 FROM JSON_TABLE(IF(JSON_VALID(p.custom_fields),p.custom_fields,JSON_OBJECT()), '$.*' COLUMNS(field_value VARCHAR(1000) PATH '$.value' NULL ON ERROR)) AS custom_value WHERE custom_value.field_value LIKE ? ESCAPE '!'))");params.push(like,like,like,like,like);}
   const clause=where.join(' AND ');
   const [[count]]=await db.query(`SELECT COUNT(*) AS total FROM sx_real_estate_properties p WHERE ${clause}`,params);
-  const [rows]=await db.query(`SELECT p.id,p.reference_code AS referenceCode,p.title_en AS titleEn,p.title_ar AS titleAr,p.property_type AS propertyType,p.transaction_type AS transactionType,p.status,p.price_minor AS priceMinor,p.currency,p.area_sqm AS areaSqm,p.bedrooms,p.bathrooms,p.city,p.description_en AS descriptionEn,p.description_ar AS descriptionAr,p.custom_fields AS customFields,assignee.display_name AS assignedName,p.assigned_membership_id AS assignedMembershipId,p.revision,p.created_at AS createdAt,p.updated_at AS updatedAt FROM sx_real_estate_properties p LEFT JOIN sx_memberships assigned ON assigned.tenant_id=p.tenant_id AND assigned.id=p.assigned_membership_id LEFT JOIN sx_identities assignee ON assignee.id=assigned.identity_id WHERE ${clause} ORDER BY p.updated_at DESC,p.id LIMIT ? OFFSET ?`,[...params,limit,(page-1)*limit]);
+  const [rows]=await db.query(`SELECT p.id,p.reference_code AS referenceCode,p.title_en AS titleEn,p.title_ar AS titleAr,p.property_type AS propertyType,p.transaction_type AS transactionType,p.status,p.chatbot_visible AS chatbotVisible,p.price_minor AS priceMinor,p.currency,p.area_sqm AS areaSqm,p.bedrooms,p.bathrooms,p.city,p.description_en AS descriptionEn,p.description_ar AS descriptionAr,p.custom_fields AS customFields,assignee.display_name AS assignedName,p.assigned_membership_id AS assignedMembershipId,p.revision,p.created_at AS createdAt,p.updated_at AS updatedAt FROM sx_real_estate_properties p LEFT JOIN sx_memberships assigned ON assigned.tenant_id=p.tenant_id AND assigned.id=p.assigned_membership_id LEFT JOIN sx_identities assignee ON assignee.id=assigned.identity_id WHERE ${clause} ORDER BY p.updated_at DESC,p.id LIMIT ? OFFSET ?`,[...params,limit,(page-1)*limit]);
   const fieldContract=await propertyFieldContract(db,context);
-  return {items:rows.map(row=>({...row,customFields:decodeCustomFields(row.customFields)})),total:Number(count.total),page,limit,fieldContract};
+  return {items:rows.map(row=>({...row,chatbotVisible:row.chatbotVisible===true||Number(row.chatbotVisible)===1,customFields:decodeCustomFields(row.customFields)})),total:Number(count.total),page,limit,fieldContract};
 }
 async function validateAssignee(db,context,membershipId){
   if(membershipId===null)return null;
@@ -113,6 +117,7 @@ async function listAssignees(db,context){
 }
 async function create(db,context,input){
   authorize(context,'properties.manage');const data=clean(input);
+  validateChatbotVisibility(context,data.chatbotVisible);
   if(data.status!=='draft')fail('INVALID_PROPERTY_TRANSITION',409);
   const id=uuid(),referenceCode=`RE-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
   await db.beginTransaction();
@@ -122,10 +127,10 @@ async function create(db,context,input){
     const fieldContract=await propertyFieldContract(db,context);
     data.customFields=saveCustomFields(fieldContract,data.customFields,{}, {creating:true});
     data.assignedMembershipId=await validateAssignee(db,context,data.assignedMembershipId);
-    await db.query(`INSERT INTO sx_real_estate_properties(id,tenant_id,reference_code,title_en,title_ar,property_type,transaction_type,status,price_minor,currency,area_sqm,bedrooms,bathrooms,city,description_en,description_ar,custom_fields,assigned_membership_id,created_by_identity_id,updated_by_identity_id)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,context.tenant.id,referenceCode,data.titleEn,data.titleAr,data.propertyType,data.transactionType,data.status,data.priceMinor,data.currency,data.areaSqm,data.bedrooms,data.bathrooms,data.city,data.descriptionEn,data.descriptionAr,JSON.stringify(data.customFields),data.assignedMembershipId,context.identity.id,context.identity.id]);
+    await db.query(`INSERT INTO sx_real_estate_properties(id,tenant_id,reference_code,title_en,title_ar,property_type,transaction_type,status,chatbot_visible,price_minor,currency,area_sqm,bedrooms,bathrooms,city,description_en,description_ar,custom_fields,assigned_membership_id,created_by_identity_id,updated_by_identity_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,context.tenant.id,referenceCode,data.titleEn,data.titleAr,data.propertyType,data.transactionType,data.status,data.chatbotVisible,data.priceMinor,data.currency,data.areaSqm,data.bedrooms,data.bathrooms,data.city,data.descriptionEn,data.descriptionAr,JSON.stringify(data.customFields),data.assignedMembershipId,context.identity.id,context.identity.id]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
-      VALUES (?,?,?,'identity','real-estate.property-created','real-estate-property',?,?,?)`,[uuid(),context.tenant.id,context.identity.id,id,JSON.stringify({referenceCode,propertyType:data.propertyType,transactionType:data.transactionType,status:data.status,assignedMembershipId:data.assignedMembershipId}),uuid()]);
+      VALUES (?,?,?,'identity','real-estate.property-created','real-estate-property',?,?,?)`,[uuid(),context.tenant.id,context.identity.id,id,JSON.stringify({referenceCode,propertyType:data.propertyType,transactionType:data.transactionType,status:data.status,chatbotVisible:data.chatbotVisible,assignedMembershipId:data.assignedMembershipId}),uuid()]);
     await db.commit();return {id,referenceCode,...data,revision:1};
   }catch(error){await db.rollback();throw error;}
 }
@@ -133,6 +138,7 @@ async function update(db,context,id,input){
   authorize(context,'properties.manage');
   if(!/^[0-9a-f-]{36}$/i.test(id)||!Number.isSafeInteger(input?.expectedRevision)||input.expectedRevision<1)fail('INVALID_PROPERTY_UPDATE');
   const patch=clean(input,{partial:true});if(!Object.keys(patch).length)fail('INVALID_PROPERTY_UPDATE');
+  if(Object.hasOwn(patch,'chatbotVisible'))validateChatbotVisibility(context,patch.chatbotVisible);
   await db.beginTransaction();
   try{
     if(Object.hasOwn(patch,'customFields')){
@@ -152,7 +158,7 @@ async function update(db,context,id,input){
     }
     if(Object.hasOwn(patch,'assignedMembershipId'))patch.assignedMembershipId=await validateAssignee(db,context,patch.assignedMembershipId);
     if(Object.hasOwn(patch,'customFields'))patch.customFields=JSON.stringify(saveCustomFields(await propertyFieldContract(db,context),patch.customFields,row.customFields));
-    const columns={titleEn:'title_en',titleAr:'title_ar',propertyType:'property_type',transactionType:'transaction_type',status:'status',priceMinor:'price_minor',currency:'currency',areaSqm:'area_sqm',bedrooms:'bedrooms',bathrooms:'bathrooms',city:'city',descriptionEn:'description_en',descriptionAr:'description_ar',customFields:'custom_fields',assignedMembershipId:'assigned_membership_id'};
+    const columns={titleEn:'title_en',titleAr:'title_ar',propertyType:'property_type',transactionType:'transaction_type',status:'status',chatbotVisible:'chatbot_visible',priceMinor:'price_minor',currency:'currency',areaSqm:'area_sqm',bedrooms:'bedrooms',bathrooms:'bathrooms',city:'city',descriptionEn:'description_en',descriptionAr:'description_ar',customFields:'custom_fields',assignedMembershipId:'assigned_membership_id'};
     const keys=Object.keys(patch),sets=keys.map(key=>`${columns[key]}=?`);
     await db.query(`UPDATE sx_real_estate_properties SET ${sets.join(',')},revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=?`,[...keys.map(key=>patch[key]),context.identity.id,context.tenant.id,id]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)

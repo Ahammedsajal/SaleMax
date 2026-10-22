@@ -231,6 +231,16 @@ The first domain slice is a private `real_estate@1` contract and a tenant-scoped
 
 The category is `public:false` and `planable:false`; it is deliberately absent from customer plan selection while the workflow is incomplete. `realestate.listings` is a distinct entitlement and is independently gated by category version, active subscription, role permission and assigned navigation. Thirty focused unit/policy/migration/HTTP tests pass, and a disposable MariaDB run verifies manager-team assignment, agent and team-leader visibility, cross-tenant assignment denial, concurrent revision writes and audit rollback. This establishes a vertical-module pattern, not a claim that the full category or multi-tenant acceptance is complete. Buyer/tenant requirements, owners, viewings, listing pipelines, search ranking, media uploads, RESO mapping, bilingual browser/device review and authenticated existing-panel acceptance remain open before plan publication or production migration.
 
+For chatbot publication, every property remains tenant-private by default. A
+separate, revisioned `chatbot_visible` choice is editable only through the
+existing owner/manager property workflow. The bot fact query requires the same
+tenant, active listing state, explicit sharing choice, category version,
+`realestate.listings` entitlement and current permission decision. Existing rows
+receive the private default; an active listing does not become public to the
+chatbot merely because its status changes. The tenant's configured price, area
+and bedroom visibility choices are applied before facts reach both guided
+replies and AI prompts, including the existing bot-preview action.
+
 ### Real Estate successor contract and buyer requirements — source implementation, 21 October 2026
 
 Keep the existing `real_estate@1` manifest immutable. The private `real_estate@2` successor adds a separate `realestate.requirements` entitlement rather than silently granting a new workflow to any v1 tenant. Its typed buyer/renter requirement record references the existing tenant Pipeline lead by `(legacy_uid_hash, lead_id)` and stores only search criteria; it does not duplicate customer names, phones or contacts. Matching requires the same transaction, currency, property type, budget, area, bedroom floor and city, and returns only active/under-offer listings in the caller's listing scope. Both the requirement and linked Pipeline lead are checked against tenant and current manager/team/agent scopes. Owner and manager changes use optimistic revisions and the tenant audit ledger; active assignment must resolve to a tenant agent and, for managers, one in their current team.

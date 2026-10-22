@@ -34,7 +34,7 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   assert.equal(Number(existing.total),0,'synthetic schema must be empty');
   for(const sql of schema)await pool.query(sql);
   const runner=require('../database/migration-runner');
-  for(const file of ['20261220_tenant_customization.sql','20261222_real_estate_properties.sql','20261225_real_estate_property_custom_fields.sql']){
+  for(const file of ['20261220_tenant_customization.sql','20261222_real_estate_properties.sql','20261225_real_estate_property_custom_fields.sql','20261226_real_estate_chatbot_visibility.sql']){
     const migration=fs.readFileSync(path.join(__dirname,`../database/migrations/${file}`),'utf8');
     for(const sql of runner.splitSql(migration))await pool.query(sql);
   }
@@ -86,15 +86,19 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
 
   const botContext={...a,category:realEstateV3,tenant:{...a.tenant,categoryVersion:3},subscription:{...a.subscription,categoryKey:'real_estate',categoryVersion:3,capabilities:[...realEstateV3.capabilities]}};
   const otherBotContext={...b,category:realEstateV3,tenant:{...b.tenant,categoryVersion:3},subscription:{...b.subscription,categoryKey:'real_estate',categoryVersion:3,capabilities:[...realEstateV3.capabilities]}};
-  const draftBotListing=await use(db=>properties.create(db,a,{...listing,titleEn:'Draft bot listing',titleAr:'عقار روبوت مسودة'}));
-  const botListing=await use(db=>properties.create(db,a,{...listing,titleEn:'Bot-visible listing',titleAr:'عقار ظاهر للروبوت'}));
+  const draftBotListing=await use(db=>properties.create(db,a,{...listing,titleEn:'Draft bot listing',titleAr:'عقار روبوت مسودة',chatbotVisible:true}));
+  assert.equal(draftBotListing.chatbotVisible,true);
+  const botListing=await use(db=>properties.create(db,a,{...listing,titleEn:'Bot-visible listing',titleAr:'عقار ظاهر للروبوت',chatbotVisible:true}));
   await use(db=>properties.update(db,a,botListing.id,{expectedRevision:1,status:'active'}));
-  const otherBotListing=await use(db=>properties.create(db,b,{...listing,titleEn:'Other tenant listing',titleAr:'عقار المستأجر الآخر'}));
+  const privateBotListing=await use(db=>properties.create(db,a,{...listing,titleEn:'Private active listing',titleAr:'عقار نشط خاص'}));
+  assert.equal(privateBotListing.chatbotVisible,false,'new listings default to private');
+  await use(db=>properties.update(db,a,privateBotListing.id,{expectedRevision:1,status:'active'}));
+  const otherBotListing=await use(db=>properties.create(db,b,{...listing,titleEn:'Other tenant listing',titleAr:'عقار المستأجر الآخر',chatbotVisible:true}));
   await use(db=>properties.update(db,b,otherBotListing.id,{expectedRevision:1,status:'active'}));
   const botFacts=await use(db=>realEstateBot.loadFacts({db,tenantId,context:botContext}));
-  const [activeIds]=await pool.query("SELECT id FROM sx_real_estate_properties WHERE tenant_id=? AND status='active' ORDER BY updated_at DESC,id LIMIT 100",[tenantId]);
-  assert.deepEqual(botFacts.map(item=>item.id),activeIds.map(item=>item.id),'the guide includes only this tenant\'s active listings');
-  assert.ok(botFacts.some(item=>item.id===botListing.id));assert.ok(!botFacts.some(item=>item.id===draftBotListing.id||item.id===otherBotListing.id));
+  const [visibleIds]=await pool.query("SELECT id FROM sx_real_estate_properties WHERE tenant_id=? AND status='active' AND chatbot_visible=1 ORDER BY updated_at DESC,id LIMIT 100",[tenantId]);
+  assert.deepEqual(botFacts.map(item=>item.id),visibleIds.map(item=>item.id),'the guide includes only this tenant\'s active, explicitly shared listings');
+  assert.ok(botFacts.some(item=>item.id===botListing.id));assert.ok(!botFacts.some(item=>item.id===draftBotListing.id||item.id===privateBotListing.id||item.id===otherBotListing.id));
   assert.deepEqual((await use(db=>realEstateBot.loadFacts({db,tenantId:otherTenantId,context:otherBotContext}))).map(item=>item.id),[otherBotListing.id],'each tenant receives only its own listing facts');
   const botPreview=await use(db=>require('../modules/platform/chatbot-guide-preview').previewGuidedTurn({body:{message:'show listings'},pack:realEstateBot,db,tenantId,context:botContext}));
   assert.match(botPreview.reply,/Bot-visible listing/);assert.doesNotMatch(botPreview.reply,/Other tenant listing|Draft bot listing/,'authenticated preview only shows active listings owned by the current tenant');
@@ -106,5 +110,5 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   try{await assert.rejects(properties.create(failingDb,a,{...listing,titleEn:'Audit rollback candidate'}),/SYNTHETIC_AUDIT_FAILURE/);}finally{connection.release();}
   const after=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
   assert.equal(after,before,'listing insert must roll back with its audit event');
-  console.log(JSON.stringify({passed:true,checks:['property and customization migrations apply to disposable MariaDB','creator identity must be a member of the same tenant','manager assignment is limited to active same-team agents','agents see only their assigned listings','team leaders see listings assigned to current team members','foreign-tenant assignee denied','tenant-scoped listing reads','custom field config and values remain tenant-isolated','custom values validate, retain bilingual snapshots and update transactionally','custom values are searchable inside the tenant scope','cross-tenant listing ID denied','new listings start as drafts','two concurrent edits yield one revision winner','Real Estate bot facts include only tenant active listings','disabled Properties module excludes bot facts','authenticated domain guide preview is tenant-scoped','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
+  console.log(JSON.stringify({passed:true,checks:['property, customization and chatbot-visibility migrations apply to disposable MariaDB','creator identity must be a member of the same tenant','manager assignment is limited to active same-team agents','agents see only their assigned listings','team leaders see listings assigned to current team members','foreign-tenant assignee denied','tenant-scoped listing reads','custom field config and values remain tenant-isolated','custom values validate, retain bilingual snapshots and update transactionally','custom values are searchable inside the tenant scope','cross-tenant listing ID denied','new listings start as drafts and chatbot-private','two concurrent edits yield one revision winner','Real Estate bot facts include only tenant active listings explicitly shared with the chatbot','disabled Properties module excludes bot facts','authenticated domain guide preview is tenant-scoped','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
 }finally{await pool.end();}})().catch(error=>{console.error(error.stack||String(error));process.exitCode=1;});

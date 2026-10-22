@@ -1,3 +1,24 @@
+# Real Estate chatbot listing privacy — source implementation, 22 October 2026
+
+Added an explicit `Share this property with your chatbot` choice to the existing
+Properties form in English and Arabic. Listing creation defaults this value to
+private, and updates use the existing owner/manager permission, optimistic
+revision and audit paths. The additive migration gives existing rows the same
+private default and indexes the tenant/status/publication fields used by the bot
+query. The Real Estate v3 guide now receives only active listings explicitly
+shared by that same tenant; drafts, private active records and other tenants'
+records remain outside the bot facts. The tenant's configured price, area and
+bedroom visibility choices are also applied to AI prompt facts and bot previews.
+Focused Real Estate/property/chatbot tests pass 31/31; the extended category,
+customization, policy, chatbot and Real Estate regression suite passes 252/252.
+The existing Properties-screen browser fixture passes four English/Arabic
+desktop/mobile cases including default-private and opt-in editing.
+The disposable MariaDB integration was updated but not run because its explicit
+synthetic-only connection configuration is unavailable. Source only: no
+production migration, release, tenant setting or provider message was changed.
+Authenticated live role acceptance, migration rehearsal and the full category/
+42-ticket gates remain open.
+
 # Tenant-indexed Inbox assignments — source implementation, 22 October 2026
 
 Added the normalized `sx_conversation_assignments` index and tenant-level

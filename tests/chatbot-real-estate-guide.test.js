@@ -18,14 +18,16 @@ test('real-estate domain pack is versioned and exposes tenant-editable bilingual
   assert.equal(saved.config.guidedContent.messages.welcome.en,'Welcome to our listings.');assert.equal(saved.config.guidedContent.display.maxProperties,3);assert.equal(saved.config.guidedContent.display.showPrices,false);
 });
 
-test('real-estate bot facts query only active listings for the authenticated tenant and honor module disablement',async()=>{
+test('real-estate bot facts query only opted-in active listings for the authenticated tenant and honor module disablement',async()=>{
   const queries=[],db={query:async(sql,args)=>{queries.push({sql,args});return [[row]];}};
   const facts=await pack.loadFacts({db,tenantId,context:context()});
   assert.equal(facts.length,1);assert.equal(facts[0].referenceCode,'RE-AAA');assert.deepEqual(queries[0].args,[tenantId]);
-  assert.match(queries[0].sql,/tenant_id=\? AND status='active'/);
+  assert.match(queries[0].sql,/tenant_id=\? AND status='active' AND chatbot_visible=1/);
+  const redacted=await pack.loadFacts({db,tenantId,context:context(),config:{guidedContent:{display:{showPrices:false,showArea:false,showBedrooms:false}}}});
+  assert.equal(redacted[0].priceMinor,null);assert.equal(redacted[0].currency,null);assert.equal(redacted[0].areaSqm,null);assert.equal(redacted[0].bedrooms,null,'hidden fields stay out of AI prompt facts as well as guided replies');
   assert.deepEqual(await pack.loadFacts({db,tenantId,context:context({tenant:{disabledModules:['realestate.listings']}})}),[]);
   assert.deepEqual(await pack.loadFacts({db,tenantId:'tenant-foreign',context:context()}),[]);
-  assert.equal(queries.length,1);
+  assert.equal(queries.length,2);
 });
 
 test('real-estate guide localizes replies, hides configured fields, never invents availability, and offers human help',()=>{

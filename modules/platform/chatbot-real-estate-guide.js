@@ -23,7 +23,7 @@ const text = value => String(value || '').normalize('NFKC').toLowerCase().replac
 function languageFor(message, state) { return /[\u0600-\u06ff]/.test(message) || state?.language === 'ar' ? 'ar' : 'en'; }
 function displayLimit(content) { const value = Number(content?.display?.maxProperties); return Number.isSafeInteger(value) ? Math.max(1, Math.min(10, value)) : DEFAULTS.display.maxProperties; }
 
-async function loadFacts({ db, tenantId, context }) {
+async function loadFacts({ db, tenantId, context, config = {} }) {
   if (!db || !context || context.tenant?.id !== tenantId || context.category?.key !== 'real_estate' || context.category.version !== 3) return [];
   const access = decision(context, { capability: 'realestate.listings', permission: 'properties.read' });
   if (!access.allowed) return [];
@@ -31,9 +31,17 @@ async function loadFacts({ db, tenantId, context }) {
       property_type AS propertyType,transaction_type AS transactionType,price_minor AS priceMinor,currency,
       area_sqm AS areaSqm,bedrooms,city,description_en AS descriptionEn,description_ar AS descriptionAr
     FROM sx_real_estate_properties
-    WHERE tenant_id=? AND status='active'
+    WHERE tenant_id=? AND status='active' AND chatbot_visible=1
     ORDER BY updated_at DESC,id LIMIT 100`, [tenantId]);
-  return rows.map(row => ({ ...row, kind: 'property', priceMinor: Number(row.priceMinor), areaSqm: row.areaSqm == null ? null : Number(row.areaSqm) }));
+  const display = config.guidedContent?.display || config.display || {};
+  return rows.map(row => ({
+    ...row,
+    kind: 'property',
+    priceMinor: display.showPrices === false ? null : Number(row.priceMinor),
+    currency: display.showPrices === false ? null : row.currency,
+    areaSqm: display.showArea === false || row.areaSqm == null ? null : Number(row.areaSqm),
+    bedrooms: display.showBedrooms === false ? null : row.bedrooms,
+  }));
 }
 
 function formatPrice(property, language) {

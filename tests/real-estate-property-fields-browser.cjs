@@ -19,7 +19,7 @@ const fields=[
         const listings=[],requests=[];
         let revision=1;
         window.SaleMaxWorkspace={
-          session:async()=>({categoryKey:'real_estate',categoryVersion:1,modules:{properties:true},permissions:{'properties.manage':true,'properties.assign':false},timezone:'Asia/Qatar'}),
+          session:async()=>({categoryKey:'real_estate',categoryVersion:3,modules:{properties:true},permissions:{'properties.manage':true,'properties.assign':false},timezone:'Asia/Qatar'}),
           request:async(module,path,options={method:'GET'})=>{
             requests.push({module,path,options});
             if(module!=='properties')throw Error('unexpected module');
@@ -40,6 +40,8 @@ const fields=[
       await page.addScriptTag({path:path.join(__dirname,'../client/public/property-listings/properties.js')});
       await page.waitForTimeout(150);if(!await page.locator('#new-property').count())throw Error(`Properties screen did not load: ${await page.locator('#properties-app').innerText()} ${pageErrors.join('; ')}`);await page.locator('#new-property').click();
       const form=page.locator('#property-form');
+      assert.equal(await form.locator('[name=chatbotVisible]').isChecked(),false,'a new listing is private from the chatbot by default');
+      assert.ok((await form.innerText()).includes(language==='ar'?'مشاركة هذا العقار مع روبوت المحادثة':'Share this property with your chatbot'));
       await form.locator('[name=titleEn]').fill('Synthetic apartment');await form.locator('[name=titleAr]').fill('شقة اختبارية');
       await form.locator('[name=price]').fill('1250');await form.locator('[name=city]').fill('Synthetic Doha');
       await form.locator('[name=descriptionEn]').fill('Synthetic description');await form.locator('[name=descriptionAr]').fill('وصف اختباري');
@@ -51,12 +53,14 @@ const fields=[
       let saved=await page.evaluate(()=>window.fixture.requests.find(request=>request.options.method==='POST').options.body);
       assert.equal(saved.customFields.configurationRevision,4);
       assert.deepEqual(saved.customFields.values,{[fields[0].key]:'North facing',[fields[1].key]:0,[fields[2].key]:false,[fields[3].key]:'2026-11-02'});
-      const rendered=await page.locator('#properties-app').innerText();assert.ok(rendered.includes(language==='ar'?'الإطلالة':'View'),rendered);
+      assert.equal(saved.chatbotVisible,false);
+      let rendered=await page.locator('#properties-app').innerText();assert.ok(rendered.includes(language==='ar'?'الإطلالة':'View'),rendered);assert.ok(rendered.includes(language==='ar'?'خاص':'Private'),rendered);
       await page.locator('[data-edit-id="property-a"]').click();
       const edit=page.locator('#property-form');assert.equal(await edit.locator(`[data-property-field="${fields[2].key}"]`).inputValue(),'false');
-      await edit.locator(`[data-property-field="${fields[0].key}"]`).fill('Park view');await edit.locator('button[type=submit]').click();
+      await edit.locator(`[data-property-field="${fields[0].key}"]`).fill('Park view');await edit.locator('[name=chatbotVisible]').check();await edit.locator('button[type=submit]').click();
       saved=await page.evaluate(()=>window.fixture.requests.find(request=>request.options.method==='PUT').options.body);
-      assert.equal(saved.expectedRevision,2);assert.equal(saved.customFields.values[fields[0].key],'Park view');assert.equal(saved.customFields.values[fields[2].key],false);
+      assert.equal(saved.expectedRevision,2);assert.equal(saved.chatbotVisible,true);assert.equal(saved.customFields.values[fields[0].key],'Park view');assert.equal(saved.customFields.values[fields[2].key],false);
+      rendered=await page.locator('#properties-app').innerText();assert.ok(rendered.includes(language==='ar'?'مشارك':'Shared'),rendered);
       await page.close();cases++;
     }
     console.log(JSON.stringify({passed:true,cases,checks:['existing Properties screen','EN and AR','mobile and desktop','four typed custom fields','zero and false preserve exact values','required-field forms','custom labels render','create and revision-safe edit']}));
