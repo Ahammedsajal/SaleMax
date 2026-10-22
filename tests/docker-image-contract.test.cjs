@@ -7,6 +7,7 @@ const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const dockerfile = fs.readFileSync(path.join(root, 'deploy/Dockerfile'), 'utf8');
 const compose = fs.readFileSync(path.join(root, 'deploy/compose.yml'), 'utf8');
+const envExample = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
 const imageBuilder = path.join(root, 'deploy/build-image.sh');
 const imageWorkflow = fs.readFileSync(path.join(root, '.github/workflows/7network-arm64-image.yml'), 'utf8');
 const publishWorkflow = fs.readFileSync(path.join(root, '.github/workflows/7network-arm64-publish.yml'), 'utf8');
@@ -67,6 +68,16 @@ test('HTTPS perimeter stages one-day HSTS without affecting the HTTP challenge s
   assert.match(servers[1], /listen 443 ssl;/);
   assert.match(servers[1], /add_header Strict-Transport-Security "max-age=86400" always;/);
   assert.doesNotMatch(servers[1], /includeSubDomains|preload/i);
+});
+
+test('browser SIP domain guidance uses the primary origin and preserves the CRM WebSocket alias', () => {
+  assert.match(envExample, /New browser SIP sessions use wss:\/\/7network\.live\/ws/);
+  assert.match(envExample, /Keep crm\.salemax\.qa[\s\S]*?legacy clients/);
+  const servers = [...httpsConfig.matchAll(/server \{[\s\S]*?\n\}/g)].map((match) => match[0]);
+  const tlsServer = servers.find((server) => /listen 443 ssl;/.test(server));
+  assert.ok(tlsServer);
+  assert.match(tlsServer, /server_name crm\.salemax\.qa 7network\.live www\.7network\.live;/);
+  assert.match(tlsServer, /location = \/ws \{[\s\S]*?proxy_pass http:\/\/127\.0\.0\.1:8088\/ws;/);
 });
 
 test('app Compose service allows the bounded graceful shutdown to finish', () => {
