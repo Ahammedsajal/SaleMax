@@ -32,7 +32,7 @@ function normalize(ctx,input) {
     labels[key]={en:value.en.trim(),ar:value.ar.trim()};
   }
   const leadFields=input.schemaVersion===2?require('./lead-field-contract').definitions(input.leadFields):null;
-  const schema3LeadFields=input.schemaVersion===3?require('./lead-field-contract').definitions(input.leadFields):null;
+  const schema3LeadFields=input.schemaVersion===3&&Object.hasOwn(input,'leadFields')?require('./lead-field-contract').definitions(input.leadFields):null;
   const hiddenNavigation=input.schemaVersion===3?input.hiddenNavigation:[];
   if(!Array.isArray(hiddenNavigation)||hiddenNavigation.length>allowed.size||new Set(hiddenNavigation).size!==hiddenNavigation.length||hiddenNavigation.some(key=>typeof key!=='string'||!allowed.has(key)))fail('INVALID_CUSTOMIZATION_NAVIGATION');
   const fields=schema3LeadFields||leadFields;

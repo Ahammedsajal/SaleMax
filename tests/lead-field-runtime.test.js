@@ -26,6 +26,16 @@ test('category lead-field defaults are available to Pipeline before a tenant pub
  try{assert.deepEqual(await runtime.contractForOwner(db,'owner-default'),{revision:0,fields:[definition]});}
  finally{categories.getCategory=original;if(savedFlag===undefined)delete process.env.SALEMAX_PLATFORM_ENABLED;else process.env.SALEMAX_PLATFORM_ENABLED=savedFlag;}
 });
+test('Pipeline keeps category fields active under a published tenant revision that omits an override',async()=>{
+ const savedFlag=process.env.SALEMAX_PLATFORM_ENABLED;process.env.SALEMAX_PLATFORM_ENABLED='true';
+ const categories=require('../modules/platform/categories'),original=categories.getCategory;
+ const category={...categories.trainingCenter,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[definition],hiddenNavigation:[]}},tenant={id:'tenant-a',categoryKey:category.key,categoryVersion:category.version};
+ categories.getCategory=(key,version)=>key===category.key&&version===category.version?category:original(key,version);
+ const document={schemaVersion:3,navigationLabels:{},hiddenNavigation:[]},row={id:'config-a',revision:4,kind:'published',category_key:category.key,category_version:category.version,schema_version:3,document:JSON.stringify(document),checksum:settings.checksum(settings.normalize({tenant,category},document))};
+ const db={query:async sql=>sql.includes('FROM user u JOIN')?[[{id:tenant.id,status:'active',category_key:category.key,category_version:category.version,active_id:row.id}]]:[[row]]};
+ try{assert.deepEqual(await runtime.contractForOwner(db,'owner-overlay'),{revision:4,fields:[definition]});}
+ finally{categories.getCategory=original;if(savedFlag===undefined)delete process.env.SALEMAX_PLATFORM_ENABLED;else process.env.SALEMAX_PLATFORM_ENABLED=savedFlag;}
+});
 test('schema 1 persisted checksums remain stable after schema 2 adoption',()=>{
  const v1={schemaVersion:1,navigationLabels:{}};const ctx={tenant:{categoryKey:'training_center',categoryVersion:1},category:require('../modules/platform/categories').trainingCenter};
  assert.deepEqual(settings.decode(ctx,{id:'old',revision:1,kind:'published',category_key:'training_center',category_version:1,schema_version:1,document:JSON.stringify(v1),checksum:settings.checksum(v1)}).document,v1);

@@ -54,6 +54,8 @@ test('runtime effective settings resolve the published tenant overlay over platf
 test('schema 3 hides only category-owned navigation keys while schema 1 and 2 remain readable',()=>{
   const doc3={schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['courses','inbox']};
   assert.deepEqual(settings.normalize(ctx,doc3),doc3);
+  const inheritedFields={schemaVersion:3,navigationLabels:{},hiddenNavigation:[]};
+  assert.deepEqual(settings.normalize(ctx,inheritedFields),inheritedFields,'omitted leadFields inherit category defaults');
   assert.throws(()=>settings.normalize(ctx,{...doc3,hiddenNavigation:['recruitment']}),{code:'INVALID_CUSTOMIZATION_NAVIGATION'});
   assert.throws(()=>settings.normalize(ctx,{...doc3,hiddenNavigation:['courses','courses']}),{code:'INVALID_CUSTOMIZATION_NAVIGATION'});
   const doc2={schemaVersion:2,navigationLabels:{},leadFields:[]};

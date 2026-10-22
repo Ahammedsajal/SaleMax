@@ -29,3 +29,9 @@ test('existing Forms editor can select the exact category-version default field 
  const result=await service.options({query:async()=>[[]]},{...ctx,category:categoryWithDefaults});
  assert.deepEqual(result,{revision:0,fields:[field]});
 });
+test('Forms keeps inherited category fields selectable under a tenant revision that omits the field override',async()=>{
+ const settings=require('../modules/platform/tenant-customization'),categoryWithDefaults={...category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[field],hiddenNavigation:[]}},document={schemaVersion:3,navigationLabels:{},hiddenNavigation:[]};
+ const row={id:'revision-a',revision:3,kind:'published',category_key:category.key,category_version:1,schema_version:3,document:JSON.stringify(document),checksum:settings.checksum(settings.normalize({...ctx,category:categoryWithDefaults},document))};
+ const result=await service.options({query:async()=>[[row]]},{...ctx,category:categoryWithDefaults});
+ assert.deepEqual(result,{revision:3,fields:[field]});
+});

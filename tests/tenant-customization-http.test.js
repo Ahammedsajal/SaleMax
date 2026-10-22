@@ -34,3 +34,17 @@ test('preview rejects foreign schema keys, denied staff, missing credentials and
   assert.equal(app.counts().queries,0);
  }finally{await app.close();}
 });
+test('shared customization API exposes validated category lead-field inheritance in GET and preview',async()=>{
+ const app=await fixture();try{
+  const field={key:'cf_text_0123456789abcdef',type:'text',label:{en:'Property reference',ar:'مرجع العقار'},required:false,active:true,version:1};
+  app.setContext({...base,category:{...trainingCenter,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[field],hiddenNavigation:[]}}});
+  const headers={Authorization:'Bearer synthetic-owner'};
+  const response=await fetch(app.base+'/api/workspace/customization',{headers});assert.equal(response.status,200);
+  const state=(await response.json()).data;assert.deepEqual(state.inherited.leadFields,[field]);assert.deepEqual(state.resolved.provenance.leadFields,{scope:'category_version',categoryKey:'training_center',categoryVersion:1});
+  const queriesAfterGet=app.counts().queries;
+  const preview=await fetch(app.base+'/api/workspace/customization/preview',{method:'POST',headers:{...headers,'Content-Type':'application/json',Origin:'https://crm.example.test'},body:JSON.stringify({document:{schemaVersion:3,navigationLabels:{},hiddenNavigation:[]}})});
+  const previewPayload=await preview.json();assert.equal(preview.status,200,JSON.stringify(previewPayload));const result=previewPayload.data;assert.deepEqual(result.resolved.value.leadFields,[field]);assert.deepEqual(result.resolved.provenance.leadFields,{scope:'category_version',categoryKey:'training_center',categoryVersion:1});assert.equal(app.counts().queries,queriesAfterGet,'preview does not write category defaults');
+  const cleared=await fetch(app.base+'/api/workspace/customization/preview',{method:'POST',headers:{...headers,'Content-Type':'application/json',Origin:'https://crm.example.test'},body:JSON.stringify({document:{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]}})});
+  assert.equal(cleared.status,200);const clearedData=(await cleared.json()).data;assert.deepEqual(clearedData.resolved.value.leadFields,[]);assert.deepEqual(clearedData.resolved.provenance.leadFields,{scope:'tenant',revision:0});assert.equal(app.counts().queries,queriesAfterGet,'preview does not write explicit overrides either');
+ }finally{await app.close();}
+});
