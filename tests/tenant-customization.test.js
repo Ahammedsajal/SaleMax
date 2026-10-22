@@ -64,16 +64,36 @@ test('schema 3 hides only category-owned navigation keys while schema 1 and 2 re
   assert.deepEqual(settings.visibleNavigation(rows,doc3),[{key:'tasks'}]);
   assert.deepEqual(settings.visibleNavigation(rows,{schemaVersion:2}),rows);
 });
+test('schema 4 resolves and validates bilingual Pipeline stage labels without changing stage identity',()=>{
+  const category={...ctx.category,customizationDefaults:{schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],stageLabels:{training_invoice_issued:{en:'Invoice issued',ar:'صدرت الفاتورة'}}}};
+  const scoped={...ctx,category};
+  const tenant={schemaVersion:4,navigationLabels:{},hiddenNavigation:[],stageLabels:{training_invoice_issued:{en:'Contract signed',ar:'تم توقيع العقد'}}};
+  const resolved=settings.resolved(scoped,tenant,5);
+  assert.equal(resolved.value.stageLabels.training_invoice_issued.en,'Contract signed');
+  assert.equal(resolved.value.stageLabels.training_invoice_issued.ar,'تم توقيع العقد');
+  assert.deepEqual(resolved.provenance['stageLabels.training_invoice_issued.en'],{scope:'tenant',revision:5});
+  assert.throws(()=>settings.normalize(scoped,{...tenant,stageLabels:{'bad key':{en:'A',ar:'ب'}}}),{code:'INVALID_CUSTOMIZATION_STAGE_LABELS'});
+  assert.throws(()=>settings.normalize(scoped,{...tenant,stageLabels:{new:{en:'<script>',ar:'جديد'}}}),{code:'INVALID_CUSTOMIZATION_STAGE_LABELS'});
+});
+test('owner settings lists only Pipeline stages from the authenticated business uid',async()=>{
+  const calls=[],ownerUid='synthetic-owner-uid';
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.includes('FROM pipeline_stages'))return [[{key:'new',title:'New'},{key:'tenant_stage',title:'Qualified'}]];if(sql.includes('FROM sx_tenant_customization_heads'))return [[]];if(sql.includes('FROM sx_tenant_customization_revisions'))return [[]];throw Error('Unexpected query: '+sql);}};
+  const state=await settings.state(db,ctx,{ownerUid});
+  const stages=calls.find(call=>call.sql.includes('FROM pipeline_stages'));
+  assert.deepEqual(state.stageFields,[{key:'new',title:'New'},{key:'tenant_stage',title:'Qualified'}]);
+  assert.deepEqual(stages.args,[require('node:crypto').createHash('sha256').update(ownerUid,'utf8').digest('hex'),ownerUid]);
+});
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');
   const original=customization.effective;
   try{
-    customization.effective=async(_db,context)=>({revision:8,document:{schemaVersion:3,navigationLabels:{courses:{en:'Learning',ar:'التعلم'}},leadFields:[],hiddenNavigation:context.tenant.id==='tenant-a'?['courses']:[]}});
+    customization.effective=async(_db,context)=>({revision:8,document:{schemaVersion:4,navigationLabels:{courses:{en:'Learning',ar:'التعلم'}},leadFields:[],hiddenNavigation:context.tenant.id==='tenant-a'?['courses']:[],stageLabels:{new:{en:'Prospect',ar:'عميل محتمل'}}}});
     const a=await contract.describeWithNavigation({}, {context:ctx}),b=await contract.describeWithNavigation({}, {context:{...ctx,tenant:{...ctx.tenant,id:'tenant-b'},membership:{...ctx.membership,tenantId:'tenant-b'}}});
     assert.equal(a.roleNavigation.includes('courses'),false);
     assert.equal(a.navigationLabels.courses,undefined);
     assert.equal(b.roleNavigation.includes('courses'),true);
     assert.equal(b.navigationLabels.courses.en,'Learning');
+    assert.deepEqual(a.stageLabels,{new:{en:'Prospect',ar:'عميل محتمل'}});
   }finally{customization.effective=original;}
 });
 test('owner settings draft accepts the preserved tenant alias with its canonical plan contract',async()=>{

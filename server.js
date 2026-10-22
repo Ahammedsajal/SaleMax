@@ -186,6 +186,9 @@ app.use("/media", createMediaMiddleware("./client/public/media"));
 app.use("/meta-media", createMediaMiddleware("./client/public/meta-media"));
 
 // ─── Static & Catch-All ───────────────────────────────────────────────────────
+// Keep the historic agent URL as an alias, but never mount the old Agent screen.
+// The existing shared business shell owns the Agent session and dashboard.
+app.get(['/agent','/agent/'], require('./modules/platform/agent-entry').redirectAgentEntry);
 app.use(express.static(publicDir));
 
 app.use(["/static", "/assets"], (request, response) => {

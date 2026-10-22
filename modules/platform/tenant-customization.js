@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const {decision} = require('./policy');
 const fail = (code,status=400) => {throw Object.assign(new Error(code),{code,status});};
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-const defaults = () => ({schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]});
+const defaults = () => ({schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],stageLabels:{}});
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function authorize(ctx) {
   const result=decision(ctx,{capability:'tenant.settings',permission:'tenant.manage'});
@@ -22,8 +22,8 @@ function categoryNavigationKeys(ctx) {
   return new Set(fieldsFor(ctx).map(item=>item.key));
 }
 function normalize(ctx,input) {
-  const allowedKeys=input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
-  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
+  const allowedKeys=input?.schemaVersion===4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','stageLabels']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
+  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
   const allowed=categoryNavigationKeys(ctx);
   const labels={};
   for(const key of Object.keys(input.navigationLabels).sort()) {
@@ -32,17 +32,26 @@ function normalize(ctx,input) {
     labels[key]={en:value.en.trim(),ar:value.ar.trim()};
   }
   const leadFields=input.schemaVersion===2?require('./lead-field-contract').definitions(input.leadFields):null;
-  const schema3LeadFields=input.schemaVersion===3&&Object.hasOwn(input,'leadFields')?require('./lead-field-contract').definitions(input.leadFields):null;
-  const hiddenNavigation=input.schemaVersion===3?input.hiddenNavigation:[];
+  const schema3LeadFields=input.schemaVersion>=3&&Object.hasOwn(input,'leadFields')?require('./lead-field-contract').definitions(input.leadFields):null;
+  const hiddenNavigation=input.schemaVersion>=3?input.hiddenNavigation:[];
   if(!Array.isArray(hiddenNavigation)||hiddenNavigation.length>allowed.size||new Set(hiddenNavigation).size!==hiddenNavigation.length||hiddenNavigation.some(key=>typeof key!=='string'||!allowed.has(key)))fail('INVALID_CUSTOMIZATION_NAVIGATION');
   const fields=schema3LeadFields||leadFields;
   if(fields?.length&&!ctx.category?.capabilities.includes('crm.leads'))fail('CATEGORY_UNAVAILABLE',409);
-  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion===3?{hiddenNavigation:[...hiddenNavigation].sort()}:{})};
+  const stageLabels={};
+  if(input.schemaVersion===4){
+    if(!plain(input.stageLabels)||Object.keys(input.stageLabels).length>100)fail('INVALID_CUSTOMIZATION_STAGE_LABELS');
+    for(const key of Object.keys(input.stageLabels).sort()){
+      const value=input.stageLabels[key];
+      if(!/^[a-z][a-z0-9_]{0,79}$/.test(key)||!plain(value)||Object.keys(value).length!==2||!['en','ar'].every(lang=>Object.hasOwn(value,lang)&&typeof value[lang]==='string'&&value[lang].trim().length>0&&value[lang].length<=80&&!/[<>\u0000-\u001f\u007f]/.test(value[lang])))fail('INVALID_CUSTOMIZATION_STAGE_LABELS');
+      stageLabels[key]={en:value.en.trim(),ar:value.ar.trim()};
+    }
+  }
+  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{}),...(input.schemaVersion===4?{stageLabels}:{})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
 function resolved(ctx,document,revisionNumber=0) {
   const fields=fieldsFor(ctx);
-  const platform={schemaVersion:3,navigationLabels:Object.fromEntries(fields.map(item=>[item.key,item.label])),leadFields:[],hiddenNavigation:[]};
+  const platform={schemaVersion:4,navigationLabels:Object.fromEntries(fields.map(item=>[item.key,item.label])),leadFields:[],hiddenNavigation:[],stageLabels:{}};
   // Category defaults are immutable server-side contract data. They are optional
   // until each category version publishes a reviewed customization contract.
   let categoryDefaults={};
@@ -57,7 +66,7 @@ function resolved(ctx,document,revisionNumber=0) {
 }
 function decode(ctx,row) {
   if(!row)return null;
-  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   const document=normalize(ctx,typeof row.document==='string'?JSON.parse(row.document):row.document);
   if(document.schemaVersion!==Number(row.schema_version)||checksum(document)!==row.checksum)fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {id:row.id,revision:Number(row.revision),kind:row.kind,document,checksum:row.checksum,createdAt:row.created_at};
@@ -68,14 +77,20 @@ async function revision(db,ctx,id) {
   if(!row)fail('CUSTOMIZATION_NOT_FOUND',404);
   return decode(ctx,row);
 }
-async function state(db,ctx) {
+async function state(db,ctx,session=null) {
   authorize(ctx);
+  let stageFields=[];
+  if(typeof session?.ownerUid==='string'&&session.ownerUid){
+    const uidHash=crypto.createHash('sha256').update(session.ownerUid,'utf8').digest('hex');
+    const [rows]=await db.query('SELECT stage_key AS key,title FROM pipeline_stages WHERE uid_hash=? AND uid=? ORDER BY position,stage_key',[uidHash,session.ownerUid]);
+    stageFields=rows.map(row=>({key:row.key,title:row.title}));
+  }
   const [[head]]=await db.query('SELECT revision,active_id,draft_id FROM sx_tenant_customization_heads WHERE tenant_id=?',[ctx.tenant.id]);
   const [history]=await db.query("SELECT id,revision,checksum,created_at AS createdAt FROM sx_tenant_customization_revisions WHERE tenant_id=? AND kind='published' AND category_key=? AND category_version=? ORDER BY revision DESC LIMIT 20",[ctx.tenant.id,ctx.tenant.categoryKey,ctx.tenant.categoryVersion]);
   const active=await revision(db,ctx,head?.active_id),draft=await revision(db,ctx,head?.draft_id);
   if(active&&active.kind!=='published'||draft&&draft.kind!=='draft')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:Number(head?.revision||0),active,draft,history,
-    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),
+    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),stageFields,
     inherited:resolved(ctx,null,0).value,
     resolved:resolved(ctx,active?.document,active?.revision||0),
     draftResolved:draft?resolved(ctx,draft.document,draft.revision):null};

@@ -2,6 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const policy=require('../modules/platform/policy'),team=require('../modules/platform/team-invitations'),{trainingCenter}=require('../modules/platform/categories');
 const access=require('../modules/platform/agent-workspace-access');
+const agentEntry=require('../modules/platform/agent-entry');
 const ctx=permissions=>({audience:'tenant',tenant:{id:'tenant',status:'active',categoryKey:'training_center',categoryVersion:1},identity:{id:'agent-identity'},membership:{id:'agent-member',tenantId:'tenant',status:'active',role:'agent',customPermissions:permissions,assignedNavigation:null},category:trainingCenter,subscription:{status:'active',capabilities:trainingCenter.capabilities}});
 test('custom staff roles can grant business modules without granting platform authority or changing default scope',()=>{
  const catalog=team.permissionsFor('agent',trainingCenter,{capabilities:trainingCenter.capabilities});
@@ -21,17 +22,24 @@ test('revoked grants, removed sidebar screens and disabled plan capabilities den
  context.membership.assignedNavigation=null;context.membership.customPermissions=[];assert.throws(()=>access.authorize(request,{context,agent:true}),{code:'PERMISSION_DENIED'});
  context.membership.customPermissions=['channels.configure'];context.subscription.capabilities=[];assert.throws(()=>access.authorize(request,{context,agent:true}),{code:'FEATURE_UNAVAILABLE'});
 });
+test('Agent Inbox can read saved quick replies through the legacy user endpoint',()=>{
+ const session={context:ctx(['conversations.read']),agent:true};
+ const request={baseUrl:'/api/user',path:'/get_all_quick_reply',method:'GET'};
+ assert.equal(access.authorize(request,session).permission,'conversations.read');
+ assert.equal(access.authorize(request,session).scope,'assigned');
+ assert.throws(()=>access.authorize({...request,method:'POST'},session),{code:'PERMISSION_DENIED'});
+});
 test('agent shell profile never returns owner credentials or changes the actor identity',()=>{
  const data=access.profile({context:ctx([]),actor:{id:2,uid:'agent',name:'Synthetic Agent',email:'agent@example.invalid',password:'agent-secret'},owner:{id:1,uid:'owner',email:'owner@example.invalid',password:'owner-secret',api_key:'owner-api',plan:'{}',plan_expire:123}});
  assert.equal(data.uid,'agent');assert.equal(data.workspaceRole,'agent');assert.equal(data.role,'user');assert.ok(!JSON.stringify(data).includes('secret'));assert.ok(!JSON.stringify(data).includes('owner@'));assert.equal(data.api_key,undefined);
 });
 function browserSandbox(url){
  class Storage{constructor(){this.data=new Map();}getItem(k){return this.data.get(k)||null;}setItem(k,v){this.data.set(k,String(v));}removeItem(k){this.data.delete(k);}}
- const localStorage=new Storage(),sessionStorage=new Storage(),u=new URL(url),calls=[],redirects=[];
+ const localStorage=new Storage(),sessionStorage=new Storage(),u=new URL(url),calls=[],redirects=[],historyCalls=[];
  localStorage.setItem('wacrm_user','manager-token');localStorage.setItem('wacrm_agent','agent-token');
  class XHR{open(){}send(){}setRequestHeader(){}}
- const box={Storage,localStorage,sessionStorage,URL,URLSearchParams,Request,Headers,XMLHttpRequest:XHR,history:{pushState(){},replaceState(){}},addEventListener(){},setInterval(){},queueMicrotask:fn=>fn(),location:{pathname:u.pathname,search:u.search,href:url,origin:u.origin,replace:target=>redirects.push(target)},window:{fetch:async(input,init)=>calls.push({input,init})}};
- const originalGet=Storage.prototype.getItem;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../client/public/agent-workspace.js'),'utf8'),box);return {box,calls,redirects,originalGet};
+ const box={Storage,localStorage,sessionStorage,URL,URLSearchParams,Request,Headers,XMLHttpRequest:XHR,history:{pushState(...args){historyCalls.push(['pushState',...args]);},replaceState(...args){historyCalls.push(['replaceState',...args]);}},document:{documentElement:{style:{visibility:''}}},addEventListener(){},setInterval(){},queueMicrotask:fn=>fn(),location:{pathname:u.pathname,search:u.search,href:url,origin:u.origin,replace:target=>redirects.push(target)},window:{fetch:async(input,init)=>calls.push({input,init})}};
+ const originalGet=Storage.prototype.getItem;vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../client/public/agent-workspace.js'),'utf8'),box);return {box,calls,redirects,historyCalls,originalGet};
 }
 test('shared business shell uses the Agent credential and preserves a separate Manager session',async()=>{
  const {box,calls,originalGet}=browserSandbox('https://crm.example.invalid/user?actor=agent&page=courses');
@@ -43,6 +51,19 @@ test('shared business shell uses the Agent credential and preserves a separate M
 test('existing agent entry point opens the shared shell; a normal business tab is unchanged',()=>{
  assert.deepEqual(browserSandbox('https://crm.example.invalid/agent?page=chat').redirects,['/user?actor=agent&page=inbox']);
  const {box,redirects}=browserSandbox('https://crm.example.invalid/user?page=courses');assert.equal(box.window.SaleMaxActor,undefined);assert.equal(box.localStorage.getItem('wacrm_user'),'manager-token');assert.deepEqual(redirects,[]);
+});
+test('agent login bypasses the legacy Agent route before its screen can render',()=>{
+ const {box,redirects,historyCalls}=browserSandbox('https://crm.example.invalid/agent/login');
+ box.history.pushState({},'', '/agent');
+ assert.deepEqual(redirects,['/user?actor=agent&page=dashboard']);
+ assert.equal(box.document.documentElement.style.visibility,'hidden');
+ assert.deepEqual(historyCalls,[],'the shared-shell navigation must happen before legacy React route listeners run');
+});
+test('legacy Agent URLs map to the shared dashboard while preserving supported Inbox and Task aliases',()=>{
+ assert.equal(agentEntry.targetForAgentEntry('/agent'),'/user?actor=agent&page=dashboard');
+ assert.equal(agentEntry.targetForAgentEntry('/agent?page=chat'),'/user?actor=agent&page=inbox');
+ assert.equal(agentEntry.targetForAgentEntry('/agent?page=my-tasks'),'/user?actor=agent&page=tasks');
+ assert.equal(agentEntry.targetForAgentEntry('/agent?page=dashboard&token=private'),'/user?actor=agent&page=dashboard');
 });
 
 test('shared Task endpoints preserve assigned scope and deny removed Task grants',()=>{

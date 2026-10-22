@@ -1931,14 +1931,36 @@ resolver sees them. The existing CRM appearance settings hook displays these
 sources in English and Arabic and states that customization does not grant plan
 or member access. No schema or production data change is included.
 
-Focused resolver, customization and HTTP tests pass 12/12; the existing owner
-editor's synthetic browser matrix passes 8/8 across English/Arabic, desktop/
+Focused resolver, customization and HTTP tests pass 12/12; the existing owner's
+synthetic browser matrix passes 8/8 across English/Arabic, desktop/
 mobile and cookie/bearer sessions. Syntax and diff checks pass. This is
 implemented in the shared-core feature branch; deployment and live authenticated
-browser acceptance remain open. Existing category manifests do not
-yet provide category customization defaults, and forms, Pipeline stages,
-workers and other consumers have not adopted the resolver. The full
+browser acceptance remain open. Forms and workers have not adopted the resolver. The full
 customization and 42-ticket program remains in progress.
+
+### Versioned Pipeline stage labels — source implementation, 22 October 2026
+
+Tenant customization schema v4 accepts bilingual display labels keyed by stable
+Pipeline stage keys. Category defaults inherit through the shared resolver,
+tenant values override them, the owner customization screen edits declared
+category labels and tenant-owned existing stage keys, and the existing Pipeline reads the effective labels from the
+shared workspace session. Labels cannot change stage behavior or access. Existing
+schemas 1–3 remain readable. The integrated category, customization, resolver, session, Pipeline task and Inbox suite passes 54/54;
+browser automation could not run in this checkout because Playwright is absent.
+No production deployment or data change is included. Real vertical workflow
+capability mappings remain separate gates.
 ## Legacy Sales accountant alias authorization — source increment, 22 October 2026
 
 The default 7Network Sales accountant boundary on legacy APIs now resolves the preserved `salemax_sales` category alias through the shared category matcher. This keeps the existing shell bootstrap reads available while denying other legacy routes for both canonical and historical category keys. Focused Sales navigation and authorization tests pass 17/17 with an external no-query `mysql2` stub because the worktree has no installed database driver; `git diff --check` passes. No database, migration, production data or runtime dependency files changed. Deployment and authenticated live role acceptance remain open.
+
+## Read-only production baseline — 22 October 2026, 07:50 UTC
+
+The authorized host identity resolved to `carsqatar-prod-01`. `/opt/salemax/current`
+points to `/opt/salemax/releases/agent-login-no-flash-d7c684f-20261022`. The
+SaleMaX app and MariaDB containers reported healthy; the report and recruitment
+notification workers were running. Public `/healthz` returned `success: true`
+and `status: ok`. Root storage was 87% used with 6.5 GiB available. This is a
+read-only snapshot; no host, application, database, customer or provider state
+was modified. The disk margin is tight enough to retain deployment headroom in
+the release gate. This source branch is not deployed, and its shared-core PR
+remains open and draft.

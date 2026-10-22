@@ -26,6 +26,7 @@ async function describeWithNavigation(pool,session){
   data.roleNavigation=visible.map(item=>item.key);
   data.customizationRevision=customization.revision;
   data.navigationLabels=Object.fromEntries(Object.entries(customization.document.navigationLabels).filter(([key])=>data.roleNavigation.includes(key)));
+  data.stageLabels=customization.document.stageLabels||{};
   return data;
 }
 module.exports={describe,describeWithNavigation};
