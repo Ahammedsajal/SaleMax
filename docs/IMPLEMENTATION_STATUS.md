@@ -1947,6 +1947,10 @@ resolver sees them. The existing CRM appearance settings hook displays these
 sources in English and Arabic and states that customization does not grant plan
 or member access. No schema or production data change is included.
 
+## Real Estate migration history reconciliation — 22 October 2026
+
+Open draft PR #169 (`7network-real-estate-workflow` at `673bab9`) and this category branch independently define Real Estate versions 1–3. PR #169 maps them to migrations `20261222`–`20261224`; this branch maps them to `20261229`–`20261231`. Both v1 migrations create `sx_real_estate_properties`, and their requirements/viewing migrations create the same domain tables. The category branch adds v4 parties and v5 Pipeline labels, but the duplicate v1–v3 table-creation series cannot both be applied. This collision was posted to PR #169 for integration-baseline selection. No migration was applied; preserve both drafts until one canonical v1–v3 migration history is selected and v4/v5 are carried forward against it.
+
 Focused resolver, customization and HTTP tests pass 12/12; the existing owner's
 synthetic browser matrix passes 8/8 across English/Arabic, desktop/
 mobile and cookie/bearer sessions. Syntax and diff checks pass. This is
