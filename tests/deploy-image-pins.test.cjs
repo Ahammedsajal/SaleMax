@@ -50,6 +50,7 @@ test('production lock context distinguishes the inherited flock from another pro
   const root = fs.mkdtempSync(path.join(os.tmpdir(), '7network-lock-context-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const lockPath = path.join(root, 'production.lock');
+  const readyPath = path.join(root, 'foreign-lock-ready');
   const helperPath = path.resolve(__dirname, '../deploy/production-lock-context.cjs');
   const script = `
     set -eu
@@ -58,13 +59,15 @@ test('production lock context distinguishes the inherited flock from another pro
     export SALEMAX_DEPLOY_LOCK_HELD=1 SALEMAX_DEPLOY_LOCK_FD=9
     node -e 'const {assertSharedLockContext}=require(process.env.TEST_HELPER); assertSharedLockContext({lockPath:process.env.TEST_LOCK_PATH});'
     flock -u 9
-    exec 8>>"$TEST_LOCK_PATH"
-    flock -n 8
+    flock -n "$TEST_LOCK_PATH" sh -c 'printf ready > "$TEST_LOCK_READY"; sleep 2' &
+    foreign_lock_pid=$!
+    while [ ! -f "$TEST_LOCK_READY" ]; do sleep 0.01; done
     node -e 'const {assertSharedLockContext}=require(process.env.TEST_HELPER); try { assertSharedLockContext({lockPath:process.env.TEST_LOCK_PATH}); process.exit(9); } catch (error) { if (!/not held by this wrapper invocation/.test(error.message)) throw error; }'
+    wait "$foreign_lock_pid"
   `;
   const result = spawnSync('sh', ['-c', script], {
     encoding: 'utf8',
-    env: { ...process.env, TEST_LOCK_PATH: lockPath, TEST_HELPER: helperPath },
+    env: { ...process.env, TEST_LOCK_PATH: lockPath, TEST_LOCK_READY: readyPath, TEST_HELPER: helperPath },
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
