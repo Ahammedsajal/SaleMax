@@ -2171,8 +2171,4 @@ the English/Arabic bracketed error, with UUID validation before display; the
 helper and form loaders use a new cache key. The source commit is pushed on
 `7network/lead-field-plan-entitlement-20261022`, and all 22 focused recruitment
 checks pass. No application was submitted and no production files or data were
-changed. Deployment is deferred: the verified production host has 682 MB free
-(99% disk use), below a safe image-release margin. The active public helper is
-already bilingual and cause-aware; its live request-reference handoff remains
-unfixed until safe release capacity is available. The applicant's original
-failure still has no reproducible cause.
+changed. Deployment is deferred: active release `/opt/salemax/releases/contact-delete-scope-350e486-20261022` is healthy, but its host has 682 MB free (99% disk use), while its current application image is 475 MB before any build workspace or rollback image overhead. A seven-day aggregation of the active app's sanitized recruitment diagnostic logs returned zero events; no request ID or applicant submission was exposed by the check. The live public helper is bilingual and cause-aware, but its browser script discards the backend request reference. No customer application was submitted, and the reported failure still has no reproducible cause. Deployment remains pending safe release capacity.
