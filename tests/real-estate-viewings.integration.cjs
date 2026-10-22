@@ -8,6 +8,7 @@ const crypto=require('node:crypto');
 const mysql=require('mysql2/promise');
 const categories=require('../modules/platform/categories');
 const properties=require('../modules/platform/real-estate-properties');
+const requirements=require('../modules/platform/real-estate-requirements');
 const viewings=require('../modules/platform/real-estate-viewings');
 const parties=require('../modules/platform/real-estate-parties');
 const realEstateGuide=require('../modules/platform/chatbot-real-estate-guide');
@@ -45,7 +46,24 @@ async function createActiveProperty(){const draft=await use(db=>properties.creat
   const leadIds=[crypto.randomUUID(),crypto.randomUUID(),crypto.randomUUID()];
   for(let i=0;i<leadIds.length;i++)await pool.query("INSERT INTO pipeline_leads(id,uid_hash,status,title,contact_name) VALUES (?,?,'open',?,?)",[leadIds[i],legacyUidHash,`Synthetic lead ${i+1}`,`Synthetic contact ${i+1}`]);
   const property=await createActiveProperty();
-  const first=await use(db=>viewings.create(db,context,{leadId:leadIds[0],propertyId:property.id,startsAt:'2026-11-10T09:00:00+03:00',endsAt:'2026-11-10T10:00:00+03:00',assignedMembershipId:agentMembership}));
+  const requirement=await use(db=>requirements.create(db,context,{leadId:leadIds[0],transactionType:'sale',propertyType:'apartment',minPriceMinor:100000,maxPriceMinor:150000,currency:'QAR',minAreaSqm:80,maxAreaSqm:90,minBedrooms:2,preferredCity:'Synthetic Doha',assignedMembershipId:agentMembership}));
+  assert.equal(requirement.status,'open');assert.equal(requirement.revision,1);
+  const requirementList=await use(db=>requirements.list(db,context,{status:'open'}));assert.equal(requirementList.total,1);assert.equal(requirementList.items[0].leadId,leadIds[0]);
+  const matches=await use(db=>requirements.matches(db,context,requirement.id));assert.equal(matches.items.length,1);assert.equal(matches.items[0].id,property.id);
+  const duplicateRequirements=await Promise.allSettled([
+    use(db=>requirements.create(db,context,{leadId:leadIds[0],transactionType:'sale',propertyType:'apartment',assignedMembershipId:agentMembership})),
+    use(db=>requirements.create(db,context,{leadId:leadIds[0],transactionType:'sale',propertyType:'apartment',assignedMembershipId:agentMembership})),
+  ]);
+  assert.equal(duplicateRequirements.filter(row=>row.status==='fulfilled').length,0,'requirement for this lead already exists');
+  const repeatedRequirement=await Promise.allSettled([
+    use(db=>requirements.create(db,context,{leadId:leadIds[1],transactionType:'sale',propertyType:'apartment',assignedMembershipId:agentMembership})),
+    use(db=>requirements.create(db,context,{leadId:leadIds[1],transactionType:'sale',propertyType:'apartment',assignedMembershipId:agentMembership})),
+  ]);
+  assert.equal(repeatedRequirement.filter(row=>row.status==='fulfilled').length,1);
+  assert.equal(repeatedRequirement.filter(row=>row.status==='rejected'&&row.reason.code==='ER_DUP_ENTRY').length,1);
+  await use(db=>requirements.update(db,context,requirement.id,{expectedRevision:1,status:'matched'}));
+  const first=await use(db=>viewings.create(db,context,{leadId:leadIds[0],propertyId:property.id,requirementId:requirement.id,startsAt:'2026-11-10T09:00:00+03:00',endsAt:'2026-11-10T10:00:00+03:00',assignedMembershipId:agentMembership}));
+  assert.equal(first.requirementId,requirement.id);
   assert.equal(first.status,'scheduled');
   await assert.rejects(use(db=>properties.update(db,context,property.id,{expectedRevision:2,status:'sold'})),{code:'PROPERTY_HAS_SCHEDULED_VIEWINGS'});
   const racedProperty=await createActiveProperty();
@@ -66,6 +84,8 @@ async function createActiveProperty(){const draft=await use(db=>properties.creat
   if(finalProperty.status==='active')assert.ok(closeRace.some(row=>row.status==='rejected'&&row.reason.code==='PROPERTY_HAS_SCHEDULED_VIEWINGS'));
   const [[audit]]=await pool.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE tenant_id=? AND action LIKE 'real-estate.viewing-%'",[tenantId]);
   assert.equal(Number(audit.total),3,'created views and completed update must be audited');
+  const [[requirementAudit]]=await pool.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE tenant_id=? AND action LIKE 'real-estate.requirement-%'",[tenantId]);
+  assert.equal(Number(requirementAudit.total),3,'created requirements and matched status must be audited');
   await pool.query('UPDATE sx_tenants SET category_version=4 WHERE id=?',[tenantId]);
   const partyContext={...context,tenant:{...context.tenant,categoryVersion:4},category:categories.realEstateV4,subscription:{...context.subscription,categoryVersion:4,capabilities:[...categories.realEstateV4.capabilities]}};
   const partyAssignees=await use(db=>parties.listAssignees(db,partyContext));assert.equal(partyAssignees.items.length,1);assert.equal(partyAssignees.items[0].membershipId,agentMembership);
@@ -79,5 +99,5 @@ async function createActiveProperty(){const draft=await use(db=>properties.creat
   await pool.query("INSERT INTO sx_tenants VALUES (?, 'real_estate', 4, 'active')",[tenantB]);await pool.query("INSERT INTO sx_identities VALUES (?,'active','Synthetic second owner')",[identityB]);await pool.query("INSERT INTO sx_memberships VALUES (?,?,?,'owner','active')",[membershipB,tenantB,identityB]);
   await pool.query("INSERT INTO sx_real_estate_properties(id,tenant_id,reference_code,title_en,title_ar,property_type,transaction_type,status,price_minor,currency,area_sqm,bedrooms,bathrooms,city,description_en,description_ar,assigned_membership_id,chatbot_visible,created_by_identity_id,updated_by_identity_id) VALUES (?,?,?,'Tenant B opted-in listing','إعلان اختباري ب','apartment','sale','active',99000,'QAR',70,1,1,'Synthetic Doha','Tenant B fixture','بيانات ب',NULL,1,?,?)",[propertyB,tenantB,'RE-SYN-B',identityB,identityB]);
   const factsA=await realEstateGuide.loadFacts({db:pool,tenantId}),factsB=await realEstateGuide.loadFacts({db:pool,tenantId:tenantB});assert.ok(factsA.some(row=>row.titleEn==='Tenant A opted-in listing'));assert.ok(factsB.some(row=>row.titleEn==='Tenant B opted-in listing'));assert.ok(factsA.every(row=>row.titleEn!=='Tenant B opted-in listing'));assert.ok(factsB.every(row=>row.titleEn!=='Tenant A opted-in listing'));
-  process.stdout.write(`${JSON.stringify({passed:true,checks:['v1-v4 migrations apply on a disposable database','viewing create and audit persist atomically','scheduled viewings prevent property closure','concurrent same-property bookings have one winner','concurrent completion and property closure preserve lock order and invariants','party assignment options and concurrent duplicate links are tenant scoped and audited','two same-category chatbot fact queries return only their tenant opted-in listings'],customerDataTouched:false,externalWrites:false})}\n`);
+  process.stdout.write(`${JSON.stringify({passed:true,checks:['v1-v4 migrations apply on a disposable database','buyer requirements link to existing leads and return bounded matching properties','concurrent duplicate requirements are rejected by the tenant-keyed unique constraint','requirement matching and status updates are audited','viewings link to the current matched requirement','viewing create and audit persist atomically','scheduled viewings prevent property closure','concurrent same-property bookings have one winner','concurrent completion and property closure preserve lock order and invariants','party assignment options and concurrent duplicate links are tenant scoped and audited','two same-category chatbot fact queries return only their tenant opted-in listings'],customerDataTouched:false,externalWrites:false})}\n`);
 }finally{await pool.end();}})().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message}));process.exitCode=1;});
