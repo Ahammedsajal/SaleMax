@@ -31,8 +31,10 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   const [[existing]]=await pool.query('SELECT COUNT(*) AS total FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()');
   assert.equal(Number(existing.total),0,'synthetic schema must be empty');
   for(const sql of schema)await pool.query(sql);
-  const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261229_real_estate_properties.sql'),'utf8');
-  for(const sql of require('../database/migration-runner').splitSql(migration))await pool.query(sql);
+  for(const file of ['20261229_real_estate_properties.sql','20261232_real_estate_chatbot_visibility.sql']){
+    const migration=fs.readFileSync(path.join(__dirname,'../database/migrations',file),'utf8');
+    for(const sql of require('../database/migration-runner').splitSql(migration))await pool.query(sql);
+  }
   await pool.query("INSERT INTO sx_tenants VALUES (?,?,?,'active'),(?,?,?,'active')",[tenantId,category.key,category.version,otherTenantId,category.key,category.version]);
   for(const [key,identity] of Object.entries(ids))await pool.query("INSERT INTO sx_identities VALUES (?,'active',?)",[identity,`Synthetic ${key}`]);
   const memberRows=[
@@ -60,21 +62,22 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   await use(db=>properties.update(db,b,otherCreated.id,{expectedRevision:1,status:'active'}));
   const factsA=await use(db=>realEstateBot.loadFacts({db,tenantId}));
   const factsB=await use(db=>realEstateBot.loadFacts({db,tenantId:otherTenantId}));
-  assert.deepEqual(factsA.map(item=>item.titleEn),['Synthetic Doha apartment']);
-  assert.deepEqual(factsB.map(item=>item.titleEn),['Synthetic Garden Flat']);
+  assert.deepEqual(factsA,[],'category v1 listings stay private because v1 cannot opt them into chatbot sharing');
+  assert.deepEqual(factsB,[],'same-category tenant v1 listings stay private by default');
   assert.doesNotMatch(JSON.stringify(factsA),/Garden Flat/);
   assert.doesNotMatch(JSON.stringify(factsB),/Doha apartment/);
+  await assert.rejects(use(db=>properties.update(db,b,otherCreated.id,{expectedRevision:2,chatbotVisible:true})),{code:'CATEGORY_UNAVAILABLE'});
   await assert.rejects(use(db=>properties.update(db,b,created.id,{expectedRevision:1,status:'active'})),{code:'PROPERTY_NOT_FOUND'});
   await assert.rejects(use(db=>properties.create(db,a,{...listing,status:'active'})),{code:'INVALID_PROPERTY_TRANSITION'});
 
   const results=await Promise.allSettled([
-    use(db=>properties.update(db,a,created.id,{expectedRevision:1,status:'active'})),
-    use(db=>properties.update(db,a,created.id,{expectedRevision:1,priceMinor:130000})),
+    use(db=>properties.update(db,a,created.id,{expectedRevision:2,status:'active'})),
+    use(db=>properties.update(db,a,created.id,{expectedRevision:2,priceMinor:130000})),
   ]);
-  assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
-  assert.equal(results.filter(result=>result.status==='rejected'&&result.reason.code==='STALE_REVISION').length,1);
+  assert.equal(results.filter(result=>result.status==='fulfilled').length,1,JSON.stringify(results.map(result=>result.status==='rejected'?{code:result.reason.code,message:result.reason.message}:result.status)));
+  assert.equal(results.filter(result=>result.status==='rejected'&&result.reason.code==='STALE_REVISION').length,1,JSON.stringify(results.map(result=>result.status==='rejected'?{code:result.reason.code,message:result.reason.message}:result.status)));
   const [[row]]=await pool.query('SELECT revision,status FROM sx_real_estate_properties WHERE tenant_id=? AND id=?',[tenantId,created.id]);
-  assert.equal(Number(row.revision),2);
+  assert.equal(Number(row.revision),3);
 
   const before=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
   const connection=await pool.getConnection();
@@ -82,5 +85,5 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   try{await assert.rejects(properties.create(failingDb,a,{...listing,titleEn:'Audit rollback candidate'}),/SYNTHETIC_AUDIT_FAILURE/);}finally{connection.release();}
   const after=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
   assert.equal(after,before,'listing insert must roll back with its audit event');
-  console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MariaDB','creator identity must be a member of the same tenant','manager assignment is limited to active same-team agents','agents see only their assigned listings','team leaders see listings assigned to current team members','foreign-tenant assignee denied','tenant-scoped listing reads','cross-tenant listing ID denied','same-category chatbot facts remain tenant-scoped','new listings start as drafts','two concurrent edits yield one revision winner','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
-}finally{await pool.end();}})().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message}));process.exitCode=1;});
+  console.log(JSON.stringify({passed:true,checks:['property and chatbot-visibility migrations apply to disposable MariaDB','creator identity must be a member of the same tenant','manager assignment is limited to active same-team agents','agents see only their assigned listings','team leaders see listings assigned to current team members','foreign-tenant assignee denied','tenant-scoped listing reads','cross-tenant listing ID denied','category v1 listings remain private and cannot opt into chatbot sharing','new listings start as drafts','two concurrent edits yield one revision winner','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
+}finally{await pool.end();}})().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message,stack:error.stack}));process.exitCode=1;});
