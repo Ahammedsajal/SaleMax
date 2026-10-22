@@ -102,6 +102,20 @@ test('canonical agent accounts use the shared owner scope without access to unas
   assert.deepEqual(filterAssignedChats([{assigned_agent:'[]'}],scope),[]);
   await assert.rejects(authorizeInboxPayload(async()=>[],scope,'send_new_message',{}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });
+test('an added agent can see a shared chat while the original agent keeps access', async () => {
+  const agent = { id: 9, uid: 'agent-uid', isAgent: true, role: 'agent', is_active: 1, owner_uid: 'synthetic-owner' };
+  const lookup = async sql => sql.includes('WHERE o.source_table')
+    ? [{ ...member, role: 'agent', uidHash: hash(agent.uid) }]
+    : [{ uid: 'synthetic-owner', identityId: 'owner-identity', uidHash: hash('synthetic-owner') }];
+  const scope = await resolveInboxScope(lookup, agent, 'get_chat_list');
+  const shared = { assigned_agent: JSON.stringify([{ kind:'identity', identityId:'first-agent', uid:'first-uid', id:7 }, { kind:'identity', identityId:'added-agent', uid:'agent-uid', id:9 }]) };
+  assert.equal(filterAssignedChats([shared], scope).length, 1);
+  const other = { ...agent, id:10, uid:'other-agent' };
+  const otherScope = await resolveInboxScope(async sql => sql.includes('WHERE o.source_table')
+    ? [{ ...member, role: 'agent', uidHash: hash(other.uid) }]
+    : [{ uid: 'synthetic-owner', identityId: 'owner-identity', uidHash: hash('synthetic-owner') }], other, 'get_chat_list');
+  assert.equal(filterAssignedChats([shared], otherScope).length, 0);
+});
 test('staff Inbox rejects unknown mutations, inactive identities and restricted roles', async () => {
   for (const event of ['delete_chat','del_contact','unknown']) await assert.rejects(resolveInboxUid(query(member),user,event), { code: 'TEAM_INBOX_PERMISSION_DENIED' });
   for (const override of [{role:'accountant'}, {membershipStatus:'inactive'}, {uidHash:'wrong'}, {tenantStatus:'suspended'}]) await assert.rejects(resolveInboxUid(query({...member,...override}),user,'get_chat_list'), { code: 'TEAM_INBOX_PERMISSION_DENIED' });
