@@ -20,6 +20,8 @@ The legacy Pipeline actor adapter now resolves `salemax_sales` through the regis
 
 Existing chatbot access now resolves historical `salemax_sales` tenant, plan, and bot-profile keys against the canonical 7Network Sales category version. Domain-pack lookup uses the canonical registry key, and the recruitment-facts query permits only the canonical key and its reviewed alias while remaining tenant-ID scoped. Chatbot runtime/profile/domain and existing-screen contract suites pass 53/53; syntax and whitespace checks pass. No provider, tenant configuration, or customer data changed.
 
+The existing owner Sales lead-import gate and telephony recording policy now recognize the same registered category alias before applying their existing owner/permission, entitlement, and category version checks. Synthetic tests exercise a tenant-bound lead import and an owner recording-policy read under the stored alias; the two focused suites pass 11/11. No call recording, provider action, schema, or customer data changed.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
