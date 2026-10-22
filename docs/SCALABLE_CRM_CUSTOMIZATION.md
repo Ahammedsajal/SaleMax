@@ -117,6 +117,37 @@ Publishing validates every key against the category's schema, checks module depe
 
 Cache key: tenant ID + category key/version + configuration revision + relevant module schema version. Never cache effective settings by category alone. Resolve the tenant from authenticated context; domain routing identifies the intended tenant but does not authorize access. Background jobs retain tenant ID and explicit execution/version semantics. Idempotency keys include tenant ID. Workers recheck suspension, revocation and provider readiness before external effects.
 
+### Shared three-layer resolver and provenance contract — 22 October 2026
+
+The existing owner settings API now exposes a resolved view in addition to its
+version history: `resolved` describes the active revision and `draftResolved`
+describes the current draft. Preview returns the same shape without persistence.
+Every resolved value identifies whether it came from platform defaults, an
+exact category version, or the tenant revision. The existing editor shows this
+provenance in English and Arabic and continues to label it as configuration;
+the values cannot add a capability, plan entitlement, member permission or
+record scope.
+
+Merge semantics are explicit: omitted object members inherit; object members
+merge by key; `null` is a tombstone that removes an inherited object member;
+scalar values replace; and arrays replace atomically, including an explicit
+empty array. Each feature schema must validate its own values before resolution.
+No generic setting layer may contain executable code, credentials, arbitrary
+paths, or user/customer records. Historical published documents remain
+immutable and tenant-bound.
+
+The category layer reads only the immutable optional
+`customizationDefaults` document on the exact `{key, version}` manifest. Its
+document uses the same supported schema version and typed validation as tenant
+overrides. Manifests without it contribute an empty layer. This increment
+supports category defaults for navigation labels and hidden-navigation settings;
+non-empty category lead-field defaults fail closed until Forms and Pipeline
+consume those definitions. Current registry categories do not yet declare
+category customization defaults, so their menu labels resolve from the
+platform navigation contract. The GET/preview provenance API and UI are
+additive; forms, pipeline stages, workers and other settings consumers have not
+adopted the resolver.
+
 ## Extensibility and domain boundaries
 
 | Category | Candidate modules, subject to implementation and acceptance |
@@ -153,9 +184,9 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 | --- | --- | --- |
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
-| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) deployed as tenant-customization-10354f7 after MariaDB isolation tests; broader schema/module settings pending |
-| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields and schema-3 tenant-only hidden menu sections; browser rerun and live acceptance pending |
-| Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through the shared workspace session and legacy sidebar-access contract; API permissions remain independent; other modules/workers pending |
+| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) deployed as tenant-customization-10354f7; shared three-layer resolution/provenance is implemented in source; broader schema/module settings pending |
+| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields, schema-3 tenant-only hidden menu sections and resolved provenance; fresh browser and live acceptance pending |
+| Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through shared workspace and legacy sidebar-access contracts; the settings response exposes layer provenance; API permissions remain independent and other consumers/workers are pending |
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Partly existing; broader proof pending |
 | Data and media isolation | Cross-tenant adversarial API/queue/socket/media tests with disposable database fixtures | Pending comprehensive audit |

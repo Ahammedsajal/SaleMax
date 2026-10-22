@@ -6,7 +6,17 @@ const {trainingCenter,salemaxSales}=require('../modules/platform/categories');
 const ctx={audience:'tenant',identity:{id:'owner'},tenant:{id:'tenant-a',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member',tenantId:'tenant-a',status:'active',role:'owner'},category:trainingCenter,subscription:{status:'active',capabilities:[...trainingCenter.capabilities]}};
 const doc={schemaVersion:1,navigationLabels:{courses:{en:'Programmes',ar:'البرامج'}}};
 test('label customization is bounded, category-scoped data rather than executable configuration',()=>{
-  assert.deepEqual(settings.preview(ctx,doc),{readOnly:true,document:doc});
+  const preview=settings.preview(ctx,doc);
+  assert.deepEqual(preview.document,doc);assert.equal(preview.readOnly,true);
+  assert.equal(preview.resolved.value.navigationLabels.courses.en,'Programmes');
+  assert.deepEqual(preview.resolved.provenance['navigationLabels.courses.en'],{scope:'tenant',revision:0});
+  assert.deepEqual(settings.resolved(ctx,null,0).provenance['navigationLabels.courses.en'],{scope:'platform'});
+  const categorized={...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{courses:{en:'Learning',ar:'التعلم'}},leadFields:[],hiddenNavigation:[]}}};
+  const inherited=settings.resolved(categorized,{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]},2);
+  assert.equal(inherited.value.navigationLabels.courses.en,'Learning');
+  assert.deepEqual(inherited.provenance['navigationLabels.courses.en'],{scope:'category_version',categoryKey:'training_center',categoryVersion:1});
+  assert.throws(()=>settings.resolved({...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['not-a-category-key']}}},null,0),{code:'CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',status:503});
+  assert.throws(()=>settings.resolved({...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[{key:'cf_text_0123456789abcdef',type:'text',label:{en:'Reference',ar:'مرجع'},required:false,active:true,version:1}],hiddenNavigation:[]}}},null,0),{code:'CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',status:503});
   const source=structuredClone(doc),normalized=settings.normalize(ctx,source);source.navigationLabels.courses.en='Changed';assert.equal(normalized.navigationLabels.courses.en,'Programmes');
   for(const value of [{...doc,tenantId:'other'},{...doc,schemaVersion:4},{...doc,disabledCapabilities:[]},{schemaVersion:1,navigationLabels:{recruitment:{en:'Recruitment',ar:'توظيف'}}},{schemaVersion:1,navigationLabels:{'products-services':{en:'Products',ar:'منتجات'}}},{schemaVersion:1,navigationLabels:{courses:{en:'<script>',ar:'الدورات'}}},JSON.parse('{"schemaVersion":1,"navigationLabels":{"__proto__":{"en":"x","ar":"x"}}}')])assert.throws(()=>settings.normalize(ctx,value));
   assert.throws(()=>settings.normalize({...ctx,category:salemaxSales},{schemaVersion:1,navigationLabels:{courses:{en:'Courses',ar:'دورات'}}}),{code:'INVALID_CUSTOMIZATION_LABEL'});
@@ -25,6 +35,13 @@ test('saved revisions must match tenant category version and canonical checksum'
   assert.deepEqual(settings.decode(ctx,row).document,doc);
   assert.throws(()=>settings.decode(ctx,{...row,checksum:'0'.repeat(64)}),{code:'CUSTOMIZATION_INTEGRITY_ERROR'});
   assert.throws(()=>settings.decode(ctx,{...row,category_version:2}),{code:'CUSTOMIZATION_VERSION_MISMATCH'});
+});
+test('runtime effective settings resolve the published tenant overlay over platform labels',async()=>{
+  const published={schemaVersion:1,navigationLabels:{courses:{en:'Programs',ar:'البرامج'}}};
+  const row={id:'revision',kind:'published',category_key:'training_center',category_version:1,schema_version:1,revision:4,document:JSON.stringify(published),checksum:settings.checksum(published)};
+  const db={query:async sql=>sql.includes('FROM sx_tenant_customization_heads')?[[{revision:4,active_id:'revision'}]]:[[row]]};
+  const effective=await settings.effective(db,ctx);
+  assert.equal(effective.revision,4);assert.equal(effective.document.navigationLabels.courses.en,'Programs');assert.equal(effective.document.navigationLabels.inbox.en,'Inbox');
 });
 test('schema 3 hides only category-owned navigation keys while schema 1 and 2 remain readable',()=>{
   const doc3={schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['courses','inbox']};

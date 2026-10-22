@@ -38,6 +38,22 @@ function normalize(ctx,input) {
   return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion===3?{hiddenNavigation:[...hiddenNavigation].sort()}:{})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
+function resolved(ctx,document,revisionNumber=0) {
+  const fields=fieldsFor(ctx);
+  const platform={schemaVersion:3,navigationLabels:Object.fromEntries(fields.map(item=>[item.key,item.label])),leadFields:[],hiddenNavigation:[]};
+  // Category defaults are immutable server-side contract data. They are optional
+  // until each category version publishes a reviewed customization contract.
+  let categoryDefaults={};
+  if(ctx.category?.customizationDefaults){
+    try{categoryDefaults=normalize(ctx,ctx.category.customizationDefaults);}
+    catch{fail('CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',503);}
+    if(categoryDefaults.leadFields?.length)fail('CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',503);
+  }
+  return require('./tenant-setting-resolver').resolve({
+    platform,category:categoryDefaults,tenant:document||{},categoryKey:ctx.tenant.categoryKey,
+    categoryVersion:ctx.tenant.categoryVersion,tenantRevision:revisionNumber,
+  });
+}
 function decode(ctx,row) {
   if(!row)return null;
   if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
@@ -58,9 +74,15 @@ async function state(db,ctx) {
   const active=await revision(db,ctx,head?.active_id),draft=await revision(db,ctx,head?.draft_id);
   if(active&&active.kind!=='published'||draft&&draft.kind!=='draft')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:Number(head?.revision||0),active,draft,history,
-    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label}))};
+    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),
+    inherited:resolved(ctx,null,0).value,
+    resolved:resolved(ctx,active?.document,active?.revision||0),
+    draftResolved:draft?resolved(ctx,draft.document,draft.revision):null};
 }
-function preview(ctx,document) {authorize(ctx);return {document:normalize(ctx,document),readOnly:true};}
+function preview(ctx,document) {
+  authorize(ctx);const normalized=normalize(ctx,document);
+  return {document:normalized,resolved:resolved(ctx,normalized,0),readOnly:true};
+}
 async function mutate(db,ctx,{expectedRevision,document,targetId},action) {
   authorize(ctx);
   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0||expectedRevision>=Number.MAX_SAFE_INTEGER)fail('INVALID_CUSTOMIZATION_REVISION');
@@ -105,8 +127,8 @@ async function effective(db,ctx) {
   const [[head]]=await db.query('SELECT revision,active_id FROM sx_tenant_customization_heads WHERE tenant_id=?',[ctx.tenant.id]);
   const active=await revision(db,ctx,head?.active_id);
   if(active&&active.kind!=='published')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
-  return {revision:active?active.revision:0,document:active?.document||defaults()};
+  return {revision:active?active.revision:0,document:resolved(ctx,active?.document,active?.revision||0).value};
 }
 function visibleNavigationKeys(keys,document){const hidden=new Set(Array.isArray(document?.hiddenNavigation)?document.hiddenNavigation:[]);return keys.filter(key=>!hidden.has(key));}
 function visibleNavigation(rows,document){const visible=new Set(visibleNavigationKeys(rows.map(item=>item.key),document));return rows.filter(item=>visible.has(item.key));}
-module.exports={authorize,normalize,checksum,decode,defaults,state,preview,mutate,effective,visibleNavigation,visibleNavigationKeys};
+module.exports={authorize,normalize,checksum,decode,defaults,state,preview,mutate,effective,resolved,visibleNavigation,visibleNavigationKeys};

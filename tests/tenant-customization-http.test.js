@@ -14,7 +14,7 @@ async function fixture(){
 test('shared customization router and alias serve bearer and cookie contexts without tenant input',async()=>{
  const app=await fixture();try{
   for(const prefix of ['/api/workspace/customization','/api/crm/customization'])for(const headers of [{Authorization:'Bearer synthetic-owner'},{Cookie:'synthetic=owner'}]){
-   const response=await fetch(app.base+prefix,{headers});assert.equal(response.status,200);const result=await response.json();assert.equal(result.data.revision,0);assert.equal(result.data.active,null);assert.ok(result.data.fields.some(field=>field.key==='courses'));assert.match(response.headers.get('cache-control'),/no-store/);
+   const response=await fetch(app.base+prefix,{headers});assert.equal(response.status,200);const result=await response.json();assert.equal(result.data.revision,0);assert.equal(result.data.active,null);assert.ok(result.data.fields.some(field=>field.key==='courses'));assert.equal(result.data.resolved.value.navigationLabels.courses.en,'Courses');assert.deepEqual(result.data.resolved.provenance['navigationLabels.courses.en'],{scope:'platform'});assert.match(response.headers.get('cache-control'),/no-store/);
   }
   assert.equal(app.counts().refreshes,4);
  }finally{await app.close();}
@@ -27,7 +27,7 @@ test('preview rejects foreign schema keys, denied staff, missing credentials and
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document})})).status,403);
   assert.equal(app.counts().refreshes,0);
   headers.Origin='https://crm.example.test';
-  const response=await fetch(url,{method:'POST',headers,body:JSON.stringify({document})}),preview=await response.json();assert.equal(response.status,200);assert.equal(preview.data.readOnly,true);assert.deepEqual(preview.data.document.hiddenNavigation,['courses']);assert.equal(app.counts().queries,0);
+  const response=await fetch(url,{method:'POST',headers,body:JSON.stringify({document})}),preview=await response.json();assert.equal(response.status,200);assert.equal(preview.data.readOnly,true);assert.deepEqual(preview.data.document.hiddenNavigation,['courses']);assert.equal(preview.data.resolved.value.navigationLabels.courses.en,'Programmes A');assert.equal(preview.data.resolved.provenance['navigationLabels.courses.en'].scope,'tenant');assert.equal(app.counts().queries,0);
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document:{...document,tenantId:'tenant-b'}})})).status,400);
   app.setContext({...base,membership:{...base.membership,role:'agent'}});
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document})})).status,403);
