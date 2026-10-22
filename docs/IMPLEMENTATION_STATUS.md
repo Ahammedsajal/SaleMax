@@ -1967,3 +1967,8 @@ Operations worker readiness increment — 22 October 2026
 Operations graceful worker shutdown increment — 22 October 2026
 
 The report and recruitment notification workers now share a polling lifecycle that stops scheduling on SIGINT/SIGTERM, waits for the in-flight poll to settle before closing the database pool, and preserves one-shot mode. A signal before the first queued poll skips that work. Focused worker lifecycle tests cover active-poll draining, idempotent stop, no post-stop polling, one-shot closure and poll-error handling. This reduces interrupted claim/send windows but cannot guarantee delivery across a forced kill or provider-ambiguous result. It is source-only; production still runs the older worker image without healthchecks.
+
+
+Hosted ARM64 verification for the graceful worker shutdown increment
+
+PR workflow-dispatch run 39791619038 passed for exact source `9b0fa989ee09db148de85f08ede793b5ddcdf038`: contract suite, ARM64 build/load, 703,366,971-byte image across 8 layers, and non-root native runtime smoke (`bcrypt`, `sharp`, `@roamhq/wrtc`, `@aws-sdk/client-s3`, and `ffmpeg`). The pull-request image was not published to the registry; production adoption remains gated on reviewed main-branch publication and release verification.

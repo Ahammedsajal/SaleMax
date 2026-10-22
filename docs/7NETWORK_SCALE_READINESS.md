@@ -202,3 +202,8 @@ The systemd timer query found no SaleMaX/7Network backup timer (only Debian `dpk
 ## Graceful worker-poll shutdown source increment — 22 October 2026
 
 Report and recruitment notification workers now use one tested polling lifecycle. SIGTERM/SIGINT stops new scheduling, waits for an active poll to finish, and only then closes its DB pool; shutdown before the first queued poll skips that work, and one-shot mode closes after its poll. The complete focused Docker release contract suite passes 83 checks (82 pass, one host-only flock check skipped), including the lifecycle cases; Node syntax and whitespace checks pass. This narrows shutdown interruption windows but does not promise exactly-once external sends or resolve provider outcomes after forced termination. No production deployment occurred; active worker images and health state remain unchanged.
+
+
+## Hosted ARM64 verification — worker shutdown source, 22 October 2026
+
+Run [39791619038](https://github.com/Ahammedsajal/SaleMax/actions/runs/39791619038) passed for source `9b0fa989ee09db148de85f08ede793b5ddcdf038`: contract tests, ARM64 image build/load, measured image ID `sha256:85ebe25f034c43d97e8a783e8965f6232e4cc59a8eb6e93f97fd3db42daee18c`, size 703,366,971 bytes / 8 layers, and non-root native-module runtime smoke. The feature-branch run did not publish a registry image or deployment artifact. Production workers remain on the prior release until reviewed publication and deployment acceptance.
