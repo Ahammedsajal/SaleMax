@@ -74,7 +74,6 @@ esac
 export SALEMAX_ACTIVE_RELEASE_BEFORE="$active_release"
 export SALEMAX_DEPLOY_LOCK_HELD=1
 export SALEMAX_DEPLOY_LOCK_FD=9
-export SALEMAX_DEPLOY_LOCK_OWNER_PID="$$"
 cd "$active_release"
 printf 'Production lock acquired; active release re-resolved as %s\n' "$active_release"
 

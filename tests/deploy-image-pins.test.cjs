@@ -7,7 +7,6 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { resolveServiceImages, assertSharedLockContext, inspectPinnedImages, verifyRunningContainers } = require('../deploy/verify-pinned-images.cjs');
-const lockIdentity = '08:01:1204';
 
 const digest = (char) => `ghcr.io/ahammedsajal/salemax@sha256:${char.repeat(64)}`;
 
@@ -35,19 +34,18 @@ test('image pin validation rejects missing values, mutable tags, and other regis
 
 test('image verification requires this wrapper invocation to hold the shared flock', () => {
   const lockStat = { dev: 8, ino: 1204 };
-  const env = { SALEMAX_DEPLOY_LOCK_HELD: '1', SALEMAX_DEPLOY_LOCK_FD: '9', SALEMAX_DEPLOY_LOCK_OWNER_PID: '4242' };
-  const context = { env, lockPath: '/lock', fstat: () => lockStat, stat: () => lockStat, fdIdentity: () => lockIdentity };
-  assert.equal(assertSharedLockContext({ ...context, readLocks: () => `4: FLOCK ADVISORY WRITE 4242 ${lockIdentity} 0 EOF\n` }), true);
+  const env = { SALEMAX_DEPLOY_LOCK_HELD: '1', SALEMAX_DEPLOY_LOCK_FD: '9' };
+  const context = { env, lockPath: '/lock', fstat: () => lockStat, stat: () => lockStat };
+  assert.equal(assertSharedLockContext({ ...context, lockProbe: () => ({ status: 0 }) }), true);
   assert.throws(() => assertSharedLockContext({ ...context, env: {} }), /with-production-lock\.sh/);
-  assert.throws(() => assertSharedLockContext({ ...context, readLocks: () => `4: FLOCK ADVISORY WRITE 7777 ${lockIdentity} 0 EOF\n` }), /not held by this wrapper invocation/);
-  assert.throws(() => assertSharedLockContext({ ...context, readLocks: () => '' }), /not held by this wrapper invocation/);
+  assert.throws(() => assertSharedLockContext({ ...context, lockProbe: () => ({ status: 75 }) }), /not held by this wrapper invocation/);
   assert.throws(() => assertSharedLockContext({ ...context, fstat: () => ({ dev: 8, ino: 1205 }) }), /shared production lock inode/);
   assert.throws(() => assertSharedLockContext({ ...context, fstat: () => { throw new Error('closed'); } }), /descriptor 9/);
 });
 
 test('production lock context distinguishes the inherited flock from another process lock', t => {
   if (process.platform !== 'linux' || spawnSync('sh', ['-c', 'command -v flock >/dev/null 2>&1']).status !== 0) {
-    return t.skip('Linux flock and /proc/locks are required');
+    return t.skip('Linux flock and inherited descriptors are required');
   }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), '7network-lock-context-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -58,9 +56,11 @@ test('production lock context distinguishes the inherited flock from another pro
     exec 9>>"$TEST_LOCK_PATH"
     flock -n 9
     export SALEMAX_DEPLOY_LOCK_HELD=1 SALEMAX_DEPLOY_LOCK_FD=9
-    export SALEMAX_DEPLOY_LOCK_OWNER_PID="$$"
     node -e 'const {assertSharedLockContext}=require(process.env.TEST_HELPER); assertSharedLockContext({lockPath:process.env.TEST_LOCK_PATH});'
-    SALEMAX_DEPLOY_LOCK_OWNER_PID=1 node -e 'const {assertSharedLockContext}=require(process.env.TEST_HELPER); try { assertSharedLockContext({lockPath:process.env.TEST_LOCK_PATH}); process.exit(9); } catch (error) { if (!/not held by this wrapper invocation/.test(error.message)) throw error; }'
+    flock -u 9
+    exec 8>>"$TEST_LOCK_PATH"
+    flock -n 8
+    node -e 'const {assertSharedLockContext}=require(process.env.TEST_HELPER); try { assertSharedLockContext({lockPath:process.env.TEST_LOCK_PATH}); process.exit(9); } catch (error) { if (!/not held by this wrapper invocation/.test(error.message)) throw error; }'
   `;
   const result = spawnSync('sh', ['-c', script], {
     encoding: 'utf8',

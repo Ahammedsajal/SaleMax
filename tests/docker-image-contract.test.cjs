@@ -127,7 +127,6 @@ test('production lock wrapper acquires the shared flock before re-resolving curr
   assert.match(lockScript, /export SALEMAX_ACTIVE_RELEASE_BEFORE=/);
   assert.match(lockScript, /export SALEMAX_DEPLOY_LOCK_HELD=1/);
   assert.match(lockScript, /export SALEMAX_DEPLOY_LOCK_FD=9/);
-  assert.match(lockScript, /export SALEMAX_DEPLOY_LOCK_OWNER_PID=/);
   assert.match(lockScript, /cd "\$active_release"/);
   assert.match(lockScript, /if "\$@"; then/);
   assert.match(lockScript, /Another 7Network production operation holds the deployment lock/);
