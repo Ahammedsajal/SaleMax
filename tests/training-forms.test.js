@@ -120,6 +120,16 @@ test('Forms fails closed for a category whose declared adapter has no shared exe
   await assert.rejects(forms.list(db,ctx),{code:'CATEGORY_UNAVAILABLE'});
   assert.equal(queries,0,'the unsupported adapter is denied before data access');
 });
+test('generic lead-capture schemas allow common contact and consent fields but no Training fields',()=>{
+  const generic={...valid,slug:'contact-request',nameEn:'Contact request',nameAr:'طلب تواصل',schema:{...valid.schema,fields:[...valid.schema.fields,{key:'email',labelEn:'Email',labelAr:'البريد الإلكتروني',required:false}],leadFields:{configurationRevision:0,fields:[{key:'cf_text_0123456789abcdef',type:'text',label:{en:'Reference',ar:'المرجع'},required:false,active:true,version:1}]}}};
+  const parsed=forms.formInput(generic,'generic-lead-capture-v1');
+  assert.equal(parsed.schema.fields.length,4);
+  const captured=forms.cleanSubmission(parsed.schema,{contact_name:'Lead contact',phone:'+12025550123',email:'lead@example.invalid',consent:true,customFields:{cf_text_0123456789abcdef:'R-42'}},'generic-lead-capture-v1');
+  assert.equal(captured.contact_name,'Lead contact');assert.equal(captured.customFields.cf_text_0123456789abcdef.value,'R-42');
+  assert.throws(()=>forms.formInput({...generic,schema:{...generic.schema,fields:[...generic.schema.fields,{key:'course_id',labelEn:'Course',labelAr:'الدورة',required:false}]}},'generic-lead-capture-v1'),{code:'INVALID_FORM_FIELD'});
+  assert.throws(()=>forms.formInput({...generic,schema:{...generic.schema,templateKey:'procatalyst-registration-v1'}},'generic-lead-capture-v1'),{code:'INVALID_FORM_SCHEMA'});
+  assert.throws(()=>forms.cleanSubmission({...parsed.schema,fields:[...parsed.schema.fields,{key:'course_id',required:false}]},{contact_name:'Lead',phone:'+12025550123',consent:true},'generic-lead-capture-v1'),{code:'INVALID_FORM_SCHEMA'});
+});
 test('Lead Forms is mounted into the existing user shell with bilingual draft, preview and publish controls',()=>{
   const root=require('node:path').join(__dirname,'../client/public');
   const html=require('node:fs').readFileSync(require('node:path').join(root,'index.html'),'utf8');

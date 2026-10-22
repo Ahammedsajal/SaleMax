@@ -800,3 +800,20 @@ The audit ran in a MariaDB read-only transaction and returned aggregate
 counts/categories/roles only. No customer, membership, plan or tenant rows were
 changed. Re-run it before adoption and require an operator-reviewed mapping
 manifest before any write.
+
+## Generic Forms schema validation boundary — 22 October 2026
+
+The shared Forms input validator now has a `generic-lead-capture-v1` field
+allowlist for common contact and consent fields, plus the existing typed,
+tenant-defined lead-field snapshots. Training-specific registration fields and
+the Pro Catalyst registration template remain restricted to the historical
+Training Center adapter. Submission normalization rejects schemas that contain
+fields outside the selected adapter's allowlist.
+
+This is schema validation only. The generic adapter still has no executable
+service context, public form lookup, submission persistence route or staff
+management integration, and no category currently opts into it. Generic
+execution remains denied before database access until category adoption,
+service/API implementation and existing-screen acceptance are reviewed. The
+focused schema, registry and isolation suites pass 27/27; no migration,
+customer data, database or production runtime changed.

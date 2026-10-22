@@ -2170,3 +2170,18 @@ no-duplicate-notice regression. The existing shell retains this branch's shared
 customization and category asset versions and advances the Inbox follow-up
 loader to the dedupe release. Combined category registry, Forms, task-router and
 Inbox follow-up focused suites pass 34/34. No production data or runtime changed.
+
+## Generic Forms schema validation boundary — source increment, 22 October 2026
+
+The shared Forms validator now applies adapter-specific field allowlists.
+`generic-lead-capture-v1` accepts common contact and consent fields and retains
+the existing tenant-defined typed Pipeline fields. Training registration
+fields and the Pro Catalyst registration template remain available only to the
+historical Training Center adapter. Submission normalization rejects schemas
+containing fields outside the selected adapter.
+
+This does not enable generic forms. The generic adapter still fails closed before
+database access; public form lookup, submissions, staff integration, category
+adoption and authenticated `/user` screen acceptance remain open. The focused
+registry, Forms and category isolation suites pass 27/27. No migration,
+customer data, database or production runtime changed.
