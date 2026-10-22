@@ -120,6 +120,16 @@ the Sales recruitment workflow, or collect additional customer data. The
 focused registry and chatbot capture checks pass 8/8; full chatbot, authenticated
 channel, MariaDB and provider acceptance remain open.
 
+Category role exceptions belong to the same reviewed, immutable manifest
+contract. The shared policy engine now reads manifest declarations for owner
+capabilities excluded from plan add-ons, role-specific denied permissions, and
+tenant-scoped role permissions. Registry validation requires every declaration
+to reference a role, category capability and known permission; arbitrary
+customer configuration cannot alter access policy. Existing Sales accountant
+restrictions and Training/Sales manager team-invite scope are preserved. The
+generic contract lets a later category opt into a reviewed rule without another
+category-name branch in the policy engine.
+
 Effective access is the intersection of category capability, plan entitlement, enabled tenant configuration, member permission/scope and runtime readiness. Restrictions accumulate. Tenant overrides cannot change `tenant_id`, category identity, subscription rights, audit requirements, resource ownership checks or accounting invariants. Missing/invalid configuration must produce a controlled error or a specifically versioned compatibility default; never fall back to another tenant or arbitrary category.
 
 ## Configuration persistence and publication design

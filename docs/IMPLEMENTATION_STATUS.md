@@ -2270,3 +2270,26 @@ Retail remains private and non-planable, and no production release, migration,
 or customer data changed. Supplier, purchasing, POS and supermarket acceptance
 remain open, as do the broader 42-ticket category, tenant-isolation and release
 gates.
+
+## Manifest-owned shared authorization policy — source update, 22 October 2026
+
+The shared authorization engine selected three existing exceptions by literal
+category name: the internal Sales owner recruitment entitlement, Sales
+accountant lead/contact restrictions, and Training/Sales manager team invites.
+The immutable registry now validates category-declared owner plan exemptions,
+role-denied permissions and tenant-scoped role permissions against known roles,
+capabilities and permissions. The policy engine evaluates those declarations
+without category-name branching. Sales and Training manifests preserve their
+current decisions; regression tests cover accountant denial, manager scope,
+owner-only plan exemption, active-subscription requirement and a future category
+opting into team-scoped invitations. Malformed role lookups use own-key checks
+and fail closed. Category, policy, feature, task, tenant-customization and Retail
+tests pass 48/48; syntax and whitespace checks pass. No migration, production
+release or customer data changed. Platform Admin and tenant-category user
+acceptance, production-compatible MariaDB integration and the full 42-ticket
+isolation/release gates remain open.
+
+The full Node suite passes 1,075/1,096. Its 21 remaining failures are the
+existing Manage Users, Pipeline, Finance, Courses and public-form source-contract
+assertions; the category-isolation regression passes again. No new full-suite
+failure was introduced by this increment.

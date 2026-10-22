@@ -23,6 +23,7 @@ test('category registry pins versions instead of selecting latest implicitly', (
   assert.equal(salesRegistry.get('7network_sales',1).key,'7network_sales');
   assert.equal(salesRegistry.get('7network_sales',1).taskAssignmentScope,'self');
   assert.equal(salesRegistry.get('7network_sales',1).qrSharing.accountantAccess,false);
+  assert.deepEqual(salesRegistry.get('7network_sales',1).accessPolicy,sevenNetworkSales.accessPolicy);
 });
 
 test('registry rejects duplicate identity, unknown capabilities, invalid roles and malformed contracts', () => {
@@ -40,6 +41,11 @@ test('registry rejects duplicate identity, unknown capabilities, invalid roles a
     {qrSharing:{accountantAccess:true},capabilities:['messaging.inbox','messaging.qr']},
     {taskAdapters:{unreviewed_task:1}},{taskAdapters:{enrollment:2}},
     {inventoryAdapter:'unreviewed'},{inventoryAdapter:'retail_stock_ledger_v1',capabilities:baseCrm.capabilities},{inventoryAdapter:'retail_stock_ledger_v1',catalogue:null},
+    {accessPolicy:{unknownPolicy:[]}},
+    {accessPolicy:{planExemptOwnerCapabilities:['sales.deals']}},
+    {accessPolicy:{deniedRolePermissions:{super_admin:['leads.read']}}},
+    {accessPolicy:{deniedRolePermissions:{accountant:['leads.read']},capabilities:['crm.leads']}},
+    {accessPolicy:{tenantRolePermissions:{manager:['not.a.permission']}}},
     {taskAdapters:{enrollment:1},capabilities:trainingCenter.capabilities.filter(key=>key!=='training.enrollments')}]) {
     assert.throws(()=>createCategoryRegistry([{...trainingCenter,...patch}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
   }
@@ -67,4 +73,12 @@ test('a future products category can opt into the reviewed retail inventory adap
   const manifest=createCategoryRegistry([future],capabilities).get('future_grocery',1);
   assert.equal(manifest.inventoryAdapter,'retail_stock_ledger_v1');
   assert.ok(manifest.capabilities.includes('retail.inventory'));
+});
+
+test('reviewed role policy is copied and deeply immutable',()=>{
+  const input={...baseCrm,key:'future_services',accessPolicy:{tenantRolePermissions:{manager:['team.invite']}}};
+  const manifest=createCategoryRegistry([input],capabilities).get('future_services',1);
+  input.accessPolicy.tenantRolePermissions.manager.push('channels.configure');
+  assert.deepEqual(manifest.accessPolicy.tenantRolePermissions.manager,['team.invite']);
+  assert.throws(()=>manifest.accessPolicy.tenantRolePermissions.manager.push('channels.configure'),TypeError);
 });
