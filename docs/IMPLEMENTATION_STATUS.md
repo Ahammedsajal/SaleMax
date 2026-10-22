@@ -2218,3 +2218,16 @@ Synthetic service tests pass for category/capability/plan denial, draft CRUD,
 publish/version behavior, stale revisions, router adapter selection and tenant-
 scoped submission reads; the combined focused registry, Forms and migration
 suite passes 41/41. The generic public lookup and submission path now resolves only published forms for an active, entitled tenant and records consent, idempotency, rate-limit state and a normal Pipeline lead in one transaction. Synthetic lookup, submission, exact-token replay, stale-version rollback and lead creation checks pass. Staff capture, category-aware bilingual screen adaptation, MariaDB runtime integration, authenticated browser acceptance and deployment remain open.
+
+## Existing Forms screen adapter presentation — source increment, 22 October 2026
+
+The existing `/user?page=forms` hook now reads the authenticated Forms adapter
+contract before rendering. For `generic-lead-capture-v1` it presents lead-form
+headings and a generic contact/consent field editor with neutral English/Arabic
+copy, while retaining the existing Training Center form and registration editor.
+The generic staff-capture links remain hidden until a canonical staff actor and
+record-scope path is implemented; no legacy Training actor mapping is reused.
+Focused Forms, category and migration-discovery suites pass, as do syntax and
+whitespace checks. The existing-screen change is source-only: no category opts
+in, MariaDB runtime integration and authenticated browser acceptance remain
+open, and no production runtime changed.

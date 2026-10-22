@@ -69,7 +69,8 @@ test('public form controls support finite course-profile dropdowns and unknown p
 test('new enquiry forms do not offer registration-only signature, finance or payment arrays',()=>{
   const screen=require('node:fs').readFileSync(require('node:path').join(__dirname,'../client/public/training-forms.js'),'utf8');
   assert.match(screen,/registrationOnlyFields=new Set\(\['student_id','courses'.*'course_selections'\]\)/);
-  assert.match(screen,/availableFields=fields\.filter\(\(\[key\]\)=>!registrationOnlyFields\.has\(key\)\|\|existing\.templateKey==='procatalyst-registration-v1'\|\|chosen\.has\(key\)\)/);
+  assert.match(screen,/legacyAvailableFields=fields\.filter\(\(\[key\]\)=>!registrationOnlyFields\.has\(key\)\|\|existing\.templateKey==='procatalyst-registration-v1'\|\|chosen\.has\(key\)\)/);
+  assert.match(screen,/api\('\/context'\)/);assert.match(screen,/formsAdapter==='generic-lead-capture-v1'/);assert.match(screen,/if\(formsAdapter==='generic-lead-capture-v1'\)return/);
   assert.match(screen,/availableFields\.map\(\(\[key,en,ar,mandatory\]\)=>/);
 });
 test('public campaign attribution accepts bounded UTM values and strips URL query parameters',()=>{

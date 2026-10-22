@@ -838,3 +838,11 @@ lookup, lead creation, exact-token replay and stale-version rollback. Staff capt
 category-aware bilingual screen adaptation, MariaDB runtime integration,
 authenticated browser acceptance and category adoption remain open; no database
 or production runtime changed.
+
+The existing `/user?page=forms` hook now reads the authenticated adapter contract
+and uses neutral bilingual lead-form presentation and the common contact/consent
+field editor for `generic-lead-capture-v1`; Training Center keeps its original
+registration workflow. Generic staff-capture links remain unavailable pending a
+canonical staff actor/record-scope integration. These are source changes only:
+no category opts in, MariaDB runtime and authenticated screen acceptance remain
+open, and no production state changed.
