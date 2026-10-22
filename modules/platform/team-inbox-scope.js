@@ -35,7 +35,7 @@ async function resolveInboxScope(query, user, event) {
     membership.customPermissions = permissions;
   }
   if (row.role !== 'owner' && !qrAccountant && !scopeFor(membership, permission)) fail();
-  const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId, ctx: { tenant: { id: row.tenantId }, identity: { id: row.identityId }, membership } };
+  const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId, actorUid:user.uid, actorLegacyId:Number(user.id), ctx: { tenant: { id: row.tenantId }, identity: { id: row.identityId }, membership, actorUid:user.uid, actorLegacyId:Number(user.id) } };
   if (row.role === 'owner') return { ...base, uid: user.uid };
   const owners = await query(`SELECT u.uid,m.id AS membershipId,m.identity_id AS identityId,o.legacy_uid_hash AS uidHash FROM sx_memberships m
     JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
@@ -73,7 +73,7 @@ function filterAssignedChats(chats, scope) {
   const { ownsConversation } = require('./team-conversation-assignment');
   if (!scope.assignedOnly) return chats;
   const channelIds = new Set((scope.sharedQrInstances || []).map(channel => String(channel.uniqueId)));
-  return chats.filter(chat => (!scope.qrOnly&&ownsConversation(chat.assigned_agent, scope.identityId)) ||
+  return chats.filter(chat => (!scope.qrOnly&&ownsConversation(chat.assigned_agent, scope.identityId, scope.actorUid, scope.actorLegacyId)) ||
     (chat.origin === 'qr' && chat.origin_instance_unique_id && channelIds.has(String(chat.origin_instance_unique_id))));
 }
 
