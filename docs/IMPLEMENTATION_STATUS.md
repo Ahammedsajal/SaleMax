@@ -2238,3 +2238,17 @@ course, Finance, report and sale-review cases. No Forms or public-form checks
 fail. The run is not a release gate pass; the focused Forms/category/migration
 suite remains green. The local environment has no loopback-only MariaDB config,
 so disposable migration integration still needs a configured test runtime.
+
+## Tenant CRM logo storage stream adapter — source increment, 22 October 2026
+
+The existing logo route now enforces the verified custom-host tenant or active
+canonical-session tenant match before storage access. When the operations-owned
+media adapter exposes `openManaged(url, tenantId)`, the route streams its body
+with private caching, `nosniff`, an allowlisted image content type, and validated
+content length. The existing managed local-file path remains as a compatibility
+fallback until the object-storage adapter is merged. Route tests cover custom
+host and canonical-session delivery plus foreign-tenant rejection before media
+access. Focused logo/domain tests pass 9/9; syntax and whitespace checks pass.
+The operations adapter is not yet present in this checkout, so object-storage
+streaming and authenticated live acceptance remain unverified; nothing was
+deployed or changed in production.
