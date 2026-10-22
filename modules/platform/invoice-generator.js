@@ -76,6 +76,7 @@ async function create(db,ctx,{uid,input}){
     const snapshot={...draft.snapshot,id,invoiceNumber,revision:1,issuedAt:new Date().toISOString()};
     await db.query('UPDATE sx_invoice_generator_settings SET last_number=? WHERE tenant_id=?',[seq,ctx.tenant.id]);
     await db.query('INSERT INTO sx_invoice_generator_documents(id,tenant_id,invoice_number,request_key,payload_hash,customer_type,customer_id,customer_name,course_id,course_name,amount_minor,snapshot,created_by_identity_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',[id,ctx.tenant.id,invoiceNumber,requestKey,normalized.payloadHash,normalized.customerType,normalized.customerId,normalized.customerName,draft.primaryCourseId,draft.courseName,snapshot.totalMinor,JSON.stringify(snapshot),ctx.identity.id]);
+    await require('./business-notifications').enqueue(db,ctx.tenant.id,{kind:'invoice_issued',sourceType:'generated',sourceId:id,key:`invoice:${id}`});
     await db.commit();return snapshot;
   }catch(error){await db.rollback();throw error;}
 }

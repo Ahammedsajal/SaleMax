@@ -551,6 +551,21 @@ router.post("/qr/send-text", internalOnly, async (req, res) => {
   }
 });
 
+// PDF bytes remain inside the authenticated internal channel. No public media
+// URL, bearer link, or tenant report is exposed to anonymous browser clients.
+router.post('/qr/send-pdf', internalOnly, async (req,res)=>{
+  const uid=String(req.body?.uid||'').trim(),from=String(req.body?.from||'').replace(/^\+/,''),to=String(req.body?.to||'').replace(/^\+/,''),encoded=req.body?.documentBase64;
+  if(!uid||!/^\d{8,15}$/.test(from)||!/^\d{8,15}$/.test(to)||typeof encoded!=='string'||encoded.length>7*1024*1024||! /^[A-Za-z0-9+/]+={0,2}$/.test(encoded))return res.status(422).json({success:false,code:'INVALID_PDF_SEND'});
+  const document=Buffer.from(encoded,'base64');if(document.length>5*1024*1024||document.subarray(0,5).toString()!=='%PDF-')return res.status(422).json({success:false,code:'INVALID_PDF_DOCUMENT'});
+  try{
+    const [instance]=await query("SELECT uniqueId FROM instance WHERE uid=? AND number=? AND status='ACTIVE' LIMIT 1",[uid,from]);if(!instance)return res.status(404).json({success:false,code:'QR_INSTANCE_UNAVAILABLE'});
+    const session=await getSession(instance.uniqueId);if(!session)return res.status(409).json({success:false,code:'QR_SESSION_UNAVAILABLE'});
+    const fileName=String(req.body?.fileName||'7Network-report.pdf').replace(/[^A-Za-z0-9._-]/g,'_').slice(0,120);
+    const sent=await session.sendMessage(`${to}@s.whatsapp.net`,{document,mimetype:'application/pdf',fileName,caption:String(req.body?.caption||'').slice(0,900)});
+    return res.json({success:true,data:{messageId:sent?.key?.id||null}});
+  }catch{return res.status(500).json({success:false,code:'QR_PDF_SEND_UNCONFIRMED'});}
+});
+
 router.post("/qr/send-message", internalOnly, async (req, res) => {
   try {
     const uid = String(req.body?.uid || "").trim();
