@@ -42,7 +42,7 @@
     ['API & Integrations', 'واجهات البرمجة والتكامل', ['Chat Widget', 'REST API', 'Conversational API', 'Template API', 'API Dashboard']],
     ['Webhooks', 'الويب هوك', ['Manage Webhooks', 'Webhook Automation', 'Webhook Logs']],
     ['WhatsApp Warmer', 'تهيئة واتساب', ['WhatsApp Warmer']],
-    ['Sales Operations', 'عمليات المبيعات', ['Sales Overview','Organization','Sales Targets','Sales Reports','Sales Deals','My Commissions','Commission Payouts','Commission Policy','Audit Trail']],
+    ['Sales Operations', 'عمليات المبيعات', ['Sales Overview','Organization','Sales Targets','Sales Reports','Sales Deals','My Commissions','Commission Payouts','Commission Policy','Audit Trail','ICP']],
     ['More Tools', 'أدوات أخرى', []]
   ];
   const aliases = {
@@ -53,7 +53,7 @@
     'دخول الوكيل': 'Team Login', 'Rest API': 'REST API', 'Web Notificaion': 'Web Notification',
     'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard', 'المهام': 'Tasks', 'مركز الاتصال': 'Call Center',
     'Calls & Recordings': 'Call Center', 'المكالمات والتسجيلات': 'Call Center',
-    'سياسة العمولات':'Commission Policy','صفقات المبيعات':'Sales Deals','أهداف المبيعات':'Sales Targets','عمولاتي':'My Commissions','مدفوعات العمولات':'Commission Payouts','مالية المبيعات':'Sales Finance','الهيكل التنظيمي':'Organization','سجل التدقيق':'Audit Trail'
+    'سياسة العمولات':'Commission Policy','صفقات المبيعات':'Sales Deals','أهداف المبيعات':'Sales Targets','عمولاتي':'My Commissions','مدفوعات العمولات':'Commission Payouts','مالية المبيعات':'Sales Finance','الهيكل التنظيمي':'Organization','سجل التدقيق':'Audit Trail','ملف العميل المثالي':'ICP'
   };
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
@@ -61,7 +61,7 @@
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
     'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'recruitment', 'Invoices & Payments':'invoices',
     'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
-    'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit',Properties:'properties','العقارات':'properties'
+    'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties'
   };
   const salesNavLabels={
     overview:{owner:['Business Overview','نظرة عامة على الأعمال'],manager:['Team Overview','نظرة عامة على الفريق'],team_leader:['Team Overview','نظرة عامة على الفريق'],agent:['My Day','مهامي اليوم']},
@@ -198,6 +198,7 @@
       'People & Roles':['M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2','M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8','M20 8v6','M17 11h6'],
       Tasks:['M9 6h11','M9 12h11','M9 18h11','M4 6l1 1 2-2','M4 12l1 1 2-2','M4 18l1 1 2-2'],
       Organization:['M12 3 3 8v13h18V8z','M8 21v-7h8v7','M7 10h.01','M12 10h.01','M17 10h.01'],
+      ICP:['M12 3v3','M12 18v3','M3 12h3','M18 12h3','M5.64 5.64l2.12 2.12','M16.24 16.24l2.12 2.12','M18.36 5.64l-2.12 2.12','M7.76 16.24l-2.12 2.12','M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z'],
       'Team Login':['M15 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2','M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8','M18 8v6','M15 11h6'],
       'Agent Task':['M9 6h11','M9 12h11','M9 18h11','M4 6l1 1 2-2','M4 12l1 1 2-2','M4 18l1 1 2-2'],
       'Chat Widget':['M4 5h16v12H9l-5 4z','M8 9h8','M8 13h5'],
@@ -354,6 +355,7 @@
       ['sales-organization',...(salesNavLabels.organization[membershipRole]||salesNavLabels.organization.owner),'sales-organization'],
       ['commission-policy','Commission Policy','سياسة العمولات','commission-policy'],
       ['sales-targets',...(salesNavLabels.overview[membershipRole]||['Sales Overview','نظرة عامة على المبيعات']),'sales-workspace&section=overview'],
+      ['icp','ICP','ملف العميل المثالي','icp'],
       ['sales-finance','Sales Finance','مالية المبيعات','sales-finance&view=overview'],
       ['reports','Lead Reports','تقارير العملاء المحتملين','lead-reports'],['finance-reports','Finance Reports','تقارير المالية','finance-settings&section=reports'],
       ...(membershipRole==='owner'?[['recruitment','Candidate Applications','طلبات التوظيف','recruitment']]:[]),
@@ -546,7 +548,7 @@
     });
     const page=new URLSearchParams(location.search).get('page');
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
-    const routeKeys={properties:'properties',students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization'};
+    const routeKeys={properties:'properties',students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp'};
     const required=routeKeys[page];
     // Team access is available to any membership whose role/navigation grants
     // it. The API still enforces team.invite (including owner-approved manager

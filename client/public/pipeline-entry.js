@@ -13,6 +13,7 @@
   const isSalesFinanceRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-finance';
   const isSalesOrganizationRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-organization';
   const isSalesAuditRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'sales-audit';
+  const isSalesIcpRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'icp';
   const isPropertiesRoute = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'properties';
   const isDashboardRoute = () => location.pathname.replace(/\/$/, '') === '/user' && (!new URLSearchParams(location.search).get('page') || new URLSearchParams(location.search).get('page') === 'dashboard');
   const isPipelineRoute = () => location.pathname.replace(/\/$/, '') === '/user' && ['lead-pipeline','lead-reports'].includes(new URLSearchParams(location.search).get('page'));
@@ -255,6 +256,17 @@
     bindWorkspaceNavigation(frame);frame.style.left=`${left}px`;frame.style.top=`${top}px`;frame.style.width=`${width}px`;frame.style.height=`${height}px`;
   }
 
+  function syncSalesIcpWorkspace(){
+    const existing=document.getElementById('seven-network-icp-workspace');
+    if(!isSalesIcpRoute()){existing?.remove();return;}
+    const {left,top,width,height,topbar}=workspaceBounds();
+    const title=isArabic()?'ملف العميل المثالي':'Ideal Customer Profile';
+    if(topbar){const crumb=[...topbar.querySelectorAll('*')].find(el=>el.childElementCount===0&&['Dashboard','لوحة التحكم'].includes((el.textContent||'').trim()));if(crumb)crumb.textContent=title;}
+    let frame=existing;if(!frame){frame=document.createElement('iframe');frame.id='seven-network-icp-workspace';frame.title=title;frame.src='/icp-workspace/?embed=1';frame.style.cssText='position:fixed;z-index:1100;border:0;background:#f5f7fa;display:block;';document.body.append(frame);}
+    bindWorkspaceNavigation(frame);
+    frame.style.left=`${left}px`;frame.style.top=`${top}px`;frame.style.width=`${width}px`;frame.style.height=`${height}px`;
+  }
+
   function update() {
     addNavigationItem();
     syncBusinessDashboard();
@@ -266,6 +278,7 @@
     syncSalesFinanceWorkspace();
     syncSalesOrganizationWorkspace();
     syncSalesAuditWorkspace();
+    syncSalesIcpWorkspace();
     syncPropertiesWorkspace();
   }
 
