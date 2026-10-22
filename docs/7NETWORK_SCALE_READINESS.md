@@ -2,6 +2,12 @@
 
 This is a read-only operations audit of the SaleMaX/7Network single-server deployment on 22 October 2026. It keeps both earlier measurements and the latest timestamped snapshot below; metrics are point-in-time evidence and do not establish peak capacity. The audit records preconditions for adding application instances; it does not approve a scale-out or change production.
 
+## Fresh host and container resource snapshot — 22 October 2026, 10:03 UTC
+
+The shared-lock wrapper on `carsqatar-prod-01` re-resolved `/opt/salemax/current` to `/opt/salemax/releases/follow-up-cards-a3ae455-20261022`. Root filesystem use is 96% with 2.3 GiB available; inode use is 23% with 4,998,197 available. The `salemax` Compose project reports the app and database healthy, with the recruitment notification and report workers running. A single `docker stats --no-stream` sample showed app 1.84% CPU and 188.5 MiB/1 GiB, database 0.29% and 407.1 MiB/768 MiB, recruitment notification worker 0% and 45.4 MiB/128 MiB, and report worker 0% and 36.28 MiB/256 MiB.
+
+The sample does not establish peak capacity, sustained load, or queue delay. The capacity-alert systemd service and timer are not installed, and `/opt/salemax/shared/ops-alerts.env` is absent, so there is no configured operator webhook destination. The high disk-use reading meets the source monitor's critical threshold, but no alert was sent and no production state was changed. Configure an operator-owned destination before installing and exercising the timer; address disk growth through a separately reviewed, per-image retention inventory that protects active releases, rollback images, and other products.
+
 ## Primary and compatibility domain snapshot — 22 October 2026, 09:45 UTC
 
 DNS points `7network.live` and `crm.salemax.qa` to the same production IP; `www.7network.live` is a CNAME to the apex. All three origins return HTTP 200 over TLS with successful verification, no redirect, and a certificate SAN covering each name through 20 January 2027. The live root on every name publishes `https://7network.live/` as canonical. The active Nginx vhost names the same three domains and proxies to the existing app listener while forwarding `Host` and `X-Forwarded-Proto`.
