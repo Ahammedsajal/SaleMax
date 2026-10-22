@@ -89,7 +89,15 @@ async function createInboxFollowUp(db,ctx,input){
  const title=taskTitle(`Follow up: ${name}`);
  const agentLabels=assignedAgents.map(item=>String(item.name||item.email||`Agent ${item.legacyId}`).slice(0,180));
  const description=[`Lead: ${name}`,phone?`WhatsApp: ${phone}`:null,`Assigned agents: ${agentLabels.join(', ')}`,`Conversation: ${chatId}`,`Channel: ${String(chat.origin||'WhatsApp').slice(0,40)}`,details?`Follow-up details: ${details}`:null].filter(Boolean).join('\n');
- const result=await create(db,ctx,{title,description,taskType:lead?'lead_follow_up':'general',priority:'normal',dueAt:dueAt.toISOString(),participants:people,source:lead?{type:'lead',id:lead.id}:{type:'inbox_chat',id:chatId}},{manageTransaction:false,allowInboxFollowUpParticipants:true});
+ const taskType=lead?'lead_follow_up':'general';
+ const sourceType=lead?'lead':'inbox_chat';
+ const sourceId=lead?lead.id:chatId;
+ const dueSql=dueAt.toISOString().slice(0,23).replace('T',' ');
+ const duplicateNeedle=details?`Follow-up details: ${details}`:`Conversation: ${chatId}`;
+ const assignmentNeedle=`Assigned agents: ${agentLabels.join(', ')}`;
+ const [duplicates]=await db.query("SELECT t.id,t.revision,t.status,t.title,t.task_type AS taskType,t.priority,t.due_at AS dueAt FROM sx_tasks t WHERE t.tenant_id=? AND t.source_type=? AND t.source_id=? AND t.task_type=? AND t.status IN ('open','in_progress','blocked') AND t.deleted_at IS NULL AND t.due_at BETWEEN DATE_SUB(?,INTERVAL 30 MINUTE) AND DATE_ADD(?,INTERVAL 30 MINUTE) AND LOCATE(?,t.description)>0 AND LOCATE(?,t.description)>0 ORDER BY ABS(TIMESTAMPDIFF(SECOND,t.due_at,?)),t.created_at DESC LIMIT 1 FOR UPDATE",[ctx.tenantId,sourceType,sourceId,taskType,dueSql,dueSql,duplicateNeedle,assignmentNeedle,dueSql]);
+ if(duplicates.length){await db.commit();return {...duplicates[0],duplicate:true};}
+ const result=await create(db,ctx,{title,description,taskType,priority:'normal',dueAt:dueAt.toISOString(),participants:people,source:{type:sourceType,id:sourceId}},{manageTransaction:false,allowInboxFollowUpParticipants:true});
  await db.commit();return result;
  } catch(error) { try{await db.rollback();}catch{} throw error; }
 }
