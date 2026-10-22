@@ -35,13 +35,17 @@ test('compiler and source-control tools stay in the build stage only', () => {
   assert.match(runtime, /^USER node$/m);
 });
 
-test('Compose runs app and workers from one required immutable image digest', () => {
+test('Compose accepts independently pinned app and worker images with a legacy common fallback', () => {
   assert.doesNotMatch(compose, /^\s+build:/m);
   const imageLines = compose.split('\n').filter((line) => /^\s+image:/.test(line) && line.includes('salemax-app:'));
   assert.equal(imageLines.length, 0);
   const digestLines = compose.split('\n').filter((line) => /^\s+image:/.test(line) && line.includes('SALEMAX_IMAGE_REF'));
   assert.equal(digestLines.length, 3);
-  for (const line of digestLines) assert.match(line, /\$\{SALEMAX_IMAGE_REF:\?/);
+  assert.match(digestLines[0], /SALEMAX_APP_IMAGE_REF/);
+  assert.match(digestLines[1], /SALEMAX_REPORT_WORKER_IMAGE_REF/);
+  assert.match(digestLines[2], /SALEMAX_RECRUITMENT_WORKER_IMAGE_REF/);
+  for (const line of digestLines) assert.match(line, /SALEMAX_IMAGE_REF:\?/,
+    'legacy common image ref fallback remains required and must itself be digest-pinned');
   assert.equal((compose.match(/pull_policy: never/g) ?? []).length, 3);
 });
 
@@ -77,7 +81,7 @@ test('ARM64 image CI is unprivileged and trusted publish accepts only its succes
   assert.match(imageWorkflow, /Report exact ARM64 image size and layers/);
   assert.match(imageWorkflow, /docker image inspect .*\.Id.*\.Size.*RootFS\.Layers/);
   assert.match(imageWorkflow, /tee -a "\$GITHUB_STEP_SUMMARY"/);
-  assert.match(imageWorkflow, /node --test tests\/docker-image-contract\.test\.cjs tests\/graceful-shutdown\.test\.cjs tests\/7network-capacity-alert\.test\.cjs tests\/object-storage\.test\.cjs tests\/object-storage-migration\.test\.cjs tests\/training-payment-proofs\.test\.js tests\/recruitment-applications\.test\.js/);
+  assert.match(imageWorkflow, /node --test tests\/docker-image-contract\.test\.cjs tests\/deploy-image-pins\.test\.cjs tests\/graceful-shutdown\.test\.cjs tests\/7network-capacity-alert\.test\.cjs tests\/object-storage\.test\.cjs tests\/object-storage-migration\.test\.cjs tests\/training-payment-proofs\.test\.js tests\/recruitment-applications\.test\.js/);
   assert.match(imageWorkflow, /deploy\/verify-container-runtime\.cjs/);
   assert.match(imageWorkflow, /dst=\/app\/verify-container-runtime\.cjs,readonly/);
   assert.ok(imageWorkflow.includes('/app/verify-container-runtime.cjs'));

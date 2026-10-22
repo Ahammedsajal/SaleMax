@@ -20,7 +20,7 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
   app:
-    image: "${SALEMAX_IMAGE_REF:?Set SALEMAX_IMAGE_REF to the verified immutable registry digest}"
+    image: "${SALEMAX_APP_IMAGE_REF:-${SALEMAX_IMAGE_REF:?Set SALEMAX_APP_IMAGE_REF or SALEMAX_IMAGE_REF to a verified immutable registry digest}}"
     pull_policy: never
     init: true
     restart: unless-stopped
@@ -61,7 +61,7 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
   report-worker:
-    image: "${SALEMAX_IMAGE_REF:?Set SALEMAX_IMAGE_REF to the verified immutable registry digest}"
+    image: "${SALEMAX_REPORT_WORKER_IMAGE_REF:-${SALEMAX_IMAGE_REF:?Set SALEMAX_REPORT_WORKER_IMAGE_REF or SALEMAX_IMAGE_REF to a verified immutable registry digest}}"
     pull_policy: never
     command: ["node", "scripts/training-report-worker.cjs"]
     restart: unless-stopped
@@ -79,7 +79,7 @@ services:
       options: {max-size: "10m", max-file: "3"}
 
   recruitment-founder-notification-worker:
-    image: "${SALEMAX_IMAGE_REF:?Set SALEMAX_IMAGE_REF to the verified immutable registry digest}"
+    image: "${SALEMAX_RECRUITMENT_WORKER_IMAGE_REF:-${SALEMAX_IMAGE_REF:?Set SALEMAX_RECRUITMENT_WORKER_IMAGE_REF or SALEMAX_IMAGE_REF to a verified immutable registry digest}}"
     pull_policy: never
     command: ["node", "scripts/recruitment-founder-notification-worker.cjs"]
     restart: unless-stopped
