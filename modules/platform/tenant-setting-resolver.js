@@ -31,6 +31,14 @@ function assertLayer(value,depth=0) {
 function clearPaths(record,path) {
   for(const key of Object.keys(record))if(key===path||key.startsWith(`${path}.`))delete record[key];
 }
+function atPath(record,path) {
+  let value=record;
+  for(const key of path.split('.')){
+    if(!plain(value)||!Object.hasOwn(value,key))return {found:false,value:undefined};
+    value=value[key];
+  }
+  return {found:true,value};
+}
 function apply(target,overrides,layerSource,path,provenance,deleted) {
   for(const [key,value] of Object.entries(overrides)){
     const nextPath=path?`${path}.${key}`:key;
@@ -47,13 +55,36 @@ function apply(target,overrides,layerSource,path,provenance,deleted) {
     }
   }
 }
+function applyTenant(target,overrides,platform,layerSource,path,provenance,deleted) {
+  for(const [key,value] of Object.entries(overrides)){
+    const nextPath=path?`${path}.${key}`:key;
+    if(value===null){
+      const fallback=atPath(platform,nextPath);
+      delete target[key];clearPaths(provenance,nextPath);clearPaths(deleted,nextPath);
+      if(fallback.found&&fallback.value!==null){
+        if(plain(fallback.value)){target[key]={};apply(target[key],fallback.value,source('platform'),nextPath,provenance,deleted);}
+        else {target[key]=structuredClone(fallback.value);provenance[nextPath]=source('platform');}
+      }
+      deleted[nextPath]=layerSource;
+      continue;
+    }
+    if(plain(value)){
+      if(!plain(target[key])){clearPaths(provenance,nextPath);clearPaths(deleted,nextPath);target[key]={};}
+      else {delete provenance[nextPath];delete deleted[nextPath];}
+      applyTenant(target[key],value,platform,layerSource,nextPath,provenance,deleted);
+    }else{
+      clearPaths(provenance,nextPath);clearPaths(deleted,nextPath);
+      target[key]=structuredClone(value);provenance[nextPath]=layerSource;
+    }
+  }
+}
 
 function resolve({platform={},category={},tenant={},categoryKey,categoryVersion,tenantRevision=0}) {
   for(const layer of [platform,category,tenant]){if(!plain(layer))fail();assertLayer(layer);}
   const value={},provenance={},deleted={};
   apply(value,platform,source('platform'),'',provenance,deleted);
   apply(value,category,source('category_version',{categoryKey,categoryVersion}),'',provenance,deleted);
-  apply(value,tenant,source('tenant',{revision:tenantRevision}),'',provenance,deleted);
+  applyTenant(value,tenant,platform,source('tenant',{revision:tenantRevision}),'',provenance,deleted);
   return {value,provenance,deleted};
 }
 

@@ -20,17 +20,24 @@ test('settings resolve platform, category-version, then tenant values with per-v
   assert.deepEqual(result.provenance['labels.pipeline.ar'],{scope:'category_version',categoryKey:'base_crm',categoryVersion:2});
 });
 
-test('null object members are tombstones, omitted keys inherit, and lists replace atomically',()=>{
+test('category tombstones remove platform values while tenant tombstones reset to platform and lists replace atomically',()=>{
   const result=resolve({
     ...context,
     platform:{labels:{keep:'base',remove:'base'},modules:['inbox','tasks']},
     category:{labels:{remove:'category'},modules:['inbox','pipeline']},
     tenant:{labels:{remove:null},modules:[]},
   });
-  assert.deepEqual(result.value,{labels:{keep:'base'},modules:[]});
+  assert.deepEqual(result.value,{labels:{keep:'base',remove:'base'},modules:[]});
   assert.deepEqual(result.deleted['labels.remove'],{scope:'tenant',revision:9});
   assert.equal(result.provenance['labels.keep'].scope,'platform');
+  assert.equal(result.provenance['labels.remove'].scope,'platform');
   assert.equal(result.provenance.modules.scope,'tenant');
+});
+
+test('tenant tombstones without a platform value remove the category member and preserve deletion provenance',()=>{
+  const result=resolve({...context,platform:{labels:{keep:'base'}},category:{labels:{remove:'category'}},tenant:{labels:{remove:null}}});
+  assert.deepEqual(result.value,{labels:{keep:'base'}});
+  assert.deepEqual(result.deleted['labels.remove'],{scope:'tenant',revision:9});
 });
 
 test('replacing a nested object with a list clears stale descendant provenance',()=>{

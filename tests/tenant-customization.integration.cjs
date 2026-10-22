@@ -17,6 +17,7 @@ const schema=[
  'CREATE TABLE sx_memberships(id CHAR(36) PRIMARY KEY,tenant_id CHAR(36),identity_id CHAR(36),role VARCHAR(20),status VARCHAR(20)) ENGINE=InnoDB',
  'CREATE TABLE sx_plan_versions(id CHAR(36) PRIMARY KEY,category_key VARCHAR(80),category_version INT,capabilities JSON,status VARCHAR(20)) ENGINE=InnoDB',
  'CREATE TABLE sx_plan_assignments(id CHAR(36) PRIMARY KEY,tenant_id CHAR(36),plan_version_id CHAR(36),current_tenant CHAR(36),status VARCHAR(20),role_limits JSON,effective_from DATETIME(3),expires_at DATETIME(3)) ENGINE=InnoDB',
+ 'CREATE TABLE pipeline_stages(id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,uid_hash CHAR(64),uid VARCHAR(999),stage_key VARCHAR(64),title VARCHAR(100),position INT) ENGINE=InnoDB',
  'CREATE TABLE sx_audit_events(id CHAR(36) PRIMARY KEY,tenant_id CHAR(36),actor_identity_id CHAR(36),actor_kind VARCHAR(20),action VARCHAR(100),resource_type VARCHAR(80),resource_id CHAR(36),changes JSON,correlation_id CHAR(36)) ENGINE=InnoDB'
 ];
 async function use(fn){const db=await pool.getConnection();try{return await fn(db)}finally{db.release()}}
@@ -29,6 +30,9 @@ const change=(ctx,body,action)=>use(db=>settings.mutate(db,ctx,body,action));
  for(const sql of schema)await pool.query(sql);
  const migration=fs.readFileSync(path.join(__dirname,'../database/migrations/20261220_tenant_customization.sql'),'utf8');for(const sql of require('../database/migration-runner').splitSql(migration))await pool.query(sql);
  const a=await fixture(),b=await fixture();
+ const ownerUid='synthetic-owner-a',ownerHash=crypto.createHash('sha256').update(ownerUid,'utf8').digest('hex');
+ await pool.query('INSERT INTO pipeline_stages(uid_hash,uid,stage_key,title,position) VALUES (?,?,?,?,?)',[ownerHash,ownerUid,'new','New',0]);
+ assert.deepEqual((await use(db=>settings.state(db,a,{ownerUid}))).stageFields,[{key:'new',title:'New'}]);
  await Promise.all([change(a,{expectedRevision:0,document:doc('A')},'draft'),change(b,{expectedRevision:0,document:doc('B')},'draft')]);
  const draftEffectiveA=(await use(db=>settings.effective(db,a))).document,draftEffectiveB=(await use(db=>settings.effective(db,b))).document;
  assert.equal(draftEffectiveA.navigationLabels.courses.en,'Courses','tenant A draft must not affect its active platform defaults');

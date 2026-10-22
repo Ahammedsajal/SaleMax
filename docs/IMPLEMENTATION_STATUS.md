@@ -1998,3 +1998,24 @@ history, atomic audit failure rollback, revoked membership and expired-plan
 denial. No external messages were sent. The temporary schema, restricted test
 user, server and test credentials were removed. Source is not deployed; rendered
 existing-screen and authenticated production acceptance remain open.
+
+## Shared customization reset and owner stage-query repair — source, 22 October 2026
+
+Rendered acceptance uncovered that the existing "Use the platform label"
+control sent a tenant tombstone, but the resolver removed the key entirely
+instead of revealing the platform value. Tenant tombstones now clear a tenant
+or category override and restore the platform value when present; category
+layer tombstones still remove a platform value. Effective provenance identifies
+the platform source while deletion provenance records the tenant reset. The
+stage-label settings query also quotes the reserved SQL alias `key`, restoring
+the owner-only Pipeline stage list on MySQL/MariaDB.
+
+The actual editor browser fixture passes 8/8 across English/Arabic, desktop/
+mobile and cookie/bearer contexts, including preview, save, publish, reset,
+default restore, historical rollback and stale revision handling. Focused
+customization/resolver/HTTP/overlay/lead-field/Forms/Pipeline tests pass 40/40.
+The disposable MariaDB 11.4.13 integration additionally exercises the quoted
+owner stage query and passes the same-category and cross-category isolation,
+concurrency, rollback and authorization checks. No production data or external
+messages were used; the temporary server/schema/credentials were removed.
+Source is not deployed, and authenticated production acceptance remains open.

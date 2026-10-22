@@ -75,12 +75,12 @@ test('schema 4 resolves and validates bilingual Pipeline stage labels without ch
   assert.throws(()=>settings.normalize(scoped,{...tenant,stageLabels:{'bad key':{en:'A',ar:'ب'}}}),{code:'INVALID_CUSTOMIZATION_STAGE_LABELS'});
   assert.throws(()=>settings.normalize(scoped,{...tenant,stageLabels:{new:{en:'<script>',ar:'جديد'}}}),{code:'INVALID_CUSTOMIZATION_STAGE_LABELS'});
 });
-test('schema v5 null label tombstones restore platform labels and retain deletion provenance',()=>{
+test('schema v5 null label tombstones restore platform navigation and retain deletion provenance',()=>{
   const category={...trainingCenter,customizationDefaults:{schemaVersion:4,navigationLabels:{courses:{en:'Learning',ar:'التعلم'}},leadFields:[],hiddenNavigation:[],stageLabels:{new:{en:'Prospect',ar:'عميل محتمل'}}}};
   const scoped={...ctx,category};
   const document=settings.normalize(scoped,{schemaVersion:5,navigationLabels:{courses:null},leadFields:[],hiddenNavigation:[],stageLabels:{new:null}});
   const resolved=settings.resolved(scoped,document,9);
-  assert.equal(Object.hasOwn(resolved.value.navigationLabels,'courses'),false);
+  assert.equal(resolved.value.navigationLabels.courses.en,'Courses');
   assert.equal(Object.hasOwn(resolved.value.stageLabels,'new'),false);
   assert.deepEqual(resolved.deleted['navigationLabels.courses'],{scope:'tenant',revision:9});
   assert.deepEqual(resolved.deleted['stageLabels.new'],{scope:'tenant',revision:9});

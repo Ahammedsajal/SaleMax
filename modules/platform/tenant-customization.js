@@ -87,7 +87,7 @@ async function state(db,ctx,session=null) {
   let stageFields=[];
   if(typeof session?.ownerUid==='string'&&session.ownerUid){
     const uidHash=crypto.createHash('sha256').update(session.ownerUid,'utf8').digest('hex');
-    const [rows]=await db.query('SELECT stage_key AS key,title FROM pipeline_stages WHERE uid_hash=? AND uid=? ORDER BY position,stage_key',[uidHash,session.ownerUid]);
+    const [rows]=await db.query('SELECT stage_key AS `key`,title FROM pipeline_stages WHERE uid_hash=? AND uid=? ORDER BY position,stage_key',[uidHash,session.ownerUid]);
     stageFields=rows.map(row=>({key:row.key,title:row.title}));
   }
   const [[head]]=await db.query('SELECT revision,active_id,draft_id FROM sx_tenant_customization_heads WHERE tenant_id=?',[ctx.tenant.id]);

@@ -55,7 +55,8 @@ test('shared customization preview accepts schema v5 removal of inherited labels
   const headers={Authorization:'Bearer synthetic-owner','Content-Type':'application/json',Origin:'https://crm.example.test'};
   const response=await fetch(app.base+'/api/workspace/customization/preview',{method:'POST',headers,body:JSON.stringify({document:{schemaVersion:5,navigationLabels:{courses:null},leadFields:[],hiddenNavigation:[],stageLabels:{new:null}}})});
   const payload=await response.json();assert.equal(response.status,200,JSON.stringify(payload));
-  assert.equal(Object.hasOwn(payload.data.resolved.value.navigationLabels,'courses'),false);
+  assert.equal(payload.data.resolved.value.navigationLabels.courses.en,'Courses');
+  assert.deepEqual(payload.data.resolved.provenance['navigationLabels.courses.en'],{scope:'platform'});
   assert.equal(Object.hasOwn(payload.data.resolved.value.stageLabels,'new'),false);
   assert.equal(payload.data.resolved.deleted['navigationLabels.courses'].scope,'tenant');
   assert.equal(payload.data.resolved.deleted['stageLabels.new'].scope,'tenant');
