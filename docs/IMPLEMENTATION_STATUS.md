@@ -1920,6 +1920,8 @@ The reviewed property-listing domain pack is now registered against the exact ex
 ## Real Estate v5 published stage terminology — source, 22 October 2026
 
 The private, non-planable `real_estate@5` contract keeps v1–v4 unchanged and adds a bilingual default vocabulary for the seven existing Pipeline stage keys plus the existing Leads navigation label. These are display labels only; stage keys, type, ordering, transition rules, roles and stored titles do not change. The existing owner-published customization layer can override each tenant's labels independently. Real Estate's exact-version Guided bot pack and tenant-scoped facts now also accept v5. Synthetic verification covers v1–v4 immutability, same-category published overrides for two tenants, inheritance and bot/Flow Builder version adoption. No migration, category assignment or production state changed; authenticated owner/staff English/Arabic desktop/mobile acceptance and deployment remain open.
+
+Disposable MariaDB 11.4 coverage now also publishes separate v5 `won` labels for two synthetic Real Estate tenants and checks the authenticated workspace contract returns each bilingual value with the inherited category `new` label and no cross-tenant text. No production state changed. Owner stage-editor field listing is still open: shared `tenant-customization.state` currently issues a MariaDB query with reserved alias `key`, which fails on 11.4; this cross-scope defect was sent to Goal 1 and is not patched in the category stream.
 ## Shared settings resolution and provenance — source implementation, 22 October 2026
 
 The existing owner-managed customization response and preview now include a
