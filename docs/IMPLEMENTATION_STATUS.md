@@ -2067,6 +2067,15 @@ workspace labels and checks all four customer-facing views. Cache reference
 updated. Source-only; authenticated production acceptance and deployment
 remain open.
 
+## Existing dashboard support for the Sales category alias — source increment, 22 October 2026
+
+The shared workspace session intentionally preserves a tenant's stored
+`salemax_sales` category key for compatibility. The business dashboard now
+resolves that reviewed alias to `7network_sales` for display and existing
+Sales module routing while retaining the original session context. A regression
+fixture verifies the existing Sales dashboard and its scoped campaign, call,
+target, and finance requests. Source-only; production acceptance remains open.
+
 ## Workspace dashboard tenant stage labels — source increment, 22 October 2026
 
 The existing business dashboard now resolves Pipeline chart labels from the

@@ -38,6 +38,15 @@ test('7Network category dashboard presents scoped leads, call, campaign and fina
 });
 
 
+test('legacy salemax_sales workspace keeps the existing 7Network Sales dashboard',async()=>{
+ const month=new Date().toISOString().slice(0,7);
+ const access={categoryKey:'salemax_sales',role:'manager',currency:'QAR',timezone:'Asia/Qatar',roleNavigation:['leads','campaigns','call-center','sales-targets','sales-finance'],assignedNavigation:null,permissions:{},modules:{}};
+ const fixtures={'/api/pipeline/stage-summary':{total:1,stages:[{stageKey:'new',total:1}]},'/api/pipeline/follow-ups?period=all&page=1&limit=6':{items:[],summary:{overdue:0,upcoming:0}},[`/api/user/sales-targets?period=${month}`]:{members:[]},'/api/broadcast/dashboard':{success:true,totalCampaigns:0,messageStats:{},recentCampaigns:[]},'/api/user/call-center/calls':{items:[]},'/api/user/sales-finance/overview':{invoicesByCurrency:[],receiptsByCurrency:[]}};
+ const {elements,requests}=await render(access,fixtures);
+ assert.match(elements.title.textContent,/Your sales at a glance/);
+ assert.ok(requests.includes('/api/broadcast/dashboard'));assert.ok(requests.includes('/api/user/call-center/calls'));assert.ok(requests.includes('/api/user/sales-finance/overview'));
+});
+
 test('workspace dashboard uses published Arabic stage labels',async()=>{
  const access={categoryKey:'7network_sales',role:'owner',currency:'QAR',timezone:'Asia/Qatar',roleNavigation:['leads'],assignedNavigation:null,stageLabels:{new:{en:'Prospect Board',ar:'عميل محتمل'}}};
  const fixtures={'/api/pipeline/stage-summary':{total:1,stages:[{stageKey:'new',total:1}]},'/api/pipeline/follow-ups?period=all&page=1&limit=6':{items:[],summary:{overdue:0,upcoming:0}}};
