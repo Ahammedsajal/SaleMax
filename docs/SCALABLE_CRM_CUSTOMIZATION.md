@@ -827,6 +827,9 @@ It creates distinct tenant-bound generic draft, version, submission and rate-
 limit tables with composite tenant/form/version references, preserving all
 historical Training tables. Static discovery checks pass and an opt-in disposable
 MariaDB integration is wired to assert tenant, version, idempotency and rate-
-limit constraints. The database integration has not yet run in this environment;
-the generic service and routes do not consume these tables yet, so Forms remain
-disabled outside the existing Training Center adapter.
+limit constraints. The database integration has not yet run in this environment.
+The existing workspace Forms router now dispatches authenticated generic draft
+CRUD, publication, lead-field options and tenant-scoped submission reads to a
+shared service over these tables. Public submissions and staff capture are not
+yet implemented, the existing screen still needs category-aware bilingual
+presentation, and no category opts into generic Forms.

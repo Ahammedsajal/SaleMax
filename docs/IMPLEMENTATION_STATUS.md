@@ -2201,5 +2201,22 @@ tenant binding; static migration discovery confirms the migration is safe and
 ordered after platform identity.
 
 The migration and integration test are implemented but were not executed against
-MariaDB in this environment. No generic service/router consumes these tables yet,
-no category opts into Forms, and no database or production runtime changed.
+MariaDB in this environment. No category opts into Forms, and no database or
+production runtime changed.
+
+## Generic Forms shared management service — source increment, 22 October 2026
+
+The existing `/api/workspace/forms` handler now selects the generic management
+service from the authenticated category-version adapter. Generic owners with
+the category capability and active plan can create/update tenant-owned drafts,
+publish immutable versions, read submissions and fetch published lead-field
+definitions. All mutations use tenant predicates, optimistic draft revisions,
+transactions and shared audit events. Training Center CRUD and its registration
+path continue through their existing service. No category is opted in.
+
+Synthetic service tests pass for category/capability/plan denial, draft CRUD,
+publish/version behavior, stale revisions, router adapter selection and tenant-
+scoped submission reads; the combined focused registry, Forms and migration
+suite passes 41/41. Generic
+public submission, staff capture, bilingual screen adaptation, MariaDB
+integration, authenticated browser acceptance and deployment remain open.
