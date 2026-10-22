@@ -35,7 +35,7 @@ async function main(argv = process.argv.slice(2), env = process.env) {
   if (args.has('--apply')) {
     if (!args.has('--manifest') || args.has('--manifest-out')) throw Error('--apply requires --manifest and does not accept --manifest-out');
     if (env.SALEMAX_DEPLOY_LOCK_HELD !== '1') throw Error('Refusing object migration without the shared production deployment lock');
-    if (driver(env) !== 's3') throw Error('Set SALEMAX_OBJECT_STORAGE_DRIVER=s3 inside the locked process');
+    if (driver(env, namespace) !== 's3') throw Error(`Select the S3 storage driver for ${namespace} inside the locked process`);
     const manifestPath = externalPath(args.get('--manifest'));
     const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
     const store = createStore({ env, namespace, root });

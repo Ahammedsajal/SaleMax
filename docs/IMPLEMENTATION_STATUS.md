@@ -1922,3 +1922,18 @@ run synthetic two-instance isolation/failover tests. Representative peak load,
 DB plus media restore, operator-visible alert delivery, and tenant fairness remain
 unverified. See `docs/7NETWORK_SCALE_READINESS.md` for the measured inventory and
 the pre-scale gate list. One host remains a single failure domain.
+
+## Private upload storage adapters — 22 October 2026
+
+The source candidate routes existing course media, training payment proofs, and
+recruitment CVs through the private local/S3-compatible object adapter. Existing
+tenant keys, content checks, finance/recruitment permissions and authorized
+download routes remain in place. Each namespace can be migrated and switched
+independently; local storage remains the default. The locked migration utility
+produces external per-tenant manifests, copies and re-downloads each object for
+SHA-256 verification, refuses changed sources or target conflicts, and retains
+local source objects. Focused adapter, migration, payment-proof and recruitment
+tests cover local behavior and injected S3 operations. This source increment is
+not deployed; no live provider, bucket, manifest, or storage flag is configured.
+Live file/database reconciliation, provider acceptance, authenticated allowed
+and denied reads, rollback rehearsal and cross-host testing remain open.

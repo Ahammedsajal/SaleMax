@@ -88,6 +88,6 @@ test('CLI requires the shared lock and S3 driver before applying a manifest', as
   await fs.writeFile(manifestPath, JSON.stringify(await migration.buildManifest({ root: f.root, namespace: 'course-media' })));
   const base = ['--namespace', 'course-media', '--root', f.root, '--manifest', manifestPath, '--apply'];
   await assert.rejects(cli.main(base, { SALEMAX_DEPLOY_LOCK_HELD: '0', SALEMAX_OBJECT_STORAGE_DRIVER: 's3' }), /shared production deployment lock/);
-  await assert.rejects(cli.main(base, { SALEMAX_DEPLOY_LOCK_HELD: '1', SALEMAX_OBJECT_STORAGE_DRIVER: 'local' }), /DRIVER=s3/);
+  await assert.rejects(cli.main(base, { SALEMAX_DEPLOY_LOCK_HELD: '1', SALEMAX_OBJECT_STORAGE_DRIVER: 'local' }), /Select the S3 storage driver/);
   await assert.rejects(cli.main(['--namespace', 'course-media', '--root', f.root, '--manifest-out', path.resolve(__dirname, '../manifest.json')], {}), /outside the source checkout/);
 });

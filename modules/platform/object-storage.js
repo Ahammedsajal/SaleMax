@@ -8,8 +8,13 @@ const path = require('node:path');
 const clients = new Map();
 const fail = (code, status = 503) => { throw Object.assign(new Error(code), { code, status }); };
 
-function driver(env = process.env) {
-  const value = String(env.SALEMAX_OBJECT_STORAGE_DRIVER || 'local').trim().toLowerCase();
+function driver(env = process.env, namespace) {
+  const namespaceEnv = {
+    'course-media': 'SALEMAX_COURSE_MEDIA_STORAGE_DRIVER',
+    'payment-proofs': 'SALEMAX_PAYMENT_PROOFS_STORAGE_DRIVER',
+    'recruitment-cvs': 'SALEMAX_RECRUITMENT_CVS_STORAGE_DRIVER'
+  }[namespace];
+  const value = String((namespaceEnv && env[namespaceEnv]) || env.SALEMAX_OBJECT_STORAGE_DRIVER || 'local').trim().toLowerCase();
   if (!['local', 's3'].includes(value)) fail('OBJECT_STORAGE_DRIVER_INVALID', 500);
   return value;
 }
@@ -82,7 +87,7 @@ function normalizeRemoteError(error) {
 }
 
 function createStore({ env = process.env, namespace, root, sdk, client } = {}) {
-  const selectedDriver = driver(env);
+  const selectedDriver = driver(env, namespace);
   if (!/^[a-z][a-z0-9-]{0,50}$/.test(namespace || '')) fail('OBJECT_STORAGE_NAMESPACE_INVALID', 500);
   const localRoot = root ? path.resolve(root) : null;
   if (selectedDriver === 'local' && (!localRoot || !path.isAbsolute(localRoot))) fail('OBJECT_STORAGE_ROOT_REQUIRED', 503);

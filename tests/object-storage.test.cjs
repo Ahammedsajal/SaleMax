@@ -119,3 +119,10 @@ test('S3 configuration requires explicit credentials and rejects insecure remote
   assert.throws(() => objectStorage.s3Config({ ...S3_ENV, SALEMAX_S3_ENDPOINT: 'http://objects.example.test' }), { code: 'OBJECT_STORAGE_CONFIGURATION_INVALID' });
   assert.equal(objectStorage.s3Config({ ...S3_ENV, SALEMAX_S3_ENDPOINT: 'http://localhost:9000' }).endpoint, 'http://localhost:9000');
 });
+
+test('each private namespace can switch drivers independently while the legacy default stays local', () => {
+  assert.equal(objectStorage.driver({ SALEMAX_OBJECT_STORAGE_DRIVER: 's3' }, 'course-media'), 's3');
+  assert.equal(objectStorage.driver({ SALEMAX_OBJECT_STORAGE_DRIVER: 's3', SALEMAX_PAYMENT_PROOFS_STORAGE_DRIVER: 'local' }, 'payment-proofs'), 'local');
+  assert.equal(objectStorage.driver({ SALEMAX_OBJECT_STORAGE_DRIVER: 'local', SALEMAX_RECRUITMENT_CVS_STORAGE_DRIVER: 's3' }, 'recruitment-cvs'), 's3');
+  assert.equal(objectStorage.driver({}, 'payment-proofs'), 'local');
+});
