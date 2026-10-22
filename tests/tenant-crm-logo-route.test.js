@@ -20,4 +20,8 @@ test('tenant CRM logos stream through managed storage only after tenant authoriz
   assert.equal(publicLogo.status,200);assert.equal(await publicLogo.text(),'synthetic');assert.equal(publicLogo.headers.get('content-type'),'image/png');assert.equal(publicLogo.headers.get('content-length'),'9');assert.equal(publicLogo.headers.get('cache-control'),'private, max-age=300');assert.equal(publicLogo.headers.get('x-content-type-options'),'nosniff');
   const foreign=await fetch(`${base}/${tenantB}/${filename}`,{headers:{Host:'customer.example.test'}});assert.equal(foreign.status,404);assert.equal(opened.length,1,'foreign tenant URL is rejected before storage access');
   const canonical=await fetch(`${base}/${tenantA}/${filename}`);assert.equal(canonical.status,200);assert.deepEqual(opened.map(item=>item.tenantId),[tenantA,tenantA]);
+  logoMedia.openManaged=async()=>{throw Object.assign(new Error('missing'),{code:'STORED_OBJECT_NOT_FOUND'});};
+  const missing=await fetch(`${base}/${tenantA}/${filename}`);assert.equal(missing.status,404);assert.deepEqual(await missing.json(),{success:false,code:'STORED_OBJECT_NOT_FOUND'});
+  logoMedia.openManaged=async()=>{throw Object.assign(new Error('storage down'),{code:'OBJECT_STORAGE_UNAVAILABLE'});};
+  const unavailable=await fetch(`${base}/${tenantA}/${filename}`);assert.equal(unavailable.status,503);assert.deepEqual(await unavailable.json(),{success:false,code:'CRM_APPEARANCE_UNAVAILABLE'});
 });
