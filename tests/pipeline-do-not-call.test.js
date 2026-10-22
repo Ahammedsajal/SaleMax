@@ -44,7 +44,7 @@ test('Pipeline displays bilingual do-not-call status and only offers the disposi
   const html=fs.readFileSync(path.join(root,'client/public/pipeline/index.html'),'utf8');
   const router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8');
   assert.match(screen,/doNotCall:'Do not call'/);assert.match(screen,/doNotCall:'ممنوع الاتصال'/);
-  assert.match(screen,/lead\.doNotCall/);assert.match(screen,/x\.doNotCall/);assert.match(screen,/state\.data\.categoryKey==='7network_sales'/);
+  assert.match(screen,/lead\.doNotCall/);assert.match(screen,/x\.doNotCall/);assert.match(screen,/isSalesCategory\(state\.data\.categoryKey\)/);assert.match(screen,/key === '7network_sales' \|\| key === 'salemax_sales'/);
   assert.match(router,/categoryKey: req\.pipelineActor\.categoryKey/);assert.match(router,/categoryKey:req\.pipelineActor\.categoryKey/);
   assert.match(reports,/do_not_call:'Do not call'/);assert.match(reports,/do_not_call:'عدم الاتصال'/);
   assert.match(html,/reports\.js\?v=[^"\s<>]+/); // Current release cache key, independent of an older deployment stamp.

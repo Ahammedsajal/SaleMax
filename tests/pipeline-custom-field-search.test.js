@@ -43,5 +43,5 @@ test('Pipeline custom-field search copy explains the broader search in English a
   assert.match(screen,/Search name, phone, campaign or custom answers/);
   assert.match(screen,/ابحث بالاسم أو الرقم أو الحملة أو الإجابات المخصصة/);
   assert.match(html,/placeholder="Search name, phone, campaign or custom answers/);
-  assert.match(html,/pipeline\.js\?v=20261022-pipeline-shared-client1/);
+  assert.match(html,/pipeline\.js\?v=20261022-pipeline-shared-client2/);
 });
