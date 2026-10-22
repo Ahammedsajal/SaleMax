@@ -20,6 +20,7 @@ test('Inbox follow-up assigns every current agent and observes manager and owner
     if(sql.includes('FROM sx_sales_org_history'))return [[{actorId:args[1]==='agent-membership-7'?'manager-identity':'manager-identity'}],[]];
     if(sql.includes('SELECT a.id,a.uid,o.legacy_uid_hash')){const id=Number(args[1]);return [[{id,uid:`agent-uid-${id}`,uidHash:digest(`agent-uid-${id}`)}],[]];}
     if(sql.includes('SELECT id FROM sx_memberships WHERE'))return [[{id:'active-membership'}],[]];
+    if(sql.includes('FROM sx_tasks t WHERE t.tenant_id=? AND t.source_type=?'))return [[],[]];
     if(sql.includes('FROM pipeline_leads'))return [[],[]];
     if(sql.includes('SELECT chat_id,sender_name,sender_mobile,origin,origin_instance_unique_id FROM beta_chats'))return [[chat],[]];
     return [{affectedRows:1,insertId:1},[]];
@@ -33,6 +34,29 @@ test('Inbox follow-up assigns every current agent and observes manager and owner
   assert.equal(calls.filter(([sql])=>String(sql).startsWith('INSERT IGNORE INTO sx_task_notifications')).length,8);
   assert.equal(calls.at(-1)[0],'COMMIT');
   assert.ok(calls.some(([sql])=>sql.includes("origin='qr'")),'phone identifier should resolve through the tenant QR conversation');
+});
+
+test('repeated Inbox follow-up returns the nearest matching open task and does not queue duplicate notices',async()=>{
+  const calls=[],hash=uid=>require('node:crypto').createHash('sha256').update(uid).digest('hex');
+  const chat={chat_id:'synthetic-chat',sender_name:'Synthetic lead',sender_mobile:'+97450000002',origin:'qr',origin_instance_unique_id:'qr-main',assigned_agent:JSON.stringify([{identityId:'agent-7',uid:'agent-uid-7',id:7}])};
+  const existing={id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',revision:1,status:'open',title:'Follow up: Synthetic lead',taskType:'general',priority:'normal',dueAt:new Date('2026-10-23T10:00:00.000Z')};
+  const db={beginTransaction:async()=>calls.push(['BEGIN']),commit:async()=>calls.push(['COMMIT']),rollback:async()=>calls.push(['ROLLBACK']),query:async(sql,args=[])=>{calls.push([sql,args]);
+    if(sql.includes('SELECT chat_id,sender_name,sender_mobile,origin,origin_instance_unique_id,assigned_agent'))return [[chat],[]];
+    if(sql.includes('SELECT i.id AS identityId'))return [[{identityId:'agent-7',name:'Synthetic agent 7',email:'agent7@example.test',uid:'agent-uid-7',legacyId:7,sourceTable:'agents',role:'agent',uidHash:hash('agent-uid-7'),membershipId:'agent-membership-7'}],[]];
+    if(sql.includes("WHERE m.tenant_id=? AND m.role='owner'"))return [[{actorId:'owner-identity'}],[]];
+    if(sql.includes('FROM sx_sales_org_history'))return [[{actorId:'manager-identity'}],[]];
+    if(sql.includes('SELECT id FROM sx_memberships WHERE'))return [[{id:'active-membership'}],[]];
+    if(sql.includes('FROM pipeline_leads'))return [[],[]];
+    if(sql.includes('FROM sx_tasks t WHERE t.tenant_id=? AND t.source_type=?'))return [[existing],[]];
+    return [{affectedRows:1,insertId:1},[]];
+  }};
+  const result=await tasks.createInboxFollowUp(db,context,{chatId:chat.chat_id,dueAt:'2026-10-23T10:05:00.000Z',details:'Discuss the requested course'});
+  assert.equal(result.id,existing.id);assert.equal(result.duplicate,true);
+  const dedupe=calls.find(([sql])=>String(sql).includes('FROM sx_tasks t WHERE t.tenant_id=? AND t.source_type=?'));
+  assert.deepEqual(dedupe[1],[context.tenantId,'inbox_chat',chat.chat_id,'general','2026-10-23 10:05:00.000','2026-10-23 10:05:00.000','Follow-up details: Discuss the requested course','Assigned agents: Synthetic agent 7','2026-10-23 10:05:00.000']);
+  assert.equal(calls.some(([sql])=>String(sql).startsWith('INSERT INTO sx_tasks')),false);
+  assert.equal(calls.some(([sql])=>String(sql).startsWith('INSERT IGNORE INTO sx_task_notifications')),false);
+  assert.equal(calls.at(-1)[0],'COMMIT');
 });
 
 test('phone fallback rejects ambiguous QR conversations instead of choosing one',async()=>{
@@ -63,9 +87,12 @@ test('follow-up notices use the chat QR instance and include lead, assignee, and
 
 test('existing Inbox shell loads the maintained follow-up adapter',()=>{
   const fs=require('node:fs'),path=require('node:path'),html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
-  assert.match(html,/inbox-follow-up\.js\?v=/);
+  assert.match(html,/inbox-follow-up\.js\?v=20261022-follow-up-dedupe1/);
   const adapter=fs.readFileSync(path.join(__dirname,'../client/public/inbox-follow-up.js'),'utf8');
   assert.match(adapter,/requestHeaders\.set\('Content-Type','application\/json'\)/);
+  assert.match(adapter,/\/user\?page=tasks&task=\$\{encodeURIComponent\(task\.id\)\}/);
+  assert.match(adapter,/A matching follow-up task already exists/);
+  assert.doesNotMatch(adapter,/setTimeout\(\(\)=>d\.close\(\),900\)/);
   assert.doesNotMatch(adapter,/Object\.fromEntries\(new Headers\(headers\)\)/);
 });
 
