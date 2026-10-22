@@ -13,8 +13,9 @@ function copySchema(schema,capabilities){
   if(modules.length>24)fail();
   const result={moduleSettings:{}};
   for(const [moduleKey,source] of modules.sort(([a],[b])=>a.localeCompare(b))){
-    if(!slug(moduleKey)||!plain(source)||Object.keys(source).some(key=>!['capability','fields'].includes(key))||
+    if(!slug(moduleKey)||!plain(source)||Object.keys(source).some(key=>!['capability','fields','label'].includes(key))||
       typeof source.capability!=='string'||!capabilities.includes(source.capability)||!Array.isArray(source.fields)||source.fields.length<1||source.fields.length>32)fail();
+    if(Object.hasOwn(source,'label')&&!localized(source.label))fail();
     const seen=new Set();
     const fields=source.fields.map(field=>{
       if(!plain(field)||!slug(field.key)||seen.has(field.key)||!localized(field.label)||!['boolean','integer','text','enum'].includes(field.type))fail();
@@ -41,7 +42,7 @@ function copySchema(schema,capabilities){
       }
       return Object.freeze(base);
     });
-    result.moduleSettings[moduleKey]=Object.freeze({capability:source.capability,fields:Object.freeze(fields)});
+    result.moduleSettings[moduleKey]=Object.freeze({... (source.label?{label:{en:source.label.en.trim(),ar:source.label.ar.trim()}}:{}),capability:source.capability,fields:Object.freeze(fields)});
   }
   return Object.freeze({moduleSettings:Object.freeze(result.moduleSettings)});
 }

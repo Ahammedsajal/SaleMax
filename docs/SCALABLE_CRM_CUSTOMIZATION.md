@@ -892,9 +892,11 @@ production state changed.
 ## Versioned tenant module settings — source increment, 22 October 2026
 
 The shared category registry now accepts an immutable `customizationSchema` for
-typed module settings. Each module declares a category capability, and each
-field is a bounded Boolean, integer, text or enumerated value with bilingual
-labels and a server-defined default. Only a category version that declares
+typed module settings. Each module declares a category capability and may
+provide a bilingual heading; each field is a bounded Boolean, integer, text or
+enumerated value with bilingual labels and a server-defined default. The
+existing editor renders the declared module heading in English or Arabic, with
+the module key retained as a compatibility fallback. Only a category version that declares
 module settings uses customization schema 6; older schema 1–5 documents remain
 readable, and categories without module settings keep writing schema 5. The
 existing business settings screen renders the schema, lets owners opt a value

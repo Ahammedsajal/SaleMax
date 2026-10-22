@@ -124,9 +124,12 @@ release deployment and authenticated English/Arabic browser acceptance remain op
 ### Typed module customization contract, schema 6
 
 Category versions may declare an immutable `customizationSchema.moduleSettings`
-contract. Each module names a capability already present in that category and
-defines a bounded set of typed fields (`boolean`, `integer`, `text`, or `enum`)
-with English and Arabic labels and validated defaults. A category may publish
+contract. Each module names a capability already present in that category,
+may provide an English and Arabic module heading, and defines a bounded set of
+typed fields (`boolean`, `integer`, `text`, or `enum`) with English and Arabic
+labels and validated defaults. The existing editor displays the heading in the
+current language; older declarations without a heading fall back to the module
+key. A category may publish
 matching `customizationDefaults.moduleSettings`; these are version-pinned
 category defaults, not tenant data. The registry rejects undeclared capabilities,
 unknown field types, malformed bounds, unsafe labels, and invalid defaults.

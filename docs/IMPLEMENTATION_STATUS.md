@@ -2552,6 +2552,18 @@ run because Playwright is not installed. MariaDB runtime integration, category
 adoption, authenticated EN/AR screen acceptance and deployment remain open. No
 production state changed.
 
+## Bilingual module settings headings — source increment, 22 October 2026
+
+The immutable shared `customizationSchema.moduleSettings` contract now accepts
+an optional bilingual module heading, validates both labels, and displays the
+current language in the existing owner customization screen. Older declarations
+without a heading keep their module-key fallback. The maintained shell cache key
+was advanced for the editor update. Focused registry, customization, provenance
+and HTTP tests pass 26/26; syntax and whitespace checks pass. No current
+category declares module settings, so category adoption, authenticated rendered
+EN/AR acceptance and production deployment remain open. No production or
+customer state changed.
+
 ## Tenant-defined fields in existing Pipeline report drill-down — source increment, 22 October 2026
 
 The existing Pipeline report lead lists now return the lead's saved typed

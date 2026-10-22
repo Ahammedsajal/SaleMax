@@ -7,7 +7,7 @@ const capabilities=require('../modules/platform/policy').capabilities;
 const customization=require('../modules/platform/tenant-customization');
 const baseCategory=require('../modules/platform/categories').baseCrm;
 
-const schema={moduleSettings:{pipeline:{capability:'crm.leads',fields:[
+const schema={moduleSettings:{pipeline:{label:{en:'Pipeline',ar:'مسار المبيعات'},capability:'crm.leads',fields:[
   {key:'enabled',type:'boolean',label:{en:'Lead reminders',ar:'تذكيرات العملاء المحتملين'},default:false},
   {key:'days',type:'integer',label:{en:'Reminder days',ar:'أيام التذكير'},min:0,max:30,default:7},
   {key:'priority',type:'enum',label:{en:'Default priority',ar:'الأولوية الافتراضية'},default:'normal',options:[{key:'normal',label:{en:'Normal',ar:'عادي'}},{key:'high',label:{en:'High',ar:'مرتفع'}}]},
@@ -21,6 +21,7 @@ test('category module setting schemas are bounded, immutable and tied to categor
   const manifest={...baseCategory,customizationSchema:schema};
   const registered=createCategoryRegistry([manifest],capabilities).get(baseCategory.key,baseCategory.version);
   assert.equal(registered.customizationSchema.moduleSettings.pipeline.capability,'crm.leads');
+  assert.deepEqual(registered.customizationSchema.moduleSettings.pipeline.label,{en:'Pipeline',ar:'مسار المبيعات'});
   assert.throws(()=>{registered.customizationSchema.moduleSettings.pipeline.fields[0].default=true;},TypeError);
   for(const invalid of [
     {moduleSettings:{pipeline:{capability:'crm.leads',fields:[{...schema.moduleSettings.pipeline.fields[0],key:'invalid key'}]}}},
@@ -29,6 +30,7 @@ test('category module setting schemas are bounded, immutable and tied to categor
     {moduleSettings:{pipeline:{capability:'crm.leads',fields:[{...schema.moduleSettings.pipeline.fields[0],default:'yes'}]}}},
     {moduleSettings:{pipeline:{capability:'crm.leads',fields:[{...schema.moduleSettings.pipeline.fields[1],min:8,max:2}]}}},
     {moduleSettings:{pipeline:{capability:'crm.leads',fields:[{...schema.moduleSettings.pipeline.fields[0],label:{en:'<b>unsafe</b>',ar:'غير آمن'}}]}}},
+    {moduleSettings:{pipeline:{label:{en:'<b>unsafe</b>',ar:'غير آمن'},capability:'crm.leads',fields:[schema.moduleSettings.pipeline.fields[0]]}}},
   ])assert.throws(()=>copySchema(invalid,baseCategory.capabilities),{code:'INVALID_CUSTOMIZATION_MODULE_SETTINGS'});
   assert.throws(()=>createCategoryRegistry([{...manifest,capabilities:manifest.capabilities.filter(item=>item!=='tenant.settings')}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
   assert.throws(()=>createCategoryRegistry([{...manifest,customizationDefaults:{schemaVersion:6,moduleSettings:{pipeline:{days:31}}}}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
@@ -73,5 +75,6 @@ test('existing settings editor renders and submits typed module settings without
   const fs=require('node:fs'),path=require('node:path');
   const editor=fs.readFileSync(path.join(__dirname,'../client/public/tenant-customization.js'),'utf8');
   assert.match(editor,/state\.moduleSettingsSchema/);assert.match(editor,/data-module-override/);assert.match(editor,/type==='integer'\?Number\(input\.value\)/);assert.match(editor,/hasModuleSettings\?6:5/);assert.match(editor,/hasModuleSettings\?\{moduleSettings\}:\{\}/);
+  assert.match(editor,/module\.label\?tr\(module\.label\.en,module\.label\.ar\):moduleKey/);
   assert.match(editor,/never grant plan features or member permissions/);
 });
