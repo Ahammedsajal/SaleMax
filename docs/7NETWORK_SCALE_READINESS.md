@@ -2,6 +2,12 @@
 
 This is a read-only operations audit of the SaleMaX/7Network single-server deployment on 22 October 2026. It keeps both earlier measurements and the latest timestamped snapshot below; metrics are point-in-time evidence and do not establish peak capacity. The audit records preconditions for adding application instances; it does not approve a scale-out or change production.
 
+## Primary-origin session and browser perimeter follow-up — 22 October 2026
+
+Public HTTPS checks for `7network.live`, `www.7network.live`, and `crm.salemax.qa` returned 200 without redirects and had valid TLS. The anonymous `/user/login` response exposed `Access-Control-Allow-Origin: *` on all three origins; the inspected responses lacked a Strict-Transport-Security header. Anonymous page GETs did not set cookies. The active app configuration reported `https://7network.live` as its platform origin and allowed only those three origins through its application origin helper.
+
+The maintained session bridge uses a secure, HttpOnly, SameSite=Strict `__Host-salemax_session` cookie with no `Domain`, which is host-only. Existing sessions therefore do not transfer from `crm.salemax.qa` to `7network.live`; migration acceptance must test fresh login and signed-in flows separately on each supported origin. Authenticated API/CSRF, socket, OAuth, provider callback, webhook, payment redirect, installed-client, and bilingual desktop/mobile checks remain open. The production SSH alias did not resolve in the follow-up session, so the local session-bridge source hash could not be confirmed against the running container. No production settings were changed. See the corresponding read-only evidence in `DEPLOYMENT.md`.
+
 ## Release retention reference audit — 22 October 2026, 10:37 UTC
 
 The lock-held dry run resolved the active release as `/opt/salemax/releases/follow-up-message-4f7ed6d-20261022` and read 1,500 rollback metadata files across 415 snapshot directories with no scan errors. It protected every path in the deployment ledger and snapshot metadata, the active release, the six latest verified releases, and any Docker-mounted release. Of 579 release directories, 111 remain as candidates only after excluding 20 paths with private runtime directories or symlinks. Inode-link counts estimate 2.59 GiB of exclusively allocated blocks across those 111 paths. All 112 distinct application image objects remain referenced by the ledger, snapshots, or running containers; no image cleanup is proposed.
