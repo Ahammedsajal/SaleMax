@@ -1,6 +1,7 @@
 services:
   db:
-    image: mariadb:11.4
+    image: "${SALEMAX_DB_IMAGE_REF:-mariadb@sha256:70cc072b29b4a89ae07abb2d4da2c64678a7f2dfe092751bb51c87d67dc1338b}"
+    pull_policy: never
     restart: unless-stopped
     environment:
       MARIADB_DATABASE: salemax

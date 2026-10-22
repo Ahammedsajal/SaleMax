@@ -35,7 +35,7 @@ test('compiler and source-control tools stay in the build stage only', () => {
   assert.match(runtime, /^USER node$/m);
 });
 
-test('Compose accepts independently pinned app and worker images with a legacy common fallback', () => {
+test('Compose accepts independently pinned app and worker images and pins the database', () => {
   assert.doesNotMatch(compose, /^\s+build:/m);
   const imageLines = compose.split('\n').filter((line) => /^\s+image:/.test(line) && line.includes('salemax-app:'));
   assert.equal(imageLines.length, 0);
@@ -46,7 +46,9 @@ test('Compose accepts independently pinned app and worker images with a legacy c
   assert.match(digestLines[2], /SALEMAX_RECRUITMENT_WORKER_IMAGE_REF/);
   for (const line of digestLines) assert.match(line, /SALEMAX_IMAGE_REF:\?/,
     'legacy common image ref fallback remains required and must itself be digest-pinned');
-  assert.equal((compose.match(/pull_policy: never/g) ?? []).length, 3);
+  const dbService = compose.split(/^  db:\n/m)[1]?.split(/^  app:\n/m)[0];
+  assert.match(dbService || '', /mariadb@sha256:[a-f0-9]{64}/);
+  assert.equal((compose.match(/pull_policy: never/g) ?? []).length, 4);
 });
 
 test('runtime Compose retains both current single-server worker services', () => {
