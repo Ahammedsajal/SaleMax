@@ -54,6 +54,7 @@ function processSocketEvent({
       const inboxScope = await inboxAccess.resolveInboxScope(query, socket.userData, type);
       const isAgent=agentAccount&&!inboxScope.canonical;
       const uid = inboxScope.uid;
+      socket.businessFeatureSession = await inboxAccess.authorizeInboxFeature(inboxScope, type, socket.businessFeatureSession);
       payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {}, socket.userData);
       switch (type) {
         case "get_chat_list":
@@ -1133,13 +1134,14 @@ function processSocketEvent({
 
           break;
 
-        case "del_contact":
-          const { contactId } = payload;
-          await query(`DELETE FROM contact WHERE id = ?`, [contactId]);
+        case "del_contact": {
+          const { contactId, ownerUid } = payload;
+          await require('../../modules/platform/contact-records').removeContact(query, ownerUid, contactId);
           socket.emit("request_update_chat_list");
           socket.emit("request_update_opened_chat");
 
           break;
+        }
 
         case "update_spend_time":
           const { uid: agentUidd, ownerUid, timeSpent } = payload;

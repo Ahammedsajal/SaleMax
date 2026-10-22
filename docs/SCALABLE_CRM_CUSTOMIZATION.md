@@ -1084,3 +1084,19 @@ This is a source increment only: no production state, customer record or
 provider was changed. The Real Estate category remains private and
 non-planable, and the other vertical workflows plus full release evidence are
 still required before broader rollout.
+# Legacy contact deletion must carry tenant scope
+
+The existing `/api/user/del_contact` and Inbox `del_contact` paths previously
+deleted by contact ID alone. A contact ID is a lookup key, not proof that the
+caller owns the row. Both paths now resolve the authenticated tenant owner,
+require contact-management authority for mapped staff, validate a bounded
+integer ID, and execute `DELETE FROM contact WHERE id = ? AND uid = ?`.
+Canonical HTTP calls re-evaluate the current category, assigned plan, role and
+tenant-disabled-module policy. Agent seats are denied. Errors exposed to the
+customer use a stable safe code and do not include SQL details. This follows
+OWASP's tenant-isolation guidance to derive tenant scope from verified identity
+and enforce it on every resource lookup: [OWASP Multi-Tenant Security Cheat
+Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html).
+Focused synthetic tests cover owner scoping, malformed IDs, role/plan/module
+denials and sanitized database failures. Production and authenticated acceptance
+remain separately recorded in `DEPLOYMENT.md` and `docs/IMPLEMENTATION_STATUS.md`.

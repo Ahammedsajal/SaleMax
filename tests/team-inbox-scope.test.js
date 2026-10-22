@@ -2,10 +2,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { resolveInboxUid, resolveInboxScope, filterAssignedChats, authorizeInboxPayload } = require('../modules/platform/team-inbox-scope');
+const { resolveInboxUid, resolveInboxScope, filterAssignedChats, authorizeInboxPayload, authorizeInboxFeature } = require('../modules/platform/team-inbox-scope');
 const hash = uid => crypto.createHash('sha256').update(uid).digest('hex');
 const user = { id: 2, uid: 'synthetic-manager' };
-const member = { tenantId: 'synthetic-tenant', tenantStatus: 'active', identityId: 'staff-a', role: 'manager', membershipStatus: 'active', identityStatus: 'active', uidHash: hash(user.uid), delegatedPermissions: [] };
+const member = { tenantId: 'synthetic-tenant', tenantStatus: 'active', categoryKey: 'training_center', membershipId:'synthetic-membership', identityId: 'staff-a', role: 'manager', membershipStatus: 'active', identityStatus: 'active', uidHash: hash(user.uid), delegatedPermissions: [] };
 const query = row => async sql => sql.includes('WHERE o.source_table') ? [row] : [{ uid: 'synthetic-owner', uidHash: hash('synthetic-owner') }];
 test('real Agent-seat source uses the agents ownership link and rejects foreign owner bindings',async()=>{
   const agent={...user,isAgent:true,role:'agent',is_active:1,owner_uid:'synthetic-owner'};
@@ -103,8 +103,12 @@ test('canonical agent accounts use the shared owner scope without access to unas
   await assert.rejects(authorizeInboxPayload(async()=>[],scope,'send_new_message',{}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });
 test('staff Inbox rejects unknown mutations, inactive identities and restricted roles', async () => {
-  for (const event of ['delete_chat','del_contact','unknown']) await assert.rejects(resolveInboxUid(query(member),user,event), { code: 'TEAM_INBOX_PERMISSION_DENIED' });
-  for (const override of [{role:'accountant'}, {membershipStatus:'inactive'}, {uidHash:'wrong'}, {tenantStatus:'suspended'}]) await assert.rejects(resolveInboxUid(query({...member,...override}),user,'get_chat_list'), { code: 'TEAM_INBOX_PERMISSION_DENIED' });
+  for (const event of ['delete_chat','unknown']) await assert.rejects(resolveInboxUid(query(member),user,event), { code: 'TEAM_INBOX_PERMISSION_DENIED' });
+  for (const override of [{role:'accountant'}, {membershipStatus:'inactive'}, {uidHash:'wrong'}, {tenantStatus:'suspended'}]) {
+    const row={...member,...override};
+    const lookup=async sql=>sql.includes('WHERE o.source_table')?[row]:sql.includes('FROM sx_qr_channel_shares share')?[]:[{uid:'synthetic-owner',membershipId:'owner-member',identityId:'owner-identity',uidHash:hash('synthetic-owner')}];
+    await assert.rejects(resolveInboxUid(lookup,user,'get_chat_list'), { code: 'TEAM_INBOX_PERMISSION_DENIED' });
+  }
 });
 test('custom role permissions remain authoritative over a manager seat', async () => {
   const custom = {...member, roleProfileId:'synthetic-role', seatRole:'manager', roleStatus:'active', rolePermissions:['conversations.read']};
@@ -139,4 +143,35 @@ test('agent time tracking is bound to the authenticated active agent and verifie
   });
   const foreignOwner=async(sql,args)=>sql.includes('FROM agents WHERE uid=? AND owner_uid=? AND is_active=1')?[]:lookup(sql,args);
   await assert.rejects(authorizeInboxPayload(foreignOwner,scope,'update_spend_time',{uid:agent.uid,timeSpent:5},agent),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});
+
+test('contact deletion requires tenant contact-management authority and returns a scoped target', async () => {
+  const managerScope={canonical:true,uid:'synthetic-owner',ctx:{membership:{role:'manager'}}};
+  assert.deepEqual(await authorizeInboxPayload(async()=>[],managerScope,'del_contact',{contactId:'42'},{role:'manager'}),{
+    contactId:42,ownerUid:'synthetic-owner',
+  });
+  await assert.rejects(authorizeInboxPayload(async()=>[],managerScope,'del_contact',{contactId:42},{role:'agent',isAgent:true}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(authorizeInboxPayload(async()=>[],{canonical:false,uid:'legacy-agent'},'del_contact',{contactId:42},{role:'agent',isAgent:true}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(authorizeInboxPayload(async()=>[],{canonical:false,uid:'legacy-user'},'del_contact',{contactId:'4 OR 1=1'},{role:'user'}),{code:'INVALID_CONTACT_ID'});
+  assert.deepEqual(await authorizeInboxPayload(async()=>[],{canonical:false,uid:'legacy-user'},'del_contact',{id:42},{role:'user'}),{
+    contactId:42,ownerUid:'legacy-user',
+  });
+  const custom={...member,roleProfileId:'synthetic-role',seatRole:'manager',roleStatus:'active',rolePermissions:['conversations.read']};
+  await assert.rejects(resolveInboxUid(query(custom),user,'del_contact'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});
+
+test('canonical Inbox events refresh and enforce the active tenant category, plan and module policy', async () => {
+  const categories=require('../modules/platform/categories');
+  const scope={canonical:true,uid:'synthetic-owner',ctx:{tenant:{id:'tenant-a'},identity:{id:'identity-a'},membership:{id:'member-a',role:'manager'}}};
+  const context={audience:'tenant',identity:{id:'identity-a'},tenant:{id:'tenant-a',status:'active',categoryKey:'training_center',categoryVersion:1,disabledModules:[]},membership:{id:'member-a',tenantId:'tenant-a',role:'manager',status:'active'},category:categories.trainingCenter,subscription:{status:'active',capabilities:[...categories.trainingCenter.capabilities]}};
+  let refreshes=0;
+  const session={ownerUid:'synthetic-owner',refresh:async()=>{refreshes++;return {...session,context};}};
+  assert.equal(await authorizeInboxFeature(scope,'del_contact',session).then(value=>value.context),context);
+  assert.equal(refreshes,1);
+  const disabled={...context,tenant:{...context.tenant,disabledModules:['crm.contacts']}};
+  await assert.rejects(authorizeInboxFeature(scope,'del_contact',{...session,refresh:async()=>({...session,context:disabled})}),{code:'MODULE_DISABLED'});
+  const removedPlan={...context,subscription:{status:'active',capabilities:['messaging.inbox']}};
+  await assert.rejects(authorizeInboxFeature(scope,'del_contact',{...session,refresh:async()=>({...session,context:removedPlan})}),{code:'FEATURE_UNAVAILABLE'});
+  await assert.rejects(authorizeInboxFeature({...scope,uid:'other-owner'},'del_contact',session),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  assert.equal(await authorizeInboxFeature({...scope,canonical:false},'del_contact',null),null);
 });

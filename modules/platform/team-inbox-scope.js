@@ -5,7 +5,7 @@ const EVENT_PERMISSIONS = Object.freeze({
   get_chat_list: 'conversations.read', load_conversation: 'conversations.read', export_chats: 'conversations.read', export_conversation: 'conversations.read',
   send_chat_message: 'conversations.reply', send_new_message: 'conversations.reply', save_chat_note: 'conversations.reply', delete_chat_note: 'conversations.reply',
   update_spend_time: 'conversations.read', translate_message: 'conversations.reply', suggest_reply: 'conversations.reply',
-  add_label: 'contacts.manage', on_label_delete: 'contacts.manage', set_chat_label: 'contacts.manage', remove_chat_label: 'contacts.manage', save_as_context: 'contacts.manage',
+  add_label: 'contacts.manage', on_label_delete: 'contacts.manage', set_chat_label: 'contacts.manage', remove_chat_label: 'contacts.manage', save_as_context: 'contacts.manage', del_contact: 'contacts.manage',
   assign_agent_to_chat: 'conversations.reply', unasign_chat_agent: 'leads.assign',
 });
 const fail = () => { throw Object.assign(new Error('TEAM_INBOX_PERMISSION_DENIED'), { code: 'TEAM_INBOX_PERMISSION_DENIED' }); };
@@ -28,14 +28,14 @@ async function resolveInboxScope(query, user, event) {
   if (!permission && row.role !== 'owner') fail();
   const qrAccountant = row.role==='accountant' && row.categoryKey==='training_center' && ['conversations.read','conversations.reply'].includes(permission);
   const delegatedPermissions = parse(row.delegatedPermissions) || [];
-  const membership = { role: row.role, delegatedPermissions };
+  const membership = { id: row.membershipId, tenantId: row.tenantId, identityId: row.identityId, role: row.role, status: row.membershipStatus, delegatedPermissions };
   if (row.roleProfileId) {
     const permissions = parse(row.rolePermissions);
     if (!permissions || row.seatRole !== row.role || !['active','archived'].includes(row.roleStatus) || (permission && !permissions.includes(permission) && !qrAccountant)) fail();
     membership.customPermissions = permissions;
   }
   if (row.role !== 'owner' && !qrAccountant && !scopeFor(membership, permission)) fail();
-  const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId, ctx: { tenant: { id: row.tenantId }, identity: { id: row.identityId }, membership } };
+  const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId, ctx: { tenant: { id: row.tenantId, status: row.tenantStatus, categoryKey: row.categoryKey }, identity: { id: row.identityId }, membership } };
   if (row.role === 'owner') return { ...base, uid: user.uid };
   const owners = await query(`SELECT u.uid,m.id AS membershipId,m.identity_id AS identityId,o.legacy_uid_hash AS uidHash FROM sx_memberships m
     JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
@@ -85,6 +85,7 @@ function filterQrInstances(instances, scope) {
 
 async function authorizeInboxPayload(query, scope, event, payload, actor) {
   if (event === 'update_spend_time') return authorizeAgentSpendTime(query, scope, payload, actor);
+  if (event === 'del_contact') return authorizeContactDelete(scope, payload, actor);
   if (!scope.canonical) return payload;
   if(scope.qrOnly&&!['get_chat_list','load_conversation','export_chats','export_conversation','send_chat_message'].includes(event))fail();
   // Staff never initiate a different WhatsApp conversation through the shared
@@ -122,4 +123,30 @@ async function authorizeAgentSpendTime(query, scope, payload, actor) {
   return { uid: agentUid, ownerUid, timeSpent };
 }
 
-module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, filterQrInstances, authorizeInboxPayload, authorizeAgentSpendTime, EVENT_PERMISSIONS };
+async function authorizeInboxFeature(scope, event, featureSession) {
+  if (!scope?.canonical) return featureSession;
+  const permission = EVENT_PERMISSIONS[event];
+  if (!permission) return featureSession;
+  const { capabilities, decision } = require('./policy');
+  const capability = Object.entries(capabilities).find(([, permissions]) => permissions.includes(permission))?.[0];
+  if (!capability || typeof featureSession?.refresh !== 'function') fail();
+  const current = await featureSession.refresh();
+  const context = current?.context;
+  if (!context || current.ownerUid !== scope.uid || context.tenant?.id !== scope.ctx?.tenant?.id ||
+      context.membership?.id !== scope.ctx?.membership?.id || context.identity?.id !== scope.ctx?.identity?.id) fail();
+  const result = decision(context, { capability, permission });
+  if (!result.allowed) throw Object.assign(new Error(result.code), { code: result.code });
+  return current;
+}
+
+function authorizeContactDelete(scope, payload, actor) {
+  if (actor?.isAgent === true || actor?.role === 'agent') fail();
+  if (scope?.canonical) {
+    if (!['owner', 'manager'].includes(scope.ctx?.membership?.role)) fail();
+  } else if (actor?.role !== 'user') fail();
+  const contactId = require('./contact-records').normalizedContactId(payload?.contactId ?? payload?.id);
+  if (typeof scope?.uid !== 'string' || !scope.uid) fail();
+  return { contactId, ownerUid: scope.uid };
+}
+
+module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, filterQrInstances, authorizeInboxPayload, authorizeAgentSpendTime, authorizeContactDelete, authorizeInboxFeature, EVENT_PERMISSIONS };

@@ -1,3 +1,18 @@
+## Tenant-scoped contact deletion — source implementation, 22 October 2026
+
+Both existing contact-delete entry points (`/api/user/del_contact` and the
+Inbox socket event) now validate a bounded numeric contact ID and delete only
+within the authenticated business owner's UID. The HTTP path resolves the
+current tenant and staff membership, then checks the live category, plan,
+role and disabled-module policy; the socket path applies the same tenant
+authorization before deleting. Agents cannot use this operation. Database
+errors return a safe customer message without SQL details. The change closes
+the former unscoped `DELETE FROM contact WHERE id = ?` IDOR. Tenancy and
+authorization tests pass with synthetic records; no migration or production
+data write is required. This is source work pending a narrow production
+release. Signed-in owner/staff acceptance, disposable MariaDB integration and
+the broader category/42-ticket gates remain open.
+
 ## Inbox agent time tracking — production, 22 October 2026
 
 Hardened the existing Inbox socket event so an authenticated agent can update

@@ -8,7 +8,7 @@ test('Inbox socket time tracking writes only the authenticated active agent row 
   const priorDb=require.cache[dbPath];
   const agent={id:7,uid:'synthetic-agent',owner_uid:'synthetic-owner',role:'agent',isAgent:true,is_active:1};
   const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
-  const member={tenantId:'synthetic-tenant',tenantStatus:'active',identityId:'agent-identity',role:'agent',membershipStatus:'active',identityStatus:'active',uidHash:hash(agent.uid),delegatedPermissions:[]};
+  const member={tenantId:'synthetic-tenant',tenantStatus:'active',categoryKey:'training_center',membershipId:'synthetic-membership',identityId:'agent-identity',role:'agent',membershipStatus:'active',identityStatus:'active',uidHash:hash(agent.uid),delegatedPermissions:[]};
   const calls=[];
   let logs='{}';
   const query=async(sql,params=[])=>{
@@ -38,7 +38,8 @@ test('Inbox socket time tracking writes only the authenticated active agent row 
   });
 
   const handlers={},events=[];
-  const socket={userData:agent,decodedToken:{uid:agent.uid,role:'agent'},on:(name,fn)=>{handlers[name]=fn;},emit:(name,data)=>events.push({name,data})};
+  const category=require('../modules/platform/categories').trainingCenter;
+  const socket={userData:agent,decodedToken:{uid:agent.uid,role:'agent'},businessFeatureSession:{ownerUid:agent.owner_uid,refresh:async()=>({ownerUid:agent.owner_uid,context:{audience:'tenant',identity:{id:'agent-identity'},tenant:{id:'synthetic-tenant',status:'active',categoryKey:'training_center',categoryVersion:1,disabledModules:[]},membership:{id:'synthetic-membership',tenantId:'synthetic-tenant',identityId:'agent-identity',role:'agent',status:'active'},category,subscription:{status:'active',capabilities:[...category.capabilities]}}})},on:(name,fn)=>{handlers[name]=fn;},emit:(name,data)=>events.push({name,data})};
   processSocketEvent({socket,initializeSocket(){},sendToUid(){},sendToSocket(){},sendToAll(){},getConnectedUsers(){return[];},getConnectionsByUid(){return[];},getConnectionBySocketId(){return null;},getAllSocketData(){return[];}});
 
   await handlers.message({type:'update_spend_time',payload:{uid:agent.uid,date:'1900-01-01',timeSpent:5}});

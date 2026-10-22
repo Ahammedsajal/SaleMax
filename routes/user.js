@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const { query } = require("../database/dbpromise.js");
+const createContactDeleteHandler = require('../modules/platform/contact-delete-handler');
 const optionalFeatures = require('../modules/platform/optional-features');
 const { syncOrQueueNodeUser } = require("../functions/crmAccountSync.js");
 const randomstring = require("randomstring");
@@ -856,16 +857,7 @@ router.post(
 );
 
 // del contact
-router.post("/del_contact", validateUser, async (req, res) => {
-  try {
-    const { id } = req.body;
-    await query(`DELETE FROM contact WHERE id = ?`, [id]);
-    res.json({ success: true, msg: "Contact was deleted" });
-  } catch (err) {
-    res.json({ success: false, msg: "something went wrong", err });
-    console.log(err);
-  }
-});
+router.post("/del_contact", validateUser, createContactDeleteHandler(query));
 
 router.post("/update_meta", validateUser, async (req, res) => {
   try {

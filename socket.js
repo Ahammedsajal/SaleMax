@@ -94,6 +94,15 @@ function initializeSocket(server) {
       if (!userData) {
         throw new Error("User data not found");
       }
+      let businessFeatureSession = null;
+      try {
+        businessFeatureSession = await require('./modules/platform/business-feature-session').resolve(
+          require('./database/config').promise(),
+          { actor: userData, agent: isAgent, owner: isAgent ? userData.owner : userData },
+        );
+      } catch {
+        // Canonical feature actions fail closed until their current tenant context can be refreshed.
+      }
       if(socket.crmTenantDomain){
         const sourceTable=isAgent?'agents':'user';
         await require('./modules/platform/tenant-crm-domains').assertLegacyHost(query,socket,sourceTable,userData.id);
@@ -106,6 +115,7 @@ function initializeSocket(server) {
         isAgent,
         connectedAt: new Date(),
       };
+      socket.businessFeatureSession = businessFeatureSession;
       {
         try {
           const scope = await require('./modules/platform/team-inbox-scope').resolveInboxScope(query, socket.userData, 'get_chat_list');
