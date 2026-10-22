@@ -20,7 +20,21 @@ async function resolveInboxScope(query, user, event) {
     JOIN sx_memberships m ON m.tenant_id=t.id AND m.id=o.membership_id JOIN sx_identities i ON i.id=m.identity_id
     LEFT JOIN sx_team_roles r ON r.tenant_id=m.tenant_id AND r.id=m.role_profile_id
     WHERE o.source_table='${source}' AND o.source_id=? LIMIT 2`, [String(user.id)])];
-  if (!rows.length) return { uid: user.uid, canonical: false, assignedOnly: false };
+  if (!rows.length) {
+    // Preserve unmapped legacy agents during gradual identity adoption, but
+    // keep their historical assigned-conversation boundary. The owner UID is
+    // reloaded from the agent row rather than trusted from a socket payload.
+    if (source === 'agents' && user?.isAgent && user?.role === 'agent') {
+      const legacyId=Number(user.id);
+      if(!Number.isSafeInteger(legacyId)||legacyId<1||typeof user.uid!=='string'||!user.uid)fail();
+      const agents=await query('SELECT uid,owner_uid,is_active,role FROM agents WHERE id=? AND uid=? LIMIT 2',[legacyId,user.uid]);
+      if(agents.length!==1||agents[0].uid!==user.uid||agents[0].role!=='agent'||Number(agents[0].is_active)!==1||typeof agents[0].owner_uid!=='string'||!agents[0].owner_uid)fail();
+      const owners=await query("SELECT uid FROM user WHERE uid=? AND role='user' LIMIT 2",[agents[0].owner_uid]);
+      if(owners.length!==1||owners[0].uid!==agents[0].owner_uid||user.owner_uid!==agents[0].owner_uid)fail();
+      return {uid:agents[0].owner_uid,canonical:false,assignedOnly:true,legacyAgent:true,identityId:null,actorUid:user.uid,actorLegacyId:legacyId};
+    }
+    return { uid: user.uid, canonical: false, assignedOnly: false };
+  }
   const row = rows[0];
   if (rows.length !== 1 || row.uidHash !== crypto.createHash('sha256').update(user.uid).digest('hex') || row.tenantStatus !== 'active' || row.membershipStatus !== 'active' || row.identityStatus !== 'active') fail();
 
@@ -84,7 +98,20 @@ function filterQrInstances(instances, scope) {
 }
 
 async function authorizeInboxPayload(query, scope, event, payload) {
-  if (!scope.canonical) return payload;
+  if (!scope.canonical) {
+    if(!scope.legacyAgent)return payload;
+    if(['send_new_message','delete_chat','assign_agent_to_chat','unasign_chat_agent'].includes(event))fail();
+    if(['get_chat_list','export_chats','add_label','on_label_delete','update_spend_time','translate_message'].includes(event))return payload;
+    const ids={load_conversation:payload.chat?.chat_id,export_conversation:payload.chatId,send_chat_message:payload.chatInfo?.chat_id,suggest_reply:payload.chatId,save_as_context:payload.chatId};
+    const rowIds={set_chat_label:payload.chatIdRow,remove_chat_label:payload.chatId,delete_chat_note:payload.chatRealId,save_chat_note:payload.id};
+    const rowId=rowIds[event],chatId=ids[event];
+    if(!rowId&&!chatId)fail();
+    const rows=await query(`SELECT * FROM beta_chats WHERE uid=? AND ${rowId?'id':'chat_id'}=? LIMIT 1`,[scope.uid,rowId||chatId]);
+    if(rows.length!==1||!filterAssignedChats(rows,scope).length)fail();
+    if(event==='load_conversation')return {...payload,chat:rows[0]};
+    if(event==='send_chat_message')return {...payload,chatInfo:rows[0]};
+    return payload;
+  }
   if (event === 'unasign_chat_agent' && !['owner', 'manager'].includes(scope.ctx?.membership?.role)) fail();
   if(scope.qrOnly&&!['get_chat_list','load_conversation','export_chats','export_conversation','send_chat_message'].includes(event))fail();
   // Staff never initiate a different WhatsApp conversation through the shared

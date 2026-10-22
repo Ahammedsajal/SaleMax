@@ -76,6 +76,9 @@ async function main() {
     await db.query('INSERT INTO beta_chats (id,uid,chat_id,unread_count,chat_label,chat_note,assigned_agent,sender_name,sender_mobile,last_message) VALUES (?,?,?,?,?,?,?,?,?,?)', [
       202, ownerB, 'chat-b', 9, '[{"id":4,"title":"Tenant B label"}]', '[{"id":"b-note","note":"private B note"}]', '[{"id":1}]', 'Customer B', '5550002', '{}',
     ]);
+    await db.query('INSERT INTO beta_chats (id,uid,chat_id,unread_count,chat_label,chat_note,assigned_agent,sender_name,sender_mobile,last_message) VALUES (?,?,?,?,?,?,?,?,?,?)', [
+      303, ownerA, 'chat-c', 3, '[]', '[]', '[{"id":2}]', 'Private Agent B Customer', '5550003', '{}',
+    ]);
     await db.query('INSERT INTO agents (id,uid,owner_uid,role) VALUES (?,?,?,?)', [1, 'synthetic-agent-a', ownerA, 'agent']);
     await db.query('INSERT INTO chat_tags (id,uid,title) VALUES (10,?,?)', [ownerB, 'Tenant B label']);
     await db.query('INSERT INTO contact (id,uid,mobile,name) VALUES (20,?,?,?)', [ownerB, '5550002', 'Customer B']);
@@ -99,12 +102,8 @@ async function main() {
     const stubs = new Map([
       [modulePaths[0], { query: sqlQuery }],
       [modulePaths[1], {
-        resolveInboxScope: async (_query, userData) => ({ canonical: false, uid: ownerA, assignedOnly: !!userData.isAgent, agentId: userData.id }),
-        authorizeInboxPayload: async (_query, _scope, _event, payload) => payload,
-        filterAssignedChats: (chats, scope) => scope.assignedOnly
-          ? chats.filter(chat => { try { return JSON.parse(chat.assigned_agent || '[]').some(agent => Number(agent.id) === Number(scope.agentId)); } catch { return false; } })
-          : chats,
-        filterQrInstances: instances => instances,
+        ...require('../modules/platform/team-inbox-scope'),
+        resolveInboxScope: async (_query, userData) => ({ canonical: false, uid: ownerA, assignedOnly: !!userData.isAgent, legacyAgent: !!userData.isAgent, agentId: userData.id, actorLegacyId: userData.id, actorUid: userData.uid }),
       }],
       [modulePaths[2], { assertDelegatedSession: async () => {} }],
       [modulePaths[3], { getCurrentTimestampInTimeZone: () => 1_800_000_000, mergeArraysWithPhonebook: chats => chats }],
@@ -170,6 +169,14 @@ async function main() {
       const agentList = agentEmitted.find(item => item.event === 'chat_list');
       assert.ok(agentList);
       assert.deepEqual(agentList.payload.chats.map(chat => chat.chat_id), ['chat-a'], 'legacy agent list remains owner-scoped when another business has the same stale assignment ID');
+      await agentListeners.get('message')({ type: 'load_conversation', payload: { chat: { id: 303, chat_id: 'chat-c' }, filters: {} } });
+      await agentListeners.get('message')({ type: 'export_conversation', payload: { chatId: 'chat-c' } });
+      await agentListeners.get('message')({ type: 'send_chat_message', payload: { type: 'text', msgCon: { text: { body: 'unauthorized synthetic reply' } }, chatInfo: { id: 303, chat_id: 'chat-c', sender_mobile: '5550003', origin: 'meta' } } });
+      const [unassignedChat] = await db.query('SELECT unread_count FROM beta_chats WHERE uid=? AND id=?', [ownerA, 303]);
+      assert.equal(unassignedChat[0].unread_count, 3, 'guessed read of another agent chat does not clear unread state');
+      assert.equal(agentEmitted.filter(item => item.event === 'load_conversation').length, 0);
+      assert.equal(agentEmitted.filter(item => item.event === 'export_conversation_result').length, 0);
+      assert.equal(agentEmitted.filter(item => item.event === 'error').length, 3, 'direct read, export and reply are denied before data/provider access');
 
       console.log(JSON.stringify({ success: true, database, mysqlVersion: (await db.query('SELECT VERSION() AS version'))[0][0].version, syntheticTenants: 2, crossTenantMutations: 0, customerDataTouched: false, externalWrites: false }));
     } finally {

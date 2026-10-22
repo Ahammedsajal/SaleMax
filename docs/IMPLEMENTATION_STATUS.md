@@ -1,3 +1,17 @@
+## Unmapped legacy Agent assignment enforcement — source increment, 22 October 2026
+
+The shared Inbox scope resolver now preserves active unmapped legacy Agents
+through a database-verified agent/owner binding while marking them
+assignment-scoped. Direct conversation loads, exports, notes, labels and replies
+must resolve to a chat assigned to that agent; replies use the stored chat row,
+and unassigned transfers, deletes and new outbound chats are denied. A focused
+scope test covers owner-binding failure and record checks. The disposable MySQL
+9.6 Socket.IO integration invokes the actual handler and confirms a guessed
+other-agent chat cannot be read, exported, or replied to and its unread state
+remains unchanged. Focused Inbox/scope tests pass 24/24; integration and syntax
+checks pass. MariaDB, broader legacy socket/media coverage, authenticated
+existing-screen acceptance and deployment remain open.
+
 ## Legacy Inbox Agent list tenant predicate — source increment, 22 October 2026
 
 The existing legacy Agent chat-list query now constrains `beta_chats.uid` to the

@@ -14,6 +14,27 @@ test('real Agent-seat source uses the agents ownership link and rejects foreign 
   for(const change of [{owner_uid:'other'},{is_active:0}])await assert.rejects(resolveInboxScope(lookup,{...agent,...change},'get_chat_list'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });
 
+test('unmapped legacy agents retain only their assigned chats and verified owner scope',async()=>{
+  const agent={id:9,uid:'legacy-agent',isAgent:true,role:'agent',is_active:1,owner_uid:'synthetic-owner'};
+  const lookup=async(sql,args)=>{
+    if(sql.includes('WHERE o.source_table'))return [];
+    if(sql.includes('FROM agents'))return [{uid:agent.uid,owner_uid:agent.owner_uid,is_active:1,role:'agent'}];
+    if(sql.includes('FROM user'))return [{uid:agent.owner_uid}];
+    return [];
+  };
+  const scope=await resolveInboxScope(lookup,agent,'get_chat_list');
+  assert.equal(scope.canonical,false);assert.equal(scope.legacyAgent,true);assert.equal(scope.uid,'synthetic-owner');assert.equal(scope.assignedOnly,true);
+  const own={uid:'synthetic-owner',chat_id:'own',sender_mobile:'5550001',assigned_agent:JSON.stringify([{id:9,uid:'legacy-agent'}])};
+  const other={uid:'synthetic-owner',chat_id:'other',sender_mobile:'5550002',assigned_agent:JSON.stringify([{id:10,uid:'other-agent'}])};
+  assert.deepEqual(filterAssignedChats([own,other],scope),[own]);
+  const read=async(sql,args)=>{assert.match(sql,/WHERE uid=\? AND chat_id=\? LIMIT 1/);assert.deepEqual(args,['synthetic-owner','own']);return [own];};
+  await assert.rejects(authorizeInboxPayload(async(_sql,args)=>{assert.deepEqual(args,['synthetic-owner','other']);return [other];},scope,'load_conversation',{chat:{chat_id:'other'}}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  const reply=await authorizeInboxPayload(read,scope,'send_chat_message',{chatInfo:{chat_id:'own',sender_mobile:'forged'}});
+  assert.equal(reply.chatInfo.sender_mobile,'5550001');
+  for(const event of ['send_new_message','delete_chat','assign_agent_to_chat'])await assert.rejects(authorizeInboxPayload(read,scope,event,{}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(resolveInboxScope(async(sql)=>sql.includes('WHERE o.source_table')?[]:sql.includes('FROM agents')?[{uid:agent.uid,owner_uid:'other-owner',is_active:1,role:'agent'}]:[{uid:'other-owner'}],agent,'get_chat_list'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});
+
 test('manager reads and replies through the verified owner Inbox scope', async () => {
   for (const event of ['get_chat_list','load_conversation','send_chat_message']) assert.equal(await resolveInboxUid(query(member), user, event), 'synthetic-owner');
   assert.equal(await resolveInboxUid(async () => [], user, 'get_chat_list'), user.uid);
