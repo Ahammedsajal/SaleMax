@@ -2162,3 +2162,11 @@ pre-query denial for a synthetic Base CRM generic adapter. No migration,
 customer data, database, or production runtime changed. Generic route execution,
 MariaDB integration, authenticated screen acceptance and deployment remain
 open.
+
+## Inbox follow-up deduplication merge — verification refresh, 22 October 2026
+
+Merged `origin/main` commit `69a608d3`, including open-task deduplication and its
+no-duplicate-notice regression. The existing shell retains this branch's shared
+customization and category asset versions and advances the Inbox follow-up
+loader to the dedupe release. Combined category registry, Forms, task-router and
+Inbox follow-up focused suites pass 34/34. No production data or runtime changed.
