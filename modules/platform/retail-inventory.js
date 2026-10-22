@@ -69,10 +69,17 @@ async function listStock(db,ctx,{locationId,search='',page=1,limit=30}={}){
   search=String(search||'').trim().slice(0,100);
   const [[location]]=await db.query("SELECT id FROM sx_retail_locations WHERE tenant_id=? AND id=? AND status='active' LIMIT 1",[ctx.tenant.id,locationId]);
   if(!location)fail('INVENTORY_LOCATION_NOT_FOUND',404);
-  const clauses=['p.tenant_id=?',"p.status='active'"],params=[ctx.tenant.id];
-  if(search){clauses.push("(p.code LIKE ? ESCAPE '!' OR p.name_en LIKE ? ESCAPE '!' OR p.name_ar LIKE ? ESCAPE '!')");const pattern=`%${search.replace(/[!%_]/g,'!$&')}%`;params.push(pattern,pattern,pattern);}
-  const where=clauses.join(' AND '),[[count]]=await db.query(`SELECT COUNT(*) AS total FROM sx_product_catalog p WHERE ${where}`,params);
-  const [rows]=await db.query(`SELECT p.id AS productId,p.code,p.name_en AS nameEn,p.name_ar AS nameAr,COALESCE(b.quantity_on_hand,0) AS quantityOnHand,COALESCE(b.revision,0) AS revision FROM sx_product_catalog p LEFT JOIN sx_retail_inventory_balances b ON b.tenant_id=p.tenant_id AND b.product_id=p.id AND b.location_id=? WHERE ${where} ORDER BY p.code,p.id LIMIT ? OFFSET ?`,[locationId,...params,limit,(page-1)*limit]);
+  let count,rows;
+  if(search){
+    const pattern=`${search.replace(/[!%_]/g,'!$&')}%`;
+    const searchSql=`SELECT id FROM sx_product_catalog WHERE tenant_id=? AND status='active' AND code LIKE ? ESCAPE '!' UNION DISTINCT SELECT id FROM sx_product_catalog WHERE tenant_id=? AND status='active' AND name_en LIKE ? ESCAPE '!' UNION DISTINCT SELECT id FROM sx_product_catalog WHERE tenant_id=? AND status='active' AND name_ar LIKE ? ESCAPE '!'`;
+    const searchArgs=[ctx.tenant.id,pattern,ctx.tenant.id,pattern,ctx.tenant.id,pattern];
+    [[count]]=await db.query(`SELECT COUNT(*) AS total FROM (${searchSql}) AS matched_products`,searchArgs);
+    [rows]=await db.query(`SELECT p.id AS productId,p.code,p.name_en AS nameEn,p.name_ar AS nameAr,COALESCE(b.quantity_on_hand,0) AS quantityOnHand,COALESCE(b.revision,0) AS revision FROM (${searchSql}) AS matched_products JOIN sx_product_catalog p ON p.tenant_id=? AND p.id=matched_products.id AND p.status='active' LEFT JOIN sx_retail_inventory_balances b ON b.tenant_id=p.tenant_id AND b.product_id=p.id AND b.location_id=? ORDER BY p.code,p.id LIMIT ? OFFSET ?`,[...searchArgs,ctx.tenant.id,locationId,limit,(page-1)*limit]);
+  }else{
+    [[count]]=await db.query("SELECT COUNT(*) AS total FROM sx_product_catalog p WHERE p.tenant_id=? AND p.status='active'",[ctx.tenant.id]);
+    [rows]=await db.query("SELECT p.id AS productId,p.code,p.name_en AS nameEn,p.name_ar AS nameAr,COALESCE(b.quantity_on_hand,0) AS quantityOnHand,COALESCE(b.revision,0) AS revision FROM sx_product_catalog p LEFT JOIN sx_retail_inventory_balances b ON b.tenant_id=p.tenant_id AND b.product_id=p.id AND b.location_id=? WHERE p.tenant_id=? AND p.status='active' ORDER BY p.code,p.id LIMIT ? OFFSET ?",[locationId,ctx.tenant.id,limit,(page-1)*limit]);
+  }
   return {items:rows.map(row=>({...row,quantityOnHand:formatQuantity(row.quantityOnHand),revision:Number(row.revision)})),locationId,page,limit,total:Number(count.total),pages:Math.ceil(Number(count.total)/limit)};
 }
 async function findReplay(db,ctx,data,payloadHash){

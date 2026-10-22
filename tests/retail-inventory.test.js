@@ -57,11 +57,15 @@ test('location creation commits its audit record atomically and rolls back on au
 
 test('stock listing binds tenant scope and formats stored decimal quantities',async()=>{
   const calls=[],db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT id FROM sx_retail_locations'))return [[{id:locationId}]];if(sql.startsWith('SELECT COUNT'))return [[{total:1}]];if(sql.startsWith('SELECT p.id'))return [[{productId,code:'ITEM-1',nameEn:'Tea',nameAr:'شاي',quantityOnHand:'0.000',revision:0}]];throw Error('UNEXPECTED_QUERY');}};
-  const result=await inventory.listStock(db,context('accountant'),{locationId,search:'Tea'});
+  const result=await inventory.listStock(db,context('accountant'),{locationId,search:'Tea_%'});
   assert.equal(result.items[0].quantityOnHand,'0.000');
   assert.equal(result.items[0].revision,0);
   assert.ok(calls.every(call=>call.args.includes(tenantId)));
-  assert.match(calls[1].sql,/p\.tenant_id=\?/);
+  assert.match(calls[1].sql,/UNION DISTINCT/);
+  assert.equal(calls[1].args.filter(value=>value===tenantId).length,3);
+  assert.ok(calls[1].args.filter(value=>value==='Tea!_!%%').length===3);
+  assert.match(calls[1].sql,/LIKE \? ESCAPE '!'/);
+  assert.match(calls[2].sql,/p\.tenant_id=\?/);
   assert.match(calls[2].sql,/b\.tenant_id=p\.tenant_id/);
 });
 
@@ -102,4 +106,10 @@ test('forward migration is discoverable and encodes tenant-bound ledger constrai
   assert.match(sql,/FOREIGN KEY \(tenant_id,product_id\) REFERENCES sx_product_catalog\(tenant_id,id\)/);
   assert.match(sql,/CHECK \(quantity_on_hand >= 0\)/);
   assert.doesNotMatch(sql,/UPDATE sx_plan_versions/);
+  const searchMigration=discover(root).find(item=>item.file==='20261228_retail_catalogue_search.sql');
+  assert.ok(searchMigration);
+  const searchSql=fs.readFileSync(path.join(root,searchMigration.file),'utf8');
+  assert.match(searchSql,/\(tenant_id,status,code,id\)/);
+  assert.match(searchSql,/\(tenant_id,status,name_en,code,id\)/);
+  assert.match(searchSql,/\(tenant_id,status,name_ar,code,id\)/);
 });

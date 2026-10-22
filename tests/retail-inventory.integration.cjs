@@ -30,6 +30,7 @@ const use=async fn=>{const db=await pool.getConnection();try{return await fn(db)
       await db.query("CREATE TABLE sx_audit_events(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_kind VARCHAR(20) NOT NULL,action VARCHAR(120) NOT NULL,resource_type VARCHAR(80) NOT NULL,resource_id VARCHAR(100) NOT NULL,changes JSON NOT NULL,correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)) ENGINE=InnoDB");
       const migrations=discover(path.join(__dirname,'../database/migrations'));
       await applyMigrations(db,migrations,{only:'20261227_retail_inventory.sql'});
+      await applyMigrations(db,migrations,{only:'20261228_retail_catalogue_search.sql'});
       await db.query("INSERT INTO sx_tenants(id,category_key,category_version,status) VALUES (?, 'retail_shop',1,'active'),(?, 'retail_shop',1,'active')",[tenantA,tenantB]);
       await db.query('INSERT INTO sx_identities(id,display_name) VALUES (?,?),(?,?)',[identityA,'Retail A',identityB,'Retail B']);
       await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active'),(?,?,?,'owner','active')",[memberA,tenantA,identityA,memberB,tenantB,identityB]);
@@ -72,6 +73,30 @@ const use=async fn=>{const db=await pool.getConnection();try{return await fn(db)
     assert.ok(history.items.length>=2);assert.ok(history.items.every(row=>typeof row.createdAt==='string'));
     const [[foreignMovement]]=await use(db=>db.query('SELECT COUNT(*) AS total FROM sx_retail_stock_movements WHERE tenant_id=?',[tenantB]));
     assert.equal(Number(foreignMovement.total),0);
-    console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MySQL/MariaDB schema','tenant-owned locations and product joins','foreign-tenant product rejected','zero DECIMAL balance read','idempotent retry and payload conflict','no negative stock','concurrent revisions admit one winner','atomic location and audit rollback','tenant-scoped movement history'],syntheticOnly:true,customerDataTouched:false,externalWrites:false}));
+    await use(async db=>{
+      const batch=[];for(let i=1;i<=5000;i++){const id=crypto.randomUUID(),code=`SKU-${String(i).padStart(5,'0')}`,name=i===4999?'SKU-04999 Catalog item 04999':`Catalog item ${String(i).padStart(5,'0')}`;batch.push([id,tenantA,code,name,`صنف ${String(i).padStart(5,'0')}`,'active']);}
+      for(let start=0;start<batch.length;start+=250){const values=batch.slice(start,start+250),placeholders=values.map(()=>'(?,?,?,?,?,?)').join(',');await db.query(`INSERT INTO sx_product_catalog(id,tenant_id,code,name_en,name_ar,status) VALUES ${placeholders}`,values.flat());}
+      await db.query('ANALYZE TABLE sx_product_catalog');
+      for(const term of ['SKU-04999','صنف 04999']){
+        const result=await inventory.listStock(db,a,{locationId:loc.id,search:term});
+        assert.equal(result.total,1,`search ${term} should find the exact product once even when code and name both match`);
+        assert.equal(result.items[0].productId,batch[4998][0]);
+      }
+      const [nameSearch]=await db.query("SELECT id FROM sx_product_catalog WHERE tenant_id=? AND status='active' AND name_en LIKE ? ESCAPE '!' LIMIT 30",[tenantA,'SKU-04999%']);
+      assert.equal(nameSearch.length,1);
+      assert.equal(nameSearch[0].id,batch[4998][0]);
+      const plans=[];
+      for(const [column,prefix] of [['code','SKU-04999%'],['name_en','Catalog item 04999%'],['name_ar','صنف 04999%']]){
+        const [plan]=await db.query(`EXPLAIN SELECT id FROM sx_product_catalog WHERE tenant_id=? AND status='active' AND ${column} LIKE ? ESCAPE '!' LIMIT 30`,[tenantA,prefix]);
+        plans.push(...plan);
+      }
+      const planText=plans.map(row=>String(row.EXPLAIN||row.query_plan||JSON.stringify(row))).join('\n');
+      assert.match(planText,/idx_sx_product_tenant_status_name_en/);
+      assert.match(planText,/idx_sx_product_tenant_status_name_ar/);
+      assert.match(planText,/idx_sx_product_tenant_status_code|uq_test_product_code/);
+      const [searchIndexes]=await db.query("SELECT COUNT(DISTINCT index_name) AS total FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='sx_product_catalog' AND index_name IN ('idx_sx_product_tenant_status_code','idx_sx_product_tenant_status_name_en','idx_sx_product_tenant_status_name_ar')");
+      assert.equal(Number(searchIndexes[0].total),3);
+    });
+    console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MySQL/MariaDB schema','tenant-owned locations and product joins','foreign-tenant product rejected','zero DECIMAL balance read','idempotent retry and payload conflict','no negative stock','concurrent revisions admit one winner','atomic location and audit rollback','tenant-scoped movement history','English/Arabic/code prefix search deduplicates tenant products and uses tenant-leading indexes with 5000 synthetic products'],syntheticOnly:true,customerDataTouched:false,externalWrites:false}));
   }finally{await pool.end();}
 })().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message}));process.exitCode=1;});

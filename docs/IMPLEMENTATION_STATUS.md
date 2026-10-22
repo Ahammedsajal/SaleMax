@@ -2189,3 +2189,18 @@ workspace-client, Real Estate and Retail regression set (55/55). The full suite
 now reports 1,066/1,087 passing. Its 21 remaining source-contract failures are
 a subset of the 26 reproduced on clean `origin/main`; no Retail pagination or
 Meta shell failure is present in this run.
+
+## Retail product search query planning — source update, 22 October 2026
+
+The inventory search previously used leading-wildcard substring matching, which
+could not use the catalogue's B-tree indexes. Search is now explicitly a prefix
+match on product code or the English/Arabic product name. A forward migration
+adds tenant/status-leading indexes to the shared products catalogue, and the
+query uses three separately indexed tenant-scoped lookups with `UNION DISTINCT`
+to avoid both the full scan and duplicate results when code and name match.
+Wildcard characters are escaped. On a fresh disposable MySQL 9.6 instance,
+the migration applied, 5,000 synthetic products were inserted, English/Arabic/
+code searches returned the tenant's product exactly once, and `EXPLAIN` used
+the name indexes. No local or production customer database was touched; the
+migration has not been applied to production. MariaDB production-version query
+plans and index-build capacity still require preflight before release.

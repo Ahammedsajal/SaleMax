@@ -844,3 +844,15 @@ on location/search changes and discards stale asynchronous responses. This
 improves catalogue scale inside the existing panel without broadening the
 private category or changing its non-planable status. Focused inventory, router
 and screen tests pass 12/12; authenticated browser acceptance remains open.
+
+### Retail catalogue search scale — source update, 22 October 2026
+
+Retail stock lookup now uses an explicit prefix search on product code and the
+English/Arabic names. A tenant/status-leading composite index is added to the
+shared product catalogue, and the search unions three separately indexable
+lookups with distinct product IDs before returning a bounded page. This avoids
+leading-wildcard scans and keeps identical matches from duplicating a product.
+A 5,000-row disposable MySQL 9.6 integration verified migration application,
+English/Arabic/code matching, deduplication and index selection in `EXPLAIN`.
+Production MariaDB planning and index-build resource estimates remain release
+preflight gates; no production migration has been applied.

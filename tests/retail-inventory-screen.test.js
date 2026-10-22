@@ -43,6 +43,8 @@ test('screen uses authenticated category and permissions and has English and Ara
   assert.match(screen,/requestKey:crypto\.randomUUID\(\)/);
   assert.match(screen,/تابع كميات المنتجات حسب موقع المتجر/);
   assert.match(screen,/تسوية المخزون/);
+  assert.match(screen,/Search by code or name prefix/);
+  assert.match(screen,/ابحث برمز المنتج أو بداية اسمه/);
   assert.match(screen,/تغيير المخزون هو الكمية المضافة أو المسحوبة/);
   assert.match(screen,/We could not load or save inventory right now/);
 });
