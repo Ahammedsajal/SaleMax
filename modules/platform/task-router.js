@@ -4,6 +4,7 @@ const tasks=require('./task-management');
 
 function createTaskRouter({pool,contextFor}){
   const router=express.Router();
+  router.use(express.json({limit:'32kb',strict:true}));
   const withDb=async work=>{const db=await pool.getConnection();try{return await work(db);}finally{db.release();}};
   const run=(permission,work,successStatus=200)=>(req,res)=>Promise.resolve().then(async()=>{
     let ctx=await contextFor(req,permission);
@@ -19,7 +20,6 @@ function createTaskRouter({pool,contextFor}){
     if(status>=500)console.error('Task request failed:',code);
     res.status(status).json({success:false,code:status>=500?'TASK_UNAVAILABLE':code});
   });
-  router.use(express.json({limit:'32kb',strict:true}));
   router.get('/',run('tasks.read',(db,ctx,req)=>tasks.list(db,ctx,{status:req.query.status||'all',scope:req.query.scope||'mine',page:req.query.page,limit:req.query.limit,taskType:req.query.taskType||null})));
   router.get('/participants',run('tasks.read',(db,ctx)=>tasks.listParticipants(db,ctx)));
   router.get('/source',run('tasks.manage',(db,ctx,req)=>tasks.sourceDetail(db,ctx,req.query.type,req.query.id)));
