@@ -2,6 +2,12 @@
 
 This is a read-only operations audit of the SaleMaX/7Network single-server deployment on 22 October 2026. It keeps both earlier measurements and the latest timestamped snapshot below; metrics are point-in-time evidence and do not establish peak capacity. The audit records preconditions for adding application instances; it does not approve a scale-out or change production.
 
+## Post-deployment image and runtime identity — 22 October 2026, 09:36 UTC
+
+The shared-lock wrapper resolved the newly active Inbox follow-up release `/opt/salemax/releases/follow-up-dedupe-69a608d-20261022`; its production source/release/rollback evidence is recorded on `main` commit `8db38124`. The app image is 475,078,348 bytes and 10 layers, with no OCI revision label; release source marker files still read `e7781c7` and `350e486`. The app is healthy. Both worker containers remain on image ID `sha256:d3731b54eb384aa433da59b66c0d7b6eda156d96104e10431ba0bbd1bd3ef915`, so app-to-worker artifact identity is still unproven.
+
+Hosted run `39756345669` passed the operations branch's exact ARM64 build/load, Docker contract, non-root native-runtime, and graceful-shutdown smoke steps. The test image is 703,294,305 bytes and 8 layers, about 48% larger than the active app image; it was not published or deployed. The current source/live mismatch gate still prevents treating this generic PR image as deployable. Source CI and a healthy service do not establish production provenance, representative performance, or authenticated acceptance.
+
 ## Fresh host and container resource snapshot — 22 October 2026, 09:32 UTC
 
 The shared-lock wrapper re-resolved `/opt/salemax/current` to `/opt/salemax/releases/followup-json-header-d6836ed-20261022` on `carsqatar-prod-01`. The host has 2 vCPUs and 11 GiB RAM; `free` reported 9.4 GiB available and 188 MiB immediately free, with no swap configured. Root disk was 94% used with 3.0 GiB available; inode use was 23%. Load averages were 0.23, 0.24, and 0.20. These host readings are a single sample.
