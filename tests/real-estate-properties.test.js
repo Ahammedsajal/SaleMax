@@ -21,7 +21,7 @@ test('real estate contract is isolated, immutable, private and excluded from pla
 });
 
 test('listing validation rejects malformed domain values and normalizes accepted data',()=>{
-  assert.deepEqual(properties.clean(listing),{...listing,assignedMembershipId:null});
+  assert.deepEqual(properties.clean(listing),{...listing,assignedMembershipId:null,chatbotVisible:false});
   assert.throws(()=>properties.clean({...listing,priceMinor:-1}),{code:'INVALID_PROPERTY_PRICE'});
   assert.throws(()=>properties.clean({...listing,propertyType:'course'}),{code:'INVALID_PROPERTY_TYPE'});
   assert.throws(()=>properties.clean({...listing,transactionType:'lease'}),{code:'INVALID_TRANSACTION_TYPE'});
@@ -103,6 +103,16 @@ test('stale and invalid transitions cannot mutate a listing',async()=>{
   assert.equal(updates,0);assert.equal(rollbacks,3);
 });
 
+test('chatbot sharing is category-v3 only and defaults to private',async()=>{
+  const v3=require('../modules/platform/categories').realEstateV3,context={...base,tenant:{...base.tenant,categoryVersion:3},category:v3,subscription:{...base.subscription,categoryVersion:3,capabilities:[...v3.capabilities]}};
+  assert.deepEqual(properties.clean(listing).chatbotVisible,false);
+  const deniedDb={beginTransaction:async()=>{throw Error('DB_SHOULD_NOT_OPEN');}};
+  await assert.rejects(properties.create(deniedDb,base,{...listing,chatbotVisible:true}),{code:'CATEGORY_UNAVAILABLE'});
+  await assert.rejects(properties.update(deniedDb,base,'44444444-4444-4444-8444-444444444444',{chatbotVisible:true,expectedRevision:1}),{code:'CATEGORY_UNAVAILABLE'});
+  let seen='';const db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},query:async(sql)=>{seen+=sql;if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'active',transactionType:'sale',revision:1}]];return [{affectedRows:1}];}};
+  const result=await properties.update(db,context,'44444444-4444-4444-8444-444444444444',{chatbotVisible:true,expectedRevision:1});assert.equal(result.chatbotVisible,true);assert.match(seen,/chatbot_visible/);
+});
+
 test('a listing cannot be closed while it still has scheduled viewings',async()=>{
   const v3=require('../modules/platform/categories').realEstateV3,context={...base,tenant:{...base.tenant,categoryVersion:3},category:v3,subscription:{...base.subscription,categoryVersion:3,capabilities:[...v3.capabilities]}};
   let rollbacks=0,updates=0;const db={query:async(sql)=>{if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'active',transactionType:'sale',revision:2}]];if(sql.includes('FROM sx_real_estate_viewings'))return [[{id:'scheduled-viewing'}]];if(sql.startsWith('UPDATE'))updates++;return [{affectedRows:1}];},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{rollbacks++;}};
@@ -119,11 +129,12 @@ test('real estate storage keys and current-panel entry are registered without a 
   assert.match(migration,/FOREIGN KEY \(tenant_id,created_by_identity_id\) REFERENCES sx_memberships\(tenant_id,identity_id\)/);
   assert.match(migration,/FOREIGN KEY \(tenant_id,assigned_membership_id\) REFERENCES sx_memberships\(tenant_id,id\)/);
   assert.doesNotMatch(migration,/ON DELETE CASCADE/i);
+  const visibility=fs.readFileSync(path.join(__dirname,'../database/migrations/20261232_real_estate_chatbot_visibility.sql'),'utf8');assert.ok(migrations.discover(path.join(__dirname,'../database/migrations')).some(item=>item.file==='20261232_real_estate_chatbot_visibility.sql'));assert.match(visibility,/chatbot_visible TINYINT\(1\) NOT NULL DEFAULT 0/);assert.match(visibility,/idx_sx_real_estate_chatbot/);
   assert.match(migration,/idx_sx_real_estate_inventory \(tenant_id,status,transaction_type,property_type,updated_at\)/);
   const shell=fs.readFileSync(path.join(__dirname,'../client/public/training-sidebar.js'),'utf8');
   assert.match(shell,/membershipCategoryKey==='real_estate'/);assert.match(shell,/properties:'properties'/);
   const entry=fs.readFileSync(path.join(__dirname,'../client/public/pipeline-entry.js'),'utf8');
   assert.match(entry,/salemax-properties-workspace/);assert.match(entry,/\/property-listings\//);
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/properties.js'),'utf8');
-  assert.match(ui,/aria-modal="true"/);assert.match(ui,/statusLabels/);assert.match(ui,/data-save-assignee/);assert.match(ui,/assignedMembershipId/);assert.doesNotMatch(ui,/prompt\(/);
+  assert.match(ui,/aria-modal="true"/);assert.match(ui,/statusLabels/);assert.match(ui,/data-save-assignee/);assert.match(ui,/assignedMembershipId/);assert.match(ui,/Share this listing with the chatbot/);assert.doesNotMatch(ui,/prompt\(/);
 });

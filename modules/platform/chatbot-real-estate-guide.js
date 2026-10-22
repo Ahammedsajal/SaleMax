@@ -45,8 +45,8 @@ async function loadFacts({ db, tenantId }) {
       p.description_ar AS descriptionAr,p.updated_at AS updatedAt
     FROM sx_real_estate_properties p
     JOIN sx_tenants t ON t.id=p.tenant_id AND t.category_key='real_estate'
-      AND t.category_version=1 AND t.status='active'
-    WHERE p.tenant_id=? AND p.status='active'
+      AND t.category_version IN (1,2,3) AND t.status='active'
+    WHERE p.tenant_id=? AND p.status='active' AND p.chatbot_visible=1
     ORDER BY p.updated_at DESC,p.id LIMIT 50`, [tenantId]);
   return rows;
 }
