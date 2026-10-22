@@ -5,6 +5,8 @@ const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex'
 const periods=Object.freeze({daily:'day',weekly:'isoWeek',monthly:'month'});
 const leadFilters=require('./lead-filters');
 const { canonicalCategoryKey, categoryKeyMatches } = require('../../modules/platform/categories');
+const leadFieldRuntime=require('../../modules/platform/lead-field-runtime');
+const pipelineLeadExport=require('../../modules/platform/pipeline-lead-export');
 function fail(message,status=400){throw Object.assign(new Error(message),{status});}
 function periodWindow({period='daily',at,timezone='Asia/Qatar',cutoffAt}){
   const unit=periods[period];
@@ -225,11 +227,12 @@ async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,
       source=`SELECT DISTINCT pa.lead_id AS id FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id WHERE pa.uid_hash=? AND l.uid=? AND pa.actor_type='agent' AND pa.actor_id=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type IN ('contact_outcome','agent_message_sent')${leadScope.sql}`;params=[uidHash,uid,String(actor),window.start,window.end,...leadScope.args];
     }
     const [[count]]=await connection.query(`SELECT COUNT(*) AS total FROM (${source}) report_leads`,params);
-    const [rows]=await connection.query(`SELECT l.id AS leadId,l.title,COALESCE(c.display_name,l.contact_name) AS contactName,l.mobile,l.stage_key AS stageKey,l.owner_agent_id AS agentId,COALESCE(a.name,'—') AS agentName,l.created_at AS createdAt
+    const [rows]=await connection.query(`SELECT l.id AS leadId,l.title,COALESCE(c.display_name,l.contact_name) AS contactName,l.mobile,l.stage_key AS stageKey,l.owner_agent_id AS agentId,COALESCE(a.name,'—') AS agentName,l.created_at AS createdAt,l.qualification_data AS qualificationData
       FROM (${source}) report_leads JOIN pipeline_leads l ON l.uid_hash=? AND l.id=report_leads.id LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
       LEFT JOIN agents a ON a.id=l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
       ORDER BY l.created_at DESC,l.id DESC LIMIT ? OFFSET ?`,[...params,uidHash,pageSize,offset]);
-    const total=Number(count.total||0);return {kind,date,from:kind==='attended'?from||date:['month_created','month_converted'].includes(kind)?window.start:null,to:kind==='attended'?to||date:['month_created','month_converted'].includes(kind)?window.end:null,selectedAgentId:kind==='attended'?actor:null,page:currentPage,limit:pageSize,total,hasMore:offset+rows.length<total,items:rows};
+    const items=rows.map(({qualificationData,...lead})=>({...lead,customFields:pipelineLeadExport.customFields(leadFieldRuntime.qualification(qualificationData))}));
+    const total=Number(count.total||0);return {kind,date,from:kind==='attended'?from||date:['month_created','month_converted'].includes(kind)?window.start:null,to:kind==='attended'?to||date:['month_created','month_converted'].includes(kind)?window.end:null,selectedAgentId:kind==='attended'?actor:null,page:currentPage,limit:pageSize,total,hasMore:offset+rows.length<total,items};
   }finally{connection.release();}
 }
 async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,period='daily',at,timezone='Asia/Qatar',assignment,qrInstanceId}){

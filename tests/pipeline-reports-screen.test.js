@@ -44,6 +44,10 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /report-lead-link/);
   assert.match(reports, /exportPage:'Export this page \(CSV\)'/);
   assert.match(reports, /exportPage:'تصدير هذه الصفحة \(CSV\)'/);
+  assert.match(reports, /customFields:'Custom fields'/);
+  assert.match(reports, /customFields:'الحقول المخصصة'/);
+  assert.match(reports, /class="report-custom-fields"/);
+  assert.match(reports, /escape\(label\).*escape\(value\)/);
   assert.match(reports, /follow-up queue|follow-ups/i);
   assert.match(reports, /متابعات/);
   assert.match(reports, /function exportCurrentPage\(report\)/);

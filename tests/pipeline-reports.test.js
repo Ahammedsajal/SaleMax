@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {periodWindow,getActivityReport,getJourneyReport}=require('../helper/pipeline/reports');
+const {periodWindow,getActivityReport,getJourneyReport,getReportLeads}=require('../helper/pipeline/reports');
 const {reconcileExisting}=require('../modules/platform/training-lead-journey');
 
 test('pipeline reports define Qatar-local daily, Monday-weekly and monthly periods',()=>{
@@ -16,6 +16,24 @@ test('pipeline reports reject unsupported periods, invalid dates, roles and pagi
   const pool={getConnection(){throw new Error('must not connect')}};
   await assert.rejects(getActivityReport({pool,uid:'synthetic',role:'accountant'}),{status:403});
   await assert.rejects(getActivityReport({pool,uid:'synthetic',role:'owner',page:0}),{status:400});
+});
+
+test('report lead drill-down returns only typed custom-field snapshots within the existing actor scope',async()=>{
+  const queries=[];
+  const connection={release(){},async query(sql,params=[]){queries.push({sql,params});
+    if(sql.includes('SELECT COUNT(*) AS total FROM ('))return [[{total:1}]];
+    if(sql.includes('SELECT l.id AS leadId'))return [[{leadId:31,title:'Reference',contactName:'Sam',mobile:'+97455550000',stageKey:'new',agentId:9,agentName:'Mona',createdAt:'2026-10-01 10:00:00',qualificationData:JSON.stringify({email:'private@example.test',customFields:{cf_text_0123456789abcdef:{value:'A-17',definition:{key:'cf_text_0123456789abcdef',type:'text',label:{en:'Account reference',ar:'مرجع الحساب'},version:1},configurationRevision:8}}})}]];
+    throw new Error(`Unexpected report query: ${sql}`);
+  }};
+  const report=await getReportLeads({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'agent',agentId:9,kind:'created',date:'2026-10-01'});
+  assert.equal(report.total,1);
+  assert.deepEqual(report.items[0].customFields,{cf_text_0123456789abcdef:{value:'A-17',definition:{key:'cf_text_0123456789abcdef',type:'text',label:{en:'Account reference',ar:'مرجع الحساب'},version:1},configurationRevision:8}});
+  assert.equal(Object.hasOwn(report.items[0],'qualificationData'),false);
+  const leadQuery=queries.find(item=>item.sql.includes('SELECT l.id AS leadId'));
+  assert.match(leadQuery.sql,/l\.uid_hash=\? AND l\.id=report_leads\.id/);
+  assert.match(leadQuery.sql,/l\.owner_agent_id=\?/);
+  assert.ok(leadQuery.params.includes(9));
+  for(const {sql,params} of queries)assert.equal(params.length,(sql.match(/\?/g)||[]).length,`placeholder count for ${sql.slice(0,90)}`);
 });
 
 test('managers can read sales activity reports without receiving finance totals',async()=>{

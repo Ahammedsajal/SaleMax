@@ -2408,3 +2408,19 @@ Focused registry, customization and HTTP suites pass 26/26; syntax and
 run because Playwright is not installed. MariaDB runtime integration, category
 adoption, authenticated EN/AR screen acceptance and deployment remain open. No
 production state changed.
+
+## Tenant-defined fields in existing Pipeline report drill-down — source increment, 22 October 2026
+
+The existing Pipeline report lead lists now return the lead's saved typed
+custom-field snapshots, including the bilingual field definition and the
+configuration revision that saved each value. The existing report dialog renders
+those answers in English or Arabic and escapes both labels and values. The report
+service removes the surrounding qualification payload before returning the API
+result, and it retains its existing tenant UID/hash, report filters, role and
+assigned-agent predicates. No generic form category was enabled and no database
+or production state changed.
+
+Focused report, report-screen, and bounded export checks pass 18/18; JavaScript
+syntax and whitespace checks pass. This source increment does not prove a live
+database query plan, authenticated desktop/mobile browser acceptance, category
+adoption or deployment. The full 42-ticket upgrade remains open.

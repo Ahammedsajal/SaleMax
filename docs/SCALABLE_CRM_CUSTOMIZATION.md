@@ -375,8 +375,10 @@ and cannot submit another business's field keys. No account is auto-provisioned.
 The pre-existing training-oriented standard controls still require category-neutral
 adoption; this increment adds isolated custom fields without silently deleting or
 renaming historical standard fields. Pipeline search and its bounded CSV export
-consume custom fields with tenant scope. Reports, bot collection, public
-conversational forms and new industry invariants remain to be adapted.
+consume custom fields with tenant scope. The existing report lead drill-down now
+consumes the same typed snapshots under its existing role and lead scope. Bot
+collection, public conversational forms and new industry invariants remain to be
+adapted.
 
 Validation: 81 focused checks pass. Browser fixtures cover four typed-field builder
 cases, four actual existing Pipeline Add Lead cases, and eight existing editor
@@ -449,8 +451,9 @@ This adapter extends existing Training Center forms; it does not silently grant
 `portal.forms` to Sales, unmapped legacy businesses or new industry categories.
 Registration/accounting invariants and server permission checks remain unchanged.
 The category-neutral adapter is reusable when those categories receive reviewed
-form contracts. Pipeline search and bounded CSV export now consume custom fields;
-bot collection, report consumption and new industry modules remain separate work.
+form contracts. Pipeline search, bounded CSV export, and the existing report lead
+drill-down now consume custom fields; bot collection and new industry modules
+remain separate work.
 
 ### Generic lead-capture Forms adapter contract — category adoption pending
 
