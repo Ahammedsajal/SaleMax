@@ -69,7 +69,7 @@ async function main(){
       id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
       uid VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-    const names=['20260928_lead_pipeline.sql','20261007_pipeline_contacts.sql','20261022_pipeline_identity_activity_actor.sql','20261118_pipeline_lead_qualification.sql','20261022_workspace_forms.sql'],migrations=discover(path.join(__dirname,'../database/migrations'));
+    const names=['20260928_lead_pipeline.sql','20261007_pipeline_contacts.sql','20261022_pipeline_identity_activity_actor.sql','20261118_pipeline_lead_qualification.sql','20261001_platform_plans.sql','20261022_workspace_forms.sql'],migrations=discover(path.join(__dirname,'../database/migrations'));
     for(const name of names){const applied=await applyMigrations(db,migrations,{only:name});assert.deepEqual(applied.applied,[name]);}
     const evidence=await require('./workspace-forms-migration.integration.cjs')(db,{t1,t2,i1,i2,connect:()=>mysql.createConnection(connectionOptions)});
     console.log(JSON.stringify({mariaDb:server.version,databaseIsDisposable:true,migrations:names,...evidence,customerDataTouched:false,externalWrites:false}));

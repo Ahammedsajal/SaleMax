@@ -14,9 +14,12 @@ module.exports=async function workspaceFormsMigrationIntegration(db,{t1,t2,i1,i2
   await db.query('INSERT INTO sx_workspace_form_rate_limits(tenant_id,form_id,visitor_hash,window_started_at,attempts) VALUES (?,?,?,UTC_TIMESTAMP(3),1)',[t1,formId,'d'.repeat(64)]);
   await assert.rejects(db.query('INSERT INTO sx_workspace_form_rate_limits(tenant_id,form_id,visitor_hash,window_started_at,attempts) VALUES (?,?,?,UTC_TIMESTAMP(3),1)',[t2,formId,'e'.repeat(64)]),{code:'ER_NO_REFERENCED_ROW_2'});
 
-  const forms=require('../modules/platform/workspace-forms'),base=require('../modules/platform/categories').baseCrm;
+  const categories=require('../modules/platform/categories'),base=categories.baseCrm;
   const {capabilities}=require('../modules/platform/policy'),{createCategoryRegistry}=require('../modules/platform/category-registry');
   const category=createCategoryRegistry([{...base,capabilities:[...base.capabilities,'portal.forms'],formsAdapter:'generic-lead-capture-v1'}],capabilities).get(base.key,base.version);
+  const original={getCategory:categories.getCategory};
+  categories.getCategory=(key,version)=>key===base.key&&version===base.version?category:original.getCategory(key,version);
+  const forms=require('../modules/platform/workspace-forms'),plans=require('../modules/platform/plans');
   const makeContext=(tenantId,identityId,membershipId,slug)=>({audience:'tenant',identity:{id:identityId},tenant:{id:tenantId,status:'active',categoryKey:base.key,categoryVersion:base.version},membership:{id:membershipId,tenantId,role:'owner',status:'active'},category,subscription:{status:'active',capabilities:[...category.capabilities]},slug});
   const ctxA=makeContext(t1,i1,crypto.randomUUID(),'synthetic-a'),ctxB=makeContext(t2,i2,crypto.randomUUID(),'synthetic-b');
   const input={slug:'service-contact',nameEn:'Service contact',nameAr:'تواصل الخدمات',schema:{titleEn:'Contact us',titleAr:'تواصل معنا',descriptionEn:'Tell us how to reach you.',descriptionAr:'أخبرنا كيف نتواصل معك.',consentTextEn:'I agree to be contacted.',consentTextAr:'أوافق على التواصل معي.',fields:[{key:'contact_name',labelEn:'Name',labelAr:'الاسم',required:true},{key:'phone',labelEn:'Phone',labelAr:'الهاتف',required:true},{key:'email',labelEn:'Email',labelAr:'البريد الإلكتروني',required:false},{key:'consent',labelEn:'Contact consent',labelAr:'الموافقة على التواصل',required:true}]}};
@@ -44,18 +47,21 @@ module.exports=async function workspaceFormsMigrationIntegration(db,{t1,t2,i1,i2
   assert.ok(submissionsA.items.every(row=>row.formId!==formB.id));assert.ok(submissionsB.items.every(row=>row.formId===formB.id));
   assert.equal((await forms.submissions(db,ctxA,{submissionId:submissionB})).total,0);
 
-  const categories=require('../modules/platform/categories'),plans=require('../modules/platform/plans');
-  const original={getCategory:categories.getCategory,loadEntitlements:plans.loadEntitlements};
   const ownerUidA='synthetic-owner-a',ownerUidB='synthetic-owner-b',ownerUserA=990001,ownerUserB=990002;
   const sha=value=>crypto.createHash('sha256').update(value,'utf8').digest('hex');
   const membershipA=crypto.randomUUID(),membershipB=crypto.randomUUID();
+  const planA=crypto.randomUUID(),planB=crypto.randomUUID(),versionA=crypto.randomUUID(),versionB=crypto.randomUUID(),assignmentA=crypto.randomUUID(),assignmentB=crypto.randomUUID();
   await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active'),(?,?,?,'owner','active')",[membershipA,t1,i1,membershipB,t2,i2]);
+  await db.query('INSERT INTO sx_plans(id,name) VALUES (?,?),(?,?)',[planA,'Synthetic generic CRM A',planB,'Synthetic Forms only B']);
+  const roleLimits=JSON.stringify({owner:1,accountant:1,manager:1,agent:7});
+  await db.query("INSERT INTO sx_plan_versions(id,plan_id,version,category_key,category_version,status,capabilities,role_limits,published_at) VALUES (?,?,1,?,1,'published',?,?,UTC_TIMESTAMP(3)),(?,?,1,?,1,'published',?,?,UTC_TIMESTAMP(3))",[versionA,planA,base.key,JSON.stringify(['portal.forms','crm.leads']),roleLimits,versionB,planB,base.key,JSON.stringify(['portal.forms']),roleLimits]);
+  await db.query("INSERT INTO sx_plan_assignments(id,tenant_id,plan_version_id,role_limits,status,effective_from,expires_at) VALUES (?,?,?,?,'active',DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 DAY),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 30 DAY)),(?,?,?,?,'active',DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 DAY),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 30 DAY))",[assignmentA,t1,versionA,roleLimits,assignmentB,t2,versionB,roleLimits]);
   await db.query('INSERT INTO `user`(id,uid) VALUES (?,?),(?,?)',[ownerUserA,ownerUidA,ownerUserB,ownerUidB]);
   await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash) VALUES ('user',?,?,?,?),('user',?,?,?,?)",[String(ownerUserA),t1,membershipA,sha(ownerUidA),String(ownerUserB),t2,membershipB,sha(ownerUidB)]);
-  categories.getCategory=(key,version)=>key===base.key&&version===base.version?category:original.getCategory(key,version);
-  plans.loadEntitlements=async(_db,tenantId)=>({status:'active',capabilities:tenantId===t1?['portal.forms','crm.leads']:['portal.forms']});
   const pipelineCount=async()=>{const [[row]]=await db.query('SELECT COUNT(*) AS total FROM pipeline_leads WHERE uid_hash IN (?,?)',[sha(ownerUidA),sha(ownerUidB)]);return Number(row.total);};
   try{
+    const entitlementA=await plans.loadEntitlements(db,t1),entitlementB=await plans.loadEntitlements(db,t2);
+    assert.equal(entitlementA.status,'active');assert.ok(entitlementA.capabilities.includes('crm.leads'));
     const publicA=await forms.publicForm(db,ctxA.slug,'service-contact');assert.equal(publicA.tenant.slug,ctxA.slug);
     assert.equal(await forms.publicForm(db,ctxB.slug,'service-contact'),null,'public lookup must require both Forms and CRM Leads entitlements');
     const pool={async getConnection(){const connection=await connect();connection.release=()=>connection.end();return connection;}},publicToken='77777777-7777-4777-8777-777777777777',visitor='a'.repeat(64),campaign={utmSource:'synthetic',utmCampaign:'forms-integration',landingPage:'https://example.invalid/lead?secret=discarded'};
@@ -92,7 +98,11 @@ module.exports=async function workspaceFormsMigrationIntegration(db,{t1,t2,i1,i2
     const [rateRows]=await db.query('SELECT attempts FROM sx_workspace_form_rate_limits WHERE tenant_id=? AND form_id=?',[t1,formA.id]);
     assert.equal(rateRows.length,2);assert.ok(rateRows.every(row=>Number(row.attempts)===1),'an idempotent replay must not consume another visitor-rate attempt');
     assert.equal((await forms.submissions(db,ctxA)).total,4);assert.equal((await forms.submissions(db,ctxB)).total,1);
-  }finally{categories.getCategory=original.getCategory;plans.loadEntitlements=original.loadEntitlements;}
+    await db.query('UPDATE sx_plan_assignments SET expires_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 SECOND) WHERE id=?',[assignmentA]);
+    const expired=await plans.loadEntitlements(db,t1);assert.equal(expired.status,'expired');
+    const expiredError=await forms.submitPublic(pool,{tenantSlug:ctxA.slug,formSlug:'service-contact',submissionToken:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',visitorHash:'c'.repeat(64),expectedFormVersion:1,values:{contact_name:'Expired synthetic',phone:'+12025550126',consent:true}}).then(()=>null,error=>error);
+    assert.equal(expiredError?.code,'FORM_NOT_FOUND');assert.equal(await pipelineCount(),2,'an expired assignment must not create a new Pipeline lead');
+  }finally{categories.getCategory=original.getCategory;}
 
-  return {workspaceFormsTenantForeignKeys:true,workspaceFormsSubmissionIdempotency:true,workspaceFormsVersionReference:true,workspaceFormsRateLimitTenantBinding:true,workspaceFormsServiceTwoTenantIsolation:true,workspaceFormsCrossTenantIdDenial:true,workspaceFormsConcurrentStaleWrite:true,genericPublicSubmissionTransactional:true,genericPublicEntitlementDenial:true,genericPublicIdempotencyAndRateSnapshot:true,genericPublicPipelinePersistence:true,genericStaffSubmissionTransactional:true,genericStaffPipelinePersistenceAndIdentityAttribution:true,genericStaffIdentityAttributionAndReplay:true};
+  return {workspaceFormsTenantForeignKeys:true,workspaceFormsSubmissionIdempotency:true,workspaceFormsVersionReference:true,workspaceFormsRateLimitTenantBinding:true,workspaceFormsServiceTwoTenantIsolation:true,workspaceFormsCrossTenantIdDenial:true,workspaceFormsConcurrentStaleWrite:true,genericPublicSubmissionTransactional:true,genericPublicEntitlementDenial:true,genericPublicExpiredAssignmentDenial:true,genericPublicIdempotencyAndRateSnapshot:true,genericPublicPipelinePersistence:true,genericStaffSubmissionTransactional:true,genericStaffPipelinePersistenceAndIdentityAttribution:true,genericStaffIdentityAttributionAndReplay:true,actualPlanAssignmentResolver:true};
 };

@@ -15,13 +15,16 @@ yielded one success and one `STALE_REVISION`. Public and owner staff capture
 then ran through the real Forms service transactions and the real Pipeline
 `createManualLead` helper on the same transaction connection. The disposable
 database applied the actual Pipeline, contact, identity-activity and
-qualification migrations before Forms. The unentitled tenant was denied before
-lead creation; exact-token replays created no duplicate leads or visitor-rate
-attempts; consent, sanitized campaign attribution, contact fields, public and
-staff source types, identity/system activity attribution and linked lead IDs
-persisted in the real Pipeline tables. The category resolver and entitlement
-loader remain test-injected. Authenticated browser acceptance and production
-plan resolution remain separate gates.
+qualification migrations plus the actual plan-assignment and Forms migrations.
+The integration used the real `plans.loadEntitlements` resolver over two
+synthetic assignments: Tenant A had Forms and CRM Leads, Tenant B had Forms
+only, and Tenant A was later expired. B's denied capture and A's post-expiry
+capture created no leads. Exact-token replays created no duplicate leads or
+visitor-rate attempts; consent, sanitized campaign attribution, contact fields,
+public and staff source types, identity/system activity attribution and linked
+lead IDs persisted in the real Pipeline tables. Only the generic category
+adapter and category lookup remain test-injected. Authenticated browser
+acceptance and category declaration remain separate gates.
 The temporary database, data directory and server were removed; the unrelated
 MySQL service was left untouched. No production state or customer data changed.
 Authenticated EN/AR existing-screen acceptance, category opt-in review and
