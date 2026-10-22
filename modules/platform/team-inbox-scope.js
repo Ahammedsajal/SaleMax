@@ -83,17 +83,45 @@ function filterQrInstances(instances, scope) {
   return instances.filter(instance => allowed.has(Number(instance.id)));
 }
 
+async function payloadOwnerUid(query, scope, actor) {
+  if (scope?.canonical) {
+    if (typeof scope.uid !== 'string' || !scope.uid) fail();
+    return scope.uid;
+  }
+  if (actor?.isAgent === true || actor?.role === 'agent') {
+    const agentUid = typeof actor.uid === 'string' ? actor.uid : '';
+    const ownerUid = typeof actor.owner_uid === 'string' ? actor.owner_uid : '';
+    if (!agentUid || !ownerUid) fail();
+    const agents = await query('SELECT uid FROM agents WHERE uid=? AND owner_uid=? AND is_active=1 LIMIT 2', [agentUid, ownerUid]);
+    if (agents.length !== 1) fail();
+    return ownerUid;
+  }
+  if (typeof scope?.uid !== 'string' || !scope.uid) fail();
+  return scope.uid;
+}
+
+function legacyAgentOwnsConversation(chat, actor) {
+  try {
+    const parsed = typeof chat?.assigned_agent === 'string' ? JSON.parse(chat.assigned_agent) : chat?.assigned_agent;
+    const assigned = Array.isArray(parsed) ? parsed : [parsed];
+    return assigned.some(agent => agent && (
+      (actor?.id != null && String(agent.id) === String(actor.id)) ||
+      (typeof actor?.uid === 'string' && agent.uid === actor.uid)
+    ));
+  } catch { return false; }
+}
+
 async function authorizeInboxPayload(query, scope, event, payload, actor) {
   if (event === 'update_spend_time') return authorizeAgentSpendTime(query, scope, payload, actor);
   if (event === 'del_contact') return authorizeContactDelete(scope, payload, actor);
+  const targetOwnerUid = await payloadOwnerUid(query, scope, actor);
   if (event === 'on_label_delete') {
     const labelId = Number(payload?.labelId);
-    if (!Number.isSafeInteger(labelId) || labelId < 1 || typeof scope?.uid !== 'string' || !scope.uid) fail();
-    const labels = await query('SELECT id FROM chat_tags WHERE id=? AND uid=? LIMIT 1', [labelId, scope.uid]);
+    if (!Number.isSafeInteger(labelId) || labelId < 1) fail();
+    const labels = await query('SELECT id FROM chat_tags WHERE id=? AND uid=? LIMIT 1', [labelId, targetOwnerUid]);
     if (labels.length !== 1) fail();
-    return { ...payload, labelId, ownerUid: scope.uid };
+    return { ...payload, labelId, ownerUid: targetOwnerUid };
   }
-  if (!scope?.canonical && (typeof scope?.uid !== 'string' || !scope.uid)) fail();
   if(scope.qrOnly&&!['get_chat_list','load_conversation','export_chats','export_conversation','send_chat_message'].includes(event))fail();
   // Staff never initiate a different WhatsApp conversation through the shared
   // number. Reply only to the persisted, currently assigned customer/channel.
@@ -108,12 +136,15 @@ async function authorizeInboxPayload(query, scope, event, payload, actor) {
   const rowIds = { set_chat_label: payload.chatIdRow, remove_chat_label: payload.chatId, delete_chat_note: payload.chatRealId, save_chat_note: payload.id };
   const rowId = rowIds[event];
   const chatId = ids[event];
-  if (!chatId && !rowId) { if (scope.assignedOnly) fail(); return payload; }
-  const rows = await query(`SELECT * FROM beta_chats WHERE uid=? AND ${rowId ? 'id' : 'chat_id'}=? LIMIT 1`, [scope.uid, rowId || chatId]);
-  if (rows.length !== 1 || (scope.canonical && scope.assignedOnly && !filterAssignedChats(rows, scope).length)) fail();
-  if (event === 'send_chat_message') return { ...payload, chatInfo: rows[0] };
-  if (event === 'load_conversation') return { ...payload, chat: rows[0] };
-  return payload;
+  const targetEvents = ['load_conversation','export_conversation','send_chat_message','assign_agent_to_chat','unasign_chat_agent','suggest_reply','set_chat_label','remove_chat_label','delete_chat_note','save_chat_note'];
+  if (!chatId && !rowId) { if (scope.assignedOnly || targetEvents.includes(event)) fail(); return payload; }
+  const rows = await query(`SELECT * FROM beta_chats WHERE uid=? AND ${rowId ? 'id' : 'chat_id'}=? LIMIT 1`, [targetOwnerUid, rowId || chatId]);
+  if (rows.length !== 1 ||
+      (scope.canonical && scope.assignedOnly && !filterAssignedChats(rows, scope).length) ||
+      (!scope.canonical && (actor?.isAgent === true || actor?.role === 'agent') && !legacyAgentOwnsConversation(rows[0], actor))) fail();
+  if (event === 'send_chat_message') return { ...payload, chatInfo: rows[0], ownerUid: targetOwnerUid };
+  if (event === 'load_conversation') return { ...payload, chat: rows[0], ownerUid: targetOwnerUid };
+  return { ...payload, ownerUid: targetOwnerUid };
 }
 
 async function authorizeAgentSpendTime(query, scope, payload, actor) {
@@ -156,4 +187,4 @@ function authorizeContactDelete(scope, payload, actor) {
   return { contactId, ownerUid: scope.uid };
 }
 
-module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, filterQrInstances, authorizeInboxPayload, authorizeAgentSpendTime, authorizeContactDelete, authorizeInboxFeature, EVENT_PERMISSIONS };
+module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, filterQrInstances, authorizeInboxPayload, authorizeAgentSpendTime, authorizeContactDelete, authorizeInboxFeature, EVENT_PERMISSIONS, legacyAgentOwnsConversation };

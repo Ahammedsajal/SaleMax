@@ -183,6 +183,28 @@ test('label deletion and legacy chat-row mutations stay inside the authenticated
   await assert.rejects(authorizeInboxPayload(async()=>[],legacyScope,'set_chat_label',{chatIdRow:91,labelData:{id:1}}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });
 
+test('legacy agents resolve the verified owner and may target only their assigned conversations', async () => {
+  const actor={id:44,uid:'legacy-agent',owner_uid:'legacy-owner',role:'agent',isAgent:true,is_active:1};
+  const scope={canonical:false,uid:actor.uid};
+  const assigned={chat_id:'legacy-chat',assigned_agent:JSON.stringify([{id:44,uid:actor.uid}])};
+  const lookup=async(sql,args)=>{
+    if(sql.includes('FROM agents WHERE uid=? AND owner_uid=?')){
+      assert.deepEqual(args,[actor.uid,actor.owner_uid]);
+      return [{uid:actor.uid}];
+    }
+    if(sql.includes('FROM beta_chats WHERE uid=? AND chat_id=?')){
+      assert.deepEqual(args,[actor.owner_uid,'legacy-chat']);
+      return [assigned];
+    }
+    return [];
+  };
+  const result=await authorizeInboxPayload(lookup,scope,'load_conversation',{chat:{chat_id:'legacy-chat'}},actor);
+  assert.equal(result.ownerUid,actor.owner_uid);
+  assert.equal(result.chat,assigned);
+  await assert.rejects(authorizeInboxPayload(async(sql,args)=>sql.includes('FROM agents WHERE uid=? AND owner_uid=?')?[{uid:actor.uid}]:sql.includes('FROM beta_chats WHERE uid=? AND chat_id=?')?[{chat_id:'legacy-chat',assigned_agent:'[]'}]:[],scope,'load_conversation',{chat:{chat_id:'legacy-chat'}},actor),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(authorizeInboxPayload(async()=>[],scope,'load_conversation',{chat:{chat_id:'legacy-chat'}},{...actor,owner_uid:'foreign-owner'}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});
+
 test('canonical Inbox events refresh and enforce the active tenant category, plan and module policy', async () => {
   const categories=require('../modules/platform/categories');
   const scope={canonical:true,uid:'synthetic-owner',ctx:{tenant:{id:'tenant-a'},identity:{id:'identity-a'},membership:{id:'member-a',role:'manager'}}};

@@ -402,6 +402,9 @@ function processSocketEvent({
 
         case "load_conversation":
           const { chat, filters = {} } = payload;
+          const conversationOwnerUid = payload.ownerUid || (isAgent
+            ? socket?.userData?.owner_uid
+            : uid);
 
           const {
             search: msgSearch = "",
@@ -411,14 +414,11 @@ function processSocketEvent({
           } = filters;
 
           // unreading the message count
-          await query(`UPDATE beta_chats SET unread_count = ? WHERE id = ?`, [
+          await query(`UPDATE beta_chats SET unread_count = ? WHERE id = ? AND uid = ?`, [
             0,
             chat?.id,
+            conversationOwnerUid,
           ]);
-
-          const conversationOwnerUid = isAgent
-            ? socket?.userData?.owner_uid
-            : uid;
           const conversationLimit = Math.min(
             500,
             Math.max(
@@ -591,7 +591,7 @@ function processSocketEvent({
           break;
 
         case "set_chat_label":
-          const { labelData, chatIdRow } = payload;
+          const { labelData, chatIdRow, ownerUid: labelChatOwnerUid } = payload;
           if (!labelData || !chatIdRow) {
             return socket.emit("error", {
               msg: "Invalid request",
@@ -626,9 +626,10 @@ function processSocketEvent({
           }
 
           // Update with the new labels array
-          await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ?`, [
+          await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ? AND uid = ?`, [
             JSON.stringify(existingLabels),
             chatIdRow,
+            labelChatOwnerUid,
           ]);
 
           socket.emit("request_update_opened_chat", {});
@@ -636,7 +637,7 @@ function processSocketEvent({
           break;
 
         case "remove_chat_label":
-          const { labelId: labelIdd, chatId: chatIdd } = payload;
+          const { labelId: labelIdd, chatId: chatIdd, ownerUid: removeLabelOwnerUid } = payload;
           if (!labelIdd || !chatIdd) {
             return socket.emit("error", {
               msg: "Invalid request",
@@ -664,9 +665,10 @@ function processSocketEvent({
               );
 
               // Update the database
-              await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ?`, [
+              await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ? AND uid = ?`, [
                 JSON.stringify(updatedLabels),
                 chatIdd,
+                removeLabelOwnerUid,
               ]);
             } catch (err) {
               console.error("Error parsing labels:", err);
@@ -678,12 +680,12 @@ function processSocketEvent({
           break;
 
         case "delete_chat_note":
-          const { chatNoteId, chatRealId } = payload;
+          const { chatNoteId, chatRealId, ownerUid: deleteNoteOwnerUid } = payload;
 
           if (chatNoteId && chatRealId) {
             const [getFirst] = await query(
-              `SELECT * FROM beta_chats WHERE id = ?`,
-              [chatRealId],
+              `SELECT * FROM beta_chats WHERE id = ? AND uid = ?`,
+              [chatRealId, deleteNoteOwnerUid],
             );
 
             // get notes array
@@ -692,9 +694,10 @@ function processSocketEvent({
             // filter out the note to be deleted
             const newNotes = oldNotes.filter((note) => note.id !== chatNoteId);
 
-            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ?`, [
+            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ? AND uid = ?`, [
               JSON.stringify(newNotes),
               chatRealId,
+              deleteNoteOwnerUid,
             ]);
           }
 
@@ -702,12 +705,12 @@ function processSocketEvent({
           break;
 
         case "save_chat_note":
-          const { id, chatNote, rating } = payload;
+          const { id, chatNote, rating, ownerUid: saveNoteOwnerUid } = payload;
 
           if (id) {
             const [getFirst] = await query(
-              `SELECT * FROM beta_chats WHERE id = ?`,
-              [id],
+              `SELECT * FROM beta_chats WHERE id = ? AND uid = ?`,
+              [id, saveNoteOwnerUid],
             );
 
             // get notes array
@@ -735,9 +738,10 @@ function processSocketEvent({
               },
             ];
 
-            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ?`, [
+            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ? AND uid = ?`, [
               JSON.stringify(newArr),
               id,
+              saveNoteOwnerUid,
             ]);
           }
           socket.emit("request_update_opened_chat", {});
