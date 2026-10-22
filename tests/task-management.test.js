@@ -3,6 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const crypto=require('node:crypto');
 const tasks=require('../modules/platform/task-management');
 const {createTaskContext}=require('../modules/platform/training-task-context');
 const linkedRecords=require('../modules/platform/task-linked-records');
@@ -199,7 +200,7 @@ test('task deletion is soft, audited, and rejects a stale revision without commi
 
 test('task creation keeps the lead, participants, history and channel notification intents in one transaction',async()=>{
   const calls=[];const lead={id:'33333333-3333-4333-8333-333333333333',title:'Course enquiry',contact_name:'Learner',owner_agent_id:null};
-  const db={beginTransaction:async()=>calls.push(['BEGIN']),commit:async()=>calls.push(['COMMIT']),rollback:async()=>calls.push(['ROLLBACK']),query:async(sql,args=[])=>{calls.push([sql,args]);if(sql.includes('FROM pipeline_leads'))return [[lead],[]];if(sql.includes('FROM agents'))return [[{id:7}],[]];if(sql.includes('FROM sx_memberships'))return [[{id:'member'}],[]];if(sql.startsWith('INSERT'))return [{insertId:1,affectedRows:1},[]];return [[],[]];}};
+  const db={beginTransaction:async()=>calls.push(['BEGIN']),commit:async()=>calls.push(['COMMIT']),rollback:async()=>calls.push(['ROLLBACK']),query:async(sql,args=[])=>{calls.push([sql,args]);if(sql.includes('FROM pipeline_leads'))return [[lead],[]];if(sql.includes('FROM agents')){const uid='synthetic-agent-'+args[1];return [[{id:args[1],uid,uidHash:crypto.createHash('sha256').update(uid).digest('hex')}],[]];}if(sql.includes('FROM sx_memberships'))return [[{id:'member'}],[]];if(sql.startsWith('INSERT'))return [{insertId:1,affectedRows:1},[]];return [[],[]];}};
   const result=await tasks.create(db,ctx,{title:'Call about course schedule',description:'Ask about evening classes',taskType:'lead_follow_up',dueAt:'2026-10-06T10:00:00.000Z',source:{type:'lead',id:lead.id},participants:[{actorType:'agent',actorId:'7',role:'assignee'},{actorType:'agent',actorId:'8',role:'assignee'},{actorType:'identity',actorId:'member-id',role:'observer'}]});
   assert.equal(result.lead.id,lead.id);assert.equal(result.participants.length,4);assert.ok(result.participants.some(p=>p.actorType===ctx.actorType&&p.actorId===ctx.actorId&&p.role==='observer'));assert.equal(result.status,'open');
   assert.equal(calls.filter(([sql])=>String(sql).startsWith('INSERT INTO sx_task_participants')).length,4);
