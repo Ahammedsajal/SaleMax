@@ -41,6 +41,7 @@ async function issueInvoice(db,ctx,dealId,input={}){
     await db.query(`INSERT INTO sx_sales_invoices(id,tenant_id,deal_id,invoice_number,customer_name,customer_mobile,description,total_minor,currency,due_at,status,created_by_identity_id)
       VALUES(?,?,?,?,?,?,?,?,?,?,'issued',?)`,[id,ctx.tenant.id,dealId,invoiceNumber,customerName,deal.customerMobile,deal.description,deal.amountMinor,deal.currency,dueAt,ctx.identity.id]);
     await audit(db,ctx,'sales.invoice.issued','sales_invoice',id,null,{dealId,invoiceNumber,totalMinor:String(deal.amountMinor),currency:deal.currency,dueAt});
+    await require('./business-notifications').enqueue(db,ctx.tenant.id,{kind:'invoice_issued',sourceType:'sales_invoice',sourceId:id,key:`invoice:${id}`});
     await db.commit();return {id,dealId,invoiceNumber,customerName,customerMobile:deal.customerMobile,description:deal.description,totalMinor:String(deal.amountMinor),currency:deal.currency,dueAt,status:'issued',repeated:false};
   }catch(error){await db.rollback();throw error;}
 }
@@ -66,6 +67,7 @@ async function createInvoice(db,ctx,input={}){
     const id=crypto.randomUUID(),invoiceNumber=await nextDocumentNumber(db,ctx,'invoice');
     await db.query("INSERT INTO sx_sales_invoices(id,tenant_id,deal_id,idempotency_key,payload_hash,invoice_number,customer_name,customer_mobile,description,total_minor,currency,due_at,status,created_by_identity_id) VALUES(?,?,NULL,?,?,?,?,?,?,?,?,?,'issued',?)",[id,ctx.tenant.id,input.idempotencyKey,payloadHash,invoiceNumber,data.customerName,data.customerMobile,data.description,data.totalMinor,data.currency,data.dueAt,ctx.identity.id]);
     await audit(db,ctx,'sales.invoice.issued','sales_invoice',id,null,{...data,invoiceNumber,source:'direct',dealId:null});
+    await require('./business-notifications').enqueue(db,ctx.tenant.id,{kind:'invoice_issued',sourceType:'sales_invoice',sourceId:id,key:`invoice:${id}`});
     await db.commit();return {id,invoiceNumber,...data,status:'issued',repeated:false};
   }catch(error){await db.rollback();throw error;}
 }
@@ -90,6 +92,7 @@ async function recordReceipt(db,ctx,input){
     const id=crypto.randomUUID(),receiptNumber=await nextDocumentNumber(db,ctx,'receipt');await db.query(`INSERT INTO sx_sales_receipts(id,tenant_id,idempotency_key,receipt_number,external_reference,payment_method,payer_name,amount_minor,currency,received_at,note,recorded_by_identity_id)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,[id,ctx.tenant.id,input.idempotencyKey,receiptNumber,externalReference,input.paymentMethod,payerName,amount,currency,receivedDate.toISOString().slice(0,23).replace('T',' '),note,ctx.identity.id]);
     await audit(db,ctx,'sales.receipt.recorded','sales_receipt',id,null,{externalReference,paymentMethod:input.paymentMethod,amountMinor:amount,currency,receivedAt:receivedDate.toISOString()});
+    await require('./business-notifications').enqueue(db,ctx.tenant.id,{kind:'payment_received',sourceType:'sales_receipt',sourceId:id,key:`receipt:${id}`});
     await db.commit();return {id,receiptNumber,amountMinor:amount,currency,paymentMethod:input.paymentMethod,status:'unmatched',repeated:false};
   }catch(error){await db.rollback();throw error;}
 }
@@ -108,6 +111,7 @@ async function allocateReceipt(db,ctx,input){
     if(value>receiptRemaining)fail('RECEIPT_OVERALLOCATED');if(value>invoiceRemaining)fail('INVOICE_OVERPAID');
     const id=crypto.randomUUID();await db.query(`INSERT INTO sx_sales_receipt_allocations(id,tenant_id,receipt_id,invoice_id,idempotency_key,amount_minor,allocated_by_identity_id) VALUES(?,?,?,?,?,?,?)`,[id,ctx.tenant.id,receipt.id,invoice.id,input.idempotencyKey,amount,ctx.identity.id]);
     await audit(db,ctx,'sales.receipt.allocated','sales_receipt_allocation',id,null,{receiptId:receipt.id,invoiceId:invoice.id,amountMinor:amount,currency:receipt.currency});
+    await require('./business-notifications').enqueue(db,ctx.tenant.id,{kind:'payment_received',sourceType:'sales_allocation',sourceId:id,key:`receipt-allocation:${id}`});
     await db.commit();return {id,receiptId:receipt.id,invoiceId:invoice.id,amountMinor:amount,currency:receipt.currency,repeated:false};
   }catch(error){await db.rollback();throw error;}
 }

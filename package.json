@@ -55,6 +55,7 @@
     "mysql2": "^3.9.2",
     "node-fetch": "^2.6.9",
     "nodemailer": "^8.0.4",
+    "pdfkit": "0.20.2",
     "pino": "^9.6.0",
     "qrcode": "^1.5.4",
     "randomstring": "^1.2.3",
