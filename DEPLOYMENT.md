@@ -1,3 +1,9 @@
+## Operations host and container resource snapshot — read-only, 22 October 2026
+
+- At 09:32 UTC, production SSH confirmed `carsqatar-prod-01`; all release/service and Docker statistics reads ran inside `/opt/salemax/shared/with-production-lock.sh`, which re-resolved `/opt/salemax/current` to `/opt/salemax/releases/followup-json-header-d6836ed-20261022`. The Compose project was explicitly scoped to `salemax`.
+- The 2-vCPU, 11-GiB host reported 9.4 GiB available memory, no swap, load averages 0.23/0.24/0.20, root disk 94% used with 3.0 GiB free, and 23% inode use. Container sample: app 1.47% CPU and 179.6 MiB/1 GiB; recruitment founder-notification worker 0% and 45.4 MiB/128 MiB; report worker 0% and 36.53 MiB/256 MiB; MariaDB 0.01% and 407 MiB/768 MiB. App and DB were healthy in Compose output.
+- This is a single instantaneous sample, not representative load, peak capacity, queue delay, or an HA claim. No files, containers, images, services, migrations, databases, releases, or customer data were changed. There is no production rollback or migration for this read-only snapshot. Run a controlled representative-load exercise and collect time-series CPU, memory, disk, and worker queue-delay data before setting production capacity limits.
+
 ## Operations source-to-live parity audit — read-only, 22 October 2026
 
 - At 09:29 UTC, a hash-only comparison ran through the shared wrapper on `carsqatar-prod-01`; lock inode `2049:850068` (mode `0600`) was retained. `/opt/salemax/current` resolved to `/opt/salemax/releases/followup-json-header-d6836ed-20261022`. The comparison used commit `d6836ed7077859afabbb0b4681276a82a02fc108` from `origin/main` and 720 tracked runtime source paths, excluding customer-writable media, uploads, private files, sessions, backups, and runtime state. It did not print or copy file contents.

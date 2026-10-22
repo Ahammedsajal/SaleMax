@@ -2,6 +2,12 @@
 
 This is a read-only operations audit of the SaleMaX/7Network single-server deployment on 22 October 2026. It keeps both earlier measurements and the latest timestamped snapshot below; metrics are point-in-time evidence and do not establish peak capacity. The audit records preconditions for adding application instances; it does not approve a scale-out or change production.
 
+## Fresh host and container resource snapshot — 22 October 2026, 09:32 UTC
+
+The shared-lock wrapper re-resolved `/opt/salemax/current` to `/opt/salemax/releases/followup-json-header-d6836ed-20261022` on `carsqatar-prod-01`. The host has 2 vCPUs and 11 GiB RAM; `free` reported 9.4 GiB available and 188 MiB immediately free, with no swap configured. Root disk was 94% used with 3.0 GiB available; inode use was 23%. Load averages were 0.23, 0.24, and 0.20. These host readings are a single sample.
+
+The app container was healthy and used 179.6 MiB of its 1 GiB memory limit at 1.47% CPU. The recruitment founder-notification worker used 45.4 MiB of 128 MiB at 0% CPU; the report worker used 36.53 MiB of 256 MiB at 0% CPU. MariaDB used 407 MiB of 768 MiB at 0.01% CPU. The database and application have different uptime and lifecycle from the freshly restarted app. `docker stats --no-stream` is an instantaneous measurement; it does not establish peak or sustained resource demand. No CPU/memory, container, disk, release, or customer data was changed.
+
 ## Live release parity gate — 22 October 2026, 09:29 UTC
 
 The active release is `/opt/salemax/releases/followup-json-header-d6836ed-20261022`, and app health is green. A lock-held hash-only comparison against 720 tracked runtime paths from `origin/main` commit `d6836ed7077859afabbb0b4681276a82a02fc108` found 639 exact matches, 52 differing files, and 29 missing files. Customer-writable media, uploads, sessions, private data, backups, and runtime state were excluded. No file contents were output or copied. Representative differences include current 7Network brand assets and shared tenant/category/runtime files; missing paths include the Real Estate screen assets and migration. The mismatch list must be reviewed before building a registry image from Git or replacing the live-derived release.
