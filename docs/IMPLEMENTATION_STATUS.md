@@ -8,6 +8,8 @@ The existing Forms contract now accepts configuration revision `0` as the immuta
 
 Central feature authorization now resolves the preserved `salemax_sales` tenant alias against the canonical `7network_sales` registry contract. The alias remains in tenant source data; the category version, plan entitlement, permission, role scope and resource gates are still independently checked. This closes the literal-key mismatch that could deny a correctly mapped legacy-category tenant. Category identity and platform policy tests pass 25/25; syntax and whitespace checks pass. No migration, entitlement change or customer data write is involved; authenticated acceptance for aliased tenants remains open.
 
+The shared legacy feature-session adapter is now covered end-to-end at the context boundary: a synthetic aliased owner retains the raw tenant key, resolves the canonical category and plan, and receives only the policy decision allowed by that exact version. Combined legacy-session, category-identity and policy checks pass 23/23. No customer records or production services were touched.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
