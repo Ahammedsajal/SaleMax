@@ -2617,9 +2617,10 @@ permitted/denied staff roles before claiming report acceptance.
 The shared logo route maps a missing managed object to HTTP 404 even when the
 storage adapter omits an explicit status, and keeps storage outages at HTTP
 503 with a sanitized response. Regression coverage verifies successful streamed
-delivery, rejection of a foreign tenant before opening storage, missing-object
-and unavailable-storage responses. `tests/tenant-crm-logo-route.test.js`
-passes 1/1; JavaScript syntax and whitespace checks pass. The real object
-storage adapter remains in the operations branch; this fixture uses an injected
-stream and does not prove S3/provider access or production delivery. No
-production state changed.
+delivery with MIME/length/cache/security headers, HEAD behavior without a body,
+the local-file fallback before the object-storage adapter is merged, rejection
+of a foreign tenant before storage/path access, missing-object and
+unavailable-storage responses. The focused CRM logo/domain suite passes 10/10;
+syntax and whitespace checks pass. The real object storage adapter remains in
+the operations branch; the stream fixture is injected and does not prove
+S3/provider access or production delivery. No production state changed.
