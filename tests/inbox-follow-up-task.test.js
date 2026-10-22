@@ -11,7 +11,10 @@ test('Inbox follow-up assigns every current agent and observes manager and owner
   const staff=[7,8].map(id=>({identityId:`agent-${id}`,name:`Synthetic agent ${id}`,email:`agent${id}@example.test`,uid:`agent-uid-${id}`,legacyId:id,sourceTable:'agents',role:'agent',uidHash:digest(`agent-uid-${id}`),membershipId:`agent-membership-${id}`}));
   const chat={chat_id:'synthetic-chat',sender_name:'Synthetic lead',sender_mobile:'+97450000002',origin:'qr',origin_instance_unique_id:'qr-main',assigned_agent:JSON.stringify([{identityId:'agent-7',uid:'agent-uid-7',id:7},{identityId:'agent-8',uid:'agent-uid-8',id:8}])};
   const db={beginTransaction:async()=>calls.push(['BEGIN']),commit:async()=>calls.push(['COMMIT']),rollback:async()=>calls.push(['ROLLBACK']),query:async(sql,args=[])=>{calls.push([sql,args]);
-    if(sql.includes('SELECT chat_id,sender_name,sender_mobile,origin,origin_instance_unique_id,assigned_agent'))return [[chat],[]];
+    if(sql.includes('SELECT chat_id,sender_name,sender_mobile,origin,origin_instance_unique_id,assigned_agent')){
+      if(sql.includes("origin='qr'"))return [[chat],[]];
+      return args[1]===chat.chat_id?[[chat],[]]:[[],[]];
+    }
     if(sql.includes('SELECT i.id AS identityId'))return [staff,[]];
     if(sql.includes("WHERE m.tenant_id=? AND m.role='owner'"))return [[{actorId:'owner-identity'}],[]];
     if(sql.includes('FROM sx_sales_org_history'))return [[{actorId:args[1]==='agent-membership-7'?'manager-identity':'manager-identity'}],[]];
@@ -21,7 +24,7 @@ test('Inbox follow-up assigns every current agent and observes manager and owner
     if(sql.includes('SELECT chat_id,sender_name,sender_mobile,origin,origin_instance_unique_id FROM beta_chats'))return [[chat],[]];
     return [{affectedRows:1,insertId:1},[]];
   }};
-  const result=await tasks.createInboxFollowUp(db,context,{chatId:chat.chat_id,dueAt:'2026-10-23T10:00:00.000Z',details:'Discuss the requested course'});
+  const result=await tasks.createInboxFollowUp(db,context,{chatId:'97450000002',dueAt:'2026-10-23T10:00:00.000Z',details:'Discuss the requested course'});
   assert.equal(result.taskType,'general');assert.equal(result.dueAt,'2026-10-23T10:00:00.000Z');
   assert.deepEqual(result.participants,[{actorType:'agent',actorId:'7',role:'assignee'},{actorType:'agent',actorId:'8',role:'assignee'},{actorType:'identity',actorId:'owner-identity',role:'observer'},{actorType:'identity',actorId:'manager-identity',role:'observer'}]);
   const inserted=calls.find(([sql])=>String(sql).startsWith('INSERT INTO sx_tasks'));
@@ -29,6 +32,18 @@ test('Inbox follow-up assigns every current agent and observes manager and owner
   assert.equal(inserted[1][6],'inbox_chat');assert.equal(inserted[1][7],chat.chat_id);
   assert.equal(calls.filter(([sql])=>String(sql).startsWith('INSERT IGNORE INTO sx_task_notifications')).length,8);
   assert.equal(calls.at(-1)[0],'COMMIT');
+  assert.ok(calls.some(([sql])=>sql.includes("origin='qr'")),'phone identifier should resolve through the tenant QR conversation');
+});
+
+test('phone fallback rejects ambiguous QR conversations instead of choosing one',async()=>{
+  const db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},query:async(sql)=>{
+    if(sql.includes('SELECT chat_id,sender_name,sender_mobile,origin,origin_instance_unique_id,assigned_agent')){
+      if(sql.includes("origin='qr'"))return [[{chat_id:'chat-1'},{chat_id:'chat-2'}],[]];
+      return [[],[]];
+    }
+    return [[],[]];
+  }};
+  await assert.rejects(tasks.createInboxFollowUp(db,context,{chatId:'+974 5000 0002',dueAt:'2026-10-23T10:00:00.000Z'}),{code:'CHAT_ID_AMBIGUOUS',status:409});
 });
 
 test('assigned agents cannot create a task for a different agent conversation',async()=>{
