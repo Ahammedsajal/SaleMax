@@ -6,8 +6,12 @@ function createTaskRouter({pool,contextFor}){
   const router=express.Router();
   const withDb=async work=>{const db=await pool.getConnection();try{return await work(db);}finally{db.release();}};
   const run=(permission,work,successStatus=200)=>(req,res)=>Promise.resolve().then(async()=>{
-    const ctx=await contextFor(req,permission);
-    const data=await withDb(db=>work(db,ctx,req));
+    let ctx=await contextFor(req,permission);
+    const data=await withDb(async db=>{
+      const needsTaskConfiguration=(req.method==='GET'&&req.path==='/')||(req.method==='POST'&&req.path==='/')||(req.method==='PATCH'&&req.path!=='/'&&!req.path.endsWith('/status'));
+      if(needsTaskConfiguration)ctx={...ctx,customization:await require('./tenant-customization').effective(db,ctx)};
+      return work(db,ctx,req);
+    });
     res.setHeader('Cache-Control','no-store');res.status(successStatus).json({success:true,data});
   }).catch(error=>{
     const code=error?.code||'TASK_UNAVAILABLE';
@@ -19,6 +23,7 @@ function createTaskRouter({pool,contextFor}){
   router.get('/',run('tasks.read',(db,ctx,req)=>tasks.list(db,ctx,{status:req.query.status||'all',scope:req.query.scope||'mine',page:req.query.page,limit:req.query.limit,taskType:req.query.taskType||null})));
   router.get('/participants',run('tasks.read',(db,ctx)=>tasks.listParticipants(db,ctx)));
   router.get('/source',run('tasks.manage',(db,ctx,req)=>tasks.sourceDetail(db,ctx,req.query.type,req.query.id)));
+  router.post('/inbox-follow-up',run('tasks.manage',(db,ctx,req)=>tasks.createInboxFollowUp(db,ctx,req.body||{}),201));
   router.get('/preferences',run('tasks.read',(db,ctx)=>tasks.getNotificationPreferences(db,ctx)));
   router.put('/preferences',run('tasks.read',(db,ctx,req)=>tasks.setNotificationPreferences(db,ctx,req.body||{})));
   router.post('/',run('tasks.manage',(db,ctx,req)=>tasks.create(db,ctx,req.body||{}),201));
