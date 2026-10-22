@@ -77,7 +77,7 @@ test('successor manifest and additive migration keep v1 immutable and tenant con
   assert.equal(categories.realEstate.capabilities.includes('realestate.requirements'),false);
   assert.equal(categories.getCategory('real_estate',2),categories.realEstateV2);
   assert.equal(categories.realEstateV2.planable,false);assert.equal(categories.realEstateV2.public,false);
-  const file='20261230_real_estate_requirements.sql',sql=fs.readFileSync(path.join(__dirname,'../database/migrations',file),'utf8');
+  const file='20261223_real_estate_requirements.sql',sql=fs.readFileSync(path.join(__dirname,'../database/migrations',file),'utf8');
   assert.ok(migrations.discover(path.join(__dirname,'../database/migrations')).some(item=>item.file===file));
   assert.match(sql,/UNIQUE KEY uq_sx_real_estate_requirement_tenant_id \(tenant_id,id\)/);
   assert.match(sql,/FOREIGN KEY \(tenant_id,assigned_membership_id\) REFERENCES sx_memberships\(tenant_id,id\)/);

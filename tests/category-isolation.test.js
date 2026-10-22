@@ -50,6 +50,25 @@ test('catalogue and workflow separation remains explicit', () => {
   assert.ok(categories.salemaxSales.capabilities.includes('products.catalog'));
 });
 
+test('Real Estate manifests share the canonical v1-v3 migration history and append parties after reserved Retail IDs', () => {
+  const migrations = path.join(__dirname, '../database/migrations');
+  const versions = [
+    [categories.realEstate, '20261222_real_estate_properties.sql'],
+    [categories.realEstateV2, '20261223_real_estate_requirements.sql'],
+    [categories.realEstateV3, '20261224_real_estate_viewings.sql'],
+    [categories.realEstateV4, '20261234_real_estate_parties.sql'],
+    [categories.realEstateV5, '20261234_real_estate_parties.sql'],
+  ];
+  for (const [manifest, migration] of versions) {
+    assert.equal(manifest.migration, migration);
+    assert.ok(fs.existsSync(path.join(migrations, migration)), `${manifest.key}@${manifest.version}`);
+  }
+  assert.ok(fs.existsSync(path.join(migrations, '20261226_real_estate_chatbot_visibility.sql')));
+  for (const obsolete of [29, 30, 31, 32, 33]) {
+    assert.equal(fs.readdirSync(migrations).some(file => file.startsWith(`202612${obsolete}_real_estate_`)), false);
+  }
+});
+
 test('category metadata cannot be mutated for other requests or tenants', () => {
   for (const category of [categories.trainingCenter, categories.salemaxSales, categories.restaurantFixture]) {
     assert.throws(() => { category.title.en = 'Another business'; }, TypeError);

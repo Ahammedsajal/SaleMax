@@ -120,16 +120,16 @@ test('a listing cannot be closed while it still has scheduled viewings',async()=
 });
 
 test('real estate storage keys and current-panel entry are registered without a duplicate app shell',()=>{
-  const migrationPath=path.join(__dirname,'../database/migrations/20261229_real_estate_properties.sql');
+  const migrationPath=path.join(__dirname,'../database/migrations/20261222_real_estate_properties.sql');
   const migration=fs.readFileSync(migrationPath,'utf8');
-  const discovered=migrations.discover(path.join(__dirname,'../database/migrations')).find(item=>item.file==='20261229_real_estate_properties.sql');
+  const discovered=migrations.discover(path.join(__dirname,'../database/migrations')).find(item=>item.file==='20261222_real_estate_properties.sql');
   assert.ok(discovered);assert.equal(discovered.statements.length,1);
   assert.match(migration,/UNIQUE KEY uq_sx_real_estate_tenant_id \(tenant_id,id\)/);
   assert.match(migration,/FOREIGN KEY \(tenant_id\) REFERENCES sx_tenants\(id\)/);
   assert.match(migration,/FOREIGN KEY \(tenant_id,created_by_identity_id\) REFERENCES sx_memberships\(tenant_id,identity_id\)/);
   assert.match(migration,/FOREIGN KEY \(tenant_id,assigned_membership_id\) REFERENCES sx_memberships\(tenant_id,id\)/);
   assert.doesNotMatch(migration,/ON DELETE CASCADE/i);
-  const visibility=fs.readFileSync(path.join(__dirname,'../database/migrations/20261232_real_estate_chatbot_visibility.sql'),'utf8');assert.ok(migrations.discover(path.join(__dirname,'../database/migrations')).some(item=>item.file==='20261232_real_estate_chatbot_visibility.sql'));assert.match(visibility,/chatbot_visible TINYINT\(1\) NOT NULL DEFAULT 0/);assert.match(visibility,/idx_sx_real_estate_chatbot/);
+  const visibility=fs.readFileSync(path.join(__dirname,'../database/migrations/20261226_real_estate_chatbot_visibility.sql'),'utf8');assert.ok(migrations.discover(path.join(__dirname,'../database/migrations')).some(item=>item.file==='20261226_real_estate_chatbot_visibility.sql'));assert.match(visibility,/chatbot_visible TINYINT\(1\) NOT NULL DEFAULT 0/);assert.match(visibility,/idx_sx_real_estate_chatbot/);
   assert.match(migration,/idx_sx_real_estate_inventory \(tenant_id,status,transaction_type,property_type,updated_at\)/);
   const shell=fs.readFileSync(path.join(__dirname,'../client/public/training-sidebar.js'),'utf8');
   assert.match(shell,/membershipCategoryKey==='real_estate'/);assert.match(shell,/properties:'properties'/);
