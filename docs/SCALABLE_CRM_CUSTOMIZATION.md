@@ -461,15 +461,19 @@ Before category adoption, the contract requires tests for two tenants in the sam
 category, a different category, and unmapped legacy access; foreign tenant/form
 IDs; role denial and permission revocation; expired/revoked plans; stale fields;
 concurrent publication; immutable submission snapshots; rollback; and preservation
-of the Training-specific registration path. The category registry now validates
-and preserves only the declared `generic-lead-capture-v1` adapter when the
-manifest also includes its Forms capability. The current Forms service still
-executes only the historical Training Center registration adapter and rejects a
-generic adapter before any database access. No category opts into the generic
-adapter yet, and this is not an enabled generic workflow. Category capability
-approval, generic service and public/staff route implementation, MariaDB
-integration, authenticated bilingual existing-screen acceptance, and deployment
-are still required.
+of the Training-specific registration path. The category registry validates and
+preserves only the declared `generic-lead-capture-v1` adapter when the manifest
+also includes its Forms capability. The existing `/api/workspace/forms` handler
+now resolves that adapter for tenant-owned draft CRUD, immutable publication,
+submission reads, public lookup/submission, and authenticated staff capture.
+Public and staff writes create or update leads through the existing Pipeline
+contract; staff search and selected-lead access preserve tenant scope and agent
+assignment scope. Training Center registration continues through its existing
+service and tables. Generic operations independently require the exact category
+adapter, category capability, active tenant, current plan entitlement, member
+permission and record scope. No category opts into the generic adapter yet, so
+it remains disabled for current tenants. Category capability approval,
+authenticated bilingual existing-screen acceptance and deployment remain open.
 
 Rollback after adoption must retain this adapter: older form validators reject the
 new `customFields` payload and older clients omit its controls. Before adoption,

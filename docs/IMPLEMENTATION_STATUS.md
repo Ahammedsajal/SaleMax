@@ -1916,7 +1916,9 @@ Focused resolver, customization and HTTP tests pass 12/12; the existing owner's
 synthetic browser matrix passes 8/8 across English/Arabic, desktop/
 mobile and cookie/bearer sessions. Syntax and diff checks pass. This is
 implemented in the shared-core feature branch; deployment and live authenticated
-browser acceptance remain open. Forms and workers have not adopted the resolver. The full
+browser acceptance remain open. Generic Forms lead-field definitions and
+published values now resolve through the shared tenant/category field
+contract; scheduled workers have not adopted the resolver. The full
 customization and 42-ticket program remains in progress.
 
 ### Versioned Pipeline stage labels — source implementation, 22 October 2026
@@ -2200,9 +2202,12 @@ cross-tenant form rejection, version and idempotency constraints, and rate-limit
 tenant binding; static migration discovery confirms the migration is safe and
 ordered after platform identity.
 
-The migration and integration test are implemented but were not executed against
-MariaDB in this environment. No category opts into Forms, and no database or
-production runtime changed.
+The dedicated `test:workspace-forms-schema:integration` check passed against a
+fresh disposable MariaDB 11.4.13 instance. It applies only this Forms migration
+and verifies tenant/form foreign keys, immutable-version binding, submission
+idempotency and rate-limit tenant binding using the existing synthetic helper.
+The temporary server, database and restricted account were removed. No category
+opts into Forms, and no production runtime changed.
 
 ## Generic Forms shared management service — source increment, 22 October 2026
 
@@ -2217,7 +2222,13 @@ path continue through their existing service. No category is opted in.
 Synthetic service tests pass for category/capability/plan denial, draft CRUD,
 publish/version behavior, stale revisions, router adapter selection and tenant-
 scoped submission reads; the combined focused registry, Forms and migration
-suite passes 41/41. The generic public lookup and submission path now resolves only published forms for an active, entitled tenant and records consent, idempotency, rate-limit state and a normal Pipeline lead in one transaction. Synthetic lookup, submission, exact-token replay, stale-version rollback and lead creation checks pass. Staff capture is now implemented in source; category-aware bilingual existing-screen acceptance, MariaDB runtime integration, authenticated browser acceptance and deployment remain open.
+suite passes 41/41. The generic public lookup and submission path resolves only
+published forms for active, entitled tenants and records consent, idempotency,
+rate-limit state and Pipeline leads transactionally. Synthetic lookup,
+submission, exact-token replay, stale-version rollback and lead creation checks
+pass. Staff capture is implemented in source. Category-aware bilingual
+existing-screen acceptance, authenticated browser acceptance and deployment
+remain open.
 
 ## Existing Forms screen adapter presentation — source increment, 22 October 2026
 
