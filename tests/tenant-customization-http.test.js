@@ -49,3 +49,16 @@ test('shared customization API exposes validated category lead-field inheritance
   assert.equal(cleared.status,200);const clearedData=(await cleared.json()).data;assert.deepEqual(clearedData.resolved.value.leadFields,[]);assert.deepEqual(clearedData.resolved.provenance.leadFields,{scope:'tenant',revision:0});assert.equal(app.counts().queries,queriesAfterGet,'preview does not write explicit overrides either');
  }finally{await app.close();}
 });
+test('shared customization preview accepts schema v5 removal of inherited labels without persisting',async()=>{
+ const app=await fixture();try{
+  app.setContext({...base,category:{...trainingCenter,customizationDefaults:{schemaVersion:4,navigationLabels:{courses:{en:'Learning',ar:'التعلم'}},leadFields:[],hiddenNavigation:[],stageLabels:{new:{en:'Prospect',ar:'عميل محتمل'}}}}});
+  const headers={Authorization:'Bearer synthetic-owner','Content-Type':'application/json',Origin:'https://crm.example.test'};
+  const response=await fetch(app.base+'/api/workspace/customization/preview',{method:'POST',headers,body:JSON.stringify({document:{schemaVersion:5,navigationLabels:{courses:null},leadFields:[],hiddenNavigation:[],stageLabels:{new:null}}})});
+  const payload=await response.json();assert.equal(response.status,200,JSON.stringify(payload));
+  assert.equal(Object.hasOwn(payload.data.resolved.value.navigationLabels,'courses'),false);
+  assert.equal(Object.hasOwn(payload.data.resolved.value.stageLabels,'new'),false);
+  assert.equal(payload.data.resolved.deleted['navigationLabels.courses'].scope,'tenant');
+  assert.equal(payload.data.resolved.deleted['stageLabels.new'].scope,'tenant');
+  assert.equal(app.counts().queries,0,'preview is read-only');
+ }finally{await app.close();}
+});

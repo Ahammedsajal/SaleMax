@@ -75,6 +75,33 @@ test('schema 4 resolves and validates bilingual Pipeline stage labels without ch
   assert.throws(()=>settings.normalize(scoped,{...tenant,stageLabels:{'bad key':{en:'A',ar:'ب'}}}),{code:'INVALID_CUSTOMIZATION_STAGE_LABELS'});
   assert.throws(()=>settings.normalize(scoped,{...tenant,stageLabels:{new:{en:'<script>',ar:'جديد'}}}),{code:'INVALID_CUSTOMIZATION_STAGE_LABELS'});
 });
+test('schema v5 null label tombstones restore platform labels and retain deletion provenance',()=>{
+  const category={...trainingCenter,customizationDefaults:{schemaVersion:4,navigationLabels:{courses:{en:'Learning',ar:'التعلم'}},leadFields:[],hiddenNavigation:[],stageLabels:{new:{en:'Prospect',ar:'عميل محتمل'}}}};
+  const scoped={...ctx,category};
+  const document=settings.normalize(scoped,{schemaVersion:5,navigationLabels:{courses:null},leadFields:[],hiddenNavigation:[],stageLabels:{new:null}});
+  const resolved=settings.resolved(scoped,document,9);
+  assert.equal(Object.hasOwn(resolved.value.navigationLabels,'courses'),false);
+  assert.equal(Object.hasOwn(resolved.value.stageLabels,'new'),false);
+  assert.deepEqual(resolved.deleted['navigationLabels.courses'],{scope:'tenant',revision:9});
+  assert.deepEqual(resolved.deleted['stageLabels.new'],{scope:'tenant',revision:9});
+  assert.deepEqual(document.leadFields,[],'lists use explicit empty replacement rather than null tombstones');
+  assert.deepEqual(settings.decode(scoped,{category_key:'training_center',category_version:1,schema_version:5,document:JSON.stringify(document),checksum:settings.checksum(document)}).document,document);
+  assert.throws(()=>settings.normalize(scoped,{schemaVersion:4,navigationLabels:{courses:null},leadFields:[],hiddenNavigation:[],stageLabels:{}}),{code:'INVALID_CUSTOMIZATION_LABEL'});
+  assert.equal(settings.defaults().schemaVersion,5);
+});
+test('the existing bilingual settings editor submits explicit per-label tombstones',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const editor=fs.readFileSync(path.join(__dirname,'../client/public/tenant-customization.js'),'utf8');
+  assert.match(editor,/data-platform-label/);
+  assert.match(editor,/navigationLabels\[field\.key\]=null/);
+  assert.match(editor,/data-platform-stage-label/);
+  assert.match(editor,/stageLabels\[key\]=null/);
+  assert.match(editor,/schemaVersion:5/);
+  assert.match(editor,/Platform labels restored/);
+  const shell=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
+  assert.match(shell,/tenant-customization\.js\?v=20261022-null-tombstones1/);
+  assert.ok(shell.indexOf('/tenant-customization.js')<shell.indexOf('/static/js/main.73648acf.js'));
+});
 test('owner settings lists only Pipeline stages from the authenticated business uid',async()=>{
   const calls=[],ownerUid='synthetic-owner-uid';
   const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.includes('FROM pipeline_stages'))return [[{key:'new',title:'New'},{key:'tenant_stage',title:'Qualified'}]];if(sql.includes('FROM sx_tenant_customization_heads'))return [[]];if(sql.includes('FROM sx_tenant_customization_revisions'))return [[]];throw Error('Unexpected query: '+sql);}};
