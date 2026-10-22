@@ -11,6 +11,7 @@ const imageBuilder = path.join(root, 'deploy/build-image.sh');
 const imageWorkflow = fs.readFileSync(path.join(root, '.github/workflows/7network-arm64-image.yml'), 'utf8');
 const publishWorkflow = fs.readFileSync(path.join(root, '.github/workflows/7network-arm64-publish.yml'), 'utf8');
 const lockScript = fs.readFileSync(path.join(root, 'deploy/with-production-lock.sh'), 'utf8');
+const httpsConfig = fs.readFileSync(path.join(root, 'deploy/nginx-https.conf'), 'utf8');
 const runtimeSmoke = fs.readFileSync(path.join(root, 'deploy/verify-container-runtime.cjs'), 'utf8');
 const serverEntrypoints = ['app.js', 'server.js'].map((file) => fs.readFileSync(path.join(root, file), 'utf8'));
 
@@ -56,6 +57,16 @@ test('runtime Compose retains both current single-server worker services', () =>
   assert.match(compose, /^  recruitment-founder-notification-worker:$/m);
   assert.match(compose, /scripts\/training-report-worker\.cjs/);
   assert.match(compose, /scripts\/recruitment-founder-notification-worker\.cjs/);
+});
+
+test('HTTPS perimeter stages one-day HSTS without affecting the HTTP challenge server', () => {
+  const servers = [...httpsConfig.matchAll(/server \{[\s\S]*?\n\}/g)].map((match) => match[0]);
+  assert.equal(servers.length, 2);
+  assert.doesNotMatch(servers[0], /Strict-Transport-Security/i);
+  assert.match(servers[0], /location \^~ \/\.well-known\/acme-challenge\//);
+  assert.match(servers[1], /listen 443 ssl;/);
+  assert.match(servers[1], /add_header Strict-Transport-Security "max-age=86400" always;/);
+  assert.doesNotMatch(servers[1], /includeSubDomains|preload/i);
 });
 
 test('app Compose service allows the bounded graceful shutdown to finish', () => {
