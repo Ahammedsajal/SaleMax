@@ -2151,3 +2151,17 @@ customer setting or database migration changed. The updated overlay now includes
 the preview router alongside the shared editor/service. Production browser
 acceptance, database integration, remaining category modules and the full
 42-ticket program remain open.
+
+## Legacy route-inventory baseline refresh — source only, 22 October 2026
+
+Regenerated the maintained route inventory from the current server mount table.
+It now records 27 mounted route families, 531 statically declared router paths,
+and four direct app routes, including all seven paired legacy/workspace route
+families mounted from prefix arrays. Updated the feature-preservation map to
+state the current counts and their alias semantics. The inventory regression
+now explicitly fails if any paired pipeline, flow, inbox, template, chatbot,
+campaign or QR mount disappears from the generated evidence. Focused route
+inventory tests pass 2/2. This remains a declaration inventory, not a route
+authorization audit: inherited/global middleware, inline checks, SQL ownership,
+exports, sockets and worker paths still require behavioral review under TC02,
+TC35 and TC40. No production or customer data changed.
