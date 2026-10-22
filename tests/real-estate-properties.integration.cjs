@@ -8,6 +8,7 @@ const crypto=require('node:crypto');
 const mysql=require('mysql2/promise');
 const properties=require('../modules/platform/real-estate-properties');
 const category=require('../modules/platform/categories').realEstate;
+const realEstateBot=require('../modules/platform/chatbot-domain-packs').getDomainPack('real_estate',1);
 if(process.env.REALESTATE_SYNTHETIC_ONLY!=='true')throw Error('REALESTATE_SYNTHETIC_ONLY_REQUIRED');
 const config=JSON.parse(fs.readFileSync(process.env.REALESTATE_TEST_CONFIG,'utf8'));
 if(!/^sx_real_estate_test_[a-f0-9]+$/.test(config.database)||config.database!==config.user)throw Error('DISPOSABLE_REALESTATE_SCHEMA_REQUIRED');
@@ -54,6 +55,15 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   await assert.rejects(use(db=>properties.create(db,manager,{...listing,assignedMembershipId:memberIds.foreignAgent})),{code:'PROPERTY_ASSIGNEE_UNAVAILABLE'});
   assert.equal((await use(db=>properties.list(db,a))).total,1);
   assert.equal((await use(db=>properties.list(db,b))).total,0);
+  await use(db=>properties.update(db,manager,created.id,{expectedRevision:1,status:'active'}));
+  const otherCreated=await use(db=>properties.create(db,b,{...listing,titleEn:'Synthetic Garden Flat',titleAr:'شقة حديقة اختبارية'}));
+  await use(db=>properties.update(db,b,otherCreated.id,{expectedRevision:1,status:'active'}));
+  const factsA=await use(db=>realEstateBot.loadFacts({db,tenantId}));
+  const factsB=await use(db=>realEstateBot.loadFacts({db,tenantId:otherTenantId}));
+  assert.deepEqual(factsA.map(item=>item.titleEn),['Synthetic Doha apartment']);
+  assert.deepEqual(factsB.map(item=>item.titleEn),['Synthetic Garden Flat']);
+  assert.doesNotMatch(JSON.stringify(factsA),/Garden Flat/);
+  assert.doesNotMatch(JSON.stringify(factsB),/Doha apartment/);
   await assert.rejects(use(db=>properties.update(db,b,created.id,{expectedRevision:1,status:'active'})),{code:'PROPERTY_NOT_FOUND'});
   await assert.rejects(use(db=>properties.create(db,a,{...listing,status:'active'})),{code:'INVALID_PROPERTY_TRANSITION'});
 
@@ -72,5 +82,5 @@ async function use(fn){const db=await pool.getConnection();try{return await fn(d
   try{await assert.rejects(properties.create(failingDb,a,{...listing,titleEn:'Audit rollback candidate'}),/SYNTHETIC_AUDIT_FAILURE/);}finally{connection.release();}
   const after=await use(async db=>{const [[count]]=await db.query('SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=?',[tenantId]);return Number(count.total)});
   assert.equal(after,before,'listing insert must roll back with its audit event');
-  console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MariaDB','creator identity must be a member of the same tenant','manager assignment is limited to active same-team agents','agents see only their assigned listings','team leaders see listings assigned to current team members','foreign-tenant assignee denied','tenant-scoped listing reads','cross-tenant listing ID denied','new listings start as drafts','two concurrent edits yield one revision winner','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
+  console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MariaDB','creator identity must be a member of the same tenant','manager assignment is limited to active same-team agents','agents see only their assigned listings','team leaders see listings assigned to current team members','foreign-tenant assignee denied','tenant-scoped listing reads','cross-tenant listing ID denied','same-category chatbot facts remain tenant-scoped','new listings start as drafts','two concurrent edits yield one revision winner','audit failure rolls back listing creation'],customerDataTouched:false,externalWrites:false}));
 }finally{await pool.end();}})().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message}));process.exitCode=1;});
