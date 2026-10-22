@@ -1877,8 +1877,11 @@ The production host was inspected read-only: active release
 ARM64, healthy app and database, 85% root disk use with 7.8 GB available, and
 560 retained release directories. `crm.salemax.qa`, `7network.live`, and
 `www.7network.live` all return HTTP 200. Host memory/load and instantaneous
-container use were recorded in `docs/7NETWORK_DOCKER_RELEASE_POLICY.md`; they
-are not a capacity or load test.
+container use plus seven-day host-level `sysstat` averages were recorded in
+`docs/7NETWORK_DOCKER_RELEASE_POLICY.md`; shared-host averages are not tenant
+capacity or load-test results. Oracle's monitoring agent and sysstat collector
+are active, but no host-side disk alert was found, and OCI alarm notification
+configuration remains unverified.
 
 Five source contract tests cover the Dockerfile/Compose/image-builder boundary.
 They do not replace an image build. The local environment has no Docker CLI or
