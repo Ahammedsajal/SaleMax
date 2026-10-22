@@ -1,4 +1,4 @@
-## Generic Forms MariaDB schema verification — source increment, 22 October 2026
+## Generic Forms MariaDB and service integration — source increment, 22 October 2026
 
 The focused Forms migration runner now accepts the explicit `DBPASS=__EMPTY__`
 sentinel for local disposable MariaDB instances configured with an empty
@@ -7,14 +7,22 @@ failures emit their synthetic fixture stack so constraint mismatches can be
 diagnosed without suppressing details. The focused category/Forms regressions
 pass 38/38. The integration passed on a fresh disposable MariaDB 11.4.13
 instance and verified tenant-bound form/version/submission/rate-limit foreign
-keys plus idempotency. It then invoked the actual shared Forms service for two
-synthetic tenants using the same test-only generic adapter: same-slug creation
-remained tenant-local; list and submission reads were scoped; cross-tenant form
-IDs were denied for update/publication; and concurrent writes to one draft
-revision yielded one success and one `STALE_REVISION`. The temporary database,
-data directory and server were removed; the unrelated MySQL service was left
-untouched. No production state or customer data changed. Authenticated EN/AR
-existing-screen acceptance, category opt-in review and deployment remain open.
+keys plus idempotency. It invoked the shared Forms service for two synthetic
+tenants using the same test-only generic adapter: same-slug creation remained
+tenant-local; list and submission reads were scoped; cross-tenant form IDs were
+denied for update/publication; and concurrent writes to one draft revision
+yielded one success and one `STALE_REVISION`. Public and owner staff capture
+then ran through the real Forms service transactions. The unentitled tenant was
+denied before lead creation; exact-token replays created no duplicate lead or
+visitor-rate attempt; consent, sanitized campaign attribution, staff identity
+attribution and linked lead IDs persisted. The category resolver and
+entitlement loader were test-injected, and `createManualLead` was replaced by a
+fixture that wrote synthetic rows to the disposable Pipeline table; the real
+Pipeline creation helper and authenticated browser flow remain separate gates.
+The temporary database, data directory and server were removed; the unrelated
+MySQL service was left untouched. No production state or customer data changed.
+Authenticated EN/AR existing-screen acceptance, category opt-in review and
+deployment remain open.
 
 ## Lead Reports journey collation repair — source increment, 22 October 2026
 

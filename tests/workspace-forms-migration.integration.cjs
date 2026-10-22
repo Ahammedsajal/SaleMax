@@ -44,5 +44,51 @@ module.exports=async function workspaceFormsMigrationIntegration(db,{t1,t2,i1,i2
   assert.ok(submissionsA.items.every(row=>row.formId!==formB.id));assert.ok(submissionsB.items.every(row=>row.formId===formB.id));
   assert.equal((await forms.submissions(db,ctxA,{submissionId:submissionB})).total,0);
 
-  return {workspaceFormsTenantForeignKeys:true,workspaceFormsSubmissionIdempotency:true,workspaceFormsVersionReference:true,workspaceFormsRateLimitTenantBinding:true,workspaceFormsServiceTwoTenantIsolation:true,workspaceFormsCrossTenantIdDenial:true,workspaceFormsConcurrentStaleWrite:true};
+  const categories=require('../modules/platform/categories'),plans=require('../modules/platform/plans'),pipeline=require('../helper/pipeline/leadPipeline');
+  const original={getCategory:categories.getCategory,loadEntitlements:plans.loadEntitlements,createManualLead:pipeline.createManualLead};
+  const ownerUidA='synthetic-owner-a',ownerUidB='synthetic-owner-b',ownerUserA=990001,ownerUserB=990002;
+  const sha=value=>crypto.createHash('sha256').update(value,'utf8').digest('hex');
+  const membershipA=crypto.randomUUID(),membershipB=crypto.randomUUID();
+  await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active'),(?,?,?,'owner','active')",[membershipA,t1,i1,membershipB,t2,i2]);
+  await db.query('INSERT INTO `user`(id,uid) VALUES (?,?),(?,?)',[ownerUserA,ownerUidA,ownerUserB,ownerUidB]);
+  await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash) VALUES ('user',?,?,?,?),('user',?,?,?,?)",[String(ownerUserA),t1,membershipA,sha(ownerUidA),String(ownerUserB),t2,membershipB,sha(ownerUidB)]);
+  const leadCalls=[];
+  categories.getCategory=(key,version)=>key===base.key&&version===base.version?category:original.getCategory(key,version);
+  plans.loadEntitlements=async(_db,tenantId)=>({status:'active',capabilities:tenantId===t1?['portal.forms','crm.leads']:['portal.forms']});
+  pipeline.createManualLead=async request=>{
+    const id=crypto.randomUUID();
+    await request.connection.query('INSERT INTO pipeline_leads(id,uid_hash,uid,owner_agent_id,qualification_data) VALUES (?,?,?,?,?)',[id,sha(request.uid),request.uid,request.agentId||null,JSON.stringify(request.input.qualificationData||{})]);
+    leadCalls.push({id,uid:request.uid,actorType:request.actorType,actorId:request.actorId,sourceType:request.input.sourceType});
+    return {id};
+  };
+  try{
+    const publicA=await forms.publicForm(db,ctxA.slug,'service-contact');assert.equal(publicA.tenant.slug,ctxA.slug);
+    assert.equal(await forms.publicForm(db,ctxB.slug,'service-contact'),null,'public lookup must require both Forms and CRM Leads entitlements');
+    const pool={async getConnection(){const connection=await connect();connection.release=()=>connection.end();return connection;}},publicToken='77777777-7777-4777-8777-777777777777',visitor='a'.repeat(64),campaign={utmSource:'synthetic',utmCampaign:'forms-integration',landingPage:'https://example.invalid/lead?secret=discarded'};
+    const deniedPublic=await forms.submitPublic(pool,{tenantSlug:ctxB.slug,formSlug:'service-contact',submissionToken:'88888888-8888-4888-8888-888888888888',visitorHash:'b'.repeat(64),expectedFormVersion:1,values:{contact_name:'Denied synthetic',phone:'+12025550124',consent:true}}).then(()=>null,error=>error);
+    assert.equal(deniedPublic?.code,'FORM_NOT_FOUND',deniedPublic?.message||'unentitled public submission unexpectedly succeeded');
+    assert.equal(leadCalls.length,0,'an unentitled tenant must not create a Pipeline lead');
+    const publicResult=await forms.submitPublic(pool,{tenantSlug:ctxA.slug,formSlug:'service-contact',submissionToken:publicToken,visitorHash:visitor,campaignAttribution:campaign,expectedFormVersion:1,values:{contact_name:'Synthetic public lead',phone:'+12025550123',email:'public@example.invalid',consent:true}});
+    assert.equal(publicResult.repeated,false);assert.equal(leadCalls.length,1);assert.equal(leadCalls[0].sourceType,'public_form');assert.equal(leadCalls[0].uid,ownerUidA);
+    const publicReplay=await forms.submitPublic(pool,{tenantSlug:ctxA.slug,formSlug:'service-contact',submissionToken:publicToken,visitorHash:visitor,expectedFormVersion:99,values:{}});
+    assert.equal(publicReplay.repeated,true);assert.equal(publicReplay.leadId,publicResult.leadId);assert.equal(leadCalls.length,1);
+    const ownerSession={context:ctxA,ownerUid:ownerUidA};
+    assert.equal((await forms.staffForm(db,ownerSession,'service-contact')).captureMode,'staff');
+    const staffToken='99999999-9999-4999-8999-999999999999';
+    const staffResult=await forms.submitStaff(db,ownerSession,'service-contact',{submissionToken:staffToken,expectedFormVersion:1,values:{contact_name:'Synthetic staff lead',phone:'+12025550125',consent:true}});
+    assert.equal(staffResult.repeated,false);assert.equal(staffResult.collectorRole,'owner');assert.equal(leadCalls.length,2);assert.equal(leadCalls[1].sourceType,'staff_form');assert.equal(leadCalls[1].actorType,'identity');assert.equal(leadCalls[1].actorId,i1);
+    const staffReplay=await forms.submitStaff(db,ownerSession,'service-contact',{submissionToken:staffToken,expectedFormVersion:99,values:{}});
+    assert.equal(staffReplay.repeated,true);assert.equal(staffReplay.leadId,staffResult.leadId);assert.equal(leadCalls.length,2);
+    const [captureRows]=await db.query('SELECT capture_mode,captured_by_identity_id,idempotency_hash,lead_id,submission_data,attribution_json,consent_text_en,consent_text_ar FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=?',[t1,formA.id]);
+    const publicRow=captureRows.find(row=>row.capture_mode==='public'&&row.lead_id===publicResult.leadId),staffRow=captureRows.find(row=>row.capture_mode==='staff'&&row.lead_id===staffResult.leadId);
+    assert.ok(publicRow);assert.ok(staffRow);assert.equal(publicRow.idempotency_hash,sha(publicToken));assert.equal(staffRow.idempotency_hash,sha(`${i1}:${staffToken}`));
+    assert.equal(JSON.parse(publicRow.attribution_json).landingPage,'https://example.invalid/lead');assert.equal(JSON.parse(publicRow.submission_data).contact_name,'Synthetic public lead');
+    assert.equal(publicRow.captured_by_identity_id,null);assert.equal(staffRow.captured_by_identity_id,i1);assert.equal(staffRow.attribution_json,null);
+    assert.equal(publicRow.consent_text_en,'I agree to be contacted.');assert.equal(staffRow.consent_text_ar,'أوافق على التواصل معي.');
+    const [rateRows]=await db.query('SELECT attempts FROM sx_workspace_form_rate_limits WHERE tenant_id=? AND form_id=?',[t1,formA.id]);
+    assert.equal(rateRows.length,2);assert.ok(rateRows.every(row=>Number(row.attempts)===1),'an idempotent replay must not consume another visitor-rate attempt');
+    assert.equal((await forms.submissions(db,ctxA)).total,4);assert.equal((await forms.submissions(db,ctxB)).total,1);
+  }finally{categories.getCategory=original.getCategory;plans.loadEntitlements=original.loadEntitlements;pipeline.createManualLead=original.createManualLead;}
+
+  return {workspaceFormsTenantForeignKeys:true,workspaceFormsSubmissionIdempotency:true,workspaceFormsVersionReference:true,workspaceFormsRateLimitTenantBinding:true,workspaceFormsServiceTwoTenantIsolation:true,workspaceFormsCrossTenantIdDenial:true,workspaceFormsConcurrentStaleWrite:true,genericPublicSubmissionTransactional:true,genericPublicEntitlementDenial:true,genericPublicIdempotencyAndRateSnapshot:true,genericStaffSubmissionTransactional:true,genericStaffIdentityAttributionAndReplay:true};
 };

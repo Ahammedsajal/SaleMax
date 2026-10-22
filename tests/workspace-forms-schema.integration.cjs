@@ -30,7 +30,8 @@ async function main(){
     await db.query(`CREATE TABLE sx_identities(
       id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
       email_normalized VARCHAR(254) NOT NULL UNIQUE,
-      display_name VARCHAR(200) NOT NULL
+      display_name VARCHAR(200) NOT NULL,
+      status ENUM('pending','active','disabled') NOT NULL DEFAULT 'active'
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
     const t1=crypto.randomUUID(),t2=crypto.randomUUID(),i1=crypto.randomUUID(),i2=crypto.randomUUID();
     const baseCategory=require('../modules/platform/categories').baseCrm;
@@ -48,6 +49,33 @@ async function main(){
       correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
       FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
       FOREIGN KEY (actor_identity_id) REFERENCES sx_identities(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db.query(`CREATE TABLE sx_memberships(
+      id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+      tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      role ENUM('owner','accountant','manager','agent') NOT NULL,
+      status ENUM('active','inactive') NOT NULL DEFAULT 'active'
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db.query(`CREATE TABLE sx_legacy_ownership(
+      source_table VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      source_id VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      membership_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      legacy_uid_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      PRIMARY KEY (source_table,source_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db.query(`CREATE TABLE \`user\`(
+      id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+      uid VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await db.query(`CREATE TABLE pipeline_leads(
+      id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL PRIMARY KEY,
+      uid_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      uid VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+      owner_agent_id BIGINT UNSIGNED NULL,
+      qualification_data JSON NOT NULL,
+      KEY idx_synthetic_lead_scope (uid_hash,uid,id,owner_agent_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
     const name='20261022_workspace_forms.sql',migrations=discover(path.join(__dirname,'../database/migrations'));
