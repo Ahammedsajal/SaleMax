@@ -2090,3 +2090,11 @@ gates remain open.
 ### Task choice persistence, task collaboration, and legacy reporting fixes — source update, 22 October 2026
 
 Tenant-specific task type choices now pass the disposable MariaDB customization integration across two same-category tenants: each published a different task set, and the values remained separate through reads, publish, rollback, audit, and plan checks. The existing task screen/API enforces the same category/plan/tenant contract. A task assignee can read its linked lead after the owner explicitly assigns that task, while unrelated agents remain denied by the task participant check. Journey reports now use a UUID-compatible temporary lead scope key; synthetic scheduled report generation reaches `generated` with that key. Legacy Pipeline keeps old routes when the platform layer is disabled, preserves the existing assigned-agent staff-form path after per-request owner/category/plan checks, and denies unauthorized reassignment before loading task entitlements. The report integration assertions now compare against their captured cutoff, and test fixtures include the legacy tables required by current migrations. Fifty-eight focused Node tests pass; the tenant customization MariaDB integration passes 13 checks. The full disposable migration/business harness applies migrations and reaches chatbot API acceptance, then stops at `tests/chatbot-api-integration.cjs:184`, which expects an unrelated FAQ answer to be present in the provider prompt. That remaining integration failure is open for review. Source branch only; production is unchanged. Authenticated EN/AR browser/device acceptance and the full isolation, category, load/restore and release gates remain open.
+
+## Channel-bound legacy Automation Flow sessions — 22 October 2026
+
+Legacy shared-flow reads, mutations and cleanup now retain owner, origin,
+connected-channel, flow and sender identity. Row updates/deletes use the selected
+session ID plus owner; Hybrid chatbot session detection uses the same scoped key.
+Focused regressions cover same-sender QR/Meta sessions, separate QR accounts
+and row-owner binding. Production runtime acceptance is pending.

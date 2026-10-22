@@ -11,6 +11,7 @@ const fetch = require("node-fetch");
 const { google } = require("googleapis");
 const { aiTransferHandler } = require("./useAITransferHandler");
 const { shouldPause } = require("../modules/platform/chatbot-conversation-control");
+const { flowSessionScope, flowSessionRowScope } = require("../modules/platform/legacy-flow-session-scope");
 const FormData = require("form-data");
 const {} = require("../helper/addon/telegram/processTelegramInbox");
 
@@ -200,10 +201,12 @@ const replaceJsonWithVarsNew = (data, variables) => {
 
 async function pushNewKeyInData({ key, pushObj, flowSession }) {
   try {
+    const rowScope = flowSessionRowScope(flowSession, flowSession?.uid);
+    if (!rowScope) return;
     // Fetch only needed column
     const [oldData] = await query(
-      `SELECT data FROM flow_session WHERE id = ? LIMIT 1`,
-      [flowSession?.id],
+      `SELECT data FROM flow_session WHERE ${rowScope.where} LIMIT 1`,
+      rowScope.params,
     );
 
     if (!oldData) {
@@ -223,15 +226,22 @@ async function pushNewKeyInData({ key, pushObj, flowSession }) {
     };
 
     await query(
-      `UPDATE flow_session 
-       SET data = ? 
-       WHERE id = ?
-       LIMIT 1`,
-      [JSON.stringify(oldDataObj), flowSession?.id],
+      `UPDATE flow_session SET data = ? WHERE ${rowScope.where} LIMIT 1`,
+      [JSON.stringify(oldDataObj), ...rowScope.params],
     );
   } catch (err) {
     console.log("Error during updating flow_session data:", err);
   }
+}
+
+async function updateFlowSessionData(flowSession, uid, data) {
+  const rowScope = flowSessionRowScope(flowSession, uid);
+  if (!rowScope) return false;
+  await query(
+    `UPDATE flow_session SET data = ? WHERE ${rowScope.where} LIMIT 1`,
+    [JSON.stringify(data), ...rowScope.params],
+  );
+  return true;
 }
 
 function replaceVarFromString(inputString, variables) {
@@ -916,12 +926,12 @@ async function getFlowSession({
   try {
     if (!message?.senderMobile) return null;
 
-    // Single query with proper index usage
+    const scope = flowSessionScope({ uid, origin, sessionId, flowId, senderMobile: message.senderMobile });
+    if (!scope) return null;
+    // The connected account/channel is part of the session identity.
     let [flowSession] = await query(
-      `SELECT id, data FROM flow_session 
-       WHERE uid = ? AND flow_id = ? AND sender_mobile = ?
-       LIMIT 1`,
-      [uid, flowId, message.senderMobile],
+      `SELECT id, data FROM flow_session WHERE ${scope.where} LIMIT 1`,
+      scope.params,
     );
 
     if (!flowSession) {
@@ -950,6 +960,7 @@ async function getFlowSession({
 
       flowSession = {
         id: result.insertId,
+        uid,
         data: sessionData,
       };
     }
@@ -967,6 +978,7 @@ async function getFlowSession({
 
     return {
       id: flowSession.id,
+      uid,
       data: { ...fData, node: updatingNode },
     };
   } catch (err) {
@@ -1091,15 +1103,7 @@ async function processSendMessage({
       if (n) {
         const oldData = flowSession?.data;
         const newData = { ...oldData, node: n };
-        await query(
-          `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-          [
-            JSON.stringify(newData),
-            element?.flow_id,
-            uid,
-            message?.senderMobile,
-          ],
-        );
+        await updateFlowSessionData(flowSession, uid, newData);
         return { moveToNextNode: node?.data?.moveToNextNode || false };
       } else {
         return {};
@@ -1151,15 +1155,7 @@ async function processCondition({
       if (n) {
         const oldData = flowSession?.data;
         const newData = { ...oldData, node: n };
-        await query(
-          `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-          [
-            JSON.stringify(newData),
-            element?.flow_id,
-            uid,
-            message?.senderMobile,
-          ],
-        );
+        await updateFlowSessionData(flowSession, uid, newData);
       }
     } else {
       // process default condition if not matched
@@ -1171,15 +1167,7 @@ async function processCondition({
       if (n) {
         const oldData = flowSession?.data;
         const newData = { ...oldData, node: n };
-        await query(
-          `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-          [
-            JSON.stringify(newData),
-            element?.flow_id,
-            uid,
-            message?.senderMobile,
-          ],
-        );
+        await updateFlowSessionData(flowSession, uid, newData);
       }
     }
 
@@ -1222,10 +1210,7 @@ async function processResponseSaver({
       variables: savingVars,
     };
 
-    await query(
-      `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-      [JSON.stringify(newData), element?.flow_id, uid, message?.senderMobile],
-    );
+    await updateFlowSessionData(flowSession, uid, newData);
 
     return { moveToNextNode: node?.data?.moveToNextNode || false };
   } catch (err) {
@@ -1272,10 +1257,7 @@ async function processDisableAutoReply({
       disableChat: { node, timestamp: timeStamp },
     };
 
-    await query(
-      `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-      [JSON.stringify(newData), element?.flow_id, uid, message?.senderMobile],
-    );
+    await updateFlowSessionData(flowSession, uid, newData);
 
     return { moveToNextNode: node?.data?.moveToNextNode || false };
   } catch (err) {
@@ -1327,10 +1309,7 @@ async function processMakeRequest({
       variables: allVars,
     };
 
-    await query(
-      `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-      [JSON.stringify(newData), element?.flow_id, uid, message?.senderMobile],
-    );
+    await updateFlowSessionData(flowSession, uid, newData);
 
     return { moveToNextNode: node?.data?.moveToNextNode || false };
   } catch (err) {
@@ -1405,10 +1384,7 @@ async function processDelay({
     const oldData = flowSession?.data;
     const newData = { ...oldData, node: n };
 
-    await query(
-      `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ? LIMIT 1`,
-      [JSON.stringify(newData), element?.flow_id, uid, message?.senderMobile],
-    );
+    await updateFlowSessionData(flowSession, uid, newData);
 
     // Schedule execution without blocking the current flow
     setTimeout(async () => {
@@ -1490,10 +1466,7 @@ async function processSpreadSheet({
 
     const oldData = flowSession?.data;
     const newData = { ...oldData, node: n };
-    await query(
-      `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-      [JSON.stringify(newData), element?.flow_id, uid, message?.senderMobile],
-    );
+    await updateFlowSessionData(flowSession, uid, newData);
 
     return { moveToNextNode: node?.data?.moveToNextNode || false };
   } catch (err) {
@@ -1553,10 +1526,7 @@ async function processSendEmail({
 
     const oldData = flowSession?.data;
     const newData = { ...oldData, node: n };
-    await query(
-      `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-      [JSON.stringify(newData), element?.flow_id, uid, message?.senderMobile],
-    );
+    await updateFlowSessionData(flowSession, uid, newData);
 
     return { moveToNextNode: node?.data?.moveToNextNode || false };
   } catch (err) {
@@ -1643,10 +1613,7 @@ async function processAgentTransfer({
 
     const oldData = flowSession?.data;
     const newData = { ...oldData, node: n };
-    await query(
-      `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-      [JSON.stringify(newData), element?.flow_id, uid, message?.senderMobile],
-    );
+    await updateFlowSessionData(flowSession, uid, newData);
 
     return { moveToNextNode: node?.data?.moveToNextNode || false };
   } catch (err) {
@@ -1676,13 +1643,7 @@ async function processAiTransfer({
     if (config?.assignedToAi) {
       let a = flowSession?.data || {};
       a.aiTransfer = { active: true, node: node };
-      await query(
-        `UPDATE flow_session 
-         SET data = ? 
-         WHERE flow_id = ? AND uid = ? AND sender_mobile = ?
-         LIMIT 1`,
-        [JSON.stringify(a), element?.flow_id, uid, message?.senderMobile],
-      );
+      await updateFlowSessionData(flowSession, uid, a);
     } else {
       const e = edges.find((e) => e.source === node.id);
       if (!e) return {};
@@ -1691,13 +1652,7 @@ async function processAiTransfer({
 
       const oldData = flowSession?.data;
       const newData = { ...oldData, node: n };
-      await query(
-        `UPDATE flow_session 
-         SET data = ? 
-         WHERE flow_id = ? AND uid = ? AND sender_mobile = ?
-         LIMIT 1`,
-        [JSON.stringify(newData), element?.flow_id, uid, message?.senderMobile],
-      );
+      await updateFlowSessionData(flowSession, uid, newData);
     }
 
     // Optimize: Only select needed columns and use proper index
@@ -1793,18 +1748,7 @@ async function processAiTransfer({
           node: n,
           aiTransfer: { active: false, node: null },
         };
-        await query(
-          `UPDATE flow_session 
-           SET data = ? 
-           WHERE flow_id = ? AND uid = ? AND sender_mobile = ?
-           LIMIT 1`,
-          [
-            JSON.stringify(newData),
-            element?.flow_id,
-            uid,
-            message?.senderMobile,
-          ],
-        );
+        await updateFlowSessionData(flowSession, uid, newData);
       }
       return { moveToNextNode: true };
     } else {
@@ -1887,36 +1831,9 @@ async function processResetSession({
 
     console.log(`🔄 Resetting session for user: ${message.senderMobile}`);
 
-    // Delete the flow session based on origin
-    if (origin === "qr") {
-      await query(
-        `DELETE FROM flow_session 
-         WHERE uid = ? AND origin = ? AND origin_id = ? AND flow_id = ? AND sender_mobile = ? 
-         LIMIT 1`,
-        [uid, origin, sessionId, element?.flow_id, message.senderMobile],
-      );
-    } else if (origin?.toLowerCase() === "webhook_automation") {
-      await query(
-        `DELETE FROM flow_session 
-         WHERE uid = ? AND origin = ? AND flow_id = ? AND sender_mobile = ? 
-         LIMIT 1`,
-        [uid, origin, element?.flow_id, message.senderMobile],
-      );
-    } else if (origin?.toLowerCase() === "telegram") {
-      await query(
-        `DELETE FROM flow_session 
-         WHERE uid = ? AND origin = ? AND origin_id = ? AND flow_id = ? AND sender_mobile = ? 
-         LIMIT 1`,
-        [uid, origin, sessionId, element?.flow_id, message.senderMobile],
-      );
-    } else {
-      // Default Meta
-      await query(
-        `DELETE FROM flow_session 
-         WHERE uid = ? AND origin = ? AND origin_id = ? AND flow_id = ? AND sender_mobile = ? 
-         LIMIT 1`,
-        [uid, "meta", "META", element?.flow_id, message.senderMobile],
-      );
+    const rowScope = flowSessionRowScope(flowSession, uid);
+    if (rowScope) {
+      await query(`DELETE FROM flow_session WHERE ${rowScope.where} LIMIT 1`, rowScope.params);
     }
 
     console.log(`✅ Session reset completed for ${message.senderMobile}`);
@@ -2161,10 +2078,7 @@ async function processSendWaTemplate({
     if (!n) return {};
 
     const newData = { ...flowSession?.data, node: n };
-    await query(
-      `UPDATE flow_session SET data = ? WHERE flow_id = ? AND uid = ? AND sender_mobile = ?`,
-      [JSON.stringify(newData), element?.flow_id, uid, message?.senderMobile],
-    );
+    await updateFlowSessionData(flowSession, uid, newData);
 
     return { moveToNextNode: node?.data?.moveToNextNode || false };
   } catch (err) {

@@ -752,3 +752,19 @@ proves same-owner duplicate and re-key attempts fail, racing inserts have one
 winner, and another owner may use the same conversation key independently.
 Production has not applied this migration; its DDL, duplicate preflight and
 rollback must be reviewed with the live migration ledger before release.
+
+## Channel-bound legacy Automation Flow sessions — 22 October 2026
+
+The shared Automation Flow Builder now treats owner, origin, connected channel,
+flow and sender as one session identity. QR and Meta conversations for the same
+person cannot resume or overwrite one another's legacy `flow_session` row. Node
+updates and reset/loop cleanup target the selected row ID plus owner, and Hybrid
+chatbot checks use the same channel-scoped lookup. Nullable origin fields use
+MariaDB null-safe equality so webhook and older null-valued identities remain
+explicit instead of broadening the match.
+
+This is a shared-core isolation repair; category-specific flow content and bot
+configuration remain tenant-owned. Focused regressions cover same-sender QR/Meta,
+two connected QR accounts, owner separation and scoped mutation contracts.
+Production deployment and runtime channel smoke remain pending; source testing
+did not change session data or schema.
