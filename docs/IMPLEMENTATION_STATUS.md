@@ -1973,3 +1973,14 @@ source deployment scripts only contain unrelated `flock` use for domain
 retirement and HTTPS activation; no shared production lock implementation was
 found. No production state was changed. Do not deploy until operations provides
 the shared exclusive-lock mechanism and preflight confirms it is held.
+
+## Read-only production refresh — 22 October 2026, 08:06 UTC
+
+The authorized host remains `carsqatar-prod-01`; `/opt/salemax/current` now
+resolves to `/opt/salemax/releases/inbox-follow-up-ui-0a6e1f0-20261022`. The
+app and MariaDB containers are healthy, report and recruitment notification
+workers are running, and root storage is 91% used with 4.5 GiB free. The
+required `/opt/salemax/shared/7network-production-deploy.lock` path remains
+absent. This read-only refresh reflects the latest known production release;
+no production state was changed. Deployment remains gated on the shared
+OS-level exclusive-lock mechanism and sufficient verified release headroom.
