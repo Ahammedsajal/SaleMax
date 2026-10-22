@@ -84,6 +84,19 @@ provider settings or runtime state were changed. The MariaDB integration
 harness and authenticated live application acceptance remain open; the 42-ticket
 upgrade is still in progress.
 
+## Real Estate terminal listing immutability — source update, 22 October 2026
+
+Review of the existing tenant-scoped property lifecycle found that a completed
+sale or rental could be archived and then edited because only the `sold` and
+`rented` statuses were treated as immutable. The property service now keeps
+archived records immutable too, while still allowing a terminal listing to be
+archived. Unit coverage verifies edits and reopening are rejected; the focused
+Real Estate service/router suite passes 15/15. The disposable MariaDB integration
+fixture now also exercises sold → archived → attempted edit, but was not rerun
+because this worktree has no dedicated disposable database. No production data,
+schema, or release was changed; browser acceptance and the incomplete Real Estate
+workflow remain open.
+
 ## Finance conversion policy guard — source update, 21 October 2026
 
 The training invoice-total helper now rejects missing, unsupported or malformed

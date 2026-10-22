@@ -103,6 +103,14 @@ test('stale and invalid transitions cannot mutate a listing',async()=>{
   assert.equal(updates,0);assert.equal(rollbacks,3);
 });
 
+test('archived listings stay immutable after sold or rented inventory is archived',async()=>{
+  let updates=0,rollbacks=0;
+  const db={query:async(sql)=>{if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'archived',transactionType:'sale',revision:4}]];if(sql.startsWith('UPDATE'))updates++;return [{affectedRows:1}];},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{rollbacks++;}};
+  await assert.rejects(properties.update(db,base,'44444444-4444-4444-8444-444444444444',{titleEn:'Edited after archival',expectedRevision:4}),{code:'INVALID_PROPERTY_TRANSITION'});
+  await assert.rejects(properties.update(db,base,'44444444-4444-4444-8444-444444444444',{status:'active',expectedRevision:4}),{code:'INVALID_PROPERTY_TRANSITION'});
+  assert.equal(updates,0);assert.equal(rollbacks,2);
+});
+
 test('real estate storage keys and current-panel entry are registered without a duplicate app shell',()=>{
   const migrationPath=path.join(__dirname,'../database/migrations/20261222_real_estate_properties.sql');
   const migration=fs.readFileSync(migrationPath,'utf8');
