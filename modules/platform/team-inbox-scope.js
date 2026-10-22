@@ -85,10 +85,11 @@ function filterQrInstances(instances, scope) {
 
 async function authorizeInboxPayload(query, scope, event, payload) {
   if (!scope.canonical) return payload;
+  if (event === 'unasign_chat_agent' && !['owner', 'manager'].includes(scope.ctx?.membership?.role)) fail();
   if(scope.qrOnly&&!['get_chat_list','load_conversation','export_chats','export_conversation','send_chat_message'].includes(event))fail();
   // Staff never initiate a different WhatsApp conversation through the shared
   // number. Reply only to the persisted, currently assigned customer/channel.
-  if (scope.assignedOnly && ['send_new_message', 'unasign_chat_agent'].includes(event)) fail();
+  if (scope.assignedOnly && ['send_new_message'].includes(event)) fail();
   if (['get_chat_list','export_chats','add_label','on_label_delete','update_spend_time','translate_message'].includes(event)) return payload;
   const ids = {
     load_conversation: payload.chat?.chat_id, export_conversation: payload.chatId,

@@ -94,6 +94,13 @@ test('staff Inbox drops transferred chats and rejects stale direct reads/replies
     await assert.rejects(authorizeInboxPayload(lookup,scope,event,payload),{code:'TEAM_INBOX_PERMISSION_DENIED'});
   }
 });
+test('only owners and managers can remove an agent from a conversation', async () => {
+  const chat = { chat_id: 'shared-chat', assigned_agent: JSON.stringify([{ kind: 'identity', identityId: 'staff-a' }]) };
+  const lookup = async () => [chat];
+  const managerScope = await resolveInboxScope(query(member), user, 'unasign_chat_agent');
+  assert.deepEqual(await authorizeInboxPayload(lookup, managerScope, 'unasign_chat_agent', { cId: 'shared-chat', aUid: 'staff-a' }), { cId: 'shared-chat', aUid: 'staff-a' });
+  await assert.rejects(resolveInboxScope(query({ ...member, role: 'agent' }), user, 'unasign_chat_agent'), { code: 'TEAM_INBOX_PERMISSION_DENIED' });
+});
 
 test('canonical agent accounts use the shared owner scope without access to unassigned chats', async () => {
   const scope = await resolveInboxScope(query({...member,role:'agent'}),user,'get_chat_list');

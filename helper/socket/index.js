@@ -52,6 +52,7 @@ function processSocketEvent({
       const inboxAccess = require('../../modules/platform/team-inbox-scope');
       await require('../../modules/platform/delegated-account-session').assertDelegatedSession(query,socket.decodedToken);
       const inboxScope = await inboxAccess.resolveInboxScope(query, socket.userData, type);
+      if (type === "unasign_chat_agent" && agentAccount) throw Object.assign(new Error("TEAM_INBOX_PERMISSION_DENIED"), { code: "TEAM_INBOX_PERMISSION_DENIED" });
       const isAgent=agentAccount&&!inboxScope.canonical;
       const uid = inboxScope.uid;
       payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {});
