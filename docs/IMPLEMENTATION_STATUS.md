@@ -1886,3 +1886,19 @@ comparison, disk/inode alerts, authenticated primary/legacy journeys, media,
 session, queue and socket safety, database/media recovery, representative load,
 and authenticated English/Arabic desktop/mobile acceptance remain open. The
 full existing 42-ticket objective remains active.
+
+
+## Single-host scale-readiness audit — 22 October 2026
+
+The existing production host is not ready for horizontal app scaling. The
+read-only inventory records single-host media/session/theme/license/CV mounts,
+local Baileys credentials and in-memory QR ownership, the default in-process
+Socket.IO adapter, process-started schedulers and workers, existing database
+claim/lease patterns, and campaign/CRM-sync paths that lack cross-process claims.
+Before adding app instances, move uploads and credentials to suitable durable
+shared stores, establish exclusive channel ownership and Socket.IO fanout,
+separate or lease singleton jobs, make campaign delivery ambiguity safe, and
+run synthetic two-instance isolation/failover tests. Representative peak load,
+DB plus media restore, operator-visible alert delivery, and tenant fairness remain
+unverified. See `docs/7NETWORK_SCALE_READINESS.md` for the measured inventory and
+the pre-scale gate list. One host remains a single failure domain.
