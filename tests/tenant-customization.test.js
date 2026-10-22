@@ -32,7 +32,7 @@ test('label customization is bounded, category-scoped data rather than executabl
 test('preview cannot grant access and denied staff never reach persistence',async()=>{
   const db={query(){throw Error('must not access database')}};
   for(const role of ['manager','accountant','agent']){
-    const denied={...ctx,membership:{...ctx.membership,role}};
+    const denied={...ctx,membership:{...ctx.membership,role,...(role==='manager'?{customPermissions:['tenant.manage']}: {})}};
     assert.throws(()=>settings.preview(denied,doc),{code:'PERMISSION_DENIED'});
     await assert.rejects(settings.state(db,denied),{code:'PERMISSION_DENIED'});
   }
