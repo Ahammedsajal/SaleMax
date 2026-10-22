@@ -20,6 +20,11 @@ function createTrainingFormRouter({pool,origin,userGuard,sessionGuard}){
   router.use((req,res,next)=>{res.setHeader('Cache-Control','no-store');if(!['GET','HEAD','OPTIONS'].includes(req.method)&&(!require('./request-origin').matches(req,origin)||!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(!require('./request-origin').matches(req,origin)?403:400).json({success:false,code:!require('./request-origin').matches(req,origin)?'ORIGIN_DENIED':'INVALID_BODY'});next();});
   router.use(sessionGuard||userGuard);
   router.use((req,res,next)=>{if(req.featureSession){req.formContext=req.featureSession.context;return next();}return courses.legacyOwnerContext(pool,req.decode.uid).then(ctx=>{req.formContext=ctx;next();}).catch(next);});
+  router.use((req,res,next)=>{
+    if(formAdapters.resolve(req.formContext?.category)!=='generic-lead-capture-v1')return next();
+    try{workspaceForms.context(req.formContext,req.path.startsWith('/staff/')?'forms.capture':'forms.manage');next();}
+    catch(error){next(error);}
+  });
   const connection=fn=>async(...args)=>{const db=await pool.getConnection();try{return await fn(db,...args);}finally{db.release();}};
   const serviceFor=req=>formsServiceForCategory(req.formContext?.category);
   router.get('/context',wrap(async(req,res)=>{const adapter=formAdapters.resolve(req.formContext?.category);if(adapter==='generic-lead-capture-v1'){workspaceForms.context(req.formContext);return res.json({success:true,data:{adapter,registrationEnabled:false}});}if(adapter==='training-registration-v1'){await connection(forms.leadFieldOptions)(req.formContext);return res.json({success:true,data:{adapter,registrationEnabled:true}});}throw Object.assign(new Error('CATEGORY_UNAVAILABLE'),{code:'CATEGORY_UNAVAILABLE'});}));
