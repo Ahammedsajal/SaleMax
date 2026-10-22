@@ -115,9 +115,7 @@ test('CLI requires the shared lock and S3 driver before applying a manifest', as
   await assert.rejects(cli.main(base, { ...wrapperEnv, SALEMAX_ACTIVE_RELEASE_BEFORE: '' }, { lockHeld: () => true }), /outside the production release lock wrapper/);
   await assert.rejects(cli.main(base, wrapperEnv, { lockHeld: () => false }), /shared OS-level flock is not held/);
   await assert.rejects(cli.main(base, { ...wrapperEnv, SALEMAX_OBJECT_STORAGE_DRIVER: 'local' }, { lockHeld: () => true }), /Select the S3 storage driver/);
-  assert.equal(cli.sharedLockHeld(() => ({ status: 75 }), manifestPath), true);
-  assert.equal(cli.sharedLockHeld(() => ({ status: 0 }), manifestPath), false);
-  assert.equal(cli.sharedLockHeld(() => { throw Error('probe must not run for missing lock'); }, path.join(f.external, 'missing-lock')), false);
+  assert.equal(cli.sharedLockHeld(wrapperEnv), false, 'an environment marker alone is not proof that this invocation holds the flock');
   await fs.chmod(manifestPath, 0o644);
   await assert.rejects(cli.main(base, wrapperEnv, { lockHeld: () => true }), /mode-0600/);
   await fs.chmod(manifestPath, 0o600);

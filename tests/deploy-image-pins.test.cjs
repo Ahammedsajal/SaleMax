@@ -2,7 +2,12 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { resolveServiceImages, assertSharedLockContext, inspectPinnedImages, verifyRunningContainers } = require('../deploy/verify-pinned-images.cjs');
+const lockIdentity = '08:01:1204';
 
 const digest = (char) => `ghcr.io/ahammedsajal/salemax@sha256:${char.repeat(64)}`;
 
@@ -28,12 +33,40 @@ test('image pin validation rejects missing values, mutable tags, and other regis
   assert.throws(() => resolveServiceImages({ SALEMAX_IMAGE_REF: `ghcr.io/ahammedsajal/other@sha256:${'e'.repeat(64)}`, SALEMAX_SOURCE_COMMIT: '1'.repeat(40) }), /mutable tags are not deployable/);
 });
 
-test('image verification requires the inherited descriptor to be the shared lock inode', () => {
+test('image verification requires this wrapper invocation to hold the shared flock', () => {
   const lockStat = { dev: 8, ino: 1204 };
-  assert.equal(assertSharedLockContext({ SALEMAX_DEPLOY_LOCK_HELD: '1' }, () => lockStat, () => lockStat), true);
-  assert.throws(() => assertSharedLockContext({}, () => lockStat, () => lockStat), /with-production-lock\.sh/);
-  assert.throws(() => assertSharedLockContext({ SALEMAX_DEPLOY_LOCK_HELD: '1' }, () => ({ dev: 8, ino: 1205 }), () => lockStat), /shared production lock inode/);
-  assert.throws(() => assertSharedLockContext({ SALEMAX_DEPLOY_LOCK_HELD: '1' }, () => { throw new Error('closed'); }, () => lockStat), /descriptor 9/);
+  const env = { SALEMAX_DEPLOY_LOCK_HELD: '1', SALEMAX_DEPLOY_LOCK_FD: '9', SALEMAX_DEPLOY_LOCK_OWNER_PID: '4242' };
+  const context = { env, lockPath: '/lock', fstat: () => lockStat, stat: () => lockStat, fdIdentity: () => lockIdentity };
+  assert.equal(assertSharedLockContext({ ...context, readLocks: () => `4: FLOCK ADVISORY WRITE 4242 ${lockIdentity} 0 EOF\n` }), true);
+  assert.throws(() => assertSharedLockContext({ ...context, env: {} }), /with-production-lock\.sh/);
+  assert.throws(() => assertSharedLockContext({ ...context, readLocks: () => `4: FLOCK ADVISORY WRITE 7777 ${lockIdentity} 0 EOF\n` }), /not held by this wrapper invocation/);
+  assert.throws(() => assertSharedLockContext({ ...context, readLocks: () => '' }), /not held by this wrapper invocation/);
+  assert.throws(() => assertSharedLockContext({ ...context, fstat: () => ({ dev: 8, ino: 1205 }) }), /shared production lock inode/);
+  assert.throws(() => assertSharedLockContext({ ...context, fstat: () => { throw new Error('closed'); } }), /descriptor 9/);
+});
+
+test('production lock context distinguishes the inherited flock from another process lock', t => {
+  if (process.platform !== 'linux' || spawnSync('sh', ['-c', 'command -v flock >/dev/null 2>&1']).status !== 0) {
+    return t.skip('Linux flock and /proc/locks are required');
+  }
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), '7network-lock-context-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const lockPath = path.join(root, 'production.lock');
+  const helperPath = path.resolve(__dirname, '../deploy/production-lock-context.cjs');
+  const script = `
+    set -eu
+    exec 9>>"$TEST_LOCK_PATH"
+    flock -n 9
+    export SALEMAX_DEPLOY_LOCK_HELD=1 SALEMAX_DEPLOY_LOCK_FD=9
+    export SALEMAX_DEPLOY_LOCK_OWNER_PID="$$"
+    node -e 'const {assertSharedLockContext}=require(process.env.TEST_HELPER); assertSharedLockContext({lockPath:process.env.TEST_LOCK_PATH});'
+    SALEMAX_DEPLOY_LOCK_OWNER_PID=1 node -e 'const {assertSharedLockContext}=require(process.env.TEST_HELPER); try { assertSharedLockContext({lockPath:process.env.TEST_LOCK_PATH}); process.exit(9); } catch (error) { if (!/not held by this wrapper invocation/.test(error.message)) throw error; }'
+  `;
+  const result = spawnSync('sh', ['-c', script], {
+    encoding: 'utf8',
+    env: { ...process.env, TEST_LOCK_PATH: lockPath, TEST_HELPER: helperPath },
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
 test('image preflight checks the pulled image identity, ARM64 platform, and source revision label', () => {

@@ -3,9 +3,9 @@
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 const migration = require('../modules/platform/object-storage-migration');
 const { createStore, driver } = require('../modules/platform/object-storage');
+const { assertSharedLockContext } = require('../deploy/production-lock-context.cjs');
 
 function argumentsMap(argv) {
   const result = new Map();
@@ -30,12 +30,8 @@ function externalPath(value) {
   return canonical;
 }
 
-function sharedLockHeld(lockProbe = spawnSync, lockPath = '/opt/salemax/shared/7network-production-deploy.lock') {
-  let stat;
-  try { stat = fsSync.lstatSync(lockPath); } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
-  if (!stat.isFile() || stat.isSymbolicLink()) return false;
-  const result = lockProbe('flock', ['-n', '-E', '75', lockPath, 'true'], { stdio: 'ignore' });
-  return result.status === 75;
+function sharedLockHeld(env = process.env) {
+  try { return assertSharedLockContext({ env }); } catch { return false; }
 }
 
 async function main(argv = process.argv.slice(2), env = process.env, deps = {}) {
@@ -48,7 +44,7 @@ async function main(argv = process.argv.slice(2), env = process.env, deps = {}) 
     if (!args.has('--manifest') || args.has('--manifest-out')) throw Error('--apply requires --manifest and does not accept --manifest-out');
     if (env.SALEMAX_DEPLOY_LOCK_HELD !== '1') throw Error('Refusing object migration without the shared production deployment lock');
     if (!env.SALEMAX_ACTIVE_RELEASE_BEFORE || !path.isAbsolute(env.SALEMAX_ACTIVE_RELEASE_BEFORE)) throw Error('Refusing object migration outside the production release lock wrapper');
-    if (!(deps.lockHeld ? deps.lockHeld() : sharedLockHeld())) throw Error('Refusing object migration because the shared OS-level flock is not held');
+    if (!(deps.lockHeld ? deps.lockHeld() : sharedLockHeld(env))) throw Error('Refusing object migration because the shared OS-level flock is not held by this wrapper invocation');
     if (driver(env, namespace) !== 's3') throw Error(`Select the S3 storage driver for ${namespace} inside the locked process`);
     const manifestPath = externalPath(args.get('--manifest'));
     const manifestStat = await fs.lstat(manifestPath);

@@ -1,9 +1,9 @@
 'use strict';
 
 const { spawnSync } = require('node:child_process');
+const { assertSharedLockContext } = require('./production-lock-context.cjs');
 
 const IMAGE_PREFIX = 'ghcr.io/ahammedsajal/salemax@sha256:';
-const SHARED_LOCK_PATH = '/opt/salemax/shared/7network-production-deploy.lock';
 const DIGEST_IMAGE = /^ghcr\.io\/ahammedsajal\/salemax@sha256:[a-f0-9]{64}$/;
 const SERVICES = [
   ['app', 'SALEMAX_APP_IMAGE_REF', 'SALEMAX_APP_SOURCE_COMMIT'],
@@ -24,25 +24,6 @@ function resolveServiceImages(env = process.env) {
     }
     return { service, variable, sourceVariable, image, expectedRevision };
   });
-}
-
-function assertSharedLockContext(env = process.env, fstat = require('node:fs').fstatSync, stat = require('node:fs').statSync) {
-  if (env.SALEMAX_DEPLOY_LOCK_HELD !== '1') {
-    throw new Error(`Run this preflight inside /opt/salemax/shared/with-production-lock.sh`);
-  }
-
-  let inherited;
-  let shared;
-  try {
-    inherited = fstat(9);
-    shared = stat(SHARED_LOCK_PATH);
-  } catch {
-    throw new Error('The shared production lock descriptor 9 is not inherited by this process');
-  }
-  if (inherited.dev !== shared.dev || inherited.ino !== shared.ino) {
-    throw new Error('Descriptor 9 does not reference the shared production lock inode');
-  }
-  return true;
 }
 
 function inspectPinnedImages(images, run = spawnSync) {
