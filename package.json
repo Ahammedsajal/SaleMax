@@ -9,6 +9,7 @@
     "build:workspace": "node scripts/build-workspace.cjs",
     "preview:workspace": "node scripts/preview-workspace.cjs",
     "test:migrations:integration": "node tests/migrations.integration.js",
+    "test:inbox-socket-tenant:integration": "node tests/inbox-socket-tenant.integration.cjs",
     "test:pipeline-identity-actor:integration": "node tests/pipeline-identity-actor-migration.integration.cjs",
     "test:workspace-forms-schema:integration": "node tests/workspace-forms-schema.integration.cjs",
     "test:crm-sync-queue:integration": "node tests/crm-user-sync-queue.integration.cjs",

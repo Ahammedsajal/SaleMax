@@ -30,7 +30,7 @@ The existing Training Center learner-progress reconciler can move won Pipeline l
 | Inbox refresh route | `routes/inbox.js` | The root GET endpoint was unauthenticated and sent a refresh event to a hard-coded account. It now requires the existing business auth/Inbox scope and targets the authenticated actor's socket identity; focused source-contract coverage added. This does not certify all socket events or legacy inbox routes. |
 | Legacy Meta send/reply updates | `functions/function.js` | Updates in `updateMetaTempletInMsg` and `sendMetaMsg` previously matched only `chat_id`, which is derived from the customer phone and can repeat across tenants. All four updates now include the owner UID; focused source-contract coverage added. Other legacy socket and conversation paths remain under audit. |
 | Legacy Inbox delete mutations | `helper/socket/index.js` | `on_label_delete` and `del_contact` previously deleted globally keyed rows by ID alone. Both now include the authenticated business owner UID in the delete predicate; a handler-level test invokes both events and verifies the actual query parameters. Other canonical socket record mutations remain under audit. |
-| Legacy Inbox row-ID access | `helper/socket/index.js` | Numeric-ID conversation loads, unread updates, label changes, and note reads/writes now pair the row ID with the resolved Inbox owner UID, including for legacy sessions that do not enter canonical payload authorization. A handler-level test exercises the ID-addressed operations with a synthetic legacy owner and verifies owner UID predicates. |
+| Legacy Inbox row-ID access | `helper/socket/index.js` | Numeric-ID conversation loads, unread updates, label changes, and note reads/writes now pair the row ID with the resolved Inbox owner UID, including for legacy sessions that do not enter canonical payload authorization. A disposable MySQL 9.6 integration invokes the handlers for two synthetic owners and confirms B's chat, label, note, tag and contact remain unchanged when A submits B's IDs, while A's valid conversation read still works. MariaDB integration and existing-screen acceptance remain open. |
 | Agent time tracking | `helper/socket/index.js` | The legacy UI sends the current agent UID in 1–5 second increments, but the handler previously trusted arbitrary target UIDs and durations. It now accepts only the authenticated agent's short increment and scopes both read/write to that agent and owner UID. Source-contract coverage added; runtime socket acceptance remains open. |
 | Legacy Inbox import | `routes/inbox.js`, `functions/function.js` | The V3 import endpoint previously selected all legacy chats and allowed any Inbox reader to start a global migration; fallback deduplication also omitted tenant identity. It now requires a business owner, selects only the resolved owner UID, and includes UID in fallback deduplication. Source-contract coverage added; migration runtime acceptance remains open. |
 
@@ -210,7 +210,9 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 This chat owns `routes/inbox.js` for the unauthenticated hard-coded inbox
 refresh endpoint audit, `functions/function.js` for scoped Meta message
 updates, and `helper/socket/index.js` for shared Inbox record scoping, with
-focused tests in `tests/meta-webhook-flow.test.js` and this ledger. The
+focused tests in `tests/meta-webhook-flow.test.js`, a disposable MySQL handler
+fixture in `tests/inbox-socket-tenant.integration.cjs`, its package script in
+`package.json`, and this ledger. The
 endpoint is constrained to the authenticated caller and their
 resolved tenant Inbox permission. Socket payload authorization and the
 `sx_legacy_ownership` mapping migration remain read-only audit surfaces in this
