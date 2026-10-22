@@ -19,12 +19,31 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  const flowData=require('../modules/platform/legacy-flow-data'),flowKey='synthetic-shared-conversation-key',flowOwnerA='synthetic-flow-owner-a',flowOwnerB='synthetic-flow-owner-b',flowQuery=async(sql,args)=>{const [rows]=await pool.query(sql,args);return rows;};
  await pool.query('INSERT INTO flow_data(uid,uniqueId,inputs,other) VALUES (?,?,?,?)',[flowOwnerA,flowKey,'{"owner":"a"}',null]);
  await pool.query('INSERT INTO flow_data(uid,uniqueId,inputs,other) VALUES (?,?,?,?)',[flowOwnerB,flowKey,'{"owner":"b"}',null]);
+ await assert.rejects(pool.query('INSERT INTO flow_data(uid,uniqueId,inputs,other) VALUES (?,?,?,?)',[flowOwnerA,flowKey,'{"owner":"duplicate"}',null]),{code:'ER_DUP_ENTRY'},'the same owner/key pair must be unique');
+ await pool.query('INSERT INTO flow_data(uid,uniqueId,inputs,other) VALUES (?,?,?,?)',[flowOwnerA,'synthetic-second-key','{"owner":"second"}',null]);
+ await assert.rejects(pool.query('UPDATE flow_data SET uniqueId=? WHERE uid=? AND uniqueId=?',[flowKey,flowOwnerA,'synthetic-second-key']),{code:'ER_DUP_ENTRY'},'rekeying must not create a same-owner duplicate');
+ const concurrentFlowKey='synthetic-concurrent-flow-key';
+ const concurrentFlowWrites=await Promise.allSettled([
+  pool.query('INSERT INTO flow_data(uid,uniqueId,inputs,other) VALUES (?,?,?,?)',[flowOwnerA,concurrentFlowKey,'{"writer":"a"}',null]),
+  pool.query('INSERT INTO flow_data(uid,uniqueId,inputs,other) VALUES (?,?,?,?)',[flowOwnerA,concurrentFlowKey,'{"writer":"b"}',null]),
+ ]);
+ assert.equal(concurrentFlowWrites.filter(result=>result.status==='fulfilled').length,1,'concurrent duplicate flow-state writes must have one winner');
+ assert.equal(concurrentFlowWrites.filter(result=>result.status==='rejected'&&result.reason.code==='ER_DUP_ENTRY').length,1,'the database unique key must reject the racing duplicate');
+ const [[flowHash]]=await pool.query('SELECT HEX(owner_key_hash) AS ownerKeyHash FROM flow_data WHERE uid=? AND uniqueId=?',[flowOwnerA,flowKey]);
+ assert.equal(flowHash.ownerKeyHash,sha(Buffer.concat([Buffer.from(flowOwnerA),Buffer.from([0]),Buffer.from(flowKey)])).toUpperCase());
+ const utf8FlowOwner='synthetic-flow-owner-é',utf8FlowKey='conversation-猫';
+ await flowData.insertInputs(flowQuery,utf8FlowOwner,utf8FlowKey,'{"unicode":"ok"}',null);
+ const [[utf8FlowHash]]=await pool.query('SELECT HEX(owner_key_hash) AS ownerKeyHash FROM flow_data WHERE uid=? AND uniqueId=?',[utf8FlowOwner,utf8FlowKey]);
+ assert.equal(utf8FlowHash.ownerKeyHash,sha(Buffer.concat([Buffer.from(utf8FlowOwner),Buffer.from([0]),Buffer.from(utf8FlowKey)])).toUpperCase(),'generated SQL hash must match Node UTF-8 bytes');
  assert.equal((await flowData.find(flowQuery,flowOwnerA,flowKey)).inputs,'{"owner":"a"}');
  await flowData.setInputs(flowQuery,flowOwnerA,flowKey,'{"owner":"a-updated"}');
  const [flowRows]=await pool.query('SELECT uid,inputs FROM flow_data WHERE uniqueId=? ORDER BY uid',[flowKey]);
  assert.deepEqual(flowRows.map(row=>[row.uid,row.inputs]),[[flowOwnerA,'{"owner":"a-updated"}'],[flowOwnerB,'{"owner":"b"}']]);
  const [flowIndexes]=await pool.query("SELECT index_name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='flow_data'");
  assert.ok(flowIndexes.some(row=>row.index_name==='idx_flow_data_owner_unique'));
+ assert.ok(flowIndexes.some(row=>row.index_name==='uq_flow_data_owner_key_hash'));
+ const [[flowUniqueIndex]]=await pool.query("SELECT non_unique AS nonUnique FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='flow_data' AND index_name='uq_flow_data_owner_key_hash'");
+ assert.equal(Number(flowUniqueIndex.nonUnique),0);
  const profileFlowA=flowData.profileConversationKey(flowOwnerA,101,'97450000001','synthetic-chat');
  const profileFlowB=flowData.profileConversationKey(flowOwnerA,102,'97450000001','synthetic-chat');
  assert.notEqual(profileFlowA,profileFlowB);

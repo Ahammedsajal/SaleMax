@@ -719,3 +719,13 @@ conversation. The
 active production `user.uid` index is also non-unique; current read-only counts
 show seven rows with seven distinct nonempty UIDs, but future uniqueness
 enforcement remains open.
+
+The legacy flow-state owner/key pair now also has a database-enforced unique
+digest. It is generated from the exact UTF-8 bytes of the two source values
+with a NUL separator and stored as a fixed-width binary value, keeping the
+constraint safe for the legacy 999-character columns. Runtime lookups include
+that digest and still compare both source identifiers. MariaDB integration
+proves same-owner duplicate and re-key attempts fail, racing inserts have one
+winner, and another owner may use the same conversation key independently.
+Production has not applied this migration; its DDL, duplicate preflight and
+rollback must be reviewed with the live migration ledger before release.

@@ -14,8 +14,8 @@ test('the legacy flow distributor keeps same-conversation state separate by chat
   const queries = [];
   const query = async (sql, args = []) => {
     queries.push({ sql, args });
-    if (sql.startsWith('SELECT * FROM flow_data WHERE uid = ? AND uniqueId = ?')) {
-      return rows.filter(row => row.uid === args[0] && row.uniqueId === args[1]);
+    if (sql.startsWith('SELECT * FROM flow_data WHERE owner_key_hash = ? AND uid = ? AND uniqueId = ?')) {
+      return rows.filter(row => row.uid === args[1] && row.uniqueId === args[2]);
     }
     if (sql.startsWith('INSERT INTO flow_data (uid, uniqueId, other)')) {
       const row = { id: rows.length + 1, uid: args[0], uniqueId: args[1], inputs: null, other: args[2] };
@@ -57,7 +57,7 @@ test('the legacy flow distributor keeps same-conversation state separate by chat
     assert.match(rows[1].uniqueId, /^profile:72:/);
     assert.equal(JSON.parse(rows[0].other).id, 'profile-71-input');
     assert.equal(JSON.parse(rows[1].other).id, 'profile-72-input');
-    assert.ok(queries.some(item => item.sql.includes('WHERE uid = ? AND uniqueId = ?')));
+    assert.ok(queries.some(item => item.sql.includes('WHERE owner_key_hash = ? AND uid = ? AND uniqueId = ?')));
   } finally {
     delete require.cache[runtimePath];
     if (previousRuntime) require.cache[runtimePath] = previousRuntime;

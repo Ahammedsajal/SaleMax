@@ -1919,3 +1919,27 @@ cannot resume them. A reviewed mapping or explicit restart policy is required
 before this change is deployed. Legacy flow
 delivery/idempotency, per-node authority, and authenticated EN/AR acceptance
 remain separate gates.
+
+### Exact database uniqueness for owner-scoped Flow Builder state — source update, 22 October 2026
+
+Added a generated SHA-256 key over the exact owner UID and conversation key,
+with a unique database index. The legacy `VARCHAR(999)` identifiers remain
+unchanged; the bounded digest avoids prefix-only uniqueness and rejects a
+duplicate even when two workers attempt the same state insert concurrently.
+Reads and updates use the digest plus the original owner/key values, so a
+different owner or a different exact key cannot resolve the same state. The
+forward migration follows the existing owner-scope index and has a rollback
+that removes only the new index and generated column. Focused Flow Builder and
+migration tests pass. The full synthetic MariaDB 11.4.13 integration passes
+all 119 migrations, reports `customerDataTouched:false` and
+`externalMessages:0`; the direct real-database concurrency assertion is part
+of that harness. A disposable MariaDB DDL check also confirmed the generated
+hash matches Node for multibyte UTF-8 identifiers. Production schema and data
+are unchanged. The legacy six-state profile mapping/restart policy, production
+migration gate, per-node authority, and authenticated EN/AR acceptance remain
+open.
+
+The full local Node suite reports 1,026/1,052 passing. The same 26 existing
+screen-contract failures reproduce on clean `origin/main` (1,019/1,045), while
+all seven additional tests on this branch pass; the failures cover unrelated
+legacy Manage Users, Pipeline, Tasks, Finance, Courses and public-form assets.
