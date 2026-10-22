@@ -2,6 +2,14 @@
 
 This is a read-only operations audit of the SaleMaX/7Network single-server deployment on 22 October 2026. It keeps both earlier measurements and the latest timestamped snapshot below; metrics are point-in-time evidence and do not establish peak capacity. The audit records preconditions for adding application instances; it does not approve a scale-out or change production.
 
+## Fresh disk and Docker footprint snapshot — 22 October 2026, 10:29 UTC
+
+The shared-lock wrapper on `carsqatar-prod-01` re-resolved `/opt/salemax/current` to `/opt/salemax/releases/follow-up-message-4f7ed6d-20261022`. Root filesystem use is 97% (about 1.9 GiB free) and inode use is 23%. Read-only size scans found approximately 16 GiB under `/opt/salemax/releases`, 1.1 GiB under `/opt/salemax/shared`, and 405 MiB under `/var/log`. The host has 579 release directories and 415 rollback snapshot directories.
+
+Docker reports 124 images using 20.51 GB, 13 volumes using 1.694 GB, and 83 build-cache records using 4.2 GB, of which it labels 2.217 GB reclaimable. The engine's overall image reclaimable estimate is invalid/negative (`-3.855e+10B`, `-187%`), so it cannot be used as a deletion plan. Detailed image rows show recent `salemax-app` images each around 2.09 GB with roughly 522 MB unique size; at least one older image has 1.82 GB unique. The release folders and containerd image store are the largest confirmed consumers. The Docker CLI lacks `docker builder du`, and shared-cache record ownership is not established.
+
+No image, release, build cache, volume, log, customer file, service, or database was changed. Do not run broad prune commands. Before reclaiming space, build a per-image allowlist that cross-checks running image IDs, the active release, the five newest verified releases, rollback snapshot manifests, and unresolved `DEPLOYMENT.md` rollback references. The existing 415 snapshots mean a tag's lack of a running container is insufficient evidence that it is disposable. Root disk remains above the capacity monitor's critical threshold; alert destination and operator acknowledgement are still absent.
+
 ## Fresh host and container resource snapshot — 22 October 2026, 10:03 UTC
 
 The shared-lock wrapper on `carsqatar-prod-01` re-resolved `/opt/salemax/current` to `/opt/salemax/releases/follow-up-cards-a3ae455-20261022`. Root filesystem use is 96% with 2.3 GiB available; inode use is 23% with 4,998,197 available. The `salemax` Compose project reports the app and database healthy, with the recruitment notification and report workers running. A single `docker stats --no-stream` sample showed app 1.84% CPU and 188.5 MiB/1 GiB, database 0.29% and 407.1 MiB/768 MiB, recruitment notification worker 0% and 45.4 MiB/128 MiB, and report worker 0% and 36.28 MiB/256 MiB.
