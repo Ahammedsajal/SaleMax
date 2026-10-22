@@ -2019,3 +2019,17 @@ owner stage query and passes the same-category and cross-category isolation,
 concurrency, rollback and authorization checks. No production data or external
 messages were used; the temporary server/schema/credentials were removed.
 Source is not deployed, and authenticated production acceptance remains open.
+
+## Read-only production refresh — 22 October 2026, 08:14 UTC
+
+Using the authorized identity, the host resolves to `carsqatar-prod-01` and
+`/opt/salemax/current` resolves to
+`/opt/salemax/releases/inbox-follow-up-ui-0a6e1f0-20261022`. The app and
+MariaDB containers are healthy; report and recruitment notification workers
+are running. Public `/healthz` returned HTTP 200 with `success: true` and
+`status: ok`. Root storage is 91% used with 4.5 GiB available. The required
+`/opt/salemax/shared/7network-production-deploy.lock` path is absent. This
+read-only inspection changed no host, application, database, customer or
+provider state. Do not deploy until the shared lock implementation is present
+and verified under an exclusive lock; preserve deployment headroom during
+preflight. The shared customization source is not deployed.
