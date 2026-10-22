@@ -2246,9 +2246,15 @@ canonical-session tenant match before storage access. When the operations-owned
 media adapter exposes `openManaged(url, tenantId)`, the route streams its body
 with private caching, `nosniff`, an allowlisted image content type, and validated
 content length. The existing managed local-file path remains as a compatibility
-fallback until the object-storage adapter is merged. Route tests cover custom
-host and canonical-session delivery plus foreign-tenant rejection before media
-access. Focused logo/domain tests pass 9/9; syntax and whitespace checks pass.
-The operations adapter is not yet present in this checkout, so object-storage
-streaming and authenticated live acceptance remain unverified; nothing was
+fallback until the object-storage adapter is merged. Route tests cover
+custom-host and canonical-session delivery plus foreign-tenant rejection
+before media access. Focused logo/domain tests pass 9/9. An additional
+integration check loaded the exact `tenant-crm-logo-media.js` and
+`object-storage.js` sources from operations commit
+`e58bf3deacd9466b7ded017e3835f2d7346df022` and exercised the shared route
+through its `openManaged` adapter using an injected in-memory store: the
+authorized custom-host logo streamed with the expected image headers, and a
+foreign-tenant URL returned 404 without opening storage. This verifies source
+compatibility only; the operations adapter is not merged into this checkout,
+no real provider or authenticated live acceptance was tested, and nothing was
 deployed or changed in production.
