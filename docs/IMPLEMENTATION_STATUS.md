@@ -27,6 +27,14 @@ MySQL service was left untouched. No production state or customer data changed.
 Authenticated EN/AR existing-screen acceptance, category opt-in review and
 deployment remain open.
 
+The shared feature API contract now documents schema-6 typed module settings,
+the owner-only draft/publish lifecycle, provenance, consumer context, and the
+rule that settings cannot grant category, plan, tenant, member, or provider
+access. Source inspection confirms no production category currently declares
+this schema, so the generic editor is not an operational module configuration
+feature yet. Category declaration, workflow consumers, and same-category
+two-tenant acceptance remain dependent implementation work.
+
 ## Lead Reports journey collation repair — source increment, 22 October 2026
 
 ### Follow-up: Sales actor collation resolved and existing screen accepted

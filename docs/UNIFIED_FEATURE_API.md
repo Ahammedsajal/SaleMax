@@ -121,6 +121,43 @@ identity. Custom-field controls remain in the existing forms, with values valida
 inside the scoped lead transaction. The source and production overlay are updated;
 release deployment and authenticated English/Arabic browser acceptance remain open.
 
+### Typed module customization contract, schema 6
+
+Category versions may declare an immutable `customizationSchema.moduleSettings`
+contract. Each module names a capability already present in that category and
+defines a bounded set of typed fields (`boolean`, `integer`, `text`, or `enum`)
+with English and Arabic labels and validated defaults. A category may publish
+matching `customizationDefaults.moduleSettings`; these are version-pinned
+category defaults, not tenant data. The registry rejects undeclared capabilities,
+unknown field types, malformed bounds, unsafe labels, and invalid defaults.
+
+Schema 6 tenant documents may store sparse overrides under the same module and
+field keys. False and zero are explicit values; absent keys inherit the
+category-version default. The existing owner-only customization API returns the
+declared schema, inherited values, effective published values, and per-field
+source provenance. Draft, preview, publish, and rollback use the same tenant
+context, optimistic revision, audit transaction, and immutable revision history
+as other customization. Older schema 1–5 documents remain readable and keep
+their existing validation rules.
+
+Runtime consumers use the internal `tenant-customization.effective(db, context)`
+resolver with the authenticated active tenant context; they must not accept a
+tenant ID or setting value from the browser to choose another tenant's settings.
+The resolver reads the current active pointer for immediate publication
+freshness. A consumer must still apply category support, active plan entitlement,
+tenant state, member permission, assigned-record scope, and provider readiness
+independently on every operation. A module setting can adjust an already
+authorized workflow but can never grant its required capability or permission.
+If a consumer adds caching later, cache keys must include tenant ID, category key
+and version, active configuration revision, and module schema version.
+
+The shared resolver and editor support this contract, but no production category
+currently declares `customizationSchema`; category-version declarations and
+actual workflow consumers remain separate adoption and acceptance work. Do not
+advertise a module setting as operational until its category contract, existing
+screen/API consumer, role and entitlement checks, two-tenant isolation, and
+English/Arabic acceptance are verified.
+
 ## 7Network Sales ICP pilot
 
 The Ideal Customer Profile screen is an internal pilot inside the existing `/user` shell. The maintained sidebar hook adds it only when the shared session contract includes the `icp` navigation key. Only the canonical `7network_sales@1` category receives the capability; all other categories and Sales Accountants are excluded by the shared server policy. Active owners, managers, team leaders and agents can read tenant-shared profiles. Only the owner can create or edit them. The screen uses the shared session and feature API, not a second login.
