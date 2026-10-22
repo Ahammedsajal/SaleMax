@@ -35,4 +35,7 @@ test('central policy accepts a preserved tenant category alias against canonical
     subscription:{status:'active',categoryKey:'7network_sales',categoryVersion:1,capabilities:[...category.capabilities]}};
   assert.deepEqual(require('../modules/platform/policy').decision(context,{capability:'sales.deals',permission:'deals.read'}),{allowed:true,scope:'tenant'});
   assert.equal(context.tenant.categoryKey,'salemax_sales','the compatibility alias remains represented in source data');
+  const legacyPlan={...context,subscription:{...context.subscription,categoryKey:'salemax_sales'}};
+  assert.deepEqual(require('../modules/platform/policy').decision(legacyPlan,{capability:'sales.deals',permission:'deals.read'}),{allowed:true,scope:'tenant'});
+  assert.equal(require('../modules/platform/policy').decision({...legacyPlan,subscription:{...legacyPlan.subscription,categoryVersion:2}},{capability:'sales.deals',permission:'deals.read'}).code,'FEATURE_UNAVAILABLE');
 });
