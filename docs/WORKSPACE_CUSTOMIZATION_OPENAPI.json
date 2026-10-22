@@ -1,0 +1,178 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "7Network workspace customization API",
+    "version": "1.0.0",
+    "description": "Source contract for the authenticated owner customization API mounted by the shared feature-session router. Tenant identity, category version, plan entitlements and owner permission come from the verified server context. Customization values cannot grant capabilities, permissions or record access. Use the existing Workspace API client in the business panel."
+  },
+  "servers": [
+    { "url": "/api/workspace", "description": "Canonical shared API" },
+    { "url": "/api/crm", "description": "Compatibility alias to the same customization handler" }
+  ],
+  "security": [{ "WorkspaceBearer": [] }],
+  "paths": {
+    "/customization": {
+      "get": {
+        "operationId": "readWorkspaceCustomization",
+        "summary": "Read current, draft, inherited and historical customization state",
+        "description": "Owner-only. Resolves settings from platform defaults, the exact immutable category version, and the tenant's active published revision. Returns per-value provenance and deletion provenance. The query is read-only and returns private, no-store data.",
+        "responses": {
+          "200": { "description": "Customization state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CustomizationStateResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/CategoryVersionConflict" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/customization/preview": {
+      "post": {
+        "operationId": "previewWorkspaceCustomization",
+        "summary": "Validate and resolve a proposed document without saving it",
+        "description": "Owner-only, bounded to 24 KiB. Preview validates category-owned keys and typed settings, resolves provenance, and performs no persistence or audit write.",
+        "parameters": [{ "$ref": "#/components/parameters/Origin" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PreviewRequest" } } } },
+        "responses": {
+          "200": { "description": "Read-only normalized preview", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PreviewResponse" } } } },
+          "400": { "$ref": "#/components/responses/Invalid" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/CategoryVersionConflict" },
+          "413": { "$ref": "#/components/responses/TooLarge" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/customization/draft": {
+      "put": {
+        "operationId": "saveWorkspaceCustomizationDraft",
+        "summary": "Create or replace the tenant's draft revision",
+        "description": "Owner-only. Uses optimistic revision matching and a transaction that appends an immutable revision and audit event. Saving a draft does not change effective runtime settings.",
+        "parameters": [{ "$ref": "#/components/parameters/Origin" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DraftRequest" } } } },
+        "responses": {
+          "200": { "description": "Draft revision saved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RevisionResponse" } } } },
+          "400": { "$ref": "#/components/responses/Invalid" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "413": { "$ref": "#/components/responses/TooLarge" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/customization/publish": {
+      "post": {
+        "operationId": "publishWorkspaceCustomizationDraft",
+        "summary": "Publish the current draft revision",
+        "description": "Owner-only. Publishes only the current tenant draft with the expected revision. Publishing clears the draft pointer and changes effective settings atomically; historical revisions remain immutable.",
+        "parameters": [{ "$ref": "#/components/parameters/Origin" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RevisionRequest" } } } },
+        "responses": {
+          "200": { "description": "Published revision", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RevisionResponse" } } } },
+          "400": { "$ref": "#/components/responses/Invalid" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/customization/rollback": {
+      "post": {
+        "operationId": "rollbackWorkspaceCustomization",
+        "summary": "Publish a selected historical tenant revision",
+        "description": "Owner-only. The target revision must belong to the authenticated tenant and exact category version. Rollback appends a new published revision; it does not edit or delete history.",
+        "parameters": [{ "$ref": "#/components/parameters/Origin" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RollbackRequest" } } } },
+        "responses": {
+          "200": { "description": "New published revision based on the selected history entry", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RevisionResponse" } } } },
+          "400": { "$ref": "#/components/responses/Invalid" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "WorkspaceBearer": { "type": "http", "scheme": "bearer", "description": "Current business or staff credential resolved by the common Workspace API client. Agent requests also carry the existing X-Salemax-Actor: agent discriminator." }
+    },
+    "parameters": {
+      "Origin": { "name": "Origin", "in": "header", "required": true, "description": "Must match the configured platform origin for writes.", "schema": { "type": "string", "format": "uri" } }
+    },
+    "schemas": {
+      "LocalizedLabel": {
+        "type": "object",
+        "required": ["en", "ar"],
+        "properties": { "en": { "type": "string", "minLength": 1, "maxLength": 80 }, "ar": { "type": "string", "minLength": 1, "maxLength": 80 } },
+        "additionalProperties": false
+      },
+      "CustomizationDocument": {
+        "type": "object",
+        "description": "Versioned document compatibility: schema 1 contains navigation labels; schema 2 adds leadFields; schema 3 adds hiddenNavigation; schema 4 adds stageLabels; schema 5 adds null tombstones; schema 6 adds category-validated moduleSettings. The server applies stricter version-specific validation than these structural field types.",
+        "required": ["schemaVersion", "navigationLabels"],
+        "properties": {
+          "schemaVersion": { "type": "integer", "enum": [1, 2, 3, 4, 5, 6] },
+          "navigationLabels": { "type": "object", "description": "Category-owned navigation keys only. A localized label overrides; null tombstones follow schema-version semantics.", "additionalProperties": { "oneOf": [{ "$ref": "#/components/schemas/LocalizedLabel" }, { "type": "null" }] } },
+          "leadFields": { "type": "array", "description": "Versioned typed tenant CRM lead-field definitions. Validated against the shared lead-field contract.", "items": { "type": "object", "additionalProperties": true } },
+          "hiddenNavigation": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" } },
+          "stageLabels": { "type": ["object", "null"], "description": "Bilingual labels keyed by stable tenant-owned Pipeline stage keys; labels cannot change stage behavior.", "additionalProperties": { "oneOf": [{ "$ref": "#/components/schemas/LocalizedLabel" }, { "type": "null" }] } },
+          "moduleSettings": { "type": "object", "description": "Sparse typed overrides validated against the exact category-version customizationSchema. Omitted keys inherit category defaults.", "additionalProperties": { "type": "object", "additionalProperties": { "type": ["boolean", "integer", "string"] } } }
+        },
+        "additionalProperties": false
+      },
+      "PreviewRequest": { "type": "object", "required": ["document"], "properties": { "document": { "$ref": "#/components/schemas/CustomizationDocument" } }, "additionalProperties": false },
+      "DraftRequest": { "type": "object", "required": ["expectedRevision", "document"], "properties": { "expectedRevision": { "type": "integer", "minimum": 0 }, "document": { "$ref": "#/components/schemas/CustomizationDocument" } }, "additionalProperties": false },
+      "RevisionRequest": { "type": "object", "required": ["expectedRevision"], "properties": { "expectedRevision": { "type": "integer", "minimum": 0 } }, "additionalProperties": false },
+      "RollbackRequest": { "type": "object", "required": ["expectedRevision", "targetId"], "properties": { "expectedRevision": { "type": "integer", "minimum": 0 }, "targetId": { "type": "string", "format": "uuid" } }, "additionalProperties": false },
+      "Revision": {
+        "type": "object",
+        "required": ["id", "revision", "kind", "document", "checksum", "createdAt"],
+        "properties": { "id": { "type": "string", "format": "uuid" }, "revision": { "type": "integer", "minimum": 1 }, "kind": { "type": "string", "enum": ["draft", "published"] }, "document": { "$ref": "#/components/schemas/CustomizationDocument" }, "checksum": { "type": "string", "pattern": "^[a-f0-9]{64}$" }, "createdAt": { "type": "string", "format": "date-time" } },
+        "additionalProperties": true
+      },
+      "SettingSource": {
+        "oneOf": [
+          { "type": "object", "required": ["scope"], "properties": { "scope": { "const": "platform" } }, "additionalProperties": false },
+          { "type": "object", "required": ["scope", "categoryKey", "categoryVersion"], "properties": { "scope": { "const": "category_version" }, "categoryKey": { "type": "string" }, "categoryVersion": { "type": "integer", "minimum": 1 } }, "additionalProperties": false },
+          { "type": "object", "required": ["scope", "revision"], "properties": { "scope": { "const": "tenant" }, "revision": { "type": "integer", "minimum": 0 } }, "additionalProperties": false }
+        ]
+      },
+      "ResolvedSettings": { "type": "object", "required": ["value", "provenance", "deleted"], "properties": { "value": { "type": "object" }, "provenance": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SettingSource" } }, "deleted": { "type": "object", "additionalProperties": { "$ref": "#/components/schemas/SettingSource" } } }, "additionalProperties": false },
+      "CustomizationState": {
+        "type": "object",
+        "required": ["revision", "active", "draft", "history", "fields", "stageFields", "moduleSettingsSchema", "inherited", "resolved"],
+        "properties": {
+          "revision": { "type": "integer", "minimum": 0 }, "active": { "oneOf": [{ "$ref": "#/components/schemas/Revision" }, { "type": "null" }] }, "draft": { "oneOf": [{ "$ref": "#/components/schemas/Revision" }, { "type": "null" }] },
+          "history": { "type": "array", "items": { "type": "object", "required": ["id", "revision", "checksum", "createdAt"], "properties": { "id": { "type": "string", "format": "uuid" }, "revision": { "type": "integer" }, "checksum": { "type": "string" }, "createdAt": { "type": "string", "format": "date-time" } } } },
+          "fields": { "type": "array", "items": { "type": "object", "required": ["key", "label"], "properties": { "key": { "type": "string" }, "label": { "$ref": "#/components/schemas/LocalizedLabel" } } } }, "stageFields": { "type": "array", "items": { "type": "object", "required": ["key", "title"], "properties": { "key": { "type": "string" }, "title": { "type": "string" } } } },
+          "moduleSettingsSchema": { "type": "object", "description": "Category-version-specific immutable module settings contract.", "additionalProperties": { "type": "object" } }, "inherited": { "type": "object" }, "resolved": { "$ref": "#/components/schemas/ResolvedSettings" }, "draftResolved": { "oneOf": [{ "$ref": "#/components/schemas/ResolvedSettings" }, { "type": "null" }] }
+        },
+        "additionalProperties": true
+      },
+      "CustomizationStateResponse": { "type": "object", "required": ["success", "data"], "properties": { "success": { "const": true }, "data": { "$ref": "#/components/schemas/CustomizationState" } }, "additionalProperties": false },
+      "PreviewResponse": { "type": "object", "required": ["success", "data"], "properties": { "success": { "const": true }, "data": { "type": "object", "required": ["document", "resolved", "readOnly"], "properties": { "document": { "$ref": "#/components/schemas/CustomizationDocument" }, "resolved": { "$ref": "#/components/schemas/ResolvedSettings" }, "readOnly": { "const": true } } } }, "additionalProperties": false },
+      "RevisionResponse": { "type": "object", "required": ["success", "data"], "properties": { "success": { "const": true }, "data": { "type": "object", "required": ["revision", "id", "kind", "document"], "properties": { "revision": { "type": "integer", "minimum": 1 }, "id": { "type": "string", "format": "uuid" }, "kind": { "type": "string", "enum": ["draft", "published"] }, "document": { "$ref": "#/components/schemas/CustomizationDocument" } } } }, "additionalProperties": false },
+      "ApiError": { "type": "object", "required": ["success", "code"], "properties": { "success": { "const": false }, "code": { "type": "string" } }, "additionalProperties": false }
+    },
+    "responses": {
+      "Invalid": { "description": "Invalid schema or request value", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "Unauthorized": { "description": "No current authenticated business session", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "Forbidden": { "description": "Owner, tenant settings capability or active entitlement is missing", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "NotFound": { "description": "Requested tenant-owned historical revision does not exist", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "Conflict": { "description": "Expected revision is stale or current category context changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "CategoryVersionConflict": { "description": "Tenant context no longer matches its reviewed category version", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "TooLarge": { "description": "Request body exceeds the 24 KiB limit", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "RateLimited": { "description": "Tenant customization write rate limit exceeded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "Unavailable": { "description": "Customization service unavailable", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+    }
+  }
+}

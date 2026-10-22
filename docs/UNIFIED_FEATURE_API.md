@@ -16,6 +16,13 @@ business feature. Add future changes to that implementation once.
 | Tenant customization | `/api/workspace/customization` | `/api/crm/customization` |
 | Forms | `/api/workspace/forms` | `/api/user/training/forms` |
 
+The authenticated owner settings endpoints and their category-bound typed
+document contract are specified in
+[`WORKSPACE_CUSTOMIZATION_OPENAPI.json`](WORKSPACE_CUSTOMIZATION_OPENAPI.json).
+Its schemas document revision-checked draft/publish/rollback, read-only preview,
+resolved-value provenance and the compatibility alias without allowing a
+client-supplied tenant selector.
+
 `business-feature-session.js` adapts existing bearer and business-cookie
 authentication to one current tenant/member context. It validates verified
 ownership mappings, active identity/membership/tenant state, role profiles,

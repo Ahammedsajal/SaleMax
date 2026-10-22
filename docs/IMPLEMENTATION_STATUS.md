@@ -2638,3 +2638,18 @@ unavailable-storage responses. The focused CRM logo/domain suite passes 10/10;
 syntax and whitespace checks pass. The real object storage adapter remains in
 the operations branch; the stream fixture is injected and does not prove
 S3/provider access or production delivery. No production state changed.
+
+## Shared tenant customization OpenAPI contract — source increment, 22 October 2026
+
+Added an OpenAPI 3.1 source contract for the existing shared customization API
+and its `/api/crm/customization` compatibility alias. It describes the live
+GET/preview/draft/publish/rollback routes, owner and entitlement gates,
+same-origin write requirement, optimistic revision conflicts, immutable
+history, resolved-value provenance, schema-version compatibility and typed
+category module settings. A route-contract test verifies method/path parity,
+mounted aliases, revision requirements, and the absence of a client tenant
+selector. The OpenAPI JSON parses, and the contract plus customization/HTTP
+suite passes 20/20, including local-reference resolution and unique operation
+IDs. This covers customization endpoints only; complete OpenAPI
+coverage for Forms and other shared APIs, authenticated screen acceptance and
+deployment remain open. No production state changed.
