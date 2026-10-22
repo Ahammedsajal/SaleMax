@@ -97,6 +97,26 @@ because this worktree has no dedicated disposable database. No production data,
 schema, or release was changed; browser acceptance and the incomplete Real Estate
 workflow remain open.
 
+## Clinic/dental privacy gate — architecture research, 22 October 2026
+
+Reviewed Qatar's official Law No. 13 of 2016, NCSA Special Nature Processing
+Guidelines v3 and permissions process, and MoPH DHP Circular DHP/2024/12. Health,
+physical/psychological-condition and children's data require a separate special-
+nature processing analysis; NCSA guidance calls for a documented permitted
+reason and additional condition, DPIA, and permission before the applicable
+processing begins. The clinic customer also has patient-file confidentiality,
+authorized-access and retention obligations under the MoPH facility guidance.
+
+The design record now gates clinic/dental onboarding and plan assignment until
+the controller/processor roles, purpose and lawful basis, special-nature
+permission applicability, DPIA, processing record, access/retention workflow and
+isolated clinical data path are reviewed. Generic custom lead fields, public
+forms, chatbot/AI payloads and routine logs are not approved storage paths for
+clinical content. Whether an appointment alone is special-nature data depends
+on its context; the product treats it as potentially sensitive pending review.
+No clinic category, medical schema, customer record or production setting was
+added or changed.
+
 ## Finance conversion policy guard — source update, 21 October 2026
 
 The training invoice-total helper now rejects missing, unsupported or malformed
