@@ -1,6 +1,14 @@
 # 7Network scale readiness: live baseline and gates
 
-This is a read-only audit of the SaleMaX/7Network single-server deployment on 22 October 2026. Its measured host/container snapshot predates the Inbox follow-up app overlay recorded later that day in `DEPLOYMENT.md`; that overlay cloned the audited release and recreated only the app. The figures below remain historical measurements, not a fresh reading of the current release or host. This audit records preconditions for adding application instances; it does not approve a scale-out or change production.
+This is a read-only operations audit of the SaleMaX/7Network single-server deployment on 22 October 2026. It keeps both earlier measurements and the latest timestamped snapshot below; metrics are point-in-time evidence and do not establish peak capacity. The audit records preconditions for adding application instances; it does not approve a scale-out or change production.
+
+## Fresh lock-wrapped resource and artifact snapshot — 22 October 2026, 09:08 UTC
+
+A read-only command ran through `/opt/salemax/shared/with-production-lock.sh`; the wrapper reported the active release after acquiring the persistent lock. Host `carsqatar-prod-01` resolved `/opt/salemax/current` to `/opt/salemax/releases/inbox-followup-chat-id-a311236-20261022`. The lock remains inode `2049:850068`, mode `0600`, owner `ubuntu:ubuntu`; the wrapper hash remains `309c08e513320eda9634f7c23c523d530546e8e0fc747b7abc330bae64561c22`.
+
+Root disk is 93% used (3.6 GB available); inode use is 22%. Docker reports 117 images / 19.15 GB, 48 build-cache records / 3.13 GB, and 13 volumes / 1.694 GB. No cleanup was performed. Host memory showed 9.4 GiB available of 11 GiB, with 0.14/0.25/0.26 load averages. One `docker stats` sample showed app at 0.62% CPU / 202.6 MiB of 1 GiB, MariaDB at 0.10% / 405.9 MiB of 768 MiB, report worker at 32.72 MiB of 256 MiB, and recruitment worker at 45.4 MiB of 128 MiB. This is an idle point-in-time sample, not a capacity or peak-load test.
+
+Artifact alignment needs reconciliation: the running healthy app uses image ID `sha256:5b59be5265143eb2b97eb8dbde143f20dac16e1ff8087f0d5332e9c71428d924`, tag `inbox-agent-sharing-cb32c12-20261022`, size 475,077,491 bytes / 10 layers. Both workers still use `sha256:d3731b54eb384aa433da59b66c0d7b6eda156d96104e10431ba0bbd1bd3ef915`, size 471,734,804 bytes / 10 layers. `/opt/salemax/current` points to `a311236`, which differs from the app image tag. The database container remains healthy. This may reflect an intentional live-only app overlay, but the release-pointer/image relationship and worker compatibility need the shared-core release record reconciled before the deployment set is treated as aligned. No release, container, image, database, or customer data was changed.
 
 ## Operations worktree and current lock gate — 22 October 2026
 
