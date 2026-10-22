@@ -2292,9 +2292,10 @@ filter still makes the final access decision, so the SQL predicate only narrows
 candidates; tenant, category, role and assignment authorization remain in
 place. Owner exports retain their existing complete-business behavior.
 
-The focused Inbox scope, socket, assignment and transfer suite passes 26/26;
-syntax and whitespace checks pass. This reduces unnecessary row transfer and
-worker memory for staff views, but the legacy JSON assignment column still
-requires a scan and remains a future normalized/indexed-storage migration
-gate. No production or customer-data change occurred; the full TC00–TC41 and
-production release gates remain open.
+The focused Inbox scope, socket, assignment and transfer suite passed 26/26 at
+that checkpoint; syntax and whitespace checks passed. This reduced row transfer
+and worker memory for staff views. The follow-on normalized tenant assignment
+index and guarded backfill are now implemented in source in the section above;
+the live migration and per-tenant backfill remain release gates. No production
+or customer-data change occurred; the full TC00–TC41 and production release
+gates remain open.
