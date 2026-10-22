@@ -48,13 +48,14 @@
     return `${index?'خطأ تقني غير متوقع':'An unexpected technical error'} (${code})`;
   }
   const safeCode=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{1,79}$/.test(value)?value:'UNEXPECTED_SERVER_ERROR';
-  function format(code,cause,language='en'){
+  function format(code,cause,language='en',requestId){
     const key=safeCode(code),ar=/^ar(?:-|$)/i.test(language),index=ar?1:0;
     const fallback=ar?'تعذر إرسال طلبك الآن. يرجى المحاولة مرة أخرى. إذا لم ينجح ذلك، تواصل مع فريق التوظيف في 7Network وأرسل لهم السبب الظاهر بين القوسين.':'We could not send your application just now. Please try again. If it still does not work, contact the 7Network recruitment team and include the cause shown in brackets.';
     const detail=safeCode(cause||key);
     const message=((/^HTTP_413$|^LIMIT_FILE_SIZE$/.test(detail)?messages[detail]:null)||messages[key]||[fallback,fallback])[index];
     const technical=key==='RECRUITMENT_UNAVAILABLE'||key==='APPLICATION_SUBMIT_FAILED'||key==='UNEXPECTED_SERVER_ERROR'||!messages[key]||/^HTTP_[45]\d\d$|^LIMIT_FILE_SIZE$/.test(detail);
-    return `${message}${technical?` [${ar?'السبب':'Cause'}: ${causeText(detail,index)}]`:''}`;
+    const reference=typeof requestId==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)?requestId:null;
+    return `${message}${technical?` [${ar?'السبب':'Cause'}: ${causeText(detail,index)}${reference?`; ${ar?'مرجع الدعم':'Support reference'}: ${reference}`:''}]`:''}`;
   }
 
   if(typeof module==='object'&&module.exports)module.exports={format};

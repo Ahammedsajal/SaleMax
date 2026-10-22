@@ -32,6 +32,18 @@ production upload, application submission, customer-data write, or schema change
 occurred. No actual applicant failure was reproduced, so its underlying
 technical cause remains unknown.
 
+## Recruitment application support correlation — source update, 22 October 2026
+
+For a new server-side submission failure, the public form now returns the same
+random support reference that is written beside the sanitized diagnostic code
+in the app log. The applicant sees the plain-language guidance, safe cause, and
+reference together in brackets; malformed references are ignored and internal
+error messages remain private. Focused recruitment tests pass 22/22, syntax and
+whitespace checks pass. This source increment is not deployed. No application,
+CV, schema, or production data was changed, and the reported applicant failure
+still needs a reference or recurrence before its underlying cause can be
+identified.
+
 ## Chatbot provider-prompt isolation regression — source update, 22 October 2026
 
 The chatbot API integration had expected an unrelated FAQ to be sent to the AI

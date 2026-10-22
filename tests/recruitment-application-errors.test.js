@@ -25,4 +25,6 @@ test('applicants receive plain-language guidance and an exact safe cause for tec
   assert.equal(format('LIMIT_FILE_SIZE','LIMIT_FILE_SIZE'), 'Your CV is larger than 8 MB. Please choose a smaller file and try again. [Cause: The CV is larger than the 8 MB limit (LIMIT_FILE_SIZE)]');
   assert.equal(format('INVALID_HINDI_LEVEL'), 'Please choose a Hindi level from the list.');
   assert.equal(format('RECRUITMENT_UNAVAILABLE','private database error'), 'We could not send your application just now. Please try again. If it still does not work, contact the 7Network recruitment team and include the cause shown in brackets. [Cause: An unexpected technical error (UNEXPECTED_SERVER_ERROR)]');
+  assert.equal(format('RECRUITMENT_UNAVAILABLE','ER_BAD_FIELD_ERROR','en','09a5fb13-8b8c-4f3a-92f6-f69da1bbd113'), 'We could not send your application just now. Please try again. If it still does not work, contact the 7Network recruitment team and include the cause shown in brackets. [Cause: The application details could not be saved (ER_BAD_FIELD_ERROR); Support reference: 09a5fb13-8b8c-4f3a-92f6-f69da1bbd113]');
+  assert.doesNotMatch(format('RECRUITMENT_UNAVAILABLE','ER_BAD_FIELD_ERROR','en','candidate@example.com'),/candidate@example\.com/);
 });
