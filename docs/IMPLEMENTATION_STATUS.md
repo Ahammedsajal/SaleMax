@@ -2228,3 +2228,17 @@ supported-MariaDB integration acceptance remain open.
 The full Node suite passes 1,069/1,090. All 21 failures reproduce on clean
 `origin/main` (which has 26 failing tests); this increment introduces no new
 full-suite failure.
+
+## Public 7Network brand copy regression — source update, 22 October 2026
+
+The public application shell, marketing page and recruitment form HTML were
+audited for visible text, accessible labels and title/social metadata. Their
+customer-visible brand is 7Network; the remaining SaleMaX strings in these
+sources are compatibility URLs, asset filenames or script identifiers. The 13
+UI translation files also retain the 7Network app name and copyright. A focused
+regression test now guards those public labels and confirms the existing
+`crm.salemax.qa` host remains intact. Brand and recruitment checks pass 7/7,
+and `git diff --check` passes. This is static-source evidence only: rendered
+authenticated surfaces and a future domain migration remain separate gates.
+No production files, customer records or runtime settings changed; the full
+42-ticket upgrade remains in progress.

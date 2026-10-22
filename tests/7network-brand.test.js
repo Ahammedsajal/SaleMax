@@ -27,6 +27,38 @@ test('every supported UI translation uses the 7Network name and retains its curr
   }
 });
 
+test('public page copy and accessible labels use 7Network while legacy hosts and asset paths remain compatible', () => {
+  const files = [
+    '../client/public/index.html',
+    '../client/public/website/index.html',
+    '../client/public/recruitment-application.html',
+  ];
+  for (const relativePath of files) {
+    const html = fs.readFileSync(path.join(__dirname, relativePath), 'utf8');
+    const withoutNonVisualContent = html
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
+    const visible = [withoutNonVisualContent.replace(/<[^>]*>/g, ' ')];
+    for (const match of withoutNonVisualContent.matchAll(/<([^\s>]+)\b[^>]*>/gi)) {
+      const tag = match[0];
+      for (const attribute of tag.matchAll(/\b(alt|aria-label|title|placeholder)\s*=\s*(["'])(.*?)\2/gi)) {
+        visible.push(attribute[3]);
+      }
+      if (/^<meta\b/i.test(tag) && /(?:property|name)\s*=\s*["'](?:og:title|og:site_name|description|application-name)["']/i.test(tag)) {
+        const content = tag.match(/\bcontent\s*=\s*(["'])(.*?)\1/i);
+        if (content) visible.push(content[2]);
+      }
+    }
+    assert.doesNotMatch(visible.join(' '), /\bsalemax\b/i, relativePath);
+  }
+
+  const website = fs.readFileSync(path.join(__dirname, '../client/public/website/index.html'), 'utf8');
+  const applicationShell = fs.readFileSync(path.join(__dirname, '../client/public/index.html'), 'utf8');
+  assert.match(website, /<title>7Network — Your business\. Connected\.<\/title>/);
+  assert.match(applicationShell, /property="og:site_name"\s+content="7Network"/);
+  assert.match(website, /https:\/\/crm\.salemax\.qa\//);
+});
+
 test('compact sidebar branding uses the approved 7Network icon and preserves full wordmarks elsewhere', () => {
   const script = fs.readFileSync(path.join(__dirname, '../client/public/7network-brand.js'), 'utf8');
   const styles = fs.readFileSync(path.join(__dirname, '../client/public/7network-brand.css'), 'utf8');
