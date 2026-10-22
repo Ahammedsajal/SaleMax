@@ -16,7 +16,14 @@ test('label customization is bounded, category-scoped data rather than executabl
   assert.equal(inherited.value.navigationLabels.courses.en,'Learning');
   assert.deepEqual(inherited.provenance['navigationLabels.courses.en'],{scope:'category_version',categoryKey:'training_center',categoryVersion:1});
   assert.throws(()=>settings.resolved({...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['not-a-category-key']}}},null,0),{code:'CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',status:503});
-  assert.throws(()=>settings.resolved({...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[{key:'cf_text_0123456789abcdef',type:'text',label:{en:'Reference',ar:'مرجع'},required:false,active:true,version:1}],hiddenNavigation:[]}}},null,0),{code:'CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',status:503});
+  const categoryField={key:'cf_text_0123456789abcdef',type:'text',label:{en:'Reference',ar:'مرجع'},required:false,active:true,version:1};
+  const withCategoryField={...ctx,category:{...ctx.category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[categoryField],hiddenNavigation:[]}}};
+  const inheritedField=settings.resolved(withCategoryField,null,0);
+  assert.deepEqual(inheritedField.value.leadFields,[categoryField]);
+  assert.deepEqual(inheritedField.provenance.leadFields,{scope:'category_version',categoryKey:'training_center',categoryVersion:1});
+  const replaced=settings.resolved(withCategoryField,{schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:[]},2);
+  assert.deepEqual(replaced.value.leadFields,[]);
+  assert.deepEqual(replaced.provenance.leadFields,{scope:'tenant',revision:2});
   const source=structuredClone(doc),normalized=settings.normalize(ctx,source);source.navigationLabels.courses.en='Changed';assert.equal(normalized.navigationLabels.courses.en,'Programmes');
   assert.throws(()=>settings.normalize({...ctx,tenant:{...ctx.tenant,categoryVersion:2}},doc),{code:'CUSTOMIZATION_VERSION_MISMATCH'});
   for(const value of [{...doc,tenantId:'other'},{...doc,schemaVersion:4},{...doc,disabledCapabilities:[]},{schemaVersion:1,navigationLabels:{recruitment:{en:'Recruitment',ar:'توظيف'}}},{schemaVersion:1,navigationLabels:{'products-services':{en:'Products',ar:'منتجات'}}},{schemaVersion:1,navigationLabels:{courses:{en:'<script>',ar:'الدورات'}}},JSON.parse('{"schemaVersion":1,"navigationLabels":{"__proto__":{"en":"x","ar":"x"}}}')])assert.throws(()=>settings.normalize(ctx,value));

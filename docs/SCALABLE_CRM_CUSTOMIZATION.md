@@ -140,13 +140,17 @@ The category layer reads only the immutable optional
 `customizationDefaults` document on the exact `{key, version}` manifest. Its
 document uses the same supported schema version and typed validation as tenant
 overrides. Manifests without it contribute an empty layer. This increment
-supports category defaults for navigation labels and hidden-navigation settings;
-non-empty category lead-field defaults fail closed until Forms and Pipeline
-consume those definitions. Current registry categories do not yet declare
-category customization defaults, so their menu labels resolve from the
-platform navigation contract. The GET/preview provenance API and UI are
-additive; forms, pipeline stages, workers and other settings consumers have not
-adopted the resolver.
+supports category defaults for navigation labels, hidden-navigation settings
+and typed lead-field definitions. The existing owner customization editor
+begins with the resolved category field list, allows tenant-specific field
+changes, and omits an unchanged list so category provenance is retained. The
+existing Pipeline manual lead capture reads the merged tenant/category
+contract; the existing Forms editor can select fields from that same contract
+and continues pinning a published form's version. An explicit tenant empty
+list replaces category defaults. Current registry categories do not yet
+declare category customization defaults, so current tenants continue to
+inherit the platform navigation contract. Pipeline stages, workers and
+unrelated settings consumers have not adopted this resolver.
 
 ## Extensibility and domain boundaries
 

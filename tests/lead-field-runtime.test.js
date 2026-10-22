@@ -5,7 +5,8 @@ const definition={key:'cf_text_0123456789abcdef',type:'text',label:{en:'Referenc
 const document={schemaVersion:2,navigationLabels:{},leadFields:[definition]};
 test('owner UID lookup binds the published revision to the verified tenant and locks configuration on writes',async()=>{
  const savedFlag=process.env.SALEMAX_PLATFORM_ENABLED;process.env.SALEMAX_PLATFORM_ENABLED='true';const calls=[];
- const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.includes('FROM user u JOIN'))return [[{id:'tenant-a',status:'active',category_key:'training_center',category_version:1,active_id:'config-a'}]];return [[{id:'config-a',revision:6,kind:'published',category_key:'training_center',category_version:1,schema_version:2,document:JSON.stringify(document),checksum:settings.checksum(settings.normalize({category:require('../modules/platform/categories').trainingCenter},document))}]];}};
+ const trainingCenter=require('../modules/platform/categories').trainingCenter,customizationContext={tenant:{id:'tenant-a',categoryKey:trainingCenter.key,categoryVersion:trainingCenter.version},category:trainingCenter};
+ const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.includes('FROM user u JOIN'))return [[{id:'tenant-a',status:'active',category_key:'training_center',category_version:1,active_id:'config-a'}]];return [[{id:'config-a',revision:6,kind:'published',category_key:'training_center',category_version:1,schema_version:2,document:JSON.stringify(document),checksum:settings.checksum(settings.normalize(customizationContext,document))}]];}};
  try{
   const saved=await runtime.save(db,'owner-a',{configurationRevision:6,values:{[definition.key]:'A'}});assert.equal(saved[definition.key].value,'A');assert.deepEqual(calls[1].args,['tenant-a','config-a']);assert.match(calls[0].sql,/FOR UPDATE/);assert.deepEqual(calls[0].args,['owner-a',crypto.createHash('sha256').update('owner-a').digest('hex')]);
   calls.length=0;await runtime.contractForOwner(db,'owner-a');assert.doesNotMatch(calls[0].sql,/FOR UPDATE/);
@@ -15,6 +16,15 @@ test('legacy unmapped accounts cannot submit a field from another business',asyn
  const savedFlag=process.env.SALEMAX_PLATFORM_ENABLED;process.env.SALEMAX_PLATFORM_ENABLED='true';try{
   await assert.rejects(runtime.save({query:async()=>[[]]},'legacy-b',{configurationRevision:0,values:{[definition.key]:'foreign'}}),{code:'UNKNOWN_LEAD_FIELD'});
  }finally{if(savedFlag===undefined)delete process.env.SALEMAX_PLATFORM_ENABLED;else process.env.SALEMAX_PLATFORM_ENABLED=savedFlag;}
+});
+test('category lead-field defaults are available to Pipeline before a tenant publishes customization',async()=>{
+ const savedFlag=process.env.SALEMAX_PLATFORM_ENABLED;process.env.SALEMAX_PLATFORM_ENABLED='true';
+ const categories=require('../modules/platform/categories'),original=categories.getCategory;
+ const category={...categories.trainingCenter,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[definition],hiddenNavigation:[]}};
+ categories.getCategory=(key,version)=>key===category.key&&version===category.version?category:original(key,version);
+ const db={query:async()=>[[{id:'tenant-a',status:'active',category_key:category.key,category_version:category.version,active_id:null}]]};
+ try{assert.deepEqual(await runtime.contractForOwner(db,'owner-default'),{revision:0,fields:[definition]});}
+ finally{categories.getCategory=original;if(savedFlag===undefined)delete process.env.SALEMAX_PLATFORM_ENABLED;else process.env.SALEMAX_PLATFORM_ENABLED=savedFlag;}
 });
 test('schema 1 persisted checksums remain stable after schema 2 adoption',()=>{
  const v1={schemaVersion:1,navigationLabels:{}};const ctx={tenant:{categoryKey:'training_center',categoryVersion:1},category:require('../modules/platform/categories').trainingCenter};

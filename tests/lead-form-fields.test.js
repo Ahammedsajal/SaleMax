@@ -24,3 +24,8 @@ test('invalid form metadata is bounded and unknown properties cannot become capt
  for(const input of [{configurationRevision:3,fields:[]},{...selected,tenantId:'foreign'},{...selected,fields:[{...field,active:false}]},{...selected,configurationRevision:0}])assert.throws(()=>service.normalize(input));
  assert.equal(service.normalize(undefined),undefined);
 });
+test('existing Forms editor can select the exact category-version default field without a tenant override',async()=>{
+ const categoryWithDefaults={...category,customizationDefaults:{schemaVersion:3,navigationLabels:{},leadFields:[field],hiddenNavigation:[]}};
+ const result=await service.options({query:async()=>[[]]},{...ctx,category:categoryWithDefaults});
+ assert.deepEqual(result,{revision:0,fields:[field]});
+});

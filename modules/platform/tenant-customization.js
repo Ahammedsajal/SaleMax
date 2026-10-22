@@ -49,7 +49,6 @@ function resolved(ctx,document,revisionNumber=0) {
   if(ctx.category?.customizationDefaults){
     try{categoryDefaults=normalize(ctx,ctx.category.customizationDefaults);}
     catch{fail('CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',503);}
-    if(categoryDefaults.leadFields?.length)fail('CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',503);
   }
   return require('./tenant-setting-resolver').resolve({
     platform,category:categoryDefaults,tenant:document||{},categoryKey:ctx.category.key,
