@@ -16,6 +16,8 @@ test('team invitation inputs are bounded to tenant staff roles',()=>{
   assert.ok(allowed.includes('conversations.read'));
   assert.ok(!allowed.includes('channels.configure'));
   assert.throws(()=>team.rolePermissions(['tenant.manage'],'agent',allowed),{code:'INVALID_ROLE_PERMISSIONS'});
+  const guard=require('../modules/platform/team-role-request-guard');
+  assert.equal(guard.routePermission({baseUrl:'/api/user/team-invitations',path:'/members/member-id/password',method:'PUT'}),'team.invite');
 });
 
 test('Team Access route honors granted role and member navigation without category redirects',()=>{
@@ -48,6 +50,8 @@ test('invalid invitation requests fail before acquiring a database connection',a
   for(const temporaryPassword of ['short','🙂'.repeat(20),null])await assert.rejects(team.create(pool,'owner',{...direct,temporaryPassword}),{code:'INVALID_PASSWORD'});
   await assert.rejects(team.create(pool,'owner',{...direct,temporaryPassword:'Initial-password-73',displayName:''}),{code:'INVALID_DISPLAY_NAME'});
   await assert.rejects(team.create(pool,'owner',{...direct,temporaryPassword:'Initial-password-73',mobile:'123'}),{code:'INVALID_MOBILE'});
+  await assert.rejects(team.updateMemberPassword(pool,'owner','not-a-uuid',{password:'Long-enough-password-123'}),{code:'INVALID_ID'});
+  await assert.rejects(team.updateMemberPassword(pool,'owner','00000000-0000-4000-8000-000000000000',{password:'short'}),{code:'INVALID_PASSWORD'});
 });
 
 test('direct account mobile validation accepts presentation formatting and rejects invalid numbers',async()=>{
@@ -79,6 +83,8 @@ test('staff invitation UI is integrated into the existing single 7Network app sh
   assert.match(html,/team-access\.css\?v=[^" ]+/);
   assert.match(html,/training-sidebar\.js\?v=[^" ]+/);
   assert.match(js,/new MutationObserver\(addNav\)/);
+  assert.match(js,/data-member-password-panel/);assert.match(js,/memberRoleKey!=='agent'/);assert.match(js,/encodeURIComponent\(passwordForm\.dataset\.memberId\).*\/password/);
+  assert.match(js,/autocomplete="new-password"/);assert.match(js,/Passwords do not match\./);
   assert.match(js,/data-member-role/);assert.match(js,/members\/.*\/role/);assert.match(router,/owner\.put\('\/members\/:id\/role'/);
   assert.match(js,/permissionCatalog/);assert.match(js,/name="permission"/);
   assert.match(js,/data-qr-recipient/);assert.match(js,/recipientMembershipIds/);assert.match(js,/active accountants and agents/);
