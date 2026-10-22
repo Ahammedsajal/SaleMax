@@ -22,9 +22,9 @@ The existing Training Center learner-progress reconciler can move won Pipeline l
 | Historical assignments | Same source | Training Center v1 already includes `sales.finance` and `hr.recruitment`. Pinning preserves that historical contract; removing these requires a reviewed successor version and assignment impact review, not silently editing customer rights. Recruitment handlers independently check the Sales category. |
 | Authorization | `modules/platform/policy.js` | Category, active subscription, member scope, tenant resource ownership and external readiness are separate gates. Retain these gates; a configurable screen must not grant permission. |
 | Shared feature authentication | `modules/platform/business-feature-session.js` | Resolves legacy users/agents to canonical tenant membership and entitlements. Unmapped legacy actors can retain a null canonical context; a base-category migration must preserve those working users through verified ownership mappings. |
-| UI feature contract | `modules/platform/feature-contract.js` | Modules and quick-reply catalogues still contain fixed category comparisons. This is not yet a general extension registry. |
+| UI feature contract | `modules/platform/feature-contract.js` | Existing session module keys and permission names are a curated compatibility API. Catalogue selection now resolves from the pinned category adapter, but arbitrary category modules still need reviewed server navigation, API and client adapters. |
 | Plan administration | `modules/platform/existing-catalogue-router.js` | Manage Plans now enumerates reviewed planable registry entries and looks up an explicit category version. The original version-1 default is retained for old callers. Adding a manifest alone still does not deliver a new category workflow. |
-| Bot editing/runtime | `modules/platform/chatbot-router.js`, `chatbot-domain-packs.js`, `docs/CHATBOT_CATEGORY_ARCHITECTURE.md` | Reusable typed guided-content schemas and tenant/category-bound profiles already exist. Extend this design. Shared runtime contains category-specific branches that need adoption tests before replacement. |
+| Bot editing/runtime | `modules/platform/chatbot-router.js`, `chatbot-domain-packs.js`, `modules/platform/chatbot-runtime.js` | Reusable typed guided-content schemas, tenant/category-bound profiles, and manifest-declared lead-capture adapters exist. Runtime must select reusable behavior from the exact registered category contract; keep genuinely private workflows such as recruitment explicitly scoped. |
 | Navigation | `modules/platform/navigation.js` | Server decisions determine visible modules. Configured visibility must remain a restriction over authorized routes, with matching API enforcement. |
 | Frontend recovery | Existing implementation plan | Maintained screen hooks coexist with a generated legacy frontend. Extend the existing screens; do not manually edit minified logic or introduce another panel. |
 
@@ -106,6 +106,19 @@ Category manifests now declare a reviewed chatbot lead-capture adapter. `base_cr
 For Base CRM, lead creation is a per-profile owner choice in the existing Chatbot editor. It defaults off, is displayed only when the current owner context has the active matching `crm.leads` plan entitlement, and is checked again by both the write API and inbound runtime. When enabled, existing Pipeline identity locking, inbound-event idempotency, tenant owner UID scope and contact association create or update the lead; no raw message is copied into a new qualification store. The original message remains in Inbox. No migration or customer bot configuration change is involved.
 
 This closes shared lead capture for the category-neutral base contract, not generic conversational collection of each tenant's custom fields. Those answers still use the published Forms route until a separate category-approved conversational schema, consent and stop/skip design is implemented. Tests cover category adapter immutability/validation, plan denial, opt-in/default-off behavior, Sales/Training denial and the adapter's passed data; live browser, MariaDB integration and provider acceptance remain release gates.
+
+## Manifest-driven chatbot training adapter — source update, 22 October 2026
+
+The registry already permits a reviewed category to declare the reusable
+`chatbotLeadCapture: training` adapter, but the runtime had three remaining
+`training_center` key comparisons for guided onboarding, lead enrichment and
+capture. Those checks now use the pinned category manifest property. A
+synthetic future category proves the shared adapter can be selected without
+adding a category-name branch, while Base CRM and Sales remain excluded by their
+own adapter declarations. This does not add or publish a new category, change
+the Sales recruitment workflow, or collect additional customer data. The
+focused registry and chatbot capture checks pass 8/8; full chatbot, authenticated
+channel, MariaDB and provider acceptance remain open.
 
 Effective access is the intersection of category capability, plan entitlement, enabled tenant configuration, member permission/scope and runtime readiness. Restrictions accumulate. Tenant overrides cannot change `tenant_id`, category identity, subscription rights, audit requirements, resource ownership checks or accounting invariants. Missing/invalid configuration must produce a controlled error or a specifically versioned compatibility default; never fall back to another tenant or arbitrary category.
 

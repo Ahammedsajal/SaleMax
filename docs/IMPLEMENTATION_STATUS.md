@@ -44,6 +44,19 @@ CV, schema, or production data was changed, and the reported applicant failure
 still needs a reference or recurrence before its underlying cause can be
 identified.
 
+## Manifest-driven chatbot adapter selection — source update, 22 October 2026
+
+The chatbot runtime now selects the established Training Center lead-capture
+and onboarding behavior from the pinned category manifest's
+`chatbotLeadCapture` adapter instead of comparing the literal
+`training_center` category key. A synthetic future-category contract confirms
+the reusable adapter can be selected without a category-name branch; Base CRM
+and 7Network Sales remain excluded by their explicit adapter values. The
+registry and chatbot capture checks pass 8/8, and syntax/whitespace checks pass.
+No category was added or published, no bot configuration changed, and no
+production data or provider was touched. Authenticated channel, MariaDB and
+provider acceptance remain open; the full 42-ticket program continues.
+
 ## Chatbot provider-prompt isolation regression — source update, 22 October 2026
 
 The chatbot API integration had expected an unrelated FAQ to be sent to the AI
