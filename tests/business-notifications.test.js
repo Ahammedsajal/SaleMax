@@ -12,7 +12,7 @@ test('financial messages use understandable labels and correct monetary units',(
 });
 test('amount formatter rejects unsafe, negative and non-integral monetary values',()=>{for(const n of [-1,0.5,Number.MAX_SAFE_INTEGER+1])assert.throws(()=>finance.money(n));});
 test('receipt dates near UTC midnight use the Qatar business date',()=>{assert.equal(finance.date(new Date('2026-10-21T22:30:00Z')),'2026-10-22');assert.equal(finance.date('2026-10-25'),'2026-10-25');});
-test('phone normalization requires a country context for local numbers',()=>{assert.equal(qr.phone('+974 5516 0323'),'97455160323');assert.equal(qr.phone('0097455160323'),'97455160323');assert.equal(qr.phone('55160323'),null);assert.equal(qr.phone('55160323',{countryCode:'974'}),'97455160323');assert.equal(qr.phone('abc'),null);});
+test('phone normalization requires a country context for local numbers',()=>{assert.equal(qr.phone('+974 5000 0001'),'97450000001');assert.equal(qr.phone('0097450000001'),'97450000001');assert.equal(qr.phone('50000001'),null);assert.equal(qr.phone('50000001',{countryCode:'974'}),'97450000001');assert.equal(qr.phone('abc'),null);});
 test('QR origin cannot point to an external service or carry credentials',()=>{
  for(const origin of ['https://evil.test','http://127.0.0.1.evil.test','http://user:pass@localhost','http://localhost/path'])assert.throws(()=>qr.internalConfig({CRM_INTERNAL_SECRET:'test',SALEMAX_TASK_QR_INTERNAL_ORIGIN:origin}));
  assert.throws(()=>qr.internalConfig({CRM_INTERNAL_SECRET:'test',LOCAL_ONLY_MODE:'true'}));
