@@ -2647,3 +2647,9 @@ The user reported the new dashboard still displays the session-verification erro
 - A lock-held read-only query on `carsqatar-prod-01` found no matching 7Network/SaleMaX backup systemd timer or service. The only backup-named timer returned was Debian's `dpkg-db-backup.timer`; inspected standard cron directory filenames did not identify an application-specific backup job.
 - A metadata-only scan of `/opt/salemax/shared/backups` could not traverse owner-only rollback directories as `ubuntu`, so this is not a complete inventory of protected backup contents or off-host copies. No backup, database, media, service, or customer data changed; no rollback applies.
 - The operations checkout has no tracked backup/restore utility. Scheduled consistent database-plus-media backups, protected off-host retention, tenant-specific restoration, and a synthetic restore rehearsal remain open. Rollback snapshots alone do not establish recovery coverage.
+
+## Worker readiness source increment — 22 October 2026
+
+- Source-only operations increment adds atomic per-container readiness markers for report and recruitment notification workers, refreshed after successful poll completion. Compose Docker health checks expire stale markers and the capacity monitor promotes worker health failures to critical.
+- Verification: `node --test tests/worker-readiness.test.cjs tests/7network-capacity-alert.test.cjs tests/docker-image-contract.test.cjs` passed 32 checks (31 passed, one host-only flock check skipped); Node syntax checks and `git diff --check` passed. No production release, migration, container, or customer data changed; rollback does not apply.
+- Not deployed or accepted in production. Verify artifact identity, worker queue progress, alert delivery to an operator, and release rollback before adoption. Load, restore, and authenticated English/Arabic workflow gates remain open.

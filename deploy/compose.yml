@@ -71,10 +71,17 @@ services:
     environment:
       SALEMAX_TRAINING_REPORT_WORKER_ENABLED: "true"
       SALEMAX_TRAINING_REPORT_WORKER_INTERVAL_MS: "30000"
+      SALEMAX_REPORT_WORKER_HEALTH_FILE: /tmp/7network-report-worker-ready
     depends_on:
       db: {condition: service_healthy}
     mem_limit: 256m
     stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "scripts/training-report-worker.cjs", "--healthcheck"]
+      interval: 20s
+      timeout: 5s
+      start_period: 150s
+      retries: 3
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
@@ -89,10 +96,17 @@ services:
     environment:
       SALEMAX_RECRUITMENT_FOUNDER_WORKER_ENABLED: "true"
       SALEMAX_RECRUITMENT_FOUNDER_INTERVAL_MS: "30000"
+      SALEMAX_RECRUITMENT_FOUNDER_HEALTH_FILE: /tmp/7network-recruitment-founder-worker-ready
     depends_on:
       db: {condition: service_healthy}
     mem_limit: 128m
     stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "scripts/recruitment-founder-notification-worker.cjs", "--healthcheck"]
+      interval: 20s
+      timeout: 5s
+      start_period: 150s
+      retries: 3
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}

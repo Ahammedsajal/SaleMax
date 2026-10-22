@@ -168,12 +168,12 @@ inspect_service() {
   done
 }
 
-# App and database expose Docker health checks. Workers do not, so their
-# running-container presence is the signal until dedicated checks are added.
+# App, database and dedicated workers expose Docker health checks. Worker
+# readiness is a recent successful poll, not merely a running Node process.
 inspect_service app true
 inspect_service db true
-inspect_service report-worker false
-inspect_service recruitment-founder-notification-worker false
+inspect_service report-worker true
+inspect_service recruitment-founder-notification-worker true
 if (( ${#health_failures[@]} > 0 )); then raise_severity critical 3; fi
 
 health_state=none

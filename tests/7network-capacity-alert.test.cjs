@@ -49,6 +49,8 @@ if [ "$1" = inspect ]; then
   status=none
   [ "$service" != app ] || status="${'${'}TEST_DOCKER_APP_HEALTH:-healthy}"
   [ "$service" != db ] || status="${'${'}TEST_DOCKER_DB_HEALTH:-healthy}"
+  [ "$service" != report-worker ] || status="${'${'}TEST_DOCKER_REPORT_WORKER_HEALTH:-healthy}"
+  [ "$service" != recruitment-founder-notification-worker ] || status="${'${'}TEST_DOCKER_RECRUITMENT_WORKER_HEALTH:-healthy}"
   printf 'true|%s\\n' "$status"
   exit 0
 fi
@@ -223,6 +225,17 @@ test('service recovery is reported even when disk capacity remains critical', t 
   assert.equal(payloads.length, 2);
   assert.match(payloads[1], /Service health recovered; capacity remains critical/);
   assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none|none|none');
+});
+
+test('stale worker readiness reported by Docker health raises a critical alert', t => {
+  const f = fixture(t);
+  f.env.TEST_DOCKER_REPORT_WORKER_HEALTH = 'unhealthy';
+  const result = run(f.env);
+  assert.equal(result.status, 0, result.stderr);
+  const payload = fs.readFileSync(f.payloadLog, 'utf8');
+  assert.match(payload, /unhealthy or missing services: report-worker/);
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(),
+    'critical|report-worker|none|none');
 });
 
 test('legacy severity-only state migrates without sending a duplicate alert', t => {
