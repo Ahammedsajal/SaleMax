@@ -498,7 +498,9 @@ const createSession = async (
       defaultQueryTimeoutMs: 60000,
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
-      markOnlineOnConnect: true,
+      // Keep the linked device from announcing account-level online presence
+      // on connect so WhatsApp can continue delivering phone notifications.
+      markOnlineOnConnect: false,
       generateHighQualityLinkPreview: true,
     });
 
