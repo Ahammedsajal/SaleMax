@@ -78,8 +78,9 @@ function processSocketEvent({
           let chats = [];
 
           if (isAgent) {
-            let queryStr = `FROM beta_chats WHERE (assigned_agent LIKE ? OR assigned_agent LIKE ?)`;
+            let queryStr = `FROM beta_chats WHERE uid = ? AND (assigned_agent LIKE ? OR assigned_agent LIKE ?)`;
             const queryParams = [
+              chatListOwnerUid,
               `%"id":${socket.userData.id}%`,
               `%"id":${socket.userData.id}"%`,
             ];

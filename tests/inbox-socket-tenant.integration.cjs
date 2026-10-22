@@ -63,6 +63,7 @@ async function main() {
     await db.query('CREATE TABLE chat_tags (id BIGINT PRIMARY KEY, uid VARCHAR(100) NOT NULL, title VARCHAR(191)) ENGINE=InnoDB');
     await db.query('CREATE TABLE contact (id BIGINT PRIMARY KEY, uid VARCHAR(100) NOT NULL, mobile VARCHAR(50), name VARCHAR(191), var1 TEXT, var2 TEXT, var3 TEXT, var4 TEXT, var5 TEXT) ENGINE=InnoDB');
     await db.query('CREATE TABLE agents (id BIGINT PRIMARY KEY, uid VARCHAR(100), owner_uid VARCHAR(100), role VARCHAR(40)) ENGINE=InnoDB');
+    await db.query('CREATE TABLE instance (id BIGINT PRIMARY KEY AUTO_INCREMENT, uid VARCHAR(100), uniqueId VARCHAR(100), title VARCHAR(191), number VARCHAR(50), status VARCHAR(40)) ENGINE=InnoDB');
     await db.query('CREATE TABLE user (id BIGINT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(100), timezone VARCHAR(80)) ENGINE=InnoDB');
     await db.query('CREATE TABLE phonebook (id BIGINT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(100), name VARCHAR(191)) ENGINE=InnoDB');
     await db.query('CREATE TABLE beta_chatbot (id BIGINT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(100), active TINYINT, source VARCHAR(80)) ENGINE=InnoDB');
@@ -70,11 +71,12 @@ async function main() {
     const ownerA = 'synthetic-owner-a';
     const ownerB = 'synthetic-owner-b';
     await db.query('INSERT INTO beta_chats (id,uid,chat_id,unread_count,chat_label,chat_note,assigned_agent,sender_name,sender_mobile,last_message) VALUES (?,?,?,?,?,?,?,?,?,?)', [
-      101, ownerA, 'chat-a', 7, '[]', '[]', '[]', 'Customer A', '5550001', '{}',
+      101, ownerA, 'chat-a', 7, '[]', '[]', '[{"id":1}]', 'Customer A', '5550001', '{}',
     ]);
     await db.query('INSERT INTO beta_chats (id,uid,chat_id,unread_count,chat_label,chat_note,assigned_agent,sender_name,sender_mobile,last_message) VALUES (?,?,?,?,?,?,?,?,?,?)', [
-      202, ownerB, 'chat-b', 9, '[{"id":4,"title":"Tenant B label"}]', '[{"id":"b-note","note":"private B note"}]', '[]', 'Customer B', '5550002', '{}',
+      202, ownerB, 'chat-b', 9, '[{"id":4,"title":"Tenant B label"}]', '[{"id":"b-note","note":"private B note"}]', '[{"id":1}]', 'Customer B', '5550002', '{}',
     ]);
+    await db.query('INSERT INTO agents (id,uid,owner_uid,role) VALUES (?,?,?,?)', [1, 'synthetic-agent-a', ownerA, 'agent']);
     await db.query('INSERT INTO chat_tags (id,uid,title) VALUES (10,?,?)', [ownerB, 'Tenant B label']);
     await db.query('INSERT INTO contact (id,uid,mobile,name) VALUES (20,?,?,?)', [ownerB, '5550002', 'Customer B']);
     await db.query('INSERT INTO user (uid,timezone) VALUES (?,?)', [ownerA, 'Asia/Qatar']);
@@ -97,11 +99,15 @@ async function main() {
     const stubs = new Map([
       [modulePaths[0], { query: sqlQuery }],
       [modulePaths[1], {
-        resolveInboxScope: async () => ({ canonical: false, uid: ownerA, assignedOnly: false }),
+        resolveInboxScope: async (_query, userData) => ({ canonical: false, uid: ownerA, assignedOnly: !!userData.isAgent, agentId: userData.id }),
         authorizeInboxPayload: async (_query, _scope, _event, payload) => payload,
+        filterAssignedChats: (chats, scope) => scope.assignedOnly
+          ? chats.filter(chat => { try { return JSON.parse(chat.assigned_agent || '[]').some(agent => Number(agent.id) === Number(scope.agentId)); } catch { return false; } })
+          : chats,
+        filterQrInstances: instances => instances,
       }],
       [modulePaths[2], { assertDelegatedSession: async () => {} }],
-      [modulePaths[3], { getCurrentTimestampInTimeZone: () => 1_800_000_000 }],
+      [modulePaths[3], { getCurrentTimestampInTimeZone: () => 1_800_000_000, mergeArraysWithPhonebook: chats => chats }],
       [modulePaths[4], { getCurrentTimestampInTimeZone: () => 1_800_000_000, readJSONFile: () => [] }],
       [modulePaths[5], {}],
       [modulePaths[6], {}],
@@ -151,6 +157,19 @@ async function main() {
       assert.equal(ownChat[0].unread_count, 0, 'owner can still open and mark their own conversation read');
       assert.equal(emitted.filter(item => item.event === 'load_conversation').length, 2);
       assert.equal(emitted.filter(item => item.event === 'error').length, 0);
+
+      const agentListeners = new Map(), agentEmitted = [];
+      const agentSocket = {
+        userData: { id: 1, uid: 'synthetic-agent-a', owner_uid: ownerA, role: 'agent', isAgent: true, is_active: 1, timezone: 'Asia/Qatar' },
+        decodedToken: { uid: 'synthetic-agent-a' },
+        on: (event, listener) => agentListeners.set(event, listener),
+        emit: (event, payload) => agentEmitted.push({ event, payload }),
+      };
+      processSocketEvent({ socket: agentSocket });
+      await agentListeners.get('message')({ type: 'get_chat_list', payload: {} });
+      const agentList = agentEmitted.find(item => item.event === 'chat_list');
+      assert.ok(agentList);
+      assert.deepEqual(agentList.payload.chats.map(chat => chat.chat_id), ['chat-a'], 'legacy agent list remains owner-scoped when another business has the same stale assignment ID');
 
       console.log(JSON.stringify({ success: true, database, mysqlVersion: (await db.query('SELECT VERSION() AS version'))[0][0].version, syntheticTenants: 2, crossTenantMutations: 0, customerDataTouched: false, externalWrites: false }));
     } finally {

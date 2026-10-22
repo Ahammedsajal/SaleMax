@@ -1,3 +1,15 @@
+## Legacy Inbox Agent list tenant predicate — source increment, 22 October 2026
+
+The existing legacy Agent chat-list query now constrains `beta_chats.uid` to the
+resolved owning business before matching assigned-agent IDs. This prevents a
+duplicate or stale assignment record in another business from entering the
+result set. The disposable MySQL 9.6 two-tenant Socket.IO integration now seeds
+the same synthetic assigned-agent ID in both businesses and invokes the actual
+Agent `get_chat_list` handler; only the owner business chat is returned. The
+fixture drops its database in `finally`; it reports no customer data touched and
+no external writes. Syntax checks pass. MariaDB coverage, broader socket/media
+audit, authenticated existing-screen acceptance and deployment remain open.
+
 ## Inbox socket two-tenant database integration — local MySQL, 22 October 2026
 
 Added `npm run test:inbox-socket-tenant:integration`, which creates a uniquely named disposable InnoDB database, seeds two synthetic owners with overlapping row-ID attack attempts, invokes the actual Socket.IO event handler, and drops the database in `finally`. On local MySQL 9.6, Tenant B's unread count, labels, notes, tag and contact remained unchanged after Tenant A submitted B's IDs; Tenant A's own `load_conversation` still cleared its unread count. The harness reported `crossTenantMutations=0`, `customerDataTouched=false`, `externalWrites=false`; a follow-up database listing found no leftover fixture. This is MySQL 9.6 evidence, not the still-required MariaDB integration. The combined Inbox handler and authorization suites pass 23/23; syntax and whitespace checks pass.

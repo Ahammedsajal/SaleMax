@@ -221,6 +221,12 @@ resolved tenant Inbox permission. Socket payload authorization and the
 slice; no category package, deployment infrastructure, or production files are
 owned here.
 
+The legacy Agent chat-list query now applies the resolved business UID before
+matching assigned-agent IDs, so duplicate or stale assignment JSON across
+businesses cannot widen the SQL result set. Its disposable two-tenant handler
+fixture verifies this case; the broader socket payload and ownership-mapping
+audits remain open.
+
 - All canonical repositories require tenant context and tenant predicates on reads, writes, joins, exports and deletes. Review raw legacy UID ownership adapters rather than assuming canonical guards cover them.
 - Tenant-owned child relations need composite tenant/parent keys or transactional ownership validation. Globally unique IDs alone are insufficient.
 - Cache entries, websocket rooms, uploaded files, signed media grants, search indexes, vector stores, provider credential lookups and generated reports carry tenant identity. Shared bot defaults are immutable; tenant guide edits and conversation state are not process-global mutable objects.
