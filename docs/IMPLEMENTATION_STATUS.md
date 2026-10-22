@@ -2177,11 +2177,13 @@ The shared Forms validator now applies adapter-specific field allowlists.
 `generic-lead-capture-v1` accepts common contact and consent fields and retains
 the existing tenant-defined typed Pipeline fields. Training registration
 fields and the Pro Catalyst registration template remain available only to the
-historical Training Center adapter. Submission normalization rejects schemas
-containing fields outside the selected adapter.
+historical Training Center adapter. Draft create/update now pass the adapter
+resolved by category authorization into schema validation. Submission
+normalization rejects schemas containing fields outside the selected adapter.
 
 This does not enable generic forms. The generic adapter still fails closed before
 database access; public form lookup, submissions, staff integration, category
 adoption and authenticated `/user` screen acceptance remain open. The focused
-registry, Forms and category isolation suites pass 27/27. No migration,
-customer data, database or production runtime changed.
+registry, Forms and category isolation suites pass 28/28, including simulated
+adapter-enabled CRUD validation and real fail-closed create/update checks. No
+migration, customer data, database or production runtime changed.

@@ -807,13 +807,17 @@ The shared Forms input validator now has a `generic-lead-capture-v1` field
 allowlist for common contact and consent fields, plus the existing typed,
 tenant-defined lead-field snapshots. Training-specific registration fields and
 the Pro Catalyst registration template remain restricted to the historical
-Training Center adapter. Submission normalization rejects schemas that contain
-fields outside the selected adapter's allowlist.
+Training Center adapter. The existing draft create/update service paths now
+pass the adapter resolved by category authorization into schema validation;
+submission normalization rejects schemas containing fields outside the
+selected adapter's allowlist.
 
 This is schema validation only. The generic adapter still has no executable
 service context, public form lookup, submission persistence route or staff
 management integration, and no category currently opts into it. Generic
 execution remains denied before database access until category adoption,
-service/API implementation and existing-screen acceptance are reviewed. The
-focused schema, registry and isolation suites pass 27/27; no migration,
+service/API implementation and existing-screen acceptance are reviewed. Tests
+exercise the authorized adapter through synthetic draft create/update calls
+and verify that actual generic contexts remain denied before database access.
+The focused schema, registry and isolation suites pass 28/28; no migration,
 customer data, database or production runtime changed.

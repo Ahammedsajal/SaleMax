@@ -118,6 +118,8 @@ test('Forms fails closed for a category whose declared adapter has no shared exe
   const ctx={audience:'tenant',identity:{id:'identity'},tenant:{id:'tenant',status:'active',categoryKey:base.key,categoryVersion:base.version},membership:{id:'membership',tenantId:'tenant',role:'owner',status:'active'},category,subscription:{status:'active',capabilities:[...category.capabilities]}};
   let queries=0;const db={query:async()=>{queries++;return [[]]}};
   await assert.rejects(forms.list(db,ctx),{code:'CATEGORY_UNAVAILABLE'});
+  await assert.rejects(forms.create(db,ctx,valid),{code:'CATEGORY_UNAVAILABLE'});
+  await assert.rejects(forms.update(db,ctx,require('node:crypto').randomUUID(),1,valid),{code:'CATEGORY_UNAVAILABLE'});
   assert.equal(queries,0,'the unsupported adapter is denied before data access');
 });
 test('generic lead-capture schemas allow common contact and consent fields but no Training fields',()=>{
@@ -129,6 +131,25 @@ test('generic lead-capture schemas allow common contact and consent fields but n
   assert.throws(()=>forms.formInput({...generic,schema:{...generic.schema,fields:[...generic.schema.fields,{key:'course_id',labelEn:'Course',labelAr:'الدورة',required:false}]}},'generic-lead-capture-v1'),{code:'INVALID_FORM_FIELD'});
   assert.throws(()=>forms.formInput({...generic,schema:{...generic.schema,templateKey:'procatalyst-registration-v1'}},'generic-lead-capture-v1'),{code:'INVALID_FORM_SCHEMA'});
   assert.throws(()=>forms.cleanSubmission({...parsed.schema,fields:[...parsed.schema.fields,{key:'course_id',required:false}]},{contact_name:'Lead',phone:'+12025550123',consent:true},'generic-lead-capture-v1'),{code:'INVALID_FORM_SCHEMA'});
+});
+test('draft create and update validate against the adapter returned by category authorization',async()=>{
+  const adapters=require('../modules/platform/form-category-adapters');
+  const original=adapters.supportsExecution;
+  const base=require('../modules/platform/categories').baseCrm;
+  const {createCategoryRegistry}=require('../modules/platform/category-registry');
+  const category=createCategoryRegistry([{...base,capabilities:[...base.capabilities,'portal.forms'],formsAdapter:'generic-lead-capture-v1'}],capabilities).get(base.key,base.version);
+  const ctx={audience:'tenant',identity:{id:'identity'},tenant:{id:'tenant',status:'active',categoryKey:base.key,categoryVersion:base.version},membership:{id:'membership',tenantId:'tenant',role:'owner',status:'active'},category,subscription:{status:'active',capabilities:[...category.capabilities]}};
+  const calls=[];const db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},query:async(sql,params)=>{calls.push({sql,params});if(sql.startsWith('SELECT draft_revision'))return [[{draft_revision:1,published_version:null}]];return [[]];}};
+  const input={...valid,slug:'contact-request',nameEn:'Contact request',nameAr:'طلب تواصل',schema:{...valid.schema,fields:[...valid.schema.fields,{key:'email',labelEn:'Email',labelAr:'البريد الإلكتروني',required:false}]}};
+  try{
+    adapters.supportsExecution=(selected,adapter)=>adapter==='generic-lead-capture-v1'&&selected===category;
+    const created=await forms.create(db,ctx,input);
+    const createParams=calls.find(call=>call.sql.startsWith('INSERT INTO sx_training_forms')).params;
+    const savedCreate=JSON.parse(createParams[5]);assert.equal(savedCreate.fields.at(-1).key,'email');
+    const updated=await forms.update(db,ctx,created.id,1,{...input,nameEn:'Contact request updated'});
+    const updateParams=calls.find(call=>call.sql.startsWith('UPDATE sx_training_forms')).params;
+    const savedUpdate=JSON.parse(updateParams[3]);assert.equal(savedUpdate.fields.at(-1).key,'email');assert.equal(updated.draftRevision,2);
+  }finally{adapters.supportsExecution=original;}
 });
 test('Lead Forms is mounted into the existing user shell with bilingual draft, preview and publish controls',()=>{
   const root=require('node:path').join(__dirname,'../client/public');
