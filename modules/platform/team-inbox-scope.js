@@ -28,7 +28,7 @@ async function resolveInboxScope(query, user, event) {
   if (!permission && row.role !== 'owner') fail();
   const qrAccountant = row.role==='accountant' && row.categoryKey==='training_center' && ['conversations.read','conversations.reply'].includes(permission);
   const delegatedPermissions = parse(row.delegatedPermissions) || [];
-  const membership = { role: row.role, delegatedPermissions };
+  const membership = { id: row.membershipId, role: row.role, delegatedPermissions };
   if (row.roleProfileId) {
     const permissions = parse(row.rolePermissions);
     if (!permissions || row.seatRole !== row.role || !['active','archived'].includes(row.roleStatus) || (permission && !permissions.includes(permission) && !qrAccountant)) fail();
