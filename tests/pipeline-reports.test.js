@@ -141,6 +141,23 @@ test('journey report combines current pipeline stages, period sources and agent 
   for(const sql of queries.filter(item=>item.includes('FROM pipeline_stages')||item.includes('GROUP BY l.source_type')||item.includes('AS new_leads')||item.includes('FROM agents a')||item.includes("JSON_EXTRACT(pa.details,'$.stageTo')")))assert.match(sql,/sx_report_lead_scope/);
 });
 
+test('7Network Sales journey report compares agent activity IDs with a compatible collation',async()=>{
+  const queries=[];
+  const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
+    if(sql.includes('FROM pipeline_stages'))return [[{stageKey:'won',title:'Won',stageType:'won',position:10,total:'1',cohortTotal:'1'}]];
+    if(sql.includes('GROUP BY l.source_type'))return [[]];
+    if(sql.includes('AS new_leads'))return [[{new_leads:1,stage_changes:0,sales_converted:1,sales_closed_by_agents:1,leads_attended:0}]];
+    if(sql.includes('FROM agents a'))return [[{agentId:7,agentName:'Synthetic Agent',active:1,assignedLeads:1,newLeads:1,attendedLeads:0,agentReplies:0,followUpsDue:0,followUpsOverdue:0,salesAttributed:1,salesClosedByAgent:1}]];
+    if(sql.includes("JSON_EXTRACT(pa.details,'$.stageTo')"))return [[]];
+    throw new Error(`Unexpected sales journey query: ${sql}`);
+  }};
+  const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'synthetic-sales-owner',role:'owner',categoryKey:'7network_sales',period:'daily',at:'2026-10-22'});
+  assert.equal(report.categoryKey,'7network_sales');
+  const agentQuery=queries.find(sql=>sql.includes('FROM agents a'));
+  assert.match(agentQuery,/pa\.actor_id COLLATE utf8mb4_general_ci=CAST\(a\.id AS CHAR\) COLLATE utf8mb4_general_ci/);
+  assert.doesNotMatch(agentQuery,/pa\.actor_id\s*=\s*CAST\(a\.id AS CHAR\)/);
+});
+
 test('legacy enrollment reconciliation uses a compatible collation for tenant uid joins',async()=>{
   const queries=[];
   const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);

@@ -390,7 +390,7 @@ async function getSalesJourneyReport({pool,uid,role,agentId,scopeAgentIds,period
       COUNT(DISTINCT CASE WHEN l.next_follow_up_at<? AND l.status='open' THEN l.id END) AS followUpsOverdue,
       COUNT(DISTINCT CASE WHEN pa.activity_type IN ('contact_outcome','agent_message_sent') THEN pa.lead_id END) AS attendedLeads,
       SUM(pa.activity_type='agent_message_sent') AS agentReplies,
-      SUM(pa.activity_type='sale_converted') AS salesAttributed,SUM(pa.activity_type='sale_converted' AND pa.actor_type='agent' AND pa.actor_id=CAST(a.id AS CHAR)) AS salesClosedByAgent
+      SUM(pa.activity_type='sale_converted') AS salesAttributed,SUM(pa.activity_type='sale_converted' AND pa.actor_type='agent' AND pa.actor_id COLLATE utf8mb4_general_ci=CAST(a.id AS CHAR) COLLATE utf8mb4_general_ci) AS salesClosedByAgent
       FROM agents a LEFT JOIN pipeline_leads l ON l.uid_hash=? AND l.uid=? AND l.owner_agent_id=a.id
       LEFT JOIN pipeline_activity pa ON pa.uid_hash=l.uid_hash AND pa.lead_id=l.id AND pa.created_at>=? AND pa.created_at<?
       WHERE a.owner_uid COLLATE utf8mb4_general_ci=? COLLATE utf8mb4_general_ci AND a.role='agent'${agentFilter}
