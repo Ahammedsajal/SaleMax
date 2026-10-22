@@ -130,6 +130,9 @@ test('journey report combines current pipeline stages, period sources and agent 
   assert.match(cohortQuery,/pa\.activity_type IN \('contact_outcome','agent_message_sent'\)/);assert.doesNotMatch(cohortQuery,/note_added/);
   const cohortJourneyQuery=queries.find(sql=>sql.includes('WITH cohort_leads AS'));
   assert.equal((cohortJourneyQuery.match(/e\.legacy_uid COLLATE utf8mb4_general_ci=c\.uid COLLATE utf8mb4_general_ci/g)||[]).length,7);
+  const scopedTenantUidJoins=queries.join('\n').match(/(?:scoped_lead|fl)\.uid COLLATE utf8mb4_general_ci=e\.legacy_uid COLLATE utf8mb4_general_ci/g)||[];
+  assert.equal(scopedTenantUidJoins.length,6);
+  assert.doesNotMatch(queries.join('\n'),/(?:scoped_lead|fl)\.uid\s*=\s*e\.legacy_uid/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_receipts/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_enrollment_events/);
   assert.equal(queries.length,11);

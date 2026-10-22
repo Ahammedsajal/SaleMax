@@ -1,3 +1,17 @@
+## Lead Reports journey collation repair — source increment, 22 October 2026
+
+The authenticated production Lead Reports screen previously failed with
+`ER_CANT_AGGREGATE_2COLLATIONS`. Read-only schema inspection confirmed
+`pipeline_leads.uid` uses `utf8mb4_general_ci` while
+`sx_training_enrollments.legacy_uid` uses `utf8mb4_uca1400_ai_ci`. Six
+Training Center journey subqueries compared these columns directly when
+checking that enrollment records belonged to leads in the report scope. The
+report now applies the existing `utf8mb4_general_ci` collation explicitly to
+both operands in all six checks, retaining the tenant-hash and lead-ID
+predicates. A regression assertion checks all six scoped joins. This is a
+source-only fix; authenticated EN/AR acceptance, MariaDB integration and
+production deployment remain open.
+
 ## Generic Forms staff replay scope — source increment, 22 October 2026
 
 Generic staff submission now resolves an existing Pipeline lead by both tenant
