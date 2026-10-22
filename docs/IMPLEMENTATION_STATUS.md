@@ -2238,6 +2238,9 @@ migration-discovery and whitespace checks pass. This proves service and loader
 contracts only. Category-aware bilingual existing-screen acceptance, a
 disposable MariaDB migration/runtime integration, authenticated desktop/mobile
 browser acceptance, and deployment remain open. No production runtime changed.
+The disposable migration suite now includes a synthetic insert/read assertion
+for `pipeline_activity.actor_type='identity'`; the assertion has not run here
+because this workstation has MySQL 9.6 and no isolated MariaDB service.
 
 The follow-up full JavaScript suite run passes 1,093/1,117 tests and reports 24
 failures in unrelated authentication, Manage Users, Pipeline, task, Call Center,
