@@ -20,6 +20,11 @@ test('Agent Tasks uses its current bearer without probing or borrowing the busin
   assert.equal(calls.length,4);
   for(const call of calls){assert.ok(call.url.pathname.startsWith('/api/workspace/tasks'));assert.equal(call.headers.get('Authorization'),'Bearer active-token');assert.equal(call.headers.get('X-Salemax-Actor'),'agent');assert.equal(call.headers.get('X-Trace'),'kept');assert.equal(call.init.credentials,'same-origin');}
 });
+test('agent cookie sessions identify their actor during shared API context and feature requests',async()=>{
+  const {window,calls}=browser({actor:'agent',token:null});
+  await window.SaleMaxWorkspace.request('forms','/staff/contact-request');
+  assert.equal(calls.length,2);assert.equal(calls[0].headers.get('X-Salemax-Actor'),'agent');assert.equal(calls[1].headers.get('X-Salemax-Actor'),'agent');assert.equal(calls[1].headers.get('X-CSRF-Token'),'cookie-csrf');
+});
 test('business bearer Tasks also reuses the panel credential and does not switch to a different cookie identity',async()=>{
   const {window,calls}=browser();
   await window.fetch('/api/pipeline/tasks?scope=mine&status=open');
@@ -28,7 +33,7 @@ test('business bearer Tasks also reuses the panel credential and does not switch
 test('cookie-only Tasks keeps CSRF and the same shared API for reads and writes',async()=>{
   const {window,calls}=browser({token:null});
   await window.fetch('/api/pipeline/tasks/id/status',{method:'PATCH',headers:{Authorization:'Bearer stale','X-Salemax-Actor':'agent'},body:'{"status":"completed"}'});
-  assert.equal(calls.length,2);const call=calls[1];assert.equal(call.url.pathname,'/api/workspace/tasks/id/status');assert.equal(call.headers.get('Authorization'),null);assert.equal(call.headers.get('X-CSRF-Token'),'cookie-csrf');assert.equal(call.headers.get('X-Salemax-Actor'),null);assert.equal(call.init.method,'PATCH');assert.equal(call.init.body,'{"status":"completed"}');
+  assert.equal(calls.length,2);const call=calls[1];assert.equal(call.url.pathname,'/api/workspace/tasks/id/status');assert.equal(call.headers.get('Authorization'),null);assert.equal(call.headers.get('X-CSRF-Token'),'cookie-csrf');assert.equal(call.headers.get('X-Salemax-Actor'),'user');assert.equal(call.init.method,'PATCH');assert.equal(call.init.body,'{"status":"completed"}');
 });
 test('denied and expired Tasks requests do not retry or clear an active panel credential',async()=>{
   for(const status of [401,403]){const {window,calls,removed}=browser({actor:'agent',status});const response=await window.fetch('/api/pipeline/tasks');assert.equal(response.status,status);assert.equal(calls.length,1);assert.deepEqual(removed,[]);}

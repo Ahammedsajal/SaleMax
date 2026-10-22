@@ -2217,7 +2217,7 @@ path continue through their existing service. No category is opted in.
 Synthetic service tests pass for category/capability/plan denial, draft CRUD,
 publish/version behavior, stale revisions, router adapter selection and tenant-
 scoped submission reads; the combined focused registry, Forms and migration
-suite passes 41/41. The generic public lookup and submission path now resolves only published forms for an active, entitled tenant and records consent, idempotency, rate-limit state and a normal Pipeline lead in one transaction. Synthetic lookup, submission, exact-token replay, stale-version rollback and lead creation checks pass. Staff capture, category-aware bilingual screen adaptation, MariaDB runtime integration, authenticated browser acceptance and deployment remain open.
+suite passes 41/41. The generic public lookup and submission path now resolves only published forms for an active, entitled tenant and records consent, idempotency, rate-limit state and a normal Pipeline lead in one transaction. Synthetic lookup, submission, exact-token replay, stale-version rollback and lead creation checks pass. Staff capture is now implemented in source; category-aware bilingual existing-screen acceptance, MariaDB runtime integration, authenticated browser acceptance and deployment remain open.
 
 ## Existing Forms screen adapter presentation — source increment, 22 October 2026
 
@@ -2225,12 +2225,19 @@ The existing `/user?page=forms` hook now reads the authenticated Forms adapter
 contract before rendering. For `generic-lead-capture-v1` it presents lead-form
 headings and a generic contact/consent field editor with neutral English/Arabic
 copy, while retaining the existing Training Center form and registration editor.
-The generic staff-capture links remain hidden until a canonical staff actor and
-record-scope path is implemented; no legacy Training actor mapping is reused.
-Focused Forms, category and migration-discovery suites pass, as do syntax and
-whitespace checks. The existing-screen change is source-only: no category opts
-in, MariaDB runtime integration and authenticated browser acceptance remain
-open, and no production runtime changed.
+Published generic forms now expose staff-capture links in the existing Forms
+screen. The existing public-form page is reused, while authenticated lookup,
+lead search and staff submission run through `/api/workspace/forms` and the
+shared browser API. Owner/manager actions use the canonical identity; agent
+search and selected-lead access remain restricted to assigned leads. New leads
+retain the staff identity in Pipeline activity, with an additive actor enum
+migration. No legacy Training actor mapping is reused and no category opts in.
+
+The focused Forms, public-form, session and overlay suites pass 42/42; syntax,
+migration-discovery and whitespace checks pass. This proves service and loader
+contracts only. Category-aware bilingual existing-screen acceptance, a
+disposable MariaDB migration/runtime integration, authenticated desktop/mobile
+browser acceptance, and deployment remain open. No production runtime changed.
 
 The follow-up full JavaScript suite run passes 1,093/1,117 tests and reports 24
 failures in unrelated authentication, Manage Users, Pipeline, task, Call Center,

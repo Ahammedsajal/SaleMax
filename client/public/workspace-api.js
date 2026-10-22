@@ -8,7 +8,8 @@
     const value={Accept:'application/json',...(json?{'Content-Type':'application/json'}:{})};
     if(token){value.Authorization='Bearer '+token;value['X-Salemax-Actor']=kind;}
     else{
-      const response=await fetch('/api/user/business-auth/me',{credentials:'same-origin',cache:'no-store'});
+      value['X-Salemax-Actor']=kind;
+      const response=await fetch('/api/user/business-auth/me',{credentials:'same-origin',cache:'no-store',headers:{'X-Salemax-Actor':kind}});
       const session=await response.json();if(!response.ok||session.context?.audience!=='tenant')throw Error('AUTH_REQUIRED');
       value['X-CSRF-Token']=session.csrfToken;
     }

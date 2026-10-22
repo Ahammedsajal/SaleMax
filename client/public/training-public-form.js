@@ -7,6 +7,7 @@
   const formSlug = parts[3];
   const query = new URLSearchParams(location.search);
   const staffCapture = query.get('mode') === 'staff' || (formSlug === 'student-registration' && Boolean(localStorage.getItem('wacrm_agent') || localStorage.getItem('wacrm_user')));
+  if(staffCapture&&(query.get('actor')==='agent'||(localStorage.getItem('wacrm_agent')&&!localStorage.getItem('wacrm_user'))))window.SaleMaxActor='agent';
   const storageKey = `sx-form-token:${tenantSlug}:${formSlug}:${staffCapture ? 'staff' : 'public'}`;
   let data = null;
   let selectedLead = null;
@@ -212,8 +213,9 @@
       results.innerHTML=`<p>${tr('Searching…','جارٍ البحث…')}</p>`;
       timer=setTimeout(async()=>{
         try{
-          const response=await fetch(`/api/pipeline/training-forms/${encodeURIComponent(formSlug)}/leads?search=${encodeURIComponent(term)}`,{cache:'no-store',credentials:'same-origin',headers:{Authorization:`Bearer ${actorToken()}`}});
-          const body=await response.json();if(!response.ok||!body.success)throw Error(body.code||'LOOKUP_FAILED');
+          let body;
+          if(data.adapter==='generic-lead-capture-v1')body=await window.SaleMaxWorkspace.request('forms',`/staff/${encodeURIComponent(formSlug)}/leads?search=${encodeURIComponent(term)}`);
+          else{const response=await fetch(`/api/pipeline/training-forms/${encodeURIComponent(formSlug)}/leads?search=${encodeURIComponent(term)}`,{cache:'no-store',credentials:'same-origin',headers:{Authorization:`Bearer ${actorToken()}`}});body=await response.json();if(!response.ok||!body.success)throw Error(body.code||'LOOKUP_FAILED');}
           if(input.value.trim()!==term)return;if(!body.data.length){results.innerHTML=`<p>${tr('No matching leads found.','لم يتم العثور على عملاء محتملين مطابقين.')}</p>`;return;}
           results.innerHTML=body.data.map(lead=>`<button type="button" class="lead-result" role="option" data-lead-id="${esc(lead.id)}"><strong>${esc(lead.contactName||lead.learnerName||tr('Unnamed lead','عميل محتمل بلا اسم'))}</strong><span>${[lead.phone,lead.email].filter(Boolean).map(esc).join(' · ')}</span></button>`).join('');
           results.querySelectorAll('[data-lead-id]').forEach(button=>button.addEventListener('click',()=>{
@@ -327,18 +329,21 @@
     button.disabled = true;
       button.textContent = data.form.schema.templateKey === 'procatalyst-registration-v1' ? tr('Submitting…', 'جارٍ الإرسال…') : tr('Sending…', 'جارٍ الإرسال…');
     try {
-      const token = actorToken();
-      if (staffCapture && !token) throw Error('AUTH_REQUIRED');
-      const response = await window.SXTrainingFormRequest.post(fetch, staffCapture
-        ? `/api/pipeline/training-forms/${encodeURIComponent(formSlug)}/submissions`
-        : `/api/public/training/forms/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(formSlug)}/submissions`, {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...(staffCapture ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(payload),
-      }, { retrySafe: !data.botChallenge, onRetry: () => { button.textContent = tr('Retrying…', 'جارٍ إعادة المحاولة…'); } });
       let body;
-      try { body = await response.json(); } catch { throw Error('SERVER_ERROR'); }
-      if (!response.ok || body.success !== true) throw Error(body.code || 'SUBMISSION_FAILED');
+      if(staffCapture&&data.adapter==='generic-lead-capture-v1'){
+        body=await window.SaleMaxWorkspace.request('forms',`/staff/${encodeURIComponent(formSlug)}/submissions`,{method:'POST',body:payload});
+      }else{
+        const token=actorToken();if(staffCapture&&!token)throw Error('AUTH_REQUIRED');
+        const response=await window.SXTrainingFormRequest.post(fetch,staffCapture
+          ? `/api/pipeline/training-forms/${encodeURIComponent(formSlug)}/submissions`
+          : `/api/public/training/forms/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(formSlug)}/submissions`,{
+          method:'POST',credentials:'same-origin',
+          headers:{'Content-Type':'application/json',...(staffCapture?{Authorization:`Bearer ${token}`}:{})},
+          body:JSON.stringify(payload),
+        },{retrySafe: !data.botChallenge,onRetry:()=>{button.textContent=tr('Retrying…','جارٍ إعادة المحاولة…');}});
+        try{body=await response.json();}catch{throw Error('SERVER_ERROR');}
+        if(!response.ok||body.success!==true)throw Error(body.code||'SUBMISSION_FAILED');
+      }
       sessionStorage.removeItem(storageKey);
       selectedLead=null;
       const reference = esc(body.data.referenceCode);const registrationResult=body.data.studentNumber?'<p>'+tr('Total','الإجمالي')+': QAR '+(Number(body.data.totalMinor)/100).toFixed(2)+'</p>'+ (body.data.registrations||[body.data]).map(r=>'<p><strong>'+esc(language==='ar'?r.courseNameAr:r.courseNameEn)+'</strong><br>'+tr('Student ID','رقم الطالب')+': '+esc(r.studentNumber)+'<br>'+tr('Provisional invoice','فاتورة مبدئية')+': '+esc(r.provisionalInvoiceNumber)+' · QAR '+(Number(r.totalMinor)/100).toFixed(2)+'</p>').join(''):'';
@@ -381,35 +386,28 @@
       renderMessage(tr('Form not found.', 'النموذج غير موجود.'), '', null, '');
       return;
     }
-    if (staffCapture && !actorToken()) {
-      root.innerHTML = `<section class="form-card"><h1 tabindex="-1">${tr('Staff sign-in required', 'يلزم تسجيل دخول الموظف')}</h1><p class="description">${tr('Sign in with your workspace or agent account, then open this staff capture link again.', 'سجّل الدخول بحساب مساحة العمل أو الوكيل، ثم افتح رابط تسجيل الموظف مرة أخرى.')}</p><div class="login-actions"><a class="form-action" href="/user/login">${tr('Workspace sign in', 'تسجيل دخول مساحة العمل')}</a><a class="form-action" href="/agent/login">${tr('Agent sign in', 'تسجيل دخول الوكيل')}</a></div></section>`;
-      root.querySelector('h1')?.focus();
-      return;
-    }
     try {
-      const token = actorToken();
-      const response = await fetch(staffCapture
-        ? `/api/pipeline/training-forms/${encodeURIComponent(formSlug)}`
-        : `/api/public/training/forms/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(formSlug)}`, {
-        cache: 'no-store', credentials: 'same-origin',
-        headers: staffCapture ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const body = await response.json();
-      if (!response.ok || body.success !== true) {
-        if (staffCapture && response.status === 401) {
-          const loginPath = localStorage.getItem('wacrm_agent') ? '/agent/login' : '/user/login';
-          renderMessage(tr('Your staff session has expired', 'انتهت جلسة الموظف'), tr('Sign in again, then reopen this staff capture link.', 'سجّل الدخول مرة أخرى، ثم افتح رابط تسجيل الموظف.'), loginPath, tr('Open sign in', 'فتح تسجيل الدخول'));
-          return;
-        }
-        throw Error(body.code || 'FORM_NOT_FOUND');
+      const publicResponse=await fetch(`/api/public/training/forms/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(formSlug)}`,{cache:'no-store',credentials:'same-origin'});
+      const publicBody=await publicResponse.json();
+      if(!publicResponse.ok||publicBody.success!==true)throw Error(publicBody.code||'FORM_NOT_FOUND');
+      let body=publicBody;
+      if(staffCapture&&publicBody.data.adapter==='generic-lead-capture-v1'){
+        body=await window.SaleMaxWorkspace.request('forms',`/staff/${encodeURIComponent(formSlug)}`);
+      }else if(staffCapture){
+        const token=actorToken();
+        if(!token){const loginPath=query.get('actor')==='agent'||localStorage.getItem('wacrm_agent')?'/agent/login':'/user/login';renderMessage(tr('Staff sign-in required','يلزم تسجيل دخول الموظف'),tr('Sign in with your workspace or agent account, then reopen this staff capture link.','سجّل الدخول بحساب مساحة العمل أو الوكيل، ثم افتح رابط تسجيل الموظف مرة أخرى.'),loginPath,tr('Open sign in','فتح تسجيل الدخول'));return;}
+        const response=await fetch(`/api/pipeline/training-forms/${encodeURIComponent(formSlug)}`,{cache:'no-store',credentials:'same-origin',headers:{Authorization:`Bearer ${token}`}});body=await response.json();
+        if(!response.ok||body.success!==true){if(response.status===401){const loginPath=query.get('actor')==='agent'||localStorage.getItem('wacrm_agent')?'/agent/login':'/user/login';renderMessage(tr('Your staff session has expired','انتهت جلسة الموظف'),tr('Sign in again, then reopen this staff capture link.','سجّل الدخول مرة أخرى، ثم افتح رابط تسجيل الموظف.'),loginPath,tr('Open sign in','فتح تسجيل الدخول'));return;}throw Error(body.code||'FORM_NOT_FOUND');}
       }
+      if(body.success!==true)throw Error(body.code||'FORM_NOT_FOUND');
       data = body.data;
       if (data.form.schema.fields.some(field => field.key === 'course_id' && field.required) && !data.courses.length) {
         renderMessage(tr('Registration is temporarily unavailable.', 'التسجيل غير متاح مؤقتًا.'), tr('Contact the training center before collecting this enquiry.', 'تواصل مع مركز التدريب قبل تسجيل هذا الاستفسار.'), null, '');
         return;
       }
       render();
-    } catch {
+    } catch (error) {
+      if(staffCapture&&['AUTH_REQUIRED','SESSION_EXPIRED'].includes(error?.message)){const loginPath=query.get('actor')==='agent'||localStorage.getItem('wacrm_agent')?'/agent/login':'/user/login';renderMessage(tr('Your staff session has expired','انتهت جلسة الموظف'),tr('Sign in again, then reopen this staff capture link.','سجّل الدخول مرة أخرى، ثم افتح رابط تسجيل الموظف.'),loginPath,tr('Open sign in','فتح تسجيل الدخول'));return;}
       renderMessage(tr('This enquiry form is unavailable.', 'نموذج الاستفسار غير متاح.'), tr('Check the link or contact the training center directly.', 'تحقق من الرابط أو تواصل مباشرة مع مركز التدريب.'), null, '');
     }
   }

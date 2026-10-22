@@ -59,7 +59,86 @@ async function publicForm(db,tenantSlug,formSlug){
   if(!row)return null;const category=require('./categories').getCategory(row.category_key,Number(row.category_version));if(adapters.resolve(category)!=='generic-lead-capture-v1'||!category.capabilities.includes('portal.forms'))return null;
   const entitlements=await plans.loadEntitlements(db,row.tenant_id);if(!entitlements||!['active','trial','grace'].includes(entitlements.status)||!entitlements.capabilities.includes('portal.forms'))return null;
   const schema=parse(row.schema_json);if(schema.templateKey) return null;
-  return {tenant:{name:row.tenant_name,companyName:row.tenant_name,centerNameEn:row.tenant_name,centerNameAr:row.tenant_name,logoUrl:'',addressEn:'',addressAr:'',slug:row.tenant_slug},form:{slug:row.form_slug,nameEn:row.name_en,nameAr:row.name_ar,version:Number(row.version),schema},courses:[]};
+  return {adapter:'generic-lead-capture-v1',tenant:{name:row.tenant_name,companyName:row.tenant_name,centerNameEn:row.tenant_name,centerNameAr:row.tenant_name,logoUrl:'',addressEn:'',addressAr:'',slug:row.tenant_slug},form:{slug:row.form_slug,nameEn:row.name_en,nameAr:row.name_ar,version:Number(row.version),schema},courses:[]};
+}
+
+function staffSession(session){
+  const ctx=session?.context;
+  context(ctx,'forms.capture');
+  if(!ctx.identity?.id||typeof session?.ownerUid!=='string'||!session.ownerUid)fail('BUSINESS_LINK_INVALID');
+  if(ctx.membership.role==='agent'&&(!session.agent||!session.actor||!Number.isSafeInteger(Number(session.actor.id))))fail('BUSINESS_LINK_INVALID');
+  return ctx;
+}
+async function staffForm(db,session,formSlug){
+  const ctx=staffSession(session);
+  if(typeof formSlug!=='string'||!/^[-a-z0-9]{1,48}$/.test(formSlug))fail('FORM_NOT_FOUND');
+  const [[row]]=await db.query(`SELECT t.slug AS tenant_slug,t.name AS tenant_name,f.id AS form_id,v.slug AS form_slug,v.name_en,v.name_ar,v.version,v.schema_json
+    FROM sx_tenants t JOIN sx_workspace_forms f ON f.tenant_id=t.id AND f.status='published'
+    JOIN sx_workspace_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version
+    WHERE t.id=? AND t.status='active' AND v.slug=? LIMIT 1`,[ctx.tenant.id,formSlug]);
+  if(!row)fail('FORM_NOT_FOUND');
+  const schema=parse(row.schema_json);if(schema.templateKey)fail('INVALID_FORM_SCHEMA');
+  return {adapter:'generic-lead-capture-v1',captureMode:'staff',staff:{role:ctx.membership.role},tenant:{name:row.tenant_name,companyName:row.tenant_name,centerNameEn:row.tenant_name,centerNameAr:row.tenant_name,logoUrl:'',addressEn:'',addressAr:'',slug:row.tenant_slug},form:{slug:row.form_slug,nameEn:row.name_en,nameAr:row.name_ar,version:Number(row.version),schema},courses:[]};
+}
+async function searchStaffLeads(db,session,search){
+  const ctx=staffSession(session),term=String(search||'').trim().slice(0,100);
+  if(term.length<2)fail('SEARCH_TERM_TOO_SHORT');
+  const uidHash=sha(session.ownerUid),like=`%${term.replace(/[\\%_]/g,'\\$&')}%`,params=[uidHash,like,like,like,like];
+  let scope='';
+  if(ctx.membership.role==='agent'){
+    const [agents]=await db.query("SELECT id FROM agents WHERE id=? AND owner_uid=? AND role='agent' AND is_active=1 LIMIT 1",[Number(session.actor.id),session.ownerUid]);
+    if(!agents.length)fail('PERMISSION_DENIED');
+    scope=' AND l.owner_agent_id=?';params.push(Number(session.actor.id));
+  }
+  const [rows]=await db.query(`SELECT l.id,l.contact_name AS contactName,l.learner_name AS learnerName,l.mobile AS phone,c.normalized_email AS email,l.qualification_data AS qualificationData
+    FROM pipeline_leads l LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
+    WHERE l.uid_hash=? AND (l.contact_name LIKE ? OR l.learner_name LIKE ? OR l.mobile LIKE ? OR c.normalized_email LIKE ?)${scope}
+    ORDER BY l.updated_at DESC,l.created_at DESC LIMIT 20`,params);
+  return rows.map(row=>({...row,qualificationData:typeof row.qualificationData==='string'?JSON.parse(row.qualificationData):row.qualificationData||{}}));
+}
+async function submitStaff(db,session,formSlug,{submissionToken,values,selectedLeadId,expectedFormVersion}={}){
+  const ctx=staffSession(session);
+  if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken))fail('INVALID_SUBMISSION');
+  if(selectedLeadId!==undefined&&(typeof selectedLeadId!=='string'||!/^[0-9a-f-]{36}$/i.test(selectedLeadId)))fail('INVALID_SUBMISSION');
+  require('./form-submission-version').normalize(expectedFormVersion);
+  await db.beginTransaction();
+  try{
+    const [[form]]=await db.query(`SELECT t.id AS tenant_id,t.slug AS tenant_slug,t.name AS tenant_name,t.category_key,t.category_version,t.status AS tenant_status,
+        f.id AS form_id,v.version,v.slug,v.name_en,v.name_ar,v.schema_json
+      FROM sx_tenants t JOIN sx_workspace_forms f ON f.tenant_id=t.id AND f.status='published'
+      JOIN sx_workspace_form_versions v ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version
+      WHERE t.id=? AND t.status='active' AND v.slug=? LIMIT 1 FOR UPDATE`,[ctx.tenant.id,formSlug]);
+    if(!form)fail('FORM_NOT_FOUND');
+    const category=require('./categories').getCategory(form.category_key,Number(form.category_version));
+    if(adapters.resolve(category)!=='generic-lead-capture-v1'||!category.capabilities.includes('portal.forms'))fail('FORM_NOT_FOUND');
+    const entitlement=await plans.loadEntitlements(db,form.tenant_id);
+    if(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities?.includes('portal.forms'))fail('FEATURE_UNAVAILABLE');
+    const tokenHash=sha(`${ctx.identity.id}:${submissionToken}`);
+    const [[prior]]=await db.query('SELECT reference_code AS referenceCode,lead_id AS leadId FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=? LIMIT 1 FOR UPDATE',[form.tenant_id,form.form_id,tokenHash]);
+    if(prior){await db.commit();return {referenceCode:prior.referenceCode,leadId:prior.leadId,repeated:true};}
+    require('./form-submission-version').assertCurrent(expectedFormVersion,form.version);
+    const schema=parse(form.schema_json);if(schema.templateKey)fail('INVALID_FORM_SCHEMA');
+    const data=trainingForms.cleanSubmission(schema,values,'generic-lead-capture-v1');
+    const referenceCode=crypto.randomBytes(6).toString('hex').toUpperCase(),submissionId=uuid();
+    const [reservation]=await db.query(`INSERT IGNORE INTO sx_workspace_form_submissions(id,tenant_id,form_id,form_version,capture_mode,captured_by_identity_id,idempotency_hash,reference_code,submission_data,attribution_json,consent_text_en,consent_text_ar,consented_at)
+      VALUES (?,?,?,?,'staff',?,?,?,?,NULL,?,?,UTC_TIMESTAMP(3))`,[submissionId,form.tenant_id,form.form_id,form.version,ctx.identity.id,tokenHash,referenceCode,JSON.stringify(data),schema.consentTextEn,schema.consentTextAr]);
+    if(!reservation.affectedRows){const [[replay]]=await db.query('SELECT reference_code AS referenceCode,lead_id AS leadId FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=? LIMIT 1',[form.tenant_id,form.form_id,tokenHash]);if(!replay)fail('FORM_SUBMISSION_CONFLICT');await db.commit();return {referenceCode:replay.referenceCode,leadId:replay.leadId,repeated:true};}
+    const customValues=schema.leadFields?leadFields.values(data.customFields):undefined;
+    let leadId;
+    if(selectedLeadId){
+      const uidHash=sha(session.ownerUid),scope=ctx.membership.role==='agent'?' AND owner_agent_id=?':'';
+      const params=[uidHash,selectedLeadId];if(scope){const [agents]=await db.query("SELECT id FROM agents WHERE id=? AND owner_uid=? AND role='agent' AND is_active=1 LIMIT 1",[Number(session.actor.id),session.ownerUid]);if(!agents.length)fail('PERMISSION_DENIED');params.push(Number(session.actor.id));}
+      const [[lead]]=await db.query(`SELECT id,qualification_data FROM pipeline_leads WHERE uid_hash=? AND id=?${scope} LIMIT 1 FOR UPDATE`,params);
+      if(!lead)fail('LEAD_NOT_ACCESSIBLE');leadId=lead.id;
+      if(schema.leadFields){const qualification=require('./lead-field-runtime').qualification(lead.qualification_data);qualification.customFields=leadFields.save(schema.leadFields,customValues,qualification.customFields);await db.query('UPDATE pipeline_leads SET qualification_data=?,last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?',[JSON.stringify(qualification),uidHash,session.ownerUid,leadId]);}
+    }else{
+      const agentId=ctx.membership.role==='agent'?Number(session.actor.id):undefined;
+      const lead=await require('../../helper/pipeline/leadPipeline').createManualLead({uid:session.ownerUid,actorType:agentId?'agent':'identity',actorId:agentId?String(agentId):ctx.identity.id,agentId,role:ctx.membership.role,connection:db,captureFieldContract:leadFields.contract(schema.leadFields),input:{...(schema.leadFields?{customFields:{configurationRevision:schema.leadFields.configurationRevision,values:customValues}}:{}),title:form.name_en,contactName:data.contact_name,learnerName:data.contact_name,mobile:data.phone||'',email:data.email||'',sourceType:'staff_form'}});
+      leadId=lead.id;
+    }
+    await db.query('UPDATE sx_workspace_form_submissions SET lead_id=? WHERE tenant_id=? AND form_id=? AND id=?',[leadId,form.tenant_id,form.form_id,submissionId]);
+    await db.commit();return {referenceCode,leadId,repeated:false,collectorRole:ctx.membership.role};
+  }catch(error){try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}
 }
 
 function sha(value){return crypto.createHash('sha256').update(value,'utf8').digest('hex');}
@@ -97,4 +176,4 @@ async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,vis
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
 
-module.exports={context,list,leadFieldOptions,submissions,create,update,publish,publicForm,submitPublic};
+module.exports={context,list,leadFieldOptions,submissions,create,update,publish,publicForm,staffForm,searchStaffLeads,submitStaff,submitPublic};
