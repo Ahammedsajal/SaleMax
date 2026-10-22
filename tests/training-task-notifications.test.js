@@ -97,3 +97,13 @@ test('WhatsApp task delivery is suppressed until each recipient opts in',async()
   const result=await runner.sendWhatsapp(db,{tenant_id:'tenant',recipient_type:'agent',recipient_id:'7',title:'Check in',to_status:'open',due_at:null},{config:wa,http:{post:async()=>{posted=true}}});
   assert.deepEqual(result,{suppressed:'TASK_WHATSAPP_OPT_IN_REQUIRED'});assert.equal(posted,false);assert.equal(calls.length,1);
 });
+
+test('lead-linked inbox follow-ups use their originating QR instance without a Meta template',async()=>{
+  const calls=[],item={id:10,tenant_id:'tenant-1',task_id:'task-1',task_type:'lead_follow_up',source_type:'lead',source_id:'lead-id',description:'Lead: Lead A\nConversation: chat-qr-1\nChannel: qr',recipient_type:'agent',recipient_id:'7',channel:'whatsapp',attempt:1,workerId:'tasks-worker-1',title:'Follow up: Lead A',due_at:'2026-10-23T08:00:00.000Z',timezone:'Asia/Qatar'};
+  const db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},query:async(sql,args=[])=>{calls.push([sql,args]);if(sql.includes('FROM sx_legacy_ownership'))return [[{uid:'owner-uid',number:'+97440000000'}],[]];if(sql.includes('FROM agents a JOIN sx_legacy_ownership'))return [[{phone:'+97450000001'}],[]];if(sql.includes('SELECT status,lease_owner,attempt_count'))return [[{status:'processing',lease_owner:item.workerId,attempt_count:1}],[]];return [{affectedRows:1},[]];}};
+  let request;
+  const result=await runner.dispatch(db,item,{env:{CRM_INTERNAL_SECRET:'test-secret',PORT:'3010'},http:{post:async(url,body,options)=>{request={url,body,options};return {data:{success:true,data:{messageId:'qr-message-linked-lead'}}};}},whatsapp:null});
+  assert.equal(result.status,'accepted');assert.match(request.url,/\/api\/internal\/qr\/send-text$/);assert.equal(request.body.to,'97450000001');assert.match(request.body.text,/Lead A/);
+  assert.ok(calls.some(([sql,args])=>sql.includes('origin_instance_unique_id')&&args.includes('chat-qr-1')));
+  assert.ok(calls.some(([sql,args])=>sql.startsWith('UPDATE sx_task_notifications SET status=')&&args.includes('qr-message-linked-lead')));
+});
