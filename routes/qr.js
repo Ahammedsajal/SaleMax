@@ -24,18 +24,30 @@ function normalizeNumber(number) {
 }
 
 async function findQrInstanceForActor(req, uniqueId) {
-  const context = req.featureSession?.context;
+  let context = req.featureSession?.context;
+  let ownerUid = req.owner?.uid;
+  // Legacy /api/qr requests authenticate manager/accountant user rows
+  // directly, so they may not have the feature-session context attached.
+  // Resolve the same verified tenant scope used by get_all before looking up
+  // owner-stored QR instances.
+  if (!context && !req.agentWorkspace && req.decode?.userData) {
+    const scope = await require('../modules/platform/team-inbox-scope')
+      .resolveInboxScope(query, req.decode.userData, 'get_chat_list');
+    if (scope.canonical) {
+      context = scope.ctx;
+      ownerUid = scope.uid;
+    }
+  }
   const staffWorkspace = Boolean(req.agentWorkspace || (context?.membership && context.membership.role !== "owner"));
   if (!staffWorkspace) {
-    const ownerUid = req.owner?.uid || req.decode?.uid;
-    if (!ownerUid) return [];
-    return query("SELECT id, uid, uniqueId FROM instance WHERE uniqueId = ? AND uid = ? LIMIT 1", [uniqueId, ownerUid]);
+    const resolvedOwnerUid = ownerUid || req.decode?.uid;
+    if (!resolvedOwnerUid) return [];
+    return query("SELECT id, uid, uniqueId FROM instance WHERE uniqueId = ? AND uid = ? LIMIT 1", [uniqueId, resolvedOwnerUid]);
   }
 
   const tenantId = context?.tenant?.id;
   const membershipId = context?.membership?.id;
   const identityId = context?.identity?.id;
-  const ownerUid = req.owner?.uid;
   if (!tenantId || !membershipId || !identityId || !ownerUid) return [];
 
   const managerCanManageShared = context.membership.role === "manager";
