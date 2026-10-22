@@ -263,6 +263,12 @@ router.get("/get_all", validateUser, async (req, res) => {
     const inboxScope = await require('../modules/platform/team-inbox-scope')
       .resolveInboxScope(query, req.decode.userData, 'get_chat_list');
     if (inboxScope.canonical && inboxScope.ctx.membership.role !== 'owner') {
+      const ctx = inboxScope.ctx;
+      const ownedQrRows = await query(`SELECT instance.id AS instanceId, instance.qr
+        FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id
+        WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=? AND share.granted_by_identity_id=?`,
+      [inboxScope.uid, ctx.tenant.id, ctx.membership.id, ctx.identity.id]);
+      const ownedQrById = new Map(ownedQrRows.map(row => [Number(row.instanceId), row.qr]));
       const shared = (inboxScope.sharedQrInstances || []).map(instance => ({
         id: Number(instance.instanceId),
         title: instance.title || 'WhatsApp',
@@ -272,7 +278,8 @@ router.get("/get_all", validateUser, async (req, res) => {
           ? 'RECONNECTING'
           : instance.status,
         uniqueId: instance.uniqueId,
-        sharedAccess: true,
+        qr: ownedQrById.get(Number(instance.instanceId)) || null,
+        sharedAccess: !ownedQrById.has(Number(instance.instanceId)),
       }));
       return res.json({ success: true, data: shared });
     }
