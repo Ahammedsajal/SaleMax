@@ -27,6 +27,23 @@ test('registry rejects duplicate identity, unknown capabilities, invalid roles a
   }
 });
 
+test('registry preserves only reviewed, capability-bound shared Forms adapters', () => {
+  const base = require('../modules/platform/categories').baseCrm;
+  const manifest = {
+    ...base,
+    capabilities: [...base.capabilities, 'portal.forms'],
+    formsAdapter: 'generic-lead-capture-v1',
+  };
+  const category = createCategoryRegistry([manifest], capabilities).get(base.key, base.version);
+  assert.equal(category.formsAdapter, 'generic-lead-capture-v1');
+  assert.equal(require('../modules/platform/form-category-adapters').resolve(category), 'generic-lead-capture-v1');
+  assert.throws(() => createCategoryRegistry([{...manifest, formsAdapter: 'training-registration-v1'}], capabilities), {code:'INVALID_CATEGORY_MANIFEST'});
+  assert.throws(() => createCategoryRegistry([{...manifest, formsAdapter: 'unreviewed'}], capabilities), {code:'INVALID_CATEGORY_MANIFEST'});
+  assert.throws(() => createCategoryRegistry([{...manifest, capabilities: base.capabilities}], capabilities), {code:'INVALID_CATEGORY_MANIFEST'});
+  assert.equal(require('../modules/platform/form-category-adapters').resolve(trainingCenter), 'training-registration-v1');
+  assert.equal(require('../modules/platform/form-category-adapters').resolve(sevenNetworkSales), null);
+});
+
 test('registry copies caller input and exposes immutable manifests and listings', () => {
   const input={...trainingCenter,title:{...trainingCenter.title},capabilities:[...trainingCenter.capabilities],seatRoles:[...trainingCenter.seatRoles]};
   const registry=createCategoryRegistry([input],capabilities);

@@ -52,6 +52,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       || (source.chatbotLeadCapture!==undefined&&!['none','generic','training'].includes(source.chatbotLeadCapture))
       || (source.chatbotLeadCapture==='generic'&&!source.capabilities.includes('crm.leads'))
       || (source.chatbotLeadCapture==='training'&&(!source.capabilities.includes('crm.leads')||!source.capabilities.includes('training.courses')))
+      || (source.formsAdapter!==undefined&&!require('./form-category-adapters').validateDeclaration(source.formsAdapter,source.capabilities))
       || (source.customizationDefaults !== undefined && !source.capabilities.includes('tenant.settings'))
       || typeof source.migration !== 'string' || !/^\d{8}_[a-z0-9_]+\.sql$/.test(source.migration)) invalid();
     const taskAdapters = source.taskAdapters === undefined ? undefined : copyTaskAdapters(source.taskAdapters, source.capabilities);
@@ -63,6 +64,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       public: source.public, ...(source.planable === undefined ? {} : { planable: source.planable }),
       ...(source.catalogue===undefined?{}:{catalogue:source.catalogue}),
       ...(source.customizationDefaults===undefined?{}:{customizationDefaults:copyCustomizationDefaults(source.customizationDefaults)}),
+      ...(source.formsAdapter===undefined?{}:{formsAdapter:source.formsAdapter}),
       ...(taskAdapters===undefined?{}:{taskAdapters}),
       chatbotLeadCapture: source.chatbotLeadCapture || 'none',
       capabilities: Object.freeze([...source.capabilities]), seatRoles: Object.freeze([...source.seatRoles]), migration: source.migration });

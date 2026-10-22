@@ -111,6 +111,15 @@ test('form access is tenant scoped, category scoped and plan-gated by portal.for
   assert.equal(require('../modules/platform/policy').decision({...ctx,membership:{...ctx.membership,role:'accountant'}},{capability:'portal.forms',permission:'forms.capture'}).code,'PERMISSION_DENIED');
   assert.ok(capabilities['portal.forms'].includes('forms.manage'));assert.ok(capabilities['portal.forms'].includes('forms.capture'));
 });
+test('Forms fails closed for a category whose declared adapter has no shared execution path',async()=>{
+  const base=require('../modules/platform/categories').baseCrm;
+  const {createCategoryRegistry}=require('../modules/platform/category-registry');
+  const category=createCategoryRegistry([{...base,capabilities:[...base.capabilities,'portal.forms'],formsAdapter:'generic-lead-capture-v1'}],capabilities).get(base.key,base.version);
+  const ctx={audience:'tenant',identity:{id:'identity'},tenant:{id:'tenant',status:'active',categoryKey:base.key,categoryVersion:base.version},membership:{id:'membership',tenantId:'tenant',role:'owner',status:'active'},category,subscription:{status:'active',capabilities:[...category.capabilities]}};
+  let queries=0;const db={query:async()=>{queries++;return [[]]}};
+  await assert.rejects(forms.list(db,ctx),{code:'CATEGORY_UNAVAILABLE'});
+  assert.equal(queries,0,'the unsupported adapter is denied before data access');
+});
 test('Lead Forms is mounted into the existing user shell with bilingual draft, preview and publish controls',()=>{
   const root=require('node:path').join(__dirname,'../client/public');
   const html=require('node:fs').readFileSync(require('node:path').join(root,'index.html'),'utf8');

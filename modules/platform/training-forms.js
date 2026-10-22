@@ -3,6 +3,7 @@ const crypto=require('node:crypto');
 const {decision}=require('./policy');
 const plans=require('./plans');
 const {trainingCenter}=require('./categories');
+const formAdapters=require('./form-category-adapters');
 const pipeline=require('../../helper/pipeline/leadPipeline');
 const registration=require('./training-registration-workflow');
 const registrationFields=require('./training-registration-schema');
@@ -27,7 +28,7 @@ function cleanCampaignAttribution(value){
   }
   return Object.keys(clean).length?clean:null;
 }
-function context(ctx){if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant?.id)fail('TENANT_CONTEXT_REQUIRED');const result=decision(ctx,{capability:'portal.forms',permission:'forms.manage'});if(!result.allowed)fail(result.code);}
+function context(ctx){if(!ctx||ctx.audience!=='tenant'||ctx.tenant?.status!=='active'||ctx.membership?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant?.id)fail('TENANT_CONTEXT_REQUIRED');const adapter=formAdapters.resolve(ctx.category);if(!formAdapters.supportsExecution(ctx.category,adapter))fail('CATEGORY_UNAVAILABLE');const result=decision(ctx,{capability:'portal.forms',permission:'forms.manage'});if(!result.allowed)fail(result.code);return adapter;}
 function formInput(value){
   if(!value||typeof value!=='object'||Array.isArray(value))fail('INVALID_FORM');
   const slug=String(value.slug||'').trim().toLowerCase();

@@ -2143,4 +2143,22 @@ tenant reset to platform labels, historical rollback, and stale-revision errors.
 The API and identities are synthetic in-memory fixtures; this is rendered-screen
 regression evidence, not authenticated production acceptance. No dependency
 manifest, customer setting, database, or production runtime changed. Generic
-Forms adapter code and category approval remain open.
+Forms route execution and category approval remain open.
+
+## Shared Forms adapter registry and execution guard — source increment, 22 October 2026
+
+The shared category registry now validates and preserves the reviewed
+`generic-lead-capture-v1` declaration only when its required Forms capability is
+also present. The Forms service resolves the historical `training_center@1`
+registration adapter explicitly and rejects every category whose adapter it
+does not execute before database access. No category manifest or capability was
+changed, so generic Forms remain disabled pending category adoption and the
+generic submission/API implementation.
+
+The focused category registry, category isolation and Training Forms suites pass
+26/26. Tests verify valid declaration retention, unknown/missing-capability
+rejection, preservation of the Training Center v1 adapter, Sales exclusion, and
+pre-query denial for a synthetic Base CRM generic adapter. No migration,
+customer data, database, or production runtime changed. Generic route execution,
+MariaDB integration, authenticated screen acceptance and deployment remain
+open.
