@@ -69,20 +69,10 @@ async function main(){
       id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
       uid VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-    await db.query(`CREATE TABLE pipeline_leads(
-      id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL PRIMARY KEY,
-      uid_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-      uid VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-      owner_agent_id BIGINT UNSIGNED NULL,
-      qualification_data JSON NOT NULL,
-      KEY idx_synthetic_lead_scope (uid_hash,uid,id,owner_agent_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-
-    const name='20261022_workspace_forms.sql',migrations=discover(path.join(__dirname,'../database/migrations'));
-    const applied=await applyMigrations(db,migrations,{only:name});
-    assert.deepEqual(applied.applied,[name]);
+    const names=['20260928_lead_pipeline.sql','20261007_pipeline_contacts.sql','20261022_pipeline_identity_activity_actor.sql','20261118_pipeline_lead_qualification.sql','20261022_workspace_forms.sql'],migrations=discover(path.join(__dirname,'../database/migrations'));
+    for(const name of names){const applied=await applyMigrations(db,migrations,{only:name});assert.deepEqual(applied.applied,[name]);}
     const evidence=await require('./workspace-forms-migration.integration.cjs')(db,{t1,t2,i1,i2,connect:()=>mysql.createConnection(connectionOptions)});
-    console.log(JSON.stringify({mariaDb:server.version,databaseIsDisposable:true,migration:name,...evidence,customerDataTouched:false,externalWrites:false}));
+    console.log(JSON.stringify({mariaDb:server.version,databaseIsDisposable:true,migrations:names,...evidence,customerDataTouched:false,externalWrites:false}));
   }finally{await db.end();}
 }
 main().catch(error=>{process.stderr.write(`${error.code==='ERR_ASSERTION'?error.stack:error.code||error.message||'WORKSPACE_FORMS_MIGRATION_FAILED'}\n`);process.exitCode=1;});

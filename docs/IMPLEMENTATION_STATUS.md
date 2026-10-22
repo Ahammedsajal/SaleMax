@@ -12,13 +12,16 @@ tenants using the same test-only generic adapter: same-slug creation remained
 tenant-local; list and submission reads were scoped; cross-tenant form IDs were
 denied for update/publication; and concurrent writes to one draft revision
 yielded one success and one `STALE_REVISION`. Public and owner staff capture
-then ran through the real Forms service transactions. The unentitled tenant was
-denied before lead creation; exact-token replays created no duplicate lead or
-visitor-rate attempt; consent, sanitized campaign attribution, staff identity
-attribution and linked lead IDs persisted. The category resolver and
-entitlement loader were test-injected, and `createManualLead` was replaced by a
-fixture that wrote synthetic rows to the disposable Pipeline table; the real
-Pipeline creation helper and authenticated browser flow remain separate gates.
+then ran through the real Forms service transactions and the real Pipeline
+`createManualLead` helper on the same transaction connection. The disposable
+database applied the actual Pipeline, contact, identity-activity and
+qualification migrations before Forms. The unentitled tenant was denied before
+lead creation; exact-token replays created no duplicate leads or visitor-rate
+attempts; consent, sanitized campaign attribution, contact fields, public and
+staff source types, identity/system activity attribution and linked lead IDs
+persisted in the real Pipeline tables. The category resolver and entitlement
+loader remain test-injected. Authenticated browser acceptance and production
+plan resolution remain separate gates.
 The temporary database, data directory and server were removed; the unrelated
 MySQL service was left untouched. No production state or customer data changed.
 Authenticated EN/AR existing-screen acceptance, category opt-in review and
