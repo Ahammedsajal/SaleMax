@@ -1963,3 +1963,7 @@ Operations worker readiness increment — 22 October 2026
 - Added private atomic readiness markers for report and recruitment workers, refreshed after each successful poll. Compose health checks expire stale markers; the capacity monitor now treats unhealthy workers as critical.
 - Focused readiness, alert-monitor and Docker contract suite passed 32 checks (31 passed, one host-only flock check skipped); Node syntax and whitespace checks passed. This proves source contracts only.
 - Not deployed. Production artifact compatibility, worker queue progress, operator alert receipt, and load/restore acceptance remain open. No migration or rollback applies.
+
+Operations graceful worker shutdown increment — 22 October 2026
+
+The report and recruitment notification workers now share a polling lifecycle that stops scheduling on SIGINT/SIGTERM, waits for the in-flight poll to settle before closing the database pool, and preserves one-shot mode. A signal before the first queued poll skips that work. Focused worker lifecycle tests cover active-poll draining, idempotent stop, no post-stop polling, one-shot closure and poll-error handling. This reduces interrupted claim/send windows but cannot guarantee delivery across a forced kill or provider-ambiguous result. It is source-only; production still runs the older worker image without healthchecks.
