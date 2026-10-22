@@ -3,6 +3,23 @@
 // Registries are assembled at boot from reviewed source, never tenant input.
 function createCategoryRegistry(definitions, knownCapabilities) {
   const invalid = () => { throw Object.assign(new Error('INVALID_CATEGORY_MANIFEST'), { code: 'INVALID_CATEGORY_MANIFEST' }); };
+  function copyCustomizationDefaults(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) invalid();
+    let bytes;
+    try { bytes = Buffer.byteLength(JSON.stringify(value), 'utf8'); } catch { invalid(); }
+    if (bytes > 32 * 1024) invalid();
+    function copy(node, depth = 0) {
+      if (depth > 8) invalid();
+      if (node === null || typeof node === 'string' || typeof node === 'boolean') return node;
+      if (typeof node === 'number' && Number.isFinite(node)) return node;
+      if (Array.isArray(node)) return Object.freeze(node.map(item => copy(item, depth + 1)));
+      if (!node || typeof node !== 'object' || Object.getPrototypeOf(node) !== Object.prototype) invalid();
+      const result = {};
+      for (const [key, child] of Object.entries(node)) result[key] = copy(child, depth + 1);
+      return Object.freeze(result);
+    }
+    return copy(value);
+  }
   if (!Array.isArray(definitions) || !knownCapabilities || typeof knownCapabilities !== 'object') invalid();
   const entries = new Map();
   for (const source of definitions) {
@@ -21,6 +38,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       || (source.chatbotLeadCapture!==undefined&&!['none','generic','training'].includes(source.chatbotLeadCapture))
       || (source.chatbotLeadCapture==='generic'&&!source.capabilities.includes('crm.leads'))
       || (source.chatbotLeadCapture==='training'&&(!source.capabilities.includes('crm.leads')||!source.capabilities.includes('training.courses')))
+      || (source.customizationDefaults !== undefined && !source.capabilities.includes('tenant.settings'))
       || typeof source.migration !== 'string' || !/^\d{8}_[a-z0-9_]+\.sql$/.test(source.migration)) invalid();
     const id = `${source.key}@${source.version}`;
     if (entries.has(id)) invalid();
@@ -29,6 +47,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       title: Object.freeze({ en: source.title.en, ar: source.title.ar }),
       public: source.public, ...(source.planable === undefined ? {} : { planable: source.planable }),
       ...(source.catalogue===undefined?{}:{catalogue:source.catalogue}),
+      ...(source.customizationDefaults===undefined?{}:{customizationDefaults:copyCustomizationDefaults(source.customizationDefaults)}),
       chatbotLeadCapture: source.chatbotLeadCapture || 'none',
       capabilities: Object.freeze([...source.capabilities]), seatRoles: Object.freeze([...source.seatRoles]), migration: source.migration });
     entries.set(id, manifest);

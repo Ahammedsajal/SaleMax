@@ -36,3 +36,19 @@ test('registry copies caller input and exposes immutable manifests and listings'
   assert.throws(()=>registry.list().pop(),TypeError);
   assert.throws(()=>{registry.get(input.key,1).title.en='Other';},TypeError);
 });
+
+test('registry carries bounded immutable category customization defaults into the resolver', () => {
+  const defaults={schemaVersion:3,navigationLabels:{courses:{en:'Learning',ar:'التعلم'}},leadFields:[],hiddenNavigation:[]};
+  const input={...trainingCenter,customizationDefaults:defaults};
+  const category=createCategoryRegistry([input],capabilities).get('training_center',1);
+  defaults.navigationLabels.courses.en='Mutated';
+  assert.equal(category.customizationDefaults.navigationLabels.courses.en,'Learning');
+  assert.throws(()=>{category.customizationDefaults.navigationLabels.courses.en='Mutated';},TypeError);
+  const context={tenant:{categoryKey:category.key,categoryVersion:category.version},category};
+  const resolved=require('../modules/platform/tenant-customization').resolved(context,null,0);
+  assert.equal(resolved.value.navigationLabels.courses.en,'Learning');
+  assert.deepEqual(resolved.provenance['navigationLabels.courses.en'],{scope:'category_version',categoryKey:'training_center',categoryVersion:1});
+  for(const customizationDefaults of [[],{schemaVersion:3,unsafe:()=>{}},{schemaVersion:3,deep:{a:{b:{c:{d:{e:{f:{g:{h:{i:1}}}}}}}}}},{data:'x'.repeat(33*1024)}])
+    assert.throws(()=>createCategoryRegistry([{...trainingCenter,customizationDefaults}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
+  assert.throws(()=>createCategoryRegistry([{...trainingCenter,capabilities:trainingCenter.capabilities.filter(key=>key!=='tenant.settings'),customizationDefaults:defaults}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
+});
