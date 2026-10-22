@@ -25,6 +25,23 @@ test('real-estate pack is versioned, immutable, editable and available to the ex
   assert.equal(input.config.guidedContent.messages.greeting.en, pack.guidedContentDefaults.messages.greeting.en);
 });
 
+test('all existing real-estate category versions resolve their exact guided pack and retain legacy Flow Builder behavior', () => {
+  for (const version of [1, 2, 3, 4]) {
+    const versionedPack = getDomainPack('real_estate', version);
+    assert.equal(versionedPack.key, 'real_estate');
+    assert.equal(versionedPack.version, version);
+    assert.equal(versionedPack.guidedReply, pack.guidedReply);
+    assert.equal(versionedPack.requiresDatabase, true);
+    const guided = botInput({ name: `Real Estate v${version}`, engine: 'guided', config: { guidedMode: 'domain_default' } }, 'real_estate', version);
+    assert.equal(guided.config.guidedMode, 'domain_default');
+    assert.equal(guided.config.guidedContent.messages.greeting.en, pack.guidedContentDefaults.messages.greeting.en);
+    const flow = botInput({ name: `Legacy flow v${version}`, engine: 'guided', config: { flowId: 'existing_property_flow' } }, 'real_estate', version);
+    assert.equal(flow.config.guidedMode, 'automation_flow');
+    assert.equal(flow.config.flowId, 'existing_property_flow');
+  }
+  assert.equal(getDomainPack('real_estate', 5).key, 'faq_only');
+});
+
 test('property facts are loaded by tenant, category version, active state and a bounded listing limit', async () => {
   const calls = [];
   const rowsByTenant = new Map([
