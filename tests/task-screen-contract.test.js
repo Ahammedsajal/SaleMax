@@ -39,9 +39,9 @@ test('task selectors remain catalogue-backed and popup accessibility labels foll
 });
 
 test('shared Tasks screen uses authenticated category context for 7Network Sales labels', () => {
-  assert.match(html, /tasks-context\.js\?v=20261014-sales-category2/);
+  assert.match(html, /tasks-context\.js\?v=20261022-sales-category-alias1/);
   assert.match(context, /\/api\/user\/team-invitations\/sidebar-access/);
-  assert.match(context, /result\?\.data\?\.categoryKey!=='7network_sales'/);
+  assert.match(context, /!isSalesCategory\(result\?\.data\?\.categoryKey\)/);
   assert.match(context, /Shared work queue for leads, calls, deals and team actions\./);
   assert.match(context, /SALES WORKSPACE/);
   assert.match(context, /قائمة عمل مشتركة للعملاء والمكالمات والصفقات وإجراءات الفريق/);

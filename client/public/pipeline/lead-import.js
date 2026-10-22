@@ -41,7 +41,8 @@
     acceptedRows=result.rows;render(acceptedRows);submit.disabled=false;
   }
   file.addEventListener('change',()=>loadCsv(file.files?.[0]));
-  async function checkAccess(){try{const token=localStorage.getItem('wacrm_user'),response=await fetch('/api/pipeline/settings',{headers:{Authorization:token?'Bearer '+token:'','Accept':'application/json'},credentials:'same-origin',cache:'no-store'}),body=await response.json();button.hidden=!(response.ok&&body.success&&body.data?.categoryKey==='7network_sales'&&body.data?.role==='owner');}catch{button.hidden=true;}}
+  const isSalesCategory=key=>key==='7network_sales'||key==='salemax_sales';
+  async function checkAccess(){try{const token=localStorage.getItem('wacrm_user'),response=await fetch('/api/pipeline/settings',{headers:{Authorization:token?'Bearer '+token:'','Accept':'application/json'},credentials:'same-origin',cache:'no-store'}),body=await response.json();button.hidden=!(response.ok&&body.success&&isSalesCategory(body.data?.categoryKey)&&body.data?.role==='owner');}catch{button.hidden=true;}}
   button.addEventListener('click',()=>{file.value='';acceptedRows=[];preview.replaceChildren();status.textContent='';submit.disabled=true;dialog.showModal();});
   $('#closeLeadImport').addEventListener('click',()=>dialog.close());$('#cancelLeadImport').addEventListener('click',()=>dialog.close());
   $('#leadImportForm').addEventListener('submit',async event=>{

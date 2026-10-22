@@ -2094,3 +2094,7 @@ the existing translated defaults when no tenant override exists. Sales
 dashboard checks cover English and Arabic tenant labels. Cache reference
 updated. Source-only; authenticated production acceptance and deployment
 remain open.
+
+## Existing Pipeline and Tasks compatibility for legacy Sales category — source increment, 22 October 2026
+
+The existing Pipeline owner import action, Sales-only do-not-call outcome, and shared Tasks Sales labels/type now recognize the reviewed `salemax_sales` alias alongside `7network_sales`. The server's existing category and owner/permission checks remain authoritative; the change only makes compatible UI controls visible for legacy stored category keys. Cache keys were advanced on the existing Pipeline and Tasks loaders. Focused existing-screen contract, import, and detail-page tests pass 14/14; syntax and whitespace checks pass. No migration, tenant data, or production runtime changed. Authenticated bilingual browser acceptance and deployment remain open.
