@@ -79,6 +79,9 @@ module.exports=async function workspaceFormsMigrationIntegration(db,{t1,t2,i1,i2
     assert.equal(staffResult.repeated,false);assert.equal(staffResult.collectorRole,'owner');assert.equal(await pipelineCount(),2);
     const staffReplay=await forms.submitStaff(db,ownerSession,'service-contact',{submissionToken:staffToken,expectedFormVersion:99,values:{}});
     assert.equal(staffReplay.repeated,true);assert.equal(staffReplay.leadId,staffResult.leadId);assert.equal(await pipelineCount(),2);
+    const revokedSession={...ownerSession,context:{...ctxA,membership:{...ctxA.membership,status:'inactive'}}};
+    const revokedError=await forms.submitStaff(db,revokedSession,'service-contact',{submissionToken:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',expectedFormVersion:1,values:{contact_name:'Revoked synthetic',phone:'+12025550127',consent:true}}).then(()=>null,error=>error);
+    assert.equal(revokedError?.code,'TENANT_CONTEXT_REQUIRED');assert.equal(await pipelineCount(),2,'an inactive membership context must not create a Pipeline lead');
     const [captureRows]=await db.query('SELECT capture_mode,captured_by_identity_id,idempotency_hash,lead_id,submission_data,attribution_json,consent_text_en,consent_text_ar FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=?',[t1,formA.id]);
     const publicRow=captureRows.find(row=>row.capture_mode==='public'&&row.lead_id===publicResult.leadId),staffRow=captureRows.find(row=>row.capture_mode==='staff'&&row.lead_id===staffResult.leadId);
     assert.ok(publicRow);assert.ok(staffRow);assert.equal(publicRow.idempotency_hash,sha(publicToken));assert.equal(staffRow.idempotency_hash,sha(`${i1}:${staffToken}`));
@@ -98,11 +101,16 @@ module.exports=async function workspaceFormsMigrationIntegration(db,{t1,t2,i1,i2
     const [rateRows]=await db.query('SELECT attempts FROM sx_workspace_form_rate_limits WHERE tenant_id=? AND form_id=?',[t1,formA.id]);
     assert.equal(rateRows.length,2);assert.ok(rateRows.every(row=>Number(row.attempts)===1),'an idempotent replay must not consume another visitor-rate attempt');
     assert.equal((await forms.submissions(db,ctxA)).total,4);assert.equal((await forms.submissions(db,ctxB)).total,1);
+    await db.query("UPDATE sx_tenants SET status='suspended' WHERE id=?",[t1]);
+    assert.equal(await forms.publicForm(db,ctxA.slug,'service-contact'),null,'a suspended tenant must not publish its generic form');
+    const suspendedError=await forms.submitPublic(pool,{tenantSlug:ctxA.slug,formSlug:'service-contact',submissionToken:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',visitorHash:'d'.repeat(64),expectedFormVersion:1,values:{contact_name:'Suspended synthetic',phone:'+12025550128',consent:true}}).then(()=>null,error=>error);
+    assert.equal(suspendedError?.code,'FORM_NOT_FOUND');assert.equal(await pipelineCount(),2,'a suspended tenant must not create a Pipeline lead');
+    await db.query("UPDATE sx_tenants SET status='active' WHERE id=?",[t1]);
     await db.query('UPDATE sx_plan_assignments SET expires_at=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 1 SECOND) WHERE id=?',[assignmentA]);
     const expired=await plans.loadEntitlements(db,t1);assert.equal(expired.status,'expired');
     const expiredError=await forms.submitPublic(pool,{tenantSlug:ctxA.slug,formSlug:'service-contact',submissionToken:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',visitorHash:'c'.repeat(64),expectedFormVersion:1,values:{contact_name:'Expired synthetic',phone:'+12025550126',consent:true}}).then(()=>null,error=>error);
     assert.equal(expiredError?.code,'FORM_NOT_FOUND');assert.equal(await pipelineCount(),2,'an expired assignment must not create a new Pipeline lead');
   }finally{categories.getCategory=original.getCategory;}
 
-  return {workspaceFormsTenantForeignKeys:true,workspaceFormsSubmissionIdempotency:true,workspaceFormsVersionReference:true,workspaceFormsRateLimitTenantBinding:true,workspaceFormsServiceTwoTenantIsolation:true,workspaceFormsCrossTenantIdDenial:true,workspaceFormsConcurrentStaleWrite:true,genericPublicSubmissionTransactional:true,genericPublicEntitlementDenial:true,genericPublicExpiredAssignmentDenial:true,genericPublicIdempotencyAndRateSnapshot:true,genericPublicPipelinePersistence:true,genericStaffSubmissionTransactional:true,genericStaffPipelinePersistenceAndIdentityAttribution:true,genericStaffIdentityAttributionAndReplay:true,actualPlanAssignmentResolver:true};
+  return {workspaceFormsTenantForeignKeys:true,workspaceFormsSubmissionIdempotency:true,workspaceFormsVersionReference:true,workspaceFormsRateLimitTenantBinding:true,workspaceFormsServiceTwoTenantIsolation:true,workspaceFormsCrossTenantIdDenial:true,workspaceFormsConcurrentStaleWrite:true,genericPublicSubmissionTransactional:true,genericPublicEntitlementDenial:true,genericPublicExpiredAssignmentDenial:true,genericPublicSuspendedTenantDenial:true,genericPublicIdempotencyAndRateSnapshot:true,genericPublicPipelinePersistence:true,genericStaffSubmissionTransactional:true,genericStaffRevokedMembershipContextDenial:true,genericStaffPipelinePersistenceAndIdentityAttribution:true,genericStaffIdentityAttributionAndReplay:true,actualPlanAssignmentResolver:true};
 };

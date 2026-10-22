@@ -19,7 +19,9 @@ qualification migrations plus the actual plan-assignment and Forms migrations.
 The integration used the real `plans.loadEntitlements` resolver over two
 synthetic assignments: Tenant A had Forms and CRM Leads, Tenant B had Forms
 only, and Tenant A was later expired. B's denied capture and A's post-expiry
-capture created no leads. Exact-token replays created no duplicate leads or
+capture created no leads. It also denied public capture for a database-suspended
+tenant and denied staff capture with an inactive membership context, without
+creating extra leads. Exact-token replays created no duplicate leads or
 visitor-rate attempts; consent, sanitized campaign attribution, contact fields,
 public and staff source types, identity/system activity attribution and linked
 lead IDs persisted in the real Pipeline tables. Only the generic category
