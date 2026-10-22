@@ -3,7 +3,7 @@ const fields=require('./lead-field-contract');
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 function normalize(value){
  if(value===undefined)return undefined;
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==2||!Number.isSafeInteger(value.configurationRevision)||value.configurationRevision<1||!Array.isArray(value.fields)||!value.fields.length)fail('INVALID_FORM_LEAD_FIELDS');
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==2||!Number.isSafeInteger(value.configurationRevision)||value.configurationRevision<0||!Array.isArray(value.fields)||!value.fields.length)fail('INVALID_FORM_LEAD_FIELDS');
  const definitions=fields.definitions(value.fields);if(definitions.some(field=>!field.active))fail('INVALID_FORM_LEAD_FIELDS');
  return {configurationRevision:value.configurationRevision,fields:definitions};
 }

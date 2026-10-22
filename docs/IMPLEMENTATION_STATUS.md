@@ -4,6 +4,8 @@ The shared three-layer customization resolver now accepts validated category-ver
 
 The category registry now preserves reviewed `customizationDefaults` on the exact immutable category version instead of silently dropping them before the resolver can read them. It copies and deeply freezes bounded JSON data, rejects unsupported category contracts, and leaves feature-schema validation to the resolver. Registry, resolver, runtime and Forms checks pass 20/20; syntax and whitespace checks pass. No production category defaults or customer data were changed. Source commit `b728bc5f3ed3c503787eb2b78b4f9c4e00cf9c09` is pushed on `shared-core-tenant-customization`; category adoption and authenticated release acceptance remain open.
 
+The existing Forms contract now accepts configuration revision `0` as the immutable category/platform baseline when no tenant revision has been published. Previously the options API returned baseline category fields at revision zero, but form metadata validation rejected that same revision, preventing the existing editor from saving or publishing a form with those defaults. Negative revisions remain invalid; selected definitions still pass exact-current-field validation and are snapshotted with the form. Focused field, Forms, resolver and runtime tests pass 34/34. No migration or customer data change is involved; authenticated existing-screen acceptance remains open.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
