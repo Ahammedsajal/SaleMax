@@ -47,6 +47,7 @@ function routePermission(req){
   if(mount==='/api/templet')return 'templates.manage';
   if(mount==='/api/broadcast')return 'campaigns.manage';
   if(mount==='/api/qr'&&method==='POST'&&path==='/gen_qr')return 'channels.qr.create';
+  if(mount==='/api/qr'&&method==='POST'&&['/del_instance','/change_instance_status'].includes(path))return 'channels.qr.manage';
   if(mount==='/api/qr'&&read&&path==='/get_all')return 'conversations.read';
   if(['/api/qr','/api/telegram','/api/webhook'].includes(mount))return 'channels.configure';
   if(mount==='/api/wa_call')return read||/^\/(get_|call_logs)/.test(path)?'calls.read':'calls.control';
@@ -117,6 +118,10 @@ function authorizeLegacyMembership(req,row){
   if(mountFor(req)==='/api/workspace/session'&&['GET','HEAD'].includes(String(req.method||'GET').toUpperCase()))return {allowed:true,permission:'tenant.read'};
   const permission=routePermission(req);
   if(!permission)return {allowed:false,code:'TEAM_ROLE_ROUTE_UNMAPPED'};
+  if(permission==='channels.qr.manage'&&permissions.includes('channels.qr.create')){
+    const createScope=policy.scopeFor({role:row.role,delegatedPermissions:permissions,customPermissions:permissions},'channels.qr.create');
+    if(createScope)return {allowed:true,permission};
+  }
   const scope=policy.scopeFor({role:row.role,delegatedPermissions:permissions,customPermissions:permissions},permission);
   if(!permissions.includes(permission)||!scope)return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
   if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies'].includes(String(req.baseUrl||'').replace(/\/$/,'')))&&!(['/api/workspace/finance','/api/user/training/finance-policies'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};

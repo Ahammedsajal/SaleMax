@@ -23,6 +23,39 @@ function normalizeNumber(number) {
   return String(number || "").replace(/\D+/g, "");
 }
 
+async function findQrInstanceForActor(req, uniqueId) {
+  const context = req.featureSession?.context;
+  const staffWorkspace = Boolean(req.agentWorkspace || (context?.membership && context.membership.role !== "owner"));
+  if (!staffWorkspace) {
+    const ownerUid = req.owner?.uid || req.decode?.uid;
+    if (!ownerUid) return [];
+    return query("SELECT id, uid, uniqueId FROM instance WHERE uniqueId = ? AND uid = ? LIMIT 1", [uniqueId, ownerUid]);
+  }
+
+  const tenantId = context?.tenant?.id;
+  const membershipId = context?.membership?.id;
+  const identityId = context?.identity?.id;
+  const ownerUid = req.owner?.uid;
+  if (!tenantId || !membershipId || !identityId || !ownerUid) return [];
+
+  const managerCanManageShared = context.membership.role === "manager";
+  const creatorFilter = managerCanManageShared ? "" : " AND share.granted_by_identity_id = ?";
+  const params = [uniqueId, ownerUid, tenantId, membershipId];
+  if (!managerCanManageShared) params.push(identityId);
+  return query(
+    `SELECT instance.id, instance.uid, instance.uniqueId
+       FROM instance
+      WHERE instance.uniqueId = ? AND instance.uid = ?
+        AND EXISTS (
+          SELECT 1 FROM sx_qr_channel_shares share
+           WHERE share.instance_id = instance.id
+             AND share.tenant_id = ? AND share.membership_id = ?${creatorFilter}
+        )
+      LIMIT 1`,
+    params,
+  );
+}
+
 function mapQrStatus(status) {
   const val = String(status || "").toLowerCase();
   if (["connected", "active", "ready", "open"].includes(val)) return "connected";
@@ -345,7 +378,9 @@ router.post("/del_instance", validateUser, async (req, res) => {
       });
     }
 
-    if(!(await query('SELECT id FROM instance WHERE uniqueId=? AND uid=?',[uniqueId,req.decode.uid])).length)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
+    const accessible = await findQrInstanceForActor(req, uniqueId);
+    const instance = accessible[0];
+    if (!instance) return res.status(404).json({ success: false, code: 'QR_CHANNEL_NOT_FOUND' });
     const session = getSession(uniqueId);
 
     if (session) {
@@ -365,10 +400,8 @@ router.post("/del_instance", validateUser, async (req, res) => {
       console.error("qr.del_instance auth cleanup failed", err?.message || err);
     }
 
-    await query(`DELETE FROM instance WHERE uniqueId = ? AND uid = ?`, [
-      uniqueId,
-      req.decode.uid,
-    ]);
+    await query("DELETE FROM sx_qr_channel_shares WHERE instance_id = ?", [instance.id]);
+    await query("DELETE FROM instance WHERE id = ? AND uid = ?", [instance.id, instance.uid]);
 
     await sendQrStatusToCrm({
       user: req.decode?.userData,
@@ -401,7 +434,9 @@ router.post("/change_instance_status", validateUser, async (req, res) => {
 
     const { insId, status, jid } = req.body;
 
-    if(!(await query('SELECT id FROM instance WHERE uniqueId=? AND uid=?',[insId,req.decode.uid])).length)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
+    const accessible = await findQrInstanceForActor(req, insId);
+    const instance = accessible[0];
+    if (!instance) return res.status(404).json({ success: false, code: 'QR_CHANNEL_NOT_FOUND' });
     const session = await getSession(insId);
 
     if (!session) {
@@ -419,9 +454,10 @@ router.post("/change_instance_status", validateUser, async (req, res) => {
     const finalUpdate = { onlineStatus: status };
 
     await session.sendPresenceUpdate(status);
-    await query(`UPDATE instance SET other = ? WHERE uniqueId = ?`, [
+    await query(`UPDATE instance SET other = ? WHERE id = ? AND uid = ?`, [
       JSON.stringify(finalUpdate),
-      insId,
+      instance.id,
+      instance.uid,
     ]);
 
     res.json({
