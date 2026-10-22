@@ -4,19 +4,20 @@ const {createTenantCustomizationRouter}=require('../modules/platform/tenant-cust
 const {trainingCenter}=require('../modules/platform/categories');
 const base={audience:'tenant',identity:{id:'owner'},tenant:{id:'tenant-a',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member-a',tenantId:'tenant-a',role:'owner',status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:[...trainingCenter.capabilities]}};
 async function fixture(){
- let context=base,queries=0,refreshes=0;
- const app=express(),authenticate=(req,res,next)=>{if(!['Bearer synthetic-owner','Bearer synthetic-staff'].includes(req.get('Authorization'))&&req.get('Cookie')!=='synthetic=owner')return res.status(401).json({success:false,code:'AUTH_REQUIRED'});req.featureSession={context,refresh:async()=>{refreshes++;return {context}}};next();};
- const router=createTenantCustomizationRouter({pool:{getConnection:async()=>({query:async()=>{queries++;return [[]]},release(){}})},origin:'https://crm.example.test',authenticate});
+ let context=base,queries=0,refreshes=0;const stageQueries=[];
+ const app=express(),authenticate=(req,res,next)=>{if(!['Bearer synthetic-owner','Bearer synthetic-staff'].includes(req.get('Authorization'))&&req.get('Cookie')!=='synthetic=owner')return res.status(401).json({success:false,code:'AUTH_REQUIRED'});req.featureSession={context,ownerUid:'authenticated-owner-uid',refresh:async()=>{refreshes++;return {context,ownerUid:'authenticated-owner-uid'}}};next();};
+ const router=createTenantCustomizationRouter({pool:{getConnection:async()=>({query:async(sql,args)=>{queries++;if(sql.includes('FROM pipeline_stages')){stageQueries.push(args);return [[{key:'new',title:'New'}]];}return [[]]},release(){}})},origin:'https://crm.example.test',authenticate});
  app.use(['/api/workspace/customization','/api/crm/customization'],router);
  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
- return {base:`http://127.0.0.1:${server.address().port}`,setContext:value=>context=value,counts:()=>({queries,refreshes}),close:()=>new Promise(resolve=>{server.closeAllConnections();server.close(resolve)})};
+ return {base:`http://127.0.0.1:${server.address().port}`,setContext:value=>context=value,counts:()=>({queries,refreshes}),stageQueries,close:()=>new Promise(resolve=>{server.closeAllConnections();server.close(resolve)})};
 }
 test('shared customization router and alias serve bearer and cookie contexts without tenant input',async()=>{
  const app=await fixture();try{
   for(const prefix of ['/api/workspace/customization','/api/crm/customization'])for(const headers of [{Authorization:'Bearer synthetic-owner'},{Cookie:'synthetic=owner'}]){
-   const response=await fetch(app.base+prefix,{headers});assert.equal(response.status,200);const result=await response.json();assert.equal(result.data.revision,0);assert.equal(result.data.active,null);assert.ok(result.data.fields.some(field=>field.key==='courses'));assert.equal(result.data.resolved.value.navigationLabels.courses.en,'Courses');assert.deepEqual(result.data.resolved.provenance['navigationLabels.courses.en'],{scope:'platform'});assert.match(response.headers.get('cache-control'),/no-store/);
+   const response=await fetch(app.base+prefix+'?ownerUid=forged-owner&uidHash=forged-hash',{headers});assert.equal(response.status,200);const result=await response.json();assert.equal(result.data.revision,0);assert.equal(result.data.active,null);assert.ok(result.data.fields.some(field=>field.key==='courses'));assert.deepEqual(result.data.stageFields,[{key:'new',title:'New'}]);assert.equal(result.data.resolved.value.navigationLabels.courses.en,'Courses');assert.deepEqual(result.data.resolved.provenance['navigationLabels.courses.en'],{scope:'platform'});assert.match(response.headers.get('cache-control'),/no-store/);
   }
   assert.equal(app.counts().refreshes,4);
+  const expectedHash=require('node:crypto').createHash('sha256').update('authenticated-owner-uid','utf8').digest('hex');assert.equal(app.stageQueries.length,4);for(const args of app.stageQueries)assert.deepEqual(args,[expectedHash,'authenticated-owner-uid']);
  }finally{await app.close();}
 });
 test('preview rejects foreign schema keys, denied staff, missing credentials and cross-origin writes',async()=>{
