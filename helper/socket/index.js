@@ -475,8 +475,8 @@ function processSocketEvent({
           );
 
           let [updatedChat] = await query(
-            `SELECT * FROM beta_chats WHERE id = ?`,
-            [chat?.id],
+            `SELECT * FROM beta_chats WHERE id = ? AND uid = ?`,
+            [chat?.id, conversationOwnerUid],
           );
           let agents = await query(
             `SELECT * FROM agents WHERE owner_uid = ?`,
@@ -547,7 +547,7 @@ function processSocketEvent({
           break;
 
         case "add_label":
-          const { label, hex } = payload;
+          const { label, hex, ownerUid: addLabelOwnerUid } = payload;
           if (!label || !hex) {
             return socket.emit("error", {
               msg: "Please provide Label",
@@ -556,7 +556,7 @@ function processSocketEvent({
 
           const labelsData = await query(
             `SELECT * FROM chat_tags WHERE uid = ?`,
-            [uid],
+            [addLabelOwnerUid],
           );
           const allLablesTitles = labelsData?.map((x) => x.title);
           if (allLablesTitles?.includes(label)) {
@@ -567,12 +567,12 @@ function processSocketEvent({
 
           await query(
             `INSERT INTO chat_tags (uid, hex, title) VALUES (?,?,?)`,
-            [uid, hex, label],
+            [addLabelOwnerUid, hex, label],
           );
 
           const labelsDataNew = await query(
             `SELECT * FROM chat_tags WHERE uid = ?`,
-            [uid],
+            [addLabelOwnerUid],
           );
 
           socket.emit("update_labels", labelsDataNew);
@@ -600,8 +600,8 @@ function processSocketEvent({
 
           // Get existing labels first
           const [existingLabelsRow] = await query(
-            `SELECT chat_label FROM beta_chats WHERE id = ?`,
-            [chatIdRow],
+            `SELECT chat_label FROM beta_chats WHERE id = ? AND uid = ?`,
+            [chatIdRow, labelChatOwnerUid],
           );
 
           let existingLabels = [];
@@ -646,8 +646,8 @@ function processSocketEvent({
 
           // Get existing labels
           const [labelsRow] = await query(
-            `SELECT chat_label FROM beta_chats WHERE id = ?`,
-            [chatIdd],
+            `SELECT chat_label FROM beta_chats WHERE id = ? AND uid = ?`,
+            [chatIdd, removeLabelOwnerUid],
           );
 
           if (labelsRow?.chat_label) {
@@ -986,13 +986,13 @@ function processSocketEvent({
           }
 
           const chatid = `${newChatInstance?.number}_${number?.replace("+", "")}_${
-            isAgent ? socket?.userData?.owner_uid : uid
+            payload.ownerUid
           }`;
 
           // checking if chat already existed
           const [checkChat] = await query(
             `SELECT * FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-            [chatid, isAgent ? socket?.userData?.owner_uid : uid],
+            [chatid, payload.ownerUid],
           );
           if (checkChat) {
             return socket.emit("error", {
@@ -1058,7 +1058,7 @@ function processSocketEvent({
             await query(
               `INSERT INTO beta_chats (uid, origin_instance_id, chat_id, last_message, sender_mobile, origin, assigned_agent) VALUES (?,?,?,?,?,?,?)`,
               [
-                isAgent ? socket?.userData?.owner_uid : uid,
+                payload.ownerUid,
                 JSON.stringify(originInstanceId),
                 chatid,
                 JSON.stringify(messageData),
@@ -1076,21 +1076,21 @@ function processSocketEvent({
           break;
 
         case "delete_chat":
-          const { chatId: delChatId, type: deleteType } = payload;
+          const { chatId: delChatId, type: deleteType, ownerUid: deleteChatOwnerUid } = payload;
           if (delChatId && deleteType) {
             await query(
               `DELETE FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-              [delChatId, isAgent ? socket?.userData?.owner_uid : uid],
+              [delChatId, deleteChatOwnerUid],
             );
             const metaMediaFolder = `${__dirname}/../../client/public/meta-media`;
             const conversationData = await query(
               `SELECT * FROM beta_conversation WHERE chat_id = ? AND uid = ?`,
-              [delChatId, isAgent ? socket?.userData?.owner_uid : uid],
+              [delChatId, deleteChatOwnerUid],
             );
             await deleteMediaFromConversation({
               mediaFolderPath: metaMediaFolder,
               type: deleteType,
-              uid: isAgent ? socket?.userData?.owner_uid : uid,
+              uid: deleteChatOwnerUid,
               chatId: delChatId,
               conversationData,
             });
@@ -1098,7 +1098,7 @@ function processSocketEvent({
             if (deleteType === "delete") {
               await query(
                 `DELETE FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-                [delChatId, isAgent ? socket?.userData?.owner_uid : uid],
+                [delChatId, deleteChatOwnerUid],
               );
             }
 

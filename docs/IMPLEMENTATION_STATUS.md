@@ -2219,3 +2219,20 @@ database mutation or customer-data access occurred. The live host remains at
 99% disk use with about 682 MB free, so a production image rebuild is not safe
 to attempt until space is recovered. Production source parity, staged release,
 rollback, authenticated UI and the full TC00–TC41 gates remain open.
+
+## Shared QR session and legacy agent action guards — source only, 22 October 2026
+
+The socket path for starting a new WhatsApp conversation now replaces the
+client-supplied connection object with the database row for a connection owned
+by the authenticated business. Linked staff remain unable to start new
+conversations; legacy agents require the existing owner-controlled
+`allow_send_new_qr` flag and an active owner-bound agent row. Label creation
+now uses that verified owner ID. Chat deletion also verifies the target belongs
+to the owner and, for legacy agents, is assigned to that agent. Chat detail and
+label reads and writes repeat the owner predicate in SQL.
+
+The focused Inbox scope, contact-delete, spend-time, label-delete and
+conversation-assignment suite passes 22/22. Syntax and whitespace checks pass.
+No production release or customer-data write occurred. Production deployment
+remains gated on safe disk recovery; the complete socket/worker authorization
+audit and TC00–TC41 program remain open.

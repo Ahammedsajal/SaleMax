@@ -92,7 +92,7 @@ async function payloadOwnerUid(query, scope, actor) {
     const agentUid = typeof actor.uid === 'string' ? actor.uid : '';
     const ownerUid = typeof actor.owner_uid === 'string' ? actor.owner_uid : '';
     if (!agentUid || !ownerUid) fail();
-    const agents = await query('SELECT uid FROM agents WHERE uid=? AND owner_uid=? AND is_active=1 LIMIT 2', [agentUid, ownerUid]);
+    const agents = await query('SELECT uid FROM agents WHERE uid=? AND owner_uid=? AND (is_active IS NULL OR is_active<>0) LIMIT 2', [agentUid, ownerUid]);
     if (agents.length !== 1) fail();
     return ownerUid;
   }
@@ -115,6 +115,7 @@ async function authorizeInboxPayload(query, scope, event, payload, actor) {
   if (event === 'update_spend_time') return authorizeAgentSpendTime(query, scope, payload, actor);
   if (event === 'del_contact') return authorizeContactDelete(scope, payload, actor);
   const targetOwnerUid = await payloadOwnerUid(query, scope, actor);
+  if (scope.assignedOnly && ['send_new_message', 'unasign_chat_agent'].includes(event)) fail();
   if (event === 'on_label_delete') {
     const labelId = Number(payload?.labelId);
     if (!Number.isSafeInteger(labelId) || labelId < 1) fail();
@@ -122,21 +123,33 @@ async function authorizeInboxPayload(query, scope, event, payload, actor) {
     if (labels.length !== 1) fail();
     return { ...payload, labelId, ownerUid: targetOwnerUid };
   }
+  if (event === 'send_new_message') {
+    if (actor?.isAgent === true || actor?.role === 'agent') {
+      if (scope.canonical) fail();
+      const agents = await query('SELECT uid,allow_send_new_qr FROM agents WHERE uid=? AND owner_uid=? AND (is_active IS NULL OR is_active<>0) LIMIT 2', [actor.uid, targetOwnerUid]);
+      if (agents.length !== 1 || Number(agents[0].allow_send_new_qr) !== 1) fail();
+    }
+    const uniqueId = payload?.instance?.uniqueId;
+    if (typeof uniqueId !== 'string' || !uniqueId || uniqueId.length > 255) fail();
+    const instances = await query('SELECT id,uid,uniqueId,number,status FROM instance WHERE uid=? AND uniqueId=? LIMIT 2', [targetOwnerUid, uniqueId]);
+    if (instances.length !== 1) fail();
+    return { ...payload, instance: instances[0], ownerUid: targetOwnerUid };
+  }
   if(scope.qrOnly&&!['get_chat_list','load_conversation','export_chats','export_conversation','send_chat_message'].includes(event))fail();
   // Staff never initiate a different WhatsApp conversation through the shared
   // number. Reply only to the persisted, currently assigned customer/channel.
-  if (scope.assignedOnly && ['send_new_message', 'unasign_chat_agent'].includes(event)) fail();
-  if (['get_chat_list','export_chats','add_label','update_spend_time','translate_message'].includes(event)) return payload;
+  if (event === 'add_label') return { ...payload, ownerUid: targetOwnerUid };
+  if (['get_chat_list','export_chats','update_spend_time','translate_message'].includes(event)) return payload;
   const ids = {
     load_conversation: payload.chat?.chat_id, export_conversation: payload.chatId,
     send_chat_message: payload.chatInfo?.chat_id, assign_agent_to_chat: payload.chatId,
-    unasign_chat_agent: payload.cId, suggest_reply: payload.chatId,
+    unasign_chat_agent: payload.cId, suggest_reply: payload.chatId, delete_chat: payload.chatId,
     save_as_context: payload.chatId,
   };
   const rowIds = { set_chat_label: payload.chatIdRow, remove_chat_label: payload.chatId, delete_chat_note: payload.chatRealId, save_chat_note: payload.id };
   const rowId = rowIds[event];
   const chatId = ids[event];
-  const targetEvents = ['load_conversation','export_conversation','send_chat_message','assign_agent_to_chat','unasign_chat_agent','suggest_reply','set_chat_label','remove_chat_label','delete_chat_note','save_chat_note'];
+  const targetEvents = ['load_conversation','export_conversation','send_chat_message','assign_agent_to_chat','unasign_chat_agent','suggest_reply','delete_chat','set_chat_label','remove_chat_label','delete_chat_note','save_chat_note'];
   if (!chatId && !rowId) { if (scope.assignedOnly || targetEvents.includes(event)) fail(); return payload; }
   const rows = await query(`SELECT * FROM beta_chats WHERE uid=? AND ${rowId ? 'id' : 'chat_id'}=? LIMIT 1`, [targetOwnerUid, rowId || chatId]);
   if (rows.length !== 1 ||

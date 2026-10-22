@@ -201,8 +201,37 @@ test('legacy agents resolve the verified owner and may target only their assigne
   const result=await authorizeInboxPayload(lookup,scope,'load_conversation',{chat:{chat_id:'legacy-chat'}},actor);
   assert.equal(result.ownerUid,actor.owner_uid);
   assert.equal(result.chat,assigned);
+  const deletion=await authorizeInboxPayload(lookup,scope,'delete_chat',{chatId:'legacy-chat',type:'delete'},actor);
+  assert.equal(deletion.ownerUid,actor.owner_uid);
   await assert.rejects(authorizeInboxPayload(async(sql,args)=>sql.includes('FROM agents WHERE uid=? AND owner_uid=?')?[{uid:actor.uid}]:sql.includes('FROM beta_chats WHERE uid=? AND chat_id=?')?[{chat_id:'legacy-chat',assigned_agent:'[]'}]:[],scope,'load_conversation',{chat:{chat_id:'legacy-chat'}},actor),{code:'TEAM_INBOX_PERMISSION_DENIED'});
   await assert.rejects(authorizeInboxPayload(async()=>[],scope,'load_conversation',{chat:{chat_id:'legacy-chat'}},{...actor,owner_uid:'foreign-owner'}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});
+
+test('new QR messages require an owner-owned connection and the legacy agent opt-in', async () => {
+  const ownerScope={canonical:true,uid:'synthetic-owner',assignedOnly:false};
+  const ownInstance={id:8,uid:'synthetic-owner',uniqueId:'owner-session',number:'97450000000',status:'ACTIVE'};
+  const ownerQuery=async(sql,args)=>{
+    assert.match(sql,/FROM instance WHERE uid=\? AND uniqueId=\?/);
+    assert.deepEqual(args,['synthetic-owner','owner-session']);
+    return [ownInstance];
+  };
+  const allowed=await authorizeInboxPayload(ownerQuery,ownerScope,'send_new_message',{instance:{uniqueId:'owner-session',number:'forged-number'}});
+  assert.deepEqual(allowed.instance,ownInstance);
+  assert.equal(allowed.ownerUid,'synthetic-owner');
+  await assert.rejects(authorizeInboxPayload(async()=>[],ownerScope,'send_new_message',{instance:{uniqueId:'foreign-session'}}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(authorizeInboxPayload(ownerQuery,{...ownerScope,assignedOnly:true},'send_new_message',{instance:{uniqueId:'owner-session'}}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+
+  const actor={id:44,uid:'legacy-agent',owner_uid:'legacy-owner',role:'agent',isAgent:true,is_active:1};
+  const agentScope={canonical:false,uid:actor.uid};
+  const agentQuery=async(sql,args)=>{
+    if(sql.includes('SELECT uid FROM agents WHERE uid=?'))return [{uid:actor.uid}];
+    if(sql.includes('SELECT uid,allow_send_new_qr FROM agents WHERE uid=?'))return [{uid:actor.uid,allow_send_new_qr:1}];
+    if(sql.includes('FROM instance WHERE uid=? AND uniqueId=?'))return [{...ownInstance,uid:actor.owner_uid}];
+    return [];
+  };
+  const legacy=await authorizeInboxPayload(agentQuery,agentScope,'send_new_message',{instance:{uniqueId:'owner-session'}},actor);
+  assert.equal(legacy.ownerUid,actor.owner_uid);
+  await assert.rejects(authorizeInboxPayload(async(sql,args)=>sql.includes('SELECT uid FROM agents WHERE uid=?')?[{uid:actor.uid}]:sql.includes('SELECT uid,allow_send_new_qr FROM agents WHERE uid=?')?[{uid:actor.uid,allow_send_new_qr:0}]:[],agentScope,'send_new_message',{instance:{uniqueId:'owner-session'}},actor),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });
 
 test('canonical Inbox events refresh and enforce the active tenant category, plan and module policy', async () => {
