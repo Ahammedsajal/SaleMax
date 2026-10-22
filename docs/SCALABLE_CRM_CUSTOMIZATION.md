@@ -853,6 +853,7 @@ shared product catalogue, and the search unions three separately indexable
 lookups with distinct product IDs before returning a bounded page. This avoids
 leading-wildcard scans and keeps identical matches from duplicating a product.
 A 5,000-row disposable MySQL 9.6 integration verified migration application,
-English/Arabic/code matching, deduplication and index selection in `EXPLAIN`.
+English/Arabic/code matching, deduplication, same-SKU tenant separation and
+index selection in `EXPLAIN`.
 Production MariaDB planning and index-build resource estimates remain release
 preflight gates; no production migration has been applied.

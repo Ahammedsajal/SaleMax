@@ -34,7 +34,7 @@ const use=async fn=>{const db=await pool.getConnection();try{return await fn(db)
       await db.query("INSERT INTO sx_tenants(id,category_key,category_version,status) VALUES (?, 'retail_shop',1,'active'),(?, 'retail_shop',1,'active')",[tenantA,tenantB]);
       await db.query('INSERT INTO sx_identities(id,display_name) VALUES (?,?),(?,?)',[identityA,'Retail A',identityB,'Retail B']);
       await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active'),(?,?,?,'owner','active')",[memberA,tenantA,identityA,memberB,tenantB,identityB]);
-      await db.query("INSERT INTO sx_product_catalog(id,tenant_id,code,name_en,name_ar,status) VALUES (?,?, 'A-1','Tea','شاي','active'),(?,?, 'B-1','Coffee','قهوة','active')",[productA,tenantA,productB,tenantB]);
+      await db.query("INSERT INTO sx_product_catalog(id,tenant_id,code,name_en,name_ar,status) VALUES (?,?, 'A-1','Tea','شاي','active'),(?,?, 'A-1','Tea','شاي','active')",[productA,tenantA,productB,tenantB]);
     });
 
     const a=context(tenantA,identityA,memberA),b=context(tenantB,identityB,memberB);
@@ -44,9 +44,9 @@ const use=async fn=>{const db=await pool.getConnection();try{return await fn(db)
 
     const [stockA,stockB]=await Promise.all([
       use(db=>inventory.listStock(db,a,{locationId:loc.id})),
-      use(async db=>{await inventory.createLocation(db,b,{code:'MAIN',nameEn:'Main Store',nameAr:'المتجر الرئيسي'});return inventory.listLocations(db,b);}),
+      use(async db=>{const foreignLocation=await inventory.createLocation(db,b,{code:'MAIN',nameEn:'Main Store',nameAr:'المتجر الرئيسي'});const stock=await inventory.listStock(db,b,{locationId:foreignLocation.id,search:'A-1'});return {locations:await inventory.listLocations(db,b),stock};}),
     ]);
-    assert.equal(stockA.total,1);assert.equal(stockA.items[0].productId,productA);assert.equal(stockA.items[0].quantityOnHand,'0.000');assert.equal(stockB.length,1);
+    assert.equal(stockA.total,1);assert.equal(stockA.items[0].productId,productA);assert.equal(stockA.items[0].quantityOnHand,'0.000');assert.equal(stockB.locations.length,1);assert.equal(stockB.stock.total,1);assert.equal(stockB.stock.items[0].productId,productB);
     await assert.rejects(use(db=>startStock(db,a,productB,'1.000',0)),{code:'PRODUCT_NOT_FOUND'});
 
     const requestKey=crypto.randomUUID(),first=await use(db=>startStock(db,a,productA,'10.500',0,'opening_balance',requestKey));
@@ -97,6 +97,6 @@ const use=async fn=>{const db=await pool.getConnection();try{return await fn(db)
       const [searchIndexes]=await db.query("SELECT COUNT(DISTINCT index_name) AS total FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='sx_product_catalog' AND index_name IN ('idx_sx_product_tenant_status_code','idx_sx_product_tenant_status_name_en','idx_sx_product_tenant_status_name_ar')");
       assert.equal(Number(searchIndexes[0].total),3);
     });
-    console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MySQL/MariaDB schema','tenant-owned locations and product joins','foreign-tenant product rejected','zero DECIMAL balance read','idempotent retry and payload conflict','no negative stock','concurrent revisions admit one winner','atomic location and audit rollback','tenant-scoped movement history','English/Arabic/code prefix search deduplicates tenant products and uses tenant-leading indexes with 5000 synthetic products'],syntheticOnly:true,customerDataTouched:false,externalWrites:false}));
+    console.log(JSON.stringify({passed:true,checks:['migration applies to disposable MySQL/MariaDB schema','tenant-owned locations and identical cross-tenant SKU isolation','foreign-tenant product rejected','zero DECIMAL balance read','idempotent retry and payload conflict','no negative stock','concurrent revisions admit one winner','atomic location and audit rollback','tenant-scoped movement history','English/Arabic/code prefix search deduplicates tenant products and uses tenant-leading indexes with 5000 synthetic products'],syntheticOnly:true,customerDataTouched:false,externalWrites:false}));
   }finally{await pool.end();}
 })().catch(error=>{console.error(JSON.stringify({code:error.code||error.name,message:error.message}));process.exitCode=1;});

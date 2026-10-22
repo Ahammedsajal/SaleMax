@@ -2201,6 +2201,8 @@ to avoid both the full scan and duplicate results when code and name match.
 Wildcard characters are escaped. On a fresh disposable MySQL 9.6 instance,
 the migration applied, 5,000 synthetic products were inserted, English/Arabic/
 code searches returned the tenant's product exactly once, and `EXPLAIN` used
-the name indexes. No local or production customer database was touched; the
+the name indexes. Two tenant fixtures shared the same SKU and names, and each
+search returned only its tenant's product. No local or production customer
+database was touched; the
 migration has not been applied to production. MariaDB production-version query
 plans and index-build capacity still require preflight before release.
