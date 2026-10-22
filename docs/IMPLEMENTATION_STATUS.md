@@ -2160,3 +2160,19 @@ bundle, and its ordering test passes 5/5. The complete current Node suite passes
 changed. The Meta screen has not had authenticated visual acceptance, and the
 source branch remains subject to review before a release overlay can be built
 without replacing newer production-only shell content.
+
+## Recruitment application request-reference reconciliation — source update, 22 October 2026
+
+A read-only check of the active release found its backend already logs a random
+request ID with the safe diagnostic cause and returns that ID to the applicant.
+The live browser script discarded it, so applicants could not provide support a
+correlation reference. The maintained local form script now carries the ID into
+the English/Arabic bracketed error, with UUID validation before display; the
+helper and form loaders use a new cache key. The source commit is pushed on
+`7network/lead-field-plan-entitlement-20261022`, and all 22 focused recruitment
+checks pass. No application was submitted and no production files or data were
+changed. Deployment is deferred: the verified production host has 682 MB free
+(99% disk use), below a safe image-release margin. The active public helper is
+already bilingual and cause-aware; its live request-reference handoff remains
+unfixed until safe release capacity is available. The applicant's original
+failure still has no reproducible cause.
