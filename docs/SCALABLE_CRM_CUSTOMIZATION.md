@@ -423,6 +423,50 @@ The category-neutral adapter is reusable when those categories receive reviewed
 form contracts. Pipeline search and bounded CSV export now consume custom fields;
 bot collection, report consumption and new industry modules remain separate work.
 
+### Generic lead-capture Forms adapter contract — category adoption pending
+
+Generic business forms must continue in the existing `/user` Forms editor and
+the shared `/api/workspace/forms` router (with `/api/user/training/forms` kept as
+an alias to the same handler). A category may opt into the generic adapter only
+through an exact, reviewed category-version declaration such as
+`formsAdapter: "generic-lead-capture-v1"`, together with the category's explicit
+Forms capability. Missing, unknown or future adapter values deny Forms by
+default. The shared core owns adapter validation and execution; category packages
+own whether their immutable category version opts in. This document does not
+grant that capability to Base CRM, Sales, Real Estate or any legacy tenant.
+
+The generic adapter owns the common form lifecycle: bilingual labels and copy,
+typed fields, pinned CRM lead-field definitions, draft revision checks, immutable
+published form versions, consent snapshots, public/staff idempotency, and
+tenant-bound submission history. Generic submission may create a normal lead in
+the existing Pipeline and save pinned answers in its typed custom-field snapshot.
+It must not call Training registration, course, enrollment, invoice or student
+services. The existing `procatalyst-registration-v1` template remains a
+Training-only adapter selected by its exact category version. Historical forms,
+submissions and registrations keep their current readers and storage identities;
+generic support cannot rewrite or reclassify old records.
+
+The editor and staff routes use the shared feature-session context and enforce
+category adapter, active tenant, current plan entitlement, fixed member
+permission and existing lead record scope independently on every operation. A
+public form resolves the tenant from its public slug, then verifies active tenant,
+exact category version, active Forms entitlement and the published immutable
+snapshot before accepting data. A tenant setting or client payload cannot choose
+an adapter, tenant ID, field definition or permission. Unknown fields and stale
+field-definition revisions fail closed. Generic and Training forms retain the
+existing origin checks, bounded payloads, abuse controls, and submission
+idempotency behavior.
+
+Before category adoption, the contract requires tests for two tenants in the same
+category, a different category, and unmapped legacy access; foreign tenant/form
+IDs; role denial and permission revocation; expired/revoked plans; stale fields;
+concurrent publication; immutable submission snapshots; rollback; and preservation
+of the Training-specific registration path. The shared Forms API currently
+remains Training-only: this adapter is a reviewed extension contract, not an
+implemented or enabled generic workflow. Category capability approval, service
+implementation, MariaDB integration, authenticated bilingual existing-screen
+acceptance, and deployment are still required.
+
 Rollback after adoption must retain this adapter: older form validators reject the
 new `customFields` payload and older clients omit its controls. Before adoption,
 the exact previous release/image is safe; after adoption use a compatible repair
