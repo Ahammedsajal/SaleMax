@@ -33,7 +33,7 @@ async function createActiveProperty(){const draft=await use(db=>properties.creat
   const [[existing]]=await pool.query('SELECT COUNT(*) AS total FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()');
   assert.equal(Number(existing.total),0,'synthetic schema must be empty');
   for(const sql of schema)await pool.query(sql);
-  for(const file of ['20261222_real_estate_properties.sql','20261223_real_estate_requirements.sql','20261224_real_estate_viewings.sql']){
+  for(const file of ['20261220_tenant_customization.sql','20261222_real_estate_properties.sql','20261223_real_estate_requirements.sql','20261224_real_estate_viewings.sql','20261225_real_estate_property_custom_fields.sql','20261226_real_estate_chatbot_visibility.sql']){
     const source=fs.readFileSync(path.join(__dirname,'../database/migrations',file),'utf8');
     for(const sql of require('../database/migration-runner').splitSql(source))await pool.query(sql);
   }

@@ -30,11 +30,17 @@ Focused Real Estate/property/chatbot tests pass 31/31; the extended category,
 customization, policy, chatbot and Real Estate regression suite passes 252/252.
 The existing Properties-screen browser fixture passes four English/Arabic
 desktop/mobile cases including default-private and opt-in editing.
-The disposable MariaDB integration was updated but not run because its explicit
-synthetic-only connection configuration is unavailable. Source only: no
-production migration, release, tenant setting or provider message was changed.
-Authenticated live role acceptance, migration rehearsal and the full category/
-42-ticket gates remain open.
+The Properties and viewings integration suites now pass on fresh disposable
+MySQL 9.6 schemas. They cover the v1-v3 migrations, the v1 chatbot-sharing
+denial, v3 opt-in/default-private facts, tenant separation, assignment, audit
+rollback, one-winner same-property booking, closure blocking and concurrent
+completion/closure lock ordering. Running the previously unavailable DB proof
+found stale fixture assumptions: chatbot sharing used a v1 context, and the
+viewing fixture omitted customization/property migrations. Both fixtures now
+match the actual versioned contract. No customer data or external service was
+touched. Source only: no production migration, release, tenant setting or
+provider message changed. Authenticated live role acceptance, production
+migration/rollback rehearsal and the full category/42-ticket gates remain open.
 
 Read-only production comparison on 22 October confirmed the active release is
 `contact-delete-scope-350e486-20261022` and contains no Real Estate property
