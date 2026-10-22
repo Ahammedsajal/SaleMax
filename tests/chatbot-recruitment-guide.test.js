@@ -51,6 +51,14 @@ test('WhatsApp Apply now starts the questions in chat without sending a web form
   assert.equal(result.state.step,'screen_consent');
   assert.deepEqual(result.buttons.map(button=>button.id),['screen_consent_yes','screen_consent_no']);
 });
+test('7Network company replies use the current public website in English and Arabic',()=>{
+  const english=recruitmentReply({message:'About 7Network',state:{step:'welcome'},facts:{}});
+  assert.match(english.reply,/Learn more at 7network\.live/);
+  assert.doesNotMatch(english.reply,/salemax\.qa/i);
+  const arabic=recruitmentReply({message:'عن 7Network',state:{step:'welcome'},facts:{}});
+  assert.match(arabic.reply,/7network\.live/);
+  assert.doesNotMatch(arabic.reply,/salemax\.qa/i);
+});
 test('configured human button labels route to their intended answers',()=>{
   const config={messages:{buttonRole:{en:'About the role'},buttonCommission:{en:'Pay & Commission'},buttonApply:{en:'Apply & Upload CV'}}};
   const role=recruitmentReply({message:'About the role',state:{step:'welcome'},facts:{},config});

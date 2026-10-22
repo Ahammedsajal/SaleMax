@@ -117,3 +117,20 @@ custom-field CRUD panel is introduced. The current Pipeline browser still uses i
 legacy bearer request path. Custom-field controls are added to its existing forms,
 and values are validated inside the scoped lead transaction. Canonical-cookie
 Pipeline UI adoption remains a separate legacy migration gate.
+
+
+## 7Network Sales ICP pilot
+
+The Ideal Customer Profile screen is an internal pilot inside the existing `/user` shell. The maintained sidebar hook adds it only when the shared session contract includes the `icp` navigation key. Only the canonical `7network_sales@1` category receives the capability; all other categories and Sales Accountants are excluded by the shared server policy. Active owners, managers, team leaders and agents can read tenant-shared profiles. Only the owner can create or edit them. The screen uses the shared session and feature API, not a second login.
+
+The browser client registers `icp` at `/api/workspace/icp`. The router uses the shared feature-session guard, so legacy business bearer, Agent bearer and canonical cookie credentials follow the same tenant and role checks. Writes retain current-session revalidation, Origin/CSRF protections and private no-store responses.
+
+| Method and path | Purpose | Request |
+| --- | --- | --- |
+| `GET /api/workspace/icp/profiles` | List up to 100 tenant profiles, newest update first | None |
+| `POST /api/workspace/icp/profiles` | Create a profile and audit event atomically | `{title, summary, document}` |
+| `PUT /api/workspace/icp/profiles/:id` | Update with optimistic concurrency and audit event | `{title, summary, document, revision}` |
+
+The typed document captures industry, geography, company size, revenue or budget range, business model, growth stage, priority needs, desired outcomes, buying triggers, decision roles, technology signals, budget evidence, exclusions, evidence or assumptions, and confidence (`hypothesis`, `needs_review`, or `validated`). Values have bounded lengths and list sizes. Profiles start as hypotheses; the workflow asks users to record the evidence behind each criterion and does not infer ICPs from customer data or score leads.
+
+Migration `20261224_7network_sales_icp_profiles.sql` adds one tenant-scoped profile table with creator/updater identity attribution, a revision number, JSON document and newest-first index. It has no seed rows and does not alter plan entitlements or customer records. Stale writes return `STALE_ICP_PROFILE`; cross-tenant profile IDs resolve as not found. Follow-up work can add evidence-linked account samples and fit scoring after this internal pilot validates its criteria.
