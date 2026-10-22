@@ -16,7 +16,7 @@ function context(category, capabilities = category.capabilities) {
 test('versioned manifests expose only their reviewed task adapters', () => {
   const training = categories.getCategory('training_center', 1);
   const sales = categories.getCategory('7network_sales', 1);
-  const realEstate = categories.getCategory('real_estate', 4);
+  const realEstate = categories.getCategory('real_estate', 1);
 
   assert.deepEqual(training.taskAdapters, { invoice_follow_up: 1, enrollment: 1 });
   assert.deepEqual(sales.taskAdapters, { sales_call: 1 });
