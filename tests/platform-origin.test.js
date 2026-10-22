@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 
 test('provider-disabled public hosting still requires secure platform authentication', () => {
-  const names = ['SALEMAX_PLATFORM_ENABLED', 'SALEMAX_PLATFORM_KEY_BASE64', 'SALEMAX_PLATFORM_ORIGIN', 'LOCAL_ONLY_MODE'];
+  const names = ['SALEMAX_PLATFORM_ENABLED', 'SALEMAX_PLATFORM_KEY_BASE64', 'SALEMAX_PLATFORM_ORIGIN', 'SALEMAX_PLATFORM_ALLOWED_ORIGINS', 'LOCAL_ONLY_MODE'];
   const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
   const configPath = require.resolve('../database/config');
   const previousConfig = require.cache[configPath];
@@ -15,7 +15,13 @@ test('provider-disabled public hosting still requires secure platform authentica
     const { mountConfiguredUpgrade } = require('../modules/platform/mount-existing-upgrade');
     process.env.SALEMAX_PLATFORM_ORIGIN = 'https://crm.salemax.qa';
     assert.equal(mountConfiguredUpgrade(express()), true);
+    process.env.SALEMAX_PLATFORM_ORIGIN = 'https://7network.live';
+    process.env.SALEMAX_PLATFORM_ALLOWED_ORIGINS = 'https://crm.salemax.qa';
+    assert.equal(mountConfiguredUpgrade(express()), true);
+    process.env.SALEMAX_PLATFORM_ALLOWED_ORIGINS = 'https://evil.invalid/path';
+    assert.throws(() => mountConfiguredUpgrade(express()), /AUTH_ORIGIN_INVALID/);
     process.env.SALEMAX_PLATFORM_ORIGIN = 'http://crm.salemax.qa';
+    delete process.env.SALEMAX_PLATFORM_ALLOWED_ORIGINS;
     assert.throws(() => mountConfiguredUpgrade(express()), /AUTH_ORIGIN_INVALID/);
     process.env.SALEMAX_PLATFORM_ORIGIN = 'http://127.0.0.1:3010';
     assert.equal(mountConfiguredUpgrade(express()), true);

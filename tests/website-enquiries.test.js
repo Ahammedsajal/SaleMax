@@ -43,6 +43,8 @@ test("legacy form payloads stay compatible without accepting a caller-selected t
   assert.equal(data.ownerUid, undefined);
 });
 test("HTTP boundary denies foreign origins and tenant domains before touching the database", async () => {
+  const previousLocalOnlyMode = process.env.LOCAL_ONLY_MODE;
+  process.env.LOCAL_ONLY_MODE = "true";
   const express = require("express");
   const app = express();
   require("../modules/web/public-website").mountPublicWebsite(app, {
@@ -104,6 +106,8 @@ test("HTTP boundary denies foreign origins and tenant domains before touching th
     });
     assert.equal(result.status, 413);
   } finally {
+    if (previousLocalOnlyMode === undefined) delete process.env.LOCAL_ONLY_MODE;
+    else process.env.LOCAL_ONLY_MODE = previousLocalOnlyMode;
     await new Promise((resolve) => server.close(resolve));
   }
 });

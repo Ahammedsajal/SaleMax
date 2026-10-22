@@ -7,7 +7,7 @@ function mountPublicWebsite(app, { pool, key, origin }) {
   const router = express.Router();
   router.use((req, res, next) => {
     res.setHeader("Cache-Control", "no-store");
-    if (req.crmTenantDomain || req.get("Origin") !== origin)
+    if (req.crmTenantDomain || !require("../platform/request-origin").matches(req, origin))
       return res.status(403).json({ success: false, code: "ORIGIN_DENIED" });
     return next();
   });
@@ -79,7 +79,7 @@ function mountPublicWebsite(app, { pool, key, origin }) {
     router,
   );
   app.get("/", (req, res, next) => {
-    if (req.crmTenantDomain || req.hostname !== new URL(origin).hostname)
+    if (req.crmTenantDomain || !require("../platform/request-origin").matchesPlatformHost(req, origin))
       return next();
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");

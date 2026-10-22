@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  if (location.hostname === "crm.salemax.qa") return;
+  if (["crm.salemax.qa", "7network.live", "www.7network.live"].includes(location.hostname)) return;
 
   function mount() {
     if (!window.localStorage.getItem("wacrm_user") && !window.localStorage.getItem("wacrm_agent")) return;

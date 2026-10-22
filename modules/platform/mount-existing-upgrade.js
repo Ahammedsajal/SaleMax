@@ -91,6 +91,7 @@ function mountConfiguredUpgrade(app){
   const key=Buffer.from(secret,'base64');if(key.length!==32||key.toString('base64')!==secret)throw new Error('PLATFORM_KEY_INVALID');
   const local=process.env.LOCAL_ONLY_MODE==='true';
   const origin=process.env.SALEMAX_PLATFORM_ORIGIN;
+  require('./request-origin').allowedOrigins(origin);
   const originUrl=new URL(origin);
   // Provider isolation does not make a publicly hosted app a loopback origin.
   const insecureLoopback=local&&originUrl.protocol==='http:'&&['127.0.0.1','localhost','[::1]'].includes(originUrl.hostname);

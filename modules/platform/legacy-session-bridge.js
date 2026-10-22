@@ -22,7 +22,9 @@ async function withConnection(pool,work){const db=await pool.getConnection();try
 async function issueForVerifiedLegacyAccount({kind,legacyId,legacyUid,legacyEmail,password,address,origin,tenantHost,expectedOrigin,pool,key,local}={}){
   const config=configuration({pool,key,expectedOrigin,local});if(!config)return null;
   const customOrigin=typeof tenantHost==='string'&&origin===`https://${tenantHost}`;
-  if(!origin||(origin!==config.origin&&!customOrigin))return null;
+  let platformOrigin=false;
+  try{platformOrigin=require('./request-origin').allowedOrigins(config.origin).has(origin);}catch(_){return null;}
+  if(!origin||(!platformOrigin&&!customOrigin))return null;
   const source=kind==='user'?'user':kind==='agent'?'agents':null;
   const expectedRoles=kind==='user'?['owner','accountant','manager']:kind==='agent'?['agent']:null;
   if(!source||!expectedRoles||!Number.isSafeInteger(Number(legacyId))||Number(legacyId)<1||typeof legacyUid!=='string'||!legacyUid||email(legacyEmail)===''||typeof password!=='string')return null;

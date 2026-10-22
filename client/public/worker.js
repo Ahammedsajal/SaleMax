@@ -1,5 +1,6 @@
-var CACHE_NAME = "7network-20261021-brand2"; // Refresh the platform brand shell
-var PLATFORM_HOST = "crm.salemax.qa";
+var CACHE_NAME = "7network-20261022-domain1"; // Refresh the platform brand shell
+var PLATFORM_HOSTS = ["crm.salemax.qa", "7network.live", "www.7network.live"];
+function isPlatformHost(hostname) { return PLATFORM_HOSTS.includes(hostname); }
 var urlsToCache = ["/", "/completed"];
 
 // Install a service worker
@@ -9,7 +10,7 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 
   event.waitUntil(
-    (self.location.hostname !== PLATFORM_HOST ? Promise.resolve() : caches
+    (!isPlatformHost(self.location.hostname) ? Promise.resolve() : caches
       .open(CACHE_NAME)
       .then(function (cache) {
         console.log("Service Worker: Opened cache");
@@ -25,7 +26,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("fetch", (event) => {
   // Tenant domains are CRM-only origins. Do not persist tenant login pages,
   // tenant branding, or CRM responses in an offline cache on those origins.
-  if (self.location.hostname !== PLATFORM_HOST) {
+  if (!isPlatformHost(self.location.hostname)) {
     event.respondWith(fetch(event.request));
     return;
   }

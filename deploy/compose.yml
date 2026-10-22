@@ -31,6 +31,8 @@ services:
       SALEMAX_RECRUITMENT_CV_ROOT: /app/private/recruitment-cvs
     extra_hosts:
       - "crm.salemax.qa:host-gateway"
+      - "7network.live:host-gateway"
+      - "www.7network.live:host-gateway"
     ports: ["127.0.0.1:3011:3010"]
     networks:
       default: {}
