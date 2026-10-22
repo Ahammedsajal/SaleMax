@@ -69,11 +69,11 @@ include. The brand exporter now regenerates byte-identical live light/dark logo
 masters and resized variants from tracked source assets. New tests verify adapter
 version/capability contracts, inbox flow suppression after a human handoff,
 relevant tenant-isolated chatbot prompts, brand packaging, and Pipeline timezone
-loading. The 203-test focused batch, syntax checks and `git diff --check` pass.
+loading. The focused batch passes 212/212, and syntax plus whitespace checks pass.
 
 Newer local work was retained, including Real Estate category files, UUID-based
 Pipeline report identifiers, tenant-scoped chatbot flow state, and the legacy
-flow owner-scope migrations. The full `npm test` suite reports 1,037/1,062
+flow owner-scope migrations. The full `npm test` suite reports 1,043/1,068
 passing, with 25 remaining failures in legacy Manage Users, shell hook order,
 Pipeline/Finance screen contracts, Agent task recipients, training print
 controls and public-form challenge assertions. The timezone cache-key contract
