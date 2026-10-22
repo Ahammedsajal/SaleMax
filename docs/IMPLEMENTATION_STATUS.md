@@ -1,3 +1,7 @@
+## Shared Inbox delete handler execution coverage — source increment, 22 October 2026
+
+Added a focused event-handler test that invokes the actual `on_label_delete` and `del_contact` socket handlers with a synthetic owner context and asserts both SQL parameter sets include that owner UID. The combined Meta/Inbox suite passes 12/12; syntax and whitespace checks pass. This is handler-level query-boundary coverage, not a disposable MariaDB cross-tenant fixture or authenticated browser acceptance. Production remains unchanged.
+
 ## Legacy Inbox import tenant isolation — source increment, 22 October 2026
 
 The V3 import route now resolves Inbox scope, rejects agents and non-owner canonical members, and selects legacy chats only for the authenticated business owner UID before starting the existing migration. The importer also includes UID in its fallback Meta deduplication key, so identical customer phone numbers in different businesses remain distinct. The focused Meta/Inbox source-contract suite passes 11/11; syntax and whitespace checks pass. No migration or production state changed. Existing-screen migration acceptance and production deployment remain open.

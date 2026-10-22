@@ -97,6 +97,64 @@ test('legacy inbox contact and label deletes include the tenant owner UID', () =
   assert.match(route, /DELETE FROM contact WHERE id = \? AND uid = \?/);
 });
 
+test('socket delete handlers pass the authenticated owner UID to both DELETE queries', async () => {
+  const modulePaths = [
+    '../database/dbpromise',
+    '../modules/platform/team-inbox-scope',
+    '../modules/platform/delegated-account-session',
+    '../helper/socket/function',
+    '../functions/function.js',
+    '../helper/pipeline/conversationAttendance',
+    '../helper/addon/telegram/processTelegramInbox',
+    '../helper/socket/index',
+  ].map(specifier => require.resolve(specifier));
+  const priorModules = new Map(modulePaths.map(filename => [filename, require.cache[filename]]));
+  const calls = [];
+  const query = async (sql, params = []) => {
+    calls.push({ sql, params });
+    return [];
+  };
+  const ownerUid = 'synthetic-tenant-owner';
+  const stubs = new Map([
+    [modulePaths[0], { query }],
+    [modulePaths[1], {
+      resolveInboxScope: async () => ({ canonical: true, uid: ownerUid, assignedOnly: false, ctx: { membership: { role: 'owner' } } }),
+      authorizeInboxPayload: async (_query, _scope, _event, payload) => payload,
+    }],
+    [modulePaths[2], { assertDelegatedSession: async () => {} }],
+    [modulePaths[3], {}],
+    [modulePaths[4], {}],
+    [modulePaths[5], {}],
+    [modulePaths[6], {}],
+  ]);
+
+  try {
+    for (const [filename, exports] of stubs) {
+      require.cache[filename] = { id: filename, filename, loaded: true, exports };
+    }
+    delete require.cache[modulePaths[7]];
+    const { processSocketEvent } = require('../helper/socket/index');
+    const listeners = new Map();
+    const socket = {
+      userData: { id: 7, uid: ownerUid, role: 'user', isAgent: false },
+      decodedToken: { uid: ownerUid },
+      on: (event, listener) => listeners.set(event, listener),
+      emit: () => {},
+    };
+    processSocketEvent({ socket });
+    await listeners.get('message')({ type: 'on_label_delete', payload: { labelId: 701 } });
+    await listeners.get('message')({ type: 'del_contact', payload: { contactId: 902 } });
+
+    assert.deepEqual(calls.filter(call => call.sql.startsWith('DELETE FROM chat_tags')).map(call => call.params), [[701, ownerUid]]);
+    assert.deepEqual(calls.filter(call => call.sql.startsWith('DELETE FROM contact')).map(call => call.params), [[902, ownerUid]]);
+  } finally {
+    for (const filename of modulePaths) {
+      if (priorModules.get(filename)) require.cache[filename] = priorModules.get(filename);
+      else delete require.cache[filename];
+    }
+  }
+});
+
 test('agent time tracking accepts only short updates for the authenticated agent in its business', () => {
   const socket = read('helper/socket/index.js');
   const start = socket.indexOf('case "update_spend_time":');
