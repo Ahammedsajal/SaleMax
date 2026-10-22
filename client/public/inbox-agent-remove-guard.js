@@ -22,8 +22,9 @@
         for (const button of icons) {
           let row = button.parentElement;
           for (let level = 0; row && row !== parent && level < 4; level++, row = row.parentElement) {
+            const rowText = (row.textContent || '').trim();
             if ([...row.querySelectorAll('button,[role="button"]')].filter(candidate => visible(candidate)).length === 1 &&
-                (row.textContent || '').trim().length < 160) {
+                rowText.length < 160 && /[a-zA-Z\u0600-\u06FF]{3}/.test(rowText) && !row.querySelector('input,[role="combobox"]')) {
               button.style.display = 'none';
               button.setAttribute('data-sx-agent-remove-hidden', 'true');
               break;
