@@ -1,5 +1,41 @@
 ## Lead Reports journey collation repair — source increment, 22 October 2026
 
+### Follow-up: Sales actor collation resolved and existing screen accepted
+
+The remaining error was isolated to the `7network_sales` report's agent
+activity query: `pipeline_activity.actor_id` used the live
+`utf8mb4_general_ci` collation, while the cast agent ID used a different
+default collation. Source commit `c5cfecfbf026ed7ffe7fd0a74d7e9377b035aad2`
+explicitly applies `utf8mb4_general_ci` to both operands and adds a regression
+test. The focused Lead Reports tests pass 13/13; the helper passes `node
+--check` and `git diff --check`.
+
+This follow-up supersedes the acceptance-failed state documented below. The
+fix is deployed in the app-only release
+`/opt/salemax/releases/7network-lead-report-agent-collation-c5cfecfb-20261022`
+using image `salemax-app:7network-lead-report-agent-collation-c5cfecfb-20261022`
+(`sha256:d9d9cbda1f50641833da6860f4a11eb6928fd6280ade222f4e136d467cd5d000`).
+The deployed helper SHA-256 is
+`1a3c225fcb44e42cd2902df9d958edf9195b92a0a5a3ada0d9c6041679b7400c`, matching
+source. The deployment held the shared production lock continuously. No
+migration was applied; database, report-worker and recruitment-worker
+container IDs were unchanged. The prior release is
+`/opt/salemax/releases/7network-lead-report-uuid-cb38aaac-20261022`; protected
+rollback snapshot `/opt/salemax/shared/rollback-lead-report-agent-collation-c5cfecfb-20261022`
+(mode `0700`) preserves the prior helper, Compose and service state. App-only
+rollback uses that prior release with the documented Compose command in
+`DEPLOYMENT.md`.
+
+After deployment, the existing authenticated `/user?page=lead-reports` screen
+was reloaded in English/LTR and its embedded report completed successfully,
+showing the pipeline snapshot, daily intake table and agent attendance section
+without an error. Arabic/RTL acceptance also succeeded with translated report
+title and filters and rendered report sections. The browser was restored to
+English/LTR. Public `/healthz` and `/user/login` returned HTTP 200; the app was
+healthy. The report workflow's broader role, mobile, staff and tenant-isolation
+acceptance remains open; this resolves the production report error but does
+not complete the module or the 42-ticket program.
+
 The authenticated production Lead Reports screen previously failed with
 `ER_CANT_AGGREGATE_2COLLATIONS`. Read-only schema inspection confirmed
 `pipeline_leads.uid` uses `utf8mb4_general_ci` while
