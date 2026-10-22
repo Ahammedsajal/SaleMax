@@ -1146,7 +1146,18 @@ function processSocketEvent({
         case "update_spend_time":
           const { uid: agentUidd, timeSpent } = payload;
 
-          if (!agentUidd || !timeSpent) {
+          if (
+            !agentAccount ||
+            !agentUidd ||
+            agentUidd !== actorUid ||
+            !Number.isInteger(timeSpent) ||
+            timeSpent < 1 ||
+            timeSpent > 5
+          ) {
+            return socket.emit("error", { msg: "Invalid time update request" });
+          }
+          const agentOwnerUid = socket.userData.owner_uid;
+          if (!agentOwnerUid) {
             return socket.emit("error", { msg: "Invalid time update request" });
           }
 
@@ -1155,13 +1166,17 @@ function processSocketEvent({
 
           // Get existing logs
           const [agentDataa] = await query(
-            `SELECT logs FROM agents WHERE uid = ?`,
-            [agentUidd],
+            `SELECT logs FROM agents WHERE uid = ? AND owner_uid = ? LIMIT 1`,
+            [agentUidd, agentOwnerUid],
           );
 
           let logs = {};
           try {
-            logs = agentDataa?.logs ? JSON.parse(agentDataa.logs) : {};
+            logs = agentDataa?.logs
+              ? typeof agentDataa.logs === "string"
+                ? JSON.parse(agentDataa.logs)
+                : agentDataa.logs
+              : {};
           } catch (e) {
             console.error("Error parsing logs:", e);
             logs = {};
@@ -1176,9 +1191,10 @@ function processSocketEvent({
           logs.spendTime[today] = (logs.spendTime[today] || 0) + timeSpent;
 
           // Save updated logs
-          await query(`UPDATE agents SET logs = ? WHERE uid = ?`, [
+          await query(`UPDATE agents SET logs = ? WHERE uid = ? AND owner_uid = ?`, [
             JSON.stringify(logs),
             agentUidd,
+            agentOwnerUid,
           ]);
 
           break;

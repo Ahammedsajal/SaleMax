@@ -97,6 +97,20 @@ test('legacy inbox contact and label deletes include the tenant owner UID', () =
   assert.match(route, /DELETE FROM contact WHERE id = \? AND uid = \?/);
 });
 
+test('agent time tracking accepts only short updates for the authenticated agent in its business', () => {
+  const socket = read('helper/socket/index.js');
+  const start = socket.indexOf('case "update_spend_time":');
+  const end = socket.indexOf('case "translate_message":', start);
+  assert.ok(start >= 0 && end > start);
+  const route = socket.slice(start, end);
+  assert.match(route, /!agentAccount/);
+  assert.match(route, /agentUidd !== actorUid/);
+  assert.match(route, /!Number\.isInteger\(timeSpent\)/);
+  assert.match(route, /timeSpent > 5/);
+  assert.match(route, /SELECT logs FROM agents WHERE uid = \? AND owner_uid = \? LIMIT 1/);
+  assert.match(route, /UPDATE agents SET logs = \? WHERE uid = \? AND owner_uid = \?/);
+});
+
 test('manual Meta connection subscribes its WABA to the 7Network app', () => {
   const user = read('routes/user.js');
   const start = user.indexOf('router.post("/update_meta"');

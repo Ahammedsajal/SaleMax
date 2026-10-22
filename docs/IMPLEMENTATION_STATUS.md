@@ -1,3 +1,7 @@
+## Shared Inbox agent time tracking scope — source increment, 22 October 2026
+
+The existing UI timer sends the current agent UID and 1–5 seconds per update. The socket handler now rejects non-agent actors, UID substitution and out-of-range increments, then constrains both the agent log read and write by the authenticated agent UID and owning business UID. The focused Meta/Inbox source-contract suite passes 10/10; syntax and whitespace checks pass. No migration or production state changed; runtime socket acceptance and the broader shared socket audit remain open.
+
 ## Shared Inbox delete ownership — source increment, 22 October 2026
 
 The existing `on_label_delete` and `del_contact` socket actions now constrain their deletes by the authenticated business owner UID as well as the row ID. A tenant owner can no longer delete a guessed contact or label ID belonging to another business through these actions. The focused Meta/Inbox contract suite passes 9/9 and `helper/socket/index.js` passes syntax and whitespace checks. No migration or production state changed; additional socket record mutations remain under audit.
