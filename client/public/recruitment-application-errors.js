@@ -36,6 +36,9 @@
     EPIPE:['The connection ended before the application was saved','انقطع الاتصال قبل حفظ الطلب'],
     PROTOCOL_CONNECTION_LOST:['The connection ended before the application was saved','انقطع الاتصال قبل حفظ الطلب'],
     ER_NO_SUCH_TABLE:['A required application service component is unavailable','أحد مكونات خدمة التقديم المطلوبة غير متاح'],
+    RECRUITMENT_STORAGE_NOT_CONFIGURED:['Your CV could not be saved securely','تعذر حفظ السيرة الذاتية بأمان'],
+    RECRUITMENT_STORAGE_UNAVAILABLE:['Your CV could not be saved right now','تعذر حفظ السيرة الذاتية الآن'],
+    RECRUITMENT_OWNER_UNAVAILABLE:['The recruitment team could not receive your application just now','تعذر على فريق التوظيف استلام طلبك الآن'],
     HTTP_413:['The CV upload exceeded the allowed request size','تجاوز رفع السيرة الذاتية الحجم المسموح'],
     LIMIT_FILE_SIZE:['The CV is larger than the 8 MB limit','حجم السيرة الذاتية أكبر من الحد المسموح وهو ٨ ميغابايت']
   };
