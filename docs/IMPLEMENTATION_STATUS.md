@@ -6,9 +6,10 @@ The Forms overlay helper now stages both required additive forward migrations:
 that source migrations exist and refuses to overwrite a target migration with a
 different checksum. This prevents releasing the shared Forms API/UI without its
 tenant-bound storage schema or silently replacing a migration already present
-in a release. The overlay test proves both migration artifacts are staged and a
-checksum conflict fails before runtime changes. Focused Forms, overlay and
-Training Forms checks pass 34/34; existing browser fixtures pass 12/12 across
+in a release. Overlay tests prove both migration artifacts are staged, a
+checksum conflict fails before runtime changes, and symlinked targets are
+rejected to prevent writes outside the release tree. Focused Forms, overlay and
+Training Forms checks pass 35/35; existing browser fixtures pass 12/12 across
 English/Arabic and mobile/desktop. No production state or customer data changed.
 The generic adapter remains disabled until category approval; authenticated live
 screen acceptance and deployment remain open.

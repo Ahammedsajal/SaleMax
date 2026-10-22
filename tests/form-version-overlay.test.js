@@ -20,3 +20,13 @@ test('generic Forms overlay refuses to replace a conflicting migration checksum 
   assert.notEqual(result.status,0);assert.match(result.stderr,/TARGET_MIGRATION_CHECKSUM_CONFLICT:20261022_workspace_forms\.sql/);assert.equal(fs.readFileSync(indexPath,'utf8'),'<html><head></head></html>');assert.equal(fs.existsSync(path.join(target,'modules/platform/training-form-router.js')),false);
  }finally{fs.rmSync(target,{recursive:true,force:true});}
 });
+test('generic Forms overlay rejects a symlinked migration target before changing runtime files',()=>{
+ const root=path.resolve(__dirname,'..'),target=fs.mkdtempSync(path.join(os.tmpdir(),'sx-form-version-symlink-'));
+ try{
+  const indexPath=path.join(target,'client/public/index.html'),formPath=path.join(target,'client/public/training-form.html'),migrationPath=path.join(target,'database/migrations/20261022_workspace_forms.sql'),outside=path.join(target,'outside.sql');
+  fs.mkdirSync(path.dirname(indexPath),{recursive:true});fs.mkdirSync(path.dirname(formPath),{recursive:true});fs.mkdirSync(path.dirname(migrationPath),{recursive:true});
+  fs.writeFileSync(indexPath,'<html><head></head></html>');fs.writeFileSync(formPath,'<script src="/training-public-form.js"></script>');fs.writeFileSync(outside,'-- outside target\n');fs.symlinkSync(outside,migrationPath);
+  const result=require('node:child_process').spawnSync(process.execPath,[path.join(root,'scripts/deploy-form-version-overlay.cjs'),target,root],{encoding:'utf8'});
+  assert.notEqual(result.status,0);assert.match(result.stderr,/UNSAFE_TARGET_SYMLINK:database\/migrations\/20261022_workspace_forms\.sql/);assert.equal(fs.readFileSync(indexPath,'utf8'),'<html><head></head></html>');assert.equal(fs.existsSync(path.join(target,'modules/platform/training-form-router.js')),false);assert.equal(fs.readFileSync(outside,'utf8'),'-- outside target\n');
+ }finally{fs.rmSync(target,{recursive:true,force:true});}
+});
