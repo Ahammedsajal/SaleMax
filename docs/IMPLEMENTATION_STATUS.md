@@ -1929,3 +1929,15 @@ capability mappings remain separate gates.
 ## Legacy Sales accountant alias authorization — source increment, 22 October 2026
 
 The default 7Network Sales accountant boundary on legacy APIs now resolves the preserved `salemax_sales` category alias through the shared category matcher. This keeps the existing shell bootstrap reads available while denying other legacy routes for both canonical and historical category keys. Focused Sales navigation and authorization tests pass 17/17 with an external no-query `mysql2` stub because the worktree has no installed database driver; `git diff --check` passes. No database, migration, production data or runtime dependency files changed. Deployment and authenticated live role acceptance remain open.
+
+## Read-only production baseline — 22 October 2026, 07:50 UTC
+
+The authorized host identity resolved to `carsqatar-prod-01`. `/opt/salemax/current`
+points to `/opt/salemax/releases/agent-login-no-flash-d7c684f-20261022`. The
+SaleMaX app and MariaDB containers reported healthy; the report and recruitment
+notification workers were running. Public `/healthz` returned `success: true`
+and `status: ok`. Root storage was 87% used with 6.5 GiB available. This is a
+read-only snapshot; no host, application, database, customer or provider state
+was modified. The disk margin is tight enough to retain deployment headroom in
+the release gate. This source branch is not deployed, and its shared-core PR
+remains open and draft.
