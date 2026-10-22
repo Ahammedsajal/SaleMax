@@ -2106,3 +2106,19 @@ The existing Pipeline owner import action, Sales-only do-not-call outcome, and s
 ## Explicit business category on provisioning — source increment, 22 October 2026
 
 The existing Manage Users provisioning service and `provision-options` API no longer silently assign `training_center` when a category is omitted. They reject missing category input before tenant storage access. The category selector already supplies the selected registry key/version; legacy Training Center contract actions now pass `training_center@1` explicitly, and synthetic provisioning integration fixtures specify their intended categories. This leaves `base_crm@1` as an explicit eligible contract for businesses without an industry and prevents accidental vertical access through an omitted field. Focused provisioning, Base CRM, category-context, and Manage Plans tests pass 9/9; syntax and whitespace checks pass. The disposable MariaDB provisioning integration was updated but not run in this turn. No migration, customer data, or production runtime changed; authenticated EN/AR acceptance and deployment remain open.
+
+## Shared customization and workspace task router verification refresh — 22 October 2026
+
+Installed the worktree's locked dependencies without lifecycle scripts and reran
+the shared customization unit, HTTP, and overlay tests plus the workspace task
+router JSON parsing regression: 17/17 pass. This covers tenant context derivation
+without caller-supplied tenant IDs, bearer/cookie aliases, denied staff before
+database access, category lead-field inheritance, preview non-persistence,
+tenant label deletion provenance, and task POST body parsing.
+
+The opt-in database integration was not rerun: this environment provides MySQL
+9.6 rather than the required disposable MariaDB 11.4 service and has no Docker
+runtime. No live or local application database was used. Base CRM generic Forms
+remain fail-closed pending the category scope's reviewed capability contract;
+no capability, category manifest, production release, or customer configuration
+was changed. Authenticated browser acceptance and deployment remain open.
