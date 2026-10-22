@@ -1,5 +1,5 @@
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto'),{createCategoryRegistry}=require('../modules/platform/category-registry'),{capabilities}=require('../modules/platform/policy'),actors=require('../modules/platform/legacy-pipeline-actor');
+const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto'),{createCategoryRegistry}=require('../modules/platform/category-registry'),{capabilities}=require('../modules/platform/policy'),actors=require('../modules/platform/legacy-pipeline-actor'),categories=require('../modules/platform/categories');
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
 const registry=createCategoryRegistry([{key:'future_property',version:2,title:{en:'Property fixture',ar:'عقار تجريبي'},public:false,planable:true,seatRoles:['owner','manager','agent'],capabilities:['crm.leads','team.tasks'],migration:'20261001_platform_identity.sql'}],capabilities),category=registry.get('future_property',2);
 function fixture(role='manager'){
@@ -21,4 +21,11 @@ test('future category agents bind owner, membership, category version and existi
  const base=await f.pool.getConnection(),original=base.query;base.query=async(sql,args)=>{if(sql.startsWith('SELECT id,uid,email,timezone'))return [[{...f.user,timezone:'Asia/Qatar'}]];if(sql.includes("o.source_table='agents'"))return [[agentLink]];return original(sql,args);};
  const actor=await actors.resolveAgent(f.pool,agent,f.options);assert.equal(actor.agentId,9);assert.equal(actor.role,'agent');assert.equal(actor.canonicalContext.membership.id,'member-agent');assert.equal(actor.categoryVersion,2);assert.equal(actor.scopeAgentIds,undefined);
  agentLink.categoryVersion=1;assert.equal((await actors.resolveAgent(f.pool,agent,f.options)).code,'BUSINESS_ACCESS_INACTIVE');
+});
+test('legacy Sales category aliases retain team-leader Pipeline scope',async()=>{
+ const sales=categories.salemaxSales,user={id:9,uid:'legacy-sales-leader',email:'leader@example.invalid'},owner={uid:'legacy-sales-owner',timezone:'Asia/Qatar',ownerUidHash:sha('legacy-sales-owner')};
+ const linked={tenantId:'sales-tenant',tenantStatus:'active',categoryKey:'salemax_sales',categoryVersion:1,membershipId:'sales-leader',identityId:'identity-leader',role:'team_leader',membershipStatus:'active',identityEmail:user.email,identityStatus:'active',legacyUidHash:sha(user.uid),roleProfileId:null,assignedNavigation:null};
+ const queries=[],db={query:async(sql,args)=>{queries.push({sql,args});if(sql.includes('SELECT u.uid,u.timezone'))return [[owner]];if(sql.includes('FROM agents a JOIN'))return [[]];if(sql.includes('SELECT DISTINCT m.identity_id'))return [[]];return [[linked]];},release(){}};
+ const result=await actors.resolve({getConnection:async()=>db},user,{categoryFor:key=>key==='salemax_sales'?sales:null,loadEntitlements:async()=>({status:'active',categoryKey:sales.key,categoryVersion:sales.version,capabilities:[...sales.capabilities]})});
+ assert.equal(result.role,'team_leader');assert.equal(result.categoryKey,'salemax_sales');assert.equal(result.canonicalContext.category.key,'7network_sales');assert.deepEqual(result.scopeAgentIds,[]);assert.ok(queries.some(({sql})=>sql.includes('sx_sales_org_history')));
 });

@@ -16,6 +16,8 @@ The existing product-catalogue adapter now resolves stored category aliases agai
 
 The existing Sales Organization, Audit, Deals and Commission services now apply the same alias-aware category boundary as shared policy. Their domain role checks and exact category version gates remain in place. Tests cover owner/manager organization access, owner-only audit and commission policy, and tenant-scoped Deals reads for a synthetic tenant that retains `salemax_sales`; the four focused suites pass 14/14. No migration or customer-data change is involved.
 
+The legacy Pipeline actor adapter now resolves `salemax_sales` through the registered 7Network Sales contract when deciding whether a Team Leader seat is supported and when loading its team-scoped lead identity/agent IDs. The raw stored category key remains on the legacy actor record; owner identity, plan, membership and category version continue to gate access. Focused Pipeline actor, team-scope, organization and policy suites pass 31/31 with the external dependency cache; no database or customer data changed.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
