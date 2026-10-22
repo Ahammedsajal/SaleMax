@@ -153,10 +153,10 @@ function processSocketEvent({
 
             chats = await query(`SELECT * ${queryStr}`, queryParams);
           } else {
+            const assignedSql=inboxAccess.assignedChatSql(inboxScope,'bc');
             const betaChats = await query(`SELECT bc.*,i.number AS origin_instance_number FROM beta_chats bc
-              LEFT JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE bc.uid = ?`, [
-              chatListOwnerUid,
-            ]);
+              LEFT JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE bc.uid = ?${assignedSql.sql}`,
+              [chatListOwnerUid,...assignedSql.params]);
             const legacyChats = await query(`SELECT * FROM chats WHERE uid = ?`, [
               chatListOwnerUid,
             ]);
@@ -227,20 +227,20 @@ function processSocketEvent({
           const exportChatsOwnerUid = isAgent
             ? socket?.userData?.owner_uid
             : uid;
+          const exportAssignedSql=inboxAccess.assignedChatSql(inboxScope,'bc');
 
           let chats;
           if (chatIds.length > 0) {
             // Export selected chats
             const placeholders = chatIds.map(() => "?").join(",");
             chats = await query(
-              `SELECT * FROM beta_chats WHERE uid = ? AND chat_id IN (${placeholders})`,
-              [exportChatsOwnerUid, ...chatIds],
+              `SELECT bc.* FROM beta_chats bc WHERE bc.uid = ?${exportAssignedSql.sql} AND bc.chat_id IN (${placeholders})`,
+              [exportChatsOwnerUid,...exportAssignedSql.params,...chatIds],
             );
           } else {
             // Export ALL chats
-            chats = await query(`SELECT * FROM beta_chats WHERE uid = ?`, [
-              exportChatsOwnerUid,
-            ]);
+            chats = await query(`SELECT bc.* FROM beta_chats bc WHERE bc.uid = ?${exportAssignedSql.sql}`,
+              [exportChatsOwnerUid,...exportAssignedSql.params]);
           }
 
           // Enrich with phonebook contact names

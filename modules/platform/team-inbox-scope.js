@@ -77,6 +77,22 @@ function filterAssignedChats(chats, scope) {
     (chat.origin === 'qr' && chat.origin_instance_unique_id && channelIds.has(String(chat.origin_instance_unique_id))));
 }
 
+function assignedChatSql(scope, alias='bc') {
+  if (!/^[a-z][a-z0-9_]*$/i.test(alias)) fail();
+  if (!scope?.canonical || !scope.assignedOnly) return { sql:'', params:[] };
+  const clauses=[],params=[];
+  if (!scope.qrOnly && typeof scope.identityId==='string' && /^[A-Za-z0-9_-]{1,128}$/.test(scope.identityId)) {
+    clauses.push(`${alias}.assigned_agent LIKE ?`);
+    params.push(`%${scope.identityId}%`);
+  }
+  const channels=[...new Set((scope.sharedQrInstances||[]).map(item=>item?.uniqueId).filter(value=>typeof value==='string'&&value.length>0&&value.length<=255))];
+  if (channels.length) {
+    clauses.push(`(${alias}.origin='qr' AND ${alias}.origin_instance_unique_id IN (${channels.map(()=>'?').join(',')}))`);
+    params.push(...channels);
+  }
+  return clauses.length?{sql:` AND (${clauses.join(' OR ')})`,params}:{sql:' AND 1=0',params:[]};
+}
+
 function filterQrInstances(instances, scope) {
   if (!scope?.canonical || scope.ctx?.membership?.role === 'owner') return instances;
   const allowed = new Set((scope.sharedQrInstanceIds || []).map(Number));
@@ -205,4 +221,4 @@ function authorizeContactDelete(scope, payload, actor) {
   return { contactId, ownerUid: scope.uid };
 }
 
-module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, filterQrInstances, authorizeInboxPayload, authorizeAgentSpendTime, authorizeContactDelete, authorizeInboxFeature, EVENT_PERMISSIONS, legacyAgentOwnsConversation };
+module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, assignedChatSql, filterQrInstances, authorizeInboxPayload, authorizeAgentSpendTime, authorizeContactDelete, authorizeInboxFeature, EVENT_PERMISSIONS, legacyAgentOwnsConversation };

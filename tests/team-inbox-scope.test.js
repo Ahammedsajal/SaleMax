@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { resolveInboxUid, resolveInboxScope, filterAssignedChats, authorizeInboxPayload, authorizeInboxFeature } = require('../modules/platform/team-inbox-scope');
+const { resolveInboxUid, resolveInboxScope, filterAssignedChats, assignedChatSql, authorizeInboxPayload, authorizeInboxFeature } = require('../modules/platform/team-inbox-scope');
 const hash = uid => crypto.createHash('sha256').update(uid).digest('hex');
 const user = { id: 2, uid: 'synthetic-manager' };
 const member = { tenantId: 'synthetic-tenant', tenantStatus: 'active', categoryKey: 'training_center', membershipId:'synthetic-membership', identityId: 'staff-a', role: 'manager', membershipStatus: 'active', identityStatus: 'active', uidHash: hash(user.uid), delegatedPermissions: [] };
@@ -28,6 +28,10 @@ test('Manager scope includes only assigned QR chats and QR connections', async (
     return [];
   };
   const scope = await resolveInboxScope(lookup, user, 'get_chat_list');
+  const sqlFilter=assignedChatSql(scope,'bc');
+  assert.match(sqlFilter.sql,/bc\.assigned_agent LIKE \?/);
+  assert.match(sqlFilter.sql,/bc\.origin='qr' AND bc\.origin_instance_unique_id IN \(\?\)/);
+  assert.deepEqual(sqlFilter.params,['%staff-a%','owner-qr-session']);
   assert.equal(scope.uid, 'synthetic-owner');
   assert.deepEqual(scope.sharedQrInstanceIds, [41]);
   assert.deepEqual(filterAssignedChats([
@@ -38,6 +42,12 @@ test('Manager scope includes only assigned QR chats and QR connections', async (
   assert.deepEqual(require('../modules/platform/team-inbox-scope').filterQrInstances([
     { id: 41, uniqueId: 'owner-qr-session' }, { id: 42, uniqueId: 'private-session' },
   ], scope).map(instance => instance.id), [41]);
+});
+
+test('SQL assigned-chat candidate filter is safe for owners and returns no rows for empty staff scope',()=>{
+  assert.deepEqual(assignedChatSql({canonical:true,assignedOnly:false}),{sql:'',params:[]});
+  assert.deepEqual(assignedChatSql({canonical:true,assignedOnly:true,qrOnly:true,sharedQrInstances:[]}),{sql:' AND 1=0',params:[]});
+  assert.throws(()=>assignedChatSql({canonical:true,assignedOnly:true},'bc; DROP TABLE beta_chats'));
 });
 
 test('Agent QR access follows an active manager grant and the agent’s current manager assignment',async()=>{
