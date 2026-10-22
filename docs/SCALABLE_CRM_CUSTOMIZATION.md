@@ -768,3 +768,16 @@ configuration remain tenant-owned. Focused regressions cover same-sender QR/Meta
 two connected QR accounts, owner separation and scoped mutation contracts.
 Production deployment and runtime channel smoke remain pending; source testing
 did not change session data or schema.
+
+
+## Manifest-owned task assignment scope — 22 October 2026
+
+The shared Tasks service no longer checks the Training Center category key to
+decide whether an agent may assign colleagues. The pinned category manifest
+declares `taskAssignmentScope`; the safe default is `self`, and Training Center
+v1 explicitly retains its existing `workspace` behavior. Managers and owners
+keep their existing task-management authority. Future categories can declare
+their approved assignment model at registration, while a mismatched or missing
+category version fails closed for agents. This is a platform policy, not a
+client-editable tenant preference, so a business customization cannot silently
+expand an agent's authority.

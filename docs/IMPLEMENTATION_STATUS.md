@@ -2098,3 +2098,13 @@ connected-channel, flow and sender identity. Row updates/deletes use the selecte
 session ID plus owner; Hybrid chatbot session detection uses the same scoped key.
 Focused regressions cover same-sender QR/Meta sessions, separate QR accounts
 and row-owner binding. Production runtime acceptance is pending.
+
+
+## Manifest-owned task assignment scope — 22 October 2026
+
+The shared Tasks service now reads agent workspace-assignment behavior from
+the pinned category manifest instead of a Training Center name check. Training
+Center v1 keeps its current workspace behavior; other categories default to
+self-only. Registry and service tests cover invalid policy values, defaulting,
+category-version mismatch and manager behavior. Source only; production is
+unchanged.

@@ -12,8 +12,11 @@ test('category registry pins versions instead of selecting latest implicitly', (
   assert.equal(registry.get('training_center',2).capabilities.includes('sales.finance'),false);
   for (const version of [undefined,null,0,-1,1.5,'1',3]) assert.equal(registry.get('training_center',version),null);
   assert.deepEqual(registry.list().map(row=>row.version),[1,2]);
+  assert.equal(registry.get('training_center',1).taskAssignmentScope,'workspace');
+  assert.equal(registry.get('training_center',2).taskAssignmentScope,'workspace');
   assert.equal(listCategories().some(row=>row.key===restaurantFixture.key&&row.planable===true),false);
   assert.equal(createCategoryRegistry([{...sevenNetworkSales}],capabilities).get('7network_sales',1).key,'7network_sales');
+  assert.equal(createCategoryRegistry([{...sevenNetworkSales}],capabilities).get('7network_sales',1).taskAssignmentScope,'self');
 });
 
 test('registry rejects duplicate identity, unknown capabilities, invalid roles and malformed contracts', () => {
@@ -23,6 +26,7 @@ test('registry rejects duplicate identity, unknown capabilities, invalid roles a
     {seatRoles:['agent']},{seatRoles:['owner','super_admin']},{migration:'../schema.sql'},
     {chatbotLeadCapture:'unreviewed'},{chatbotLeadCapture:'generic',capabilities:['messaging.inbox']},
     {chatbotLeadCapture:'training',capabilities:['messaging.inbox','crm.leads']},
+    {taskAssignmentScope:'tenant'},{taskAssignmentScope:'anyone'},
     {taskAdapters:{unreviewed_task:1}},{taskAdapters:{enrollment:2}},
     {taskAdapters:{enrollment:1},capabilities:trainingCenter.capabilities.filter(key=>key!=='training.enrollments')}]) {
     assert.throws(()=>createCategoryRegistry([{...trainingCenter,...patch}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});

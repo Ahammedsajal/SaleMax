@@ -235,6 +235,16 @@ test('scheduled sales calls require Sales category, linked lead, time and agent 
   assert.doesNotThrow(()=>validate({...ctx,tenant:{categoryKey:'training_center'}},'general',null,null,null,[]));
 });
 
+test('workspace task assignment is declared by the pinned category manifest',()=>{
+  const agent={...ctx,role:'agent',actorType:'agent',actorId:'7',agentId:7};
+  assert.equal(tasks.canChooseWorkspaceParticipants(agent),true);
+  const sales={...agent,tenant:{...ctx.tenant,categoryKey:sevenNetworkSales.key,categoryVersion:sevenNetworkSales.version},category:sevenNetworkSales};
+  assert.equal(tasks.canChooseWorkspaceParticipants(sales),false);
+  assert.equal(tasks.canChooseWorkspaceParticipants({...sales,role:'manager'}),true);
+  assert.equal(tasks.canChooseWorkspaceParticipants({...agent,category:{...trainingCenter,version:2}}),false);
+  assert.equal(tasks.canChooseWorkspaceParticipants({...agent,tenant:{...ctx.tenant,categoryVersion:2}}),false);
+});
+
 test('task capability is enforced by category, plan and role policy',()=>{
   const policyCtx={audience:'tenant',tenant:{id:ctx.tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'membership',tenantId:ctx.tenantId,role:'owner',status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:['team.tasks']},...ctx};
   assert.equal(tasks.authorize(policyCtx,'tasks.read').allowed,true);
