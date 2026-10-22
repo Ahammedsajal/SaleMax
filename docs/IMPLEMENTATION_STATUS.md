@@ -2444,3 +2444,15 @@ shared `/meta-media` serving route remains publicly readable, and the separate
 reference-check and unlink can race with a concurrent reference write. A
 tenant-aware media access and ownership lifecycle is still needed. Deployment
 and authenticated browser acceptance remain open.
+
+## Live Lead Reports acceptance observation — 22 October 2026
+
+The authenticated production `/user?page=lead-reports` screen opens inside the
+existing business shell, but displays its generic report-load error. The report
+iframe has no `window.SaleMaxWorkspace` client and its script list does not load
+the shared workspace API asset. No lead list was opened and no record was
+changed. This is a live existing-screen acceptance failure; the source branch
+contains an updated shared-client loader, but it is not deployed and this
+observation does not prove that the loader alone resolves the report request.
+Re-test the exact screen after an isolated deployment, then verify EN/AR and
+permitted/denied staff roles before claiming report acceptance.
