@@ -27,6 +27,7 @@ The existing Training Center learner-progress reconciler can move won Pipeline l
 | Bot editing/runtime | `modules/platform/chatbot-router.js`, `chatbot-domain-packs.js`, `docs/CHATBOT_CATEGORY_ARCHITECTURE.md` | Reusable typed guided-content schemas and tenant/category-bound profiles already exist. Extend this design. Shared runtime contains category-specific branches that need adoption tests before replacement. |
 | Navigation | `modules/platform/navigation.js` | Server decisions determine visible modules. Configured visibility must remain a restriction over authorized routes, with matching API enforcement. |
 | Frontend recovery | Existing implementation plan | Maintained screen hooks coexist with a generated legacy frontend. Extend the existing screens; do not manually edit minified logic or introduce another panel. |
+| Inbox refresh route | `routes/inbox.js` | The root GET endpoint was unauthenticated and sent a refresh event to a hard-coded account. It now requires the existing business auth/Inbox scope and targets the authenticated actor's socket identity; focused source-contract coverage added. This does not certify all socket events or legacy inbox routes. |
 
 This is a targeted architecture assessment, not an exhaustive proof of every query, queue, websocket or legacy route. The verification ledger below defines the remaining work.
 
@@ -198,6 +199,16 @@ The first domain slice is a private `real_estate@1` contract and a tenant-scoped
 The category is `public:false` and `planable:false`; it is deliberately absent from customer plan selection while the workflow is incomplete. `realestate.listings` is a distinct entitlement and is independently gated by category version, active subscription, role permission and assigned navigation. Thirty focused unit/policy/migration/HTTP tests pass, and a disposable MariaDB run verifies manager-team assignment, agent and team-leader visibility, cross-tenant assignment denial, concurrent revision writes and audit rollback. This establishes a vertical-module pattern, not a claim that the full category or multi-tenant acceptance is complete. Buyer/tenant requirements, owners, viewings, listing pipelines, search ranking, media uploads, RESO mapping, bilingual browser/device review and authenticated existing-panel acceptance remain open before plan publication or production migration.
 
 ## Isolation beyond database reads
+
+### Shared-core ownership slice — 22 October 2026
+
+This chat owns `routes/inbox.js` for the unauthenticated hard-coded inbox
+refresh endpoint audit, its focused route test, and this shared-core ledger
+entry. The endpoint is constrained to the authenticated caller and their
+resolved tenant Inbox permission. Socket payload authorization and the
+`sx_legacy_ownership` mapping migration remain read-only audit surfaces in this
+slice; no category package, deployment infrastructure, or production files are
+owned here.
 
 - All canonical repositories require tenant context and tenant predicates on reads, writes, joins, exports and deletes. Review raw legacy UID ownership adapters rather than assuming canonical guards cover them.
 - Tenant-owned child relations need composite tenant/parent keys or transactional ownership validation. Globally unique IDs alone are insufficient.

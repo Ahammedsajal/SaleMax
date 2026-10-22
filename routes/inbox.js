@@ -21,7 +21,7 @@ const {
 } = require("../functions/function.js");
 const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
-const { getIOInstance } = require("../socket.js");
+const { getConnectionsByUid, sendToSocket } = require("../socket.js");
 const { checkPlan } = require("../middlewares/plan.js");
 const { processMessage } = require("../helper/inbox/inbox.js");
 const con = require("../database/config.js");
@@ -773,19 +773,16 @@ router.get("/webhook/:uid", async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
+router.get("/", validateUser, async (req, res) => {
   try {
-    const uid = "lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8";
+    const inboxAccess = require('../modules/platform/team-inbox-scope');
+    await inboxAccess.resolveInboxScope(query, req.decode.userData, 'get_chat_list');
+    const uid = req.decode.actorUid || req.decode.uid;
     const { msg } = req.query;
 
-    // getting socket id
-    const sock = await query(`SELECT * FROM rooms WHERE uid = ?`, [uid]);
-
-    const io = getIOInstance();
-
-    console.log(sock[0]?.socket_id);
-
-    io.to(sock[0]?.socket_id).emit("update_conversations", "msg");
+    for (const connection of getConnectionsByUid(uid)) {
+      sendToSocket(connection.socketId, "msg", "update_conversations");
+    }
 
     res.json(msg);
   } catch (err) {

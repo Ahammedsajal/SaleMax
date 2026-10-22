@@ -48,6 +48,19 @@ test('inbox processing still checks the callback phone number against the select
   assert.match(inbox, /if \(checkNumber !== myNumberId\)\s*\{\s*console\.log\("⚠️ Phone number mismatch"\);\s*return;/);
 });
 
+test('inbox refresh endpoint authenticates and scopes its socket notification to the caller', () => {
+  const inbox = read('routes/inbox.js');
+  const start = inbox.indexOf('router.get("/", validateUser, async (req, res) => {');
+  const end = inbox.indexOf('// sending templets', start);
+  assert.ok(start >= 0 && end > start);
+  const route = inbox.slice(start, end);
+  assert.match(route, /resolveInboxScope\(query, req\.decode\.userData, 'get_chat_list'\)/);
+  assert.match(route, /const uid = req\.decode\.actorUid \|\| req\.decode\.uid/);
+  assert.match(route, /getConnectionsByUid\(uid\)/);
+  assert.match(route, /sendToSocket\(connection\.socketId, "msg", "update_conversations"\)/);
+  assert.doesNotMatch(route, /lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8|SELECT \* FROM rooms/);
+});
+
 test('manual Meta connection subscribes its WABA to the 7Network app', () => {
   const user = read('routes/user.js');
   const start = user.indexOf('router.post("/update_meta"');
