@@ -12,7 +12,7 @@ const {
   deleteSession,
   isExists,
 } = require("../helper/addon/qr/index.js");
-const { checkPlan, checkQrScan } = require("../middlewares/plan.js");
+const { checkQrCreator, createQrInstance } = require("../modules/platform/qr-instance-creation");
 const validateUser = require("../middlewares/user.js");
 const validateAgent = require("../middlewares/agent.js");
 const jwt = require("jsonwebtoken");
@@ -101,8 +101,7 @@ router.get('/send',(req,res)=>res.status(410).json({success:false,code:'ENDPOINT
 router.post(
   "/gen_qr",
   validateUser,
-  checkPlan,
-  checkQrScan,
+  checkQrCreator,
   async (req, res) => {
     try {
       const inputTitle = req.body?.title || req.body?.name;
@@ -147,15 +146,8 @@ router.post(
         });
       }
 
-      const inserted = await query(
-        `INSERT INTO instance (uid, title, uniqueId, status) VALUES (?,?,?,?)`,
-        [req.decode.uid, title, uniqueId, "GENERATING"],
-      );
-      if(req.agentWorkspace){
-        const ctx=req.featureSession.context;
-        try{await query('INSERT INTO sx_qr_channel_shares(tenant_id,instance_id,membership_id,granted_by_identity_id) VALUES (?,?,?,?)',[ctx.tenant.id,inserted.insertId,ctx.membership.id,ctx.identity.id]);}
-        catch(error){await query('DELETE FROM instance WHERE id=? AND uid=?',[inserted.insertId,req.decode.uid]);throw error;}
-      }
+      const inserted = await createQrInstance(req, { title, uniqueId });
+      if (inserted.limitReached) return res.json({success:false,code:'QR_INSTANCE_LIMIT_REACHED',msg:'You can add one QR instance to your account.'});
 
       await createSession(
         uniqueId,

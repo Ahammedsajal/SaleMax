@@ -46,6 +46,7 @@ function routePermission(req){
   if(['/api/chat_flow','/api/chatbot'].includes(mount))return 'automation.manage';
   if(mount==='/api/templet')return 'templates.manage';
   if(mount==='/api/broadcast')return 'campaigns.manage';
+  if(mount==='/api/qr'&&method==='POST'&&path==='/gen_qr')return 'channels.qr.create';
   if(mount==='/api/qr'&&read&&path==='/get_all')return 'conversations.read';
   if(['/api/qr','/api/telegram','/api/webhook'].includes(mount))return 'channels.configure';
   if(mount==='/api/wa_call')return read||/^\/(get_|call_logs)/.test(path)?'calls.read':'calls.control';
@@ -103,6 +104,8 @@ function salesAccountantLegacyRouteAllowed(req){
 }
 
 function authorizeLegacyMembership(req,row){
+  if(mountFor(req)==='/api/qr'&&String(req.path||'').toLowerCase()==='/gen_qr'&&String(req.method||'GET').toUpperCase()==='POST')
+    return {allowed:true,permission:'channels.qr.create'};
   if(row.categoryKey==='7network_sales'&&row.role==='accountant'&&!salesAccountantLegacyRouteAllowed(req))
     return {allowed:false,code:'PERMISSION_DENIED'};
   // A default membership has no custom role profile. Keep its established
