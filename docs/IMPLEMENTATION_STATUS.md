@@ -1,3 +1,7 @@
+## Shared Inbox delete ownership — source increment, 22 October 2026
+
+The existing `on_label_delete` and `del_contact` socket actions now constrain their deletes by the authenticated business owner UID as well as the row ID. A tenant owner can no longer delete a guessed contact or label ID belonging to another business through these actions. The focused Meta/Inbox contract suite passes 9/9 and `helper/socket/index.js` passes syntax and whitespace checks. No migration or production state changed; additional socket record mutations remain under audit.
+
 ## Shared Inbox socket and legacy reply tenant scoping — source increment, 22 October 2026
 
 The legacy Meta template reply and media send helpers now include the owner UID in all four `chats` updates. Their derived conversation ID can be identical for the same customer phone across tenants, so chat ID alone was insufficient isolation. The focused Meta/inbox source-contract suite covers both helpers and passes 8/8; JavaScript syntax and `git diff --check` pass. No migration or production state changed. Remaining legacy socket call sites, exports/media isolation, authenticated acceptance and deployment remain open.

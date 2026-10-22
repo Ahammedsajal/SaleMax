@@ -580,7 +580,7 @@ function processSocketEvent({
 
         case "on_label_delete":
           const { labelId } = payload;
-          await query(`DELETE FROM chat_tags WHERE id = ?`, [labelId]);
+          await query(`DELETE FROM chat_tags WHERE id = ? AND uid = ?`, [labelId, uid]);
 
           const labelNew = await query(
             `SELECT * FROM chat_tags WHERE uid = ?`,
@@ -1136,7 +1136,8 @@ function processSocketEvent({
 
         case "del_contact":
           const { contactId } = payload;
-          await query(`DELETE FROM contact WHERE id = ?`, [contactId]);
+          const deletionOwnerUid = isAgent ? socket?.userData?.owner_uid : uid;
+          await query(`DELETE FROM contact WHERE id = ? AND uid = ?`, [contactId, deletionOwnerUid]);
           socket.emit("request_update_chat_list");
           socket.emit("request_update_opened_chat");
 

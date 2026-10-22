@@ -82,6 +82,21 @@ test('legacy Meta template reply updates are constrained to the owner UID', () =
   assert.match(sender, /\[\s*1,\s*chatId,\s*uid,?\s*\]/);
 });
 
+test('legacy inbox contact and label deletes include the tenant owner UID', () => {
+  const socket = read('helper/socket/index.js');
+  const labelStart = socket.indexOf('case "on_label_delete":');
+  const labelEnd = socket.indexOf('case "set_chat_label":', labelStart);
+  assert.ok(labelStart >= 0 && labelEnd > labelStart);
+  assert.match(socket.slice(labelStart, labelEnd), /DELETE FROM chat_tags WHERE id = \? AND uid = \?/);
+
+  const contactStart = socket.indexOf('case "del_contact":');
+  const contactEnd = socket.indexOf('case "update_spend_time":', contactStart);
+  assert.ok(contactStart >= 0 && contactEnd > contactStart);
+  const route = socket.slice(contactStart, contactEnd);
+  assert.match(route, /const deletionOwnerUid = isAgent \? socket\?\.userData\?\.owner_uid : uid/);
+  assert.match(route, /DELETE FROM contact WHERE id = \? AND uid = \?/);
+});
+
 test('manual Meta connection subscribes its WABA to the 7Network app', () => {
   const user = read('routes/user.js');
   const start = user.indexOf('router.post("/update_meta"');
