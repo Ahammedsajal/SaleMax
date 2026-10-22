@@ -22,6 +22,9 @@ case "$*" in
   *) printf 'Filesystem 1B-blocks Used Available Use%%\\n/dev/fake %s\\n' "$TEST_DISK_LINE" ;;
 esac
 `);
+  fs.writeFileSync(path.join(bin, 'du'), `#!/bin/sh
+printf '%s %s\\n' "$TEST_RELEASE_BYTES" "$TEST_RELEASE_PATH"
+`);
   fs.writeFileSync(path.join(bin, 'flock'), '#!/bin/sh\nexit 0\n');
   fs.writeFileSync(path.join(bin, 'timeout'), '#!/bin/sh\nshift\nexec "$@"\n');
   fs.writeFileSync(path.join(bin, 'docker'), `#!/bin/sh
@@ -53,12 +56,19 @@ printf '%s\\n' "$payload" >> "$TEST_CURL_LOG"
 [ "${'${'}TEST_CURL_FAIL:-0}" != 1 ] || exit 22
 printf '%s' "${'${'}TEST_HTTP_CODE:-200}"
 `);
-  for (const name of ['df', 'flock', 'timeout', 'docker', 'curl']) fs.chmodSync(path.join(bin, name), 0o755);
+  for (const name of ['df', 'du', 'flock', 'timeout', 'docker', 'curl']) fs.chmodSync(path.join(bin, name), 0o755);
+  const releases = path.join(root, 'releases');
+  fs.mkdirSync(releases);
   const env = {
     ...process.env,
     PATH: `${bin}:${process.env.PATH || '/usr/bin:/bin'}`,
     SALEMAX_CAPACITY_STATE_DIR: state,
     SALEMAX_CAPACITY_PATH: '/',
+    SALEMAX_RELEASES_PATH: releases,
+    SALEMAX_RELEASE_GROWTH_WARNING_BYTES: '1000000000',
+    SALEMAX_RELEASE_GROWTH_CRITICAL_BYTES: '5000000000',
+    TEST_RELEASE_BYTES: '10000000000',
+    TEST_RELEASE_PATH: releases,
     TEST_DISK_LINE: '100000000000 1000000000 99000000000 1%',
     TEST_INODE_LINE: '1000000 1000 999000 1%',
     TEST_DOCKER_MISSING: '',
@@ -103,7 +113,7 @@ test('disk critical transition sends once and deduplicates repeated checks', t =
   assert.equal(second.status, 0, second.stderr);
   assert.match(fs.readFileSync(f.payloadLog, 'utf8'), /capacity critical/);
   assert.equal(fs.readFileSync(f.payloadLog, 'utf8').trim().split('\n').length, 1);
-  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none');
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none|none');
 });
 
 test('inode thresholds and low-free-space thresholds can raise the alert level', t => {
@@ -129,7 +139,7 @@ test('recovery is reported after an alert clears', t => {
   const payloads = fs.readFileSync(f.payloadLog, 'utf8').trim().split('\n');
   assert.equal(payloads.length, 2);
   assert.match(payloads[1], /capacity and service health recovered/);
-  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'normal|none');
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'normal|none|none');
 });
 
 test('delivery failure does not mark the alert as delivered', t => {
@@ -140,7 +150,7 @@ test('delivery failure does not mark the alert as delivered', t => {
   assert.equal(fs.existsSync(path.join(f.state, 'last-severity')), false);
   f.env.TEST_CURL_FAIL = '0';
   assert.equal(run(f.env).status, 0);
-  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none');
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none|none');
 });
 
 test('non-2xx webhook responses do not advance alert state', t => {
@@ -174,7 +184,7 @@ test('missing and unhealthy app or database services raise critical alerts', t =
   assert.match(payload, /unhealthy or missing services: app,recruitment-founder-notification-worker/);
   assert.equal(
     fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(),
-    'critical|app,recruitment-founder-notification-worker'
+    'critical|app,recruitment-founder-notification-worker|none'
   );
 });
 
@@ -188,7 +198,7 @@ test('service failure changes alert state and recovery is sent after services re
   assert.equal(payloads.length, 2);
   assert.match(payloads[0], /report-worker/);
   assert.match(payloads[1], /capacity and service health recovered/);
-  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'normal|none');
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'normal|none|none');
 });
 
 test('service recovery is reported even when disk capacity remains critical', t => {
@@ -201,7 +211,7 @@ test('service recovery is reported even when disk capacity remains critical', t 
   const payloads = fs.readFileSync(f.payloadLog, 'utf8').trim().split('\n');
   assert.equal(payloads.length, 2);
   assert.match(payloads[1], /Service health recovered; capacity remains critical/);
-  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none');
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'critical|none|none');
 });
 
 test('legacy severity-only state migrates without sending a duplicate alert', t => {
@@ -212,4 +222,38 @@ test('legacy severity-only state migrates without sending a duplicate alert', t 
   const result = run(f.env);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(fs.existsSync(f.payloadLog), false);
+});
+
+test('release growth establishes a baseline, alerts at warning and critical levels, deduplicates, and resets after shrink', t => {
+  const f = fixture(t);
+  assert.equal(run(f.env).status, 0);
+  const baselineFile = path.join(f.state, 'releases-baseline-bytes');
+  assert.equal(fs.readFileSync(baselineFile, 'utf8').trim(), '10000000000');
+  assert.equal(fs.existsSync(f.payloadLog), false);
+
+  f.env.TEST_RELEASE_BYTES = '11500000000';
+  assert.equal(run(f.env).status, 0);
+  assert.match(fs.readFileSync(f.payloadLog, 'utf8'), /Release tree growth warning: 1500000000 bytes over baseline/);
+  assert.equal(run(f.env).status, 0);
+  assert.equal(fs.readFileSync(f.payloadLog, 'utf8').trim().split('\n').length, 1);
+
+  f.env.TEST_RELEASE_BYTES = '16000000000';
+  assert.equal(run(f.env).status, 0);
+  assert.match(fs.readFileSync(f.payloadLog, 'utf8'), /capacity critical/);
+  assert.match(fs.readFileSync(f.payloadLog, 'utf8'), /Release tree growth critical: 6000000000 bytes over baseline/);
+
+  f.env.TEST_RELEASE_BYTES = '9000000000';
+  assert.equal(run(f.env).status, 0);
+  assert.equal(fs.readFileSync(baselineFile, 'utf8').trim(), '9000000000');
+  assert.match(fs.readFileSync(f.payloadLog, 'utf8'), /Release tree growth returned below threshold/);
+  assert.equal(fs.readFileSync(path.join(f.state, 'last-severity'), 'utf8').trim(), 'normal|none|none');
+});
+
+test('invalid release growth thresholds fail before monitor state is changed', t => {
+  const f = fixture(t);
+  f.env.SALEMAX_RELEASE_GROWTH_WARNING_BYTES = '0';
+  const result = run(f.env);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /thresholds must be positive integers/);
+  assert.equal(fs.existsSync(path.join(f.state, 'last-severity')), false);
 });

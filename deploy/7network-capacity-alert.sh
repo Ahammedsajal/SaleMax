@@ -4,7 +4,19 @@ set -euo pipefail
 mount_path="${SALEMAX_CAPACITY_PATH:-/}"
 state_dir="${SALEMAX_CAPACITY_STATE_DIR:-/var/lib/7network-ops/capacity}"
 state_file="$state_dir/last-severity"
+releases_path="${SALEMAX_RELEASES_PATH:-/opt/salemax/releases}"
+release_baseline_file="$state_dir/releases-baseline-bytes"
+release_growth_warning_bytes="${SALEMAX_RELEASE_GROWTH_WARNING_BYTES:-2147483648}"
+release_growth_critical_bytes="${SALEMAX_RELEASE_GROWTH_CRITICAL_BYTES:-5368709120}"
 free_warning_bytes=$((5 * 1024 * 1024 * 1024))
+
+for threshold in "$release_growth_warning_bytes" "$release_growth_critical_bytes"; do
+  [[ "$threshold" =~ ^[0-9]+$ ]] && (( threshold > 0 )) || { echo 'Release growth thresholds must be positive integers' >&2; exit 1; }
+done
+(( release_growth_critical_bytes >= release_growth_warning_bytes )) || {
+  echo 'Critical release growth threshold must be at least the warning threshold' >&2
+  exit 1
+}
 
 mkdir -p "$state_dir"
 chmod 0750 "$state_dir"
@@ -37,6 +49,45 @@ threshold_severity() {
 threshold_severity "$disk_percent"
 threshold_severity "$inode_percent"
 if (( disk_free_bytes < free_warning_bytes )); then raise_severity warning 1; fi
+
+[[ -d "$releases_path" ]] || { echo "Release path is unavailable: $releases_path" >&2; exit 1; }
+release_size_line="$(du -sx --block-size=1 -- "$releases_path" | awk 'NR==1 {print $1}')"
+[[ "$release_size_line" =~ ^[0-9]+$ ]] || { echo "Unable to read release tree size for $releases_path" >&2; exit 1; }
+release_bytes=$release_size_line
+release_baseline=$release_bytes
+baseline_changed=0
+if [[ -f "$release_baseline_file" ]]; then
+  IFS= read -r release_baseline < "$release_baseline_file" || release_baseline=''
+else
+  baseline_changed=1
+fi
+if [[ ! "$release_baseline" =~ ^[0-9]+$ ]]; then
+  release_baseline=$release_bytes
+  baseline_changed=1
+fi
+release_growth_bytes=0
+if (( release_bytes >= release_baseline )); then
+  release_growth_bytes=$((release_bytes - release_baseline))
+else
+  # A reduced release tree starts a new growth window after reviewed cleanup.
+  release_baseline=$release_bytes
+  baseline_changed=1
+fi
+if (( baseline_changed )); then
+  baseline_temporary="$release_baseline_file.$$"
+  printf '%s\n' "$release_baseline" > "$baseline_temporary"
+  chmod 0640 "$baseline_temporary"
+  mv -f "$baseline_temporary" "$release_baseline_file"
+fi
+
+release_growth_state=none
+if (( release_growth_bytes >= release_growth_critical_bytes )); then
+  release_growth_state=critical
+  raise_severity critical 3
+elif (( release_growth_bytes >= release_growth_warning_bytes )); then
+  release_growth_state=warning
+  raise_severity urgent 2
+fi
 
 health_failures=()
 inspect_service() {
@@ -71,12 +122,14 @@ health_state=none
 if (( ${#health_failures[@]} > 0 )); then
   health_state="$(IFS=,; printf '%s' "${health_failures[*]}")"
 fi
-current_state="$severity|$health_state"
-previous_state='normal|none'
-if [[ -f "$state_file" ]]; then IFS= read -r previous_state < "$state_file" || previous_state='normal|none'; fi
-# Read the previous severity-only format written by the original monitor.
-if [[ "$previous_state" != *'|'* ]]; then previous_state="$previous_state|none"; fi
-previous_health_state="${previous_state#*|}"
+current_state="$severity|$health_state|$release_growth_state"
+previous_state='normal|none|none'
+if [[ -f "$state_file" ]]; then IFS= read -r previous_state < "$state_file" || previous_state='normal|none|none'; fi
+# Read state written by the original severity-only monitor and the health-only extension.
+if [[ "$previous_state" != *'|'* ]]; then previous_state="$previous_state|none|none"
+elif [[ "${previous_state#*|}" != *'|'* ]]; then previous_state="$previous_state|none"
+fi
+IFS='|' read -r previous_severity previous_health_state previous_release_growth_state <<< "$previous_state"
 if [[ "$current_state" == "$previous_state" ]]; then exit 0; fi
 
 webhook="${SALEMAX_CAPACITY_ALERT_WEBHOOK_URL:-}"
@@ -91,10 +144,13 @@ host="$(printf '%s' "$host" | tr -cd '[:alnum:]._-')"
 timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 if [[ "$severity" == normal ]]; then
   message="7Network host capacity and service health recovered on ${host} at ${timestamp}. Disk ${disk_percent}% used (${disk_free_bytes} bytes free); inodes ${inode_percent}% used."
+  if [[ "$previous_release_growth_state" != none ]]; then message+=" Release tree growth returned below threshold."; fi
 else
   message="7Network host capacity ${severity} on ${host} at ${timestamp}. Disk ${disk_percent}% used (${disk_free_bytes} bytes free); inodes ${inode_percent}% used."
   if (( ${#health_failures[@]} > 0 )); then message+="; unhealthy or missing services: ${health_state}."; fi
   if [[ "$health_state" == none && "$previous_health_state" != none ]]; then message+=" Service health recovered; capacity remains ${severity}."; fi
+  if [[ "$release_growth_state" != none ]]; then message+=" Release tree growth ${release_growth_state}: ${release_growth_bytes} bytes over baseline."; fi
+  if [[ "$release_growth_state" == none && "$previous_release_growth_state" != none ]]; then message+=" Release tree growth returned below threshold; capacity remains ${severity}."; fi
 fi
 payload="$(printf '{\"text\":\"%s\"}' "$message")"
 response_code="$(curl --fail --silent --show-error --max-time 10 --retry 2 --output /dev/null --write-out '%{http_code}' \
@@ -105,5 +161,5 @@ temporary="$state_file.$$"
 printf '%s\n' "$current_state" > "$temporary"
 chmod 0640 "$temporary"
 mv -f "$temporary" "$state_file"
-printf '[7network-capacity] webhook_accepted severity=%s disk=%s%% free=%s bytes inode=%s%% services=%s\n' \
-  "$severity" "$disk_percent" "$disk_free_bytes" "$inode_percent" "$health_state"
+printf '[7network-capacity] webhook_accepted severity=%s disk=%s%% free=%s bytes inode=%s%% services=%s release_growth=%s bytes\n' \
+  "$severity" "$disk_percent" "$disk_free_bytes" "$inode_percent" "$health_state" "$release_growth_bytes"
