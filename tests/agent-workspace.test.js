@@ -22,6 +22,13 @@ test('revoked grants, removed sidebar screens and disabled plan capabilities den
  context.membership.assignedNavigation=null;context.membership.customPermissions=[];assert.throws(()=>access.authorize(request,{context,agent:true}),{code:'PERMISSION_DENIED'});
  context.membership.customPermissions=['channels.configure'];context.subscription.capabilities=[];assert.throws(()=>access.authorize(request,{context,agent:true}),{code:'FEATURE_UNAVAILABLE'});
 });
+test('Agent Inbox can read saved quick replies through the legacy user endpoint',()=>{
+ const session={context:ctx(['conversations.read']),agent:true};
+ const request={baseUrl:'/api/user',path:'/get_all_quick_reply',method:'GET'};
+ assert.equal(access.authorize(request,session).permission,'conversations.read');
+ assert.equal(access.authorize(request,session).scope,'assigned');
+ assert.throws(()=>access.authorize({...request,method:'POST'},session),{code:'PERMISSION_DENIED'});
+});
 test('agent shell profile never returns owner credentials or changes the actor identity',()=>{
  const data=access.profile({context:ctx([]),actor:{id:2,uid:'agent',name:'Synthetic Agent',email:'agent@example.invalid',password:'agent-secret'},owner:{id:1,uid:'owner',email:'owner@example.invalid',password:'owner-secret',api_key:'owner-api',plan:'{}',plan_expire:123}});
  assert.equal(data.uid,'agent');assert.equal(data.workspaceRole,'agent');assert.equal(data.role,'user');assert.ok(!JSON.stringify(data).includes('secret'));assert.ok(!JSON.stringify(data).includes('owner@'));assert.equal(data.api_key,undefined);
