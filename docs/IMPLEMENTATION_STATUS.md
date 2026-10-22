@@ -2304,3 +2304,21 @@ foreign-tenant URL returned 404 without opening storage. This verifies source
 compatibility only; the operations adapter is not merged into this checkout,
 no real provider or authenticated live acceptance was tested, and nothing was
 deployed or changed in production.
+
+## Versioned tenant module settings — source increment, 22 October 2026
+
+The shared category registry now validates immutable typed module-setting
+schemas bound to capabilities declared by the exact category version. The
+existing tenant customization schema supports v6 while retaining readers for
+schema v1–v5; categories without a declared module schema continue writing v5.
+The existing owner editor renders bilingual Boolean, bounded
+integer, text and enumerated controls, persists sparse tenant overrides through
+the existing customization API, and exposes their platform/category/tenant
+provenance. These values remain configuration data and cannot grant plan
+features or member permissions. No category version declares module settings.
+
+Focused registry, customization and HTTP suites pass 26/26; syntax and
+`git diff --check` pass. The rendered-editor fixture was updated but could not
+run because Playwright is not installed. MariaDB runtime integration, category
+adoption, authenticated EN/AR screen acceptance and deployment remain open. No
+production state changed.

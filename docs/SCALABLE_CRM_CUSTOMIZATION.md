@@ -212,7 +212,7 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 | --- | --- | --- |
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
-| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | Initial label schema is deployed; source now adds typed lead fields, hidden navigation, stable-key stage labels, schema-v5 tombstones, three-layer provenance, and an opt-in disposable MariaDB integration proving same-category isolation, stale-write conflict, rollback ownership and audit rollback. This source increment is not deployed. |
+| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | Initial label schema is deployed; source adds typed lead fields, hidden navigation, stable-key stage labels, schema-v5 tombstones, three-layer provenance, and schema-v6 typed module settings in the existing editor. Existing tests prove same-category isolation, stale-write conflict, rollback ownership, audit rollback, typed setting validation and source provenance. The module-settings increment is not deployed; rendered-browser and live acceptance remain pending. |
 | Member authorization | Fixed seat role, custom role grants, member scope and approval separation | Source now keeps Training and Sales deal approvals, credit approvals, commission policy management, commission payouts and call-recording policy management bound to their defined seat roles even when a custom profile requests those grants. Policy regressions and direct role-editor checks pass; the full `team-invitations` test file cannot load in this checkout because the local `bcrypt` dependency is absent. This increment is not deployed. |
 | Existing settings UI | Authenticated owner EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead fields, schema-3 tenant-only hidden menu sections, stable-key stage labels, reset controls and resolved provenance; fresh rendered-browser and live acceptance pending. |
 | Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through shared workspace and legacy sidebar-access contracts; the settings response exposes layer provenance; API permissions remain independent and other consumers/workers are pending |
@@ -851,3 +851,26 @@ idempotency, and rate-limit constraints pass isolated disposable MariaDB
 integration checks. These are source changes only: no category opts in,
 authenticated bilingual screen acceptance and deployment remain open, and no
 production state changed.
+
+## Versioned tenant module settings — source increment, 22 October 2026
+
+The shared category registry now accepts an immutable `customizationSchema` for
+typed module settings. Each module declares a category capability, and each
+field is a bounded Boolean, integer, text or enumerated value with bilingual
+labels and a server-defined default. Only a category version that declares
+module settings uses customization schema 6; older schema 1–5 documents remain
+readable, and categories without module settings keep writing schema 5. The
+existing business settings screen renders the schema, lets owners opt a value
+into the tenant layer, and submits sparse values through the existing
+revision-checked draft and publish API. The resolver reports platform,
+category-version and tenant provenance.
+Configuration remains data only and cannot grant a feature or member
+permission. No current category opts into module settings; category-specific
+declarations must use a reviewed immutable category version.
+
+Twenty-six focused registry, customization and HTTP tests pass, including
+typed-value bounds, false/zero preservation, category-version defaults,
+tenant provenance and invalid API values. Syntax and whitespace checks pass.
+The existing rendered-editor browser fixture was extended but could not run in
+this checkout because Playwright is not installed. No MariaDB integration,
+production mutation, category adoption or authenticated UI acceptance occurred.

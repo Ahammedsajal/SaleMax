@@ -22,8 +22,8 @@ function categoryNavigationKeys(ctx) {
   return new Set(fieldsFor(ctx).map(item=>item.key));
 }
 function normalize(ctx,input) {
-  const allowedKeys=input?.schemaVersion>=4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','stageLabels']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
-  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4,5].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
+  const allowedKeys=input?.schemaVersion>=6?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','stageLabels','moduleSettings']:input?.schemaVersion>=4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','stageLabels']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
+  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4,5,6].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
   const allowed=categoryNavigationKeys(ctx);
   const labels={};
   for(const key of Object.keys(input.navigationLabels).sort()) {
@@ -51,12 +51,13 @@ function normalize(ctx,input) {
       stageLabels[key]={en:value.en.trim(),ar:value.ar.trim()};
     }
   }
-  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{}),...(input.schemaVersion>=4?{stageLabels}:{})};
+  const moduleSettings=input.schemaVersion>=6&&Object.hasOwn(input,'moduleSettings')?require('./tenant-module-settings').normalize(input.moduleSettings,ctx.category?.customizationSchema):undefined;
+  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{}),...(input.schemaVersion>=4?{stageLabels}:{}),...(moduleSettings?{moduleSettings}:{})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
 function resolved(ctx,document,revisionNumber=0) {
   const fields=fieldsFor(ctx);
-  const platform={schemaVersion:5,navigationLabels:Object.fromEntries(fields.map(item=>[item.key,item.label])),leadFields:[],hiddenNavigation:[],stageLabels:{}};
+  const platform={schemaVersion:6,navigationLabels:Object.fromEntries(fields.map(item=>[item.key,item.label])),leadFields:[],hiddenNavigation:[],stageLabels:{},moduleSettings:{}};
   // Category defaults are immutable server-side contract data. They are optional
   // until each category version publishes a reviewed customization contract.
   let categoryDefaults={};
@@ -64,6 +65,9 @@ function resolved(ctx,document,revisionNumber=0) {
     try{categoryDefaults=normalize(ctx,ctx.category.customizationDefaults);}
     catch{fail('CUSTOMIZATION_CATEGORY_DEFAULT_INVALID',503);}
   }
+  const moduleDefaults=require('./tenant-module-settings').defaults(ctx.category?.customizationSchema);
+  const categoryModuleSettings=categoryDefaults.moduleSettings||{};
+  categoryDefaults={...categoryDefaults,moduleSettings:Object.fromEntries([...new Set([...Object.keys(moduleDefaults),...Object.keys(categoryModuleSettings)])].map(key=>[key,{...(moduleDefaults[key]||{}),...(categoryModuleSettings[key]||{})}]))};
   return require('./tenant-setting-resolver').resolve({
     platform,category:categoryDefaults,tenant:document||{},categoryKey:ctx.category.key,
     categoryVersion:ctx.category.version,tenantRevision:revisionNumber,
@@ -71,7 +75,7 @@ function resolved(ctx,document,revisionNumber=0) {
 }
 function decode(ctx,row) {
   if(!row)return null;
-  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4,5].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4,5,6].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   const document=normalize(ctx,typeof row.document==='string'?JSON.parse(row.document):row.document);
   if(document.schemaVersion!==Number(row.schema_version)||checksum(document)!==row.checksum)fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {id:row.id,revision:Number(row.revision),kind:row.kind,document,checksum:row.checksum,createdAt:row.created_at};
@@ -95,7 +99,7 @@ async function state(db,ctx,session=null) {
   const active=await revision(db,ctx,head?.active_id),draft=await revision(db,ctx,head?.draft_id);
   if(active&&active.kind!=='published'||draft&&draft.kind!=='draft')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:Number(head?.revision||0),active,draft,history,
-    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),stageFields,
+    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),stageFields,moduleSettingsSchema:ctx.category?.customizationSchema?.moduleSettings||{},
     inherited:resolved(ctx,null,0).value,
     resolved:resolved(ctx,active?.document,active?.revision||0),
     draftResolved:draft?resolved(ctx,draft.document,draft.revision):null};

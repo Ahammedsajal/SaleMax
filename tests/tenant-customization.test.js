@@ -96,10 +96,11 @@ test('the existing bilingual settings editor submits explicit per-label tombston
   assert.match(editor,/navigationLabels\[field\.key\]=null/);
   assert.match(editor,/data-platform-stage-label/);
   assert.match(editor,/stageLabels\[key\]=null/);
-  assert.match(editor,/schemaVersion:5/);
+  assert.match(editor,/hasModuleSettings\?6:5/);
   assert.match(editor,/Platform labels restored/);
   const shell=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
-  assert.match(shell,/tenant-customization\.js\?v=20261022-null-tombstones1/);
+  assert.match(shell,/tenant-customization\.js\?v=20261022-module-settings1/);
+  assert.equal(shell.match(/tenant-customization\.js/g).length,1,'existing shell loads the maintained customization editor once');
   assert.ok(shell.indexOf('/tenant-customization.js')<shell.indexOf('/static/js/main.73648acf.js'));
 });
 test('owner settings lists only Pipeline stages from the authenticated business uid',async()=>{

@@ -63,3 +63,18 @@ test('shared customization preview accepts schema v5 removal of inherited labels
   assert.equal(app.counts().queries,0,'preview is read-only');
  }finally{await app.close();}
 });
+test('existing customization API returns versioned module schemas and validates typed business overrides',async()=>{
+ const app=await fixture();try{
+  const schema={moduleSettings:{pipeline:{capability:'crm.leads',fields:[{key:'reminders',type:'boolean',label:{en:'Lead reminders',ar:'تذكيرات العملاء المحتملين'},default:false},{key:'days',type:'integer',label:{en:'Reminder days',ar:'أيام التذكير'},min:0,max:30,default:7}]}}};
+  app.setContext({...base,category:{...trainingCenter,customizationSchema:schema}});
+  const headers={Authorization:'Bearer synthetic-owner','Content-Type':'application/json',Origin:'https://crm.example.test'};
+  const state=await (await fetch(app.base+'/api/workspace/customization',{headers})).json();
+  assert.deepEqual(state.data.moduleSettingsSchema,schema.moduleSettings);
+  assert.deepEqual(state.data.inherited.moduleSettings,{pipeline:{reminders:false,days:7}});
+  const body={document:{schemaVersion:6,navigationLabels:{},hiddenNavigation:[],stageLabels:{},moduleSettings:{pipeline:{reminders:true,days:0}}}};
+  const response=await fetch(app.base+'/api/workspace/customization/preview',{method:'POST',headers,body:JSON.stringify(body)}),preview=await response.json();
+  assert.equal(response.status,200,JSON.stringify(preview));assert.equal(preview.data.resolved.value.moduleSettings.pipeline.days,0);assert.deepEqual(preview.data.resolved.provenance['moduleSettings.pipeline.reminders'],{scope:'tenant',revision:0});
+  const invalid={document:{...body.document,moduleSettings:{pipeline:{days:31}}}};
+  assert.equal((await fetch(app.base+'/api/workspace/customization/preview',{method:'POST',headers,body:JSON.stringify(invalid)})).status,400);
+ }finally{await app.close();}
+});
