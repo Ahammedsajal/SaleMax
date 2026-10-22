@@ -129,9 +129,12 @@ the values cannot add a capability, plan entitlement, member permission or
 record scope.
 
 Merge semantics are explicit: omitted object members inherit; object members
-merge by key; `null` is a tombstone that removes an inherited object member;
-scalar values replace; and arrays replace atomically, including an explicit
-empty array. Each feature schema must validate its own values before resolution.
+merge by key; a category `null` tombstone removes the platform member, while a
+tenant `null` tombstone clears that tenant/category override and restores the
+platform member when one exists; scalar values replace; and arrays replace
+atomically, including an explicit empty array. Deletion provenance records the
+tenant reset even when the resolved value now comes from the platform layer.
+Each feature schema must validate its own values before resolution.
 No generic setting layer may contain executable code, credentials, arbitrary
 paths, or user/customer records. Historical published documents remain
 immutable and tenant-bound.
@@ -162,13 +165,16 @@ business UID scope. Unmapped stage keys continue to use the current stage title.
 
 Schema version 5 enables explicit `null` tombstones for individual navigation
 and Pipeline stage labels. The existing owner editor exposes per-label resets
-to the platform or stored stage wording; blank fields still inherit category
-values. Preview and provenance identify the removed inherited value. Lists
-continue to replace atomically, so an empty custom-field or hidden-navigation
-list removes all category entries without changing the type to null. Schemas
-1–4 retain their prior validation rules and remain readable. These defaults and
-resets affect presentation/configuration; they do not change capabilities, plan
-rights, member permissions or record scope.
+to platform labels or stored stage wording; blank fields still inherit category
+values. A tenant navigation reset restores the platform label when available;
+a stage reset with no platform stage label removes the category label so the
+Pipeline uses its stored stage title. Preview reports the effective source and
+retains deletion provenance. Lists continue to replace atomically, so an empty
+custom-field or hidden-navigation list removes all category entries without
+changing the type to null. Schemas 1–4 retain their prior validation rules and
+remain readable. These defaults and resets affect presentation/configuration;
+they do not change capabilities, plan rights, member permissions or record
+scope.
 
 ## Extensibility and domain boundaries
 
