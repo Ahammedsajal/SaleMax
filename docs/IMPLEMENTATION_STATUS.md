@@ -13,6 +13,21 @@ unchanged database/worker container IDs were verified. No matching failure was
 recorded in the prior 72 hours, so no real applicant submission failure was
 reproduced. Authenticated live submission acceptance and the full 42-ticket
 program remain open; see `DEPLOYMENT.md` for rollback and release evidence.
+
+## Recruitment application client copy — live-source reconciliation, 22 October 2026
+
+The current public application page was serving a newer customer-error helper
+than this source checkout. The live helper explains common network, request-size,
+and database failures in plain language, includes the safe cause code in
+parentheses, and tells applicants what to do next. The live page also uses the
+`20261022-error-copy-5` cache key; both the helper and page are now synchronized
+in this source branch. The application submission script was already byte-for-
+byte current. Focused error tests pass 2/2, and the local helper and page hashes
+match the publicly served files. This is a source reconciliation only: no
+production upload, application submission, customer-data write, or schema change
+occurred. No actual applicant failure was reproduced, so its underlying
+technical cause remains unknown.
+
 ## Finance conversion policy guard — source update, 21 October 2026
 
 The training invoice-total helper now rejects missing, unsupported or malformed
