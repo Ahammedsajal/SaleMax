@@ -2424,3 +2424,23 @@ Focused report, report-screen, and bounded export checks pass 18/18; JavaScript
 syntax and whitespace checks pass. This source increment does not prove a live
 database query plan, authenticated desktop/mobile browser acceptance, category
 adoption or deployment. The full 42-ticket upgrade remains open.
+
+## Shared Inbox media deletion guard — source increment, 22 October 2026
+
+The existing Inbox media-delete event now validates that a link identifies one
+safe filename directly under the legacy `meta-media` directory, rejects path
+traversal and symlink targets, and checks for references from any other
+conversation before unlinking. The existing authenticated socket path passes the
+resolved business owner and the database query used for the reference check.
+The disposable MariaDB 9.6 integration uses two synthetic tenants: A's delete
+leaves the shared file while B references it, then succeeds after B's reference
+is removed. The isolated filesystem test also rejects traversal and verifies
+that an unreferenced local file can still be removed. No customer media or
+production state changed.
+
+Focused Inbox media/socket scope tests pass 27/27; JavaScript syntax and
+whitespace checks pass. This does not close the full media gate: the existing
+shared `/meta-media` serving route remains publicly readable, and the separate
+reference-check and unlink can race with a concurrent reference write. A
+tenant-aware media access and ownership lifecycle is still needed. Deployment
+and authenticated browser acceptance remain open.

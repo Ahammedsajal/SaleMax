@@ -1094,6 +1094,7 @@ function processSocketEvent({
               uid: isAgent ? socket?.userData?.owner_uid : uid,
               chatId: delChatId,
               conversationData,
+              queryFn: query,
             });
 
             if (deleteType === "delete") {

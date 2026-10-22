@@ -2,7 +2,11 @@
 
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const mysql = require('mysql2/promise');
+const mediaService = require('../helper/socket/function');
 
 async function main() {
   const database = `codex_inbox_scope_${crypto.randomBytes(8).toString('hex')}`;
@@ -16,6 +20,7 @@ async function main() {
   });
   let created = false;
   let db;
+  let mediaDirectory;
   try {
     await admin.query(`CREATE DATABASE \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     created = true;
@@ -88,6 +93,16 @@ async function main() {
       const [rows] = await db.query(sql, params);
       return Array.isArray(rows) ? rows : [];
     };
+    mediaDirectory = fs.mkdtempSync(path.join(os.tmpdir(), '7network-inbox-media-db-'));
+    const sharedMediaPath = path.join(mediaDirectory, 'shared-image.jpg');
+    fs.writeFileSync(sharedMediaPath, 'synthetic tenant media');
+    const sharedMediaContext = JSON.stringify({ image: { link: 'https://crm.salemax.qa/meta-media/shared-image.jpg' } });
+    await db.query('INSERT INTO beta_conversation (uid,chat_id,type,msgContext) VALUES (?,?,?,?),(?,?,?,?)', [ownerA,'chat-a','image',sharedMediaContext,ownerB,'chat-b','image',sharedMediaContext]);
+    await mediaService.deleteMediaFromConversation({mediaFolderPath:mediaDirectory,type:'media',uid:ownerA,chatId:'chat-a',conversationData:[{type:'image',msgContext:sharedMediaContext}],queryFn:sqlQuery});
+    assert.equal(fs.existsSync(sharedMediaPath),true,'Tenant A cannot remove media still referenced by tenant B');
+    await db.query('DELETE FROM beta_conversation WHERE uid=? AND chat_id=?',[ownerB,'chat-b']);
+    await mediaService.deleteMediaFromConversation({mediaFolderPath:mediaDirectory,type:'media',uid:ownerA,chatId:'chat-a',conversationData:[{type:'image',msgContext:sharedMediaContext}],queryFn:sqlQuery});
+    assert.equal(fs.existsSync(sharedMediaPath),false,'An unshared media file can still be removed for its conversation');
     const modulePaths = [
       '../database/dbpromise',
       '../modules/platform/team-inbox-scope',
@@ -188,7 +203,7 @@ async function main() {
       assert.equal(agentEmitted.filter(item => item.event === 'export_conversation_result').length, 0);
       assert.equal(agentEmitted.filter(item => item.event === 'error').length, 5, 'direct read, export, reply and tenant-wide label writes are denied');
 
-      console.log(JSON.stringify({ success: true, database, mysqlVersion: (await db.query('SELECT VERSION() AS version'))[0][0].version, syntheticTenants: 2, crossTenantMutations: 0, customerDataTouched: false, externalWrites: false }));
+      console.log(JSON.stringify({ success: true, database, mysqlVersion: (await db.query('SELECT VERSION() AS version'))[0][0].version, syntheticTenants: 2, crossTenantMutations: 0, crossTenantFileDeletes: 0, customerDataTouched: false, externalWrites: false }));
     } finally {
       for (const filename of modulePaths) {
         if (priorModules.get(filename)) require.cache[filename] = priorModules.get(filename);
@@ -196,6 +211,7 @@ async function main() {
       }
     }
   } finally {
+    if (mediaDirectory) fs.rmSync(mediaDirectory,{recursive:true,force:true});
     if (db) await db.end();
     if (created) await admin.query(`DROP DATABASE IF EXISTS \`${database}\``);
     await admin.end();

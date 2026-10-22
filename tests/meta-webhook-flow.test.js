@@ -97,6 +97,13 @@ test('legacy inbox contact and label deletes include the tenant owner UID', () =
   assert.match(route, /DELETE FROM contact WHERE id = \? AND uid = \?/);
 });
 
+test('Inbox media deletion receives the resolved tenant owner and reference-check query',()=>{
+  const socket=read('helper/socket/index.js'),helper=read('helper/socket/function.js');
+  assert.match(socket,/deleteMediaFromConversation\(\{[\s\S]*?uid: isAgent \? socket\?\.userData\?\.owner_uid : uid,[\s\S]*?queryFn: query,/);
+  assert.match(helper,/SELECT 1 FROM beta_conversation WHERE NOT \(uid = \? AND chat_id = \?\) AND msgContext LIKE \? LIMIT 1/);
+  assert.match(helper,/path\.dirname\(realFilePath\) !== directoryPath/);
+});
+
 test('socket ID-based Inbox reads and mutations pass the authenticated owner UID', async () => {
   const modulePaths = [
     '../database/dbpromise',
