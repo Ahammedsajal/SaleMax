@@ -5,6 +5,7 @@ const qr=require('./business-whatsapp');
 const finance=require('./business-finance-context');
 const reports=require('./business-daily-report');
 const KINDS=new Set(['invoice_issued','payment_due','payment_received','daily_summary']);
+let tenantScanCursor='';
 async function enqueue(db,tenantId,{kind,sourceType,sourceId,key,payload=null}){
  if(!KINDS.has(kind)||!/^[-a-z_]{3,32}$/.test(sourceType)||!/^[-0-9a-f]{36}$/i.test(sourceId)||typeof key!=='string'||key.length>191)throw Error('INVALID_BUSINESS_NOTIFICATION');
  const id=crypto.randomUUID();try{await db.query('INSERT INTO sx_business_notification_events(id,tenant_id,event_key,kind,source_type,source_id,payload_json) VALUES (?,?,?,?,?,?,?)',[id,tenantId,key,kind,sourceType,sourceId,payload?JSON.stringify(payload):null]);return {id,repeated:false};}
@@ -21,11 +22,11 @@ async function due(db,tenant,today){
 async function scanTenant(db,tenant,{now=new Date()}={}){
  const entitlements=await require('./plans').loadEntitlements(db,tenant.id);
  if(!entitlements||!['active','trial','grace'].includes(entitlements.status))return;
- const caps=entitlements.capabilities||[],canFinance=caps.includes('finance.invoices')||caps.includes('sales.finance'),canReports=caps.includes('reports.read')&&caps.includes('reports.schedule');if(!canFinance&&!canReports)return;
+ const caps=entitlements.capabilities||[],canFinance=caps.includes('finance.invoices')||caps.includes('sales.finance'),canReports=canFinance&&caps.includes('reports.read')&&caps.includes('reports.schedule');if(!canFinance&&!canReports)return;
  await db.query('INSERT INTO sx_business_notification_settings(tenant_id) VALUES (?) ON DUPLICATE KEY UPDATE tenant_id=VALUES(tenant_id)',[tenant.id]);
  const [[settings]]=await db.query('SELECT * FROM sx_business_notification_settings WHERE tenant_id=?',[tenant.id]);if(!Number(settings.enabled))return;
  const timezone=moment.tz.zone(tenant.timezone)?tenant.timezone:'Asia/Qatar',local=moment.tz(now,timezone),today=local.format('YYYY-MM-DD');
- if(canFinance)await due(db,tenant,today);
+ if(canFinance){const [[preference]]=await db.query('SELECT enabled FROM sx_training_reminder_settings WHERE tenant_id=?',[tenant.id]);if(!preference||Number(preference.enabled)===1)await due(db,tenant,today);}
  if(!canReports||!Number(settings.daily_enabled))return;
  const [[schedule]]=await db.query(`SELECT s.local_time,s.timezone,s.status,s.whatsapp_enabled,EXISTS(SELECT 1 FROM sx_training_report_recipients r WHERE r.tenant_id=s.tenant_id AND r.channel='whatsapp' AND r.status='verified') AS has_verified FROM sx_training_report_schedules s WHERE s.tenant_id=? AND s.period='daily' LIMIT 1`,[tenant.id]);
  if(schedule?.status==='paused')return;
@@ -62,7 +63,7 @@ async function claim(db){
   if(!item){await db.commit();return null;}const token=crypto.randomUUID();await db.query("UPDATE sx_business_notification_deliveries SET status='sending',attempts=attempts+1,lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 120 SECOND) WHERE id=?",[token,item.id]);await db.commit();return {...item,token,attempts:Number(item.attempts)+1};
  }catch(e){await db.rollback();throw e;}
 }
-async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[];return item.kind==='daily_summary'?caps.includes('reports.read')&&caps.includes('reports.schedule'):caps.includes('finance.invoices')||caps.includes('sales.finance');}
+async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[],finance=caps.includes('finance.invoices')||caps.includes('sales.finance');return item.kind==='daily_summary'?finance&&caps.includes('reports.read')&&caps.includes('reports.schedule'):finance;}
 async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
  if(!await authorize(db,item))return {status:'suppressed',errorCode:'BUSINESS_NOTIFICATION_FEATURE_UNAVAILABLE'};
  const meta=finance.parse(item.payload_json);let current=null;
@@ -75,7 +76,7 @@ async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
  if(!to)return {status:'blocked',errorCode:'RECIPIENT_PHONE_MISSING'};
  if(qr.hash(to)!==item.destination_hash){
   if(item.destination_hash!==qr.hash(`missing:${item.recipient_id}`))return {status:'suppressed',errorCode:'RECIPIENT_NUMBER_CHANGED'};
-  try{await db.query('UPDATE sx_business_notification_deliveries SET destination_hash=? WHERE id=? AND lease_token=?',[qr.hash(to),item.id,item.token]);}catch(e){if(e.code==='ER_DUP_ENTRY')return {status:'suppressed',errorCode:'DUPLICATE_RECIPIENT'};throw e;}
+  try{await db.query("UPDATE sx_business_notification_deliveries SET destination_hash=? WHERE tenant_id=? AND event_id=? AND recipient_kind=? AND recipient_id=? AND destination_hash=? AND status IN ('sending','queued','blocked')",[qr.hash(to),item.tenant_id,item.event_id,item.recipient_kind,item.recipient_id,item.destination_hash]);}catch(e){if(e.code==='ER_DUP_ENTRY')return {status:'suppressed',errorCode:'DUPLICATE_RECIPIENT'};throw e;}
  }
  if(item.kind==='payment_due'&&meta.dueDate!==moment.tz(new Date(),item.timezone||'Asia/Qatar').format('YYYY-MM-DD'))return {status:'suppressed',errorCode:'REMINDER_DATE_PASSED'};
  const snapshot=item.kind==='daily_summary'?meta.snapshot:current;
@@ -109,7 +110,7 @@ async function scheduledReport(db,{tenantId,to,snapshot,text}){
 async function tick(pool,{scan=true,now=new Date(),limit=20}={}){
  const totals={prepared:0,accepted:0,blocked:0,unknown:0};const db=await pool.getConnection();
  try{
-  if(scan){const [tenants]=await db.query("SELECT id,name,category_key,timezone FROM sx_tenants WHERE status='active' ORDER BY id LIMIT 1000");for(const tenant of tenants)try{await scanTenant(db,tenant,{now});}catch(e){console.error(JSON.stringify({event:'business_notification_scan_failed',code:e.code||'SCAN_FAILED'}));}}
+  if(scan){const [tenants]=await db.query("SELECT id,name,category_key,timezone FROM sx_tenants WHERE status='active' AND id>? ORDER BY id LIMIT 100",[tenantScanCursor]);tenantScanCursor=tenants.length===100?tenants.at(-1).id:'';for(const tenant of tenants)try{await scanTenant(db,tenant,{now});}catch(e){console.error(JSON.stringify({event:'business_notification_scan_failed',code:e.code||'SCAN_FAILED'}));}}
   for(let i=0;i<limit;i++){
    await db.beginTransaction();try{const [[event]]=await db.query("SELECT e.*,t.name,t.timezone FROM sx_business_notification_events e JOIN sx_tenants t ON t.id=e.tenant_id AND t.status='active' JOIN sx_business_notification_settings s ON s.tenant_id=t.id AND s.enabled=1 WHERE e.status='queued' ORDER BY e.created_at,e.id LIMIT 1 FOR UPDATE SKIP LOCKED");if(!event){await db.commit();break;}await prepare(db,event,{id:event.tenant_id,name:event.name,timezone:event.timezone});await db.commit();totals.prepared++;}catch(e){await db.rollback();throw e;}
   }

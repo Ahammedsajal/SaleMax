@@ -40,6 +40,13 @@ async function main(){
    await assert.rejects(()=>pool.query('INSERT INTO sx_business_notification_deliveries(tenant_id,event_id,recipient_kind,recipient_id,destination_hash,part) VALUES (?,?,?,?,?,?)',[tenant,event.id,'identity',owner,qr.hash('97455550001'),'text']),{code:'ER_DUP_ENTRY'});
    const [[cross]]=await pool.query('SELECT COUNT(*) AS n FROM sx_business_notification_events WHERE tenant_id=?',[other]);assert.equal(cross.n,0);
    await assert.rejects(()=>pool.query('INSERT INTO sx_business_notification_deliveries(tenant_id,event_id,recipient_kind,recipient_id,destination_hash,part) VALUES (?,?,?,?,?,?)',[other,event.id,'identity',owner,qr.hash('97455559999'),'text']),{code:'ER_NO_REFERENCED_ROW_2'});
+   const reportId=crypto.randomUUID(),snapshot={business:'Synthetic center',day:'2026-10-22',timezone:'Asia/Qatar',asOf:'6 PM',newChats:1,newLeads:1,invoices:0,payments:0,finance:[],pipeline:[]};
+   await pool.query("INSERT INTO sx_business_notification_events(id,tenant_id,event_key,kind,source_type,source_id,payload_json,status) VALUES (?,?,'daily-test','daily_summary','tenant',?,?,'prepared')",[reportId,tenant,tenant,JSON.stringify({snapshot})]);
+   for(const part of ['text','pdf'])await pool.query("INSERT INTO sx_business_notification_deliveries(tenant_id,event_id,recipient_kind,recipient_id,destination_hash,part) VALUES (?,?,'identity',?,?,?)",[tenant,reportId,owner,qr.hash(`missing:${owner}`),part]);
+   const report=await n.claim(c);assert.equal(report.event_id,reportId);assert.equal(report.part,'text');
+   const accepted=await n.dispatch(c,report,{authorize:async()=>true,send:async()=>({status:'accepted',providerMessageId:'sample-report-text'})});await n.finish(c,report,accepted);
+   const [parts]=await pool.query('SELECT destination_hash FROM sx_business_notification_deliveries WHERE event_id=?',[reportId]);assert.ok(parts.every(p=>p.destination_hash===qr.hash('97455550001')),'fixing a missing phone updates both text and PDF destinations');
+   const pdf=await n.claim(c);assert.equal(pdf.event_id,reportId);assert.equal(pdf.part,'pdf','PDF becomes deliverable after the text is acknowledged');
   }finally{finance.load=oldLoad;c.release();}
   console.log(JSON.stringify({status:'passed',assertions:'transaction rollback, concurrent event deduplication, recipient scope, lease fencing, unknown-send safety, unique recipient delivery, tenant isolation',database:(await pool.query('SELECT VERSION() AS version'))[0][0].version}));
  }finally{if(pool)await pool.end();await root.query(`DROP DATABASE IF EXISTS \`${schema}\``);await root.end();}

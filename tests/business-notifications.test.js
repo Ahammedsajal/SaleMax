@@ -52,6 +52,10 @@ test('removed staff and changed phone numbers are rechecked before dispatch',asy
 test('paid/cancelled resources suppress queued notices',async()=>{
  const load=finance.load;finance.load=async()=>null;try{const result=await notifications.dispatch({}, {tenant_id:tenant,kind:'payment_due',source_type:'training_invoice',source_id:id},{authorize:async()=>true,send:()=>assert.fail('must not send')});assert.equal(result.status,'suppressed');}finally{finance.load=load;}
 });
+test('open payment disputes suppress generated-invoice due reminders',async()=>{
+ const db={query:async(sql)=>{if(sql.includes('SELECT d.*'))return [[{id,invoice_number:'TEST',customer_name:'Sample',course_name:'Test course',amount_minor:10000,snapshot:{currency:'QAR',totalMinor:10000,customer:{name:'Sample',phone:'+97455550000'},installments:[{dueDate:'2026-10-22',amountMinor:10000}]}}]];if(sql.includes('sx_training_generated_invoice_links'))return [[]];if(sql.includes('sx_training_payment_disputes'))return [[{id:'open-dispute'}]];assert.fail('Unexpected query');}};
+ assert.equal(await finance.load(db,{tenant_id:tenant,kind:'payment_due',source_type:'generated',source_id:id,payload_json:{dueDate:'2026-10-22'}}),null);
+});
 test('unknown send outcome is saved as unknown with a lease guard',async()=>{
  let args;const db={query:async(sql,values)=>{assert.match(sql,/lease_token=\?/);args=values;return [{affectedRows:1}];}};
  await notifications.finish(db,{id:1,tenant_id:tenant,token:'lease',attempts:1},{status:'unknown',errorCode:'TEST_TIMEOUT'});assert.equal(args[0],'unknown');

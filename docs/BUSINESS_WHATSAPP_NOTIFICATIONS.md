@@ -14,7 +14,7 @@ The existing invoice and receipt actions enqueue a business notification inside 
 
 The tenant's single active main-user QR connection is the default. If unavailable, a single eligible manager connection can be used. Multiple connections require an explicit `qr_instance_id` in `sx_business_notification_settings`; an ambiguous sender is blocked. Staff recipients come from active memberships and their owned legacy accounts. Customer numbers come from the invoice's tenant-bound customer context. Qatar local numbers are normalized only when the tenant's timezone is Asia/Qatar. Missing numbers are recorded as blocked, rather than substituted with another person's number.
 
-Invoice issue is deduplicated between a generated document and its posted invoice. Customer due reminders respect an explicit customer reminder opt-out and recheck the current unpaid installment, invoice status, recipient number, and date. Unverified payments do not generate confirmed receipts. Existing historical invoice/receipt events are not backfilled. New due-date notices operate on current unpaid balances.
+Invoice issue is deduplicated between a generated document and its posted invoice. Customer due reminders respect disabled tenant reminders and an explicit customer reminder opt-out, and recheck unpaid installments, invoice/enrollment cancellation, open disputes, recipient number, and date. Unverified payments do not generate confirmed receipts. Existing historical invoice/receipt events are not backfilled. New due-date notices operate on current unpaid balances. Tenant scans use keyset batches so accounts beyond the first batch are not silently omitted.
 
 ## Delivery and reports
 

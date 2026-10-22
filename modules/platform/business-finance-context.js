@@ -14,7 +14,7 @@ async function invoice(db,tenantId,type,id){
   const s=parse(r.snapshot);return {invoiceId:r.id,number:r.invoice_number,customer:s.customer?.name||r.customer_name,phone:s.customer?.phone||'',product:(s.lines||[]).map(l=>l.descriptionEn||l.descriptionAr||r.course_name).join(', ').slice(0,500)||r.course_name,currency:s.currency||'QAR',total:minor(s.totalMinor||r.amount_minor),balance:minor(s.totalMinor||r.amount_minor),paid:0,dueDate:s.installments?.[0]?.dueDate||null,installments:s.installments||[],canonicalId:r.id};
  }
  if(type==='training_invoice'){
-  const [[r]]=await db.query(`SELECT i.id,i.invoice_number,i.currency,i.total_minor,e.payer_name,e.learner_name,e.payer_phone,
+  const [[r]]=await db.query(`SELECT i.id,i.invoice_number,i.currency,i.total_minor,e.payer_name,e.learner_name,e.payer_phone,e.status AS enrollment_status,
    (SELECT GROUP_CONCAT(l.description_en ORDER BY l.line_number SEPARATOR ', ') FROM sx_training_invoice_lines l WHERE l.tenant_id=i.tenant_id AND l.invoice_id=i.id) AS product,
    (SELECT MIN(x.due_date) FROM sx_training_installments x WHERE x.tenant_id=i.tenant_id AND x.invoice_id=i.id AND x.status NOT IN ('paid','cancelled','credited','settled')) AS due_date,
    COALESCE((SELECT SUM(a.amount_minor-COALESCE((SELECT SUM(v.amount_minor) FROM sx_training_payment_allocation_reversals v WHERE v.tenant_id=a.tenant_id AND v.allocation_id=a.id),0)) FROM sx_training_payment_allocations a JOIN sx_training_payments p ON p.tenant_id=a.tenant_id AND p.id=a.payment_id AND p.status='posted' WHERE a.tenant_id=i.tenant_id AND a.invoice_id=i.id),0) AS paid,
@@ -22,7 +22,7 @@ async function invoice(db,tenantId,type,id){
    (SELECT l.generated_document_id FROM sx_training_generated_invoice_links l WHERE l.tenant_id=i.tenant_id AND l.invoice_id=i.id LIMIT 1) AS generated_id
    FROM sx_training_invoices i JOIN sx_training_enrollments e ON e.tenant_id=i.tenant_id AND e.id=i.enrollment_id WHERE i.tenant_id=? AND i.id=? AND i.status='issued'`,[tenantId,id]);
   if(!r)return null;const total=minor(r.total_minor),paid=minor(r.paid),credited=minor(r.credited);
-  return {invoiceId:r.id,number:r.invoice_number,customer:r.learner_name||r.payer_name,phone:r.payer_phone,product:r.product||'Course / service',currency:r.currency,total,paid,balance:Math.max(0,total-paid-credited),dueDate:date(r.due_date)||null,canonicalId:r.generated_id||r.id};
+  return {invoiceId:r.id,number:r.invoice_number,customer:r.learner_name||r.payer_name,phone:r.payer_phone,product:r.product||'Course / service',currency:r.currency,total,paid,balance:Math.max(0,total-paid-credited),dueDate:date(r.due_date)||null,canonicalId:r.generated_id||r.id,enrollmentStatus:r.enrollment_status};
  }
  if(type==='sales_invoice'){
   const [[r]]=await db.query(`SELECT i.*,COALESCE((SELECT SUM(a.amount_minor) FROM sx_sales_receipt_allocations a JOIN sx_sales_receipts r ON r.tenant_id=a.tenant_id AND r.id=a.receipt_id AND r.status='active' WHERE a.tenant_id=i.tenant_id AND a.invoice_id=i.id AND a.reversed_at IS NULL),0) AS paid FROM sx_sales_invoices i WHERE i.tenant_id=? AND i.id=? AND i.status='issued'`,[tenantId,id]);
@@ -46,6 +46,8 @@ async function load(db,event){
  if(!result)return null;
  if(event.kind==='payment_due'){
   if(result.balance<=0)return null;
+  if(result.enrollmentStatus==='cancelled')return null;
+  if(type==='training_invoice'||type==='generated'){const [[dispute]]=await db.query("SELECT id FROM sx_training_payment_disputes WHERE tenant_id=? AND invoice_id=? AND status='open' LIMIT 1",[t,result.invoiceId]);if(dispute)return null;}
   const due=meta.dueDate;if(!/^\d{4}-\d{2}-\d{2}$/.test(due||''))return null;
   if(type==='generated'&&result.installments)result.amountDue=result.installments.filter(x=>x.dueDate===due).reduce((n,x)=>n+minor(x.amountMinor),0);
   else if(type==='training_invoice'||type==='generated'){
