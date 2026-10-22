@@ -1984,3 +1984,17 @@ required `/opt/salemax/shared/7network-production-deploy.lock` path remains
 absent. This read-only refresh reflects the latest known production release;
 no production state was changed. Deployment remains gated on the shared
 OS-level exclusive-lock mechanism and sufficient verified release headroom.
+
+## Tenant customization MariaDB integration refresh — source verification, 22 October 2026
+
+The opt-in integration test still asserted the pre-resolver blank document after
+`effective()` began returning platform defaults. Updated it to verify that
+unpublished drafts leave each tenant on its platform labels and that a Sales
+override preserves omitted platform labels. On a fresh, disposable MariaDB
+11.4.13 instance, the full synthetic integration passed: same-category tenant
+isolation, different-category behavior, one-winner optimistic concurrency,
+cross-tenant rollback denial and composite ownership, rollback to immutable
+history, atomic audit failure rollback, revoked membership and expired-plan
+denial. No external messages were sent. The temporary schema, restricted test
+user, server and test credentials were removed. Source is not deployed; rendered
+existing-screen and authenticated production acceptance remain open.
