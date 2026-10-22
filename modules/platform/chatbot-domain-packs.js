@@ -319,7 +319,7 @@ const realEstatePack = {
 // Category versions 2–4 add operational capabilities while preserving the
 // same reviewed listing guide. Register each exact version so current tenants
 // do not fall back to FAQ-only behavior during bot profile resolution.
-for (const version of [1, 2, 3, 4]) registerDomainPack({ ...realEstatePack, version });
+for (const version of [1, 2, 3, 4, 5]) registerDomainPack({ ...realEstatePack, version });
 
 const RECRUITMENT_GUIDED_DEFAULTS={version:1,messages:{
   welcome:{en:'Hello and welcome to 7Network.',ar:'مرحباً بك في 7Network.'},

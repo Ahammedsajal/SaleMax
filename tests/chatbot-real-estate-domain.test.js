@@ -26,7 +26,7 @@ test('real-estate pack is versioned, immutable, editable and available to the ex
 });
 
 test('all existing real-estate category versions resolve their exact guided pack and retain legacy Flow Builder behavior', () => {
-  for (const version of [1, 2, 3, 4]) {
+  for (const version of [1, 2, 3, 4, 5]) {
     const versionedPack = getDomainPack('real_estate', version);
     assert.equal(versionedPack.key, 'real_estate');
     assert.equal(versionedPack.version, version);
@@ -39,7 +39,7 @@ test('all existing real-estate category versions resolve their exact guided pack
     assert.equal(flow.config.guidedMode, 'automation_flow');
     assert.equal(flow.config.flowId, 'existing_property_flow');
   }
-  assert.equal(getDomainPack('real_estate', 5).key, 'faq_only');
+  assert.equal(getDomainPack('real_estate', 6).key, 'faq_only');
 });
 
 test('property facts are loaded by tenant, category version, active state and a bounded listing limit', async () => {
@@ -59,7 +59,7 @@ test('property facts are loaded by tenant, category version, active state and a 
   assert.match(calls[0].sql, /p\.tenant_id=\?/);
   assert.match(calls[0].sql, /p\.status='active'/);
   assert.match(calls[0].sql, /t\.category_key='real_estate'/);
-  assert.match(calls[0].sql, /t\.category_version IN \(1,2,3,4\)/);
+  assert.match(calls[0].sql, /t\.category_version IN \(1,2,3,4,5\)/);
   assert.match(calls[0].sql, /p\.chatbot_visible=1/);
   assert.match(calls[0].sql, /LIMIT 50/);
   assert.deepEqual(calls.map(call => call.args), [['tenant-a'], ['tenant-b']]);

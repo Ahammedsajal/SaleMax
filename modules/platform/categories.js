@@ -33,12 +33,23 @@ const realEstateV2 = Object.freeze({ key:'real_estate',version:2,catalogue:null,
 const realEstateV3 = Object.freeze({ key:'real_estate',version:3,catalogue:null,chatbotLeadCapture:'none',title:Object.freeze({en:'Real Estate',ar:'العقارات'}),public:false,planable:false,seatRoles:realEstate.seatRoles,capabilities:Object.freeze([...realEstateV2.capabilities,'realestate.viewings']),migration:'20261231_real_estate_viewings.sql' });
 // Private successor contract adds property-party relationships; earlier versions remain immutable.
 const realEstateV4 = Object.freeze({ key:'real_estate',version:4,catalogue:null,chatbotLeadCapture:'none',title:Object.freeze({en:'Real Estate',ar:'العقارات'}),public:false,planable:false,seatRoles:realEstate.seatRoles,capabilities:Object.freeze([...realEstateV3.capabilities,'realestate.parties']),migration:'20261233_real_estate_parties.sql' });
+// v5 adds a reviewed bilingual label baseline for the existing Pipeline stages.
+// It uses the v4 domain schema unchanged; tenant overrides remain owner-published.
+const realEstateV5 = Object.freeze({ key:'real_estate',version:5,catalogue:null,chatbotLeadCapture:'none',title:Object.freeze({en:'Real Estate',ar:'العقارات'}),public:false,planable:false,seatRoles:realEstate.seatRoles,capabilities:realEstateV4.capabilities,migration:'20261233_real_estate_parties.sql',customizationDefaults:Object.freeze({schemaVersion:4,navigationLabels:Object.freeze({leads:Object.freeze({en:'Property enquiries',ar:'استفسارات العقارات'})}),hiddenNavigation:Object.freeze([]),stageLabels:Object.freeze({
+  new:Object.freeze({en:'New enquiry',ar:'استفسار جديد'}),
+  contacted:Object.freeze({en:'Client contacted',ar:'تم التواصل مع العميل'}),
+  interested:Object.freeze({en:'Viewing interest',ar:'اهتمام بالمعاينة'}),
+  qualified:Object.freeze({en:'Qualified requirement',ar:'متطلب مؤهل'}),
+  proposal:Object.freeze({en:'Offer or negotiation',ar:'عرض أو تفاوض'}),
+  won:Object.freeze({en:'Agreement reached',ar:'تم الاتفاق'}),
+  lost:Object.freeze({en:'Not proceeding',ar:'لم يتم المتابعة'}),
+})}) });
 // Shared CRM contract for reviewed category-neutral businesses. No vertical module
 // or catalogue is implied, and existing legacy accounts are never auto-adopted.
 const baseCrm = Object.freeze({ key:'base_crm', version:1, catalogue:null, chatbotLeadCapture:'generic', title:Object.freeze({en:'Base CRM',ar:'إدارة علاقات العملاء الأساسية'}), public:false, planable:true, seatRoles:Object.freeze(['owner','accountant','manager','agent']), capabilities:sharedCapabilities, migration:'20261001_platform_identity.sql' });
 // Contract fixture only; never offered for production tenant onboarding.
 const restaurantFixture = Object.freeze({ key: 'restaurant_fixture', version: 1, title: Object.freeze({ en: 'Restaurant fixture', ar: 'نموذج مطعم للاختبار' }), public: false, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'agent']), capabilities: Object.freeze(['messaging.inbox', 'crm.contacts', 'team.tasks', 'tenant.settings']), migration: '20261001_platform_identity.sql' });
-const registry = require('./category-registry').createCategoryRegistry([trainingCenter, sevenNetworkSales, realEstate, realEstateV2, realEstateV3, realEstateV4, baseCrm, restaurantFixture], capabilities);
+const registry = require('./category-registry').createCategoryRegistry([trainingCenter, sevenNetworkSales, realEstate, realEstateV2, realEstateV3, realEstateV4, realEstateV5, baseCrm, restaurantFixture], capabilities);
 const legacyCategoryAliases = Object.freeze({ salemax_sales: sevenNetworkSales.key });
 function canonicalCategoryKey(key) { return legacyCategoryAliases[key] || key; }
 function categoryKeyMatches(left, right) { return typeof left === 'string' && typeof right === 'string' && canonicalCategoryKey(left) === canonicalCategoryKey(right); }
@@ -51,4 +62,4 @@ function supportsBusinessCapability(category, capability) {
 function supportsCategoryCapability(category, capability) {
   return Boolean(category && Array.isArray(category.capabilities) && category.capabilities.includes(capability));
 }
-module.exports = { baseCrm: registry.get(baseCrm.key,baseCrm.version), trainingCenter: registry.get(trainingCenter.key, trainingCenter.version), sevenNetworkSales: registry.get(sevenNetworkSales.key, sevenNetworkSales.version), realEstate:registry.get(realEstate.key,realEstate.version), realEstateV2:registry.get(realEstateV2.key,realEstateV2.version), realEstateV3:registry.get(realEstateV3.key,realEstateV3.version), realEstateV4:registry.get(realEstateV4.key,realEstateV4.version), salemaxSales: registry.get(sevenNetworkSales.key, sevenNetworkSales.version), restaurantFixture: registry.get(restaurantFixture.key,restaurantFixture.version), listCategories, getCategory, canonicalCategoryKey, categoryKeyMatches, categoryKeysFor, supportsBusinessCapability, supportsCategoryCapability };
+module.exports = { baseCrm: registry.get(baseCrm.key,baseCrm.version), trainingCenter: registry.get(trainingCenter.key, trainingCenter.version), sevenNetworkSales: registry.get(sevenNetworkSales.key, sevenNetworkSales.version), realEstate:registry.get(realEstate.key,realEstate.version), realEstateV2:registry.get(realEstateV2.key,realEstateV2.version), realEstateV3:registry.get(realEstateV3.key,realEstateV3.version), realEstateV4:registry.get(realEstateV4.key,realEstateV4.version), realEstateV5:registry.get(realEstateV5.key,realEstateV5.version), salemaxSales: registry.get(sevenNetworkSales.key, sevenNetworkSales.version), restaurantFixture: registry.get(restaurantFixture.key,restaurantFixture.version), listCategories, getCategory, canonicalCategoryKey, categoryKeyMatches, categoryKeysFor, supportsBusinessCapability, supportsCategoryCapability };
