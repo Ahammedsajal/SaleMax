@@ -87,7 +87,26 @@ test('CLI requires the shared lock and S3 driver before applying a manifest', as
   const manifestPath = path.join(f.external, 'manifest.json');
   await fs.writeFile(manifestPath, JSON.stringify(await migration.buildManifest({ root: f.root, namespace: 'course-media' })));
   const base = ['--namespace', 'course-media', '--root', f.root, '--manifest', manifestPath, '--apply'];
-  await assert.rejects(cli.main(base, { SALEMAX_DEPLOY_LOCK_HELD: '0', SALEMAX_OBJECT_STORAGE_DRIVER: 's3' }), /shared production deployment lock/);
-  await assert.rejects(cli.main(base, { SALEMAX_DEPLOY_LOCK_HELD: '1', SALEMAX_OBJECT_STORAGE_DRIVER: 'local' }), /Select the S3 storage driver/);
+  const wrapperEnv = { SALEMAX_DEPLOY_LOCK_HELD: '1', SALEMAX_ACTIVE_RELEASE_BEFORE: '/opt/salemax/releases/test', SALEMAX_OBJECT_STORAGE_DRIVER: 's3' };
+  await assert.rejects(cli.main(base, { ...wrapperEnv, SALEMAX_DEPLOY_LOCK_HELD: '0' }), /shared production deployment lock/);
+  await assert.rejects(cli.main(base, { ...wrapperEnv, SALEMAX_ACTIVE_RELEASE_BEFORE: '' }, { lockHeld: () => true }), /outside the production release lock wrapper/);
+  await assert.rejects(cli.main(base, wrapperEnv, { lockHeld: () => false }), /shared OS-level flock is not held/);
+  await assert.rejects(cli.main(base, { ...wrapperEnv, SALEMAX_OBJECT_STORAGE_DRIVER: 'local' }, { lockHeld: () => true }), /Select the S3 storage driver/);
+  assert.equal(cli.sharedLockHeld(() => ({ status: 75 }), manifestPath), true);
+  assert.equal(cli.sharedLockHeld(() => ({ status: 0 }), manifestPath), false);
+  assert.equal(cli.sharedLockHeld(() => { throw Error('probe must not run for missing lock'); }, path.join(f.external, 'missing-lock')), false);
+  await fs.chmod(manifestPath, 0o644);
+  await assert.rejects(cli.main(base, wrapperEnv, { lockHeld: () => true }), /mode-0600/);
+  await fs.chmod(manifestPath, 0o600);
   await assert.rejects(cli.main(['--namespace', 'course-media', '--root', f.root, '--manifest-out', path.resolve(__dirname, '../manifest.json')], {}), /outside the source checkout/);
+});
+
+test('manifest generation writes a new restrictive external file', async t => {
+  const f = await fixture(t);
+  const output = path.join(f.external, 'new-manifest.json');
+  const result = await cli.main(['--namespace', 'course-media', '--root', f.root, '--manifest-out', output], {});
+  const stat = await fs.stat(output);
+  assert.equal(result.objects.length, 1);
+  assert.equal(stat.mode & 0o777, 0o600);
+  assert.deepEqual(JSON.parse(await fs.readFile(output, 'utf8')), result);
 });
