@@ -27,10 +27,10 @@ test('preview rejects foreign schema keys, denied staff, missing credentials and
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document})})).status,403);
   assert.equal(app.counts().refreshes,0);
   headers.Origin='https://crm.example.test';
-  const response=await fetch(url,{method:'POST',headers,body:JSON.stringify({document})}),preview=await response.json();assert.equal(response.status,200);assert.equal(preview.data.readOnly,true);assert.deepEqual(preview.data.document.hiddenNavigation,['courses']);assert.equal(app.counts().queries,0);
+  const response=await fetch(url,{method:'POST',headers,body:JSON.stringify({document})}),preview=await response.json();assert.equal(response.status,200);assert.equal(preview.data.readOnly,true);assert.deepEqual(preview.data.document.hiddenNavigation,['courses']);assert.equal(app.counts().queries,2,'preview loads the tenant-owned baseline to preserve disabled scopes');
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document:{...document,tenantId:'tenant-b'}})})).status,400);
   app.setContext({...base,membership:{...base.membership,role:'agent'}});
   assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({document})})).status,403);
-  assert.equal(app.counts().queries,0);
+  assert.equal(app.counts().queries,4,'a denied staff preview must not load tenant customization state');
  }finally{await app.close();}
 });

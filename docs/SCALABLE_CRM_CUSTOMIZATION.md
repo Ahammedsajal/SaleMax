@@ -277,8 +277,8 @@ workflow-specific settings and authenticated EN/AR acceptance remain open.
 | --- | --- | --- |
 | Explicit category contracts | Future capability injection cannot change existing category lists; immutable metadata; preserve v1 assignments | Deployed in category-registry-6d5c2ef; authenticated UI acceptance pending |
 | Registry/adoption | Version-aware Manage Plans and Manage Users, permissions, impact mapping, category rollout/rollback | Validated immutable registry, Manage Plans version selection/listing and provisioning version propagation implemented; tenant adoption/mapping and UI acceptance pending |
-| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) deployed as tenant-customization-10354f7 after MariaDB isolation tests; typed lead fields and hidden-navigation restrictions are implemented; module/workflow settings pending |
-| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead/property fields, task labels and schema-6 settings; eight browser combinations pass across EN/AR, desktop/mobile and bearer/cookie sessions. Authenticated live acceptance remains pending |
+| Tenant configuration | Migrations, validated draft/preview/publish/rollback APIs, transactional audit and optimistic concurrency | First typed schema (navigation labels) deployed as tenant-customization-10354f7 after MariaDB isolation tests; typed lead/property field scopes, hidden-navigation restrictions and schema-8 migrationless JSON upgrades are implemented; module/workflow settings pending |
+| Existing settings UI | Authenticated owner/staff EN/AR desktop/mobile, clear errors and permission denial, old settings preserved | Existing CRM appearance editor supports bilingual labels, typed lead/property scopes, task labels and schema-8 settings; browser fixtures cover tenant-scoped field editing and preservation. Authenticated live acceptance remains pending |
 | Effective runtime settings | Shared resolver adopted by real screens/APIs/workers; tenant revision cache invalidation | Published labels and hidden menu sections flow through the shared workspace session and legacy sidebar-access contract; API permissions remain independent; other modules/workers pending |
 | Legacy/base CRM | Inventory legacy modules and ownership, approved mappings, no forced Training Center assignment | Pending |
 | Bot/flow customization | Two tenants of same category produce different responses, other category unchanged, state/cache isolation and real channel acceptance | Profiles, guided sessions and approved facts are tenant/profile-scoped; AI reply-cache keys now include tenant, category/version, domain-pack key/version, profile revision and the current business-content fingerprint. Unit and source-wiring tests pass; actual two-tenant live conversation/provider acceptance and non-chatbot cache/queue audit remain pending |
@@ -290,6 +290,27 @@ workflow-specific settings and authenticated EN/AR acceptance remain open.
 Acceptance requires a matrix covering two businesses in the same category, two different categories, and an unmapped legacy business. Change A's draft, publish it, run its workflow, revoke permissions and roll back; B's active revision, visible modules, API decisions, bot content and stored data must remain unchanged throughout. Also cover concurrent publish, malformed/unknown fields, unsupported category version, expired plan, cross-tenant ID substitution, stale worker/cache state, migration failure and partial provider failure. Fixtures cannot stand in for authenticated existing-screen verification.
 
 The first foundation deliberately preserves Training Center v1's two historical extra capabilities. A successor contract should remove those only after actual plan/subscription usage is reviewed and mapped. That remaining mixed legacy contract is an explicit release gate, not a solved issue.
+
+### Generalized entity field scopes and plan-revocation preservation — source update, 22 October 2026
+
+Tenant customization schema 8 stores typed field definitions under registered
+entity scopes rather than a growing list of entity-specific document keys. The
+existing lead and Real Estate property editors use the same reviewed field
+contract and editor component, while each scope retains its own prefix,
+category capability, plan capability, permission and labels. A scope cannot be
+selected by changing a label or submitting an unregistered name. Schemas 1–7
+remain readable and are upgraded only when an owner saves a new draft.
+
+If a tenant loses a scope's plan entitlement, its category-matching saved field
+definitions remain readable and survive unrelated customization drafts. The
+scope becomes read-only; preview, publish and rollback reject changes to that
+scope until the entitlement returns. The property workflow APIs still enforce
+the current category, plan and permission independently. This prevents an
+unavailable module from breaking shared workspace customization or silently
+losing the tenant's saved field contract. Focused regressions cover plan
+revocation, immutable preservation and cross-category rejection. No schema
+migration is required; production deployment and authenticated English/Arabic
+acceptance remain open.
 
 
 ## Registry and explicit version integration — 20 October 2026

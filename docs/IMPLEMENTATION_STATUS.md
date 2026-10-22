@@ -2130,3 +2130,25 @@ deployment, customer-data access or provider message was performed. Real Estate
 remains private and non-planable until its workflow, screen, role and release
 gates are reviewed; other category packs and the wider TC00–TC41 objective
 remain incomplete.
+
+## Entity-scoped custom fields and plan-revocation safety — source only, 22 October 2026
+
+The existing workspace customization document now supports schema 8 entity
+scopes. The lead and Real Estate property fields use the shared typed field
+contract/editor while keeping distinct registered category capability, plan
+capability, permission and key prefix. Schemas 1–7 still decode, and the
+existing appearance/customization API writes schema 8 without a database
+migration. If a scope's plan feature is removed, the saved definitions remain
+readable and are retained through unrelated edits; that scope is read-only,
+and preview/publish/rollback cannot change it until the entitlement returns.
+Category and plan checks on the actual lead/property APIs remain independent.
+
+Focused category, field-scope, tenant-customization, chatbot guide and Real Estate property tests pass
+73/73; changed JavaScript syntax and whitespace checks pass. Browser automation
+could not run because Playwright is not installed in this checkout; the browser
+fixture is updated for the plan-revocation case. The disposable MariaDB
+customization integration is not configured here. No production deployment,
+customer setting or database migration changed. The updated overlay now includes
+the preview router alongside the shared editor/service. Production browser
+acceptance, database integration, remaining category modules and the full
+42-ticket program remain open.

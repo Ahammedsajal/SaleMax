@@ -3,9 +3,9 @@
 const plain=value=>value!==null&&typeof value==='object'&&!Array.isArray(value)&&Object.getPrototypeOf(value)===Object.prototype;
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 const types=Object.freeze(['text','integer','boolean','date']);
-const scopes=Object.freeze({lead:Object.freeze({prefix:'cf',token:'LEAD'}),property:Object.freeze({prefix:'pf',token:'PROPERTY'})});
+const scopeRegistry=require('./custom-field-scope-registry');
 const MAX_FIELDS=24,MAX_HISTORY_ENTRIES=120,MAX_HISTORY_BYTES=128*1024;
-const scopeOf=scope=>{const value=scopes[scope];if(!value)throw Error('UNKNOWN_CUSTOM_FIELD_SCOPE');return value;};
+const scopeOf=scope=>scopeRegistry.get(scope);
 function label(value,scope){
  const token=scopeOf(scope).token;
  if(!plain(value)||Object.keys(value).length!==2||!['en','ar'].every(lang=>typeof value[lang]==='string'&&value[lang].trim()&&value[lang].length<=80&&!/[<>\u0000-\u001f\u007f]/.test(value[lang])))fail(`INVALID_${token}_FIELD_LABEL`);
@@ -56,7 +56,6 @@ function save(contract,input,prior={},scope='lead'){
  return saved;
 }
 function publicContract(configuration,scope='lead'){
- const fieldName=scope==='property'?'propertyFields':'leadFields';
- return {revision:configuration.revision,fields:definitions(configuration.document[fieldName]||[],scope)};
+ return {revision:configuration.revision,fields:definitions(scopeRegistry.fieldsForDocument(configuration.document,scope),scope)};
 }
 module.exports={definitions,label,valueFor,save,publicContract,types,MAX_FIELDS,MAX_HISTORY_ENTRIES,MAX_HISTORY_BYTES};

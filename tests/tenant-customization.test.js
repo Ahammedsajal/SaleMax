@@ -61,6 +61,33 @@ test('schema 7 disables only reviewed category modules and policy blocks depende
   assert.equal(policy.decision(withoutPlan,{capability:'training.courses',permission:'courses.read'}).code,'FEATURE_UNAVAILABLE','module settings cannot grant plan access');
   assert.deepEqual(settings.normalize(ctx,v6),v6,'schema 6 revisions remain readable');
 });
+test('schema 8 stores entity field contracts in capability-checked scopes and reads legacy scoped documents',()=>{
+  const scopes=require('../modules/platform/custom-field-scope-registry');
+  const leadField={key:'cf_text_0123456789abcdef',type:'text',label:{en:'Account code',ar:'رمز الحساب'},required:false,active:true,version:1};
+  const propertyField={key:'pf_text_0123456789abcdef',type:'text',label:{en:'Facing direction',ar:'اتجاه الإطلالة'},required:false,active:true,version:1};
+  const v8={schemaVersion:8,navigationLabels:{},customFieldScopes:{lead:[leadField]},hiddenNavigation:[],enabledTaskTypes:null,taskTypeLabels:{},disabledModules:[]};
+  assert.deepEqual(settings.normalize(ctx,v8),v8);
+  assert.deepEqual(scopes.available(ctx).map(scope=>scope.key),['lead']);
+  const realEstateCtx={...ctx,tenant:{...ctx.tenant,categoryKey:'real_estate'},category:realEstate,subscription:{status:'active',capabilities:[...realEstate.capabilities]}};
+  const propertyDoc={...v8,customFieldScopes:{lead:[],property:[propertyField]}};
+  assert.deepEqual(settings.normalize(realEstateCtx,propertyDoc),propertyDoc);
+  assert.deepEqual(require('../modules/platform/custom-field-contract').publicContract({revision:4,document:propertyDoc},'property').fields,[propertyField]);
+  const propertyAgent={...realEstateCtx,membership:{...realEstateCtx.membership,role:'agent'}};
+  assert.equal(scopes.available(propertyAgent).find(scope=>scope.key==='property').editable,false);
+  assert.throws(()=>settings.normalize(realEstateCtx,{...propertyDoc,customFieldScopes:{lead:[]}}),{code:'INVALID_CUSTOM_FIELD_SCOPES'});
+  assert.throws(()=>settings.normalize(ctx,{...v8,customFieldScopes:{lead:[],property:[propertyField]}}),{code:'CATEGORY_UNAVAILABLE'});
+  assert.throws(()=>settings.normalize(ctx,{...v8,customFieldScopes:{lead:[],clinical:[leadField]}}),{code:'INVALID_CUSTOM_FIELD_SCOPE'});
+  assert.throws(()=>settings.normalize({...realEstateCtx,subscription:{status:'active',capabilities:[]}},propertyDoc),{code:'FEATURE_UNAVAILABLE'});
+  const row={id:'revision-v8',kind:'published',category_key:'real_estate',category_version:1,schema_version:8,revision:1,document:JSON.stringify(propertyDoc),checksum:settings.checksum(propertyDoc)};
+  assert.deepEqual(settings.decode(realEstateCtx,row).document,propertyDoc);
+  const noListingPlan={...realEstateCtx,subscription:{status:'active',capabilities:realEstate.capabilities.filter(capability=>capability!=='realestate.listings')}};
+  assert.deepEqual(settings.decode(noListingPlan,row).document,propertyDoc,'plan removal preserves a valid saved configuration for runtime reads');
+  const propertyScope=scopes.available(noListingPlan).find(scope=>scope.key==='property');
+  assert.equal(propertyScope.planAvailable,false);assert.equal(propertyScope.editable,false);
+  assert.deepEqual(settings.preview(noListingPlan,propertyDoc,propertyDoc),{document:propertyDoc,readOnly:true},'unrelated settings remain previewable while inaccessible fields are preserved');
+  assert.throws(()=>settings.preview(noListingPlan,{...propertyDoc,customFieldScopes:{lead:[],property:[]}},propertyDoc),{code:'FEATURE_UNAVAILABLE'});
+  assert.ok(Object.hasOwn(settings.defaults(noListingPlan).customFieldScopes,'property'),'category scope remains in defaults for backward-safe round trips');
+});
 test('schema 3 hides only category-owned navigation keys while schema 1 and 2 remain readable',()=>{
   const doc3={schemaVersion:3,navigationLabels:{},leadFields:[],hiddenNavigation:['courses','inbox']};
   assert.deepEqual(settings.normalize(ctx,doc3),doc3);
@@ -99,13 +126,15 @@ test('existing workspace customizer collects bilingual task labels into the tena
   const fs=require('node:fs'),path=require('node:path');
   const client=fs.readFileSync(path.join(__dirname,'../client/public/tenant-customization.js'),'utf8');
   const shell=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
-  assert.match(client,/schemaVersion:7[\s\S]*disabledModules/);
+  assert.match(client,/schemaVersion:8[\s\S]*customFieldScopes[\s\S]*disabledModules/);
+  assert.match(client,/for\(const scope of state\.customFieldScopes\|\|\[\]\)/);
   assert.match(client,/taskTypeLabels/);
   assert.match(client,/Use your business names for tasks/);
   assert.match(client,/data-task-label-en/);
   assert.match(client,/data-task-label-ar/);
   assert.match(client,/Changes stay in the draft until you publish/);
-  assert.match(shell,/tenant-customization\.js\?v=20261022-module-access1/);
+  assert.match(shell,/lead-field-editor\.js\?v=20261022-field-scopes1/);
+  assert.match(shell,/tenant-customization\.js\?v=20261022-field-scopes1/);
 });
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');

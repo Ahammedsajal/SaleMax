@@ -137,5 +137,5 @@ test('real estate storage keys and current-panel entry are registered without a 
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/properties.js'),'utf8');
   assert.match(ui,/aria-modal="true"/);assert.match(ui,/statusLabels/);assert.match(ui,/data-save-assignee/);assert.match(ui,/assignedMembershipId/);assert.doesNotMatch(ui,/prompt\(/);
   assert.match(ui,/data-property-field/);assert.match(ui,/item\.customFields/);assert.match(ui,/expectedRevision=item\.revision/);
-  const editor=fs.readFileSync(path.join(__dirname,'../client/public/lead-field-editor.js'),'utf8');assert.match(editor,/Add property field/);assert.match(editor,/pf_/);
+  const editor=fs.readFileSync(path.join(__dirname,'../client/public/lead-field-editor.js'),'utf8'),scope=require('../modules/platform/custom-field-scope-registry').get('property');assert.match(editor,/Add property field/);assert.equal(scope.prefix,'pf');assert.ok(editor.includes("key=prefix+'_'+type"));
 });
