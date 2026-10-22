@@ -51,10 +51,11 @@ function processSocketEvent({
     try {
       const inboxAccess = require('../../modules/platform/team-inbox-scope');
       await require('../../modules/platform/delegated-account-session').assertDelegatedSession(query,socket.decodedToken);
-      const inboxScope = await inboxAccess.resolveInboxScope(query, socket.userData, type);
+      const accessEvent = type === 'assign_agent_to_chat' && payload?.unAssign ? 'unasign_chat_agent' : type;
+      const inboxScope = await inboxAccess.resolveInboxScope(query, socket.userData, accessEvent);
       const isAgent=agentAccount&&!inboxScope.canonical;
       const uid = inboxScope.uid;
-      socket.businessFeatureSession = await inboxAccess.authorizeInboxFeature(inboxScope, type, socket.businessFeatureSession);
+      socket.businessFeatureSession = await inboxAccess.authorizeInboxFeature(inboxScope, accessEvent, socket.businessFeatureSession);
       payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {}, socket.userData);
       switch (type) {
         case "get_chat_list":
@@ -852,11 +853,26 @@ function processSocketEvent({
 
         case "unasign_chat_agent":
           const { cId, aUid } = payload;
+          if (inboxScope.canonical) {
+            const pool = require('../../database/config').promise();
+            const db = await pool.getConnection();
+            try {
+              await db.beginTransaction();
+              await require('../../modules/platform/team-conversation-assignment').unassignConversation(db, {
+                ctx: inboxScope.ctx, uid, chatId: cId, assigneeUid: aUid,
+              });
+              await db.commit();
+              sendToUid(uid, { chatId: cId }, 'request_update_chat_list');
+              sendToUid(uid, { chatId: cId }, 'request_update_opened_chat');
+              break;
+            } catch (error) { await db.rollback(); throw error; }
+            finally { db.release(); }
+          }
 
           // Get current chat data
           const [chatDataoo] = await query(
             `SELECT assigned_agent FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-            [cId, isAgent ? socket?.userData?.owner_uid : uid],
+            [cId, payload.ownerUid],
           );
 
           let currentAgentss = [];
@@ -886,7 +902,7 @@ function processSocketEvent({
             [
               JSON.stringify(updatedAgents),
               cId,
-              isAgent ? socket?.userData?.owner_uid : uid,
+              payload.ownerUid,
             ],
           );
 
@@ -895,22 +911,24 @@ function processSocketEvent({
 
         case "assign_agent_to_chat":
           const { chatId, agentUid, unAssign } = payload;
-          if (inboxScope.canonical && !unAssign) {
+          if (inboxScope.canonical) {
             const pool = require('../../database/config').promise();
             const db = await pool.getConnection();
             try {
               const assignments = require('../../modules/platform/team-conversation-assignment');
-              const staff = await assignments.eligibleStaff(db, inboxScope.ctx.tenant.id);
-              const target = staff.find(item => item.uid === agentUid);
-              if (target) {
-                await db.beginTransaction();
+              await db.beginTransaction();
+              if (unAssign) {
+                await assignments.unassignConversation(db, { ctx: inboxScope.ctx, uid, chatId, assigneeUid: agentUid });
+              } else {
+                const staff = await assignments.eligibleStaff(db, inboxScope.ctx.tenant.id);
+                const target = staff.find(item => item.uid === agentUid);
+                if (!target) throw Object.assign(new Error('CONVERSATION_ASSIGNEE_INVALID'), { code: 'CONVERSATION_ASSIGNEE_INVALID' });
                 await assignments.assignConversation(db, { ctx: inboxScope.ctx, uid, chatId, identityId: target.identityId });
-                await db.commit();
-                sendToUid(uid, { chatId }, 'request_update_chat_list');
-                sendToUid(uid, { chatId }, 'request_update_opened_chat');
-                break;
               }
-              if (inboxScope.assignedOnly) throw new Error('CONVERSATION_ASSIGNEE_INVALID');
+              await db.commit();
+              sendToUid(uid, { chatId }, 'request_update_chat_list');
+              sendToUid(uid, { chatId }, 'request_update_opened_chat');
+              break;
             } catch (error) { await db.rollback(); throw error; }
             finally { db.release(); }
           }
@@ -918,7 +936,7 @@ function processSocketEvent({
           // Get current chat data
           const [chatDatao] = await query(
             `SELECT assigned_agent FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-            [chatId, uid],
+            [chatId, payload.ownerUid],
           );
 
           let currentAgents = [];
@@ -944,7 +962,7 @@ function processSocketEvent({
               `UPDATE beta_chats
                   SET assigned_agent = ?
                   WHERE chat_id = ? AND uid = ?`,
-              [JSON.stringify(updatedAgents), chatId, uid],
+              [JSON.stringify(updatedAgents), chatId, payload.ownerUid],
             );
           } else {
             if (chatId && agentUid) {
@@ -957,7 +975,7 @@ function processSocketEvent({
                 // Get agent data
                 const [agentData] = await query(
                   `SELECT * FROM agents WHERE uid = ? AND owner_uid = ?`,
-                  [agentUid, uid],
+                  [agentUid, payload.ownerUid],
                 );
 
                 if (agentData) {
@@ -966,7 +984,7 @@ function processSocketEvent({
 
                   await query(
                     `UPDATE beta_chats SET assigned_agent = ? WHERE chat_id = ? AND uid = ?`,
-                    [JSON.stringify(updatedAgents), chatId, uid],
+                    [JSON.stringify(updatedAgents), chatId, payload.ownerUid],
                   );
                 }
               }

@@ -1,6 +1,6 @@
 'use strict';
 const mysql=require('mysql2/promise'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict');
-const {assignConversation}=require('../modules/platform/team-conversation-assignment');
+const {assignConversation,unassignConversation}=require('../modules/platform/team-conversation-assignment');
 const hash=v=>crypto.createHash('sha256').update(v).digest('hex');
 (async()=>{
  const config=JSON.parse(process.env.SALEMAX_TRANSFER_TEST_CONFIG||'null');
@@ -26,18 +26,23 @@ const hash=v=>crypto.createHash('sha256').update(v).digest('hex');
   await pool.query("INSERT INTO beta_chats VALUES('owner','chat-one',JSON_ARRAY(),'qr','Synthetic contact','97455555555'),('owner','chat-two',JSON_ARRAY(),'meta','Synthetic contact','97455555555'),('owner','rollback-chat',JSON_ARRAY(),'qr','Rollback contact','97455555556')");
   const ctx={tenant:{id:'tenant-a',categoryKey:'training_center'},identity:{id:'owner-id'},membership:{role:'owner'}};
   const transfer=async(chatId,identityId,rollback=false)=>{const db=await pool.getConnection();try{await db.beginTransaction();const r=await assignConversation(db,{ctx,uid:'owner',chatId,identityId});if(rollback)await db.rollback();else await db.commit();return r;}catch(e){await db.rollback();throw e;}finally{db.release();}};
+  const unassign=async(chatId,assigneeUid,rollback=false)=>{const db=await pool.getConnection();try{await db.beginTransaction();const r=await unassignConversation(db,{ctx,uid:'owner',chatId,assigneeUid});if(rollback)await db.rollback();else await db.commit();return r;}catch(e){await db.rollback();throw e;}finally{db.release();}};
   const first=await transfer('chat-one','seven');assert.equal(first.lead.created,true);
   await pool.query("UPDATE pipeline_leads SET stage_key='qualified',expected_value=500,next_follow_up_at='2027-01-01' WHERE id=?",[first.lead.id]);
   const again=await transfer('chat-one','eight');assert.equal(again.lead.id,first.lead.id);assert.equal(again.lead.created,false);
   const repeat=await transfer('chat-one','eight');assert.equal(repeat.lead.id,first.lead.id);
   const [[lead]]=await pool.query('SELECT uid,owner_agent_id,stage_key,expected_value,next_follow_up_at FROM pipeline_leads WHERE id=?',[first.lead.id]);assert.equal(lead.uid,'owner');assert.equal(lead.owner_agent_id,8);assert.equal(lead.stage_key,'qualified');assert.equal(Number(lead.expected_value),500);assert.ok(lead.next_follow_up_at);
+  const removed=await unassign('chat-one','agent-eight');assert.equal(removed.lead.ownerAgentId,null);
+  const [[unassignedLead]]=await pool.query('SELECT owner_agent_id,stage_key,expected_value,next_follow_up_at FROM pipeline_leads WHERE id=?',[first.lead.id]);assert.equal(unassignedLead.owner_agent_id,null);assert.equal(unassignedLead.stage_key,'qualified');assert.equal(Number(unassignedLead.expected_value),500);assert.ok(unassignedLead.next_follow_up_at);
+  const [[unassignedChat]]=await pool.query("SELECT assigned_agent FROM beta_chats WHERE chat_id='chat-one'");assert.deepEqual(typeof unassignedChat.assigned_agent==='string'?JSON.parse(unassignedChat.assigned_agent):unassignedChat.assigned_agent,[]);
+  await transfer('chat-one','eight');
   await Promise.all([transfer('chat-one','eight'),transfer('chat-two','eight')]);
   const [[count]]=await pool.query('SELECT COUNT(*) AS n FROM pipeline_leads WHERE uid_hash=?',[hash('owner')]);assert.equal(count.n,1);
   const [[links]]=await pool.query('SELECT COUNT(*) AS n FROM pipeline_conversations WHERE lead_id=?',[first.lead.id]);assert.equal(links.n,2);
-  const [[history]]=await pool.query("SELECT COUNT(*) AS n FROM pipeline_activity WHERE lead_id=? AND activity_type='lead_reassigned'",[first.lead.id]);assert.equal(history.n,1);
+  const [[history]]=await pool.query("SELECT COUNT(*) AS n FROM pipeline_activity WHERE lead_id=? AND activity_type='lead_reassigned'",[first.lead.id]);assert.equal(history.n,3);
   await transfer('rollback-chat','seven',true);const [[after]]=await pool.query('SELECT COUNT(*) AS n FROM pipeline_leads');assert.equal(after.n,1);
   const [[chat]]=await pool.query("SELECT assigned_agent FROM beta_chats WHERE chat_id='rollback-chat'");assert.deepEqual(typeof chat.assigned_agent==='string'?JSON.parse(chat.assigned_agent):chat.assigned_agent,[]);
   await assert.rejects(transfer('chat-one','foreign'),{code:'CONVERSATION_ASSIGNEE_INVALID'});
-  console.log('PASS: transfer create/reassign/retry/concurrent same-contact dedup/owner retention/stage and follow-up preservation/transaction rollback/foreign-recipient rejection');
+  console.log('PASS: transfer create/reassign/unassign/retry/concurrent same-contact dedup/owner retention/stage and follow-up preservation/transaction rollback/foreign-recipient rejection');
  }finally{if(pool)await pool.end();await admin.query('DROP DATABASE `'+database+'`');await admin.end();}
 })().catch(e=>{console.error(e.code||e.message);process.exit(1)});

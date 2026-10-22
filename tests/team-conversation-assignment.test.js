@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { assignConversation, ownsConversation, chooseAvailableStaff } = require('../modules/platform/team-conversation-assignment');
+const { assignConversation, unassignConversation, ownsConversation, chooseAvailableStaff } = require('../modules/platform/team-conversation-assignment');
 const hash = uid => crypto.createHash('sha256').update(uid).digest('hex');
 const ctx = { tenant: { id: 'tenant-a' }, identity: { id: 'actor' }, membership: { role: 'manager' } };
 function fixture(overrides = {}) {
@@ -31,6 +31,30 @@ test('transfer replaces the old staff assignment and preserves the shared owner 
   assert.deepEqual(update.params.slice(1), ['owner', input.chatId]);
   assert.equal(result.previous[0].identityId, 'old-staff');
   assert.equal(calls.filter(call => call.sql.includes('sx_audit_events')).length, 1);
+});
+
+test('unassign requires lead-assignment authority, preserves other identities and records an audit event', async () => {
+  const calls=[];
+  const assigned=JSON.stringify([
+    {kind:'identity',identityId:'staff-a',uid:'agent-a'},
+    {kind:'identity',identityId:'staff-b',uid:'agent-b'},
+  ]);
+  const db={query:async(sql,args)=>{
+    calls.push({sql,args});
+    if(sql.includes("m.role='owner'"))return [[{uid:'owner',uidHash:hash('owner')}]];
+    if(sql.includes('FOR UPDATE'))return [[{assigned_agent:assigned,origin:'meta',sender_name:'Synthetic',sender_mobile:'+97450000000'}]];
+    return [{affectedRows:1}];
+  }};
+  await unassignConversation(db,{ctx,uid:'owner',chatId:'synthetic-chat',assigneeUid:'agent-a'});
+  const update=calls.find(call=>call.sql.startsWith('UPDATE beta_chats'));
+  assert.deepEqual(JSON.parse(update.args[0]),[{kind:'identity',identityId:'staff-b',uid:'agent-b'}]);
+  assert.deepEqual(update.args.slice(1),['owner','synthetic-chat']);
+  const audit=calls.find(call=>call.sql.includes('sx_audit_events'));
+  assert.match(audit.sql,/conversation\.unassigned/);
+  assert.equal(JSON.parse(audit.args[4]).removedIdentityId,'staff-a');
+
+  const agent={...ctx,identity:{id:'staff-a'},membership:{role:'agent'}};
+  await assert.rejects(unassignConversation(db,{ctx:agent,uid:'owner',chatId:'synthetic-chat',assigneeUid:'agent-a'}),{code:'CONVERSATION_TRANSFER_DENIED'});
 });
 
 test('incoming routing chooses the online staff with least assigned work, then falls back to the manager', () => {

@@ -115,13 +115,18 @@ async function authorizeInboxPayload(query, scope, event, payload, actor) {
   if (event === 'update_spend_time') return authorizeAgentSpendTime(query, scope, payload, actor);
   if (event === 'del_contact') return authorizeContactDelete(scope, payload, actor);
   const targetOwnerUid = await payloadOwnerUid(query, scope, actor);
-  if (scope.assignedOnly && ['send_new_message', 'unasign_chat_agent'].includes(event)) fail();
+  if (scope.assignedOnly && event === 'send_new_message') fail();
   if (event === 'on_label_delete') {
     const labelId = Number(payload?.labelId);
     if (!Number.isSafeInteger(labelId) || labelId < 1) fail();
     const labels = await query('SELECT id FROM chat_tags WHERE id=? AND uid=? LIMIT 1', [labelId, targetOwnerUid]);
     if (labels.length !== 1) fail();
     return { ...payload, labelId, ownerUid: targetOwnerUid };
+  }
+  if ((event === 'unasign_chat_agent' || (event === 'assign_agent_to_chat' && payload?.unAssign)) &&
+      (actor?.isAgent === true || actor?.role === 'agent')) {
+    const requestedUid = event === 'unasign_chat_agent' ? payload?.aUid : payload?.agentUid;
+    if (requestedUid !== actor.uid) fail();
   }
   if (event === 'send_new_message') {
     if (actor?.isAgent === true || actor?.role === 'agent') {

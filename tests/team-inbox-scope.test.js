@@ -203,6 +203,10 @@ test('legacy agents resolve the verified owner and may target only their assigne
   assert.equal(result.chat,assigned);
   const deletion=await authorizeInboxPayload(lookup,scope,'delete_chat',{chatId:'legacy-chat',type:'delete'},actor);
   assert.equal(deletion.ownerUid,actor.owner_uid);
+  const selfUnassign=await authorizeInboxPayload(lookup,scope,'assign_agent_to_chat',{chatId:'legacy-chat',agentUid:actor.uid,unAssign:true},actor);
+  assert.equal(selfUnassign.ownerUid,actor.owner_uid);
+  await assert.rejects(authorizeInboxPayload(lookup,scope,'assign_agent_to_chat',{chatId:'legacy-chat',agentUid:'another-agent',unAssign:true},actor),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(authorizeInboxPayload(lookup,scope,'unasign_chat_agent',{cId:'legacy-chat',aUid:'another-agent'},actor),{code:'TEAM_INBOX_PERMISSION_DENIED'});
   await assert.rejects(authorizeInboxPayload(async(sql,args)=>sql.includes('FROM agents WHERE uid=? AND owner_uid=?')?[{uid:actor.uid}]:sql.includes('FROM beta_chats WHERE uid=? AND chat_id=?')?[{chat_id:'legacy-chat',assigned_agent:'[]'}]:[],scope,'load_conversation',{chat:{chat_id:'legacy-chat'}},actor),{code:'TEAM_INBOX_PERMISSION_DENIED'});
   await assert.rejects(authorizeInboxPayload(async()=>[],scope,'load_conversation',{chat:{chat_id:'legacy-chat'}},{...actor,owner_uid:'foreign-owner'}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });

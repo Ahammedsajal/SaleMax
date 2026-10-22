@@ -2236,3 +2236,23 @@ conversation-assignment suite passes 22/22. Syntax and whitespace checks pass.
 No production release or customer-data write occurred. Production deployment
 remains gated on safe disk recovery; the complete socket/worker authorization
 audit and TC00–TC41 program remain open.
+
+## Audited conversation unassignment — source only, 22 October 2026
+
+Both canonical Inbox unassign events now enter the transactional team
+assignment service. The unassign path requires the `leads.assign` entitlement,
+locks the owner-scoped conversation, removes only the selected assignee, and
+writes a `conversation.unassigned` audit event. Training Center unassignment
+also clears the linked Pipeline lead's agent owner only when it still matches
+the removed agent; stages, value, follow-up and conversation history remain
+intact. Legacy agents may remove only their own assignment. Existing transfer
+through the Agent interface keeps its `conversations.reply` and assigned-chat
+contract.
+
+The focused Inbox scope, transfer, unassignment, contact-delete, spend-time
+and label-delete suite passes 25/25; changed JavaScript syntax and whitespace
+checks pass. The disposable MariaDB transfer/unassignment integration was
+extended but cannot run in this checkout because its isolated database config
+is unavailable. No production release or customer-data write occurred.
+Production deployment remains gated on safe disk recovery; authenticated
+owner/manager/agent acceptance and the wider TC00–TC41 program remain open.
