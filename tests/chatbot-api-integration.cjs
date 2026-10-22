@@ -124,6 +124,12 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
       return { status: response.status, ...payload };
     };
 
+    const profileOptions=await call('/');
+    assert.equal(profileOptions.status,200);
+    assert.equal(profileOptions.data.botProfileContract.defaultGuidedMode,'domain_default');
+    assert.deepEqual(profileOptions.data.botProfileContract.workflow.choices,['course_admissions','course_enquiry']);
+    assert.deepEqual(profileOptions.data.botProfileContract.workflow.labels.course_enquiry,{en:'Course enquiry',ar:'استفسار عن دورة'});
+
     const created = await call('/', 'POST', {
       name: 'Synthetic Training FAQ', engine: 'ai', config: {
         instructions: 'Answer only from approved course facts.', confidenceThreshold: 0.72,

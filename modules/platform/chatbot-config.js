@@ -101,6 +101,7 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   if (!ENGINES.has(input.engine)) throw Object.assign(new Error('INVALID_BOT_ENGINE'), { code: 'INVALID_BOT_ENGINE' });
   const source = input.config;
   if (!source || typeof source !== 'object' || Array.isArray(source) || Buffer.byteLength(JSON.stringify(source)) > 128000) throw Object.assign(new Error('INVALID_BOT_CONFIG'), { code: 'INVALID_BOT_CONFIG' });
+  const domainPack=getDomainPack(categoryKey,categoryVersion),profileContract=domainPack.botProfileContract||{};
   const config = { domainPack: categoryKey, language: ['en', 'ar', 'en_ar'].includes(source.language) ? source.language : 'en_ar' };
   if (source.captureLeads !== undefined) {
     if (typeof source.captureLeads !== 'boolean') throw Object.assign(new Error('INVALID_BOT_CONFIG'), { code: 'INVALID_BOT_CONFIG' });
@@ -133,9 +134,10 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   if (input.engine === 'guided') {
     if (source.flowId != null && (typeof source.flowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.flowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
     config.flowId = source.flowId || null;
-    config.guidedMode = config.flowId ? 'automation_flow' : (source.guidedMode === 'domain_default' ? 'domain_default' : null);
+    config.guidedMode = config.flowId ? 'automation_flow' : (source.guidedMode === 'domain_default'||profileContract.defaultGuidedMode==='domain_default' ? 'domain_default' : null);
     if (source.introFlowId != null && (typeof source.introFlowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.introFlowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
-    if (config.guidedMode === 'domain_default' && categoryKey === '7network_sales') config.introFlowId = source.introFlowId || null;
+    if(source.introFlowId&&(!profileContract.supportsIntroFlow||config.guidedMode!=='domain_default'))throw Object.assign(new Error('INVALID_FLOW_ID'),{code:'INVALID_FLOW_ID'});
+    if (config.guidedMode === 'domain_default' && profileContract.supportsIntroFlow) config.introFlowId = source.introFlowId || null;
     config.welcomeMessage = cleanText(source.welcomeMessage, 1200, 'INVALID_WELCOME_MESSAGE');
     config.fallbackMessage = cleanText(source.fallbackMessage, 1200, 'INVALID_FALLBACK_MESSAGE');
     if (!Array.isArray(source.knowledgeEntries ?? []) || (source.knowledgeEntries ?? []).length > 60) throw Object.assign(new Error('INVALID_KNOWLEDGE_ENTRIES'), { code: 'INVALID_KNOWLEDGE_ENTRIES' });
@@ -152,18 +154,20 @@ function botInput(input, categoryKey, categoryVersion = 1) {
     if (input.engine === 'hybrid') {
       if (source.flowId != null && (typeof source.flowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.flowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
       config.flowId = source.flowId || null;
-      config.guidedMode = config.flowId ? 'automation_flow' : (source.guidedMode === 'domain_default' ? 'domain_default' : null);
+      config.guidedMode = config.flowId ? 'automation_flow' : (source.guidedMode === 'domain_default'||profileContract.defaultGuidedMode==='domain_default' ? 'domain_default' : null);
       if (source.introFlowId != null && (typeof source.introFlowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.introFlowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
-      if (config.guidedMode === 'domain_default' && categoryKey === '7network_sales') config.introFlowId = source.introFlowId || null;
+      if(source.introFlowId&&(!profileContract.supportsIntroFlow||config.guidedMode!=='domain_default'))throw Object.assign(new Error('INVALID_FLOW_ID'),{code:'INVALID_FLOW_ID'});
+      if (config.guidedMode === 'domain_default' && profileContract.supportsIntroFlow) config.introFlowId = source.introFlowId || null;
       config.aiFallback = source.aiFallback !== false;
     }
   }
-  if (categoryKey === 'training_center') {
-    if ((input.engine === 'guided' || input.engine === 'hybrid') && !config.flowId && config.guidedMode !== 'domain_default') config.guidedMode = 'domain_default';
-    config.workflow = source.workflow === 'course_enquiry' ? 'course_enquiry' : 'course_admissions';
-    config.collect = ['name', 'course_interest', 'preferred_schedule', 'phone', 'consent'];
+  if ((input.engine === 'guided' || input.engine === 'hybrid') && !config.flowId && profileContract.defaultGuidedMode === 'domain_default') config.guidedMode = 'domain_default';
+  if(profileContract.workflow){
+    const {default:defaultWorkflow,choices,collect}=profileContract.workflow;
+    if(source.workflow!=null&&!choices.includes(source.workflow))throw Object.assign(new Error('INVALID_BOT_WORKFLOW'),{code:'INVALID_BOT_WORKFLOW'});
+    config.workflow=source.workflow||defaultWorkflow;
+    config.collect=[...collect];
   }
-  const domainPack = getDomainPack(categoryKey, categoryVersion);
   if (config.guidedMode === 'domain_default' && (!domainPack.guidedReply || !domainPack.guidedContentDefaults)) throw Object.assign(new Error('CATEGORY_GUIDED_FLOW_UNAVAILABLE'), { code: 'CATEGORY_GUIDED_FLOW_UNAVAILABLE' });
   if (domainPack.guidedContentDefaults && (config.guidedMode === 'domain_default' || source.guidedContent != null)) config.guidedContent = normalizeGuidedContent(source.guidedContent, domainPack);
   return { name: input.name.trim(), engine: input.engine, config };

@@ -800,3 +800,30 @@ both shared Inbox and CRM lead capabilities, and a missing/mismatched category
 version cannot trigger the workflow. The adapter remains responsible for its
 transactional lead/conversation association; the manifest selects reviewed
 server behavior and never contains executable tenant configuration.
+
+## Versioned chatbot profile defaults — 22 October 2026
+
+The existing category/version domain pack now owns a validated bot-profile
+contract: default guided mode, whether an opening Automation Flow is supported,
+category workflow choices/collection fields with bilingual labels, and an optional same-origin CRM
+catalogue link. Training Center v1 preserves its guided course admissions
+defaults; 7Network Sales v1 retains its optional opening Flow. Shared bot
+normalization and the existing chatbot editor consume this contract instead of
+checking category names. Unsupported workflow values and opening-Flow fields
+are rejected by the server.
+
+The contract supplies defaults only. Each bot still stores a separately
+normalized `guidedContent` object in its tenant-owned profile, so two businesses
+using the same category can use different bilingual replies. Tests cover profile
+copy isolation, immutable category-pack metadata, unsupported settings and the
+existing category-specific behavior. This does not yet generalize domain reply
+implementations or prove live provider delivery.
+
+The bot-profile workflow contract also supplies a localized field label and an
+English/Arabic label for every registered choice. The existing bot editor
+renders this selector only while the bot uses the category's built-in guide,
+submits the chosen workflow, and retains the category default when the profile
+predates the selector. Registry validation requires an exact label map for the
+registered choice set; unknown category workflow choices remain rejected by
+the server. This keeps future category workflows discoverable and editable
+without adding category-name checks to shared UI code.

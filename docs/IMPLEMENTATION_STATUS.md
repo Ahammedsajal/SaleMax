@@ -2121,3 +2121,21 @@ and CRM lead capabilities. Other categories default to no Pipeline side effect;
 unknown or mismatched category versions do not trigger the adapter. Focused
 registry and assignment tests cover the opt-in/default/mismatch cases. Source
 only; production is unchanged.
+
+The shared chatbot editor and profile validator now read category-specific
+defaults from the exact versioned domain pack: guided mode, opening-Flow support,
+workflow choices, collection keys, and an optional same-origin catalogue link.
+Training Center v1 and 7Network Sales v1 retain their existing behavior. Each
+bot keeps independent bilingual response content; unsupported profile settings
+are rejected. Category/task/customization/chatbot tests pass 347/347. Source
+only; production is unchanged.
+
+### Category-owned chatbot workflow selection — source update, 22 October 2026
+
+The existing bot editor now renders the pinned category pack's workflow
+choices with English/Arabic labels when the bot uses its built-in guide, and
+persists the selected value through the existing bot API. The immutable
+category contract rejects incomplete or mismatched label maps, while legacy
+profiles keep their existing workflow or use the pack default. The existing
+chatbot loader cache key is bumped. The broad category, task, tenant-customization and chatbot regression suite passes 347/347;
+syntax and whitespace checks pass. Source only, no production release or customer profile changed.

@@ -139,6 +139,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         engines: [...ENGINES],
         guidedContentDefaults: pack.guidedContentDefaults,
         guidedContentSchema: pack.guidedContentSchema,
+        botProfileContract:pack.botProfileContract,
         captureFormsSupported:require('./chatbot-capture-forms').supports(ctx.category),
         captureForms:await require('./chatbot-capture-forms').options(db,ctx),
         chatbotLeadCaptureSupported:require('./chatbot-lead-capture').genericCaptureEnabled(ctx),
@@ -323,7 +324,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
       if (!flow) fail('GUIDED_FLOW_UNAVAILABLE');
     }
     if (config.introFlowId) {
-      if (profile.categoryKey !== '7network_sales' || config.guidedMode !== 'domain_default') fail('INVALID_FLOW_ID');
+      if (!domainPack.botProfileContract?.supportsIntroFlow || config.guidedMode !== 'domain_default') fail('INVALID_FLOW_ID');
       const uid = await legacyUidFor(db, req, ctx);
       const introFlow = await require('../platform/chatbot-runtime').loadGuidedFlow(uid, config.introFlowId);
       if (!introFlow) fail('GUIDED_FLOW_UNAVAILABLE');
