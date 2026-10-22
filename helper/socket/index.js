@@ -579,8 +579,8 @@ function processSocketEvent({
           break;
 
         case "on_label_delete":
-          const { labelId } = payload;
-          await query(`DELETE FROM chat_tags WHERE id = ?`, [labelId]);
+          const { labelId, ownerUid: labelOwnerUid } = payload;
+          await query(`DELETE FROM chat_tags WHERE id = ? AND uid = ?`, [labelId, labelOwnerUid]);
 
           const labelNew = await query(
             `SELECT * FROM chat_tags WHERE uid = ?`,

@@ -160,6 +160,29 @@ test('contact deletion requires tenant contact-management authority and returns 
   await assert.rejects(resolveInboxUid(query(custom),user,'del_contact'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });
 
+test('label deletion and legacy chat-row mutations stay inside the authenticated owner', async () => {
+  const staffScope={canonical:true,uid:'synthetic-owner',assignedOnly:true,ctx:{membership:{role:'manager'}}};
+  const labelQuery=async(sql,args)=>{
+    assert.match(sql,/FROM chat_tags WHERE id=\? AND uid=\?/);
+    assert.deepEqual(args,[17,'synthetic-owner']);
+    return [{id:17}];
+  };
+  assert.deepEqual(await authorizeInboxPayload(labelQuery,staffScope,'on_label_delete',{labelId:'17'}),{
+    labelId:17,ownerUid:'synthetic-owner',
+  });
+  await assert.rejects(authorizeInboxPayload(async()=>[],staffScope,'on_label_delete',{labelId:17}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(authorizeInboxPayload(labelQuery,staffScope,'on_label_delete',{labelId:'17 OR 1=1'}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+
+  const legacyScope={canonical:false,uid:'legacy-owner'};
+  const chatQuery=async(sql,args)=>{
+    assert.match(sql,/FROM beta_chats WHERE uid=\? AND id=\? LIMIT 1/);
+    assert.deepEqual(args,['legacy-owner',91]);
+    return [{id:91,uid:'legacy-owner'}];
+  };
+  await authorizeInboxPayload(chatQuery,legacyScope,'set_chat_label',{chatIdRow:91,labelData:{id:1}});
+  await assert.rejects(authorizeInboxPayload(async()=>[],legacyScope,'set_chat_label',{chatIdRow:91,labelData:{id:1}}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});
+
 test('canonical Inbox events refresh and enforce the active tenant category, plan and module policy', async () => {
   const categories=require('../modules/platform/categories');
   const scope={canonical:true,uid:'synthetic-owner',ctx:{tenant:{id:'tenant-a'},identity:{id:'identity-a'},membership:{id:'member-a',role:'manager'}}};

@@ -2200,3 +2200,20 @@ inventory tests pass 2/2. This remains a declaration inventory, not a route
 authorization audit: inherited/global middleware, inline checks, SQL ownership,
 exports, sockets and worker paths still require behavioral review under TC02,
 TC35 and TC40. No production or customer data changed.
+
+## Inbox label and legacy row tenant guards — source only, 22 October 2026
+
+The shared socket authorization layer now verifies label IDs against the
+authenticated business owner before deletion, and the delete statement repeats
+that owner predicate. Direct chat-row mutations that use legacy row IDs now
+resolve through the authenticated owner before updating notes, labels, or
+unread state; canonical staff retain the existing assignment checks. This
+closes an ID-based cross-tenant label deletion path and strengthens legacy
+row-ID handling without changing the shared Inbox workflow.
+
+The focused Inbox scope, contact-delete, spend-time, label-delete and
+conversation-assignment suite passes 20/20. No production release,
+database mutation or customer-data access occurred. The live host remains at
+99% disk use with about 682 MB free, so a production image rebuild is not safe
+to attempt until space is recovered. Production source parity, staged release,
+rollback, authenticated UI and the full TC00–TC41 gates remain open.

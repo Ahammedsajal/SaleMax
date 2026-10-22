@@ -86,12 +86,19 @@ function filterQrInstances(instances, scope) {
 async function authorizeInboxPayload(query, scope, event, payload, actor) {
   if (event === 'update_spend_time') return authorizeAgentSpendTime(query, scope, payload, actor);
   if (event === 'del_contact') return authorizeContactDelete(scope, payload, actor);
-  if (!scope.canonical) return payload;
+  if (event === 'on_label_delete') {
+    const labelId = Number(payload?.labelId);
+    if (!Number.isSafeInteger(labelId) || labelId < 1 || typeof scope?.uid !== 'string' || !scope.uid) fail();
+    const labels = await query('SELECT id FROM chat_tags WHERE id=? AND uid=? LIMIT 1', [labelId, scope.uid]);
+    if (labels.length !== 1) fail();
+    return { ...payload, labelId, ownerUid: scope.uid };
+  }
+  if (!scope?.canonical && (typeof scope?.uid !== 'string' || !scope.uid)) fail();
   if(scope.qrOnly&&!['get_chat_list','load_conversation','export_chats','export_conversation','send_chat_message'].includes(event))fail();
   // Staff never initiate a different WhatsApp conversation through the shared
   // number. Reply only to the persisted, currently assigned customer/channel.
   if (scope.assignedOnly && ['send_new_message', 'unasign_chat_agent'].includes(event)) fail();
-  if (['get_chat_list','export_chats','add_label','on_label_delete','update_spend_time','translate_message'].includes(event)) return payload;
+  if (['get_chat_list','export_chats','add_label','update_spend_time','translate_message'].includes(event)) return payload;
   const ids = {
     load_conversation: payload.chat?.chat_id, export_conversation: payload.chatId,
     send_chat_message: payload.chatInfo?.chat_id, assign_agent_to_chat: payload.chatId,
@@ -103,7 +110,7 @@ async function authorizeInboxPayload(query, scope, event, payload, actor) {
   const chatId = ids[event];
   if (!chatId && !rowId) { if (scope.assignedOnly) fail(); return payload; }
   const rows = await query(`SELECT * FROM beta_chats WHERE uid=? AND ${rowId ? 'id' : 'chat_id'}=? LIMIT 1`, [scope.uid, rowId || chatId]);
-  if (rows.length !== 1 || (scope.assignedOnly && !filterAssignedChats(rows, scope).length)) fail();
+  if (rows.length !== 1 || (scope.canonical && scope.assignedOnly && !filterAssignedChats(rows, scope).length)) fail();
   if (event === 'send_chat_message') return { ...payload, chatInfo: rows[0] };
   if (event === 'load_conversation') return { ...payload, chat: rows[0] };
   return payload;
