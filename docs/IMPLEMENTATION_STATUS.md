@@ -2172,3 +2172,20 @@ helper and form loaders use a new cache key. The source commit is pushed on
 `7network/lead-field-plan-entitlement-20261022`, and all 22 focused recruitment
 checks pass. No application was submitted and no production files or data were
 changed. Deployment is deferred: active release `/opt/salemax/releases/contact-delete-scope-350e486-20261022` is healthy, but its host has 682 MB free (99% disk use), while its current application image is 475 MB before any build workspace or rollback image overhead. A seven-day aggregation of the active app's sanitized recruitment diagnostic logs returned zero events; no request ID or applicant submission was exposed by the check. The live public helper is bilingual and cause-aware, but its browser script discards the backend request reference. No customer application was submitted, and the reported failure still has no reproducible cause. Deployment remains pending safe release capacity.
+
+## Retail inventory catalogue pagination — source update, 22 October 2026
+
+The Retail inventory endpoint returned bounded pages, but its existing-panel
+screen always requested page 1. Stores with more than 30 products therefore
+could not find the remaining stock records. The screen now requests the selected
+page, shows the product range and total, adds bilingual Previous/Next controls,
+resets paging when location/search changes, recovers when a page becomes stale,
+and ignores late responses from older searches. Focused inventory/API/screen
+checks pass 12/12 and browser script syntax passes. No migration or production
+release occurred; authenticated desktop/mobile EN/AR acceptance is still open.
+
+The pagination increment also passes the broader category, policy, catalog,
+workspace-client, Real Estate and Retail regression set (55/55). The full suite
+now reports 1,066/1,087 passing. Its 21 remaining source-contract failures are
+a subset of the 26 reproduced on clean `origin/main`; no Retail pagination or
+Meta shell failure is present in this run.

@@ -834,3 +834,13 @@ without adding category-name checks to shared UI code.
 A private `retail_shop@1` category now mounts an inventory screen inside the existing authenticated business panel. Its tenant-scoped ledger supports locations, stock reads, audited adjustments, optimistic revisions, request idempotency and movement history. Tenant-composite foreign keys bind locations, products and actor memberships; balances cannot go negative. The category is not public or planable. It reuses the existing product catalogue, so product-variant management is not included.
 
 The existing-screen/API contract, category/policy, router and inventory regressions pass 55/55. A disposable MySQL integration passed nine checks for tenant isolation, replay conflicts, concurrency, nonnegative balances and audit rollback. No production migration or release was performed. Authenticated browser acceptance in English and Arabic remains open. Suppliers, purchasing, POS, automatic sales decrement, product variants and supermarket workflows remain unimplemented; this slice does not complete the Retail category or the full customization program.
+
+### Retail inventory pagination — source update, 22 October 2026
+
+The tenant-scoped product stock screen now consumes the API's bounded pagination
+instead of silently showing only the first 30 products. It displays the filtered
+range and total, offers English/Arabic page controls, resets the selected page
+on location/search changes and discards stale asynchronous responses. This
+improves catalogue scale inside the existing panel without broadening the
+private category or changing its non-planable status. Focused inventory, router
+and screen tests pass 12/12; authenticated browser acceptance remains open.

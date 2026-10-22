@@ -31,6 +31,12 @@ test('screen uses authenticated category and permissions and has English and Ara
   assert.match(screen,/session\.categoryKey!==\s*'retail_shop'/);
   assert.match(screen,/inventory\.adjust/);
   assert.match(screen,/\/stock\?locationId=/);
+  assert.match(screen,/page=\$\{stockPage\}&limit=\$\{pageSize\}/);
+  assert.match(screen,/stock-previous/);
+  assert.match(screen,/stock-next/);
+  assert.match(screen,/Showing/);
+  assert.match(screen,/السابق/);
+  assert.match(screen,/التالي/);
   assert.match(screen,/\/adjustments/);
   assert.match(screen,/\/movements\?locationId=/);
   assert.match(screen,/expectedRevision:item\.revision/);
