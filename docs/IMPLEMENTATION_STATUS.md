@@ -2231,3 +2231,10 @@ Focused Forms, category and migration-discovery suites pass, as do syntax and
 whitespace checks. The existing-screen change is source-only: no category opts
 in, MariaDB runtime integration and authenticated browser acceptance remain
 open, and no production runtime changed.
+
+The follow-up full JavaScript suite run passes 1,093/1,117 tests and reports 24
+failures in unrelated authentication, Manage Users, Pipeline, task, Call Center,
+course, Finance, report and sale-review cases. No Forms or public-form checks
+fail. The run is not a release gate pass; the focused Forms/category/migration
+suite remains green. The local environment has no loopback-only MariaDB config,
+so disposable migration integration still needs a configured test runtime.
