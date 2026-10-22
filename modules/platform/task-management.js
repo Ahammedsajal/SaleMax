@@ -36,14 +36,23 @@ async function queueStatusNotifications(db,ctx,taskId,revision,recipients){for(c
 async function sourceDetail(db,ctx,type,id){actor(ctx);if(!canManage(ctx))fail('PERMISSION_DENIED',403);const source=await taskSource(db,ctx,type,id);if(!source)fail('INVALID_TASK_SOURCE');return {record:source.record,suggestedAssignee:source.lead?.owner_agent_id?{actorType:'agent',actorId:String(source.lead.owner_agent_id),role:'assignee'}:null};}
 async function createInboxFollowUp(db,ctx,input){
  actor(ctx);
- const chatId=typeof input?.chatId==='string'?input.chatId.trim():'';
+ let chatId=typeof input?.chatId==='string'?input.chatId.trim():'';
  if(!chatId||chatId.length>191||/[\u0000-\u001f\u007f]/u.test(chatId))fail('INVALID_CHAT_ID');
  const dueAt=input?.dueAt==null?null:taskDue(input.dueAt);
  if(!dueAt||!Number.isFinite(dueAt.getTime()))fail('INVALID_TASK_DUE_DATE');
  const details=optionalText(input.details,1000,'INVALID_TASK_DESCRIPTION');
  await db.beginTransaction();
  try {
- const [[chat]]=await db.query('SELECT chat_id,sender_name,sender_mobile,origin,origin_instance_unique_id,assigned_agent FROM beta_chats WHERE uid=? AND chat_id=? FOR UPDATE',[ctx.uid,chatId]);
+ let [[chat]]=await db.query('SELECT chat_id,sender_name,sender_mobile,origin,origin_instance_unique_id,assigned_agent FROM beta_chats WHERE uid=? AND chat_id=? FOR UPDATE',[ctx.uid,chatId]);
+ if(!chat){
+  const phone=chatId.replace(/\D/g,'');
+  if(phone.length>=8&&phone.length<=15){
+   const [matches]=await db.query("SELECT chat_id,sender_name,sender_mobile,origin,origin_instance_unique_id,assigned_agent FROM beta_chats WHERE uid=? AND origin='qr' AND sender_mobile IN (?,?) ORDER BY updatedAt DESC LIMIT 2 FOR UPDATE",[ctx.uid,phone,`+${phone}`]);
+   if(matches.length>1)fail('CHAT_ID_AMBIGUOUS',409);
+   chat=matches[0]||null;
+   if(chat)chatId=String(chat.chat_id);
+  }
+ }
  if(!chat)fail('CHAT_NOT_FOUND',404);
  let rawAssignments;try{rawAssignments=typeof chat.assigned_agent==='string'?JSON.parse(chat.assigned_agent):chat.assigned_agent;}catch{rawAssignments=null;}
  const existing=Array.isArray(rawAssignments)?rawAssignments:rawAssignments?[rawAssignments]:[];
