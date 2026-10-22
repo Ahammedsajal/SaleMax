@@ -109,6 +109,7 @@ test('journey report combines current pipeline stages, period sources and agent 
     throw new Error(`Unexpected query: ${sql}`);
   }};
   const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'owner',period:'daily',at:'2026-10-01',assignment:'assigned',qrInstanceId:17});
+  assert.match(queries[0],/lead_id CHAR\(36\) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci/);
   assert.deepEqual(report.summary,{newLeads:2,leadsAttended:2,stageChanges:3,salesConverted:1,salesClosedByAgents:1,openLeads:2,wonLeads:1,lostLeads:0});
   assert.equal(report.stages[0].total,2);assert.equal(report.sources[0].total,2);
   assert.equal(report.stages[0].cohortTotal,1);

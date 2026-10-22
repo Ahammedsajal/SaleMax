@@ -28,6 +28,19 @@ recent system stage-change events during this inspection. No new migration was
 applied. See the current ICP release entry in `DEPLOYMENT.md`; it records the
 collation release as its predecessor and its rollback reference.
 
+A production MariaDB probe then exercised the active helper against disposable
+session-local shadow tables. It reached `journey-report`, query step 3, and
+failed with `ER_TRUNCATED_WRONG_VALUE_FOR_FIELD` while inserting a synthetic
+UUID lead ID into `sx_report_lead_scope`. Read-only schema metadata confirms
+`pipeline_leads.id` is `CHAR(36)`; the helper declared this temporary key as
+`BIGINT UNSIGNED`. Source now declares it as `CHAR(36) CHARACTER SET utf8mb4
+COLLATE utf8mb4_general_ci`, matching the live lead ID, with a focused SQL
+shape regression assertion. The report test file passes 12/12. This fix has not
+been deployed or tested again against MariaDB; the previously observed
+collation failure remains an open gate after the type mismatch is removed.
+The probe transaction was rolled back and its temporary tables were dropped;
+no persistent table or customer row was changed.
+
 ## Generic Forms staff replay scope — source increment, 22 October 2026
 
 Generic staff submission now resolves an existing Pipeline lead by both tenant
