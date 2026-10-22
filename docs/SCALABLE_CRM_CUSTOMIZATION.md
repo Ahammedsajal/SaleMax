@@ -713,7 +713,9 @@ two also have a pending-node marker. Their legacy keys do not identify a
 profile, so runtime code preserves but does not auto-adopt or rewrite them.
 Profile-scoped handlers cannot resume these sessions. In-flight legacy state
 needs a reviewed mapping or an explicit restart policy before deploying this
-behavior. The
+behavior. An actual distributor test with a fake transport confirms that two
+profiles persist distinct input-node state for the same owner, sender and
+conversation. The
 active production `user.uid` index is also non-unique; current read-only counts
 show seven rows with seven distinct nonempty UIDs, but future uniqueness
 enforcement remains open.

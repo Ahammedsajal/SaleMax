@@ -48,8 +48,8 @@ test('legacy QR and Meta bot adapters send every flow-state access through the o
     assert.doesNotMatch(source,/INSERT INTO flow_data/i);
   }
   assert.match(runtime,/returnVariables\(\{\s*uid,/);
-  assert.match(runtime,/flowData\.find\(query,\s*uid,\s*uniqueId\)/);
-  assert.match(runtime,/flowData\.profileConversationKey\(\s*uid,\s*chatbotFromMysq\?\.id,/);
+  assert.match(runtime,/flowStateData\.find\(query,\s*uid,\s*uniqueId\)/);
+  assert.match(runtime,/flowStateData\.profileConversationKey\(\s*uid,\s*chatbotFromMysq\?\.id,/);
   assert.match(meta,/flowData\.find\(query,\s*uid,\s*uniqueId\)/);
   assert.match(meta,/flowData\.profileConversationKey\(\s*uid,\s*chatbot\?\.id,/);
 });

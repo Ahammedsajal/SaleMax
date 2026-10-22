@@ -1,5 +1,5 @@
 const { query } = require("../database/dbpromise");
-const flowData = require("../modules/platform/legacy-flow-data");
+const flowStateData = require("../modules/platform/legacy-flow-data");
 const moment = require("moment-timezone");
 const fetch = require("node-fetch");
 const { addON } = require("../env.js");
@@ -473,7 +473,6 @@ async function completeTools({
   conversationPath,
   newMessage,
   incomingMsg,
-  flowData,
 }) {
   try {
     // assigning chat to agent
@@ -499,14 +498,14 @@ async function completeTools({
 
     if (k?.type === "TAKE_INPUT") {
       if (flow_data?.id) {
-        await flowData.setOther(query, uid, uniqueId,JSON.stringify(k));
+        await flowStateData.setOther(query, uid, uniqueId,JSON.stringify(k));
       } else {
-        await flowData.insertOther(query, uid, uniqueId,JSON.stringify(k));
+        await flowStateData.insertOther(query, uid, uniqueId,JSON.stringify(k));
       }
     }
 
     if (k?.type == "SAVE_AS_VAR") {
-      const getFlowData = await flowData.find(query, uid, uniqueId);
+      const getFlowData = await flowStateData.find(query, uid, uniqueId);
 
       function createObjectFromFullPath(globalScope, variableName, fullPath) {
         try {
@@ -535,7 +534,7 @@ async function completeTools({
           k?.data?.variableName,
           k?.data?.keyToSave
         );
-        await flowData.insertInputs(query, uid, uniqueId,JSON.stringify(varData),JSON.stringify(varData));
+        await flowStateData.insertInputs(query, uid, uniqueId,JSON.stringify(varData),JSON.stringify(varData));
       } else {
         // Parse the old inputs to make sure you have a valid object
         const oldInputs = getFlowData?.inputs
@@ -575,7 +574,7 @@ async function completeTools({
         console.log({ newInputs });
 
         // Save the updated inputs
-        await flowData.setInputs(query, uid, uniqueId,JSON.stringify(oldInputs));
+        await flowStateData.setInputs(query, uid, uniqueId,JSON.stringify(oldInputs));
       }
 
       // moving to the next connected node
@@ -967,7 +966,7 @@ async function returnVariables({
   conversationPath,
 }) {
   // getting the flow data
-  const flow_data = await flowData.find(query, uid, uniqueId);
+  const flow_data = await flowStateData.find(query, uid, uniqueId);
 
   if (flow_data && Object.keys(flow_data).length > 0) {
     let inputs = flow_data?.inputs ? JSON.parse(flow_data.inputs) : {};
@@ -980,7 +979,7 @@ async function returnVariables({
       inputs = { ...inputs, [savedNode?.data?.variableName]: incomingMsg };
 
       // Update the database with the new inputs and clear the 'other' column
-      await flowData.saveAnswer(query, uid, uniqueId,JSON.stringify(inputs));
+      await flowStateData.saveAnswer(query, uid, uniqueId,JSON.stringify(inputs));
 
       const findSourceFromEdge = edges?.find((x) => x.source == savedNode?.id);
       if (findSourceFromEdge) {
@@ -1016,7 +1015,7 @@ async function destributeTaskFlow({
 }) {
   // console.log(JSON.stringify({ k }));
   console.log("destributeTaskFlow");
-  const uniqueId = flowData.profileConversationKey(
+  const uniqueId = flowStateData.profileConversationKey(
     uid,
     chatbotFromMysq?.id,
     senderNumber,
@@ -1133,7 +1132,6 @@ async function destributeTaskFlow({
       conversationPath,
       newMessage,
       incomingMsg,
-      flowData,
     });
   }
 }

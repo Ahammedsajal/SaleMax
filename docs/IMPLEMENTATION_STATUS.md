@@ -1898,9 +1898,12 @@ and updates previously queried by `uniqueId` alone. The existing adapters now
 require both owner UID and conversation key through one shared helper, and the
 forward/rollback migration adds a composite prefix index for that lookup. A
 synthetic collision test proves that identical conversation keys return and
-mutate only the matching owner row. Focused flow/isolation tests pass 23/23,
-and the full 118-migration MariaDB 11.4.13 integration verifies the new index
-and owner-filtered reads/writes. A read-only aggregate audit of the active
+mutate only the matching owner row. The expanded focused suite passes 61/61;
+a runtime-level fake-transport test exercises the actual distributor and
+proves two chatbot profiles save distinct pending input nodes for the same
+owner, sender and conversation. The full 118-migration MariaDB 11.4.13
+integration verifies the new index and owner/profile-filtered reads/writes. A
+read-only aggregate audit of the active
 production database found six rows, no missing owner UIDs or conversation
 keys, and no duplicate `(uid, uniqueId)` pairs; no conversation contents were
 read. The seven legacy user rows have seven distinct nonempty UIDs, but their
