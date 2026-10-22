@@ -1908,3 +1908,6 @@ browser acceptance remain open. Existing category manifests do not
 yet provide category customization defaults, and forms, Pipeline stages,
 workers and other consumers have not adopted the resolver. The full
 customization and 42-ticket program remains in progress.
+## Legacy Sales accountant alias authorization — source increment, 22 October 2026
+
+The default 7Network Sales accountant boundary on legacy APIs now resolves the preserved `salemax_sales` category alias through the shared category matcher. This keeps the existing shell bootstrap reads available while denying other legacy routes for both canonical and historical category keys. Focused Sales navigation and authorization tests pass 17/17 with an external no-query `mysql2` stub because the worktree has no installed database driver; `git diff --check` passes. No database, migration, production data or runtime dependency files changed. Deployment and authenticated live role acceptance remain open.
