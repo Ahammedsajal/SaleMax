@@ -2016,3 +2016,7 @@ source deployment scripts only contain unrelated `flock` use for domain
 retirement and HTTPS activation; no shared production lock implementation was
 found. No production state was changed. Do not deploy until operations provides
 the shared exclusive-lock mechanism and preflight confirms it is held.
+
+## Pipeline tenant stage labels in lead editing — source increment, 22 October 2026
+
+The existing lead edit form now renders stage options through the same effective label resolver used by Pipeline board columns and automation selectors. The stable stage key remains the value submitted to the API. The EN/AR desktop/mobile Pipeline browser fixture now supplies synthetic workspace labels and checks the selected edit option. This category branch also consumes the shared customization schema-v5 reset behavior and MariaDB-safe owner-stage query from Goal 1. Source only; authenticated production acceptance and deployment remain open.
