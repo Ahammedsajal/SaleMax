@@ -12,6 +12,9 @@ hashes pass; no data was written, no migration ran, and only the app service
 was recreated. The live host remains critically low on disk space (about
 683 MB free). Signed-in agent acceptance and JSON log-update concurrency
 remain open. See `DEPLOYMENT.md` for source commit, active release and rollback.
+The disposable MariaDB integration was not run because its explicit
+`SALEMAX_AGENT_DATABASE_PROOF=isolated-container` setup is unavailable here;
+no test writes were made against production.
 
 ## Sales product/service catalogue boundary — source implementation, 22 October 2026
 
