@@ -454,7 +454,7 @@ async function importChatsFromv3({ chatData }) {
 
         chatId = whatsappNumber
           ? `${whatsappNumber}_${chat.sender_mobile}_${chat.uid}`
-          : `meta_${chat.sender_mobile}`;
+          : `meta_${chat.sender_mobile}_${chat.uid}`;
 
         const existingChat = chatIdMap.get(chatId);
         if (existingChat) {

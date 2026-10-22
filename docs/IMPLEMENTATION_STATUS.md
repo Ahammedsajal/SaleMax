@@ -1,3 +1,7 @@
+## Legacy Inbox import tenant isolation — source increment, 22 October 2026
+
+The V3 import route now resolves Inbox scope, rejects agents and non-owner canonical members, and selects legacy chats only for the authenticated business owner UID before starting the existing migration. The importer also includes UID in its fallback Meta deduplication key, so identical customer phone numbers in different businesses remain distinct. The focused Meta/Inbox source-contract suite passes 11/11; syntax and whitespace checks pass. No migration or production state changed. Existing-screen migration acceptance and production deployment remain open.
+
 ## Shared Inbox agent time tracking scope — source increment, 22 October 2026
 
 The existing UI timer sends the current agent UID and 1–5 seconds per update. The socket handler now rejects non-agent actors, UID substitution and out-of-range increments, then constrains both the agent log read and write by the authenticated agent UID and owning business UID. The focused Meta/Inbox source-contract suite passes 10/10; syntax and whitespace checks pass. No migration or production state changed; runtime socket acceptance and the broader shared socket audit remain open.

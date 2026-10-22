@@ -1262,7 +1262,17 @@ router.post("/import_convo_from_v3", validateUser, async (req, res) => {
 
 router.get("/import_chats_from_v3", validateUser, async (req, res) => {
   try {
-    const chatData = await query(`SELECT * FROM chats`, []);
+    const inboxAccess = require('../modules/platform/team-inbox-scope');
+    const inboxScope = await inboxAccess.resolveInboxScope(query, req.decode.userData, 'get_chat_list');
+    if (
+      req.decode.role === 'agent' ||
+      req.decode.userData?.role === 'agent' ||
+      (inboxScope.canonical && inboxScope.ctx.membership.role !== 'owner')
+    ) {
+      return res.status(403).json({ success: false, code: 'INBOX_IMPORT_OWNER_REQUIRED' });
+    }
+
+    const chatData = await query(`SELECT * FROM chats WHERE uid = ?`, [inboxScope.uid]);
     if (chatData?.length < 1) {
       return res.json({
         msg: "We could not find any chat list in older version, Please click Cancel icon to delete the [Import chats] button",

@@ -111,6 +111,25 @@ test('agent time tracking accepts only short updates for the authenticated agent
   assert.match(route, /UPDATE agents SET logs = \? WHERE uid = \? AND owner_uid = \?/);
 });
 
+test('legacy V3 Inbox import is owner-only and tenant-scoped through migration deduplication', () => {
+  const inbox = read('routes/inbox.js');
+  const start = inbox.indexOf('router.get("/import_chats_from_v3", validateUser, async (req, res) => {');
+  const end = inbox.indexOf('\nmodule.exports = router;', start);
+  assert.ok(start >= 0 && end > start);
+  const route = inbox.slice(start, end);
+  assert.match(route, /resolveInboxScope\(query, req\.decode\.userData, 'get_chat_list'\)/);
+  assert.match(route, /INBOX_IMPORT_OWNER_REQUIRED/);
+  assert.match(route, /SELECT \* FROM chats WHERE uid = \?/);
+  assert.match(route, /importChatsFromv3\(\{ chatData \}\)/);
+  assert.doesNotMatch(route, /SELECT \* FROM chats`/);
+
+  const functions = read('functions/function.js');
+  const importStart = functions.indexOf('async function importChatsFromv3(');
+  const importEnd = functions.indexOf('\nasync function saveMessageToConversation(', importStart);
+  assert.ok(importStart >= 0 && importEnd > importStart);
+  assert.match(functions.slice(importStart, importEnd), /`meta_\$\{chat\.sender_mobile\}_\$\{chat\.uid\}`/);
+});
+
 test('manual Meta connection subscribes its WABA to the 7Network app', () => {
   const user = read('routes/user.js');
   const start = user.indexOf('router.post("/update_meta"');
