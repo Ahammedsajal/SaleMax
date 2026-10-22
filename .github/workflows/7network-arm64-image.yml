@@ -93,7 +93,7 @@ jobs:
             echo "- Image ID: \`${image_id}\`"
             echo "- Uncompressed image size: ${size_bytes} bytes"
             echo "- Root filesystem layers: ${layer_count}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Smoke test ARM64 native runtime as non-root
         run: |

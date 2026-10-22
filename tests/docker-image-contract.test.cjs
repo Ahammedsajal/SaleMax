@@ -76,7 +76,7 @@ test('ARM64 image CI is unprivileged and trusted publish accepts only its succes
   assert.match(imageWorkflow, /VCS_REF=\$\{\{ github\.sha \}\}/);
   assert.match(imageWorkflow, /Report exact ARM64 image size and layers/);
   assert.match(imageWorkflow, /docker image inspect .*\.Id.*\.Size.*RootFS\.Layers/);
-  assert.match(imageWorkflow, /GITHUB_STEP_SUMMARY/);
+  assert.match(imageWorkflow, /tee -a "\$GITHUB_STEP_SUMMARY"/);
   assert.match(imageWorkflow, /node --test tests\/docker-image-contract\.test\.cjs tests\/graceful-shutdown\.test\.cjs/);
   assert.match(imageWorkflow, /deploy\/verify-container-runtime\.cjs/);
   assert.match(imageWorkflow, /dst=\/app\/verify-container-runtime\.cjs,readonly/);
