@@ -82,10 +82,10 @@ jobs:
       - name: Smoke test ARM64 native runtime as non-root
         run: |
           docker run --rm --platform linux/arm64 \
-            --mount "type=bind,src=${GITHUB_WORKSPACE}/deploy/verify-container-runtime.cjs,dst=/tmp/verify-container-runtime.cjs,readonly" \
+            --mount "type=bind,src=${GITHUB_WORKSPACE}/deploy/verify-container-runtime.cjs,dst=/app/verify-container-runtime.cjs,readonly" \
             --entrypoint node \
             "${IMAGE_NAME}:ci-${GITHUB_SHA}" \
-            /tmp/verify-container-runtime.cjs
+            /app/verify-container-runtime.cjs
 
       - name: Upload the tested image for trusted publication
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

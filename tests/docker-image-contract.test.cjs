@@ -67,6 +67,8 @@ test('ARM64 image CI is unprivileged and trusted publish accepts only its succes
   assert.match(imageWorkflow, /outputs: type=docker,dest=\/tmp\/7network-arm64-image\.tar/);
   assert.match(imageWorkflow, /VCS_REF=\$\{\{ github\.sha \}\}/);
   assert.match(imageWorkflow, /deploy\/verify-container-runtime\.cjs/);
+  assert.match(imageWorkflow, /dst=\/app\/verify-container-runtime\.cjs,readonly/);
+  assert.ok(imageWorkflow.includes('/app/verify-container-runtime.cjs'));
   assert.match(imageWorkflow, /actions\/upload-artifact@/);
   assert.doesNotMatch(imageWorkflow, /packages: write|docker\/login-action@|secrets\.GITHUB_TOKEN/,
     'pull request build must have no registry write credentials');
