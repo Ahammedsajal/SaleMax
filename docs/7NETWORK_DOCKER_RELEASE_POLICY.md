@@ -14,7 +14,7 @@
 ## Shared production deployment lock
 
 - Every production mutation must run inside one process holding `/opt/salemax/shared/7network-production-deploy.lock` from the start of preflight through verification and any rollback. The lock is an OS-level `flock`; the file's existence alone is not mutual exclusion.
-- `deploy/with-production-lock.sh` is a synchronous wrapper. It refuses to run without `flock`, acquires the shared lock non-blocking, resolves `/opt/salemax/current` only after acquisition, requires the target to remain beneath `/opt/salemax/releases/`, and exports `SALEMAX_ACTIVE_RELEASE_BEFORE` for the operation.
+- `deploy/with-production-lock.sh` is a synchronous wrapper. It refuses to run without `flock`, creates a missing lock file exclusively with a restrictive umask, rejects symlink and non-regular lock paths, acquires the shared lock non-blocking, resolves `/opt/salemax/current` only after acquisition, requires the target to remain beneath `/opt/salemax/releases/`, and exports `SALEMAX_ACTIVE_RELEASE_BEFORE` for the operation. Concurrent first runs converge on the same lock inode; they do not replace or unlink it.
 - Pass one command or script that performs the complete preflight/migration/deploy/verify/rollback sequence. Do not split a production mutation across independent SSH calls, background the operation, unlink or replace the lock file, or bypass the wrapper. Other chats and operators must use the same exact path and locking semantics.
 
 Example from an authorized SSH session:

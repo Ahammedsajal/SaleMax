@@ -113,6 +113,9 @@ test('both Node server entrypoints use the bounded graceful shutdown coordinator
 
 test('production lock wrapper acquires the shared flock before re-resolving current', () => {
   assert.match(lockScript, /\/opt\/salemax\/shared\/7network-production-deploy\.lock/);
+  assert.match(lockScript, /set -C; : > "\$LOCK_FILE"/);
+  assert.match(lockScript, /\[ -L "\$LOCK_FILE" \]/);
+  assert.match(lockScript, /\[ ! -f "\$LOCK_FILE" \]/);
   const acquire = lockScript.indexOf('flock -n -E 75 9');
   const resolve = lockScript.indexOf('readlink -f "$CURRENT_LINK"');
   assert.ok(acquire >= 0 && resolve > acquire);
@@ -121,6 +124,63 @@ test('production lock wrapper acquires the shared flock before re-resolving curr
   assert.match(lockScript, /cd "\$active_release"/);
   assert.match(lockScript, /if "\$@"; then/);
   assert.match(lockScript, /Another 7Network production operation holds the deployment lock/);
+});
+
+test('production lock wrapper holds the shared OS lock for its synchronous command', async (t) => {
+  const hasFlock = spawnSync('sh', ['-c', 'command -v flock >/dev/null 2>&1'], { encoding: 'utf8' }).status === 0;
+  if (!hasFlock) return t.skip('flock is unavailable on this host');
+
+  const os = require('node:os');
+  const { spawn } = require('node:child_process');
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), '7network-lock-contract-'));
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+
+  const releaseRoot = path.join(tempRoot, 'releases');
+  const active = path.join(releaseRoot, 'release-a');
+  const shared = path.join(tempRoot, 'shared');
+  const current = path.join(tempRoot, 'current');
+  const lockFile = path.join(shared, '7network-production-deploy.lock');
+  fs.mkdirSync(active, { recursive: true });
+  fs.mkdirSync(shared);
+  fs.symlinkSync(active, current);
+
+  const script = lockScript
+    .replace('/opt/salemax/shared/7network-production-deploy.lock', lockFile)
+    .replace('/opt/salemax/current', current)
+    .replace('/opt/salemax/releases/', `${releaseRoot}/`);
+  const isolatedScript = path.join(tempRoot, 'with-production-lock.sh');
+  fs.writeFileSync(isolatedScript, script, { mode: 0o700 });
+
+  const command = `
+    test "$SALEMAX_DEPLOY_LOCK_HELD" = 1
+    test "$SALEMAX_ACTIVE_RELEASE_BEFORE" = "${active}"
+    test "$PWD" = "${active}"
+    sleep 1
+    if flock -n -E 75 "${lockFile}" true; then exit 90; else status=$?; fi
+    test "$status" -eq 75
+  `;
+  const runWrapper = () => new Promise((resolve, reject) => {
+    const child = spawn('sh', [isolatedScript, 'sh', '-c', command], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+    child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+    child.once('error', reject);
+    child.once('close', (code, signal) => resolve({ code, signal, stdout, stderr }));
+  });
+  const outcomes = await Promise.all([runWrapper(), runWrapper()]);
+  assert.deepEqual(outcomes.map(({ code }) => code).sort((a, b) => a - b), [0, 75],
+    outcomes.map(({ stderr, stdout }) => stderr || stdout).join('\n'));
+  assert.match(outcomes.find(({ code }) => code === 0).stdout, /Production lock acquired/);
+  assert.equal(fs.statSync(lockFile).mode & 0o777, 0o600);
+
+  fs.unlinkSync(lockFile);
+  const symlinkTarget = path.join(tempRoot, 'real-lock-target');
+  fs.writeFileSync(symlinkTarget, '');
+  fs.symlinkSync(symlinkTarget, lockFile);
+  const symlinkAttempt = spawnSync('sh', [isolatedScript, 'true'], { encoding: 'utf8' });
+  assert.equal(symlinkAttempt.status, 73, symlinkAttempt.stderr || symlinkAttempt.stdout);
+  assert.match(symlinkAttempt.stderr, /must not be a symlink/);
 });
 
 test('ARM64 runtime smoke exercises all native packages and rejects root', () => {

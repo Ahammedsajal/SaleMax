@@ -16,6 +16,26 @@ command -v flock >/dev/null 2>&1 || {
 }
 
 umask 077
+
+# The lock file may not exist yet on an older host. Create it exclusively so
+# simultaneous first runs converge on the same inode instead of truncating or
+# replacing each other's lock. Never follow a pre-existing symlink or lock a
+# special file.
+if [ -L "$LOCK_FILE" ]; then
+  echo "The shared production deployment lock must not be a symlink" >&2
+  exit 73
+fi
+if [ ! -e "$LOCK_FILE" ]; then
+  if ! (set -C; : > "$LOCK_FILE") 2>/dev/null && [ ! -e "$LOCK_FILE" ]; then
+    echo "Cannot create the shared production deployment lock" >&2
+    exit 73
+  fi
+fi
+if [ -L "$LOCK_FILE" ] || [ ! -f "$LOCK_FILE" ]; then
+  echo "The shared production deployment lock must be a regular file" >&2
+  exit 73
+fi
+
 if ! { exec 9>>"$LOCK_FILE"; } 2>/dev/null; then
   echo "Cannot open the shared production deployment lock" >&2
   exit 73
