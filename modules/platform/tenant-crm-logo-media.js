@@ -88,6 +88,16 @@ async function openManaged(url, tenantId, options = {}) {
   if (!contentType) return null;
   const storage = createStorage(options);
   const opened = await storage.openRead(key);
+  const body = opened?.body;
+  const contentLength = opened?.contentLength;
+  if (!body || typeof body[Symbol.asyncIterator] !== 'function' || !Number.isSafeInteger(contentLength) || contentLength < 8) {
+    body?.destroy?.();
+    fail('CRM_LOGO_STORAGE_UNAVAILABLE', 503);
+  }
+  if (contentLength > MAX_LOGO_BYTES) {
+    body.destroy?.();
+    fail('STORED_OBJECT_TOO_LARGE', 413);
+  }
   return { ...opened, key, contentType };
 }
 

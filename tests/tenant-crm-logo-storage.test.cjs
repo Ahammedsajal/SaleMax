@@ -69,6 +69,29 @@ test('tenant CRM logo adapter uses its independent S3 namespace and streams priv
   assert.equal(await logos.removeManaged(stored.url, tenantId, options), true);
 });
 
+test('tenant CRM logo reads reject oversized objects before streaming them', async t => {
+  const f = await fixture(t);
+  const env = { SALEMAX_TENANT_CRM_LOGOS_STORAGE_DRIVER: 's3' };
+  let oversizedBody;
+  const createStore = () => ({
+    async openRead() {
+      oversizedBody = Readable.from([Buffer.alloc(logos.MAX_LOGO_BYTES + 1)]);
+      return { body: oversizedBody, contentLength: logos.MAX_LOGO_BYTES + 1 };
+    }
+  });
+  const url = `/api/crm/logos/${tenantId}/33333333-3333-4333-8333-333333333333.png`;
+  await assert.rejects(logos.openManaged(url, tenantId, { env, createStore }), { code: 'STORED_OBJECT_TOO_LARGE', status: 413 });
+  assert.equal(oversizedBody.destroyed, true);
+});
+
+test('tenant CRM logo reads reject missing, invalid, or incomplete storage metadata', async t => {
+  const env = { SALEMAX_TENANT_CRM_LOGOS_STORAGE_DRIVER: 's3' };
+  const url = `/api/crm/logos/${tenantId}/33333333-3333-4333-8333-333333333333.png`;
+  for (const opened of [null, { body: Readable.from([]) }, { body: Readable.from([]), contentLength: NaN }, { body: Buffer.alloc(8), contentLength: 8 }, { body: Readable.from([]), contentLength: 7 }]) {
+    await assert.rejects(logos.openManaged(url, tenantId, { env, createStore: () => ({ async openRead() { return opened; } }) }), { code: 'CRM_LOGO_STORAGE_UNAVAILABLE', status: 503 });
+  }
+});
+
 test('invalid tenant CRM logo content is rejected and temporary upload is removed', async t => {
   const f = await fixture(t);
   const badPath = path.join(path.dirname(f.tempFilePath), 'bad.tmp');
