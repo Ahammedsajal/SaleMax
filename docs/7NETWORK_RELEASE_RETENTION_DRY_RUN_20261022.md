@@ -158,3 +158,16 @@ The excluded releases remain on production. Private/runtime data or symlink refe
 ## Approval and execution conditions
 
 Removing these release directories is irreversible and bypasses Trash. No deletion, image removal, cache prune, volume action, migration, or service change has occurred. If approved, the operator must rerun the entire reference and content scan inside one continuous shared-lock process immediately before deletion, confirm the allowlist hash is unchanged, confirm the active release and services are unchanged, and remove only these exact paths. Any changed reference, path, file type, mount, process handle, or hash cancels the cleanup. The protected exclusions, all images, all rollback snapshots, current release, volumes, logs, and customer data stay outside the allowlist.
+
+## Current candidate recheck — 22 October 2026, 13:29 UTC
+
+The prior allowlist was rechecked under the shared deployment lock against the active release, current operations and `origin/main` deployment ledgers, current running-container mounts, process file descriptors, rollback/build snapshot metadata, symlink/private-runtime/special-file checks, file-size checks, and the known public-logo checksum. Active release re-resolved to `/opt/salemax/releases/7network-lead-report-agent-collation-c5cfecfb-20261022`; the release tree contained 585 directories. The scan checked 1,266 small release/reference/rollback metadata files. It found six candidate names referenced by rollback metadata and one deployment-ledger reference (the ledger reference overlaps one of the six):
+
+- `chatbot-faq-library-3ba9cc2-20261012`
+- `chatbot-guided-domain-20261004`
+- `guided-wording-7db1cad-20261011`
+- `inbox-bot-picker-copy2-138769f-20261012`
+- `optional-integrations-df424af`
+- `training-finance-1a5dcec`
+
+The current rechecked set is exactly the previous 111 proposed paths above minus those six protected paths: 105 directories, sorted-basename allowlist SHA-256 `e9922e8590fc03aa2f9051c32115c0e2bc7808c97aa793f61a1e71c508614ad0`. Estimated exclusively allocated blocks are 2,631,860,224 bytes (2.45 GiB), subject to filesystem changes. At the measured 2.0 GiB free, that would leave about 4.45 GiB free and roughly 91% root use, still above the 5 GiB / 90% monitor thresholds. The new allowlist remains a dry-run artifact, not deletion authorization; immediately before any approved cleanup, repeat the complete scan under one lock and require the active release, path set, and hash to match.
