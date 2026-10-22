@@ -1,3 +1,7 @@
+## Versioned task adapter registry contract — source integration, 22 October 2026
+
+The shared category registry now validates each optional `taskAdapters` manifest entry against the reviewed adapter key/version catalogue, requires its adapter capabilities in the category contract, and copies the map into an immutable manifest. This supports the Inbox follow-up task adapter integration merged to `main` while keeping task types pinned by category version. Registry and Inbox follow-up focused tests pass 9/9. The category workflow owner is adding the Training Center and 7Network Sales v1 declarations; until those declarations are integrated and the combined task suite passes, task adapter adoption and Sales scheduled-call preservation remain an open integration gate. No migration or production state changed in this increment.
+
 ## Legacy Sales task category alias — source increment, 22 October 2026
 
 Shared task creation and filtering now recognize the preserved `salemax_sales` alias through the category registry matcher, so the scheduled Sales call task type remains available for historical Sales memberships while other categories continue to be denied. The focused task suite passes 28/28, including the existing-shell contract after its assertions were updated to the current drawer geometry and task labels. Syntax and whitespace checks pass. No migration, customer data or production state changed; authenticated live acceptance and deployment remain open.

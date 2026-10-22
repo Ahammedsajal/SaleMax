@@ -3,6 +3,20 @@
 // Registries are assembled at boot from reviewed source, never tenant input.
 function createCategoryRegistry(definitions, knownCapabilities) {
   const invalid = () => { throw Object.assign(new Error('INVALID_CATEGORY_MANIFEST'), { code: 'INVALID_CATEGORY_MANIFEST' }); };
+  function copyTaskAdapters(value, categoryCapabilities) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) invalid();
+    const entries = Object.entries(value);
+    if (entries.length > 16) invalid();
+    const known = new Map(require('./task-type-adapters').knownAdapters().map(adapter => [`${adapter.key}@${adapter.version}`, adapter]));
+    const result = {};
+    for (const [key, version] of entries.sort(([left],[right]) => left.localeCompare(right))) {
+      if (!/^[a-z][a-z0-9_]{1,63}$/.test(key) || !Number.isSafeInteger(version) || version < 1) invalid();
+      const adapter = known.get(`${key}@${version}`);
+      if (!adapter || adapter.requiredCapabilities.some(capability => !categoryCapabilities.includes(capability))) invalid();
+      result[key] = version;
+    }
+    return Object.freeze(result);
+  }
   function copyCustomizationDefaults(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) invalid();
     let bytes;
@@ -40,6 +54,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       || (source.chatbotLeadCapture==='training'&&(!source.capabilities.includes('crm.leads')||!source.capabilities.includes('training.courses')))
       || (source.customizationDefaults !== undefined && !source.capabilities.includes('tenant.settings'))
       || typeof source.migration !== 'string' || !/^\d{8}_[a-z0-9_]+\.sql$/.test(source.migration)) invalid();
+    const taskAdapters = source.taskAdapters === undefined ? undefined : copyTaskAdapters(source.taskAdapters, source.capabilities);
     const id = `${source.key}@${source.version}`;
     if (entries.has(id)) invalid();
     // Copy owned data before freezing: callers cannot mutate a retained input.
@@ -48,6 +63,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       public: source.public, ...(source.planable === undefined ? {} : { planable: source.planable }),
       ...(source.catalogue===undefined?{}:{catalogue:source.catalogue}),
       ...(source.customizationDefaults===undefined?{}:{customizationDefaults:copyCustomizationDefaults(source.customizationDefaults)}),
+      ...(taskAdapters===undefined?{}:{taskAdapters}),
       chatbotLeadCapture: source.chatbotLeadCapture || 'none',
       capabilities: Object.freeze([...source.capabilities]), seatRoles: Object.freeze([...source.seatRoles]), migration: source.migration });
     entries.set(id, manifest);

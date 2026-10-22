@@ -52,3 +52,16 @@ test('registry carries bounded immutable category customization defaults into th
     assert.throws(()=>createCategoryRegistry([{...trainingCenter,customizationDefaults}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
   assert.throws(()=>createCategoryRegistry([{...trainingCenter,capabilities:trainingCenter.capabilities.filter(key=>key!=='tenant.settings'),customizationDefaults:defaults}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
 });
+
+test('registry accepts only known versioned task adapters with their required category capabilities',()=>{
+  const input={...trainingCenter,taskAdapters:{enrollment:1,invoice_follow_up:1}};
+  const category=createCategoryRegistry([input],capabilities).get('training_center',1);
+  assert.deepEqual(category.taskAdapters,{enrollment:1,invoice_follow_up:1});
+  assert.equal(Object.isFrozen(category.taskAdapters),true);
+  input.taskAdapters.enrollment=2;
+  assert.equal(category.taskAdapters.enrollment,1);
+  for(const taskAdapters of [{unknown:1},{enrollment:2},{'bad-key':1},{enrollment:0},[],null,'enrollment'])
+    assert.throws(()=>createCategoryRegistry([{...trainingCenter,taskAdapters}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
+  const withoutEnrollment={...trainingCenter,capabilities:trainingCenter.capabilities.filter(key=>key!=='training.enrollments'),taskAdapters:{enrollment:1}};
+  assert.throws(()=>createCategoryRegistry([withoutEnrollment],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
+});
