@@ -147,10 +147,17 @@ changes, and omits an unchanged list so category provenance is retained. The
 existing Pipeline manual lead capture reads the merged tenant/category
 contract; the existing Forms editor can select fields from that same contract
 and continues pinning a published form's version. An explicit tenant empty
-list replaces category defaults. Current registry categories do not yet
-declare category customization defaults, so current tenants continue to
-inherit the platform navigation contract. Pipeline stages, workers and
-unrelated settings consumers have not adopted this resolver.
+list replaces category defaults. Current tenants without declared category
+customization defaults continue to inherit platform behavior. Schema version 4
+adds `stageLabels`, a map keyed by the stable `pipeline_stages.stage_key` whose
+values are bilingual `{ "en": "...", "ar": "..." }` display labels. The
+Pipeline renders the effective tenant label first, then its existing Arabic
+fallback, then the stored stage title. This value does not alter stage identity,
+type, transitions, automation, authorization or stored tenant titles. Category
+defaults and tenant overrides use the same shape; tenant labels override
+category-version labels, which override platform fallback. The owner
+customization screen edits labels declared by the category contract. Unmapped
+stage keys continue to use the current stage title.
 
 ## Extensibility and domain boundaries
 
