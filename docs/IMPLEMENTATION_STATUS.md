@@ -35,11 +35,16 @@ UUID lead ID into `sx_report_lead_scope`. Read-only schema metadata confirms
 `pipeline_leads.id` is `CHAR(36)`; the helper declared this temporary key as
 `BIGINT UNSIGNED`. Source now declares it as `CHAR(36) CHARACTER SET utf8mb4
 COLLATE utf8mb4_general_ci`, matching the live lead ID, with a focused SQL
-shape regression assertion. The report test file passes 12/12. This fix has not
-been deployed or tested again against MariaDB; the previously observed
-collation failure remains an open gate after the type mismatch is removed.
-The probe transaction was rolled back and its temporary tables were dropped;
-no persistent table or customer row was changed.
+shape regression assertion. The report test file passes 12/12. The fix is now
+deployed in app-only release
+`/opt/salemax/releases/7network-lead-report-uuid-cb38aaac-20261022`; runtime
+and release helper hashes match. App health and public health/login endpoints
+pass, while the reloaded signed-in Lead Reports screen still fails with
+`ER_CANT_AGGREGATE_2COLLATIONS`. A synthetic-UID report call without a matching
+lead completes all 11 queries, so this evidence does not identify the
+remaining data-dependent collation error. No migration or persistent row
+change occurred; see `DEPLOYMENT.md` for the rollback reference and release
+verification. The module remains unaccepted.
 
 ## Generic Forms staff replay scope — source increment, 22 October 2026
 
