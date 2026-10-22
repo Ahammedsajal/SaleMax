@@ -1862,3 +1862,24 @@ automated adoption, new vertical workflows and full live acceptance remain open.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+## Multi-instance scale readiness audit — 22 October 2026
+
+The active app has canonical token sessions in MariaDB, but its live QR
+credential mode is `local`; channel connections are held in process memory and
+Socket.IO has no shared adapter. Media/session bind mounts point to the host's
+local ext4 root. Several app-started schedulers use only process-local guards;
+campaign and CRM account-sync loops have no cross-process database claim in the
+active source. Task, report-delivery and recruitment notification queues do
+use transactional row claims/leases, and Asterisk events use a MariaDB lock.
+
+Production was inspected read-only. The app reports two live QR connections;
+`/app/conversations/inbox` is absent from the active container, so the legacy
+JSON fallback is not currently present there. The active release and domain
+checks remain as recorded in `DEPLOYMENT.md`; no code, data, worker or
+configuration changed during this audit. Metadata-only file inventory found
+8,243 local QR session files and active media stores on ext4. Private
+`SALEMAX_PAYMENT_PROOF_ROOT` is unset. Seven-day host `sysstat` averages, the
+missing host disk alert timer, and the pre-scale gates are recorded in
+`docs/7NETWORK_SCALE_READINESS.md`. Horizontal scaling remains explicitly
+gated until shared storage, channel ownership, socket fanout, scheduler claims,
+cross-instance tests, database recovery and operator-visible alerts are proven.
