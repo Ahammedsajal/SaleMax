@@ -221,11 +221,11 @@ router.get("/get_all", validateUser, async (req, res) => {
   try {
     if(req.agentWorkspace){
       const ctx=req.featureSession.context;
-      const rows=await query('SELECT instance.id AS instanceId,instance.uniqueId,instance.title,instance.number,instance.status FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=?',[req.owner.uid,ctx.tenant.id,ctx.membership.id]);
+      const rows=await query('SELECT instance.id AS instanceId,instance.uniqueId,instance.title,instance.number,instance.status,instance.qr FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=?',[req.owner.uid,ctx.tenant.id,ctx.membership.id]);
       const scoped={sharedQrInstances:rows};
       const own=await query('SELECT instance.id FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=? AND share.granted_by_identity_id=?',[req.owner.uid,ctx.tenant.id,ctx.membership.id,ctx.identity.id]);
       const owned=new Set(own.map(row=>Number(row.id)));
-      return res.json({success:true,data:(scoped.sharedQrInstances||[]).map(row=>({id:Number(row.instanceId),uniqueId:row.uniqueId,title:row.title,number:normalizeNumber(row.number),status:row.status,sharedAccess:!owned.has(Number(row.instanceId))}))});
+      return res.json({success:true,data:(scoped.sharedQrInstances||[]).map(row=>({id:Number(row.instanceId),uniqueId:row.uniqueId,title:row.title,number:normalizeNumber(row.number),status:row.status,qr:owned.has(Number(row.instanceId))?row.qr:null,sharedAccess:!owned.has(Number(row.instanceId))}))});
     }
     const inboxScope = await require('../modules/platform/team-inbox-scope')
       .resolveInboxScope(query, req.decode.userData, 'get_chat_list');

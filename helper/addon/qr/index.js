@@ -690,8 +690,9 @@ const createSession = async (
           try {
             const qrCodeImage = await toDataURL(qr);
             try {
-              await query("UPDATE instance SET qr = ? WHERE uniqueId = ?", [
+              await query("UPDATE instance SET qr = ?, status = ? WHERE uniqueId = ?", [
                 qrCodeImage,
+                "GENERATING",
                 sessionId,
               ]);
             } catch (error) {
