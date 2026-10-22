@@ -2146,3 +2146,17 @@ syntax and whitespace checks pass. Source only, no production release or custome
 The existing authenticated `/user` shell now has a private Retail inventory route and tenant-scoped API for locations, stock balances, audited adjustments and movement history. The forward migration binds tenant, location, product and actor identities; optimistic revisions and idempotency protect concurrent/retried adjustments, and negative balances are rejected. Retail remains private and non-planable.
 
 The related category, API, screen and existing-shell regression set passes 55/55; a disposable MySQL run passes nine integration checks. No production upload, migration or customer-data change occurred. Authenticated English/Arabic browser acceptance remains open. Product variants, suppliers, purchasing, POS, automatic decrement and supermarket workflows remain open, as do the broader category-isolation, provider, finance, load/restore and release gates.
+
+## Meta access-token masking hook — source update, 22 October 2026
+
+The existing manual Meta setup screen already has a maintained DOM hook that
+masks the access-token input, including fields rendered after initial page load.
+A comparison of the current active release and local source found the hook file
+was byte-identical in both, but the shared shell loaded the React bundle without
+loading that hook. The existing shell now loads the cache-busted hook before the
+bundle, and its ordering test passes 5/5. The complete current Node suite passes
+1,066/1,087; the 21 remaining failures also reproduce on clean `origin/main`
+(the baseline has 26 failures across 1,045 tests). No production file was
+changed. The Meta screen has not had authenticated visual acceptance, and the
+source branch remains subject to review before a release overlay can be built
+without replacing newer production-only shell content.
