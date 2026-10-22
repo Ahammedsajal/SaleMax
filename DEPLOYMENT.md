@@ -33,6 +33,11 @@
 - Root disk remains at the 90% critical threshold from the 12:11 capacity snapshot. Source monitoring files and synthetic delivery tests exist in the operations branch, but there is currently no runnable release copy or operator destination on the host. Do not install a five-minute timer that can only fail to deliver. The installation gate is an operator-provisioned, owner-only HTTPS alert destination plus an active release containing the reviewed script/unit files; then exercise an explicitly simulated alert and verify operator receipt before claiming monitoring is active.
 - Read-only only: no systemd unit, file, alert destination, release, service, database, or customer data changed; no migration or rollback applies.
 
+## Capacity monitor service-health extension — source only, 22 October 2026
+
+- Source commit `382895cc4b30c4e75d24965442ecbded5a547091` extends the tracked capacity monitor to treat a missing app/database/worker container or unhealthy app/database check as a critical transition, include the affected fixed service names in the alert, deduplicate by severity plus health state, and report service recovery even while disk remains critical. Existing severity-only state files remain readable without duplicate alerts. Twelve focused monitor tests pass; hosted ARM64 run [39777107090](https://github.com/Ahammedsajal/SaleMax/actions/runs/39777107090) passed the Docker contract suite, ARM64 image build, and non-root smoke. Its tested-image upload step was skipped for this non-main dispatch.
+- This remains source-only. Production still has no monitor script/unit, no owner-provisioned webhook, and no delivery verification. Worker checks establish running-container presence only; detailed worker readiness and image/release growth monitoring remain open. No production file, service, alert, customer data, or migration changed; no rollback applies.
+
 ## Cross-origin API preflight follow-up — read-only, 22 October 2026
 
 - At 10:51 UTC, unauthenticated `OPTIONS` requests to `/api/user/training/tasks` from both `https://7network.live` and `https://crm.salemax.qa`, sent to both the primary and legacy hosts, returned HTTP 401 without `Access-Control-Allow-*` headers. This confirms that the currently deployed route does not pass a browser CORS preflight; it does not test authenticated API access or prove what other clients require.
