@@ -2131,3 +2131,16 @@ asset versions while incorporating the Inbox follow-up cache bump and request
 header normalization. The combined customization, workspace task router, and
 Inbox follow-up focused suites pass 23/23. No database or production state was
 changed; authenticated acceptance and deployment remain open.
+
+## Tenant customization rendered-browser verification refresh — 22 October 2026
+
+Ran the existing shared sidebar browser fixture (4/4 cases) and tenant
+customization editor fixture (8/8 cases) with the available local Playwright
+runtime. Coverage includes English and Arabic, owner and agent sidebar context,
+tenant-switch isolation, preserved navigation click handlers, 1280px and 390px
+editor viewports, bearer and cookie clients, read-only preview, draft/publish,
+tenant reset to platform labels, historical rollback, and stale-revision errors.
+The API and identities are synthetic in-memory fixtures; this is rendered-screen
+regression evidence, not authenticated production acceptance. No dependency
+manifest, customer setting, database, or production runtime changed. Generic
+Forms adapter code and category approval remain open.
