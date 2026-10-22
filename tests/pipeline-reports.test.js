@@ -115,6 +115,7 @@ test('journey report combines current pipeline stages, period sources and agent 
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_receipts/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_enrollment_events/);
   assert.equal(queries.length,11);
+  assert.match(queries[0],/lead_id CHAR\(36\) CHARACTER SET ascii COLLATE ascii_bin/,'the scoped temp table must match pipeline_leads.id');
   assert.match(queries[2],/l.owner_agent_id IS NOT NULL/);assert.match(queries[2],/qif.id = \?/);
   for(const sql of queries.filter(item=>item.includes('FROM pipeline_stages')||item.includes('GROUP BY l.source_type')||item.includes('AS new_leads')||item.includes('FROM agents a')||item.includes("JSON_EXTRACT(pa.details,'$.stageTo')")))assert.match(sql,/sx_report_lead_scope/);
 });

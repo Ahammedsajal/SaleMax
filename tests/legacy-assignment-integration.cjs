@@ -2,10 +2,14 @@ const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const {assign,state,context,preview}=require('../modules/platform/legacy-plan-assignment');
 module.exports=async(db,other)=>{
-  await db.query('CREATE TABLE user (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),name VARCHAR(999),plan LONGTEXT,plan_expire VARCHAR(999)) ENGINE=InnoDB');
-  await db.query('INSERT INTO user(uid,plan,plan_expire) VALUES (?,?,?)',['synthetic-business','historical malformed snapshot','123']);
+  // The full migration fixture starts from the existing production-style
+  // legacy schema, where `user` already exists. Standalone integration runs
+  // may still provide an empty schema, so create only when needed.
+  await db.query('CREATE TABLE IF NOT EXISTS user (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),name VARCHAR(999),plan LONGTEXT,plan_expire VARCHAR(999)) ENGINE=InnoDB');
+  const syntheticUid='synthetic-business-'+crypto.randomUUID();
+  await db.query('INSERT INTO user(uid,plan,plan_expire) VALUES (?,?,?)',[syntheticUid,'historical malformed snapshot','123']);
   const [[plan]]=await db.query('SELECT id FROM plan LIMIT 1');
-  const [[user]]=await db.query('SELECT * FROM user WHERE uid=?',['synthetic-business']);
+  const [[user]]=await db.query('SELECT * FROM user WHERE uid=?',[syntheticUid]);
   const request={uid:user.uid,plan:{id:plan.id},requestId:crypto.randomUUID(),expectedState:state(user)};
   const details=await context(db,user.id);assert.equal(details.current.valid,false);assert.equal(details.history.length,0);
   const review=await preview(db,'synthetic-admin',request);assert.equal(review.readOnly,true);assert.equal(review.state,request.expectedState);

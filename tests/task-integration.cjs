@@ -9,7 +9,13 @@ const {createTaskRouter}=require('../modules/platform/task-router');
 module.exports=async(db,other,{tenantId,identityId,pool})=>{
   const uid=`synthetic-task-owner-${crypto.randomUUID()}`;
   const uidHash=crypto.createHash('sha256').update(uid).digest('hex');
-  const owner={tenantId,uidHash,uid,role:'owner',actorType:'identity',actorId:identityId};
+  const [[tenant]]=await db.query('SELECT category_key,category_version FROM sx_tenants WHERE id=?',[tenantId]);
+  const category=require('../modules/platform/categories').getCategory(tenant.category_key,Number(tenant.category_version));
+  // This integration exercises task persistence and collaboration. The plan
+  // boundary is covered separately; give this synthetic fixture the exact
+  // category capabilities it needs so a legacy plan fixture cannot mask it.
+  const subscription={status:'active',capabilities:[...category.capabilities]};
+  const owner={tenantId,uidHash,uid,role:'owner',actorType:'identity',actorId:identityId,category,subscription,enabledTaskTypes:null};
   const agentUid=`synthetic-task-agent-${crypto.randomUUID()}`;
   const [agentInsert]=await db.query("INSERT INTO agents(owner_uid,uid,email,password,name,mobile,role,is_active) VALUES(?,?,?,?,?,?,'agent',1)",[uid,agentUid,`${agentUid}@example.invalid`,'synthetic-task-hash','Synthetic Task Agent','00000000']);
   const agentId=Number(agentInsert.insertId);
@@ -40,7 +46,7 @@ module.exports=async(db,other,{tenantId,identityId,pool})=>{
   const taskServer=http.createServer(taskApp);await new Promise((resolve,reject)=>{taskServer.once('error',reject);taskServer.listen(0,'127.0.0.1',resolve);});
   try{
     const taskUrl=`http://127.0.0.1:${taskServer.address().port}/tasks/${created.id}`;
-    const ownerResponse=await fetch(taskUrl);assert.equal(ownerResponse.status,200,'owner can reach task detail through the existing route');
+    const ownerResponse=await fetch(taskUrl),ownerBody=await ownerResponse.json();assert.equal(ownerResponse.status,200,`owner can reach task detail through the existing route: ${JSON.stringify(ownerBody)}`);
     for(const suffix of ['', '/events', '/notifications', '/messages']){
       const response=await fetch(taskUrl+suffix,{headers:{'X-Test-Actor':'outsider'}}),body=await response.json();
       assert.equal(response.status,403,`nonparticipant agent is denied direct ${suffix||'detail'} route access`);

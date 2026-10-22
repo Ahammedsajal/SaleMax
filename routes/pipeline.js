@@ -104,10 +104,16 @@ async function pipelineAuth(req, res, next) {
 
 router.use(pipelineAuth);
 router.use(async(req,res,next)=>{
+ if(process.env.SALEMAX_PLATFORM_ENABLED!=='true')return next();
  if(req.pipelineActor?.role!=='agent')return next();
  try{
   const [rows]=await require('../database/config').promise().query('SELECT * FROM agents WHERE id=?',[req.pipelineActor.agentId]);
   const session=await require('../modules/platform/business-feature-session').resolve(require('../database/config').promise(),{actor:rows[0],agent:true});
+  // Older assigned agents can predate identity/membership adoption. Preserve
+  // their existing staff-form workflow only: trainingForms.staffContext
+  // independently resolves the owner tenant and rechecks category, plan,
+  // agent ownership and active status for every request in this route family.
+  if(!session.context&&rows[0]&&rows[0].role==='agent'&&Number(rows[0].is_active)===1&&rows[0].owner_uid===req.pipelineActor.uid&&/^\/training-forms(?:\/|$)/.test(req.path))return next();
   require('../modules/platform/agent-workspace-access').authorize(req,session);
   req.pipelineActor.canonicalContext=session.context;req.pipelineActor.identityId=session.context.identity.id;req.pipelineActor.membershipId=session.context.membership.id;
   next();
@@ -493,7 +499,7 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
     const input=req.body||{};
     const requestedOwner=input.ownerAgentId===undefined?undefined:(input.ownerAgentId===null||input.ownerAgentId===''?null:Number(input.ownerAgentId));
     const assignmentWillChange=requestedOwner!==undefined&&(requestedOwner===null?req.pipelineLead.owner_agent_id!=null:Number(req.pipelineLead.owner_agent_id)!==requestedOwner);
-    const reminderContext=assignmentWillChange&&requestedOwner!==null
+    const reminderContext=assignmentWillChange&&requestedOwner!==null&&req.pipelineActor.role!=='agent'
       ? await taskContext(req.pipelineActor,'tasks.manage') : null;
     const data = await pipeline.updateLead({
       uid: req.pipelineActor.uid,

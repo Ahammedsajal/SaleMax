@@ -154,6 +154,13 @@ test('task-linked lead context includes scoped activity, conversations and sourc
   assert.equal(calls.length,4);assert.ok(calls.every(c=>c.args[0]===ctx.uidHash));
 });
 
+test('an authorized task participant can read its linked lead even when another agent owns the lead',async()=>{
+  const calls=[],leadId='66666666-6666-4666-8666-666666666667';
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.includes('FROM pipeline_leads l'))return [[{id:leadId,title:'Lead'}],[]];return [[],[]];}};
+  const detail=await tasks._private.taskLeadDetail(db,{...ctx,role:'agent',agentId:8},leadId,{authorizedTaskParticipant:true});
+  assert.equal(detail.id,leadId);assert.doesNotMatch(calls[0].sql,/l\.owner_agent_id=\?/);assert.deepEqual(calls[0].args,[ctx.uidHash,leadId]);
+});
+
 test('task chat opens at the newest page and loads older messages with a precise before cursor',async()=>{
   const calls=[],taskId='77777777-7777-4777-8777-777777777777',task={id:taskId,revision:1,status:'open'};
   const db={query:async(sql,args=[])=>{calls.push([sql,args]);if(sql.includes('FROM sx_tasks'))return [[task],[]];if(sql.includes('FROM sx_task_participants'))return [[{participant_role:'assignee'}],[]];if(sql.includes('m.id<?'))return [[{id:'9007199254740992',senderName:'Amina'},{id:'9007199254740991',senderName:'Amina'}],[]];if(sql.includes('ORDER BY m.id DESC LIMIT'))return [[{id:'9007199254740994',senderName:'Amina'},{id:'9007199254740993',senderName:'Amina'}],[]];return [[],[]];}};
