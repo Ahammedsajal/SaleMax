@@ -6,19 +6,23 @@ const IMAGE_PREFIX = 'ghcr.io/ahammedsajal/salemax@sha256:';
 const SHARED_LOCK_PATH = '/opt/salemax/shared/7network-production-deploy.lock';
 const DIGEST_IMAGE = /^ghcr\.io\/ahammedsajal\/salemax@sha256:[a-f0-9]{64}$/;
 const SERVICES = [
-  ['app', 'SALEMAX_APP_IMAGE_REF'],
-  ['report-worker', 'SALEMAX_REPORT_WORKER_IMAGE_REF'],
-  ['recruitment-founder-notification-worker', 'SALEMAX_RECRUITMENT_WORKER_IMAGE_REF'],
+  ['app', 'SALEMAX_APP_IMAGE_REF', 'SALEMAX_APP_SOURCE_COMMIT'],
+  ['report-worker', 'SALEMAX_REPORT_WORKER_IMAGE_REF', 'SALEMAX_REPORT_WORKER_SOURCE_COMMIT'],
+  ['recruitment-founder-notification-worker', 'SALEMAX_RECRUITMENT_WORKER_IMAGE_REF', 'SALEMAX_RECRUITMENT_WORKER_SOURCE_COMMIT'],
 ];
 
 function resolveServiceImages(env = process.env) {
-  return SERVICES.map(([service, variable]) => {
+  return SERVICES.map(([service, variable, sourceVariable]) => {
     const image = env[variable] || env.SALEMAX_IMAGE_REF;
     if (!image) throw new Error(`${variable} or SALEMAX_IMAGE_REF is required`);
     if (!DIGEST_IMAGE.test(image)) {
       throw new Error(`${variable} must be ${IMAGE_PREFIX}<64 lowercase hex characters>; mutable tags are not deployable`);
     }
-    return { service, variable, image };
+    const expectedRevision = env[sourceVariable] || env.SALEMAX_SOURCE_COMMIT;
+    if (!/^[a-f0-9]{40}$/.test(expectedRevision || '')) {
+      throw new Error(`${sourceVariable} or SALEMAX_SOURCE_COMMIT must name the expected 40-character source commit`);
+    }
+    return { service, variable, sourceVariable, image, expectedRevision };
   });
 }
 
@@ -42,7 +46,7 @@ function assertSharedLockContext(env = process.env, fstat = require('node:fs').f
 }
 
 function inspectPinnedImages(images, run = spawnSync) {
-  return images.map(({ service, image }) => {
+  return images.map(({ service, image, expectedRevision }) => {
     const result = run('docker', [
       'image', 'inspect', image,
       '--format', '{{.Id}}|{{.Os}}/{{.Architecture}}|{{index .Config.Labels "org.opencontainers.image.revision"}}',
@@ -55,6 +59,7 @@ function inspectPinnedImages(images, run = spawnSync) {
     if (!/^sha256:[a-f0-9]{64}$/.test(imageId || '')) throw new Error(`${service}: Docker returned an invalid image ID`);
     if (platform !== 'linux/arm64') throw new Error(`${service}: expected linux/arm64, got ${platform || 'unknown'}`);
     if (!/^[a-f0-9]{40}$/.test(revision || '')) throw new Error(`${service}: image source revision label is missing or invalid`);
+    if (revision !== expectedRevision) throw new Error(`${service}: image source revision ${revision} does not match expected ${expectedRevision}`);
     return { service, image, imageId, revision };
   });
 }

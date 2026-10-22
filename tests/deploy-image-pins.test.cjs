@@ -11,17 +11,21 @@ test('image pins resolve independent service digests and keep legacy common fall
     SALEMAX_APP_IMAGE_REF: digest('a'),
     SALEMAX_REPORT_WORKER_IMAGE_REF: digest('b'),
     SALEMAX_RECRUITMENT_WORKER_IMAGE_REF: digest('c'),
+    SALEMAX_APP_SOURCE_COMMIT: '1'.repeat(40),
+    SALEMAX_REPORT_WORKER_SOURCE_COMMIT: '2'.repeat(40),
+    SALEMAX_RECRUITMENT_WORKER_SOURCE_COMMIT: '3'.repeat(40),
   });
   assert.deepEqual(distinct.map(({ image }) => image), [digest('a'), digest('b'), digest('c')]);
 
-  const legacy = resolveServiceImages({ SALEMAX_IMAGE_REF: digest('d') });
+  const legacy = resolveServiceImages({ SALEMAX_IMAGE_REF: digest('d'), SALEMAX_SOURCE_COMMIT: '4'.repeat(40) });
   assert.deepEqual(legacy.map(({ image }) => image), [digest('d'), digest('d'), digest('d')]);
 });
 
 test('image pin validation rejects missing values, mutable tags, and other registries', () => {
   assert.throws(() => resolveServiceImages({}), /SALEMAX_APP_IMAGE_REF or SALEMAX_IMAGE_REF is required/);
-  assert.throws(() => resolveServiceImages({ SALEMAX_IMAGE_REF: 'salemax-app:latest' }), /mutable tags are not deployable/);
-  assert.throws(() => resolveServiceImages({ SALEMAX_IMAGE_REF: `ghcr.io/ahammedsajal/other@sha256:${'e'.repeat(64)}` }), /mutable tags are not deployable/);
+  assert.throws(() => resolveServiceImages({ SALEMAX_IMAGE_REF: digest('d') }), /SALEMAX_APP_SOURCE_COMMIT or SALEMAX_SOURCE_COMMIT/);
+  assert.throws(() => resolveServiceImages({ SALEMAX_IMAGE_REF: 'salemax-app:latest', SALEMAX_SOURCE_COMMIT: '1'.repeat(40) }), /mutable tags are not deployable/);
+  assert.throws(() => resolveServiceImages({ SALEMAX_IMAGE_REF: `ghcr.io/ahammedsajal/other@sha256:${'e'.repeat(64)}`, SALEMAX_SOURCE_COMMIT: '1'.repeat(40) }), /mutable tags are not deployable/);
 });
 
 test('image verification requires the inherited descriptor to be the shared lock inode', () => {
@@ -34,6 +38,7 @@ test('image verification requires the inherited descriptor to be the shared lock
 
 test('image preflight checks the pulled image identity, ARM64 platform, and source revision label', () => {
   const image = [{ service: 'app', image: digest('f') }];
+  image[0].expectedRevision = '2'.repeat(40);
   const inspect = (_command, args) => {
     assert.deepEqual(args.slice(0, 3), ['image', 'inspect', digest('f')]);
     return { status: 0, stdout: `sha256:${'1'.repeat(64)}|linux/arm64|${'2'.repeat(40)}\n` };
@@ -43,6 +48,7 @@ test('image preflight checks the pulled image identity, ARM64 platform, and sour
   }]);
   assert.throws(() => inspectPinnedImages(image, () => ({ status: 0, stdout: `sha256:${'1'.repeat(64)}|linux/amd64|${'2'.repeat(40)}\n` })), /expected linux\/arm64/);
   assert.throws(() => inspectPinnedImages(image, () => ({ status: 0, stdout: `sha256:${'1'.repeat(64)}|linux/arm64|unknown\n` })), /source revision label/);
+  assert.throws(() => inspectPinnedImages([{ ...image[0], expectedRevision: '3'.repeat(40) }], inspect), /does not match expected/);
 });
 
 test('post-deploy verification matches every running app and worker to its configured digest', () => {
@@ -51,6 +57,7 @@ test('post-deploy verification matches every running app and worker to its confi
     { service: 'report-worker', image: digest('b') },
     { service: 'recruitment-founder-notification-worker', image: digest('c') },
   ];
+  images.forEach((item, index) => { item.expectedRevision = String(index + 1).repeat(40); });
   const inspected = images.map((item, index) => ({
     ...item, imageId: `sha256:${String(index + 1).repeat(64)}`, revision: String(index + 1).repeat(40),
   }));
