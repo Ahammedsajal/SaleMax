@@ -1,3 +1,7 @@
+## Shared Inbox socket and legacy reply tenant scoping — source increment, 22 October 2026
+
+The legacy Meta template reply helper now includes the owner UID in both `chats` updates. Its derived conversation ID can be identical for the same customer phone across tenants, so chat ID alone was insufficient isolation. The focused Meta/inbox source-contract suite passes 8/8; JavaScript syntax and `git diff --check` pass. No migration or production state changed. Remaining legacy socket call sites, exports/media isolation, authenticated acceptance and deployment remain open.
+
 ## Shared Inbox refresh endpoint authorization — source increment, 22 October 2026
 
 The existing inbox root GET was unauthenticated and emitted an `update_conversations` event to a hard-coded account socket. It now passes through the existing user/agent authentication middleware, requires the resolved Inbox read scope, and sends the refresh only to sockets matching the authenticated actor UID. Focused source-contract coverage passes with the existing Meta webhook suite (7/7); syntax and whitespace checks pass. No migration or production state changed. Socket payload authorization, media/export isolation, authenticated screen acceptance and deployment remain open.

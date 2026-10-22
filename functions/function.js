@@ -1517,15 +1517,16 @@ function updateMetaTempletInMsg(uid, savObj, chatId, msgId) {
       const io = getIOInstance();
 
       await query(
-        `UPDATE chats SET last_message_came = ?, last_message = ?, is_opened = ? WHERE chat_id = ?`,
-        [userTimezone, JSON.stringify(savObj), 0, chatId],
+        `UPDATE chats SET last_message_came = ?, last_message = ?, is_opened = ? WHERE chat_id = ? AND uid = ?`,
+        [userTimezone, JSON.stringify(savObj), 0, chatId, uid],
       );
 
       const getId = await query(`SELECT * FROM rooms WHERE uid = ?`, [uid]);
 
-      await query(`UPDATE chats SET is_opened = ? WHERE chat_id = ?`, [
+      await query(`UPDATE chats SET is_opened = ? WHERE chat_id = ? AND uid = ?`, [
         1,
         chatId,
+        uid,
       ]);
 
       const chats = await query(`SELECT * FROM chats WHERE uid = ?`, [uid]);

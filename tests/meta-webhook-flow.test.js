@@ -61,6 +61,18 @@ test('inbox refresh endpoint authenticates and scopes its socket notification to
   assert.doesNotMatch(route, /lWvj6K0xI0FlSKJoyV7ak9DN0mzvKJK8|SELECT \* FROM rooms/);
 });
 
+test('legacy Meta template reply updates are constrained to the owner UID', () => {
+  const functions = read('functions/function.js');
+  const start = functions.indexOf('function updateMetaTempletInMsg(');
+  const end = functions.indexOf('\nfunction ', start + 1);
+  assert.ok(start >= 0 && end > start);
+  const helper = functions.slice(start, end);
+  assert.match(helper, /UPDATE chats SET last_message_came = \?, last_message = \?, is_opened = \? WHERE chat_id = \? AND uid = \?/);
+  assert.match(helper, /\[userTimezone, JSON\.stringify\(savObj\), 0, chatId, uid\]/);
+  assert.match(helper, /UPDATE chats SET is_opened = \? WHERE chat_id = \? AND uid = \?/);
+  assert.match(helper, /\[\s*1,\s*chatId,\s*uid,?\s*\]/);
+});
+
 test('manual Meta connection subscribes its WABA to the 7Network app', () => {
   const user = read('routes/user.js');
   const start = user.indexOf('router.post("/update_meta"');
