@@ -103,6 +103,7 @@ const realEstateOwnerManagerPermissions = Object.freeze([
 // cannot change approval authority defined by the fixed seat-role contract.
 const roleBoundPermissions = Object.freeze({
   'sales.approve': Object.freeze(['owner','manager']),
+  'deals.approve': Object.freeze(['owner','manager']),
   'credits.approve': Object.freeze(['owner']),
   'commission.policy.manage': Object.freeze(['owner']),
   'commission.payout.approve': Object.freeze(['accountant']),

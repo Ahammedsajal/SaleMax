@@ -93,6 +93,7 @@ test('manager receipt authority does not grant credit approval or owner authorit
   assert.equal(decision(c,{capability:'messaging.meta',permission:'channels.configure'}).allowed,true);
 });
 test('custom staff roles cannot elevate approval authority beyond their fixed seat role',()=>{
+  const salesContext=role=>{const c=context(role);c.category=salemaxSales;c.tenant.categoryKey=salemaxSales.key;c.subscription.capabilities=[...salemaxSales.capabilities];return c;};
   const cases=[
     ['agent','training.enrollments','sales.approve'],
     ['team_leader','training.enrollments','sales.approve'],
@@ -102,10 +103,16 @@ test('custom staff roles cannot elevate approval authority beyond their fixed se
     const c=context(role);c.membership.customPermissions=[permission];
     assert.equal(decision(c,{capability,permission}).code,'PERMISSION_DENIED',`${role} must not receive ${permission}`);
   }
+  for(const role of ['agent','team_leader']){
+    const c=salesContext(role);c.membership.customPermissions=['deals.approve'];
+    assert.equal(decision(c,{capability:'sales.deals',permission:'deals.approve'}).code,'PERMISSION_DENIED',`${role} must not receive deals.approve`);
+  }
   const manager=context('manager');manager.membership.customPermissions=['sales.approve'];
   assert.equal(decision(manager,{capability:'training.enrollments',permission:'sales.approve'}).allowed,true);
+  const salesManager={...manager,category:salemaxSales,tenant:{...manager.tenant,categoryKey:salemaxSales.key},subscription:{...manager.subscription,capabilities:[...salemaxSales.capabilities]}};
+  salesManager.membership.customPermissions=['deals.approve'];
+  assert.equal(decision(salesManager,{capability:'sales.deals',permission:'deals.approve'}).allowed,true);
   const accountant=context('accountant');accountant.membership.customPermissions=['commission.payout.approve'];
-  const salesContext=role=>{const c=context(role);c.category=salemaxSales;c.tenant.categoryKey=salemaxSales.key;c.subscription.capabilities=[...salemaxSales.capabilities];return c;};
   for(const [role,permission] of [['manager','commission.policy.manage'],['manager','commission.payout.approve'],['agent','commission.payout.pay']]){
     const c=salesContext(role);c.membership.customPermissions=[permission];
     assert.equal(decision(c,{capability:'sales.commissions',permission}).code,'PERMISSION_DENIED',`${role} must not receive ${permission}`);

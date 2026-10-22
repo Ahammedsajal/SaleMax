@@ -19,6 +19,8 @@ test('team invitation inputs are bounded to tenant staff roles',()=>{
   const {trainingCenter,salemaxSales}=require('../modules/platform/categories');
   assert.ok(!team.permissionsFor('agent',trainingCenter,{capabilities:trainingCenter.capabilities}).includes('sales.approve'));
   assert.ok(!team.permissionsFor('agent',trainingCenter,{capabilities:trainingCenter.capabilities}).includes('credits.approve'));
+  for(const role of ['agent','team_leader'])assert.ok(!team.permissionsFor(role,salemaxSales,{capabilities:salemaxSales.capabilities}).includes('deals.approve'),`${role}:deals.approve`);
+  assert.ok(team.permissionsFor('manager',salemaxSales,{capabilities:salemaxSales.capabilities}).includes('deals.approve'));
   for(const permission of ['commission.policy.manage','commission.payout.approve','commission.payout.pay']){
     assert.ok(!team.permissionsFor('agent',salemaxSales,{capabilities:salemaxSales.capabilities}).includes(permission),permission);
     assert.ok(!team.permissionsFor('manager',salemaxSales,{capabilities:salemaxSales.capabilities}).includes(permission),permission);
