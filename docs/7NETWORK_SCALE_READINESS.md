@@ -2,6 +2,12 @@
 
 This is a read-only operations audit of the SaleMaX/7Network single-server deployment on 22 October 2026. It keeps both earlier measurements and the latest timestamped snapshot below; metrics are point-in-time evidence and do not establish peak capacity. The audit records preconditions for adding application instances; it does not approve a scale-out or change production.
 
+## Release retention reference audit — 22 October 2026, 10:37 UTC
+
+The lock-held dry run resolved the active release as `/opt/salemax/releases/follow-up-message-4f7ed6d-20261022` and read 1,500 rollback metadata files across 415 snapshot directories with no scan errors. It protected every path in the deployment ledger and snapshot metadata, the active release, the six latest verified releases, and any Docker-mounted release. Of 579 release directories, 111 remain as candidates only after excluding 20 paths with private runtime directories or symlinks. Inode-link counts estimate 2.59 GiB of exclusively allocated blocks across those 111 paths. All 112 distinct application image objects remain referenced by the ledger, snapshots, or running containers; no image cleanup is proposed.
+
+No file, image, service, volume, database or customer data was changed. The candidate list and its SHA-256 allowlist are in [`7NETWORK_RELEASE_RETENTION_DRY_RUN_20261022.md`](7NETWORK_RELEASE_RETENTION_DRY_RUN_20261022.md). Deletion bypasses Trash and requires owner confirmation. Even if approved, the estimated free space would reach only about 4.45 GiB and 91% used, still above critical capacity. Do not describe this as capacity recovery until the deletion is explicitly authorized, rechecked under lock, and followed by another live measurement.
+
 ## Fresh disk and Docker footprint snapshot — 22 October 2026, 10:29 UTC
 
 The shared-lock wrapper on `carsqatar-prod-01` re-resolved `/opt/salemax/current` to `/opt/salemax/releases/follow-up-message-4f7ed6d-20261022`. Root filesystem use is 97% (about 1.9 GiB free) and inode use is 23%. Read-only size scans found approximately 16 GiB under `/opt/salemax/releases`, 1.1 GiB under `/opt/salemax/shared`, and 405 MiB under `/var/log`. The host has 579 release directories and 415 rollback snapshot directories.
