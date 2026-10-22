@@ -1871,14 +1871,18 @@ image digest. The shared `flock` production wrapper is tracked but is not
 installed on production. PR #172 remains a draft; its ARM64 build and native
 runtime smoke passed on commit `8b0764d10b1c173ead71e0b3975515be6755b037`.
 
-A fresh read-only production inspection confirms the active release and
-container state, 85% root disk usage with 7.2 GiB free, and separate app versus
-worker image identities. A path/hash comparison found 52 differing tracked
-runtime files and five live-only paths against `origin/main`; the release marker
-(`cf60781`) also disagrees with the latest ledger source (`485c2d01`). The closer
-`rebrand/7network-current-production` ref still differs on 48 files and omits
-four live-only paths. A default-branch image cannot yet represent production
-safely. No registry image was published and no production mutation occurred.
+The read-only production inspection recorded above found 85% root disk usage
+with 7.2 GiB free and separate app versus worker image identities. That snapshot
+predated the later Inbox follow-up release recorded in `DEPLOYMENT.md`; its
+deployment recreated only the app from the previously audited release. Current
+disk/inode usage and app/worker image alignment have not been remeasured. The
+inspection's path/hash comparison found 52 differing tracked runtime files and
+five live-only paths against then-current `origin/main`; the old release marker
+(`cf60781`) also differed from that time's ledger source (`485c2d01`). The
+closer `rebrand/7network-current-production` ref still differed on 48 files and
+omitted four live-only paths. A default-branch image cannot yet represent
+production safely. This operations candidate has not published a registry image
+or changed production.
 
 The source candidate now includes a bounded asynchronous SIGTERM coordinator
 for both Node server entrypoints, Socket.IO close, known child-worker shutdown,
