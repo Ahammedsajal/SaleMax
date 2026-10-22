@@ -6,8 +6,12 @@ function assignments(value) {
   try { const parsed = typeof value === 'string' ? JSON.parse(value) : value; return Array.isArray(parsed) ? parsed : []; }
   catch { return []; }
 }
-function ownsConversation(value, identityId) {
-  return assignments(value).some(item => item?.kind === 'identity' && item.identityId === identityId);
+function ownsConversation(value, identityId, actorUid = null, actorLegacyId = null) {
+  return assignments(value).some(item =>
+    (item?.kind === 'identity' && item.identityId === identityId) ||
+    (actorUid && item?.uid === actorUid) ||
+    (actorLegacyId && Number(item?.id) === Number(actorLegacyId))
+  );
 }
 function permissions(value) {
   try { const parsed = typeof value === 'string' ? JSON.parse(value) : value; return Array.isArray(parsed) && parsed.every(item => typeof item === 'string') ? parsed : []; }
@@ -26,25 +30,12 @@ async function assignConversation(db, { ctx, uid, chatId, identityId, reason = '
   const [[chat]] = await db.query('SELECT assigned_agent,origin,sender_name,sender_mobile FROM beta_chats WHERE uid=? AND chat_id=? FOR UPDATE', [uid, chatId]);
   if (!chat) fail('CONVERSATION_NOT_FOUND');
   const scope = scopeFor(ctx.membership, 'conversations.reply');
-  if (!scope || (scope === 'assigned' && !ownsConversation(chat.assigned_agent, ctx.identity.id))) fail('CONVERSATION_TRANSFER_DENIED');
-  const [targets] = await db.query(`SELECT i.id AS identityId,i.display_name AS name,u.uid,u.id AS legacyId,u.sourceTable,m.role,m.role_profile_id AS roleProfileId,
-      r.permissions AS rolePermissions,r.status AS roleStatus,r.seat_role AS seatRole,o.legacy_uid_hash AS uidHash
-    FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
-    JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table IN ('user','agents')
-    JOIN (SELECT id,uid,'user' AS sourceTable,NULL AS owner_uid FROM user
-      UNION ALL SELECT id,uid,'agents' AS sourceTable,owner_uid FROM agents WHERE is_active=1) u
-      ON u.id=CAST(o.source_id AS UNSIGNED) AND u.sourceTable=o.source_table
-    LEFT JOIN sx_team_roles r ON r.tenant_id=m.tenant_id AND r.id=m.role_profile_id
-    WHERE (u.sourceTable='user' OR u.owner_uid=?) AND m.tenant_id=? AND i.id=? AND m.status='active' AND i.status='active' LIMIT 2`, [uid, ctx.tenant.id, identityId]);
+  if (!scope || (scope === 'assigned' && !ownsConversation(chat.assigned_agent, ctx.identity.id, ctx.actorUid, ctx.actorLegacyId))) fail('CONVERSATION_TRANSFER_DENIED');
+  const targets = (await eligibleStaff(db, ctx.tenant.id)).filter(item => item.identityId === identityId);
   if (targets.length !== 1) fail('CONVERSATION_ASSIGNEE_INVALID');
   const target = targets[0];
-  const membership = { role: target.role };
-  if (target.roleProfileId) {
-    if (target.seatRole !== target.role || !['active', 'archived'].includes(target.roleStatus)) fail('CONVERSATION_ASSIGNEE_INVALID');
-    membership.customPermissions = permissions(target.rolePermissions);
-  }
-  if (!scopeFor(membership, 'conversations.read') || !scopeFor(membership, 'conversations.reply') || target.uidHash !== crypto.createHash('sha256').update(target.uid).digest('hex')) fail('CONVERSATION_ASSIGNEE_INVALID');
-  const assignee = { kind: 'identity', identityId: target.identityId, uid: target.uid, name: target.name };
+  const assignee = { kind: 'identity', identityId: target.identityId, uid: target.uid, name: target.name,
+    ...(target.role === 'agent' && target.sourceTable === 'agents' ? { id: Number(target.legacyId) } : {}) };
   const previous = assignments(chat.assigned_agent);
   let lead=null;
   if(ctx.tenant.categoryKey==='training_center'&&target.role==='agent'&&target.sourceTable==='agents'){
@@ -58,7 +49,7 @@ async function assignConversation(db, { ctx, uid, chatId, identityId, reason = '
 }
 
 async function eligibleStaff(db, tenantId) {
-  const [rows] = await db.query(`SELECT i.id AS identityId,i.display_name AS name,i.email_normalized AS email,u.uid,m.role,m.role_profile_id AS roleProfileId,
+  const [rows] = await db.query(`SELECT i.id AS identityId,i.display_name AS name,i.email_normalized AS email,u.uid,u.id AS legacyId,u.sourceTable,m.id AS membershipId,m.role,m.role_profile_id AS roleProfileId,
       r.permissions AS rolePermissions,r.status AS roleStatus,r.seat_role AS seatRole,o.legacy_uid_hash AS uidHash
     FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
     JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table IN ('user','agents')
@@ -79,7 +70,35 @@ async function eligibleStaff(db, tenantId) {
       member.customPermissions = permissions(row.rolePermissions);
     }
     return Boolean(scopeFor(member, 'conversations.read') && scopeFor(member, 'conversations.reply'));
-  }).map(({ identityId, name, email, uid, role }) => ({ kind: 'identity', identityId, name, email, uid, role }));
+  }).map(({ identityId, name, email, uid, legacyId, sourceTable, membershipId, role }) => ({ kind: 'identity', identityId, name, email, uid, legacyId:Number(legacyId), sourceTable, membershipId, role }));
+}
+
+// Add-agent keeps every existing assignee. Transfers continue to use
+// assignConversation above, which deliberately replaces the assignee list.
+async function addConversationAgent(db, { ctx, uid, chatId, identityId }) {
+  if (!ctx?.tenant?.id || !ctx?.identity?.id || typeof chatId !== 'string' || !chatId || chatId.length > 255) fail('CONVERSATION_ASSIGNMENT_INVALID');
+  const [[owner]] = await db.query(`SELECT u.uid,o.legacy_uid_hash AS uidHash FROM sx_memberships m
+    JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
+    JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED) JOIN sx_identities i ON i.id=m.identity_id
+    WHERE m.tenant_id=? AND m.role='owner' AND m.status='active' AND i.status='active' AND u.uid=? LIMIT 1`, [ctx.tenant.id, uid]);
+  if (!owner || owner.uidHash !== crypto.createHash('sha256').update(uid).digest('hex')) fail('CONVERSATION_OWNER_INVALID');
+  const [[chat]] = await db.query('SELECT assigned_agent,origin,sender_name,sender_mobile FROM beta_chats WHERE uid=? AND chat_id=? FOR UPDATE', [uid, chatId]);
+  if (!chat) fail('CONVERSATION_NOT_FOUND');
+  const scope = scopeFor(ctx.membership, 'conversations.reply');
+  if (!scope || (scope === 'assigned' && !ownsConversation(chat.assigned_agent, ctx.identity.id, ctx.actorUid, ctx.actorLegacyId))) fail('CONVERSATION_TRANSFER_DENIED');
+  const targets = (await eligibleStaff(db, ctx.tenant.id)).filter(item => item.identityId === identityId && item.role === 'agent' && item.sourceTable === 'agents');
+  if (targets.length !== 1) fail('CONVERSATION_ASSIGNEE_INVALID');
+  const target = targets[0];
+  const assignee = { kind: 'identity', identityId: target.identityId, uid: target.uid, name: target.name, id: target.legacyId };
+  const previous = assignments(chat.assigned_agent);
+  const alreadyAssigned = previous.some(item => item?.identityId === target.identityId || item?.uid === target.uid || Number(item?.id) === target.legacyId);
+  if (alreadyAssigned) return { assignee, previous, added: false };
+  const next = [...previous, assignee];
+  await db.query('UPDATE beta_chats SET assigned_agent=? WHERE uid=? AND chat_id=?', [JSON.stringify(next), uid, chatId]);
+  await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+    VALUES (?,?,?,'identity','conversation.agent-added','conversation',?,?,?)`,
+  [crypto.randomUUID(), ctx.tenant.id, ctx.identity.id, chatId, JSON.stringify({ previousIdentityIds: previous.map(item => item.identityId).filter(Boolean), addedIdentityId: target.identityId }), crypto.randomUUID()]);
+  return { assignee, previous, added: true };
 }
 
 function chooseAvailableStaff(staff, connectedUids, chats, fallbackIdentityId) {
@@ -110,4 +129,4 @@ async function routeIncomingConversation(pool, { ctx, profile, uid, chatId, conn
   finally { db.release(); }
 }
 
-module.exports = { assignConversation, assignments, ownsConversation, eligibleStaff, chooseAvailableStaff, routeIncomingConversation };
+module.exports = { assignConversation, addConversationAgent, assignments, ownsConversation, eligibleStaff, chooseAvailableStaff, routeIncomingConversation };
