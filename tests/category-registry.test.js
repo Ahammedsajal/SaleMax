@@ -39,6 +39,7 @@ test('registry rejects duplicate identity, unknown capabilities, invalid roles a
     {qrSharing:{managerAgentScope:'tenant'},capabilities:['messaging.inbox']},
     {qrSharing:{accountantAccess:true},capabilities:['messaging.inbox','messaging.qr']},
     {taskAdapters:{unreviewed_task:1}},{taskAdapters:{enrollment:2}},
+    {inventoryAdapter:'unreviewed'},{inventoryAdapter:'retail_stock_ledger_v1',capabilities:baseCrm.capabilities},{inventoryAdapter:'retail_stock_ledger_v1',catalogue:null},
     {taskAdapters:{enrollment:1},capabilities:trainingCenter.capabilities.filter(key=>key!=='training.enrollments')}]) {
     assert.throws(()=>createCategoryRegistry([{...trainingCenter,...patch}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
   }
@@ -59,4 +60,11 @@ test('a future category can opt into reviewed QR delegation without category-nam
   const manifest=createCategoryRegistry([future],capabilities).get('future_services',1);
   assert.deepEqual(manifest.qrSharing,{managerAgentScope:'tenant',accountantAccess:true});
   assert.equal(manifest.capabilities.includes('messaging.inbox'),true);
+});
+
+test('a future products category can opt into the reviewed retail inventory adapter',()=>{
+  const future={...baseCrm,key:'future_grocery',catalogue:'products',inventoryAdapter:'retail_stock_ledger_v1',capabilities:[...baseCrm.capabilities,'products.catalog','retail.inventory']};
+  const manifest=createCategoryRegistry([future],capabilities).get('future_grocery',1);
+  assert.equal(manifest.inventoryAdapter,'retail_stock_ledger_v1');
+  assert.ok(manifest.capabilities.includes('retail.inventory'));
 });

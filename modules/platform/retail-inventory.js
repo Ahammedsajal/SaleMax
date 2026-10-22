@@ -8,7 +8,7 @@ const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status}
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 function authorize(ctx,permission){
-  if(ctx?.audience!=='tenant'||ctx.tenant?.categoryKey!=='retail_shop'||ctx.tenant?.categoryVersion!==1||ctx.tenant?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant.id||ctx.membership?.status!=='active')fail('CATEGORY_UNAVAILABLE',404);
+  if(ctx?.audience!=='tenant'||ctx.category?.inventoryAdapter!=='retail_stock_ledger_v1'||ctx.tenant?.status!=='active'||ctx.membership?.tenantId!==ctx.tenant.id||ctx.membership?.status!=='active')fail('CATEGORY_UNAVAILABLE',404);
   const access=decision(ctx,{capability:'retail.inventory',permission});
   if(!access.allowed)fail(access.code,access.code==='PERMISSION_DENIED'?403:409);
   return access;

@@ -2251,3 +2251,22 @@ and `git diff --check` passes. This is static-source evidence only: rendered
 authenticated surfaces and a future domain migration remain separate gates.
 No production files, customer records or runtime settings changed; the full
 42-ticket upgrade remains in progress.
+
+## Manifest-owned shared inventory adapter — source update, 22 October 2026
+
+The existing Retail stock ledger selected its service by checking for the
+literal `retail_shop@1` category in authorization code. The immutable category
+registry now allows a reviewed `retail_stock_ledger_v1` adapter only when the
+manifest also declares a product catalogue and the `retail.inventory`
+capability. The service checks that exact adapter and continues to enforce the
+authenticated tenant, active plan, member role and tenant-bound queries. A
+synthetic future grocery category can reuse the stock workflow only by opting
+into that validated contract; another category cannot reach the service by
+changing client input. Category, Retail API, screen, policy, task-contract and
+tenant-customization unit tests pass 45/45; syntax and whitespace checks pass.
+The disposable MariaDB integration
+requires a dedicated test configuration and was not run in this increment.
+Retail remains private and non-planable, and no production release, migration,
+or customer data changed. Supplier, purchasing, POS and supermarket acceptance
+remain open, as do the broader 42-ticket category, tenant-isolation and release
+gates.

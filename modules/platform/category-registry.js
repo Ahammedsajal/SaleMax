@@ -19,6 +19,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       || (source.catalogue!==undefined&&source.catalogue!==null&&!['courses','products'].includes(source.catalogue))
       || (source.catalogue==='courses'&&!source.capabilities.includes('training.courses'))
       || (source.catalogue==='products'&&!source.capabilities.includes('products.catalog'))
+      || (source.inventoryAdapter!==undefined&&(!['retail_stock_ledger_v1'].includes(source.inventoryAdapter)||source.catalogue!=='products'||!source.capabilities.includes('retail.inventory')))
       || (source.chatbotLeadCapture!==undefined&&!['none','generic','training'].includes(source.chatbotLeadCapture))
       || (source.chatbotLeadCapture==='generic'&&!source.capabilities.includes('crm.leads'))
       || (source.chatbotLeadCapture==='training'&&(!source.capabilities.includes('crm.leads')||!source.capabilities.includes('training.courses')))
@@ -40,6 +41,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       title: Object.freeze({ en: source.title.en, ar: source.title.ar }),
       public: source.public, ...(source.planable === undefined ? {} : { planable: source.planable }),
       ...(source.catalogue===undefined?{}:{catalogue:source.catalogue}),
+      ...(source.inventoryAdapter===undefined?{}:{inventoryAdapter:source.inventoryAdapter}),
       chatbotLeadCapture: source.chatbotLeadCapture || 'none',
       taskAdapters:Object.freeze({...source.taskAdapters}),
       taskAssignmentScope:source.taskAssignmentScope||'self',

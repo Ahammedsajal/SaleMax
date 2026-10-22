@@ -6,6 +6,8 @@ const fs=require('node:fs');
 const path=require('node:path');
 const inventory=require('../modules/platform/retail-inventory');
 const categories=require('../modules/platform/categories');
+const {createCategoryRegistry}=require('../modules/platform/category-registry');
+const {capabilities}=require('../modules/platform/policy');
 const {discover}=require('../database/migration-runner');
 
 const tenantId='11111111-1111-4111-8111-111111111111';
@@ -45,6 +47,15 @@ test('inventory reads and adjustments enforce category, plan and role authority'
   const training=categories.trainingCenter;
   assert.throws(()=>inventory.authorize(context('owner',{tenant:{id:tenantId,status:'active',categoryKey:training.key,categoryVersion:1},category:training,subscription:{status:'active',categoryKey:training.key,categoryVersion:1,capabilities:training.capabilities}}),'inventory.read'),{code:'CATEGORY_UNAVAILABLE'});
   assert.throws(()=>inventory.authorize(context('owner',{subscription:{status:'active',categoryKey:retail.key,categoryVersion:1,capabilities:[]}}),'inventory.read'),{code:'FEATURE_UNAVAILABLE'});
+});
+
+test('a reviewed future category can reuse the stock ledger only through its manifest adapter',()=>{
+  const future={...categories.baseCrm,key:'future_grocery',catalogue:'products',inventoryAdapter:'retail_stock_ledger_v1',capabilities:[...categories.baseCrm.capabilities,'products.catalog','retail.inventory']};
+  const manifest=createCategoryRegistry([future],capabilities).get('future_grocery',1);
+  const tenant={id:tenantId,status:'active',categoryKey:manifest.key,categoryVersion:manifest.version};
+  const subscription={status:'active',categoryKey:manifest.key,categoryVersion:manifest.version,capabilities:manifest.capabilities};
+  assert.equal(inventory.authorize(context('owner',{tenant,category:manifest,subscription}),'inventory.adjust').allowed,true);
+  assert.throws(()=>inventory.authorize(context('owner',{tenant,category:{...manifest,inventoryAdapter:undefined},subscription}),'inventory.adjust'),{code:'CATEGORY_UNAVAILABLE'});
 });
 
 test('location creation commits its audit record atomically and rolls back on audit failure',async()=>{
