@@ -1886,10 +1886,15 @@ or changed production.
 
 The source candidate now includes a bounded asynchronous SIGTERM coordinator
 for both Node server entrypoints, Socket.IO close, known child-worker shutdown,
-QR/Telegram cleanup, and matching Compose init/30s grace settings. Fourteen
-focused contract/shutdown checks, a local SIGTERM relay probe, syntax checks,
-Compose/workflow YAML parsing, and whitespace checks pass locally; exact ARM64
-image/runtime CI is rerunning. The implementation uses Node's native one-shot
+QR/Telegram cleanup, and matching Compose init/30s grace settings. The code is
+implemented and pushed on PR #172 at `319caf1ab40ff4c25090b9234eeecfdfb8bad71b`.
+Fourteen focused contract/shutdown checks, a local SIGTERM relay probe, syntax
+checks, Compose/workflow YAML parsing, and whitespace checks pass. GitHub run
+39741798351 built and loaded the exact Linux ARM64 image and passed the
+non-root native runtime smoke, including the synchronized SIGTERM relay probe.
+As a pull-request run it did not upload the image artifact or publish to GHCR.
+This candidate is not deployed; authenticated production and bilingual browser
+acceptance remain outstanding. The implementation uses Node's native one-shot
 signal listeners so cleanup can be awaited before the original signal is
 re-delivered.
 The coordinator does not stop every embedded scheduler or make in-flight
