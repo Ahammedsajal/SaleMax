@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path');
 const [target,source]=process.argv.slice(2);if(!target||!source||path.resolve(target)===path.resolve(source))throw Error('DISTINCT_TARGET_AND_SOURCE_REQUIRED');
-const files=['modules/platform/lead-workspace-contract.js','routes/pipeline.js','client/public/workspace-api.js','client/public/pipeline/workspace-fields.js','client/public/pipeline/lead-fields.js','client/public/pipeline/pipeline.js','client/public/pipeline/timezone-options.js','client/public/pipeline/reports.js','client/public/pipeline/lead-import.js','client/public/pipeline/opening-routing.js'];
+const files=['modules/platform/lead-workspace-contract.js','routes/pipeline.js','client/public/workspace-api.js','client/public/pipeline/workspace-fields.js','client/public/pipeline/lead-fields.js','client/public/pipeline/pipeline.js','client/public/pipeline/timezone-datetime.js','client/public/pipeline/timezone-options.js','client/public/pipeline/reports.js','client/public/pipeline/lead-import.js','client/public/pipeline/opening-routing.js'];
 const htmlPath=path.join(target,'client/public/pipeline/index.html');let html=fs.readFileSync(htmlPath,'utf8');
 if(html.includes('/workspace-api.js?v=20261022-pipeline-shared-client1'))throw Error('PIPELINE_SHARED_CLIENT_OVERLAY_EXISTS');
 const anchor=/<script[^>]+src="\/pipeline\/pipeline\.js(?:\?[^"<>]+)?"[^>]*><\/script>/g;
@@ -15,15 +15,20 @@ const fieldsTag=/<script[^>]+src="\/pipeline\/workspace-fields\.js(?:\?[^"<>]+)?
 const leadFieldsTag=/<script[^>]+src="\/pipeline\/lead-fields\.js(?:\?[^"<>]+)?"[^>]*><\/script>/g;
 if((html.match(leadFieldsTag)||[]).length>1)throw Error('AMBIGUOUS_PIPELINE_LEAD_FIELDS_LOADER');
 const leadFieldsLoader=(html.match(leadFieldsTag)||[])[0]||'<script src="/pipeline/lead-fields.js?v=20261020-fields1"></script>';
+const dateTimeTag=/<script[^>]+src="\/pipeline\/timezone-datetime\.js(?:\?[^"<>]+)?"[^>]*><\/script>/g;
+if((html.match(dateTimeTag)||[]).length>1)throw Error('AMBIGUOUS_PIPELINE_DATETIME_LOADER');
+const dateTimeLoader=(html.match(dateTimeTag)||[])[0]||'<script src="/pipeline/timezone-datetime.js?v=20261014-followup-timezone1"></script>';
 const clientDependencyAnchor=/<script[^>]+src="\/pipeline\/(?:lead-fields|workspace-fields|pipeline)\.js(?:\?[^"<>]+)?"[^>]*><\/script>/;
 if(!clientDependencyAnchor.test(html))throw Error('PIPELINE_CLIENT_DEPENDENCY_ANCHOR_NOT_FOUND');
-html=html.replace(commonTag,'').replace(leadFieldsTag,'').replace(clientDependencyAnchor,match=>`${commonLoader}${match}`)
+html=html.replace(commonTag,'').replace(leadFieldsTag,'').replace(dateTimeTag,'').replace(clientDependencyAnchor,match=>`${commonLoader}${match}`)
   .replace(anchor,match=>`${fieldsTag.test(html)?'':'<script src="/pipeline/workspace-fields.js?v=20261020-category1"></script>'}${leadFieldsLoader}${match}`)
   .replace(/(<script[^>]+src="\/workspace-api\.js)(?:\?[^"<>]*)?("[^>]*><\/script>)/g,'$1?v=20261022-pipeline-shared-client1$2')
   .replace(/(<script[^>]+src="\/pipeline\/workspace-fields\.js)(?:\?[^"<>]*)?("[^>]*><\/script>)/g,'$1?v=20261020-category1$2')
   .replace(/(<script[^>]+src="\/pipeline\/lead-fields\.js)(?:\?[^"<>]*)?("[^>]*><\/script>)/g,'$1?v=20261020-fields1$2')
+  .replace(/(<script[^>]+src="\/pipeline\/timezone-datetime\.js)(?:\?[^"<>]*)?("[^>]*><\/script>)/g,'$1?v=20261014-followup-timezone1$2')
   .replace(/\/pipeline\/pipeline\.js(?:\?[^"\s<>]+)?/g,'/pipeline/pipeline.js?v=20261022-pipeline-shared-client1')
   .replace(/\/pipeline\/reports\.js(?:\?[^"\s<>]+)?/g,'/pipeline/reports.js?v=20261022-shared-client1')
+  .replace(reportsAnchor,match=>`${dateTimeLoader.replace(/\?[^"<>]*(?=")/,'?v=20261014-followup-timezone1')}${match}`)
   .replace(/\/pipeline\/timezone-options\.js(?:\?[^"\s<>]+)?/g,'/pipeline/timezone-options.js?v=20261022-shared-client1')
   .replace(/\/pipeline\/lead-import\.js(?:\?[^"\s<>]+)?/g,'/pipeline/lead-import.js?v=20261022-shared-client1')
   .replace(/\/pipeline\/opening-routing\.js(?:\?[^"\s<>]+)?/g,'/pipeline/opening-routing.js?v=20261022-shared-client1');
