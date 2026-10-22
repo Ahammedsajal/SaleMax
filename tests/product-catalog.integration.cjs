@@ -11,12 +11,12 @@ const {discover,applyMigrations}=require('../database/migration-runner');
  const db=await pool.getConnection();let server;
  try{
   const inventory=require('../docs/LEGACY_SCHEMA_INVENTORY.json');
-  for(const table of ['admin','plan','web_public','web_private','user','orders','contact_form','beta_chats','beta_conversation','agents','agent_task','instance','beta_flows','contact','phonebook']){
+  for(const table of ['admin','plan','web_public','web_private','user','orders','contact_form','beta_chats','beta_conversation','agents','agent_task','instance','beta_flows','contact','phonebook','broadcast','beta_campaign']){
    const columns=inventory.columns.filter(c=>c.tableName===table&&!(table==='instance'&&c.columnName==='inactiveSince'));
    if(columns.length)await db.query('CREATE TABLE `'+table+'` ('+columns.map(c=>'`'+c.columnName+'` '+c.columnType+' '+(c.nullable==='NO'?'NOT NULL':'')+' '+(c.columnKey==='PRI'?'PRIMARY KEY':'')+' '+(c.extra==='auto_increment'?'AUTO_INCREMENT':'')+' '+(c.columnName==='createdAt'?'DEFAULT CURRENT_TIMESTAMP':'')).join(',')+')');
   }
   const result=await applyMigrations(db,discover(path.join(__dirname,'../database/migrations')));console.log('Migrations applied:',result.applied.length);
-  const {getCategory}=require('../modules/platform/categories'),catalog=require('../modules/platform/product-catalog'),courses=require('../modules/platform/training-courses'),media=require('../modules/platform/training-course-media'),replies=require('../modules/platform/course-quick-replies');
+  const {getCategory}=require('../modules/platform/categories'),courses=require('../modules/platform/training-courses'),products=require('../modules/platform/product-catalog-service'),media=require('../modules/platform/training-course-media'),replies=require('../modules/platform/course-quick-replies');
   const contexts={};
   for(const categoryKey of ['training_center','7network_sales']){
    const tenantId=crypto.randomUUID(),identityId=crypto.randomUUID(),membershipId=crypto.randomUUID(),category=getCategory(categoryKey,1);
@@ -31,7 +31,7 @@ const {discover,applyMigrations}=require('../database/migration-runner');
   app.use('/courses',router({pool,origin,sessionGuard}));app.use('/products',router({pool,origin,sessionGuard,products:true}));
   server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
   const base='http://127.0.0.1:'+server.address().port;
-  const request=async(route,{category='7network_sales',role='owner',method='GET',body}={})=>{const response=await fetch(base+route,{method,headers:{Origin:origin,'X-Test-Category':category,'X-Test-Role':role,...(body instanceof FormData?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:body instanceof FormData?body:JSON.stringify(body)});return {status:response.status,body:await response.json()};};
+  const request=async(route,{category='7network_sales',role='owner',method='GET',body}={})=>{const response=await fetch(base+route,{method,headers:{Origin:origin,'X-Test-Category':category,'X-Test-Role':role,...(body instanceof FormData?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:body instanceof FormData?body:JSON.stringify(body)});return {status:response.status,body:await response.json(),headers:response.headers};};
   assert.equal((await request('/courses')).status,403);
   assert.equal((await request('/products',{category:'training_center'})).status,403);
   assert.equal((await request('/products',{role:'accountant'})).status,403);
@@ -39,9 +39,10 @@ const {discover,applyMigrations}=require('../database/migration-runner');
   const created=await request('/products',{method:'POST',body:input});assert.equal(created.status,201);const id=created.body.data.id;
   assert.equal((await request('/products',{role:'agent',method:'POST',body:input})).status,403);
   const [[trainingCount]]=await db.query('SELECT COUNT(*) AS n FROM sx_training_courses');assert.equal(Number(trainingCount.n),0);
-  const ctx=contexts['7network_sales'],productDb=catalog.database(db);
+  const ctx=contexts['7network_sales'];
   const form=new FormData();form.append('file',new Blob([Buffer.from('%PDF-1.4\nSynthetic brochure\n%%EOF')],{type:'application/pdf'}),'brochure.pdf');
   const attached=await request('/products/'+id+'/media',{method:'POST',body:form});assert.equal(attached.status,201);
+  const [[mediaAudit]]=await db.query("SELECT action,resource_type FROM sx_audit_events WHERE tenant_id=? AND action='sales.product-media-uploaded' AND resource_id=? ORDER BY occurred_at DESC LIMIT 1",[ctx.tenant.id,attached.body.data.id]);assert.deepEqual(mediaAudit,{action:'sales.product-media-uploaded',resource_type:'sales-product-media'});
   const published=await request('/products/'+id+'/publish',{method:'POST',body:{expectedRevision:1}});assert.equal(published.status,200);
   const c={ctx,scope:{uid:'synthetic-owner'}};
   assert.equal((await replies.options(pool,c)).length,1);
@@ -55,10 +56,15 @@ const {discover,applyMigrations}=require('../database/migration-runner');
   const [[courseJobs]]=await db.query('SELECT COUNT(*) AS n FROM sx_course_reply_jobs');assert.equal(Number(courseJobs.n),0);
   await assert.rejects(replies.plan(pool,{ctx:contexts.training_center},id,'en'),{code:'COURSE_NOT_AVAILABLE'});
   const foreignCtx={...ctx,tenant:{...ctx.tenant,id:crypto.randomUUID()}};assert.equal((await replies.options(pool,{ctx:foreignCtx})).length,0);
-  const access=await request('/products/'+id+'/media/'+attached.body.data.id+'/access');assert.equal(access.status,200);
+  const mediaId=attached.body.data.id,access=await request('/products/'+id+'/media/'+mediaId+'/access');assert.equal(access.status,200);
+  const productCookie=access.headers.get('set-cookie');assert.match(productCookie,new RegExp(`^sx_products_media_${mediaId.replace(/-/g,'')}=`));
+  const productToken=productCookie.split(';',1)[0].split('=').slice(1).join('=');
+  const courseRouteToken=await fetch(`${base}/courses/${id}/media/${mediaId}/stream`,{headers:{Cookie:`sx_courses_media_${mediaId.replace(/-/g,'')}=${productToken}`}});assert.equal(courseRouteToken.status,401,'a product grant cannot be replayed through the course stream route');
+  const courseToken=media.accessToken(contexts.training_center,id,mediaId);
+  const productRouteToken=await fetch(`${base}/products/${id}/media/${mediaId}/stream`,{headers:{Cookie:`sx_products_media_${mediaId.replace(/-/g,'')}=${courseToken}`}});assert.equal(productRouteToken.status,401,'a course grant cannot be replayed through the product stream route');
   const updated=await request('/products/'+id,{method:'PUT',body:{...input,expectedRevision:published.body.data.revision,nameEn:'Updated service'}});assert.equal(updated.status,200);
   assert.equal((await request('/products/'+id,{method:'PUT',body:{...input,expectedRevision:1}})).status,409);
-  await courses.create(db,contexts.training_center,{...input,code:'COURSE-01'});assert.equal((await courses.list(db,contexts.training_center)).total,1);assert.equal((await courses.list(productDb,ctx)).total,1);
+  await courses.create(db,contexts.training_center,{...input,code:'COURSE-01'});assert.equal((await courses.list(db,contexts.training_center)).total,1);assert.equal((await products.list(db,ctx)).total,1);
   assert.equal((await request('/products/'+id,{method:'DELETE'})).status,200);assert.equal((await replies.options(pool,c)).length,0);
   assert.equal((await courses.list(db,contexts.training_center)).total,1);
   const operator=require('../scripts/link-sales-catalog-owner.cjs');

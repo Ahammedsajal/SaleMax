@@ -19,6 +19,17 @@ function routePermission(req){
   if(mount==='/api/workspace/courses')return read?'courses.read':'courses.manage';
   if(mount==='/api/workspace/products-services')return read?'products.read':'products.manage';
   if(mount==='/api/workspace/properties')return read?'properties.read':'properties.manage';
+  if(mount==='/api/workspace/real-estate/requirements'){
+    if(path==='/lead-options'&&read)return 'leads.read';
+    if(path==='/assignees'&&read)return 'buyer.requirements.assign';
+    if(read)return 'buyer.requirements.read';
+    return Object.hasOwn(req.body||{},'assignedMembershipId')?'buyer.requirements.assign':'buyer.requirements.manage';
+  }
+  if(mount==='/api/workspace/real-estate/viewings'){
+    if(['/leads','/properties','/assignees'].includes(path)&&read)return 'property.viewings.read';
+    if(read)return 'property.viewings.read';
+    return Object.hasOwn(req.body||{},'assignedMembershipId')?'property.viewings.assign':'property.viewings.manage';
+  }
   if(mount==='/api/workspace/students')return read?'sales.request':'sales.approve';
   if(mount==='/api/workspace/profile')return 'tenant.manage';
   if(mount==='/api/workspace/forms')return read?'forms.manage':'forms.capture';

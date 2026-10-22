@@ -5,9 +5,13 @@ const { keywordReply } = require('./chatbot-keyword-replies');
 const { findApprovedFaq } = require('./chatbot-faq');
 
 const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+const normalizeFinancialNumbers = value => normalizeDigits(value).replace(/[٬]/g, ',').replace(/[٫]/g, '.');
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions شهادة الشهادة شهادات احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
 const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+function replyCacheKey({tenantId,categoryKey,categoryVersion,packKey,packVersion,profileId,profileRevision,contextRevision,provider,model,question,language,history,selectedCourseCode}) {
+  return fingerprint({tenantId,category:{key:categoryKey,version:categoryVersion},domainPack:{key:packKey,version:packVersion},profile:{id:profileId,revision:profileRevision},contextRevision,provider,model,question,language,history,selectedCourseCode});
+}
 const durationUnit = (unit, amount, language) => { const ar = {hours:['ساعة','ساعتان','ساعات'],days:['يوم','يومان','أيام'],weeks:['أسبوع','أسبوعان','أسابيع'],months:['شهر','شهران','أشهر']}; return language === 'ar' && ar[unit] ? ar[unit][Number(amount) === 2 ? 1 : Number(amount) >= 3 && Number(amount) <= 10 ? 2 : 0] : Number(amount) === 1 ? String(unit).replace(/s$/, '') : unit; };
 const local = (item, field, language) => item[field + (language === 'ar' ? 'Ar' : 'En')] || item[field + (language === 'ar' ? 'En' : 'Ar')] || '';
 
@@ -60,6 +64,23 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     duration: course.durationValue ? `${course.durationValue} ${durationUnit(course.durationUnit, course.durationValue, language)}` : null,
     delivery: course.deliveryMode, offer: course.offer, batches: course.batches?.slice(0, 2),
   }));
+  const properties = facts.filter(item => item.kind === 'property');
+  if (properties.length) {
+    const propertyText = item => [item.referenceCode,item.titleEn,item.titleAr,item.city,item.propertyType,item.transactionType,item.descriptionEn,item.descriptionAr].filter(Boolean).join(' ');
+    const directProperties = properties.filter(item => [item.referenceCode,item.titleEn,item.titleAr].some(name => name && normalized(message).includes(normalized(name))));
+    const rankedProperties = properties.map(item => ({ item, score: score(message, propertyText(item)) })).sort((a,b) => b.score-a.score);
+    const isPropertyQuestion = /property|properties|listing|listings|apartment|house|villa|rent|rental|buy|sale|bedroom|area|price|real estate|عقار|عقارات|شقة|فيلا|للبيع|للايجار|إيجار|غرف|مساحة|سعر|العقارات/i.test(message);
+    const chosen = directProperties.length ? directProperties.slice(0,3) : isPropertyQuestion
+      ? (rankedProperties.some(row => row.score > 0) ? rankedProperties.filter(row => row.score > 0).slice(0,3) : rankedProperties.slice(0,3)).map(row => row.item)
+      : [];
+    chosen.forEach(item => add('property:' + item.referenceCode, item, {
+      kind:'property', referenceCode:item.referenceCode, title:local(item,'title',language),
+      propertyType:item.propertyType, transactionType:item.transactionType, city:item.city,
+      priceMinor:item.priceMinor, currency:item.currency, areaSqm:item.areaSqm,
+      bedrooms:item.bedrooms, bathrooms:item.bathrooms,
+      description:String(local(item,'description',language)).slice(0,500),
+    }));
+  }
   const forms = facts.filter(item => item.kind === 'published_enquiry_form');
   const formPurpose = /enquir|inquir|contact|استفسار|تواصل/i.test(message) ? 'enquiry' : 'registration';
   const selectedForm = forms.find(item => item.purpose === formPurpose) || forms[0];
@@ -78,7 +99,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     add('faq:' + matchedFaq.index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer: matchedFaq.answer });
   }
   // Names are a discovery index, never evidence for unpublished prices/policies.
-  if (!direct.length) add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
+  if (courses.length && !direct.length) add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
   return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length };
 }
 
@@ -91,17 +112,23 @@ function validateAnswer(response, context) {
   const raw = JSON.stringify(evidence);
   const reply = normalizeDigits(response.reply).replace(/’/g, "'");
   if (/\b(?:send|share|provide|enter)\b.{0,45}\b(?:password|otp|one.time code|card number|passport|identity document)\b|(?:ارسل|شارك|ادخل).{0,45}(?:كلمة المرور|رمز التحقق|رقم البطاقة|جواز)/i.test(reply)) return { valid: false, code: 'ANSWER_SENSITIVE_REQUEST' };
-  const amounts = evidence.filter(item => item.kind === 'course').flatMap(item => [item.offer?.priceAmount, item.offer?.registrationFeeAmount]).filter(value => value != null).map(Number);
-  for (const match of reply.matchAll(/(?:QAR|QR|ر\.ق|ريال)\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:QAR|QR|ر\.ق|ريال)/gi)) {
+  const courseAmounts = evidence.filter(item => item.kind === 'course').flatMap(item => [item.offer?.priceAmount, item.offer?.registrationFeeAmount]).filter(value => value != null).map(Number);
+  const propertyAmounts = evidence.filter(item => item.kind === 'property' && Number.isSafeInteger(item.priceMinor) && /^[A-Z]{3}$/.test(item.currency || '')).flatMap(item => {
+    try { const digits = new Intl.NumberFormat('en', { style: 'currency', currency: item.currency }).resolvedOptions().maximumFractionDigits; return [item.priceMinor / (10 ** digits)]; } catch { return []; }
+  });
+  const amounts = [...courseAmounts, ...propertyAmounts];
+  for (const match of normalizeFinancialNumbers(reply).matchAll(/(?:QAR|QR|ر\.ق|ريال)\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)|((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(?:QAR|QR|ر\.ق|ريال)/gi)) {
     if (!amounts.includes(Number((match[1] || match[2]).replace(/,/g, '')))) return { valid: false, code: 'ANSWER_PRICE_INVALID' };
   }
   for (const url of reply.match(/https?:\/\/[^\s<>]+/g) || []) {
     if (!raw.includes(url.replace(/[.,؛)]+$/, ''))) return { valid: false, code: 'ANSWER_LINK_INVALID' };
   }
-  const permittedNumbers = new Set((normalizeDigits(raw).match(/\d+(?:[.,]\d+)?/g) || []).map(n => Number(n.replace(/,/g, ''))));
+  const numericPattern = /(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?/g;
+  const permittedNumbers = new Set((normalizeFinancialNumbers(raw).match(numericPattern) || []).map(n => Number(n.replace(/,/g, ''))));
+  amounts.forEach(amount => permittedNumbers.add(Number(amount)));
   // All numeric assertions need evidence; this also checks translated dates,
   // telephone numbers, fees, hours, seats and numeric certificate claims.
-  for (const number of reply.match(/\d+(?:[.,]\d+)?/g) || []) {
+  for (const number of normalizeFinancialNumbers(reply).match(numericPattern) || []) {
     if (!permittedNumbers.has(Number(number.replace(/,/g, '')))) return { valid: false, code: 'ANSWER_NUMBER_INVALID' };
   }
   if (/\b(?:i have|i've|we have|we've|you are|you're)\s+(?:booked|enrolled|registered|reserved|confirmed your)|تم (?:تسجيلك|حجز|تأكيد تسجيلك)/i.test(reply)) return { valid: false, code: 'ANSWER_COMMITMENT_INVALID' };
@@ -222,4 +249,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, replyCacheKey, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };

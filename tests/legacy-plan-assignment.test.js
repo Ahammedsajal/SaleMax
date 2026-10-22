@@ -30,7 +30,7 @@ test('mapped businesses keep the canonical-assignment code and never write throu
   const handler=createHandler({getConnection:async()=>({ ...db, release:()=>{released=true;} })});
   await handler({body:{uid:'synthetic-business',plan:{id:1}},decode:{uid:'synthetic-admin'}},{json:body=>{response=body;}});
   assert.equal(response.code,'CANONICAL_ASSIGNMENT_REQUIRED');
-  assert.match(response.msg,/reviewed training-center contract/);
+  assert.match(response.msg,/reviewed category contract/);
   assert.equal(writes,0);assert.equal(rolledBack,true);assert.equal(released,true);
 });
 test('legacy assignment preview redirects mapped businesses before reading catalogue terms',async()=>{

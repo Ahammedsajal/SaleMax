@@ -6,6 +6,9 @@ const hash=x=>crypto.createHash('sha256').update(x).digest('hex');
 function fixture(){
   let assigned='agent-one',commits=0,rollbacks=0;
   const query=async(sql,args)=>{
+    if(sql.includes("WHERE o.source_table='user'")&&sql.includes('JOIN sx_tenants t'))return [[{tenantId:'tenant'}]];
+    if(sql.includes('FROM sx_legacy_ownership o JOIN sx_memberships'))return [[{uidHash:hash('two'),identityId:'agent-two'}]];
+    if(sql.startsWith('DELETE FROM sx_conversation_assignments')||sql.startsWith('INSERT INTO sx_conversation_assignments'))return [{affectedRows:1}];
     if(sql.includes('WHERE o.source_table'))return [[{tenantId:'tenant',tenantStatus:'active',identityId:'agent-one',role:'agent',membershipStatus:'active',identityStatus:'active',uidHash:hash('one'),delegatedPermissions:[]}]];
     if(sql.includes("m.role='owner'") && !sql.includes('FROM sx_memberships m JOIN sx_identities'))return [[{uid:'owner',uidHash:hash('owner')}]];
     if(sql.includes('FROM sx_qr_channel_shares share'))return [[]];

@@ -4,11 +4,13 @@ const express = require('express');
 const fileUpload = require('express-fileupload');
 const fs = require('node:fs/promises');
 const courses = require('./training-courses');
+const productCatalogue = require('./product-catalog-service');
 const courseMedia = require('./training-course-media');
 const enrollmentProgress = require('./training-enrollment-progress');
 
 function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, sessionGuard, products = false }) {
-  if(products)pool=require('./product-catalog').database(pool);
+  const catalogueService=products?productCatalogue:courses;
+  const resolveLegacyOwnerContext=products?require('./legacy-catalogue-context').legacyOwnerContext:courses.legacyOwnerContext;
   const router = express.Router();
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
   let activeCourseUploads = 0;
@@ -32,15 +34,21 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   // Short-lived signed stream URLs let native image/video elements request
   // byte ranges without exposing a long-lived business bearer token.
   router.get('/:courseId/media/:mediaId/stream', wrap(async (req, res) => {
-    const cookieName = `sx_course_media_${req.params.mediaId.replace(/-/g, '')}`;
-    const cookie = String(req.headers.cookie || '').split(';').map(value => value.trim()).find(value => value.startsWith(cookieName + '='));
-    const token = cookie?.slice(cookieName.length + 1);
+    const resourceType = products ? 'products' : 'courses';
+    const mediaCookieName = courseMedia.cookieName(resourceType, req.params.mediaId);
+    const cookieNames = [mediaCookieName];
+    // Existing course access cookies remain usable until their three-hour TTL
+    // expires. Product routes never accept this legacy course cookie name.
+    if (resourceType === 'courses') cookieNames.push(`sx_course_media_${req.params.mediaId.replace(/-/g, '')}`);
+    const cookies = String(req.headers.cookie || '').split(';').map(value => value.trim());
+    const cookie = cookies.find(value => cookieNames.some(name => value.startsWith(name + '=')));
+    const token = cookie?.slice(cookie.indexOf('=') + 1);
     if (!token || token.length > 2048) throw Object.assign(new Error('COURSE_MEDIA_ACCESS_REQUIRED'), { code: 'COURSE_MEDIA_ACCESS_REQUIRED', status: 401 });
     const payload = courseMedia.verifyAccessToken(token);
-    if (payload.courseId !== req.params.courseId || payload.mediaId !== req.params.mediaId) throw Object.assign(new Error('COURSE_MEDIA_ACCESS_REQUIRED'), { code: 'COURSE_MEDIA_ACCESS_REQUIRED', status: 401 });
+    if (payload.resourceType !== resourceType || payload.courseId !== req.params.courseId || payload.mediaId !== req.params.mediaId) throw Object.assign(new Error('COURSE_MEDIA_ACCESS_REQUIRED'), { code: 'COURSE_MEDIA_ACCESS_REQUIRED', status: 401 });
     const db = await pool.getConnection();
     let file;
-    try { file = await courseMedia.getFile(db, payload.tenantId, payload.courseId, payload.mediaId); }
+    try { file = await courseMedia.getFile(db, payload.tenantId, payload.courseId, payload.mediaId, resourceType); }
     finally { db.release(); }
     await fs.access(file.path);
     const disposition = file.kind === 'document' ? 'attachment' : 'inline';
@@ -60,8 +68,8 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   router.use((req, res, next) => {
     if(sessionGuard)return sessionGuard(req,res,()=>{req.courseContext=req.featureSession.context;next();});
     const authorization = req.get('Authorization') || '';
-    if (/^Bearer\s+/i.test(authorization)) return userGuard(req, res, () => courses.legacyOwnerContext(pool, req.decode.uid,{allowProducts:products}).then(ctx => { req.courseContext = ctx; next(); }).catch(next));
-    if (!canonicalGuard) return userGuard(req, res, () => courses.legacyOwnerContext(pool, req.decode.uid,{allowProducts:products}).then(ctx => { req.courseContext = ctx; next(); }).catch(next));
+    if (/^Bearer\s+/i.test(authorization)) return userGuard(req, res, () => resolveLegacyOwnerContext(pool, req.decode.uid,products?{catalogues:['products']}:{}) .then(ctx => { req.courseContext = ctx; next(); }).catch(next));
+    if (!canonicalGuard) return userGuard(req, res, () => resolveLegacyOwnerContext(pool, req.decode.uid,products?{catalogues:['products']}:{}) .then(ctx => { req.courseContext = ctx; next(); }).catch(next));
     return canonicalGuard(req, res, () => { req.courseContext = req.businessContext; next(); });
   });
   const contextGuard = (req,res,next) => {
@@ -71,9 +79,9 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
     return next();
   };
   router.use(contextGuard);
-  if(products)router.use((req,res,next)=>/^(?:\/enrollments|\/import-procatalyst)(?:\/|$)/.test(req.path)?res.sendStatus(404):next());
+  if(products)router.use((req,res,next)=>/^(?:\/enrollments|\/import-procatalyst|\/[^/]+\/batches)(?:\/|$)/.test(req.path)?res.sendStatus(404):next());
 
-  router.get('/', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.list(pool, req.courseContext, {
+  router.get('/', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await catalogueService.list(pool, req.courseContext, {
     page: req.query.page === undefined ? 1 : Number(req.query.page),
     limit: req.query.limit === undefined ? 20 : Number(req.query.limit),
     search: req.query.search || '', status: req.query.status || ''
@@ -91,8 +99,8 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   }));
   router.get('/enrollments', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(enrollmentProgress.list)(req.courseContext, req.query) })));
   router.post('/enrollments/:id/progress', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(enrollmentProgress.transition)(req.courseContext, req.params.id, req.body) })));
-  router.post('/', contextGuard, wrap(async (req, res) => res.status(201).json({ success: true, data: await withConnection(courses.create)(req.courseContext, req.body) })));
-  router.put('/:id', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.update)(req.courseContext, req.params.id, req.body.expectedRevision, req.body) })));
+  router.post('/', contextGuard, wrap(async (req, res) => res.status(201).json({ success: true, data: await withConnection(catalogueService.create)(req.courseContext, req.body) })));
+  router.put('/:id', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(catalogueService.update)(req.courseContext, req.params.id, req.body.expectedRevision, req.body) })));
   router.get('/:id/media', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courseMedia.list(pool, req.courseContext, req.params.id) })));
   router.post('/:id/media', contextGuard, async (req, res, next) => {
     try {
@@ -117,42 +125,42 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   router.get('/:id/media/:mediaId/access', contextGuard, wrap(async (req, res) => {
     courses.object(req.courseContext, 'courses.read');
     const db = await pool.getConnection();
-    try { await courseMedia.getFile(db, req.courseContext.tenant.id, req.params.id, req.params.mediaId); }
+    try { await courseMedia.getFile(db, req.courseContext.tenant.id, req.params.id, req.params.mediaId, products ? 'products' : 'courses'); }
     finally { db.release(); }
     const access = courseMedia.accessToken(req.courseContext, req.params.id, req.params.mediaId);
     const mediaPath = `${req.baseUrl}/${encodeURIComponent(req.params.id)}/media/${encodeURIComponent(req.params.mediaId)}/stream`;
-    const cookieName = `sx_course_media_${req.params.mediaId.replace(/-/g, '')}`;
+    const mediaCookieName = courseMedia.cookieName(products ? 'products' : 'courses', req.params.mediaId);
     const secure = origin.startsWith('https://') ? '; Secure' : '';
-    res.setHeader('Set-Cookie', `${cookieName}=${access}; Path=${mediaPath}; Max-Age=10800; HttpOnly; SameSite=Strict${secure}`);
+    res.setHeader('Set-Cookie', `${mediaCookieName}=${access}; Path=${mediaPath}; Max-Age=10800; HttpOnly; SameSite=Strict${secure}`);
     res.json({ success: true, data: { url: mediaPath, expiresInSeconds: 10800 } });
   }));
   router.delete('/:id/media/:mediaId', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courseMedia.remove)(req.courseContext, req.params.id, req.params.mediaId) })));
-  router.get('/:id/offers', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.offers(pool, req.courseContext, req.params.id) })));
-  router.post('/:id/offers', contextGuard, wrap(async (req, res) => res.status(201).json({ success: true, data: await withConnection(courses.addOffer)(req.courseContext, req.params.id, req.body) })));
+  router.get('/:id/offers', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await catalogueService.offers(pool, req.courseContext, req.params.id) })));
+  router.post('/:id/offers', contextGuard, wrap(async (req, res) => res.status(201).json({ success: true, data: await withConnection(catalogueService.addOffer)(req.courseContext, req.params.id, req.body) })));
   router.get('/:id/batches', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.batches(pool, req.courseContext, req.params.id) })));
   router.post('/:id/batches', contextGuard, wrap(async (req, res) => res.status(201).json({ success: true, data: await withConnection(courses.addBatch)(req.courseContext, req.params.id, req.body) })));
   router.put('/:id/batches/:batchId', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.updateBatch)(req.courseContext, req.params.id, req.params.batchId, req.body) })));
-  router.delete('/:id', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.remove)(req.courseContext, req.params.id) })));
-  router.post('/:id/publish', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.publish)(req.courseContext, req.params.id, req.body.expectedRevision) })));
-  router.post('/:id/restore-and-publish', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.restoreAndPublish)(req.courseContext, req.params.id, req.body.expectedRevision) })));
-  router.post('/:id/retire', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.retire)(req.courseContext, req.params.id, req.body.expectedRevision) })));
+  router.delete('/:id', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(catalogueService.remove)(req.courseContext, req.params.id) })));
+  router.post('/:id/publish', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(catalogueService.publish)(req.courseContext, req.params.id, req.body.expectedRevision) })));
+  router.post('/:id/restore-and-publish', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(catalogueService.restoreAndPublish)(req.courseContext, req.params.id, req.body.expectedRevision) })));
+  router.post('/:id/retire', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(catalogueService.retire)(req.courseContext, req.params.id, req.body.expectedRevision) })));
 
   router.use(async (error, req, res, next) => {
     if (res.headersSent) return next(error);
     const temporaryFiles = Object.values(req.files || {}).flat().filter(Boolean).map(file => file.tempFilePath).filter(Boolean);
     await Promise.all(temporaryFiles.map(file => fs.rm(file, { force: true }).catch(() => {})));
-    const code = error.code || 'TRAINING_CATALOGUE_UNAVAILABLE';
+    const code = error.code || (products?'PRODUCT_CATALOGUE_UNAVAILABLE':'TRAINING_CATALOGUE_UNAVAILABLE');
     const status = Number.isInteger(error.status) ? error.status
       : error.httpCode === 413 ? 413
         : code === 'COURSE_MEDIA_UPLOAD_BUSY' ? 429
         : code === 'PERMISSION_DENIED' ? 403
-          : ['VERIFIED_BUSINESS_OWNER_REQUIRED', 'BUSINESS_LINK_INVALID', 'COURSE_NOT_FOUND', 'BATCH_NOT_FOUND', 'ENROLLMENT_NOT_FOUND', 'COURSE_MEDIA_NOT_FOUND'].includes(code) ? 404
-          : ['STALE_REVISION', 'COURSE_RETIRED', 'ACTIVE_OFFER_REQUIRED', 'BATCH_HAS_RESERVATIONS', 'CAPACITY_BELOW_RESERVED', 'ER_DUP_ENTRY', 'FULL_PAYMENT_REQUIRED', 'ENROLLMENT_CANNOT_START', 'ENROLLMENT_MUST_BE_STARTED', 'ENROLLMENT_MUST_BE_COMPLETED', 'COURSE_MEDIA_LIMIT_REACHED', 'COURSE_MEDIA_QUOTA_EXCEEDED'].includes(code) ? 409
+          : ['VERIFIED_BUSINESS_OWNER_REQUIRED', 'BUSINESS_LINK_INVALID', 'COURSE_NOT_FOUND', 'BATCH_NOT_FOUND', 'ENROLLMENT_NOT_FOUND', 'COURSE_MEDIA_NOT_FOUND', 'PRODUCT_NOT_FOUND'].includes(code) ? 404
+          : ['STALE_REVISION', 'COURSE_RETIRED', 'ACTIVE_OFFER_REQUIRED', 'PRODUCT_RETIRED', 'PRODUCT_NOT_RETIRED', 'PRODUCT_TYPE_REVIEW_REQUIRED', 'ACTIVE_PRICE_REQUIRED', 'BATCH_HAS_RESERVATIONS', 'CAPACITY_BELOW_RESERVED', 'ER_DUP_ENTRY', 'FULL_PAYMENT_REQUIRED', 'ENROLLMENT_CANNOT_START', 'ENROLLMENT_MUST_BE_STARTED', 'ENROLLMENT_MUST_BE_COMPLETED', 'COURSE_MEDIA_LIMIT_REACHED', 'COURSE_MEDIA_QUOTA_EXCEEDED'].includes(code) ? 409
               : code === 'COURSE_MEDIA_TOO_LARGE' ? 413
                 : ['COURSE_MEDIA_TYPE_NOT_ALLOWED', 'COURSE_MEDIA_SIGNATURE_INVALID'].includes(code) ? 415
                   : code.startsWith('INVALID_') ? 400
                     : ['ACCOUNT_INACTIVE', 'CATEGORY_UNAVAILABLE', 'FEATURE_UNAVAILABLE'].includes(code) ? 409 : 503;
-    res.status(status).json({ success: false, code: status >= 500 ? 'TRAINING_CATALOGUE_UNAVAILABLE' : code === 'ER_DUP_ENTRY' ? 'CATALOGUE_CODE_EXISTS' : code });
+    res.status(status).json({ success: false, code: status >= 500 ? (products?'PRODUCT_CATALOGUE_UNAVAILABLE':'TRAINING_CATALOGUE_UNAVAILABLE') : code === 'ER_DUP_ENTRY' ? (products?'PRODUCT_SKU_EXISTS':'CATALOGUE_CODE_EXISTS') : code });
   });
   return router;
 }

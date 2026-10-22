@@ -479,7 +479,9 @@
         brand.dataset.sxSidebarBrand = '1';
         let logo = brand.querySelector('[data-sx-sidebar-logo]');
         if (!logo) { logo = document.createElement('img'); logo.dataset.sxSidebarLogo = '1'; logo.alt = '7Network'; brand.append(logo); }
-        const src = collapsed ? '/logo192.png' : '/media/7network-logo.png';
+        const src = collapsed ? '/branding/7network/icon-192.png?v=20261022-sidebar-icon1' : '/branding/7network/logo-light.png?v=20261021-final-horizontal1';
+        logo.dataset.sevenNetworkBrand = collapsed ? 'icon' : 'logo';
+        logo.alt = '7Network';
         if (logo.getAttribute('src') !== src) logo.src = src;
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();

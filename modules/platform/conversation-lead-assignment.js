@@ -37,4 +37,26 @@ async function assign(db,{ctx,uid,chatId,chat,agentId,agentName}){
   if(!lock?.current_lead_id||lock.current_lead_id===lead.id)await db.query('UPDATE pipeline_identity_locks SET current_lead_id=? WHERE uid_hash=? AND identity_key=?',[lead.id,uidHash,identityKey]);
   return {id:lead.id,created,ownerAgentId:agentId};
 }
-module.exports={assign};
+
+async function unassign(db,{ctx,uid,chatId,chat,agentId,agentName}){
+  if(ctx.tenant?.categoryKey!=='training_center'||!['qr','meta'].includes(chat.origin))return null;
+  const uidHash=hash(uid),conversationKey=hash(`${chat.origin}:${chatId}`);
+  const phone=pipeline.normalizePhone(chat.sender_mobile),identityKey=hash(phone?`phone:${phone}`:`conversation:${conversationKey}`);
+  await pipeline.prepareWorkspace(db,uid);
+  await db.query('INSERT IGNORE INTO pipeline_identity_locks (uid_hash,identity_key,current_lead_id) VALUES (?,?,NULL)',[uidHash,identityKey]);
+  await db.query('SELECT current_lead_id FROM pipeline_identity_locks WHERE uid_hash=? AND identity_key=? FOR UPDATE',[uidHash,identityKey]);
+  const [linked]=await db.query(`SELECT l.id,l.owner_agent_id FROM pipeline_conversations c JOIN pipeline_leads l ON l.uid_hash=c.uid_hash AND l.id=c.lead_id
+    WHERE c.uid_hash=? AND c.conversation_key=? LIMIT 1 FOR UPDATE`,[uidHash,conversationKey]);
+  let lead=linked[0]||null;
+  if(!lead){
+    const [legacy]=await db.query('SELECT id,owner_agent_id FROM pipeline_leads WHERE uid_hash=? AND chat_id=? AND primary_origin=? ORDER BY created_at DESC,id DESC LIMIT 1 FOR UPDATE',[uidHash,chatId,chat.origin]);
+    lead=legacy[0]||null;
+  }
+  if(!lead||lead.owner_agent_id==null||Number(lead.owner_agent_id)!==Number(agentId))return null;
+  await db.query('UPDATE pipeline_leads SET owner_agent_id=NULL,last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND id=?',[uidHash,lead.id]);
+  await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,actor_id,activity_type,summary,details,created_at)
+    VALUES (?,?,'user',?,'lead_reassigned','Lead unassigned',?,UTC_TIMESTAMP(3))`,
+  [uidHash,lead.id,ctx.identity.id,JSON.stringify({fromAgentId:Number(agentId),fromAgentName:agentName||null,toAgentId:null,toAgentName:null,reason:'conversation_unassign',chatId})]);
+  return {id:lead.id,ownerAgentId:null};
+}
+module.exports={assign,unassign};

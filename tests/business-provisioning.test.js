@@ -29,8 +29,8 @@ test('onboarding controls extend the original Manage Users contract screen',()=>
   assert.match(ui,/DESIGNATED_OWNER_REQUIRED:t\('7Network Sales must be provisioned against the designated Business Admin account/);
   assert.match(ui,/Publish a 7Network Sales contract for the user’s current catalogue plan first\./);
   assert.match(ui,/existing Manage Users account/);assert.match(ui,/options\.category\.title/);assert.match(ui,/options\.category\.seatRoles/);assert.match(ui,/Preview only/);
-  assert.match(ui,/PLATFORM_UPGRADE_NOT_ENABLED:t\('Training-center setup is not enabled in this environment/);
-  assert.match(ui,/إعداد مركز التدريب غير مفعّل في هذه البيئة/);
+  assert.match(ui,/PLATFORM_UPGRADE_NOT_ENABLED:t\('Business setup is not enabled in this environment/);
+  assert.match(ui,/إعداد النشاط غير مفعّل في هذه البيئة/);
   assert.match(ui,/ASSIGNMENT_UNAVAILABLE:t\('The setup service is temporarily unavailable/);
   assert.match(ui,/AUDIT_UNAVAILABLE:t\('The required audit record could not be saved/);
   assert.match(manual,/Set up training-center business/);

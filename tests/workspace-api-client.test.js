@@ -14,7 +14,7 @@ test('business cookie sessions use the same feature URL with CSRF and no legacy 
 });
 test('cookie-only Courses access finishes the existing navigation admission check',async()=>{
  const screen=fs.readFileSync(path.join(__dirname,'../client/public/training-courses.js'),'utf8'),start=screen.indexOf('  async function checkCourseAccess(){'),end=screen.indexOf('  function addNav',start);
- const sandbox={getToken:()=>null,navToken:'canonical-session',navLoading:false,navChecked:false,navAllowed:false,api:async()=>{},addNav:()=>{},document:{querySelector:()=>null},window:{SaleMaxWorkspace:{session:async()=>({categoryKey:'training_center',modules:{courses:true}})}}};
+ const sandbox={getToken:()=>null,navToken:'canonical-session',navLoading:false,navChecked:false,navAllowed:false,api:async()=>{},addNav:()=>{},document:{querySelector:()=>null},window:{SaleMaxWorkspace:{session:async()=>({categoryKey:'training_center',quickReplyCatalog:'courses',modules:{courses:true}})}}};
  vm.runInNewContext(screen.slice(start,end),sandbox);await sandbox.checkCourseAccess();assert.equal(sandbox.navAllowed,true);assert.equal(sandbox.navChecked,true);
 });
 test('the common client loads before dependent existing screen scripts',()=>{

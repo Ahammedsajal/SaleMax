@@ -32,13 +32,14 @@ test('compact sidebar branding uses the approved 7Network icon and preserves ful
   const styles = fs.readFileSync(path.join(__dirname, '../client/public/7network-brand.css'), 'utf8');
   assert.match(script, /const compactBrand = Boolean\(img\.closest\('\.logo-box'\)\)/);
   assert.match(script, /const icon = compactBrand \|\|/);
-  assert.match(script, /logo-dark\.png\?v=20261021-color-wordmark1/);
-  assert.match(script, /logo-light\.png\?v=20261021-color-wordmark1/);
+  assert.match(script, /logo-dark\.png\?v=20261021-final-horizontal1/);
+  assert.match(script, /logo-light\.png\?v=20261021-final-horizontal1/);
   assert.match(styles, /\.logo-box img\[data-seven-network-brand="icon"\][^{]*\{[^}]*width: 50px/);
   const source = fs.readFileSync(path.join(__dirname, '../client/public/branding/7network/logo-source.svg'), 'utf8');
-  assert.match(source, /<tspan fill="#0B2748">Net<\/tspan><tspan fill="url\(#sunrise-red\)">work<\/tspan>/);
-  assert.match(source, /<linearGradient id="sunrise-red"/);
-  assert.doesNotMatch(source, /globe-no7-source\.png/);
+  assert.match(source, /<image href="icon-source\.png"/);
+  assert.match(source, />Netw<\/text>/);
+  assert.match(source, /<image href="globe-no7-source\.png"/);
+  assert.match(source, />rk<\/text>/);
   const exporter = fs.readFileSync(path.join(__dirname, '../scripts/export-7network-brand.cjs'), 'utf8');
   assert.match(exporter, /fill="#EAF1FF"/);
   assert.match(exporter, /#FF8153/);
@@ -63,4 +64,19 @@ test('Sales chatbot migrations normalize first-party bot branding and its catego
     assert.doesNotMatch(sql, /UPDATE\s+sx_(?:tenants|plans|plan_versions|plan_assignments)/i);
     assert.doesNotMatch(sql, /DELETE\s+FROM\s+sx_category_identity_aliases/i);
   }
+});
+
+test('existing app shell references the active 7Network brand assets and protects tenant marks', () => {
+  const shell = fs.readFileSync(path.join(__dirname, '../client/public/index.html'), 'utf8');
+  const sidebar = fs.readFileSync(path.join(__dirname, '../client/public/training-sidebar.js'), 'utf8');
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../client/public/branding/7network/manifest.webmanifest'), 'utf8'));
+  const legacyManifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../client/public/manifest.json'), 'utf8'));
+  assert.match(shell, /<title>7Network \| CRM, WhatsApp &amp; Business Automation<\/title>/);
+  assert.match(shell, /7network-brand\.css\?v=20261022-sidebar-icon1/);
+  assert.match(shell, /7network-brand\.js\?v=20261021-final-horizontal1/);
+  assert.match(shell, /branding\/7network\/manifest\.webmanifest\?v=20261022-sidebar-icon1/);
+  assert.equal(manifest.short_name, '7Network');
+  assert.equal(legacyManifest.name, manifest.name);
+  assert.match(sidebar, /branding\/7network\/logo-light\.png\?v=20261021-final-horizontal1/);
+  assert.match(sidebar, /logo\.alt = '7Network'/);
 });

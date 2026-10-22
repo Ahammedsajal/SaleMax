@@ -6,8 +6,12 @@ function createTaskRouter({pool,contextFor}){
   const router=express.Router();
   const withDb=async work=>{const db=await pool.getConnection();try{return await work(db);}finally{db.release();}};
   const run=(permission,work,successStatus=200)=>(req,res)=>Promise.resolve().then(async()=>{
-    const ctx=await contextFor(req,permission);
-    const data=await withDb(db=>work(db,ctx,req));
+    let ctx=await contextFor(req,permission);
+    const data=await withDb(async db=>{
+      const needsTaskConfiguration=(req.method==='GET'&&req.path==='/')||(req.method==='POST'&&req.path==='/')||(req.method==='PATCH'&&req.path!=='/'&&!req.path.endsWith('/status'));
+      if(needsTaskConfiguration)ctx={...ctx,customization:await require('./tenant-customization').effective(db,ctx)};
+      return work(db,ctx,req);
+    });
     res.setHeader('Cache-Control','no-store');res.status(successStatus).json({success:true,data});
   }).catch(error=>{
     const code=error?.code||'TASK_UNAVAILABLE';

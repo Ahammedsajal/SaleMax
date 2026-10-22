@@ -3,7 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const express=require('express');
 const {createTrainingCourseRouter}=require('../modules/platform/training-course-router');
-const {trainingCenter}=require('../modules/platform/categories');
+const {trainingCenter,sevenNetworkSales}=require('../modules/platform/categories');
 
 function context(role){return {audience:'tenant',identity:{id:`identity-${role}`},tenant:{id:'tenant-training',status:'active',categoryKey:trainingCenter.key,categoryVersion:trainingCenter.version},membership:{id:`member-${role}`,tenantId:'tenant-training',role,status:'active',delegatedPermissions:[]},category:trainingCenter,subscription:{status:'active',capabilities:['training.courses']},runtimeReady:{}};}
 
@@ -41,5 +41,68 @@ test('canonical accountant may read the course catalogue but cannot create or ch
     assert.equal(response.status,403);
     assert.equal(body.code,'PERMISSION_DENIED');
     assert.equal(queried,false);
+  }finally{await new Promise(resolve=>server.close(resolve));}
+});
+
+test('product tenants cannot call Training Center batch endpoints through the shared catalogue router',async()=>{
+  let databaseCalls=0;
+  const productContext={
+    audience:'tenant',identity:{id:'identity-product-owner'},
+    tenant:{id:'tenant-products',status:'active',categoryKey:sevenNetworkSales.key,categoryVersion:sevenNetworkSales.version},
+    membership:{id:'member-product-owner',tenantId:'tenant-products',role:'owner',status:'active',delegatedPermissions:[]},
+    category:sevenNetworkSales,
+    subscription:{status:'active',capabilities:['products.catalog']},runtimeReady:{}
+  };
+  const pool={query:async()=>{databaseCalls++;return [[],[]];},getConnection:async()=>{databaseCalls++;throw new Error('batch endpoint reached storage');}};
+  const app=express();
+  app.use('/api/workspace/products-services',createTrainingCourseRouter({
+    pool,origin:'http://localhost',products:true,
+    sessionGuard(req,_res,next){req.featureSession={context:productContext};next();}
+  }));
+  const server=app.listen(0,'127.0.0.1');
+  try{
+    await new Promise(resolve=>server.once('listening',resolve));
+    const base=`http://127.0.0.1:${server.address().port}/api/workspace/products-services/synthetic-item/batches`;
+    for(const [url,init] of [
+      [base,{method:'GET'}],
+      [base,{method:'POST',headers:{Origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({code:'B-1',startsOn:'2026-11-01',endsOn:'2026-11-02',capacity:10,language:'en'})}],
+      [`${base}/synthetic-batch`,{method:'PUT',headers:{Origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({code:'B-1',startsOn:'2026-11-01',endsOn:'2026-11-02',capacity:10,language:'en',status:'scheduled'})}]
+    ])assert.equal((await fetch(url,init)).status,404);
+    assert.equal(databaseCalls,0);
+  }finally{await new Promise(resolve=>server.close(resolve));}
+});
+
+test('duplicate Sales product codes return the localized SKU conflict contract',async()=>{
+  let rollbacks=0;
+  const productContext={
+    audience:'tenant',identity:{id:'identity-product-owner'},
+    tenant:{id:'tenant-products',status:'active',categoryKey:sevenNetworkSales.key,categoryVersion:sevenNetworkSales.version},
+    membership:{id:'member-product-owner',tenantId:'tenant-products',role:'owner',status:'active',delegatedPermissions:[]},
+    category:sevenNetworkSales,subscription:{status:'active',capabilities:['products.catalog']},runtimeReady:{}
+  };
+  const db={
+    beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{rollbacks++;},release(){},
+    query:async sql=>{
+      if(sql.startsWith('SELECT id,status,category_key,category_version'))return [[{id:'tenant-products',status:'active',category_key:sevenNetworkSales.key,category_version:sevenNetworkSales.version}]];
+      if(sql.startsWith('INSERT INTO sx_product_catalog'))throw Object.assign(new Error('duplicate database detail'),{code:'ER_DUP_ENTRY'});
+      throw new Error(`Unexpected product query: ${sql}`);
+    }
+  };
+  const pool={query:db.query,getConnection:async()=>db};
+  const app=express();
+  app.use('/api/workspace/products-services',createTrainingCourseRouter({
+    pool,origin:'http://localhost',products:true,
+    sessionGuard(req,_res,next){req.featureSession={context:productContext};next();}
+  }));
+  const server=app.listen(0,'127.0.0.1');
+  try{
+    await new Promise(resolve=>server.once('listening',resolve));
+    const response=await fetch(`http://127.0.0.1:${server.address().port}/api/workspace/products-services`,{
+      method:'POST',headers:{Origin:'http://localhost','Content-Type':'application/json'},
+      body:JSON.stringify({code:'DUP-CODE',itemKind:'product',nameEn:'Product',nameAr:'منتج'})
+    });
+    assert.equal(response.status,409);
+    assert.deepEqual(await response.json(),{success:false,code:'PRODUCT_SKU_EXISTS'});
+    assert.equal(rollbacks,1);
   }finally{await new Promise(resolve=>server.close(resolve));}
 });

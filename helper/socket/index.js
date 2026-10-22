@@ -51,10 +51,12 @@ function processSocketEvent({
     try {
       const inboxAccess = require('../../modules/platform/team-inbox-scope');
       await require('../../modules/platform/delegated-account-session').assertDelegatedSession(query,socket.decodedToken);
-      const inboxScope = await inboxAccess.resolveInboxScope(query, socket.userData, type);
+      const accessEvent = type === 'assign_agent_to_chat' && payload?.unAssign ? 'unasign_chat_agent' : type;
+      const inboxScope = await inboxAccess.resolveInboxScope(query, socket.userData, accessEvent);
       const isAgent=agentAccount&&!inboxScope.canonical;
       const uid = inboxScope.uid;
-      payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {});
+      socket.businessFeatureSession = await inboxAccess.authorizeInboxFeature(inboxScope, accessEvent, socket.businessFeatureSession);
+      payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {}, socket.userData);
       switch (type) {
         case "get_chat_list":
           const {
@@ -151,10 +153,10 @@ function processSocketEvent({
 
             chats = await query(`SELECT * ${queryStr}`, queryParams);
           } else {
+            const assignedSql=inboxAccess.assignedChatSql(inboxScope,'bc');
             const betaChats = await query(`SELECT bc.*,i.number AS origin_instance_number FROM beta_chats bc
-              LEFT JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE bc.uid = ?`, [
-              chatListOwnerUid,
-            ]);
+              LEFT JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE bc.uid = ?${assignedSql.sql}`,
+              [chatListOwnerUid,...assignedSql.params]);
             const legacyChats = await query(`SELECT * FROM chats WHERE uid = ?`, [
               chatListOwnerUid,
             ]);
@@ -225,20 +227,20 @@ function processSocketEvent({
           const exportChatsOwnerUid = isAgent
             ? socket?.userData?.owner_uid
             : uid;
+          const exportAssignedSql=inboxAccess.assignedChatSql(inboxScope,'bc');
 
           let chats;
           if (chatIds.length > 0) {
             // Export selected chats
             const placeholders = chatIds.map(() => "?").join(",");
             chats = await query(
-              `SELECT * FROM beta_chats WHERE uid = ? AND chat_id IN (${placeholders})`,
-              [exportChatsOwnerUid, ...chatIds],
+              `SELECT bc.* FROM beta_chats bc WHERE bc.uid = ?${exportAssignedSql.sql} AND bc.chat_id IN (${placeholders})`,
+              [exportChatsOwnerUid,...exportAssignedSql.params,...chatIds],
             );
           } else {
             // Export ALL chats
-            chats = await query(`SELECT * FROM beta_chats WHERE uid = ?`, [
-              exportChatsOwnerUid,
-            ]);
+            chats = await query(`SELECT bc.* FROM beta_chats bc WHERE bc.uid = ?${exportAssignedSql.sql}`,
+              [exportChatsOwnerUid,...exportAssignedSql.params]);
           }
 
           // Enrich with phonebook contact names
@@ -401,6 +403,9 @@ function processSocketEvent({
 
         case "load_conversation":
           const { chat, filters = {} } = payload;
+          const conversationOwnerUid = payload.ownerUid || (isAgent
+            ? socket?.userData?.owner_uid
+            : uid);
 
           const {
             search: msgSearch = "",
@@ -410,14 +415,11 @@ function processSocketEvent({
           } = filters;
 
           // unreading the message count
-          await query(`UPDATE beta_chats SET unread_count = ? WHERE id = ?`, [
+          await query(`UPDATE beta_chats SET unread_count = ? WHERE id = ? AND uid = ?`, [
             0,
             chat?.id,
+            conversationOwnerUid,
           ]);
-
-          const conversationOwnerUid = isAgent
-            ? socket?.userData?.owner_uid
-            : uid;
           const conversationLimit = Math.min(
             500,
             Math.max(
@@ -474,8 +476,8 @@ function processSocketEvent({
           );
 
           let [updatedChat] = await query(
-            `SELECT * FROM beta_chats WHERE id = ?`,
-            [chat?.id],
+            `SELECT * FROM beta_chats WHERE id = ? AND uid = ?`,
+            [chat?.id, conversationOwnerUid],
           );
           let agents = await query(
             `SELECT * FROM agents WHERE owner_uid = ?`,
@@ -538,7 +540,7 @@ function processSocketEvent({
             agentData: agents,
             countDownTimer: {
               timestamp: lastSenderMsg?.timestamp ? lastSenderMsg.timestamp : 0,
-              timezone: socket?.userData?.timezone || "Asia/Kolkata",
+              timezone: socket?.userData?.timezone || "Asia/Qatar",
             },
             phonebookData: phonebookData,
             chatBots: chatBots,
@@ -546,7 +548,7 @@ function processSocketEvent({
           break;
 
         case "add_label":
-          const { label, hex } = payload;
+          const { label, hex, ownerUid: addLabelOwnerUid } = payload;
           if (!label || !hex) {
             return socket.emit("error", {
               msg: "Please provide Label",
@@ -555,7 +557,7 @@ function processSocketEvent({
 
           const labelsData = await query(
             `SELECT * FROM chat_tags WHERE uid = ?`,
-            [uid],
+            [addLabelOwnerUid],
           );
           const allLablesTitles = labelsData?.map((x) => x.title);
           if (allLablesTitles?.includes(label)) {
@@ -566,20 +568,20 @@ function processSocketEvent({
 
           await query(
             `INSERT INTO chat_tags (uid, hex, title) VALUES (?,?,?)`,
-            [uid, hex, label],
+            [addLabelOwnerUid, hex, label],
           );
 
           const labelsDataNew = await query(
             `SELECT * FROM chat_tags WHERE uid = ?`,
-            [uid],
+            [addLabelOwnerUid],
           );
 
           socket.emit("update_labels", labelsDataNew);
           break;
 
         case "on_label_delete":
-          const { labelId } = payload;
-          await query(`DELETE FROM chat_tags WHERE id = ?`, [labelId]);
+          const { labelId, ownerUid: labelOwnerUid } = payload;
+          await query(`DELETE FROM chat_tags WHERE id = ? AND uid = ?`, [labelId, labelOwnerUid]);
 
           const labelNew = await query(
             `SELECT * FROM chat_tags WHERE uid = ?`,
@@ -590,7 +592,7 @@ function processSocketEvent({
           break;
 
         case "set_chat_label":
-          const { labelData, chatIdRow } = payload;
+          const { labelData, chatIdRow, ownerUid: labelChatOwnerUid } = payload;
           if (!labelData || !chatIdRow) {
             return socket.emit("error", {
               msg: "Invalid request",
@@ -599,8 +601,8 @@ function processSocketEvent({
 
           // Get existing labels first
           const [existingLabelsRow] = await query(
-            `SELECT chat_label FROM beta_chats WHERE id = ?`,
-            [chatIdRow],
+            `SELECT chat_label FROM beta_chats WHERE id = ? AND uid = ?`,
+            [chatIdRow, labelChatOwnerUid],
           );
 
           let existingLabels = [];
@@ -625,9 +627,10 @@ function processSocketEvent({
           }
 
           // Update with the new labels array
-          await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ?`, [
+          await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ? AND uid = ?`, [
             JSON.stringify(existingLabels),
             chatIdRow,
+            labelChatOwnerUid,
           ]);
 
           socket.emit("request_update_opened_chat", {});
@@ -635,7 +638,7 @@ function processSocketEvent({
           break;
 
         case "remove_chat_label":
-          const { labelId: labelIdd, chatId: chatIdd } = payload;
+          const { labelId: labelIdd, chatId: chatIdd, ownerUid: removeLabelOwnerUid } = payload;
           if (!labelIdd || !chatIdd) {
             return socket.emit("error", {
               msg: "Invalid request",
@@ -644,8 +647,8 @@ function processSocketEvent({
 
           // Get existing labels
           const [labelsRow] = await query(
-            `SELECT chat_label FROM beta_chats WHERE id = ?`,
-            [chatIdd],
+            `SELECT chat_label FROM beta_chats WHERE id = ? AND uid = ?`,
+            [chatIdd, removeLabelOwnerUid],
           );
 
           if (labelsRow?.chat_label) {
@@ -663,9 +666,10 @@ function processSocketEvent({
               );
 
               // Update the database
-              await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ?`, [
+              await query(`UPDATE beta_chats SET chat_label = ? WHERE id = ? AND uid = ?`, [
                 JSON.stringify(updatedLabels),
                 chatIdd,
+                removeLabelOwnerUid,
               ]);
             } catch (err) {
               console.error("Error parsing labels:", err);
@@ -677,12 +681,12 @@ function processSocketEvent({
           break;
 
         case "delete_chat_note":
-          const { chatNoteId, chatRealId } = payload;
+          const { chatNoteId, chatRealId, ownerUid: deleteNoteOwnerUid } = payload;
 
           if (chatNoteId && chatRealId) {
             const [getFirst] = await query(
-              `SELECT * FROM beta_chats WHERE id = ?`,
-              [chatRealId],
+              `SELECT * FROM beta_chats WHERE id = ? AND uid = ?`,
+              [chatRealId, deleteNoteOwnerUid],
             );
 
             // get notes array
@@ -691,9 +695,10 @@ function processSocketEvent({
             // filter out the note to be deleted
             const newNotes = oldNotes.filter((note) => note.id !== chatNoteId);
 
-            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ?`, [
+            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ? AND uid = ?`, [
               JSON.stringify(newNotes),
               chatRealId,
+              deleteNoteOwnerUid,
             ]);
           }
 
@@ -701,12 +706,12 @@ function processSocketEvent({
           break;
 
         case "save_chat_note":
-          const { id, chatNote, rating } = payload;
+          const { id, chatNote, rating, ownerUid: saveNoteOwnerUid } = payload;
 
           if (id) {
             const [getFirst] = await query(
-              `SELECT * FROM beta_chats WHERE id = ?`,
-              [id],
+              `SELECT * FROM beta_chats WHERE id = ? AND uid = ?`,
+              [id, saveNoteOwnerUid],
             );
 
             // get notes array
@@ -718,7 +723,7 @@ function processSocketEvent({
             ]);
 
             const userTimezone = getCurrentTimestampInTimeZone(
-              user?.timezone || "Asia/Kolkata",
+              user?.timezone || "Asia/Qatar",
             );
 
             // adding new array with rating included
@@ -734,9 +739,10 @@ function processSocketEvent({
               },
             ];
 
-            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ?`, [
+            await query(`UPDATE beta_chats SET chat_note = ? WHERE id = ? AND uid = ?`, [
               JSON.stringify(newArr),
               id,
+              saveNoteOwnerUid,
             ]);
           }
           socket.emit("request_update_opened_chat", {});
@@ -763,7 +769,7 @@ function processSocketEvent({
           ]);
 
           const userTimezone = getCurrentTimestampInTimeZone(
-            user?.timezone || "Asia/Kolkata",
+              user?.timezone || "Asia/Qatar",
           );
 
           const msgObj = returnMsgObjAfterAddingKey({
@@ -847,11 +853,26 @@ function processSocketEvent({
 
         case "unasign_chat_agent":
           const { cId, aUid } = payload;
+          if (inboxScope.canonical) {
+            const pool = require('../../database/config').promise();
+            const db = await pool.getConnection();
+            try {
+              await db.beginTransaction();
+              await require('../../modules/platform/team-conversation-assignment').unassignConversation(db, {
+                ctx: inboxScope.ctx, uid, chatId: cId, assigneeUid: aUid,
+              });
+              await db.commit();
+              sendToUid(uid, { chatId: cId }, 'request_update_chat_list');
+              sendToUid(uid, { chatId: cId }, 'request_update_opened_chat');
+              break;
+            } catch (error) { await db.rollback(); throw error; }
+            finally { db.release(); }
+          }
 
           // Get current chat data
           const [chatDataoo] = await query(
             `SELECT assigned_agent FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-            [cId, isAgent ? socket?.userData?.owner_uid : uid],
+            [cId, payload.ownerUid],
           );
 
           let currentAgentss = [];
@@ -881,7 +902,7 @@ function processSocketEvent({
             [
               JSON.stringify(updatedAgents),
               cId,
-              isAgent ? socket?.userData?.owner_uid : uid,
+              payload.ownerUid,
             ],
           );
 
@@ -890,22 +911,24 @@ function processSocketEvent({
 
         case "assign_agent_to_chat":
           const { chatId, agentUid, unAssign } = payload;
-          if (inboxScope.canonical && !unAssign) {
+          if (inboxScope.canonical) {
             const pool = require('../../database/config').promise();
             const db = await pool.getConnection();
             try {
               const assignments = require('../../modules/platform/team-conversation-assignment');
-              const staff = await assignments.eligibleStaff(db, inboxScope.ctx.tenant.id);
-              const target = staff.find(item => item.uid === agentUid);
-              if (target) {
-                await db.beginTransaction();
+              await db.beginTransaction();
+              if (unAssign) {
+                await assignments.unassignConversation(db, { ctx: inboxScope.ctx, uid, chatId, assigneeUid: agentUid });
+              } else {
+                const staff = await assignments.eligibleStaff(db, inboxScope.ctx.tenant.id);
+                const target = staff.find(item => item.uid === agentUid);
+                if (!target) throw Object.assign(new Error('CONVERSATION_ASSIGNEE_INVALID'), { code: 'CONVERSATION_ASSIGNEE_INVALID' });
                 await assignments.assignConversation(db, { ctx: inboxScope.ctx, uid, chatId, identityId: target.identityId });
-                await db.commit();
-                sendToUid(uid, { chatId }, 'request_update_chat_list');
-                sendToUid(uid, { chatId }, 'request_update_opened_chat');
-                break;
               }
-              if (inboxScope.assignedOnly) throw new Error('CONVERSATION_ASSIGNEE_INVALID');
+              await db.commit();
+              sendToUid(uid, { chatId }, 'request_update_chat_list');
+              sendToUid(uid, { chatId }, 'request_update_opened_chat');
+              break;
             } catch (error) { await db.rollback(); throw error; }
             finally { db.release(); }
           }
@@ -913,7 +936,7 @@ function processSocketEvent({
           // Get current chat data
           const [chatDatao] = await query(
             `SELECT assigned_agent FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-            [chatId, uid],
+            [chatId, payload.ownerUid],
           );
 
           let currentAgents = [];
@@ -939,7 +962,7 @@ function processSocketEvent({
               `UPDATE beta_chats
                   SET assigned_agent = ?
                   WHERE chat_id = ? AND uid = ?`,
-              [JSON.stringify(updatedAgents), chatId, uid],
+              [JSON.stringify(updatedAgents), chatId, payload.ownerUid],
             );
           } else {
             if (chatId && agentUid) {
@@ -952,7 +975,7 @@ function processSocketEvent({
                 // Get agent data
                 const [agentData] = await query(
                   `SELECT * FROM agents WHERE uid = ? AND owner_uid = ?`,
-                  [agentUid, uid],
+                  [agentUid, payload.ownerUid],
                 );
 
                 if (agentData) {
@@ -961,7 +984,7 @@ function processSocketEvent({
 
                   await query(
                     `UPDATE beta_chats SET assigned_agent = ? WHERE chat_id = ? AND uid = ?`,
-                    [JSON.stringify(updatedAgents), chatId, uid],
+                    [JSON.stringify(updatedAgents), chatId, payload.ownerUid],
                   );
                 }
               }
@@ -981,13 +1004,13 @@ function processSocketEvent({
           }
 
           const chatid = `${newChatInstance?.number}_${number?.replace("+", "")}_${
-            isAgent ? socket?.userData?.owner_uid : uid
+            payload.ownerUid
           }`;
 
           // checking if chat already existed
           const [checkChat] = await query(
             `SELECT * FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-            [chatid, isAgent ? socket?.userData?.owner_uid : uid],
+            [chatid, payload.ownerUid],
           );
           if (checkChat) {
             return socket.emit("error", {
@@ -1009,7 +1032,7 @@ function processSocketEvent({
 
           if (sendNewMsg?.id) {
             const userTimezone = getCurrentTimestampInTimeZone(
-              socket?.userData?.timezone || "Asia/Kolkata",
+              socket?.userData?.timezone || "Asia/Qatar",
             );
 
             const msgObj = returnMsgObjAfterAddingKey({
@@ -1053,7 +1076,7 @@ function processSocketEvent({
             await query(
               `INSERT INTO beta_chats (uid, origin_instance_id, chat_id, last_message, sender_mobile, origin, assigned_agent) VALUES (?,?,?,?,?,?,?)`,
               [
-                isAgent ? socket?.userData?.owner_uid : uid,
+                payload.ownerUid,
                 JSON.stringify(originInstanceId),
                 chatid,
                 JSON.stringify(messageData),
@@ -1071,21 +1094,21 @@ function processSocketEvent({
           break;
 
         case "delete_chat":
-          const { chatId: delChatId, type: deleteType } = payload;
+          const { chatId: delChatId, type: deleteType, ownerUid: deleteChatOwnerUid } = payload;
           if (delChatId && deleteType) {
             await query(
               `DELETE FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-              [delChatId, isAgent ? socket?.userData?.owner_uid : uid],
+              [delChatId, deleteChatOwnerUid],
             );
             const metaMediaFolder = `${__dirname}/../../client/public/meta-media`;
             const conversationData = await query(
               `SELECT * FROM beta_conversation WHERE chat_id = ? AND uid = ?`,
-              [delChatId, isAgent ? socket?.userData?.owner_uid : uid],
+              [delChatId, deleteChatOwnerUid],
             );
             await deleteMediaFromConversation({
               mediaFolderPath: metaMediaFolder,
               type: deleteType,
-              uid: isAgent ? socket?.userData?.owner_uid : uid,
+              uid: deleteChatOwnerUid,
               chatId: delChatId,
               conversationData,
             });
@@ -1093,7 +1116,7 @@ function processSocketEvent({
             if (deleteType === "delete") {
               await query(
                 `DELETE FROM beta_chats WHERE chat_id = ? AND uid = ?`,
-                [delChatId, isAgent ? socket?.userData?.owner_uid : uid],
+                [delChatId, deleteChatOwnerUid],
               );
             }
 
@@ -1133,28 +1156,25 @@ function processSocketEvent({
 
           break;
 
-        case "del_contact":
-          const { contactId } = payload;
-          await query(`DELETE FROM contact WHERE id = ?`, [contactId]);
+        case "del_contact": {
+          const { contactId, ownerUid } = payload;
+          await require('../../modules/platform/contact-records').removeContact(query, ownerUid, contactId);
           socket.emit("request_update_chat_list");
           socket.emit("request_update_opened_chat");
 
           break;
+        }
 
         case "update_spend_time":
-          const { uid: agentUidd, timeSpent } = payload;
-
-          if (!agentUidd || !timeSpent) {
-            return socket.emit("error", { msg: "Invalid time update request" });
-          }
+          const { uid: agentUidd, ownerUid, timeSpent } = payload;
 
           // Get current date in server timezone
           const today = moment().format("YYYY-MM-DD");
 
           // Get existing logs
           const [agentDataa] = await query(
-            `SELECT logs FROM agents WHERE uid = ?`,
-            [agentUidd],
+            `SELECT logs FROM agents WHERE uid = ? AND owner_uid = ? AND is_active = 1`,
+            [agentUidd, ownerUid],
           );
 
           let logs = {};
@@ -1174,9 +1194,10 @@ function processSocketEvent({
           logs.spendTime[today] = (logs.spendTime[today] || 0) + timeSpent;
 
           // Save updated logs
-          await query(`UPDATE agents SET logs = ? WHERE uid = ?`, [
+          await query(`UPDATE agents SET logs = ? WHERE uid = ? AND owner_uid = ? AND is_active = 1`, [
             JSON.stringify(logs),
             agentUidd,
+            ownerUid,
           ]);
 
           break;

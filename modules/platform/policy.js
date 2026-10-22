@@ -57,6 +57,12 @@ const permissions = {
   'properties.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
   'properties.manage': { owner: 'tenant', manager: 'tenant' },
   'properties.assign': { owner: 'tenant', manager: 'tenant' },
+  'buyer.requirements.read': { owner: 'tenant', manager: 'team', team_leader: 'team', agent: 'assigned' },
+  'buyer.requirements.manage': { owner: 'tenant', manager: 'team' },
+  'buyer.requirements.assign': { owner: 'tenant', manager: 'team' },
+  'property.viewings.read': { owner: 'tenant', manager: 'team', team_leader: 'team', agent: 'assigned' },
+  'property.viewings.manage': { owner: 'tenant', manager: 'team', team_leader: 'assigned', agent: 'assigned' },
+  'property.viewings.assign': { owner: 'tenant', manager: 'team' },
 };
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);
 const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read', 'telephony.configure']);
@@ -74,6 +80,8 @@ const capabilities = Object.freeze({
   'products.catalog': ['products.read','products.manage'],
   'hr.recruitment': ['recruitment.manage'],
   'realestate.listings': ['properties.read','properties.manage','properties.assign'],
+  'realestate.requirements': ['buyer.requirements.read','buyer.requirements.manage','buyer.requirements.assign'],
+  'realestate.viewings': ['property.viewings.read','property.viewings.manage','property.viewings.assign'],
   'campaigns.dashboard': ['campaigns.manage'], 'crm.leads': ['leads.read', 'leads.manage', 'leads.assign'],
   'crm.contacts': ['contacts.read', 'contacts.manage'], 'team.members': ['team.read', 'team.invite'],
   'team.tasks': ['tasks.read', 'tasks.manage'], 'training.courses': ['courses.read', 'courses.manage'],
@@ -90,6 +98,7 @@ function scopeFor(membership, permission) {
   // Listing reads use the persisted assignee and current Sales Organization
   // hierarchy. Custom grants cannot widen these scopes.
   if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && permission!=='properties.read') return null;
+  if (['buyer.requirements.manage','buyer.requirements.assign','property.viewings.assign'].includes(permission) && !['owner','manager'].includes(membership.role)) return null;
   // A custom role is an additional restriction on its fixed seat role. It can
   // never create a permission or scope that the seat role itself lacks.
   if (Array.isArray(membership.customPermissions) && !membership.customPermissions.includes(permission)) return null;
@@ -124,6 +133,7 @@ function decision(context, { capability, permission, resource, external = false 
   // Recruitment is an owner-only internal 7Network workspace feature, not a customer plan add-on.
   // Keep the tenant's active-plan requirement while avoiding mutation of its published plan version.
   if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || (!internalRecruitmentOwner && !subscription.capabilities.includes(capability))) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
+  if (require('./tenant-module-contract').isDisabled(context,capability)) return { allowed: false, code: 'MODULE_DISABLED' };
   // Internal 7Network accountants work from Finance and payout records. The
   // legacy Sales Lead Pipeline does not provide the finance-only detail view.
   // Keep Training Center billing-linked lead access unchanged.

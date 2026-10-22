@@ -81,6 +81,7 @@ function createAuthRouter({pool,key,origin,insecureLoopback=false,allowedAudienc
       ctx.category=getCategory(ctx.tenant.categoryKey,ctx.tenant.categoryVersion);
       if(!ctx.category)return null;
       ctx.subscription=await loadEntitlements(db,ctx.tenant.id);ctx.runtimeReady={};
+      await require('./tenant-customization').prepareRuntimeContext(db,ctx);
     }
     return ctx;
   }

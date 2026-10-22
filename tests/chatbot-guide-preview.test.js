@@ -22,6 +22,13 @@ test('guided preview uses unsaved bilingual copy and tenant-scoped published fac
   assert.equal(details.handoff, false);
 });
 
+test('Real Estate preview passes saved display privacy choices into the fact loader',async()=>{
+  const sourcePack=getDomainPack('real_estate',3);let received;
+  const pack={...sourcePack,loadFacts:async({config})=>{received=config.guidedContent;return [];}};
+  await previewGuidedTurn({body:{message:'show listings',guidedContent:{display:{showPrices:false,showArea:false,showBedrooms:false}}},pack,db:{},tenantId:'tenant-a'});
+  assert.equal(received.display.showPrices,false);assert.equal(received.display.showArea,false);assert.equal(received.display.showBedrooms,false);
+});
+
 test('guided preview rejects oversized or forged conversation state', async () => {
   await assert.rejects(() => previewGuidedTurn({
     body: { message: '1', state: { courseCodes: Array(31).fill('course') } },

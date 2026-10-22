@@ -313,7 +313,7 @@ router.get("/reports/activity", async (req,res)=>{
   try{
     const data=await pipelineReports.getActivityReport({
       pool:require("../database/config.js").promise(),uid:req.pipelineActor.uid,
-      role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,
+      role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,
       period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,
       page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit),assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId,
     });
@@ -526,6 +526,7 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
             assigned=assigned.filter(item=>!previousUid||item?.uid!==previousUid);
             if(target&&!assigned.some(item=>String(item?.id)===String(target.id)||item?.uid===target.uid))assigned.push(target);
             await db.query('UPDATE beta_chats SET assigned_agent=? WHERE uid=? AND chat_id=?',[JSON.stringify(assigned),req.pipelineActor.uid,chatId]);
+            await require('../modules/platform/conversation-assignment-index').replaceConversationAssignments(db,{uid:req.pipelineActor.uid,chatId,assignedAgent:assigned});
           }
         }
         let reminderTask=null;

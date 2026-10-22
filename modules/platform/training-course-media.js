@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const courses = require('./training-courses');
+const storage = require('./catalogue-storage');
 
 const MiB = 1024 * 1024;
 const MAX_FILE_BYTES = 1024 * MiB;
@@ -90,16 +91,18 @@ function filePath(tenantId, courseId, storageKey) {
 async function list(db, ctx, courseId) {
   courses.object(ctx, 'courses.read');
   safeId(courseId);
-  const [[course]] = await db.query('SELECT id FROM sx_training_courses WHERE tenant_id=? AND id=? AND deleted_at IS NULL', [ctx.tenant.id, courseId]);
+  const tables=storage.forContext(ctx);if(!tables)fail('CATEGORY_UNAVAILABLE',403);
+  const [[course]] = await db.query(`SELECT id FROM ${tables.catalogueTable} WHERE tenant_id=? AND id=? AND deleted_at IS NULL`, [ctx.tenant.id, courseId]);
   if (!course) fail('COURSE_NOT_FOUND', 404);
   const [rows] = await db.query(`SELECT id,media_kind AS kind,mime_type AS mimeType,original_name AS originalName,file_size_bytes AS sizeBytes,created_at AS createdAt
-    FROM sx_training_course_media WHERE tenant_id=? AND course_id=? AND deleted_at IS NULL ORDER BY created_at,id`, [ctx.tenant.id, courseId]);
+    FROM ${tables.mediaTable} WHERE tenant_id=? AND ${tables.parentIdColumn}=? AND deleted_at IS NULL ORDER BY created_at,id`, [ctx.tenant.id, courseId]);
   return rows.map(row => ({ ...row, sizeBytes: Number(row.sizeBytes), downloadPath: `/${encodeURIComponent(courseId)}/media/${encodeURIComponent(row.id)}/access` }));
 }
 
 async function attach(db, ctx, courseId, file) {
   courses.object(ctx, 'courses.manage');
   safeId(courseId);
+  const tables=storage.forContext(ctx);if(!tables)fail('CATEGORY_UNAVAILABLE',403);
   const info = await inspectUpload(file);
   const id = uuid();
   const name = displayName(file.name);
@@ -111,19 +114,20 @@ async function attach(db, ctx, courseId, file) {
     await db.beginTransaction();
     const [[tenant]] = await db.query('SELECT id,status FROM sx_tenants WHERE id=? FOR UPDATE', [ctx.tenant.id]);
     if (!tenant || tenant.status !== 'active') fail('ACCOUNT_INACTIVE', 409);
-    const [[course]] = await db.query('SELECT id,status FROM sx_training_courses WHERE tenant_id=? AND id=? AND deleted_at IS NULL FOR UPDATE', [ctx.tenant.id, courseId]);
+    const [[course]] = await db.query(`SELECT id,status FROM ${tables.catalogueTable} WHERE tenant_id=? AND id=? AND deleted_at IS NULL FOR UPDATE`, [ctx.tenant.id, courseId]);
     if (!course) fail('COURSE_NOT_FOUND', 404);
     if (course.status === 'retired') fail('COURSE_RETIRED', 409);
-    const [[usage]] = await db.query(`SELECT COUNT(*) AS file_count,COALESCE(SUM(file_size_bytes),0) AS used_bytes FROM sx_training_course_media WHERE tenant_id=? AND deleted_at IS NULL`, [ctx.tenant.id]);
-    const [[courseUsage]] = await db.query(`SELECT COUNT(*) AS file_count FROM sx_training_course_media WHERE tenant_id=? AND course_id=? AND deleted_at IS NULL`, [ctx.tenant.id, courseId]);
+    const [[usage]] = await db.query(`SELECT COUNT(*) AS file_count,COALESCE(SUM(file_size_bytes),0) AS used_bytes FROM ${tables.mediaTable} WHERE tenant_id=? AND deleted_at IS NULL`, [ctx.tenant.id]);
+    const [[courseUsage]] = await db.query(`SELECT COUNT(*) AS file_count FROM ${tables.mediaTable} WHERE tenant_id=? AND ${tables.parentIdColumn}=? AND deleted_at IS NULL`, [ctx.tenant.id, courseId]);
     if (Number(courseUsage.file_count) >= MAX_COURSE_FILES) fail('COURSE_MEDIA_LIMIT_REACHED', 409);
     if (Number(usage.used_bytes) + info.size > TENANT_QUOTA_BYTES) fail('COURSE_MEDIA_QUOTA_EXCEEDED', 409);
     await file.mv(target);
     moved = true;
-    await db.query(`INSERT INTO sx_training_course_media(id,tenant_id,course_id,media_kind,mime_type,original_name,storage_key,file_size_bytes,sha256_hex,created_by_identity_id)
+    await db.query(`INSERT INTO ${tables.mediaTable}(id,tenant_id,${tables.parentIdColumn},media_kind,mime_type,original_name,storage_key,file_size_bytes,sha256_hex,created_by_identity_id)
       VALUES (?,?,?,?,?,?,?,?,?,?)`, [id, ctx.tenant.id, courseId, info.kind, info.mime, name, id, info.size, info.sha256, ctx.identity.id]);
+    const auditPrefix=tables.kind==='products'?'sales.product':'training.course',resourceType=tables.kind==='products'?'sales-product-media':'training-course-media';
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
-      VALUES (?,?,?,'identity','training.course-media-uploaded','training-course-media',?,?,?)`, [uuid(), ctx.tenant.id, ctx.identity.id, id, JSON.stringify({ courseId, kind: info.kind, mimeType: info.mime, sizeBytes: info.size, sha256: info.sha256 }), uuid()]);
+      VALUES (?,?,?,'identity',?,?,?,?,?)`, [uuid(), ctx.tenant.id, ctx.identity.id, `${auditPrefix}-media-uploaded`, resourceType, id, JSON.stringify({ [tables.kind==='products'?'productId':'courseId']:courseId, kind: info.kind, mimeType: info.mime, sizeBytes: info.size, sha256: info.sha256 }), uuid()]);
     await db.commit();
     return { id, kind: info.kind, mimeType: info.mime, originalName: name, sizeBytes: info.size };
   } catch (error) {
@@ -135,15 +139,17 @@ async function attach(db, ctx, courseId, file) {
 
 async function remove(db, ctx, courseId, mediaId) {
   courses.object(ctx, 'courses.manage');
+  const tables=storage.forContext(ctx);if(!tables)fail('CATEGORY_UNAVAILABLE',403);
   safeId(courseId); safeId(mediaId);
   await db.beginTransaction();
   try {
-    const [[row]] = await db.query(`SELECT storage_key AS storageKey FROM sx_training_course_media
-      WHERE tenant_id=? AND course_id=? AND id=? AND deleted_at IS NULL FOR UPDATE`, [ctx.tenant.id, courseId, mediaId]);
+    const [[row]] = await db.query(`SELECT storage_key AS storageKey FROM ${tables.mediaTable}
+      WHERE tenant_id=? AND ${tables.parentIdColumn}=? AND id=? AND deleted_at IS NULL FOR UPDATE`, [ctx.tenant.id, courseId, mediaId]);
     if (!row) fail('COURSE_MEDIA_NOT_FOUND', 404);
-    await db.query('UPDATE sx_training_course_media SET deleted_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND course_id=? AND id=?', [ctx.tenant.id, courseId, mediaId]);
+    await db.query(`UPDATE ${tables.mediaTable} SET deleted_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND ${tables.parentIdColumn}=? AND id=?`, [ctx.tenant.id, courseId, mediaId]);
+    const auditPrefix=tables.kind==='products'?'sales.product':'training.course',resourceType=tables.kind==='products'?'sales-product-media':'training-course-media';
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
-      VALUES (?,?,?,'identity','training.course-media-removed','training-course-media',?,?,?)`, [uuid(), ctx.tenant.id, ctx.identity.id, mediaId, JSON.stringify({ courseId }), uuid()]);
+      VALUES (?,?,?,'identity',?,?,?,?,?)`, [uuid(), ctx.tenant.id, ctx.identity.id, `${auditPrefix}-media-removed`, resourceType, mediaId, JSON.stringify({ [tables.kind==='products'?'productId':'courseId']:courseId }), uuid()]);
     await db.commit();
     await fsp.rm(filePath(ctx.tenant.id, courseId, row.storageKey), { force: true }).catch(() => {});
     return { id: mediaId, removed: true };
@@ -153,17 +159,22 @@ async function remove(db, ctx, courseId, mediaId) {
   }
 }
 
-async function getFile(db, tenantId, courseId, mediaId) {
+async function getFile(db, tenantId, courseId, mediaId, resourceType='courses') {
   safeId(tenantId); safeId(courseId); safeId(mediaId);
+  const tables=storage.forKind(resourceType);if(!tables)fail('CATEGORY_UNAVAILABLE',403);
   const [[row]] = await db.query(`SELECT media_kind AS kind,mime_type AS mimeType,original_name AS originalName,storage_key AS storageKey,file_size_bytes AS sizeBytes
-    FROM sx_training_course_media m JOIN sx_training_courses c ON c.tenant_id=m.tenant_id AND c.id=m.course_id AND c.deleted_at IS NULL WHERE m.tenant_id=? AND m.course_id=? AND m.id=? AND m.deleted_at IS NULL`, [tenantId, courseId, mediaId]);
+    FROM ${tables.mediaTable} m JOIN ${tables.catalogueTable} c ON c.tenant_id=m.tenant_id AND c.id=m.${tables.parentIdColumn} AND c.deleted_at IS NULL WHERE m.tenant_id=? AND m.${tables.parentIdColumn}=? AND m.id=? AND m.deleted_at IS NULL`, [tenantId, courseId, mediaId]);
   if (!row) fail('COURSE_MEDIA_NOT_FOUND', 404);
   return { ...row, path: filePath(tenantId, courseId, row.storageKey), sizeBytes: Number(row.sizeBytes) };
 }
 
 function accessToken(ctx, courseId, mediaId) {
   const jwt = require('jsonwebtoken');
-  return jwt.sign({ aud: 'salemax-course-media', tenantId: ctx.tenant.id, courseId, mediaId }, process.env.JWTKEY, { expiresIn: 10800 });
+  const resourceType = require('./product-catalog').kind(ctx);
+  if (!['courses', 'products'].includes(resourceType)) fail('CATEGORY_UNAVAILABLE', 403);
+  // Keep the established audience for old stream links, but bind every newly
+  // issued grant to the category-owned resource namespace as well.
+  return jwt.sign({ aud: 'salemax-course-media', resourceType, tenantId: ctx.tenant.id, courseId, mediaId }, process.env.JWTKEY, { expiresIn: 10800 });
 }
 
 function verifyAccessToken(token) {
@@ -172,7 +183,15 @@ function verifyAccessToken(token) {
   try { payload = jwt.verify(token, process.env.JWTKEY, { audience: 'salemax-course-media' }); }
   catch (_) { fail('COURSE_MEDIA_ACCESS_REQUIRED', 401); }
   safeId(payload.tenantId); safeId(payload.courseId); safeId(payload.mediaId);
-  return payload;
+  const resourceType = payload.resourceType || 'courses';
+  if (!['courses', 'products'].includes(resourceType)) fail('COURSE_MEDIA_ACCESS_REQUIRED', 401);
+  return { ...payload, resourceType };
 }
 
-module.exports = { MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, getFile, accessToken, verifyAccessToken };
+function cookieName(resourceType, mediaId) {
+  if (!['courses', 'products'].includes(resourceType)) fail('CATEGORY_UNAVAILABLE', 403);
+  safeId(mediaId);
+  return `sx_${resourceType}_media_${mediaId.replace(/-/g, '')}`;
+}
+
+module.exports = { MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, getFile, accessToken, verifyAccessToken, cookieName };

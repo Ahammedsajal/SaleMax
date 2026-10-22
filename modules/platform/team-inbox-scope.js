@@ -5,7 +5,7 @@ const EVENT_PERMISSIONS = Object.freeze({
   get_chat_list: 'conversations.read', load_conversation: 'conversations.read', export_chats: 'conversations.read', export_conversation: 'conversations.read',
   send_chat_message: 'conversations.reply', send_new_message: 'conversations.reply', save_chat_note: 'conversations.reply', delete_chat_note: 'conversations.reply',
   update_spend_time: 'conversations.read', translate_message: 'conversations.reply', suggest_reply: 'conversations.reply',
-  add_label: 'contacts.manage', on_label_delete: 'contacts.manage', set_chat_label: 'contacts.manage', remove_chat_label: 'contacts.manage', save_as_context: 'contacts.manage',
+  add_label: 'contacts.manage', on_label_delete: 'contacts.manage', set_chat_label: 'contacts.manage', remove_chat_label: 'contacts.manage', save_as_context: 'contacts.manage', del_contact: 'contacts.manage',
   assign_agent_to_chat: 'conversations.reply', unasign_chat_agent: 'leads.assign',
 });
 const fail = () => { throw Object.assign(new Error('TEAM_INBOX_PERMISSION_DENIED'), { code: 'TEAM_INBOX_PERMISSION_DENIED' }); };
@@ -13,7 +13,8 @@ const parse = value => { try { const list = typeof value === 'string' ? JSON.par
 
 async function resolveInboxScope(query, user, event) {
   const source=user.isAgent||user.role==='agent'?'agents':'user';
-  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
+  const [rows] = [await query(`SELECT t.id AS tenantId,t.status AS tenantStatus,t.category_key AS categoryKey,
+      t.conversation_assignment_index_ready_at AS conversationAssignmentIndexReadyAt,m.id AS membershipId,m.identity_id AS identityId,m.role,m.status AS membershipStatus,
       i.status AS identityStatus,o.legacy_uid_hash AS uidHash,m.role_profile_id AS roleProfileId,
       m.delegated_permissions AS delegatedPermissions,r.permissions AS rolePermissions,r.seat_role AS seatRole,r.status AS roleStatus
     FROM sx_legacy_ownership o JOIN sx_tenants t ON t.id=o.tenant_id
@@ -28,14 +29,16 @@ async function resolveInboxScope(query, user, event) {
   if (!permission && row.role !== 'owner') fail();
   const qrAccountant = row.role==='accountant' && row.categoryKey==='training_center' && ['conversations.read','conversations.reply'].includes(permission);
   const delegatedPermissions = parse(row.delegatedPermissions) || [];
-  const membership = { role: row.role, delegatedPermissions };
+  const membership = { id: row.membershipId, tenantId: row.tenantId, identityId: row.identityId, role: row.role, status: row.membershipStatus, delegatedPermissions };
   if (row.roleProfileId) {
     const permissions = parse(row.rolePermissions);
     if (!permissions || row.seatRole !== row.role || !['active','archived'].includes(row.roleStatus) || (permission && !permissions.includes(permission) && !qrAccountant)) fail();
     membership.customPermissions = permissions;
   }
   if (row.role !== 'owner' && !qrAccountant && !scopeFor(membership, permission)) fail();
-  const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId, ctx: { tenant: { id: row.tenantId }, identity: { id: row.identityId }, membership } };
+  const base = { canonical: true, assignedOnly: row.role !== 'owner', identityId: row.identityId,
+    assignmentIndexReady: Boolean(row.conversationAssignmentIndexReadyAt),
+    ctx: { tenant: { id: row.tenantId, status: row.tenantStatus, categoryKey: row.categoryKey }, identity: { id: row.identityId }, membership } };
   if (row.role === 'owner') return { ...base, uid: user.uid };
   const owners = await query(`SELECT u.uid,m.id AS membershipId,m.identity_id AS identityId,o.legacy_uid_hash AS uidHash FROM sx_memberships m
     JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='user'
@@ -77,34 +80,154 @@ function filterAssignedChats(chats, scope) {
     (chat.origin === 'qr' && chat.origin_instance_unique_id && channelIds.has(String(chat.origin_instance_unique_id))));
 }
 
+function assignedChatSql(scope, alias='bc') {
+  if (!/^[a-z][a-z0-9_]*$/i.test(alias)) fail();
+  if (!scope?.canonical || !scope.assignedOnly) return { sql:'', params:[] };
+  const clauses=[],params=[];
+  if (!scope.qrOnly && typeof scope.identityId==='string' && /^[A-Za-z0-9_-]{1,128}$/.test(scope.identityId)) {
+    if (scope.assignmentIndexReady === true && typeof scope.ctx?.tenant?.id === 'string' && typeof scope.uid === 'string' && scope.uid) {
+      const ownerUidHash = crypto.createHash('sha256').update(scope.uid, 'utf8').digest('hex');
+      clauses.push(`EXISTS (SELECT 1 FROM sx_conversation_assignments ca WHERE ca.tenant_id=? AND ca.owner_uid_hash=? AND ca.identity_id=? AND ca.chat_id=${alias}.chat_id)`);
+      params.push(scope.ctx.tenant.id, ownerUidHash, scope.identityId);
+    } else {
+      clauses.push(`${alias}.assigned_agent LIKE ?`);
+      params.push(`%${scope.identityId}%`);
+    }
+  }
+  const channels=[...new Set((scope.sharedQrInstances||[]).map(item=>item?.uniqueId).filter(value=>typeof value==='string'&&value.length>0&&value.length<=255))];
+  if (channels.length) {
+    clauses.push(`(${alias}.origin='qr' AND ${alias}.origin_instance_unique_id IN (${channels.map(()=>'?').join(',')}))`);
+    params.push(...channels);
+  }
+  return clauses.length?{sql:` AND (${clauses.join(' OR ')})`,params}:{sql:' AND 1=0',params:[]};
+}
+
 function filterQrInstances(instances, scope) {
   if (!scope?.canonical || scope.ctx?.membership?.role === 'owner') return instances;
   const allowed = new Set((scope.sharedQrInstanceIds || []).map(Number));
   return instances.filter(instance => allowed.has(Number(instance.id)));
 }
 
-async function authorizeInboxPayload(query, scope, event, payload) {
-  if (!scope.canonical) return payload;
+async function payloadOwnerUid(query, scope, actor) {
+  if (scope?.canonical) {
+    if (typeof scope.uid !== 'string' || !scope.uid) fail();
+    return scope.uid;
+  }
+  if (actor?.isAgent === true || actor?.role === 'agent') {
+    const agentUid = typeof actor.uid === 'string' ? actor.uid : '';
+    const ownerUid = typeof actor.owner_uid === 'string' ? actor.owner_uid : '';
+    if (!agentUid || !ownerUid) fail();
+    const agents = await query('SELECT uid FROM agents WHERE uid=? AND owner_uid=? AND (is_active IS NULL OR is_active<>0) LIMIT 2', [agentUid, ownerUid]);
+    if (agents.length !== 1) fail();
+    return ownerUid;
+  }
+  if (typeof scope?.uid !== 'string' || !scope.uid) fail();
+  return scope.uid;
+}
+
+function legacyAgentOwnsConversation(chat, actor) {
+  try {
+    const parsed = typeof chat?.assigned_agent === 'string' ? JSON.parse(chat.assigned_agent) : chat?.assigned_agent;
+    const assigned = Array.isArray(parsed) ? parsed : [parsed];
+    return assigned.some(agent => agent && (
+      (actor?.id != null && String(agent.id) === String(actor.id)) ||
+      (typeof actor?.uid === 'string' && agent.uid === actor.uid)
+    ));
+  } catch { return false; }
+}
+
+async function authorizeInboxPayload(query, scope, event, payload, actor) {
+  if (event === 'update_spend_time') return authorizeAgentSpendTime(query, scope, payload, actor);
+  if (event === 'del_contact') return authorizeContactDelete(scope, payload, actor);
+  const targetOwnerUid = await payloadOwnerUid(query, scope, actor);
+  if (scope.assignedOnly && event === 'send_new_message') fail();
+  if (event === 'on_label_delete') {
+    const labelId = Number(payload?.labelId);
+    if (!Number.isSafeInteger(labelId) || labelId < 1) fail();
+    const labels = await query('SELECT id FROM chat_tags WHERE id=? AND uid=? LIMIT 1', [labelId, targetOwnerUid]);
+    if (labels.length !== 1) fail();
+    return { ...payload, labelId, ownerUid: targetOwnerUid };
+  }
+  if ((event === 'unasign_chat_agent' || (event === 'assign_agent_to_chat' && payload?.unAssign)) &&
+      (actor?.isAgent === true || actor?.role === 'agent')) {
+    const requestedUid = event === 'unasign_chat_agent' ? payload?.aUid : payload?.agentUid;
+    if (requestedUid !== actor.uid) fail();
+  }
+  if (event === 'send_new_message') {
+    if (actor?.isAgent === true || actor?.role === 'agent') {
+      if (scope.canonical) fail();
+      const agents = await query('SELECT uid,allow_send_new_qr FROM agents WHERE uid=? AND owner_uid=? AND (is_active IS NULL OR is_active<>0) LIMIT 2', [actor.uid, targetOwnerUid]);
+      if (agents.length !== 1 || Number(agents[0].allow_send_new_qr) !== 1) fail();
+    }
+    const uniqueId = payload?.instance?.uniqueId;
+    if (typeof uniqueId !== 'string' || !uniqueId || uniqueId.length > 255) fail();
+    const instances = await query('SELECT id,uid,uniqueId,number,status FROM instance WHERE uid=? AND uniqueId=? LIMIT 2', [targetOwnerUid, uniqueId]);
+    if (instances.length !== 1) fail();
+    return { ...payload, instance: instances[0], ownerUid: targetOwnerUid };
+  }
   if(scope.qrOnly&&!['get_chat_list','load_conversation','export_chats','export_conversation','send_chat_message'].includes(event))fail();
   // Staff never initiate a different WhatsApp conversation through the shared
   // number. Reply only to the persisted, currently assigned customer/channel.
-  if (scope.assignedOnly && ['send_new_message', 'unasign_chat_agent'].includes(event)) fail();
-  if (['get_chat_list','export_chats','add_label','on_label_delete','update_spend_time','translate_message'].includes(event)) return payload;
+  if (event === 'add_label') return { ...payload, ownerUid: targetOwnerUid };
+  if (['get_chat_list','export_chats','update_spend_time','translate_message'].includes(event)) return payload;
   const ids = {
     load_conversation: payload.chat?.chat_id, export_conversation: payload.chatId,
     send_chat_message: payload.chatInfo?.chat_id, assign_agent_to_chat: payload.chatId,
-    unasign_chat_agent: payload.cId, suggest_reply: payload.chatId,
+    unasign_chat_agent: payload.cId, suggest_reply: payload.chatId, delete_chat: payload.chatId,
     save_as_context: payload.chatId,
   };
   const rowIds = { set_chat_label: payload.chatIdRow, remove_chat_label: payload.chatId, delete_chat_note: payload.chatRealId, save_chat_note: payload.id };
   const rowId = rowIds[event];
   const chatId = ids[event];
-  if (!chatId && !rowId) { if (scope.assignedOnly) fail(); return payload; }
-  const rows = await query(`SELECT * FROM beta_chats WHERE uid=? AND ${rowId ? 'id' : 'chat_id'}=? LIMIT 1`, [scope.uid, rowId || chatId]);
-  if (rows.length !== 1 || (scope.assignedOnly && !filterAssignedChats(rows, scope).length)) fail();
-  if (event === 'send_chat_message') return { ...payload, chatInfo: rows[0] };
-  if (event === 'load_conversation') return { ...payload, chat: rows[0] };
-  return payload;
+  const targetEvents = ['load_conversation','export_conversation','send_chat_message','assign_agent_to_chat','unasign_chat_agent','suggest_reply','delete_chat','set_chat_label','remove_chat_label','delete_chat_note','save_chat_note'];
+  if (!chatId && !rowId) { if (scope.assignedOnly || targetEvents.includes(event)) fail(); return payload; }
+  const rows = await query(`SELECT * FROM beta_chats WHERE uid=? AND ${rowId ? 'id' : 'chat_id'}=? LIMIT 1`, [targetOwnerUid, rowId || chatId]);
+  if (rows.length !== 1 ||
+      (scope.canonical && scope.assignedOnly && !filterAssignedChats(rows, scope).length) ||
+      (!scope.canonical && (actor?.isAgent === true || actor?.role === 'agent') && !legacyAgentOwnsConversation(rows[0], actor))) fail();
+  if (event === 'send_chat_message') return { ...payload, chatInfo: rows[0], ownerUid: targetOwnerUid };
+  if (event === 'load_conversation') return { ...payload, chat: rows[0], ownerUid: targetOwnerUid };
+  return { ...payload, ownerUid: targetOwnerUid };
 }
 
-module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, filterQrInstances, authorizeInboxPayload, EVENT_PERMISSIONS };
+async function authorizeAgentSpendTime(query, scope, payload, actor) {
+  const agentUid = typeof actor?.uid === 'string' ? actor.uid : '';
+  const isAgent = actor?.isAgent === true || actor?.role === 'agent';
+  if (!isAgent || !agentUid || (scope?.canonical && scope.ctx?.membership?.role !== 'agent')) fail();
+  if (typeof payload?.uid !== 'string' || payload.uid !== agentUid) fail();
+  const timeSpent = payload.timeSpent;
+  if (!Number.isSafeInteger(timeSpent) || timeSpent < 1 || timeSpent > 300) fail();
+  const ownerUid = scope?.canonical ? scope.uid : actor.owner_uid;
+  if (typeof ownerUid !== 'string' || !ownerUid) fail();
+  const rows = await query('SELECT uid FROM agents WHERE uid=? AND owner_uid=? AND is_active=1 LIMIT 2', [agentUid, ownerUid]);
+  if (rows.length !== 1) fail();
+  return { uid: agentUid, ownerUid, timeSpent };
+}
+
+async function authorizeInboxFeature(scope, event, featureSession) {
+  if (!scope?.canonical) return featureSession;
+  const permission = EVENT_PERMISSIONS[event];
+  if (!permission) return featureSession;
+  const { capabilities, decision } = require('./policy');
+  const capability = Object.entries(capabilities).find(([, permissions]) => permissions.includes(permission))?.[0];
+  if (!capability || typeof featureSession?.refresh !== 'function') fail();
+  const current = await featureSession.refresh();
+  const context = current?.context;
+  if (!context || current.ownerUid !== scope.uid || context.tenant?.id !== scope.ctx?.tenant?.id ||
+      context.membership?.id !== scope.ctx?.membership?.id || context.identity?.id !== scope.ctx?.identity?.id) fail();
+  const result = decision(context, { capability, permission });
+  if (!result.allowed) throw Object.assign(new Error(result.code), { code: result.code });
+  return current;
+}
+
+function authorizeContactDelete(scope, payload, actor) {
+  if (actor?.isAgent === true || actor?.role === 'agent') fail();
+  if (scope?.canonical) {
+    if (!['owner', 'manager'].includes(scope.ctx?.membership?.role)) fail();
+  } else if (actor?.role !== 'user') fail();
+  const contactId = require('./contact-records').normalizedContactId(payload?.contactId ?? payload?.id);
+  if (typeof scope?.uid !== 'string' || !scope.uid) fail();
+  return { contactId, ownerUid: scope.uid };
+}
+
+module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, assignedChatSql, filterQrInstances, authorizeInboxPayload, authorizeAgentSpendTime, authorizeContactDelete, authorizeInboxFeature, EVENT_PERMISSIONS, legacyAgentOwnsConversation };

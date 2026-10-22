@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {createCategoryRegistry} = require('../modules/platform/category-registry');
 const {capabilities} = require('../modules/platform/policy');
 const {trainingCenter, sevenNetworkSales, restaurantFixture, listCategories} = require('../modules/platform/categories');
+const contractLock = require('../modules/platform/category-contract-lock');
 
 test('category registry pins versions instead of selecting latest implicitly', () => {
   const v2 = {...trainingCenter, version:2, capabilities:trainingCenter.capabilities.filter(key => !['sales.finance','hr.recruitment'].includes(key))};
@@ -22,7 +23,9 @@ test('registry rejects duplicate identity, unknown capabilities, invalid roles a
     {planable:'yes'},{capabilities:['unknown.feature']},{capabilities:['messaging.inbox','messaging.inbox']},
     {seatRoles:['agent']},{seatRoles:['owner','super_admin']},{migration:'../schema.sql'},
     {chatbotLeadCapture:'unreviewed'},{chatbotLeadCapture:'generic',capabilities:['messaging.inbox']},
-    {chatbotLeadCapture:'training',capabilities:['messaging.inbox','crm.leads']}]) {
+    {chatbotLeadCapture:'training',capabilities:['messaging.inbox','crm.leads']},
+    {taskAdapters:{unknown:1}},{taskAdapters:{sales_call:1},capabilities:['messaging.inbox','team.tasks']},
+    {taskAdapters:{sales_call:2}}]) {
     assert.throws(()=>createCategoryRegistry([{...trainingCenter,...patch}],capabilities),{code:'INVALID_CATEGORY_MANIFEST'});
   }
 });
@@ -35,4 +38,13 @@ test('registry copies caller input and exposes immutable manifests and listings'
   assert.ok(registry.get(input.key,1).capabilities.includes('messaging.inbox'));
   assert.throws(()=>registry.list().pop(),TypeError);
   assert.throws(()=>{registry.get(input.key,1).title.en='Other';},TypeError);
+});
+
+test('deployed category versions match reviewed fingerprints and reject silent contract edits',()=>{
+  const definitions=listCategories();
+  const registry=createCategoryRegistry(definitions,capabilities,contractLock);
+  assert.equal(registry.list().length,Object.keys(contractLock).length);
+  const changed=definitions.map(item=>item.key==='real_estate'&&item.version===3?{...item,title:{...item.title,en:'Property CRM'}}:item);
+  assert.throws(()=>createCategoryRegistry(changed,capabilities,contractLock),{code:'INVALID_CATEGORY_MANIFEST'});
+  assert.throws(()=>createCategoryRegistry(definitions.slice(1),capabilities,contractLock),{code:'INVALID_CATEGORY_MANIFEST'});
 });

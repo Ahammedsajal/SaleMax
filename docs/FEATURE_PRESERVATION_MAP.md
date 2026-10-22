@@ -20,7 +20,7 @@ This maps the requested existing features to inspected route families. Static ro
 
 ## Guard mapping limits
 
-Twenty mounted families contain 369 statically declared router routes, plus four direct app routes. Guard names in the inventory describe only declaration syntax. A route with no listed guard may inherit router-level validation or perform inline checks; a route with a guard may still have incorrect resource scope. The full TC35 permission matrix must inspect global/router middleware, callbacks, SQL ownership, exports and socket events. No unsupported provider feature is classified verified based on this inventory.
+The current source inventory contains 27 mounted route families with 531 statically declared router paths, plus four direct app routes. Counts include compatibility aliases for the same handlers, including array-mounted workspace paths. Guard names in the inventory describe only declaration syntax. A route with no listed guard may inherit router-level validation or perform inline checks; a route with a guard may still have incorrect resource scope. The full TC35 permission matrix must inspect global/router middleware, callbacks, SQL ownership, exports and socket events. No unsupported provider feature is classified verified based on this inventory.
 
 ## Frontend preservation
 

@@ -327,7 +327,7 @@ router.post("/users/upsert", internalOnly, async (req, res) => {
     const email = String(req.body?.email || "").trim().toLowerCase();
     const name = String(req.body?.name || "").trim();
     const mobile = String(req.body?.mobile_with_country_code || "").trim();
-    const timezone = String(req.body?.timezone || "Asia/Qatar").trim();
+    const timezone = "Asia/Qatar";
     const role = "user";
     const isActive = req.body?.is_active === false ? 0 : 1;
 

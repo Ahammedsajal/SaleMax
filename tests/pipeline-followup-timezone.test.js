@@ -27,7 +27,7 @@ test('pipeline follow-up UI uses API timezone and loads the conversion helper fi
   const index = fs.readFileSync(path.join(__dirname, '../client/public/pipeline/index.html'), 'utf8');
   const reports = fs.readFileSync(path.join(__dirname, '../client/public/pipeline/reports.js'), 'utf8');
   const helper = index.indexOf('/pipeline/timezone-datetime.js?v=20261014-followup-timezone1');
-  const client = index.indexOf('/pipeline/reports.js?v=20261014-followups1');
+  const client = index.indexOf('/pipeline/reports.js?v=20261022-report-category-scope1');
   assert.ok(helper >= 0 && client > helper);
   assert.match(reports, /state\.taskTimezone=body\.data\.timezone\|\|'Asia\/Qatar'/);
   assert.match(reports, /SaleMaXDateTime\.fromInput\(value,state\.taskTimezone\)/);

@@ -25,3 +25,18 @@ test('course editor summary replaces missing catalogue values with readable loca
   assert.equal(arabic.courseDeliverySummary('in_person'), 'حضوري');
   assert.equal(arabic.courseDeliverySummary(null), 'طريقة التقديم غير محددة');
 });
+
+test('Sales catalogue asks for product or service type and preserves legacy rows for review',()=>{
+  assert.match(source,/select\.name='itemKind'/);
+  assert.match(source,/select\.value=item\.itemKind\|\|'service'/);
+  assert.match(source,/addProductFields\(form\)/);
+  assert.match(source,/groups\[0\]\.fields=\['itemKind','nameEn','nameAr','code','tags','descriptionEn','descriptionAr'\]/);
+  assert.match(source,/const item=products\?\{\.\.\.common,itemKind:f\.get\('itemKind'\),tags:parseTags\(f\.get\('tags'\)\)\}/);
+  assert.match(source,/select\.value=c\.itemKind\|\|'unclassified'/);
+  assert.match(source,/PRODUCT_TYPE_REVIEW_REQUIRED/);
+  assert.match(source,/before publishing this product or service/);
+  assert.match(source,/tags:parseTags\(f\.get\('tags'\)\)/);
+  assert.match(source,/function hideTrainingFields\(form\)/);
+  assert.match(source,/setAttribute\('hidden',''\)/);
+  assert.match(source,/ACTIVE_PRICE_REQUIRED/);
+});
