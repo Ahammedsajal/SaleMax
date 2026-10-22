@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const {decision} = require('./policy');
 const fail = (code,status=400) => {throw Object.assign(new Error(code),{code,status});};
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-const defaults = () => ({schemaVersion:4,navigationLabels:{},leadFields:[],hiddenNavigation:[],stageLabels:{}});
+const defaults = () => ({schemaVersion:5,navigationLabels:{},leadFields:[],hiddenNavigation:[],stageLabels:{}});
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function authorize(ctx) {
   const result=decision(ctx,{capability:'tenant.settings',permission:'tenant.manage'});
@@ -22,13 +22,15 @@ function categoryNavigationKeys(ctx) {
   return new Set(fieldsFor(ctx).map(item=>item.key));
 }
 function normalize(ctx,input) {
-  const allowedKeys=input?.schemaVersion===4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','stageLabels']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
-  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
+  const allowedKeys=input?.schemaVersion>=4?['schemaVersion','navigationLabels','leadFields','hiddenNavigation','stageLabels']:input?.schemaVersion===3?['schemaVersion','navigationLabels','leadFields','hiddenNavigation']:input?.schemaVersion===2?['schemaVersion','navigationLabels','leadFields']:['schemaVersion','navigationLabels'];
+  if(!plain(input)||Object.keys(input).some(key=>!allowedKeys.includes(key))||![1,2,3,4,5].includes(input.schemaVersion)||!plain(input.navigationLabels))fail('INVALID_CUSTOMIZATION');
   const allowed=categoryNavigationKeys(ctx);
   const labels={};
   for(const key of Object.keys(input.navigationLabels).sort()) {
     const value=input.navigationLabels[key];
-    if(!allowed.has(key)||!plain(value)||Object.keys(value).length!==2||!['en','ar'].every(lang=>Object.hasOwn(value,lang)&&typeof value[lang]==='string'&&value[lang].trim().length>0&&value[lang].length<=80&&!/[<>\u0000-\u001f\u007f]/.test(value[lang])))fail('INVALID_CUSTOMIZATION_LABEL');
+    if(!allowed.has(key))fail('INVALID_CUSTOMIZATION_LABEL');
+    if(value===null&&input.schemaVersion===5){labels[key]=null;continue;}
+    if(!plain(value)||Object.keys(value).length!==2||!['en','ar'].every(lang=>Object.hasOwn(value,lang)&&typeof value[lang]==='string'&&value[lang].trim().length>0&&value[lang].length<=80&&!/[<>\u0000-\u001f\u007f]/.test(value[lang])))fail('INVALID_CUSTOMIZATION_LABEL');
     labels[key]={en:value.en.trim(),ar:value.ar.trim()};
   }
   const leadFields=input.schemaVersion===2?require('./lead-field-contract').definitions(input.leadFields):null;
@@ -38,20 +40,23 @@ function normalize(ctx,input) {
   const fields=schema3LeadFields||leadFields;
   if(fields?.length&&!ctx.category?.capabilities.includes('crm.leads'))fail('CATEGORY_UNAVAILABLE',409);
   const stageLabels={};
-  if(input.schemaVersion===4){
-    if(!plain(input.stageLabels)||Object.keys(input.stageLabels).length>100)fail('INVALID_CUSTOMIZATION_STAGE_LABELS');
-    for(const key of Object.keys(input.stageLabels).sort()){
+  if(input.schemaVersion>=4){
+    if(input.schemaVersion===5&&input.stageLabels===null)stageLabels=null;
+    else if(!plain(input.stageLabels)||Object.keys(input.stageLabels).length>100)fail('INVALID_CUSTOMIZATION_STAGE_LABELS');
+    if(stageLabels!==null)for(const key of Object.keys(input.stageLabels).sort()){
       const value=input.stageLabels[key];
-      if(!/^[a-z][a-z0-9_]{0,79}$/.test(key)||!plain(value)||Object.keys(value).length!==2||!['en','ar'].every(lang=>Object.hasOwn(value,lang)&&typeof value[lang]==='string'&&value[lang].trim().length>0&&value[lang].length<=80&&!/[<>\u0000-\u001f\u007f]/.test(value[lang])))fail('INVALID_CUSTOMIZATION_STAGE_LABELS');
+      if(!/^[a-z][a-z0-9_]{0,79}$/.test(key))fail('INVALID_CUSTOMIZATION_STAGE_LABELS');
+      if(value===null&&input.schemaVersion===5){stageLabels[key]=null;continue;}
+      if(!plain(value)||Object.keys(value).length!==2||!['en','ar'].every(lang=>Object.hasOwn(value,lang)&&typeof value[lang]==='string'&&value[lang].trim().length>0&&value[lang].length<=80&&!/[<>\u0000-\u001f\u007f]/.test(value[lang])))fail('INVALID_CUSTOMIZATION_STAGE_LABELS');
       stageLabels[key]={en:value.en.trim(),ar:value.ar.trim()};
     }
   }
-  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{}),...(input.schemaVersion===4?{stageLabels}:{})};
+  return {schemaVersion:input.schemaVersion,navigationLabels:labels,...(fields?{leadFields:fields}:{}),...(input.schemaVersion>=3?{hiddenNavigation:[...hiddenNavigation].sort()}:{}),...(input.schemaVersion>=4?{stageLabels}:{})};
 }
 const checksum = doc => crypto.createHash('sha256').update(JSON.stringify(doc)).digest('hex');
 function resolved(ctx,document,revisionNumber=0) {
   const fields=fieldsFor(ctx);
-  const platform={schemaVersion:4,navigationLabels:Object.fromEntries(fields.map(item=>[item.key,item.label])),leadFields:[],hiddenNavigation:[],stageLabels:{}};
+  const platform={schemaVersion:5,navigationLabels:Object.fromEntries(fields.map(item=>[item.key,item.label])),leadFields:[],hiddenNavigation:[],stageLabels:{}};
   // Category defaults are immutable server-side contract data. They are optional
   // until each category version publishes a reviewed customization contract.
   let categoryDefaults={};
@@ -66,7 +71,7 @@ function resolved(ctx,document,revisionNumber=0) {
 }
 function decode(ctx,row) {
   if(!row)return null;
-  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
+  if(row.category_key!==ctx.tenant.categoryKey||Number(row.category_version)!==ctx.tenant.categoryVersion||![1,2,3,4,5].includes(Number(row.schema_version)))fail('CUSTOMIZATION_VERSION_MISMATCH',409);
   const document=normalize(ctx,typeof row.document==='string'?JSON.parse(row.document):row.document);
   if(document.schemaVersion!==Number(row.schema_version)||checksum(document)!==row.checksum)fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {id:row.id,revision:Number(row.revision),kind:row.kind,document,checksum:row.checksum,createdAt:row.created_at};

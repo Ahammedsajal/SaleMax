@@ -1941,3 +1941,35 @@ read-only snapshot; no host, application, database, customer or provider state
 was modified. The disk margin is tight enough to retain deployment headroom in
 the release gate. This source branch is not deployed, and its shared-core PR
 remains open and draft.
+
+## Tenant configuration null tombstones — source implementation, 22 October 2026
+
+Customization schema v5 adds explicit removal of inherited per-key navigation
+and Pipeline stage labels. Lists retain atomic replacement semantics, including
+empty lists to clear inherited members.
+The existing owner editor exposes bilingual per-item reset controls and preview
+identifies restored platform labels. Schemas 1–4 remain readable with their
+previous validation rules. The resolver keeps deleted-value provenance, and
+preview remains read-only. No route, capability, plan, permission or record scope
+can be granted by these values.
+
+The focused customization, resolver, HTTP and overlay suite passes 20/20; the
+HTTP preview confirms v5 tenant tombstones resolve with tenant deletion
+provenance and make no persistence query. The full suite reports 1,018/1,059
+with the same 41 failures seen before this increment; no new failures appeared.
+JavaScript syntax and `git diff --check` pass. The existing browser fixture was extended for eight EN/AR,
+desktop/mobile, cookie/bearer scenarios, but Playwright is unavailable in this
+checkout, so rendered interaction remains unverified. No production deployment
+or customer setting change occurred.
+
+## Read-only production refresh — 22 October 2026, 08:01 UTC
+
+The authorized host is `carsqatar-prod-01`; `/opt/salemax/current` resolves to
+`/opt/salemax/releases/agent-inbox-quick-replies-e7781c7-20261022`. The app and
+MariaDB containers are healthy, report and recruitment notification workers
+are running, and the filesystem has 4.9 GiB free (90% used). The required
+`/opt/salemax/shared/7network-production-deploy.lock` path is absent. Checked
+source deployment scripts only contain unrelated `flock` use for domain
+retirement and HTTPS activation; no shared production lock implementation was
+found. No production state was changed. Do not deploy until operations provides
+the shared exclusive-lock mechanism and preflight confirms it is held.

@@ -160,6 +160,16 @@ customization screen edits labels declared by the category contract and any
 current tenant stage keys returned under the authenticated owner's existing
 business UID scope. Unmapped stage keys continue to use the current stage title.
 
+Schema version 5 enables explicit `null` tombstones for individual navigation
+and Pipeline stage labels. The existing owner editor exposes per-label resets
+to the platform or stored stage wording; blank fields still inherit category
+values. Preview and provenance identify the removed inherited value. Lists
+continue to replace atomically, so an empty custom-field or hidden-navigation
+list removes all category entries without changing the type to null. Schemas
+1–4 retain their prior validation rules and remain readable. These defaults and
+resets affect presentation/configuration; they do not change capabilities, plan
+rights, member permissions or record scope.
+
 ## Extensibility and domain boundaries
 
 | Category | Candidate modules, subject to implementation and acceptance |
