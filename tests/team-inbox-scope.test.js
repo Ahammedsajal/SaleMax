@@ -111,3 +111,32 @@ test('custom role permissions remain authoritative over a manager seat', async (
   assert.equal(await resolveInboxUid(query(custom),user,'load_conversation'),'synthetic-owner');
   await assert.rejects(resolveInboxUid(query(custom),user,'send_chat_message'),{code:'TEAM_INBOX_PERMISSION_DENIED'});
 });
+
+test('agent time tracking is bound to the authenticated active agent and verified owner', async () => {
+  const agent={id:7,uid:'synthetic-agent',owner_uid:'synthetic-owner',role:'agent',isAgent:true,is_active:1};
+  const calls=[];
+  const lookup=async(sql,args)=>{
+    calls.push({sql,args});
+    if(sql.includes('WHERE o.source_table'))return [{...member,role:'agent',uidHash:hash(agent.uid)}];
+    if(sql.includes("m.role='owner'"))return [{uid:'synthetic-owner',identityId:'owner-identity',uidHash:hash('synthetic-owner')}];
+    if(sql.includes('FROM sx_qr_channel_shares share'))return [];
+    if(sql.includes('FROM agents WHERE uid=? AND owner_uid=? AND is_active=1'))return [{uid:agent.uid}];
+    return [];
+  };
+  const scope=await resolveInboxScope(lookup,agent,'update_spend_time');
+  assert.deepEqual(await authorizeInboxPayload(lookup,scope,'update_spend_time',{uid:agent.uid,timeSpent:5,date:'forged'},agent),{
+    uid:agent.uid,ownerUid:'synthetic-owner',timeSpent:5,
+  });
+  assert.ok(calls.some(call=>call.sql.includes('uid=? AND owner_uid=? AND is_active=1')&&call.args[0]===agent.uid&&call.args[1]==='synthetic-owner'));
+  await assert.rejects(authorizeInboxPayload(lookup,scope,'update_spend_time',{uid:'foreign-agent',timeSpent:5},agent),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(authorizeInboxPayload(lookup,scope,'update_spend_time',{uid:agent.uid,timeSpent:301},agent),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(authorizeInboxPayload(lookup,scope,'update_spend_time',{uid:agent.uid,timeSpent:1.5},agent),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+  await assert.rejects(authorizeInboxPayload(lookup,scope,'update_spend_time',{uid:agent.uid,timeSpent:5},{...agent,role:'manager',isAgent:false}),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+
+  const unmapped={uid:agent.uid,canonical:false};
+  assert.deepEqual(await authorizeInboxPayload(lookup,unmapped,'update_spend_time',{uid:agent.uid,timeSpent:3},agent),{
+    uid:agent.uid,ownerUid:'synthetic-owner',timeSpent:3,
+  });
+  const foreignOwner=async(sql,args)=>sql.includes('FROM agents WHERE uid=? AND owner_uid=? AND is_active=1')?[]:lookup(sql,args);
+  await assert.rejects(authorizeInboxPayload(foreignOwner,scope,'update_spend_time',{uid:agent.uid,timeSpent:5},agent),{code:'TEAM_INBOX_PERMISSION_DENIED'});
+});

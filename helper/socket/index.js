@@ -54,7 +54,7 @@ function processSocketEvent({
       const inboxScope = await inboxAccess.resolveInboxScope(query, socket.userData, type);
       const isAgent=agentAccount&&!inboxScope.canonical;
       const uid = inboxScope.uid;
-      payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {});
+      payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {}, socket.userData);
       switch (type) {
         case "get_chat_list":
           const {
@@ -1142,19 +1142,15 @@ function processSocketEvent({
           break;
 
         case "update_spend_time":
-          const { uid: agentUidd, timeSpent } = payload;
-
-          if (!agentUidd || !timeSpent) {
-            return socket.emit("error", { msg: "Invalid time update request" });
-          }
+          const { uid: agentUidd, ownerUid, timeSpent } = payload;
 
           // Get current date in server timezone
           const today = moment().format("YYYY-MM-DD");
 
           // Get existing logs
           const [agentDataa] = await query(
-            `SELECT logs FROM agents WHERE uid = ?`,
-            [agentUidd],
+            `SELECT logs FROM agents WHERE uid = ? AND owner_uid = ? AND is_active = 1`,
+            [agentUidd, ownerUid],
           );
 
           let logs = {};
@@ -1174,9 +1170,10 @@ function processSocketEvent({
           logs.spendTime[today] = (logs.spendTime[today] || 0) + timeSpent;
 
           // Save updated logs
-          await query(`UPDATE agents SET logs = ? WHERE uid = ?`, [
+          await query(`UPDATE agents SET logs = ? WHERE uid = ? AND owner_uid = ? AND is_active = 1`, [
             JSON.stringify(logs),
             agentUidd,
+            ownerUid,
           ]);
 
           break;

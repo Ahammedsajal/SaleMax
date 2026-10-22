@@ -83,7 +83,8 @@ function filterQrInstances(instances, scope) {
   return instances.filter(instance => allowed.has(Number(instance.id)));
 }
 
-async function authorizeInboxPayload(query, scope, event, payload) {
+async function authorizeInboxPayload(query, scope, event, payload, actor) {
+  if (event === 'update_spend_time') return authorizeAgentSpendTime(query, scope, payload, actor);
   if (!scope.canonical) return payload;
   if(scope.qrOnly&&!['get_chat_list','load_conversation','export_chats','export_conversation','send_chat_message'].includes(event))fail();
   // Staff never initiate a different WhatsApp conversation through the shared
@@ -107,4 +108,18 @@ async function authorizeInboxPayload(query, scope, event, payload) {
   return payload;
 }
 
-module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, filterQrInstances, authorizeInboxPayload, EVENT_PERMISSIONS };
+async function authorizeAgentSpendTime(query, scope, payload, actor) {
+  const agentUid = typeof actor?.uid === 'string' ? actor.uid : '';
+  const isAgent = actor?.isAgent === true || actor?.role === 'agent';
+  if (!isAgent || !agentUid || (scope?.canonical && scope.ctx?.membership?.role !== 'agent')) fail();
+  if (typeof payload?.uid !== 'string' || payload.uid !== agentUid) fail();
+  const timeSpent = payload.timeSpent;
+  if (!Number.isSafeInteger(timeSpent) || timeSpent < 1 || timeSpent > 300) fail();
+  const ownerUid = scope?.canonical ? scope.uid : actor.owner_uid;
+  if (typeof ownerUid !== 'string' || !ownerUid) fail();
+  const rows = await query('SELECT uid FROM agents WHERE uid=? AND owner_uid=? AND is_active=1 LIMIT 2', [agentUid, ownerUid]);
+  if (rows.length !== 1) fail();
+  return { uid: agentUid, ownerUid, timeSpent };
+}
+
+module.exports = { resolveInboxUid, resolveInboxScope, filterAssignedChats, filterQrInstances, authorizeInboxPayload, authorizeAgentSpendTime, EVENT_PERMISSIONS };
