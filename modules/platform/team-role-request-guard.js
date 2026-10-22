@@ -73,6 +73,10 @@ function routePermission(req){
     if(path.startsWith('/training/finance'))return read?'invoices.read':'payments.verify';
     if(path.startsWith('/training/forms'))return read?'forms.manage':'forms.capture';
     if(['/get_me','/fetch_profile','/get_dashboard','/get_dashboard_old','/optional-features','/get_fcm_data','/get_plan_details'].includes(path))return 'tenant.read';
+    // The shared Inbox reads the tenant's saved quick replies through this
+    // legacy endpoint. Agent seats with Inbox access may read them, while the
+    // separate add/delete endpoints remain restricted by their own guards.
+    if(path==='/get_all_quick_reply'&&read)return 'conversations.read';
     if(path.includes('agent_task')||path==='/add_task_for_agent'||path==='/del_task_for_agent')return read?'tasks.read':'tasks.manage';
     if(path.includes('agent_report'))return 'reports.read';
     if(path.includes('contact')||path.includes('tag'))return read?'contacts.read':'contacts.manage';
