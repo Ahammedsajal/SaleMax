@@ -156,8 +156,9 @@ fallback, then the stored stage title. This value does not alter stage identity,
 type, transitions, automation, authorization or stored tenant titles. Category
 defaults and tenant overrides use the same shape; tenant labels override
 category-version labels, which override platform fallback. The owner
-customization screen edits labels declared by the category contract. Unmapped
-stage keys continue to use the current stage title.
+customization screen edits labels declared by the category contract and any
+current tenant stage keys returned under the authenticated owner's existing
+business UID scope. Unmapped stage keys continue to use the current stage title.
 
 ## Extensibility and domain boundaries
 

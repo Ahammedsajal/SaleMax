@@ -75,6 +75,14 @@ test('schema 4 resolves and validates bilingual Pipeline stage labels without ch
   assert.throws(()=>settings.normalize(scoped,{...tenant,stageLabels:{'bad key':{en:'A',ar:'ب'}}}),{code:'INVALID_CUSTOMIZATION_STAGE_LABELS'});
   assert.throws(()=>settings.normalize(scoped,{...tenant,stageLabels:{new:{en:'<script>',ar:'جديد'}}}),{code:'INVALID_CUSTOMIZATION_STAGE_LABELS'});
 });
+test('owner settings lists only Pipeline stages from the authenticated business uid',async()=>{
+  const calls=[],ownerUid='synthetic-owner-uid';
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.includes('FROM pipeline_stages'))return [[{key:'new',title:'New'},{key:'tenant_stage',title:'Qualified'}]];if(sql.includes('FROM sx_tenant_customization_heads'))return [[]];if(sql.includes('FROM sx_tenant_customization_revisions'))return [[]];throw Error('Unexpected query: '+sql);}};
+  const state=await settings.state(db,ctx,{ownerUid});
+  const stages=calls.find(call=>call.sql.includes('FROM pipeline_stages'));
+  assert.deepEqual(state.stageFields,[{key:'new',title:'New'},{key:'tenant_stage',title:'Qualified'}]);
+  assert.deepEqual(stages.args,[require('node:crypto').createHash('sha256').update(ownerUid,'utf8').digest('hex'),ownerUid]);
+});
 test('published hidden navigation affects only the current tenant session contract',async()=>{
   const contract=require('../modules/platform/feature-contract'),customization=require('../modules/platform/tenant-customization');
   const original=customization.effective;

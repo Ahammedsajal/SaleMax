@@ -1920,7 +1920,7 @@ customization and 42-ticket program remains in progress.
 Tenant customization schema v4 accepts bilingual display labels keyed by stable
 Pipeline stage keys. Category defaults inherit through the shared resolver,
 tenant values override them, the owner customization screen edits declared
-category labels, and the existing Pipeline reads the effective labels from the
+category labels and tenant-owned existing stage keys, and the existing Pipeline reads the effective labels from the
 shared workspace session. Labels cannot change stage behavior or access. Existing
 schemas 1–3 remain readable. The integrated category, customization, resolver, session, Pipeline task and Inbox suite passes 54/54;
 browser automation could not run in this checkout because Playwright is absent.

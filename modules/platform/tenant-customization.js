@@ -77,14 +77,20 @@ async function revision(db,ctx,id) {
   if(!row)fail('CUSTOMIZATION_NOT_FOUND',404);
   return decode(ctx,row);
 }
-async function state(db,ctx) {
+async function state(db,ctx,session=null) {
   authorize(ctx);
+  let stageFields=[];
+  if(typeof session?.ownerUid==='string'&&session.ownerUid){
+    const uidHash=crypto.createHash('sha256').update(session.ownerUid,'utf8').digest('hex');
+    const [rows]=await db.query('SELECT stage_key AS key,title FROM pipeline_stages WHERE uid_hash=? AND uid=? ORDER BY position,stage_key',[uidHash,session.ownerUid]);
+    stageFields=rows.map(row=>({key:row.key,title:row.title}));
+  }
   const [[head]]=await db.query('SELECT revision,active_id,draft_id FROM sx_tenant_customization_heads WHERE tenant_id=?',[ctx.tenant.id]);
   const [history]=await db.query("SELECT id,revision,checksum,created_at AS createdAt FROM sx_tenant_customization_revisions WHERE tenant_id=? AND kind='published' AND category_key=? AND category_version=? ORDER BY revision DESC LIMIT 20",[ctx.tenant.id,ctx.tenant.categoryKey,ctx.tenant.categoryVersion]);
   const active=await revision(db,ctx,head?.active_id),draft=await revision(db,ctx,head?.draft_id);
   if(active&&active.kind!=='published'||draft&&draft.kind!=='draft')fail('CUSTOMIZATION_INTEGRITY_ERROR',503);
   return {revision:Number(head?.revision||0),active,draft,history,
-    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),
+    defaults:defaults(),fields:fieldsFor(ctx).map(item=>({key:item.key,label:item.label})),stageFields,
     inherited:resolved(ctx,null,0).value,
     resolved:resolved(ctx,active?.document,active?.revision||0),
     draftResolved:draft?resolved(ctx,draft.document,draft.revision):null};
