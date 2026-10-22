@@ -6,6 +6,8 @@ The category registry now preserves reviewed `customizationDefaults` on the exac
 
 The existing Forms contract now accepts configuration revision `0` as the immutable category/platform baseline when no tenant revision has been published. Previously the options API returned baseline category fields at revision zero, but form metadata validation rejected that same revision, preventing the existing editor from saving or publishing a form with those defaults. Negative revisions remain invalid; selected definitions still pass exact-current-field validation and are snapshotted with the form. Focused field, Forms, resolver and runtime tests pass 34/34. No migration or customer data change is involved; authenticated existing-screen acceptance remains open.
 
+Central feature authorization now resolves the preserved `salemax_sales` tenant alias against the canonical `7network_sales` registry contract. The alias remains in tenant source data; the category version, plan entitlement, permission, role scope and resource gates are still independently checked. This closes the literal-key mismatch that could deny a correctly mapped legacy-category tenant. Category identity and platform policy tests pass 25/25; syntax and whitespace checks pass. No migration, entitlement change or customer data write is involved; authenticated acceptance for aliased tenants remains open.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language

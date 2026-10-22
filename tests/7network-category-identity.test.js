@@ -27,3 +27,12 @@ test('an assigned immutable v1 SaleMaX plan version still grants entitlements to
   assert.equal(entitlements.roleLimits.agent,5);
   assert.ok(entitlements.capabilities.includes('messaging.inbox'));
 });
+
+test('central policy accepts a preserved tenant category alias against canonical category and entitlement keys',()=>{
+  const category=categories.getCategory('7network_sales',1);
+  const context={audience:'tenant',tenant:{id:'tenant-a',status:'active',categoryKey:'salemax_sales',categoryVersion:1},
+    membership:{id:'owner-a',tenantId:'tenant-a',role:'owner',status:'active'},category,
+    subscription:{status:'active',categoryKey:'7network_sales',categoryVersion:1,capabilities:[...category.capabilities]}};
+  assert.deepEqual(require('../modules/platform/policy').decision(context,{capability:'sales.deals',permission:'deals.read'}),{allowed:true,scope:'tenant'});
+  assert.equal(context.tenant.categoryKey,'salemax_sales','the compatibility alias remains represented in source data');
+});
