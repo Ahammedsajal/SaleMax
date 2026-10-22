@@ -207,6 +207,38 @@ The category is `public:false` and `planable:false`; it is deliberately absent f
 
 ## Isolation beyond database reads
 
+### Legacy Inbox media exposure audit — 22 October 2026
+
+The current media paths are not tenant-private. `server.js` mounts both
+`/media` and `/meta-media` with `express.static`; `/meta-media` also sets
+`Cache-Control: public, max-age=31536000`, wildcard CORS and byte-range support.
+There is no authentication, tenant lookup or conversation authorization on
+that route. A filename URL therefore remains readable by anyone who has or
+guesses it, and the public cache policy can outlive a later authorization fix.
+
+Meta webhook attachments follow the legacy data path in `functions/function.js`:
+`downloadAndSaveMedia` writes files under
+`client/public/meta-media/<random-name>`, and `saveWebhookConversation` records
+their full public URLs in `chats.last_message` and
+`conversations/inbox/<uid>/<chat-id>.json`. The function also emits these message
+objects to the owner's socket and to an assigned Agent socket. QR Inbox messages
+use the newer `beta_conversation` table and the current media cleanup helper
+checks references there, but that check does not cover legacy `chats`/JSON or
+other potential references. It is not a complete ownership or retention model.
+
+`/media` is also intentionally consumed by upload and provider flows, including
+Meta template media recorded in `meta_templet_media`; closing both static paths
+as one change would break existing integrations. The remediation must separate
+private conversational attachments from deliberate public/provider uploads,
+preserve historical references, issue tenant- and conversation-scoped short-
+lived access only after the existing owner/Agent scope check, and migrate every
+reader/provider path before disabling legacy public access. The relevant
+acceptance includes two owners with colliding filenames, owner and assigned
+Agent reads, assignment revocation, cross-tenant token tampering, expired grants,
+range requests, exports, legacy JSON fallback, and retained template media.
+This is an audit finding and rollout plan only; no media, customer data or
+production route changed. Media isolation remains incomplete.
+
 ### Shared-core ownership slice — 22 October 2026
 
 This chat owns `routes/inbox.js` for the unauthenticated hard-coded inbox
