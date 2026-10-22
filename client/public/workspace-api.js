@@ -20,7 +20,7 @@
     const file=body instanceof FormData;
     const response=await fetch(paths[module]+normalize(path),{method,credentials:'same-origin',cache:'no-store',headers:await headers(!file),body:body===undefined?undefined:file?body:JSON.stringify(body)});
     let result;try{result=await response.json();}catch{throw Error('SERVER_ERROR');}
-    if(!response.ok||result.success===false||result.success===0||result.logout){const error=Error(result.code||(result.logout?'AUTH_REQUIRED':'REQUEST_FAILED'));error.details=result.details;throw error;}
+    if(!response.ok||result.success===false||result.success===0||result.logout){const error=Error(result.code||(result.logout?'AUTH_REQUIRED':'REQUEST_FAILED'));error.details=result.details;error.displayMessage=result.message;error.status=response.status;error.row=result.row;throw error;}
     return result;
   }
   async function requestBlob(module,path='',{method='GET',body}={}){

@@ -112,8 +112,11 @@ category adoption and new vertical modules remain subsequent implementation work
 
 Configuration schema 2 supports typed custom lead fields and is backward-compatible
 with published schema 1 label documents. Existing `/api/workspace/pipeline` and
-`/api/pipeline` create/update handlers share the same lead service; no duplicate
-custom-field CRUD panel is introduced. The current Pipeline browser still uses its
-legacy bearer request path. Custom-field controls are added to its existing forms,
-and values are validated inside the scoped lead transaction. Canonical-cookie
-Pipeline UI adoption remains a separate legacy migration gate.
+`/api/pipeline` handlers share the same lead service; no duplicate custom-field CRUD
+panel is introduced. The maintained Pipeline iframe loads `workspace-api.js` and
+uses its shared credential/context adapter for the board, lead actions, settings,
+filters, exports, reports, CSV import, follow-ups, and opening-message routing.
+Cookie writes use the common CSRF path, and bearer requests keep the active panel
+identity. Custom-field controls remain in the existing forms, with values validated
+inside the scoped lead transaction. The source and production overlay are updated;
+release deployment and authenticated English/Arabic browser acceptance remain open.

@@ -29,6 +29,14 @@ test('the common client loads before dependent existing screen scripts',()=>{
 test('the embedded existing Pipeline screen loads its common API client before Pipeline logic',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8'),common=html.indexOf('/workspace-api.js?'),pipeline=html.indexOf('/pipeline/pipeline.js?');assert.ok(common>=0&&common<pipeline);
 });
+test('Pipeline reports adapt legacy response handling through the shared feature client',async()=>{
+ const screen=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),start=screen.indexOf('  async function pipelineFetch('),end=screen.indexOf('\n  const escape',start);assert.ok(start>=0&&end>start);
+ const calls=[],sandbox={window:{SaleMaxWorkspace:{request:async(...args)=>{calls.push(args);return {success:true,data:{items:[1]}};}}},location:{origin:'https://crm.example.test'},URL};vm.runInNewContext(`${screen.slice(start,end)};this.pipelineFetch=pipelineFetch;`,sandbox);
+ const response=await sandbox.pipelineFetch('/api/pipeline/reports/summary?from=2026-10-01',{method:'POST',body:'{"range":"month"}'});assert.equal(response.ok,true);assert.equal(JSON.stringify(calls[0]),JSON.stringify(['pipeline','/reports/summary?from=2026-10-01',{method:'POST',body:{range:'month'}}]));assert.equal(JSON.stringify(await response.json()),JSON.stringify({success:true,data:{items:[1]}}));
+});
+test('existing Pipeline reports, import and routing contain no direct legacy fetches',()=>{
+ const root=path.join(__dirname,'../client/public/pipeline');for(const file of ['pipeline.js','reports.js','lead-import.js','opening-routing.js'])assert.doesNotMatch(fs.readFileSync(path.join(root,file),'utf8'),/\bfetch\s*\(/,file);
+});
 
 
 test('late session responses cannot expose a previous business after a bearer identity switch',async()=>{
