@@ -6,29 +6,24 @@ function createGracefulShutdownHandler({
   timeoutMs = DEFAULT_SHUTDOWN_TIMEOUT_MS,
   onError = () => {},
   processRef = process,
-  cleanupController,
 }) {
-  const controller = cleanupController || require('node-cleanup');
-  return function gracefulShutdown(exitCode, signal) {
-    // node-cleanup's callback is synchronous. Returning a Promise does not make
-    // it wait, so only defer signal exits and explicitly relay the signal later.
-    if (!signal) return undefined;
+  let shutdownPromise;
 
-    controller.uninstall();
+  return function gracefulShutdown(signal) {
+    if (!signal) return Promise.resolve();
+    if (shutdownPromise) return shutdownPromise;
 
     let terminated = false;
-    let deadline;
     const terminate = () => {
       if (terminated) return;
       terminated = true;
       processRef.clearTimeout(deadline);
       processRef.kill(processRef.pid, signal);
     };
+    const deadline = processRef.setTimeout(terminate, timeoutMs);
 
-    deadline = processRef.setTimeout(terminate, timeoutMs);
-
-    Promise.resolve()
-      .then(async () => {
+    shutdownPromise = (async () => {
+      try {
         if (io && typeof io.close === 'function') {
           await new Promise((resolve) => {
             let settled = false;
@@ -46,21 +41,22 @@ function createGracefulShutdownHandler({
           });
         }
         if (typeof cleanup === 'function') await cleanup();
-      })
-      .catch((error) => onError('cleanup', error))
-      .finally(terminate);
+      } catch (error) {
+        onError('cleanup', error);
+      } finally {
+        terminate();
+      }
+    })();
 
-    // Prevent node-cleanup from exiting before the asynchronous shutdown path.
-    return false;
+    return shutdownPromise;
   };
 }
 
 function installGracefulShutdown(options = {}) {
-  const cleanupController = options.cleanupController || require('node-cleanup');
-  cleanupController(createGracefulShutdownHandler({
-    ...options,
-    cleanupController,
-  }));
+  const processRef = options.processRef || process;
+  const shutdown = createGracefulShutdownHandler({ ...options, processRef });
+  processRef.once('SIGTERM', () => { void shutdown('SIGTERM'); });
+  processRef.once('SIGINT', () => { void shutdown('SIGINT'); });
 }
 
 module.exports = {

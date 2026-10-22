@@ -1883,8 +1883,11 @@ safely. No registry image was published and no production mutation occurred.
 The source candidate now includes a bounded asynchronous SIGTERM coordinator
 for both Node server entrypoints, Socket.IO close, known child-worker shutdown,
 QR/Telegram cleanup, and matching Compose init/30s grace settings. Fourteen
-focused contract/shutdown checks, syntax checks, Compose/workflow YAML parsing,
-and whitespace checks pass locally; exact ARM64 image/runtime CI is rerunning.
+focused contract/shutdown checks, a local SIGTERM relay probe, syntax checks,
+Compose/workflow YAML parsing, and whitespace checks pass locally; exact ARM64
+image/runtime CI is rerunning. The implementation uses Node's native one-shot
+signal listeners so cleanup can be awaited before the original signal is
+re-delivered.
 The coordinator does not stop every embedded scheduler or make in-flight
 external effects idempotent, and has not been deployed.
 

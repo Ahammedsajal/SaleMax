@@ -126,7 +126,7 @@ test('ARM64 runtime smoke exercises all native packages and rejects root', () =>
   assert.match(runtimeSmoke, /require\('bcrypt'\)/);
   assert.match(runtimeSmoke, /require\('sharp'\)/);
   assert.match(runtimeSmoke, /require\('@roamhq\/wrtc'\)/);
-  assert.match(runtimeSmoke, /require\('node-cleanup'\)/);
+  assert.match(runtimeSmoke, /process\.once\('SIGTERM'/);
   assert.match(runtimeSmoke, /graceful-signal-relay/);
   assert.match(runtimeSmoke, /require\('ffmpeg-static'\)/);
   assert.match(runtimeSmoke, /ffmpeg version/i);

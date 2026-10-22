@@ -52,7 +52,6 @@
     "mongodb": "^6.20.0",
     "mysql-baileys": "^1.5.3",
     "mysql2": "^3.9.2",
-    "node-cleanup": "^2.1.2",
     "node-fetch": "^2.6.9",
     "nodemailer": "^8.0.4",
     "pino": "^9.6.0",

@@ -21,20 +21,29 @@ async function main() {
   const peer = new wrtc.RTCPeerConnection();
   peer.close();
 
-  const shutdownProbe = spawnSync(process.execPath, ['-e', `
-    const nodeCleanup = require('node-cleanup');
-    nodeCleanup((exitCode, signal) => {
-      if (!signal) return;
-      nodeCleanup.uninstall();
-      setTimeout(() => {
-        require('node:fs').writeSync(1, 'graceful-signal-relay');
-        process.kill(process.pid, signal);
-      }, 25);
-      return false;
+  const shutdownProbe = await new Promise((resolve, reject) => {
+    const child = require('node:child_process').spawn(process.execPath, ['-e', `
+    process.once('SIGTERM', () => {
+      require('node:fs').writeSync(1, 'graceful-signal-relay');
+      process.kill(process.pid, 'SIGTERM');
     });
-    process.kill(process.pid, 'SIGTERM');
-  `], { encoding: 'utf8', timeout: 10000 });
-  assert.equal(shutdownProbe.error, undefined, shutdownProbe.error?.message);
+    setTimeout(() => {}, 10000);
+  `]);
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+    child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+    const deadline = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error('graceful shutdown probe timed out'));
+    }, 10000);
+    child.once('error', (error) => { clearTimeout(deadline); reject(error); });
+    child.once('spawn', () => setTimeout(() => child.kill('SIGTERM'), 25));
+    child.once('close', (status, signal) => {
+      clearTimeout(deadline);
+      resolve({ status, signal, stdout, stderr });
+    });
+  });
   assert.equal(shutdownProbe.signal, 'SIGTERM', shutdownProbe.stderr || shutdownProbe.stdout);
   assert.match(shutdownProbe.stdout, /graceful-signal-relay/);
 
