@@ -821,3 +821,12 @@ exercise the authorized adapter through synthetic draft create/update calls
 and verify that actual generic contexts remain denied before database access.
 The focused schema, registry and isolation suites pass 28/28; no migration,
 customer data, database or production runtime changed.
+
+The next storage step is additive migration `20261022_workspace_forms.sql`.
+It creates distinct tenant-bound generic draft, version, submission and rate-
+limit tables with composite tenant/form/version references, preserving all
+historical Training tables. Static discovery checks pass and an opt-in disposable
+MariaDB integration is wired to assert tenant, version, idempotency and rate-
+limit constraints. The database integration has not yet run in this environment;
+the generic service and routes do not consume these tables yet, so Forms remain
+disabled outside the existing Training Center adapter.

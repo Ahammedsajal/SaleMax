@@ -2187,3 +2187,19 @@ adoption and authenticated `/user` screen acceptance remain open. The focused
 registry, Forms and category isolation suites pass 28/28, including simulated
 adapter-enabled CRUD validation and real fail-closed create/update checks. No
 migration, customer data, database or production runtime changed.
+
+## Generic workspace Forms persistence schema — source increment, 22 October 2026
+
+Added additive migration `20261022_workspace_forms.sql` with separate tenant-
+bound draft forms, immutable published-version rows, consent-bearing submission
+history, idempotency keys and hashed visitor rate limits. Composite foreign keys
+bind versions and submissions to the same tenant/form, and submissions to an
+existing published version. Existing `sx_training_*` form and registration
+history is untouched. A disposable MariaDB migration integration now asserts
+cross-tenant form rejection, version and idempotency constraints, and rate-limit
+tenant binding; static migration discovery confirms the migration is safe and
+ordered after platform identity.
+
+The migration and integration test are implemented but were not executed against
+MariaDB in this environment. No generic service/router consumes these tables yet,
+no category opts into Forms, and no database or production runtime changed.

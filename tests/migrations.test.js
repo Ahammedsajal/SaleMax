@@ -24,6 +24,19 @@ test('actual discovery excludes destructive rollback', () => {
   const salesFinance=migrations.findIndex(m=>m.file==='20261115_sales_commissions.sql');
   assert.ok(teamRoles>=0&&salesOrg>teamRoles&&salesFinance>salesOrg,'Sales migrations follow the Team Leader role migration');
   assert.ok(migrations.every(m => !/rollback/.test(m.file)));
+  const workspaceForms=migrations.findIndex(m=>m.file==='20261022_workspace_forms.sql');
+  const platformIdentity=migrations.findIndex(m=>m.file==='20261001_platform_identity.sql');
+  assert.ok(workspaceForms>platformIdentity,'generic workspace Forms storage follows tenant and identity tables');
+  const workspaceFormSql=migrations[workspaceForms].statements.join('\n');
+  assert.match(workspaceFormSql,/CREATE TABLE sx_workspace_forms/);
+  assert.match(workspaceFormSql,/UNIQUE KEY uq_workspace_form_slug \(tenant_id,slug\)/);
+  assert.match(workspaceFormSql,/CREATE TABLE sx_workspace_form_versions/);
+  assert.match(workspaceFormSql,/FOREIGN KEY \(tenant_id,form_id\) REFERENCES sx_workspace_forms\(tenant_id,id\)/);
+  assert.match(workspaceFormSql,/CREATE TABLE sx_workspace_form_submissions/);
+  assert.match(workspaceFormSql,/UNIQUE KEY uq_workspace_form_submission_idempotency \(tenant_id,form_id,idempotency_hash\)/);
+  assert.match(workspaceFormSql,/FOREIGN KEY \(tenant_id,form_id,form_version\) REFERENCES sx_workspace_form_versions\(tenant_id,form_id,version\)/);
+  assert.match(workspaceFormSql,/CREATE TABLE sx_workspace_form_rate_limits/);
+  assert.doesNotMatch(workspaceFormSql,/DROP TABLE|ALTER TABLE sx_training_/i);
   assert.equal(migrations[0].file, '20260928_lead_pipeline.sql');
 });
 test('destructive forward files fail before database execution', () => {
