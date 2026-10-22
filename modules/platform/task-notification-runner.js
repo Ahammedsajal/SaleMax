@@ -46,10 +46,34 @@ function inboxFollowUpChatId(item){
   }
   return null;
 }
+function inboxMessageText(message){
+  let context=message?.msgContext;
+  if(typeof context==='string'){try{context=JSON.parse(context);}catch{context=null;}}
+  if(!context||typeof context!=='object')return '';
+  const type=String(message?.type||context.type||'').toLowerCase();
+  const value=type==='text'?context.text?.body
+    :type==='image'?context.image?.caption||'Shared an image'
+    :type==='video'?context.video?.caption||'Shared a video'
+    :type==='document'?context.document?.caption||context.document?.filename||'Shared a document'
+    :type==='audio'?'Shared a voice message'
+    :context.text?.body||context.extendedTextMessage?.text||'';
+  return String(value||'').replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,220);
+}
+function taskDescriptionValue(description,label){
+  const match=String(description||'').match(new RegExp(`^${label}: ([^\\r\\n]{1,1000})$`,'m'));
+  return match?.[1]?.trim()||'';
+}
 async function sendInboxFollowUpQr(db,item,{http=require('axios'),env=process.env}={}){
   const chatId=inboxFollowUpChatId(item);if(!chatId)return {suppressed:'TASK_QR_SENDER_UNAVAILABLE'};
   let sender;try{const [[channel]]=await db.query(`SELECT u.uid,n.number FROM sx_legacy_ownership o JOIN user u ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR) AND o.tenant_id=? JOIN instance n ON n.uid=u.uid AND n.status='ACTIVE' AND (((SELECT c.origin_instance_unique_id FROM beta_chats c WHERE c.uid=u.uid AND c.chat_id=? AND c.origin='qr' LIMIT 1) IS NOT NULL AND n.uniqueId=(SELECT c.origin_instance_unique_id FROM beta_chats c WHERE c.uid=u.uid AND c.chat_id=? AND c.origin='qr' LIMIT 1)) OR ((SELECT 1 FROM beta_chats c WHERE c.uid=u.uid AND c.chat_id=? AND c.origin='qr' LIMIT 1) IS NULL AND (SELECT COUNT(*) FROM instance x WHERE x.uid=u.uid AND x.status='ACTIVE')=1)) LIMIT 1`,[item.tenant_id,chatId,chatId,chatId]);sender=channel?{uid:channel.uid,from:channel.number}:null;}catch{return {suppressed:'TASK_QR_SENDER_UNAVAILABLE'};}
   if(!sender)return {suppressed:'TASK_QR_SENDER_UNAVAILABLE'};
+  let chat=null,recentMessages=[];
+  try{
+    const [[chatRow]] = await db.query('SELECT sender_name,sender_mobile FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1',[sender.uid,chatId]);
+    chat=chatRow||null;
+    const [messages]=await db.query('SELECT route,type,msgContext FROM beta_conversation WHERE uid=? AND chat_id=? ORDER BY id DESC LIMIT 6',[sender.uid,chatId]);
+    recentMessages=messages||[];
+  }catch{}
   let rows;
   try{
     if(item.recipient_type==='agent') [rows]=await db.query("SELECT a.mobile AS phone FROM agents a JOIN sx_legacy_ownership o ON o.source_table='agents' AND o.source_id=CAST(a.id AS CHAR) AND o.tenant_id=? JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='agent' AND m.status='active' JOIN sx_identities i ON i.id=m.identity_id AND i.status='active' WHERE a.id=? AND a.role='agent' AND a.is_active=1 AND o.legacy_uid_hash=CONVERT(SHA2(a.uid,256) USING ascii) COLLATE ascii_bin LIMIT 1",[item.tenant_id,item.recipient_id]);
@@ -61,10 +85,33 @@ async function sendInboxFollowUpQr(db,item,{http=require('axios'),env=process.en
   const secret=String(env.CRM_INTERNAL_SECRET||''),port=Number(env.PORT||3010),base=String(env.SALEMAX_TASK_QR_INTERNAL_ORIGIN||`http://127.0.0.1:${port}`);
   let url;try{const origin=new URL(base);if(!secret||origin.protocol!=='http:'||!['127.0.0.1','localhost','app'].includes(origin.hostname)||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash)return {suppressed:'TASK_QR_NOT_CONFIGURED'};url=origin.origin+'/api/internal/qr/send-text';}catch{return {suppressed:'TASK_QR_NOT_CONFIGURED'};}
   let due=String(item.due_at||'Not set');try{if(item.due_at)due=new Intl.DateTimeFormat('en',{timeZone:item.timezone||'Asia/Qatar',dateStyle:'medium',timeStyle:'short'}).format(new Date(item.due_at));}catch{}
-  const text=`7Network follow-up task\nTask: ${String(item.title||'Follow up').slice(0,180)}\n${String(item.description||'').slice(0,1800)}\nFollow-up date: ${due}\nStatus: ${String(item.to_status||'open')}`;
+  const description=String(item.description||'');
+  const chatName=String(chat?.sender_name||'').trim();
+  const chatPhone=String(chat?.sender_mobile||'').trim();
+  const leadName=String((chatName&&!/^na$/i.test(chatName)?chatName:'')||taskDescriptionValue(description,'Lead')||String(item.title||'').replace(/^Follow up:\s*/i,'')||'WhatsApp contact').trim().slice(0,180);
+  const leadPhone=String((chatPhone&&!/^na$/i.test(chatPhone)?chatPhone:'')||taskDescriptionValue(description,'WhatsApp')||'Not available').trim().slice(0,40);
+  const assignedAgent=taskDescriptionValue(description,'Assigned agent');
+  const followUpDetails=taskDescriptionValue(description,'Follow-up details');
+  const chatSummary=recentMessages.map(message=>({route:String(message.route||'').toUpperCase(),text:inboxMessageText(message)})).filter(message=>message.text).slice(0,4).reverse();
+  const summaryLines=chatSummary.length?chatSummary.map(message=>`${message.route==='INCOMING'?'Customer':'Team'}: ${message.text}`):['No recent chat messages available.'];
+  const status=String(item.to_status||'open').replace(/_/g,' ').replace(/\b\w/g,char=>char.toUpperCase());
+  const text=[
+    '7Network follow-up task',
+    '',
+    `Customer: ${leadName}`,
+    `Contact number: ${leadPhone}`,
+    `Task: ${String(item.title||'Follow up').slice(0,180)}`,
+    assignedAgent?`Assigned agent: ${assignedAgent}`:null,
+    followUpDetails?`Follow-up details: ${followUpDetails}`:null,
+    `Follow-up date: ${due}`,
+    `Status: ${status}`,
+    '',
+    'Recent chat:',
+    ...summaryLines
+  ].filter(line=>line!==null).join('\n').slice(0,2200);
   try{const response=await http.post(url,{...sender,to:phone.replace(/^\+/,''),text},{headers:{'x-internal-secret':secret},timeout:20000});const id=response?.data?.data?.messageId;if(response?.data?.success&&id)return {accepted:String(id).slice(0,191)};return {unknown:'TASK_QR_ACCEPTANCE_UNCONFIRMED'};}catch(error){const status=Number(error?.response?.status),code=String(error?.code||'');if(status>=400&&status<500)return {failed:'TASK_QR_SEND_REJECTED'};if(['ECONNABORTED','ETIMEDOUT','ECONNRESET','ESOCKETTIMEDOUT'].includes(code))return {unknown:'TASK_QR_OUTCOME_UNKNOWN'};return {retry:'TASK_QR_DELIVERY_FAILED'};}
 }
 async function finish(db,item,{status,errorCode=null,providerMessageId=null,delaySeconds=0}){await db.beginTransaction();try{const [[row]]=await db.query('SELECT status,lease_owner,attempt_count FROM sx_task_notifications WHERE tenant_id=? AND id=? FOR UPDATE',[item.tenant_id,item.id]);if(!row||row.status!=='processing'||row.lease_owner!==item.workerId||Number(row.attempt_count)!==item.attempt)fail('TASK_NOTIFICATION_LEASE_REQUIRED');const finalStatus=status==='retry'?(item.attempt>=8?'failed':'queued'):status;if(!['queued','accepted','failed','suppressed','unknown'].includes(finalStatus))fail('INVALID_TASK_NOTIFICATION_RESULT');await db.query(`UPDATE sx_task_notifications SET status=?,available_at=IF(?='queued',DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),available_at),lease_owner=NULL,lease_expires_at=NULL,last_error_code=?,provider_message_id=? WHERE tenant_id=? AND id=?`,[finalStatus,finalStatus,delaySeconds,errorCode,providerMessageId,item.tenant_id,item.id]);const outcome=finalStatus==='queued'?'retry':finalStatus;await db.query('UPDATE sx_task_notification_attempts SET outcome=?,error_code=?,finished_at=UTC_TIMESTAMP(3) WHERE notification_id=? AND attempt_number=? AND worker_id=?',[outcome,errorCode,item.id,item.attempt,item.workerId]);await db.commit();return {id:item.id,status:finalStatus};}catch(error){try{await db.rollback();}catch{}throw error;}}
 async function dispatch(db,item,{transport,from,baseUrl,whatsapp,http,env=process.env}={}){if(item.channel==='whatsapp'){const result=inboxFollowUpChatId(item)?await sendInboxFollowUpQr(db,item,{http,env}):!whatsapp?{suppressed:'TASK_WHATSAPP_TEMPLATE_NOT_CONFIGURED'}:await sendWhatsapp(db,item,{config:whatsapp,http});if(result.accepted)return finish(db,item,{status:'accepted',providerMessageId:result.accepted});if(result.suppressed)return finish(db,item,{status:'suppressed',errorCode:result.suppressed});if(result.unknown)return finish(db,item,{status:'unknown',errorCode:result.unknown});if(result.failed)return finish(db,item,{status:'failed',errorCode:result.failed});return finish(db,item,{status:'retry',errorCode:result.retry,delaySeconds:Math.min(3600,15*2**Math.min(item.attempt-1,8))});}if(!transport)return finish(db,item,{status:'suppressed',errorCode:'TASK_EMAIL_NOT_CONFIGURED'});const to=await resolveEmail(db,item);if(!to)return finish(db,item,{status:'suppressed',errorCode:'TASK_RECIPIENT_UNAVAILABLE'});try{const result=await transport.sendMail(message({from,to,title:item.title,status:item.to_status||'open',dueAt:item.due_at,taskId:item.task_id,baseUrl,categoryKey:item.category_key}));const accepted=Array.isArray(result?.accepted)&&result.accepted.some(address=>String(address).toLowerCase()===to.toLowerCase());if(!accepted)throw Object.assign(new Error(),{code:'SMTP_RECIPIENT_NOT_ACCEPTED'});return finish(db,item,{status:'accepted',providerMessageId:String(result.messageId||'').slice(0,191)||null});}catch(error){const code=/^[A-Z][A-Z0-9_]{1,99}$/.test(error.code||'')?error.code:'TASK_EMAIL_DELIVERY_FAILED',unknown=['ETIMEDOUT','ECONNRESET','ESOCKET','ECONNECTION'].includes(error.code);return finish(db,item,{status:unknown?'unknown':'retry',errorCode:code,delaySeconds:Math.min(3600,15*2**Math.min(item.attempt-1,8))});}}
 async function tick(pool,{workerId=`tasks-${process.pid}`,limit=20,transport,from,baseUrl,whatsapp,http}={}){const db=await pool.getConnection();let items;try{items=await claim(db,{workerId,limit});}finally{db.release();}const totals={claimed:items.length,accepted:0,retried:0,suppressed:0,failed:0,unknown:0};for(const item of items){const current=await pool.getConnection();try{const result=await dispatch(current,item,{transport,from,baseUrl,whatsapp,http});if(result.status==='accepted')totals.accepted++;else if(result.status==='queued')totals.retried++;else if(result.status==='suppressed')totals.suppressed++;else if(result.status==='failed')totals.failed++;else if(result.status==='unknown')totals.unknown++;}catch(error){console.error(JSON.stringify({event:'task_notification_dispatch_unconfirmed',channel:item.channel,recipientType:item.recipient_type,code:/^[A-Z0-9_]{2,100}$/.test(error?.code||'')?error.code:'TASK_NOTIFICATION_DISPATCH_FAILED'}));try{const result=await finish(current,item,{status:'unknown',errorCode:'TASK_NOTIFICATION_DISPATCH_UNCONFIRMED'});if(result.status==='unknown')totals.unknown++;}catch{}}finally{current.release();}}return totals;}
-module.exports={config,whatsappConfig,message,claim,resolveEmail,resolveWhatsapp,sendWhatsapp,sendInboxFollowUpQr,finish,dispatch,tick,_private:{escape,inboxFollowUpChatId}};
+module.exports={config,whatsappConfig,message,claim,resolveEmail,resolveWhatsapp,sendWhatsapp,sendInboxFollowUpQr,finish,dispatch,tick,_private:{escape,inboxFollowUpChatId,inboxMessageText,taskDescriptionValue}};
