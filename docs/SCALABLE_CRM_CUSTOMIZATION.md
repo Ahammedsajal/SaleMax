@@ -500,7 +500,9 @@ now resolves that adapter for tenant-owned draft CRUD, immutable publication,
 submission reads, public lookup/submission, and authenticated staff capture.
 Public and staff writes create or update leads through the existing Pipeline
 contract; staff search and selected-lead access preserve tenant scope and agent
-assignment scope. Training Center registration continues through its existing
+assignment scope. Existing-lead attachment and idempotent replay lock the lead
+under the exact owner UID and recheck the agent's current assignment; incomplete
+submission-to-lead records fail closed. Training Center registration continues through its existing
 service and tables. Generic operations independently require the exact category
 adapter, category capability, active tenant, current plan entitlement, member
 permission and record scope. No category opts into the generic adapter yet, so

@@ -97,6 +97,20 @@ async function searchStaffLeads(db,session,search){
     ORDER BY l.updated_at DESC,l.created_at DESC LIMIT 20`,params);
   return rows.map(row=>({...row,qualificationData:typeof row.qualificationData==='string'?JSON.parse(row.qualificationData):row.qualificationData||{}}));
 }
+async function scopedLead(db,session,leadId){
+  const ctx=session.context,uidHash=sha(session.ownerUid);
+  let assignmentScope='';const params=[uidHash,session.ownerUid,leadId];
+  if(ctx.membership.role==='agent'){
+    const agentId=Number(session.actor?.id);
+    if(!Number.isSafeInteger(agentId)||agentId<1||typeof session.actor?.uid!=='string'||!session.actor.uid)fail('PERMISSION_DENIED');
+    const [agents]=await db.query("SELECT id FROM agents WHERE id=? AND uid=? AND owner_uid=? AND role='agent' AND is_active=1 LIMIT 1",[agentId,session.actor.uid,session.ownerUid]);
+    if(!agents.length)fail('PERMISSION_DENIED');
+    assignmentScope=' AND owner_agent_id=?';params.push(agentId);
+  }
+  const [[lead]]=await db.query(`SELECT id,qualification_data FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=?${assignmentScope} LIMIT 1 FOR UPDATE`,params);
+  if(!lead)fail('LEAD_NOT_ACCESSIBLE');
+  return {lead,uidHash};
+}
 async function submitStaff(db,session,formSlug,{submissionToken,values,selectedLeadId,expectedFormVersion}={}){
   const ctx=staffSession(session);
   if(typeof submissionToken!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionToken))fail('INVALID_SUBMISSION');
@@ -116,21 +130,18 @@ async function submitStaff(db,session,formSlug,{submissionToken,values,selectedL
     if(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities?.includes('portal.forms')||!entitlement.capabilities?.includes('crm.leads'))fail('FEATURE_UNAVAILABLE');
     const tokenHash=sha(`${ctx.identity.id}:${submissionToken}`);
     const [[prior]]=await db.query('SELECT reference_code AS referenceCode,lead_id AS leadId FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=? LIMIT 1 FOR UPDATE',[form.tenant_id,form.form_id,tokenHash]);
-    if(prior){await db.commit();return {referenceCode:prior.referenceCode,leadId:prior.leadId,repeated:true};}
+    if(prior){if(!prior.leadId)fail('FORM_SUBMISSION_CONFLICT');await scopedLead(db,session,prior.leadId);await db.commit();return {referenceCode:prior.referenceCode,leadId:prior.leadId,repeated:true};}
     require('./form-submission-version').assertCurrent(expectedFormVersion,form.version);
     const schema=parse(form.schema_json);if(schema.templateKey)fail('INVALID_FORM_SCHEMA');
     const data=trainingForms.cleanSubmission(schema,values,'generic-lead-capture-v1');
     const referenceCode=crypto.randomBytes(6).toString('hex').toUpperCase(),submissionId=uuid();
     const [reservation]=await db.query(`INSERT IGNORE INTO sx_workspace_form_submissions(id,tenant_id,form_id,form_version,capture_mode,captured_by_identity_id,idempotency_hash,reference_code,submission_data,attribution_json,consent_text_en,consent_text_ar,consented_at)
       VALUES (?,?,?,?,'staff',?,?,?,?,NULL,?,?,UTC_TIMESTAMP(3))`,[submissionId,form.tenant_id,form.form_id,form.version,ctx.identity.id,tokenHash,referenceCode,JSON.stringify(data),schema.consentTextEn,schema.consentTextAr]);
-    if(!reservation.affectedRows){const [[replay]]=await db.query('SELECT reference_code AS referenceCode,lead_id AS leadId FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=? LIMIT 1',[form.tenant_id,form.form_id,tokenHash]);if(!replay)fail('FORM_SUBMISSION_CONFLICT');await db.commit();return {referenceCode:replay.referenceCode,leadId:replay.leadId,repeated:true};}
+    if(!reservation.affectedRows){const [[replay]]=await db.query('SELECT reference_code AS referenceCode,lead_id AS leadId FROM sx_workspace_form_submissions WHERE tenant_id=? AND form_id=? AND idempotency_hash=? LIMIT 1',[form.tenant_id,form.form_id,tokenHash]);if(!replay?.leadId)fail('FORM_SUBMISSION_CONFLICT');await scopedLead(db,session,replay.leadId);await db.commit();return {referenceCode:replay.referenceCode,leadId:replay.leadId,repeated:true};}
     const customValues=schema.leadFields?leadFields.values(data.customFields):undefined;
     let leadId;
     if(selectedLeadId){
-      const uidHash=sha(session.ownerUid),scope=ctx.membership.role==='agent'?' AND owner_agent_id=?':'';
-      const params=[uidHash,selectedLeadId];if(scope){const [agents]=await db.query("SELECT id FROM agents WHERE id=? AND owner_uid=? AND role='agent' AND is_active=1 LIMIT 1",[Number(session.actor.id),session.ownerUid]);if(!agents.length)fail('PERMISSION_DENIED');params.push(Number(session.actor.id));}
-      const [[lead]]=await db.query(`SELECT id,qualification_data FROM pipeline_leads WHERE uid_hash=? AND id=?${scope} LIMIT 1 FOR UPDATE`,params);
-      if(!lead)fail('LEAD_NOT_ACCESSIBLE');leadId=lead.id;
+      const {lead,uidHash}=await scopedLead(db,session,selectedLeadId);leadId=lead.id;
       if(schema.leadFields){const qualification=require('./lead-field-runtime').qualification(lead.qualification_data);qualification.customFields=leadFields.save(schema.leadFields,customValues,qualification.customFields);await db.query('UPDATE pipeline_leads SET qualification_data=?,last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?',[JSON.stringify(qualification),uidHash,session.ownerUid,leadId]);}
     }else{
       const agentId=ctx.membership.role==='agent'?Number(session.actor.id):undefined;
@@ -177,4 +188,4 @@ async function submitPublic(pool,{tenantSlug,formSlug,submissionToken,values,vis
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
 
-module.exports={context,list,leadFieldOptions,submissions,create,update,publish,publicForm,staffForm,searchStaffLeads,submitStaff,submitPublic};
+module.exports={context,list,leadFieldOptions,submissions,create,update,publish,publicForm,staffForm,searchStaffLeads,scopedLead,submitStaff,submitPublic};

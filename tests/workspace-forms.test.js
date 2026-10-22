@@ -91,7 +91,7 @@ test('generic staff capture uses canonical membership scope, records identity an
   plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms','crm.leads']});
   const leadId='22222222-2222-4222-8222-222222222222',createdLeads=[];pipeline.createManualLead=async value=>{createdLeads.push(value);return {id:leadId};};
   const schema=require('../modules/platform/training-forms').formInput(input,'generic-lead-capture-v1').schema,session={context:{...ctx,category:genericCategory},actor:{id:17},ownerUid:'synthetic-owner-uid',agent:false};
-  let prior=null,commits=0;const calls=[];const db={async beginTransaction(){},async commit(){commits++;},async rollback(){},async query(sql,params){calls.push({sql,params});if(sql.includes('FROM sx_tenants t JOIN sx_workspace_forms'))return [[{tenant_id:ctx.tenant.id,category_key:base.key,category_version:base.version,form_id:'11111111-1111-4111-8111-111111111111',version:1,name_en:input.nameEn,schema_json:JSON.stringify(schema)}]];if(sql.startsWith('SELECT reference_code AS referenceCode'))return [[prior].filter(Boolean)];if(sql.startsWith('INSERT IGNORE INTO sx_workspace_form_submissions'))return [{affectedRows:1}];return [[]];}};
+  let prior=null,commits=0;const calls=[];const db={async beginTransaction(){},async commit(){commits++;},async rollback(){},async query(sql,params){calls.push({sql,params});if(sql.includes('FROM sx_tenants t JOIN sx_workspace_forms'))return [[{tenant_id:ctx.tenant.id,category_key:base.key,category_version:base.version,form_id:'11111111-1111-4111-8111-111111111111',version:1,name_en:input.nameEn,schema_json:JSON.stringify(schema)}]];if(sql.startsWith('SELECT reference_code AS referenceCode'))return [[prior].filter(Boolean)];if(sql.startsWith('INSERT IGNORE INTO sx_workspace_form_submissions'))return [{affectedRows:1}];if(sql.includes('FROM pipeline_leads'))return [[{id:leadId,qualification_data:'{}'}]];return [[]];}};
   try{
     const canonicalOnlySession={...session,actor:null};
     const rendered=await forms.staffForm(db,canonicalOnlySession,input.slug);assert.equal(rendered.adapter,'generic-lead-capture-v1');assert.equal(rendered.captureMode,'staff');
@@ -113,4 +113,21 @@ test('generic staff lead search applies the authenticated agent assignment scope
   const rows=await forms.searchStaffLeads(db,session,'assigned');assert.equal(rows.length,1);
   const query=calls.find(call=>call.sql.includes('FROM pipeline_leads'));assert.match(query.sql,/AND l\.owner_agent_id=\?/);assert.equal(query.params.at(-1),17);
   const denied={...session,agent:false};await assert.rejects(forms.searchStaffLeads(db,denied,'assigned'),{code:'BUSINESS_LINK_INVALID'});
+});
+test('agent idempotent staff replay rechecks current exact-tenant assignment scope',async()=>{
+  const plans=require('../modules/platform/plans'),categories=require('../modules/platform/categories'),original={getCategory:categories.getCategory,entitlements:plans.loadEntitlements};
+  const genericCategory=createCategoryRegistry([{...base,capabilities:[...base.capabilities,'portal.forms'],formsAdapter:'generic-lead-capture-v1'}],capabilities).get(base.key,base.version);
+  categories.getCategory=(key,version)=>key===base.key&&version===base.version?genericCategory:null;
+  plans.loadEntitlements=async()=>({status:'active',capabilities:['portal.forms','crm.leads']});
+  const session={context:{...ctx,category:genericCategory,membership:{...ctx.membership,role:'agent'}},actor:{id:17,uid:'synthetic-agent-uid'},ownerUid:'synthetic-owner-uid',agent:{}};
+  const leadId='44444444-4444-4444-8444-444444444444',calls=[];let rollback=0,commit=0;
+  const schema=require('../modules/platform/training-forms').formInput(input,'generic-lead-capture-v1').schema;
+  const db={async beginTransaction(){},async commit(){commit++;},async rollback(){rollback++;},async query(sql,params){calls.push({sql,params});if(sql.includes('FROM sx_tenants t JOIN sx_workspace_forms'))return [[{tenant_id:ctx.tenant.id,category_key:base.key,category_version:base.version,form_id:'11111111-1111-4111-8111-111111111111',version:1,name_en:input.nameEn,schema_json:JSON.stringify(schema)}]];if(sql.startsWith('SELECT reference_code AS referenceCode'))return [[{referenceCode:'FORM00000002',leadId}]];if(sql.includes('FROM agents'))return [[{id:17}]];if(sql.includes('FROM pipeline_leads'))return [[]];return [[]];}};
+  try{
+    await assert.rejects(forms.submitStaff(db,session,input.slug,{submissionToken:'66666666-6666-4666-8666-666666666666',expectedFormVersion:1,values:{}}),{code:'LEAD_NOT_ACCESSIBLE'});
+    assert.equal(commit,0);assert.equal(rollback,1);
+    const scoped=calls.find(call=>call.sql.includes('FROM pipeline_leads'));
+    assert.match(scoped.sql,/uid_hash=\? AND uid=\? AND id=\?.*owner_agent_id=\?/);
+    assert.deepEqual(scoped.params,[require('node:crypto').createHash('sha256').update(session.ownerUid).digest('hex'),session.ownerUid,leadId,17]);
+  }finally{categories.getCategory=original.getCategory;plans.loadEntitlements=original.entitlements;}
 });

@@ -1,3 +1,15 @@
+## Generic Forms staff replay scope — source increment, 22 October 2026
+
+Generic staff submission now resolves an existing Pipeline lead by both tenant
+hash and exact legacy owner UID, under a row lock. Agent submissions also verify
+the active agent UID/owner binding and current `owner_agent_id`. Idempotent replay
+repeats this same check before returning the prior lead reference; a submission
+with a missing lead link fails closed. Focused tests prove an agent whose lead
+assignment changed cannot replay its old submission, and verify exact UID and
+assignment predicates. The combined workspace Forms, Training Forms and
+category registry suites pass 33/33; syntax and whitespace checks pass. No
+migration, category adoption, customer data or production change is involved.
+
 ## Generic Forms Pipeline entitlement boundary — source increment, 22 October 2026
 
 The generic lead-capture adapter now requires both `portal.forms` and
