@@ -1937,3 +1937,10 @@ tests cover local behavior and injected S3 operations. This source increment is
 not deployed; no live provider, bucket, manifest, or storage flag is configured.
 Live file/database reconciliation, provider acceptance, authenticated allowed
 and denied reads, rollback rehearsal and cross-host testing remain open.
+Source commit `d531b81d72b701632a36ab2f662b27cecc1987ce` passes 44 focused tests
+and the hosted ARM64 contract, image and non-root runtime smoke in run
+39747573240. The PR merge checkout source `6b9f7b6d7acf7874720efbc69e7f2c0c8c3158d0`
+built image `sha256:1b0d8b9c0e89a5cc5e8afd7134d9b7a2b66bdd23e48f844cb37a84393425f099`
+at 703,276,618 Docker-reported bytes and 8 layers. The runtime smoke loaded
+`bcrypt`, `sharp`, `@roamhq/wrtc` and `@aws-sdk/client-s3`; PR runs do not publish
+the image artifact or registry image.
