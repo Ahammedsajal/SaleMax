@@ -12,6 +12,7 @@ const imageWorkflow = fs.readFileSync(path.join(root, '.github/workflows/7networ
 const publishWorkflow = fs.readFileSync(path.join(root, '.github/workflows/7network-arm64-publish.yml'), 'utf8');
 const lockScript = fs.readFileSync(path.join(root, 'deploy/with-production-lock.sh'), 'utf8');
 const runtimeSmoke = fs.readFileSync(path.join(root, 'deploy/verify-container-runtime.cjs'), 'utf8');
+const serverEntrypoints = ['app.js', 'server.js'].map((file) => fs.readFileSync(path.join(root, file), 'utf8'));
 
 test('Dockerfile uses the same digest-pinned Node base for build and runtime', () => {
   const base = dockerfile.match(/^ARG NODE_IMAGE=(.+)$/m)?.[1];
@@ -51,6 +52,13 @@ test('runtime Compose retains both current single-server worker services', () =>
   assert.match(compose, /scripts\/recruitment-founder-notification-worker\.cjs/);
 });
 
+test('app Compose service allows the bounded graceful shutdown to finish', () => {
+  const appService = compose.split(/^  app:\n/m)[1]?.split(/^  report-worker:\n/m)[0];
+  assert.ok(appService, 'app service exists');
+  assert.match(appService, /^    init: true$/m);
+  assert.match(appService, /^    stop_grace_period: 30s$/m);
+});
+
 test('image builder rejects mutable and invalid release tags before building', () => {
   for (const tag of ['latest', 'release:2', '../release', '-invalid']) {
     const result = spawnSync('sh', [imageBuilder, tag], { encoding: 'utf8' });
@@ -66,6 +74,7 @@ test('ARM64 image CI is unprivileged and trusted publish accepts only its succes
   assert.match(imageWorkflow, /platforms: linux\/arm64/);
   assert.match(imageWorkflow, /outputs: type=docker,dest=\/tmp\/7network-arm64-image\.tar/);
   assert.match(imageWorkflow, /VCS_REF=\$\{\{ github\.sha \}\}/);
+  assert.match(imageWorkflow, /node --test tests\/docker-image-contract\.test\.cjs tests\/graceful-shutdown\.test\.cjs/);
   assert.match(imageWorkflow, /deploy\/verify-container-runtime\.cjs/);
   assert.match(imageWorkflow, /dst=\/app\/verify-container-runtime\.cjs,readonly/);
   assert.ok(imageWorkflow.includes('/app/verify-container-runtime.cjs'));
@@ -91,6 +100,14 @@ test('ARM64 image CI is unprivileged and trusted publish accepts only its succes
   }
 });
 
+test('both Node server entrypoints use the bounded graceful shutdown coordinator', () => {
+  for (const entrypoint of serverEntrypoints) {
+    assert.match(entrypoint, /installGracefulShutdown\(\{/);
+    assert.match(entrypoint, /io,/);
+    assert.match(entrypoint, /timeoutMs: 25000/);
+  }
+});
+
 test('production lock wrapper acquires the shared flock before re-resolving current', () => {
   assert.match(lockScript, /\/opt\/salemax\/shared\/7network-production-deploy\.lock/);
   const acquire = lockScript.indexOf('flock -n -E 75 9');
@@ -109,6 +126,8 @@ test('ARM64 runtime smoke exercises all native packages and rejects root', () =>
   assert.match(runtimeSmoke, /require\('bcrypt'\)/);
   assert.match(runtimeSmoke, /require\('sharp'\)/);
   assert.match(runtimeSmoke, /require\('@roamhq\/wrtc'\)/);
+  assert.match(runtimeSmoke, /require\('node-cleanup'\)/);
+  assert.match(runtimeSmoke, /graceful-signal-relay/);
   assert.match(runtimeSmoke, /require\('ffmpeg-static'\)/);
   assert.match(runtimeSmoke, /ffmpeg version/i);
 });

@@ -4,7 +4,7 @@ const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const fileUpload = require("express-fileupload");
-const nodeCleanup = require("node-cleanup");
+const { installGracefulShutdown } = require("./modules/platform/graceful-shutdown");
 const { initCampaign } = require("./loops/campaignBeta.js");
 const { init, cleanup, getSessionStats } = require("./helper/addon/qr");
 const { warmerLoopInit } = require("./helper/addon/qr/warmer/index.js");
@@ -299,32 +299,48 @@ const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0
 const io = require("./socket").initializeSocket(server);
 module.exports = io;
 
-// ─── Cleanup ──────────────────────────────────────────────────────────────────
-nodeCleanup(async (exitCode, signal) => {
-  const receiptWorker = receiptWorkerProcess;
-  if (receiptWorker && receiptWorker.exitCode === null) {
-    await new Promise((resolve) => {
-      const timeout = setTimeout(() => { receiptWorker.kill("SIGKILL"); resolve(); }, 2000);
-      receiptWorker.once("exit", () => { clearTimeout(timeout); resolve(); });
-      receiptWorker.kill("SIGTERM");
-    });
+// ─── Graceful shutdown ────────────────────────────────────────────────────────
+async function stopChildWorker(worker) {
+  if (!worker || worker.exitCode !== null) return;
+  await new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = setTimeout(() => {
+      try { worker.kill("SIGKILL"); } finally { finish(); }
+    }, 2000);
+    worker.once("exit", finish);
+    try { worker.kill("SIGTERM"); } catch { finish(); }
+  });
+}
+
+async function shutdownApplication() {
+  for (const worker of [receiptWorkerProcess, taskNotificationWorkerProcess, asteriskAriEventsWorkerProcess]) {
+    try {
+      await stopChildWorker(worker);
+    } catch {
+      console.error("A 7Network child worker did not stop cleanly.");
+    }
   }
-  const taskWorker = taskNotificationWorkerProcess;
-  if (taskWorker && taskWorker.exitCode === null) {
-    await new Promise((resolve) => {
-      const timeout = setTimeout(() => { taskWorker.kill("SIGKILL"); resolve(); }, 2000);
-      taskWorker.once("exit", () => { clearTimeout(timeout); resolve(); });
-      taskWorker.kill("SIGTERM");
-    });
+  try {
+    await cleanupTele();
+  } catch {
+    console.error("Telegram cleanup failed during 7Network shutdown.");
   }
-  const asteriskWorker = asteriskAriEventsWorkerProcess;
-  if (asteriskWorker && asteriskWorker.exitCode === null) {
-    await new Promise((resolve) => {
-      const timeout = setTimeout(() => { asteriskWorker.kill("SIGKILL"); resolve(); }, 2000);
-      asteriskWorker.once("exit", () => { clearTimeout(timeout); resolve(); });
-      asteriskWorker.kill("SIGTERM");
-    });
+  try {
+    await cleanup();
+  } catch {
+    console.error("QR cleanup failed during 7Network shutdown.");
   }
-  await cleanupTele();
-  cleanup();
+}
+
+installGracefulShutdown({
+  io,
+  cleanup: shutdownApplication,
+  timeoutMs: 25000,
+  onError: (stage) => console.error(`7Network shutdown ${stage} failed.`),
 });

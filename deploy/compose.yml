@@ -22,7 +22,9 @@ services:
   app:
     image: "${SALEMAX_IMAGE_REF:?Set SALEMAX_IMAGE_REF to the verified immutable registry digest}"
     pull_policy: never
+    init: true
     restart: unless-stopped
+    stop_grace_period: 30s
     env_file: /opt/salemax/shared/runtime.env
     environment:
       SALEMAX_LICENSE_FILE: /app/license-store/license.json

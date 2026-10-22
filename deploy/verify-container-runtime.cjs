@@ -21,6 +21,23 @@ async function main() {
   const peer = new wrtc.RTCPeerConnection();
   peer.close();
 
+  const shutdownProbe = spawnSync(process.execPath, ['-e', `
+    const nodeCleanup = require('node-cleanup');
+    nodeCleanup((exitCode, signal) => {
+      if (!signal) return;
+      nodeCleanup.uninstall();
+      setTimeout(() => {
+        require('node:fs').writeSync(1, 'graceful-signal-relay');
+        process.kill(process.pid, signal);
+      }, 25);
+      return false;
+    });
+    process.kill(process.pid, 'SIGTERM');
+  `], { encoding: 'utf8', timeout: 10000 });
+  assert.equal(shutdownProbe.error, undefined, shutdownProbe.error?.message);
+  assert.equal(shutdownProbe.signal, 'SIGTERM', shutdownProbe.stderr || shutdownProbe.stdout);
+  assert.match(shutdownProbe.stdout, /graceful-signal-relay/);
+
   const ffmpegPath = require('ffmpeg-static');
   assert.equal(typeof ffmpegPath, 'string');
   const ffmpeg = spawnSync(ffmpegPath, ['-hide_banner', '-version'], {
@@ -36,6 +53,7 @@ async function main() {
     architecture: process.arch,
     nonRoot: true,
     nativeModules: ['bcrypt', 'sharp', '@roamhq/wrtc'],
+    gracefulShutdownSignalRelay: true,
     ffmpeg: 'available',
   }) + '\n');
 }

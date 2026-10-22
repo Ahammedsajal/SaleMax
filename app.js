@@ -4,7 +4,7 @@ const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const fileUpload = require("express-fileupload");
-const nodeCleanup = require("node-cleanup");
+const { installGracefulShutdown } = require("./modules/platform/graceful-shutdown");
 const { initCampaign } = require("./loops/campaignBeta.js");
 const { init, cleanup } = require("./helper/addon/qr");
 const { warmerLoopInit } = require("./helper/addon/qr/warmer/index.js");
@@ -109,8 +109,16 @@ const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0
 const io = require("./socket").initializeSocket(server);
 module.exports = io;
 
-// ─── Cleanup ──────────────────────────────────────────────────────────────────
-nodeCleanup(async (exitCode, signal) => {
-  await cleanupTele();
-  cleanup();
+// ─── Graceful shutdown ────────────────────────────────────────────────────────
+installGracefulShutdown({
+  io,
+  cleanup: async () => {
+    try {
+      await cleanupTele();
+    } finally {
+      await cleanup();
+    }
+  },
+  timeoutMs: 25000,
+  onError: (stage) => console.error(`7Network shutdown ${stage} failed.`),
 });

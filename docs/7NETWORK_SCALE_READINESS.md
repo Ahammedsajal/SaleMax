@@ -18,6 +18,16 @@ This is a read-only audit of the active SaleMaX/7Network single-server deploymen
 
 ## Required before adding app instances
 
+The source candidate now routes `SIGTERM` through an explicit asynchronous
+shutdown coordinator: it closes Socket.IO, stops its known child workers,
+cleans up Telegram/QR connections, then re-delivers the signal, with a 25s hard
+deadline. Compose enables a small init process and grants the app 30s to stop.
+Unit tests cover signal relay, cleanup failure and the hard deadline. This
+source-level change is not yet deployed or container-accepted. It does not
+cancel every embedded campaign, CRM-sync, QR-warmer or retention timer, nor
+does it make external sends safe across crashes. Those ownership and
+in-flight-work contracts must be completed before scale-out.
+
 1. **Durable shared files:** inventory every upload/output path, including public media, private proofs, generated documents, recordings, themes and any remaining local conversation files. Move supported files to a durable object store or genuinely shared filesystem. Migrate with checksums and a per-tenant manifest, verify reads and authorization, then retire local writes. A Docker bind mount under `/opt/salemax/shared` is single-host persistence, not a multi-host design.
 2. **Channel credentials and ownership:** back up and migrate the live local Baileys auth data to a supported shared store without disconnecting customer channels. Add one active owner lease per channel, lease renewal, stale-owner fencing, and a controlled handoff/reconnect path. Test two workers against synthetic channels and prove that only one sends or receives for a channel at a time.
 3. **Websocket fanout:** select and configure a shared Socket.IO adapter. Test authenticated reconnects, tenant-bound rooms, revocation, origin checks and cross-instance event delivery with two app processes. Preserve the current session revalidation; a shared adapter does not replace authorization.

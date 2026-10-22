@@ -1880,6 +1880,14 @@ runtime files and five live-only paths against `origin/main`; the release marker
 four live-only paths. A default-branch image cannot yet represent production
 safely. No registry image was published and no production mutation occurred.
 
+The source candidate now includes a bounded asynchronous SIGTERM coordinator
+for both Node server entrypoints, Socket.IO close, known child-worker shutdown,
+QR/Telegram cleanup, and matching Compose init/30s grace settings. Fourteen
+focused contract/shutdown checks, syntax checks, Compose/workflow YAML parsing,
+and whitespace checks pass locally; exact ARM64 image/runtime CI is rerunning.
+The coordinator does not stop every embedded scheduler or make in-flight
+external effects idempotent, and has not been deployed.
+
 The exact source/release parity reconciliation, GHCR publish/read acceptance,
 production artifact identity alignment, rollback rehearsal, image-size
 comparison, disk/inode alerts, authenticated primary/legacy journeys, media,
