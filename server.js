@@ -92,13 +92,17 @@ function validateAndRepairFrontendShell() {
 
 validateAndRepairFrontendShell();
 
+// Handle browser CORS preflights before upgrade routers register authenticated
+// API middleware. This keeps their existing app-wide CORS contract consistent
+// with the legacy routes mounted below.
+app.use(cors());
+
 // Mounted before global body parsers so auth and contract limits remain effective.
 require('./modules/platform/mount-existing-upgrade').mountConfiguredUpgrade(app);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb", verify: require("./modules/platform/meta-webhook-signature").captureRawBody }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
-app.use(cors());
 app.use(fileUpload());
 
 app.get("/healthz", (request, response) => {

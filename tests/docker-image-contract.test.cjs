@@ -116,6 +116,19 @@ test('both Node server entrypoints use the bounded graceful shutdown coordinator
   }
 });
 
+test('server CORS preflight handling precedes the authenticated compatibility routers', () => {
+  const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
+  const cors = server.indexOf('app.use(cors());');
+  const upgradeRouters = server.indexOf("mountConfiguredUpgrade(app)");
+  const bodyParser = server.indexOf('app.use(express.json(');
+  assert.ok(cors >= 0 && upgradeRouters > cors,
+    'CORS must short-circuit OPTIONS before upgrade authentication middleware');
+  assert.ok(bodyParser > upgradeRouters,
+    'upgrade routers must remain before body parsers to preserve their request limits');
+  assert.equal(server.indexOf('app.use(cors());', cors + 1), -1,
+    'the app-wide CORS middleware should be registered once');
+});
+
 test('production lock wrapper acquires the shared flock before re-resolving current', () => {
   assert.match(lockScript, /\/opt\/salemax\/shared\/7network-production-deploy\.lock/);
   assert.match(lockScript, /set -C; : > "\$LOCK_FILE"/);
