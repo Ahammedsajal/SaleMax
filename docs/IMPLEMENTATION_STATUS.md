@@ -2248,12 +2248,31 @@ integration remains a separate open gate: its fresh-schema fixture lacks
 legacy tables required by later historical migrations, so that broad run does
 not prove the complete migration chain.
 
+## Shared module feature extension contract — source increment, 22 October 2026
+
+`feature-contract.js` now supports trusted server-side module registrations in
+addition to its existing core module descriptors. Every contribution names a
+known capability and a permission granted by that capability. Category-scoped
+contributions must identify an existing immutable category version that
+declares the capability. Session resolution runs every contribution through
+the shared authorization decision; the resulting module flag cannot grant the
+permission or expose a route by itself. Existing core module flags and
+quick-reply catalog behavior remain compatible. No category package registered
+an additional module in this increment.
+
+Focused extension tests cover capability/permission mismatch, unknown category
+versions, duplicate module keys, exact category scoping and existing module
+behavior. Syntax and whitespace checks pass. Category package adoption,
+category-specific navigation and catalogue extension contracts, browser
+acceptance and deployment remain open.
+
 The follow-up full JavaScript suite run passes 1,093/1,117 tests and reports 24
 failures in unrelated authentication, Manage Users, Pipeline, task, Call Center,
 course, Finance, report and sale-review cases. No Forms or public-form checks
 fail. The run is not a release gate pass; the focused Forms/category/migration
-suite remains green. The local environment has no loopback-only MariaDB config,
-so disposable migration integration still needs a configured test runtime.
+suite remains green. The dedicated identity-actor migration integration passes;
+the broad fresh-schema migration run remains incomplete because later historical
+migrations expect legacy application tables absent from its fixture.
 
 ## Tenant CRM logo storage stream adapter — source increment, 22 October 2026
 
