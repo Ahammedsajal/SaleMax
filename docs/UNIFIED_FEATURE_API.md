@@ -23,6 +23,13 @@ Its schemas document revision-checked draft/publish/rollback, read-only preview,
 resolved-value provenance and the compatibility alias without allowing a
 client-supplied tenant selector.
 
+The Forms editor, owner submission history, staff capture, and public generic
+lead-capture operations are specified in
+[`WORKSPACE_FORMS_OPENAPI.json`](WORKSPACE_FORMS_OPENAPI.json). It records the
+legacy Training Center registration route as a compatibility operation and
+the generic adapter's separate category, capability, entitlement, member, and
+lead-scope gates. No category is opted into generic Forms by this contract.
+
 `business-feature-session.js` adapts existing bearer and business-cookie
 authentication to one current tenant/member context. It validates verified
 ownership mappings, active identity/membership/tenant state, role profiles,

@@ -2653,3 +2653,20 @@ suite passes 20/20, including local-reference resolution and unique operation
 IDs. This covers customization endpoints only; complete OpenAPI
 coverage for Forms and other shared APIs, authenticated screen acceptance and
 deployment remain open. No production state changed.
+
+## Shared workspace Forms API contract — source increment, 22 October 2026
+
+Added an OpenAPI 3.1 contract for the existing shared Forms router, including
+the owner editor, optimistic draft updates, immutable publication versions,
+tenant-scoped submission history, permission-scoped staff capture, public
+lookup/submission, and the Training Center registration compatibility route.
+The contract records the required category adapter, both Forms and CRM Leads
+capabilities/entitlements, server-derived tenant context, assigned-agent lead
+scope, origin checks, request bounds, idempotency, and consent/version snapshots.
+No category declaration, plan, tenant setting, customer record, migration, or
+production runtime was changed.
+
+The focused Forms OpenAPI route/parity/security tests pass 3/3; combined with
+the customization contract tests they pass 6/6. This documents source routes
+only; it is not evidence of category adoption, authenticated English/Arabic screen acceptance,
+MariaDB route integration, or production deployment. Those gates remain open.

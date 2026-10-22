@@ -1,0 +1,1578 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "7Network shared workspace Forms API",
+    "version": "1.0.0",
+    "description": "Contract for the existing business-panel Forms editor and public/staff capture routes. Tenant identity, category version, capabilities, plan entitlements, membership and record scope are resolved by the server. This API does not enable Forms for any category. The generic contract runs only for a reviewed generic-lead-capture-v1 category adapter with portal.forms and crm.leads enabled and current entitlement; Training Center registration remains on its existing adapter. Use the shared Workspace API client."
+  },
+  "servers": [
+    {
+      "url": "/api/workspace/forms",
+      "description": "Canonical authenticated Forms API"
+    },
+    {
+      "url": "/api/user/training/forms",
+      "description": "Compatibility alias to the same authenticated router"
+    }
+  ],
+  "security": [
+    {
+      "WorkspaceBearer": []
+    },
+    {
+      "WorkspaceCookie": []
+    }
+  ],
+  "paths": {
+    "/context": {
+      "get": {
+        "operationId": "getWorkspaceFormsContext",
+        "summary": "Resolve the server-authorized Forms adapter",
+        "responses": {
+          "200": {
+            "description": "Adapter and registration mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "operationId": "listWorkspaceForms",
+        "summary": "List tenant-owned forms",
+        "description": "Requires forms.manage and applicable portal.forms entitlement. Every row is restricted to the authenticated tenant.",
+        "responses": {
+          "200": {
+            "description": "Forms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorkspaceForm",
+        "summary": "Create a tenant-owned draft form",
+        "description": "Requires forms.manage, portal.forms and crm.leads access. Validates generic contact/consent fields and active tenant custom lead fields. Writes the draft and audit event transactionally.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Draft created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/lead-fields": {
+      "get": {
+        "operationId": "listWorkspaceFormLeadFields",
+        "summary": "List active published tenant lead fields available to forms",
+        "responses": {
+          "200": {
+            "description": "Tenant field options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadFieldOptionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/submissions": {
+      "get": {
+        "operationId": "listWorkspaceFormSubmissions",
+        "summary": "Read tenant-scoped form submissions",
+        "description": "Requires forms.manage and crm.leads access. Supports bounded page/limit, search, Qatar-local date bounds and an optional submission UUID filter. Submission values and consent are historical snapshots.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive Qatar-local date, YYYY-MM-DD",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Inclusive Qatar-local date, YYYY-MM-DD",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "submissionId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated tenant submissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/{id}": {
+      "put": {
+        "operationId": "updateWorkspaceFormDraft",
+        "summary": "Replace a tenant-owned draft using optimistic concurrency",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FormId"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated draft",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/{id}/publish": {
+      "post": {
+        "operationId": "publishWorkspaceForm",
+        "summary": "Publish an immutable form version",
+        "description": "Requires forms.manage and crm.leads access. The submitted draft revision must still be current. Submission history remains bound to the version used at capture.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FormId"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Published version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/staff/{formSlug}": {
+      "get": {
+        "servers": [
+          {
+            "url": "/api/workspace/forms"
+          },
+          {
+            "url": "/api/user/training/forms"
+          }
+        ],
+        "operationId": "getWorkspaceStaffCaptureForm",
+        "summary": "Load a published form for authenticated staff capture",
+        "description": "Requires forms.capture plus Forms and CRM Leads category/plan access. The server derives the tenant and member; Agents can use only their assigned leads.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FormSlug"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Published staff capture form",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFormResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/staff/{formSlug}/leads": {
+      "get": {
+        "operationId": "searchWorkspaceStaffCaptureLeads",
+        "summary": "Search leads available for staff form capture",
+        "description": "Requires forms.capture. Search is tenant scoped; Agents are additionally restricted to assigned leads. Search terms must contain at least two characters.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FormSlug"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching accessible leads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/staff/{formSlug}/submissions": {
+      "post": {
+        "operationId": "submitWorkspaceStaffCapture",
+        "summary": "Capture a form submission as authenticated staff",
+        "description": "Requires forms.capture and CRM Leads access. Creates a Pipeline lead or updates only a selected accessible lead, records the submitting identity, captures consent/version snapshots, and is idempotent per member and token. Cross-tenant and unassigned Agent lead IDs are rejected.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FormSlug"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffSubmissionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Captured submission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSubmissionResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSubmissionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/registration": {
+      "post": {
+        "operationId": "createTrainingRegistrationCompatibility",
+        "summary": "Create a Training Center registration submission",
+        "description": "Compatibility operation for training-registration-v1 only. It is unavailable to the generic lead-capture adapter and does not grant registration or finance capabilities.",
+        "servers": [
+          {
+            "url": "/api/workspace/forms"
+          },
+          {
+            "url": "/api/user/training/forms"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing idempotent registration replay"
+          },
+          "201": {
+            "description": "Training Center registration created"
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/{tenantSlug}/{formSlug}": {
+      "get": {
+        "servers": [
+          {
+            "url": "/api/public/training/forms",
+            "description": "Public lookup; returns generic forms only when category, tenant and plan gates pass, while preserving the existing Training Center response."
+          }
+        ],
+        "operationId": "getPublicWorkspaceForm",
+        "summary": "Resolve an active published public form",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSlug"
+          },
+          {
+            "$ref": "#/components/parameters/FormSlug"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Published form and tenant-safe public metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicFormResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Unavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/{tenantSlug}/{formSlug}/submissions": {
+      "post": {
+        "servers": [
+          {
+            "url": "/api/public/training/forms"
+          }
+        ],
+        "operationId": "submitPublicWorkspaceForm",
+        "summary": "Submit to an active published form",
+        "description": "Origin checked, bounded JSON, idempotent, rate limited with hashed visitor identifiers, and transactional with consent/campaign snapshots and Pipeline lead creation. The expected version prevents stale forms from submitting. Optional bot challenge is verified when configured.",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSlug"
+          },
+          {
+            "$ref": "#/components/parameters/FormSlug"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicSubmissionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Submission accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSubmissionResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSubmissionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "WorkspaceBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Existing business bearer session, normalized by the shared feature-session adapter."
+      },
+      "WorkspaceCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-salemax_session",
+        "description": "Canonical business session cookie; mutations also require the exact Origin."
+      }
+    },
+    "parameters": {
+      "Origin": {
+        "name": "Origin",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "FormId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "FormSlug": {
+        "name": "formSlug",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[-a-z0-9]{1,48}$"
+        }
+      },
+      "TenantSlug": {
+        "name": "tenantSlug",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[-a-z0-9]{1,80}$"
+        }
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "required": [
+          "success",
+          "code"
+        ],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContextResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "adapter",
+              "registrationEnabled"
+            ],
+            "properties": {
+              "adapter": {
+                "type": "string",
+                "enum": [
+                  "generic-lead-capture-v1",
+                  "training-registration-v1"
+                ]
+              },
+              "registrationEnabled": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormField": {
+        "type": "object",
+        "required": [
+          "key",
+          "required",
+          "labelEn",
+          "labelAr"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "contact_name",
+              "phone",
+              "email",
+              "consent"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "labelEn": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "labelAr": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormSchema": {
+        "type": "object",
+        "description": "Generic forms must include contact_name and consent and require at least one of phone or email. These core fields cannot be replaced by custom fields.",
+        "required": [
+          "titleEn",
+          "titleAr",
+          "consentTextEn",
+          "consentTextAr",
+          "fields"
+        ],
+        "properties": {
+          "titleEn": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "titleAr": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "descriptionEn": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "descriptionAr": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "consentTextEn": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "consentTextAr": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "templateKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Reserved for the existing Training Center registration adapter; rejected for generic lead capture."
+          },
+          "fields": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 40,
+            "items": {
+              "$ref": "#/components/schemas/FormField"
+            }
+          },
+          "leadFields": {
+            "type": "object",
+            "description": "Optional pinned set of currently published typed tenant lead-field IDs and labels."
+          }
+        },
+        "additionalProperties": true
+      },
+      "FormDraft": {
+        "type": "object",
+        "required": [
+          "slug",
+          "nameEn",
+          "nameAr",
+          "schema"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$"
+          },
+          "nameEn": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "nameAr": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "schema": {
+            "$ref": "#/components/schemas/FormSchema"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormDraftRequest": {
+        "$ref": "#/components/schemas/FormDraft"
+      },
+      "FormUpdateRequest": {
+        "type": "object",
+        "required": [
+          "slug",
+          "nameEn",
+          "nameAr",
+          "schema",
+          "expectedRevision"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$"
+          },
+          "nameEn": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "nameAr": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "schema": {
+            "$ref": "#/components/schemas/FormSchema"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "RevisionRequest": {
+        "type": "object",
+        "required": [
+          "expectedRevision"
+        ],
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormRecord": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FormDraft"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "draftRevision",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "draftRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "publishedVersion": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "publishedSlug": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "published"
+                ]
+              },
+              "hasUnpublishedChanges": {
+                "type": "boolean"
+              },
+              "publicPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "FormListResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormRecord"
+            }
+          }
+        }
+      },
+      "FormResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/FormRecord"
+          }
+        }
+      },
+      "PublishResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "id",
+              "slug",
+              "version",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "status": {
+                "const": "published"
+              },
+              "repeated": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "LeadFieldOptionsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "SubmissionRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "formId",
+          "formVersion",
+          "referenceCode",
+          "captureMode",
+          "submissionData",
+          "submittedAt",
+          "schema"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "formId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "formVersion": {
+            "type": "integer"
+          },
+          "referenceCode": {
+            "type": "string"
+          },
+          "leadId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "captureMode": {
+            "type": "string",
+            "enum": [
+              "public",
+              "staff"
+            ]
+          },
+          "submissionData": {
+            "type": "object"
+          },
+          "attribution": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "consentTextEn": {
+            "type": "string"
+          },
+          "consentTextAr": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "schema": {
+            "$ref": "#/components/schemas/FormSchema"
+          }
+        },
+        "additionalProperties": true
+      },
+      "SubmissionsPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "limit",
+          "total",
+          "pages",
+          "search",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmissionRecord"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "pages": {
+            "type": "integer"
+          },
+          "search": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "businessProfile": {
+            "type": "object"
+          }
+        }
+      },
+      "SubmissionsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/SubmissionsPage"
+          }
+        }
+      },
+      "PublicForm": {
+        "type": "object",
+        "description": "Generic public forms include adapter=generic-lead-capture-v1. The shared endpoint also returns the existing, differently shaped Training Center payload; clients must select the matching adapter before rendering category-specific controls.",
+        "required": [
+          "tenant",
+          "form",
+          "courses"
+        ],
+        "properties": {
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "generic-lead-capture-v1",
+              "training-registration-v1"
+            ]
+          },
+          "tenant": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "form": {
+            "type": "object",
+            "required": [
+              "slug",
+              "nameEn",
+              "nameAr",
+              "version",
+              "schema"
+            ],
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "nameEn": {
+                "type": "string"
+              },
+              "nameAr": {
+                "type": "string"
+              },
+              "version": {
+                "type": "integer"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/FormSchema"
+              }
+            },
+            "additionalProperties": true
+          },
+          "courses": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "botChallenge": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      },
+      "PublicFormResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/PublicForm"
+          }
+        }
+      },
+      "StaffFormResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PublicFormResponse"
+          }
+        ]
+      },
+      "LeadSearchResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "StaffSubmissionRequest": {
+        "type": "object",
+        "required": [
+          "submissionToken",
+          "values",
+          "expectedFormVersion"
+        ],
+        "properties": {
+          "submissionToken": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "values": {
+            "type": "object"
+          },
+          "selectedLeadId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedFormVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "PublicSubmissionRequest": {
+        "type": "object",
+        "required": [
+          "submissionToken",
+          "values",
+          "expectedFormVersion"
+        ],
+        "properties": {
+          "submissionToken": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "values": {
+            "type": "object"
+          },
+          "website": {
+            "type": "string"
+          },
+          "challengeToken": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "campaignAttribution": {
+            "type": "object"
+          },
+          "expectedFormVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "CaptureResult": {
+        "type": "object",
+        "required": [
+          "referenceCode",
+          "leadId",
+          "repeated"
+        ],
+        "properties": {
+          "referenceCode": {
+            "type": "string"
+          },
+          "leadId": {
+            "type": "string"
+          },
+          "repeated": {
+            "type": "boolean"
+          },
+          "collectorRole": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "StaffSubmissionResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/CaptureResult"
+          }
+        }
+      },
+      "PublicSubmissionResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "referenceCode",
+              "repeated"
+            ],
+            "properties": {
+              "referenceCode": {
+                "type": "string"
+              },
+              "repeated": {
+                "type": "boolean"
+              },
+              "studentNumber": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "provisionalInvoiceNumber": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "totalMinor": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "courseNameEn": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "courseNameAr": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "installments": {
+                "type": "array"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    "responses": {
+      "Invalid": {
+        "description": "Invalid body, field, date, or submission",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "No valid business session",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Permission, category capability, entitlement, origin, or staff record scope denied",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Form, tenant, or accessible record is not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Stale revision/version, duplicate slug, or idempotency conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "TooLarge": {
+        "description": "Request exceeds router body limit",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Public submission throttle exceeded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "Category, plan, tenant, provider challenge, or Forms service is unavailable",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      }
+    }
+  }
+}
