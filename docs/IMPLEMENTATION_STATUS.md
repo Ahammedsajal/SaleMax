@@ -1862,3 +1862,28 @@ automated adoption, new vertical workflows and full live acceptance remain open.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+## Immutable 7Network Docker image candidate — 22 October 2026
+
+The Dockerfile now separates native dependency installation from the runtime
+stage and pins the official Node 22.23.3 Bookworm slim multi-architecture
+manifest by digest. Git, Python, Make and the C++ compiler are kept in the build
+stage. Compose requires a release-specific image tag and uses the same prebuilt
+image for the app and both current workers, with no implicit build or pull.
+Production-only notification-worker configuration is preserved.
+
+The production host was inspected read-only: active release
+`7network-domain-activation-485c2d0-20261022`, image
+`sha256:66b58843131e2b5112d81a363a679bfa729c86ba105e9207adb8fbb3266df8c1`,
+ARM64, healthy app and database, 85% root disk use with 7.8 GB available, and
+560 retained release directories. `crm.salemax.qa`, `7network.live`, and
+`www.7network.live` all return HTTP 200. Host memory/load and instantaneous
+container use were recorded in `docs/7NETWORK_DOCKER_RELEASE_POLICY.md`; they
+are not a capacity or load test.
+
+Five source contract tests cover the Dockerfile/Compose/image-builder boundary.
+They do not replace an image build. The local environment has no Docker CLI or
+daemon, and the production release was not changed. A disposable native build,
+runtime media/WebRTC smoke checks, image-size comparison, and operator-visible
+disk alerts remain release gates. The full category platform, tenant isolation,
+shared upload/session/job prerequisites, database recovery plan, and migration
+acceptance remain in progress.
