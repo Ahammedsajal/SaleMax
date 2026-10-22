@@ -2,6 +2,12 @@
 
 This is a read-only operations audit of the SaleMaX/7Network single-server deployment on 22 October 2026. It keeps both earlier measurements and the latest timestamped snapshot below; metrics are point-in-time evidence and do not establish peak capacity. The audit records preconditions for adding application instances; it does not approve a scale-out or change production.
 
+## Primary and compatibility domain snapshot — 22 October 2026, 09:45 UTC
+
+DNS points `7network.live` and `crm.salemax.qa` to the same production IP; `www.7network.live` is a CNAME to the apex. All three origins return HTTP 200 over TLS with successful verification, no redirect, and a certificate SAN covering each name through 20 January 2027. The live root on every name publishes `https://7network.live/` as canonical. The active Nginx vhost names the same three domains and proxies to the existing app listener while forwarding `Host` and `X-Forwarded-Proto`.
+
+The unauthenticated `/healthz` response carries wildcard CORS. A primary/legacy cross-origin `OPTIONS` probe for an authenticated business task route returns 401 without CORS allow headers. Authenticated browser, mobile, OAuth/provider callback, webhook, payment redirect, installed-client, and WebSocket journeys were not exercised. The tenant CRM domain contract still requires CNAME to `crm.salemax.qa`; do not change that target until existing tenant DNS consumers are inventoried and migrated. A full-host Nginx config test was blocked by an unreadable certificate for another virtual host; no host configuration was changed.
+
 ## Post-deployment image and runtime identity — 22 October 2026, 09:36 UTC
 
 The shared-lock wrapper resolved the newly active Inbox follow-up release `/opt/salemax/releases/follow-up-dedupe-69a608d-20261022`; its production source/release/rollback evidence is recorded on `main` commit `8db38124`. The app image is 475,078,348 bytes and 10 layers, with no OCI revision label; release source marker files still read `e7781c7` and `350e486`. The app is healthy. Both worker containers remain on image ID `sha256:d3731b54eb384aa433da59b66c0d7b6eda156d96104e10431ba0bbd1bd3ef915`, so app-to-worker artifact identity is still unproven.
