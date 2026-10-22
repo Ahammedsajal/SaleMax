@@ -481,8 +481,16 @@
         brand.dataset.sxSidebarBrand = '1';
         let logo = brand.querySelector('[data-sx-sidebar-logo]');
         if (!logo) { logo = document.createElement('img'); logo.dataset.sxSidebarLogo = '1'; logo.alt = '7Network'; brand.append(logo); }
-        const src = collapsed ? '/logo192.png' : '/media/7network-logo.png';
-        if (logo.getAttribute('src') !== src) logo.src = src;
+        // Keep the shared branding observer and this sidebar in agreement.
+        // Legacy paths are rewritten by 7network-brand.js, which otherwise
+        // creates an endless src ping-pong on every sidebar update.
+        const brandKind = collapsed ? 'icon' : 'logo';
+        const src = collapsed
+          ? '/branding/7network/icon-192.png?v=20261022-sidebar-icon1'
+          : '/branding/7network/logo-light.png?v=20261021-final-horizontal1';
+        const previousKind = logo.dataset.sevenNetworkBrand;
+        logo.dataset.sevenNetworkBrand = brandKind;
+        if (previousKind !== brandKind || !logo.getAttribute('src')?.startsWith('/branding/7network/')) logo.src = src;
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
