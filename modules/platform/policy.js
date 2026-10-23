@@ -6,7 +6,7 @@ const permissions = {
   'team.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team' },
   'team.invite': { owner: 'tenant' },
   'channels.configure': { owner: 'tenant' },
-  // Every active business seat may create one QR channel for its own use.
+  // Every active business seat may create QR channels within its tenant role cap.
   'channels.qr.create': { owner: 'tenant', accountant: 'tenant', manager: 'tenant', team_leader: 'tenant', agent: 'tenant' },
   // QR operations are further constrained to the actor's shared/created instance in the route.
   'channels.qr.manage': { owner: 'tenant', accountant: 'tenant', manager: 'tenant', team_leader: 'tenant', agent: 'tenant' },

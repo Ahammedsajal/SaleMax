@@ -178,6 +178,55 @@ router.get("/get_user_team_tree", adminValidator, async (req, res) => {
   }
 });
 
+const qrRoleLimits = require('../modules/platform/qr-role-limits');
+const qrRoleLimitDb = require('../database/config.js').promise();
+function qrLimitUserUid(req) {
+  const userId = Number(req.method === 'GET' ? req.query?.userId : req.body?.userId);
+  if (!Number.isSafeInteger(userId) || userId < 1) return null;
+  return query('SELECT uid FROM user WHERE id=? LIMIT 1', [userId]).then(rows => rows[0]?.uid || null);
+}
+
+router.get('/qr-role-limits/eligible-users', adminValidator, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const list = manageUsersQuery(platformContext(req));
+    let users = await query(list.sql, list.args);
+    const staffTree = await userTeamTree.list(query, users.map(row => row.id));
+    const nestedStaff = new Set(staffTree.staffUserIds);
+    users = users.filter(row => !nestedStaff.has(Number(row.id)));
+    const userIds = await qrRoleLimits.eligibleUserIds(qrRoleLimitDb, users.map(row => row.id));
+    res.json({ success: true, data: { userIds } });
+  } catch (error) {
+    res.status(503).json({ success: false, code: 'QR_ROLE_LIMITS_UNAVAILABLE' });
+  }
+});
+
+router.get('/qr-role-limits', adminValidator, portfolioGuard(qrLimitUserUid), async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const data = await qrRoleLimits.readForUser(qrRoleLimitDb, req.query?.userId);
+    res.json({ success: true, data });
+  } catch (error) {
+    const status = Number(error.status) || 503;
+    res.status(status).json({ success: false, code: error.code || 'QR_ROLE_LIMITS_UNAVAILABLE' });
+  }
+});
+
+router.post('/qr-role-limits', adminValidator, portfolioGuard(qrLimitUserUid), async (req, res) => {
+  try {
+    const result = await qrRoleLimits.saveForUser(qrRoleLimitDb, {
+      userId: req.body?.userId,
+      roleLimits: req.body?.roleLimits,
+      actorIdentityId: req.platformAccess?.identityId || null,
+      legacyAdminId: req.legacyAdminId || null,
+    });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    const status = Number(error.status) || 503;
+    res.status(status).json({ success: false, code: error.code || 'QR_ROLE_LIMITS_UNAVAILABLE' });
+  }
+});
+
 // create a user from the admin panel
 router.post("/add_user", adminValidator, async (req, res) => {
   try {

@@ -192,7 +192,7 @@ router.post(
       }
 
       const inserted = await createQrInstance(req, { title, uniqueId });
-      if (inserted.limitReached) return res.json({success:false,code:'QR_INSTANCE_LIMIT_REACHED',msg:'You can add one QR instance to your account.'});
+      if (inserted.limitReached) return res.json({success:false,code:'QR_INSTANCE_LIMIT_REACHED',msg:inserted.maxInstances===0?'QR instance creation is disabled for your role.':`Your role allows up to ${inserted.maxInstances} QR instance${inserted.maxInstances === 1 ? '' : 's'}.`});
 
       await createSession(
         uniqueId,

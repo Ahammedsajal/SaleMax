@@ -3,6 +3,7 @@
 const { query } = require('../../database/dbpromise');
 const { getNumberOfDaysFromTimestamp } = require('../../functions/function');
 const pool = require('../../database/config').promise();
+const roleQrLimits = require('./qr-role-limits');
 
 function readPlan(raw) {
   if (!raw) return null;
@@ -24,8 +25,11 @@ async function countForActor(actor) {
   return Number(rows[0]?.total || 0);
 }
 
-function limitResponse(res) {
-  return res.json({ success: false, code: 'QR_INSTANCE_LIMIT_REACHED', msg: 'You can add one QR instance to your account.' });
+function limitResponse(res, maximum) {
+  const parsed = Number(maximum);
+  const count = Number.isFinite(parsed) && parsed >= 0 ? parsed : 1;
+  if (count === 0) return res.json({ success: false, code: 'QR_INSTANCE_LIMIT_REACHED', msg: 'Your role is not allowed to add QR instances.' });
+  return res.json({ success: false, code: 'QR_INSTANCE_LIMIT_REACHED', msg: `Your role allows up to ${count} QR instance${count === 1 ? '' : 's'}.` });
 }
 
 async function checkQrCreator(req, res, next) {
@@ -50,17 +54,22 @@ async function checkQrCreator(req, res, next) {
     }
     const plan = readPlan(owner.plan);
     if (!plan) return res.status(503).json({ success: false, code: 'PLAN_DATA_UNAVAILABLE' });
-    if (Number.parseInt(plan.qr_account, 10) < 1) {
+    if (!Number.isSafeInteger(Number.parseInt(plan.qr_account, 10)) || Number.parseInt(plan.qr_account, 10) < 1) {
       return res.json({ success: false, msg: 'Your plan does not allow you this feature' });
     }
 
     const context = session.context;
     const isOwner = !context || context.membership?.role === 'owner';
+    const role = context?.membership?.role || (isOwner ? 'owner' : null);
+    const tenantId = context?.tenant?.id || null;
+    const maximum = await roleQrLimits.limitFor(pool, tenantId, role);
     req.qrCreator = {
       ownerUid,
       actorUid: actor.uid,
       isOwner,
-      tenantId: context?.tenant?.id || null,
+      role,
+      maxInstances: maximum,
+      tenantId,
       membershipId: context?.membership?.id || null,
       identityId: context?.identity?.id || null,
     };
@@ -73,7 +82,7 @@ async function checkQrCreator(req, res, next) {
       req.decode.userData = actor;
     }
 
-    if (await countForActor(req.qrCreator) >= 1) return limitResponse(res);
+    if (await countForActor(req.qrCreator) >= maximum) return limitResponse(res, maximum);
     next();
   } catch (error) {
     console.error('QR creator entitlement check failed:', error?.code || error?.message || 'unknown');
@@ -92,6 +101,10 @@ async function createQrInstance(req, { title, uniqueId }) {
     const [[owner]] = await db.query('SELECT uid FROM user WHERE uid=? FOR UPDATE', [creator.ownerUid]);
     if (!owner) throw Object.assign(new Error('BUSINESS_LINK_INVALID'), { code: 'BUSINESS_LINK_INVALID' });
 
+    // Read inside the same owner-locked transaction used for the count/insert,
+    // so a simultaneous admin limit change cannot leave a stale allowance.
+    const maximum = await roleQrLimits.limitFor(db, creator.tenantId, creator.role);
+
     const sql = creator.isOwner
       ? 'SELECT COUNT(*) AS total FROM instance WHERE uid=?'
       : `SELECT COUNT(DISTINCT i.id) AS total FROM instance i
@@ -104,9 +117,9 @@ async function createQrInstance(req, { title, uniqueId }) {
       ? [creator.ownerUid]
       : [creator.actorUid, creator.tenantId, creator.membershipId, creator.identityId, creator.ownerUid];
     const [rows] = await db.query(sql, args);
-    if (Number(rows[0]?.total || 0) >= 1) {
+    if (Number(rows[0]?.total || 0) >= maximum) {
       await db.rollback();
-      return { limitReached: true };
+      return { limitReached: true, maxInstances: maximum };
     }
 
     const [inserted] = await db.query(
