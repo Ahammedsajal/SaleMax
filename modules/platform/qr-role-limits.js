@@ -95,7 +95,7 @@ async function readForUser(db, userId) {
   const usage = new Map(groups.map(row => [row.role, {
     active: Number(row.active_members || 0),
     inactive: Number(row.inactive_members || 0),
-    qrInstances: Number(row.role === 'owner' ? ownerQr[0].total : row.qr_instances || 0),
+    qrInstances: Number(row.role === 'owner' ? ownerQr.total : row.qr_instances || 0),
   }]));
   return {
     userId: Number(owner.id),
