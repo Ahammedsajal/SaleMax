@@ -244,7 +244,7 @@
       state.qrInstances=filters.data?.qrInstances||[];
       state.issues=[...(journey.error?['journeyUnavailable']:[]),...(summary.error?['summaryUnavailable']:[]),...(filters.error?['filtersUnavailable']:[])];
       render(activity.data);
-    }catch(error){if(request===state.sequence)errorState(error);}
+    }catch(error){if(request===state.sequence){console.error('Lead reports load/render failed:',error?.name||'Error',String(error?.stack||'').split('\n').slice(0,4).join(' | '));errorState(error);}}
   }
   async function loadSchedules(){
     if(!ownerSession())return;const request=++state.scheduleSequence;state.scheduleError='';
