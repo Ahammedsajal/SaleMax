@@ -46,7 +46,7 @@
     ['More Tools', 'أدوات أخرى', []]
   ];
   const aliases = {
-    'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'Applications & CVs':'Candidate Applications', 'طلبات التوظيف والسير الذاتية':'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
+    'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
     'مسار العملاء المحتملين': 'Lead Pipeline', 'تقارير العملاء المحتملين': 'Lead Reports',
     'الفواتير والمدفوعات': 'Invoices & Payments', 'تقارير المالية': 'Finance Reports',
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Team Login',
@@ -59,7 +59,7 @@
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'faqs', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
-    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
+    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'طلبات التوظيف والسير الذاتية':'recruitment', 'Invoices & Payments':'invoices',
     'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
     'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties'
   };
@@ -378,7 +378,7 @@
     }
   }
   function ensureTrainingApplicationsRow(list){
-    if(membershipCategoryKey!=='training_center'||membershipRole!=='owner'||!roleNavigation?.has('forms')||(assignedNavigation!==null&&!assignedNavigation.has('forms'))||hasNavigationKey(list,'forms'))return;
+    if(membershipCategoryKey!=='training_center'||!roleNavigation?.has('forms')||(assignedNavigation!==null&&!assignedNavigation.has('forms'))||hasNavigationKey(list,'forms'))return;
     const template=list.querySelector(':scope > li:not([data-sx-nav-section])');
     if(!template)return;
     const row=cloneNavigationRow(template);row.removeAttribute('data-salemax-pipeline-link');row.removeAttribute('data-sx-search-hidden');row.removeAttribute('data-sx-optional-hidden');row.dataset.sxCanonicalSalesNav='forms';row.hidden=false;row.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
@@ -511,7 +511,7 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {'Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
+      const routes = {'Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;

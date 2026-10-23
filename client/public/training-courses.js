@@ -211,7 +211,7 @@
     btn.onclick=e=>{e.preventDefault();location.href=products?'/user?page=products-services':'/user?page=courses';};
   }
   let renderedLanguage='';
-  function update(){checkCourseAccess();addNav();if(navChecked&&navAllowed&&!products&&location.pathname.replace(/\/$/,'')==='/user'&&!document.getElementById('sx-students-script')){const script=document.createElement('script');script.id='sx-students-script';script.src='/training-students.js?v=20261019-catalog-nav4';document.head.append(script);}if(active()){const language=isAr()?'ar':'en';if(!document.getElementById('sx-course-screen')||renderedLanguage!==language){renderedLanguage=language;load();}}else{renderedLanguage='';document.getElementById('sx-course-screen')?.remove();}}
+  function update(){checkCourseAccess();addNav();if(navChecked&&navAllowed&&!products&&location.pathname.replace(/\/$/,'')==='/user'&&!document.getElementById('sx-students-script')){const script=document.createElement('script');script.id='sx-students-script';script.src='/training-students.js?v=20261023-student-sidebar-layout1';document.head.append(script);}if(active()){const language=isAr()?'ar':'en';if(!document.getElementById('sx-course-screen')||renderedLanguage!==language){renderedLanguage=language;load();}}else{renderedLanguage='';document.getElementById('sx-course-screen')?.remove();}}
   new MutationObserver(update).observe(document.documentElement,{childList:true,subtree:true});window.addEventListener('popstate',update);setInterval(update,900);update();
 })();
 
