@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {periodWindow,getActivityReport,getJourneyReport}=require('../helper/pipeline/reports');
+const {periodWindow,getActivityReport,getJourneyReport,getLeadReportSummary}=require('../helper/pipeline/reports');
 const {reconcileExisting}=require('../modules/platform/training-lead-journey');
 
 test('pipeline reports define Qatar-local daily, Monday-weekly and monthly periods',()=>{
@@ -30,6 +30,19 @@ test('managers can read sales activity reports without receiving finance totals'
   assert.equal(report.period,'daily');
   assert.deepEqual(report.finance,undefined);
   assert.equal(queries.some(sql=>sql.includes('information_schema.TABLES')),false);
+});
+
+test('training-center managers can load lead summaries while 7Network Sales still requires team scope',async()=>{
+  const connection={release(){},async query(sql){
+    if(sql.includes('AS d0'))return [[{d0:0}]];
+    if(sql.includes('SELECT a.id AS agentId'))return [[]];
+    return [[{leads_today:0,leads_month:0,sales_converted_month:0,live_leads:0,unassigned_leads:0}]];
+  }};
+  const pool={async getConnection(){return connection;}};
+  const summary=await getLeadReportSummary({pool,uid:'synthetic-owner',role:'manager',from:'2026-10-01',to:'2026-10-01'});
+  assert.equal(summary.daily.length,1);
+  assert.equal(summary.current.unassigned,null);
+  await assert.rejects(getLeadReportSummary({pool,uid:'synthetic-owner',role:'manager',categoryKey:'7network_sales',from:'2026-10-01',to:'2026-10-01'}),{status:403});
 });
 
 test('activity reports include agent WhatsApp replies with attribution and channel but no message text',async()=>{

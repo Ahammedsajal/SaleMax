@@ -1,14 +1,17 @@
-# SaleMaX Production Access and Git Workflow
+# 7Network Production Access and Git Workflow
 
-This file records the safe access and release process for the existing SaleMaX production deployment. The production release history and operational details live in ../DEPLOYMENT.md.
+This file records the safe access and release process for 7Network. The public production URL is https://7network.live/. The production release history and operational details live in ../DEPLOYMENT.md.
+
+The Linux deployment directory, Compose project, container names, and some environment variables still use legacy `salemax` identifiers. Keep those names when a command targets the current host; they are runtime compatibility identifiers and do not change the product name or public URL.
 
 ## Access boundary
 
-- Production URL: https://crm.salemax.qa/
+- Public production URL: https://7network.live/
+- Legacy compatibility hostname: crm.salemax.qa (retain only where the current host configuration still requires it)
 - Production host and deployment root are recorded in DEPLOYMENT.md; confirm they still match the intended target before every change.
 - Use an authorized operator account and SSH identity from that operator's local SSH configuration or agent. Keep private keys, passwords, tokens, server environment files and recovery material out of this repository.
 - The server stores runtime and database credentials under /opt/salemax/shared with restrictive permissions. Do not copy them into Git, logs, tickets or screenshots.
-- server-access/ is intentionally excluded by .gitignore. Keep any operator-specific connection notes there with restrictive local permissions. Track only non-secret deployment facts and reviewed release evidence in this repository.
+- The local `7network-Server-Access/` folder is intentionally excluded from Git. Keep operator-specific connection notes there with restrictive local permissions. Track only non-secret deployment facts and reviewed release evidence in this repository.
 - Before changing production, verify the host identity and resolve /opt/salemax/current to the active release. Do not assume a successful Git push changed the running service.
 
 ## Required Git record for every production update

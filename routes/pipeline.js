@@ -323,7 +323,7 @@ router.get("/reports/activity", async (req,res)=>{
 });
 
 router.get('/reports/summary',async(req,res)=>{
-  try{const data=await pipelineReports.getLeadReportSummary({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,from:req.query.from,to:req.query.to,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  try{const data=await pipelineReports.getLeadReportSummary({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,from:req.query.from,to:req.query.to,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){fail(res,error);}
 });
 

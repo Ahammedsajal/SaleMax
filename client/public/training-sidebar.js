@@ -154,7 +154,7 @@
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
     [data-sx-sidebar-logo]{display:block!important;width:156px!important;max-width:100%!important;height:44px!important;object-fit:contain!important;background:transparent!important}
     [data-sx-sidebar-collapsed] [data-sx-nav-section]{display:none!important}
-    [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{width:32px!important;height:32px!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{box-sizing:border-box!important;width:32px!important;min-width:32px!important;max-width:32px!important;height:32px!important;max-height:32px!important;flex:0 0 32px!important;object-fit:contain!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemText-root,
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiTypography-root{display:none!important}
     @media(min-width:701px){
@@ -477,10 +477,12 @@
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === '7Network' && !p.closest('ul'));
       const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
-      if (brand) {
-        brand.dataset.sxSidebarBrand = '1';
-        let logo = brand.querySelector('[data-sx-sidebar-logo]');
-        if (!logo) { logo = document.createElement('img'); logo.dataset.sxSidebarLogo = '1'; logo.alt = '7Network'; brand.append(logo); }
+      let logo = brand?.querySelector('[data-sx-sidebar-logo]') || drawer.firstElementChild?.querySelector('img[data-seven-network-brand],img[alt="7Network"]');
+      if (!logo && brand) { logo = document.createElement('img'); logo.alt = '7Network'; brand.append(logo); }
+      if (logo) {
+        // The app shell owns the original brand image; mark and resize that image
+        // directly so collapsed mode cannot squeeze the horizontal wordmark.
+        logo.dataset.sxSidebarLogo = '1';
         // Keep the shared branding observer and this sidebar in agreement.
         // Legacy paths are rewritten by 7network-brand.js, which otherwise
         // creates an endless src ping-pong on every sidebar update.
