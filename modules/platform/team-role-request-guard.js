@@ -14,7 +14,9 @@ function routePermission(req){
   if(mount==='/api/user/business-auth'&&path==='/me'&&read)return 'tenant.read';
   if(mount==='/api/workspace/session')return 'tenant.read';
   if(['/api/workspace/tasks','/api/user/training/tasks'].includes(mount))return read?'tasks.read':'tasks.manage';
-  if(mount==='/api/workspace/inbox/course-replies')return read?'conversations.read':'conversations.reply';
+  // Course quick replies are a scoped Inbox convenience. They use Inbox read
+  // access plus the course/chat guards, so no separate reply grant is needed.
+  if(mount==='/api/workspace/inbox/course-replies')return 'conversations.read';
   if(mount==='/api/workspace/phonebook')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
   if(mount==='/api/workspace/courses')return read?'courses.read':'courses.manage';
   if(mount==='/api/workspace/products-services')return read?'products.read':'products.manage';
@@ -38,7 +40,7 @@ function routePermission(req){
   if(mount.startsWith('/api/user/training/finance'))return read?'invoices.read':'payments.verify';
   if(mount.startsWith('/api/user/training/forms'))return read?'forms.manage':'forms.capture';
   if(mount==='/api/user/training/profile')return 'tenant.manage';
-  if(['/api/inbox/course-replies','/api/agent/course-replies'].includes(mount))return read?'conversations.read':'conversations.reply';
+  if(['/api/inbox/course-replies','/api/agent/course-replies'].includes(mount))return 'conversations.read';
   if(mount==='/api/inbox')return read||/^\/(get_|import_chats)/.test(path)?'conversations.read':'conversations.reply';
   if(mount==='/api/agent/phonebook')return ['GET','HEAD'].includes(method)||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
   if(mount==='/api/phonebook/workspace')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
