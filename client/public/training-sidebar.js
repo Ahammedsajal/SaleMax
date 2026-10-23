@@ -152,6 +152,7 @@
     .MuiDrawer-paper input[data-sx-search-empty]:-webkit-autofill{-webkit-text-fill-color:transparent!important;caret-color:transparent!important}
     [data-sx-sidebar-brand]{min-width:0!important;background:none!important;display:flex!important;align-items:center}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
+    [data-sx-sidebar-brand-text]{display:none!important}
     [data-sx-sidebar-duplicate-logo]{display:none!important}
     [data-sx-sidebar-logo]{display:block!important;width:156px!important;max-width:100%!important;height:44px!important;object-fit:contain!important;background:transparent!important}
     [data-sx-sidebar-collapsed] [data-sx-nav-section]{display:none!important}
@@ -487,6 +488,7 @@
       const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === '7Network' && !p.closest('ul'));
+      brandText?.setAttribute('data-sx-sidebar-brand-text','1');
       const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
       const logoCandidates = [...(drawer.firstElementChild?.querySelectorAll('img[data-seven-network-brand],img[alt="7Network"]') || [])];
       let logo = brand?.querySelector('[data-sx-sidebar-logo]') || logoCandidates.find(image => image.hasAttribute('data-sx-sidebar-logo')) || logoCandidates[0];
