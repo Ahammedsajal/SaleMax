@@ -18,6 +18,7 @@
   const isDashboardRoute = () => location.pathname.replace(/\/$/, '') === '/user' && (!new URLSearchParams(location.search).get('page') || new URLSearchParams(location.search).get('page') === 'dashboard');
   const isPipelineRoute = () => location.pathname.replace(/\/$/, '') === '/user' && ['lead-pipeline','lead-reports'].includes(new URLSearchParams(location.search).get('page'));
   const pipelineLabel = () => isArabic() ? (isLeadReportsRoute()?'تقارير العملاء المحتملين':'مسار العملاء المحتملين') : (isLeadReportsRoute()?'Lead Reports':'Lead Pipeline');
+  const pipelineNavigationLabel = () => isArabic() ? 'مسار العملاء المحتملين' : 'Lead Pipeline';
   const visible = (el) => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
@@ -89,14 +90,14 @@
       if (!row || row.parentElement.querySelector(':scope > li[data-salemax-pipeline-link]')) return;
       const pipelineRow = row.cloneNode(true);
       pipelineRow.dataset.salemaxPipelineLink = '1';
-      pipelineRow.setAttribute('aria-label', pipelineLabel());
+      pipelineRow.setAttribute('aria-label', pipelineNavigationLabel());
       pipelineRow.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
       pipelineRow.querySelectorAll('span').forEach((node) => {
-        if (['Phonebook', 'دفتر الهاتف'].includes((node.textContent || '').trim())) node.textContent = pipelineLabel();
+        if (['Phonebook', 'دفتر الهاتف'].includes((node.textContent || '').trim())) node.textContent = pipelineNavigationLabel();
       });
       setPipelineIcon(pipelineRow);
       const button = pipelineRow.querySelector('[role="button"],button,a') || pipelineRow;
-      button.setAttribute('aria-label', pipelineLabel());
+      button.setAttribute('aria-label', pipelineNavigationLabel());
       button.setAttribute('tabindex', '0');
       button.addEventListener('click', (event) => {
         event.preventDefault();

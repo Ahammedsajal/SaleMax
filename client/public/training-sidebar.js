@@ -98,10 +98,10 @@
       window.__sxCallCenterAllowed=result?.data?.feature?.enabled===true;
     }catch(_){}finally{schedule();}
   }
-  async function loadAssignedNavigation(){
+  async function loadAssignedNavigation(initial=false){
     if(navigationLoaded)return;
     navigationLoaded=true;
-    document.documentElement.setAttribute('data-sx-navigation-loading','');
+    if(initial)document.documentElement.setAttribute('data-sx-navigation-loading','');
     try{
       const data={data:await window.SaleMaxWorkspace.session()};
       {
@@ -114,7 +114,7 @@
         assignedNavigation=Array.isArray(value)?new Set(value):null;
         roleNavigation=Array.isArray(allowedByRole)?new Set(allowedByRole):new Set();
       }
-    }catch(_){tenantNavigationLabels={};roleNavigation=new Set();}finally{navigationCheckComplete();}
+    }catch(_){if(initial){tenantNavigationLabels={};roleNavigation=new Set();}}finally{if(initial)navigationCheckComplete();else schedule();}
   }
   async function loadOptionalNavigation(){
     try{
@@ -725,13 +725,14 @@
   window.addEventListener('resize', schedule);
   window.addEventListener('popstate', schedule);
   window.addEventListener('storage', schedule);
-  const refreshSidebarAccess=()=>{window.SaleMaxWorkspace.invalidateSession?.();navigationLoaded=false;loadAssignedNavigation().then(schedule);};
+  let sidebarRefreshPending=false;
+  const refreshSidebarAccess=()=>{if(sidebarRefreshPending)return;sidebarRefreshPending=true;window.SaleMaxWorkspace.invalidateSession?.();navigationLoaded=false;loadAssignedNavigation(false).finally(()=>{sidebarRefreshPending=false;schedule();});};
   window.addEventListener('focus',refreshSidebarAccess);
   window.addEventListener('storage',refreshSidebarAccess);
   window.addEventListener('popstate',refreshSidebarAccess);
   window.addEventListener('salemax:customization-published',()=>{window.SaleMaxWorkspace.invalidateSession?.();refreshSidebarAccess();});
   window.setInterval(refreshSidebarAccess,30000);
-  loadAssignedNavigation();
+  loadAssignedNavigation(true);
   loadOptionalNavigation();
   loadCallCenterAccess();
   schedule();
