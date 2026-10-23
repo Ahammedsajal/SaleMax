@@ -152,6 +152,7 @@
     .MuiDrawer-paper input[data-sx-search-empty]:-webkit-autofill{-webkit-text-fill-color:transparent!important;caret-color:transparent!important}
     [data-sx-sidebar-brand]{min-width:0!important;background:none!important;display:flex!important;align-items:center}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
+    [data-sx-sidebar-duplicate-logo]{display:none!important}
     [data-sx-sidebar-logo]{display:block!important;width:156px!important;max-width:100%!important;height:44px!important;object-fit:contain!important;background:transparent!important}
     [data-sx-sidebar-collapsed] [data-sx-nav-section]{display:none!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{box-sizing:border-box!important;width:32px!important;min-width:32px!important;max-width:32px!important;height:32px!important;max-height:32px!important;flex:0 0 32px!important;object-fit:contain!important}
@@ -477,8 +478,10 @@
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === '7Network' && !p.closest('ul'));
       const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
-      let logo = brand?.querySelector('[data-sx-sidebar-logo]') || drawer.firstElementChild?.querySelector('img[data-seven-network-brand],img[alt="7Network"]');
+      const logoCandidates = [...(drawer.firstElementChild?.querySelectorAll('img[data-seven-network-brand],img[alt="7Network"]') || [])];
+      let logo = brand?.querySelector('[data-sx-sidebar-logo]') || logoCandidates.find(image => image.hasAttribute('data-sx-sidebar-logo')) || logoCandidates[0];
       if (!logo && brand) { logo = document.createElement('img'); logo.alt = '7Network'; brand.append(logo); }
+      for (const candidate of logoCandidates) candidate.toggleAttribute('data-sx-sidebar-duplicate-logo', candidate !== logo);
       if (logo) {
         // The app shell owns the original brand image; mark and resize that image
         // directly so collapsed mode cannot squeeze the horizontal wordmark.

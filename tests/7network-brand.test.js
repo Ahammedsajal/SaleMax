@@ -44,6 +44,13 @@ test('compact sidebar branding uses the approved 7Network icon and preserves ful
   assert.match(exporter, /#FF8153/);
 });
 
+test('sidebar drawer hides duplicate shell logos while preserving one compact icon', () => {
+  const sidebar = fs.readFileSync(path.join(__dirname, '../client/public/training-sidebar.js'), 'utf8');
+  assert.match(sidebar, /data-sx-sidebar-duplicate-logo\]\{display:none!important\}/);
+  assert.match(sidebar, /candidate\.toggleAttribute\('data-sx-sidebar-duplicate-logo', candidate !== logo\)/);
+  assert.match(sidebar, /const brandKind = collapsed \? 'icon' : 'logo'/);
+});
+
 test('Sales chatbot migrations normalize first-party bot branding and its category key without rewriting history', () => {
   const textFile = path.join(__dirname, '../database/migrations/20261222_7network_sales_bot_brand.sql');
   const textSql = fs.readFileSync(textFile, 'utf8');
