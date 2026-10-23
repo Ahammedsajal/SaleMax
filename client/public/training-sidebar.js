@@ -455,6 +455,11 @@
   function applyTenantNavigationLabel(row,key) {
     const native=row.querySelector('.MuiListItemText-primary');
     if(!native)return null;
+    if(row.hasAttribute('data-salemax-pipeline-link')){
+      native.removeAttribute('data-sx-native-label-hidden');
+      row.querySelector('[data-sx-tenant-label]')?.remove();
+      return null;
+    }
     const override=Object.hasOwn(tenantNavigationLabels,key||'')?tenantNavigationLabels[key]:null;
     const text=override&&typeof override.en==='string'&&typeof override.ar==='string'?tr(override.en,override.ar):null;
     let custom=row.querySelector('[data-sx-tenant-label]');

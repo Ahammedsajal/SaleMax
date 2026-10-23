@@ -90,6 +90,7 @@
       if (!row || row.parentElement.querySelector(':scope > li[data-salemax-pipeline-link]')) return;
       const pipelineRow = row.cloneNode(true);
       pipelineRow.dataset.salemaxPipelineLink = '1';
+      pipelineRow.dataset.sxCanonicalSalesNav = 'leads';
       pipelineRow.setAttribute('aria-label', pipelineNavigationLabel());
       pipelineRow.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
       pipelineRow.querySelectorAll('span').forEach((node) => {
