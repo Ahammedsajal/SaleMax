@@ -226,20 +226,19 @@ function extractUidFromSessionId(input) {
 
 async function resolveUidFromSessionId(sessionId) {
   const quick = extractUidFromSessionId(String(sessionId || ""));
-  if (quick && quick !== "qr") {
-    return quick;
-  }
-
   try {
     const [row] = await query(
       "SELECT uid FROM instance WHERE uniqueId = ? LIMIT 1",
       [sessionId],
     );
-    return row?.uid ? String(row.uid) : quick;
+    if (row?.uid) {
+      return String(row.uid);
+    }
   } catch (err) {
     newLogger.error("resolveUidFromSessionId error:", err);
-    return quick;
   }
+
+  return quick && quick !== "qr" ? quick : undefined;
 }
 
 /**
