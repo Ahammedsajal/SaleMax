@@ -244,7 +244,7 @@
       state.qrInstances=filters.data?.qrInstances||[];
       state.issues=[...(journey.error?['journeyUnavailable']:[]),...(summary.error?['summaryUnavailable']:[]),...(filters.error?['filtersUnavailable']:[])];
       render(activity.data);
-    }catch(error){if(request===state.sequence){errorState(error);}
+    }catch(error){if(request===state.sequence)errorState(error);}
   }
   async function loadSchedules(){
     if(!ownerSession())return;const request=++state.scheduleSequence;state.scheduleError='';
