@@ -1,0 +1,10 @@
+--- a/client/public/training-sidebar.js
++++ b/client/public/training-sidebar.js
+@@
+-    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'recruitment', 'Invoices & Payments':'invoices',
++    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
+--- a/client/public/index.html
++++ b/client/public/index.html
+@@
+-<script defer src="/training-sidebar.js?v=20261023-collapsed-icon2"></script>
++<script defer src="/training-sidebar.js?v=20261023-candidate-applications1"></script>

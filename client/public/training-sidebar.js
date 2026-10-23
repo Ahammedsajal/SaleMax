@@ -59,7 +59,7 @@
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'faqs', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
-    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'recruitment', 'Invoices & Payments':'invoices',
+    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Invoices & Payments':'invoices',
     'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
     'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties'
   };
@@ -376,6 +376,15 @@
       button.setAttribute('aria-label',title);button.onclick=event=>{event.preventDefault();location.href='/user?page='+path;};list.append(row);
     }
   }
+  function ensureTrainingApplicationsRow(list){
+    if(membershipCategoryKey!=='training_center'||membershipRole!=='owner'||!roleNavigation?.has('forms')||(assignedNavigation!==null&&!assignedNavigation.has('forms'))||hasNavigationKey(list,'forms'))return;
+    const template=list.querySelector(':scope > li:not([data-sx-nav-section])');
+    if(!template)return;
+    const row=cloneNavigationRow(template);row.removeAttribute('data-salemax-pipeline-link');row.removeAttribute('data-sx-search-hidden');row.removeAttribute('data-sx-optional-hidden');row.dataset.sxCanonicalSalesNav='forms';row.hidden=false;row.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+    const title=tr('Candidate Applications','طلبات المتقدمين'),primary=row.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=title;
+    row.setAttribute('aria-label',title);const button=row.querySelector('.MuiListItemButton-root,[role="button"],button,a')||row;
+    button.setAttribute('aria-label',title);button.onclick=event=>{event.preventDefault();location.href='/user?page=forms';};list.append(row);
+  }
   // Screen identity is shared by both sidebar builders. Entitlements alone
   // are not identities: overview, targets and reports share sales-targets.
   const navigationMarkers={
@@ -470,6 +479,7 @@
       }
       syncInjectedRows(list);
       ensureSalesNavigationRows(list);
+      ensureTrainingApplicationsRow(list);
       dedupeRecruitmentNavigationRows(list);
       dedupeSalesNavigationRows(list);
       list.dataset.sxSidebarList = '1';
