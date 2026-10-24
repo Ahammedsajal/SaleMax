@@ -159,6 +159,7 @@
     [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{box-sizing:border-box!important;width:32px!important;min-width:32px!important;max-width:32px!important;height:32px!important;max-height:32px!important;flex:0 0 32px!important;object-fit:contain!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemText-root,
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiTypography-root{display:none!important}
+    .MuiDrawer-root.MuiDrawer-docked{box-sizing:border-box!important;width:var(--sx-sidebar-docked-width,auto)!important;min-width:var(--sx-sidebar-docked-width,auto)!important;max-width:var(--sx-sidebar-docked-width,none)!important;flex:0 0 var(--sx-sidebar-docked-width,auto)!important}
     @media(min-width:701px){
       .MuiDrawer-root.MuiDrawer-docked:has(>.MuiDrawer-paper[data-sx-sidebar-collapsed]){box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;flex:0 0 72px!important}
       .MuiDrawer-paper[data-sx-sidebar-collapsed]{box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;overflow-x:hidden!important}
@@ -492,6 +493,12 @@
       const expanded = sidebarExpandedOverride.get(drawer);
       const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
+      const dockedRoot = drawer.closest('.MuiDrawer-root.MuiDrawer-docked');
+      const drawerWidth = Math.round(drawer.getBoundingClientRect().width);
+      if (dockedRoot && drawerWidth > 0) {
+        dockedRoot.style.setProperty('--sx-sidebar-docked-width', `${drawerWidth}px`);
+        document.documentElement.style.setProperty('--sx-sidebar-inline-offset', `${drawerWidth}px`);
+      }
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === '7Network' && !p.closest('ul'));
       brandText?.setAttribute('data-sx-sidebar-brand-text','1');
       const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
