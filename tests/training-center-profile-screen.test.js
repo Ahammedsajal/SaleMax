@@ -55,3 +55,25 @@ test('profile save preserves only the current tenant managed logo and recipients
   const screen = read('client/public/training-courses.js');
   assert.match(screen, /const recipientsPath=endpoint\+'\/report-recipients'/);
 });
+
+test('profile save accepts its unchanged tenant logo and rejects an unrelated relative logo URL', async () => {
+  const profile = require('../modules/platform/training-center-profile');
+  const tenant = '5b2e6e83-f4ba-4d17-85d3-21fce3c67eba';
+  const logo = `/media/training-center-logos/${tenant}/d7a96a6c-a4cd-4ccb-9a61-214ed37a0f93.webp`;
+  const ctx = { audience: 'tenant', tenant: { id: tenant, status: 'active', categoryKey: 'training_center', categoryVersion: 1 }, membership: { tenantId: tenant, status: 'active', role: 'owner' }, identity: { id: 'identity' }, category: require('../modules/platform/categories').trainingCenter, subscription: { status: 'active', capabilities: ['training.courses'] } };
+  let writes = 0;
+  const db = {
+    async beginTransaction() {}, async commit() {}, async rollback() {},
+    async query(sql) {
+      if (sql.startsWith('SELECT revision,logo_url')) return [[{ revision: 3, logoUrl: logo, crNumber: '', invoicePrefix: 'INV' }]];
+      writes++;
+      return [{ affectedRows: 1 }];
+    },
+  };
+  const value = { displayNameEn: 'Example center', displayNameAr: '', logoUrl: logo, websiteUrl: '', email: '', phone: '', addressEn: '', addressAr: '', crNumber: '', invoicePrefix: 'INV', googleMapsUrl: '', openingHours: '', aboutEn: '', aboutAr: '', socialLinks: {} };
+  const result = await profile.save(db, ctx, 3, value);
+  assert.equal(result.logoUrl, logo);
+  assert.equal(result.revision, 4);
+  assert.equal(writes, 2);
+  await assert.rejects(profile.save(db, ctx, 3, { ...value, logoUrl: '/media/other-tenant/logo.png' }), { code: 'INVALID_LOGO_URL' });
+});
