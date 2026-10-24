@@ -2,16 +2,15 @@
 const moment=require('moment-timezone');
 const {minor,money}=require('./business-finance-context');
 
-function windowFor(date,timezone,now){
+function windowFor(date,timezone,endAt){
  const start=moment.tz(date,'YYYY-MM-DD',timezone).startOf('day');
- const end=moment.min(start.clone().endOf('day'),moment(now));
- return {from:start.utc().format('YYYY-MM-DD HH:mm:ss.SSS'),to:end.utc().format('YYYY-MM-DD HH:mm:ss.SSS')};
+ return {from:start.utc().format('YYYY-MM-DD HH:mm:ss.SSS'),to:moment(endAt).utc().format('YYYY-MM-DD HH:mm:ss.SSS')};
 }
 async function build(db,tenant,{now=new Date(),day}={}){
  const timezone=moment.tz.zone(tenant.timezone)?tenant.timezone:'Asia/Qatar';
  const local=day?moment.tz(day,'YYYY-MM-DD',timezone):moment.tz(now,timezone);
- const date=local.format('YYYY-MM-DD'),monthStart=local.clone().startOf('month').format('YYYY-MM-DD');
- const daily=windowFor(date,timezone,now),mtd=windowFor(monthStart,timezone,now);
+ const date=local.format('YYYY-MM-DD'),monthStart=local.clone().startOf('month').format('YYYY-MM-DD'),periodEnd=moment.min(local.clone().endOf('day'),moment(now));
+ const daily=windowFor(date,timezone,periodEnd),mtd=windowFor(monthStart,timezone,periodEnd);
  const [[owner]]=await db.query(`SELECT u.uid,o.legacy_uid_hash FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id AND m.role='owner' AND m.status='active' JOIN user u ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR) WHERE o.tenant_id=? AND o.legacy_uid_hash=CONVERT(SHA2(u.uid,256) USING ascii) COLLATE ascii_bin LIMIT 1`,[tenant.id]);
  if(!owner)throw Object.assign(Error('OWNER_CONTEXT_UNAVAILABLE'),{code:'OWNER_CONTEXT_UNAVAILABLE'});
  const currencies=new Map(),currency=key=>{key=String(key||'QAR').toUpperCase();if(!currencies.has(key))currencies.set(key,{currency:key,daily:{invoices:0,invoiced:0,receipts:0,received:0},month:{invoices:0,invoiced:0,receipts:0,received:0},receivable:0,overdue:0,aging:{days1to30:0,days31to60:0,days61to90:0,daysOver90:0}});return currencies.get(key);};
@@ -68,4 +67,4 @@ function text(s){
  lines.push('','Receivable is the open balance on issued invoices after allocated receipts and approved credits. Overdue is shown separately.');return lines.join('\n');
 }
 function fromSnapshot(s){return s;}
-module.exports={build,text,fromSnapshot};
+module.exports={build,text,fromSnapshot,windowFor};

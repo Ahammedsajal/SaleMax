@@ -6,6 +6,9 @@ const reports=require('../modules/platform/business-daily-report');
 const notifications=require('../modules/platform/business-notifications');
 const tenant='11111111-1111-4111-8111-111111111111',id='22222222-2222-4222-8222-222222222222';
 const sample={number:'INV-2026-0123',customer:'Sample learner',phone:'+97455550000',product:'Excel training',currency:'QAR',total:100000,balance:60000,received:40000,dueDate:'2026-10-25',receivedAt:'2026-10-22'};
+test('month-to-date window ends at report cutoff, not at the first day of the month',()=>{
+ const periodEnd=new Date('2026-10-24T05:00:00.000Z'),window=reports.windowFor('2026-10-01','Asia/Qatar',periodEnd);assert.equal(window.from,'2026-09-30 21:00:00.000');assert.equal(window.to,'2026-10-24 05:00:00.000');
+});
 test('financial messages use understandable labels and correct monetary units',()=>{
  const text=finance.message('payment_received',sample,{business:'Example Center'});assert.match(text,/Customer \/ Lead: Sample learner/);assert.match(text,/Invoice: INV-2026-0123/);assert.match(text,/400\.00/);assert.match(text,/600\.00/);assert.doesNotMatch(text,/tenant_id|source_type|channel:|Conversation:/i);
  assert.match(finance.message('payment_due',{...sample,amountDue:20000}),/200\.00/);assert.match(finance.message('invoice_issued',sample,{test:true}),/TEST \/ SAMPLE/);
