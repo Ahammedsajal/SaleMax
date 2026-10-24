@@ -1,5 +1,4 @@
 'use strict';
-const fs = require('node:fs/promises');
 const courseMedia = require('./training-course-media');
 const { recipientAllowed } = require('./chatbot-audience');
 
@@ -27,7 +26,7 @@ async function sendCourseMedia({ pool, ctx, profile, uid, chatId, sessionId, mes
       file = await getFile(db, ctx.tenant.id, item.courseId, item.id);
     } finally { db.release(); }
     if (!['image','document'].includes(file.kind) || (file.kind === 'document' && file.mimeType !== 'application/pdf') || file.sizeBytes > (file.kind === 'image' ? 5242880 : 20971520)) continue;
-    const bytes = await fs.readFile(file.path);
+    const bytes = await courseMedia.readFile(file, { maxBytes: file.sizeBytes });
     if (bytes.length !== file.sizeBytes) throw Object.assign(new Error('COURSE_MEDIA_SIZE_MISMATCH'), { code: 'COURSE_MEDIA_SIZE_MISMATCH' });
     // Recheck after disk I/O so an operator pause prevents the next attachment.
     if (!recipientAllowed(profile.config, message.senderMobile) || await pauseCheck(uid, chatId, 'whatsapp_qr', sessionId) || (valid && !await valid())) break;

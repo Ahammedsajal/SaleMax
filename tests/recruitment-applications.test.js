@@ -1,6 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const crypto=require('node:crypto');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
@@ -77,6 +78,24 @@ test('recruitment queries retain the active legacy Sales category as a compatibl
 test('recruitment CV storage requires a private absolute path',()=>{
   assert.equal(recruitment.storageRoot({SALEMAX_RECRUITMENT_CV_ROOT:'/private/salemax/cv'}),'/private/salemax/cv');
   assert.throws(()=>recruitment.storageRoot({}),{code:'RECRUITMENT_STORAGE_NOT_CONFIGURED'});
+});
+
+test('owner CV reads resolve through the selected private storage namespace and keep tenant keys scoped',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'7network-cv-storage-'));
+  const tenantId=owner.tenant.id,applicationId=crypto.randomUUID(),storageKey=`${tenantId}/${applicationId}/private-cv.pdf`,bytes=Buffer.from('%PDF-1.7 synthetic');
+  const env={SALEMAX_RECRUITMENT_CV_ROOT:root};
+  try{
+    await recruitment.cvStore(env).putBuffer(storageKey,bytes,{contentType:'application/pdf'});
+    const db={query:async(sql,params)=>{assert.match(sql,/WHERE tenant_id=\? AND id=\?/);assert.deepEqual(params,[tenantId,applicationId]);return [[{storageKey,fileName:'candidate.pdf',mimeType:'application/pdf',bytes:bytes.length}]];}};
+    const cv=await recruitment.getCv(db,owner,applicationId,{env});
+    assert.equal(cv.driver,'local');assert.deepEqual(await fs.readFile(cv.filePath),bytes);
+    const opened=await recruitment.openCv(cv,{env}),chunks=[];for await(const chunk of opened.body)chunks.push(chunk);assert.deepEqual(Buffer.concat(chunks),bytes);
+    await fs.chmod(root,0o755);
+    await assert.rejects(recruitment.getCv(db,owner,applicationId,{env}),{code:'RECRUITMENT_STORAGE_UNAVAILABLE'});
+    await fs.chmod(root,0o700);
+    const foreignDb={query:async()=>[[{storageKey:`${crypto.randomUUID()}/${applicationId}/private-cv.pdf`,fileName:'candidate.pdf',mimeType:'application/pdf',bytes:bytes.length}]]};
+    await assert.rejects(recruitment.getCv(foreignDb,owner,applicationId,{env}),{code:'CV_NOT_FOUND'});
+  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
 
 test('application notification queue failures do not block a submitted application',async()=>{

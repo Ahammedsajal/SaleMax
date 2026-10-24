@@ -1862,3 +1862,113 @@ automated adoption, new vertical workflows and full live acceptance remain open.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+## Immutable 7Network Docker image candidate — 22 October 2026
+
+The Docker source now uses a digest-pinned multi-stage Node build, immutable
+registry references, a non-root Linux ARM64 runtime smoke, and a separate
+trusted publish workflow. Compose pins app and both workers to one verified
+image digest. The shared `flock` production wrapper is tracked but is not
+installed on production. PR #172 remains a draft; its ARM64 build and native
+runtime smoke passed on commit `8b0764d10b1c173ead71e0b3975515be6755b037`.
+
+The read-only production inspection recorded above found 85% root disk usage
+with 7.2 GiB free and separate app versus worker image identities. That snapshot
+predated the later Inbox follow-up release recorded in `DEPLOYMENT.md`; its
+deployment recreated only the app from the previously audited release. Current
+disk/inode usage and app/worker image alignment have not been remeasured. The
+inspection's path/hash comparison found 52 differing tracked runtime files and
+five live-only paths against then-current `origin/main`; the old release marker
+(`cf60781`) also differed from that time's ledger source (`485c2d01`). The
+closer `rebrand/7network-current-production` ref still differed on 48 files and
+omitted four live-only paths. A default-branch image cannot yet represent
+production safely. This operations candidate has not published a registry image
+or changed production.
+
+The source candidate now includes a bounded asynchronous SIGTERM coordinator
+for both Node server entrypoints, Socket.IO close, known child-worker shutdown,
+QR/Telegram cleanup, and matching Compose init/30s grace settings. The code is
+implemented and pushed on PR #172 at `319caf1ab40ff4c25090b9234eeecfdfb8bad71b`.
+Fourteen focused contract/shutdown checks, a local SIGTERM relay probe, syntax
+checks, Compose/workflow YAML parsing, and whitespace checks pass. GitHub run
+39741798351 built and loaded the exact Linux ARM64 image and passed the
+non-root native runtime smoke, including the synchronized SIGTERM relay probe.
+As a pull-request run it did not upload the image artifact or publish to GHCR.
+This candidate is not deployed; authenticated production and bilingual browser
+acceptance remain outstanding. The implementation uses Node's native one-shot
+signal listeners so cleanup can be awaited before the original signal is
+re-delivered.
+The coordinator does not stop every embedded scheduler or make in-flight
+external effects idempotent, and has not been deployed.
+
+The exact source/release parity reconciliation, GHCR publish/read acceptance,
+production artifact identity alignment, rollback rehearsal, image-size
+comparison, disk/inode alerts, authenticated primary/legacy journeys, media,
+session, queue and socket safety, database/media recovery, representative load,
+and authenticated English/Arabic desktop/mobile acceptance remain open. The
+full existing 42-ticket objective remains active.
+
+
+## Single-host scale-readiness audit — 22 October 2026
+
+The existing production host is not ready for horizontal app scaling. The
+read-only inventory records single-host media/session/theme/license/CV mounts,
+local Baileys credentials and in-memory QR ownership, the default in-process
+Socket.IO adapter, process-started schedulers and workers, existing database
+claim/lease patterns, and campaign/CRM-sync paths that lack cross-process claims.
+Before adding app instances, move uploads and credentials to suitable durable
+shared stores, establish exclusive channel ownership and Socket.IO fanout,
+separate or lease singleton jobs, make campaign delivery ambiguity safe, and
+run synthetic two-instance isolation/failover tests. Representative peak load,
+DB plus media restore, operator-visible alert delivery, and tenant fairness remain
+unverified. See `docs/7NETWORK_SCALE_READINESS.md` for the measured inventory and
+the pre-scale gate list. One host remains a single failure domain.
+
+## Private upload storage adapters — 22 October 2026
+
+The source candidate routes existing course media, training payment proofs, and
+recruitment CVs through the private local/S3-compatible object adapter. Existing
+tenant keys, content checks, finance/recruitment permissions and authorized
+download routes remain in place. Each namespace can be migrated and switched
+independently; local storage remains the default. The locked migration utility
+produces external per-tenant manifests, copies and re-downloads each object for
+SHA-256 verification, refuses changed sources or target conflicts, and retains
+local source objects. Focused adapter, migration, payment-proof and recruitment
+tests cover local behavior and injected S3 operations. This source increment is
+not deployed; no live provider, bucket, manifest, or storage flag is configured.
+Live file/database reconciliation, provider acceptance, authenticated allowed
+and denied reads, rollback rehearsal and cross-host testing remain open.
+Source commit `d531b81d72b701632a36ab2f662b27cecc1987ce` passes 44 focused tests
+and the hosted ARM64 contract, image and non-root runtime smoke in run
+39747573240. The PR merge checkout source `6b9f7b6d7acf7874720efbc69e7f2c0c8c3158d0`
+built image `sha256:1b0d8b9c0e89a5cc5e8afd7134d9b7a2b66bdd23e48f844cb37a84393425f099`
+at 703,276,618 Docker-reported bytes and 8 layers. The runtime smoke loaded
+`bcrypt`, `sharp`, `@roamhq/wrtc` and `@aws-sdk/client-s3`; PR runs do not publish
+the image artifact or registry image.
+The migration CLI was then hardened to verify the shared lock with a live
+nonblocking `flock` probe (without creating the lock file), require the wrapper's
+active-release context, and reject symlinked or non-0600 manifests. Source
+`e51e0dcbbd66796387a3ce2fff73d51d78942812` passes 45 focused tests and hosted
+ARM64 run 39749024936. Its PR merge checkout `6a9430e3104a515e21ec822f04797a43e97167a4`
+built image `sha256:f07a82bf3bc79cb3a12ce7882d073b2e717a231b207a2fb9f218a19065d83c6e`
+at 703,277,952 Docker-reported bytes and 8 layers; non-root smoke loaded the S3
+SDK and verified graceful signal relay. The PR artifact and registry image are
+not published from pull-request runs.
+
+The source-only capacity monitor now tracks Docker image-set virtual-size growth from its first-run baseline, with configurable warning/critical thresholds, deduplicated transitions, and baseline reset after the image set shrinks. Docker virtual image sizes may count shared layers more than once, so this is an early-warning metric and must not drive cleanup decisions. The focused monitor suite passes 15/15 and shell syntax/whitespace checks pass. Hosted ARM64 workflow [39785465868](https://github.com/Ahammedsajal/SaleMax/actions/runs/39785465868) for source `f0475a537a28c2700b2f43b3dd8c2fae59978be0` passed the contract suite, ARM64 image build/load, and non-root runtime smoke. The PR workflow does not publish the image. It is not deployed: the live operator webhook destination is still not provisioned, and no alert delivery has been demonstrated.
+
+Operations commit `b96e14de` extends tenant CRM logo `openManaged` reads to reject missing, malformed, or incomplete stream metadata and stop any object above the existing 5 MiB logo limit before returning a stream. The focused tenant-logo, object-storage, and manifest-migration suites pass 16/16; syntax and whitespace checks pass. No provider or live driver change was made. Shared-core commit `b3aff81f` independently adds the authorized route integration with a local-file fallback on its unmerged branch, so it can retain current local behavior when integrated before the adapter. Selecting S3 still requires both branches, provider acceptance, and authenticated allowed/denied reads. Migration-manifest reconciliation, rollback rehearsal, and multi-host verification remain open.
+
+Operations worker readiness increment — 22 October 2026
+
+- Added private atomic readiness markers for report and recruitment workers, refreshed after each successful poll. Compose health checks expire stale markers; the capacity monitor now treats unhealthy workers as critical.
+- Focused readiness, alert-monitor and Docker contract suite passed 32 checks (31 passed, one host-only flock check skipped); Node syntax and whitespace checks passed. This proves source contracts only.
+- Not deployed. Production artifact compatibility, worker queue progress, operator alert receipt, and load/restore acceptance remain open. No migration or rollback applies.
+
+Operations graceful worker shutdown increment — 22 October 2026
+
+The report and recruitment notification workers now share a polling lifecycle that stops scheduling on SIGINT/SIGTERM, waits for the in-flight poll to settle before closing the database pool, and preserves one-shot mode. A signal before the first queued poll skips that work. Focused worker lifecycle tests cover active-poll draining, idempotent stop, no post-stop polling, one-shot closure and poll-error handling. This reduces interrupted claim/send windows but cannot guarantee delivery across a forced kill or provider-ambiguous result. It is source-only; production still runs the older worker image without healthchecks.
+
+
+Hosted ARM64 verification for the graceful worker shutdown increment
+
+PR workflow-dispatch run 39791619038 passed for exact source `9b0fa989ee09db148de85f08ede793b5ddcdf038`: contract suite, ARM64 build/load, 703,366,971-byte image across 8 layers, and non-root native runtime smoke (`bcrypt`, `sharp`, `@roamhq/wrtc`, `@aws-sdk/client-s3`, and `ffmpeg`). The pull-request image was not published to the registry; production adoption remains gated on reviewed main-branch publication and release verification.

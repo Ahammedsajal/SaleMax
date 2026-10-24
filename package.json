@@ -27,6 +27,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1155.0",
     "@elevenlabs/elevenlabs-js": "^2.32.0",
     "@google/generative-ai": "^0.24.1",
     "@roamhq/wrtc": "^0.9.1",
@@ -52,7 +53,6 @@
     "mongodb": "^6.20.0",
     "mysql-baileys": "^1.5.3",
     "mysql2": "^3.9.2",
-    "node-cleanup": "^2.1.2",
     "node-fetch": "^2.6.9",
     "nodemailer": "^8.0.4",
     "pdfkit": "0.20.2",

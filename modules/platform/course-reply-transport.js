@@ -1,5 +1,5 @@
 'use strict';
-const fs=require('node:fs/promises');
+const media=require('./training-course-media');
 const fail=()=>{throw Object.assign(new Error('SEND_STOPPED_CHECK_CHAT'),{code:'SEND_STOPPED_CHECK_CHAT'});};
 async function send({c,chat,part,file,jobId,index},dependencies={}) {
   const helpers=dependencies.helpers||require('../../helper/socket/function');
@@ -12,7 +12,7 @@ async function send({c,chat,part,file,jobId,index},dependencies={}) {
     const {getSession,formatPhone}=dependencies.qr||require('../../helper/addon/qr');
     const session=await getSession(sessions[0].uniqueId);
     if(!session?.sendMessage)fail();
-    const content=file?{[part.kind]:await fs.readFile(file.path),mimetype:file.mimeType,fileName:file.originalName,caption:file.originalName}:{text:part.text};
+    const content=file?{[part.kind]:await media.readFile(file,{maxBytes:file.sizeBytes}),mimetype:file.mimeType,fileName:file.originalName,caption:file.originalName}:{text:part.text};
     const sent=await session.sendMessage(formatPhone(chat.sender_mobile),content);
     if(!sent?.key?.id)fail();
     response={success:true,id:sent.key.id};
@@ -23,7 +23,7 @@ async function send({c,chat,part,file,jobId,index},dependencies={}) {
       if(!api?.access_token||!api.business_phone_number_id)fail();
       const FormData=require('form-data'),fetch=dependencies.fetch||require('node-fetch');
       const form=new FormData();
-      form.append('file',await fs.readFile(file.path),{filename:file.originalName,contentType:file.mimeType});
+      form.append('file',await media.readFile(file,{maxBytes:file.sizeBytes}),{filename:file.originalName,contentType:file.mimeType});
       form.append('messaging_product','whatsapp');
       const upload=await fetch(`https://graph.facebook.com/v17.0/${encodeURIComponent(api.business_phone_number_id)}/media`,{method:'POST',headers:{Authorization:`Bearer ${api.access_token}`,...form.getHeaders()},body:form,timeout:60000});
       const data=await upload.json();if(!upload.ok||!data.id)fail();

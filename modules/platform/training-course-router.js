@@ -42,16 +42,35 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
     let file;
     try { file = await courseMedia.getFile(db, payload.tenantId, payload.courseId, payload.mediaId); }
     finally { db.release(); }
-    await fs.access(file.path);
+    let range = null;
+    if (req.headers.range) {
+      const parsed = req.range(file.sizeBytes);
+      if (parsed === -1) { res.setHeader('Content-Range', `bytes */${file.sizeBytes}`); return res.sendStatus(416); }
+      if (Array.isArray(parsed) && parsed.length === 1) range = parsed[0];
+    }
     const disposition = file.kind === 'document' ? 'attachment' : 'inline';
     const asciiName = file.originalName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', `${disposition}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.originalName)}`);
-    res.setHeader('Content-Length', String(file.sizeBytes));
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     res.setHeader('Cache-Control', 'private, no-store');
+    if (file.driver === 's3') {
+      const opened = await courseMedia.openRead(file, { range });
+      const length = range ? range.end - range.start + 1 : file.sizeBytes;
+      const expectedRange = range ? `bytes ${range.start}-${range.end}/${file.sizeBytes}` : null;
+      if (opened.contentLength !== length || (expectedRange && opened.contentRange !== expectedRange)) {
+        opened.body.destroy?.();
+        throw Object.assign(new Error('COURSE_MEDIA_STORAGE_RESPONSE_INVALID'), { code: 'COURSE_MEDIA_STORAGE_RESPONSE_INVALID', status: 503 });
+      }
+      res.setHeader('Content-Length', String(length));
+      if (range) { res.status(206); res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${file.sizeBytes}`); }
+      opened.body.on('error', error => { if (!res.headersSent) res.status(503).json({ success: false, code: 'COURSE_MEDIA_NOT_FOUND' }); else res.destroy(error); });
+      opened.body.pipe(res);
+      return;
+    }
+    res.setHeader('Content-Length', String(file.sizeBytes));
     res.sendFile(file.path, { dotfiles: 'deny', acceptRanges: true }, error => {
       if (error && !res.headersSent) res.status(error.statusCode || 404).json({ success: false, code: 'COURSE_MEDIA_NOT_FOUND' });
     });

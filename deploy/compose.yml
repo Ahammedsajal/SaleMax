@@ -1,6 +1,7 @@
 services:
   db:
-    image: mariadb:11.4
+    image: "${SALEMAX_DB_IMAGE_REF:-mariadb@sha256:70cc072b29b4a89ae07abb2d4da2c64678a7f2dfe092751bb51c87d67dc1338b}"
+    pull_policy: never
     restart: unless-stopped
     environment:
       MARIADB_DATABASE: salemax
@@ -20,10 +21,11 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
   app:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
+    image: "${SALEMAX_APP_IMAGE_REF:-${SALEMAX_IMAGE_REF:?Set SALEMAX_APP_IMAGE_REF or SALEMAX_IMAGE_REF to a verified immutable registry digest}}"
+    pull_policy: never
+    init: true
     restart: unless-stopped
+    stop_grace_period: 30s
     env_file: /opt/salemax/shared/runtime.env
     environment:
       SALEMAX_LICENSE_FILE: /app/license-store/license.json
@@ -60,7 +62,8 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
   report-worker:
-    image: salemax-app
+    image: "${SALEMAX_REPORT_WORKER_IMAGE_REF:-${SALEMAX_IMAGE_REF:?Set SALEMAX_REPORT_WORKER_IMAGE_REF or SALEMAX_IMAGE_REF to a verified immutable registry digest}}"
+    pull_policy: never
     command: ["node", "scripts/training-report-worker.cjs"]
     restart: unless-stopped
     init: true
@@ -68,10 +71,42 @@ services:
     environment:
       SALEMAX_TRAINING_REPORT_WORKER_ENABLED: "true"
       SALEMAX_TRAINING_REPORT_WORKER_INTERVAL_MS: "30000"
+      SALEMAX_REPORT_WORKER_HEALTH_FILE: /tmp/7network-report-worker-ready
     depends_on:
       db: {condition: service_healthy}
     mem_limit: 256m
     stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "scripts/training-report-worker.cjs", "--healthcheck"]
+      interval: 20s
+      timeout: 5s
+      start_period: 150s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  recruitment-founder-notification-worker:
+    image: "${SALEMAX_RECRUITMENT_WORKER_IMAGE_REF:-${SALEMAX_IMAGE_REF:?Set SALEMAX_RECRUITMENT_WORKER_IMAGE_REF or SALEMAX_IMAGE_REF to a verified immutable registry digest}}"
+    pull_policy: never
+    command: ["node", "scripts/recruitment-founder-notification-worker.cjs"]
+    restart: unless-stopped
+    init: true
+    env_file: /opt/salemax/shared/runtime.env
+    environment:
+      SALEMAX_RECRUITMENT_FOUNDER_WORKER_ENABLED: "true"
+      SALEMAX_RECRUITMENT_FOUNDER_INTERVAL_MS: "30000"
+      SALEMAX_RECRUITMENT_FOUNDER_HEALTH_FILE: /tmp/7network-recruitment-founder-worker-ready
+    depends_on:
+      db: {condition: service_healthy}
+    mem_limit: 128m
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "scripts/recruitment-founder-notification-worker.cjs", "--healthcheck"]
+      interval: 20s
+      timeout: 5s
+      start_period: 150s
+      retries: 3
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}

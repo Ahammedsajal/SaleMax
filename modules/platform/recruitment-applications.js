@@ -5,6 +5,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {decision}=require('./policy');
 const {categoryKeysFor,categoryKeyMatches,canonicalCategoryKey,getCategory}=require('./categories');
+const objectStorage=require('./object-storage');
 
 const SALES_CATEGORY_KEYS=categoryKeysFor('7network_sales');
 const SALES_CATEGORY_FILTER=`(${SALES_CATEGORY_KEYS.map(()=>'?').join(',')})`;
@@ -27,6 +28,14 @@ function authorize(ctx){
   return ctx;
 }
 function storageRoot(env=process.env){const root=String(env.SALEMAX_RECRUITMENT_CV_ROOT||'').trim();if(!root||!path.isAbsolute(root))fail('RECRUITMENT_STORAGE_NOT_CONFIGURED',503);return path.resolve(root);}
+function cvStore(env=process.env){const selected=objectStorage.driver(env,'recruitment-cvs');return objectStorage.createStore({namespace:'recruitment-cvs',env,root:selected==='local'?storageRoot(env):undefined});}
+async function ensureCvDirectories(env,storageKey='',create=true){
+  if(objectStorage.driver(env,'recruitment-cvs')!=='local')return;
+  const root=storageRoot(env);if(create)await fs.mkdir(root,{recursive:true,mode:0o700});
+  let current=root;const rootStat=await fs.lstat(current);if(!rootStat.isDirectory()||rootStat.isSymbolicLink()||(rootStat.mode&0o077)!==0)fail('RECRUITMENT_STORAGE_UNAVAILABLE',503);
+  const segments=storageKey?storageKey.split('/').slice(0,-1):[];
+  for(const segment of segments){current=path.join(current,segment);if(create)await fs.mkdir(current,{recursive:false,mode:0o700}).catch(error=>{if(error.code!=='EEXIST')throw error;});const stat=await fs.lstat(current);if(!stat.isDirectory()||stat.isSymbolicLink()||(stat.mode&0o077)!==0)fail('RECRUITMENT_STORAGE_UNAVAILABLE',503);}
+}
 function detectCv(bytes){
   if(!Buffer.isBuffer(bytes))return null;
   if(bytes.length>=5&&bytes.subarray(0,5).toString('ascii')==='%PDF-')return {mime:'application/pdf',ext:'pdf'};
@@ -81,14 +90,13 @@ async function resolveWhatsAppCv({mediaUrl,fileName,frontendUri=process.env.FRON
   const detected=detectCv(bytes),provided=cleanFileName(fileName),parsedName=path.parse(provided),extension=parsedName.ext.toLowerCase()===`.${detected.ext}`?parsedName.ext:`.${detected.ext}`;const finalName=`${parsedName.name||'candidate-cv'}${extension}`;
   return {tempFilePath:filePath,size:bytes.length,name:finalName,sourcePath:filePath};
 }
-async function storePrivateCv(file,{tenantId,applicationId,env=process.env}){
+async function storePrivateCv(file,{tenantId,applicationId,env=process.env,sourceBytes=null,sourceDetected=null}){
   if(!file||file.truncated||!file.tempFilePath||!Number.isSafeInteger(file.size)||file.size<1||file.size>MAX_CV_BYTES)fail('INVALID_CV_FILE',413);
-  const bytes=await fs.readFile(file.tempFilePath);if(bytes.length!==file.size)fail('INVALID_CV_FILE');const detected=detectCv(bytes);if(!detected)fail('CV_TYPE_NOT_ALLOWED',415);
-  const root=storageRoot(env),storedName=`${crypto.randomBytes(18).toString('hex')}.${detected.ext}`,storageKey=`${tenantId}/${applicationId}/${storedName}`,filePath=path.join(root,storageKey);
-  await fs.mkdir(root,{recursive:true,mode:0o700});const rootStat=await fs.lstat(root);if(!rootStat.isDirectory()||rootStat.isSymbolicLink()||(rootStat.mode&0o077)!==0)fail('RECRUITMENT_STORAGE_UNAVAILABLE',503);
-  await fs.mkdir(path.dirname(filePath),{recursive:true,mode:0o700});const dirStat=await fs.lstat(path.dirname(filePath));if(!dirStat.isDirectory()||dirStat.isSymbolicLink()||(dirStat.mode&0o077)!==0)fail('RECRUITMENT_STORAGE_UNAVAILABLE',503);
-  const handle=await fs.open(filePath,'wx',0o600);try{await handle.writeFile(bytes);await handle.sync();}finally{await handle.close();}
-  return {bytes,detected,storageKey,fileName:cleanFileName(file.name),filePath};
+  const bytes=sourceBytes||await fs.readFile(file.tempFilePath);if(bytes.length!==file.size)fail('INVALID_CV_FILE');const detected=sourceDetected||detectCv(bytes);if(!detected)fail('CV_TYPE_NOT_ALLOWED',415);
+  const storedName=`${crypto.randomBytes(18).toString('hex')}.${detected.ext}`,storageKey=`${tenantId}/${applicationId}/${storedName}`,objects=cvStore(env),sha256=crypto.createHash('sha256').update(bytes).digest('hex');
+  await ensureCvDirectories(env,storageKey);
+  const stored=await objects.putBuffer(storageKey,bytes,{contentType:detected.mime,sha256});
+  return {bytes,detected,storageKey,fileName:cleanFileName(file.name),filePath:stored.path||null};
 }
 async function list(db,ctx,query={}){
   authorize(ctx);const page=Math.max(1,Math.min(100000,Number.parseInt(query.page,10)||1)),limit=Math.min(50,Math.max(1,Number.parseInt(query.limit,10)||25));
@@ -155,7 +163,7 @@ async function createPublic(pool,{tenantSlug,body,file,visitorHash,conversation=
   if(!file)fail('CV_FILE_REQUIRED');
   if(file.truncated||!file.tempFilePath||!Number.isSafeInteger(file.size)||file.size<1||file.size>MAX_CV_BYTES)fail('INVALID_CV_FILE',413);
   const bytes=await fs.readFile(file.tempFilePath);if(bytes.length!==file.size)fail('INVALID_CV_FILE');const detected=detectCv(bytes);if(!detected)fail('CV_TYPE_NOT_ALLOWED',415);
-  const db=await pool.getConnection();let storedPath=null,begun=false;
+  const db=await pool.getConnection();let storedKey=null,begun=false;
   try{
     await db.beginTransaction();begun=true;
     const [[tenant]]=await db.query(`SELECT t.id,t.slug,t.status,t.category_key AS categoryKey,t.category_version AS categoryVersion,u.uid,o.legacy_uid_hash AS uidHash
@@ -170,15 +178,15 @@ async function createPublic(pool,{tenantSlug,body,file,visitorHash,conversation=
       const [[application]]=await db.query('SELECT id,reference_code AS referenceCode FROM sx_recruitment_applications WHERE tenant_id=? AND id=? FOR UPDATE',[tenant.id,prefill.applicationId]);if(!application)fail('PREFILL_NOT_FOUND',404);
       if(prefill.consumedAt){await db.commit();begun=false;return {repeated:true,referenceCode:application.referenceCode,cvUploaded:!!file};}
       const match=await matchExistingLead(db,{tenant:{id:tenant.id},uidHash:tenant.uidHash},data.normalizedMobile);
-      const stored=await storePrivateCv(file,{tenantId:tenant.id,applicationId:application.id,env});storedPath=stored.filePath;
+      const stored=await storePrivateCv(file,{tenantId:tenant.id,applicationId:application.id,env,sourceBytes:bytes,sourceDetected:detected});storedKey=stored.storageKey;
       await db.query(`UPDATE sx_recruitment_applications SET full_name=?,mobile=?,normalized_mobile=?,email=?,current_work_status=?,contact_mobile=?,english_level=?,hindi_level=?,experience_years=?,total_experience_range=?,sales_experience_years=?,has_computer_and_internet=?,comfortable_with_sales_calls=?,crm_saas_experience=?,availability=?,cv_storage_key=?,cv_file_name=?,cv_mime_type=?,cv_bytes=?,cv_sha256=?,linked_contact_id=COALESCE(?,linked_contact_id),linked_lead_id=COALESCE(?,linked_lead_id),revision=revision+1 WHERE tenant_id=? AND id=?`,[data.fullName,data.mobile,data.normalizedMobile,data.email,data.currentWorkStatus,data.contactMobile,data.englishLevel,data.hindiLevel,data.experienceYears,data.totalExperienceRange,data.salesExperienceYears,data.hasComputerAndInternet,data.comfortableWithSalesCalls,data.crmSaasExperience,data.availability,stored.storageKey,stored.fileName,stored.detected.mime,stored.bytes.length,hash(stored.bytes),match.contactId,match.leadId,tenant.id,application.id]);
       await db.query('UPDATE sx_recruitment_prefill_tokens SET consumed_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND token_hash=? AND consumed_at IS NULL',[tenant.id,hash(prefillToken)]);
-      await db.commit();begun=false;storedPath=null;return {repeated:false,referenceCode:application.referenceCode,cvUploaded:true,updated:true};
+      await db.commit();begun=false;storedKey=null;return {repeated:false,referenceCode:application.referenceCode,cvUploaded:true,updated:true};
     }
     const [[prior]]=await db.query('SELECT id,reference_code AS referenceCode,cv_storage_key AS cvStorageKey FROM sx_recruitment_applications WHERE tenant_id=? AND submission_hash=? FOR UPDATE',[tenant.id,hash(token)]);
     if(prior){
-      if(file){const stored=await storePrivateCv(file,{tenantId:tenant.id,applicationId:prior.id,env});storedPath=stored.filePath;await db.query('UPDATE sx_recruitment_applications SET cv_storage_key=?,cv_file_name=?,cv_mime_type=?,cv_bytes=?,cv_sha256=?,revision=revision+1 WHERE tenant_id=? AND id=?',[stored.storageKey,stored.fileName,stored.detected.mime,stored.bytes.length,hash(stored.bytes),tenant.id,prior.id]);}
-      await db.commit();begun=false;storedPath=null;return {repeated:true,referenceCode:prior.referenceCode,cvUploaded:!!file};
+      if(file){const stored=await storePrivateCv(file,{tenantId:tenant.id,applicationId:prior.id,env,sourceBytes:bytes,sourceDetected:detected});storedKey=stored.storageKey;await db.query('UPDATE sx_recruitment_applications SET cv_storage_key=?,cv_file_name=?,cv_mime_type=?,cv_bytes=?,cv_sha256=?,revision=revision+1 WHERE tenant_id=? AND id=?',[stored.storageKey,stored.fileName,stored.detected.mime,stored.bytes.length,hash(stored.bytes),tenant.id,prior.id]);}
+      await db.commit();begun=false;storedKey=null;return {repeated:true,referenceCode:prior.referenceCode,cvUploaded:!!file};
     }
     const [rateRows]=await db.query(`INSERT INTO sx_recruitment_rate_limits(tenant_id,visitor_hash,window_started_at,attempts) VALUES (?,?,UTC_TIMESTAMP(3),1)
       ON DUPLICATE KEY UPDATE attempts=IF(window_started_at<TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3)),1,attempts+1),window_started_at=IF(window_started_at<TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3)),UTC_TIMESTAMP(3),window_started_at)`,[tenant.id,Buffer.from(visitorHash,'hex')]);
@@ -186,20 +194,17 @@ async function createPublic(pool,{tenantSlug,body,file,visitorHash,conversation=
     const match=await matchExistingLead(db,{tenant:{id:tenant.id},uidHash:tenant.uidHash},data.normalizedMobile);
     const linkedChatId=conversation&&['whatsapp_meta','whatsapp_qr'].includes(conversation.channelKind)&&typeof conversation.conversationId==='string'?conversation.conversationId:match.chatId;
     const linkedChatOrigin=conversation?.channelKind==='whatsapp_meta'?'meta':conversation?.channelKind==='whatsapp_qr'?'qr':match.chatOrigin;
-    const id=uuid(),referenceCode='SMX-'+crypto.randomBytes(4).toString('hex').toUpperCase(),root=storageRoot(env),fileName=`${crypto.randomBytes(18).toString('hex')}.${detected.ext}`,storageKey=`${tenant.id}/${id}/${fileName}`;storedPath=path.join(root,storageKey);
-    await fs.mkdir(root,{recursive:true,mode:0o700});const rootStat=await fs.lstat(root);if(!rootStat.isDirectory()||rootStat.isSymbolicLink()||(rootStat.mode&0o077)!==0)fail('RECRUITMENT_STORAGE_UNAVAILABLE',503);
-    await fs.mkdir(path.dirname(storedPath),{recursive:true,mode:0o700});const dirStat=await fs.lstat(path.dirname(storedPath));if(!dirStat.isDirectory()||dirStat.isSymbolicLink()||(dirStat.mode&0o077)!==0)fail('RECRUITMENT_STORAGE_UNAVAILABLE',503);
-    const handle=await fs.open(storedPath,'wx',0o600);try{await handle.writeFile(bytes);await handle.sync();}finally{await handle.close();}
+    const id=uuid(),referenceCode='SMX-'+crypto.randomBytes(4).toString('hex').toUpperCase(),stored=await storePrivateCv(file,{tenantId:tenant.id,applicationId:id,env,sourceBytes:bytes,sourceDetected:detected}),storageKey=stored.storageKey;storedKey=storageKey;
     const [idempotent]=await db.query(`INSERT IGNORE INTO sx_recruitment_applications(id,tenant_id,submission_hash,reference_code,full_name,mobile,normalized_mobile,email,current_work_status,contact_mobile,english_level,hindi_level,experience_years,total_experience_range,sales_experience_years,has_computer_and_internet,comfortable_with_sales_calls,crm_saas_experience,availability,cv_storage_key,cv_file_name,cv_mime_type,cv_bytes,cv_sha256,linked_contact_id,linked_lead_id,linked_chat_id,linked_chat_origin,source_channel,source_reference,consent_text,consented_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3))`,[id,tenant.id,hash(token),referenceCode,data.fullName,data.mobile,data.normalizedMobile,data.email,data.currentWorkStatus,data.contactMobile,data.englishLevel,data.hindiLevel,data.experienceYears,data.totalExperienceRange,data.salesExperienceYears,data.hasComputerAndInternet,data.comfortableWithSalesCalls,data.crmSaasExperience,data.availability,storageKey,cleanFileName(file.name),detected.mime,bytes.length,hash(bytes),match.contactId,match.leadId,linkedChatId,linkedChatOrigin,data.sourceChannel,data.sourceReference,CONSENT]);
-    if(!idempotent.affectedRows){await db.rollback();begun=false;await fs.rm(storedPath,{force:true});storedPath=null;const [[duplicate]]=await db.query('SELECT reference_code AS referenceCode FROM sx_recruitment_applications WHERE tenant_id=? AND submission_hash=?',[tenant.id,hash(token)]);return {repeated:true,referenceCode:duplicate?.referenceCode||referenceCode};}
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3))`,[id,tenant.id,hash(token),referenceCode,data.fullName,data.mobile,data.normalizedMobile,data.email,data.currentWorkStatus,data.contactMobile,data.englishLevel,data.hindiLevel,data.experienceYears,data.totalExperienceRange,data.salesExperienceYears,data.hasComputerAndInternet,data.comfortableWithSalesCalls,data.crmSaasExperience,data.availability,storageKey,stored.fileName,detected.mime,bytes.length,hash(bytes),match.contactId,match.leadId,linkedChatId,linkedChatOrigin,data.sourceChannel,data.sourceReference,CONSENT]);
+    if(!idempotent.affectedRows){await db.rollback();begun=false;await cvStore(env).remove(storedKey);storedKey=null;const [[duplicate]]=await db.query('SELECT reference_code AS referenceCode FROM sx_recruitment_applications WHERE tenant_id=? AND submission_hash=?',[tenant.id,hash(token)]);return {repeated:true,referenceCode:duplicate?.referenceCode||referenceCode};}
     const [[owner]]=await db.query(`SELECT identity_id AS identityId FROM sx_memberships WHERE tenant_id=? AND role='owner' AND status='active' LIMIT 1`,[tenant.id]);
     if(!owner?.identityId)fail('RECRUITMENT_OWNER_UNAVAILABLE',503);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,?,'identity','recruitment.application-submitted','recruitment-application',?,?,?)`,[uuid(),tenant.id,owner.identityId,id,JSON.stringify({referenceCode,sourceChannel:data.sourceChannel,cvMimeType:detected.mime,cvBytes:bytes.length,linkedContact:!!match.contactId,linkedLead:!!match.leadId,linkedChat:!!linkedChatId}),uuid()]);
     await queueApplicationNotification(db,{tenantId:tenant.id,application:{id,referenceCode,fullName:data.fullName,mobile:data.mobile,normalizedMobile:data.normalizedMobile,contactMobile:data.contactMobile,currentWorkStatus:data.currentWorkStatus,email:data.email,englishLevel:data.englishLevel,hindiLevel:data.hindiLevel,experienceYears:data.experienceYears,totalExperienceRange:data.totalExperienceRange,salesExperienceYears:data.salesExperienceYears,hasComputerAndInternet:data.hasComputerAndInternet,comfortableWithSalesCalls:data.comfortableWithSalesCalls,crmSaasExperience:data.crmSaasExperience,availability:data.availability,cvFileName:cleanFileName(file.name)}});
-    await db.commit();begun=false;storedPath=null;return {repeated:false,referenceCode,leadLinked:!!match.leadId,contactLinked:!!match.contactId,chatLinked:!!linkedChatId};
-  }catch(error){if(begun)try{await db.rollback();}catch{}if(storedPath)await fs.rm(storedPath,{force:true}).catch(()=>{});throw error;}finally{db.release();}
+    await db.commit();begun=false;storedKey=null;return {repeated:false,referenceCode,leadLinked:!!match.leadId,contactLinked:!!match.contactId,chatLinked:!!linkedChatId};
+  }catch(error){if(begun)try{await db.rollback();}catch{}if(storedKey)await cvStore(env).remove(storedKey).catch(()=>{});throw error;}finally{db.release();}
 }
 async function createFromWhatsApp(pool,{tenantSlug,answers,mobile,channelKind,channelRef,conversationId,senderName,mediaUrl,fileName,env=process.env}){
   const body=whatsappApplicationBody({answers,mobile,tenantId:null,channelKind,channelRef,conversationId});
@@ -214,6 +219,7 @@ async function updateStatus(db,ctx,id,expectedRevision,status){
   await db.beginTransaction();try{const [[row]]=await db.query('SELECT status,revision FROM sx_recruitment_applications WHERE tenant_id=? AND id=? FOR UPDATE',[ctx.tenant.id,id]);if(!row)fail('APPLICATION_NOT_FOUND',404);if(Number(row.revision)!==expectedRevision)fail('STALE_REVISION',409);await db.query('UPDATE sx_recruitment_applications SET status=?,revision=revision+1 WHERE tenant_id=? AND id=?',[status,ctx.tenant.id,id]);await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,?,'identity','recruitment.application-status-updated','recruitment-application',?,?,?)`,[uuid(),ctx.tenant.id,ctx.identity.id,id,JSON.stringify({from:row.status,to:status,revision:expectedRevision+1}),uuid()]);await db.commit();return {id,status,revision:expectedRevision+1};}catch(error){await db.rollback();throw error;}
 }
 async function getCv(db,ctx,id,{env=process.env}={}){
-  authorize(ctx);if(!/^[0-9a-f-]{36}$/i.test(id))fail('APPLICATION_NOT_FOUND',404);const [[row]]=await db.query('SELECT cv_storage_key AS storageKey,cv_file_name AS fileName,cv_mime_type AS mimeType,cv_bytes AS bytes FROM sx_recruitment_applications WHERE tenant_id=? AND id=?',[ctx.tenant.id,id]);if(!row)fail('APPLICATION_NOT_FOUND',404);if(!row.storageKey)fail('CV_NOT_FOUND',404);const root=storageRoot(env);if(!row.storageKey.startsWith(`${ctx.tenant.id}/${id}/`)||row.storageKey.includes('..'))fail('CV_NOT_FOUND',404);const filePath=path.resolve(root,row.storageKey);if(!filePath.startsWith(root+path.sep))fail('CV_NOT_FOUND',404);await fs.access(filePath);return {...row,filePath,bytes:Number(row.bytes)};
+  authorize(ctx);if(!/^[0-9a-f-]{36}$/i.test(id))fail('APPLICATION_NOT_FOUND',404);const [[row]]=await db.query('SELECT cv_storage_key AS storageKey,cv_file_name AS fileName,cv_mime_type AS mimeType,cv_bytes AS bytes,LOWER(HEX(cv_sha256)) AS sha256 FROM sx_recruitment_applications WHERE tenant_id=? AND id=?',[ctx.tenant.id,id]);if(!row)fail('APPLICATION_NOT_FOUND',404);if(!row.storageKey)fail('CV_NOT_FOUND',404);if(!row.storageKey.startsWith(`${ctx.tenant.id}/${id}/`)||row.storageKey.includes('..'))fail('CV_NOT_FOUND',404);await ensureCvDirectories(env,row.storageKey,false);const objects=cvStore(env),metadata=await objects.head(row.storageKey);if(metadata.contentLength!==Number(row.bytes)||metadata.sha256&&row.sha256&&metadata.sha256!==row.sha256)fail('CV_STORAGE_INTEGRITY',503);return {...row,filePath:metadata.path||null,storageKey:row.storageKey,driver:objects.driver,bytes:Number(row.bytes)};
 }
-module.exports={MAX_CV_BYTES,CONSENT,SCREENING_CONSENT,STATUSES,SALES_CATEGORY_KEYS,authorize,storageRoot,detectCv,normalizeMobile,cleanApplication,cleanScreeningAnswers,whatsappApplicationBody,resolveWhatsAppCv,createFromWhatsApp,issuePrefillToken,getPrefill,createPublic,list,listScreenings,saveScreening,updateStatus,getCv,matchExistingLead,queueApplicationNotification};
+async function openCv(cv,{env=process.env}={}){if(!cv?.storageKey)fail('CV_NOT_FOUND',404);return cvStore(env).openRead(cv.storageKey);}
+module.exports={MAX_CV_BYTES,CONSENT,SCREENING_CONSENT,STATUSES,SALES_CATEGORY_KEYS,authorize,storageRoot,cvStore,detectCv,normalizeMobile,cleanApplication,cleanScreeningAnswers,whatsappApplicationBody,resolveWhatsAppCv,createFromWhatsApp,issuePrefillToken,getPrefill,createPublic,list,listScreenings,saveScreening,updateStatus,getCv,openCv,matchExistingLead,queueApplicationNotification};
