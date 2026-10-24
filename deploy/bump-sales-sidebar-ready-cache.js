@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const file = process.argv[2];
 if (!file) throw new Error('Expected the workspace shell path');
 const oldRef = '/training-sidebar.js?v=20261024-phonebook-shell-gap1';
-const newRef = '/training-sidebar.js?v=20261024-sales-sidebar-ready1';
+const newRef = '/training-sidebar.js?v=20261024-sales-sidebar-nav-stable1';
 const html = fs.readFileSync(file, 'utf8');
 if (html.includes(newRef)) process.exit(0);
 if (html.split(oldRef).length !== 2) throw new Error('Expected exactly one current training-sidebar cache reference');
