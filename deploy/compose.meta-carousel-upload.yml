@@ -2,10 +2,10 @@
 # pin only the app to this reviewed image built from the active production image.
 services:
   app:
-    image: salemax-app:meta-carousel-image-upload-60617a2-20261024
+    image: salemax-app:carousel-image-upload-d48aeb2-20261024
     build:
       context: ..
       dockerfile: deploy/Dockerfile.meta-carousel-upload
       args:
-        BASE_IMAGE: salemax-app:sales-sidebar-nav-stable-35ef32b-20261024
-        SOURCE_COMMIT: 60617a280bf5a79a1ff704dba1458995bfe005c0
+        BASE_IMAGE: salemax-app:meta-carousel-image-upload-60617a2-20261024
+        SOURCE_COMMIT: d48aeb269b2883a4cd2fe306f996019e1d2f185a
