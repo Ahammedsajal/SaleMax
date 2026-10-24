@@ -37,3 +37,14 @@ test('production overlay carries the Lead Reports timezone helper from its revie
   assert.match(dockerfile, /org\.7network\.base\.image/);
   assert.match(dockerfile, /org\.7network\.overlay\.commit/);
 });
+
+
+test('screen overlay copies the reviewed forms, finance, and Pipeline UI assets', () => {
+  const dockerfile = read('deploy/Dockerfile.sidebar-layout-stability');
+  for (const asset of [
+    'training-forms.js', 'training-forms.css', 'training-finance.js', 'pipeline-entry.js',
+    'pipeline/pipeline.css', 'pipeline/pipeline.js', 'pipeline/reports.js',
+  ]) {
+    assert.ok(dockerfile.includes(`client/public/${asset} /app/client/public/${asset}`), `overlay must copy ${asset}`);
+  }
+});
