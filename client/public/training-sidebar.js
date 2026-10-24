@@ -87,7 +87,9 @@
   let membershipCategoryKey = null;
   let optionalFeatures = {};
   let navigationLoaded = false;
-  let navigationChecksPending = 2;
+  let navigationChecksPending = 1;
+  let initialNavigationFallbackApplied = false;
+  const INITIAL_NAVIGATION_TIMEOUT_MS = 5000;
   window.__sxCallCenterAllowed = false;
   async function loadCallCenterAccess(){
     try{
@@ -102,6 +104,19 @@
     if(navigationLoaded)return;
     navigationLoaded=true;
     if(initial)document.documentElement.setAttribute('data-sx-navigation-loading','');
+    let initialTimeout = null;
+    if(initial){
+      initialTimeout=setTimeout(()=>{
+        if(initialNavigationFallbackApplied)return;
+        // Keep the workspace shell usable if permission metadata is slow. Only
+        // expose the two base destinations; server APIs still enforce access.
+        assignedNavigation=new Set(['dashboard','inbox']);
+        roleNavigation=new Set(['dashboard','inbox']);
+        initialNavigationFallbackApplied=true;
+        navigationCheckComplete();
+        schedule();
+      },INITIAL_NAVIGATION_TIMEOUT_MS);
+    }
     try{
       const data={data:await window.SaleMaxWorkspace.session()};
       {
@@ -114,7 +129,14 @@
         assignedNavigation=Array.isArray(value)?new Set(value):null;
         roleNavigation=Array.isArray(allowedByRole)?new Set(allowedByRole):new Set();
       }
-    }catch(_){if(initial){tenantNavigationLabels={};roleNavigation=new Set();}}finally{if(initial)navigationCheckComplete();else schedule();}
+    }catch(_){if(initial&&!initialNavigationFallbackApplied){tenantNavigationLabels={};assignedNavigation=new Set(['dashboard','inbox']);roleNavigation=new Set(['dashboard','inbox']);}}
+    finally{
+      if(initial){
+        clearTimeout(initialTimeout);
+        if(!initialNavigationFallbackApplied){initialNavigationFallbackApplied=true;navigationCheckComplete();}
+      }
+      schedule();
+    }
   }
   async function loadOptionalNavigation(){
     try{
@@ -123,7 +145,7 @@
         const response=await fetch('/api/user/optional-features',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',Authorization:'Bearer '+token}});
         if(response.ok){const data=await response.json();if(data?.success&&token===localStorage.getItem('wacrm_user'))optionalFeatures=data?.data?.features||{};}
       }
-    }catch(_){}finally{navigationCheckComplete();}
+    }catch(_){}finally{schedule();}
   }
   function navigationCheckComplete(){
     navigationChecksPending=Math.max(0,navigationChecksPending-1);
@@ -152,12 +174,13 @@
     [data-sx-sidebar-list] svg[data-sx-training-icon]{fill:none!important;stroke:currentColor!important;stroke-width:1.8px!important;stroke-linecap:round!important;stroke-linejoin:round!important}
     [data-sx-search-hidden],[data-sx-nav-section][hidden]{display:none!important}
     .MuiDrawer-paper input[data-sx-search-empty]:-webkit-autofill{-webkit-text-fill-color:transparent!important;caret-color:transparent!important}
-    [data-sx-sidebar-brand]{min-width:0!important;background:none!important;display:flex!important;align-items:center}
+    [data-sx-sidebar-brand]{box-sizing:border-box!important;display:flex!important;align-items:center;min-width:0!important;width:min(156px,calc(100vw - 100px))!important;max-width:calc(100vw - 100px)!important;flex:0 0 min(156px,calc(100vw - 100px))!important;overflow:visible!important;background:none!important}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
     [data-sx-sidebar-brand-text]{display:none!important}
     [data-sx-sidebar-duplicate-logo]{display:none!important}
-    [data-sx-sidebar-logo]{display:block!important;width:156px!important;max-width:100%!important;height:44px!important;object-fit:contain!important;background:transparent!important}
+    [data-sx-sidebar-logo]{box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:none!important;height:44px!important;object-fit:contain!important;background:transparent!important}
     [data-sx-sidebar-collapsed] [data-sx-nav-section]{display:none!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-brand]{box-sizing:border-box!important;width:32px!important;min-width:32px!important;max-width:32px!important;height:32px!important;max-height:32px!important;flex:0 0 32px!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{box-sizing:border-box!important;width:32px!important;min-width:32px!important;max-width:32px!important;height:32px!important;max-height:32px!important;flex:0 0 32px!important;object-fit:contain!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemText-root,
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiTypography-root{display:none!important}
@@ -532,6 +555,10 @@
         // The app shell owns the original brand image; mark and resize that image
         // directly so collapsed mode cannot squeeze the horizontal wordmark.
         logo.dataset.sxSidebarLogo = '1';
+        // The legacy React slot is fixed at 38 px. Mark that real slot so the
+        // expanded wordmark can claim its intended width; compact mode remains
+        // explicitly controlled by the measured drawer state.
+        logo.parentElement?.setAttribute('data-sx-sidebar-brand','1');
         // Keep the shared branding observer and this sidebar in agreement.
         // Legacy paths are rewritten by 7network-brand.js, which otherwise
         // creates an endless src ping-pong on every sidebar update.
