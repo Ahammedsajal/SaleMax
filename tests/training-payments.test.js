@@ -29,7 +29,23 @@ test('manual payments and receipts use the existing bilingual Finance screen and
   const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
   const router=read('modules/platform/training-finance-router.js'),ui=read('client/public/training-finance.js'),service=read('modules/platform/training-payments.js');
   assert.match(router,/accountant\|canonical/);assert.match(router,/payments\/pending/);assert.match(router,/payments\.verify/);assert.match(router,/payments\.receipt/);
-  assert.match(ui,/Record payment/);assert.match(ui,/Verify and issue receipt/);assert.match(ui,/Receipt/);assert.match(ui,/data-print-receipt/);assert.match(ui,/renderReceiptPrint/);assert.match(ui,/Print \/ Save receipt as PDF/);assert.match(service,/businessIdentity/);assert.match(service,/legal_name_snapshot/);
+  assert.match(ui,/Record payment/);assert.match(ui,/Verify and issue receipt/);assert.match(ui,/Receipt/);assert.match(ui,/data-print-receipt/);assert.match(ui,/renderReceiptPrint/);assert.match(ui,/Print \/ Save as PDF/);assert.match(ui,/businessProfile\|\|\{\}/);assert.match(ui,/brand\.logoUrl/);assert.match(service,/businessIdentity/);assert.match(service,/legal_name_snapshot/);assert.match(service,/businessProfile=await require\('\.\/training-document-branding'\)\.get\(db,ctx\.tenant\.id\)/);
   assert.match(read('docs/API_DOCUMENTATION.md'),/Manual payment recording, verification and receipts/);
   assert.match(read('docs/USER_MANUAL.md'),/Record and verify a manual payment/);
+});
+
+test('document branding reads name and logo from the requested tenant profile',async()=>{
+  const branding=require('../modules/platform/training-document-branding'),tenantId=crypto.randomUUID();let queriedTenantId;
+  const profile={tenantName:'Tenant fallback',nameEn:'Center One',nameAr:'المركز الأول',logoUrl:'/private/tenant-one/logo.png'};
+  const db={query:async(sql,params)=>{assert.match(sql,/p\.display_name_en AS nameEn/);assert.match(sql,/p\.logo_url AS logoUrl/);assert.match(sql,/WHERE t\.id=\?/);queriedTenantId=params[0];return [[profile]];}};
+  assert.deepEqual(await branding.get(db,tenantId),{nameEn:profile.nameEn,nameAr:profile.nameAr,logoUrl:profile.logoUrl});
+  assert.equal(queriedTenantId,tenantId);
+});
+
+test('receipt overlay carries the reviewed tenant-profile-aware payment API',()=>{
+  const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
+  const dockerfile=read('deploy/Dockerfile.training-receipt-branding'),service=read('modules/platform/training-payments.js');
+  assert.match(dockerfile,/ARG BASE_IMAGE\nFROM \$\{BASE_IMAGE\}\nARG BASE_IMAGE/);
+  assert.match(dockerfile,/COPY --chown=node:node modules\/platform\/training-payments\.js \/app\/modules\/platform\/training-payments\.js/);
+  assert.match(service,/businessProfile=await require\('\.\/training-document-branding'\)\.get\(db,ctx\.tenant\.id\)/);
 });
