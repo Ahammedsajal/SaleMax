@@ -8,6 +8,7 @@ COPY --chown=node:node routes/user.js /app/routes/user.js
 COPY --chown=node:node routes/broadcast.js /app/routes/broadcast.js
 COPY --chown=node:node loops/campaignBeta.js /app/loops/campaignBeta.js
 COPY --chown=node:node client/public/campaign-placeholder-mapping.js /app/client/public/campaign-placeholder-mapping.js
+COPY --chown=node:node modules/web/meta-template-samples-shell.js /app/modules/web/meta-template-samples-shell.js
 COPY --chown=node:node modules/platform/contact-delete-handler.js /app/modules/platform/contact-delete-handler.js
 COPY --chown=node:node modules/platform/contact-records.js /app/modules/platform/contact-records.js
 COPY deploy/bump-meta-carousel-cache.js /tmp/bump-meta-carousel-cache.js
