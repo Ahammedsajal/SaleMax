@@ -66,7 +66,8 @@ async function paymentContext(db,ctx,documentId){
  if(link)return require('./training-invoices').detail(db,ctx,link.invoice_id);
  if(!doc.canEdit)fail('GENERATED_INVOICE_REPLACED');
  const s=await storedSnapshot(db,ctx,{id:documentId,snapshot:doc,amount_minor:doc.totalMinor,invoice_number:doc.invoiceNumber});
- return {...s,id:documentId,generatedDocumentId:documentId,status:'issued',subtotalMinor:s.totalMinor,invoiceEmail:s.customer.email||'',terms:s.footer||'',collectedMinor:0,creditedMinor:0,amountDueMinor:s.totalMinor,enrollment:{learnerName:s.customer.name,payerName:s.customer.name,payerEmail:s.customer.email||null,payerPhone:s.customer.phone||null},payments:[],installments:s.installments.map((p,i)=>({...p,sequence:i+1,status:'pending'})),lines:s.lines.map(l=>({...l,contractAmountMinor:l.totalMinor,taxableBaseMinor:l.totalMinor})),journal:null};
+ const businessProfile=await require('./training-document-branding').get(db,ctx.tenant.id);
+ return {...s,businessProfile,id:documentId,generatedDocumentId:documentId,status:'issued',subtotalMinor:s.totalMinor,invoiceEmail:s.customer.email||'',terms:s.footer||'',collectedMinor:0,creditedMinor:0,amountDueMinor:s.totalMinor,enrollment:{learnerName:s.customer.name,payerName:s.customer.name,payerEmail:s.customer.email||null,payerPhone:s.customer.phone||null},payments:[],installments:s.installments.map((p,i)=>({...p,sequence:i+1,status:'pending'})),lines:s.lines.map(l=>({...l,contractAmountMinor:l.totalMinor,taxableBaseMinor:l.totalMinor})),journal:null};
 }
 async function recordPayment(db,ctx,{uid,documentId,input}){
  generator.requireRole(ctx,true);
