@@ -301,7 +301,15 @@
   reportButton.textContent=arabic()?'التقارير':'Reports';
   reportButton.setAttribute('aria-label',reportButton.textContent);
   reportButton.onclick=()=>{setView('reports');loadSchedules();};
-  if(new URLSearchParams(location.search).get('view')==='reports'){setView('reports');loadSchedules();}
+  function reportsRouteRequested(){
+    if(new URLSearchParams(location.search).get('view')==='reports')return true;
+    try{
+      if(window.parent===window)return false;
+      const parentUrl=new URL(window.parent.location.href);
+      return parentUrl.origin===location.origin&&parentUrl.pathname.replace(/\/$/,'')==='/user'&&parentUrl.searchParams.get('page')==='lead-reports';
+    }catch(_){return false;}
+  }
+  if(reportsRouteRequested()){setView('reports');loadSchedules();}
   $('#boardMode').addEventListener('click',()=>setView('board'));
   $('#listMode').addEventListener('click',()=>setView('list'));
   $('#refresh').addEventListener('click',()=>{if(!host.classList.contains('hidden'))load();});

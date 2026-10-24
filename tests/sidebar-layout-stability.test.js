@@ -64,17 +64,36 @@ test('Lead Reports navigation is reconciled after sidebar deduplication and gate
   assert.match(shell, /training-sidebar\.js\?v=20261024-report-nav-stable1/);
   assert.match(overlay, /ARG BASE_IMAGE\nFROM \$\{BASE_IMAGE\}/);
   assert.match(overlay, /COPY --chown=node:node client\/public\/training-sidebar\.js/);
+  assert.match(overlay, /COPY --chown=node:node client\/public\/pipeline\/reports\.js/);
   assert.doesNotMatch(overlay, /ARG BASE_IMAGE=/);
 });
 
-test('sidebar cache helper preserves the production shell except for its versioned script URL', () => {
+test('embedded Lead Reports route explicitly restores Reports mode and invalidates both cached shells', () => {
+  const reports = read('client/public/pipeline/reports.js');
+  const rootShell = read('client/public/index.html');
+  const pipelineShell = read('client/public/pipeline/index.html');
+  assert.match(reports, /function reportsRouteRequested\(\)/);
+  assert.match(reports, /parentUrl\.searchParams\.get\('page'\)==='lead-reports'/);
+  assert.match(reports, /if\(reportsRouteRequested\(\)\)\{setView\('reports'\);loadSchedules\(\);\}/);
+  assert.match(rootShell, /training-sidebar\.js\?v=20261024-report-nav-stable1/);
+  assert.match(pipelineShell, /pipeline\/reports\.js\?v=20261024-lead-reports-view1/);
+});
+
+test('cache helper preserves both production shells except for their versioned script URLs', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), '7network-sidebar-cache-'));
-  const file = path.join(directory, 'index.html');
-  const original = '<html><body>live shell</body><script src="/training-sidebar.js?v=20261024-sidebar-layout1"></script></html>';
+  const rootFile = path.join(directory, 'index.html');
+  const pipelineFile = path.join(directory, 'pipeline.html');
+  const originalRoot = '<html><body>live shell</body><script src="/training-sidebar.js?v=20261024-sidebar-layout1"></script><script src="/pipeline/reports.js?v=20261024-restored-screens1"></script></html>';
+  const originalPipeline = '<html><body>live Pipeline</body><script src="/pipeline/reports.js?v=20261024-restored-screens1"></script></html>';
   try {
-    fs.writeFileSync(file, original);
-    execFileSync(process.execPath, [path.join(root, 'deploy/bump-training-sidebar-cache.js'), file]);
-    assert.equal(fs.readFileSync(file, 'utf8'), original.replace('/training-sidebar.js?v=20261024-sidebar-layout1', '/training-sidebar.js?v=20261024-report-nav-stable1'));
+    fs.writeFileSync(rootFile, originalRoot);
+    fs.writeFileSync(pipelineFile, originalPipeline);
+    execFileSync(process.execPath, [path.join(root, 'deploy/bump-training-sidebar-cache.js'), rootFile, pipelineFile]);
+    assert.equal(fs.readFileSync(rootFile, 'utf8'), originalRoot
+      .replace('/training-sidebar.js?v=20261024-sidebar-layout1', '/training-sidebar.js?v=20261024-report-nav-stable1')
+      .replace('/pipeline/reports.js?v=20261024-restored-screens1', '/pipeline/reports.js?v=20261024-lead-reports-view1'));
+    assert.equal(fs.readFileSync(pipelineFile, 'utf8'), originalPipeline
+      .replace('/pipeline/reports.js?v=20261024-restored-screens1', '/pipeline/reports.js?v=20261024-lead-reports-view1'));
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
