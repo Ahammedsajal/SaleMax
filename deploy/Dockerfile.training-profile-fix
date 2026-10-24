@@ -1,0 +1,8 @@
+# Production overlay: preserve the exact active image and replace only the
+# reviewed profile modules and generated shell/assets in the release context.
+ARG BASE_IMAGE=salemax-app:business-summary-55b5f11-20261024
+FROM ${BASE_IMAGE}
+COPY --chown=node:node modules/platform/training-center-profile.js /app/modules/platform/training-center-profile.js
+COPY --chown=node:node modules/platform/training-center-logo-media.js /app/modules/platform/training-center-logo-media.js
+COPY --chown=node:node client/public/training-courses.js /app/client/public/training-courses.js
+COPY --chown=node:node client/public/index.html /app/client/public/index.html
