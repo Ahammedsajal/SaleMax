@@ -13,6 +13,7 @@
     {page:'create-meta-template',key:'templates',label:['Create template','إنشاء قالب'],icon:'M5 3h9l5 5v13H5V3Zm9 0v6h5M9 13h6m-6 4h6'}
   ];
   const current=()=>/^\/(user|agent)\/?$/.test(location.pathname)?new URLSearchParams(location.search).get('page'):null;
+  const syncTheme=()=>{const saved=localStorage.getItem('theme_mode'),dark=saved==='dark'||(saved!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches),mode=dark?'dark':'light';if(document.documentElement.dataset.sxTheme!==mode)document.documentElement.dataset.sxTheme=mode;};
   const arabic=()=>/^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language')||document.documentElement.lang||'');
   const tr=pair=>pair[arabic()?1:0];
   const href=page=>'/user?page='+page+(window.SaleMaxActor==='agent'?'&actor=agent':'');
@@ -41,6 +42,7 @@
     return null;
   }
   function enhance(){
+    syncTheme();
     const page=current();if(!pages[page]){remove();return;}
     checkAccess();if(!access||!allowed(pages[page].key)){remove();return;}
     const hero=heroFor(page);if(!hero)return;hero.dataset.sxMarketingHero='1';

@@ -32,3 +32,39 @@ html[data-sx-page=send-campaign] .MuiAlert-standardInfo{border:1px dashed #d5e1e
 @media(max-width:1050px){#sx-marketing-nav{align-items:stretch;flex-direction:column;gap:10px}.sx-marketing-links{align-self:flex-start;max-width:100%}}
 @media(max-width:600px){[data-sx-marketing-hero]{flex-wrap:wrap!important;padding:18px!important}[data-sx-marketing-hero] .MuiTypography-h5{font-size:21px}.sx-marketing-create{margin-inline-start:0;width:100%}#sx-marketing-nav{padding:10px;margin-bottom:18px}.sx-marketing-caption{font-size:8px}.sx-marketing-links{width:100%;box-sizing:border-box}.sx-marketing-link{font-size:11px;padding:9px 10px;flex:1;min-height:42px}.sx-marketing-link svg{display:none}html[data-sx-page=campaign-dashboard] [data-sx-marketing-metric] .MuiTypography-h3{font-size:24px}}
 @media(prefers-reduced-motion:reduce){.sx-marketing-create{transition:none}}
+
+/* Keep the custom campaign workspace controls in step with the app theme. */
+html[data-sx-page=campaign-dashboard] form .MuiTextField-root .MuiOutlinedInput-root{background:transparent!important}
+html[data-sx-page=campaign-dashboard] form .MuiTextField-root .MuiOutlinedInput-notchedOutline{border-color:transparent!important}
+html[data-sx-page=campaign-dashboard] form .MuiTextField-root input{background:transparent!important}
+html[data-sx-theme=dark] [data-sx-marketing-hero]{background:linear-gradient(115deg,#171d24 70%,#1b2029)!important;border-color:#2b333d!important;box-shadow:none!important}
+html[data-sx-theme=dark] [data-sx-marketing-hero] .MuiTypography-h5{color:#edf2f7}
+html[data-sx-theme=dark] [data-sx-marketing-hero] .MuiTypography-body2{color:#a0acba}
+html[data-sx-theme=dark] #sx-marketing-nav{background:#171d24;border-color:#2b333d}
+html[data-sx-theme=dark] .sx-marketing-caption{color:#9aa8b8}
+html[data-sx-theme=dark] .sx-marketing-links{background:#11171e}
+html[data-sx-theme=dark] .sx-marketing-link{color:#a3afbd}
+html[data-sx-theme=dark] .sx-marketing-link:hover{color:#70b5ff;background:#202a35}
+html[data-sx-theme=dark] .sx-marketing-link[aria-current=page]{color:#79bdff;background:#242f3c;border-color:#354456;box-shadow:none}
+html[data-sx-theme=dark] .sx-marketing-empty-link{background:#1b232d;border-color:#374352;color:#c6d1de}
+html[data-sx-theme=dark] .sx-marketing-empty-link:hover{background:#222e3b;border-color:#4c6178;color:#8bc7ff}
+html[data-sx-theme=dark] #sx-marketing-nav a:focus-visible,html[data-sx-theme=dark] .sx-marketing-create:focus-visible,html[data-sx-theme=dark] .sx-marketing-empty-link:focus-visible{outline-color:#70b5ff}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] .MuiTabs-root{background:#171d24}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] .MuiTab-root{color:#a0acba}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] .MuiTab-root.Mui-selected{color:#83c3ff;background:#242f3c;box-shadow:none}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] [data-sx-marketing-metric]{background:#171d24;border-color:#2b333d!important;box-shadow:none!important}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] [data-sx-marketing-metric] .MuiTypography-h3{color:#edf2f7}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] [data-sx-marketing-metric] .MuiTypography-caption{color:#9aa8b8}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] .MuiTableHead-root th{background:#202832;color:#d7e0ea}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] form .MuiOutlinedInput-root{background:#171d24;color:#e6edf5}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] form .MuiTextField-root .MuiOutlinedInput-root{background:transparent!important}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] form .MuiOutlinedInput-notchedOutline{border-color:#35404d}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] form .MuiTextField-root .MuiOutlinedInput-notchedOutline{border-color:transparent!important}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] form .MuiInputBase-input,html[data-sx-theme=dark][data-sx-page=campaign-dashboard] form .MuiSelect-select{color:#e6edf5}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] form .MuiInputBase-input::placeholder{color:#8492a2;opacity:1}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] form .MuiSvgIcon-root{color:#a3afbd}
+html[data-sx-theme=dark][data-sx-page=campaign-dashboard] .MuiTableCell-root{border-color:#2b333d}
+html[data-sx-theme=dark][data-sx-page=create-meta-template] .MuiStepConnector-line{border-color:#3a4654}
+html[data-sx-theme=dark][data-sx-page=create-meta-template] .MuiStepIcon-root{color:#526173}
+html[data-sx-theme=dark][data-sx-page=create-meta-template] .MuiStepIcon-root.Mui-active,html[data-sx-theme=dark][data-sx-page=create-meta-template] .MuiStepIcon-root.Mui-completed{color:#3b82f6}
+html[data-sx-theme=dark][data-sx-page=send-campaign] .MuiAlert-standardInfo{background:#172331;border-color:#344b62;color:#d6e7f7}
