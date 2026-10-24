@@ -1,0 +1,7 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node client/public/training-finance.js /app/client/public/training-finance.js
+RUN node -e 'const fs=require("node:fs"),p="/app/client/public/index.html",from="/training-finance.js?v=20261024-restored-screens1",to="/training-finance.js?v=20261024-document-layout2";let s=fs.readFileSync(p,"utf8");if(s.split(from).length!==2)throw Error("Unexpected active finance asset reference in base image");fs.writeFileSync(p,s.replace(from,to));'
