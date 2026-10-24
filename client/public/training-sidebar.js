@@ -413,6 +413,9 @@
     return [...list.children].some(row=>row.tagName==='LI'&&navigationIdentity(row)===identity);
   }
   function generatedNavigationRow(row){
+    // The original React Pipeline row keeps its native navigation handler even
+    // after the Sales normalization pass adds a canonical identity to it.
+    if(row.hasAttribute('data-salemax-pipeline-link'))return false;
     return row.hasAttribute('data-sx-canonical-sales-nav')||Object.keys(navigationMarkers).some(marker=>row.hasAttribute(marker));
   }
   function clearClonedTenantLabel(copy){
@@ -560,6 +563,11 @@
         }
         if (available) present.add(group);
       });
+      // React can remount its native rows while the permission and category
+      // metadata are being normalized. Deduplicate again after every row has a
+      // canonical identity so generated Sales aliases cannot survive beside
+      // the native Pipeline entry.
+      if(membershipCategoryKey==='7network_sales')dedupeSalesNavigationRows(list);
       groups.forEach(([en, arabic], index) => {
         let title = list.querySelector(`[data-sx-nav-section="${index}"]`);
         if (!title && !present.has(index)) return;
