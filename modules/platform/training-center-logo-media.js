@@ -64,4 +64,10 @@ async function removeManaged(url, tenantId) {
   await fs.rm(target, { force: true }).catch(() => {});
 }
 
-module.exports = { MAX_LOGO_BYTES, store, removeManaged };
+function isManaged(url, tenantId) {
+  if (!validId(tenantId) || typeof url !== 'string') return false;
+  const match = url.match(/^\/media\/training-center-logos\/([0-9a-f-]{36})\/([0-9a-f-]{36}\.(?:jpg|png|webp))$/i);
+  return Boolean(match && match[1].toLowerCase() === tenantId.toLowerCase());
+}
+
+module.exports = { MAX_LOGO_BYTES, store, removeManaged, isManaged };

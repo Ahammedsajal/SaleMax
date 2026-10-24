@@ -42,3 +42,16 @@ test('logo upload remains authenticated, signature-checked, bounded and on persi
   assert.match(profile, /await db\.commit\(\);if\(oldLogo!==p\.logoUrl\)await logoMedia\.removeManaged/);
   assert.match(compose, /\/opt\/salemax\/shared\/media:\/app\/client\/public\/media/);
 });
+
+test('profile save preserves only the current tenant managed logo and recipients use the workspace profile route', () => {
+  const media = require('../modules/platform/training-center-logo-media');
+  const tenant = '5b2e6e83-f4ba-4d17-85d3-21fce3c67eba';
+  const logo = `/media/training-center-logos/${tenant}/d7a96a6c-a4cd-4ccb-9a61-214ed37a0f93.webp`;
+  assert.equal(media.isManaged(logo, tenant), true);
+  assert.equal(media.isManaged(logo, '6f92418d-0612-4f65-8e72-47507b8c752a'), false);
+  assert.equal(media.isManaged(logo + '?other=tenant', tenant), false);
+  assert.equal(media.isManaged('https://example.test/logo.png', tenant), false);
+
+  const screen = read('client/public/training-courses.js');
+  assert.match(screen, /const recipientsPath=endpoint\+'\/report-recipients'/);
+});
