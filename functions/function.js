@@ -1152,17 +1152,18 @@ async function saveWebhookConversation(body, uid) {
       });
 
       await query(
-        `UPDATE beta_campaign_logs SET delivery_status = ?, error_message = ? WHERE meta_msg_id = ?`,
+        `UPDATE beta_campaign_logs SET delivery_status = ?, error_message = ? WHERE uid = ? AND meta_msg_id = ?`,
         [
           body?.entry[0]?.changes[0]?.value?.statuses[0]?.status,
           JSON.stringify(body),
+          uid,
           metaMsgId,
         ],
       );
     } else {
       await query(
-        `UPDATE beta_campaign_logs SET delivery_status = ? WHERE meta_msg_id = ?`,
-        [body?.entry[0]?.changes[0]?.value?.statuses[0]?.status, metaMsgId],
+        `UPDATE beta_campaign_logs SET delivery_status = ? WHERE uid = ? AND meta_msg_id = ?`,
+        [body?.entry[0]?.changes[0]?.value?.statuses[0]?.status, uid, metaMsgId],
       );
     }
   }

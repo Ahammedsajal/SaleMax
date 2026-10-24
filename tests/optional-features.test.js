@@ -13,6 +13,26 @@ test('optional gates leave internal training APIs and ordinary messaging availab
   assert.equal(features.featureForRequest({baseUrl:'/api/user',path:'/get_my_widget'}),'chat_widget');
   assert.equal(features.featureForRequest({baseUrl:'/api/user',path:'/add_ins_to_warm'}),'whatsapp_warmer');
   assert.equal(features.featureForRequest({baseUrl:'/api/webhook',path:'/get_webhook_logs'}),'webhooks');
+  assert.equal(features.featureForRequest({baseUrl:'/api/v1',path:'/get_logs'}),'customer_api');
+  assert.equal(features.featureForRequest({baseUrl:'/api/v1',path:'/delete_logs'}),'customer_api');
+  assert.equal(features.featureForRequest({baseUrl:'/api/v1',path:'/send-message'}),null);
+});
+test('customer API logs are owner-managed for custom legacy roles',()=>{
+  const dbPath=require.resolve('../database/dbpromise');
+  const priorDbModule=require.cache[dbPath];
+  require.cache[dbPath]={id:dbPath,filename:dbPath,loaded:true,exports:{query:async()=>[]}};
+  const guard=require('../modules/platform/team-role-request-guard');
+  if(priorDbModule)require.cache[dbPath]=priorDbModule;else delete require.cache[dbPath];
+  const request=(method,path)=>({baseUrl:'/api/v1',path,method});
+  for(const [method,path] of [['GET','/get_logs'],['POST','/delete_logs']]){
+    assert.equal(guard.routePermission(request(method,path)),'tenant.manage');
+    assert.equal(guard.authorizeLegacyMembership(request(method,path),{
+      categoryKey:'7network_sales',role:'owner',roleProfileId:'role-owner',seatRole:'owner',rolePermissions:['tenant.manage'],
+    }).allowed,true);
+    assert.deepEqual(guard.authorizeLegacyMembership(request(method,path),{
+      categoryKey:'7network_sales',role:'manager',roleProfileId:'role-manager',seatRole:'manager',rolePermissions:['tenant.read'],
+    }),{allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'});
+  }
 });
 test('optional changes require MFA permission, valid switches and expected revision',async()=>{
   const ctx={audience:'platform',identity:{id:'owner'},membership:{role:'super_admin',status:'active'},mfaVerified:true};
