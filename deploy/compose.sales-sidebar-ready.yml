@@ -1,0 +1,11 @@
+# Narrow runtime overlay: retain the full production stack from compose.yml and
+# pin only app to the reviewed image built from the currently running image.
+services:
+  app:
+    image: salemax-app:sales-sidebar-ready-2925b12-20261024
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.sales-sidebar-ready
+      args:
+        BASE_IMAGE: salemax-app:training-document-branding-4ce0f72-20261024
+        SOURCE_COMMIT: 2925b121fee9fb50c9e742230a32ce5373b24390
