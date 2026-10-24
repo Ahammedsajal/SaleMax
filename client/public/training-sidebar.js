@@ -456,6 +456,9 @@
     return [...list.children].some(row=>row.tagName==='LI'&&navigationIdentity(row)===identity);
   }
   function generatedNavigationRow(row){
+    // This marker is owned by the legacy React shell. Its row retains the
+    // original click handler even after canonical permission metadata is added.
+    if(row.hasAttribute('data-salemax-pipeline-link'))return false;
     return row.hasAttribute('data-sx-canonical-sales-nav')||Object.keys(navigationMarkers).some(marker=>row.hasAttribute(marker));
   }
   function clearClonedTenantLabel(copy){
