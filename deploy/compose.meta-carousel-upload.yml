@@ -1,0 +1,11 @@
+# Narrow runtime overlay: retain the full production stack from compose.yml and
+# pin only the app to this reviewed image built from the active production image.
+services:
+  app:
+    image: salemax-app:meta-carousel-image-upload-8048417-20261024
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.meta-carousel-upload
+      args:
+        BASE_IMAGE: salemax-app:sales-sidebar-nav-stable-35ef32b-20261024
+        SOURCE_COMMIT: 8048417bfb2821037db290139a3dace5e3642f75
