@@ -1,0 +1,10 @@
+'use strict';
+const fs = require('node:fs');
+const path = process.argv[2];
+if (!path) throw new Error('Expected the application shell path');
+const current = '/training-sidebar.js?v=20261024-sidebar-layout1';
+const updated = '/training-sidebar.js?v=20261024-report-nav-stable1';
+const html = fs.readFileSync(path, 'utf8');
+if (html.includes(updated)) process.exit(0);
+if (html.split(current).length !== 2) throw new Error('Expected exactly one current training-sidebar cache reference');
+fs.writeFileSync(path, html.replace(current, updated));

@@ -387,6 +387,23 @@
     row.setAttribute('aria-label',title);const button=row.querySelector('.MuiListItemButton-root,[role="button"],button,a')||row;
     button.setAttribute('aria-label',title);button.onclick=event=>{event.preventDefault();location.href='/user?page=forms';};list.append(row);
   }
+  function ensureLeadReportsRow(list){
+    if(!roleNavigation?.has('reports')||(assignedNavigation!==null&&!assignedNavigation.has('reports')))return;
+    const existing=[...list.children].find(row=>row.tagName==='LI'&&navigationIdentity(row)==='reports');
+    if(existing){
+      existing.hidden=false;existing.removeAttribute('data-sx-search-hidden');existing.removeAttribute('data-sx-optional-hidden');
+      return;
+    }
+    const source=document.querySelector('[data-salemax-pipeline-link]');
+    if(!source)return;
+    const row=cloneNavigationRow(source);row.removeAttribute('data-salemax-pipeline-link');row.dataset.sxLeadReportsNav='1';row.dataset.sxCanonicalSalesNav='reports';
+    row.removeAttribute('data-sx-search-hidden');row.removeAttribute('data-sx-optional-hidden');row.hidden=false;
+    const title=tr('Lead Reports','تقارير العملاء المحتملين'),primary=row.querySelector('.MuiListItemText-primary');
+    if(primary)primary.textContent=title;
+    row.setAttribute('aria-label',title);const button=row.querySelector('.MuiListItemButton-root,[role=button],button,a')||row;
+    button.setAttribute('aria-label',title);button.onclick=event=>{event.preventDefault();location.href='/user?page=lead-reports';};
+    list.append(row);
+  }
   // Screen identity is shared by both sidebar builders. Entitlements alone
   // are not identities: overview, targets and reports share sales-targets.
   const navigationMarkers={
@@ -489,6 +506,9 @@
       ensureTrainingApplicationsRow(list);
       dedupeRecruitmentNavigationRows(list);
       dedupeSalesNavigationRows(list);
+      // React may replace the injected report row while it remounts the
+      // legacy Pipeline item. Recreate it after deduplication on every pass.
+      ensureLeadReportsRow(list);
       list.dataset.sxSidebarList = '1';
       const expanded = sidebarExpandedOverride.get(drawer);
       const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;

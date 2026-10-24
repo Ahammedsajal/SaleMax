@@ -1,0 +1,9 @@
+# Narrow production overlay; BASE_IMAGE must be the exact currently deployed app image.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node client/public/training-sidebar.js /app/client/public/training-sidebar.js
+COPY --chown=node:node deploy/bump-training-sidebar-cache.js /tmp/bump-training-sidebar-cache.js
+RUN node /tmp/bump-training-sidebar-cache.js /app/client/public/index.html && rm /tmp/bump-training-sidebar-cache.js
