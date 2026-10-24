@@ -29,8 +29,8 @@ test('timeout is unknown and never presented as safe to retry',async()=>{
  const rejected=await qr.send(db,{tenantId:tenant,to:'97455550000',text:'sample',env,http:{post:async()=>{throw {response:{status:404}};}}});assert.equal(rejected.status,'blocked');
  const accepted=await qr.send(db,{tenantId:tenant,to:'97455550000',text:'sample',env,http:{post:async()=>({data:{success:true,data:{messageId:'sample-id'}}})}});assert.deepEqual(accepted,{status:'accepted',providerMessageId:'sample-id'});
 });
-test('summary keeps currencies separate and marks current balances',()=>{
- const text=reports.text({business:'Example Center',day:'2026-10-22',timezone:'Asia/Qatar',asOf:'6 PM',newChats:7,newLeads:5,invoices:2,payments:1,finance:[{currency:'QAR',invoiced:10000,received:4000,outstanding:6000,overdue:0},{currency:'USD',invoiced:2000,received:0,outstanding:2000,overdue:0}]});assert.match(text,/New incoming chats: 7/);assert.match(text,/Invoices created: 2/);assert.match(text,/QAR totals/);assert.match(text,/USD totals/);assert.match(text,/current/);
+test('summary contains daily and month-to-date business metrics without chat/pipeline totals',()=>{
+ const text=reports.text({business:'Example Center',day:'2026-10-22',timezone:'Asia/Qatar',asOf:'6 PM',daily:{leads:5,convertedLeads:2,applications:3,invoices:2},monthToDate:{leads:20,convertedLeads:6,applications:12,invoices:8},finance:[{currency:'QAR',daily:{invoiced:10000,received:4000},month:{invoiced:85000,received:42000},receivable:43000,overdue:9000,aging:{days1to30:5000,days31to60:2000,days61to90:1000,daysOver90:1000}},{currency:'USD',daily:{invoiced:2000,received:0},month:{invoiced:2000,received:0},receivable:2000,overdue:0,aging:{days1to30:0,days31to60:0,days61to90:0,daysOver90:0}}]});assert.match(text,/Leads invoiced: 2/);assert.match(text,/month to date/i);assert.match(text,/Applications: 12/);assert.match(text,/QAR/);assert.match(text,/USD/);assert.match(text,/Total receivable/);assert.match(text,/Aging over 90 days/);assert.doesNotMatch(text,/chat|pipeline/i);
 });
 test('recipient preparation includes owners/managers and customer, deduplicating identical phone numbers',async()=>{
  const originalLoad=finance.load,originalStaff=qr.staff;const inserted=[];
@@ -49,6 +49,11 @@ test('removed staff and changed phone numbers are rechecked before dispatch',asy
  const load=finance.load,staff=qr.staff;finance.load=async()=>({...sample,invoiceId:id});qr.staff=async()=>[{id,phone:'97459999999'}];
  try{const result=await notifications.dispatch({}, {id,tenant_id:tenant,kind:'invoice_issued',source_type:'generated',source_id:id,recipient_kind:'identity',recipient_id:id,destination_hash:qr.hash('97450000000'),payload_json:{business:'Center'}} ,{authorize:async()=>true,send:()=>assert.fail('must not send')});assert.equal(result.errorCode,'RECIPIENT_NUMBER_CHANGED');qr.staff=async()=>[];assert.equal((await notifications.dispatch({}, {tenant_id:tenant,kind:'invoice_issued',recipient_kind:'identity',recipient_id:id},{authorize:async()=>true})).status,'blocked');}finally{finance.load=load;qr.staff=staff;}
 });
+test('daily report dispatch suppresses verified non-owner recipients',async()=>{
+ const staff=qr.staff;qr.staff=async()=>[{id:tenant,phone:'97450119041'}];
+ const db={query:async()=>[[{destination:'+97450000002'}]]};
+ try{const result=await notifications.dispatch(db,{tenant_id:tenant,kind:'daily_summary',recipient_kind:'report_recipient',recipient_id:id,destination_hash:qr.hash('97450000002'),payload_json:{snapshot:{business:'Center'}}},{authorize:async()=>true,send:()=>assert.fail('daily summary must not reach a non-owner')});assert.deepEqual(result,{status:'suppressed',errorCode:'DAILY_REPORT_OWNER_ONLY'});}finally{qr.staff=staff;}
+});
 test('paid/cancelled resources suppress queued notices',async()=>{
  const load=finance.load;finance.load=async()=>null;try{const result=await notifications.dispatch({}, {tenant_id:tenant,kind:'payment_due',source_type:'training_invoice',source_id:id},{authorize:async()=>true,send:()=>assert.fail('must not send')});assert.equal(result.status,'suppressed');}finally{finance.load=load;}
 });
@@ -60,6 +65,6 @@ test('unknown send outcome is saved as unknown with a lease guard',async()=>{
  let args;const db={query:async(sql,values)=>{assert.match(sql,/lease_token=\?/);args=values;return [{affectedRows:1}];}};
  await notifications.finish(db,{id:1,tenant_id:tenant,token:'lease',attempts:1},{status:'unknown',errorCode:'TEST_TIMEOUT'});assert.equal(args[0],'unknown');
 });
-test('PDF has a valid signature and does not create a blank trailing page',async()=>{
- const pdf=await require('../modules/platform/business-report-pdf').render({business:'Example Center',day:'2026-10-22',timezone:'Asia/Qatar',asOf:'6 PM',newChats:7,newLeads:5,invoices:2,payments:1,pipeline:[{status:'open',total:5}],finance:[{currency:'QAR',invoiced:100000,received:40000,outstanding:60000,overdue:0}]},{test:true});assert.equal(pdf.subarray(0,5).toString(),'%PDF-');assert.ok(pdf.length>2000);assert.equal((pdf.toString('latin1').match(/\/Type \/Page\b/g)||[]).length,1);
+test('PDF has a valid signature and an organized daily plus month-to-date layout',async()=>{
+ const pdf=await require('../modules/platform/business-report-pdf').render({business:'Example Center',day:'2026-10-22',month:'2026-10',timezone:'Asia/Qatar',asOf:'6 PM',daily:{leads:7,convertedLeads:2,applications:3,invoices:2},monthToDate:{leads:40,convertedLeads:12,applications:24,invoices:18},finance:[{currency:'QAR',daily:{invoiced:100000,received:40000},month:{invoiced:500000,received:210000},receivable:290000,overdue:60000,aging:{days1to30:30000,days31to60:10000,days61to90:10000,daysOver90:10000}}]},{test:true});assert.equal(pdf.subarray(0,5).toString(),'%PDF-');assert.ok(pdf.length>2000);assert.equal((pdf.toString('latin1').match(/\/Type \/Page\b/g)||[]).length,2);
 });

@@ -70,6 +70,7 @@ async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
  if(item.kind!=='daily_summary'){current=await finance.load(db,{...item,tenant_id:item.tenant_id});if(!current)return {status:'suppressed',errorCode:'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE'};}
  let to;if(item.recipient_kind==='identity'){const members=await qr.staff(db,item.tenant_id,{ownerOnly:item.kind==='daily_summary'});to=members.find(r=>r.id===item.recipient_id)?.phone;}else if(item.recipient_kind==='report_recipient'){
   const [[r]]=await db.query("SELECT destination FROM sx_training_report_recipients WHERE tenant_id=? AND id=? AND channel='whatsapp' AND status='verified'",[item.tenant_id,item.recipient_id]);to=qr.phone(r?.destination);
+  if(item.kind==='daily_summary'){const owners=await qr.staff(db,item.tenant_id,{ownerOnly:true});if(!owners.some(owner=>owner.phone&&qr.hash(owner.phone)===qr.hash(to||'')))return {status:'suppressed',errorCode:'DAILY_REPORT_OWNER_ONLY'};}
  }else{
   to=qr.phone(current?.phone,{countryCode:item.timezone==='Asia/Qatar'?'974':undefined});if(item.kind==='payment_due'){const [[p]]=await db.query('SELECT status FROM sx_training_reminder_preferences WHERE tenant_id=? AND invoice_id=?',[item.tenant_id,current.invoiceId]);if(p?.status==='opted_out')return {status:'suppressed',errorCode:'CUSTOMER_REMINDERS_OPTED_OUT'};}
  }
@@ -82,7 +83,8 @@ async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
  const snapshot=item.kind==='daily_summary'?meta.snapshot:current;
  const text=item.kind==='daily_summary'?(meta.reportText||reports.text(snapshot)):finance.message(item.kind,snapshot,{business:meta.business});
  const pdf=item.part==='pdf'?await require('./business-report-pdf').render(snapshot):null;
- return send(db,{tenantId:item.tenant_id,to,text:item.part==='pdf'?`Daily report · ${snapshot.day}`:text,pdf,fileName:`7Network-daily-report-${snapshot.day||'finance'}.pdf`});
+ const safeBusiness=String(snapshot.business||'7Network').normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'').slice(0,60)||'7Network';
+ return send(db,{tenantId:item.tenant_id,to,text:item.part==='pdf'?`${safeBusiness} sale summary report · ${snapshot.day}`:text,pdf,fileName:`${safeBusiness}_sale_summary_report.pdf`});
 }
 async function finish(db,item,result){
  let {status}=result;if(!['accepted','blocked','failed','unknown','suppressed'].includes(status))status='unknown';if(status==='blocked'&&item.attempts>=16)status='failed';
@@ -91,6 +93,8 @@ async function finish(db,item,result){
  return status;
 }
 async function scheduledReport(db,{tenantId,to,snapshot,text}){
+ const owners=await qr.staff(db,tenantId,{ownerOnly:true}),owner=owners.find(r=>r.phone&&qr.hash(r.phone)===qr.hash(qr.phone(to)||''));
+ if(!owner)return {status:'failed',errorCode:'DAILY_REPORT_OWNER_ONLY'};
  const [[recipient]]=await db.query("SELECT id FROM sx_training_report_recipients WHERE tenant_id=? AND channel='whatsapp' AND destination=? AND status='verified' LIMIT 1",[tenantId,to]);
  if(!recipient)return {status:'failed',errorCode:'REPORT_DESTINATION_NOT_VERIFIED'};
  const [[tenant]]=await db.query("SELECT id,name,timezone FROM sx_tenants WHERE id=? AND status='active'",[tenantId]);if(!tenant)return {status:'failed',errorCode:'REPORT_TENANT_UNAVAILABLE'};
@@ -98,8 +102,8 @@ async function scheduledReport(db,{tenantId,to,snapshot,text}){
  const data=await reports.build(db,tenant,{day});await db.beginTransaction();try{
   await enqueue(db,tenantId,{kind:'daily_summary',sourceType:'tenant',sourceId:tenantId,key,payload:{day,timezone,snapshot:data,business:tenant.name,reportText:text}});
   const [[event]]=await db.query('SELECT id,status FROM sx_business_notification_events WHERE tenant_id=? AND event_key=? FOR UPDATE',[tenantId,key]);
-  if(event.status==='queued')await db.query("UPDATE sx_business_notification_events SET status='prepared',payload_json=? WHERE tenant_id=? AND id=?",[JSON.stringify({day,timezone,snapshot:data,business:tenant.name,reportText:text}),tenantId,event.id]);
-  const hash=qr.hash(qr.phone(to));for(const part of ['text','pdf'])await db.query("INSERT INTO sx_business_notification_deliveries(tenant_id,event_id,recipient_kind,recipient_id,destination_hash,part) VALUES (?,?,'report_recipient',?,?,?) ON DUPLICATE KEY UPDATE id=id",[tenantId,event.id,recipient.id,hash,part]);
+  if(event.status==='queued')await db.query("UPDATE sx_business_notification_events SET status='prepared',payload_json=? WHERE tenant_id=? AND id=?",[JSON.stringify({day,timezone,snapshot:data,business:tenant.name,reportText:reports.text(data)}),tenantId,event.id]);
+  const hash=qr.hash(qr.phone(to));for(const part of ['text','pdf'])await db.query("INSERT INTO sx_business_notification_deliveries(tenant_id,event_id,recipient_kind,recipient_id,destination_hash,part) VALUES (?,?,'identity',?,?,?) ON DUPLICATE KEY UPDATE id=id",[tenantId,event.id,owner.id,hash,part]);
   const [parts]=await db.query('SELECT status,provider_message_id FROM sx_business_notification_deliveries WHERE tenant_id=? AND event_id=? AND destination_hash=?',[tenantId,event.id,hash]);await db.commit();
   if(parts.length===2&&parts.every(p=>p.status==='accepted'))return {status:'accepted',providerMessageId:parts.find(p=>p.provider_message_id)?.provider_message_id};
   if(parts.some(p=>p.status==='unknown'))return {status:'unknown',errorCode:'DAILY_REPORT_DELIVERY_UNCONFIRMED'};
