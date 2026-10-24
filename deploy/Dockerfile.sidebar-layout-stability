@@ -1,7 +1,11 @@
 # Production overlay: preserve the active profile-fix image and replace only
 # the shared sidebar/layout hooks and generated shell assets.
-ARG BASE_IMAGE=salemax-app:training-profile-fix-b12d8c6-20261024
+ARG BASE_IMAGE=salemax-app:sidebar-layout-stability-5993b06-20261024
 FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
 COPY --chown=node:node client/public/training-sidebar.js /app/client/public/training-sidebar.js
 COPY --chown=node:node client/public/training-courses.js /app/client/public/training-courses.js
 COPY --chown=node:node client/public/index.html /app/client/public/index.html
+COPY --chown=node:node client/public/pipeline/index.html /app/client/public/pipeline/index.html

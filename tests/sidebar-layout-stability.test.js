@@ -27,3 +27,13 @@ test('docked content reserves the measured sidebar width and profile/course over
   assert.match(shell, /training-sidebar\.js\?v=20261024-sidebar-layout1/);
   assert.match(shell, /training-courses\.js\?v=20261024-sidebar-layout1/);
 });
+
+
+test('production overlay carries the Lead Reports timezone helper from its reviewed release asset', () => {
+  const dockerfile = read('deploy/Dockerfile.sidebar-layout-stability');
+  const pipeline = read('client/public/pipeline/index.html');
+  assert.match(dockerfile, /COPY --chown=node:node client\/public\/pipeline\/index\.html \/app\/client\/public\/pipeline\/index\.html/);
+  assert.match(pipeline, /\/pipeline\/timezone-options\.js\?v=20261023-report-timezone1/);
+  assert.match(dockerfile, /org\.7network\.base\.image/);
+  assert.match(dockerfile, /org\.7network\.overlay\.commit/);
+});
