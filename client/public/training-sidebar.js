@@ -133,6 +133,8 @@
   Object.assign(aliases, window.salemaxSidebarAliases || {});
   const style = document.createElement('style');
   style.textContent = `
+    /* The docked navigation already reserves its width in the shell flex row. */
+    @media (min-width:900px){#root main{padding-inline:0!important}}
     [data-sx-native-label-hidden]{display:none!important}
     .sx-tenant-navigation-label{display:block;font-size:14px;line-height:1.5;color:inherit}
     html[data-sx-navigation-loading] .MuiDrawer-paper{visibility:hidden!important}

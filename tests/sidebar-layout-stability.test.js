@@ -26,7 +26,7 @@ test('docked content reserves the measured sidebar width and profile/course over
   assert.doesNotMatch(screens, /#sx-(?:course-screen|training-profile-screen)\{[^}]*inset:64px 0 0 250px/);
   assert.doesNotMatch(screens, /#sx-(?:course-screen|training-profile-screen)\[dir=rtl\]\{inset-inline:250px 0/);
   assert.match(screens, /--sx-sidebar-inline-offset/);
-  assert.match(shell, /training-sidebar\.js\?v=20261024-report-nav-stable1/);
+  assert.match(shell, /training-sidebar\.js\?v=20261024-phonebook-shell-gap1/);
   assert.match(shell, /training-courses\.js\?v=20261024-sidebar-layout1/);
 });
 
@@ -61,7 +61,7 @@ test('Lead Reports navigation is reconciled after sidebar deduplication and gate
   assert.match(sidebar, /ensureLeadReportsRow\(list\);/);
   assert.ok(sidebar.indexOf('ensureLeadReportsRow(list);') > sidebar.indexOf('dedupeSalesNavigationRows(list);'));
   assert.match(sidebar, /location\.href='\/user\?page=lead-reports'/);
-  assert.match(shell, /training-sidebar\.js\?v=20261024-report-nav-stable1/);
+  assert.match(shell, /training-sidebar\.js\?v=20261024-phonebook-shell-gap1/);
   assert.match(overlay, /ARG BASE_IMAGE\nFROM \$\{BASE_IMAGE\}/);
   assert.match(overlay, /COPY --chown=node:node client\/public\/training-sidebar\.js/);
   assert.match(overlay, /COPY --chown=node:node client\/public\/pipeline\/reports\.js/);
@@ -75,8 +75,21 @@ test('embedded Lead Reports route explicitly restores Reports mode and invalidat
   assert.match(reports, /function reportsRouteRequested\(\)/);
   assert.match(reports, /parentUrl\.searchParams\.get\('page'\)==='lead-reports'/);
   assert.match(reports, /if\(reportsRouteRequested\(\)\)\{setView\('reports'\);loadSchedules\(\);\}/);
-  assert.match(rootShell, /training-sidebar\.js\?v=20261024-report-nav-stable1/);
+  assert.match(rootShell, /training-sidebar\.js\?v=20261024-phonebook-shell-gap1/);
   assert.match(pipelineShell, /pipeline\/reports\.js\?v=20261024-lead-reports-view1/);
+});
+
+test('shared app shell removes duplicate docked-sidebar padding that creates a left content gap', () => {
+  const sidebar = read('client/public/training-sidebar.js');
+  const shell = read('client/public/index.html');
+  const overlay = read('deploy/Dockerfile.phonebook-shell-gap');
+  const helper = read('deploy/bump-phonebook-shell-gap-cache.js');
+  assert.match(sidebar, /@media \(min-width:900px\)\{#root main\{padding-inline:0!important\}\}/);
+  assert.match(shell, /training-sidebar\.js\?v=20261024-phonebook-shell-gap1/);
+  assert.match(overlay, /COPY --chown=node:node client\/public\/training-sidebar\.js/);
+  assert.match(overlay, /bump-phonebook-shell-gap-cache\.js/);
+  assert.match(helper, /training-sidebar\.js\?v=20261024-report-nav-stable1/);
+  assert.match(helper, /training-sidebar\.js\?v=20261024-phonebook-shell-gap1/);
 });
 
 test('cache helper preserves both production shells except for their versioned script URLs', () => {
