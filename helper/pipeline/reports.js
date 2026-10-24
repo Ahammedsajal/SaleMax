@@ -157,10 +157,10 @@ function reportRange({from,to,timezone='Asia/Qatar'}){
   const days=last.diff(start,'days')+1;if(days>90)fail('Choose a date range of 90 days or less.');
   return {days:Array.from({length:days},(_,i)=>{const day=start.clone().add(i,'days');return {date:day.format('YYYY-MM-DD'),start:day.clone().startOf('day').utc().format('YYYY-MM-DD HH:mm:ss.SSS'),end:day.clone().add(1,'day').startOf('day').utc().format('YYYY-MM-DD HH:mm:ss.SSS')};}),timezone};
 }
-async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds,from,to,timezone='Asia/Qatar',assignment,qrInstanceId}){
+async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,from,to,timezone='Asia/Qatar',assignment,qrInstanceId}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view lead reports.',403);
-  if(['manager','team_leader'].includes(role)&&!Array.isArray(scopeAgentIds))fail('Team scope is unavailable for this report.',403);
+  if(['manager','team_leader'].includes(role)&&categoryKeyMatches(categoryKey,'7network_sales')&&!Array.isArray(scopeAgentIds))fail('Team scope is unavailable for this report.',403);
   if(role==='agent'&&(!Number.isSafeInteger(Number(agentId))||Number(agentId)<1))fail('Agent identity is invalid.',403);
   const range=reportRange({from,to,timezone}),selected=leadFilters.parseLeadFilters({assignment,qrInstanceId}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool,connection=await db.getConnection();
   try{

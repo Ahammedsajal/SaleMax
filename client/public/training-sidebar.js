@@ -46,7 +46,7 @@
     ['More Tools', 'أدوات أخرى', []]
   ];
   const aliases = {
-    'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'Applications & CVs':'Candidate Applications', 'طلبات التوظيف والسير الذاتية':'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
+    'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
     'مسار العملاء المحتملين': 'Lead Pipeline', 'تقارير العملاء المحتملين': 'Lead Reports',
     'الفواتير والمدفوعات': 'Invoices & Payments', 'تقارير المالية': 'Finance Reports',
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Team Login',
@@ -59,7 +59,7 @@
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'faqs', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
-    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'recruitment', 'Invoices & Payments':'invoices',
+    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'طلبات التوظيف والسير الذاتية':'recruitment', 'Invoices & Payments':'invoices',
     'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
     'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties'
   };
@@ -98,10 +98,10 @@
       window.__sxCallCenterAllowed=result?.data?.feature?.enabled===true;
     }catch(_){}finally{schedule();}
   }
-  async function loadAssignedNavigation(){
+  async function loadAssignedNavigation(initial=false){
     if(navigationLoaded)return;
     navigationLoaded=true;
-    document.documentElement.setAttribute('data-sx-navigation-loading','');
+    if(initial)document.documentElement.setAttribute('data-sx-navigation-loading','');
     try{
       const data={data:await window.SaleMaxWorkspace.session()};
       {
@@ -114,7 +114,7 @@
         assignedNavigation=Array.isArray(value)?new Set(value):null;
         roleNavigation=Array.isArray(allowedByRole)?new Set(allowedByRole):new Set();
       }
-    }catch(_){tenantNavigationLabels={};roleNavigation=new Set();}finally{navigationCheckComplete();}
+    }catch(_){if(initial){tenantNavigationLabels={};roleNavigation=new Set();}}finally{if(initial)navigationCheckComplete();else schedule();}
   }
   async function loadOptionalNavigation(){
     try{
@@ -152,9 +152,11 @@
     .MuiDrawer-paper input[data-sx-search-empty]:-webkit-autofill{-webkit-text-fill-color:transparent!important;caret-color:transparent!important}
     [data-sx-sidebar-brand]{min-width:0!important;background:none!important;display:flex!important;align-items:center}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
+    [data-sx-sidebar-brand-text]{display:none!important}
+    [data-sx-sidebar-duplicate-logo]{display:none!important}
     [data-sx-sidebar-logo]{display:block!important;width:156px!important;max-width:100%!important;height:44px!important;object-fit:contain!important;background:transparent!important}
     [data-sx-sidebar-collapsed] [data-sx-nav-section]{display:none!important}
-    [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{width:32px!important;height:32px!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-logo]{box-sizing:border-box!important;width:32px!important;min-width:32px!important;max-width:32px!important;height:32px!important;max-height:32px!important;flex:0 0 32px!important;object-fit:contain!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemText-root,
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiTypography-root{display:none!important}
     @media(min-width:701px){
@@ -375,6 +377,15 @@
       button.setAttribute('aria-label',title);button.onclick=event=>{event.preventDefault();location.href='/user?page='+path;};list.append(row);
     }
   }
+  function ensureTrainingApplicationsRow(list){
+    if(membershipCategoryKey!=='training_center'||!roleNavigation?.has('forms')||(assignedNavigation!==null&&!assignedNavigation.has('forms'))||hasNavigationKey(list,'forms'))return;
+    const template=list.querySelector(':scope > li:not([data-sx-nav-section])');
+    if(!template)return;
+    const row=cloneNavigationRow(template);row.removeAttribute('data-salemax-pipeline-link');row.removeAttribute('data-sx-search-hidden');row.removeAttribute('data-sx-optional-hidden');row.dataset.sxCanonicalSalesNav='forms';row.hidden=false;row.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+    const title=tr('Candidate Applications','طلبات المتقدمين'),primary=row.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=title;
+    row.setAttribute('aria-label',title);const button=row.querySelector('.MuiListItemButton-root,[role="button"],button,a')||row;
+    button.setAttribute('aria-label',title);button.onclick=event=>{event.preventDefault();location.href='/user?page=forms';};list.append(row);
+  }
   // Screen identity is shared by both sidebar builders. Entitlements alone
   // are not identities: overview, targets and reports share sales-targets.
   const navigationMarkers={
@@ -444,6 +455,11 @@
   function applyTenantNavigationLabel(row,key) {
     const native=row.querySelector('.MuiListItemText-primary');
     if(!native)return null;
+    if(row.hasAttribute('data-salemax-pipeline-link')){
+      native.removeAttribute('data-sx-native-label-hidden');
+      row.querySelector('[data-sx-tenant-label]')?.remove();
+      return null;
+    }
     const override=Object.hasOwn(tenantNavigationLabels,key||'')?tenantNavigationLabels[key]:null;
     const text=override&&typeof override.en==='string'&&typeof override.ar==='string'?tr(override.en,override.ar):null;
     let custom=row.querySelector('[data-sx-tenant-label]');
@@ -469,6 +485,7 @@
       }
       syncInjectedRows(list);
       ensureSalesNavigationRows(list);
+      ensureTrainingApplicationsRow(list);
       dedupeRecruitmentNavigationRows(list);
       dedupeSalesNavigationRows(list);
       list.dataset.sxSidebarList = '1';
@@ -476,17 +493,30 @@
       const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === '7Network' && !p.closest('ul'));
+      brandText?.setAttribute('data-sx-sidebar-brand-text','1');
       const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
-      if (brand) {
-        brand.dataset.sxSidebarBrand = '1';
-        let logo = brand.querySelector('[data-sx-sidebar-logo]');
-        if (!logo) { logo = document.createElement('img'); logo.dataset.sxSidebarLogo = '1'; logo.alt = '7Network'; brand.append(logo); }
-        const src = collapsed ? '/logo192.png' : '/media/7network-logo.png';
-        if (logo.getAttribute('src') !== src) logo.src = src;
+      const logoCandidates = [...(drawer.firstElementChild?.querySelectorAll('img[data-seven-network-brand],img[alt="7Network"]') || [])];
+      let logo = brand?.querySelector('[data-sx-sidebar-logo]') || logoCandidates.find(image => image.hasAttribute('data-sx-sidebar-logo')) || logoCandidates[0];
+      if (!logo && brand) { logo = document.createElement('img'); logo.alt = '7Network'; brand.append(logo); }
+      for (const candidate of logoCandidates) candidate.toggleAttribute('data-sx-sidebar-duplicate-logo', candidate !== logo);
+      if (logo) {
+        // The app shell owns the original brand image; mark and resize that image
+        // directly so collapsed mode cannot squeeze the horizontal wordmark.
+        logo.dataset.sxSidebarLogo = '1';
+        // Keep the shared branding observer and this sidebar in agreement.
+        // Legacy paths are rewritten by 7network-brand.js, which otherwise
+        // creates an endless src ping-pong on every sidebar update.
+        const brandKind = collapsed ? 'icon' : 'logo';
+        const src = collapsed
+          ? '/branding/7network/icon-192.png?v=20261022-sidebar-icon1'
+          : '/branding/7network/logo-light.png?v=20261021-final-horizontal1';
+        const previousKind = logo.dataset.sevenNetworkBrand;
+        logo.dataset.sevenNetworkBrand = brandKind;
+        if (previousKind !== brandKind || !logo.getAttribute('src')?.startsWith('/branding/7network/')) logo.src = src;
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {'Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
+      const routes = {'Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
@@ -700,13 +730,14 @@
   window.addEventListener('resize', schedule);
   window.addEventListener('popstate', schedule);
   window.addEventListener('storage', schedule);
-  const refreshSidebarAccess=()=>{window.SaleMaxWorkspace.invalidateSession?.();navigationLoaded=false;loadAssignedNavigation().then(schedule);};
+  let sidebarRefreshPending=false;
+  const refreshSidebarAccess=()=>{if(sidebarRefreshPending)return;sidebarRefreshPending=true;window.SaleMaxWorkspace.invalidateSession?.();navigationLoaded=false;loadAssignedNavigation(false).finally(()=>{sidebarRefreshPending=false;schedule();});};
   window.addEventListener('focus',refreshSidebarAccess);
   window.addEventListener('storage',refreshSidebarAccess);
   window.addEventListener('popstate',refreshSidebarAccess);
   window.addEventListener('salemax:customization-published',()=>{window.SaleMaxWorkspace.invalidateSession?.();refreshSidebarAccess();});
   window.setInterval(refreshSidebarAccess,30000);
-  loadAssignedNavigation();
+  loadAssignedNavigation(true);
   loadOptionalNavigation();
   loadCallCenterAccess();
   schedule();

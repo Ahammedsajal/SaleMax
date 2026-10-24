@@ -6,6 +6,10 @@ const permissions = {
   'team.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team' },
   'team.invite': { owner: 'tenant' },
   'channels.configure': { owner: 'tenant' },
+  // Every active business seat may create QR channels within its tenant role cap.
+  'channels.qr.create': { owner: 'tenant', accountant: 'tenant', manager: 'tenant', team_leader: 'tenant', agent: 'tenant' },
+  // QR operations are further constrained to the actor's shared/created instance in the route.
+  'channels.qr.manage': { owner: 'tenant', accountant: 'tenant', manager: 'tenant', team_leader: 'tenant', agent: 'tenant' },
   'automation.manage': { owner: 'tenant' },
   'campaigns.manage': { owner: 'tenant' },
   'conversations.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
@@ -66,7 +70,7 @@ const platformAdminAllowlist = Object.freeze([...platformStaffAllowlist, 'tenant
 const platformPermissions = Object.freeze([...platformAdminAllowlist, 'owner.recover', 'owner.transfer', 'staff.manage', 'categories.manage', 'tenants.owner-transfer', 'providers.configure', 'features.release', 'audit.read', 'exports.create']);
 const capabilities = Object.freeze({
   'messaging.inbox': ['conversations.read', 'conversations.reply'],
-  'messaging.qr': ['channels.configure'], 'messaging.meta': ['channels.configure'],
+  'messaging.qr': ['channels.configure', 'channels.qr.create', 'channels.qr.manage'], 'messaging.meta': ['channels.configure'],
   'automation.flows': ['automation.manage'], 'automation.chatbot': ['automation.manage'],
   'messaging.templates': ['templates.manage'], 'campaigns.send': ['campaigns.manage'],
   'sales.deals': ['deals.read', 'deals.request', 'deals.approve'],
@@ -95,7 +99,7 @@ function scopeFor(membership, permission) {
   if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && permission!=='properties.read') return null;
   // A custom role is an additional restriction on its fixed seat role. It can
   // never create a permission or scope that the seat role itself lacks.
-  if (Array.isArray(membership.customPermissions) && !membership.customPermissions.includes(permission)) return null;
+  if (Array.isArray(membership.customPermissions) && permission !== 'channels.qr.create' && !membership.customPermissions.includes(permission)) return null;
   const base = Object.hasOwn(permissions[permission], membership.role) ? permissions[permission][membership.role] : null;
   if (base) return base;
   // Explicit business-role grants can add modules to a staff seat. Keeping the

@@ -32,11 +32,14 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /ownerScope:'نشاط مساحة العمل بالكامل'/);
   assert.match(reports, /agentScope:'العملاء المسندون إليك حاليًا فقط'/);
   assert.match(reports, /name="period"/);
-  assert.match(reports, /name="at" type="date"/);
+  assert.match(reports, /name="from" type="date"/);
+  assert.match(reports, /name="to" type="date"/);
+  assert.match(reports, /name="assignment"/);
+  assert.match(reports, /name="qrInstanceId"/);
   assert.match(reports, /cohortShare:'of new leads'/);
   assert.match(reports, /cohortShare:'من العملاء الجدد'/);
   assert.match(reports, /Math\.round\(Number\(value\|\|0\)\*100\/cohortSize\)/);
-  assert.match(html, /pipeline\.css\?v=20261012-lead-source-output1/);
+  assert.match(html, /pipeline\.css\?v=20261023-lead-reports-ui1/);
   assert.match(html, /reports\.js\?v=[^"]+/);
   assert.match(fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8'),/journey-cohort \.journey-stage small/);
   assert.match(reports, /reportPrevious/);

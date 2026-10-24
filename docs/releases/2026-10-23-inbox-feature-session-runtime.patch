@@ -1,0 +1,5 @@
+--- a/helper/socket/index.js
++++ b/helper/socket/index.js
+@@ -58 +57,0 @@
+-      socket.businessFeatureSession = await inboxAccess.authorizeInboxFeature(inboxScope, type, socket.businessFeatureSession);
+       payload = await inboxAccess.authorizeInboxPayload(query, inboxScope, type, payload || {}, socket.userData);

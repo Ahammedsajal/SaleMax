@@ -226,20 +226,19 @@ function extractUidFromSessionId(input) {
 
 async function resolveUidFromSessionId(sessionId) {
   const quick = extractUidFromSessionId(String(sessionId || ""));
-  if (quick && quick !== "qr") {
-    return quick;
-  }
-
   try {
     const [row] = await query(
       "SELECT uid FROM instance WHERE uniqueId = ? LIMIT 1",
       [sessionId],
     );
-    return row?.uid ? String(row.uid) : quick;
+    if (row?.uid) {
+      return String(row.uid);
+    }
   } catch (err) {
     newLogger.error("resolveUidFromSessionId error:", err);
-    return quick;
   }
+
+  return quick && quick !== "qr" ? quick : undefined;
 }
 
 /**
@@ -498,7 +497,9 @@ const createSession = async (
       defaultQueryTimeoutMs: 60000,
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
-      markOnlineOnConnect: true,
+      // Keep the linked device from announcing account-level online presence
+      // on connect so WhatsApp can continue delivering phone notifications.
+      markOnlineOnConnect: false,
       generateHighQualityLinkPreview: true,
     });
 
@@ -690,8 +691,9 @@ const createSession = async (
           try {
             const qrCodeImage = await toDataURL(qr);
             try {
-              await query("UPDATE instance SET qr = ? WHERE uniqueId = ?", [
+              await query("UPDATE instance SET qr = ?, status = ? WHERE uniqueId = ?", [
                 qrCodeImage,
+                "GENERATING",
                 sessionId,
               ]);
             } catch (error) {

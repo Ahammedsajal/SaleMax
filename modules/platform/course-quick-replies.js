@@ -12,7 +12,7 @@ const validId = value => typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(va
 
 async function context(pool, actor, agent, owner) {
   const query = async (sql, args) => (await pool.query(sql, args))[0];
-  const scope = await access.resolveInboxScope(query, { ...actor, isAgent: agent }, 'send_chat_message');
+  const scope = await access.resolveInboxScope(query, { ...actor, isAgent: agent }, 'course_quick_reply');
   if (!scope.canonical && agent) {
     if (!owner?.uid || actor.owner_uid !== owner.uid || !actor.is_active) fail('PERMISSION_DENIED', 403);
     scope.uid = owner.uid;
@@ -27,11 +27,11 @@ async function context(pool, actor, agent, owner) {
 }
 async function sessionContext(pool,session){
   if(!session.context)return context(pool,session.actor,session.agent,session.owner);
-  const ctx=session.context,result=require('./policy').decision(ctx,{capability:'messaging.inbox',permission:'conversations.reply'});
-  if(!result.allowed)fail(result.code,403);
+  const ctx=session.context;
   requireCatalog(ctx);
   const query=async(sql,args)=>(await pool.query(sql,args))[0];
-  const scope=session.actor?await access.resolveInboxScope(query,{...session.actor,isAgent:session.agent},'send_chat_message'):{canonical:true,uid:session.ownerUid,identityId:ctx.identity.id,assignedOnly:ctx.membership.role!=='owner',sharedQrInstances:[],ctx};
+  if(!session.actor)fail('INBOX_ACCESS_REQUIRED',403);
+  const scope=await access.resolveInboxScope(query,{...session.actor,isAgent:session.agent},'course_quick_reply');
   return {scope,ctx,actor:session.actor||{uid:session.ownerUid},agent:session.agent,query,refresh:async()=>sessionContext(pool,await session.refresh())};
 }
 async function options(pool,c){

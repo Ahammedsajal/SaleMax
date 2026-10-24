@@ -12,7 +12,7 @@ const {
   deleteSession,
   isExists,
 } = require("../helper/addon/qr/index.js");
-const { checkPlan, checkQrScan } = require("../middlewares/plan.js");
+const { checkQrCreator, createQrInstance } = require("../modules/platform/qr-instance-creation");
 const validateUser = require("../middlewares/user.js");
 const validateAgent = require("../middlewares/agent.js");
 const jwt = require("jsonwebtoken");
@@ -21,6 +21,51 @@ const randomstring = require("randomstring");
 
 function normalizeNumber(number) {
   return String(number || "").replace(/\D+/g, "");
+}
+
+async function findQrInstanceForActor(req, uniqueId) {
+  let context = req.featureSession?.context;
+  let ownerUid = req.owner?.uid;
+  // Legacy /api/qr requests authenticate manager/accountant user rows
+  // directly, so they may not have the feature-session context attached.
+  // Resolve the same verified tenant scope used by get_all before looking up
+  // owner-stored QR instances.
+  if (!context && !req.agentWorkspace && req.decode?.userData) {
+    const scope = await require('../modules/platform/team-inbox-scope')
+      .resolveInboxScope(query, req.decode.userData, 'get_chat_list');
+    if (scope.canonical) {
+      context = scope.ctx;
+      ownerUid = scope.uid;
+    }
+  }
+  const staffWorkspace = Boolean(req.agentWorkspace || (context?.membership && context.membership.role !== "owner"));
+  if (!staffWorkspace) {
+    const resolvedOwnerUid = ownerUid || req.decode?.uid;
+    if (!resolvedOwnerUid) return [];
+    return query("SELECT id, uid, uniqueId FROM instance WHERE uniqueId = ? AND uid = ? LIMIT 1", [uniqueId, resolvedOwnerUid]);
+  }
+
+  const tenantId = context?.tenant?.id;
+  const membershipId = context?.membership?.id;
+  const identityId = context?.identity?.id;
+  if (!tenantId || !membershipId || !identityId || !ownerUid) return [];
+
+  const managerCanManageShared = context.membership.role === "manager";
+  const creatorFilter = managerCanManageShared ? "" : " AND share.granted_by_identity_id = ?";
+  const params = [uniqueId, ownerUid, tenantId, membershipId];
+  if (!managerCanManageShared) params.push(identityId);
+  return query(
+    `SELECT instance.id, instance.uid, instance.uniqueId
+       FROM instance
+      WHERE instance.uniqueId = ? AND instance.uid = ?
+        AND EXISTS (
+          SELECT 1 FROM sx_qr_channel_shares share
+           WHERE share.instance_id = instance.id
+             AND share.tenant_id = ? AND share.membership_id = ?${creatorFilter}
+        )
+      LIMIT 1`,
+    params,
+  );
 }
 
 function mapQrStatus(status) {
@@ -101,8 +146,7 @@ router.get('/send',(req,res)=>res.status(410).json({success:false,code:'ENDPOINT
 router.post(
   "/gen_qr",
   validateUser,
-  checkPlan,
-  checkQrScan,
+  checkQrCreator,
   async (req, res) => {
     try {
       const inputTitle = req.body?.title || req.body?.name;
@@ -147,15 +191,8 @@ router.post(
         });
       }
 
-      const inserted = await query(
-        `INSERT INTO instance (uid, title, uniqueId, status) VALUES (?,?,?,?)`,
-        [req.decode.uid, title, uniqueId, "GENERATING"],
-      );
-      if(req.agentWorkspace){
-        const ctx=req.featureSession.context;
-        try{await query('INSERT INTO sx_qr_channel_shares(tenant_id,instance_id,membership_id,granted_by_identity_id) VALUES (?,?,?,?)',[ctx.tenant.id,inserted.insertId,ctx.membership.id,ctx.identity.id]);}
-        catch(error){await query('DELETE FROM instance WHERE id=? AND uid=?',[inserted.insertId,req.decode.uid]);throw error;}
-      }
+      const inserted = await createQrInstance(req, { title, uniqueId });
+      if (inserted.limitReached) return res.json({success:false,code:'QR_INSTANCE_LIMIT_REACHED',msg:inserted.maxInstances===0?'QR instance creation is disabled for your role.':`Your role allows up to ${inserted.maxInstances} QR instance${inserted.maxInstances === 1 ? '' : 's'}.`});
 
       await createSession(
         uniqueId,
@@ -229,25 +266,33 @@ router.get("/get_all", validateUser, async (req, res) => {
   try {
     if(req.agentWorkspace){
       const ctx=req.featureSession.context;
-      const rows=await query('SELECT instance.id AS instanceId,instance.uniqueId,instance.title,instance.number,instance.status FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=?',[req.owner.uid,ctx.tenant.id,ctx.membership.id]);
+      const rows=await query('SELECT instance.id AS instanceId,instance.uniqueId,instance.title,instance.number,instance.status,instance.qr,instance.other FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=?',[req.owner.uid,ctx.tenant.id,ctx.membership.id]);
       const scoped={sharedQrInstances:rows};
       const own=await query('SELECT instance.id FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=? AND share.granted_by_identity_id=?',[req.owner.uid,ctx.tenant.id,ctx.membership.id,ctx.identity.id]);
       const owned=new Set(own.map(row=>Number(row.id)));
-      return res.json({success:true,data:(scoped.sharedQrInstances||[]).map(row=>({id:Number(row.instanceId),uniqueId:row.uniqueId,title:row.title,number:normalizeNumber(row.number),status:row.status,sharedAccess:!owned.has(Number(row.instanceId))}))});
+      return res.json({success:true,data:(scoped.sharedQrInstances||[]).map(row=>({id:Number(row.instanceId),uniqueId:row.uniqueId,title:row.title,number:normalizeNumber(row.number),status:row.status,qr:owned.has(Number(row.instanceId))?row.qr:null,other:row.other,sharedAccess:!owned.has(Number(row.instanceId))}))});
     }
     const inboxScope = await require('../modules/platform/team-inbox-scope')
       .resolveInboxScope(query, req.decode.userData, 'get_chat_list');
     if (inboxScope.canonical && inboxScope.ctx.membership.role !== 'owner') {
+      const ctx = inboxScope.ctx;
+      const ownedQrRows = await query(`SELECT instance.id AS instanceId, instance.qr
+        FROM instance JOIN sx_qr_channel_shares share ON share.instance_id=instance.id
+        WHERE instance.uid=? AND share.tenant_id=? AND share.membership_id=? AND share.granted_by_identity_id=?`,
+      [inboxScope.uid, ctx.tenant.id, ctx.membership.id, ctx.identity.id]);
+      const ownedQrById = new Map(ownedQrRows.map(row => [Number(row.instanceId), row.qr]));
       const shared = (inboxScope.sharedQrInstances || []).map(instance => ({
         id: Number(instance.instanceId),
         title: instance.title || 'WhatsApp',
         number: normalizeNumber(instance.number || ''),
         channel_key: normalizeNumber(instance.number || '') || null,
+        other: instance.other,
         status: !getSession(instance.uniqueId) && ['ACTIVE', 'RECONNECTING'].includes(String(instance.status).toUpperCase())
           ? 'RECONNECTING'
           : instance.status,
         uniqueId: instance.uniqueId,
-        sharedAccess: true,
+        qr: ownedQrById.get(Number(instance.instanceId)) || null,
+        sharedAccess: !ownedQrById.has(Number(instance.instanceId)),
       }));
       return res.json({ success: true, data: shared });
     }
@@ -353,7 +398,9 @@ router.post("/del_instance", validateUser, async (req, res) => {
       });
     }
 
-    if(!(await query('SELECT id FROM instance WHERE uniqueId=? AND uid=?',[uniqueId,req.decode.uid])).length)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
+    const accessible = await findQrInstanceForActor(req, uniqueId);
+    const instance = accessible[0];
+    if (!instance) return res.status(404).json({ success: false, code: 'QR_CHANNEL_NOT_FOUND' });
     const session = getSession(uniqueId);
 
     if (session) {
@@ -373,10 +420,8 @@ router.post("/del_instance", validateUser, async (req, res) => {
       console.error("qr.del_instance auth cleanup failed", err?.message || err);
     }
 
-    await query(`DELETE FROM instance WHERE uniqueId = ? AND uid = ?`, [
-      uniqueId,
-      req.decode.uid,
-    ]);
+    await query("DELETE FROM sx_qr_channel_shares WHERE instance_id = ?", [instance.id]);
+    await query("DELETE FROM instance WHERE id = ? AND uid = ?", [instance.id, instance.uid]);
 
     await sendQrStatusToCrm({
       user: req.decode?.userData,
@@ -409,7 +454,9 @@ router.post("/change_instance_status", validateUser, async (req, res) => {
 
     const { insId, status, jid } = req.body;
 
-    if(!(await query('SELECT id FROM instance WHERE uniqueId=? AND uid=?',[insId,req.decode.uid])).length)return res.status(404).json({success:false,code:'QR_CHANNEL_NOT_FOUND'});
+    const accessible = await findQrInstanceForActor(req, insId);
+    const instance = accessible[0];
+    if (!instance) return res.status(404).json({ success: false, code: 'QR_CHANNEL_NOT_FOUND' });
     const session = await getSession(insId);
 
     if (!session) {
@@ -427,9 +474,10 @@ router.post("/change_instance_status", validateUser, async (req, res) => {
     const finalUpdate = { onlineStatus: status };
 
     await session.sendPresenceUpdate(status);
-    await query(`UPDATE instance SET other = ? WHERE uniqueId = ?`, [
+    await query(`UPDATE instance SET other = ? WHERE id = ? AND uid = ?`, [
       JSON.stringify(finalUpdate),
-      insId,
+      instance.id,
+      instance.uid,
     ]);
 
     res.json({

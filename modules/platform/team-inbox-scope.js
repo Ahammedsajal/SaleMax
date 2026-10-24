@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const { scopeFor } = require('./policy');
 const EVENT_PERMISSIONS = Object.freeze({
   get_chat_list: 'conversations.read', load_conversation: 'conversations.read', export_chats: 'conversations.read', export_conversation: 'conversations.read',
-  send_chat_message: 'conversations.reply', send_new_message: 'conversations.reply', save_chat_note: 'conversations.reply', delete_chat_note: 'conversations.reply',
+  send_chat_message: 'conversations.reply', course_quick_reply: 'conversations.read', send_new_message: 'conversations.reply', save_chat_note: 'conversations.reply', delete_chat_note: 'conversations.reply',
   update_spend_time: 'conversations.read', translate_message: 'conversations.reply', suggest_reply: 'conversations.reply',
   add_label: 'contacts.manage', on_label_delete: 'contacts.manage', set_chat_label: 'contacts.manage', remove_chat_label: 'contacts.manage', save_as_context: 'contacts.manage',
   assign_agent_to_chat: 'conversations.reply', unasign_chat_agent: 'leads.assign',
@@ -28,7 +28,7 @@ async function resolveInboxScope(query, user, event) {
   if (!permission && row.role !== 'owner') fail();
   const qrAccountant = row.role==='accountant' && row.categoryKey==='training_center' && ['conversations.read','conversations.reply'].includes(permission);
   const delegatedPermissions = parse(row.delegatedPermissions) || [];
-  const membership = { role: row.role, delegatedPermissions };
+  const membership = { id: row.membershipId, role: row.role, delegatedPermissions };
   if (row.roleProfileId) {
     const permissions = parse(row.rolePermissions);
     if (!permissions || row.seatRole !== row.role || !['active','archived'].includes(row.roleStatus) || (permission && !permissions.includes(permission) && !qrAccountant)) fail();
@@ -44,7 +44,7 @@ async function resolveInboxScope(query, user, event) {
   if (owners.length !== 1 || owners[0].uidHash !== crypto.createHash('sha256').update(owners[0].uid).digest('hex')) fail();
   if(source==='agents'&&(user.is_active===0||user.owner_uid!==owners[0].uid))fail();
   const sharedQrInstances = ['manager','agent','accountant'].includes(row.role)
-    ? await query(`SELECT instance.id AS instanceId,instance.uniqueId,instance.number,instance.title,instance.status
+    ? await query(`SELECT instance.id AS instanceId,instance.uniqueId,instance.number,instance.title,instance.status,instance.other
         FROM sx_qr_channel_shares share JOIN instance ON instance.id=share.instance_id AND instance.uid=?
         WHERE share.tenant_id=? AND share.membership_id=? AND (
           share.granted_by_identity_id=? OR share.granted_by_identity_id=? OR EXISTS (
