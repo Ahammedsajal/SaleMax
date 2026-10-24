@@ -2,10 +2,10 @@
 # pin only the app to this reviewed image built from the active production image.
 services:
   app:
-    image: salemax-app:carousel-image-upload-routefix-6e11ec4-20261024
+    image: salemax-app:campaign-dashboard-dark-c34cf8b-20261024
     build:
       context: ..
       dockerfile: deploy/Dockerfile.meta-carousel-upload
       args:
-        BASE_IMAGE: salemax-app:carousel-image-upload-03f7f2f-20261024
-        SOURCE_COMMIT: 6e11ec492ad708c47ac16de35ea2cf50098c5241
+        BASE_IMAGE: salemax-app:carousel-image-upload-routefix-6e11ec4-20261024
+        SOURCE_COMMIT: c34cf8beb98091db7276c17cba8727239a88a029
