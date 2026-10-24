@@ -139,6 +139,19 @@ async function sendCarouselTemplateMessage(
   globalBodyVariables = [],
   cards = [],
 ) {
+  const hasInvalidCardImage = cards.some((card) => {
+    if (typeof card?.imageUrl !== "string" || !card.imageUrl.trim()) return true;
+    try {
+      const imageUrl = new URL(card.imageUrl.trim());
+      return imageUrl.protocol !== "https:" || !imageUrl.hostname || imageUrl.username || imageUrl.password;
+    } catch {
+      return true;
+    }
+  });
+  if (hasInvalidCardImage) {
+    throw new Error("CAROUSEL_IMAGE_URL_INVALID");
+  }
+
   const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
 
   const components = [];
@@ -161,7 +174,7 @@ async function sendCarouselTemplateMessage(
     if (card.imageUrl) {
       cardComponents.push({
         type: "header",
-        parameters: [{ type: "image", image: { link: card.imageUrl } }],
+        parameters: [{ type: "image", image: { link: card.imageUrl.trim() } }],
       });
     }
 

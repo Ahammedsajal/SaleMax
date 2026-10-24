@@ -1,0 +1,14 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node functions/function.js /app/functions/function.js
+COPY --chown=node:node routes/user.js /app/routes/user.js
+COPY --chown=node:node routes/broadcast.js /app/routes/broadcast.js
+COPY --chown=node:node loops/campaignBeta.js /app/loops/campaignBeta.js
+COPY --chown=node:node client/public/campaign-placeholder-mapping.js /app/client/public/campaign-placeholder-mapping.js
+COPY --chown=node:node modules/platform/contact-delete-handler.js /app/modules/platform/contact-delete-handler.js
+COPY --chown=node:node modules/platform/contact-records.js /app/modules/platform/contact-records.js
+COPY deploy/bump-meta-carousel-cache.js /tmp/bump-meta-carousel-cache.js
+RUN node /tmp/bump-meta-carousel-cache.js /app/client/public/index.html && rm /tmp/bump-meta-carousel-cache.js

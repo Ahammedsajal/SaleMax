@@ -2007,6 +2007,7 @@ async function getSessionUploadMediaMeta(
   const url = `https://graph.facebook.com/${apiVersion}/${app_id}/uploads?file_length=${fileSize}&file_type=${mimeType}`;
   const options = {
     method: "POST",
+    signal: AbortSignal.timeout(30000),
     headers: {
       Authorization: `Bearer ${bearerToken}`,
     },
@@ -2022,39 +2023,47 @@ async function getSessionUploadMediaMeta(
   }
 }
 
-async function uploadFileMeta(sessionId, filePath, apiVersion, accessToken) {
-  return new Promise(async (resolve) => {
+async function uploadFileMeta(sessionId, filePath, apiVersion, accessToken, mimeType) {
+  if (!sessionId) {
+    return { success: false, data: { message: "Meta did not create an upload session" } };
+  }
+
+  try {
+    const fileData = await fsPromise.readFile(filePath);
+    const url = `https://graph.facebook.com/${apiVersion}/${sessionId}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `OAuth ${accessToken}`,
+        "Content-Type": mimeType || "application/octet-stream",
+        "file_offset": "0",
+      },
+      signal: AbortSignal.timeout(30000),
+      body: fileData,
+    });
+
+    let data;
     try {
-      // Read the file as binary data
-      const fileData = fs.readFileSync(filePath);
-
-      // Prepare URL
-      const url = `https://graph.facebook.com/${apiVersion}/${sessionId}`;
-
-      // Prepare options for fetch
-      const options = {
-        method: "POST",
-        headers: {
-          Authorization: `OAuth ${accessToken}`,
-          "Content-Type": "application/pdf",
-          Cookie: "ps_l=0; ps_n=0",
-        },
-        body: fileData,
-      };
-
-      // Make fetch request
-      const response = await fetch(url, options);
-      if (!response.ok) {
-        const errorResponse = await response.json(); // Parse error response as JSON
-        console.error("Error response:", errorResponse);
-        return resolve({ success: false, data: errorResponse });
-      }
-      const data = await response.json();
-      return resolve({ success: true, data });
-    } catch (error) {
-      return resolve({ success: false, data: error });
+      data = await response.json();
+    } catch {
+      data = { message: `Meta upload returned HTTP ${response.status}` };
     }
-  });
+    if (!response.ok) {
+      console.error("Meta resumable media upload failed", {
+        status: response.status,
+        code: data?.error?.code,
+        subcode: data?.error?.error_subcode,
+      });
+      return { success: false, data };
+    }
+    return { success: true, data };
+  } catch (error) {
+    console.error("Meta resumable media upload request failed", {
+      name: error?.name,
+      code: error?.code,
+    });
+    return { success: false, data: { message: "Meta upload request failed" } };
+  }
 }
 
 async function getMetaNumberDetail(

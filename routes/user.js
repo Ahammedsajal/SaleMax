@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const { query } = require("../database/dbpromise.js");
+const createContactDeleteHandler = require('../modules/platform/contact-delete-handler');
 const optionalFeatures = require('../modules/platform/optional-features');
 const { syncOrQueueNodeUser } = require("../functions/crmAccountSync.js");
 const randomstring = require("randomstring");
@@ -856,16 +857,7 @@ router.post(
 );
 
 // del contact
-router.post("/del_contact", validateUser, async (req, res) => {
-  try {
-    const { id } = req.body;
-    await query(`DELETE FROM contact WHERE id = ?`, [id]);
-    res.json({ success: true, msg: "Contact was deleted" });
-  } catch (err) {
-    res.json({ success: false, msg: "something went wrong", err });
-    console.log(err);
-  }
-});
+router.post("/del_contact", validateUser, createContactDeleteHandler(query));
 
 router.post("/update_meta", validateUser, async (req, res) => {
   try {
@@ -1131,6 +1123,7 @@ router.post("/del_meta_templet", validateUser, async (req, res) => {
 
 // return meta media url
 router.post("/return_media_url_meta", validateUser, async (req, res) => {
+  let uploadedPath;
   try {
     if (!req.body?.templet_name) {
       return res.json({
@@ -1153,59 +1146,81 @@ router.post("/return_media_url_meta", validateUser, async (req, res) => {
       });
     }
 
-    const randomString = randomstring.generate();
     const file = req.files.file;
+    if (!file || Array.isArray(file)) {
+      return res.json({ success: false, msg: "Upload one image file" });
+    }
 
-    const filename = `${randomString}.${getFileExtension(file.name)}`;
+    const extension = getFileExtension(file.name);
+    const allowedTypes = new Set(["image/jpeg", "image/png"]);
+    const allowedExtensions = new Set(["jpg", "jpeg", "png"]);
+    if (!allowedTypes.has(file.mimetype) || !allowedExtensions.has(extension)) {
+      return res.json({ success: false, msg: "Use a JPG or PNG image" });
+    }
+    if (!file.size || file.size > 5 * 1024 * 1024) {
+      return res.json({ success: false, msg: "Image must be smaller than 5 MB" });
+    }
 
-    // Move the file and wait for it to complete
-    await new Promise((resolve, reject) => {
-      file.mv(`${__dirname}/../client/public/media/${filename}`, (err) => {
-        if (err) {
-          console.log(err);
-          reject(err);
-        } else {
-          resolve();
-        }
+    const randomString = randomstring.generate();
+
+    const filename = `${randomString}.${extension}`;
+    uploadedPath = `${__dirname}/../client/public/media/${filename}`;
+
+    await file.mv(uploadedPath);
+    const { fileSizeInBytes, mimeType } = await getFileInfo(uploadedPath);
+    if (fileSizeInBytes > 5 * 1024 * 1024 || !allowedTypes.has(mimeType)) {
+      await fs.promises.unlink(uploadedPath).catch(() => {});
+      uploadedPath = undefined;
+      return res.json({ success: false, msg: "Uploaded file must be a JPG or PNG smaller than 5 MB" });
+    }
+
+    const frontendOrigin = new URL(process.env.FRONTENDURI);
+    if (frontendOrigin.protocol !== "https:") {
+      throw new Error("Public frontend origin must use HTTPS");
+    }
+    frontendOrigin.pathname = "/";
+    frontendOrigin.search = "";
+    frontendOrigin.hash = "";
+    const publicImageUrl = new URL(`media/${encodeURIComponent(filename)}`, frontendOrigin).toString();
+
+    const getSession = await getSessionUploadMediaMeta(
+      "v18.0",
+      getMETA[0]?.app_id,
+      getMETA[0]?.access_token,
+      fileSizeInBytes,
+      mimeType,
+    );
+    if (!getSession?.id) {
+      console.error("Meta resumable upload session creation failed", {
+        code: getSession?.error?.code,
+        subcode: getSession?.error?.error_subcode,
       });
-    });
+      await fs.promises.unlink(uploadedPath).catch(() => {});
+      return res.json({ success: false, msg: "Meta could not start the image upload. Check the connected Meta account and retry." });
+    }
 
-    setTimeout(async () => {
-      const { fileSizeInBytes, mimeType } = await getFileInfo(
-        `${__dirname}/../client/public/media/${filename}`,
-      );
+    const uploadFile = await uploadFileMeta(
+      getSession.id,
+      uploadedPath,
+      "v18.0",
+      getMETA[0]?.access_token,
+      mimeType,
+    );
+    if (!uploadFile?.success || !uploadFile?.data?.h) {
+      await fs.promises.unlink(uploadedPath).catch(() => {});
+      return res.json({ success: false, msg: "Meta rejected the image upload. Check the image and connected Meta account, then retry." });
+    }
 
-      const getSession = await getSessionUploadMediaMeta(
-        "v18.0",
-        getMETA[0]?.app_id,
-        getMETA[0]?.access_token,
-        fileSizeInBytes,
-        mimeType,
-      );
+    await query(
+      `INSERT INTO meta_templet_media (uid, templet_name, meta_hash, file_name) VALUES (?,?,?,?)`,
+      [req.decode.uid, req.body?.templet_name, uploadFile.data.h, filename],
+    );
 
-      const uploadFile = await uploadFileMeta(
-        getSession?.id,
-        `${__dirname}/../client/public/media/${filename}`,
-        "v18.0",
-        getMETA[0]?.access_token,
-      );
-
-      if (!uploadFile?.success) {
-        return res.json({ success: false, msg: "Please check your meta API" });
-      }
-
-      const url = `${process.env.FRONTENDURI}/media/${filename}`;
-
-      await query(
-        `INSERT INTO meta_templet_media (uid, templet_name, meta_hash, file_name) VALUES (?,?,?,?)`,
-        [req.decode.uid, req.body?.templet_name, uploadFile?.data?.h, filename],
-      );
-
-      res.json({ success: true, url, hash: uploadFile?.data?.h });
-    }, 1000);
+    return res.json({ success: true, url: publicImageUrl, hash: uploadFile.data.h });
   } catch (err) {
-    res.json({ success: false, msg: "something went wrong", err });
-    console.log(err);
+    if (uploadedPath) await fs.promises.unlink(uploadedPath).catch(() => {});
+    console.error("Carousel image upload handler failed", { name: err?.name, code: err?.code });
+    return res.json({ success: false, msg: "Image upload failed. Please retry." });
   }
 });
 

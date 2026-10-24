@@ -255,10 +255,19 @@ router.post(
             msg: "Carousel requires at least 2 cards",
           });
         }
-        if (carousel_cards.some((c) => !c.imageUrl)) {
+        const hasInvalidImageUrl = carousel_cards.some((card) => {
+          if (typeof card?.imageUrl !== "string" || !card.imageUrl.trim()) return true;
+          try {
+            const imageUrl = new URL(card.imageUrl.trim());
+            return imageUrl.protocol !== "https:" || !imageUrl.hostname || imageUrl.username || imageUrl.password;
+          } catch {
+            return true;
+          }
+        });
+        if (hasInvalidImageUrl) {
           return res.json({
             success: false,
-            msg: "All carousel cards must have an image",
+            msg: "Each carousel card needs a public HTTPS image URL. If an image shows as uploaded after a network error, remove it, upload it again, and retry.",
           });
         }
       }
