@@ -255,7 +255,7 @@ router.post(
             msg: "Carousel requires at least 2 cards",
           });
         }
-        const hasInvalidImageUrl = carousel_cards.some((card) => {
+        const invalidImageIndex = carousel_cards.findIndex((card) => {
           if (typeof card?.imageUrl !== "string" || !card.imageUrl.trim()) return true;
           try {
             const imageUrl = new URL(card.imageUrl.trim());
@@ -264,10 +264,15 @@ router.post(
             return true;
           }
         });
-        if (hasInvalidImageUrl) {
+        if (invalidImageIndex >= 0) {
+          const imageUrl = carousel_cards[invalidImageIndex]?.imageUrl;
+          const message = typeof imageUrl === "string" && imageUrl.startsWith("blob:")
+            ? `Carousel card ${invalidImageIndex + 1} is still using a temporary browser preview. Wait for its upload to finish or remove and upload it again.`
+            : `Carousel card ${invalidImageIndex + 1} needs a valid public HTTPS image URL. Remove and upload that card image again.`;
           return res.json({
             success: false,
-            msg: "Each carousel card needs a public HTTPS image URL. If an image shows as uploaded after a network error, remove it, upload it again, and retry.",
+            code: "CAROUSEL_IMAGE_UPLOAD_INCOMPLETE",
+            msg: message,
           });
         }
       }

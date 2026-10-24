@@ -7,5 +7,5 @@ const matches = html.match(reference) || [];
 if (matches.length !== 1) {
   throw new Error(`Expected one campaign mapping script reference, found ${matches.length}`);
 }
-const updated = html.replace(reference, '/campaign-placeholder-mapping.js?v=20261024-meta-image-upload1');
+const updated = html.replace(reference, '/campaign-placeholder-mapping.js?v=20261024-meta-image-upload2');
 fs.writeFileSync(path, updated);
