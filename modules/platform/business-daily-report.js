@@ -51,13 +51,14 @@ async function build(db,tenant,{now=new Date(),day}={}){
  FROM sx_sales_invoices i LEFT JOIN (SELECT tenant_id,invoice_id,SUM(amount_minor) paid FROM sx_sales_receipt_allocations WHERE tenant_id=? AND reversed_at IS NULL GROUP BY tenant_id,invoice_id) a ON a.tenant_id=i.tenant_id AND a.invoice_id=i.id WHERE i.tenant_id=? AND i.status='issued' AND i.due_at<? GROUP BY i.currency`,[date,date,date,date,tenant.id,tenant.id,date]);
  for(const r of salesAging){const c=currency(r.currency);c.overdue+=minor(r.overdue);for(const k of Object.keys(c.aging))c.aging[k]+=minor(r[k]);}
  const [leadRows]=await db.query(`SELECT COUNT(*) total FROM pipeline_leads WHERE uid_hash=? AND uid=? AND created_at>=? AND created_at<=?`,[owner.legacy_uid_hash,owner.uid,daily.from,daily.to]);
+ const [monthLeadRows]=await db.query(`SELECT COUNT(*) total FROM pipeline_leads WHERE uid_hash=? AND uid=? AND created_at>=? AND created_at<=?`,[owner.legacy_uid_hash,owner.uid,mtd.from,mtd.to]);
  const [dailyApp]=await db.query(`SELECT COUNT(DISTINCT r.submission_id) total FROM sx_training_registrations r WHERE r.tenant_id=? AND r.created_at>=? AND r.created_at<=?`,[tenant.id,daily.from,daily.to]);
  const [monthApp]=await db.query(`SELECT COUNT(DISTINCT r.submission_id) total FROM sx_training_registrations r WHERE r.tenant_id=? AND r.created_at>=? AND r.created_at<=?`,[tenant.id,mtd.from,mtd.to]);
  const converted=async(from,to)=>{const [rows]=await db.query(`SELECT COUNT(DISTINCT l.id) total FROM pipeline_leads l JOIN (
  SELECT p.lead_id FROM (${projection}) p WHERE p.lead_id IS NOT NULL
  UNION SELECT d.lead_id FROM sx_sales_invoices i JOIN sx_sales_deals d ON d.tenant_id=i.tenant_id AND d.id=i.deal_id WHERE i.tenant_id=? AND i.status='issued' AND d.lead_id IS NOT NULL
  ) invoiced ON invoiced.lead_id=l.id WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<=?`,[tenant.id,tenant.id,tenant.id,owner.legacy_uid_hash,owner.uid,from,to]);return Number(rows[0]?.total||0);};
- const leadsDaily=Number(leadRows[0]?.total||0),leadsMonth=monthLeadRows.length;
+ const leadsDaily=Number(leadRows[0]?.total||0),leadsMonth=Number(monthLeadRows[0]?.total||0);
  const sum=field=>[...currencies.values()].reduce((n,c)=>n+c[field],0);
  return {version:2,business:tenant.name||'7Network',day:date,month:local.format('YYYY-MM'),monthStart,timezone,asOf:moment(now).tz(timezone).format('DD MMM YYYY, h:mm A'),daily:{leads:leadsDaily,convertedLeads:await converted(daily.from,daily.to),applications:Number(dailyApp[0]?.total||0),invoices:[...currencies.values()].reduce((n,c)=>n+c.daily.invoices,0)},monthToDate:{leads:leadsMonth,convertedLeads:await converted(mtd.from,mtd.to),applications:Number(monthApp[0]?.total||0),invoices:[...currencies.values()].reduce((n,c)=>n+c.month.invoices,0)},finance:[...currencies.values()],receivable:sum('receivable'),overdue:sum('overdue')};
 }
