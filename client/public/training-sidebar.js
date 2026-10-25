@@ -388,7 +388,7 @@
       ['reports','Lead Reports','تقارير العملاء المحتملين','lead-reports'],['finance-reports','Finance Reports','تقارير المالية','finance-settings&section=reports'],
       ...(membershipRole==='owner'?[['recruitment','Candidate Applications','طلبات التوظيف','recruitment']]:[]),
       ['faqs','FAQs','الأسئلة الشائعة','faqs'],
-      ...(membershipRole==='owner'?[['team','People & Roles','الأشخاص والأدوار','team-invitations'],['settings','Business Settings','إعدادات الأعمال','settings']]:[])
+      ...(membershipRole==='owner'?[['team','People & Roles','الأشخاص والأدوار','team-invitations'],['settings','Business Settings','إعدادات الأعمال','crm-appearance']]:[])
     ];
     const hasKey=key=>hasNavigationKey(list,key);
     const template=list.querySelector(':scope > li:not([data-sx-nav-section])');
@@ -575,7 +575,7 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {'Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
+      const routes = {'Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Business Settings':'crm-appearance', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
@@ -637,7 +637,7 @@
     });
     const page=new URLSearchParams(location.search).get('page');
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
-    const routeKeys={properties:'properties',students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp'};
+    const routeKeys={properties:'properties',students:'students','training-profile':'training-profile','crm-appearance':'settings','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp'};
     const required=routeKeys[page];
     // Team access is available to any membership whose role/navigation grants
     // it. The API still enforces team.invite (including owner-approved manager

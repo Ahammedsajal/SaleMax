@@ -7,6 +7,7 @@ const navigation=require('../modules/platform/navigation');
 const legacyRoleGuard=require('../modules/platform/team-role-request-guard');
 const {salemaxSales}=require('../modules/platform/categories');
 const salesReportCsv=require('../client/public/sales-workspace/sales-report-csv');
+const {spawnSync}=require('node:child_process');
 
 function context(role,customPermissions){
   return {audience:'tenant',tenant:{id:'tenant-1',status:'active',categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version},
@@ -137,6 +138,26 @@ test('7Network Sales owner gets one People & Roles entry while managers and team
   assert.match(team,/#sx-team-screen\[data-sales-category=\"7network_sales\"\] :focus-visible\{outline-color:#1768d4\}/);
   assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
   assert.match(shell,/team-invitations\.js\?v=20261019-role-sidebar2/);
+});
+
+test('7Network Sales Business Settings opens the existing CRM appearance screen for owners',()=>{
+  const root=path.join(__dirname,'..');
+  const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
+  const appearance=fs.readFileSync(path.join(root,'client/public/tenant-crm-appearance.js'),'utf8');
+  const shell=fs.readFileSync(path.join(root,'client/public/index.html'),'utf8');
+  assert.match(sidebar,/\['settings','Business Settings','إعدادات الأعمال','crm-appearance'\]/);
+  assert.match(sidebar,/routeKeys=\{[^}]*'crm-appearance':'settings'/);
+  assert.match(sidebar,/Business Settings':'crm-appearance'/);
+  assert.match(appearance,/new URLSearchParams\(location\.search\)\.get\('page'\)==='crm-appearance'/);
+  assert.match(shell,/training-sidebar\.js\?v=20261025-sales-business-settings-crm-appearance1/);
+  assert.ok(sidebar.includes("...(membershipRole==='owner'?[['team','People & Roles','الأشخاص والأدوار','team-invitations'],['settings','Business Settings','إعدادات الأعمال','crm-appearance']]:[])"));
+  const tmp=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'sx-settings-cache-'));
+  try{
+    const target=path.join(tmp,'index.html');fs.writeFileSync(target,'<script src="/training-sidebar.js?v=20261024-sales-sidebar-nav-stable1"></script><script src="/static/js/live.js"></script>');
+    const result=spawnSync(process.execPath,[path.join(root,'deploy/patch-sales-business-settings-cache.cjs'),target],{encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr);
+    const patched=fs.readFileSync(target,'utf8');assert.match(patched,/training-sidebar\.js\?v=20261025-sales-business-settings-crm-appearance1/);assert.match(patched,/\/static\/js\/live\.js/);
+  }finally{fs.rmSync(tmp,{recursive:true,force:true});}
 });
 
 test('Sales Overview is integrated into existing navigation, refreshes scoped APIs and keeps nested routes in the parent URL',()=>{

@@ -1,0 +1,12 @@
+'use strict';
+const fs = require('node:fs');
+const file = process.argv[2];
+if (!file) throw new Error('Usage: node patch-sales-business-settings-cache.cjs <client/public/index.html>');
+let html = fs.readFileSync(file, 'utf8');
+const previous = '/training-sidebar.js?v=20261024-sales-sidebar-nav-stable1';
+const next = '/training-sidebar.js?v=20261025-sales-business-settings-crm-appearance1';
+const count = html.split(previous).length - 1;
+if (count === 0 && html.includes(next)) process.exit(0);
+if (count !== 1) throw new Error(`Expected one existing training-sidebar cache reference; found ${count}`);
+html = html.replace(previous, next);
+fs.writeFileSync(file, html);
