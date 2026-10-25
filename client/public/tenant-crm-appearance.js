@@ -16,7 +16,13 @@ async function request(path,method='GET',body){
  return data.data??data;
 }
 function setMeta(selector,attribute,value){if(value===undefined||value===null)return;let node=$(selector);if(!node){node=document.createElement('meta');const [key,val]=selector.match(/\[(name|property)="([^"]+)"\]/).slice(1);node.setAttribute(key,val);document.head.append(node);}node.setAttribute(attribute,value);}
+function publishBusinessBrand(profile,name){
+ const businessName=profile?.businessNameEn||profile?.nameEn||profile?.name||name||'';
+ window.SaleMaxBusinessBrand={logoUrl:typeof profile?.logoUrl==='string'?profile.logoUrl:'',name:businessName};
+ window.dispatchEvent(new Event('salemax:business-brand-updated'));
+}
 function applyBrand(profile,name){
+ publishBusinessBrand(profile,name);
  if(!profile)return;
  const arabic=window.SaleMaxLocale?.isArabic?.()??document.documentElement.lang?.toLowerCase().startsWith('ar');
  const businessName=(arabic?profile.businessNameAr||profile.nameAr:profile.businessNameEn||profile.nameEn)||name||profile.name||'Business';
@@ -92,7 +98,7 @@ async function render(){
  finally{busy=false;window.SaleMaxCustomization?.mount(node);}
 }
 async function session(){try{const me=await request('/api/user/business-auth/me');if(me?.context?.audience!=='tenant')return null;csrf=me.csrfToken||'';tenant=me.context.tenant;return tenant;}catch{return null;}}
-async function loadBrand(){if(brandBusy||Date.now()-lastBrandAttempt<2500)return;brandBusy=true;lastBrandAttempt=Date.now();try{const current=await session();if(current){const result=await request('/api/crm/branding');branding=result;applyBrand(result,current.name);}else if(!publicBrandLoaded&&location.hostname!=='crm.salemax.qa'&&(userRoute()||agentRoute())){const result=await request('/api/crm/tenant-context');publicBrandLoaded=true;applyBrand(result,result.name);}}catch{}finally{brandBusy=false;}}
+async function loadBrand(){if(brandBusy||Date.now()-lastBrandAttempt<2500)return;brandBusy=true;lastBrandAttempt=Date.now();try{const current=await session();if(current){const result=await request('/api/crm/branding');branding=result;applyBrand(result,current.name);}else if(!publicBrandLoaded&&location.hostname!=='crm.salemax.qa'&&(userRoute()||agentRoute())){const result=await request('/api/crm/tenant-context');publicBrandLoaded=true;applyBrand(result,result.name);}else publishBusinessBrand(null,'');}catch{}finally{brandBusy=false;}}
 function update(){if(!userRoute()&&!agentRoute())return;addNav();loadBrand();if(active()){if(!$('#sx-crm-appearance'))render();}else $('#sx-crm-appearance')?.remove();}
 window.addEventListener('popstate',update);new MutationObserver(()=>{if(!navAdded)addNav();if(active()&&!$('#sx-crm-appearance'))render();}).observe(document.documentElement,{childList:true,subtree:true});update();
 })();

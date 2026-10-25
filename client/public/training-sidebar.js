@@ -550,7 +550,7 @@
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === '7Network' && !p.closest('ul'));
       brandText?.setAttribute('data-sx-sidebar-brand-text','1');
       const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
-      const logoCandidates = [...(drawer.firstElementChild?.querySelectorAll('img[data-seven-network-brand],img[alt="7Network"]') || [])];
+      const logoCandidates = [...(drawer.firstElementChild?.querySelectorAll('img[data-sx-sidebar-logo],img[data-seven-network-brand],img[alt="7Network"]') || [])];
       let logo = brand?.querySelector('[data-sx-sidebar-logo]') || logoCandidates.find(image => image.hasAttribute('data-sx-sidebar-logo')) || logoCandidates[0];
       if (!logo && brand) { logo = document.createElement('img'); logo.alt = '7Network'; brand.append(logo); }
       for (const candidate of logoCandidates) candidate.toggleAttribute('data-sx-sidebar-duplicate-logo', candidate !== logo);
@@ -562,16 +562,24 @@
         // expanded wordmark can claim its intended width; compact mode remains
         // explicitly controlled by the measured drawer state.
         logo.parentElement?.setAttribute('data-sx-sidebar-brand','1');
-        // Keep the shared branding observer and this sidebar in agreement.
-        // Legacy paths are rewritten by 7network-brand.js, which otherwise
-        // creates an endless src ping-pong on every sidebar update.
-        const brandKind = collapsed ? 'icon' : 'logo';
-        const src = collapsed
-          ? '/branding/7network/icon-192.png?v=20261022-sidebar-icon1'
-          : '/branding/7network/logo-light.png?v=20261021-final-horizontal1';
-        const previousKind = logo.dataset.sevenNetworkBrand;
-        logo.dataset.sevenNetworkBrand = brandKind;
-        if (previousKind !== brandKind || !logo.getAttribute('src')?.startsWith('/branding/7network/')) logo.src = src;
+        const businessBrand=window.SaleMaxBusinessBrand?.logoUrl?window.SaleMaxBusinessBrand:null;
+        if(businessBrand){
+          logo.dataset.sxBusinessBrand='1';
+          logo.removeAttribute('data-seven-network-brand');
+          logo.alt=businessBrand.name||'Business logo';
+          if(logo.getAttribute('src')!==businessBrand.logoUrl)logo.src=businessBrand.logoUrl;
+        }else{
+          logo.removeAttribute('data-sx-business-brand');
+          // Keep the shared platform branding observer in agreement. Legacy
+          // paths are rewritten by 7network-brand.js, so only set its targets.
+          const brandKind = collapsed ? 'icon' : 'logo';
+          const src = collapsed
+            ? '/branding/7network/icon-192.png?v=20261022-sidebar-icon1'
+            : '/branding/7network/logo-light.png?v=20261021-final-horizontal1';
+          const previousKind = logo.dataset.sevenNetworkBrand;
+          logo.dataset.sevenNetworkBrand = brandKind;
+          if (previousKind !== brandKind || !logo.getAttribute('src')?.startsWith('/branding/7network/')) logo.src = src;
+        }
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
@@ -786,6 +794,7 @@
   // Observe permission flags too: restoring a feature must restore its group heading.
   new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['data-sx-optional-hidden']});
   document.addEventListener('input', schedule);
+  window.addEventListener('salemax:business-brand-updated', schedule);
   window.addEventListener('resize', schedule);
   window.addEventListener('popstate', schedule);
   window.addEventListener('storage', schedule);

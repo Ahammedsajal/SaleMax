@@ -149,7 +149,7 @@ test('7Network Sales Business Profile opens the existing CRM appearance screen f
   assert.match(sidebar,/routeKeys=\{[^}]*'crm-appearance':'settings'/);
   assert.match(sidebar,/Business Profile':'crm-appearance'/);
   assert.match(appearance,/new URLSearchParams\(location\.search\)\.get\('page'\)==='crm-appearance'/);
-  assert.match(shell,/training-sidebar\.js\?v=20270103-business-profile1/);
+  assert.match(shell,/training-sidebar\.js\?v=20270103-business-sidebar-logo1/);
   assert.ok(sidebar.includes("...(membershipRole==='owner'?[['team','People & Roles','الأشخاص والأدوار','team-invitations'],['settings','Business Profile','ملف النشاط التجاري','crm-appearance']]:[])"));
   const tmp=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'sx-settings-cache-'));
   try{

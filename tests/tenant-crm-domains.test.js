@@ -110,7 +110,7 @@ test('tenant CRM logo storage is private and the appearance UI keeps the existin
   assert.match(media,/CRM_LOGO_SIGNATURE_INVALID/);
   assert.match(router,/canonicalGuard/);
   assert.match(router,/sendLogo/);
-  assert.match(shell,/tenant-crm-appearance\.js\?v=20270103-business-profile1/);
+  assert.match(shell,/tenant-crm-appearance\.js\?v=20270103-business-sidebar-logo1/);
   assert.doesNotMatch(ui,/CRM domain|\/api\/crm\/domains|data-hostname/);
   assert.match(ui,/Business Profile/);
   assert.match(ui,/Browser icon/);

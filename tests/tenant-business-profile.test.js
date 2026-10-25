@@ -101,3 +101,24 @@ test('partial business-profile migration recovery is exact-state gated and recor
   assert.ok(calls.some(call=>call.sql===migration.statements[2]));
   assert.deepEqual(calls.at(-2).params,[migration.checksum,'applied',3,recovery.MIGRATION]);
 });
+
+test('the active business logo survives sidebar refresh and resets to platform branding without a tenant logo',()=>{
+  const root=path.join(__dirname,'..');
+  const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
+  const appearance=fs.readFileSync(path.join(root,'client/public/tenant-crm-appearance.js'),'utf8');
+  assert.match(appearance,/window\.SaleMaxBusinessBrand=\{logoUrl:/);
+  assert.match(appearance,/salemax:business-brand-updated/);
+  assert.match(sidebar,/window\.SaleMaxBusinessBrand\?\.logoUrl\?window\.SaleMaxBusinessBrand:null/);
+  assert.match(sidebar,/logo\.removeAttribute\('data-seven-network-brand'\)/);
+  assert.match(sidebar,/window\.addEventListener\('salemax:business-brand-updated',\s*schedule\)/);
+  assert.match(sidebar,/logo\.removeAttribute\('data-sx-business-brand'\)/);
+});
+
+test('business-logo deploy patch bumps only the two production shell asset references',()=>{
+  const root=path.join(__dirname,'..'),temp=fs.mkdtempSync(path.join(os.tmpdir(),'sx-business-logo-cache-'));
+  try{
+    const target=path.join(temp,'index.html');fs.writeFileSync(target,'<script src="/training-sidebar.js?v=20270103-business-profile1"></script><script src="/tenant-crm-appearance.js?v=20270103-business-profile1"></script><script src="/static/js/live-production.js"></script>');
+    const result=spawnSync(process.execPath,[path.join(root,'deploy/patch-business-logo-sidebar-cache.cjs'),target],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
+    const html=fs.readFileSync(target,'utf8');assert.match(html,/training-sidebar\.js\?v=20270103-business-sidebar-logo1/);assert.match(html,/tenant-crm-appearance\.js\?v=20270103-business-sidebar-logo1/);assert.match(html,/\/static\/js\/live-production\.js/);
+  }finally{fs.rmSync(temp,{recursive:true,force:true});}
+});
