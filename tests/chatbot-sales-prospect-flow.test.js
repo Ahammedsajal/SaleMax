@@ -26,8 +26,9 @@ test('Training Center prospect flow opens with the approved introduction and qui
   for(const button of buttons)assert.ok(button.reply.title.length<=20,`${node.id} button title fits Meta limits`);
  }
  assert.equal(byId.get('demo_question').data.content.interactive.body.text,'Would you like to see a short demo?');
- assert.equal(byId.get('name_for_demo').data.content.text.body,'Great! May I know your name, please?');
- assert.equal(byId.get('save_name_for_demo').data.variables[0].varName,'contactName');
+ assert.equal(edges.find(e=>e.source==='demo_branch'&&e.sourceHandle==='Yes')?.target,'send_demo','accepting the demo sends it immediately');
+ assert.ok(!byId.has('name_for_demo')&&!byId.has('save_name_for_demo'),'demo delivery does not require an extra typed name');
+ assert.match(byId.get('send_demo').data.content.text.body,/https:\/\/crm\.salemax\.qa\/training-center-demo\.mp4/);
  assert.ok(byId.get('after_demo_options').data.content.interactive.action.buttons.some(b=>b.reply.title==='Know the price'));
  assert.ok(byId.get('after_demo_options').data.content.interactive.action.buttons.some(b=>b.reply.title==='Talk to our team'));
  assert.equal(byId.get('price_message').data.content.text.body,'The Training Center offer is QAR 2,500 per year. It includes 1 admin user, 1 manager user, and 7 agent users.');

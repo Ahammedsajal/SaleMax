@@ -243,47 +243,6 @@
         }
       },
       {
-        "id": "name_for_demo",
-        "type": "SEND_MESSAGE",
-        "position": {
-          "x": 1820,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": false,
-          "type": {
-            "type": "text"
-          },
-          "content": {
-            "type": "text",
-            "text": {
-              "preview_url": false,
-              "body": "Great! May I know your name, please?"
-            }
-          },
-          "webhook": {},
-          "label": "name_for_demo"
-        }
-      },
-      {
-        "id": "save_name_for_demo",
-        "type": "RESPONSE_SAVER",
-        "position": {
-          "x": 2080,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": true,
-          "variables": [
-            {
-              "varName": "contactName",
-              "responsePath": "msgContext.text.body"
-            }
-          ],
-          "label": "save_name_for_demo"
-        }
-      },
-      {
         "id": "send_demo",
         "type": "SEND_MESSAGE",
         "position": {
@@ -1041,12 +1000,6 @@
     ],
     "edges": [
       {
-        "id": "demo_branch-name_for_demo",
-        "source": "demo_branch",
-        "target": "name_for_demo",
-        "sourceHandle": "Yes"
-      },
-      {
         "id": "demo_branch-default",
         "source": "demo_branch",
         "target": "help_options",
@@ -1186,26 +1139,6 @@
         "id": "demo_answer-demo_branch",
         "source": "demo_answer",
         "target": "demo_branch"
-      },
-      {
-        "id": "demo_branch-name_for_demo",
-        "source": "demo_branch",
-        "target": "name_for_demo"
-      },
-      {
-        "id": "demo_branch-help_options",
-        "source": "demo_branch",
-        "target": "help_options"
-      },
-      {
-        "id": "name_for_demo-save_name_for_demo",
-        "source": "name_for_demo",
-        "target": "save_name_for_demo"
-      },
-      {
-        "id": "save_name_for_demo-send_demo",
-        "source": "save_name_for_demo",
-        "target": "send_demo"
       },
       {
         "id": "send_demo-save_demo_response",
@@ -1356,6 +1289,12 @@
         "id": "polite_close-reset",
         "source": "polite_close",
         "target": "reset"
+      },
+      {
+        "id": "demo_branch-send_demo",
+        "source": "demo_branch",
+        "target": "send_demo",
+        "sourceHandle": "Yes"
       }
     ]
   }

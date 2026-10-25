@@ -465,50 +465,8 @@ function addDurationToTimestamp(hours, minutes) {
   return currentTime.getTime();
 }
 
-function setVariables(variables, obj) {
-  const result = {};
-
-  variables.forEach((variable) => {
-    const pathParts = variable.responsePath.split(".");
-
-    let value = obj;
-
-    for (let part of pathParts) {
-      const match = part.match(/^(\w+)\[(\d+)\]$/);
-      if (match) {
-        // e.g., response[0]
-        const key = match[1];
-        const index = parseInt(match[2], 10);
-        if (
-          value[key] &&
-          Array.isArray(value[key]) &&
-          value[key][index] !== undefined
-        ) {
-          value = value[key][index];
-        } else {
-          value = "NA";
-          break;
-        }
-      } else {
-        // normal property access
-        if (value && value[part] !== undefined) {
-          value = value[part];
-        } else {
-          value = "NA";
-          break;
-        }
-      }
-    }
-
-    if (typeof value === "object" && value !== null) {
-      value = JSON.stringify(value);
-    }
-
-    result[variable.varName] = value;
-  });
-
-  return result;
-}
+const { setVariables } = require("../modules/platform/automation-flow-response");
+const { conditionEdge } = require("../modules/platform/automation-flow-condition");
 
 const matchCondition = (conditions, incomingText) => {
   // Loop through each condition
@@ -1145,8 +1103,7 @@ async function processCondition({
     );
 
     if (getCondition) {
-      const e =
-        edges?.find((e) => e.sourceHandle === getCondition?.targetNodeId) || {};
+      const e = conditionEdge(edges, node?.id, getCondition?.targetNodeId) || {};
       const n = nodes?.find((n) => n.id === e?.target);
       if (n) {
         const oldData = flowSession?.data;
@@ -1207,7 +1164,7 @@ async function processResponseSaver({
   try {
     const { uid } = user;
     const newVars = node?.data?.variables || [];
-    const convertVar = setVariables(newVars, { message });
+    const convertVar = setVariables(newVars, { message }, { fallbackText: incomingTextOld });
     const savingVars = { ...(variablesObj || {}), ...(convertVar || {}) };
 
     const e = edges.find((e) => e.source === node.id);
