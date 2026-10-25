@@ -92,7 +92,7 @@ async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
  return send(db,{tenantId:item.tenant_id,to,text:item.part==='pdf'?`${safeBusiness} sale summary report · ${snapshot.day}`:text,pdf,fileName:`${safeBusiness}_sale_summary_report.pdf`});
 }
 async function finish(db,item,result){
- let {status}=result;if(!['accepted','blocked','failed','unknown','suppressed'].includes(status))status='unknown';if(status==='blocked'&&item.attempts>=16)status='failed';
+ let {status}=result;if(!['accepted','blocked','failed','unknown','suppressed'].includes(status))status='unknown';if(status==='blocked'&&item.attempts>=16&&item.kind!=='daily_summary')status='failed';
  const [updated]=await db.query(`UPDATE sx_business_notification_deliveries SET status=?,error_code=?,provider_message_id=?,accepted_at=IF(?='accepted',UTC_TIMESTAMP(3),NULL),available_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),lease_token=NULL,lease_expires_at=NULL WHERE id=? AND tenant_id=? AND status='sending' AND lease_token=?`,[status,result.errorCode||null,result.providerMessageId||null,status,Math.min(3600,30*2**Math.min(item.attempts,7)),item.id,item.tenant_id,item.token]);
  if(updated.affectedRows!==1)throw Object.assign(Error('BUSINESS_NOTIFICATION_LEASE_LOST'),{code:'BUSINESS_NOTIFICATION_LEASE_LOST'});
  return status;
