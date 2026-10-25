@@ -5,6 +5,11 @@ const qr=require('./business-whatsapp');
 const finance=require('./business-finance-context');
 const reports=require('./business-daily-report');
 const KINDS=new Set(['invoice_issued','payment_due','payment_received','daily_summary']);
+function dailyReportAllowed(categoryKey,caps){
+ const finance=caps.includes('finance.invoices')||caps.includes('sales.finance');
+ const defaultOwnerReport=categoryKey==='7network_sales'||categoryKey==='salemax_sales';
+ return finance&&caps.includes('reports.read')&&(caps.includes('reports.schedule')||defaultOwnerReport);
+}
 let tenantScanCursor='';
 async function enqueue(db,tenantId,{kind,sourceType,sourceId,key,payload=null}){
  if(!KINDS.has(kind)||!/^[-a-z_]{3,32}$/.test(sourceType)||!/^[-0-9a-f]{36}$/i.test(sourceId)||typeof key!=='string'||key.length>191)throw Error('INVALID_BUSINESS_NOTIFICATION');
@@ -22,7 +27,7 @@ async function due(db,tenant,today){
 async function scanTenant(db,tenant,{now=new Date()}={}){
  const entitlements=await require('./plans').loadEntitlements(db,tenant.id);
  if(!entitlements||!['active','trial','grace'].includes(entitlements.status))return;
- const caps=entitlements.capabilities||[],canFinance=caps.includes('finance.invoices')||caps.includes('sales.finance'),canReports=canFinance&&caps.includes('reports.read')&&caps.includes('reports.schedule');if(!canFinance&&!canReports)return;
+ const caps=entitlements.capabilities||[],canFinance=caps.includes('finance.invoices')||caps.includes('sales.finance'),canReports=dailyReportAllowed(tenant.category_key,caps);if(!canFinance&&!canReports)return;
  await db.query('INSERT INTO sx_business_notification_settings(tenant_id) VALUES (?) ON DUPLICATE KEY UPDATE tenant_id=VALUES(tenant_id)',[tenant.id]);
  const [[settings]]=await db.query('SELECT * FROM sx_business_notification_settings WHERE tenant_id=?',[tenant.id]);if(!Number(settings.enabled))return;
  const timezone=moment.tz.zone(tenant.timezone)?tenant.timezone:'Asia/Qatar',local=moment.tz(now,timezone),today=local.format('YYYY-MM-DD');
@@ -63,7 +68,7 @@ async function claim(db){
   if(!item){await db.commit();return null;}const token=crypto.randomUUID();await db.query("UPDATE sx_business_notification_deliveries SET status='sending',attempts=attempts+1,lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 120 SECOND) WHERE id=?",[token,item.id]);await db.commit();return {...item,token,attempts:Number(item.attempts)+1};
  }catch(e){await db.rollback();throw e;}
 }
-async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[],finance=caps.includes('finance.invoices')||caps.includes('sales.finance');return item.kind==='daily_summary'?finance&&caps.includes('reports.read')&&caps.includes('reports.schedule'):finance;}
+async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[],finance=caps.includes('finance.invoices')||caps.includes('sales.finance');return item.kind==='daily_summary'?dailyReportAllowed(e.categoryKey,caps):finance;}
 async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
  if(!await authorize(db,item))return {status:'suppressed',errorCode:'BUSINESS_NOTIFICATION_FEATURE_UNAVAILABLE'};
  const meta=finance.parse(item.payload_json);let current=null;
