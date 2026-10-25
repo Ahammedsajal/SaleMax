@@ -43,6 +43,11 @@ test('admin domain creation issues 7Network TXT instructions for a root hostname
   }finally{tenantDomains.resolveTargetIpv4=original;}
 });
 
+test('verified-domain provisioner audit installer is executable',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  assert.notEqual(fs.statSync(path.join(__dirname,'../deploy/install-tenant-domain-dns-audit.sh')).mode&0o111,0);
+});
+
 test('verified-domain worker command accepts an empty database scan without a hostname',()=>{
   assert.deepEqual(domainOps.parseArgs(['list-verified']),{mode:'list-verified',hostname:null});
   assert.deepEqual(domainOps.parseArgs(['audit-active-dns']),{mode:'audit-active-dns',hostname:null});
