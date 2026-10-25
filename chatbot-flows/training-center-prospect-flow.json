@@ -56,7 +56,7 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "Do you currently use a system to manage your training center?"
+                "text": "Are you currently using a system to manage your training center?"
               },
               "action": {
                 "buttons": [
@@ -112,7 +112,7 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "Keep student contacts organized in Phonebook, while course enquiries from WhatsApp campaigns, chatbots and application forms can be tracked as leads with their course or form and campaign source for follow-up."
+              "body": "With 7Network, you can keep student contacts organized and track course enquiries from WhatsApp campaigns, chatbots and application forms—with the course and source details your team needs to follow up."
             }
           },
           "webhook": {},
@@ -131,30 +131,11 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "Send WhatsApp campaigns to students, let chatbots answer common questions and collect enquiries, and transfer conversations to the right team member when personal help is needed."
+              "body": "You can also manage application submissions, invoices and payments in one place. Due-date reminders, reports and notifications help your team stay on top of follow-ups and collections."
             }
           },
           "webhook": {},
-          "label": "Campaigns, chatbots and team handoff"
-        }
-      },
-      {
-        "id": "feature_explanation_3",
-        "type": "SEND_MESSAGE",
-        "data": {
-          "moveToNextNode": true,
-          "type": {
-            "type": "text"
-          },
-          "content": {
-            "type": "text",
-            "text": {
-              "preview_url": false,
-              "body": "Manage application forms and submissions, course-linked leads, invoices, payments and due-date reminders. Reports and notifications help your team stay on top of follow-ups and collections."
-            }
-          },
-          "webhook": {},
-          "label": "Applications, finance and visibility"
+          "label": "Applications, finance and follow-up"
         }
       },
       {
@@ -174,7 +155,7 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "Would you like to see a short demo?"
+                "text": "Would you like me to send you a short demo video?"
               },
               "action": {
                 "buttons": [
@@ -258,7 +239,7 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "Here’s the 7Network Training Center demo video: https://7network.live/training-center-demo.mp4\n\nI’ll check in with you in about 30 minutes."
+              "body": "Here’s a short video showing how 7Network helps training centers manage their day-to-day work: https://7network.live/training-center-demo.mp4\n\nI’ll check back in about 30 minutes to hear what you think. If you have a question before then, just reply here."
             }
           },
           "webhook": {},
@@ -300,7 +281,7 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "Would you like to know the price or speak with our team?"
+                "text": "What would you like to do next?"
               },
               "action": {
                 "buttons": [
@@ -398,7 +379,7 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "What would be most helpful?"
+                "text": "What would be most helpful right now?"
               },
               "action": {
                 "buttons": [
@@ -577,7 +558,7 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "The Training Center offer is QAR 2,500 per year. It includes 1 admin user, 1 manager user, and 7 agent users."
+              "body": "Our current offer is QAR 2,500 per year. It includes one admin user, one manager user and seven agent users."
             }
           },
           "webhook": {},
@@ -601,7 +582,7 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "Would you like our team to contact you about setup?"
+                "text": "Would you like our team to contact you about getting started?"
               },
               "action": {
                 "buttons": [
@@ -782,7 +763,7 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "May I have the manager’s name, please?"
+              "body": "May I have the manager’s name so our team knows who to contact?"
             }
           },
           "webhook": {},
@@ -914,7 +895,7 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "Please share the manager’s WhatsApp number, including country code."
+              "body": "No problem. Please share the manager’s WhatsApp number, including the country code."
             }
           },
           "webhook": {},
@@ -955,7 +936,7 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "Thank you. I’ve shared your details with our team, and they’ll follow up with you."
+              "body": "Thanks for your interest. I’ve noted your request, and our team will follow up with you."
             }
           },
           "webhook": {},
@@ -978,7 +959,7 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "Thanks for your time. If you’d like the demo or price details later, just message us here."
+              "body": "No problem at all. If you’d like the demo or pricing details later, just message us here."
             }
           },
           "webhook": {},
@@ -995,6 +976,59 @@
         "data": {
           "moveToNextNode": false,
           "label": "End"
+        }
+      },
+      {
+        "id": "system_answer_validation",
+        "type": "CONDITION",
+        "position": {
+          "x": 780,
+          "y": 180
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{currentSystemStatus}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "Yes",
+              "caseSensitive": false,
+              "targetNodeId": "Yes"
+            },
+            {
+              "type": "text_exact",
+              "value": "No",
+              "caseSensitive": false,
+              "targetNodeId": "No"
+            }
+          ],
+          "label": "system_answer_validation"
+        }
+      },
+      {
+        "id": "system_invalid",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 1040,
+          "y": 360
+        },
+        "data": {
+          "moveToNextNode": true,
+          "label": "system_invalid",
+          "type": {
+            "type": "text",
+            "title": "Simple text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Please tap Yes or No so I can tailor the information to your training center."
+            }
+          }
         }
       }
     ],
@@ -1111,24 +1145,9 @@
         "target": "system_answer"
       },
       {
-        "id": "system_answer-feature_explanation_1",
-        "source": "system_answer",
-        "target": "feature_explanation_1"
-      },
-      {
         "id": "feature_explanation_1-feature_explanation_2",
         "source": "feature_explanation_1",
         "target": "feature_explanation_2"
-      },
-      {
-        "id": "feature_explanation_2-feature_explanation_3",
-        "source": "feature_explanation_2",
-        "target": "feature_explanation_3"
-      },
-      {
-        "id": "feature_explanation_3-demo_question",
-        "source": "feature_explanation_3",
-        "target": "demo_question"
       },
       {
         "id": "demo_question-demo_answer",
@@ -1171,16 +1190,6 @@
         "target": "help_branch"
       },
       {
-        "id": "help_branch-name_for_price",
-        "source": "help_branch",
-        "target": "name_for_price"
-      },
-      {
-        "id": "help_branch-name_for_team",
-        "source": "help_branch",
-        "target": "name_for_team"
-      },
-      {
         "id": "name_for_price-save_name_for_price",
         "source": "name_for_price",
         "target": "save_name_for_price"
@@ -1216,11 +1225,6 @@
         "target": "contact_after_price_branch"
       },
       {
-        "id": "contact_after_price_branch-owner_or_manager",
-        "source": "contact_after_price_branch",
-        "target": "owner_or_manager"
-      },
-      {
         "id": "owner_or_manager-save_owner_or_manager",
         "source": "owner_or_manager",
         "target": "save_owner_or_manager"
@@ -1229,16 +1233,6 @@
         "id": "save_owner_or_manager-owner_or_manager_branch",
         "source": "save_owner_or_manager",
         "target": "owner_or_manager_branch"
-      },
-      {
-        "id": "owner_or_manager_branch-contact_confirmation",
-        "source": "owner_or_manager_branch",
-        "target": "contact_confirmation"
-      },
-      {
-        "id": "owner_or_manager_branch-manager_name",
-        "source": "owner_or_manager_branch",
-        "target": "manager_name"
       },
       {
         "id": "manager_name-save_manager_name",
@@ -1259,16 +1253,6 @@
         "id": "save_same_number_choice-same_number_branch",
         "source": "save_same_number_choice",
         "target": "same_number_branch"
-      },
-      {
-        "id": "same_number_branch-contact_confirmation",
-        "source": "same_number_branch",
-        "target": "contact_confirmation"
-      },
-      {
-        "id": "same_number_branch-manager_phone",
-        "source": "same_number_branch",
-        "target": "manager_phone"
       },
       {
         "id": "manager_phone-save_manager_phone",
@@ -1295,6 +1279,39 @@
         "source": "demo_branch",
         "target": "send_demo",
         "sourceHandle": "Yes"
+      },
+      {
+        "id": "system_answer-system_answer_validation",
+        "source": "system_answer",
+        "target": "system_answer_validation"
+      },
+      {
+        "id": "system_answer_validation-feature_explanation_1-Yes",
+        "source": "system_answer_validation",
+        "target": "feature_explanation_1",
+        "sourceHandle": "Yes"
+      },
+      {
+        "id": "system_answer_validation-feature_explanation_1-No",
+        "source": "system_answer_validation",
+        "target": "feature_explanation_1",
+        "sourceHandle": "No"
+      },
+      {
+        "id": "system_answer_validation-system_invalid-default",
+        "source": "system_answer_validation",
+        "target": "system_invalid",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "system_invalid-system_question",
+        "source": "system_invalid",
+        "target": "system_question"
+      },
+      {
+        "id": "feature_explanation_2-demo_question",
+        "source": "feature_explanation_2",
+        "target": "demo_question"
       }
     ]
   }

@@ -15,7 +15,7 @@ async function dueSessions(db, limit = 10) {
 }
 
 function reminderMessage() {
-  return { type: 'interactive', interactive: { type: 'button', body: { text: 'Hi! Did you get a chance to watch the 7Network Training Center demo?' }, action: { buttons: [
+  return { type: 'interactive', interactive: { type: 'button', body: { text: 'Just checking in—did you get a chance to watch the 7Network Training Center demo?' }, action: { buttons: [
     { type: 'reply', reply: { id: 'demo_seen_yes', title: 'Yes' } },
     { type: 'reply', reply: { id: 'demo_seen_no', title: 'Not yet' } },
   ] } } };

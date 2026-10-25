@@ -19,5 +19,5 @@ test('local-only runtime does not start the production reminder worker',()=>{
 test('reminder uses the approved short Yes and Not yet quick replies',()=>{
  const message=reminder.reminderMessage();const buttons=message.interactive.action.buttons;
  assert.deepEqual(buttons.map(item=>item.reply.title),['Yes','Not yet']);
- assert.equal(message.interactive.body.text,'Hi! Did you get a chance to watch the 7Network Training Center demo?');
+ assert.equal(message.interactive.body.text,'Just checking in—did you get a chance to watch the 7Network Training Center demo?');
 });

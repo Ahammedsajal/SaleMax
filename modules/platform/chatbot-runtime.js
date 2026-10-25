@@ -165,9 +165,11 @@ async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin,
       const channelKind=channelFor(origin);let state=await loadDomainGuidedSession({ctx,profile,chatId,channelKind,channelRef:sessionId})||{};
       state=require('./chatbot-sales-prospect-state').mergeSalesProspectFlowState({state,variables,leadInfo,message});
       const completed=!!(state.trainingCenterName&&state.managerContactName&&state.managerContactNumber);
-      if(completed&&leadInfo?.leadId){
+      const shouldAlert=require('./chatbot-sales-prospect-state').salesProspectFollowUpRequested(state);
+      if((completed||shouldAlert)&&leadInfo?.leadId){
         await require('./chatbot-lead-capture').persistSalesProspectQualification(dbPool,{leadInfo,uid,profileId:profile.id,state});
-        if(!state.leadAlertQueued){state.leadAlertQueued=true;state.leadComplete=true;const db=await dbPool.getConnection();try{await require('./sales-icp').recordTrainingCenterProspectEvidence(db,ctx.tenant.id,state);}finally{db.release();}try{await sendSalesProspectAlert({tenantId:ctx.tenant.id,state});}catch(error){console.error(JSON.stringify({event:'sales_prospect_alert_failed',code:/^[A-Z0-9_]{2,100}$/.test(error?.code||'')?error.code:'QR_ALERT_FAILED'}));}}
+        if(completed){const db=await dbPool.getConnection();try{await require('./sales-icp').recordTrainingCenterProspectEvidence(db,ctx.tenant.id,state);}finally{db.release();}}
+        if(!state.leadAlertQueued){state.leadAlertQueued=true;state.leadComplete=completed;try{const notification=await sendSalesProspectAlert({tenantId:ctx.tenant.id,state});state.leadAlertStatus=notification?.status||'unknown';if(notification?.status!=='accepted')console.error(JSON.stringify({event:'sales_prospect_alert_not_accepted',code:notification?.errorCode||'QR_ALERT_UNCONFIRMED'}));}catch(error){state.leadAlertStatus='unknown';console.error(JSON.stringify({event:'sales_prospect_alert_failed',code:/^[A-Z0-9_]{2,100}$/.test(error?.code||'')?error.code:'QR_ALERT_FAILED'}));}}
       }
       await saveConversationalState({ctx,profile,chatId,channelKind,channelRef:sessionId,state});
     } catch(error) { console.error(JSON.stringify({event:'sales_prospect_flow_sync_failed',code:/^[A-Z0-9_]{2,100}$/.test(error?.code||'')?error.code:'FLOW_SYNC_FAILED'})); }
@@ -210,6 +212,8 @@ async function sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, messa
 
 async function sendSalesProspectAlert({ tenantId, state }) {
   const clean = value => String(value || '').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180) || 'Not provided';
+  const system = ({ yes: 'Yes', no: 'No', not_sure: 'Not sure' })[String(state.currentSystemStatus || '').toLowerCase()] || 'Not provided';
+  const followUpRequested = require('./chatbot-sales-prospect-state').salesProspectFollowUpRequested(state);
   const text = [
     '7Network Sales — new Training Center prospect', '',
     `Contact: ${clean(state.contactName)}`,
@@ -217,10 +221,11 @@ async function sendSalesProspectAlert({ tenantId, state }) {
     `Training center: ${clean(state.trainingCenterName)}`,
     `Manager: ${clean(state.managerContactName)}`,
     `Manager contact: ${clean(state.managerContactNumber)}`,
-    `Current system: ${state.currentSystemStatus === 'yes' ? clean(state.currentSystemName) : clean(state.currentSystemStatus || 'Not provided')}`,
+    `Currently using a system: ${system}${system === 'Yes' && state.currentSystemName ? ` (${clean(state.currentSystemName)})` : ''}`,
     `Demo requested: ${state.demoRequested === true ? 'Yes' : state.demoDeclined === true ? 'No' : 'Pending'}`,
     `Offer price discussed: ${state.pricePresented === true ? 'QAR 2,500/year' : 'Not yet'}`,
-    '', 'Chat summary: Training center prospect from the WhatsApp campaign; center identity and manager contact captured; demo and pricing interest recorded above.'
+    `Team follow-up requested: ${followUpRequested ? 'Yes' : 'No'}`,
+    '', `Chat summary: A Training Center prospect ${followUpRequested ? 'asked for a team follow-up' : 'completed the requested contact details'}. Qualification fields not yet provided are marked above.`
   ].join('\n');
   const db = await dbPool.getConnection();
   try {

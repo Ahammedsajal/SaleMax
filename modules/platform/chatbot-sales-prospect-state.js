@@ -24,6 +24,8 @@ function mergeSalesProspectFlowState({ state = {}, variables = {}, leadInfo = nu
     currentSystemName: value('currentSystemName', 'current_system_name') || state.currentSystemName || '',
     managerContactName: value('managerContactName', 'manager_contact_name') || state.managerContactName || (isDecisionMaker ? contactName : ''),
     managerContactNumber: value('managerContactNumber', 'manager_contact_number') || state.managerContactNumber || ((isDecisionMaker || sameWhatsappNumber) ? message.senderMobile || '' : ''),
+    priceInterest: value('priceInterest', 'price_interest') || state.priceInterest || '',
+    contactAfterPrice: value('contactAfterPrice', 'contact_after_price') || state.contactAfterPrice || '',
   };
 
   if (/^yes$/i.test(next.currentSystemStatus)) next.currentSystemStatus = 'yes';
@@ -60,4 +62,10 @@ function mergeSalesProspectFlowState({ state = {}, variables = {}, leadInfo = nu
   return next;
 }
 
-module.exports = { mergeSalesProspectFlowState };
+function salesProspectFollowUpRequested(state = {}) {
+  const priceInterest = String(state.priceInterest || '').trim().toLowerCase();
+  const contactAfterPrice = String(state.contactAfterPrice || '').trim().toLowerCase();
+  return contactAfterPrice === 'yes' || priceInterest === 'talk to our team' || priceInterest === 'talk to team';
+}
+
+module.exports = { mergeSalesProspectFlowState, salesProspectFollowUpRequested };

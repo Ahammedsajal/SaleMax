@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {mergeSalesProspectFlowState}=require('../modules/platform/chatbot-sales-prospect-state');
+const {mergeSalesProspectFlowState,salesProspectFollowUpRequested}=require('../modules/platform/chatbot-sales-prospect-state');
 
 test('phonebook name and saved contact name populate prospect state without asking for center name',()=>{
  const result=mergeSalesProspectFlowState({variables:{contactName:'Noura',currentSystemStatus:'No'},leadInfo:{phonebookName:'Bright Future Center'},message:{senderName:'Phonebook label',senderMobile:'+97455160323'},now:1_800_000_000_000});
@@ -11,6 +11,15 @@ test('phonebook name and saved contact name populate prospect state without aski
 test('owner or manager choice uses the saved contact name and current WhatsApp number',()=>{
  const result=mergeSalesProspectFlowState({variables:{contactName:'Noura',decisionMakerChoice:'Yes'},leadInfo:{phonebookName:'Bright Future Center'},message:{senderMobile:'+97455160323'}});
  assert.equal(result.managerContactName,'Noura');assert.equal(result.managerContactNumber,'+97455160323');
+});
+
+test('sales follow-up alert requires an explicit request and preserves it in the merged state',()=>{
+ const priceOnly=mergeSalesProspectFlowState({variables:{priceInterest:'Know the price'}});
+ assert.equal(salesProspectFollowUpRequested(priceOnly),false);
+ const setup=mergeSalesProspectFlowState({variables:{contactAfterPrice:'Yes'}});
+ assert.equal(setup.contactAfterPrice,'Yes');assert.equal(salesProspectFollowUpRequested(setup),true);
+ const team=mergeSalesProspectFlowState({variables:{priceInterest:'Talk to our team'}});
+ assert.equal(team.priceInterest,'Talk to our team');assert.equal(salesProspectFollowUpRequested(team),true);
 });
 
 test('alternate manager path waits for a name and number while same-number choice uses WhatsApp number',()=>{
