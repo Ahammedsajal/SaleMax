@@ -59,4 +59,32 @@ async function update(db,ctx,id,input){
     const [[row]]=await db.query('SELECT id,title,summary,document,revision,created_at AS createdAt,updated_at AS updatedAt FROM sx_sales_icp_profiles WHERE tenant_id=? AND id=?',[ctx.tenant.id,id]);await db.commit();return decode(row);
   }catch(error){await db.rollback();throw error;}
 }
-module.exports={assertAccess,cleanDocument,list,create,update};
+async function recordTrainingCenterProspectEvidence(db,tenantId,state){
+  if(!tenantId||!state?.leadComplete)return {updated:false,reason:'PROSPECT_NOT_COMPLETE'};
+  const [rows]=await db.query('SELECT id,document,revision,updated_by_identity_id AS updater FROM sx_sales_icp_profiles WHERE tenant_id=? ORDER BY updated_at DESC,id DESC',[tenantId]);
+  const matches=rows.filter(row=>{
+    let doc;try{doc=typeof row.document==='string'?JSON.parse(row.document):row.document;}catch{return false;}
+    return Array.isArray(doc?.industries)&&doc.industries.some(value=>/(training|education)/i.test(String(value)));
+  });
+  if(!matches.length&&rows.length===0){
+    const [owners]=await db.query("SELECT identity_id AS identityId FROM sx_memberships WHERE tenant_id=? AND role='owner' AND status='active' ORDER BY created_at,id LIMIT 2",[tenantId]);
+    if(owners.length!==1)return {updated:false,reason:'ICP_OWNER_UNAVAILABLE'};
+    const identityId=owners[0].identityId;
+    const evidence=`Initial hypothesis from the 7Network Sales campaign brief; anonymous prospect evidence (${new Date().toISOString().slice(0,10)}): training center uses a management system=${state.currentSystemStatus||'unknown'}; requested demo=${state.demoRequested===true?'yes':state.demoDeclined===true?'no':'unknown'}; manager contact captured=yes; campaign offer interest=${state.pricePresented===true?'yes':'not recorded'}.`;
+    const document={industries:['Training centers'],geographies:['Qatar'],businessModels:['B2B education and training provider'],decisionRoles:['Owner','Manager'],technologySignals:[],companySize:'',revenueRange:'',growthStage:'',priorityNeeds:'Manage training-center enquiries, WhatsApp follow-up and team handoffs.',desiredOutcomes:'Capture and qualify center prospects and follow up on demos and pricing.',buyingTriggers:'Interest in a CRM workflow for a training center.',budgetSignals:'Campaign offer discussed: QAR 2,500/year for one admin, one manager and seven agents.',exclusions:'',evidence,confidence:'needs_review'};
+    const id=crypto.randomUUID();
+    await db.query('INSERT INTO sx_sales_icp_profiles(id,tenant_id,title,summary,document,created_by_identity_id,updated_by_identity_id) VALUES(?,?,?,?,?,?,?)',[id,tenantId,'Training Center Campaign Prospects','Initial, evidence-backed profile for the training-center campaign; review and refine as more prospects respond.',JSON.stringify(document),identityId,identityId]);
+    await db.query("INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES(?,?,NULL,'system','sales.icp.prospect-profile-created','sales-icp-profile',?,?,?)",[crypto.randomUUID(),tenantId,id,JSON.stringify({title:'Training Center Campaign Prospects',confidence:'needs_review'}),crypto.randomUUID()]);
+    return {updated:true,created:true,profileId:id,revision:1};
+  }
+  if(matches.length!==1)return {updated:false,reason:matches.length?'ICP_PROFILE_AMBIGUOUS':'ICP_PROFILE_NOT_FOUND'};
+  const row=matches[0],document=typeof row.document==='string'?JSON.parse(row.document):{...row.document};
+  const note=`Anonymous WhatsApp prospect evidence (${new Date().toISOString().slice(0,10)}): training center uses a management system=${state.currentSystemStatus||'unknown'}; requested demo=${state.demoRequested===true?'yes':state.demoDeclined===true?'no':'unknown'}; manager contact captured=yes; campaign offer interest=${state.pricePresented===true?'yes':'not recorded'}.`;
+  document.evidence=[String(document.evidence||'').trim(),note].filter(Boolean).join('\n').slice(-1200);
+  if(document.confidence==='hypothesis')document.confidence='needs_review';
+  const [result]=await db.query('UPDATE sx_sales_icp_profiles SET document=?,revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=? AND revision=?',[JSON.stringify(document),row.updater,tenantId,row.id,row.revision]);
+  if(result.affectedRows!==1)return {updated:false,reason:'STALE_ICP_PROFILE'};
+  await db.query("INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES(?,?,NULL,'system','sales.icp.prospect-evidence-recorded','sales-icp-profile',?,?,?)",[crypto.randomUUID(),tenantId,row.id,JSON.stringify({revision:Number(row.revision)+1,evidence:'anonymous-training-center-prospect'}),crypto.randomUUID()]);
+  return {updated:true,profileId:row.id,revision:Number(row.revision)+1};
+}
+module.exports={assertAccess,cleanDocument,list,create,update,recordTrainingCenterProspectEvidence};

@@ -104,12 +104,50 @@ async function captureSalesProspectLead(pool, { ctx, profile, uid, chatId, origi
     || ctx.tenant.status !== 'active' || ctx.membership?.role !== 'owner' || ctx.membership?.status !== 'active'
     || !ctx.category?.capabilities?.includes('crm.leads') || !ctx.subscription?.capabilities?.includes('crm.leads')
     || !require('./policy').decision(ctx, { capability: 'crm.leads', permission: 'leads.manage' }).allowed) return null;
+  let phonebookName = '';
+  const mobile = String(message.senderMobile || '').replace(/[\s().-]/g, '');
+  if (pool?.getConnection && /^\+?[1-9]\d{7,14}$/.test(mobile)) {
+    const db = await pool.getConnection();
+    try {
+      const alternatives = [...new Set([mobile, mobile.replace(/^\+/, ''), `+${mobile.replace(/^\+/, '')}`])];
+      const [rows] = await db.query('SELECT MIN(TRIM(name)) AS name FROM contact WHERE uid=? AND mobile IN (?) AND TRIM(COALESCE(name,\'\'))<>\'\' GROUP BY LOWER(TRIM(name)) LIMIT 2', [uid, alternatives]);
+      if (rows.length === 1 && typeof rows[0].name === 'string') phonebookName = rows[0].name.trim().slice(0, 120);
+    } finally { db.release(); }
+  }
   const captured = await require('../../helper/pipeline/leadPipeline').captureBotInbound({
     uid, origin, chatId, senderMobile: message.senderMobile, senderName: message.senderName,
     normalizedMessage: message, providerMessageId: message.metaChatId, timestamp: message.timestamp, pool,
   });
   if (captured.skipped || !captured.leadId) throw Object.assign(new Error('BOT_LEAD_NOT_CAPTURED'), { code: 'BOT_LEAD_NOT_CAPTURED' });
-  return { leadId: captured.leadId, duplicate: captured.duplicate === true };
+  return { leadId: captured.leadId, uidHash: captured.uidHash || null, duplicate: captured.duplicate === true, phonebookName };
+}
+
+async function persistSalesProspectQualification(db, { leadInfo, uid, profileId, state }) {
+  if (!leadInfo?.leadId || !leadInfo?.uidHash || !uid || !state || typeof state !== 'object') return [];
+  const values = {
+    trainingCenterName: String(state.trainingCenterName || '').slice(0, 160),
+    currentSystemStatus: String(state.currentSystemStatus || '').slice(0, 32),
+    currentSystemName: String(state.currentSystemName || '').slice(0, 160),
+    managerContactName: String(state.managerContactName || '').slice(0, 160),
+    managerContactNumber: String(state.managerContactNumber || '').slice(0, 24),
+    demoRequested: state.demoRequested === true,
+    demoWatched: typeof state.demoWatched === 'boolean' ? state.demoWatched : null,
+    pricePresented: state.pricePresented === true,
+    campaignOfferQarYear: state.pricePresented === true ? 2500 : null,
+  };
+  const present = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== '' && value !== null));
+  if (!Object.keys(present).length) return [];
+  const [[lead]] = await db.query('SELECT qualification_data AS data FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? FOR UPDATE', [leadInfo.uidHash, uid, leadInfo.leadId]);
+  if (!lead) return [];
+  const prior = parse(lead.data);
+  const details = { ...(prior.sevenNetworkSalesProspect || {}), ...present };
+  const changed = Object.keys(present).filter(key => JSON.stringify(prior.sevenNetworkSalesProspect?.[key]) !== JSON.stringify(present[key]));
+  if (!changed.length) return [];
+  const qualification = { ...prior, sevenNetworkSalesProspect: details };
+  await db.query('UPDATE pipeline_leads SET qualification_data=?,last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?', [JSON.stringify(qualification), leadInfo.uidHash, uid, leadInfo.leadId]);
+  await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at)
+    VALUES (?,?,'system','lead_updated','7Network Sales prospect qualification updated',?,UTC_TIMESTAMP(3))`, [leadInfo.uidHash, leadInfo.leadId, JSON.stringify({ origin: 'chatbot', profileId, fields: changed })]);
+  return changed;
 }
 
 function addQuestion(reply, info, config, defaults) {
@@ -127,4 +165,4 @@ async function markAsked(pool, info, uid) {
     await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),?,true,'$.botCapture.waitingFor',?) WHERE uid_hash=? AND uid=? AND id=?`, ['$.botCapture.' + key + 'Asked', key, info.uidHash, uid, info.leadId]);
   } finally { db.release(); }
 }
-module.exports = { captureLead, captureGenericLead, captureSalesProspectLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, markAsked };
+module.exports = { captureLead, captureGenericLead, captureSalesProspectLead, persistSalesProspectQualification, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, markAsked };

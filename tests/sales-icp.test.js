@@ -92,3 +92,20 @@ test('revision-guarded updates reject stale writers and roll back',async()=>{
   assert.deepEqual(calls[0].params.slice(-3),['tenant-1','123e4567-e89b-12d3-a456-426614174000',2]);
   assert.equal(rolledBack,true);
 });
+
+test('training prospect updates only anonymized evidence on a unique training ICP profile',async()=>{
+ const calls=[];let saved;
+ const db={query:async(sql,params)=>{calls.push({sql,params});if(sql.startsWith('SELECT id,document'))return [[{id:'profile-1',document:{industries:['Training centers'],evidence:'Initial hypothesis',confidence:'hypothesis'},revision:2,updater:'owner-identity'}],[]];if(sql.startsWith('UPDATE sx_sales_icp_profiles')){saved=JSON.parse(params[0]);return [{affectedRows:1},[]];}return [{affectedRows:1},[]];}};
+ const result=await service.recordTrainingCenterProspectEvidence(db,'tenant-1',{leadComplete:true,currentSystemStatus:'yes',demoRequested:true,managerContactName:'Private Name',managerContactNumber:'+97455111111'});
+ assert.deepEqual(result,{updated:true,profileId:'profile-1',revision:3});assert.equal(saved.confidence,'needs_review');assert.match(saved.evidence,/management system=yes/);assert.doesNotMatch(JSON.stringify(saved),/Private Name|\+97455111111/);
+ assert.ok(calls.some(call=>call.sql.includes('sales.icp.prospect-evidence-recorded')));
+});
+
+test('first qualified training-center prospect creates a needs-review ICP hypothesis when none exists',async()=>{
+ const calls=[];let inserted;
+ const db={query:async(sql,params)=>{calls.push({sql,params});if(sql.startsWith('SELECT id,document'))return [[],[]];if(sql.startsWith('SELECT identity_id'))return [[{identityId:'owner-identity'}],[]];if(sql.startsWith('INSERT INTO sx_sales_icp_profiles')){inserted=JSON.parse(params[4]);return [{affectedRows:1},[]];}return [{affectedRows:1},[]];}};
+ const result=await service.recordTrainingCenterProspectEvidence(db,'tenant-1',{leadComplete:true,currentSystemStatus:'yes',demoRequested:true,managerContactName:'Private Name',managerContactNumber:'+97455111111'});
+ assert.equal(result.created,true);assert.equal(result.revision,1);assert.deepEqual(inserted.industries,['Training centers']);assert.equal(inserted.confidence,'needs_review');
+ assert.match(inserted.evidence,/anonymous prospect evidence/);assert.doesNotMatch(JSON.stringify(inserted),/Private Name|\+97455111111/);
+ assert.ok(calls.some(call=>call.sql.includes('sales.icp.prospect-profile-created')));
+});

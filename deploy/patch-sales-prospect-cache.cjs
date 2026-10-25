@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('node:fs');
+const file=process.argv[2];
+if(!file)throw new Error('Usage: node patch-sales-prospect-cache.cjs <production-training-sidebar.js>');
+const previous="/chatbot-admin.js?v=20261021-base-lead-capture1";
+const next="/chatbot-admin.js?v=20261025-sales-prospect-flow1";
+let source=fs.readFileSync(file,'utf8');
+const count=source.split(previous).length-1;
+if(count===0&&source.includes(next))process.exit(0);
+if(count!==1)throw new Error(`Expected one chatbot-admin cache anchor in ${file}; found ${count}`);
+fs.writeFileSync(file,source.replace(previous,next));

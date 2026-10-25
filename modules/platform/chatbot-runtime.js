@@ -193,6 +193,26 @@ async function sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, messa
   await query(`UPDATE sx_chatbot_guided_sessions SET state=JSON_SET(state,'$.sentCoursePdfIds',JSON_EXTRACT(?,'$')) WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`, [JSON.stringify(recorded.slice(-20)), ctx.tenant.id, profile.id, channelFor(origin), sessionId, chatId]);
 }
 
+async function sendSalesProspectAlert({ tenantId, state }) {
+  const clean = value => String(value || '').replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180) || 'Not provided';
+  const text = [
+    '7Network Sales — new Training Center prospect', '',
+    `Contact: ${clean(state.contactName)}`,
+    `WhatsApp: ${clean(state.whatsappNumber)}`,
+    `Training center: ${clean(state.trainingCenterName)}`,
+    `Manager: ${clean(state.managerContactName)}`,
+    `Manager contact: ${clean(state.managerContactNumber)}`,
+    `Current system: ${state.currentSystemStatus === 'yes' ? clean(state.currentSystemName) : clean(state.currentSystemStatus || 'Not provided')}`,
+    `Demo requested: ${state.demoRequested === true ? 'Yes' : state.demoDeclined === true ? 'No' : 'Pending'}`,
+    `Offer price discussed: ${state.pricePresented === true ? 'QAR 2,500/year' : 'Not yet'}`,
+    '', 'Chat summary: Training center prospect from the WhatsApp campaign; center identity and manager contact captured; demo and pricing interest recorded above.'
+  ].join('\n');
+  const db = await dbPool.getConnection();
+  try {
+    return await require('./business-whatsapp').send(db, { tenantId, to: '+97455160323', text });
+  } finally { db.release(); }
+}
+
 async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent = null, leadInfo }) {
   const channelKind = channelFor(origin);
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -237,19 +257,26 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       const invalid=cvError==='CV_TYPE_NOT_ALLOWED'||cvError==='INVALID_CV_FILE';
       reply={reply:priorState?.language==='ar'?(invalid?'يرجى إرسال السيرة الذاتية كملف PDF أو DOCX حتى 8 ميغابايت.':'تعذر حفظ الملف الآن. يرجى المحاولة مرة أخرى بعد قليل.'):(invalid?'Please send your CV as a PDF or DOCX file up to 8 MB.':'I couldn’t save that file just now. Please try sending it again shortly.'),state:priorState,buttons:[]};
     }else if (profile.config?.salesWorkflow === 'training_center_prospects') {
-      reply = require('./chatbot-sales-prospect-guide').trainingCenterProspectReply({ message: intent || textOf(message), state: priorState });
+      reply = require('./chatbot-sales-prospect-guide').trainingCenterProspectReply({ message: intent || textOf(message), state: priorState, phonebookName: priorState?.step ? '' : leadInfo?.phonebookName, contactName: message.senderName || '' });
     } else reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
     if (leadInfo?.nameOnly) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
       return false;
     }
-    reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
+    if (profile.config?.salesWorkflow !== 'training_center_prospects') reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
     const questionLeadInfo = deferLeadQuestion ? { ...leadInfo, questionKey: null } : leadInfo;
     if (!reply.handoff) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
     reply.state.sentCoursePdfIds = priorState?.sentCoursePdfIds || [];
     const pdfs = require('./chatbot-course-media').coursePdfs(facts, reply.state.selectedCourseCode, textOf(message), reply.state.sentCoursePdfIds);
     reply.media = [...(reply.media || []).filter(item => item.kind !== 'document'), ...pdfs];
+    if (profile.config?.salesWorkflow === 'training_center_prospects' && leadInfo?.leadId) {
+      await require('./chatbot-lead-capture').persistSalesProspectQualification(db, { leadInfo, uid, profileId: profile.id, state: reply.state });
+      if (reply.notifySales === true) {
+        try { await require('./sales-icp').recordTrainingCenterProspectEvidence(db, ctx.tenant.id, reply.state); }
+        catch (error) { console.error(JSON.stringify({ event: 'sales_icp_evidence_update_failed', code: /^[A-Z0-9_]{2,100}$/.test(error?.code || '') ? error.code : 'ICP_EVIDENCE_UPDATE_FAILED' })); }
+      }
+    }
     const nextState = JSON.stringify(reply.state || {});
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
     if(ctx.category.key==='7network_sales'&&reply.state?.screeningConsent===true&&reply.state?.answers){
@@ -283,6 +310,14 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   const messageData = { type: messageContext.type, metaChatId: sentId, msgContext: messageContext, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
+  if (reply.notifySales === true && reply.state?.leadAlertQueued === true) {
+    try {
+      const notification = await sendSalesProspectAlert({ tenantId: ctx.tenant.id, state: reply.state });
+      if (notification?.status !== 'accepted') console.error(JSON.stringify({ event: 'sales_prospect_alert_not_accepted', code: notification?.errorCode || 'QR_ALERT_UNCONFIRMED' }));
+    } catch (error) {
+      console.error(JSON.stringify({ event: 'sales_prospect_alert_failed', code: /^[A-Z0-9_]{2,100}$/.test(error?.code || '') ? error.code : 'QR_ALERT_FAILED' }));
+    }
+  }
   if (!reply.handoff && !deferLeadQuestion) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
   if (!reply.handoff && reply.media?.length) {
     try {
@@ -646,4 +681,4 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
 }
 
-module.exports = { canSendNow, runConfiguredBot, previewConfiguredBot, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId };
+module.exports = { canSendNow, runConfiguredBot, previewConfiguredBot, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId, sendSalesProspectAlert };

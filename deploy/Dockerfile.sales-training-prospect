@@ -1,0 +1,15 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY --chown=node:node modules/platform/chatbot-config.js /app/modules/platform/chatbot-config.js
+COPY --chown=node:node modules/platform/chatbot-lead-capture.js /app/modules/platform/chatbot-lead-capture.js
+COPY --chown=node:node modules/platform/chatbot-router.js /app/modules/platform/chatbot-router.js
+COPY --chown=node:node modules/platform/chatbot-runtime.js /app/modules/platform/chatbot-runtime.js
+COPY --chown=node:node modules/platform/chatbot-sales-prospect-guide.js /app/modules/platform/chatbot-sales-prospect-guide.js
+COPY --chown=node:node modules/platform/chatbot-sales-prospect-reminders.js /app/modules/platform/chatbot-sales-prospect-reminders.js
+COPY --chown=node:node modules/platform/sales-icp.js /app/modules/platform/sales-icp.js
+COPY --chown=node:node client/public/chatbot-admin.js /app/client/public/chatbot-admin.js
+COPY --chown=node:node client/public/training-center-demo.mp4 /app/client/public/training-center-demo.mp4
+COPY deploy/patch-sales-prospect-runtime.cjs /tmp/patch-sales-prospect-runtime.cjs
+COPY deploy/patch-sales-prospect-cache.cjs /tmp/patch-sales-prospect-cache.cjs
+RUN node /tmp/patch-sales-prospect-runtime.cjs /app/server.js \
+ && node /tmp/patch-sales-prospect-cache.cjs /app/client/public/training-sidebar.js

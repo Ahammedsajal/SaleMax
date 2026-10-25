@@ -70,10 +70,20 @@ test('7Network Sales prospect bot captures inbound prospects only with the expli
   const profile={config:{salesWorkflow:'training_center_prospects'}};
   const message={senderMobile:'+97450000002',senderName:'Training Center',metaChatId:'wamid.sales.1',timestamp:1700000000};
   const result=await capture.captureSalesProspectLead({}, {ctx,profile,uid:'sales-owner',chatId:'chat-sales',origin:'meta',message});
-  assert.deepEqual(result,{leadId:'sales-lead-1',duplicate:false});
+  assert.deepEqual(result,{leadId:'sales-lead-1',uidHash:null,duplicate:false,phonebookName:''});
   assert.equal(calls.length,1);assert.equal(calls[0].uid,'sales-owner');assert.equal(calls[0].origin,'meta');assert.equal(calls[0].providerMessageId,'wamid.sales.1');
   assert.equal(await capture.captureSalesProspectLead({}, {ctx,profile:{config:{}},uid:'sales-owner',chatId:'chat-sales',origin:'meta',message}),null);
   assert.equal(await capture.captureSalesProspectLead({}, {ctx:{...ctx,subscription:{...ctx.subscription,capabilities:[]}},profile,uid:'sales-owner',chatId:'chat-sales',origin:'meta',message:{...message,metaChatId:'wamid.sales.2'} }),null);
   assert.equal(calls.length,1);
  } finally { pipeline.captureBotInbound=original; }
+});
+
+test('training-center prospect qualification is stored on the tenant lead with values omitted from activity logs',async()=>{
+ const calls=[];const db={query:async(sql,params)=>{calls.push({sql,params});if(sql.startsWith('SELECT qualification_data'))return [[{data:{source:'whatsapp'}}],[]];return [{affectedRows:1},[]];}};
+ const changed=await capture.persistSalesProspectQualification(db,{leadInfo:{leadId:'lead-1',uidHash:'hash-1'},uid:'owner-1',profileId:'bot-1',state:{trainingCenterName:'Atlas Center',currentSystemStatus:'yes',currentSystemName:'Old CRM',managerContactName:'Mariam Ali',managerContactNumber:'+97455111111',demoRequested:true}});
+ assert.deepEqual(changed,['trainingCenterName','currentSystemStatus','currentSystemName','managerContactName','managerContactNumber','demoRequested','pricePresented']);
+ const update=JSON.parse(calls.find(call=>call.sql.startsWith('UPDATE pipeline_leads')).params[0]);
+ assert.equal(update.sevenNetworkSalesProspect.trainingCenterName,'Atlas Center');assert.equal(update.sevenNetworkSalesProspect.managerContactNumber,'+97455111111');
+ const activity=JSON.parse(calls.find(call=>call.sql.includes('INSERT INTO pipeline_activity')).params[2]);
+ assert.ok(activity.fields.includes('managerContactName'));assert.equal(JSON.stringify(activity).includes('Mariam'),false);assert.equal(JSON.stringify(activity).includes('+974'),false);
 });
