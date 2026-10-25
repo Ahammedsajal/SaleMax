@@ -68,9 +68,14 @@ test('business profile migration and cache patch remain additive and preserve li
   assert.ok(migration);assert.equal(migration.statements.some(statement=>/^\s*(DROP|TRUNCATE)\b/i.test(statement)),false);
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'sx-business-profile-cache-'));
   try{
-    const target=path.join(temp,'index.html');fs.writeFileSync(target,'<script src="/training-sidebar.js?v=20261025-sales-business-settings-crm-appearance1"></script><script src="/tenant-crm-appearance.js?v=20270102-admin-domains1"></script><script src="/static/js/live-production.js"></script>');
-    const result=spawnSync(process.execPath,[path.join(root,'deploy/patch-tenant-business-profile-cache.cjs'),target],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
-    const html=fs.readFileSync(target,'utf8');assert.match(html,/training-sidebar\.js\?v=20270103-business-profile1/);assert.match(html,/tenant-crm-appearance\.js\?v=20270103-business-profile1/);assert.match(html,/\/static\/js\/live-production\.js/);
+    const target=path.join(temp,'index.html'),sidebar=path.join(temp,'training-sidebar.js'),mount=path.join(temp,'mount-existing-upgrade.js');
+    fs.writeFileSync(target,'<script src="/training-sidebar.js?v=20261025-sales-business-settings-crm-appearance1"></script><script src="/tenant-crm-appearance.js?v=20270102-admin-domains1"></script><script src="/static/js/live-production.js"></script>');
+    fs.writeFileSync(sidebar,"['settings','Business Settings','إعدادات الأعمال','crm-appearance']; const routes={'Business Settings':'crm-appearance'};");
+    fs.writeFileSync(mount,"  app.use(tenantCrmDomains.middleware(pool));\n  require('../web/public-website');\n");
+    const result=spawnSync(process.execPath,[path.join(root,'deploy/patch-tenant-business-profile-cache.cjs'),target,sidebar,mount],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
+    const html=fs.readFileSync(target,'utf8'),menu=fs.readFileSync(sidebar,'utf8'),router=fs.readFileSync(mount,'utf8');
+    assert.match(html,/training-sidebar\.js\?v=20270103-business-profile1/);assert.match(html,/tenant-crm-appearance\.js\?v=20270103-business-profile1/);assert.match(html,/\/static\/js\/live-production\.js/);
+    assert.match(menu,/Business Profile','ملف النشاط التجاري/);assert.match(menu,/Business Profile':'crm-appearance','Business Settings/);assert.match(router,/tenant-business-profile-shell/);
   }finally{fs.rmSync(temp,{recursive:true,force:true});}
 });
 
