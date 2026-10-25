@@ -101,6 +101,63 @@
         }
       },
       {
+        "id": "feature_explanation_1",
+        "type": "SEND_MESSAGE",
+        "data": {
+          "moveToNextNode": true,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Keep student contacts organized in Phonebook, while course enquiries from WhatsApp campaigns, chatbots and application forms can be tracked as leads with their course or form and campaign source for follow-up."
+            }
+          },
+          "webhook": {},
+          "label": "Capture and organize enquiries"
+        }
+      },
+      {
+        "id": "feature_explanation_2",
+        "type": "SEND_MESSAGE",
+        "data": {
+          "moveToNextNode": true,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Send WhatsApp campaigns to students, let chatbots answer common questions and collect enquiries, and transfer conversations to the right team member when personal help is needed."
+            }
+          },
+          "webhook": {},
+          "label": "Campaigns, chatbots and team handoff"
+        }
+      },
+      {
+        "id": "feature_explanation_3",
+        "type": "SEND_MESSAGE",
+        "data": {
+          "moveToNextNode": true,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Manage application forms and submissions, course-linked leads, invoices, payments and due-date reminders. Reports and notifications help your team stay on top of follow-ups and collections."
+            }
+          },
+          "webhook": {},
+          "label": "Applications, finance and visibility"
+        }
+      },
+      {
         "id": "demo_question",
         "type": "SEND_MESSAGE",
         "position": {
@@ -1101,8 +1158,23 @@
         "target": "system_answer"
       },
       {
-        "id": "system_answer-demo_question",
+        "id": "system_answer-feature_explanation_1",
         "source": "system_answer",
+        "target": "feature_explanation_1"
+      },
+      {
+        "id": "feature_explanation_1-feature_explanation_2",
+        "source": "feature_explanation_1",
+        "target": "feature_explanation_2"
+      },
+      {
+        "id": "feature_explanation_2-feature_explanation_3",
+        "source": "feature_explanation_2",
+        "target": "feature_explanation_3"
+      },
+      {
+        "id": "feature_explanation_3-demo_question",
+        "source": "feature_explanation_3",
         "target": "demo_question"
       },
       {

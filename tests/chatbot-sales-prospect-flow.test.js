@@ -10,7 +10,13 @@ test('Training Center prospect flow opens with the approved introduction and qui
  const intro=byId.get('opening');assert.equal(intro.data.content.text.body,'Hi! We’re 7Network (CR No. 251489). We help training centers manage course enquiries and student follow-ups, send WhatsApp campaigns to students, and keep invoices and payments in one place. We can also customize the system.');
  assert.equal(edges.find(e=>e.source==='opening')?.target,'system_question');
  assert.equal(edges.find(e=>e.source==='system_question')?.target,'system_answer');
- assert.equal(edges.find(e=>e.source==='system_answer')?.target,'demo_question');
+ assert.equal(edges.find(e=>e.source==='system_answer')?.target,'feature_explanation_1');
+ assert.equal(edges.find(e=>e.source==='feature_explanation_1')?.target,'feature_explanation_2');
+ assert.equal(edges.find(e=>e.source==='feature_explanation_2')?.target,'feature_explanation_3');
+ assert.equal(edges.find(e=>e.source==='feature_explanation_3')?.target,'demo_question');
+ assert.match(byId.get('feature_explanation_1').data.content.text.body,/Phonebook.*campaigns.*chatbots.*application forms.*leads/i);
+ assert.match(byId.get('feature_explanation_2').data.content.text.body,/WhatsApp campaigns.*chatbots.*transfer conversations/i);
+ assert.match(byId.get('feature_explanation_3').data.content.text.body,/application forms.*invoices.*payments.*due-date reminders.*reports.*notifications/i);
  assert.equal(edges.find(e=>e.source==='demo_question')?.target,'demo_answer');
  assert.ok(!nodes.some(n=>/May I confirm your training center|Which business management system do you use/i.test(n.data?.content?.text?.body||n.data?.content?.interactive?.body?.text||'')));
  assert.ok(!nodes.some(n=>n.data?.variables?.some(v=>v.responsePath==='msgContext.interactive.button_reply.title')),'Meta button taps are normalized to msgContext.text.body');
