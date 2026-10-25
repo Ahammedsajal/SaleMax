@@ -119,7 +119,7 @@
           "variables": [
             {
               "varName": "currentSystemStatus",
-              "responsePath": "msgContext.interactive.button_reply.title"
+              "responsePath": "msgContext.text.body"
             }
           ],
           "label": ""
@@ -298,7 +298,7 @@
           "variables": [
             {
               "varName": "managerNumberChoice",
-              "responsePath": "msgContext.interactive.button_reply.title"
+              "responsePath": "msgContext.text.body"
             }
           ],
           "label": ""
@@ -430,7 +430,7 @@
           "variables": [
             {
               "varName": "demoRequested",
-              "responsePath": "msgContext.interactive.button_reply.title"
+              "responsePath": "msgContext.text.body"
             }
           ],
           "label": ""
@@ -501,7 +501,7 @@
           "variables": [
             {
               "varName": "demoWatched",
-              "responsePath": "msgContext.interactive.button_reply.title"
+              "responsePath": "msgContext.text.body"
             }
           ],
           "label": ""
@@ -635,7 +635,7 @@
           "variables": [
             {
               "varName": "priceInterest",
-              "responsePath": "msgContext.interactive.button_reply.title"
+              "responsePath": "msgContext.text.body"
             }
           ],
           "label": ""
@@ -793,7 +793,7 @@
           "variables": [
             {
               "varName": "centerConfirmation",
-              "responsePath": "msgContext.interactive.button_reply.title"
+              "responsePath": "msgContext.text.body"
             }
           ]
         }

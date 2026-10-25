@@ -17,6 +17,7 @@ test('Training Center prospect conversation is a supported editable WA Chatbot F
   assert.doesNotMatch(text,/parent company|mother company|ProCatalyst/i);
  }
  assert.ok(nodes.some(n=>n.type==='RESPONSE_SAVER'&&n.data.variables?.some(v=>v.varName==='trainingCenterName')));
+ assert.ok(nodes.filter(n=>n.type==='RESPONSE_SAVER').every(n=>n.data.variables?.every(v=>v.responsePath!=='msgContext.interactive.button_reply.title')),'Meta webhook button taps are normalized into msgContext.text.body before Flow Builder saves the answer');
  const interactive=nodes.filter(n=>n.type==='SEND_MESSAGE'&&n.data.type?.type==='interactive');
  assert.ok(nodes.filter(n=>n.type==='SEND_MESSAGE').every(n=>n.data.moveToNextNode===false),'question sends stop so customer input is saved on the next turn');
  assert.ok(interactive.length>=5,'native Meta reply buttons exist for the guided choices');
