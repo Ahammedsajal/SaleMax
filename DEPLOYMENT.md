@@ -1,3 +1,10 @@
+## 2026-10-25 — Owner-requested Training Center bot test reset
+
+- **Change:** At the owner's request, cleared the single saved guided-chat state for the owner-designated Meta test conversation so its next inbound message can start the live Training Center prospect flow at the opening. One guided-session row was removed; the corresponding Flow Builder cursor query found no row to remove. The 162 stored conversation-history rows, CRM lead, Phonebook data, bot profile, revision, assignment and app container were left unchanged. No message was sent by this reset.
+- **Phonebook keyword behavior:** Source-backed `phonebook-workspace.routeOpening` handles incoming QR and Meta messages. A configured keyword rule can add the opening sender to its selected Phonebook, subject to duplicate and contact-limit checks. The rule is evaluated once against the first incoming message in that conversation; it does not scan later messages after a nonmatching opening. Read-only production inspection found zero keyword rules in this Training Center account, so this auto-save is currently available but not configured there.
+- **Rollback snapshot:** `/opt/salemax/shared/rollback-training-center-chat-reset-owner-test-20261025` (mode `0700`), containing the exact removed guided-session row in `chat-state-preimage.json` (mode `0600`); preimage digest `bc796b955a081a4225021f1df7886a1838a7b56def5b40af23f0733999a45c88`. Restore the saved row only if reversal is explicitly required and no newer session exists; restoring it would resume the old state. Do not restore conversation history or any other tenant state.
+- **Verification:** After reset, the target profile/channel has zero guided-session rows for the test conversation, while all 162 history rows remain. The app stays on the active prospect-flow release and has zero restarts; `/healthz` and `/user/login` return HTTP 200. No migration or campaign occurred.
+
 ## 2026-10-25 — Training Center feature explanation before demo
 
 - **Source commit:** `1a1e60a145959c3ac5e6cc8818cf191ea8b93980` on `codex/training-center-prospect-bot-20261025`, pushed to `Ahammedsajal/SaleMax`.
