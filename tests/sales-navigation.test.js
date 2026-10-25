@@ -130,13 +130,13 @@ test('7Network Sales owner gets one People & Roles entry while managers and team
   assert.match(sidebar,/membershipRole==='owner'\)\{\s*aliases\['Team access'\]='People & Roles'/);
   assert.match(sidebar,/name==='People & Roles'\)group=11/);
   assert.match(sidebar,/name==='Agent Login'\|\|\(name==='Team access'&&membershipRole!=='owner'\)/);
-  assert.match(sidebar,/'People & Roles':'team'/);
+  assert.match(sidebar,/'People & Roles':'team-invitations'/);
   assert.match(team,/organisation\.role!=='owner'\)\{location\.replace\('\/user\?page=sales-organization'\);return;\}/);
   assert.match(team,/label\('People & Roles','الأشخاص والأدوار'\)/);
   assert.match(team,/node\.dataset\.salesCategory='7network_sales'/);
   assert.match(team,/#sx-team-screen\[data-sales-category=\"7network_sales\"\] :focus-visible\{outline-color:#1768d4\}/);
   assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
-  assert.match(shell,/team-invitations\.js\?v=20261019-role-sidebar2/);
+  assert.match(shell,/team-invitations\.js\?v=20261025-owner-transfer1/);
 });
 
 test('Sales Overview is integrated into existing navigation, refreshes scoped APIs and keeps nested routes in the parent URL',()=>{

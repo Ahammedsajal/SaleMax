@@ -92,8 +92,9 @@ async function list(db, ctx, courseId) {
   safeId(courseId);
   const [[course]] = await db.query('SELECT id FROM sx_training_courses WHERE tenant_id=? AND id=? AND deleted_at IS NULL', [ctx.tenant.id, courseId]);
   if (!course) fail('COURSE_NOT_FOUND', 404);
-  const [rows] = await db.query(`SELECT id,media_kind AS kind,mime_type AS mimeType,original_name AS originalName,file_size_bytes AS sizeBytes,created_at AS createdAt
-    FROM sx_training_course_media WHERE tenant_id=? AND course_id=? AND deleted_at IS NULL ORDER BY created_at,id`, [ctx.tenant.id, courseId]);
+  const [rows] = await db.query(`SELECT m.id,m.media_kind AS kind,m.mime_type AS mimeType,m.original_name AS originalName,m.file_size_bytes AS sizeBytes,m.created_at AS createdAt,(b.media_id IS NOT NULL) AS publicBrochure
+    FROM sx_training_course_media m LEFT JOIN sx_training_public_brochures b ON b.tenant_id=m.tenant_id AND b.course_id=m.course_id AND b.media_id=m.id
+    WHERE m.tenant_id=? AND m.course_id=? AND m.deleted_at IS NULL ORDER BY m.created_at,m.id`, [ctx.tenant.id, courseId]);
   return rows.map(row => ({ ...row, sizeBytes: Number(row.sizeBytes), downloadPath: `/${encodeURIComponent(courseId)}/media/${encodeURIComponent(row.id)}/access` }));
 }
 
@@ -141,6 +142,7 @@ async function remove(db, ctx, courseId, mediaId) {
     const [[row]] = await db.query(`SELECT storage_key AS storageKey FROM sx_training_course_media
       WHERE tenant_id=? AND course_id=? AND id=? AND deleted_at IS NULL FOR UPDATE`, [ctx.tenant.id, courseId, mediaId]);
     if (!row) fail('COURSE_MEDIA_NOT_FOUND', 404);
+    await db.query('DELETE FROM sx_training_public_brochures WHERE tenant_id=? AND course_id=? AND media_id=?',[ctx.tenant.id,courseId,mediaId]);
     await db.query('UPDATE sx_training_course_media SET deleted_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND course_id=? AND id=?', [ctx.tenant.id, courseId, mediaId]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,?,'identity','training.course-media-removed','training-course-media',?,?,?)`, [uuid(), ctx.tenant.id, ctx.identity.id, mediaId, JSON.stringify({ courseId }), uuid()]);
@@ -151,6 +153,22 @@ async function remove(db, ctx, courseId, mediaId) {
     try { await db.rollback(); } catch (_) {}
     throw error;
   }
+}
+
+async function setPublicBrochure(db,ctx,courseId,mediaId){
+  courses.object(ctx,'courses.manage');safeId(courseId);
+  if(mediaId!==null&&!/^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(mediaId))fail('INVALID_ID');
+  await db.beginTransaction();
+  try{
+    const [[course]]=await db.query('SELECT id,status FROM sx_training_courses WHERE tenant_id=? AND id=? AND deleted_at IS NULL FOR UPDATE',[ctx.tenant.id,courseId]);
+    if(!course)fail('COURSE_NOT_FOUND',404);if(course.status==='retired')fail('COURSE_RETIRED',409);
+    let selected=null;
+    if(mediaId){const [[media]]=await db.query("SELECT id FROM sx_training_course_media WHERE tenant_id=? AND course_id=? AND id=? AND media_kind='document' AND mime_type='application/pdf' AND deleted_at IS NULL FOR UPDATE",[ctx.tenant.id,courseId,mediaId]);if(!media)fail('PUBLIC_BROCHURE_NOT_AVAILABLE',404);selected=media.id;
+      await db.query(`INSERT INTO sx_training_public_brochures(tenant_id,course_id,media_id,approved_by_identity_id,approved_at) VALUES (?,?,?,?,UTC_TIMESTAMP(3)) ON DUPLICATE KEY UPDATE media_id=VALUES(media_id),approved_by_identity_id=VALUES(approved_by_identity_id),approved_at=UTC_TIMESTAMP(3)`,[ctx.tenant.id,courseId,selected,ctx.identity.id]);
+    }else await db.query('DELETE FROM sx_training_public_brochures WHERE tenant_id=? AND course_id=?',[ctx.tenant.id,courseId]);
+    await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,?,'identity','training.course-public-brochure-updated','training-course',?,?,?)`,[uuid(),ctx.tenant.id,ctx.identity.id,courseId,JSON.stringify({mediaId:selected}),uuid()]);
+    await db.commit();return {courseId,mediaId:selected,public:selected!==null};
+  }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
 async function getFile(db, tenantId, courseId, mediaId) {
@@ -175,4 +193,4 @@ function verifyAccessToken(token) {
   return payload;
 }
 
-module.exports = { MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, getFile, accessToken, verifyAccessToken };
+module.exports = { MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, setPublicBrochure, getFile, accessToken, verifyAccessToken };

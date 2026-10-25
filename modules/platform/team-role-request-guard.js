@@ -14,9 +14,14 @@ function routePermission(req){
   if(mount==='/api/user/business-auth'&&path==='/me'&&read)return 'tenant.read';
   if(mount==='/api/workspace/session')return 'tenant.read';
   if(['/api/workspace/tasks','/api/user/training/tasks'].includes(mount))return read?'tasks.read':'tasks.manage';
-  // Course quick replies are a scoped Inbox convenience. They use Inbox read
-  // access plus the course/chat guards, so no separate reply grant is needed.
-  if(mount==='/api/workspace/inbox/course-replies')return 'conversations.read';
+  // Listing/previewing course facts is Inbox read access. Sending those facts
+  // is still a message reply and must retain the current reply permission on
+  // the canonical route and every compatibility alias.
+  if(['/api/workspace/inbox/course-replies','/api/inbox/course-replies','/api/agent/course-replies'].includes(mount)){
+    if(read)return 'conversations.read';
+    if(method==='POST'&&path==='/send')return 'conversations.reply';
+    return null;
+  }
   if(mount==='/api/workspace/phonebook')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
   if(mount==='/api/workspace/courses')return read?'courses.read':'courses.manage';
   if(mount==='/api/workspace/products-services')return read?'products.read':'products.manage';
@@ -40,7 +45,6 @@ function routePermission(req){
   if(mount.startsWith('/api/user/training/finance'))return read?'invoices.read':'payments.verify';
   if(mount.startsWith('/api/user/training/forms'))return read?'forms.manage':'forms.capture';
   if(mount==='/api/user/training/profile')return 'tenant.manage';
-  if(['/api/inbox/course-replies','/api/agent/course-replies'].includes(mount))return 'conversations.read';
   if(mount==='/api/inbox')return read||/^\/(get_|import_chats)/.test(path)?'conversations.read':'conversations.reply';
   if(mount==='/api/agent/phonebook')return ['GET','HEAD'].includes(method)||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
   if(mount==='/api/phonebook/workspace')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
@@ -66,7 +70,10 @@ function routePermission(req){
     if(path.startsWith('/tasks'))return read?'tasks.read':'tasks.manage';
     if(path.startsWith('/reports'))return path.includes('schedule')?'reports.schedule':'reports.read';
     if(path==='/settings')return read?'leads.read':'leads.assign';
-    if(path.startsWith('/training-forms'))return read?'forms.manage':'forms.capture';
+    // The legacy Pipeline training-form routes are the staff capture experience
+    // (including its read-only definition/assigned-lead views), not the form
+    // editor. Form management remains on the existing owner-only Forms screen.
+    if(path.startsWith('/training-forms'))return 'forms.capture';
     if(path.includes('/assign')||path.endsWith('/move')||path==='/stages'||path.includes('/stages/'))return read?'leads.read':'leads.assign';
     return read?'leads.read':'leads.manage';
   }

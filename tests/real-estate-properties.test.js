@@ -21,7 +21,7 @@ test('real estate contract is isolated, immutable, private and excluded from pla
 });
 
 test('listing validation rejects malformed domain values and normalizes accepted data',()=>{
-  assert.deepEqual(properties.clean(listing),{...listing,assignedMembershipId:null});
+  assert.deepEqual(properties.clean(listing),{...listing,assignedMembershipId:null,branchId:null});
   assert.throws(()=>properties.clean({...listing,priceMinor:-1}),{code:'INVALID_PROPERTY_PRICE'});
   assert.throws(()=>properties.clean({...listing,propertyType:'course'}),{code:'INVALID_PROPERTY_TYPE'});
   assert.throws(()=>properties.clean({...listing,transactionType:'lease'}),{code:'INVALID_TRANSACTION_TYPE'});
@@ -37,6 +37,9 @@ test('real estate access requires the exact category, version, plan, membership 
   assert.throws(()=>properties.authorize({...base,subscription:{...base.subscription,capabilities:[]}},'properties.read'),{code:'FEATURE_UNAVAILABLE'});
   assert.equal(require('../modules/platform/policy').scopeFor({role:'agent',customPermissions:['properties.read']},'properties.read'),'assigned');
   assert.equal(require('../modules/platform/policy').scopeFor({role:'team_leader',customPermissions:['properties.read']},'properties.read'),'team');
+  assert.equal(require('../modules/platform/policy').scopeFor({role:'agent',customPermissions:['properties.read','properties.requests.manage']},'properties.requests.manage'),'assigned');
+  assert.equal(require('../modules/platform/policy').scopeFor({role:'team_leader',customPermissions:['properties.read','properties.requests.manage']},'properties.requests.manage'),'team');
+  assert.equal(require('../modules/platform/policy').scopeFor({role:'accountant'},'properties.requests.manage'),null);
   assert.equal(require('../modules/platform/policy').scopeFor({role:'team_leader',customPermissions:['properties.assign']},'properties.assign'),null);
   assert.throws(()=>properties.authorize({...base,membership:{...base.membership,role:'agent',customPermissions:['properties.manage']}},'properties.manage'),{code:'PERMISSION_DENIED'});
   assert.equal(properties.authorize({...base,membership:{...base.membership,role:'manager'}},'properties.read').tenant.id,tenantId);
@@ -94,6 +97,17 @@ test('assignee lookup stays tenant and manager scoped',async()=>{
   assert.deepEqual(calls[0].args,[tenantId,managerId]);assert.match(calls[0].sql,/m\.tenant_id=\?.*m\.role='agent'.*org\.manager_membership_id=\?/);
 });
 
+test('listing branches are validated as active and tenant-scoped before persistence',async()=>{
+  const branchId='88888888-8888-4888-8888-888888888888',calls=[];
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT id FROM sx_tenant_branches'))return [[{id:branchId}]];if(sql.startsWith('INSERT INTO sx_real_estate_properties'))return [{affectedRows:1}];if(sql.includes('real-estate.property-created'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
+  const created=await properties.create(db,base,{...listing,branchId});
+  assert.equal(created.branchId,branchId);assert.deepEqual(calls[0].args,[tenantId,branchId]);
+  assert.match(calls[0].sql,/status='active'/);
+  assert.ok(calls[1].args.includes(branchId));
+  const unavailable={...db,query:async(sql,args)=>sql.startsWith('SELECT id FROM sx_tenant_branches')?[[]]:db.query(sql,args)};
+  await assert.rejects(properties.create(unavailable,base,{...listing,branchId}),{code:'PROPERTY_BRANCH_UNAVAILABLE'});
+});
+
 test('stale and invalid transitions cannot mutate a listing',async()=>{
   let updates=0,rollbacks=0;
   const db={query:async(sql)=>{if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'sold',transactionType:'sale',revision:2}]];if(sql.startsWith('UPDATE'))updates++;return [{affectedRows:1}];},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{rollbacks++;}};
@@ -120,4 +134,8 @@ test('real estate storage keys and current-panel entry are registered without a 
   assert.match(entry,/salemax-properties-workspace/);assert.match(entry,/\/property-listings\//);
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/properties.js'),'utf8');
   assert.match(ui,/aria-modal="true"/);assert.match(ui,/statusLabels/);assert.match(ui,/data-save-assignee/);assert.match(ui,/assignedMembershipId/);assert.doesNotMatch(ui,/prompt\(/);
+  assert.match(ui,/data-save-branch/);assert.match(ui,/branches\/options/);
+  const index=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
+  assert.match(index,/property-listings\/properties\.js\?v=20261026-request-assignment1/);
+  assert.match(ui,/get\('page'\)==='properties'/);
 });

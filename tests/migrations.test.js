@@ -10,6 +10,9 @@ test('quoted delimiters and comments do not split SQL', () => {
 });
 test('actual discovery excludes destructive rollback', () => {
   const migrations = discover(path.join(__dirname, '../database/migrations'));
+  const dailyDefault = migrations.findIndex(m => m.file === '20261024_business_daily_report_default_time.sql');
+  const notificationSchema = migrations.findIndex(m => m.file === '20261225_business_whatsapp_notifications.sql');
+  assert.ok(notificationSchema >= 0 && dailyDefault > notificationSchema, 'daily default alteration follows creation of notification settings');
   assert.ok(migrations.some(m => m.file === '20261127_training_course_soft_deletion.sql'));
   assert.ok(migrations.some(m => m.file === '20261113_team_role_profiles.sql'));
   assert.ok(migrations.some(m => m.file === '20261206_legacy_crm_user_sync_queue.sql'));
@@ -24,6 +27,29 @@ test('actual discovery excludes destructive rollback', () => {
   const salesFinance=migrations.findIndex(m=>m.file==='20261115_sales_commissions.sql');
   assert.ok(teamRoles>=0&&salesOrg>teamRoles&&salesFinance>salesOrg,'Sales migrations follow the Team Leader role migration');
   assert.ok(migrations.every(m => !/rollback/.test(m.file)));
+  const brochure=migrations.find(m=>m.file==='20270105_training_public_brochure.sql');
+  assert.equal(brochure?.statements.length,2,'brochure migration is split into one index change and one table creation');
+  assert.match(brochure?.statements.join('\n')||'',/FOREIGN KEY \(tenant_id,course_id,media_id\)\s+REFERENCES sx_training_course_media\(tenant_id,course_id,id\)/);
+  assert.doesNotMatch(brochure?.statements.join('\n')||'',/\bDROP\s+(?:TABLE|COLUMN|INDEX)\b/i);
+  const enquiryConsent=migrations.find(m=>m.file==='20270106_website_enquiry_consent.sql');
+  assert.equal(enquiryConsent?.statements.length,1);
+  assert.match(enquiryConsent?.statements[0]||'',/consented_at DATETIME\(3\) NULL/);
+  assert.match(enquiryConsent?.statements[0]||'',/consent_version VARCHAR\(64\)/);
+  assert.doesNotMatch(enquiryConsent?.statements.join('\n')||'',/\bDROP\s+(?:TABLE|COLUMN|INDEX)\b/i);
+  const restaurantMenu=migrations.find(m=>m.file==='20270110_restaurant_menu.sql');
+  assert.equal(restaurantMenu?.statements.length,3);
+  assert.match(restaurantMenu?.statements.join('\n')||'',/FOREIGN KEY \(tenant_id,branch_id\) REFERENCES sx_tenant_branches\(tenant_id,id\)/);
+  assert.match(restaurantMenu?.statements.join('\n')||'',/FOREIGN KEY \(tenant_id,menu_item_id\) REFERENCES sx_restaurant_menu_items\(tenant_id,id\)/);
+  assert.doesNotMatch(restaurantMenu?.statements.join('\n')||'',/\bDROP\s+(?:TABLE|COLUMN|INDEX)\b/i);
+  const restaurantOrders=migrations.find(m=>m.file==='20270111_restaurant_guest_orders.sql');
+  assert.equal(restaurantOrders?.statements.length,2);
+  assert.match(restaurantOrders?.statements.join('\n')||'',/status ENUM\('requested','confirmed'/);
+  assert.match(restaurantOrders?.statements.join('\n')||'',/modifiers_snapshot JSON NOT NULL/);
+  assert.doesNotMatch(restaurantOrders?.statements.join('\n')||'',/\bDROP\s+(?:TABLE|COLUMN|INDEX)\b/i);
+  const storefront=migrations.find(m=>m.file==='20261230_tenant_white_label_storefront.sql');
+  assert.ok(storefront);
+  assert.match(storefront.statements.join('\n'),/sx_tenant_crm_branding/);
+  assert.doesNotMatch(storefront.statements.join('\n'),/\bis_primary\b/i,'the production-applied domain-alias migration owns is_primary');
   assert.equal(migrations[0].file, '20260928_lead_pipeline.sql');
 });
 test('destructive forward files fail before database execution', () => {
@@ -65,6 +91,13 @@ test('applied history is skipped and checksum drift blocks new SQL', async () =>
   await assert.rejects(applyMigrations(bad, [migration]), { code: 'MIGRATION_CHECKSUM_CHANGED' });
   assert.ok(!bad.calls.some(call => call.sql.startsWith('INSERT')));
   assert.ok(bad.calls.at(-1).sql.includes('RELEASE_LOCK'));
+});
+test('targeted migrations include prerequisites in dependency order', async () => {
+  const migrations = discover(path.join(__dirname, '../database/migrations'));
+  const target = '20261024_business_daily_report_default_time.sql';
+  const prerequisite = '20261225_business_whatsapp_notifications.sql';
+  const result = await applyMigrations(fake(), migrations, { only: target });
+  assert.deepEqual(result.applied, [prerequisite, target]);
 });
 test('failed/interrupted history requires recovery before retrying DDL', async () => {
   for (const status of ['failed', 'running']) {

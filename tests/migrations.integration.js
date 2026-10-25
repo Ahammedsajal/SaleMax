@@ -46,8 +46,40 @@ async function main() {
       for(const row of tables)await connection.query(`DROP TABLE IF EXISTS \`${String(row.TABLE_NAME).replace(/`/g,'``')}\``);
       await connection.query('SET FOREIGN_KEY_CHECKS=1');
     }
-    await connection.query('CREATE TABLE instance (id INT PRIMARY KEY, status VARCHAR(20))');
-    await connection.query("INSERT INTO instance VALUES (1, 'INACTIVE')");
+    await connection.query('CREATE TABLE instance (id INT PRIMARY KEY, uid VARCHAR(255) NULL, uniqueId VARCHAR(255) NULL, number VARCHAR(100) NULL, status VARCHAR(20))');
+    await connection.query("INSERT INTO instance(id,status) VALUES (1, 'INACTIVE')");
+    // These legacy tables are supplied by the existing application schema,
+    // not by additive platform migrations. Model only the columns referenced
+    // by the migration chain so a fresh disposable database matches that base.
+    await connection.query(`CREATE TABLE beta_chats (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(255) NOT NULL,
+      chat_id VARCHAR(255) NOT NULL,
+      origin VARCHAR(20) NULL,
+      origin_instance_id JSON NULL,
+      sender_mobile VARCHAR(50) NULL,
+      assigned_agent LONGTEXT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await connection.query(`CREATE TABLE contact (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) NOT NULL,
+      phonebook_id VARCHAR(120) NOT NULL,
+      phonebook_name VARCHAR(255) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      mobile VARCHAR(64) NOT NULL,
+      var1 TEXT NULL,var2 TEXT NULL,var3 TEXT NULL,var4 TEXT NULL,var5 TEXT NULL,
+      createdAt DATETIME NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await connection.query(`CREATE TABLE user (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      name VARCHAR(999) NULL,
+      plan LONGTEXT NULL,
+      plan_expire VARCHAR(999) NULL,
+      timezone VARCHAR(100) NULL DEFAULT 'UTC'
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await connection.query("CREATE TABLE broadcast (broadcast_id INT PRIMARY KEY, uid VARCHAR(255) NULL, timezone VARCHAR(100) NULL DEFAULT 'UTC') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    await connection.query("CREATE TABLE beta_campaign (campaign_id INT PRIMARY KEY, uid VARCHAR(255) NULL, timezone VARCHAR(100) NULL DEFAULT 'UTC') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     const migrations = discover(path.join(__dirname, '../database/migrations'));
     const result = await applyMigrations(connection, migrations);
     assert.equal(result.applied.length, migrations.length);
@@ -98,7 +130,13 @@ async function main() {
     const taskEvidence=await require('./task-integration.cjs')(connection,other,{tenantId:t1,identityId:i1,pool});
     const staffAccessEvidence=await require('./staff-access-integration.cjs')(connection,{ownerIdentityId:i1});
     const businessProvisioningEvidence=await require('./business-provisioning-integration.cjs')(connection,other,{i1},pool);
+    const ownerTransferEvidence=await require('./tenant-owner-transfer-integration.cjs')(connection,{platformIdentityId:i1});
+    console.log(JSON.stringify(ownerTransferEvidence));
     const tenantCrmDomainEvidence=await require('./tenant-crm-domains-integration.cjs')(connection,{t1,i1,m1,t2,i2});
+    const tenantBranchEvidence=await require('./tenant-branches-integration.cjs')(connection,other,{t1,i1,m1,t2,i2,m2});
+    console.log(JSON.stringify(tenantBranchEvidence));
+    const retailCheckoutEvidence=await require('./retail-checkout-integration.cjs')(connection,other,{identityId:i1});
+    console.log(JSON.stringify(retailCheckoutEvidence));
     const teamInvitationEvidence=await require('./team-invitation-integration.cjs')(connection,other,pool,{i1});
     const outboxEvidence=await require('./outbox-integration.cjs')(connection,other,{t1,m1});
     const chatbotMigrationEvidence=await require('./chatbot-migration-integration.cjs')(connection,{t1,t2,i1,i2});

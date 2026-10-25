@@ -28,7 +28,7 @@ test('custom CRM write origins are exact-host and remain separate from canonical
   assert.equal(matches({...request(`https://${host}`),crmTenantDomain:null},canonical),false);
 });
 
-test('CRM host middleware gates inactive domains and allows only CRM routes for active domains',async()=>{
+test('CRM host middleware gates inactive domains and routes tenant storefront pages and guest APIs safely',async()=>{
   const rows={
     'pending.example.qa':{tenantId:'tenant-a',status:'pending',tlsReadyAt:null},
     'active.example.qa':{tenantId:'tenant-a',status:'active',tlsReadyAt:new Date(),tenantStatus:'active',dnsHealthStatus:'healthy'},
@@ -38,14 +38,21 @@ test('CRM host middleware gates inactive domains and allows only CRM routes for 
   };
   const pool={getConnection:async()=>({query:async(_sql,[host])=>[[rows[host]||null].filter(Boolean)],release(){}})};
   const middleware=domains.middleware(pool);
-  const run=async(host,path)=>{const req={method:'GET',path,get:name=>name==='host'?host:undefined};let called=false;const out={statusCode:200,status(n){this.statusCode=n;return this;},type(){return this;},send(body){this.body=body;return this;},end(){return this;},json(body){this.body=body;return this;}};await middleware(req,out,()=>{called=true;});return {req,out,called};};
+  const run=async(host,path,method='GET')=>{const req={method,path,get:name=>name==='host'?host:undefined};let called=false;const out={statusCode:200,headers:{},status(n){this.statusCode=n;return this;},type(){return this;},send(body){this.body=body;return this;},end(){return this;},json(body){this.body=body;return this;},setHeader(name,value){this.headers[name]=value;return this;}};await middleware(req,out,()=>{called=true;});return {req,out,called};};
   const pending=await run('pending.example.qa','/user');assert.equal(pending.out.statusCode,410);assert.equal(pending.called,false);
   const active=await run('active.example.qa','/user');assert.equal(active.called,true);assert.equal(active.req.crmTenantDomain.tenantId,'tenant-a');
   const suspended=await run('suspended.example.qa','/user');assert.equal(suspended.out.statusCode,410);assert.equal(suspended.called,false);
   const stale=await run('stale.example.qa','/user');assert.equal(stale.out.statusCode,410);assert.equal(stale.called,false);
+  assert.equal(active.out.headers['Cache-Control'],'private, no-store, max-age=0');
   for(const path of ['/api/inbox/chats','/api/chat_flow/list','/api/templet/list','/api/broadcast/list','/api/pipeline/leads','/api/user/profile'])assert.equal((await run('active.example.qa',path)).called,true,path);
   const admin=await run('active.example.qa','/admin');assert.equal(admin.out.statusCode,404);assert.equal(admin.called,false);
-  for(const path of ['/api/admin/plans','/api/public/forms','/api/web/get_web_public','/healthz','/']){const blocked=await run('active.example.qa',path);assert.equal(blocked.out.statusCode,404,path);assert.equal(blocked.called,false,path);}
+  for(const path of ['/api/admin/plans','/api/public/forms','/api/web/get_web_public','/healthz']){const blocked=await run('active.example.qa',path);assert.equal(blocked.out.statusCode,404,path);assert.equal(blocked.called,false,path);}
+  for(const path of ['/','/courses','/products','/services','/updates','/careers','/contact','/courses/first-aid'])assert.equal((await run('active.example.qa',path)).called,true,path);
+  assert.equal((await run('active.example.qa','/api/public/website/enquiries','POST')).called,true);
+  assert.equal((await run('active.example.qa','/api/public/website/orders/catalog')).called,true);
+  assert.equal((await run('active.example.qa','/api/public/website/orders','POST')).called,true);
+  assert.equal((await run('active.example.qa','/api/public/website/orders/returns','POST')).called,true);
+  assert.equal((await run('active.example.qa','/api/public/website/orders','GET')).out.statusCode,404);
   const disabled=await run('disabled.example.qa','/api/user/me');assert.equal(disabled.out.statusCode,410);
   const root=await run('crm.salemax.qa','/');assert.equal(root.called,true);
 });
@@ -62,6 +69,15 @@ test('CRM host context must match tenant and reviewed legacy ownership',async()=
   await assert.rejects(domains.assertLegacyHost(async()=>[{...activeMember,tenantStatus:'suspended'}],req,'agents','26'),{code:'CRM_DOMAIN_TENANT_MISMATCH'});
   await assert.rejects(domains.assertLegacyHost(async()=>[{...activeMember,dnsHealthStatus:'stale'}],req,'agents','27'),{code:'CRM_DOMAIN_TENANT_MISMATCH'});
   await assert.rejects(domains.assertLegacyHost(async()=>[],req,'agents','24'),{code:'CRM_DOMAIN_TENANT_MISMATCH'});
+});
+
+test('public custom-domain context exposes only an active published tenant storefront',async()=>{
+  const calls=[];
+  const db={async query(sql){calls.push(sql);if(sql.includes('FROM sx_tenant_crm_domains d JOIN sx_tenants'))return [[{tenantId:'tenant-a',status:'active',tlsReadyAt:new Date(),tenantStatus:'active',dnsHealthStatus:'healthy'}]];if(sql.includes('FROM sx_tenant_crm_branding'))return [[{logoUrl:'/api/crm/logos/tenant-a/logo.webp',primaryColor:'#112233',accentColor:'#abcdef',tagline:'Welcome',whatsappNumber:'+97412345678'}]];if(sql.includes('SELECT name,slug,category_key'))return [[{name:'Synthetic Training',slug:'synthetic-training',categoryKey:'training_center',categoryVersion:1}]];if(sql.includes('FROM sx_tenant_storefronts'))return [[{content:JSON.stringify({headline:'First aid',showCourseCatalog:true}),revision:4}]];if(sql.includes('is_primary=1'))return [[{hostname:'crm.synthetic-example.qa'}]];throw new Error(`Unexpected SQL: ${sql}`);}};
+  const result=await domains.publicBrand(db,'crm.synthetic-example.qa');
+  assert.equal(result.tenantId,'tenant-a');assert.equal(result.categoryKey,'training_center');assert.equal(result.categoryVersion,1);assert.equal(result.primaryHostname,'crm.synthetic-example.qa');assert.equal(result.revision,4);assert.deepEqual(result.content,{headline:'First aid',showCourseCatalog:true});assert.equal(result.primaryColor,'#112233');
+  const privateDb={async query(sql){if(sql.includes('FROM sx_tenant_crm_domains d JOIN sx_tenants'))return [[{tenantId:'tenant-a',status:'active',tlsReadyAt:new Date(),tenantStatus:'active',dnsHealthStatus:'healthy'}]];if(sql.includes('FROM sx_tenant_crm_branding'))return [[{}]];if(sql.includes('SELECT name,slug,category_key'))return [[{name:'Internal Sales',slug:'internal-sales',categoryKey:'7network_sales',categoryVersion:1}]];throw new Error(`Unexpected SQL for private tenant: ${sql}`);}};
+  assert.equal(await domains.publicBrand(privateDb,'crm.synthetic-example.qa'),null);
 });
 
 test('DNS record checks use 7Network TXT names and retain compatibility with issued SaleMaX challenges',async()=>{
@@ -106,14 +122,21 @@ test('tenant CRM logo storage is private and the appearance UI keeps the existin
   assert.match(media,/CRM_LOGO_SIGNATURE_INVALID/);
   assert.match(router,/canonicalGuard/);
   assert.match(router,/sendLogo/);
-  assert.match(shell,/tenant-crm-appearance\.js\?v=20270102-admin-domains1/);
+  assert.match(router,/storefront\/publish/);
+  assert.match(router,/branches\/assignees/);
+  assert.match(shell,/tenant-crm-appearance\.js\?v=20261025-storefront-reconciled1/);
+  assert.match(shell,/tenant-storefront-settings\.js\?v=20261026-dated-content1/);
+  assert.match(shell,/admin-tenant-domains\.js\?v=20261025-7network-dns-host1/);
   assert.doesNotMatch(ui,/CRM domain|\/api\/crm\/domains|data-hostname/);
   assert.match(ui,/separately from the logo used on your public forms and documents/);
   assert.match(shell,/admin-tenant-domains\.js\?v=20261025-7network-dns-host1/);
   assert.match(adminUi,/Add these 7Network DNS records at your domain provider/);
   assert.match(adminUi,/tr\('Host','المضيف'\)/);
-  assert.match(adminUi,/Use @ for the root domain/);
   assert.match(adminUi,/without the domain suffix/);
+  assert.match(adminUi,/data-verify/);
+  assert.match(adminUi,/data-primary/);
+  assert.match(adminUi,/data-disable/);
+  assert.match(adminUi,/data-create/);
   assert.match(fs.readFileSync(path.join(root,'modules/platform/admin-tenant-domains.js'),'utf8'),/req\.platformAccess\?\.role !== 'super_admin'/);
   assert.match(fs.readFileSync(path.join(root,'deploy/tenant-domain-provision-verified.timer'),'utf8'),/OnUnitActiveSec=30min/);
   assert.match(worker,/Tenant domains are CRM-only origins/);

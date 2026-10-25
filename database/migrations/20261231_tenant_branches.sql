@@ -1,0 +1,33 @@
+-- Tenant-owned operating locations. A branch belongs to the business, not to
+-- the identity that created it, so owner changes do not move the storefront.
+CREATE TABLE sx_tenant_branches (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  slug VARCHAR(48) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  name_en VARCHAR(120) NOT NULL,
+  name_ar VARCHAR(120) NOT NULL DEFAULT '',
+  address_en VARCHAR(500) NOT NULL DEFAULT '',
+  address_ar VARCHAR(500) NOT NULL DEFAULT '',
+  phone VARCHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT '',
+  timezone VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'Asia/Qatar',
+  opening_hours JSON NOT NULL,
+  service_areas JSON NOT NULL,
+  fulfillment_modes JSON NOT NULL,
+  routing_membership_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  booking_mode ENUM('request_only','capacity_reserved') NOT NULL DEFAULT 'request_only',
+  public_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  revision INT UNSIGNED NOT NULL DEFAULT 1,
+  created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_sx_tenant_branches_slug (tenant_id,slug),
+  UNIQUE KEY uq_sx_tenant_branches_tenant_id (tenant_id,id),
+  KEY ix_sx_tenant_branches_public (tenant_id,status,public_enabled),
+  CONSTRAINT fk_sx_tenant_branches_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_sx_tenant_branches_route_member FOREIGN KEY (tenant_id,routing_membership_id) REFERENCES sx_memberships(tenant_id,id),
+  CONSTRAINT fk_sx_tenant_branches_creator FOREIGN KEY (created_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT fk_sx_tenant_branches_updater FOREIGN KEY (updated_by_identity_id) REFERENCES sx_identities(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

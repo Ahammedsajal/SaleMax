@@ -1,11 +1,12 @@
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict');
+const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const tasks=require('../modules/platform/task-management');
 const ctx={tenantId:'11111111-1111-4111-8111-111111111111',uidHash:'a'.repeat(64),uid:'owner-uid',role:'agent',actorType:'agent',actorId:'7',agentId:7,tenant:{categoryKey:'training_center'}};
 function fixture(){
  const calls=[];let foreign=false;
  const db={beginTransaction:async()=>calls.push(['BEGIN']),commit:async()=>calls.push(['COMMIT']),rollback:async()=>calls.push(['ROLLBACK']),query:async(sql,args)=>{
   calls.push([sql,args]);
+  if(sql.startsWith('SELECT a.id,a.uid,o.legacy_uid_hash')){const agentId=Number(args[1]);if(foreign&&agentId===99)return [[],[]];const uid=`synthetic-task-agent-${agentId}`;return [[{id:agentId,uid,uidHash:crypto.createHash('sha256').update(uid).digest('hex')}],[]];}
   if(sql.startsWith('SELECT id,COALESCE'))return [[{id:7,label:'Current Agent'},{id:8,label:'Second Agent'}]];
   if(sql.startsWith('SELECT m.identity_id'))return [[{actorId:'owner-identity',role:'owner',label:'Main User'},{actorId:'manager-identity',role:'manager',label:'Manager'},{actorId:'accountant-identity',role:'accountant',label:'Accountant'}]];
   if(sql.startsWith('SELECT id FROM agents'))return [foreign&&args[0]===99?[]:[{id:args[0]}]];

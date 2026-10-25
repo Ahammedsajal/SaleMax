@@ -92,7 +92,7 @@ test('owner finance separates period cash from invoice cohorts and flags, rather
 test('journey report combines current pipeline stages, period sources and agent sales credit',async()=>{
   const queries=[];
   const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
-    if(sql.startsWith('CREATE TEMPORARY TABLE')||sql.startsWith('DELETE FROM sx_report_lead_scope')||sql.startsWith('INSERT INTO sx_report_lead_scope'))return [[],[]];
+    if(sql.startsWith('DROP TEMPORARY TABLE IF EXISTS sx_report_lead_scope')||sql.startsWith('CREATE TEMPORARY TABLE')||sql.startsWith('DELETE FROM sx_report_lead_scope')||sql.startsWith('INSERT INTO sx_report_lead_scope'))return [[],[]];
     if(sql.includes('FROM pipeline_stages'))return [[{stageKey:'new',title:'New',stageType:'open',position:0,total:'2',cohortTotal:'1'},{stageKey:'won',title:'Won',stageType:'won',position:4,total:'1',cohortTotal:'1'}]];
     if(sql.includes('GROUP BY l.source_type'))return [[{sourceType:'whatsapp',origin:'whatsapp',total:'2'}]];
     if(sql.includes('WITH cohort_leads AS'))return [[{new_leads:2,attended:2,interested:1,follow_up:1,sales_converted:1,invoices_issued:1,payment_received:1,course_started:1,fully_paid:1,course_completed:1,certificate_issued:1}]];
@@ -127,6 +127,8 @@ test('journey report combines current pipeline stages, period sources and agent 
   assert.equal((cohortJourneyQuery.match(/e\.legacy_uid COLLATE utf8mb4_general_ci=c\.uid COLLATE utf8mb4_general_ci/g)||[]).length,7);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_receipts/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_enrollment_events/);
+  assert.ok(queries.some(sql=>sql==='DROP TEMPORARY TABLE IF EXISTS sx_report_lead_scope'));
+  assert.ok(queries.some(sql=>sql.startsWith('CREATE TEMPORARY TABLE sx_report_lead_scope (lead_id CHAR(36)')));
   assert.equal(queries.length,11);
   assert.match(queries[2],/l.owner_agent_id IS NOT NULL/);assert.match(queries[2],/qif.id = \?/);
   for(const sql of queries.filter(item=>item.includes('FROM pipeline_stages')||item.includes('GROUP BY l.source_type')||item.includes('AS new_leads')||item.includes('FROM agents a')||item.includes("JSON_EXTRACT(pa.details,'$.stageTo')")))assert.match(sql,/sx_report_lead_scope/);

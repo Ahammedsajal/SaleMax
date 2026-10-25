@@ -59,7 +59,7 @@
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'faqs', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
-    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'طلبات التوظيف والسير الذاتية':'recruitment', 'Invoices & Payments':'invoices',
+    'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', 'Retail orders':'retail-orders', 'طلبات المتجر':'retail-orders', 'Restaurant menu':'restaurant-menu', 'قائمة المطعم':'restaurant-menu', 'Restaurant orders':'restaurant-orders', 'طلبات المطعم':'restaurant-orders', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'طلبات التوظيف والسير الذاتية':'recruitment', 'Invoices & Payments':'invoices',
     'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
     'Business Settings':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties'
   };
@@ -85,6 +85,7 @@
   let tenantNavigationLabels = {};
   let membershipRole = null;
   let membershipCategoryKey = null;
+  let membershipCatalogue = null;
   let optionalFeatures = {};
   let navigationLoaded = false;
   let navigationChecksPending = 1;
@@ -125,6 +126,7 @@
         tenantNavigationLabels=data?.data?.navigationLabels||{};
         membershipRole=data?.data?.role||null;
         membershipCategoryKey=data?.data?.categoryKey||null;
+        membershipCatalogue=data?.data?.catalogue||null;
         if(membershipCategoryKey==='7network_sales')applySalesRoleAliases();
         assignedNavigation=Array.isArray(value)?new Set(value):null;
         roleNavigation=Array.isArray(allowedByRole)?new Set(allowedByRole):new Set();
@@ -261,7 +263,7 @@
     // The legacy shell mounts separate desktop and mobile drawers. Reuse only
     // entries already admitted by the maintained modules' permission checks.
     const entries = [
-      ['[data-sx-course-nav]:not([data-sx-finance-nav]):not([data-sx-profile-nav])', membershipCategoryKey==='7network_sales'?'products-services':'courses'],
+      ['[data-sx-course-nav]:not([data-sx-finance-nav]):not([data-sx-profile-nav])', membershipCatalogue==='products'?'products-services':'courses'],
       ['[data-sx-forms-nav]', 'forms'],
       ['[data-sx-finance-nav]', 'finance-settings'],
       ['[data-sx-finance-report-nav]', 'finance-settings&section=reports'],
@@ -301,6 +303,24 @@
       const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Properties','العقارات');
       copy.setAttribute('aria-label',tr('Properties','العقارات'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
       button.setAttribute('aria-label',tr('Properties','العقارات'));button.onclick=event=>{event.preventDefault();location.href='/user?page=properties';};list.append(copy);
+    }
+    if(membershipCategoryKey==='retail_boutique'&&roleNavigation?.has('retail-orders')&&(assignedNavigation===null||assignedNavigation.has('retail-orders'))&&pipelineSource&&!list.querySelector('[data-sx-retail-orders-nav]')&&!hasNavigationKey(list,'retail-orders')){
+      const copy=cloneNavigationRow(pipelineSource);copy.dataset.sxRetailOrdersNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Retail orders','طلبات المتجر');
+      copy.setAttribute('aria-label',tr('Retail orders','طلبات المتجر'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.setAttribute('aria-label',tr('Retail orders','طلبات المتجر'));button.onclick=event=>{event.preventDefault();location.href='/user?page=retail-orders';};list.append(copy);
+    }
+    if(membershipCategoryKey==='restaurant_cafe'&&roleNavigation?.has('restaurant-menu')&&(assignedNavigation===null||assignedNavigation.has('restaurant-menu'))&&pipelineSource&&!list.querySelector('[data-sx-restaurant-menu-nav]')&&!hasNavigationKey(list,'restaurant-menu')){
+      const copy=cloneNavigationRow(pipelineSource);copy.dataset.sxRestaurantMenuNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Restaurant menu','قائمة المطعم');
+      copy.setAttribute('aria-label',tr('Restaurant menu','قائمة المطعم'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.setAttribute('aria-label',tr('Restaurant menu','قائمة المطعم'));button.onclick=event=>{event.preventDefault();location.href='/user?page=restaurant-menu';};list.append(copy);
+    }
+    if(membershipCategoryKey==='restaurant_cafe'&&roleNavigation?.has('restaurant-orders')&&(assignedNavigation===null||assignedNavigation.has('restaurant-orders'))&&pipelineSource&&!list.querySelector('[data-sx-restaurant-orders-nav]')&&!hasNavigationKey(list,'restaurant-orders')){
+      const copy=cloneNavigationRow(pipelineSource);copy.dataset.sxRestaurantOrdersNav='1';copy.removeAttribute('data-salemax-pipeline-link');copy.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+      const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Restaurant orders','طلبات المطعم');
+      copy.setAttribute('aria-label',tr('Restaurant orders','طلبات المطعم'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
+      button.setAttribute('aria-label',tr('Restaurant orders','طلبات المطعم'));button.onclick=event=>{event.preventDefault();location.href='/user?page=restaurant-orders';};list.append(copy);
     }
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
     if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')&&!hasNavigationKey(list,'reports')){
@@ -575,7 +595,7 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {'Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
+      const routes = {'Products & services':'products-services', 'Restaurant menu':'restaurant-menu', 'قائمة المطعم':'restaurant-menu', 'Restaurant orders':'restaurant-orders', 'طلبات المطعم':'restaurant-orders', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
@@ -637,7 +657,7 @@
     });
     const page=new URLSearchParams(location.search).get('page');
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
-    const routeKeys={properties:'properties',students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp'};
+    const routeKeys={'retail-orders':'retail-orders','restaurant-menu':'restaurant-menu','restaurant-orders':'restaurant-orders',properties:'properties',students:'students','training-profile':'training-profile','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp'};
     const required=routeKeys[page];
     // Team access is available to any membership whose role/navigation grants
     // it. The API still enforces team.invite (including owner-approved manager

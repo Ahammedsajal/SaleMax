@@ -78,11 +78,11 @@ test('assigned agents cannot create a task for a different agent conversation',a
 
 test('follow-up notices use the chat QR instance and include lead, assignee, and local due date',async()=>{
   const calls=[],db={query:async(sql)=>{calls.push(sql);if(sql.includes('FROM sx_legacy_ownership'))return [[{uid:'owner-uid',number:'+97440000000'}],[]];if(sql.includes('SELECT a.mobile AS phone'))return [[{phone:'+97450000001'}],[]];throw new Error('Unexpected query');}};
-  let sent;const result=await notifications.sendInboxFollowUpQr(db,{tenant_id:'tenant',source_id:'synthetic-chat',recipient_type:'agent',recipient_id:'7',title:'Follow up: Synthetic lead',description:'Lead: Synthetic lead\nWhatsApp: +97450000002\nAssigned agent: Synthetic agent',due_at:new Date('2026-10-23T08:00:00.000Z'),timezone:'Asia/Qatar',to_status:'open'},{env:{CRM_INTERNAL_SECRET:'test-secret',PORT:'3010'},http:{post:async(url,body,options)=>{sent={url,body,options};return {data:{success:true,data:{messageId:'synthetic-qr-message'}}};}}});
+  let sent;const result=await notifications.sendInboxFollowUpQr(db,{tenant_id:'tenant',source_type:'inbox_chat',source_id:'synthetic-chat',recipient_type:'agent',recipient_id:'7',title:'Follow up: Synthetic lead',description:'Lead: Synthetic lead\nWhatsApp: +97450000002\nAssigned agent: Synthetic agent',due_at:new Date('2026-10-23T08:00:00.000Z'),timezone:'Asia/Qatar',to_status:'open'},{env:{CRM_INTERNAL_SECRET:'test-secret',PORT:'3010'},http:{post:async(url,body,options)=>{sent={url,body,options};return {data:{success:true,data:{messageId:'synthetic-qr-message'}}};}}});
   assert.deepEqual(result,{accepted:'synthetic-qr-message'});
   assert.match(sent.url,/\/api\/internal\/qr\/send-text$/);assert.equal(sent.body.uid,'owner-uid');assert.equal(sent.body.from,'+97440000000');assert.equal(sent.body.to,'97450000001');
   assert.match(sent.body.text,/Synthetic lead/);assert.match(sent.body.text,/Synthetic agent/);assert.match(sent.body.text,/Follow-up date:.*Oct/);
-  assert.equal(sent.options.headers['x-internal-secret'],'test-secret');assert.match(calls[0],/origin_instance_unique_id/);assert.match(calls[0],/status='ACTIVE'/);assert.match(calls[1],/sx_memberships/);
+  assert.equal(sent.options.headers['x-internal-secret'],'test-secret');assert.match(calls[0],/origin_instance_unique_id/);assert.match(calls[0],/status='ACTIVE'/);assert.ok(calls.some(sql=>sql.includes('sx_memberships')));
 });
 
 test('existing Inbox shell loads the maintained follow-up adapter',()=>{

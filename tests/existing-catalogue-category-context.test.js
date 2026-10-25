@@ -24,14 +24,16 @@ test('Manage Plans context offers internal Sales features only to platform categ
   const staff=await serverFor({...base,membership:{...base.membership,role:'staff'}});
   try{
     const adminContext=await (await fetch(admin.base+'/context')).json();
-    assert.deepEqual(adminContext.categories.map(item=>item.key),['training_center','7network_sales','base_crm']);
+    assert.deepEqual(adminContext.categories.map(item=>item.key),['training_center','professional_services','salon_spa','home_services','fitness_coaching','events_venues','retail_boutique','restaurant_cafe','7network_sales','base_crm']);
+    const restaurant=adminContext.categories.find(item=>item.key==='restaurant_cafe');
+    assert.deepEqual(restaurant.seatRoles,['owner','accountant','manager','agent']);
     const sales=adminContext.categories.find(item=>item.key==='7network_sales');
     assert.deepEqual(sales.seatRoles,['owner','accountant','manager','team_leader','agent']);
     assert.ok(sales.features.some(item=>item.key==='sales.deals'));
     assert.ok(sales.features.some(item=>item.key==='telephony.call-center'));
     assert.equal(sales.features.find(item=>item.key==='team.members').label.en,'People and roles');
     const staffContext=await (await fetch(staff.base+'/context')).json();
-    assert.deepEqual(staffContext.categories.map(item=>item.key),['training_center']);
+    assert.deepEqual(staffContext.categories.map(item=>item.key),['training_center','professional_services','salon_spa','home_services','fitness_coaching','events_venues','retail_boutique']);
   }finally{await admin.close();await staff.close();}
 });
 

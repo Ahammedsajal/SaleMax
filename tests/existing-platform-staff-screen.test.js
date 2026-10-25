@@ -29,7 +29,11 @@ test('platform staff and invite setup are integrated into the original administr
     '/api/admin/platform-access/portfolios','/api/admin/platform-access/portfolios/{userId}',
     '/api/admin/platform-access/staff','/api/admin/platform-access/staff/invitations',
     '/api/admin/platform-access/staff/invitations/{id}/cancel','/api/admin/platform-access/staff/invitations/{id}/resend',
-    '/api/admin/platform-access/staff/{identityId}','/api/admin/staff-invitations/accept'
+    '/api/admin/platform-access/staff/{identityId}','/api/admin/staff-invitations/accept',
+    '/api/admin/platform-access/tenants/{tenantId}/owner-transfers','/api/admin/staff-invitations/owner-transfer/accept'
   ].sort());
   assert.equal(contract.components.schemas.InvitationCreatedResponse.properties.data.properties.delivery.const,'copy-link');
+  assert.equal(contract.components.schemas.OwnerTransferCreatedResponse.properties.data.properties.delivery.const,'copy-link');
+  assert.equal(contract.paths['/api/admin/platform-access/tenants/{tenantId}/owner-transfers'].post.security.length,1);
+  assert.equal(contract.paths['/api/admin/staff-invitations/owner-transfer/accept'].post.requestBody.required,true);
 });

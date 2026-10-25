@@ -242,8 +242,8 @@ async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,cat
   try{
     await connection.beginTransaction();
     const filters=leadFilters.leadFilterSql({...selected,alias:'l'});
-    await connection.query('CREATE TEMPORARY TABLE IF NOT EXISTS sx_report_lead_scope (lead_id BIGINT UNSIGNED NOT NULL PRIMARY KEY) ENGINE=InnoDB');
-    await connection.query('DELETE FROM sx_report_lead_scope');
+    await connection.query('DROP TEMPORARY TABLE IF EXISTS sx_report_lead_scope');
+    await connection.query('CREATE TEMPORARY TABLE sx_report_lead_scope (lead_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY) ENGINE=InnoDB');
     await connection.query(`INSERT INTO sx_report_lead_scope (lead_id) SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=?${filters.sql}`,[uidHash,uid,...filters.args]);
     const [stages]=await connection.query(`SELECT ps.stage_key AS stageKey,ps.title,ps.stage_type AS stageType,ps.position,COUNT(l.id) AS total,
       COUNT(CASE WHEN l.created_at>=? AND l.created_at<? THEN l.id END) AS cohortTotal

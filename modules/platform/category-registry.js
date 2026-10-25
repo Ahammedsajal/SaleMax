@@ -21,6 +21,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       || (source.chatbotLeadCapture!==undefined&&!['none','generic','training'].includes(source.chatbotLeadCapture))
       || (source.chatbotLeadCapture==='generic'&&!source.capabilities.includes('crm.leads'))
       || (source.chatbotLeadCapture==='training'&&(!source.capabilities.includes('crm.leads')||!source.capabilities.includes('training.courses')))
+      || (source.taskAdapters!==undefined&&(!source.taskAdapters||typeof source.taskAdapters!=='object'||Array.isArray(source.taskAdapters)||Object.entries(source.taskAdapters).some(([key,version])=>! /^[a-z][a-z0-9_]{1,63}$/.test(key)||!Number.isSafeInteger(version)||version<1)))
       || typeof source.migration !== 'string' || !/^\d{8}_[a-z0-9_]+\.sql$/.test(source.migration)) invalid();
     const id = `${source.key}@${source.version}`;
     if (entries.has(id)) invalid();
@@ -30,6 +31,7 @@ function createCategoryRegistry(definitions, knownCapabilities) {
       public: source.public, ...(source.planable === undefined ? {} : { planable: source.planable }),
       ...(source.catalogue===undefined?{}:{catalogue:source.catalogue}),
       chatbotLeadCapture: source.chatbotLeadCapture || 'none',
+      ...(source.taskAdapters===undefined?{}:{taskAdapters:Object.freeze({...source.taskAdapters})}),
       capabilities: Object.freeze([...source.capabilities]), seatRoles: Object.freeze([...source.seatRoles]), migration: source.migration });
     entries.set(id, manifest);
   }

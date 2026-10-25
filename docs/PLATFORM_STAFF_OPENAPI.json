@@ -3,7 +3,7 @@
   "info": {
     "title": "SaleMaX Existing Admin Platform Staff API",
     "version": "1.0.0",
-    "description": "Additive staff-invitation endpoints mounted into the existing /admin API. Platform activation is disabled by default. Management calls require the existing admin bearer session and the canonical MFA platform session. Invitation acceptance uses the existing /admin/login route and a same-origin, one-time link."
+    "description": "Additive staff and tenant-owner invitation endpoints mounted into the existing admin/business sign-in flows. Platform activation is disabled by default. Management calls require the existing admin bearer session and canonical MFA platform session. Staff activation uses /admin/login; business-owner transfer acceptance uses /user/login and a same-origin, one-time copy-link. Owner-transfer recipients are not independently verified by email, so that flow remains source-only until stronger verification and acceptance gates pass."
   },
   "paths": {
     "/api/admin/platform-access/portfolios": {
@@ -110,6 +110,23 @@
         }
       }
     },
+    "/api/admin/platform-access/tenants/{tenantId}/owner-transfers": {
+      "post": {
+        "operationId": "createTenantOwnerTransfer",
+        "summary": "Create a 72-hour one-time owner-transfer link for an active business",
+        "security": [{"LegacyAdminBearer": [], "PlatformSessionCookie": [], "CsrfToken": []}],
+        "parameters": [{"$ref": "#/components/parameters/Origin"}, {"$ref": "#/components/parameters/TenantId"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateOwnerTransfer"}}}},
+        "responses": {
+          "201": {"description": "Raw token returned once; link delivery is copy-link only", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/OwnerTransferCreatedResponse"}}}},
+          "400": {"$ref": "#/components/responses/Invalid"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        }
+      }
+    },
     "/api/admin/staff-invitations/accept": {
       "post": {
         "operationId": "acceptPlatformStaffInvitation",
@@ -144,6 +161,21 @@
           "503": {"$ref": "#/components/responses/Unavailable"}
         }
       }
+    },
+    "/api/admin/staff-invitations/owner-transfer/accept": {
+      "post": {
+        "operationId": "acceptTenantOwnerTransfer",
+        "summary": "Accept a one-time tenant-owner transfer from the existing /user/login screen",
+        "parameters": [{"$ref": "#/components/parameters/Origin"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AcceptOwnerTransfer"}}}},
+        "responses": {
+          "201": {"description": "New owner activated, prior membership deactivated and legacy business UID retained"},
+          "400": {"$ref": "#/components/responses/Invalid"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "410": {"description": "Token is invalid, expired, cancelled or already used", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        }
+      }
     }
   },
   "components": {
@@ -155,7 +187,8 @@
     "parameters": {
       "Origin": {"name": "Origin", "in": "header", "required": true, "schema": {"type": "string", "format": "uri"}, "description": "Must exactly match SALEMAX_PLATFORM_ORIGIN for mutations and acceptance."},
       "InvitationId": {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
-      "IdentityId": {"name": "identityId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+      "IdentityId": {"name": "identityId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "TenantId": {"name": "tenantId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
     },
     "schemas": {
       "PermissionList": {"type": "array", "maxItems": 9, "uniqueItems": true, "items": {"type": "string", "enum": ["tenants.read", "tenants.create", "tenants.manage", "plans.read", "plans.draft", "plans.assign", "plans.publish", "support.request", "incidents.read"]}},
@@ -164,6 +197,9 @@
       "PortfolioListResponse": {"type": "object", "required": ["success", "data"], "properties": {"success": {"const": true}, "data": {"type": "object", "required": ["admins", "unassignedCount"], "properties": {"admins": {"type": "array", "items": {"type": "object", "required": ["id", "email", "customerCount"], "properties": {"id": {"type": "string", "format": "uuid"}, "email": {"type": "string", "format": "email"}, "displayName": {"type": ["string", "null"]}, "customerCount": {"type": "integer", "minimum": 0}}}}, "unassignedCount": {"type": "integer", "minimum": 0}}}}},
       "UpdateStaff": {"type": "object", "additionalProperties": false, "required": ["active", "permissions"], "properties": {"active": {"type": "boolean"}, "permissions": {"$ref": "#/components/schemas/PermissionList"}}},
       "AcceptInvitation": {"type": "object", "additionalProperties": false, "required": ["token", "displayName", "password"], "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "displayName": {"type": "string", "minLength": 1, "maxLength": 200}, "password": {"type": "string", "minLength": 12, "maxLength": 72, "description": "The server also enforces a maximum of 72 UTF-8 bytes."}}},
+      "CreateOwnerTransfer": {"type": "object", "additionalProperties": false, "required": ["email", "reason"], "properties": {"email": {"type": "string", "format": "email", "maxLength": 254}, "reason": {"type": "string", "minLength": 10, "maxLength": 1000}}},
+      "AcceptOwnerTransfer": {"type": "object", "additionalProperties": false, "required": ["token", "name", "password"], "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "name": {"type": "string", "minLength": 2, "maxLength": 200}, "password": {"type": "string", "minLength": 12, "maxLength": 72, "description": "The server also enforces a maximum of 72 UTF-8 bytes."}}},
+      "OwnerTransferCreatedResponse": {"type": "object", "required": ["success", "data"], "properties": {"success": {"const": true}, "data": {"type": "object", "required": ["id", "tenantId", "email", "token", "expiresInHours", "status", "delivery"], "properties": {"id": {"type": "string", "format": "uuid"}, "tenantId": {"type": "string", "format": "uuid"}, "email": {"type": "string", "format": "email"}, "token": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "expiresInHours": {"const": 72}, "status": {"const": "pending"}, "delivery": {"const": "copy-link"}}}}},
       "InvitationCreatedResponse": {"type": "object", "required": ["success", "data"], "properties": {"success": {"const": true}, "data": {"type": "object", "required": ["id", "email", "token", "expiresInHours", "status", "delivery"], "properties": {"id": {"type": "string", "format": "uuid"}, "email": {"type": "string", "format": "email"}, "token": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}, "expiresInHours": {"const": 72}, "status": {"const": "pending"}, "delivery": {"const": "copy-link"}}}}},
       "StaffListResponse": {"type": "object", "required": ["success", "data"], "properties": {"success": {"const": true}, "data": {"type": "object", "required": ["staff", "invitations", "availablePermissions"], "properties": {"staff": {"type": "array", "maxItems": 200}, "invitations": {"type": "array", "maxItems": 200}, "availablePermissions": {"$ref": "#/components/schemas/PermissionList"}}}}},
       "Error": {"type": "object", "required": ["code"], "properties": {"code": {"type": "string"}}}

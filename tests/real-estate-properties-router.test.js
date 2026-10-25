@@ -10,7 +10,7 @@ const listing={titleEn:'Test home',titleAr:'منزل اختبار',propertyType:
 
 async function start(context){
   const calls=[];
-  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:0}]];if(sql.startsWith('SELECT p.id'))return [[]];if(sql.startsWith('SELECT m.id AS membershipId'))return [[]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];throw Error('UNEXPECTED_QUERY');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release(){}};
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:0}]];if(sql.startsWith('SELECT p.id'))return [[]];if(sql.startsWith('SELECT id FROM sx_tenant_branches'))return [[]];if(sql.startsWith('SELECT m.id AS membershipId'))return [[]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];throw Error('UNEXPECTED_QUERY');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release(){}};
   const app=express();app.use('/api/workspace/properties',createRouter({pool:{getConnection:async()=>db},authenticate(req,_res,next){req.businessContext=context;next();}}));
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
   return {origin:`http://127.0.0.1:${server.address().port}`,server,calls};
@@ -44,4 +44,10 @@ test('a different category cannot use the property API',async t=>{
   const other={...base,tenant:{...base.tenant,categoryKey:training.key,categoryVersion:training.version},category:training,subscription:{...base.subscription,categoryKey:training.key,categoryVersion:training.version,capabilities:[...training.capabilities]}};
   const app=await start(other);t.after(()=>new Promise(resolve=>app.server.close(resolve)));
   const response=await fetch(app.origin+'/api/workspace/properties');assert.equal(response.status,404);assert.equal((await response.json()).code,'CATEGORY_UNAVAILABLE');assert.equal(app.calls.length,0);
+});
+
+test('unavailable branch assignments return a conflict instead of a server error',async t=>{
+  const owner=await start(base);t.after(()=>new Promise(resolve=>owner.server.close(resolve)));
+  const response=await fetch(owner.origin+'/api/workspace/properties',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...listing,branchId:'88888888-8888-4888-8888-888888888888'})});
+  assert.equal(response.status,409);assert.equal((await response.json()).code,'PROPERTY_BRANCH_UNAVAILABLE');
 });

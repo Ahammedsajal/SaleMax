@@ -94,6 +94,12 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   router.post('/', contextGuard, wrap(async (req, res) => res.status(201).json({ success: true, data: await withConnection(courses.create)(req.courseContext, req.body) })));
   router.put('/:id', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courses.update)(req.courseContext, req.params.id, req.body.expectedRevision, req.body) })));
   router.get('/:id/media', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courseMedia.list(pool, req.courseContext, req.params.id) })));
+  router.put('/:id/media/:mediaId/public-brochure', contextGuard, wrap(async (req,res)=>{
+    if(products)return res.sendStatus(404);
+    if(typeof req.body.public!=='boolean')return res.status(400).json({success:false,code:'INVALID_PUBLIC_BROCHURE'});
+    const mediaId=req.body.public?req.params.mediaId:null;
+    res.json({success:true,data:await withConnection(courseMedia.setPublicBrochure)(req.courseContext,req.params.id,mediaId)});
+  }));
   router.post('/:id/media', contextGuard, async (req, res, next) => {
     try {
       if (activeCourseUploads >= 1) return res.status(429).json({ success: false, code: 'COURSE_MEDIA_UPLOAD_BUSY' });
@@ -127,6 +133,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
     res.json({ success: true, data: { url: mediaPath, expiresInSeconds: 10800 } });
   }));
   router.delete('/:id/media/:mediaId', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await withConnection(courseMedia.remove)(req.courseContext, req.params.id, req.params.mediaId) })));
+  router.get('/branches/options', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.listBranchOptions(pool, req.courseContext) })));
   router.get('/:id/offers', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.offers(pool, req.courseContext, req.params.id) })));
   router.post('/:id/offers', contextGuard, wrap(async (req, res) => res.status(201).json({ success: true, data: await withConnection(courses.addOffer)(req.courseContext, req.params.id, req.body) })));
   router.get('/:id/batches', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.batches(pool, req.courseContext, req.params.id) })));
@@ -147,7 +154,7 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
         : code === 'COURSE_MEDIA_UPLOAD_BUSY' ? 429
         : code === 'PERMISSION_DENIED' ? 403
           : ['VERIFIED_BUSINESS_OWNER_REQUIRED', 'BUSINESS_LINK_INVALID', 'COURSE_NOT_FOUND', 'BATCH_NOT_FOUND', 'ENROLLMENT_NOT_FOUND', 'COURSE_MEDIA_NOT_FOUND'].includes(code) ? 404
-          : ['STALE_REVISION', 'COURSE_RETIRED', 'ACTIVE_OFFER_REQUIRED', 'BATCH_HAS_RESERVATIONS', 'CAPACITY_BELOW_RESERVED', 'ER_DUP_ENTRY', 'FULL_PAYMENT_REQUIRED', 'ENROLLMENT_CANNOT_START', 'ENROLLMENT_MUST_BE_STARTED', 'ENROLLMENT_MUST_BE_COMPLETED', 'COURSE_MEDIA_LIMIT_REACHED', 'COURSE_MEDIA_QUOTA_EXCEEDED'].includes(code) ? 409
+          : ['STALE_REVISION', 'COURSE_RETIRED', 'ACTIVE_OFFER_REQUIRED', 'BATCH_HAS_RESERVATIONS', 'BATCH_HAS_REGISTRATIONS', 'CAPACITY_BELOW_RESERVED', 'ER_DUP_ENTRY', 'FULL_PAYMENT_REQUIRED', 'ENROLLMENT_CANNOT_START', 'ENROLLMENT_MUST_BE_STARTED', 'ENROLLMENT_MUST_BE_COMPLETED', 'COURSE_MEDIA_LIMIT_REACHED', 'COURSE_MEDIA_QUOTA_EXCEEDED'].includes(code) ? 409
               : code === 'COURSE_MEDIA_TOO_LARGE' ? 413
                 : ['COURSE_MEDIA_TYPE_NOT_ALLOWED', 'COURSE_MEDIA_SIGNATURE_INVALID'].includes(code) ? 415
                   : code.startsWith('INVALID_') ? 400

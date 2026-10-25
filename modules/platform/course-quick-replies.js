@@ -7,6 +7,7 @@ function catalogCapability(ctx){const kind=catalog.kind(ctx);return kind==='prod
 function requireCatalog(ctx){const capability=catalogCapability(ctx);if(!['active','trial','grace'].includes(ctx.subscription?.status)||!capability||!ctx.category?.capabilities.includes(capability)||!ctx.subscription?.capabilities.includes(capability))fail('FEATURE_UNAVAILABLE',403);}
 const media = require('./training-course-media');
 const access = require('./team-inbox-scope');
+const policy = require('./policy');
 const fail = (code, status = 409) => { throw Object.assign(new Error(code), { code, status }); };
 const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const validId = value => typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value);
@@ -30,16 +31,22 @@ async function sessionContext(pool,session){
   if(!session.context)return context(pool,session.actor,session.agent,session.owner);
   const ctx=session.context;
   requireCatalog(ctx);
+  authorizeInbox(ctx,'conversations.read');
   const query=async(sql,args)=>(await pool.query(sql,args))[0];
   if(!session.actor)fail('INBOX_ACCESS_REQUIRED',403);
   const scope=await access.resolveInboxScope(query,{...session.actor,isAgent:session.agent},'course_quick_reply');
   return {scope,ctx,actor:session.actor||{uid:session.ownerUid},agent:session.agent,query,refresh:async()=>sessionContext(pool,await session.refresh())};
+}
+function authorizeInbox(ctx,permission){
+  const result=policy.decision(ctx,{capability:'messaging.inbox',permission});
+  if(!result.allowed)fail(result.code||'PERMISSION_DENIED',403);
 }
 async function options(pool,c){
   requireCatalog(c.ctx);pool=catalog.forContext(pool,c.ctx);
   return (await pool.query("SELECT id,name_en AS nameEn,name_ar AS nameAr FROM sx_training_courses WHERE tenant_id=? AND status='active' AND deleted_at IS NULL ORDER BY name_en,name_ar,id",[c.ctx.tenant.id]))[0];
 }
 async function conversation(c, chatId) {
+  if(c.ctx?.membership)authorizeInbox(c.ctx,'conversations.read');
   if (typeof chatId !== 'string' || !chatId || chatId.length > 255) fail('INVALID_CONVERSATION', 400);
   const rows = await c.query('SELECT * FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1', [c.scope.uid, chatId]);
   if (rows.length !== 1) fail('CONVERSATION_NOT_AVAILABLE', 403);
@@ -115,6 +122,14 @@ const conversationLock=(uid,chatId)=>'course-reply:'+hash(uid+'|'+chatId).slice(
 // A durable claim and per-conversation database lock prevent duplicate/reordered
 // sends across clicks, HTTP retries and app processes. Ambiguous sends never retry.
 async function execute(pool, c, input, send = require('./course-reply-transport').send) {
+  if(typeof c.refresh==='function')c=await c.refresh();
+  if(c.ctx?.membership)authorizeInbox(c.ctx,'conversations.reply');
+  // The legacy Inbox adapter independently checks the actor's current role
+  // profile and assignment scope, while the canonical decision above checks
+  // navigation and subscription state.
+  const sendScope=await access.resolveInboxScope(c.query,{...c.actor,isAgent:c.agent},'send_chat_message');
+  if(sendScope.uid!==c.scope.uid||(c.scope.identityId&&sendScope.identityId!==c.scope.identityId))fail('PERMISSION_DENIED',403);
+  c.scope=sendScope;
   requireCatalog(c.ctx);pool=catalog.forContext(pool,c.ctx);
   const {requestId,chatId,courseId,language='en'}=input || {};
   if (!validId(requestId) || !['en','ar'].includes(language)) fail('INVALID_REQUEST',400);

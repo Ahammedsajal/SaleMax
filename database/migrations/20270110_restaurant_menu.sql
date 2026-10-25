@@ -1,0 +1,71 @@
+-- Restaurant menu availability and priced modifier snapshots are category-owned.
+-- The category remains private until guest checkout and operational acceptance pass.
+CREATE TABLE sx_restaurant_menu_items (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  branch_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  product_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  price_minor BIGINT UNSIGNED NOT NULL,
+  currency CHAR(3) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT 'QAR',
+  availability ENUM('available','unavailable','retired') NOT NULL DEFAULT 'unavailable',
+  revision INT UNSIGNED NOT NULL DEFAULT 1,
+  created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_sx_restaurant_menu_item_tenant_id (tenant_id,id),
+  UNIQUE KEY uq_sx_restaurant_menu_item_branch_product (tenant_id,branch_id,product_id),
+  KEY ix_sx_restaurant_menu_item_public (tenant_id,branch_id,availability),
+  CONSTRAINT fk_sx_restaurant_menu_item_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_sx_restaurant_menu_item_branch FOREIGN KEY (tenant_id,branch_id) REFERENCES sx_tenant_branches(tenant_id,id),
+  CONSTRAINT fk_sx_restaurant_menu_item_product FOREIGN KEY (tenant_id,product_id) REFERENCES sx_product_catalog(tenant_id,id),
+  CONSTRAINT fk_sx_restaurant_menu_item_creator FOREIGN KEY (created_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT fk_sx_restaurant_menu_item_updater FOREIGN KEY (updated_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT ck_sx_restaurant_menu_item_price CHECK (price_minor <= 999999999999)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_restaurant_modifier_groups (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  menu_item_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  name_en VARCHAR(120) NOT NULL,
+  name_ar VARCHAR(120) NOT NULL DEFAULT '',
+  min_selections TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  max_selections TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  status ENUM('active','retired') NOT NULL DEFAULT 'active',
+  revision INT UNSIGNED NOT NULL DEFAULT 1,
+  created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_sx_restaurant_modifier_group_tenant_id (tenant_id,id),
+  KEY ix_sx_restaurant_modifier_group_item (tenant_id,menu_item_id,status),
+  CONSTRAINT fk_sx_restaurant_modifier_group_item FOREIGN KEY (tenant_id,menu_item_id) REFERENCES sx_restaurant_menu_items(tenant_id,id),
+  CONSTRAINT fk_sx_restaurant_modifier_group_creator FOREIGN KEY (created_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT fk_sx_restaurant_modifier_group_updater FOREIGN KEY (updated_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT ck_sx_restaurant_modifier_group_selections CHECK (min_selections <= max_selections AND max_selections <= 20)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE sx_restaurant_modifier_options (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  group_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  name_en VARCHAR(120) NOT NULL,
+  name_ar VARCHAR(120) NOT NULL DEFAULT '',
+  price_delta_minor BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  status ENUM('active','retired') NOT NULL DEFAULT 'active',
+  revision INT UNSIGNED NOT NULL DEFAULT 1,
+  created_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_sx_restaurant_modifier_option_tenant_id (tenant_id,id),
+  KEY ix_sx_restaurant_modifier_option_group (tenant_id,group_id,status),
+  CONSTRAINT fk_sx_restaurant_modifier_option_group FOREIGN KEY (tenant_id,group_id) REFERENCES sx_restaurant_modifier_groups(tenant_id,id),
+  CONSTRAINT fk_sx_restaurant_modifier_option_creator FOREIGN KEY (created_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT fk_sx_restaurant_modifier_option_updater FOREIGN KEY (updated_by_identity_id) REFERENCES sx_identities(id),
+  CONSTRAINT ck_sx_restaurant_modifier_option_price CHECK (price_delta_minor <= 999999999999)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -59,7 +59,7 @@ test('owner activation is integrated in existing Manage Users and business sign-
   const router=fs.readFileSync(path.join(root,'modules/platform/existing-business-router.js'),'utf8');
   const service=fs.readFileSync(path.join(root,'modules/platform/business-owner-activation.js'),'utf8');
   const migration=fs.readFileSync(path.join(root,'database/migrations/20261117_sales_owner_activation.sql'),'utf8');
-  assert.match(html,/team-invite-capture\.js\?v=20261013-owner-setup1/);
+  assert.match(html,/team-invite-capture\.js\?v=20261025-owner-transfer1/);
   assert.match(capture,/business-owner-setup/);
   assert.match(team,/business-owner\/accept/);
   assert.match(team,/\/user\/login/);
@@ -69,4 +69,14 @@ test('owner activation is integrated in existing Manage Users and business sign-
   assert.match(service,/token_hash/);
   assert.match(migration,/UNIQUE KEY uq_sx_business_owner_invite_token/);
   assert.doesNotMatch(migration,/token\s+VARCHAR/i);
+  const transferService=fs.readFileSync(path.join(root,'modules/platform/tenant-owner-transfer.js'),'utf8');
+  const transferMigration=fs.readFileSync(path.join(root,'database/migrations/20270107_tenant_owner_transfers.sql'),'utf8');
+  assert.match(users,/Transfer business ownership/);
+  assert.match(users,/owner-transfers/);
+  assert.match(team,/Accept business ownership transfer/);
+  assert.match(team,/owner-transfer\/accept/);
+  assert.match(capture,/owner-transfer/);
+  assert.match(transferService,/tenant\.owner-transfer\.accepted/);
+  assert.match(transferService,/legacyRootHash/);
+  assert.match(transferMigration,/uq_sx_pending_owner_transfer_email/);
 });

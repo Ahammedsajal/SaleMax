@@ -81,7 +81,7 @@ test('late-rendered token inputs are masked by the DOM observer', () => {
 });
 
 test('the app shell loads the maintained hook before the React screen bundle', () => {
-  const hook = index.indexOf('/meta-credential-controls.js?v=20261012-token-mask2');
+  const hook = index.indexOf('/meta-credential-controls.js?v=20261025-token-mask3');
   const app = index.indexOf('/static/js/main.73648acf.js');
   assert.notEqual(hook, -1);
   assert.ok(app > hook);

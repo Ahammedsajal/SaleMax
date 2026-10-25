@@ -19,6 +19,13 @@ module.exports=async(db,other,{tenantId,identityId,pool})=>{
   const outsiderAgentUid=`synthetic-task-outsider-${crypto.randomUUID()}`;
   const [outsiderAgentInsert]=await db.query("INSERT INTO agents(owner_uid,uid,email,password,name,mobile,role,is_active) VALUES(?,?,?,?,?,?,'agent',1)",[uid,outsiderAgentUid,`${outsiderAgentUid}@example.invalid`,'synthetic-task-hash','Synthetic Unassigned Agent','00000002']);
   const outsiderAgentId=Number(outsiderAgentInsert.insertId);
+  for(const [legacyAgentId,legacyAgentUid] of [[agentId,agentUid],[secondAgentId,secondAgentUid],[outsiderAgentId,outsiderAgentUid]]){
+    const identityId=crypto.randomUUID(),membershipId=crypto.randomUUID();
+    const [[agentRow]]=await db.query('SELECT email FROM agents WHERE id=?',[legacyAgentId]);
+    await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,?,?,'active')",[identityId,agentRow.email.toLowerCase(),`Synthetic task agent ${legacyAgentId}`]);
+    await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'agent','active')",[membershipId,tenantId,identityId]);
+    await db.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('agents',?,?,?,?,UTC_TIMESTAMP(3))",[String(legacyAgentId),tenantId,membershipId,crypto.createHash('sha256').update(legacyAgentUid).digest('hex')]);
+  }
   const observerId=crypto.randomUUID();
   await db.query('INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES(?,?,?,?)',[observerId,`${observerId}@example.invalid`,'Synthetic Task Observer','active']);
   await db.query('INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES(?,?,?,?,?)',[crypto.randomUUID(),tenantId,observerId,'manager','active']);
@@ -34,7 +41,7 @@ module.exports=async(db,other,{tenantId,identityId,pool})=>{
   const agentDetail=await tasks.detail(db,agent,created.id);
   assert.equal(agentDetail.lead.id,leadId);assert.ok(agentDetail.task.assigned_at,'assignment timestamp is persisted');assert.ok(agentDetail.lead.activities.some(item=>item.activity_type==='task_created'));
   assert.deepEqual(agentDetail.participants.map(item=>item.role).sort(),['assignee','assignee','observer','observer']);
-  assert.equal((await tasks.detail(db,secondAgent,created.id)).lead.id,leadId,'each assigned agent can see the full linked lead');
+  const secondAgentTask=await tasks.detail(db,secondAgent,created.id);assert.equal(secondAgentTask.task.id,created.id,'each task participant can access the task');assert.equal(secondAgentTask.lead,null,'task participation does not widen a different agent\'s assigned-lead access');
   await assert.rejects(tasks.detail(db,{...agent,tenantId:crypto.randomUUID()},created.id),{code:'TASK_NOT_FOUND'});
   const taskApp=express();taskApp.use('/tasks',createTaskRouter({pool,contextFor:async req=>req.get('x-test-actor')==='outsider'?outsiderAgent:owner}));
   const taskServer=http.createServer(taskApp);await new Promise((resolve,reject)=>{taskServer.once('error',reject);taskServer.listen(0,'127.0.0.1',resolve);});

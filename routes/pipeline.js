@@ -494,7 +494,9 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
     const input=req.body||{};
     const requestedOwner=input.ownerAgentId===undefined?undefined:(input.ownerAgentId===null||input.ownerAgentId===''?null:Number(input.ownerAgentId));
     const assignmentWillChange=requestedOwner!==undefined&&(requestedOwner===null?req.pipelineLead.owner_agent_id!=null:Number(req.pipelineLead.owner_agent_id)!==requestedOwner);
-    const reminderContext=assignmentWillChange&&requestedOwner!==null
+    // Let the lead service reject agent reassignment before checking the
+    // optional task capability used only to create owner/manager reminders.
+    const reminderContext=assignmentWillChange&&requestedOwner!==null&&req.pipelineActor.role!=='agent'
       ? await taskContext(req.pipelineActor,'tasks.manage') : null;
     const data = await pipeline.updateLead({
       uid: req.pipelineActor.uid,

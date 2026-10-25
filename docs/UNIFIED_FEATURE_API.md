@@ -10,10 +10,14 @@ business feature. Add future changes to that implementation once.
 | Phonebook | `/api/workspace/phonebook` | `/api/phonebook/workspace`, `/api/agent/phonebook` |
 | Finance, invoices, payments and receipts | `/api/workspace/finance` | `/api/user/training/finance-policies`; its `/accountant` and `/canonical` prefixes are stripped before routing |
 | Course catalogue | `/api/workspace/courses` | `/api/user/training/courses` |
-| Products & services catalogue (SaleMaX Sales) | `/api/workspace/products-services` | None |
+| Products & services catalogue (7Network Sales and Retail / boutique) | `/api/workspace/products-services` | None |
+| Retail branch inventory and orders | `/api/workspace/retail-orders` | None |
+| Restaurant branch menus and priced modifiers | `/api/workspace/restaurant-menu` | None |
+| Restaurant guest order requests and operations | `/api/workspace/restaurant-orders` | Guest host route `/api/public/website/restaurant-orders` |
 | Students | `/api/workspace/students` | `/api/user/training/students` |
 | Business profile | `/api/workspace/profile` | `/api/user/training/profile` |
 | Tenant customization | `/api/workspace/customization` | `/api/crm/customization` |
+| Business storefront and branch settings | `/api/workspace/storefront` | `/api/crm/storefront`; branch routes use the same router |
 | Forms | `/api/workspace/forms` | `/api/user/training/forms` |
 
 `business-feature-session.js` adapts existing bearer and business-cookie
@@ -24,11 +28,28 @@ unmapped Phonebook accounts retain their existing account scope; training and
 Finance services still require an enabled, linked business. No tenant is
 silently provisioned and no subscription is bypassed.
 
+Storefront branch settings remain business-owned and are edited in the existing
+appearance screen. The branch API has an optional integer preparation estimate
+from 0 to 240 minutes for the `restaurant_cafe` category; zero means no
+estimate is configured. The editor and public projection gate this field to
+that category, while staff-routing identifiers remain private. The category is
+planable only through the existing audited platform category flow and remains
+private. Migration `20270109_tenant_branch_prep_time.sql` adds the field with a
+zero default so existing branches retain their current behavior.
+
+`tenant-branches.js` also exposes a fail-closed restaurant ordering-hours
+decision using the branch's IANA timezone and weekly opening slots. Empty or
+invalid schedules and invalid timezones are treated as closed; when a nonzero
+preparation estimate is configured, the estimated finish must not exceed the
+current opening slot's closing time. This helper is a server-side policy
+primitive for the restaurant order workflow; it does not itself expose a public
+menu or accept orders.
+
 Products & services reuse the course editor and catalogue handlers with the
 `products.catalog` capability and `products.read` / `products.manage` permissions.
-The Sales router uses fixed separate product tables through `product-catalog.js`;
-Training Center APIs reject Sales sessions and Sales APIs reject Training Center
-sessions. Existing courses and reply jobs are preserved. The shared Inbox reply
+The Sales and Retail routers use fixed separate product tables through `product-catalog.js`;
+Training Center APIs reject product-category sessions and product APIs reject
+Training Center sessions. Existing courses and reply jobs are preserved. The shared Inbox reply
 API chooses the catalogue from the current authenticated category and returns
 `catalogKind`. The session contract supplies `quickReplyCatalog`; unsupported
 categories do not mount the catalogue reply panel. Publishing, private media,
@@ -36,6 +57,72 @@ ordered sends, idempotency, conversation scope and revocation checks are shared.
 Migration `20261215_category_product_catalog.sql` creates empty Sales tables and
 adds the catalogue capability to existing Sales plan versions. It does not copy
 Training Center courses or change customer records.
+
+Retail order management uses `/api/workspace/retail-orders` through the same
+`business-feature-session.js` context as other business modules. `GET /variants`
+reads tenant product variants and stock; `POST /variants` creates a sellable
+SKU and its initial branch stock in one transaction; `PUT /variants/:id`
+updates sellable SKUs; `PUT /variants/:variantId/branches/:branchId/stock`
+updates branch on-hand quantity with optimistic revision checks; `GET /orders`
+lists permission-scoped guest orders; and `PUT /orders/:id` advances the
+fulfillment state machine. `retail.orders` and `products.catalog` are separate
+capabilities, so product management and assigned-order fulfillment remain
+independently permissioned. No compatibility duplicate is mounted.
+
+Public checkout is hosted only on an active, verified tenant domain. The
+owner must publish the retail storefront and explicitly enable its product
+catalogue. `GET /api/public/website/orders/catalog` reads available variants;
+`POST /api/public/website/orders` validates guest consent, branch fulfillment
+modes, price snapshots and stock under transaction before reserving inventory;
+`POST /api/public/website/orders/returns` authenticates a guest using the
+one-time access code whose hash is stored with the order. Cash on delivery and
+manually verified bank transfer are supported; online settlement and payment
+reconciliation are not part of this source slice.
+
+Restaurant menu management uses `/api/workspace/restaurant-menu` through the
+same business session and common browser API client. Owners and permitted
+managers add existing active Products & services entries to active branches,
+set branch-specific QAR prices and availability, and manage bilingual modifier
+groups/options with selection bounds and price deltas. New entries start
+unavailable. Mutations are tenant-scoped, audited and revision-checked. The
+`restaurantMenu` session module is granted only when the category, current plan,
+and `restaurant.menu` / `products.catalog` entitlements allow it. The
+`restaurant_cafe` category is provisionable only through the existing audited
+platform category flow and remains private (`public: false`). This screen does
+not accept or confirm orders. Guest order-request handling is a separate API;
+it is source-only and remains unavailable until publication readiness is
+verified.
+
+Restaurant order operations use `/api/workspace/restaurant-orders` with
+category-specific `restaurant.orders.read` and `restaurant.orders.fulfill`
+permissions, separate from Retail's generic order capability. Agents receive
+only branch-routed requests; accountants receive financial order fields but no
+guest contact, address or line-item details. Guest submissions use
+`/api/public/website/restaurant-orders`, explicit consent, verified tenant
+domain/origin checks, shared visitor rate limits, branch opening-hours checks,
+idempotency and request-only status. The order and each selected bilingual
+modifier/price are stored as snapshots. A staff member must accept a request
+before it becomes confirmed. Guest ordering stays unavailable while the
+category is private or its owner-published `showRestaurantMenu` flag is absent.
+No kitchen/table capacity or online payment settlement is claimed.
+
+Professional Services, Salon / spa and Home services guest requests post to
+`/api/public/website/enquiries` on the verified tenant host. Home Services
+publication requires a current `crm.leads` entitlement, at least one published
+service, and an active public branch with on-site fulfillment and service
+areas. Its visit/quote form requires a selected branch, a covered service area,
+the service address, contact information and consent. The API validates the
+service-area match and routes the resulting Pipeline lead to that branch's
+configured agent. The full address is stored in the private lead activity;
+preferred visit times remain requests and do not represent dispatch or
+confirmed availability.
+
+Fitness / coaching and Events / venues use the same public-enquiry endpoint,
+service sections and branch routing. Fitness accepts a trial request or
+consultation; events accept availability, registration-information or quote
+requests. Requested dates and times are stored as lead qualification details.
+No coach, class seat, venue, event capacity or attendee place is reserved, and
+the storefront copy explicitly says these actions do not confirm attendance.
 
 Bearer requests identify the current panel with `X-Salemax-Actor: agent` for
 Agent credentials; existing Agent aliases identify the panel themselves.

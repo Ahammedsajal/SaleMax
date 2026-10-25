@@ -1,6 +1,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+// Forward migrations occasionally need a schema object introduced by a
+// later-dated migration. Keep immutable, already-deployed SQL files intact
+// and express the ordering here instead of renaming or editing their contents.
+const MIGRATION_DEPENDENCIES = Object.freeze({
+  '20261024_business_daily_report_default_time.sql': Object.freeze([
+    '20261225_business_whatsapp_notifications.sql'
+  ])
+});
 class MigrationError extends Error {
   constructor(code) { super(code); this.code = code; }
 }
@@ -34,7 +42,7 @@ function splitSql(source) {
 }
 function discover(directory) {
   const root = fs.realpathSync(directory);
-  return fs.readdirSync(root).filter(file => /^\d{8}_[a-z0-9_]+\.sql$/i.test(file))
+  const migrations = fs.readdirSync(root).filter(file => /^\d{8}_[a-z0-9_]+\.sql$/i.test(file))
     .filter(file => !/(?:^|_)(?:rollback|down|revert)(?:_|\.)/i.test(file))
     .sort().map(file => {
       const filename = path.join(root, file);
@@ -45,6 +53,21 @@ function discover(directory) {
       if (statements.some(sql => /^(?:DROP\b|TRUNCATE\b)|\bDROP\s+(?:COLUMN|TABLE|DATABASE)\b/i.test(sql))) throw new MigrationError('DESTRUCTIVE_FORWARD_MIGRATION');
       return { file, checksum: crypto.createHash('sha256').update(source).digest('hex'), statements };
     });
+  const byName = new Map(migrations.map(migration => [migration.file, migration]));
+  const ordered = [], visiting = new Set(), visited = new Set();
+  function visit(file) {
+    if (visited.has(file)) return;
+    if (visiting.has(file)) throw new MigrationError('MIGRATION_DEPENDENCY_CYCLE');
+    const migration = byName.get(file);
+    if (!migration) throw new MigrationError('MIGRATION_DEPENDENCY_NOT_FOUND');
+    visiting.add(file);
+    for (const dependency of MIGRATION_DEPENDENCIES[file] || []) visit(dependency);
+    visiting.delete(file);
+    visited.add(file);
+    ordered.push(migration);
+  }
+  for (const migration of migrations) visit(migration.file);
+  return ordered;
 }
 const ledgerSql = `CREATE TABLE IF NOT EXISTS salemax_schema_migrations (
   migration_name VARCHAR(190) NOT NULL PRIMARY KEY,
@@ -61,7 +84,15 @@ async function applyMigrations(connection, migrations, { only = null } = {}) {
   const selected = only == null ? migrations : (() => {
     const names = Array.isArray(only) ? only : [only];
     if (!names.length || names.some(name => typeof name !== 'string' || !current.has(name))) throw new MigrationError('MIGRATION_NOT_FOUND');
-    return names.map(name => current.get(name));
+    const required = new Set();
+    function include(name) {
+      if (required.has(name)) return;
+      if (!current.has(name)) throw new MigrationError('MIGRATION_DEPENDENCY_NOT_FOUND');
+      required.add(name);
+      for (const dependency of MIGRATION_DEPENDENCIES[name] || []) include(dependency);
+    }
+    names.forEach(include);
+    return migrations.filter(migration => required.has(migration.file));
   })();
   const [[database]] = await connection.query('SELECT DATABASE() AS db');
   if (!database.db) throw new MigrationError('DATABASE_REQUIRED');
@@ -102,4 +133,4 @@ async function applyMigrations(connection, migrations, { only = null } = {}) {
     return { applied, skipped };
   } finally { try { await connection.query('SELECT RELEASE_LOCK(?)', [lockName]); } catch (_) {} }
 }
-module.exports = { MigrationError, splitSql, discover, applyMigrations };
+module.exports = { MigrationError, splitSql, discover, applyMigrations, MIGRATION_DEPENDENCIES };

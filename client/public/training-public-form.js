@@ -135,7 +135,7 @@
   }
 
   function render() {
-    const priorCourses=root.querySelector('[data-course-row]')?window.__sxRegistrationControls?.selections():undefined;
+    let priorCourses=root.querySelector('[data-course-row]')?window.__sxRegistrationControls?.selections():undefined;
     const prior = {};
     root.querySelectorAll('#enquiry-form [name]').forEach(control => {
       if (control.name === 'course_ids') {
@@ -145,6 +145,11 @@
       }
       prior[control.name] = control.multiple?Array.from(control.selectedOptions,o=>o.value):control.type === 'checkbox' ? control.checked : control.value;
     });
+    const requestedCourseId=query.get('course_id');
+    if(!staffCapture&&requestedCourseId&&data.courses?.some(course=>course.id===requestedCourseId)){
+      if(!prior.course_ids?.length)prior.course_ids=[requestedCourseId];
+      if(data.form.schema.templateKey==='procatalyst-registration-v1'&&!priorCourses?.length)priorCourses=[{course_id:requestedCourseId}];
+    }
     if (turnstileWidgetId && window.turnstile?.remove) {
       try { window.turnstile.remove(turnstileWidgetId); } catch {}
       turnstileWidgetId = null;

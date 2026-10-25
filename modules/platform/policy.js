@@ -21,6 +21,12 @@ const permissions = {
   'contacts.manage': { owner: 'tenant', manager: 'tenant' },
   'products.read': { owner: 'tenant', manager: 'tenant', team_leader: 'tenant', agent: 'tenant' },
   'products.manage': { owner: 'tenant', manager: 'tenant' },
+  'orders.read': { owner: 'tenant', accountant: 'billing', manager: 'tenant', agent: 'assigned' },
+  'orders.fulfill': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
+  'orders.manage': { owner: 'tenant', manager: 'tenant' },
+  'restaurant.orders.read': { owner: 'tenant', accountant: 'billing', manager: 'tenant', agent: 'assigned' },
+  'restaurant.orders.fulfill': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
+  'restaurant.orders.manage': { owner: 'tenant', manager: 'tenant' },
   'courses.read': { owner: 'tenant', accountant: 'tenant', manager: 'tenant', agent: 'tenant' },
   'courses.manage': { owner: 'tenant', manager: 'tenant' },
   'sales.request': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
@@ -63,6 +69,7 @@ const permissions = {
   'properties.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
   'properties.manage': { owner: 'tenant', manager: 'tenant' },
   'properties.assign': { owner: 'tenant', manager: 'tenant' },
+  'properties.requests.manage': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
 };
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);
 const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read', 'telephony.configure']);
@@ -79,8 +86,11 @@ const capabilities = Object.freeze({
   'sales.targets': ['targets.read','targets.manage'],
   'sales.icp': ['icp.read','icp.manage'],
   'products.catalog': ['products.read','products.manage'],
+  'retail.orders': ['orders.read','orders.fulfill','orders.manage'],
+  'restaurant.menu': ['products.read','products.manage'],
+  'restaurant.orders': ['restaurant.orders.read','restaurant.orders.fulfill','restaurant.orders.manage'],
   'hr.recruitment': ['recruitment.manage'],
-  'realestate.listings': ['properties.read','properties.manage','properties.assign'],
+  'realestate.listings': ['properties.read','properties.manage','properties.assign','properties.requests.manage'],
   'campaigns.dashboard': ['campaigns.manage'], 'crm.leads': ['leads.read', 'leads.manage', 'leads.assign'],
   'crm.contacts': ['contacts.read', 'contacts.manage'], 'team.members': ['team.read', 'team.invite'],
   'team.tasks': ['tasks.read', 'tasks.manage'], 'training.courses': ['courses.read', 'courses.manage'],
@@ -96,7 +106,7 @@ function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
   // Listing reads use the persisted assignee and current Sales Organization
   // hierarchy. Custom grants cannot widen these scopes.
-  if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && permission!=='properties.read') return null;
+  if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && !['properties.read','properties.requests.manage'].includes(permission)) return null;
   // A custom role is an additional restriction on its fixed seat role. It can
   // never create a permission or scope that the seat role itself lacks.
   if (Array.isArray(membership.customPermissions) && permission !== 'channels.qr.create' && !membership.customPermissions.includes(permission)) return null;

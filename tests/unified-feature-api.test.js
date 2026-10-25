@@ -50,6 +50,8 @@ test('Inbox-only staff can use published course replies with assignment scope an
  const assigned={origin:'qr',chat_id:'chat',assigned_agent:JSON.stringify([{kind:'identity',identityId:'identity-agent'}])};
  await assert.doesNotReject(service.conversation({...c,query:async()=>[assigned]},'chat'));
  await assert.rejects(service.conversation({...c,query:async()=>[{...assigned,assigned_agent:'[]'}]},'chat'),{code:'PERMISSION_DENIED'});
+ const readOnly={...c,ctx:context('agent',{assignedNavigation:['inbox'],customPermissions:['conversations.read']}),refresh:async()=>readOnly};
+ await assert.rejects(service.execute(f.pool,readOnly,{requestId:crypto.randomUUID(),chatId:'chat',courseId:crypto.randomUUID()}),{code:'PERMISSION_DENIED'});
  f.member={...f.member,assignedNavigation:'["contacts"]'};
  await assert.rejects(c.refresh(),{code:'PERMISSION_DENIED'});
 });

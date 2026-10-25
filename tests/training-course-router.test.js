@@ -32,6 +32,7 @@ test('canonical accountant may read the course catalogue but cannot create or ch
   const pool={query:connection.query,getConnection:async()=>connection};
   const app=express();
   app.use('/api/user/training/courses',createTrainingCourseRouter({pool,origin:'http://localhost',userGuard(_req,res){res.status(401).json({code:'LEGACY_AUTH_ONLY'});},canonicalGuard(req,_res,next){req.businessContext=context('accountant');next();}}));
+  app.use((error,_req,res,_next)=>res.status(error.status|| (error.code==='PERMISSION_DENIED'?403:500)).json({code:error.code||'INTERNAL_ERROR'}));
   const server=app.listen(0,'127.0.0.1');
   try{
     await new Promise(resolve=>server.once('listening',resolve));
@@ -42,4 +43,21 @@ test('canonical accountant may read the course catalogue but cannot create or ch
     assert.equal(body.code,'PERMISSION_DENIED');
     assert.equal(queried,false);
   }finally{await new Promise(resolve=>server.close(resolve));}
+});
+
+test('course owner can explicitly approve one attached PDF brochure for the public catalogue',async()=>{
+  const courseId='11111111-1111-4111-8111-111111111111',mediaId='22222222-2222-4222-8222-222222222222',calls=[];let committed=false;
+  const db={async beginTransaction(){},async commit(){committed=true;},async rollback(){},release(){},async query(sql,args){calls.push({sql,args});if(sql.includes('SELECT id,status FROM sx_training_courses'))return [[{id:courseId,status:'active'}]];if(sql.includes("media_kind='document'"))return [[{id:mediaId}]];return [{affectedRows:1}];}};
+  const app=express();app.use(express.json());
+  app.use('/api/user/training/courses',createTrainingCourseRouter({pool:{getConnection:async()=>db,query:db.query},origin:'http://localhost',userGuard(_req,res){res.status(401).json({code:'LEGACY_AUTH_ONLY'});},canonicalGuard(req,_res,next){req.businessContext=context('owner');next();}}));
+  const server=app.listen(0,'127.0.0.1');
+  try{await new Promise(resolve=>server.once('listening',resolve));const response=await fetch(`http://127.0.0.1:${server.address().port}/api/user/training/courses/${courseId}/media/${mediaId}/public-brochure`,{method:'PUT',headers:{Origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({public:true})});const body=await response.json();assert.equal(response.status,200);assert.deepEqual(body.data,{courseId,mediaId,public:true});assert.equal(committed,true);assert.match(calls[1].sql,/tenant_id=\? AND course_id=\? AND id=\?/);assert.match(calls[2].sql,/ON DUPLICATE KEY UPDATE media_id/);assert.equal(calls[2].args[0],context('owner').tenant.id);}
+  finally{await new Promise(resolve=>server.close(resolve));}
+});
+
+test('accountant cannot publish a public course brochure',async()=>{
+  let queried=false;const db={async query(){queried=true;return [[]];},release(){}};const app=express();app.use(express.json());
+  app.use('/api/user/training/courses',createTrainingCourseRouter({pool:{getConnection:async()=>db,query:db.query},origin:'http://localhost',userGuard(_req,res){res.status(401).json({code:'LEGACY_AUTH_ONLY'});},canonicalGuard(req,_res,next){req.businessContext=context('accountant');next();}}));
+  app.use((error,_req,res,_next)=>res.status(error.status|| (error.code==='PERMISSION_DENIED'?403:500)).json({code:error.code||'INTERNAL_ERROR'}));
+  const server=app.listen(0,'127.0.0.1');try{await new Promise(resolve=>server.once('listening',resolve));const response=await fetch(`http://127.0.0.1:${server.address().port}/api/user/training/courses/${'11111111-1111-4111-8111-111111111111'}/media/${'22222222-2222-4222-8222-222222222222'}/public-brochure`,{method:'PUT',headers:{Origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({public:true})});const body=await response.text();assert.equal(response.status,403,body);assert.equal(JSON.parse(body).code,'PERMISSION_DENIED');assert.equal(queried,false);}finally{await new Promise(resolve=>server.close(resolve));}
 });

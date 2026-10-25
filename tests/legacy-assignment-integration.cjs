@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
 const {assign,state,context,preview}=require('../modules/platform/legacy-plan-assignment');
 module.exports=async(db,other)=>{
-  await db.query('CREATE TABLE user (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),name VARCHAR(999),plan LONGTEXT,plan_expire VARCHAR(999)) ENGINE=InnoDB');
+  await db.query('CREATE TABLE IF NOT EXISTS user (id INT PRIMARY KEY AUTO_INCREMENT,uid VARCHAR(999),name VARCHAR(999),plan LONGTEXT,plan_expire VARCHAR(999),timezone VARCHAR(100) NULL DEFAULT \'UTC\') ENGINE=InnoDB');
   await db.query('INSERT INTO user(uid,plan,plan_expire) VALUES (?,?,?)',['synthetic-business','historical malformed snapshot','123']);
   const [[plan]]=await db.query('SELECT id FROM plan LIMIT 1');
   const [[user]]=await db.query('SELECT * FROM user WHERE uid=?',['synthetic-business']);

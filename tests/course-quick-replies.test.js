@@ -25,10 +25,13 @@ test('conversation access derives account and recipient from persisted rows and 
 });
 test('custom roles map course quick reply APIs to existing conversation permissions',()=>{
  const guard=require('../modules/platform/team-role-request-guard');
- for(const baseUrl of ['/api/inbox/course-replies','/api/agent/course-replies']){
+ for(const baseUrl of ['/api/workspace/inbox/course-replies','/api/inbox/course-replies','/api/agent/course-replies']){
  assert.equal(guard.routePermission({baseUrl,path:'/send',method:'POST'}),'conversations.reply');
  assert.equal(guard.routePermission({baseUrl,path:'/',method:'GET'}),'conversations.read');
+ assert.equal(guard.routePermission({baseUrl,path:'/send',method:'GET'}),'conversations.read');
+ assert.equal(guard.routePermission({baseUrl,path:'/send',method:'DELETE'}),null);
  assert.equal(guard.authorizeLegacyMembership({baseUrl,path:'/send',method:'POST',sourceTable:'agents'},{role:'agent',roleProfileId:'role',seatRole:'agent',rolePermissions:['conversations.read','conversations.reply']}).allowed,true);
+ assert.equal(guard.authorizeLegacyMembership({baseUrl,path:'/send',method:'POST',sourceTable:'agents'},{role:'agent',roleProfileId:'role',seatRole:'agent',rolePermissions:['conversations.read']}).allowed,false);
  }
 });
 test('private QR and Meta transports send bytes or upload IDs, persist provider IDs and fail closed on missing channel',async()=>{

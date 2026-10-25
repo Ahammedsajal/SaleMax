@@ -34,6 +34,7 @@ test('new course workflow is mounted in existing user shell with bilingual scree
   assert.equal((screen.match(/prerequisitesEn:f\.get\('prerequisitesEn'\)/g)||[]).length,2,'create and edit must both persist English prerequisites');
   assert.equal((screen.match(/prerequisitesAr:f\.get\('prerequisitesAr'\)/g)||[]).length,2,'create and edit must both persist Arabic prerequisites');
   assert.match(screen,/SaleMaxWorkspace\.request/);assert.match(read('client/public/workspace-api.js'),/business-auth\/me/);assert.match(read('client/public/workspace-api.js'),/X-CSRF-Token/);assert.match(mount,/canonicalGuard:businessBoundary\.guard/);
+  assert.match(screen,/public-brochure/);assert.match(screen,/Publish as brochure/);assert.match(screen,/Files are private unless you explicitly publish one PDF brochure/);assert.match(screen,/const privacyText=products\?tr\('Product and service files are private/);assert.match(read('modules/platform/training-course-router.js'),/courseMedia\.setPublicBrochure/);assert.match(read('database/migrations/20270105_training_public_brochure.sql'),/fk_sx_training_public_brochure_media/);assert.match(read('modules/web/public-website.js'),/Download course brochure \(PDF\)/);
   assert.match(mount,/\/api\/user\/training\/courses/);assert.match(read('docs/API_DOCUMENTATION.md'),/Training-center course catalogue/);assert.match(read('docs/USER_MANUAL.md'),/Training courses/);
 });
 test('batch language controls prefer common choices while preserving custom locale codes',()=>{

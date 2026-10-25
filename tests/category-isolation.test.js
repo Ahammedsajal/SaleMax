@@ -19,14 +19,14 @@ function withFutureFeature() {
 
 test('new platform features do not silently enroll any existing category', () => {
   const future = withFutureFeature();
-  for (const name of ['trainingCenter', 'salemaxSales', 'restaurantFixture']) {
+  for (const name of ['trainingCenter', 'professionalServices', 'salemaxSales', 'restaurantFixture']) {
     assert.equal(future[name].capabilities.includes('clinic.patient-records'), false);
     assert.deepEqual([...future[name].capabilities], [...categories[name].capabilities]);
   }
 });
 
 test('shared messaging and automation stay available in both commercial category contracts', () => {
-  for (const category of [categories.trainingCenter, categories.salemaxSales]) {
+  for (const category of [categories.trainingCenter, categories.professionalServices, categories.salemaxSales]) {
     for (const capability of ['messaging.inbox', 'messaging.qr', 'messaging.meta', 'messaging.templates', 'automation.flows', 'automation.chatbot']) {
       assert.equal(category.capabilities.includes(capability), true, `${category.key}: ${capability}`);
     }
@@ -45,7 +45,7 @@ test('catalogue and workflow separation remains explicit', () => {
 });
 
 test('category metadata cannot be mutated for other requests or tenants', () => {
-  for (const category of [categories.trainingCenter, categories.salemaxSales, categories.restaurantFixture]) {
+  for (const category of [categories.trainingCenter, categories.professionalServices, categories.salemaxSales, categories.restaurantFixture]) {
     assert.throws(() => { category.title.en = 'Another business'; }, TypeError);
     assert.throws(() => { category.capabilities.push('clinic.patient-records'); }, TypeError);
     assert.throws(() => { category.seatRoles.push('doctor'); }, TypeError);

@@ -4,6 +4,7 @@ const express=require('express');
 const staff=require('./staff-access');
 const portfolios=require('./user-portfolio');
 const ownerActivation=require('./business-owner-activation');
+const ownerTransfer=require('./tenant-owner-transfer');
 
 function createExistingPlatformAccessRouters({pool,origin}){
   const admin=express.Router(),accept=express.Router();
@@ -27,6 +28,7 @@ function createExistingPlatformAccessRouters({pool,origin}){
   admin.post('/staff/invitations/:id/resend',wrap(async(req,res)=>res.json({success:true,data:await use(db=>staff.rotateInvite(db,req.businessContext,req.params.id))})));
   admin.post('/staff/invitations/:id/cancel',wrap(async(req,res)=>res.json({success:true,data:await use(db=>staff.cancelInvite(db,req.businessContext,req.params.id))})));
   admin.patch('/staff/:identityId',wrap(async(req,res)=>res.json({success:true,data:await use(db=>staff.updateStaff(db,req.businessContext,req.params.identityId,req.body))})));
+  admin.post('/tenants/:tenantId/owner-transfers',wrap(async(req,res)=>res.status(201).json({success:true,data:await use(db=>ownerTransfer.create(db,req.businessContext,req.params.tenantId,req.body))})));
   admin.get('/portfolios',wrap(async(req,res)=>{
     const context=req.businessContext;if(context?.membership?.role!=='super_admin')throw Object.assign(new Error(),{code:'PERMISSION_DENIED'});
     const data=await use(async db=>{
@@ -46,7 +48,7 @@ function createExistingPlatformAccessRouters({pool,origin}){
   }));
   admin.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
-    const code=error.code||'',status=['PERMISSION_DENIED','PLATFORM_REQUIRED','VERIFIED_ADMIN_LINK_REQUIRED'].includes(code)?403:['INVITE_NOT_FOUND','STAFF_NOT_FOUND','USER_NOT_FOUND'].includes(code)?404:['IDENTITY_EXISTS','LEGACY_ADMIN_EXISTS','INVITE_NOT_PENDING','STAFF_IDENTITY_INACTIVE','ADMIN_MANAGER_NOT_FOUND','PORTFOLIO_OWNER_NOT_FOUND'].includes(code)?409:code.startsWith('INVALID_')?400:error.type==='entity.parse.failed'?400:error.type==='entity.too.large'?413:503;
+    const code=error.code||'',status=['PERMISSION_DENIED','PLATFORM_REQUIRED','VERIFIED_ADMIN_LINK_REQUIRED','RECENT_MFA_REQUIRED'].includes(code)?403:['INVITE_NOT_FOUND','STAFF_NOT_FOUND','USER_NOT_FOUND','TENANT_NOT_TRANSFERABLE'].includes(code)?404:['IDENTITY_EXISTS','LEGACY_ADMIN_EXISTS','INVITE_NOT_PENDING','STAFF_IDENTITY_INACTIVE','ADMIN_MANAGER_NOT_FOUND','PORTFOLIO_OWNER_NOT_FOUND','OWNER_RECIPIENT_ACCOUNT_EXISTS','OWNER_TRANSFER_CONFLICT','OWNER_TRANSFER_SAME_EMAIL','BUSINESS_LINK_INVALID'].includes(code)?409:code.startsWith('INVALID_')?400:error.type==='entity.parse.failed'?400:error.type==='entity.too.large'?413:503;
     const body={code:status===503?'PLATFORM_ACCESS_UNAVAILABLE':error.type==='entity.parse.failed'?'INVALID_JSON':error.type==='entity.too.large'?'BODY_TOO_LARGE':code};
     if(!['GET','HEAD'].includes(req.method)&&req.businessContext?.identity?.id){
       use(db=>db.query(`INSERT INTO sx_audit_events(id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
@@ -69,9 +71,13 @@ function createExistingPlatformAccessRouters({pool,origin}){
     if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))return res.status(400).json({code:'INVALID_BODY'});
     const data=await use(db=>ownerActivation.accept(db,req.body));res.status(201).json({success:true,data});
   }));
+  accept.post('/owner-transfer/accept',wrap(async(req,res)=>{
+    if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))return res.status(400).json({code:'INVALID_BODY'});
+    const data=await use(db=>ownerTransfer.accept(db,req.body));res.status(201).json({success:true,data});
+  }));
   accept.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
-    const code=error.code||'',status=code==='INVALID_PASSWORD'||code==='INVALID_DISPLAY_NAME'?400:code==='INVITE_INVALID'?410:error.type==='entity.parse.failed'?400:error.type==='entity.too.large'?413:503;
+    const code=error.code||'',status=['INVALID_PASSWORD','INVALID_DISPLAY_NAME','INVALID_EMAIL','INVALID_REASON'].includes(code)||code.startsWith('INVALID_')?400:['INVITE_INVALID','TRANSFER_INVALID'].includes(code)?410:code==='OWNER_RECIPIENT_ACCOUNT_EXISTS'||code==='OWNER_TRANSFER_CONFLICT'?409:error.type==='entity.parse.failed'?400:error.type==='entity.too.large'?413:503;
     res.status(status).json({code:status===503?'INVITATION_UNAVAILABLE':error.type==='entity.parse.failed'?'INVALID_JSON':error.type==='entity.too.large'?'BODY_TOO_LARGE':code});
   });
   return {admin,accept};

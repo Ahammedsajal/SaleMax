@@ -1,3 +1,320 @@
+## Tenant storefront shared-API foundation — source work, 25 October 2026
+
+Moved the local white-label storefront/domain work onto the production-derived
+worktree. The existing business-panel appearance screen now shares the common
+`SaleMaxWorkspace` client and the canonical `/api/workspace/storefront` route;
+`/api/crm` remains an adapter to the same router. Storefront draft, publication
+and rollback services use the current tenant session/context and owner check.
+Training Center owners can select an already-published guest course form from
+the shared Forms API; the public storefront shows its course-enquiry action
+only while the current form remains published and eligible. Submission stays
+on the existing guest form/lead pipeline and is clearly described as an
+enquiry that does not reserve a seat.
+The owner can now opt into a category-specific course catalogue on the
+published storefront. It lists only tenant-scoped active courses with a
+currently valid active offer, checks the live plan entitlement, renders
+bilingual outcomes/prerequisites, upcoming schedule dates and pricing, and
+omits the catalogue if the published guest course form is no longer available.
+Each active published course has a stable public identifier and a detail URL at
+`/courses/{publicId}` with canonical/Open Graph metadata; its enquiry action
+opens the existing guest form with that course preselected. Schedule cards say
+“request only” and expose no seat capacity. The public host
+resolver also checks the registered category contract’s public flag and version; private
+or unregistered categories remain unpublished. Rendered English/Arabic cards,
+escaping and opt-in behavior pass focused tests.
+The existing appearance screen now edits up to eight reusable bilingual content
+sections with bounded item counts and fields. Supported section types include
+FAQs, testimonials, team, credentials, policies, updates, events, courses,
+services, products and careers. Public rendering uses accessible disclosure
+controls for FAQs, quote markup for testimonials and cards for team/credential/
+policy/event/update content; fields are escaped and empty sections are omitted.
+This is a reusable content foundation only: category-specific merchandising,
+booking, ordering and guest checkout flows remain unimplemented. Focused
+storefront normalization, editor-contract and bilingual renderer checks pass
+11/11; the earlier 48/48 aggregate did not include these new section cases.
+Branches explicitly marked public by the owner are rendered with bilingual
+location details, opening hours, timezone, service areas and fulfillment
+options. Public projection is tenant-scoped and excludes manager/agent routing
+identifiers; it forces request-only wording.
+The existing owner appearance screen also has a tenant-owned branch editor
+backed by `/api/workspace/storefront/branches` (with the legacy route on the
+same handler). The owner can edit separate timezone, bilingual address,
+opening hours, service areas, fulfillment modes, active state, public listing
+visibility and optional active manager/agent routing. Mutations are
+tenant-scoped and revision-checked. The schema and API force `request_only`;
+instant/capacity-reserved bookings remain unavailable until actual resource
+capacity can be reserved. Training Center batches now support an optional
+same-tenant active branch through additive migration
+`20270101_training_batch_branches.sql`; the existing Courses screen exposes
+the branch selector and schedule location. The public course catalogue and
+guest registration batch selector display bilingual branch locations while
+excluding inactive branches and internal routing fields. Legacy batch updates
+that omit `branchId` preserve the assigned branch. Reassignment is rejected
+after reservations, sale reviews or enrollments exist. Guest batch selection
+remains a request for business review and does not reserve a seat or confirm a
+booking. Salon appointment requests now accept a published public branch and
+preserve its validated routing in the existing Pipeline activity; other
+category transactions still do not consume branch availability or routing.
+The tenant host gate now admits the public root and category page routes while
+continuing to reject admin/platform paths. Public output is escaped, script-free
+and shown only for an active domain with a published revision. Focused
+storefront/domain/branch/catalogue checks previously passed 21/21. Current
+focused storefront, course, registration, localization and public-detail checks
+pass 48/48; JavaScript syntax and diff whitespace checks pass. A later full
+`npm test` run completed 1,114 tests with 1,069 passing and 45 failing. Running
+under the required loopback-only `LOCAL_ONLY_MODE=true` test setting improved
+that to 1,072 passing and 42 failing; the three resolved tests depended on
+allowing local HTTP origins. At that point, remaining failures included existing
+Tasks, Finance, Pipeline/navigation asset-contracts, telephony and other areas.
+A later comparison against the clean base commit confirmed all 36 remaining
+failing test names are baseline failures, with no new failing names. They remain
+open regression debt and block a deployment readiness claim. The new
+storefront/request-focused suites pass 25/25, and the Real
+Estate property/public-request HTTP suites pass 5/5.
+
+The MariaDB integration helper now covers branch assignment, legacy update preservation and reservation-safe reassignment in addition to tenant isolation and owner access. It has not been run: there is no loopback-only test database configured in this checkout, and the available local server is MySQL 9.6 rather than the disposable MariaDB runtime required by the suite.
+
+An audited owner-transfer procedure is now integrated into the existing
+Manage Users screen and existing `/user/login` flow. A recent-MFA Super Admin
+creates a 72-hour, one-time copy-link invitation; the new owner sets their
+credentials and accepts it. Acceptance creates a new owner identity and
+membership, deactivates the previous membership, revokes its tenant sessions,
+updates the existing business login credentials, and remaps the
+`sx_legacy_ownership` row while retaining the business UID and tenant identity.
+The change is transactional and audited; expired invitations release their
+recipient reservation, and failed conditional updates roll the transaction
+back. Source-level tests cover invitation hashing, permission checks, the
+stable legacy anchor, membership/session changes and schema constraints.
+However, invitation delivery is currently a privately copied bearer link; the
+recipient's mailbox is not independently verified. The new migration has not
+been rehearsed against disposable MariaDB, and the authenticated existing
+Manage Users/login screens have not passed browser acceptance. This remains
+source-only and must not be deployed as a verified owner-transfer process yet.
+
+This is an incomplete source foundation, not a category workflow release. Public brochure/FAQ controls, guest checkout, retail ordering, branch availability and routing for categories beyond Training Center, Real Estate, Professional Services and Salon, operational booking reservations, category-specific layouts/actions beyond Training Center, Real Estate, Professional Services and Salon requests, verified staff-role acceptance, migration rehearsal, authenticated responsive English/Arabic browser acceptance, and production deployment remain open. The additive schema migrations are source-only; no production schema or tenant publication was changed. The complete 42-ticket upgrade remains the objective.
+
+### Salon appointment request — source work, 25 October 2026
+
+Added public, planable `salon_spa` v1 to the existing category registry and
+Manage Plans/Manage Users contracts. Its storefront uses the reusable bilingual
+service section and the existing consented guest enquiry form. Guests can
+request an appointment, select a published service and branch, and optionally
+provide a preferred Qatar-local date and time. The server validates service,
+branch, date, contact and consent, then creates an idempotent service-linked
+lead in the existing Pipeline with the preferred time and validated branch
+routing recorded for follow-up. The request and activity are explicitly
+unconfirmed; the category exposes no staff, room, equipment or seat reservation
+and never displays an instant-booking claim. This matches request-only
+behavior until resource availability is maintained.
+
+Category, contract-context, public-renderer, consent, validation, idempotency,
+branch routing and Pipeline checks pass 44/44. JavaScript syntax and diff checks
+pass. This is source-only: no authenticated English/Arabic browser acceptance,
+operational staff/resource scheduling, migration rehearsal, or production
+release has occurred. Retail ordering/guest checkout and the remaining category
+workflows remain open.
+
+### Professional Services guest enquiry — source work, 25 October 2026
+
+Added a versioned, planable `professional_services` category to the existing
+category registry, so existing Manage Plans and Manage Users contracts can
+select it without a second catalogue or account flow. Its shared CRM contract
+does not enable a vertical product catalogue or claim appointment scheduling.
+Published stores in this category display reusable service/product sections
+and an English/Arabic guest form for consultation or quotation requests only
+when the tenant has a current CRM-leads entitlement. The form requires consent
+and at least one contact channel, validates input server-side, uses an
+idempotency token, rate limits by HMAC visitor hash, and accepts POST only on
+the verified tenant hostname with the exact HTTPS origin. It creates an
+ordinary Pipeline lead under the verified business owner and stores the full
+bounded request message as a private lead activity. Service cards now link to
+the request form with the selected service prefilled; the API validates that
+service against the current published service list and captures it in Pipeline
+qualification data and private activity. Guests can also choose a public
+branch. The server resolves the slug against active, publicly listed branches
+within the verified tenant and applies a validated agent route to the existing
+Pipeline lead; internal membership and agent identifiers are never rendered
+publicly. A branch routed to a manager is recorded for follow-up, but the
+current Pipeline lead assignment contract has no manager-assignee field, so it
+is not represented as an assigned lead. Unknown or cross-tenant branch slugs
+are rejected before the enquiry is persisted. Failed submissions return a
+no-store page with safely escaped values. Focused service, branch-selection,
+origin and guest-enquiry suites pass 14/14.
+
+Additive migration `20270106_website_enquiry_consent.sql` records consent time
+and version without changing historical platform enquiries. The tenant-domain
+allowlist admits only `POST /api/public/website/enquiries`; the legacy 7Network
+Sales website endpoint keeps its prior host and origin policy. Focused
+category, plan-context, provisioning, storefront, domain, consent, idempotency
+and HTTP-origin checks passed 48/48 before service linking; the updated focused
+public-renderer, guest-validation, request-pipeline and Real Estate detail suite
+passes 13/13. The focused re-run including failed-form
+state passes 18/18. The initial full `LOCAL_ONLY_MODE=true npm test` run
+reported 1,130 tests: 1,089 pass and 41 fail, before subsequent fixes. The
+Training Center branch update now refuses deactivation while a scheduled, open
+or full course batch is underway or upcoming, preventing branch details and
+routing from silently disappearing. The branch row lock serializes this check
+with batch creation and assignment, which already locks the selected branch.
+Focused branch/storefront/Real Estate checks pass 16/16. The latest full
+loopback-only suite passes 1,103/1,139 tests. Compared with a clean worktree at
+the source base commit, all 36 remaining failing test names were already
+failing before this change; the current source introduces no newly failing test
+name and six baseline failures now pass. The baseline was 1,047/1,089 passing.
+The unchanged Pipeline, Tasks, Finance, Sales and Training Center failures still
+need investigation before deployment. Disposable MariaDB integration, browser review, EN/AR keyboard and narrow-screen
+acceptance, migration rehearsal, production source/runtime comparison and live
+owner/staff-role acceptance remain open. No production data, schema or release
+was changed. The category and workflow are source-only; production deployment
+remains gated.
+
+### Course quick-reply permission regression — source fix, 25 October 2026
+
+The full-suite failures exposed an actual mismatch in shared Inbox permissions:
+the canonical course-reply API and both compatibility aliases treated every
+request as `conversations.read`, and the send service did not independently
+require `conversations.reply`. `GET`/`HEAD` now require Inbox read; only
+`POST /send` requires reply permission. The service rechecks the live shared
+session's category, entitlement, assigned navigation and reply decision, then
+revalidates the persisted legacy role profile and assigned-chat scope before
+sending. A read-only Inbox member is explicitly denied. Focused course-reply,
+shared-session, category, storefront and migration tests pass 42/42. The latest
+full `LOCAL_ONLY_MODE=true npm test` run passes 1,103/1,139 tests, with 36
+failures remaining. A clean worktree at the source base commit had 42 failing
+test names; all current failing names match that baseline and there are no new
+failing names. Six baseline failures now pass. The two course-reply permission failures are resolved. Two
+additional failures were stale Manage Users expectations for the existing
+business setup label and current cache-busted script version; those assertions
+now match the maintained screen. A third stale assertion for the public course
+form script version was updated after confirming the configured Turnstile
+challenge still renders and submits; its focused suite passes 8/8. Remaining
+failures span Pipeline, Tasks, Finance, Sales and Training Center screen
+fixtures and require clean-baseline reconciliation. This
+security fix is source-only; browser and live role acceptance, MariaDB
+integration, source/runtime comparison and production deployment remain open.
+
+### Existing-shell integration — Real Estate properties, 25 October 2026
+
+The existing Real Estate listing controls now mount at `/user?page=properties`
+inside the current business shell and use `SaleMaxWorkspace` session and
+`/api/workspace/properties` authorization. The existing `/property-listings/`
+route remains available for compatibility; no second login or app shell was
+added. Styles are scoped to the property workspace overlay so they do not
+change unrelated panel screens. Twelve focused service/screen/static
+integration checks and four property-router HTTP checks pass. Authenticated
+browser review and property media/gallery remain open. Public listing and guest
+viewing-request foundations are source-integrated but remain gated because Real
+Estate is private/non-planable; see the next status entry.
+
+### Real Estate guest viewing request foundation — source only, 25 October 2026
+
+Added additive migration `20270102_real_estate_viewing_requests.sql` and a
+tenant/property-bound viewing-request service. A guest request requires contact
+details and explicit bilingual consent, rejects past Qatar-local preferred
+dates server-side, stores an idempotency digest and visitor rate-limit digest,
+and creates a linked opportunity through the existing Pipeline in the same
+transaction. The assigned property agent is used
+when the canonical-to-legacy agent mapping is valid. Staff can list requests
+within their existing property assignment/team scope and mark them contacted,
+declined or cancelled with revision checks and an audit event. Neither storage
+nor API exposes a confirmed/reserved appointment state; the existing Properties
+screen labels requests as unconfirmed and keeps its listings usable if the new
+request API is unavailable.
+
+Public submission fails closed unless the exact Real Estate category version is
+public and its active plan includes `realestate.listings`; this category remains
+private and non-planable, so no tenant can publish or accept these requests yet.
+The published storefront now has opt-in, bilingual Real Estate catalogue cards
+and stable `/properties/{id}` detail URLs with canonical/Open Graph metadata.
+Cards show the request-only nature of viewing and link to the guest request form
+on the configured public platform origin. Both the property detail renderer and
+the guest GET/POST endpoints require the owner-published `showPropertyCatalog`
+setting; direct URLs cannot bypass publication opt-in. The renderer excludes
+internal assignment fields and escapes public text. Real Estate is still
+registered private/non-planable, so this path is unreachable for customer
+publication until a separate category/plan readiness review. Property gallery,
+MariaDB concurrency and tenant-isolation integration, authenticated browser
+acceptance, and category readiness review remain open. Focused public storefront, request service, public HTTP route, shell and
+properties-router checks pass 25/25; the migration runner parses the new
+migration as one forward statement. No database or production deployment was
+changed.
+
+The existing `/user?page=properties` editor can also assign each listing to an
+active same-tenant branch, revise that assignment, and show the branch on the
+listing card. Branch search and agent/team read scopes include listings routed
+through a branch when the listing has no direct agent assignment. Guest viewing
+requests use direct property assignment first and an active branch route as the
+fallback; staff review remains request-only. The public catalogue and guest
+request detail show branch name/address only when the branch is active and its
+public visibility is enabled. Deactivating a branch with active Real Estate
+listings is rejected so it cannot silently orphan listings. Additive migration
+`20270103_real_estate_property_branches.sql` supplies the tenant-bound foreign
+key. The focused Real Estate/storefront/branch suites pass 33/33, source
+JavaScript syntax checks and `git diff --check` pass, and the migration runner
+parses the new migration as one forward statement. This schema and source remain
+undeployed, and the category remains private/non-planable.
+
+Viewing requests now snapshot their resolved active agent or branch-manager
+membership in additive migration `20270104_real_estate_viewing_assignment.sql`.
+The assigned queue and status-review authorization use that immutable snapshot
+first, so later changes to property or branch routing do not silently transfer
+existing requests. Existing rows without a snapshot continue using their
+current property/branch route as a compatibility fallback. Owners/managers can
+review tenant-wide; team leaders and agents can review only their team or
+assigned requests. The existing Properties screen shows the assignee and
+request-review actions according to the shared permission context. Focused
+storefront, branch, Real Estate service/router/shell suites pass 43/43; no
+database or production change occurred. This remains source-only, and Real
+Estate remains private/non-planable.
+
+### Dated storefront updates and events — source work, 25 October 2026
+
+The existing reusable Updates and Events section editor now captures an
+optional expiry date, plus an event date for Events. The shared storefront
+normalizer validates calendar dates and event date ranges while retaining old
+section shapes. The existing owner preview and public EN/AR renderer suppress
+expired entries using the Qatar-local date; event dates are rendered as
+semantic `<time>` elements. The current screen asset version was advanced to
+`20261026-dated-content1`. Invalid dates and reversed event ranges now show
+localized guidance in the existing status area. The focused storefront,
+branch, Real Estate and Training Forms suites pass 56/56; JavaScript syntax and
+whitespace checks pass. No database or production change occurred. Updates
+remain owner-published storefront content; this does not introduce a separate
+CMS or publish drafts automatically. Authenticated responsive browser review
+remains open; Playwright is not installed in this checkout.
+
+### Owner-approved public course brochure — source work, 25 October 2026
+
+The existing Courses screen now lets an owner or manager explicitly publish one
+attached PDF as that course's public brochure. Images, videos and unselected
+PDFs remain private. Additive migration
+`20270105_training_public_brochure.sql` records the approved media relationship
+with tenant/course/media foreign keys and the approving identity. The public
+catalogue exposes a brochure link only for an active course and current offer;
+the download also requires an active published storefront, the enabled course
+catalogue and its currently published enquiry form. Downloads are attachments
+with `no-store`, `nosniff`, a sandbox CSP and no range response. Removing the
+media removes its public selection in the same transaction. The API uses the
+existing shared course route and role policy; accountant denial is covered.
+Focused course, storefront, branch and Real Estate suites pass 55/55, and
+`migrations.test.js` passes 8/8. No database or production change occurred.
+Migration rehearsal, authenticated English/Arabic browser acceptance and
+production release gates remain open.
+
+The shared public renderer now displays owner-entered service and product
+section items as bilingual cards instead of silently dropping their entries.
+The same renderer escapes item content and continues hiding empty sections;
+English/Arabic output is covered in the storefront rendering suite.
+
+The current full `LOCAL_ONLY_MODE=true npm test` run completes 1,126 tests with
+1,085 passing and 41 failing. None of the failures is in the new storefront or
+brochure tests. The existing failures span Pipeline, Tasks, Finance, navigation
+and course-reply expectations; the captured output includes attempted database
+integration with empty local credentials and assertions pinned to superseded
+asset versions. One Task API fixture was corrected to cover the current default
+customization read, reducing the failure count from 42 to 41. The remaining
+failures have not been reconciled against a clean baseline, so the
+full regression and deployment gates remain open.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
@@ -1862,3 +2179,357 @@ automated adoption, new vertical workflows and full live acceptance remain open.
 The existing Pipeline search now also matches saved values from the active and historical typed custom-field snapshots on leads. The query reads only `$.customFields.*.value`, tolerates malformed legacy JSON, and retains the existing tenant-hash, member/agent scope, and pagination filters. English and Arabic search guidance now includes custom answers. This makes customer-defined fields usable in the normal lead work queue across supported categories without changing their schemas or other tenants' settings.
 
 Focused Pipeline custom-field search, existing team-scope and Sales-only behavior checks pass 10/10; JavaScript syntax and `git diff --check` pass. MariaDB JSON-table behavior was exercised with text, integer and boolean snapshots. The JSON projection is bounded by the existing custom-field history limits. Live production EXPLAIN initially chose a full-table scan on its small 398-row table; both result and count queries now force the existing tenant-leading `idx_pipeline_board` index, narrowing the largest current tenant to an estimated 242 lead rows before JSON projection. This is a production snapshot, not a capacity guarantee: repeat plans and latency measurements as data grows and add an indexed tenant/lead/field-value projection if they exceed the budget. The source is deployed; authenticated existing-screen acceptance remains open, and the full customization/42-ticket objective remains active.
+
+## Retail guest ordering and existing business workspace — source work, 25 October 2026
+
+Retail v1 now extends the shared product catalogue, branch inventory and published tenant storefront. The existing Products & services screen remains the product editor; the owner can add sellable SKUs and branch stock in a Retail orders view inside the current `/user` shell. Staff access is permission-scoped, and assigned agents see/fulfill only orders routed to their branch. Guest checkout requires explicit consent, a verified tenant domain, an exact same-host Origin, a published retail storefront with the owner-enabled product catalogue, an active branch and available stock. It accepts cash on delivery or bank transfer, reserves inventory transactionally, and returns a private guest code for return requests. Staff completion consumes reserved stock; cancellation releases it; an approved return restores it. Public order requests share the existing hashed visitor rate-limit table. Payment is not processed online and bank transfers remain pending verification.
+
+Focused retail service, storefront, domain, mount, existing catalogue-context, course compatibility and migration-discovery checks pass 45/45; affected JavaScript syntax checks and `git diff --check` pass. SKU creation and its initial branch-stock row now commit together with one audit event, and an unavailable branch rolls the operation back. The existing Retail orders screen can set stock for an active variant at any active branch, including when no stock row exists yet. The full `LOCAL_ONLY_MODE=true npm test` suite passes 1,112/1,148; the same 36 failure names were present in the immediately preceding full run and match the documented clean-base failures. This work remains uncommitted and has not been rehearsed against disposable MariaDB or verified in the authenticated English/Arabic browser. Do not enable a production storefront or run this migration yet. Pricing/shipping/tax policy, verified transfer reconciliation, order notification delivery, return-policy configuration, provider/browser acceptance and production rollback/deployment records remain open. The retail category and complete 42-ticket objective remain in progress.
+
+## Home Services visit and quote requests — source work, 25 October 2026
+
+Added public, planable `home_services@1` to the existing category registry and
+Manage Plans/Manage Users contract context. It reuses storefront services,
+branches, consented guest enquiries and the existing Pipeline. Publishing now
+requires a current CRM-leads entitlement, at least one public service and an
+active public branch configured for on-site work with service areas. The guest
+form asks for a branch, covered area and service address, then optionally a
+preferred Qatar-local visit date/time. The server checks branch coverage,
+service and request data before creating an idempotent Pipeline request and
+routes it to the branch's configured agent. Full street addresses are kept in
+the private Pipeline activity; requests never mark a visit confirmed or a
+technician dispatched.
+
+Focused category, existing catalogue context, storefront publication/rendering,
+branch, public domain and enquiry tests pass 50/50. Syntax checks and
+`git diff --check` pass. This source has no new migration but has not passed
+authenticated English/Arabic browser acceptance or live role checks. Technician
+dispatch, maintained appointment availability, staff scheduling, MariaDB
+integration and production deployment remain open; the complete multi-category
+upgrade remains in progress. The full `LOCAL_ONLY_MODE=true npm test` run passes
+1,115/1,151 with the same 36 failure names as before this category change; a
+name-by-name comparison found no new full-suite failures.
+
+## Restaurant / café ordering boundary — architecture finding, 25 October 2026
+
+`restaurant_fixture` remains private and non-planable. The Retail order
+service is explicitly restricted to `retail_boutique`; its order-item schema
+does not capture menu modifier snapshots, and checkout does not enforce branch
+opening hours or a preparation-time policy. Do not expose the fixture by
+granting it `retail.orders`. The separately defined `restaurant_cafe` category
+is now planable only through the existing audited platform category flow and
+remains private (`public: false`). Menu editing is source work in the existing
+business workspace; it does not enable public ordering. The menu order snapshot,
+opening-hours, preparation, availability and fulfillment rules still need
+implementation before guest checkout can be published. No restaurant tenant
+or storefront has been provisioned or enabled.
+
+### Branch preparation estimate foundation — source only, 25 October 2026
+
+Added optional branch-level `preparationMinutes` to the shared branch API and
+gated its owner-editor field and public projection to `restaurant_cafe`.
+The server accepts only integer values from 0 to 240; zero is the default and
+means no estimate has been configured. Other categories cannot write a nonzero
+estimate. The category is planable only through the audited platform category
+flow and remains private.
+Additive migration `20270109_tenant_branch_prep_time.sql` preserves existing
+branches. This is an operations data foundation; production order-time
+enforcement and guest checkout have not been enabled. Focused branch
+normalization and public projection tests pass 12/12 and cover the bounded value,
+default, category gate and tenant projection. The full loopback-only suite reports
+1,121/1,152 passing (31 failures). The migration runner
+discovers this migration after the Retail storefront migration. Database
+migration rehearsal and authenticated browser acceptance remain open.
+
+The shared branch service now provides a fail-closed restaurant order-hours
+decision in the branch timezone. Empty hours, malformed slots and invalid
+timezones are closed; a configured nonzero preparation estimate must finish by
+the current slot's closing time. Boundary tests pass for open, closing, exact
+prep completion, after-close prep, missing hours and invalid timezone. This is
+is used by the source-only restaurant request-order service, but no production
+order endpoint is enabled or verified.
+
+### Restaurant branch menu editor — source work, 25 October 2026
+
+Added an existing-workspace Restaurant menu screen backed by the shared
+`/api/workspace/restaurant-menu` session/API contract. Owners and permitted
+managers can add active catalogue products to active branches, set branch
+prices and availability, and create bilingual modifier groups/options with
+bounded selection counts and price deltas. New menu items start unavailable;
+all writes are tenant-scoped, revision-checked and audited. The category is
+planable only through the existing audited platform category flow and remains
+private. This editor does not accept or confirm orders.
+
+Focused category, menu service/contract, shared route and migration-discovery
+checks pass 16/16; affected JavaScript syntax and `git diff --check` pass.
+Disposable MariaDB rehearsal and authenticated English/Arabic role/browser
+acceptance have not run. Public menu/checkout UI, owner publication controls and
+production acceptance remain open. No production release or schema change
+occurred.
+
+### Restaurant guest order request workflow — source work, 25 October 2026
+
+Added a separate `restaurant.orders` capability and the existing-workspace
+`/api/workspace/restaurant-orders` queue. Guest requests snapshot product labels,
+base prices and bilingual modifier selections/prices, use consent, a hashed
+guest access token and idempotency key, and begin as `requested`; staff must
+accept before a request becomes `confirmed`. Branch hours and configured prep
+time are enforced by the request service. Agents see requests routed to their
+branch. Accountant reads omit contacts, addresses and line items. Payment
+settlement is not initiated by this workflow. The guest host API requires a
+verified domain/origin, rate limit and owner-published menu flag. The existing
+Storefront settings screen now has a restaurant-only publication toggle, and
+the tenant public page renders the bilingual branch menu and guest request form
+only when that published flag and public catalogue are present. The form keeps
+the order in request state and tells guests it awaits business acceptance.
+Restaurant publication checks category visibility, current plan capabilities,
+an available menu item and a public branch with hours and pickup/delivery.
+The restaurant category remains private, so the new public menu and checkout
+remain inaccessible in production and fail closed.
+
+Migration `20270111_restaurant_guest_orders.sql` adds tenant-bound order and
+item tables with immutable JSON modifier snapshots. Focused storefront,
+restaurant service, policy, permission, privacy, migration-discovery,
+branch-inactivation and bilingual public-rendering checks pass 36/36; public
+page and checkout JavaScript syntax checks pass. Disposable MariaDB
+transaction/concurrency rehearsal, authenticated role/browser acceptance,
+migration rehearsal and production release remain open. No production release
+or schema change occurred.
+
+### Test fixture correction — Inbox follow-up QR notification
+
+The task notification worker correctly suppresses Inbox QR delivery unless the
+claimed task notification identifies `source_type='inbox_chat'`. One test
+fixture omitted that field and incorrectly expected a send; the fixture now
+matches the worker's claimed-row contract. The sender query assertion also
+checks for the membership query without relying on its position. The focused
+task-notification suite passes 7/7. Stale screen assertions expected old Pipeline,
+certificate, and Sales navigation asset versions or labels; they now match the
+maintained routes. The existing student overlay now uses its tested 1201
+stacking layer. The Meta token masker is loaded before the React bundle in the
+existing app shell, preventing the manual access-token field from briefly
+rendering as plain text. Their focused suites pass. The latest full loopback-only
+suite reports 1,128/1,157 passing, with the same 29 failing test names as the
+previous full run across Pipeline, Tasks, Finance, and Sales review integration.
+No production data or release changed.
+
+### Restaurant public storefront and guest checkout wiring — source only, 25 October 2026
+
+The restaurant storefront renderer now includes the gated menu/order-request
+section and its external checkout script, and its main action points to that
+section. The bilingual rendering test checks escaped menu labels, branch hours,
+the request-only explanation, no-store caching, and self-hosted script policy.
+The guest form validates contact details, delivery address, item quantities and
+modifier bounds; retries retain their idempotency key, and the confirmation
+message reflects the server's current request status. Restaurant publication
+is still gated on a public category, an entitled plan, a public branch and an
+available menu item. The category remains private.
+
+Focused restaurant/storefront/migration checks pass 36/36. The full
+`LOCAL_ONLY_MODE=true npm test` run reports 1,143/1,172 passing and the same 29
+known Pipeline, Tasks, Finance and Sales-review failures. No migration was
+applied and no production data or release changed. MariaDB rehearsal and
+authenticated English/Arabic acceptance remain open.
+
+### Fitness / coaching and Events / venues request journeys — source only, 25 October 2026
+
+Added public, planable category contracts using the shared CRM and reusable
+storefront foundation. Fitness offers a package-linked trial request or
+consultation. Events / venues offer package-linked availability, registration
+information or quotation requests, with optional preferred date/time. Both
+create consented, tenant-bound Pipeline leads through the existing public
+enquiry endpoint and can use public-branch routing. Storefront wording states
+that a trial does not reserve a coach or class seat and an event request does
+not reserve a venue or attendance capacity. No instant booking/registration is
+claimed; structured reservation and attendance services remain future work.
+
+The existing Storefront editor now uses category-aware section labels and
+defaults: Fitness surfaces packages, coaches and class schedules; Events surfaces
+venue packages, event schedules and informational capacity notes. Changing a
+section type updates its field labels without clearing entered values. These
+remain the existing reusable section records and existing owner screen.
+
+Category contracts, plan-category visibility, lead intent validation, date
+handling, bilingual rendering and request-only behavior pass the current
+focused regression set (61/61). No schema migration was needed. The full suite
+reports 1,143/1,172 passing with the established 29 failures. A disposable
+migration rehearsal was attempted against the available local MySQL server,
+but it rejected the existing MariaDB-specific platform migration with a parse
+error; the test harness cleaned up its temporary database. A compatible
+MariaDB rehearsal, authenticated owner/staff/agent browser acceptance and
+production adoption remain open.
+
+The category-aware editor, public renderer and lead workflow focused group passes
+61/61 after this editor update. Authenticated visual acceptance remains open.
+
+The full suite after these category additions also reports 1,143/1,172 passing;
+the 29 failures remain the established Pipeline, Tasks, Finance and Sales-review
+baseline. An initial stale expected category list was updated to include the two
+new planable categories, after which its focused test passed. No migration or
+production change occurred.
+
+Event schedule cards now link directly to a registration-information request,
+preselect that request type, and prefill the guest message with the selected
+published event name. The form carries a typed event selection; the server
+checks it against the current, unexpired published schedule before creating the
+lead, then stores the event in Pipeline qualification data and private activity.
+Unknown, expired or cross-category event references are rejected. The request
+remains unconfirmed and does not reserve attendance capacity. The public
+renderer and enquiry suites pass 13/13; JavaScript syntax and diff checks pass.
+The full loopback-only suite after typed event validation passes 1,144/1,173,
+with the same 29 Pipeline, Tasks, Finance and Sales-review failures as the
+preceding 1,143/1,172 run. This is source-only. No migration or production
+change occurred.
+
+### MariaDB migration and business-contract integration — source/test-only, 25 October 2026
+
+Rehearsed the complete migration and integration chain on a newly initialized,
+disposable MariaDB 11.4.13 instance isolated from the normal local MySQL data.
+The final `LOCAL_ONLY_MODE=true DBHOST=127.0.0.1 DBPORT=33117 DBUSER=root
+DBPASS= npm run test:migrations:integration` run passed all 133 forward
+migrations, rerun/idempotency checks, lock and tenant-isolation checks, branch
+capacity concurrency, existing catalogue/user workflows, training forms,
+assigned-agent access, finance snapshots, task participation, domain routing,
+invitations, chatbot APIs and storefront-related migration checks. The run
+reported `syntheticMigrationDiagnostics: []`, `externalWrites: false` and
+`customerDataTouched: false`.
+
+The rehearsal exposed and fixed several integration issues: a MariaDB-incompatible
+generated primary-domain column was replaced by a backfilled flag while retaining
+the existing unique primary-domain key; a Pipeline capture read was mapped to
+the staff capture permission; agent reassignment now reaches the lead-level
+denial before optional task capability checks; training batch branch options are
+exported; and batch creation now returns the generated batch ID instead of the
+course ID. The concurrent-capacity test caught and verified that correction.
+Synthetic agent/task fixtures now include canonical membership links. Finance
+snapshot assertions now apply the report's as-of cutoff. Task
+participants without lead assignment are verified to see the task without the
+private linked lead, and chatbot AI prompts are verified to omit unrelated FAQs.
+No production deployment, schema update, push or public storefront activation
+occurred. Authenticated owner/staff/agent browser acceptance, the broader suite's
+29 current failures across Pipeline, Tasks, Finance and Sales review, production
+derived-code reconciliation, deployment rollback/monitoring and release gates
+remain open. The full `LOCAL_ONLY_MODE=true npm test` run completed at
+1,145/1,174; all 29 failures match the previously recorded baseline. A focused
+regression set across storefront, course router/catalogue, form capture, quick
+replies and task session tests passes 38/38; Pipeline report tests pass 12/12.
+
+### Category task adapters and shared Tasks acceptance — source/test-only, 25 October 2026
+
+Registered the already-defined invoice-follow-up and enrollment task adapters
+for Training Center and the scheduled-call adapter for 7Network Sales in the
+versioned category manifests. The category registry now validates and freezes
+adapter metadata, so the existing shared Tasks service can expose those task
+types through the authenticated existing screen while retaining capability and
+category checks. Updated legacy task fixtures to use canonical tenant and
+membership context, and corrected two contract assertions that referenced
+superseded Tasks labels/cache-busting rather than the current existing screen.
+
+The focused category/task/screen suite passes 38/38. The latest full
+`LOCAL_ONLY_MODE=true npm test` run passes 1,153/1,174, improving the prior
+1,145/1,174 result; 21 failures remain across Pipeline, Finance and Sales
+review. No migration, push, production deployment or storefront publication
+occurred. Production-derived source reconciliation, authenticated browser
+acceptance for owner/staff/agent and English/Arabic, remaining regressions,
+rollback/monitoring and release gates remain open.
+
+### Storefront workflow regression acceptance — source/test-only, 25 October 2026
+
+Ran the dedicated current storefront suite across tenant publication and
+revision checks, public category rendering, catalogue reads, consented guest
+enquiries, branch routing and capacity, owner transfer, Retail and Restaurant
+guest orders, Real Estate viewing requests, and the professional-services,
+Salon/Spa, Home Services, Fitness and Events request flows. The 15-file
+regression run passes 75/75. Assertions include tenant/category isolation,
+guest idempotency and validation, private service-address handling, staff
+acceptance before Restaurant orders become confirmed, and no implied coach,
+staff, room, venue or attendance reservation for request-only flows.
+
+This remains source and test evidence, not authenticated visual acceptance.
+The Codex desktop reports local browser use disabled in Work settings, so the
+existing-screen owner/staff/agent English/Arabic browser review could not be
+performed in this environment. The full suite still has 21 Pipeline, Finance
+and Sales-review failures; no production deployment or storefront publication
+occurred. Browser acceptance, those failures, production-derived source
+reconciliation and deployment/rollback gates remain open.
+
+The Training Center category's branch-specific batch options, public course
+brochure, existing course API/catalogue and form-capture localization also pass
+their dedicated regression group (30/30). The test process logged the expected
+missing local DB credential warning from a background app connection; these
+checks used test fixtures and did not connect to production or write external
+data. This does not replace disposable MariaDB migration rehearsal or browser
+acceptance.
+
+### Post-upstream migration reconciliation — source/test-only, 25 October 2026
+
+After reconciling this worktree with current `origin/main`, a fresh MariaDB
+rehearsal found that the lexically earlier daily-report default migration
+altered notification settings before their later-dated creation migration. The
+migration runner now applies declared prerequisites first and includes them in
+targeted migration runs. It keeps deployed migration SQL and checksums
+unchanged. Rehearsal then exposed a duplicate `is_primary` addition between the
+new storefront migration and the already production-applied domain-alias
+migration; the unshipped storefront migration now leaves that domain contract
+to the existing domain-alias migration.
+
+The focused migration unit suite passes 9/9. A complete isolated MariaDB
+11.4.13 migration/integration run passes all 135 forward migrations, repeated
+run/lock recovery, tenant and branch isolation/concurrency, current business
+contract workflows, storefront-related checks, and related authentication,
+finance, task and chatbot checks. Evidence reports `syntheticMigrationDiagnostics: []`,
+`externalWrites: false` and `customerDataTouched: false`. No production schema,
+application, or public storefront was changed. The latest full suite after
+upstream reconciliation initially remained 1,167/1,194 with 27 failures across
+existing Pipeline, Finance, Sales-review and screen-contract checks. A
+subsequent full run after restoring the maintained Meta credential hook in the
+existing business shell and replacing stale campaign-script versions passes
+1,169/1,194; 25 Pipeline, Finance, Sales-review and screen-contract failures
+remained. The next run also fixed a confirmed historical invoice regression:
+opening an issued invoice now keeps its saved business-profile snapshot and
+only resolves current profile branding for legacy documents without a snapshot.
+The latest full run passes 1,170/1,194, with 24 Pipeline, Finance, Sales-review
+and screen-contract failures remaining. Authenticated
+English/Arabic owner/staff/agent browser acceptance is still unavailable because
+local browser use is disabled in this desktop session; production-derived
+reconciliation, full regression closure, deployment/rollback/monitoring and
+release gates remain open.
+
+For attribution, the exact `origin/main` base was archived into a temporary
+isolated source snapshot and run with the same `LOCAL_ONLY_MODE=true npm test`
+command. Its baseline is 1,061/1,108 with 47 failures. Every one of the current
+24 failures also appears in that baseline; the upgrade introduces no new full-
+suite failure and resolves 23 inherited failures while adding 86 tests. The
+temporary snapshot and its files were removed after comparison.
+
+After this reconciliation, the focused public storefront regression set was
+rerun against the current checkout and passes 82/82 across published category
+content, guest enquiries and orders, branch routing and isolation, Retail and
+Restaurant workflows, Real Estate viewing requests, Professional Services,
+Salon/Spa, Home Services, Fitness, Events and Training Center brochures/batches.
+These are source-level and HTTP/API tests; they do not establish authenticated
+visual acceptance in the existing browser screens.
+
+### Retail checkout MariaDB concurrency — source/test-only, 25 October 2026
+
+Extended the isolated MariaDB integration with a synthetic Retail tenant,
+business membership, public branch, product and one-unit inventory row. The
+real checkout service now runs concurrently over two independent database
+connections. This exposed an InnoDB deadlock on competing absent idempotency-key
+gaps; checkout now retries only rolled-back `ER_LOCK_DEADLOCK` transactions up
+to two times. The retried request then observes the committed stock reservation
+and returns the expected out-of-stock result. MariaDB verifies one order, one
+order item, idempotent replay of the winning guest request and `reserved=1` for
+`on_hand=1`. The plan entitlement read is a
+deterministic synthetic adapter; checkout, inventory reservation, order/item
+inserts, audit writes, constraints and transaction concurrency use the actual
+migrated MariaDB schema. The complete 135-migration integration run passes with
+this check, `externalWrites: false` and `customerDataTouched: false`.
+
+The same disposable MariaDB run also performs a reviewed owner transfer for a
+synthetic legacy-linked business. It verifies that the prior owner is
+deactivated, the successor receives the owner membership, the legacy mapping
+and user credentials move atomically, the previous membership session is
+revoked, token replay is denied, and the published storefront JSON/revisions
+remain on the same tenant. This verifies storefront continuity across an owner
+change using the real transfer service and migration schema.
