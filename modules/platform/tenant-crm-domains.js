@@ -14,10 +14,11 @@ function normalizeHostname(value){
   const labels=hostname.split('.');
   if(labels.some(label=>!label||label.length>63||!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))||/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname))fail('INVALID_HOSTNAME');
   const parsed=parseDomain(hostname,{allowPrivateDomains:true});
-  if(parsed.isIp||!parsed.domain||!parsed.subdomain)fail('HOSTNAME_MUST_BE_SUBDOMAIN');
+  if(parsed.isIp||!parsed.domain)fail('INVALID_HOSTNAME');
   return hostname;
 }
 function requestHost(req){try{return normalizeHostname(String(req.get('host')||'').replace(/:\d+$/,''));}catch{return null;}}
+async function resolveTargetIpv4(){try{return [...new Set(await dns.resolve4(ROOT_HOST))].sort();}catch{return [];}}
 async function findHost(db,hostname){if(!hostname||hostname===ROOT_HOST)return null;const [[row]]=await db.query(`SELECT d.tenant_id AS tenantId,d.status,d.tls_ready_at AS tlsReadyAt,d.dns_health_status AS dnsHealthStatus,t.status AS tenantStatus
   FROM sx_tenant_crm_domains d JOIN sx_tenants t ON t.id=d.tenant_id WHERE d.hostname=? LIMIT 1`,[hostname]);return row||null;}
 function middleware(pool){return async function tenantCrmHost(req,res,next){
@@ -59,7 +60,7 @@ function owner(ctx){if(ctx?.audience!=='tenant'||ctx.membership?.role!=='owner'|
 function audit(db,ctx,action,resourceType,resourceId,changes){return db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
  VALUES (?,?,?,'identity',?,?,?,?,?)`,[uuid(),ctx.tenant.id,ctx.identity.id,action,resourceType,resourceId,JSON.stringify(changes),uuid()]);}
 function systemAudit(db,tenantId,action,resourceId,changes){return db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,'system',?,'tenant-crm-domain',?,?,?)`,[uuid(),tenantId,action,resourceId,JSON.stringify(changes),uuid()]);}
-async function getSettings(db,ctx){owner(ctx);const [[domain]]=await db.query(`SELECT id,hostname,status,dns_health_status AS dnsHealthStatus,dns_last_checked_at AS dnsLastCheckedAt,ownership_verified_at AS ownershipVerifiedAt,cname_verified_at AS cnameVerifiedAt,tls_ready_at AS tlsReadyAt,verification_expires_at AS verificationExpiresAt,created_at AS createdAt FROM sx_tenant_crm_domains WHERE tenant_id=? AND status IN ('pending','verified','active') LIMIT 1`,[ctx.tenant.id]);const [[branding]]=await db.query('SELECT logo_url AS logoUrl,revision,updated_at AS updatedAt FROM sx_tenant_crm_branding WHERE tenant_id=?',[ctx.tenant.id]);return {domain:domain?{...domain,revision:Number(branding?.revision||0)}:null,branding:branding||{logoUrl:'',revision:0},cnameTarget:ROOT_HOST};}
+async function getSettings(db,ctx){owner(ctx);const [[branding]]=await db.query('SELECT logo_url AS logoUrl,revision,updated_at AS updatedAt FROM sx_tenant_crm_branding WHERE tenant_id=?',[ctx.tenant.id]);return {branding:branding||{logoUrl:'',revision:0}};}
 async function getBranding(db,ctx){if(ctx?.audience!=='tenant'||ctx.tenant?.id!==ctx.membership?.tenantId||ctx.membership?.status!=='active')fail('PERMISSION_DENIED',403);const [[branding]]=await db.query('SELECT logo_url AS logoUrl,revision FROM sx_tenant_crm_branding WHERE tenant_id=?',[ctx.tenant.id]);return {logoUrl:branding?.logoUrl||'',revision:Number(branding?.revision||0)};}
 async function requestDomain(db,ctx,input){
   owner(ctx);const hostname=normalizeHostname(input?.hostname);await db.beginTransaction();
@@ -73,13 +74,17 @@ async function requestDomain(db,ctx,input){
   }catch(error){await db.rollback();throw error;}
 }
 async function rotateDomainChallenge(db,ctx,id){owner(ctx);if(typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))fail('INVALID_DOMAIN_ID');const token=crypto.randomBytes(32).toString('base64url'),hash=crypto.createHash('sha256').update(token).digest('hex');await db.beginTransaction();try{const [[row]]=await db.query("SELECT id,hostname,status FROM sx_tenant_crm_domains WHERE tenant_id=? AND id=? LIMIT 1 FOR UPDATE",[ctx.tenant.id,id]);if(!row)fail('DOMAIN_NOT_FOUND',404);if(row.status!=='pending')fail('DOMAIN_NOT_PENDING',409);await db.query("UPDATE sx_tenant_crm_domains SET verification_token_hash=?,verification_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR),dns_check_after=NULL,dns_health_status='unknown',dns_last_checked_at=NULL,updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=? AND status='pending'",[hash,ctx.tenant.id,id]);await audit(db,ctx,'tenant.crm-domain.challenge-rotated','tenant-crm-domain',id,{hostname:row.hostname});await db.commit();return {id,hostname:row.hostname,status:'pending',txtName:`_salemax-verification.${row.hostname}`,txtValue:`salemax-domain-verification=${token}`,cnameName:row.hostname,cnameTarget:ROOT_HOST,expiresInHours:24};}catch(error){await db.rollback();throw error;}}
-async function checkDnsRecords({hostname,tokenHash},{resolveTxt=dns.resolveTxt,resolveCname=dns.resolveCname}={}){
-  let txt=[],cnames=[];try{txt=(await resolveTxt(`_salemax-verification.${hostname}`)).map(parts=>parts.join(''));}catch{}
+async function checkDnsRecords({hostname,tokenHash},{resolveTxt=dns.resolveTxt,resolveCname=dns.resolveCname,resolve4=dns.resolve4}={}){
+  let txt=[],cnames=[],hostIps=[],rootIps=[];try{txt=(await resolveTxt(`_salemax-verification.${hostname}`)).map(parts=>parts.join(''));}catch{}
   const actual=txt.find(value=>value.startsWith('salemax-domain-verification='))?.slice('salemax-domain-verification='.length);
   const actualHash=actual?crypto.createHash('sha256').update(actual).digest('hex'):'';
   const txtOk=!!actualHash&&crypto.timingSafeEqual(Buffer.from(actualHash),Buffer.from(tokenHash));
   try{cnames=(await resolveCname(hostname)).map(value=>value.replace(/\.$/,'').toLowerCase());}catch{}
-  const cnameOk=cnames.includes(ROOT_HOST);return {healthy:txtOk&&cnameOk,txtOk,cnameOk};
+  const cnameOk=cnames.includes(ROOT_HOST);
+  let apex=false;try{apex=parseDomain(hostname,{allowPrivateDomains:true}).domain===hostname;}catch{}
+  if(apex){try{hostIps=await resolve4(hostname);}catch{}try{rootIps=await resolve4(ROOT_HOST);}catch{}}
+  const targetIps=new Set(rootIps),aRecordOk=apex&&hostIps.some(ip=>targetIps.has(ip));
+  return {healthy:txtOk&&(cnameOk||aRecordOk),txtOk,cnameOk,aRecordOk};
 }
 async function verifyDomain(db,ctx,id,{resolveTxt=dns.resolveTxt,resolveCname=dns.resolveCname}={}){
   owner(ctx);if(typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))fail('INVALID_DOMAIN_ID');
@@ -99,4 +104,4 @@ async function activateAfterTls(db,hostname,{resolveTxt=dns.resolveTxt,resolveCn
 async function assertRetiredForOps(db,hostname,{resolveCname=dns.resolveCname}={}){hostname=normalizeHostname(hostname);const [[row]]=await db.query('SELECT status FROM sx_tenant_crm_domains WHERE hostname=? LIMIT 1',[hostname]);if(!row)fail('DOMAIN_NOT_FOUND',404);if(row.status!=='disabled')fail('DOMAIN_MUST_BE_DISABLED',409);let cnames=[];try{cnames=await resolveCname(hostname);}catch(error){if(!['ENODATA','ENOTFOUND'].includes(error.code))fail('DOMAIN_DNS_REMOVAL_UNVERIFIED',503);}if(cnames.some(value=>value.replace(/\.$/,'').toLowerCase()===ROOT_HOST))fail('DOMAIN_DNS_STILL_POINTS_TO_SALEMAX',409);return {hostname,status:'disabled',saleMaxCnameAbsent:true};}
 async function auditActiveDns(db,{resolveTxt=dns.resolveTxt,resolveCname=dns.resolveCname}={}){const [rows]=await db.query("SELECT id,tenant_id AS tenantId,hostname,verification_token_hash AS tokenHash,dns_health_status AS dnsHealthStatus FROM sx_tenant_crm_domains WHERE status='active'");const results=[];for(const row of rows){const records=await checkDnsRecords(row,{resolveTxt,resolveCname}),next=records.healthy?'healthy':'stale';await db.beginTransaction();try{const [[current]]=await db.query("SELECT status,dns_health_status AS dnsHealthStatus FROM sx_tenant_crm_domains WHERE id=? FOR UPDATE",[row.id]);if(current?.status==='active'){await db.query('UPDATE sx_tenant_crm_domains SET dns_health_status=?,dns_last_checked_at=UTC_TIMESTAMP(3),updated_at=UTC_TIMESTAMP(3) WHERE id=? AND status=\'active\'',[next,row.id]);if(current.dnsHealthStatus!==next)await systemAudit(db,row.tenantId,next==='stale'?'tenant.crm-domain.dns-stale':'tenant.crm-domain.dns-restored',row.id,{hostname:row.hostname,txtOk:records.txtOk,cnameOk:records.cnameOk});}await db.commit();results.push({hostname:row.hostname,status:current?.status==='active'?next:'not_active'});}catch(error){await db.rollback();throw error;}}return {checked:results.length,stale:results.filter(x=>x.status==='stale').length,results};}
 async function publicBrand(db,hostname){const row=await findHost(db,hostname);if(!row||row.status!=='active'||!row.tlsReadyAt||row.tenantStatus!=='active'||row.dnsHealthStatus==='stale')return null;const [[brand]]=await db.query('SELECT logo_url AS logoUrl FROM sx_tenant_crm_branding WHERE tenant_id=?',[row.tenantId]);const [[tenant]]=await db.query('SELECT name FROM sx_tenants WHERE id=? AND status=\'active\'',[row.tenantId]);if(!tenant)return null;return {name:tenant.name,logoUrl:brand?.logoUrl||'',tenantId:row.tenantId};}
-module.exports={ROOT_HOST,DNS_CHECK_COOLDOWN_SECONDS,normalizeHostname,requestHost,findHost,middleware,assertTenantHost,assertLegacyHost,getSettings,getBranding,requestDomain,rotateDomainChallenge,checkDnsRecords,verifyDomain,removeDomain,activateAfterTls,assertRetiredForOps,auditActiveDns,publicBrand};
+module.exports={ROOT_HOST,DNS_CHECK_COOLDOWN_SECONDS,normalizeHostname,requestHost,resolveTargetIpv4,findHost,middleware,assertTenantHost,assertLegacyHost,getSettings,getBranding,requestDomain,rotateDomainChallenge,checkDnsRecords,verifyDomain,removeDomain,activateAfterTls,assertRetiredForOps,auditActiveDns,publicBrand};

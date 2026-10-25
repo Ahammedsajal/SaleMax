@@ -2,10 +2,15 @@
 require('dotenv').config({quiet:true});
 const domains=require('../modules/platform/tenant-crm-domains');
 async function main(argv=process.argv.slice(2)){
- const [mode,rawHost,...extra]=argv;if(extra.length||!['check','activate-tls','audit-active-dns','check-retire'].includes(mode)||((mode==='audit-active-dns')!==(rawHost===undefined)))throw Object.assign(new Error('USAGE'),{code:'USAGE'});
+ const [mode,rawHost,...extra]=argv;const noHostModes=['audit-active-dns','list-verified'];if(extra.length||!['check','activate-tls','audit-active-dns','check-retire','list-verified'].includes(mode)||(noHostModes.includes(mode)!==(rawHost===undefined)))throw Object.assign(new Error('USAGE'),{code:'USAGE'});
  const hostname=mode==='audit-active-dns'?null:domains.normalizeHostname(rawHost);const pool=require('../database/config').promise();const db=await pool.getConnection();
  try{
   if(mode==='audit-active-dns'){console.log(JSON.stringify(await domains.auditActiveDns(db)));return;}
+  if(mode==='list-verified'){
+   const [rows]=await db.query("SELECT hostname,verification_token_hash AS tokenHash FROM sx_tenant_crm_domains WHERE status='verified' AND ownership_verified_at IS NOT NULL AND cname_verified_at IS NOT NULL ORDER BY created_at,hostname");
+   for(const row of rows){const records=await domains.checkDnsRecords(row);if(records.healthy)process.stdout.write(row.hostname+'\n');}
+   return;
+  }
   if(mode==='check-retire'){console.log(JSON.stringify(await domains.assertRetiredForOps(db,hostname)));return;}
   if(mode==='check'){
    const [[row]]=await db.query('SELECT status,verification_token_hash AS tokenHash,ownership_verified_at AS ownershipVerifiedAt,cname_verified_at AS cnameVerifiedAt FROM sx_tenant_crm_domains WHERE hostname=? LIMIT 1',[hostname]);

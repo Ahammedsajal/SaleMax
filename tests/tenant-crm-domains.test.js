@@ -5,7 +5,7 @@ const domains=require('../modules/platform/tenant-crm-domains');
 test('CRM hostname validation canonicalizes safe subdomains and rejects reserved or malformed hosts',()=>{
   assert.equal(domains.normalizeHostname('CRM.Example.QA.'), 'crm.example.qa');
   for(const value of ['crm.salemax.qa','foo.salemax.qa','salemax.qa','localhost','127.0.0.1','*.example.qa','https://crm.example.qa','crm.example.qa:443','foo..example.qa','-bad.example.qa'])assert.throws(()=>domains.normalizeHostname(value));
-  for(const value of ['example.com','example.co.uk','example.qa'])assert.throws(()=>domains.normalizeHostname(value),{code:'HOSTNAME_MUST_BE_SUBDOMAIN'});
+  for(const value of ['example.com','example.co.uk','example.qa'])assert.equal(domains.normalizeHostname(value),value);
   assert.equal(domains.normalizeHostname('crm.example.co.uk'),'crm.example.co.uk');
   assert.equal(domains.requestHost({get:()=> 'crm.example.qa:443'}),'crm.example.qa');
   assert.equal(domains.requestHost({get:()=> 'invalid host'}),null);
@@ -58,10 +58,11 @@ test('CRM host context must match tenant and reviewed legacy ownership',async()=
   await assert.rejects(domains.assertLegacyHost(async()=>[],req,'agents','24'),{code:'CRM_DOMAIN_TENANT_MISMATCH'});
 });
 
-test('DNS record checks compare the stored token hash and require 7Network CNAME',async()=>{
+test('DNS record checks compare the stored token hash and accept CNAME or production A records for apex domains',async()=>{
   const crypto=require('node:crypto'),token='synthetic-random-token',tokenHash=crypto.createHash('sha256').update(token).digest('hex');
-  const healthy=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async name=>{assert.equal(name,'_salemax-verification.crm.example.qa');return [[`salemax-domain-verification=${token}`]];},resolveCname:async()=>['crm.salemax.qa.']});assert.deepEqual(healthy,{healthy:true,txtOk:true,cnameOk:true});
-  const stale=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async()=>[],resolveCname:async()=>['other.example.qa.']});assert.deepEqual(stale,{healthy:false,txtOk:false,cnameOk:false});
+  const healthy=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async name=>{assert.equal(name,'_salemax-verification.crm.example.qa');return [[`salemax-domain-verification=${token}`]];},resolveCname:async()=>['crm.salemax.qa.']});assert.deepEqual(healthy,{healthy:true,txtOk:true,cnameOk:true,aRecordOk:false});
+  const stale=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async()=>[],resolveCname:async()=>['other.example.qa.']});assert.deepEqual(stale,{healthy:false,txtOk:false,cnameOk:false,aRecordOk:false});
+  const apex=await domains.checkDnsRecords({hostname:'example.qa',tokenHash},{resolveTxt:async()=>[[`salemax-domain-verification=${token}`]],resolveCname:async()=>{throw Error('no CNAME');},resolve4:async host=>host==='example.qa'?['192.0.2.10']:['192.0.2.10']});assert.deepEqual(apex,{healthy:true,txtOk:true,cnameOk:false,aRecordOk:true});
 });
 
 test('scheduled DNS audit records stale/restored transitions and preserves healthy state',async()=>{
@@ -97,10 +98,12 @@ test('tenant CRM logo storage is private and the appearance UI keeps the existin
   assert.match(media,/CRM_LOGO_SIGNATURE_INVALID/);
   assert.match(router,/canonicalGuard/);
   assert.match(router,/sendLogo/);
-  assert.match(shell,/tenant-crm-appearance\.js\?v=20261012-hostname-input1/);
-  assert.match(ui,/<input data-hostname type="text" inputmode="url" autocapitalize="none" spellcheck="false" maxlength="253" placeholder="crm\.yourcompany\.qa" autocomplete="off">/);
-  assert.match(ui,/These settings do not change your public website/);
+  assert.match(shell,/tenant-crm-appearance\.js\?v=20270102-admin-domains1/);
+  assert.doesNotMatch(ui,/CRM domain|\/api\/crm\/domains|data-hostname/);
   assert.match(ui,/separately from the logo used on your public forms and documents/);
+  assert.match(shell,/admin-tenant-domains\.js\?v=20270102-admin-domains1/);
+  assert.match(fs.readFileSync(path.join(root,'modules/platform/admin-tenant-domains.js'),'utf8'),/req\.platformAccess\?\.role !== 'super_admin'/);
+  assert.match(fs.readFileSync(path.join(root,'deploy/tenant-domain-provision-verified.timer'),'utf8'),/OnUnitActiveSec=30min/);
   assert.match(worker,/Tenant domains are CRM-only origins/);
   assert.match(worker,/pathname\.startsWith\("\/api\/"\)/);
 });

@@ -101,6 +101,38 @@ router.post("/login", async (req, res) => {
 const {createSuperAdminMfaGate}=require('../middlewares/super-admin-mfa-gate');
 router.use(createSuperAdminMfaGate({runQuery:query,key:()=>process.env.JWTKEY}));
 
+// Business-domain attachment is a platform operation. It intentionally sits
+// behind the existing administrator token/MFA gates and a second explicit
+// super-admin check; business owners and delegated platform staff cannot use it.
+const tenantDomainAdmin = require('../modules/platform/admin-tenant-domains');
+const tenantDomainDb = require('../database/config.js').promise();
+async function withTenantDomainDb(fn) {
+  const db = await tenantDomainDb.getConnection();
+  try { return await fn(db); } finally { db.release(); }
+}
+function tenantDomainAdminRoute(fn) {
+  return async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, private, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    try { res.json({ success: true, data: await withTenantDomainDb(db => fn(db, req)) }); }
+    catch (error) {
+      const status = Number(error.status) || (error.code === 'PERMISSION_DENIED' ? 403 : 503);
+      res.status(status).json({ success: false, code: error.code || 'TENANT_DOMAIN_ADMIN_UNAVAILABLE' });
+    }
+  };
+}
+router.use('/tenant-domains', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, private, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  next();
+});
+router.get('/tenant-domains', adminValidator, tenantDomainAdminRoute((db, req) => tenantDomainAdmin.list(db, req)));
+router.post('/tenant-domains', adminValidator, tenantDomainAdminRoute((db, req) => tenantDomainAdmin.create(db, req)));
+router.post('/tenant-domains/:id/challenge', adminValidator, tenantDomainAdminRoute((db, req) => tenantDomainAdmin.rotateChallenge(db, req, req.params.id)));
+router.post('/tenant-domains/:id/verify', adminValidator, tenantDomainAdminRoute((db, req) => tenantDomainAdmin.verify(db, req, req.params.id)));
+router.post('/tenant-domains/:id/primary', adminValidator, tenantDomainAdminRoute((db, req) => tenantDomainAdmin.setPrimary(db, req, req.params.id)));
+router.post('/tenant-domains/:id/disable', adminValidator, tenantDomainAdminRoute((db, req) => tenantDomainAdmin.disable(db, req, req.params.id)));
+
 // Preserve the existing routes and administrator middleware while sharing
 // catalogue validation between create and edit.
 const legacyPlanHandlers = require("../modules/platform/legacy-plan-editor.js")

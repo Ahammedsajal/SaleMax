@@ -1,0 +1,13 @@
+[Unit]
+Description=Provision HTTPS for DNS-verified 7Network tenant domains
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/opt/salemax/current/deploy/provision-verified-tenant-domains.sh
+TimeoutStartSec=15min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
