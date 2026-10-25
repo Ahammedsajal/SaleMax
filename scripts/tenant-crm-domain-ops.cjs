@@ -7,7 +7,10 @@ function parseArgs(argv){
  return {mode,hostname:noHostModes.includes(mode)?null:domains.normalizeHostname(rawHost)};
 }
 async function main(argv=process.argv.slice(2)){
- const {mode,hostname}=parseArgs(argv);const pool=require('../database/config').promise();const db=await pool.getConnection();
+ const {mode,hostname}=parseArgs(argv),log=console.log;
+ if(mode==='list-verified')console.log=(...args)=>{if(args.length===1&&args[0]==='Database has been connected')return;log(...args);};
+ const pool=require('../database/config').promise();
+ const db=await pool.getConnection();
  try{
   if(mode==='audit-active-dns'){console.log(JSON.stringify(await domains.auditActiveDns(db)));return;}
   if(mode==='list-verified'){
@@ -23,7 +26,7 @@ async function main(argv=process.argv.slice(2)){
    console.log(JSON.stringify({hostname,status:row.status,dnsVerified:true}));return;
   }
   console.log(JSON.stringify(await domains.activateAfterTls(db,hostname)));
- }finally{db.release();await pool.end();}
+ }finally{db.release();await pool.end();if(mode==='list-verified')console.log=log;}
 }
 if(require.main===module)main().catch(error=>{console.error(JSON.stringify({success:false,code:error.code||'DOMAIN_OPERATION_FAILED'}));process.exitCode=1;});
 module.exports={main,parseArgs};
