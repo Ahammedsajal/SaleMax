@@ -33,7 +33,7 @@ test('manager alternate number is validated and details trigger one lead notific
 test('demo yes sends the video and sets a half-hour reminder; customer reply completes the lead',()=>{
  const now=Date.now();
  const result=trainingCenterProspectReply({message:'Yes, send it',state:{step:'demo_offer',trainingCenterName:'Atlas',managerContactName:'Mariam',managerContactNumber:'+97455111111',leadComplete:true,leadAlertQueued:true}});
- assert.equal(result.scheduleDemoReminder,true);assert.match(result.reply,/https:\/\/crm\.salemax\.qa\/training-center-demo\.mp4/);assert.ok(result.buttons.some(x=>x.title==='I watched'));assert.equal(Date.parse(result.state.demoReminderDueAt)-Date.parse(result.state.demoSentAt),30*60*1000);assert.ok(Date.parse(result.state.demoSentAt)>=now);
+ assert.equal(result.scheduleDemoReminder,true);assert.match(result.reply,/https:\/\/7network\.live\/training-center-demo\.mp4/);assert.ok(result.buttons.some(x=>x.title==='I watched'));assert.equal(Date.parse(result.state.demoReminderDueAt)-Date.parse(result.state.demoSentAt),30*60*1000);assert.ok(Date.parse(result.state.demoSentAt)>=now);
  const seen=trainingCenterProspectReply({message:'Yes',state:result.state});assert.equal(seen.state.demoReminderDueAt,null);assert.equal(seen.state.demoWatched,true);assert.ok(seen.buttons.some(x=>x.id==='know_price'));
  const price=trainingCenterProspectReply({message:'Know the price',state:seen.state});
  assert.match(price.reply,/QAR 2,500 per year/);assert.match(price.reply,/1 admin user, 1 manager user, 7 agent users/);assert.equal(OFFER.amount,2500);

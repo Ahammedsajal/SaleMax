@@ -8,7 +8,7 @@ const negative = value => /^(?:no|nope|not really|not now|not yet|use another|la
 function button(id, title) { return { id, title }; }
 function withState(prior, updates) { return { ...prior, ...updates, language: 'en', greeted: true }; }
 
-function trainingCenterProspectReply({ message, state = null, phonebookName = '', contactName = '', demoUrl = 'https://crm.salemax.qa/training-center-demo.mp4' }) {
+function trainingCenterProspectReply({ message, state = null, phonebookName = '', contactName = '', demoUrl = 'https://7network.live/training-center-demo.mp4' }) {
   const input = clean(message);
   const normalized = normalize(input);
   const prior = state && typeof state === 'object' ? { ...state } : {};
