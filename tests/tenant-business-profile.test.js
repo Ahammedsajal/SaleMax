@@ -73,3 +73,26 @@ test('business profile migration and cache patch remain additive and preserve li
     const html=fs.readFileSync(target,'utf8');assert.match(html,/training-sidebar\.js\?v=20270103-business-profile1/);assert.match(html,/tenant-crm-appearance\.js\?v=20270103-business-profile1/);assert.match(html,/\/static\/js\/live-production\.js/);
   }finally{fs.rmSync(temp,{recursive:true,force:true});}
 });
+
+test('partial business-profile migration recovery is exact-state gated and records the corrected checksum',async()=>{
+  const recovery=require('../deploy/recover-tenant-business-profile-migration.cjs');
+  const migration=require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')).find(item=>item.file===recovery.MIGRATION);
+  const columns=['tenant_id','business_name_en','business_name_ar','cr_number','email','phone','website_url','address_en','address_ar','google_maps_url','logo_url','favicon_url','meta_title_en','meta_title_ar','meta_description_en','meta_description_ar','revision','updated_by_identity_id','updated_at'];
+  const calls=[];let committed=false,profileCountCalls=0;
+  const db={beginTransaction:async()=>{},commit:async()=>{committed=true;},rollback:async()=>{},query:async(sql,params=[])=>{
+    calls.push({sql,params});
+    if(sql==='SELECT DATABASE() AS db')return [[{db:'synthetic'}],[]];
+    if(sql.startsWith('SELECT GET_LOCK'))return [[{acquired:1}],[]];
+    if(sql==='SELECT migration_name,checksum,status FROM salemax_schema_migrations')return [[],[]];
+    if(sql.includes('FROM salemax_schema_migrations'))return [[{migration_name:recovery.MIGRATION,checksum:recovery.PARTIAL_CHECKSUM,status:'failed',statements_completed:2,statement_count:3,error_code:'ER_NON_UNIQ_ERROR'}],[]];
+    if(sql.includes('information_schema.columns'))return [columns.map(name=>({name})),[]];
+    if(sql.includes('COUNT(*) AS count FROM sx_tenant_business_profiles'))return [[{count:profileCountCalls++===0?0:2}],[]];
+    if(sql.includes('COUNT(*) AS count FROM sx_tenant_crm_branding'))return [[{count:0}],[]];
+    if(sql.includes('COUNT(DISTINCT tenant_id)'))return [[{count:2}],[]];
+    return [[],[]];
+  }};
+  const result=await recovery.recover(db);
+  assert.equal(committed,true);assert.equal(result.status,'applied');assert.equal(result.profileRows,2);assert.equal(result.checksum,migration.checksum);
+  assert.ok(calls.some(call=>call.sql===migration.statements[2]));
+  assert.deepEqual(calls.at(-2).params,[migration.checksum,'applied',3,recovery.MIGRATION]);
+});

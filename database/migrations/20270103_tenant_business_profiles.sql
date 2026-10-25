@@ -40,13 +40,13 @@ SELECT p.tenant_id,p.display_name_en,p.display_name_ar,p.cr_number,p.email,p.pho
 FROM sx_training_center_profiles p
 LEFT JOIN sx_tenant_crm_branding c ON c.tenant_id=p.tenant_id
 ON DUPLICATE KEY UPDATE
-  business_name_en=IF(business_name_en='',VALUES(business_name_en),business_name_en),
-  business_name_ar=IF(business_name_ar='',VALUES(business_name_ar),business_name_ar),
-  cr_number=IF(cr_number='',VALUES(cr_number),cr_number),
-  email=IF(email='',VALUES(email),email),
-  phone=IF(phone='',VALUES(phone),phone),
-  website_url=IF(website_url='',VALUES(website_url),website_url),
-  address_en=IF(address_en='',VALUES(address_en),address_en),
-  address_ar=IF(address_ar='',VALUES(address_ar),address_ar),
-  google_maps_url=IF(google_maps_url='',VALUES(google_maps_url),google_maps_url),
-  logo_url=IF(logo_url='',VALUES(logo_url),logo_url);
+  business_name_en=IF(sx_tenant_business_profiles.business_name_en='',VALUES(business_name_en),sx_tenant_business_profiles.business_name_en),
+  business_name_ar=IF(sx_tenant_business_profiles.business_name_ar='',VALUES(business_name_ar),sx_tenant_business_profiles.business_name_ar),
+  cr_number=IF(sx_tenant_business_profiles.cr_number='',VALUES(cr_number),sx_tenant_business_profiles.cr_number),
+  email=IF(sx_tenant_business_profiles.email='',VALUES(email),sx_tenant_business_profiles.email),
+  phone=IF(sx_tenant_business_profiles.phone='',VALUES(phone),sx_tenant_business_profiles.phone),
+  website_url=IF(sx_tenant_business_profiles.website_url='',VALUES(website_url),sx_tenant_business_profiles.website_url),
+  address_en=IF(sx_tenant_business_profiles.address_en='',VALUES(address_en),sx_tenant_business_profiles.address_en),
+  address_ar=IF(sx_tenant_business_profiles.address_ar='',VALUES(address_ar),sx_tenant_business_profiles.address_ar),
+  google_maps_url=IF(sx_tenant_business_profiles.google_maps_url='',VALUES(google_maps_url),sx_tenant_business_profiles.google_maps_url),
+  logo_url=IF(sx_tenant_business_profiles.logo_url='',VALUES(logo_url),sx_tenant_business_profiles.logo_url);
