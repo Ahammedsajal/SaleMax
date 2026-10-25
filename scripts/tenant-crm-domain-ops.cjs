@@ -1,9 +1,13 @@
 'use strict';
 require('dotenv').config({quiet:true});
 const domains=require('../modules/platform/tenant-crm-domains');
+function parseArgs(argv){
+ const [mode,rawHost,...extra]=argv,noHostModes=['audit-active-dns','list-verified'];
+ if(extra.length||!['check','activate-tls','audit-active-dns','check-retire','list-verified'].includes(mode)||(noHostModes.includes(mode)!==(rawHost===undefined)))throw Object.assign(new Error('USAGE'),{code:'USAGE'});
+ return {mode,hostname:noHostModes.includes(mode)?null:domains.normalizeHostname(rawHost)};
+}
 async function main(argv=process.argv.slice(2)){
- const [mode,rawHost,...extra]=argv;const noHostModes=['audit-active-dns','list-verified'];if(extra.length||!['check','activate-tls','audit-active-dns','check-retire','list-verified'].includes(mode)||(noHostModes.includes(mode)!==(rawHost===undefined)))throw Object.assign(new Error('USAGE'),{code:'USAGE'});
- const hostname=mode==='audit-active-dns'?null:domains.normalizeHostname(rawHost);const pool=require('../database/config').promise();const db=await pool.getConnection();
+ const {mode,hostname}=parseArgs(argv);const pool=require('../database/config').promise();const db=await pool.getConnection();
  try{
   if(mode==='audit-active-dns'){console.log(JSON.stringify(await domains.auditActiveDns(db)));return;}
   if(mode==='list-verified'){
@@ -22,4 +26,4 @@ async function main(argv=process.argv.slice(2)){
  }finally{db.release();await pool.end();}
 }
 if(require.main===module)main().catch(error=>{console.error(JSON.stringify({success:false,code:error.code||'DOMAIN_OPERATION_FAILED'}));process.exitCode=1;});
-module.exports={main};
+module.exports={main,parseArgs};
