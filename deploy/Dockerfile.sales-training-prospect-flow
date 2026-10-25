@@ -1,7 +1,10 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 COPY --chown=node:node modules/platform/chatbot-config.js /app/modules/platform/chatbot-config.js
+COPY --chown=node:node modules/platform/chatbot-lead-capture.js /app/modules/platform/chatbot-lead-capture.js
 COPY --chown=node:node modules/platform/chatbot-runtime.js /app/modules/platform/chatbot-runtime.js
+COPY --chown=node:node modules/platform/chatbot-sales-prospect-state.js /app/modules/platform/chatbot-sales-prospect-state.js
+COPY --chown=node:node modules/platform/chatbot-sales-prospect-reminders.js /app/modules/platform/chatbot-sales-prospect-reminders.js
 COPY --chown=node:node modules/platform/chatbot-recruitment-pause-compat.js /app/modules/platform/chatbot-recruitment-pause-compat.js
 COPY --chown=node:node client/public/chatbot-admin.js /app/client/public/chatbot-admin.js
 COPY deploy/patch-sales-prospect-flow-cache.cjs /tmp/patch-sales-prospect-flow-cache.cjs

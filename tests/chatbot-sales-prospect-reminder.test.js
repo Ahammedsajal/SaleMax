@@ -15,3 +15,9 @@ test('reminder worker scans only due Meta prospect sessions and uses row leases 
 test('local-only runtime does not start the production reminder worker',()=>{
  const worker=reminder.start({env:{LOCAL_ONLY_MODE:'true'}});assert.equal(typeof worker.stop,'function');worker.stop();
 });
+
+test('reminder uses the approved short Yes and Not yet quick replies',()=>{
+ const message=reminder.reminderMessage();const buttons=message.interactive.action.buttons;
+ assert.deepEqual(buttons.map(item=>item.reply.title),['Yes','Not yet']);
+ assert.equal(message.interactive.body.text,'Hi! Did you get a chance to watch the 7Network Training Center demo?');
+});

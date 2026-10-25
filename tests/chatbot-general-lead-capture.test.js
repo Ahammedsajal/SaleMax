@@ -78,12 +78,13 @@ test('7Network Sales prospect bot captures inbound prospects only with the expli
  } finally { pipeline.captureBotInbound=original; }
 });
 
-test('training-center prospect qualification is stored on the tenant lead with values omitted from activity logs',async()=>{
- const calls=[];const db={query:async(sql,params)=>{calls.push({sql,params});if(sql.startsWith('SELECT qualification_data'))return [[{data:{source:'whatsapp'}}],[]];return [{affectedRows:1},[]];}};
- const changed=await capture.persistSalesProspectQualification(db,{leadInfo:{leadId:'lead-1',uidHash:'hash-1'},uid:'owner-1',profileId:'bot-1',state:{trainingCenterName:'Atlas Center',currentSystemStatus:'yes',currentSystemName:'Old CRM',managerContactName:'Mariam Ali',managerContactNumber:'+97455111111',demoRequested:true}});
- assert.deepEqual(changed,['trainingCenterName','currentSystemStatus','currentSystemName','managerContactName','managerContactNumber','demoRequested','pricePresented']);
+test('training-center prospect qualification and contact name are stored on the tenant lead without PII in activity logs',async()=>{
+ const calls=[];const db={query:async(sql,params)=>{calls.push({sql,params});if(sql.startsWith('SELECT contact_id'))return [[{contactId:'contact-1',contactName:'Phonebook Contact',data:{source:'whatsapp'}}],[]];return [{affectedRows:1},[]];}};
+ const changed=await capture.persistSalesProspectQualification(db,{leadInfo:{leadId:'lead-1',uidHash:'hash-1'},uid:'owner-1',profileId:'bot-1',state:{contactName:'Noura',trainingCenterName:'Atlas Center',currentSystemStatus:'yes',currentSystemName:'Old CRM',managerContactName:'Mariam Ali',managerContactNumber:'+97455111111',demoRequested:true}});
+ assert.deepEqual(changed,['contactName','trainingCenterName','currentSystemStatus','currentSystemName','managerContactName','managerContactNumber','demoRequested','pricePresented']);
  const update=JSON.parse(calls.find(call=>call.sql.startsWith('UPDATE pipeline_leads')).params[0]);
- assert.equal(update.sevenNetworkSalesProspect.trainingCenterName,'Atlas Center');assert.equal(update.sevenNetworkSalesProspect.managerContactNumber,'+97455111111');
+ assert.equal(update.sevenNetworkSalesProspect.contactName,'Noura');assert.equal(update.sevenNetworkSalesProspect.trainingCenterName,'Atlas Center');assert.equal(update.sevenNetworkSalesProspect.managerContactNumber,'+97455111111');
+ assert.equal(calls.find(call=>call.sql.startsWith('UPDATE pipeline_contacts')).params[0],'Noura');
  const activity=JSON.parse(calls.find(call=>call.sql.includes('INSERT INTO pipeline_activity')).params[2]);
- assert.ok(activity.fields.includes('managerContactName'));assert.equal(JSON.stringify(activity).includes('Mariam'),false);assert.equal(JSON.stringify(activity).includes('+974'),false);
+ assert.ok(activity.fields.includes('managerContactName'));assert.ok(activity.fields.includes('contactName'));assert.equal(JSON.stringify(activity).includes('Noura'),false);assert.equal(JSON.stringify(activity).includes('Mariam'),false);assert.equal(JSON.stringify(activity).includes('+974'),false);
 });

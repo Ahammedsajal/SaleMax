@@ -14,6 +14,13 @@ async function dueSessions(db, limit = 10) {
   return rows;
 }
 
+function reminderMessage() {
+  return { type: 'interactive', interactive: { type: 'button', body: { text: 'Hi! Did you get a chance to watch the 7Network Training Center demo?' }, action: { buttons: [
+    { type: 'reply', reply: { id: 'demo_seen_yes', title: 'Yes' } },
+    { type: 'reply', reply: { id: 'demo_seen_no', title: 'Not yet' } },
+  ] } } };
+}
+
 async function tick(pool, { workerId = `sales-prospect-reminders-${process.pid}`, limit = 10, send = null } = {}) {
   const db = await pool.getConnection();
   let rows = [];
@@ -81,10 +88,7 @@ async function dispatchOne(pool, row, { send }) {
     const message = { senderMobile: chat.senderMobile, senderName: chat.senderName || '', timestamp: Math.floor(Date.now() / 1000), metaChatId: `sales-reminder-${row.id}` };
     const allowed = await require('./chatbot-runtime').canSendNow({ ctx, profile, uid, origin: 'meta', sessionId: row.channelRef, chatId: row.conversationId, message });
     if (!allowed) return 'suppressed';
-    const content = { type: 'interactive', interactive: { type: 'button', body: { text: 'Hi! Did you get a chance to watch the 7Network Training Center demo?' }, action: { buttons: [
-      { type: 'reply', reply: { id: 'demo_seen_yes', title: 'Yes, I watched' } },
-      { type: 'reply', reply: { id: 'demo_seen_no', title: 'Not yet' } },
-    ] } } };
+    const content = reminderMessage();
     const id = send ? await send({ uid, chatId: row.conversationId, sessionId: row.channelRef, message, content }) : await require('../../automation/functions').sendWaMessage({ origin: 'meta', sessionId: row.channelRef, message, uid, chatId: row.conversationId, content });
     if (!id) throw Object.assign(Error('META_REMINDER_NOT_ACCEPTED'), { code: 'META_REMINDER_NOT_ACCEPTED' });
     const sent = { type: 'interactive', metaChatId: id, msgContext: content, reaction: '', timestamp: Math.floor(Date.now() / 1000), senderName: chat.senderName, senderMobile: chat.senderMobile, star: 0, route: 'OUTGOING', context: null, origin: 'meta', sentBy: 'bot' };
@@ -113,4 +117,4 @@ function start({ env = process.env, pool = require('../../database/config').prom
   return { stop() { stopped = true; clearTimeout(timer); } };
 }
 
-module.exports = { dueSessions, tick, dispatchOne, start };
+module.exports = { dueSessions, tick, dispatchOne, start, reminderMessage };

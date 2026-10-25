@@ -13,55 +13,37 @@
           "y": 0
         },
         "data": {
-          "whPhonePath": ""
+          "label": "Start"
         }
       },
       {
-        "id": "p1",
-        "type": "CONDITION",
+        "id": "opening",
+        "type": "SEND_MESSAGE",
         "position": {
           "x": 260,
           "y": 0
         },
         "data": {
           "moveToNextNode": true,
-          "variable": {
-            "active": true,
-            "message": "{{{phonebookCenterName}}}"
+          "type": {
+            "type": "text"
           },
-          "conditions": [
-            {
-              "type": "text_exact",
-              "value": "",
-              "caseSensitive": false,
-              "targetNodeId": "phonebook_empty"
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Hi! We’re 7Network (CR No. 251489). We help training centers manage course enquiries and student follow-ups, send WhatsApp campaigns to students, and keep invoices and payments in one place. We can also customize the system."
             }
-          ]
+          },
+          "webhook": {},
+          "label": "Approved introduction"
         }
       },
       {
-        "id": "p2",
-        "type": "RESPONSE_SAVER",
-        "position": {
-          "x": 520,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": true,
-          "variables": [
-            {
-              "varName": "trainingCenterName",
-              "responsePath": "msgContext.text.body"
-            }
-          ],
-          "label": ""
-        }
-      },
-      {
-        "id": "p3",
+        "id": "system_question",
         "type": "SEND_MESSAGE",
         "position": {
-          "x": 780,
+          "x": 520,
           "y": 0
         },
         "data": {
@@ -74,29 +56,22 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "Do you currently use a business management or CRM system?"
+                "text": "Do you currently use a system to manage your training center?"
               },
               "action": {
                 "buttons": [
                   {
                     "type": "reply",
                     "reply": {
-                      "id": "sys_yes",
+                      "id": "system_yes",
                       "title": "Yes"
                     }
                   },
                   {
                     "type": "reply",
                     "reply": {
-                      "id": "sys_no",
+                      "id": "system_no",
                       "title": "No"
-                    }
-                  },
-                  {
-                    "type": "reply",
-                    "reply": {
-                      "id": "sys_unsure",
-                      "title": "Not sure"
                     }
                   }
                 ]
@@ -104,14 +79,14 @@
             }
           },
           "webhook": {},
-          "label": ""
+          "label": "system_question"
         }
       },
       {
-        "id": "p4",
+        "id": "system_answer",
         "type": "RESPONSE_SAVER",
         "position": {
-          "x": 1040,
+          "x": 780,
           "y": 0
         },
         "data": {
@@ -122,132 +97,14 @@
               "responsePath": "msgContext.text.body"
             }
           ],
-          "label": ""
+          "label": "system_answer"
         }
       },
       {
-        "id": "p5",
-        "type": "CONDITION",
-        "position": {
-          "x": 1300,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": true,
-          "variable": {
-            "active": true,
-            "message": "{{{currentSystemStatus}}}"
-          },
-          "conditions": [
-            {
-              "type": "text_exact",
-              "value": "Yes",
-              "caseSensitive": false,
-              "targetNodeId": "sysyes"
-            },
-            {
-              "type": "text_exact",
-              "value": "No",
-              "caseSensitive": false,
-              "targetNodeId": "sysno"
-            },
-            {
-              "type": "text_exact",
-              "value": "Not sure",
-              "caseSensitive": false,
-              "targetNodeId": "sysunsure"
-            }
-          ],
-          "label": ""
-        }
-      },
-      {
-        "id": "p6",
+        "id": "demo_question",
         "type": "SEND_MESSAGE",
         "position": {
-          "x": 1560,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": false,
-          "type": {
-            "type": "text"
-          },
-          "content": {
-            "type": "text",
-            "text": {
-              "preview_url": false,
-              "body": "Which business management system do you use?"
-            }
-          },
-          "webhook": {},
-          "label": ""
-        }
-      },
-      {
-        "id": "p7",
-        "type": "RESPONSE_SAVER",
-        "position": {
-          "x": 1820,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": true,
-          "variables": [
-            {
-              "varName": "currentSystemName",
-              "responsePath": "msgContext.text.body"
-            }
-          ],
-          "label": ""
-        }
-      },
-      {
-        "id": "p8",
-        "type": "SEND_MESSAGE",
-        "position": {
-          "x": 2080,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": false,
-          "type": {
-            "type": "text"
-          },
-          "content": {
-            "type": "text",
-            "text": {
-              "preview_url": false,
-              "body": "May I have the manager’s name so our team can address them politely?"
-            }
-          },
-          "webhook": {},
-          "label": ""
-        }
-      },
-      {
-        "id": "p9",
-        "type": "RESPONSE_SAVER",
-        "position": {
-          "x": 2340,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": true,
-          "variables": [
-            {
-              "varName": "managerContactName",
-              "responsePath": "msgContext.text.body"
-            }
-          ],
-          "label": ""
-        }
-      },
-      {
-        "id": "p10",
-        "type": "SEND_MESSAGE",
-        "position": {
-          "x": 2600,
+          "x": 1040,
           "y": 0
         },
         "data": {
@@ -260,98 +117,7 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "Would you like us to contact the manager on this WhatsApp number?"
-              },
-              "action": {
-                "buttons": [
-                  {
-                    "type": "reply",
-                    "reply": {
-                      "id": "manager_same",
-                      "title": "Yes, same number"
-                    }
-                  },
-                  {
-                    "type": "reply",
-                    "reply": {
-                      "id": "manager_other",
-                      "title": "Use another"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "webhook": {},
-          "label": ""
-        }
-      },
-      {
-        "id": "p11",
-        "type": "RESPONSE_SAVER",
-        "position": {
-          "x": 2860,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": true,
-          "variables": [
-            {
-              "varName": "managerNumberChoice",
-              "responsePath": "msgContext.text.body"
-            }
-          ],
-          "label": ""
-        }
-      },
-      {
-        "id": "p12",
-        "type": "CONDITION",
-        "position": {
-          "x": 3120,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": true,
-          "variable": {
-            "active": true,
-            "message": "{{{managerNumberChoice}}}"
-          },
-          "conditions": [
-            {
-              "type": "text_exact",
-              "value": "Yes, same number",
-              "caseSensitive": false,
-              "targetNodeId": "numyes"
-            },
-            {
-              "type": "text_exact",
-              "value": "Use another",
-              "caseSensitive": false,
-              "targetNodeId": "numother"
-            }
-          ],
-          "label": ""
-        }
-      },
-      {
-        "id": "p13",
-        "type": "SEND_MESSAGE",
-        "position": {
-          "x": 3380,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": false,
-          "type": {
-            "type": "interactive"
-          },
-          "content": {
-            "type": "interactive",
-            "interactive": {
-              "type": "button",
-              "body": {
-                "text": "Would you like me to send you the Training Center demo video?"
+                "text": "Would you like to see a short demo?"
               },
               "action": {
                 "buttons": [
@@ -359,14 +125,14 @@
                     "type": "reply",
                     "reply": {
                       "id": "demo_yes",
-                      "title": "Yes, send it"
+                      "title": "Yes"
                     }
                   },
                   {
                     "type": "reply",
                     "reply": {
                       "id": "demo_no",
-                      "title": "Not now"
+                      "title": "No"
                     }
                   }
                 ]
@@ -374,55 +140,14 @@
             }
           },
           "webhook": {},
-          "label": ""
+          "label": "demo_question"
         }
       },
       {
-        "id": "p14",
-        "type": "SEND_MESSAGE",
-        "position": {
-          "x": 3640,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": false,
-          "type": {
-            "type": "text"
-          },
-          "content": {
-            "type": "text",
-            "text": {
-              "preview_url": false,
-              "body": "Please share the manager’s preferred WhatsApp number, including country code."
-            }
-          },
-          "webhook": {},
-          "label": ""
-        }
-      },
-      {
-        "id": "p15",
+        "id": "demo_answer",
         "type": "RESPONSE_SAVER",
         "position": {
-          "x": 3900,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": true,
-          "variables": [
-            {
-              "varName": "managerContactNumber",
-              "responsePath": "msgContext.text.body"
-            }
-          ],
-          "label": ""
-        }
-      },
-      {
-        "id": "p16",
-        "type": "RESPONSE_SAVER",
-        "position": {
-          "x": 4160,
+          "x": 1300,
           "y": 0
         },
         "data": {
@@ -433,14 +158,14 @@
               "responsePath": "msgContext.text.body"
             }
           ],
-          "label": ""
+          "label": "demo_answer"
         }
       },
       {
-        "id": "p17",
+        "id": "demo_branch",
         "type": "CONDITION",
         "position": {
-          "x": 4420,
+          "x": 1560,
           "y": 0
         },
         "data": {
@@ -452,25 +177,19 @@
           "conditions": [
             {
               "type": "text_exact",
-              "value": "Yes, send it",
+              "value": "Yes",
               "caseSensitive": false,
-              "targetNodeId": "demoyes"
-            },
-            {
-              "type": "text_exact",
-              "value": "Not now",
-              "caseSensitive": false,
-              "targetNodeId": "demono"
+              "targetNodeId": "name_for_demo"
             }
           ],
-          "label": ""
+          "label": "demo_branch"
         }
       },
       {
-        "id": "p18",
+        "id": "name_for_demo",
         "type": "SEND_MESSAGE",
         "position": {
-          "x": 4680,
+          "x": 1820,
           "y": 0
         },
         "data": {
@@ -482,18 +201,59 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "Here is the 7Network Training Center demo: https://crm.salemax.qa/training-center-demo.mp4\n\nWe’ll check back in about 30 minutes."
+              "body": "Great! May I know your name, please?"
             }
           },
           "webhook": {},
-          "label": ""
+          "label": "name_for_demo"
         }
       },
       {
-        "id": "p20",
+        "id": "save_name_for_demo",
         "type": "RESPONSE_SAVER",
         "position": {
-          "x": 5200,
+          "x": 2080,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "contactName",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": "save_name_for_demo"
+        }
+      },
+      {
+        "id": "send_demo",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 2340,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Here’s the 7Network Training Center demo video: https://crm.salemax.qa/training-center-demo.mp4\n\nI’ll check in with you in about 30 minutes."
+            }
+          },
+          "webhook": {},
+          "label": "send_demo"
+        }
+      },
+      {
+        "id": "save_demo_response",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 2600,
           "y": 0
         },
         "data": {
@@ -504,41 +264,312 @@
               "responsePath": "msgContext.text.body"
             }
           ],
-          "label": ""
+          "label": "save_demo_response"
         }
       },
       {
-        "id": "p21",
+        "id": "after_demo_options",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 2860,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "interactive"
+          },
+          "content": {
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "Would you like to know the price or speak with our team?"
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "price",
+                      "title": "Know the price"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "team",
+                      "title": "Talk to our team"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "not_now",
+                      "title": "Not now"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "webhook": {},
+          "label": "after_demo_options"
+        }
+      },
+      {
+        "id": "after_demo_choice",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 3120,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "priceInterest",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": "after_demo_choice"
+        }
+      },
+      {
+        "id": "after_demo_branch",
         "type": "CONDITION",
         "position": {
-          "x": 5460,
+          "x": 3380,
           "y": 0
         },
         "data": {
           "moveToNextNode": true,
           "variable": {
             "active": true,
-            "message": "{{{demoWatched}}}"
+            "message": "{{{priceInterest}}}"
           },
           "conditions": [
             {
               "type": "text_exact",
-              "value": "Yes, I watched",
+              "value": "Know the price",
               "caseSensitive": false,
-              "targetNodeId": "watchedyes"
+              "targetNodeId": "price_message"
             },
             {
               "type": "text_exact",
-              "value": "Not yet",
+              "value": "Talk to our team",
               "caseSensitive": false,
-              "targetNodeId": "watchedno"
+              "targetNodeId": "owner_or_manager"
             }
           ],
-          "label": ""
+          "label": "after_demo_branch"
         }
       },
       {
-        "id": "p22",
+        "id": "help_options",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 3640,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "interactive"
+          },
+          "content": {
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "What would be most helpful?"
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "price",
+                      "title": "Know the price"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "team",
+                      "title": "Talk to our team"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "not_now",
+                      "title": "Not now"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "webhook": {},
+          "label": "help_options"
+        }
+      },
+      {
+        "id": "help_choice",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 3900,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "priceInterest",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": "help_choice"
+        }
+      },
+      {
+        "id": "help_branch",
+        "type": "CONDITION",
+        "position": {
+          "x": 4160,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{priceInterest}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "Know the price",
+              "caseSensitive": false,
+              "targetNodeId": "name_for_price"
+            },
+            {
+              "type": "text_exact",
+              "value": "Talk to our team",
+              "caseSensitive": false,
+              "targetNodeId": "name_for_team"
+            }
+          ],
+          "label": "help_branch"
+        }
+      },
+      {
+        "id": "name_for_price",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 4420,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "May I know your name, please?"
+            }
+          },
+          "webhook": {},
+          "label": "name_for_price"
+        }
+      },
+      {
+        "id": "save_name_for_price",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 4680,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "contactName",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": "save_name_for_price"
+        }
+      },
+      {
+        "id": "name_for_team",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 4940,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "May I know your name, please?"
+            }
+          },
+          "webhook": {},
+          "label": "name_for_team"
+        }
+      },
+      {
+        "id": "save_name_for_team",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 5200,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "contactName",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": "save_name_for_team"
+        }
+      },
+      {
+        "id": "price_message",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 5460,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "The Training Center offer is QAR 2,500 per year. It includes 1 admin user, 1 manager user, and 7 agent users."
+            }
+          },
+          "webhook": {},
+          "label": "price_message"
+        }
+      },
+      {
+        "id": "contact_after_price",
         "type": "SEND_MESSAGE",
         "position": {
           "x": 5720,
@@ -554,22 +585,22 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "Thank you. I’ve passed your contact and training-center details to our team so they can discuss the setup with you. Would you like to know the campaign price?"
+                "text": "Would you like our team to contact you about setup?"
               },
               "action": {
                 "buttons": [
                   {
                     "type": "reply",
                     "reply": {
-                      "id": "know_price",
-                      "title": "Know the price"
+                      "id": "contact_yes",
+                      "title": "Yes"
                     }
                   },
                   {
                     "type": "reply",
                     "reply": {
-                      "id": "talk_team",
-                      "title": "Talk to our team"
+                      "id": "contact_no",
+                      "title": "No"
                     }
                   }
                 ]
@@ -577,173 +608,62 @@
             }
           },
           "webhook": {},
-          "label": ""
+          "label": "contact_after_price"
         }
       },
       {
-        "id": "p23",
-        "type": "SEND_MESSAGE",
+        "id": "save_contact_after_price",
+        "type": "RESPONSE_SAVER",
         "position": {
           "x": 5980,
           "y": 0
         },
         "data": {
-          "moveToNextNode": false,
-          "type": {
-            "type": "interactive"
-          },
-          "content": {
-            "type": "interactive",
-            "interactive": {
-              "type": "button",
-              "body": {
-                "text": "No problem. I’ve shared your details with our team for follow-up. Would you like to see the campaign offer?"
-              },
-              "action": {
-                "buttons": [
-                  {
-                    "type": "reply",
-                    "reply": {
-                      "id": "know_price",
-                      "title": "Know the price"
-                    }
-                  },
-                  {
-                    "type": "reply",
-                    "reply": {
-                      "id": "talk_team",
-                      "title": "Talk to our team"
-                    }
-                  }
-                ]
-              }
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "contactAfterPrice",
+              "responsePath": "msgContext.text.body"
             }
-          },
-          "webhook": {},
-          "label": ""
+          ],
+          "label": "save_contact_after_price"
         }
       },
       {
-        "id": "p24",
-        "type": "RESPONSE_SAVER",
+        "id": "contact_after_price_branch",
+        "type": "CONDITION",
         "position": {
           "x": 6240,
           "y": 0
         },
         "data": {
           "moveToNextNode": true,
-          "variables": [
-            {
-              "varName": "priceInterest",
-              "responsePath": "msgContext.text.body"
-            }
-          ],
-          "label": ""
-        }
-      },
-      {
-        "id": "p25",
-        "type": "CONDITION",
-        "position": {
-          "x": 6500,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": true,
           "variable": {
             "active": true,
-            "message": "{{{priceInterest}}}"
+            "message": "{{{contactAfterPrice}}}"
           },
           "conditions": [
             {
               "type": "text_exact",
-              "value": "Know the price",
+              "value": "Yes",
               "caseSensitive": false,
-              "targetNodeId": "priceyes"
+              "targetNodeId": "owner_or_manager"
             },
             {
               "type": "text_exact",
-              "value": "Talk to our team",
+              "value": "No",
               "caseSensitive": false,
-              "targetNodeId": "priceno"
+              "targetNodeId": "polite_close"
             }
           ],
-          "label": ""
+          "label": "contact_after_price_branch"
         }
       },
       {
-        "id": "p26",
+        "id": "owner_or_manager",
         "type": "SEND_MESSAGE",
         "position": {
-          "x": 6760,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": false,
-          "type": {
-            "type": "text"
-          },
-          "content": {
-            "type": "text",
-            "text": {
-              "preview_url": false,
-              "body": "The current Training Center offer is QAR 2,500 per year. It includes 1 admin user, 1 manager user, and 7 agent users. Our team will contact you to discuss setup and next steps."
-            }
-          },
-          "webhook": {},
-          "label": ""
-        }
-      },
-      {
-        "id": "p27",
-        "type": "SEND_MESSAGE",
-        "position": {
-          "x": 7020,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": false,
-          "type": {
-            "type": "text"
-          },
-          "content": {
-            "type": "text",
-            "text": {
-              "preview_url": false,
-              "body": "Certainly. Our team will contact you using the manager details you shared."
-            }
-          },
-          "webhook": {},
-          "label": ""
-        }
-      },
-      {
-        "id": "phonebook_name_prompt",
-        "type": "SEND_MESSAGE",
-        "position": {
-          "x": 12000,
-          "y": 0
-        },
-        "data": {
-          "moveToNextNode": false,
-          "type": {
-            "type": "text"
-          },
-          "content": {
-            "type": "text",
-            "text": {
-              "preview_url": false,
-              "body": "Hello, we’re 7Network. We help training centers manage course enquiries, student follow-ups, and daily operations. For your reference, our CR No. is 251489. May I confirm your training center’s name?"
-            }
-          },
-          "webhook": {}
-        }
-      },
-      {
-        "id": "phonebook_confirm",
-        "type": "SEND_MESSAGE",
-        "position": {
-          "x": 12260,
+          "x": 6500,
           "y": 0
         },
         "data": {
@@ -756,394 +676,614 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "Hello, we’re 7Network. We help training centers manage course enquiries, student follow-ups, and daily operations. For your reference, our CR No. is 251489. Our records list your center as “{{{phonebookCenterName}}}”. Is that correct?"
+                "text": "Are you the owner or manager of the training center?"
               },
               "action": {
                 "buttons": [
                   {
                     "type": "reply",
                     "reply": {
-                      "id": "center_yes",
-                      "title": "Yes, correct"
+                      "id": "role_yes",
+                      "title": "Yes"
                     }
                   },
                   {
                     "type": "reply",
                     "reply": {
-                      "id": "center_no",
-                      "title": "I’ll type it"
+                      "id": "role_no",
+                      "title": "No"
                     }
                   }
                 ]
               }
             }
           },
-          "webhook": {}
+          "webhook": {},
+          "label": "owner_or_manager"
         }
       },
       {
-        "id": "phonebook_confirm_save",
+        "id": "save_owner_or_manager",
         "type": "RESPONSE_SAVER",
         "position": {
-          "x": 12780,
+          "x": 6760,
           "y": 0
         },
         "data": {
           "moveToNextNode": true,
           "variables": [
             {
-              "varName": "centerConfirmation",
+              "varName": "decisionMakerChoice",
               "responsePath": "msgContext.text.body"
             }
-          ]
+          ],
+          "label": "save_owner_or_manager"
         }
       },
       {
-        "id": "phonebook_confirm_condition",
+        "id": "owner_or_manager_branch",
         "type": "CONDITION",
         "position": {
-          "x": 13040,
+          "x": 7020,
           "y": 0
         },
         "data": {
           "moveToNextNode": true,
           "variable": {
             "active": true,
-            "message": "{{{centerConfirmation}}}"
+            "message": "{{{decisionMakerChoice}}}"
           },
           "conditions": [
             {
               "type": "text_exact",
-              "value": "Yes, correct",
+              "value": "Yes",
               "caseSensitive": false,
-              "targetNodeId": "center_yes"
+              "targetNodeId": "contact_confirmation"
             },
             {
               "type": "text_exact",
-              "value": "I’ll type it",
+              "value": "No",
               "caseSensitive": false,
-              "targetNodeId": "center_no"
+              "targetNodeId": "manager_name"
             }
-          ]
+          ],
+          "label": "owner_or_manager_branch"
         }
       },
       {
-        "id": "reset-after-price",
-        "type": "RESET",
+        "id": "manager_name",
+        "type": "SEND_MESSAGE",
         "position": {
-          "x": 16640,
-          "y": 500
+          "x": 7280,
+          "y": 0
         },
         "data": {
-          "moveToNextNode": false
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "May I have the manager’s name, please?"
+            }
+          },
+          "webhook": {},
+          "label": "manager_name"
         }
       },
       {
-        "id": "reset-after-team",
-        "type": "RESET",
+        "id": "save_manager_name",
+        "type": "RESPONSE_SAVER",
         "position": {
-          "x": 16660,
-          "y": 500
+          "x": 7540,
+          "y": 0
         },
         "data": {
-          "moveToNextNode": false
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "managerContactName",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": "save_manager_name"
+        }
+      },
+      {
+        "id": "same_number",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 7800,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "interactive"
+          },
+          "content": {
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "Can our team contact the manager on this WhatsApp number?"
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "number_yes",
+                      "title": "Yes"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "number_no",
+                      "title": "No"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "webhook": {},
+          "label": "same_number"
+        }
+      },
+      {
+        "id": "save_same_number_choice",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 8060,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "managerNumberChoice",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": "save_same_number_choice"
+        }
+      },
+      {
+        "id": "same_number_branch",
+        "type": "CONDITION",
+        "position": {
+          "x": 8320,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{managerNumberChoice}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "Yes",
+              "caseSensitive": false,
+              "targetNodeId": "contact_confirmation"
+            },
+            {
+              "type": "text_exact",
+              "value": "No",
+              "caseSensitive": false,
+              "targetNodeId": "manager_phone"
+            }
+          ],
+          "label": "same_number_branch"
+        }
+      },
+      {
+        "id": "manager_phone",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 8580,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Please share the manager’s WhatsApp number, including country code."
+            }
+          },
+          "webhook": {},
+          "label": "manager_phone"
+        }
+      },
+      {
+        "id": "save_manager_phone",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 8840,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "managerContactNumber",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": "save_manager_phone"
+        }
+      },
+      {
+        "id": "contact_confirmation",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 9100,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Thank you. I’ve shared your details with our team, and they’ll follow up with you."
+            }
+          },
+          "webhook": {},
+          "label": "contact_confirmation"
+        }
+      },
+      {
+        "id": "polite_close",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 9360,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Thanks for your time. If you’d like the demo or price details later, just message us here."
+            }
+          },
+          "webhook": {},
+          "label": "polite_close"
+        }
+      },
+      {
+        "id": "reset",
+        "type": "RESET",
+        "position": {
+          "x": 9620,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "label": "End"
         }
       }
     ],
     "edges": [
       {
-        "id": "e1",
+        "id": "demo_branch-name_for_demo",
+        "source": "demo_branch",
+        "target": "name_for_demo",
+        "sourceHandle": "Yes"
+      },
+      {
+        "id": "demo_branch-default",
+        "source": "demo_branch",
+        "target": "help_options",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "after_demo_branch-price_message",
+        "source": "after_demo_branch",
+        "target": "price_message",
+        "sourceHandle": "Know the price"
+      },
+      {
+        "id": "after_demo_branch-owner_or_manager",
+        "source": "after_demo_branch",
+        "target": "owner_or_manager",
+        "sourceHandle": "Talk to our team"
+      },
+      {
+        "id": "after_demo_branch-default",
+        "source": "after_demo_branch",
+        "target": "polite_close",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "help_branch-name_for_price",
+        "source": "help_branch",
+        "target": "name_for_price",
+        "sourceHandle": "Know the price"
+      },
+      {
+        "id": "help_branch-name_for_team",
+        "source": "help_branch",
+        "target": "name_for_team",
+        "sourceHandle": "Talk to our team"
+      },
+      {
+        "id": "help_branch-default",
+        "source": "help_branch",
+        "target": "polite_close",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "contact_after_price_branch-owner_or_manager",
+        "source": "contact_after_price_branch",
+        "target": "owner_or_manager",
+        "sourceHandle": "Yes"
+      },
+      {
+        "id": "contact_after_price_branch-polite_close",
+        "source": "contact_after_price_branch",
+        "target": "polite_close",
+        "sourceHandle": "No"
+      },
+      {
+        "id": "contact_after_price_branch-default",
+        "source": "contact_after_price_branch",
+        "target": "polite_close",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "owner_or_manager_branch-contact_confirmation",
+        "source": "owner_or_manager_branch",
+        "target": "contact_confirmation",
+        "sourceHandle": "Yes"
+      },
+      {
+        "id": "owner_or_manager_branch-manager_name",
+        "source": "owner_or_manager_branch",
+        "target": "manager_name",
+        "sourceHandle": "No"
+      },
+      {
+        "id": "owner_or_manager_branch-default",
+        "source": "owner_or_manager_branch",
+        "target": "manager_name",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "same_number_branch-contact_confirmation",
+        "source": "same_number_branch",
+        "target": "contact_confirmation",
+        "sourceHandle": "Yes"
+      },
+      {
+        "id": "same_number_branch-manager_phone",
+        "source": "same_number_branch",
+        "target": "manager_phone",
+        "sourceHandle": "No"
+      },
+      {
+        "id": "same_number_branch-default",
+        "source": "same_number_branch",
+        "target": "manager_phone",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "initialNode-opening",
         "source": "initialNode",
-        "target": "p1"
+        "target": "opening"
       },
       {
-        "id": "e3",
-        "source": "p2",
-        "target": "p3"
+        "id": "opening-system_question",
+        "source": "opening",
+        "target": "system_question"
       },
       {
-        "id": "e4",
-        "source": "p3",
-        "target": "p4"
+        "id": "system_question-system_answer",
+        "source": "system_question",
+        "target": "system_answer"
       },
       {
-        "id": "e5",
-        "source": "p4",
-        "target": "p5"
+        "id": "system_answer-demo_question",
+        "source": "system_answer",
+        "target": "demo_question"
       },
       {
-        "id": "e6",
-        "source": "p6",
-        "target": "p7"
+        "id": "demo_question-demo_answer",
+        "source": "demo_question",
+        "target": "demo_answer"
       },
       {
-        "id": "e7",
-        "source": "p8",
-        "target": "p9"
+        "id": "demo_answer-demo_branch",
+        "source": "demo_answer",
+        "target": "demo_branch"
       },
       {
-        "id": "e8",
-        "source": "p7",
-        "target": "p8"
+        "id": "demo_branch-name_for_demo",
+        "source": "demo_branch",
+        "target": "name_for_demo"
       },
       {
-        "id": "e9",
-        "source": "p9",
-        "target": "p10"
+        "id": "demo_branch-help_options",
+        "source": "demo_branch",
+        "target": "help_options"
       },
       {
-        "id": "e10",
-        "source": "p10",
-        "target": "p11"
+        "id": "name_for_demo-save_name_for_demo",
+        "source": "name_for_demo",
+        "target": "save_name_for_demo"
       },
       {
-        "id": "e11",
-        "source": "p11",
-        "target": "p12"
+        "id": "save_name_for_demo-send_demo",
+        "source": "save_name_for_demo",
+        "target": "send_demo"
       },
       {
-        "id": "e12",
-        "source": "p14",
-        "target": "p15"
+        "id": "send_demo-save_demo_response",
+        "source": "send_demo",
+        "target": "save_demo_response"
       },
       {
-        "id": "e13",
-        "source": "p15",
-        "target": "p13"
+        "id": "save_demo_response-after_demo_options",
+        "source": "save_demo_response",
+        "target": "after_demo_options"
       },
       {
-        "id": "e14",
-        "source": "p12",
-        "target": "p13",
-        "sourceHandle": "numyes"
+        "id": "after_demo_options-after_demo_choice",
+        "source": "after_demo_options",
+        "target": "after_demo_choice"
       },
       {
-        "id": "e15",
-        "source": "p12",
-        "target": "p14",
-        "sourceHandle": "default"
+        "id": "after_demo_choice-after_demo_branch",
+        "source": "after_demo_choice",
+        "target": "after_demo_branch"
       },
       {
-        "id": "e16",
-        "source": "p13",
-        "target": "p16"
+        "id": "help_options-help_choice",
+        "source": "help_options",
+        "target": "help_choice"
       },
       {
-        "id": "e17",
-        "source": "p16",
-        "target": "p17"
+        "id": "help_choice-help_branch",
+        "source": "help_choice",
+        "target": "help_branch"
       },
       {
-        "id": "e20",
-        "source": "p20",
-        "target": "p21"
+        "id": "help_branch-name_for_price",
+        "source": "help_branch",
+        "target": "name_for_price"
       },
       {
-        "id": "e21",
-        "source": "p21",
-        "target": "p22",
-        "sourceHandle": "watchedyes"
+        "id": "help_branch-name_for_team",
+        "source": "help_branch",
+        "target": "name_for_team"
       },
       {
-        "id": "e22",
-        "source": "p21",
-        "target": "p22",
-        "sourceHandle": "watchedno"
+        "id": "name_for_price-save_name_for_price",
+        "source": "name_for_price",
+        "target": "save_name_for_price"
       },
       {
-        "id": "e23",
-        "source": "p17",
-        "target": "p23",
-        "sourceHandle": "demono"
+        "id": "save_name_for_price-price_message",
+        "source": "save_name_for_price",
+        "target": "price_message"
       },
       {
-        "id": "e24",
-        "source": "p17",
-        "target": "p18",
-        "sourceHandle": "demoyes"
+        "id": "name_for_team-save_name_for_team",
+        "source": "name_for_team",
+        "target": "save_name_for_team"
       },
       {
-        "id": "e25",
-        "source": "p22",
-        "target": "p24"
+        "id": "save_name_for_team-owner_or_manager",
+        "source": "save_name_for_team",
+        "target": "owner_or_manager"
       },
       {
-        "id": "e26",
-        "source": "p23",
-        "target": "p24"
+        "id": "price_message-contact_after_price",
+        "source": "price_message",
+        "target": "contact_after_price"
       },
       {
-        "id": "e27",
-        "source": "p24",
-        "target": "p25"
+        "id": "contact_after_price-save_contact_after_price",
+        "source": "contact_after_price",
+        "target": "save_contact_after_price"
       },
       {
-        "id": "e28",
-        "source": "p25",
-        "target": "p26",
-        "sourceHandle": "priceyes"
+        "id": "save_contact_after_price-contact_after_price_branch",
+        "source": "save_contact_after_price",
+        "target": "contact_after_price_branch"
       },
       {
-        "id": "e29",
-        "source": "p25",
-        "target": "p27",
-        "sourceHandle": "priceno"
+        "id": "contact_after_price_branch-owner_or_manager",
+        "source": "contact_after_price_branch",
+        "target": "owner_or_manager"
       },
       {
-        "id": "custom-28",
-        "source": "p1",
-        "target": "phonebook_name_prompt",
-        "sourceHandle": "phonebook_empty"
+        "id": "owner_or_manager-save_owner_or_manager",
+        "source": "owner_or_manager",
+        "target": "save_owner_or_manager"
       },
       {
-        "id": "custom-29",
-        "source": "p1",
-        "target": "phonebook_confirm",
-        "sourceHandle": "default"
+        "id": "save_owner_or_manager-owner_or_manager_branch",
+        "source": "save_owner_or_manager",
+        "target": "owner_or_manager_branch"
       },
       {
-        "id": "custom-30",
-        "source": "phonebook_name_prompt",
-        "target": "p2"
+        "id": "owner_or_manager_branch-contact_confirmation",
+        "source": "owner_or_manager_branch",
+        "target": "contact_confirmation"
       },
       {
-        "id": "custom-31",
-        "source": "phonebook_confirm",
-        "target": "phonebook_confirm_save"
+        "id": "owner_or_manager_branch-manager_name",
+        "source": "owner_or_manager_branch",
+        "target": "manager_name"
       },
       {
-        "id": "custom-32",
-        "source": "phonebook_confirm_save",
-        "target": "phonebook_confirm_condition"
+        "id": "manager_name-save_manager_name",
+        "source": "manager_name",
+        "target": "save_manager_name"
       },
       {
-        "id": "custom-33",
-        "source": "phonebook_confirm_condition",
-        "target": "p3",
-        "sourceHandle": "center_yes"
+        "id": "save_manager_name-same_number",
+        "source": "save_manager_name",
+        "target": "same_number"
       },
       {
-        "id": "custom-34",
-        "source": "phonebook_confirm_condition",
-        "target": "phonebook_name_prompt",
-        "sourceHandle": "center_no"
+        "id": "same_number-save_same_number_choice",
+        "source": "same_number",
+        "target": "save_same_number_choice"
       },
       {
-        "id": "condition-system-yes",
-        "source": "p5",
-        "target": "p6",
-        "sourceHandle": "sysyes"
+        "id": "save_same_number_choice-same_number_branch",
+        "source": "save_same_number_choice",
+        "target": "same_number_branch"
       },
       {
-        "id": "condition-system-no",
-        "source": "p5",
-        "target": "p8",
-        "sourceHandle": "sysno"
+        "id": "same_number_branch-contact_confirmation",
+        "source": "same_number_branch",
+        "target": "contact_confirmation"
       },
       {
-        "id": "condition-system-unsure",
-        "source": "p5",
-        "target": "p8",
-        "sourceHandle": "sysunsure"
+        "id": "same_number_branch-manager_phone",
+        "source": "same_number_branch",
+        "target": "manager_phone"
       },
       {
-        "id": "condition-system-default",
-        "source": "p5",
-        "target": "p8",
-        "sourceHandle": "default"
+        "id": "manager_phone-save_manager_phone",
+        "source": "manager_phone",
+        "target": "save_manager_phone"
       },
       {
-        "id": "condition-number-same",
-        "source": "p12",
-        "target": "p13",
-        "sourceHandle": "numyes"
+        "id": "save_manager_phone-contact_confirmation",
+        "source": "save_manager_phone",
+        "target": "contact_confirmation"
       },
       {
-        "id": "condition-number-other",
-        "source": "p12",
-        "target": "p14",
-        "sourceHandle": "numother"
+        "id": "contact_confirmation-reset",
+        "source": "contact_confirmation",
+        "target": "reset"
       },
       {
-        "id": "condition-number-default",
-        "source": "p12",
-        "target": "p14",
-        "sourceHandle": "default"
-      },
-      {
-        "id": "condition-demo-yes",
-        "source": "p17",
-        "target": "p18",
-        "sourceHandle": "demoyes"
-      },
-      {
-        "id": "condition-demo-no",
-        "source": "p17",
-        "target": "p23",
-        "sourceHandle": "demono"
-      },
-      {
-        "id": "condition-demo-default",
-        "source": "p17",
-        "target": "p23",
-        "sourceHandle": "default"
-      },
-      {
-        "id": "condition-watched-yes",
-        "source": "p21",
-        "target": "p22",
-        "sourceHandle": "watchedyes"
-      },
-      {
-        "id": "condition-watched-no",
-        "source": "p21",
-        "target": "p22",
-        "sourceHandle": "watchedno"
-      },
-      {
-        "id": "condition-watched-default",
-        "source": "p21",
-        "target": "p22",
-        "sourceHandle": "default"
-      },
-      {
-        "id": "condition-price-yes",
-        "source": "p25",
-        "target": "p26",
-        "sourceHandle": "priceyes"
-      },
-      {
-        "id": "condition-price-team",
-        "source": "p25",
-        "target": "p27",
-        "sourceHandle": "priceno"
-      },
-      {
-        "id": "condition-price-default",
-        "source": "p25",
-        "target": "p27",
-        "sourceHandle": "default"
-      },
-      {
-        "id": "video-to-response",
-        "source": "p18",
-        "target": "p20"
-      },
-      {
-        "id": "edge-reset-after-price",
-        "source": "p26",
-        "target": "reset-after-price"
-      },
-      {
-        "id": "edge-reset-after-team",
-        "source": "p27",
-        "target": "reset-after-team"
-      },
-      {
-        "id": "phonebook-confirm-default",
-        "source": "phonebook_confirm_condition",
-        "target": "phonebook_name_prompt",
-        "sourceHandle": "default"
+        "id": "polite_close-reset",
+        "source": "polite_close",
+        "target": "reset"
       }
     ]
   }

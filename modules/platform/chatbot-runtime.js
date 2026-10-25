@@ -160,21 +160,10 @@ async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin,
   const result=await processFlow({ nodes: flow.nodes, edges: flow.edges, uid, flowId: flowSessionId, message, incomingText: textOf(message), user, sessionId, origin, chatId, webhookVariables: { phonebookCenterName: leadInfo?.phonebookName || '', contactName: message.senderName || '', whatsappNumber: message.senderMobile || '' }, element: { ...flow, flow_id: flowSessionId }, beforeNode: guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}), loopDetection: { visitedNodes: new Map(), startTime: Date.now() } });
   if(profile.config?.salesWorkflow==='training_center_prospects'&&result!=='paused'){
     try {
-      const [[flowRow]]=await query('SELECT data FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1',[uid,flowSessionId,message.senderMobile]);
+      const [flowRow]=await query('SELECT data FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1',[uid,flowSessionId,message.senderMobile]);
       let flowData=flowRow?.data;if(typeof flowData==='string')flowData=JSON.parse(flowData);const variables=flowData?.variables||{};
-      const value=(...keys)=>{for(const key of keys){const item=variables[key];if(item!=null&&item!==''&&item!=='NA')return String(item).trim().slice(0,180);}return '';};
       const channelKind=channelFor(origin);let state=await loadDomainGuidedSession({ctx,profile,chatId,channelKind,channelRef:sessionId})||{};
-      state={...state,contactName:state.contactName||message.senderName||'',whatsappNumber:message.senderMobile||state.whatsappNumber||'',phonebookCenterName:leadInfo?.phonebookName||state.phonebookCenterName||'',trainingCenterName:value('trainingCenterName','training_center_name','centerName')||state.trainingCenterName||'',currentSystemStatus:value('currentSystemStatus','current_system_status')||state.currentSystemStatus||'',currentSystemName:value('currentSystemName','current_system_name')||state.currentSystemName||'',managerContactName:value('managerContactName','manager_contact_name')||state.managerContactName||'',managerContactNumber:value('managerContactNumber','manager_contact_number')||state.managerContactNumber||''};
-      if(/^yes$/i.test(state.currentSystemStatus))state.currentSystemStatus='yes';else if(/^no$/i.test(state.currentSystemStatus))state.currentSystemStatus='no';else if(/^not sure$/i.test(state.currentSystemStatus))state.currentSystemStatus='not_sure';
-      const demoChoice=value('demoRequested','demo_requested');
-      const demoRequested=/^(yes|true|1|yes, send it)$/i.test(demoChoice);
-      if(demoRequested&&!state.demoRequested){state.demoRequested=true;state.step='demo_followup';state.demoReminderDueAt=new Date(Date.now()+30*60*1000).toISOString();}
-      if(/^(not now|no)$/i.test(demoChoice)){state.demoRequested=false;state.demoDeclined=true;state.step='followup_options';state.demoReminderDueAt=null;}
-      const watchedChoice=value('demoWatched','demo_watched');
-      if(state.step==='demo_followup'&&watchedChoice){state.demoWatched=/^(yes|yes, i watched|i watched)$/i.test(watchedChoice);state.demoReminderDueAt=null;state.demoReminderCancelledAt=new Date().toISOString();state.step='followup_options';}
-      if(/^(yes, same number|yes)$/i.test(value('managerNumberChoice','manager_number_choice'))&&!state.managerContactNumber)state.managerContactNumber=message.senderMobile||'';
-      if(!state.currentSystemName&&/^(no|not sure)$/i.test(state.currentSystemStatus))state.currentSystemName=state.currentSystemStatus==='no'?'Not using a system':'Not sure';
-      if(/^(know the price|price)$/i.test(value('priceInterest','price_interest')))state.pricePresented=true;
+      state=require('./chatbot-sales-prospect-state').mergeSalesProspectFlowState({state,variables,leadInfo,message});
       const completed=!!(state.trainingCenterName&&state.managerContactName&&state.managerContactNumber);
       if(completed&&leadInfo?.leadId){
         await require('./chatbot-lead-capture').persistSalesProspectQualification(dbPool,{leadInfo,uid,profileId:profile.id,state});

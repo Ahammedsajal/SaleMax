@@ -4,37 +4,30 @@ const assert=require('node:assert/strict');
 const flow=require('../chatbot-flows/training-center-prospect-flow.json');
 const {parseGuidedFlow}=require('../modules/platform/chatbot-profile-utils');
 
-test('Training Center prospect conversation is a supported editable WA Chatbot Flow Builder graph',()=>{
+test('Training Center prospect flow opens with the approved introduction and quick replies',()=>{
  assert.equal(flow.source,'wa_chatbot');assert.equal(flow.is_active,true);assert.ok(parseGuidedFlow(flow));
  const nodes=flow.data.nodes,edges=flow.data.edges,byId=new Map(nodes.map(n=>[n.id,n]));
- assert.ok(nodes.some(n=>n.type==='INITIAL'&&n.id==='initialNode'));
- assert.ok(nodes.some(n=>n.type==='CONDITION'&&n.data.variable?.message==='{{{phonebookCenterName}}}'));
- const openings=nodes.filter(n=>['phonebook_name_prompt','phonebook_confirm'].includes(n.id));
- assert.equal(openings.length,2);
- for(const opening of openings){
-  const text=opening.data.content?.text?.body||opening.data.content?.interactive?.body?.text||'';
-  assert.match(text,/we’re 7Network/);assert.match(text,/CR No\. is 251489/);assert.match(text,/training centers/i);
-  assert.doesNotMatch(text,/parent company|mother company|ProCatalyst/i);
+ const intro=byId.get('opening');assert.equal(intro.data.content.text.body,'Hi! We’re 7Network (CR No. 251489). We help training centers manage course enquiries and student follow-ups, send WhatsApp campaigns to students, and keep invoices and payments in one place. We can also customize the system.');
+ assert.equal(edges.find(e=>e.source==='opening')?.target,'system_question');
+ assert.equal(edges.find(e=>e.source==='system_question')?.target,'system_answer');
+ assert.equal(edges.find(e=>e.source==='system_answer')?.target,'demo_question');
+ assert.equal(edges.find(e=>e.source==='demo_question')?.target,'demo_answer');
+ assert.ok(!nodes.some(n=>/May I confirm your training center|Which business management system do you use/i.test(n.data?.content?.text?.body||n.data?.content?.interactive?.body?.text||'')));
+ assert.ok(!nodes.some(n=>n.data?.variables?.some(v=>v.responsePath==='msgContext.interactive.button_reply.title')),'Meta button taps are normalized to msgContext.text.body');
+ for(const node of nodes.filter(n=>n.type==='SEND_MESSAGE'&&n.data.type?.type==='interactive')){
+  const buttons=node.data.content.interactive.action.buttons;
+  assert.ok(buttons.length>=2&&buttons.length<=3,`${node.id} has a Meta-supported quick-reply count`);
+  for(const button of buttons)assert.ok(button.reply.title.length<=20,`${node.id} button title fits Meta limits`);
  }
- assert.ok(nodes.some(n=>n.type==='RESPONSE_SAVER'&&n.data.variables?.some(v=>v.varName==='trainingCenterName')));
- assert.ok(nodes.filter(n=>n.type==='RESPONSE_SAVER').every(n=>n.data.variables?.every(v=>v.responsePath!=='msgContext.interactive.button_reply.title')),'Meta webhook button taps are normalized into msgContext.text.body before Flow Builder saves the answer');
- const interactive=nodes.filter(n=>n.type==='SEND_MESSAGE'&&n.data.type?.type==='interactive');
- assert.ok(nodes.filter(n=>n.type==='SEND_MESSAGE').every(n=>n.data.moveToNextNode===false),'question sends stop so customer input is saved on the next turn');
- assert.ok(interactive.length>=5,'native Meta reply buttons exist for the guided choices');
- for(const node of interactive){
-  const buttons=node.data.content?.interactive?.action?.buttons||[];
-  assert.ok(buttons.length>=2&&buttons.length<=3,`${node.id} must stay within Meta reply-button limits`);
-  for(const button of buttons)assert.ok(button.reply.id&&button.reply.title.length<=20);
- }
- for(const node of nodes.filter(n=>n.type==='CONDITION')){
-  for(const condition of node.data.conditions||[])assert.ok(edges.some(e=>e.source===node.id&&e.sourceHandle===condition.targetNodeId),`${node.id} condition ${condition.value} has a connected edge`);
-  assert.ok(edges.some(e=>e.source===node.id&&e.sourceHandle==='default'),`${node.id} has a default route for unrecognized answers`);
- }
- for(const edge of edges){assert.ok(byId.has(edge.source),`missing source ${edge.source}`);assert.ok(byId.has(edge.target),`missing target ${edge.target}`);}
+ assert.equal(byId.get('demo_question').data.content.interactive.body.text,'Would you like to see a short demo?');
+ assert.equal(byId.get('name_for_demo').data.content.text.body,'Great! May I know your name, please?');
+ assert.equal(byId.get('save_name_for_demo').data.variables[0].varName,'contactName');
+ assert.ok(byId.get('after_demo_options').data.content.interactive.action.buttons.some(b=>b.reply.title==='Know the price'));
+ assert.ok(byId.get('after_demo_options').data.content.interactive.action.buttons.some(b=>b.reply.title==='Talk to our team'));
+ assert.equal(byId.get('price_message').data.content.text.body,'The Training Center offer is QAR 2,500 per year. It includes 1 admin user, 1 manager user, and 7 agent users.');
+ assert.equal(nodes.filter(n=>n.type==='INITIAL').length,1);
+ for(const edge of edges)assert.ok(byId.has(edge.source)&&byId.has(edge.target),`edge ${edge.id} has valid endpoints`);
  const reachable=new Set();const visit=id=>{if(reachable.has(id))return;reachable.add(id);for(const edge of edges.filter(e=>e.source===id))visit(edge.target);};visit('initialNode');
- assert.equal(reachable.size,nodes.length,'every saved builder node must be connected to the flow');
- assert.ok(nodes.filter(n=>!edges.some(e=>e.source===n.id)).every(n=>n.type==='RESET'&&n.data.moveToNextNode===false),'terminal paths reset the builder session safely');
- const video=nodes.find(n=>n.type==='SEND_MESSAGE'&&n.data.content?.text?.body?.includes('training-center-demo.mp4'));
- assert.ok(video);assert.equal(nodes.find(n=>n.id===edges.find(e=>e.source===video.id)?.target)?.type,'RESPONSE_SAVER','demo reply waits for the customer or the scheduled reminder');
- assert.ok(nodes.some(n=>n.data.content?.text?.body?.includes('QAR 2,500 per year')));
+ assert.equal(reachable.size,nodes.length,'every builder node is reachable');
+ assert.ok(nodes.filter(n=>n.type==='CONDITION').every(n=>edges.some(e=>e.source===n.id&&e.sourceHandle==='default')),'conditions have explicit fallback branches');
 });

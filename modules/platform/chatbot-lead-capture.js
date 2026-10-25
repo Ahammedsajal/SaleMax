@@ -125,6 +125,7 @@ async function captureSalesProspectLead(pool, { ctx, profile, uid, chatId, origi
 async function persistSalesProspectQualification(db, { leadInfo, uid, profileId, state }) {
   if (!leadInfo?.leadId || !leadInfo?.uidHash || !uid || !state || typeof state !== 'object') return [];
   const values = {
+    contactName: String(state.contactName || '').trim().slice(0, 160),
     trainingCenterName: String(state.trainingCenterName || '').slice(0, 160),
     currentSystemStatus: String(state.currentSystemStatus || '').slice(0, 32),
     currentSystemName: String(state.currentSystemName || '').slice(0, 160),
@@ -137,14 +138,16 @@ async function persistSalesProspectQualification(db, { leadInfo, uid, profileId,
   };
   const present = Object.fromEntries(Object.entries(values).filter(([, value]) => value !== '' && value !== null));
   if (!Object.keys(present).length) return [];
-  const [[lead]] = await db.query('SELECT qualification_data AS data FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? FOR UPDATE', [leadInfo.uidHash, uid, leadInfo.leadId]);
+  const [[lead]] = await db.query('SELECT contact_id AS contactId,contact_name AS contactName,qualification_data AS data FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? FOR UPDATE', [leadInfo.uidHash, uid, leadInfo.leadId]);
   if (!lead) return [];
   const prior = parse(lead.data);
   const details = { ...(prior.sevenNetworkSalesProspect || {}), ...present };
   const changed = Object.keys(present).filter(key => JSON.stringify(prior.sevenNetworkSalesProspect?.[key]) !== JSON.stringify(present[key]));
+  if (present.contactName && present.contactName !== String(lead.contactName || '').trim() && !changed.includes('contactName')) changed.push('contactName');
   if (!changed.length) return [];
   const qualification = { ...prior, sevenNetworkSalesProspect: details };
-  await db.query('UPDATE pipeline_leads SET qualification_data=?,last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?', [JSON.stringify(qualification), leadInfo.uidHash, uid, leadInfo.leadId]);
+  await db.query('UPDATE pipeline_leads SET qualification_data=?,contact_name=COALESCE(NULLIF(?,\'\'),contact_name),last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?', [JSON.stringify(qualification), present.contactName || null, leadInfo.uidHash, uid, leadInfo.leadId]);
+  if (lead.contactId && present.contactName) await db.query('UPDATE pipeline_contacts SET display_name=? WHERE uid_hash=? AND uid=? AND id=?', [present.contactName, leadInfo.uidHash, uid, lead.contactId]);
   await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at)
     VALUES (?,?,'system','lead_updated','7Network Sales prospect qualification updated',?,UTC_TIMESTAMP(3))`, [leadInfo.uidHash, leadInfo.leadId, JSON.stringify({ origin: 'chatbot', profileId, fields: changed })]);
   return changed;
