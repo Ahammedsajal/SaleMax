@@ -11,5 +11,7 @@ COPY --chown=node:node client/public/chatbot-admin.js /app/client/public/chatbot
 COPY --chown=node:node client/public/training-center-demo.mp4 /app/client/public/training-center-demo.mp4
 COPY deploy/patch-sales-prospect-runtime.cjs /tmp/patch-sales-prospect-runtime.cjs
 COPY deploy/patch-sales-prospect-cache.cjs /tmp/patch-sales-prospect-cache.cjs
+USER root
 RUN node /tmp/patch-sales-prospect-runtime.cjs /app/server.js \
  && node /tmp/patch-sales-prospect-cache.cjs /app/client/public/training-sidebar.js
+USER node
