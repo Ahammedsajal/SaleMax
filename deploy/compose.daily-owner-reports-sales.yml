@@ -1,0 +1,10 @@
+# Additive runtime overlay for the default owner daily report path.
+services:
+  app:
+    image: salemax-app:daily-owner-reports-sales-d43ab35-20261025
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.daily-owner-reports-sales
+      args:
+        BASE_IMAGE: salemax-app:campaign-dashboard-dark-c34cf8b-20261024
+        SOURCE_COMMIT: d43ab35a14706ae0621f3b1ee65a926040609dde
