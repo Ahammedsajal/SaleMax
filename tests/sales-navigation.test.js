@@ -137,26 +137,26 @@ test('7Network Sales owner gets one People & Roles entry while managers and team
   assert.match(team,/node\.dataset\.salesCategory='7network_sales'/);
   assert.match(team,/#sx-team-screen\[data-sales-category=\"7network_sales\"\] :focus-visible\{outline-color:#1768d4\}/);
   assert.match(shell,/training-sidebar\.js\?v=[^"\s]+/);
-  assert.match(shell,/team-invitations\.js\?v=20261019-role-sidebar2/);
+  assert.match(shell,/team-invitations\.js\?v=20261022-agent-password-reset1/);
 });
 
-test('7Network Sales Business Settings opens the existing CRM appearance screen for owners',()=>{
+test('7Network Sales Business Profile opens the existing CRM appearance screen for owners',()=>{
   const root=path.join(__dirname,'..');
   const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');
   const appearance=fs.readFileSync(path.join(root,'client/public/tenant-crm-appearance.js'),'utf8');
   const shell=fs.readFileSync(path.join(root,'client/public/index.html'),'utf8');
-  assert.match(sidebar,/\['settings','Business Settings','إعدادات الأعمال','crm-appearance'\]/);
+  assert.match(sidebar,/\['settings','Business Profile','ملف النشاط التجاري','crm-appearance'\]/);
   assert.match(sidebar,/routeKeys=\{[^}]*'crm-appearance':'settings'/);
-  assert.match(sidebar,/Business Settings':'crm-appearance'/);
+  assert.match(sidebar,/Business Profile':'crm-appearance'/);
   assert.match(appearance,/new URLSearchParams\(location\.search\)\.get\('page'\)==='crm-appearance'/);
-  assert.match(shell,/training-sidebar\.js\?v=20261025-sales-business-settings-crm-appearance1/);
-  assert.ok(sidebar.includes("...(membershipRole==='owner'?[['team','People & Roles','الأشخاص والأدوار','team-invitations'],['settings','Business Settings','إعدادات الأعمال','crm-appearance']]:[])"));
+  assert.match(shell,/training-sidebar\.js\?v=20270103-business-profile1/);
+  assert.ok(sidebar.includes("...(membershipRole==='owner'?[['team','People & Roles','الأشخاص والأدوار','team-invitations'],['settings','Business Profile','ملف النشاط التجاري','crm-appearance']]:[])"));
   const tmp=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'sx-settings-cache-'));
   try{
-    const target=path.join(tmp,'index.html');fs.writeFileSync(target,'<script src="/training-sidebar.js?v=20261024-sales-sidebar-nav-stable1"></script><script src="/static/js/live.js"></script>');
-    const result=spawnSync(process.execPath,[path.join(root,'deploy/patch-sales-business-settings-cache.cjs'),target],{encoding:'utf8'});
+    const target=path.join(tmp,'index.html');fs.writeFileSync(target,'<script src="/training-sidebar.js?v=20261025-sales-business-settings-crm-appearance1"></script><script src="/tenant-crm-appearance.js?v=20270102-admin-domains1"></script><script src="/static/js/live.js"></script>');
+    const result=spawnSync(process.execPath,[path.join(root,'deploy/patch-tenant-business-profile-cache.cjs'),target],{encoding:'utf8'});
     assert.equal(result.status,0,result.stderr);
-    const patched=fs.readFileSync(target,'utf8');assert.match(patched,/training-sidebar\.js\?v=20261025-sales-business-settings-crm-appearance1/);assert.match(patched,/\/static\/js\/live\.js/);
+    const patched=fs.readFileSync(target,'utf8');assert.match(patched,/training-sidebar\.js\?v=20270103-business-profile1/);assert.match(patched,/tenant-crm-appearance\.js\?v=20270103-business-profile1/);assert.match(patched,/\/static\/js\/live\.js/);
   }finally{fs.rmSync(tmp,{recursive:true,force:true});}
 });
 
