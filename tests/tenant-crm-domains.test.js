@@ -38,12 +38,15 @@ test('CRM host middleware gates inactive domains and allows only CRM routes for 
   };
   const pool={getConnection:async()=>({query:async(_sql,[host])=>[[rows[host]||null].filter(Boolean)],release(){}})};
   const middleware=domains.middleware(pool);
-  const run=async(host,path)=>{const req={method:'GET',path,get:name=>name==='host'?host:undefined};let called=false;const out={statusCode:200,status(n){this.statusCode=n;return this;},type(){return this;},send(body){this.body=body;return this;},end(){return this;},json(body){this.body=body;return this;}};await middleware(req,out,()=>{called=true;});return {req,out,called};};
+  const run=async(host,path,{method='GET',query={}}={})=>{const req={method,path,query,get:name=>name==='host'?host:undefined};let called=false;const out={headers:{},statusCode:200,status(n){this.statusCode=n;return this;},setHeader(name,value){this.headers[name]=value;},type(){return this;},send(body){this.body=body;return this;},end(){return this;},json(body){this.body=body;return this;}};await middleware(req,out,()=>{called=true;});return {req,out,called};};
   const pending=await run('pending.example.qa','/user');assert.equal(pending.out.statusCode,410);assert.equal(pending.called,false);
   const active=await run('active.example.qa','/user');assert.equal(active.called,true);assert.equal(active.req.crmTenantDomain.tenantId,'tenant-a');
   const suspended=await run('suspended.example.qa','/user');assert.equal(suspended.out.statusCode,410);assert.equal(suspended.called,false);
   const stale=await run('stale.example.qa','/user');assert.equal(stale.out.statusCode,410);assert.equal(stale.called,false);
   for(const path of ['/api/inbox/chats','/api/chat_flow/list','/api/templet/list','/api/broadcast/list','/api/pipeline/leads','/api/user/profile'])assert.equal((await run('active.example.qa',path)).called,true,path);
+  for(const path of ['/api/web/get-all-translation-name','/api/web/get-one-translation']){const allowed=await run('active.example.qa',path,{query:{code:'English'}});assert.equal(allowed.called,true,path);assert.equal(allowed.out.headers['Cache-Control'],'public, max-age=300');assert.equal(allowed.out.headers.Vary,'Host');}
+  assert.equal((await run('active.example.qa','/api/web/get-one-translation',{query:{code:'../runtime'}})).out.statusCode,404);
+  assert.equal((await run('active.example.qa','/api/web/get-all-translation-name',{method:'POST'})).out.statusCode,404);
   const admin=await run('active.example.qa','/admin');assert.equal(admin.out.statusCode,404);assert.equal(admin.called,false);
   for(const path of ['/api/admin/plans','/api/public/forms','/api/web/get_web_public','/healthz','/']){const blocked=await run('active.example.qa',path);assert.equal(blocked.out.statusCode,404,path);assert.equal(blocked.called,false,path);}
   const disabled=await run('disabled.example.qa','/api/user/me');assert.equal(disabled.out.statusCode,410);

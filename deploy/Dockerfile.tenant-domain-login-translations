@@ -1,0 +1,5 @@
+# Preserve the exact active production image and overlay only the reviewed
+# host-routing fix needed by the existing CRM login translation loader.
+ARG BASE_IMAGE=salemax-app:tenant-domain-dns-ui-1f23919-20261025
+FROM ${BASE_IMAGE}
+COPY modules/platform/tenant-crm-domains.js /app/modules/platform/tenant-crm-domains.js
