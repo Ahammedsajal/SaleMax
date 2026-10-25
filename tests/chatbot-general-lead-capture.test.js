@@ -59,3 +59,21 @@ test('generic capture fails closed if the pipeline cannot create the tenant lead
  try{await assert.rejects(capture.captureGenericLead({}, {ctx:enabledContext(),profile:{config:{captureLeads:true}},uid:'owner',chatId:'chat',origin:'qr',message:{route:'INCOMING',senderMobile:'+97450000001'}}),{code:'BOT_LEAD_NOT_CAPTURED'});}
  finally{pipeline.captureBotInbound=original;}
 });
+
+test('7Network Sales prospect bot captures inbound prospects only with the explicit workflow and CRM entitlement',async()=>{
+ const pipeline=require('../helper/pipeline/leadPipeline');const original=pipeline.captureBotInbound;const calls=[];
+ pipeline.captureBotInbound=async input=>{calls.push(input);return {leadId:'sales-lead-1',created:true};};
+ try{
+  const ctx={audience:'tenant',tenant:{id:'sales-tenant',status:'active',categoryKey:'7network_sales',categoryVersion:1},
+   membership:{id:'member',tenantId:'sales-tenant',role:'owner',status:'active'},identity:{id:'identity',status:'active'},category:categories.salemaxSales,
+   subscription:{status:'active',categoryKey:'7network_sales',categoryVersion:1,capabilities:['crm.leads']}};
+  const profile={config:{salesWorkflow:'training_center_prospects'}};
+  const message={senderMobile:'+97450000002',senderName:'Training Center',metaChatId:'wamid.sales.1',timestamp:1700000000};
+  const result=await capture.captureSalesProspectLead({}, {ctx,profile,uid:'sales-owner',chatId:'chat-sales',origin:'meta',message});
+  assert.deepEqual(result,{leadId:'sales-lead-1',duplicate:false});
+  assert.equal(calls.length,1);assert.equal(calls[0].uid,'sales-owner');assert.equal(calls[0].origin,'meta');assert.equal(calls[0].providerMessageId,'wamid.sales.1');
+  assert.equal(await capture.captureSalesProspectLead({}, {ctx,profile:{config:{}},uid:'sales-owner',chatId:'chat-sales',origin:'meta',message}),null);
+  assert.equal(await capture.captureSalesProspectLead({}, {ctx:{...ctx,subscription:{...ctx.subscription,capabilities:[]}},profile,uid:'sales-owner',chatId:'chat-sales',origin:'meta',message:{...message,metaChatId:'wamid.sales.2'} }),null);
+  assert.equal(calls.length,1);
+ } finally { pipeline.captureBotInbound=original; }
+});

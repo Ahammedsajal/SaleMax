@@ -99,6 +99,19 @@ async function captureGenericLead(pool, { ctx, profile, uid, chatId, origin, mes
   return { leadId: captured.leadId, duplicate: captured.duplicate === true };
 }
 
+async function captureSalesProspectLead(pool, { ctx, profile, uid, chatId, origin, message }) {
+  if (ctx?.tenant?.categoryKey !== '7network_sales' || profile?.config?.salesWorkflow !== 'training_center_prospects'
+    || ctx.tenant.status !== 'active' || ctx.membership?.role !== 'owner' || ctx.membership?.status !== 'active'
+    || !ctx.category?.capabilities?.includes('crm.leads') || !ctx.subscription?.capabilities?.includes('crm.leads')
+    || !require('./policy').decision(ctx, { capability: 'crm.leads', permission: 'leads.manage' }).allowed) return null;
+  const captured = await require('../../helper/pipeline/leadPipeline').captureBotInbound({
+    uid, origin, chatId, senderMobile: message.senderMobile, senderName: message.senderName,
+    normalizedMessage: message, providerMessageId: message.metaChatId, timestamp: message.timestamp, pool,
+  });
+  if (captured.skipped || !captured.leadId) throw Object.assign(new Error('BOT_LEAD_NOT_CAPTURED'), { code: 'BOT_LEAD_NOT_CAPTURED' });
+  return { leadId: captured.leadId, duplicate: captured.duplicate === true };
+}
+
 function addQuestion(reply, info, config, defaults) {
   if (!info?.questionKey) return reply;
   const text = config?.guidedContent?.messages?.[info.questionKey]?.[info.language] || defaults?.messages?.[info.questionKey]?.[info.language];
@@ -114,4 +127,4 @@ async function markAsked(pool, info, uid) {
     await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),?,true,'$.botCapture.waitingFor',?) WHERE uid_hash=? AND uid=? AND id=?`, ['$.botCapture.' + key + 'Asked', key, info.uidHash, uid, info.leadId]);
   } finally { db.release(); }
 }
-module.exports = { captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, markAsked };
+module.exports = { captureLead, captureGenericLead, captureSalesProspectLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, markAsked };

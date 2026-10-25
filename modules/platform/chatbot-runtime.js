@@ -236,7 +236,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     }else if(cvError){
       const invalid=cvError==='CV_TYPE_NOT_ALLOWED'||cvError==='INVALID_CV_FILE';
       reply={reply:priorState?.language==='ar'?(invalid?'يرجى إرسال السيرة الذاتية كملف PDF أو DOCX حتى 8 ميغابايت.':'تعذر حفظ الملف الآن. يرجى المحاولة مرة أخرى بعد قليل.'):(invalid?'Please send your CV as a PDF or DOCX file up to 8 MB.':'I couldn’t save that file just now. Please try sending it again shortly.'),state:priorState,buttons:[]};
-    }else reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
+    }else if (profile.config?.salesWorkflow === 'training_center_prospects') {
+      reply = require('./chatbot-sales-prospect-guide').trainingCenterProspectReply({ message: intent || textOf(message), state: priorState });
+    } else reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
     if (leadInfo?.nameOnly) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
@@ -485,6 +487,12 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
 }
 
 async function previewConfiguredBot({ ctx, profile, uid, message, state = null }) {
+  if (profile?.config?.salesWorkflow === 'training_center_prospects') {
+    const guide = require('./chatbot-sales-prospect-guide');
+    const prior = businessContext.previewState(state);
+    const result = guide.trainingCenterProspectReply({ message, state: prior });
+    return { canAnswer: true, confidence: 1, reply: result.reply, wouldHandoff: result.handoff === true, reason: result.handoff ? result.handoffReason : null, route: 'guided-sales-prospect', state: result.state, metrics: { inputTokens: 0, outputTokens: 0 } };
+  }
   if (!supportsAiPreview(profile?.engine, profile?.config)) return { canAnswer: false, confidence: 0, reply: '', wouldHandoff: true, reason: 'AI_FALLBACK_DISABLED' };
   if (profile.engine === 'hybrid') {
     if (profile.config?.guidedMode !== 'domain_default') {
@@ -560,6 +568,14 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       try { facts = await getDomainPack(ctx.category.key, ctx.category.version).loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); }
       finally { db.release(); }
       leadInfo = await require('./chatbot-lead-capture').captureLead(dbPool, { ctx, profile, uid, chatId, origin, message, facts });
+    } catch (error) {
+      await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => {});
+      return { handled: true, handedOff: true, code: 'LEAD_CAPTURE_UNAVAILABLE' };
+    }
+  } else if (profile.config?.salesWorkflow === 'training_center_prospects') {
+    try {
+      leadInfo = await require('./chatbot-lead-capture').captureSalesProspectLead(dbPool, { ctx, profile, uid, chatId, origin, message });
+      if (!leadInfo) throw Object.assign(new Error('BOT_LEAD_CAPTURE_UNAVAILABLE'), { code: 'BOT_LEAD_CAPTURE_UNAVAILABLE' });
     } catch (error) {
       await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => {});
       return { handled: true, handedOff: true, code: 'LEAD_CAPTURE_UNAVAILABLE' };

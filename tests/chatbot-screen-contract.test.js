@@ -193,7 +193,9 @@ test('HTML and sidebar loader each expose a cache-busted chatbot script URL', { 
 test('7Network Sales built-in guide can run a saved opening Flow once then continue guided chat',()=>{
   assert.match(admin,/name="introFlowId"/);
   assert.match(admin,/Runs once when a new WhatsApp conversation starts/);
-  assert.match(admin,/introFlowId:usesDomainGuide\?String\(data\.get\('introFlowId'\)/);
+  assert.match(admin,/introFlowId:salesWorkflow\?null:usesDomainGuide\?String\(data\.get\('introFlowId'\)/);
+  assert.match(admin,/Training center prospects/);
+  assert.match(admin,/العملاء المحتملون لمراكز التدريب/);
   assert.match(chatbotRouter,/if \(config\.introFlowId\)/);
   assert.match(chatbotRouter,/GUIDED_FLOW_UNAVAILABLE/);
   assert.match(runtime,/claimOpeningFlow/);
