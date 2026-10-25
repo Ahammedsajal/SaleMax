@@ -19,7 +19,8 @@ test('Training Center prospect flow opens with the approved introduction and qui
  assert.equal(edges.find(e=>e.source==='feature_explanation_2')?.target,'demo_question');
  assert.match(byId.get('feature_explanation_1').data.content.text.body,/student contacts.*campaigns.*chatbots.*application forms.*course.*source/i);
  assert.match(byId.get('feature_explanation_2').data.content.text.body,/application submissions.*invoices.*payments.*due-date reminders.*reports.*notifications/i);
- assert.ok(!byId.has('feature_explanation_3'),'feature copy is concise and avoids a burst of four consecutive messages');
+ assert.ok(byId.has('feature_explanation_3'),'retain the old cursor node for conversations already in progress');
+ assert.equal(edges.find(e=>e.source==='feature_explanation_3')?.target,'demo_question');
  assert.equal(edges.find(e=>e.source==='demo_question')?.target,'demo_answer');
  assert.ok(!nodes.some(n=>/May I confirm your training center|Which business management system do you use/i.test(n.data?.content?.text?.body||n.data?.content?.interactive?.body?.text||'')));
  assert.ok(!nodes.some(n=>n.data?.variables?.some(v=>v.responsePath==='msgContext.interactive.button_reply.title')),'Meta button taps are normalized to msgContext.text.body');
@@ -38,7 +39,7 @@ test('Training Center prospect flow opens with the approved introduction and qui
  assert.equal(nodes.filter(n=>n.type==='INITIAL').length,1);
  for(const edge of edges)assert.ok(byId.has(edge.source)&&byId.has(edge.target),`edge ${edge.id} has valid endpoints`);
  const reachable=new Set();const visit=id=>{if(reachable.has(id))return;reachable.add(id);for(const edge of edges.filter(e=>e.source===id))visit(edge.target);};visit('initialNode');
- assert.equal(reachable.size,nodes.length,'every builder node is reachable');
+ assert.deepEqual([...byId.keys()].filter(id=>!reachable.has(id)),['feature_explanation_3'],'only the retained legacy cursor is outside the new path');
  assert.ok(nodes.filter(n=>n.type==='CONDITION').every(n=>edges.some(e=>e.source===n.id&&e.sourceHandle==='default')),'conditions have explicit fallback branches');
  for(const condition of nodes.filter(n=>n.type==='CONDITION'))for(const branch of condition.data.conditions||[])assert.ok(edges.some(e=>e.source===condition.id&&e.sourceHandle===branch.targetNodeId),'condition target maps to its saved Flow Builder edge handle');
 });

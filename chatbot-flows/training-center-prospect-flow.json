@@ -139,6 +139,25 @@
         }
       },
       {
+        "id": "feature_explanation_3",
+        "type": "SEND_MESSAGE",
+        "data": {
+          "moveToNextNode": true,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Manage application forms and submissions, course-linked leads, invoices, payments and due-date reminders. Reports and notifications help your team stay on top of follow-ups and collections."
+            }
+          },
+          "webhook": {},
+          "label": "Applications, finance and visibility"
+        }
+      },
+      {
         "id": "demo_question",
         "type": "SEND_MESSAGE",
         "position": {
@@ -1311,6 +1330,11 @@
       {
         "id": "feature_explanation_2-demo_question",
         "source": "feature_explanation_2",
+        "target": "demo_question"
+      },
+      {
+        "id": "feature_explanation_3-demo_question",
+        "source": "feature_explanation_3",
         "target": "demo_question"
       }
     ]
