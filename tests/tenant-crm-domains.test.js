@@ -44,6 +44,7 @@ test('CRM host middleware gates inactive domains and allows only CRM routes for 
   const suspended=await run('suspended.example.qa','/user');assert.equal(suspended.out.statusCode,410);assert.equal(suspended.called,false);
   const stale=await run('stale.example.qa','/user');assert.equal(stale.out.statusCode,410);assert.equal(stale.called,false);
   for(const path of ['/api/inbox/chats','/api/chat_flow/list','/api/templet/list','/api/broadcast/list','/api/pipeline/leads','/api/user/profile'])assert.equal((await run('active.example.qa',path)).called,true,path);
+  for(const path of ['/api/workspace/session','/api/workspace/courses','/business-dashboard/','/business-dashboard/dashboard.js'])assert.equal((await run('active.example.qa',path)).called,true,path);
   for(const path of ['/api/web/get_web_public','/api/web/get_theme','/api/web/get-all-translation-name','/api/web/get-one-translation']){const allowed=await run('active.example.qa',path,{query:{code:'English'}});assert.equal(allowed.called,true,path);assert.equal(allowed.out.headers['Cache-Control'],'public, max-age=300');assert.equal(allowed.out.headers.Vary,'Host');}
   assert.equal((await run('active.example.qa','/api/web/get-one-translation',{query:{code:'../runtime'}})).out.statusCode,404);
   assert.equal((await run('active.example.qa','/api/web/get-all-translation-name',{method:'POST'})).out.statusCode,404);
@@ -123,4 +124,17 @@ test('tenant CRM logo storage is private and the appearance UI keeps the existin
   assert.match(fs.readFileSync(path.join(root,'deploy/tenant-domain-provision-verified.timer'),'utf8'),/OnUnitActiveSec=30min/);
   assert.match(worker,/Tenant domains are CRM-only origins/);
   assert.match(worker,/pathname\.startsWith\("\/api\/"\)/);
+});
+
+test('tenant CRM hosts hide the legacy CRM switcher and only bump its shell asset reference',()=>{
+  const fs=require('node:fs'),path=require('node:path'),root=path.join(__dirname,'..');
+  const switcher=fs.readFileSync(path.join(root,'client/public/app-switcher.js'),'utf8');
+  const shell=fs.readFileSync(path.join(root,'client/public/index.html'),'utf8');
+  const patch=fs.readFileSync(path.join(root,'deploy/patch-tenant-domain-switcher-cache.cjs'),'utf8');
+  assert.match(switcher,/\/api\/crm\/tenant-context/);
+  assert.match(switcher,/isTenantCrmHost/);
+  assert.match(switcher,/fail closed/i);
+  assert.match(shell,/app-switcher\.js\?v=20261025-tenant-domain1/);
+  assert.match(patch,/Expected one existing app-switcher cache reference/);
+  assert.match(patch,/app-switcher\.js\?v=20261025-tenant-domain1/);
 });

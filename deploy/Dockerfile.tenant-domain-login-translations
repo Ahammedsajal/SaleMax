@@ -1,5 +1,7 @@
 # Preserve the exact active production image and overlay only the reviewed
-# host-routing fix needed by the existing CRM login translation loader.
-ARG BASE_IMAGE=salemax-app:admin-shell-layout-3879baf-20261025
+# tenant-domain routing and CRM switcher fixes.
+ARG BASE_IMAGE=salemax-app:tenant-domain-login-bootstrap-9472847-20261025
 FROM ${BASE_IMAGE}
 COPY modules/platform/tenant-crm-domains.js /app/modules/platform/tenant-crm-domains.js
+COPY client/public/app-switcher.js /app/client/public/app-switcher.js
+COPY client/public/index.html /app/client/public/index.html

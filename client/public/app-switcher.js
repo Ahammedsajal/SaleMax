@@ -1,6 +1,29 @@
 (function () {
   "use strict";
   if (["crm.salemax.qa", "7network.live", "www.7network.live"].includes(location.hostname)) return;
+  var tenantHostChecked = false;
+  var isTenantCrmHost = false;
+  var tenantHostCheckStarted = false;
+
+  function checkTenantHost() {
+    if (tenantHostCheckStarted) return;
+    tenantHostCheckStarted = true;
+    fetch("/api/crm/tenant-context", {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    }).then(async function (response) {
+      var body = await response.json().catch(function () { return {}; });
+      isTenantCrmHost = Boolean(response.ok && body.success && body.data && body.data.tenantId);
+    }).catch(function () {
+      // Fail closed if this host cannot be identified. The switcher is only a
+      // convenience link and must not appear inside a tenant's own CRM.
+      isTenantCrmHost = true;
+    }).finally(function () {
+      tenantHostChecked = true;
+      sync();
+    });
+  }
 
   function mount() {
     if (!window.localStorage.getItem("wacrm_user") && !window.localStorage.getItem("wacrm_agent")) return;
@@ -97,6 +120,18 @@
     var status = document.getElementById("salemax-crm-switch-status");
 
     if (!userToken && !agentToken) {
+      if (link) link.remove();
+      if (status) status.remove();
+      return;
+    }
+
+    if (!tenantHostChecked) {
+      if (link) link.remove();
+      if (status) status.remove();
+      checkTenantHost();
+      return;
+    }
+    if (isTenantCrmHost) {
       if (link) link.remove();
       if (status) status.remove();
       return;

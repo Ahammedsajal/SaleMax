@@ -48,7 +48,8 @@ function middleware(pool){return async function tenantCrmHost(req,res,next){
       res.setHeader('Vary','Host');
     }
     const crmRoute=path==='/user'||path.startsWith('/user/')||path==='/agent'||path.startsWith('/agent/')||publicLoginBootstrapRoute||
-      ['/api/user/','/api/agent/','/api/inbox/','/api/phonebook/','/api/chat_flow/','/api/templet/','/api/chatbot/','/api/broadcast/','/api/qr/','/api/ai/','/api/wa_call/','/api/pipeline/','/api/crm/'].some(prefix=>path.startsWith(prefix))||
+      path==='/business-dashboard'||path.startsWith('/business-dashboard/')||
+      ['/api/user/','/api/agent/','/api/workspace/','/api/inbox/','/api/phonebook/','/api/chat_flow/','/api/templet/','/api/chatbot/','/api/broadcast/','/api/qr/','/api/ai/','/api/wa_call/','/api/pipeline/','/api/crm/'].some(prefix=>path.startsWith(prefix))||
       path==='/socket.io'||path.startsWith('/socket.io/');
     const asset=/\.(?:js|css|png|jpe?g|webp|ico|svg|woff2?|ttf|map|json|txt|pdf|mp4|webm|mp3|wav)$/i.test(path)&&req.method==='GET';
     if(!crmRoute&&!asset)return res.status(404).end();
