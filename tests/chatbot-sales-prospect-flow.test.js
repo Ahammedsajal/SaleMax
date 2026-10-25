@@ -9,6 +9,13 @@ test('Training Center prospect conversation is a supported editable WA Chatbot F
  const nodes=flow.data.nodes,edges=flow.data.edges,byId=new Map(nodes.map(n=>[n.id,n]));
  assert.ok(nodes.some(n=>n.type==='INITIAL'&&n.id==='initialNode'));
  assert.ok(nodes.some(n=>n.type==='CONDITION'&&n.data.variable?.message==='{{{phonebookCenterName}}}'));
+ const openings=nodes.filter(n=>['phonebook_name_prompt','phonebook_confirm'].includes(n.id));
+ assert.equal(openings.length,2);
+ for(const opening of openings){
+  const text=opening.data.content?.text?.body||opening.data.content?.interactive?.body?.text||'';
+  assert.match(text,/we’re 7Network/);assert.match(text,/CR No\. is 251489/);assert.match(text,/training centers/i);
+  assert.doesNotMatch(text,/parent company|mother company|ProCatalyst/i);
+ }
  assert.ok(nodes.some(n=>n.type==='RESPONSE_SAVER'&&n.data.variables?.some(v=>v.varName==='trainingCenterName')));
  const interactive=nodes.filter(n=>n.type==='SEND_MESSAGE'&&n.data.type?.type==='interactive');
  assert.ok(nodes.filter(n=>n.type==='SEND_MESSAGE').every(n=>n.data.moveToNextNode===false),'question sends stop so customer input is saved on the next turn');

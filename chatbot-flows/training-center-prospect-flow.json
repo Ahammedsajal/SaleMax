@@ -733,7 +733,7 @@
             "type": "text",
             "text": {
               "preview_url": false,
-              "body": "Hi! Thanks for your interest in 7Network. What is your training center’s name?"
+              "body": "Hello, we’re 7Network. We help training centers manage course enquiries, student follow-ups, and daily operations. For your reference, our CR No. is 251489. May I confirm your training center’s name?"
             }
           },
           "webhook": {}
@@ -756,7 +756,7 @@
             "interactive": {
               "type": "button",
               "body": {
-                "text": "Hi! Our phonebook lists your center as “{{{phonebookCenterName}}}”. Is that correct?"
+                "text": "Hello, we’re 7Network. We help training centers manage course enquiries, student follow-ups, and daily operations. For your reference, our CR No. is 251489. Our records list your center as “{{{phonebookCenterName}}}”. Is that correct?"
               },
               "action": {
                 "buttons": [
