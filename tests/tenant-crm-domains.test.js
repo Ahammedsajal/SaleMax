@@ -11,6 +11,12 @@ test('CRM hostname validation canonicalizes safe subdomains and rejects reserved
   assert.equal(domains.requestHost({get:()=> 'invalid host'}),null);
 });
 
+test('DNS provider instructions use relative 7Network Host labels for apexes and nested subdomains',()=>{
+  assert.deepEqual(domains.dnsProviderHostLabels('zeastynourish.com'),{apex:true,txtHost:'_7network-verification',cnameHost:'@',aHost:'@'});
+  assert.deepEqual(domains.dnsProviderHostLabels('www.example.qa'),{apex:false,txtHost:'_7network-verification.www',cnameHost:'www',aHost:'@'});
+  assert.deepEqual(domains.dnsProviderHostLabels('crm.eu.example.co.uk'),{apex:false,txtHost:'_7network-verification.crm.eu',cnameHost:'crm.eu',aHost:'@'});
+});
+
 test('custom CRM write origins are exact-host and remain separate from canonical origin',()=>{
   const matches=require('../modules/platform/request-origin').matches,canonical='https://crm.salemax.qa',host='crm.example.qa';
   const request=origin=>({crmTenantDomain:{hostname:host},get:()=>origin});
@@ -58,19 +64,20 @@ test('CRM host context must match tenant and reviewed legacy ownership',async()=
   await assert.rejects(domains.assertLegacyHost(async()=>[],req,'agents','24'),{code:'CRM_DOMAIN_TENANT_MISMATCH'});
 });
 
-test('DNS record checks compare the stored token hash and accept CNAME or production A records for apex domains',async()=>{
+test('DNS record checks use 7Network TXT names and retain compatibility with issued SaleMaX challenges',async()=>{
   const crypto=require('node:crypto'),token='synthetic-random-token',tokenHash=crypto.createHash('sha256').update(token).digest('hex');
-  const healthy=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async name=>{assert.equal(name,'_salemax-verification.crm.example.qa');return [[`salemax-domain-verification=${token}`]];},resolveCname:async()=>['crm.salemax.qa.']});assert.deepEqual(healthy,{healthy:true,txtOk:true,cnameOk:true,aRecordOk:false});
+  const requested=[];const healthy=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async name=>{requested.push(name);return name==='_7network-verification.crm.example.qa'?[[`7network-domain-verification=${token}`]]:[];},resolveCname:async()=>['crm.salemax.qa.']});assert.deepEqual(healthy,{healthy:true,txtOk:true,cnameOk:true,aRecordOk:false});assert.deepEqual(requested,['_7network-verification.crm.example.qa','_salemax-verification.crm.example.qa']);
+  const legacy=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async name=>name==='_salemax-verification.crm.example.qa'?[[`salemax-domain-verification=${token}`]]:[],resolveCname:async()=>['crm.salemax.qa.']});assert.deepEqual(legacy,{healthy:true,txtOk:true,cnameOk:true,aRecordOk:false});
   const stale=await domains.checkDnsRecords({hostname:'crm.example.qa',tokenHash},{resolveTxt:async()=>[],resolveCname:async()=>['other.example.qa.']});assert.deepEqual(stale,{healthy:false,txtOk:false,cnameOk:false,aRecordOk:false});
-  const apex=await domains.checkDnsRecords({hostname:'example.qa',tokenHash},{resolveTxt:async()=>[[`salemax-domain-verification=${token}`]],resolveCname:async()=>{throw Error('no CNAME');},resolve4:async host=>host==='example.qa'?['192.0.2.10']:['192.0.2.10']});assert.deepEqual(apex,{healthy:true,txtOk:true,cnameOk:false,aRecordOk:true});
+  const apex=await domains.checkDnsRecords({hostname:'example.qa',tokenHash},{resolveTxt:async name=>name==='_7network-verification.example.qa'?[[`7network-domain-verification=${token}`]]:[],resolveCname:async()=>{throw Error('no CNAME');},resolve4:async host=>host==='example.qa'?['192.0.2.10']:['192.0.2.10']});assert.deepEqual(apex,{healthy:true,txtOk:true,cnameOk:false,aRecordOk:true});
 });
 
 test('scheduled DNS audit records stale/restored transitions and preserves healthy state',async()=>{
   const crypto=require('node:crypto'),token='audit-synthetic-token',tokenHash=crypto.createHash('sha256').update(token).digest('hex');
   async function run(initial,records){let health=initial;const actions=[];const db={async query(sql,params){if(sql.includes("WHERE status='active'"))return [[{id:'domain-a',tenantId:'tenant-a',hostname:'crm.example.qa',tokenHash,dnsHealthStatus:health}]];if(sql.includes('SELECT status,dns_health_status')&&sql.includes('FOR UPDATE'))return [[{status:'active',dnsHealthStatus:health}]];if(sql.startsWith('UPDATE sx_tenant_crm_domains SET dns_health_status=')){health=params[0];return [[]];}if(sql.includes('INSERT INTO sx_audit_events')){actions.push(params[2]);return [[]];}throw new Error(`Unexpected SQL: ${sql}`);},async beginTransaction(){},async commit(){},async rollback(){}};const result=await domains.auditActiveDns(db,{resolveTxt:async()=>records.txt,resolveCname:async()=>records.cname});return {result,health,actions};}
   const stale=await run('healthy',{txt:[],cname:['crm.salemax.qa.']});assert.equal(stale.result.stale,1);assert.equal(stale.health,'stale');assert.deepEqual(stale.actions,['tenant.crm-domain.dns-stale']);
-  const restored=await run('stale',{txt:[[`salemax-domain-verification=${token}`]],cname:['crm.salemax.qa.']});assert.equal(restored.result.stale,0);assert.equal(restored.health,'healthy');assert.deepEqual(restored.actions,['tenant.crm-domain.dns-restored']);
-  const stillHealthy=await run('healthy',{txt:[[`salemax-domain-verification=${token}`]],cname:['crm.salemax.qa.']});assert.equal(stillHealthy.actions.length,0);
+  const restored=await run('stale',{txt:[[`7network-domain-verification=${token}`]],cname:['crm.salemax.qa.']});assert.equal(restored.result.stale,0);assert.equal(restored.health,'healthy');assert.deepEqual(restored.actions,['tenant.crm-domain.dns-restored']);
+  const stillHealthy=await run('healthy',{txt:[[`7network-domain-verification=${token}`]],cname:['crm.salemax.qa.']});assert.equal(stillHealthy.actions.length,0);
 });
 
 test('operator retirement is allowed only after the tenant disabled its domain',async()=>{
@@ -91,6 +98,7 @@ test('tenant CRM logo storage is private and the appearance UI keeps the existin
   const media=fs.readFileSync(path.join(root,'modules/platform/tenant-crm-logo-media.js'),'utf8');
   const router=fs.readFileSync(path.join(root,'modules/platform/tenant-crm-router.js'),'utf8');
   const ui=fs.readFileSync(path.join(root,'client/public/tenant-crm-appearance.js'),'utf8');
+  const adminUi=fs.readFileSync(path.join(root,'client/public/admin-tenant-domains.js'),'utf8');
   const shell=fs.readFileSync(path.join(root,'client/public/index.html'),'utf8');
   const worker=fs.readFileSync(path.join(root,'client/public/worker.js'),'utf8');
   assert.match(media,/database\/local-runtime\/crm-tenant-logos/);
@@ -101,7 +109,11 @@ test('tenant CRM logo storage is private and the appearance UI keeps the existin
   assert.match(shell,/tenant-crm-appearance\.js\?v=20270102-admin-domains1/);
   assert.doesNotMatch(ui,/CRM domain|\/api\/crm\/domains|data-hostname/);
   assert.match(ui,/separately from the logo used on your public forms and documents/);
-  assert.match(shell,/admin-tenant-domains\.js\?v=20270102-admin-domains1/);
+  assert.match(shell,/admin-tenant-domains\.js\?v=20261025-7network-dns-host1/);
+  assert.match(adminUi,/Add these 7Network DNS records at your domain provider/);
+  assert.match(adminUi,/tr\('Host','المضيف'\)/);
+  assert.match(adminUi,/Use @ for the root domain/);
+  assert.match(adminUi,/without the domain suffix/);
   assert.match(fs.readFileSync(path.join(root,'modules/platform/admin-tenant-domains.js'),'utf8'),/req\.platformAccess\?\.role !== 'super_admin'/);
   assert.match(fs.readFileSync(path.join(root,'deploy/tenant-domain-provision-verified.timer'),'utf8'),/OnUnitActiveSec=30min/);
   assert.match(worker,/Tenant domains are CRM-only origins/);

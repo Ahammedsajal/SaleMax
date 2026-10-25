@@ -74,9 +74,10 @@ async function create(db, req) {
     await db.commit();
   } catch (error) { await db.rollback(); if (error.code === 'ER_DUP_ENTRY') fail('HOSTNAME_ALREADY_CLAIMED', 409); throw error; }
   const aRecordIpv4 = await domains.resolveTargetIpv4();
-  return { id, hostname, status: 'pending', isPrimary, txtName: `_salemax-verification.${hostname}`,
-    txtValue: `salemax-domain-verification=${token}`, cnameName: hostname, cnameTarget: domains.ROOT_HOST,
-    apexARecord: hostname.split('.').length === 2, aRecordIpv4, expiresInHours: 24 };
+  const hostLabels = domains.dnsProviderHostLabels(hostname);
+  return { id, hostname, status: 'pending', isPrimary, ...hostLabels, apexARecord: hostLabels.apex, txtName: `${domains.TXT_RECORD_LABEL}.${hostname}`,
+    txtValue: `${domains.TXT_VALUE_PREFIX}${token}`, cnameName: hostname, cnameTarget: domains.ROOT_HOST,
+    aRecordIpv4, expiresInHours: 24 };
 }
 async function verify(db, req, id) {
   const actorId = actor(req);
@@ -125,9 +126,10 @@ async function rotateChallenge(db, req, id) {
     await audit(db, row.tenantId, actorId, 'platform.tenant-crm-domain.challenge-rotated', id, { hostname: row.hostname });
     await db.commit();
   } catch (error) { await db.rollback(); throw error; }
-  return { id, hostname: row.hostname, status: 'pending', txtName: `_salemax-verification.${row.hostname}`,
-    txtValue: `salemax-domain-verification=${token}`, cnameName: row.hostname, cnameTarget: domains.ROOT_HOST,
-    apexARecord: row.hostname.split('.').length === 2, aRecordIpv4: await domains.resolveTargetIpv4(), expiresInHours: 24 };
+  const hostLabels = domains.dnsProviderHostLabels(row.hostname);
+  return { id, hostname: row.hostname, status: 'pending', ...hostLabels, apexARecord: hostLabels.apex, txtName: `${domains.TXT_RECORD_LABEL}.${row.hostname}`,
+    txtValue: `${domains.TXT_VALUE_PREFIX}${token}`, cnameName: row.hostname, cnameTarget: domains.ROOT_HOST,
+    aRecordIpv4: await domains.resolveTargetIpv4(), expiresInHours: 24 };
 }
 async function setPrimary(db, req, id) {
   const actorId = actor(req);

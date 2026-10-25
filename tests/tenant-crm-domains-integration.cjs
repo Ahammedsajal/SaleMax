@@ -3,9 +3,9 @@ const assert=require('node:assert/strict');const crypto=require('node:crypto');c
 module.exports=async function tenantCrmDomainsIntegration(db,{t1,i1,m1,t2,i2}){
  const ctx={audience:'tenant',identity:{id:i1},tenant:{id:t1},membership:{id:m1,tenantId:t1,identityId:i1,role:'owner',status:'active'}};
  const start=await domains.requestDomain(db,ctx,{hostname:'crm.synthetic-example.qa'});
- assert.equal(start.status,'pending');assert.match(start.txtValue,/^salemax-domain-verification=/);
+ assert.equal(start.status,'pending');assert.match(start.txtValue,/^7network-domain-verification=/);
  await assert.rejects(domains.requestDomain(db,ctx,{hostname:'other.synthetic-example.qa'}),{code:'DOMAIN_ALREADY_CONFIGURED'});
- const verified=await domains.verifyDomain(db,ctx,start.id,{resolveTxt:async name=>{assert.equal(name,'_salemax-verification.crm.synthetic-example.qa');return [[start.txtValue]];},resolveCname:async host=>{assert.equal(host,'crm.synthetic-example.qa');return ['crm.salemax.qa.'];}});
+ const verified=await domains.verifyDomain(db,ctx,start.id,{resolveTxt:async name=>{assert.equal(name,'_7network-verification.crm.synthetic-example.qa');return [[start.txtValue]];},resolveCname:async host=>{assert.equal(host,'crm.synthetic-example.qa');return ['crm.salemax.qa.'];}});
  assert.equal(verified.status,'verified');assert.equal(verified.tlsReady,false);
  await domains.activateAfterTls(db,'crm.synthetic-example.qa',{resolveTxt:async()=>[[start.txtValue]],resolveCname:async()=>['crm.salemax.qa.']});
  assert.equal((await domains.findHost(db,'crm.synthetic-example.qa')).status,'active');
@@ -15,14 +15,14 @@ module.exports=async function tenantCrmDomainsIntegration(db,{t1,i1,m1,t2,i2}){
  await domains.verifyDomain(db,ctx,start.id,{resolveTxt:async()=>[[start.txtValue]],resolveCname:async()=>['crm.salemax.qa.']});assert.equal((await domains.findHost(db,'crm.synthetic-example.qa')).dnsHealthStatus,'healthy');
  await assert.rejects(domains.assertTenantHost(db,{crmTenantDomain:{hostname:'crm.synthetic-example.qa',tenantId:t1}},t2),{code:'CRM_DOMAIN_TENANT_MISMATCH'});
  const [[claimed]]=await db.query('SELECT verification_token_hash AS tokenHash,status FROM sx_tenant_crm_domains WHERE id=?',[start.id]);
- assert.equal(claimed.status,'active');assert.equal(claimed.tokenHash,crypto.createHash('sha256').update(start.txtValue.slice('salemax-domain-verification='.length)).digest('hex'));
+ assert.equal(claimed.status,'active');assert.equal(claimed.tokenHash,crypto.createHash('sha256').update(start.txtValue.slice('7network-domain-verification='.length)).digest('hex'));
  await domains.removeDomain(db,ctx,start.id);
  await assert.rejects(domains.assertTenantHost(db,{crmTenantDomain:{hostname:'crm.synthetic-example.qa',tenantId:t1}},t1),{code:'CRM_DOMAIN_INACTIVE'});
  await db.query(`INSERT INTO sx_tenant_crm_domains(id,tenant_id,hostname,status,verification_token_hash,verification_expires_at,created_by_identity_id) VALUES (?,?,?,'pending',?,DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 HOUR),?)`,[crypto.randomUUID(),t2,'crm.claimed-example.qa','f'.repeat(64),i2]);
  await assert.rejects(domains.requestDomain(db,ctx,{hostname:'crm.claimed-example.qa'}),{code:'HOSTNAME_ALREADY_CLAIMED'});
  const replacement=await domains.requestDomain(db,ctx,{hostname:'crm.replacement-example.qa'});
  const refreshed=await domains.rotateDomainChallenge(db,ctx,replacement.id);assert.equal(refreshed.hostname,replacement.hostname);assert.notEqual(refreshed.txtValue,replacement.txtValue);
- await assert.rejects(domains.verifyDomain(db,ctx,replacement.id,{resolveTxt:async()=>[['salemax-domain-verification=incorrect']],resolveCname:async()=>['crm.salemax.qa.']}),{code:'DOMAIN_TXT_NOT_VERIFIED'});
+ await assert.rejects(domains.verifyDomain(db,ctx,replacement.id,{resolveTxt:async()=>[['7network-domain-verification=incorrect']],resolveCname:async()=>['crm.salemax.qa.']}),{code:'DOMAIN_TXT_NOT_VERIFIED'});
  await assert.rejects(domains.verifyDomain(db,ctx,replacement.id,{resolveTxt:async()=>[[refreshed.txtValue]],resolveCname:async()=>['crm.salemax.qa.']}),{code:'DOMAIN_DNS_RATE_LIMITED'});
  const [history]=await db.query('SELECT hostname,status FROM sx_tenant_crm_domains WHERE tenant_id=?',[t1]);
  assert.deepEqual(history.map(r=>[r.hostname,r.status]).sort((a,b)=>a[0].localeCompare(b[0])),[['crm.replacement-example.qa','pending'],['crm.synthetic-example.qa','disabled']]);

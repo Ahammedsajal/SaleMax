@@ -17,6 +17,7 @@ This file is the cross-machine source of truth for the SaleMaX-to-7Network platf
 - Use `https://7network.live` for public website links, chatbot company replies, and first-party recruitment links. Keep `crm.salemax.qa` as a compatibility hostname alongside `www.7network.live`; keep `SALEMAX_*` environment settings, legacy static URLs, schema migration ledger, and the existing `/careers/<tenant>` route as operational compatibility identifiers. Do not put those identifiers in new customer-facing copy.
 - Persistent chatbot config keys such as `buttonSalemax` remain compatible with saved profiles while the visible bot text and replies use 7Network.
 - Do not rename tenant/customer businesses, uploaded brand assets, legal company names, email addresses, or customer records as part of the platform rebrand.
+- New custom-domain ownership challenges use `_7network-verification` and the `7network-domain-verification=` TXT prefix. Existing SaleMaX-format challenges remain accepted until expiry. Keep `crm.salemax.qa` as the DNS routing target because it is the existing production compatibility hostname.
 - The existing compiled React bundle is not manually edited. Source-maintained screens use the updated text; `client/public/7network-brand.js` adapts platform chrome and the existing shell keeps legacy image URLs compatible.
 
 ## Production workflow
