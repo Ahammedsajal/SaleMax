@@ -236,7 +236,7 @@
               "type": "text_exact",
               "value": "Yes",
               "caseSensitive": false,
-              "targetNodeId": "name_for_demo"
+              "targetNodeId": "Yes"
             }
           ],
           "label": "demo_branch"
@@ -410,13 +410,13 @@
               "type": "text_exact",
               "value": "Know the price",
               "caseSensitive": false,
-              "targetNodeId": "price_message"
+              "targetNodeId": "Know the price"
             },
             {
               "type": "text_exact",
               "value": "Talk to our team",
               "caseSensitive": false,
-              "targetNodeId": "owner_or_manager"
+              "targetNodeId": "Talk to our team"
             }
           ],
           "label": "after_demo_branch"
@@ -508,13 +508,13 @@
               "type": "text_exact",
               "value": "Know the price",
               "caseSensitive": false,
-              "targetNodeId": "name_for_price"
+              "targetNodeId": "Know the price"
             },
             {
               "type": "text_exact",
               "value": "Talk to our team",
               "caseSensitive": false,
-              "targetNodeId": "name_for_team"
+              "targetNodeId": "Talk to our team"
             }
           ],
           "label": "help_branch"
@@ -704,13 +704,13 @@
               "type": "text_exact",
               "value": "Yes",
               "caseSensitive": false,
-              "targetNodeId": "owner_or_manager"
+              "targetNodeId": "Yes"
             },
             {
               "type": "text_exact",
               "value": "No",
               "caseSensitive": false,
-              "targetNodeId": "polite_close"
+              "targetNodeId": "No"
             }
           ],
           "label": "contact_after_price_branch"
@@ -795,13 +795,13 @@
               "type": "text_exact",
               "value": "Yes",
               "caseSensitive": false,
-              "targetNodeId": "contact_confirmation"
+              "targetNodeId": "Yes"
             },
             {
               "type": "text_exact",
               "value": "No",
               "caseSensitive": false,
-              "targetNodeId": "manager_name"
+              "targetNodeId": "No"
             }
           ],
           "label": "owner_or_manager_branch"
@@ -927,13 +927,13 @@
               "type": "text_exact",
               "value": "Yes",
               "caseSensitive": false,
-              "targetNodeId": "contact_confirmation"
+              "targetNodeId": "Yes"
             },
             {
               "type": "text_exact",
               "value": "No",
               "caseSensitive": false,
-              "targetNodeId": "manager_phone"
+              "targetNodeId": "No"
             }
           ],
           "label": "same_number_branch"

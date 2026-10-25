@@ -36,4 +36,5 @@ test('Training Center prospect flow opens with the approved introduction and qui
  const reachable=new Set();const visit=id=>{if(reachable.has(id))return;reachable.add(id);for(const edge of edges.filter(e=>e.source===id))visit(edge.target);};visit('initialNode');
  assert.equal(reachable.size,nodes.length,'every builder node is reachable');
  assert.ok(nodes.filter(n=>n.type==='CONDITION').every(n=>edges.some(e=>e.source===n.id&&e.sourceHandle==='default')),'conditions have explicit fallback branches');
+ for(const condition of nodes.filter(n=>n.type==='CONDITION'))for(const branch of condition.data.conditions||[])assert.ok(edges.some(e=>e.source===condition.id&&e.sourceHandle===branch.targetNodeId),'condition target maps to its saved Flow Builder edge handle');
 });
