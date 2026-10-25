@@ -109,11 +109,13 @@ test('tenant CRM logo storage is private and the appearance UI keeps the existin
   assert.match(shell,/tenant-crm-appearance\.js\?v=20270102-admin-domains1/);
   assert.doesNotMatch(ui,/CRM domain|\/api\/crm\/domains|data-hostname/);
   assert.match(ui,/separately from the logo used on your public forms and documents/);
-  assert.match(shell,/admin-tenant-domains\.js\?v=20261025-7network-dns-host1/);
-  assert.match(adminUi,/Add these 7Network DNS records at your domain provider/);
+  assert.match(shell,/admin-tenant-domains\.js\?v=20261025-7network-dns-fields2/);
+  assert.match(adminUi,/Add these DNS records/);
   assert.match(adminUi,/tr\('Host','المضيف'\)/);
-  assert.match(adminUi,/Use @ for the root domain/);
-  assert.match(adminUi,/without the domain suffix/);
+  assert.match(adminUi,/Namecheap appends your domain automatically/);
+  assert.match(adminUi,/data-copy/);
+  assert.match(adminUi,/grid-template-columns:20px minmax\(0,1fr\)/);
+  assert.match(adminUi,/Use it as the preferred CRM address after setup/);
   assert.match(fs.readFileSync(path.join(root,'modules/platform/admin-tenant-domains.js'),'utf8'),/req\.platformAccess\?\.role !== 'super_admin'/);
   assert.match(fs.readFileSync(path.join(root,'deploy/tenant-domain-provision-verified.timer'),'utf8'),/OnUnitActiveSec=30min/);
   assert.match(worker,/Tenant domains are CRM-only origins/);
