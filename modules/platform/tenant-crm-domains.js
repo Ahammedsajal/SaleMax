@@ -34,18 +34,20 @@ function middleware(pool){return async function tenantCrmHost(req,res,next){
     if(row.status!=='active'||!row.tlsReadyAt||row.tenantStatus!=='active'||row.dnsHealthStatus==='stale')return res.status(410).type('text').send('This CRM domain is not active.');
     req.crmTenantDomain={hostname:host,tenantId:row.tenantId};
     const path=req.path||'/';
-    // The existing React login shell loads its static language dictionary from
-    // these two public endpoints. Expose only those read-only resources on a
-    // verified tenant host; the rest of /api/web remains platform-only.
-    const publicTranslationRoute=req.method==='GET'&&(
+    // The existing React login shell loads these public, read-only resources
+    // during startup. Expose only this allowlist on a verified tenant host;
+    // the rest of /api/web remains platform-only.
+    const publicLoginBootstrapRoute=req.method==='GET'&&(
+      path==='/api/web/get_web_public'||
+      path==='/api/web/get_theme'||
       path==='/api/web/get-all-translation-name'||
       (path==='/api/web/get-one-translation'&&typeof req.query?.code==='string'&&/^[A-Za-z0-9_-]{1,64}$/.test(req.query.code))
     );
-    if(publicTranslationRoute){
+    if(publicLoginBootstrapRoute){
       res.setHeader('Cache-Control','public, max-age=300');
       res.setHeader('Vary','Host');
     }
-    const crmRoute=path==='/user'||path.startsWith('/user/')||path==='/agent'||path.startsWith('/agent/')||publicTranslationRoute||
+    const crmRoute=path==='/user'||path.startsWith('/user/')||path==='/agent'||path.startsWith('/agent/')||publicLoginBootstrapRoute||
       ['/api/user/','/api/agent/','/api/inbox/','/api/phonebook/','/api/chat_flow/','/api/templet/','/api/chatbot/','/api/broadcast/','/api/qr/','/api/ai/','/api/wa_call/','/api/pipeline/','/api/crm/'].some(prefix=>path.startsWith(prefix))||
       path==='/socket.io'||path.startsWith('/socket.io/');
     const asset=/\.(?:js|css|png|jpe?g|webp|ico|svg|woff2?|ttf|map|json|txt|pdf|mp4|webm|mp3|wav)$/i.test(path)&&req.method==='GET';

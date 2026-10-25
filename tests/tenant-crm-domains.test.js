@@ -44,11 +44,11 @@ test('CRM host middleware gates inactive domains and allows only CRM routes for 
   const suspended=await run('suspended.example.qa','/user');assert.equal(suspended.out.statusCode,410);assert.equal(suspended.called,false);
   const stale=await run('stale.example.qa','/user');assert.equal(stale.out.statusCode,410);assert.equal(stale.called,false);
   for(const path of ['/api/inbox/chats','/api/chat_flow/list','/api/templet/list','/api/broadcast/list','/api/pipeline/leads','/api/user/profile'])assert.equal((await run('active.example.qa',path)).called,true,path);
-  for(const path of ['/api/web/get-all-translation-name','/api/web/get-one-translation']){const allowed=await run('active.example.qa',path,{query:{code:'English'}});assert.equal(allowed.called,true,path);assert.equal(allowed.out.headers['Cache-Control'],'public, max-age=300');assert.equal(allowed.out.headers.Vary,'Host');}
+  for(const path of ['/api/web/get_web_public','/api/web/get_theme','/api/web/get-all-translation-name','/api/web/get-one-translation']){const allowed=await run('active.example.qa',path,{query:{code:'English'}});assert.equal(allowed.called,true,path);assert.equal(allowed.out.headers['Cache-Control'],'public, max-age=300');assert.equal(allowed.out.headers.Vary,'Host');}
   assert.equal((await run('active.example.qa','/api/web/get-one-translation',{query:{code:'../runtime'}})).out.statusCode,404);
   assert.equal((await run('active.example.qa','/api/web/get-all-translation-name',{method:'POST'})).out.statusCode,404);
   const admin=await run('active.example.qa','/admin');assert.equal(admin.out.statusCode,404);assert.equal(admin.called,false);
-  for(const path of ['/api/admin/plans','/api/public/forms','/api/web/get_web_public','/healthz','/']){const blocked=await run('active.example.qa',path);assert.equal(blocked.out.statusCode,404,path);assert.equal(blocked.called,false,path);}
+  for(const path of ['/api/admin/plans','/api/public/forms','/api/web/return_module','/healthz','/']){const blocked=await run('active.example.qa',path);assert.equal(blocked.out.statusCode,404,path);assert.equal(blocked.called,false,path);}
   const disabled=await run('disabled.example.qa','/api/user/me');assert.equal(disabled.out.statusCode,410);
   const root=await run('crm.salemax.qa','/');assert.equal(root.called,true);
 });
