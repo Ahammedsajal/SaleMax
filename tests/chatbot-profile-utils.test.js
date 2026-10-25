@@ -87,6 +87,9 @@ test('7Network Sales built-in guide can run a validated Automation Flow once bef
   assert.equal(bot.config.introFlowId,'recruitment_intro');
   const prospects=botInput({name:'Training Center Prospects',engine:'guided',config:{guidedMode:'domain_default',salesWorkflow:'training_center_prospects'}},'7network_sales');
   assert.equal(prospects.config.salesWorkflow,'training_center_prospects');
+  const configuredProspects=botInput({name:'Training Center Prospects',engine:'guided',config:{guidedMode:'automation_flow',flowId:'training_prospect_flow',salesWorkflow:'training_center_prospects'}},'7network_sales');
+  assert.equal(configuredProspects.config.guidedMode,'automation_flow');
+  assert.equal(configuredProspects.config.flowId,'training_prospect_flow');
   assert.throws(()=>botInput({name:'Wrong category',engine:'guided',config:{guidedMode:'domain_default',salesWorkflow:'training_center_prospects'}},'training_center'),{code:'INVALID_SALES_WORKFLOW'});
   assert.throws(()=>botInput({name:'AI not supported',engine:'ai',config:{salesWorkflow:'training_center_prospects'}},'7network_sales'),{code:'INVALID_SALES_WORKFLOW'});
   assert.throws(()=>botInput({name:'Bad',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'../bad'}},'7network_sales'),{code:'INVALID_FLOW_ID'});

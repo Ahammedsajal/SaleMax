@@ -26,3 +26,13 @@ test('chatbot cache patch preserves production sidebar content and changes exact
   const output=fs.readFileSync(file,'utf8');assert.match(output,/live sidebar/);assert.match(output,/20261025-sales-prospect-flow1/);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('Flow Builder overlay cache patch upgrades only the current prospect editor reference',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'sales-prospect-flow-sidebar-'));
+ try{
+  const file=path.join(dir,'training-sidebar.js');fs.writeFileSync(file,"const preserved='live sidebar'; const script='/chatbot-admin.js?v=20261025-sales-prospect-flow1';");
+  const result=run('patch-sales-prospect-flow-cache.cjs',file);assert.equal(result.status,0,result.stderr);
+  const output=fs.readFileSync(file,'utf8');assert.match(output,/live sidebar/);assert.match(output,/20261025-sales-prospect-flow2/);
+  const repeated=run('patch-sales-prospect-flow-cache.cjs',file);assert.equal(repeated.status,0,repeated.stderr);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});

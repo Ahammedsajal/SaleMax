@@ -1,0 +1,1150 @@
+{
+  "flow_id": "7network-training-center-prospect-flow",
+  "source": "wa_chatbot",
+  "name": "7Network Training Center Prospect Flow",
+  "is_active": true,
+  "data": {
+    "nodes": [
+      {
+        "id": "initialNode",
+        "type": "INITIAL",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "whPhonePath": ""
+        }
+      },
+      {
+        "id": "p1",
+        "type": "CONDITION",
+        "position": {
+          "x": 260,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{phonebookCenterName}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "",
+              "caseSensitive": false,
+              "targetNodeId": "phonebook_empty"
+            }
+          ]
+        }
+      },
+      {
+        "id": "p2",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 520,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "trainingCenterName",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p3",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 780,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "interactive"
+          },
+          "content": {
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "Do you currently use a business management or CRM system?"
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "sys_yes",
+                      "title": "Yes"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "sys_no",
+                      "title": "No"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "sys_unsure",
+                      "title": "Not sure"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p4",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 1040,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "currentSystemStatus",
+              "responsePath": "msgContext.interactive.button_reply.title"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p5",
+        "type": "CONDITION",
+        "position": {
+          "x": 1300,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{currentSystemStatus}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "Yes",
+              "caseSensitive": false,
+              "targetNodeId": "sysyes"
+            },
+            {
+              "type": "text_exact",
+              "value": "No",
+              "caseSensitive": false,
+              "targetNodeId": "sysno"
+            },
+            {
+              "type": "text_exact",
+              "value": "Not sure",
+              "caseSensitive": false,
+              "targetNodeId": "sysunsure"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p6",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 1560,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Which business management system do you use?"
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p7",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 1820,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "currentSystemName",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p8",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 2080,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "May I have the manager’s name so our team can address them politely?"
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p9",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 2340,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "managerContactName",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p10",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 2600,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "interactive"
+          },
+          "content": {
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "Would you like us to contact the manager on this WhatsApp number?"
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "manager_same",
+                      "title": "Yes, same number"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "manager_other",
+                      "title": "Use another"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p11",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 2860,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "managerNumberChoice",
+              "responsePath": "msgContext.interactive.button_reply.title"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p12",
+        "type": "CONDITION",
+        "position": {
+          "x": 3120,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{managerNumberChoice}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "Yes, same number",
+              "caseSensitive": false,
+              "targetNodeId": "numyes"
+            },
+            {
+              "type": "text_exact",
+              "value": "Use another",
+              "caseSensitive": false,
+              "targetNodeId": "numother"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p13",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 3380,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "interactive"
+          },
+          "content": {
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "Would you like me to send you the Training Center demo video?"
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "demo_yes",
+                      "title": "Yes, send it"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "demo_no",
+                      "title": "Not now"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p14",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 3640,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Please share the manager’s preferred WhatsApp number, including country code."
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p15",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 3900,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "managerContactNumber",
+              "responsePath": "msgContext.text.body"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p16",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 4160,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "demoRequested",
+              "responsePath": "msgContext.interactive.button_reply.title"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p17",
+        "type": "CONDITION",
+        "position": {
+          "x": 4420,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{demoRequested}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "Yes, send it",
+              "caseSensitive": false,
+              "targetNodeId": "demoyes"
+            },
+            {
+              "type": "text_exact",
+              "value": "Not now",
+              "caseSensitive": false,
+              "targetNodeId": "demono"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p18",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 4680,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Here is the 7Network Training Center demo: https://crm.salemax.qa/training-center-demo.mp4\n\nWe’ll check back in about 30 minutes."
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p20",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 5200,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "demoWatched",
+              "responsePath": "msgContext.interactive.button_reply.title"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p21",
+        "type": "CONDITION",
+        "position": {
+          "x": 5460,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{demoWatched}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "Yes, I watched",
+              "caseSensitive": false,
+              "targetNodeId": "watchedyes"
+            },
+            {
+              "type": "text_exact",
+              "value": "Not yet",
+              "caseSensitive": false,
+              "targetNodeId": "watchedno"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p22",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 5720,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "interactive"
+          },
+          "content": {
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "Thank you. I’ve passed your contact and training-center details to our team so they can discuss the setup with you. Would you like to know the campaign price?"
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "know_price",
+                      "title": "Know the price"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "talk_team",
+                      "title": "Talk to our team"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p23",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 5980,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "interactive"
+          },
+          "content": {
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "No problem. I’ve shared your details with our team for follow-up. Would you like to see the campaign offer?"
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "know_price",
+                      "title": "Know the price"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "talk_team",
+                      "title": "Talk to our team"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p24",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 6240,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "priceInterest",
+              "responsePath": "msgContext.interactive.button_reply.title"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p25",
+        "type": "CONDITION",
+        "position": {
+          "x": 6500,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{priceInterest}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "Know the price",
+              "caseSensitive": false,
+              "targetNodeId": "priceyes"
+            },
+            {
+              "type": "text_exact",
+              "value": "Talk to our team",
+              "caseSensitive": false,
+              "targetNodeId": "priceno"
+            }
+          ],
+          "label": ""
+        }
+      },
+      {
+        "id": "p26",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 6760,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "The current Training Center offer is QAR 2,500 per year. It includes 1 admin user, 1 manager user, and 7 agent users. Our team will contact you to discuss setup and next steps."
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "p27",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 7020,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Certainly. Our team will contact you using the manager details you shared."
+            }
+          },
+          "webhook": {},
+          "label": ""
+        }
+      },
+      {
+        "id": "phonebook_name_prompt",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 12000,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "text"
+          },
+          "content": {
+            "type": "text",
+            "text": {
+              "preview_url": false,
+              "body": "Hi! Thanks for your interest in 7Network. What is your training center’s name?"
+            }
+          },
+          "webhook": {}
+        }
+      },
+      {
+        "id": "phonebook_confirm",
+        "type": "SEND_MESSAGE",
+        "position": {
+          "x": 12260,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": false,
+          "type": {
+            "type": "interactive"
+          },
+          "content": {
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "Hi! Our phonebook lists your center as “{{{phonebookCenterName}}}”. Is that correct?"
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "center_yes",
+                      "title": "Yes, correct"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "center_no",
+                      "title": "I’ll type it"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "webhook": {}
+        }
+      },
+      {
+        "id": "phonebook_confirm_save",
+        "type": "RESPONSE_SAVER",
+        "position": {
+          "x": 12780,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variables": [
+            {
+              "varName": "centerConfirmation",
+              "responsePath": "msgContext.interactive.button_reply.title"
+            }
+          ]
+        }
+      },
+      {
+        "id": "phonebook_confirm_condition",
+        "type": "CONDITION",
+        "position": {
+          "x": 13040,
+          "y": 0
+        },
+        "data": {
+          "moveToNextNode": true,
+          "variable": {
+            "active": true,
+            "message": "{{{centerConfirmation}}}"
+          },
+          "conditions": [
+            {
+              "type": "text_exact",
+              "value": "Yes, correct",
+              "caseSensitive": false,
+              "targetNodeId": "center_yes"
+            },
+            {
+              "type": "text_exact",
+              "value": "I’ll type it",
+              "caseSensitive": false,
+              "targetNodeId": "center_no"
+            }
+          ]
+        }
+      },
+      {
+        "id": "reset-after-price",
+        "type": "RESET",
+        "position": {
+          "x": 16640,
+          "y": 500
+        },
+        "data": {
+          "moveToNextNode": false
+        }
+      },
+      {
+        "id": "reset-after-team",
+        "type": "RESET",
+        "position": {
+          "x": 16660,
+          "y": 500
+        },
+        "data": {
+          "moveToNextNode": false
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "initialNode",
+        "target": "p1"
+      },
+      {
+        "id": "e3",
+        "source": "p2",
+        "target": "p3"
+      },
+      {
+        "id": "e4",
+        "source": "p3",
+        "target": "p4"
+      },
+      {
+        "id": "e5",
+        "source": "p4",
+        "target": "p5"
+      },
+      {
+        "id": "e6",
+        "source": "p6",
+        "target": "p7"
+      },
+      {
+        "id": "e7",
+        "source": "p8",
+        "target": "p9"
+      },
+      {
+        "id": "e8",
+        "source": "p7",
+        "target": "p8"
+      },
+      {
+        "id": "e9",
+        "source": "p9",
+        "target": "p10"
+      },
+      {
+        "id": "e10",
+        "source": "p10",
+        "target": "p11"
+      },
+      {
+        "id": "e11",
+        "source": "p11",
+        "target": "p12"
+      },
+      {
+        "id": "e12",
+        "source": "p14",
+        "target": "p15"
+      },
+      {
+        "id": "e13",
+        "source": "p15",
+        "target": "p13"
+      },
+      {
+        "id": "e14",
+        "source": "p12",
+        "target": "p13",
+        "sourceHandle": "numyes"
+      },
+      {
+        "id": "e15",
+        "source": "p12",
+        "target": "p14",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "e16",
+        "source": "p13",
+        "target": "p16"
+      },
+      {
+        "id": "e17",
+        "source": "p16",
+        "target": "p17"
+      },
+      {
+        "id": "e20",
+        "source": "p20",
+        "target": "p21"
+      },
+      {
+        "id": "e21",
+        "source": "p21",
+        "target": "p22",
+        "sourceHandle": "watchedyes"
+      },
+      {
+        "id": "e22",
+        "source": "p21",
+        "target": "p22",
+        "sourceHandle": "watchedno"
+      },
+      {
+        "id": "e23",
+        "source": "p17",
+        "target": "p23",
+        "sourceHandle": "demono"
+      },
+      {
+        "id": "e24",
+        "source": "p17",
+        "target": "p18",
+        "sourceHandle": "demoyes"
+      },
+      {
+        "id": "e25",
+        "source": "p22",
+        "target": "p24"
+      },
+      {
+        "id": "e26",
+        "source": "p23",
+        "target": "p24"
+      },
+      {
+        "id": "e27",
+        "source": "p24",
+        "target": "p25"
+      },
+      {
+        "id": "e28",
+        "source": "p25",
+        "target": "p26",
+        "sourceHandle": "priceyes"
+      },
+      {
+        "id": "e29",
+        "source": "p25",
+        "target": "p27",
+        "sourceHandle": "priceno"
+      },
+      {
+        "id": "custom-28",
+        "source": "p1",
+        "target": "phonebook_name_prompt",
+        "sourceHandle": "phonebook_empty"
+      },
+      {
+        "id": "custom-29",
+        "source": "p1",
+        "target": "phonebook_confirm",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "custom-30",
+        "source": "phonebook_name_prompt",
+        "target": "p2"
+      },
+      {
+        "id": "custom-31",
+        "source": "phonebook_confirm",
+        "target": "phonebook_confirm_save"
+      },
+      {
+        "id": "custom-32",
+        "source": "phonebook_confirm_save",
+        "target": "phonebook_confirm_condition"
+      },
+      {
+        "id": "custom-33",
+        "source": "phonebook_confirm_condition",
+        "target": "p3",
+        "sourceHandle": "center_yes"
+      },
+      {
+        "id": "custom-34",
+        "source": "phonebook_confirm_condition",
+        "target": "phonebook_name_prompt",
+        "sourceHandle": "center_no"
+      },
+      {
+        "id": "condition-system-yes",
+        "source": "p5",
+        "target": "p6",
+        "sourceHandle": "sysyes"
+      },
+      {
+        "id": "condition-system-no",
+        "source": "p5",
+        "target": "p8",
+        "sourceHandle": "sysno"
+      },
+      {
+        "id": "condition-system-unsure",
+        "source": "p5",
+        "target": "p8",
+        "sourceHandle": "sysunsure"
+      },
+      {
+        "id": "condition-system-default",
+        "source": "p5",
+        "target": "p8",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "condition-number-same",
+        "source": "p12",
+        "target": "p13",
+        "sourceHandle": "numyes"
+      },
+      {
+        "id": "condition-number-other",
+        "source": "p12",
+        "target": "p14",
+        "sourceHandle": "numother"
+      },
+      {
+        "id": "condition-number-default",
+        "source": "p12",
+        "target": "p14",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "condition-demo-yes",
+        "source": "p17",
+        "target": "p18",
+        "sourceHandle": "demoyes"
+      },
+      {
+        "id": "condition-demo-no",
+        "source": "p17",
+        "target": "p23",
+        "sourceHandle": "demono"
+      },
+      {
+        "id": "condition-demo-default",
+        "source": "p17",
+        "target": "p23",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "condition-watched-yes",
+        "source": "p21",
+        "target": "p22",
+        "sourceHandle": "watchedyes"
+      },
+      {
+        "id": "condition-watched-no",
+        "source": "p21",
+        "target": "p22",
+        "sourceHandle": "watchedno"
+      },
+      {
+        "id": "condition-watched-default",
+        "source": "p21",
+        "target": "p22",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "condition-price-yes",
+        "source": "p25",
+        "target": "p26",
+        "sourceHandle": "priceyes"
+      },
+      {
+        "id": "condition-price-team",
+        "source": "p25",
+        "target": "p27",
+        "sourceHandle": "priceno"
+      },
+      {
+        "id": "condition-price-default",
+        "source": "p25",
+        "target": "p27",
+        "sourceHandle": "default"
+      },
+      {
+        "id": "video-to-response",
+        "source": "p18",
+        "target": "p20"
+      },
+      {
+        "id": "edge-reset-after-price",
+        "source": "p26",
+        "target": "reset-after-price"
+      },
+      {
+        "id": "edge-reset-after-team",
+        "source": "p27",
+        "target": "reset-after-team"
+      },
+      {
+        "id": "phonebook-confirm-default",
+        "source": "phonebook_confirm_condition",
+        "target": "phonebook_name_prompt",
+        "sourceHandle": "default"
+      }
+    ]
+  }
+}

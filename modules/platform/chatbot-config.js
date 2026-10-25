@@ -103,7 +103,7 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   if (!source || typeof source !== 'object' || Array.isArray(source) || Buffer.byteLength(JSON.stringify(source)) > 128000) throw Object.assign(new Error('INVALID_BOT_CONFIG'), { code: 'INVALID_BOT_CONFIG' });
   const config = { domainPack: categoryKey, language: ['en', 'ar', 'en_ar'].includes(source.language) ? source.language : 'en_ar' };
   if (source.salesWorkflow !== undefined) {
-    if (source.salesWorkflow !== 'training_center_prospects' || categoryKey !== '7network_sales' || input.engine !== 'guided' || source.guidedMode !== 'domain_default' || source.flowId) {
+    if (source.salesWorkflow !== 'training_center_prospects' || categoryKey !== '7network_sales' || input.engine !== 'guided' || (source.guidedMode !== 'domain_default' && source.guidedMode !== 'automation_flow')) {
       throw Object.assign(new Error('INVALID_SALES_WORKFLOW'), { code: 'INVALID_SALES_WORKFLOW' });
     }
     config.salesWorkflow = source.salesWorkflow;
