@@ -1,0 +1,15 @@
+ARG BASE_IMAGE=salemax-app:daily-owner-reports-sales-bda13c4-20261025
+FROM ${BASE_IMAGE}
+
+ARG SOURCE_COMMIT=unknown
+LABEL org.7network.source-commit=${SOURCE_COMMIT}
+
+COPY routes/admin.js /app/routes/admin.js
+COPY modules/platform/admin-tenant-domains.js /app/modules/platform/admin-tenant-domains.js
+COPY modules/platform/tenant-crm-domains.js /app/modules/platform/tenant-crm-domains.js
+COPY modules/platform/tenant-crm-router.js /app/modules/platform/tenant-crm-router.js
+COPY scripts/tenant-crm-domain-ops.cjs /app/scripts/tenant-crm-domain-ops.cjs
+COPY database/migrations/20270102_tenant_crm_domain_aliases.sql /app/database/migrations/20270102_tenant_crm_domain_aliases.sql
+COPY client/public/admin-tenant-domains.js /app/client/public/admin-tenant-domains.js
+COPY client/public/tenant-crm-appearance.js /app/client/public/tenant-crm-appearance.js
+COPY client/public/index.html /app/client/public/index.html
