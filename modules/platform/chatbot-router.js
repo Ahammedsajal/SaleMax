@@ -359,12 +359,12 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     const { channelKind, channelRef } = req.query;
     const data = await withDb(async db => {
       await requireConversation(db, ctx, req, req.params.conversationId, channelKind, channelRef);
-      const [[row]] = await db.query(`SELECT c.mode,c.pause_until AS pauseUntil,c.reason,c.revision,c.updated_at AS updatedAt,c.updated_by_kind AS updatedByKind,i.display_name AS updatedBy,
+      const [[row]] = await db.query(`SELECT c.mode,c.pause_until AS pauseUntil,c.auto_pause_at AS autoPauseAt,c.reason,c.revision,c.updated_at AS updatedAt,c.updated_by_kind AS updatedByKind,i.display_name AS updatedBy,
           (c.mode='paused' AND (c.pause_until IS NULL OR c.pause_until>UTC_TIMESTAMP(3))) AS isActive
         FROM sx_chatbot_conversation_controls c LEFT JOIN sx_identities i ON i.id=c.updated_by_identity_id
         WHERE c.tenant_id=? AND c.channel_kind=? AND c.channel_ref=? AND c.conversation_id=?`, [ctx.tenant.id, channelKind, channelRef, req.params.conversationId]);
       const active = Boolean(row?.isActive);
-      return row ? { mode: active ? 'paused' : 'inherit', pauseUntil: active ? row.pauseUntil : null, reason: active ? row.reason : null, revision: Number(row.revision), updatedAt: row.updatedAt, updatedBy: row.updatedByKind === 'system' ? 'System' : row.updatedBy, channelKind, channelRef } : { mode: 'inherit', pauseUntil: null, reason: null, revision: 0, updatedBy: null, channelKind, channelRef };
+      return row ? { mode: active ? 'paused' : 'inherit', pauseUntil: active ? row.pauseUntil : null, autoPauseAt: active ? null : row.autoPauseAt, reason: active ? row.reason : null, revision: Number(row.revision), updatedAt: row.updatedAt, updatedBy: row.updatedByKind === 'system' ? 'System' : row.updatedBy, channelKind, channelRef } : { mode: 'inherit', pauseUntil: null, autoPauseAt: null, reason: null, revision: 0, updatedBy: null, channelKind, channelRef };
     });
     res.json({ success: true, data });
   }));
@@ -386,8 +386,8 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         const currentRevision = row ? Number(row.revision) : 0;
         if (currentRevision !== expectedRevision) fail('STALE_REVISION');
         const nextRevision = currentRevision + 1;
-        if (row) await db.query(`UPDATE sx_chatbot_conversation_controls SET mode=?,pause_until=?,reason=?,revision=?,updated_by_kind='identity',updated_by_identity_id=? WHERE tenant_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`, [mode, mode === 'paused' ? pauseUntil : null, mode === 'paused' ? reason : null, nextRevision, ctx.identity.id, ctx.tenant.id, channelKind, channelRef, req.params.conversationId]);
-        else await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,reason,revision,updated_by_kind,updated_by_identity_id) VALUES (?,?,?,?,?,?,?,?,?,'identity',?)`, [uuid(), ctx.tenant.id, channelKind, channelRef, req.params.conversationId, mode, mode === 'paused' ? pauseUntil : null, mode === 'paused' ? reason : null, nextRevision, ctx.identity.id]);
+        if (row) await db.query(`UPDATE sx_chatbot_conversation_controls SET mode=?,pause_until=?,auto_pause_at=NULL,reason=?,revision=?,updated_by_kind='identity',updated_by_identity_id=? WHERE tenant_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`, [mode, mode === 'paused' ? pauseUntil : null, mode === 'paused' ? reason : null, nextRevision, ctx.identity.id, ctx.tenant.id, channelKind, channelRef, req.params.conversationId]);
+        else await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,auto_pause_at,reason,revision,updated_by_kind,updated_by_identity_id) VALUES (?,?,?,?,?,?,?,NULL,?,?, 'identity',?)`, [uuid(), ctx.tenant.id, channelKind, channelRef, req.params.conversationId, mode, mode === 'paused' ? pauseUntil : null, mode === 'paused' ? reason : null, nextRevision, ctx.identity.id]);
         await audit(db, ctx, 'chatbot.conversation-control-changed', req.params.conversationId, { channelKind, channelRef, from: row?.mode || 'inherit', to: mode, pauseUntil, revision: nextRevision });
         await db.commit(); return { mode, pauseUntil: mode === 'paused' ? pauseUntil : null, reason: mode === 'paused' ? reason : null, revision: nextRevision, channelKind, channelRef };
       } catch (error) { await db.rollback(); throw error; }

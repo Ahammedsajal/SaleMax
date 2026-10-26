@@ -80,9 +80,9 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
   const db = await dbPool.getConnection();
   try {
     await db.beginTransaction();
-    await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,reason,revision,updated_by_kind,updated_by_identity_id)
-      VALUES (?,?,?,?,?,'paused',NULL,?,1,'system',NULL)
-      ON DUPLICATE KEY UPDATE mode='paused',pause_until=NULL,reason=VALUES(reason),revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL`,
+    await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,auto_pause_at,reason,revision,updated_by_kind,updated_by_identity_id)
+      VALUES (?,?,?,?,?,'paused',NULL,NULL,?,1,'system',NULL)
+      ON DUPLICATE KEY UPDATE mode='paused',pause_until=NULL,auto_pause_at=NULL,reason=VALUES(reason),revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL`,
     [crypto.randomUUID(), ctx.tenant.id, channelKind, channelRef, chatId, String(reason || 'human-review').slice(0, 240)]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,NULL,'system','chatbot.conversation-auto-handoff','chatbot-conversation',?,?,?)`,
@@ -207,6 +207,11 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       }catch(error){cvError=error.code||'CV_SAVE_FAILED';}
     }
   }
+  // An attachment or location is not a reply to a guided text prompt. Passing
+  // an empty string to guidedReply made it repeat the same question for every
+  // such inbound event. The caller treats false as a handoff and pauses this
+  // conversation; CV submissions and their validation errors remain supported.
+  if (!textOf(message) && !cvSubmission && !cvError) return false;
   const db = await dbPool.getConnection();
   let reply = null;
   let deferLeadQuestion = false;
@@ -548,6 +553,10 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     const blocked=await require('./chatbot-runtime-access').blocksFallback(dbPool,access,channelFor(origin),sessionId);
     return blocked?{handled:true,paused:true,code:access.code||'BUSINESS_ACCESS_INACTIVE'}:{handled:false};
   }
+  const channelKind = channelFor(origin);
+  if (await require('./chatbot-no-reply-timeout').inbound(dbPool, { tenantId: ctx.tenant.id, channelKind, channelRef: sessionId, conversationId: chatId, inboundMessageId: typeof message?.metaChatId === 'string' ? message.metaChatId : null })) {
+    return { handled: true, paused: true, code: 'NO_REPLY_TIMEOUT' };
+  }
   const profile = await profileFor(ctx, uid, origin, sessionId);
   if (!profile) return { handled: false };
   // A restricted chat is handled silently so it cannot fall through to legacy bots.
@@ -582,7 +591,6 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     });
     if (routed) sendToUid(uid, { chatId }, 'request_update_chat_list');
   }
-  const channelKind = channelFor(origin);
   const testReset = require('./chatbot-test-reset').isTestReset(profile.config, message?.senderMobile, textOf(message));
   const completionModule=require('./recruitment-chat-completion');
   const completion=!testReset&&ctx.category.key==='7network_sales'
@@ -608,10 +616,14 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     let result;
     if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
-    else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:'GUIDED_FLOW_UNAVAILABLE'}; }
+    else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:!textOf(message)?'UNSUPPORTED_MESSAGE_TYPE':'GUIDED_FLOW_UNAVAILABLE'}; }
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
     if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, reason: result.reason || null, ...result.metrics }), crypto.randomUUID()]);
-    if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
+    if (result?.sent || result?.flowDispatched) {
+      await require('./chatbot-no-reply-timeout').arm(dbPool, { tenantId: ctx.tenant.id, channelKind, channelRef: sessionId, conversationId: chatId })
+        .catch(error => console.warn('[chatbot] could not schedule no-reply pause', error.code || 'NO_REPLY_TIMEOUT_SCHEDULE_FAILED'));
+      await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
+    }
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {
       await handoffConversation(ctx, chatId, channelKind, sessionId, result?.code || 'human-review', profile, uid);

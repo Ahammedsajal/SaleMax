@@ -1,0 +1,11 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node client/public/chatbot-admin.js /app/client/public/chatbot-admin.js
+COPY --chown=node:node modules/platform/chatbot-router.js /app/modules/platform/chatbot-router.js
+COPY --chown=node:node modules/platform/chatbot-runtime.js /app/modules/platform/chatbot-runtime.js
+COPY --chown=node:node modules/platform/chatbot-no-reply-timeout.js /app/modules/platform/chatbot-no-reply-timeout.js
+COPY --chown=node:node database/migrations/20270104_chatbot_no_reply_pause.sql /app/database/migrations/20270104_chatbot_no_reply_pause.sql
+COPY --chown=node:node server.js /app/server.js
