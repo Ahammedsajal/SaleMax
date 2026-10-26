@@ -330,6 +330,12 @@
       #sx-active-chatbot-control [data-sx-chatbot-state]{min-width:0;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#667085;font-size:11px}
       #sx-active-chatbot-control [data-sx-chatbot-toggle]{flex:0 0 auto;border:1px solid #a7c8f3;background:#eff6ff;color:#1768d4;border-radius:7px;padding:5px 8px;font:600 11px Roboto,Arial,sans-serif;cursor:pointer;white-space:nowrap}
       #sx-active-chatbot-control [data-sx-chatbot-toggle]:disabled{opacity:.6;cursor:wait}
+      #sx-active-chatbot-control.sx-in-chat-info{display:block;width:100%;max-width:none;margin:12px 0;padding:10px;border:1px solid #e4e7ec;border-radius:9px;background:#fff;box-sizing:border-box}
+      #sx-active-chatbot-control.sx-in-chat-info [data-sx-chatbot-mobile-toggle]{display:none!important}
+      #sx-active-chatbot-control.sx-in-chat-info:not(.sx-mobile-open) [data-sx-chatbot-control-body]{position:static;display:flex!important;flex-direction:column;align-items:stretch;width:100%;max-width:none;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;box-sizing:border-box}
+      #sx-active-chatbot-control.sx-in-chat-info [data-sx-chatbot-control-body] label{justify-content:space-between;white-space:normal}
+      #sx-active-chatbot-control.sx-in-chat-info [data-sx-chatbot-control-body] select,#sx-active-chatbot-control.sx-in-chat-info [data-sx-chatbot-control-body] input[type="datetime-local"]{width:100%;max-width:none;box-sizing:border-box}
+      #sx-active-chatbot-control.sx-in-chat-info [data-sx-chatbot-state]{max-width:none;white-space:normal;overflow-wrap:anywhere}
       @media(max-width:767px){
         #sx-active-chatbot-control{position:relative;z-index:1300;max-width:none;min-width:0;margin:0;padding:0;border:0;background:transparent}
         #sx-active-chatbot-control.sx-mobile-open{display:flex;flex-direction:column;align-items:stretch;width:auto;margin:8px 12px;padding:10px;border:1px solid #a7c8f3;border-radius:12px;background:#fff;box-shadow:0 3px 14px #10182818}
@@ -874,6 +880,15 @@
     }
     return null;
   }
+  function chatInfoPanel() {
+    const candidates = [...document.querySelectorAll('aside,[role="complementary"],section,div')]
+      .filter(visible)
+      .filter(el => {
+        const text = (el.innerText || '').replace(/\s+/g, ' ').trim().toLowerCase();
+        return text.length < 6000 && /\bchat info\b|معلومات المحادثة/.test(text) && /\bcontact info\b|معلومات الاتصال/.test(text);
+      });
+    return candidates.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length)[0] || null;
+  }
   function renderActiveChatControl(conversation) {
     let control = document.getElementById('sx-active-chatbot-control');
     if (!conversation?.id || inboxBotControlsDenied) { control?.remove(); return; }
@@ -898,22 +913,13 @@
       control.classList.remove('sx-mobile-open');
       control.querySelector('[data-sx-chatbot-mobile-toggle]')?.setAttribute('aria-expanded', 'false');
     }
-    const infoButton = [...document.querySelectorAll('button[aria-label],button[title]')].find(button => /show info|معلومات/i.test(`${button.getAttribute('aria-label') || ''} ${button.title || ''}`));
-    const actions = infoButton?.parentElement;
-    const header = actions?.parentElement;
-    if (!header || !actions) { control.style.display = 'none'; return; }
+    const infoPanel = chatInfoPanel();
+    if (!infoPanel) { control.style.display = 'none'; return; }
     control.style.display = '';
-    const narrow = window.matchMedia('(max-width: 767px)').matches;
-    if (narrow) {
-      control.classList.add('sx-mobile-layout');
-      if (control.classList.contains('sx-mobile-open') && header.parentElement) {
-        if (control.parentElement !== header.parentElement || control.previousElementSibling !== header) header.parentElement.insertBefore(control, header.nextElementSibling);
-      } else if (control.parentElement !== actions) actions.insertBefore(control, infoButton);
-    } else {
-      control.classList.remove('sx-mobile-layout', 'sx-mobile-open');
-      control.querySelector('[data-sx-chatbot-mobile-toggle]')?.setAttribute('aria-expanded', 'false');
-      if (control.parentElement !== header || control.nextElementSibling !== actions) header.insertBefore(control, actions);
-    }
+    control.classList.add('sx-in-chat-info');
+    control.classList.remove('sx-mobile-layout', 'sx-mobile-open');
+    control.querySelector('[data-sx-chatbot-mobile-toggle]')?.setAttribute('aria-expanded', 'false');
+    if (control.parentElement !== infoPanel) infoPanel.append(control);
     const body = control.querySelector('[data-sx-chatbot-control-body]');
     const scopeKey = scope ? `${scope.channelKind}|${scope.channelRef}` : '';
     if (control.dataset.conversationId === id && control.dataset.channelScope === scopeKey && control.dataset.loading !== 'true') return;

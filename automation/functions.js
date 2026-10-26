@@ -11,6 +11,7 @@ const fetch = require("node-fetch");
 const { google } = require("googleapis");
 const { aiTransferHandler } = require("./useAITransferHandler");
 const { shouldPause } = require("../modules/platform/chatbot-conversation-control");
+const { channelFor } = require("../modules/platform/chatbot-channels");
 const FormData = require("form-data");
 const {} = require("../helper/addon/telegram/processTelegramInbox");
 
@@ -660,7 +661,7 @@ async function sendWaMessage({
   content = null,
 }) {
   try {
-    if (chatId && await shouldPause(uid, chatId)) return null;
+    if (chatId && await shouldPause(uid, chatId, channelFor(origin), sessionId)) return null;
     let sendMsgId = null;
     const messageContent = content || node?.data?.content;
     const messageType = messageContent?.type;
@@ -1985,7 +1986,7 @@ async function processSendWaTemplate({
   incomingText: incomingTextOld,
 }) {
   try {
-    if (chatId && await shouldPause(user?.uid, chatId)) return {};
+    if (chatId && await shouldPause(user?.uid, chatId, channelFor(origin), sessionId)) return {};
     const { uid } = user;
     const { template, variableMap = {} } = node.data;
 

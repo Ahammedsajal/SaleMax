@@ -1,6 +1,7 @@
 const flowProcessor = require("./functions");
 const { query } = require("../database/dbpromise");
 const { shouldPause } = require("../modules/platform/chatbot-conversation-control");
+const { channelFor } = require("../modules/platform/chatbot-channels");
 const { createLegacyFlowNodeGuard } = require("../modules/platform/legacy-flow-authority");
 const platformDbPool = require("../database/config").promise();
 const optionalFeatures = require("../modules/platform/optional-features");
@@ -29,7 +30,7 @@ async function processFlow({
   webhookVariables = {},
   loopDetection = { visitedNodes: new Map(), startTime: Date.now() }, // Add loop detection
 }) {
-  if (chatId && await shouldPause(uid, chatId)) return;
+  if (chatId && await shouldPause(uid, chatId, channelFor(origin), sessionId)) return;
   // ===== LOOP PROTECTION START =====
   const MAX_ITERATIONS = 50; // Maximum total iterations
   const MAX_NODE_VISITS = 3; // Maximum visits to same node

@@ -1,0 +1,3 @@
+FROM salemax-app:inbox-origin-guard-8d73295-20261026
+COPY apply-inbox-chat-bot-pause.cjs /tmp/apply-inbox-chat-bot-pause.cjs
+RUN node /tmp/apply-inbox-chat-bot-pause.cjs /app && rm /tmp/apply-inbox-chat-bot-pause.cjs
