@@ -26,7 +26,7 @@
   if (!window.__sxRecruitmentLoader) {
     window.__sxRecruitmentLoader = true;
     const recruitmentScript = document.createElement('script');
-    recruitmentScript.src = '/recruitment.js?v=20261020-apply-save-cv-2';
+    recruitmentScript.src = '/recruitment.js?v=20261026-application-navigation1';
     recruitmentScript.defer = true;
     document.head.append(recruitmentScript);
   }
@@ -516,7 +516,7 @@
     const walker=document.createTreeWalker(row,NodeFilter.SHOW_TEXT);let node;
     while((node=walker.nextNode())){
       if(!node.nodeValue.trim()||node.parentElement?.closest('[aria-hidden="true"],.MuiListItemIcon-root,svg,script,style,.sx-sidebar-fallback-label'))continue;
-      let hidden=false;for(let parent=node.parentElement;parent&&row.contains(parent);parent=parent.parentElement){const style=getComputedStyle(parent);if(style.display==='none'||style.visibility==='hidden'){hidden=true;break;}}
+      let hidden=false;for(let parent=node.parentElement;parent&&row.contains(parent);parent=parent.parentElement){const style=getComputedStyle(parent);if(style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0||parent.getBoundingClientRect().width===0){hidden=true;break;}}
       if(hidden)continue;const range=document.createRange();range.selectNodeContents(node);const rects=range.getClientRects();if([...rects].some(rect=>rect.width>0&&rect.height>0))return true;
     }
     return false;
@@ -855,3 +855,4 @@
   window.addEventListener('popstate', scheduleInboxRecovery);
   window.addEventListener('hashchange', scheduleInboxRecovery);
 })();
+
