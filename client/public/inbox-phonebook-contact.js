@@ -16,7 +16,7 @@
   const mobileDigits = value => String(value || '').replace(/\D/g, '');
   const identityKey = value => { let hash = 2166136261; for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619); return `${value.length}:${hash >>> 0}`; };
   const el = (tag, cls, text) => { const node = document.createElement(tag); if (cls) node.className = cls; if (text != null) node.textContent = text; return node; };
-  let root = null, currentKey = '', sequence = 0, lastLookupAt = 0, expanded = false;
+  let root = null, currentKey = '', sequence = 0, lastLookupAt = 0, expanded = false, lastArabic = null;
 
   function contactBlock() {
     const heading = [...document.querySelectorAll('span,h2,h3,h4,div')].find(node => node.children.length === 0 && ['Contact Info', 'معلومات الاتصال', 'معلومات جهة الاتصال'].includes((node.textContent || '').trim()));
@@ -136,6 +136,9 @@
     }
     addStyles();
     ensureRoot(block);
+    const arabic = isArabic();
+    if (lastArabic !== null && arabic !== lastArabic) lastLookupAt = 0;
+    lastArabic = arabic;
     const current = chat(), mobile = currentMobile(), digits = mobileDigits(mobile);
     const actor = location.pathname.replace(/\/$/, '') === '/agent' ? 'agent' : 'user';
     const identity = identityKey(localStorage.getItem(actor === 'agent' ? 'wacrm_agent' : 'wacrm_user') || 'cookie');
