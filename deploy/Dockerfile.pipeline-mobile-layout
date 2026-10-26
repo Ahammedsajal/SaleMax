@@ -1,0 +1,8 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node client/public/pipeline/mobile-layout.css /app/client/public/pipeline/mobile-layout.css
+COPY --chown=node:node deploy/patch-pipeline-mobile-layout.cjs /tmp/patch-pipeline-mobile-layout.cjs
+RUN node /tmp/patch-pipeline-mobile-layout.cjs /app && rm /tmp/patch-pipeline-mobile-layout.cjs
