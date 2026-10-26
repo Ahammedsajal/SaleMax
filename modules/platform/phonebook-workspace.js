@@ -78,7 +78,8 @@ async function contactsByMobile(db,ctx,input={}){
  const candidates=mobileCandidates(input.mobile),v=visibility(ctx);
  const [rows]=await db.query(`SELECT c.id,c.phonebook_id AS phonebookId,COALESCE(NULLIF(c.phonebook_name,''),p.name,'') AS phonebookName,c.name,c.mobile,c.var1,c.var2,c.var3,c.var4,c.var5,c.var6,c.createdAt
  FROM contact c LEFT JOIN phonebook p ON p.uid=c.uid AND p.id=c.phonebook_id
- WHERE ${v.sql} AND REGEXP_REPLACE(COALESCE(c.mobile,''),'[^0-9]','') IN (?)
+ WHERE ${v.sql} AND LOWER(TRIM(COALESCE(NULLIF(c.phonebook_name,''),p.name,'')))<>'whatsapp leads'
+ AND REGEXP_REPLACE(COALESCE(c.mobile,''),'[^0-9]','') IN (?)
  ORDER BY phonebookName,c.name,c.id LIMIT 101`,[...v.params,candidates]);
  const config=await settings(db,ctx);
  const contacts=rows.slice(0,100).map(row=>({id:row.id,phonebookName:row.phonebookName||'',name:row.name||'',mobile:row.mobile||'',createdAt:row.createdAt||null,fields:[1,2,3,4,5,6].map(index=>({label:index<=5?(config.labels?.[index-1]||`Variable ${index}`):'Variable 6',value:row[`var${index}`]??''})).filter(field=>String(field.value).trim())}));
