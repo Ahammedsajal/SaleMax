@@ -29,7 +29,7 @@ test('invoice register and detail are connected to the existing finance workspac
   assert.match(read('docs/USER_MANUAL.md'),/Issued invoices/);
 });
 test('invoice builder is a polished accessible modal and never uses stale contact matches',()=>{
-  const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'..','client/public/training-finance.js'),'utf8'),css=fs.readFileSync(path.join(__dirname,'..','client/public/salemax-brand.css'),'utf8');
+  const fs=require('node:fs'),path=require('node:path'),ui=fs.readFileSync(path.join(__dirname,'..','client/public/training-finance.js'),'utf8'),css=fs.readFileSync(path.join(__dirname,'..','client/public/7network-shell-brand.css'),'utf8');
   assert.match(ui,/role="dialog" aria-modal="true" aria-labelledby="sx-invoice-create-title" tabindex="-1"/);
   assert.match(ui,/id="sx-invoice-create-title"/);assert.match(ui,/event.key==='Escape'/);assert.match(ui,/returnFocus.focus()/);assert.match(ui,/dialog.focus()/);
   assert.match(ui,/<div class="sx-invoice-submit-bar"><div class="error" data-invoice-error/);
@@ -42,7 +42,7 @@ test('invoice builder is a polished accessible modal and never uses stale contac
   assert.match(ui,/\.filter\(item=>!item\.hidden&&!item\.closest\('\[hidden\]'\)&&!item\.closest\('details:not\(\[open\]\)'\)\)/);
 });
 test('invoice payment-plan rows keep names readable on phone widths',()=>{
-  const fs=require('node:fs'),path=require('node:path'),css=fs.readFileSync(path.join(__dirname,'..','client/public/salemax-brand.css'),'utf8'),index=fs.readFileSync(path.join(__dirname,'..','client/public/index.html'),'utf8');
+  const fs=require('node:fs'),path=require('node:path'),css=fs.readFileSync(path.join(__dirname,'..','client/public/7network-shell-brand.css'),'utf8'),index=fs.readFileSync(path.join(__dirname,'..','client/public/index.html'),'utf8');
   assert.match(css,/@media\(max-width:760px\)\{#sx-finance-screen #sx-generator-plans \.sx-invoice-plan\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\);gap:10px\}#sx-finance-screen #sx-generator-plans \.sx-invoice-plan>label:first-child\{grid-column:1\/-1\}/);
   assert.match(css,/#sx-finance-screen #sx-generator-plans \.sx-invoice-plan \[data-remove-plan\]\{grid-column:1\/-1;justify-self:end;min-width:96px;min-height:40px\}/);
   assert.match(css,/#sx-finance-screen #sx-generator-settings>#sx-generator-add-plan,#sx-finance-screen #sx-generator-settings>button\.primary\{grid-column:1\/-1;justify-self:stretch;width:100%;min-height:44px\}/);

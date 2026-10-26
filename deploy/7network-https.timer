@@ -1,11 +1,11 @@
 [Unit]
-Description=Check Salemax DNS and activate HTTPS
+Description=Check 7Network DNS and activate HTTPS
 
 [Timer]
 OnBootSec=2min
 OnUnitInactiveSec=5min
 Persistent=true
-Unit=salemax-https.service
+Unit=7network-https.service
 
 [Install]
 WantedBy=timers.target

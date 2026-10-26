@@ -1,6 +1,6 @@
 # 7Network existing application upgrade
 
-Read docs/SALEMAX_TRAINING_CENTER_IMPLEMENTATION_PLAN.md and docs/IMPLEMENTATION_STATUS.md before continuing implementation. The full 42-ticket upgrade and production/Git deliverables remain the objective.
+Read docs/7NETWORK_TRAINING_CENTER_IMPLEMENTATION_PLAN.md and docs/IMPLEMENTATION_STATUS.md before continuing implementation. The full 42-ticket upgrade and production/Git deliverables remain the objective.
 
 ## Required integration scope
 

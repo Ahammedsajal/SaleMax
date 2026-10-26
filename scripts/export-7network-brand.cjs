@@ -87,9 +87,7 @@ async function main() {
   // Preserve the legacy file route used by the compiled application shell.
   const compatibilityLogo = await sharp(logoBuffer).resize({ width: 1440 }).png().toBuffer();
   await fs.writeFile(path.join(media, '7network-logo.png'), compatibilityLogo);
-  await fs.writeFile(path.join(media, 'salemax-logo.png'), compatibilityLogo);
   await fs.copyFile(path.join(brand, 'icon-192.png'), path.join(media, '7network-icon.png'));
-  await fs.copyFile(path.join(brand, 'icon-192.png'), path.join(media, 'salemax-icon.png'));
 
   const manifest = {
     name: '7Network — CRM, WhatsApp & Business Automation', short_name: '7Network',

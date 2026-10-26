@@ -63,7 +63,7 @@ async function main() {
     const candidateEmail=process.env.SALEMAX_TEST_CANDIDATE_EMAIL||'provisioning-candidate@example.invalid';
     const candidatePassword=process.env.SALEMAX_TEST_CANDIDATE_PASSWORD||crypto.randomBytes(18).toString('base64url');
     const [unlinkedUser]=await db.query("INSERT INTO user(role,uid,name,email,timezone,plan,plan_expire,password) VALUES ('user',?,?,?,?,?,?,?)",['synthetic-unlinked-'+crypto.randomUUID(),'Mohamed (synthetic local test)',candidateEmail,'Asia/Qatar',snapshot,expires,await bcrypt.hash(candidatePassword,12)]);
-    await db.query("INSERT INTO web_public(app_name,logo,currency_code,currency_symbol,rtl,login_header_footer,google_login_active,fb_login_active,is_custom_home) VALUES ('SaleMaX · Synthetic test','salemax-logo.png','QAR','QAR',0,0,0,0,0)");
+    await db.query("INSERT INTO web_public(app_name,logo,currency_code,currency_symbol,rtl,login_header_footer,google_login_active,fb_login_active,is_custom_home) VALUES ('7Network · Synthetic test','7network-logo.png','QAR','QAR',0,0,0,0,0)");
     await db.query('INSERT INTO web_private(id) VALUES (1)');
     fs.mkdirSync(runtime,{recursive:true});
     fs.writeFileSync(path.join(runtime,'access.json'),JSON.stringify({syntheticData:true,url:`http://127.0.0.1:${labPort}/admin/login`,email:'panel@example.invalid',password,businessEmail:'business@example.invalid',businessPassword:password,accountantEmail,accountantPassword,tenantSlug,database:name,provisioningUserId:unlinkedUser.insertId,provisioningUserEmail:candidateEmail,provisioningUserPassword:candidatePassword},null,2));

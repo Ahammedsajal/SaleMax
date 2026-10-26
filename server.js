@@ -183,6 +183,19 @@ const createMediaMiddleware = (folderPath) => {
   });
 };
 
+// Keep old static URLs working for cached app shells and saved tenant logo paths.
+// The canonical files use the 7Network brand; aliases do not require legacy files.
+const legacyPlatformAssetAliases = new Map([
+  ["/salemax-mobile.css", "7network-mobile.css"],
+  ["/salemax-brand.css", "7network-shell-brand.css"],
+  ["/salemax-homepage-copy.js", "7network-homepage-copy.js"],
+  ["/media/salemax-logo.png", "media/7network-logo.png"],
+  ["/media/salemax-icon.png", "media/7network-icon.png"],
+]);
+app.get([...legacyPlatformAssetAliases.keys()], (req, res) => {
+  res.sendFile(path.resolve(publicDir, legacyPlatformAssetAliases.get(req.path)));
+});
+
 app.use("/media", createMediaMiddleware("./client/public/media"));
 app.use("/meta-media", createMediaMiddleware("./client/public/meta-media"));
 

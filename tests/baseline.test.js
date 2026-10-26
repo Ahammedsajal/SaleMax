@@ -13,7 +13,7 @@ test('preserved frontend references existing build assets and branding', () => {
     assert.ok(fs.existsSync(path.join(publicRoot, match[1].split(/[?#]/)[0])), 'Missing shell asset');
   }
   assert.ok(html.includes('7Network'));
-  assert.ok(fs.existsSync(path.join(publicRoot, 'media/salemax-logo.png')));
+  assert.ok(fs.existsSync(path.join(publicRoot, 'media/7network-logo.png')));
 });
 test('dependency lock matches declared runtime dependencies', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));

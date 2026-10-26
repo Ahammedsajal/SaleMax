@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-exec 9>/run/salemax-https.lock
+exec 9>/run/7network-https.lock
 flock -n 9 || exit 0
 if ! python3 - <<'PY'
 import socket, sys
@@ -26,5 +26,6 @@ if ! nginx -t; then
     exit 1
 fi
 systemctl reload nginx
-systemctl disable --now salemax-https.timer
+systemctl disable --now 7network-https.timer 2>/dev/null || true
+systemctl disable --now salemax-https.timer 2>/dev/null || true
 echo 'Trusted HTTPS activated for crm.salemax.qa.'

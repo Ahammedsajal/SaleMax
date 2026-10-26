@@ -1,5 +1,5 @@
 [Unit]
-Description=Activate Salemax HTTPS after DNS is configured
+Description=Activate 7Network HTTPS after DNS is configured
 After=network-online.target nginx.service
 Wants=network-online.target
 

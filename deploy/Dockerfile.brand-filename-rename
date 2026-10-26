@@ -1,0 +1,7 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY runtime/7network-mobile.css /app/client/public/7network-mobile.css
+COPY deploy/patch-7network-filenames.cjs /tmp/patch-7network-filenames.cjs
+RUN node /tmp/patch-7network-filenames.cjs /app && rm -f /tmp/patch-7network-filenames.cjs

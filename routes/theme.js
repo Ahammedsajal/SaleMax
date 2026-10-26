@@ -47,7 +47,9 @@ const writeActiveThemeId = (id) => {
   fs.writeFileSync(ACTIVE_FILE, JSON.stringify({ activeThemeId: id }, null, 2));
 };
 
-const themeFilePath = (id) => path.join(THEMES_DIR, `${id}.json`);
+// Preserve the historical theme ID while storing its file under the current brand.
+const THEME_FILE_ALIASES = new Map([["theme-salemax", "theme-7network"]]);
+const themeFilePath = (id) => path.join(THEMES_DIR, `${THEME_FILE_ALIASES.get(id) || id}.json`);
 
 const readThemeById = (id) => {
   const fp = themeFilePath(id);

@@ -35,7 +35,7 @@ test('legacy finance-policy APIs remain separate from the simplified Finance scr
   assert.match(read('docs/API_DOCUMENTATION.md'),/Training Center finance policy for sale conversion/);assert.match(read('docs/USER_MANUAL.md'),/Center details on invoices/);
 });
 test('mobile Finance aging search gets its own full-width row',()=>{
-  const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8'),css=read('client/public/salemax-brand.css'),html=read('client/public/index.html');
+  const fs=require('node:fs'),path=require('node:path'),read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8'),css=read('client/public/7network-shell-brand.css'),html=read('client/public/index.html');
   assert.match(css,/#sx-finance-screen #sx-aging-filter label:has\(input\[name="q"\]\)\{flex:1 0 100%;min-width:0\}/);
   assert.match(css,/#sx-finance-screen #sx-aging-filter label:has\(input\[name="q"\]\) input\{width:100%\}/);
   assert.match(html,/salemax-brand\.css\?v=20261012-finance-report-search1/);

@@ -16,7 +16,7 @@ test('tenant offsets are bounded, unique, normalized and default scheduling is d
 
 test('Finance reminder offsets use a guided multi-date picker without comma entry',()=>{
   const ui=fs.readFileSync(path.join(__dirname,'..','client/public/training-finance.js'),'utf8');
-  const css=fs.readFileSync(path.join(__dirname,'..','client/public/salemax-brand.css'),'utf8');
+  const css=fs.readFileSync(path.join(__dirname,'..','client/public/7network-shell-brand.css'),'utf8');
   assert.match(ui,/sx-reminder-offset-picker/);assert.match(ui,/Array\.from\(\{length:121\},\(_,index\)=>index-30\)/);
   assert.match(ui,/selectedOffsets\.size>8/);assert.match(ui,/data-remove-offset/);assert.doesNotMatch(ui,/Use comma-separated day offsets/);
   assert.match(css,/sx-reminder-offset-chip/);assert.match(css,/sx-reminder-offset-picker\{grid-column:1\/-1/);
