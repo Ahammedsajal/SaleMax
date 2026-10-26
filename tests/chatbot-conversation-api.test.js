@@ -18,7 +18,7 @@ test('chat controls resolve owned scope without assignment, reject wrong numbers
   throw Error('unexpected query '+sql);
  }};
  const app=express();
- app.use('/api/workspace/chatbots',createChatbotRouter({pool:{getConnection:async()=>db},origin:'http://localhost',userGuard:(req,res,next)=>{req.decode={uid:'synthetic-owner'};req.featureSession={context:ctx()};next();},canonicalGuard:(req,res,next)=>{req.businessContext=ctx();next();}}));
+ app.use('/api/workspace/chatbots',createChatbotRouter({pool:{getConnection:async()=>db},origin:'https://synthetic.example.test',userGuard:(req,res,next)=>{req.decode={uid:'synthetic-owner'};req.featureSession={context:ctx()};next();},canonicalGuard:(req,res,next)=>{req.businessContext=ctx();next();}}));
  app.use((error,req,res,next)=>res.status(400).json({success:false,code:error.code||error.message}));
  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
  const base=`http://127.0.0.1:${server.address().port}/api/workspace/chatbots`;
@@ -28,8 +28,8 @@ test('chat controls resolve owned scope without assignment, reject wrong numbers
   assert.equal((await get('/conversations/foreign/bot-scope')).code,'CONVERSATION_NOT_FOUND');
   assert.equal((await get('/conversations/owned/bot-control?channelKind=whatsapp_qr&channelRef=number-2')).code,'INVALID_CONVERSATION_CHANNEL');
   assert.equal((await get('/conversations/owned/bot-control?channelKind=whatsapp_qr&channelRef=number-1')).data.mode,'inherit');
-  const res=await fetch(base+'/conversations/owned/bot-control',{method:'PUT',signal:AbortSignal.timeout(5000),headers:{Authorization:'Bearer synthetic',Origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({channelKind:'whatsapp_qr',channelRef:'number-1',mode:'paused',expectedRevision:0})});
-  assert.equal((await res.json()).data.mode,'paused');
+  const res=await fetch(base+'/conversations/owned/bot-control',{method:'PUT',signal:AbortSignal.timeout(5000),headers:{Authorization:'Bearer synthetic',Origin:'https://synthetic.example.test','Content-Type':'application/json'},body:JSON.stringify({channelKind:'whatsapp_qr',channelRef:'number-1',mode:'paused',expectedRevision:0})});
+  const saved=await res.json(); assert.equal(saved.success,true,JSON.stringify(saved)); assert.equal(saved.data.mode,'paused');
   role='accountant';assert.equal((await get('/conversations/owned/bot-scope')).success,false);
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
