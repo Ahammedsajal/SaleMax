@@ -10,3 +10,4 @@ COPY --chown=node:node modules/platform/chatbot-router.js modules/platform/chatb
 COPY --chown=node:node routes/chatFlow.js /app/routes/chatFlow.js
 COPY deploy/patch-chatbot-context.js /tmp/patch-chatbot-context.js
 RUN node /tmp/patch-chatbot-context.js && rm /tmp/patch-chatbot-context.js
+COPY --chown=node:node tests/chatbot-context-repairs.test.js tests/chatbot-conversation-api.test.js /app/tests/
