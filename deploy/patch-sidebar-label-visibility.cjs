@@ -1,0 +1,14 @@
+'use strict';
+const fs=require('node:fs');
+const root=process.argv[2]||'/app/client/public';
+const file=root+'/training-sidebar.js';
+let source=fs.readFileSync(file,'utf8');
+const bad='    [data-sx-sidebar-list] .sx-sidebar-fallback-label{display:none!important}\n';
+if(source.split(bad).length!==2)throw new Error('Expected exactly one conflicting expanded-label rule');
+source=source.replace(bad,'');
+if(!source.includes('[data-sx-sidebar-collapsed] [data-sx-sidebar-list] .sx-sidebar-fallback-label{display:none!important}'))throw new Error('Collapsed label behavior must remain');
+fs.writeFileSync(file,source);
+const shell=root+'/index.html';let html=fs.readFileSync(shell,'utf8');
+const refs=html.match(/training-sidebar\.js\?v=[^"'\s<>]+/g);
+if(refs?.length!==1)throw new Error('Expected one sidebar cache reference');
+fs.writeFileSync(shell,html.replace(refs[0],'training-sidebar.js?v=20261026-label-visibility2'));
