@@ -242,23 +242,23 @@ function getConversationDedupeKey(message) {
 
 function normalizeInboxDisplayMessage(message, msgContext) {
   const type = String(message?.type || msgContext?.type || "unknown").toLowerCase();
-  const nativeTypes = new Set(["text", "image", "video", "audio", "document", "location"]);
+  const nativeTypes = new Set(["text", "image", "video", "audio", "document", "location", "button", "list"]);
   if (nativeTypes.has(type)) return { ...message, type, msgContext };
 
   const interactive = msgContext?.interactive || {};
-  const buttonTitles = (interactive?.action?.buttons || [])
-    .map((button) => button?.reply?.title || button?.title)
-    .filter(Boolean);
-  const listTitles = (interactive?.action?.sections || [])
-    .flatMap((section) => section?.rows || [])
-    .map((row) => row?.title)
-    .filter(Boolean);
+  // The existing renderer supports button/list cards, while Meta and bot
+  // storage use the transport name "interactive". Adapt the display contract
+  // without changing the stored payload or what is sent to WhatsApp.
+  if (type === "interactive" && Array.isArray(interactive?.action?.buttons)) {
+    return { ...message, type: "button", msgContext };
+  }
+  if (type === "interactive" && Array.isArray(interactive?.action?.sections)) {
+    return { ...message, type: "list", msgContext };
+  }
   let body = "";
 
   if (type === "interactive") {
-    body = interactive?.body?.text || interactive?.header?.text || "";
-    const options = [...buttonTitles, ...listTitles];
-    if (options.length) body = [body, ...options.map((title) => `• ${title}`)].filter(Boolean).join("\n");
+    body = interactive?.button_reply?.title || interactive?.list_reply?.title || interactive?.body?.text || interactive?.header?.text || "Interactive message";
   } else if (type === "reaction") {
     body = msgContext?.reaction?.emoji || message?.reaction || "Reaction";
   } else if (type === "sticker") {
@@ -283,13 +283,9 @@ function normalizeInboxDisplayMessage(message, msgContext) {
     body = order.text || (order.product_items || [])
       .map((item) => `${item?.product_retailer_id || "Item"} × ${item?.quantity || 1}`)
       .join("\n") || "Catalog order received";
-  } else if (type === "button") {
-    body = msgContext?.button?.text || msgContext?.interactive?.body?.text || "Button message";
-  } else if (type === "list") {
-    body = msgContext?.interactive?.body?.text || msgContext?.interactive?.header?.text || "List message";
   } else if (type === "template") {
     const template = msgContext?.template || {};
-    body = [template.name, ...(template.components || []).flatMap((component) =>
+    body = template.text || [template.name, ...(template.components || []).flatMap((component) =>
       (component?.parameters || []).map((parameter) => parameter?.text || parameter?.payload || ""),
     )].filter(Boolean).join("\n") || "Template message";
   } else if (type === "poll") {
