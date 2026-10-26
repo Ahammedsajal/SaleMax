@@ -71,6 +71,7 @@ function processSocketEvent({
             statusFilter = "all",
             agentFilter = "",
             instance = "",
+            conversationKind = 'direct',
           } = payload;
 
           const chatListOwnerUid = isAgent ? socket?.userData?.owner_uid : uid;
@@ -174,11 +175,12 @@ function processSocketEvent({
                 hasNote,
                 instance,
                 assignedOnly: assignedOnly || origin === 'assigned',
+                conversationKind,
               },
             );
           }
 
-          chats = chats.filter(chat => !require('../../modules/platform/qr-inbox-groups').isGroup(chat));
+          chats = chats.filter(chat => (conversationKind === 'group') === require('../../modules/platform/qr-inbox-groups').isGroup(chat));
           chats = inboxAccess.filterAssignedChats(chats, inboxScope);
           const total = chats.length;
           chats = chats.slice(offset, offset + limit);
@@ -503,6 +505,7 @@ function processSocketEvent({
           );
 
           updatedChat = { ...updatedChat, contactData: getContact || null };
+          if (require('../../modules/platform/qr-inbox-groups').isGroup(updatedChat)) updatedChat = require('../../modules/platform/qr-inbox-groups').displayChat({ ...updatedChat, contactData: null });
           updatedChat.chat_note = updatedChat?.chat_note
             ? JSON.parse(updatedChat?.chat_note)
             : [];
@@ -825,11 +828,17 @@ function processSocketEvent({
               origin: msgObjNew.origin,
             };
 
-            await saveMessageToConversation({
-              uid: isAgent ? socket?.userData?.owner_uid : uid,
-              chatId: chatInfo.chat_id,
-              messageData,
-            });
+            if (require('../../modules/platform/qr-inbox-groups').isGroup(chatInfo)) {
+              messageData.msgContext = { ...messageData.msgContext, group: { jid: chatInfo.sender_mobile, participantName: 'You' } };
+              messageData.senderName = 'You';
+              await require('../../modules/platform/chatbot-conversation-store').persistConversationMessage({ uid: isAgent ? socket.userData.owner_uid : uid, chatId: chatInfo.chat_id, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: messageData.context ? JSON.stringify(messageData.context) : null, status: 'sent', sentBy: 'human' } });
+            } else {
+              await saveMessageToConversation({
+                uid: isAgent ? socket?.userData?.owner_uid : uid,
+                chatId: chatInfo.chat_id,
+                messageData,
+              });
+            }
             if(agentAccount)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatInfo.chat_id,agentId:socket?.userData?.id,origin:chatInfo.origin,providerMessageId:sendMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
 
             await query(

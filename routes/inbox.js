@@ -652,6 +652,7 @@ router.get("/get_chats", validateUser, async (req, res) => {
     data = filterChats(data, {
       origin,
       search,
+      conversationKind: req.query?.conversationKind === 'group' ? 'group' : 'direct',
       instance: req.query?.instance || req.query?.whatsappNumber || '',
     });
     data = inboxAccess.filterAssignedChats(data, inboxScope);

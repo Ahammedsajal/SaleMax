@@ -8,6 +8,7 @@ const { filterChats } = require('../helper/inbox/chatData');
 test('direct Inbox excludes synced group metadata while preserving direct chats', () => {
   const rows = [{chat_id:'qrgroup_'+'a'.repeat(48),sender_mobile:'100@g.us',sender_name:'Group'}, {chat_id:'100_200_owner',sender_mobile:'200',sender_name:'Direct'}];
   assert.deepEqual(filterChats(rows).map(row=>row.chat_id), ['100_200_owner']);
+  assert.deepEqual(filterChats(rows, {conversationKind:'group'}).map(row=>row.chat_id), ['qrgroup_'+'a'.repeat(48)]);
 });
 
 test('group identity retains hyphens and isolates both owners and QR instances', () => {
@@ -32,6 +33,16 @@ test('group metadata uses read-only members and never invents a phone number for
   assert.equal(snapshot.participants[0].phone, '');
   assert.equal(snapshot.participants[1].phone, '123');
   assert.equal(snapshot.participants[0].role, 'admin');
+});
+
+test('native Inbox name adapter supplies a group title and avatar without saving a contact', () => {
+  const row = { chat_id: groups.groupChatId('owner','qr','100@g.us'), sender_name:'🌿 Study group', sender_mobile:'100@g.us', profile:'{}' };
+  const display = groups.displayChat(row);
+  assert.equal(display.phonebook.name, '🌿 Study group');
+  assert.equal(display.phonebook.displayOnly, true);
+  assert.equal(display.phonebook.id, undefined);
+  assert.equal(JSON.parse(display.profile).profileImage, '/inbox-group-avatar.svg');
+  assert.equal(row.profile, '{}');
 });
 
 test('group sender names survive text and media display without mutating stored payloads', () => {

@@ -9,12 +9,17 @@ aliases `/api/inbox/groups` and `/api/agent/inbox/groups` mount the same router.
 Read/reply permissions and assigned conversation/shared QR scope are enforced
 on every request. Directory sync is limited to accessible QR instances.
 
-The Inbox's WhatsApp groups control provides a directory per QR number,
+The Inbox's Chats / Groups switch uses the existing native chat list, message
+renderer, composer, QR number filters, search and unread controls. The group
+subject is passed through a display-only legacy name adapter; it never creates
+a Phonebook row. A tailored native Info sidebar replaces customer-only controls
+with group description, read-only members/admin roles and shared media/files.
+The Inbox's group mode provides a directory per QR number,
 read-only member names/available numbers/admin roles, message sender attribution,
 media browsing, text replies, quoted replies, member mentions and attachments
 (images, video, audio and supported documents, up to 16 MB). The dedicated
-group view uses its own authenticated attachment endpoint and the same QR
-instance transport. Synced group metadata is excluded from the legacy direct
+group APIs also provide a bounded authenticated attachment endpoint. The native
+composer uses the existing group-aware QR transport. Synced group metadata is excluded from the direct
 chat list so group JIDs do not appear as customer phone numbers. WhatsApp enforces
 membership; admin-only groups are checked again before sending.
 

@@ -58,7 +58,7 @@ module.exports = function createRouter({ pool, authenticate, origin, groupServic
   }));
   router.get('/details', wrap(async (req, res) => {
     const { chat } = await conversation(req);
-    const data = await groupService.details(req.groupScope.uid, chat.chat_id);
+    const data = await groupService.details(req.groupScope.uid, chat.chat_id, req.query.refresh === '1');
     res.json({ success: true, group: data.group, stale: data.stale, automation: false, noLeadCapture: true });
   }));
   router.get('/messages', wrap(async (req, res) => {

@@ -10,6 +10,13 @@ const profile = chat => parse(chat?.profile).whatsappGroup || null;
 const isGroup = value => !!(String(value?.chat_id || value?.chatId || '').startsWith('qrgroup_') ||
   isGroupJid(value?.key?.remoteJid) || isGroupJid(value?.msgContext?.group?.jid) || isGroupJid(profile(value)?.jid));
 const cleanJid = value => String(value || '').replace(/:\d+(?=@)/, '');
+function displayChat(chat) {
+  if (!isGroup(chat)) return chat;
+  const saved = parse(chat.profile);
+  // Display-only adapter for the legacy list's name slot; never a saved contact.
+  return { ...chat, isGroup: true, phonebook: { name: chat.sender_name || saved.whatsappGroup?.subject || 'WhatsApp group', displayOnly: true, isGroup: true },
+    profile: JSON.stringify({ ...saved, profileImage: saved.profileImage || '/inbox-group-avatar.svg' }) };
+}
 const fail = (code, status = 409) => { throw Object.assign(Error(code), { code, status }); };
 const timeout = (promise, milliseconds = 12000) => {
   let timer;
@@ -150,7 +157,7 @@ function createService({ pool, getSession, nameFor = () => '', now = () => Date.
     if (!session?.sendMessage) fail('QR_INSTANCE_OFFLINE');
     const meta = await metadata(uid, group.instanceId, group.jid, true);
     if (!canPost(meta, session)) fail('QR_GROUP_ADMINS_ONLY', 403);
-    return { jid: group.jid, session, instanceId: group.instanceId };
+    return { jid: group.jid, session, instanceId: group.instanceId, metadata: meta };
   }
   return { metadata, store, record, sync, stored, details, sendTarget, query };
 }
@@ -162,4 +169,4 @@ function service() {
   });
   return defaultService;
 }
-module.exports = { isGroupJid, isGroup, groupChatId, profile, cleanJid, snapshot, canPost, createService, service };
+module.exports = { isGroupJid, isGroup, groupChatId, profile, cleanJid, snapshot, canPost, createService, service, displayChat };

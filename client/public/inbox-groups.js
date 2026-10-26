@@ -4,151 +4,160 @@
   window.__sxInboxGroups = true;
   const ar = () => document.documentElement.dir === 'rtl' || /^(ar|arabic)/i.test(localStorage.getItem('language') || '');
   const tr = (english, arabic) => ar() ? arabic : english;
+  const read = key => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } };
   const element = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
   const api = (path, options) => window.SaleMaxWorkspace.request('inbox', '/groups' + path, options);
-  let dialog, content, status, selected = '', page = 'messages', details, replyTo = '', timer, generation = 0;
-  const button = (text, action) => { const node = element('button', text); node.type = 'button'; node.onclick = () => Promise.resolve(action()).catch(showError); return node; };
-  const showError = error => { if (status) status.textContent = tr('Could not complete this action: ', 'تعذر إكمال الإجراء: ') + String(error?.message || error); };
+  const active = () => /^\/(user|agent)\/?$/.test(location.pathname) && new URLSearchParams(location.search).get('page') === 'inbox';
+  const groupMode = () => read('chatFilters')?.conversationKind === 'group';
+  const selectedGroup = () => { const chat = read('currentChat'); return String(chat?.chat_id || '').startsWith('qrgroup_') ? chat : null; };
+  const button = (text, action) => { const node = element('button', text); node.type = 'button'; node.onclick = () => Promise.resolve(action()).catch(error => { notice.textContent = String(error?.message || error); }); return node; };
+  let controls, notice, info, host, currentKey = '', sequence = 0, lastLoad = 0, queued = false;
+
+  // Reuse the native Inbox provider's existing actions. This maintained hook
+  // never changes the compiled bundle or creates a second conversation layout.
+  function nativeInbox(node) {
+    for (let parent = node; parent; parent = parent.parentElement) {
+      const key = Object.keys(parent).find(name => name.startsWith('__reactFiber$'));
+      for (let fiber = key && parent[key], depth = 0; fiber && depth < 60; fiber = fiber.return, depth++) {
+        const value = fiber.memoizedProps?.value;
+        if (typeof value?.loadChatList === 'function' && typeof value?.loadConversation === 'function') return value;
+      }
+    }
+    return null;
+  }
+
+  function switchMode(kind) {
+    const filters = { ...(read('chatFilters') || {}), conversationKind: kind, origin: kind === 'group' ? 'qr' : '', offset: 0, search: '' };
+    localStorage.setItem('chatFilters', JSON.stringify(filters));
+    localStorage.removeItem('currentChat'); localStorage.removeItem('chatInfo'); localStorage.removeItem('conversationArr');
+    const inbox = nativeInbox(controls);
+    if (inbox) { inbox.clearConversation(); inbox.clearChatInfo(); inbox.loadChatList(filters, false); mount(); }
+    else { localStorage.removeItem('chatList'); location.reload(); }
+  }
+
+  function clearInfo() {
+    sequence++; currentKey = ''; info?.remove(); info = null;
+    host?.removeAttribute('data-sx-group-info-host'); host = null;
+    document.documentElement.removeAttribute('data-sx-group-selected');
+    for (const node of document.querySelectorAll('[data-sx-group-original]')) { node.textContent = node.dataset.sxGroupOriginal; delete node.dataset.sxGroupOriginal; }
+  }
+  function contactBlock() {
+    const label = [...document.querySelectorAll('span')].find(node => node.children.length === 0 && ['Contact Info', 'معلومات الاتصال', 'معلومات جهة الاتصال'].includes(node.textContent.trim()));
+    return label?.parentElement?.parentElement?.parentElement || null;
+  }
+  function section(title, expanded = false) {
+    const node = element('details', null, 'sx-group-section'); node.open = expanded;
+    node.append(element('summary', title)); return node;
+  }
   function safeUrl(value) { try { const url = new URL(value, location.origin); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch { return ''; } }
-  function shell() {
-    if (dialog?.isConnected) return;
-    dialog = element('dialog', null, 'sx-groups-dialog');
-    dialog.setAttribute('aria-label', tr('WhatsApp groups', 'مجموعات واتساب'));
-    const header = element('header');
-    header.append(element('h2', tr('WhatsApp groups', 'مجموعات واتساب')), button('×', () => dialog.close()));
-    status = element('p', '', 'sx-groups-status'); status.setAttribute('role', 'status');
-    content = element('div', null, 'sx-groups-content');
-    dialog.append(header, status, content); document.body.append(dialog);
-    dialog.addEventListener('close', () => { clearInterval(timer); generation++; selected = ''; });
-    dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+  function insertMention(member) {
+    if (!member.phone) return;
+    const input = document.querySelector('textarea:not([readonly])');
+    if (!input) return;
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+    setter?.call(input, `${input.value || ''} @${member.phone} `);
+    input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
   }
-  async function directory() {
-    selected = ''; generation++;
-    const result = await api('/');
-    content.replaceChildren();
-    const toolbar = element('div', null, 'sx-groups-toolbar');
-    const instances = element('select'); instances.setAttribute('aria-label', tr('WhatsApp number', 'رقم واتساب'));
-    for (const item of result.instances || []) { const option = element('option', `${item.title || ''} ${item.number || ''}`); option.value = item.uniqueId; instances.append(option); }
-    const search = element('input'); search.type = 'search'; search.placeholder = tr('Search groups', 'البحث في المجموعات');
-    const list = element('div', null, 'sx-groups-directory');
-    const render = () => {
+  function render(data, chat) {
+    if (!info?.isConnected) return;
+    const group = data.group; info.replaceChildren();
+    const overview = section(tr('Group details', 'تفاصيل المجموعة'), true);
+    overview.append(element('strong', group.subject), element('p', group.description || tr('No group description', 'لا يوجد وصف للمجموعة')));
+    const connected = (() => { try { return JSON.parse(chat.origin_instance_id || '{}').id?.split('@')[0]?.split(':')[0]; } catch { return ''; } })();
+    if (connected) overview.append(element('p', tr('Connected number: ', 'الرقم المتصل: ') + connected));
+    overview.append(element('p', group.announce ? tr('Only admins can send messages', 'يمكن للمشرفين فقط إرسال الرسائل') : tr('Members can send messages', 'يمكن للأعضاء إرسال الرسائل')));
+    if (group.createdAt) overview.append(element('small', tr('Created ', 'أُنشئت في ') + new Date(group.createdAt * 1000).toLocaleDateString(ar() ? 'ar-QA' : 'en-QA')));
+    if (data.stale) overview.append(element('p', tr('Showing saved group information', 'عرض معلومات المجموعة المحفوظة')));
+    overview.append(button(tr('Refresh group info', 'تحديث معلومات المجموعة'), () => load(chat, true)));
+    const members = section(`${tr('Members', 'الأعضاء')} (${group.participants?.length || 0})`);
+    const search = element('input'); search.type = 'search'; search.placeholder = tr('Search members', 'البحث عن أعضاء'); search.setAttribute('aria-label', search.placeholder);
+    const list = element('div', null, 'sx-group-member-list');
+    let limit = 80;
+    const draw = () => {
       list.replaceChildren();
-      const matches = (result.groups || []).filter(group => group.instanceId === instances.value && group.subject.toLowerCase().includes(search.value.toLowerCase()));
-      for (const group of matches) list.append(button(`${group.subject} · ${group.members} ${tr('members', 'أعضاء')}${group.unread ? ` · ${group.unread} ${tr('unread', 'غير مقروءة')}` : ''}`, () => openGroup(group.chatId)));
-      if (!matches.length) list.append(element('p', tr('No groups loaded. Choose a connected number and sync groups.', 'لا توجد مجموعات محملة. اختر رقماً متصلاً ثم مزامنة المجموعات.')));
+      const matches = (group.participants || []).filter(member => `${member.name} ${member.phone} ${member.jid}`.toLowerCase().includes(search.value.toLowerCase()));
+      for (const member of matches.slice(0, limit)) {
+        const row = element('div', null, 'sx-group-member');
+        row.append(element('strong', member.name || member.phone || member.jid));
+        if (member.phone && member.name) row.append(element('small', '+' + member.phone));
+        if (['admin', 'superadmin'].includes(member.role)) row.append(element('span', tr('Admin', 'مشرف'), 'sx-group-admin'));
+        if (member.phone) row.append(button('@', () => insertMention(member)));
+        list.append(row);
+      }
+      if (matches.length > limit) list.append(button(tr('Show more members', 'عرض المزيد من الأعضاء'), () => { limit += 80; draw(); }));
     };
-    search.oninput = render; instances.onchange = render;
-    toolbar.append(instances, button(tr('Sync groups', 'مزامنة المجموعات'), async () => {
-      status.textContent = tr('Loading groups…', 'جارٍ تحميل المجموعات…');
-      await api('/sync', { method: 'POST', body: { instanceId: instances.value } });
-      status.textContent = ''; await directory();
-    }), search);
-    content.append(toolbar, element('p', tr('Groups do not create leads or Phonebook contacts. Bots and automation are disabled.', 'المجموعات لا تنشئ عملاء محتملين أو جهات اتصال في دفتر الهاتف. الروبوتات والأتمتة معطلة.')), list);
-    render();
+    search.oninput = () => { limit = 80; draw(); }; members.append(search, list); draw();
+    const shared = section(tr('Shared media & files', 'الوسائط والملفات المشتركة'));
+    const media = element('div', null, 'sx-group-shared-media'); shared.append(media);
+    let before = 0, loading = false, loaded = false;
+    const more = button(tr('Load more', 'تحميل المزيد'), () => loadMedia());
+    async function loadMedia() {
+      if (loading) return; loading = true; more.disabled = true;
+      try {
+        const result = await api('/messages?media=1&chatId=' + encodeURIComponent(chat.chat_id) + (before ? '&before=' + before : ''));
+        if (selectedGroup()?.chat_id !== chat.chat_id) return;
+        more.remove();
+        for (const message of [...(result.messages || [])].reverse()) {
+          const payload = message.msgContext?.[message.type] || {}, link = safeUrl(payload.link); if (!link) continue;
+          const card = element('article');
+          if (message.type === 'image') { const image = element('img'); image.src = link; image.loading = 'lazy'; image.alt = payload.caption || tr('Group image', 'صورة المجموعة'); card.append(image); }
+          const open = element('a', payload.filename || payload.caption || tr(message.type, message.type)); open.href = link; open.target = '_blank'; open.rel = 'noopener noreferrer'; card.append(open);
+          card.append(element('small', message.senderName || '')); media.append(card);
+        }
+        if (result.messages?.length) before = result.messages[0].id;
+        if (!before) media.append(element('p', tr('No shared media saved yet', 'لا توجد وسائط مشتركة محفوظة بعد')));
+        if (result.more) media.append(more);
+        loaded = true;
+      } catch (error) { media.append(element('p', String(error.message))); }
+      finally { loading = false; more.disabled = false; }
+    }
+    shared.ontoggle = () => { if (shared.open && !loaded) loadMedia(); };
+    info.append(overview, members, shared);
   }
-  async function openGroup(chatId) {
-    selected = chatId; page = 'messages'; replyTo = ''; const seq = ++generation;
-    details = await api('/details?chatId=' + encodeURIComponent(chatId));
-    if (seq !== generation) return;
-    content.replaceChildren(); status.textContent = details.stale ? tr('Showing saved group information; WhatsApp is unavailable.', 'عرض المعلومات المحفوظة؛ واتساب غير متاح.') : '';
-    const toolbar = element('div', null, 'sx-groups-toolbar');
-    toolbar.append(button(tr('All groups', 'كل المجموعات'), directory), element('strong', details.group.subject));
-    if (safeUrl(details.group.photo)) { const photo = element('img'); photo.src = safeUrl(details.group.photo); photo.alt = ''; photo.width = 40; photo.height = 40; photo.style.borderRadius = '50%'; toolbar.prepend(photo); }
-    for (const [key, english, arabic] of [['messages', 'Messages', 'الرسائل'], ['members', 'Members', 'الأعضاء'], ['media', 'Media', 'الوسائط']]) toolbar.append(button(tr(english, arabic), async () => { page = key; await renderGroup(); }));
-    content.append(toolbar, element('p', details.group.description || ''), element('div', null, 'sx-groups-body'));
-    await renderGroup();
-  }
-  async function renderGroup() {
-    if (!selected || !dialog.open) return;
-    const area = content.querySelector('.sx-groups-body'); if (!area) return;
-    const seq = generation, chatId = selected, view = page;
-    if (view === 'members') {
-      area.replaceChildren();
-      const search = element('input'); search.type = 'search'; search.placeholder = tr('Search members', 'البحث عن أعضاء');
-      const list = element('div');
-      const render = () => { list.replaceChildren(); for (const member of details.group.participants || []) {
-        const label = `${member.name || member.phone || member.jid} ${member.phone && member.name ? '· ' + member.phone : ''} · ${member.role}`;
-        if (label.toLowerCase().includes(search.value.toLowerCase())) list.append(element('p', label));
-      } };
-      search.oninput = render; area.append(search, element('p', tr('Member list is read-only. Manage membership in WhatsApp.', 'قائمة الأعضاء للعرض فقط. إدارة العضوية من واتساب.')), list); render(); return;
-    }
-    const result = await api('/messages?chatId=' + encodeURIComponent(chatId) + (view === 'media' ? '&media=1' : ''));
-    if (seq !== generation || view !== page || chatId !== selected) return;
-    area.replaceChildren();
-    const list = element('div', null, 'sx-groups-messages');
-    function messageRow(message, prepend = false) {
-      const card = element('article', null, 'sx-group-message');
-      card.dataset.route = message.route;
-      const context = message.msgContext || {}, payload = context[message.type] || {};
-      card.append(element('strong', message.route === 'OUTGOING' ? tr('You', 'أنت') : context.group?.participantName || message.senderName || message.senderMobile || tr('Member', 'عضو')));
-      card.append(element('small', new Date(Number(message.timestamp) * 1000).toLocaleString()));
-      if (message.context?.conversation) card.append(element('blockquote', message.context.conversation));
-      if (message.type === 'text') card.append(element('p', context.text?.body || ''));
-      else if (message.type === 'contact') card.append(element('p', [payload.name || payload.displayName || tr('Contact', 'جهة اتصال'), payload.vcard || ''].filter(Boolean).join('\n')));
-      else if (message.type === 'location') {
-        card.append(element('p', [payload.name, payload.address].filter(Boolean).join('\n')));
-        if (Number.isFinite(Number(payload.latitude)) && Number.isFinite(Number(payload.longitude))) { const map = element('a', tr('Open location', 'فتح الموقع')); map.href = `https://maps.google.com/?q=${encodeURIComponent(payload.latitude + ',' + payload.longitude)}`; map.target = '_blank'; map.rel = 'noopener noreferrer'; card.append(map); }
-      }
-      else {
-        const link = safeUrl(payload.link);
-        if (link && ['image', 'video', 'audio'].includes(message.type)) {
-          const media = element(message.type === 'image' ? 'img' : message.type);
-          media.src = link; if (message.type !== 'image') { media.controls = true; media.preload = 'none'; } else { media.loading = 'lazy'; media.alt = payload.caption || tr('Group image', 'صورة المجموعة'); }
-          card.append(media);
-        } else if (link) { const file = element('a', payload.filename || tr('Open document', 'فتح المستند')); file.href = link; file.target = '_blank'; file.rel = 'noopener noreferrer'; card.append(file); }
-        else card.append(element('p', `[${message.type}]`));
-        if (payload.caption) card.append(element('p', payload.caption));
-      }
-      if (message.reaction) card.append(element('span', message.reaction));
-      if (view === 'messages') card.append(button(tr('Reply', 'رد'), () => { replyTo = message.metaChatId; status.textContent = tr('Replying to ', 'الرد على ') + (message.senderName || ''); area.querySelector('textarea')?.focus(); }));
-      if (prepend) list.prepend(card); else list.append(card);
-    }
-    for (const message of result.messages || []) messageRow(message);
-    if (result.more && result.messages?.length) {
-      let before = result.messages[0].id;
-      const older = button(tr('Load older', 'تحميل الأقدم'), async () => {
-        const more = await api('/messages?chatId=' + encodeURIComponent(chatId) + '&before=' + before + (view === 'media' ? '&media=1' : ''));
-        for (const message of [...(more.messages || [])].reverse()) messageRow(message, true);
-        if (more.messages?.length) before = more.messages[0].id;
-        if (!more.more) older.remove();
-      }); area.append(older);
-    }
-    area.append(list);
-    if (!result.messages?.length) list.append(element('p', tr('New group messages will appear here. Earlier WhatsApp history is not guaranteed.', 'ستظهر رسائل المجموعة الجديدة هنا. سجل واتساب السابق غير مضمون.')));
-    if (view === 'messages') {
-      const form = element('form', null, 'sx-groups-compose'), text = element('textarea'); text.maxLength = 4000; text.placeholder = tr('Message this group', 'رسالة لهذه المجموعة'); text.setAttribute('aria-label', text.placeholder);
-      const mention = element('select'); mention.setAttribute('aria-label', tr('Mention member', 'ذكر عضو')); mention.append(element('option', tr('Mention member…', 'ذكر عضو…')));
-      const mentions = new Set();
-      for (const member of details.group.participants || []) { const option = element('option', member.name || member.phone || member.jid); option.value = member.jid; mention.append(option); }
-      mention.onchange = () => { if (mention.selectedIndex > 0) { mentions.add(mention.value); text.value += ` @${mention.selectedOptions[0].textContent} `; mention.selectedIndex = 0; text.focus(); } };
-      const send = element('button', tr('Send to group', 'إرسال للمجموعة')); send.type = 'submit';
-      const attachment = element('input'); attachment.type = 'file'; attachment.accept = '.jpg,.jpeg,.png,.webp,.mp4,.m4a,.mp3,.ogg,.pdf,.docx,.xlsx,.pptx,.zip,.txt,.csv'; attachment.setAttribute('aria-label', tr('Attach image, video, audio or document (16 MB maximum)', 'إرفاق صورة أو فيديو أو صوت أو مستند (16 ميغابايت كحد أقصى)'));
-      form.onsubmit = async event => { event.preventDefault(); if (!text.value.trim() && !attachment.files?.length) return; send.disabled = true; try {
-        if (attachment.files?.length) {
-          if (attachment.files[0].size > 16 * 1024 * 1024) throw Error(tr('Attachment exceeds 16 MB', 'المرفق يتجاوز 16 ميغابايت'));
-          const data = new FormData(); data.append('chatId', chatId); data.append('caption', text.value.slice(0, 1024)); data.append('file', attachment.files[0]);
-          await api('/media', { method: 'POST', body: data });
-        } else await api('/send', { method: 'POST', body: { chatId, text: text.value, mentions: [...mentions], replyTo: replyTo || undefined } });
-        replyTo = ''; status.textContent = ''; await renderGroup();
-      } catch (error) { showError(error); send.disabled = false; } };
-      form.append(text, mention, attachment, button(tr('Cancel reply', 'إلغاء الرد'), () => { replyTo = ''; status.textContent = ''; }), send); area.append(form);
-    }
-    list.scrollTop = list.scrollHeight;
+  async function load(chat, force = false) {
+    const id = ++sequence; lastLoad = Date.now();
+    try {
+      const data = await api('/details?chatId=' + encodeURIComponent(chat.chat_id) + (force ? '&refresh=1' : ''));
+      if (id !== sequence || selectedGroup()?.chat_id !== chat.chat_id) return;
+      render(data, chat);
+      for (const node of document.querySelectorAll('[data-sx-group-original]')) if (node.dataset.sxGroupOriginal.includes('@g.us')) node.textContent = `${data.group.participants?.length || 0} ${tr('members', 'أعضاء')}`;
+    } catch (error) { if (id === sequence && info) info.replaceChildren(element('p', tr('Group info could not load: ', 'تعذر تحميل معلومات المجموعة: ') + error.message), button(tr('Retry', 'إعادة المحاولة'), () => load(chat, true))); }
   }
   function mount() {
-    if (!/^\/(user|agent)\/?$/.test(location.pathname) || new URLSearchParams(location.search).get('page') !== 'inbox') { document.getElementById('sx-inbox-groups-entry')?.remove(); if (dialog?.open) dialog.close(); return; }
-    if (!document.getElementById('sx-inbox-groups-entry')) {
-      const entry = button(tr('WhatsApp groups', 'مجموعات واتساب'), async () => { shell(); dialog.dir = ar() ? 'rtl' : 'ltr'; dialog.showModal(); await directory(); clearInterval(timer); timer = setInterval(() => { if (selected && page === 'messages' && !content.querySelector('textarea')?.value && !content.querySelector('input[type=file]')?.files?.length) renderGroup().catch(showError); }, 12000); });
-      entry.id = 'sx-inbox-groups-entry'; entry.className = 'sx-groups-entry'; document.body.append(entry);
-    }
-    document.getElementById('sx-inbox-groups-entry').textContent = tr('WhatsApp groups', 'مجموعات واتساب');
-    const entry = document.getElementById('sx-inbox-groups-entry');
+    if (!active()) { controls?.remove(); controls = null; clearInfo(); return; }
     const heading = [...document.querySelectorAll('h6')].find(node => ['Inbox', 'صندوق الوارد', 'الوارد'].includes(node.textContent.trim()));
-    if (heading?.parentElement && entry.parentElement !== heading.parentElement) {
-      heading.parentElement.append(entry);
-      entry.style.cssText = 'position:static;z-index:auto;margin-inline-start:8px;padding:6px 9px;border-radius:8px;font-size:11px;white-space:nowrap';
+    if (heading && (!controls || !controls.isConnected)) {
+      controls = element('div', null, 'sx-inbox-view-switch');
+      controls.append(button(tr('Chats', 'المحادثات'), () => switchMode('direct')), button(tr('Groups', 'المجموعات'), () => switchMode('group')));
+      const sync = button(tr('Sync groups', 'مزامنة المجموعات'), async () => {
+        sync.disabled = true; notice.textContent = tr('Syncing…', 'جارٍ المزامنة…');
+        try { const data = await api('/'), selected = read('chatFilters')?.instance || ''; const instances = data.instances.filter(item => !selected || item.uniqueId === selected || item.number === selected); for (const item of instances) if (item.status === 'ACTIVE') await api('/sync', { method: 'POST', body: { instanceId: item.uniqueId } }); notice.textContent = ''; const inbox = nativeInbox(controls); if (inbox) inbox.loadChatList({ conversationKind: 'group', origin: 'qr', offset: 0 }); else location.reload(); }
+        finally { sync.disabled = false; }
+      }); sync.dataset.sxGroupSync = '1'; controls.append(sync);
+      notice = element('small', '', 'sx-group-notice'); notice.setAttribute('role', 'status'); controls.append(notice);
+      heading.parentElement.append(controls);
     }
+    if (controls) { const buttons = controls.querySelectorAll('button'); buttons[0].setAttribute('aria-pressed', String(!groupMode())); buttons[1].setAttribute('aria-pressed', String(groupMode())); buttons[2].hidden = !groupMode(); }
+    const chat = selectedGroup();
+    if (!chat) { if (info || host) clearInfo(); return; }
+    document.documentElement.setAttribute('data-sx-group-selected', '1');
+    for (const node of document.querySelectorAll('span,p')) {
+      if (node.children.length || node.closest('#sx-inbox-group-info')) continue;
+      const text = node.textContent.trim();
+      if (text === '+' + chat.sender_mobile || text === chat.sender_mobile || ['Chat Info', 'معلومات المحادثة', 'معلومات الدردشة'].includes(text)) {
+        if (!node.dataset.sxGroupOriginal) node.dataset.sxGroupOriginal = text;
+        node.textContent = text.includes('@g.us') ? tr('WhatsApp group', 'مجموعة واتساب') : tr('Group Info', 'معلومات المجموعة');
+      }
+    }
+    const block = contactBlock();
+    if (!block?.parentElement) return;
+    if (host !== block.parentElement) { host?.removeAttribute('data-sx-group-info-host'); host = block.parentElement; }
+    host.setAttribute('data-sx-group-info-host', '1');
+    if (!info || !info.isConnected) { info = element('section'); info.id = 'sx-inbox-group-info'; host.append(info); }
+    const key = `${chat.chat_id}:${ar()}:${localStorage.getItem('wacrm_user') || localStorage.getItem('wacrm_agent') || 'cookie'}`;
+    if (key !== currentKey || Date.now() - lastLoad > 300000) { currentKey = key; info.replaceChildren(element('p', tr('Loading group info…', 'جارٍ تحميل معلومات المجموعة…'))); load(chat); }
   }
-  const style = element('style'); style.textContent = '.sx-groups-entry{position:fixed;bottom:16px;inset-inline-end:22px;z-index:1250;background:#1768d4;color:white;border:0;border-radius:20px;padding:10px 18px;font:600 13px Arial;cursor:pointer}.sx-groups-dialog{box-sizing:border-box;width:min(1080px,96vw);height:min(880px,94dvh);max-height:94dvh;border:1px solid #d7deea;border-radius:16px;padding:18px;background:#fff;color:#172033;font:14px/1.5 Arial;overflow:auto}.sx-groups-dialog::backdrop{background:#10203988}.sx-groups-dialog header,.sx-groups-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.sx-groups-dialog header{justify-content:space-between}.sx-groups-dialog h2{margin:0}.sx-groups-dialog button,.sx-groups-dialog select,.sx-groups-dialog input{font:inherit;min-height:36px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:7px;background:white;color:inherit}.sx-groups-dialog button{cursor:pointer}.sx-groups-directory{display:grid;gap:8px}.sx-groups-directory button{text-align:start}.sx-groups-status{color:#ad3449;min-height:20px}.sx-groups-messages{max-height:50dvh;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:10px;background:#f3f6fa}.sx-group-message{align-self:flex-start;max-width:85%;padding:12px;border:1px solid #d8e0eb;border-radius:10px;background:white;overflow-wrap:anywhere}.sx-group-message[data-route=OUTGOING]{align-self:flex-end;background:#e6efff}.sx-group-message strong,.sx-group-message small{display:block}.sx-group-message small{color:#667085}.sx-group-message p{white-space:pre-wrap;margin:6px 0}.sx-group-message img,.sx-group-message video{max-width:100%;max-height:260px}.sx-group-message audio{max-width:100%}.sx-group-message blockquote{border-inline-start:3px solid #1768d4;padding:6px;margin:6px 0;background:#eef3fa}.sx-groups-compose{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.sx-groups-compose textarea{box-sizing:border-box;flex:1 0 100%;min-height:75px;font:inherit;padding:10px;border:1px solid #cbd5e1;border-radius:8px}'; document.head.append(style);
+  const style = element('style'); style.textContent = '.sx-inbox-view-switch{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-inline-start:8px}.sx-inbox-view-switch button{border:1px solid #cbd5e1;border-radius:7px;background:transparent;color:inherit;min-height:30px;padding:4px 8px;font:600 11px Arial;cursor:pointer}.sx-inbox-view-switch button[aria-pressed=true]{background:#1768d4;color:white;border-color:#1768d4}.sx-inbox-view-switch button[hidden]{display:none}.sx-group-notice{font-size:10px;color:#64748b}[data-sx-group-info-host]>:nth-child(n+3):not(#sx-inbox-group-info){display:none!important}#sx-inbox-group-info{font:12px/1.5 Arial;color:inherit;overflow-wrap:anywhere}#sx-inbox-group-info p{white-space:pre-wrap;margin:7px 0}#sx-inbox-group-info small{display:block;color:#718096}.sx-group-section{padding:10px 12px;border-bottom:1px solid #e4e9f1}.sx-group-section>summary{font-weight:700;cursor:pointer;padding:3px 0}.sx-group-section input{box-sizing:border-box;width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;margin:8px 0;background:transparent;color:inherit}.sx-group-section button{font:inherit;border:1px solid #cbd5e1;border-radius:6px;padding:4px 7px;margin:5px 0;background:transparent;color:inherit;cursor:pointer}.sx-group-member-list{max-height:360px;overflow:auto}.sx-group-member{border-bottom:1px solid #eef1f5;padding:7px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap}.sx-group-member strong{flex:1 1 110px}.sx-group-admin{font-size:10px;background:#eaf2ff;color:#1768d4;border-radius:8px;padding:2px 5px}.sx-group-shared-media article{padding:8px 0;border-bottom:1px solid #e4e9f1}.sx-group-shared-media img{width:100%;max-height:180px;object-fit:contain;border-radius:7px}.sx-group-shared-media a{color:#1768d4;display:block;overflow-wrap:anywhere}'; document.head.append(style);
+  new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; mount(); }); }).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(mount, 1500); mount();
 })();
