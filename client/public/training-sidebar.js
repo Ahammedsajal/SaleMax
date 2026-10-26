@@ -541,10 +541,13 @@
       ensureLeadReportsRow(list);
       list.dataset.sxSidebarList = '1';
       const expanded = sidebarExpandedOverride.get(drawer);
-      const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;
+      const measuredDrawerWidth = drawer.getBoundingClientRect().width;
+      // Never reveal labels while the paper still occupies the compact rail.
+      // The shell can accept an expand click before React has widened the drawer.
+      const collapsed = expanded === false || measuredDrawerWidth < 110;
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const dockedRoot = drawer.closest('.MuiDrawer-root.MuiDrawer-docked');
-      const drawerWidth = Math.round(drawer.getBoundingClientRect().width);
+      const drawerWidth = Math.round(measuredDrawerWidth);
       if (dockedRoot && drawerWidth > 0) {
         dockedRoot.style.setProperty('--sx-sidebar-docked-width', `${drawerWidth}px`);
         document.documentElement.style.setProperty('--sx-sidebar-inline-offset', `${drawerWidth}px`);
