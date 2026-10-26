@@ -2,5 +2,7 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG SOURCE_COMMIT=unrecorded
 LABEL org.7network.overlay.commit="${SOURCE_COMMIT}"
+USER root
 COPY --chown=node:node deploy/patch-mobile-header-space.cjs /tmp/patch-mobile-header-space.cjs
 RUN node /tmp/patch-mobile-header-space.cjs
+USER node
