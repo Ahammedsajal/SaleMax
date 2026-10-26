@@ -84,6 +84,7 @@
       result.hidden = false;
       label.textContent = `${strings.translated} ${response.data.targetLanguage === 'ar' ? strings.arabic : strings.english}`;
       button.textContent = strings.hideTranslation;
+      button.dataset.hasTranslation = 'true';
       button.dataset.showing = 'true';
     } catch {
       label.textContent = strings.failed;
@@ -127,6 +128,12 @@
           result.hidden = true;
           button.dataset.showing = 'false';
           button.textContent = copy().viewTranslation;
+          return;
+        }
+        if (button.dataset.hasTranslation === 'true') {
+          result.hidden = false;
+          button.dataset.showing = 'true';
+          button.textContent = copy().hideTranslation;
           return;
         }
         translateReceived(body, button, label, result);
