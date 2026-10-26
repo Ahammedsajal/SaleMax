@@ -1,0 +1,61 @@
+/* Mobile contact cards retain the existing native table controls and event handlers. */
+@media(max-width:700px){
+ #sx-phonebook{border-radius:12px;font-size:13px;overflow:visible;min-width:0;max-width:100%}
+ #sx-phonebook .pb-head{padding:12px;gap:9px}
+ #sx-phonebook h3{font-size:16px}
+ #sx-phonebook .pb-sub{font-size:11px;line-height:1.4;margin-top:3px}
+ #sx-phonebook .pb-head>.pb-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:5px}
+ #sx-phonebook .pb-head>.pb-actions button{font-size:12px;min-height:40px;padding:6px 8px;min-width:0;white-space:normal}
+ #sx-phonebook .pb-controls{padding:10px 12px;gap:8px;grid-template-columns:minmax(0,1fr) auto}
+ #sx-phonebook .pb-controls>label{font-size:11px;gap:4px}
+ #sx-phonebook .pb-controls>label:nth-child(2){grid-column:1/-1;grid-row:2}
+ #sx-phonebook .pb-controls>button{min-height:40px;font-size:12px;padding:6px 10px}
+ #sx-phonebook .pb-controls input,#sx-phonebook .pb-controls select{height:40px;min-height:40px;font-size:13px;padding:6px 9px}
+ #sx-phonebook .pb-filters{padding:0 12px 8px;gap:5px}
+ #sx-phonebook .pb-filters:empty{padding-bottom:0}
+ #sx-phonebook .pb-selection{padding:10px 12px;position:sticky;top:56px;z-index:2;border-radius:8px;background:#eff5ff;color:#183c70;font-size:12px}
+ #sx-phonebook .pb-selection .pb-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:5px}
+ #sx-phonebook .pb-selection button{font-size:11px;min-height:38px;padding:5px 7px;white-space:normal;min-width:0}
+ #sx-phonebook .pb-table-wrap{max-height:none;min-height:0;overflow:visible;padding:0 10px 10px}
+ #sx-phonebook table{display:block;width:100%;min-width:0;max-width:100%;white-space:normal}
+ #sx-phonebook thead{display:block;border-block:1px solid #e8edf4;margin:0 0 8px;background:#f7f9fc}
+ #sx-phonebook thead tr{display:flex;align-items:center;gap:6px;padding:3px 9px}
+ #sx-phonebook th{position:static;display:none;background:none;border:0;max-width:none;padding:0!important;font-size:11px;text-transform:none}
+ #sx-phonebook th[data-pb-select],#sx-phonebook th[data-field=name]{display:block;width:auto}
+ #sx-phonebook th[data-pb-select]{flex:0 0 28px}
+ #sx-phonebook th[data-field=name]{flex:1}
+ #sx-phonebook th button{min-height:36px!important;font-size:11px;color:#51647b}
+ #sx-phonebook tbody{display:grid;gap:8px;width:100%}
+ #sx-phonebook tbody tr{display:grid;grid-template-columns:26px minmax(0,1fr);gap:3px 7px;border:1px solid #e0e7ef;border-radius:10px;padding:10px;background:#fff;min-width:0}
+ #sx-phonebook tbody tr:not(:has([data-pb-select])){grid-template-columns:minmax(0,1fr)}
+ #sx-phonebook tbody td{display:block;width:auto!important;max-width:none;min-width:0;padding:0!important;border:0;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.4;font-size:12px;grid-column:2;order:4}
+ #sx-phonebook tbody tr:not(:has([data-pb-select])) td{grid-column:1}
+ #sx-phonebook tbody td[data-pb-select]{grid-column:1!important;grid-row:1 / span 2;order:0;align-self:start;padding-top:2px!important}
+ #sx-phonebook input[type=checkbox]{width:20px;height:20px;margin:4px 0;accent-color:#1768d4}
+ #sx-phonebook tbody td[data-field=name]{order:1;font-size:14px;font-weight:650;line-height:1.35}
+ #sx-phonebook .pb-link[data-edit]{font-size:14px;color:#17395f;white-space:normal;max-width:100%;overflow-wrap:anywhere;line-height:1.35;justify-content:flex-start;min-height:30px}
+ #sx-phonebook tbody td[data-field=mobile]{order:2;font-variant-numeric:tabular-nums}
+ #sx-phonebook .pb-mobile-link{display:inline-flex;align-items:center;min-height:32px;max-width:100%;color:#1768d4;text-decoration:none;font-size:13px;font-weight:600;white-space:normal;overflow-wrap:anywhere}
+ #sx-phonebook tbody td[data-field=phonebook_name]{order:3;color:#718098;font-size:11px}
+ #sx-phonebook tbody td[data-field^=var]::before{content:attr(data-label) ': ';font-size:10px;color:#718098}
+ #sx-phonebook tbody td[data-field^=var][data-empty=true]{display:none}
+ #sx-phonebook tbody td[data-field=createdAt]{order:5;color:#8591a2;font-size:10px;margin-top:3px}
+ #sx-phonebook tbody td[data-field=createdAt]::before{content:attr(data-label) ': '}
+ #sx-phonebook tr:hover td{background:none}
+ #sx-phonebook .pb-foot{padding:10px 12px;gap:8px;font-size:11px}
+ #sx-phonebook .pb-foot button{min-height:40px;font-size:12px;padding:6px 10px}
+ #sx-phonebook .pb-empty{padding:24px 5px;font-size:12px}
+ #sx-phonebook tbody tr:has(.pb-empty){display:block}
+ .sx-pb-dialog .pb-dialog-head,.sx-pb-dialog .pb-dialog-body{padding:14px;gap:12px}
+ .sx-pb-dialog .pb-dialog-foot{padding:10px 14px}
+ .sx-pb-dialog .pb-share-item{align-items:flex-start;flex-wrap:wrap}
+}
+#sx-phonebook .pb-book-tabs{display:none}
+@media(max-width:700px){
+ #sx-phonebook .pb-book-tabs{display:flex;gap:4px;overflow-x:auto;padding:5px;margin:0 12px 8px;border-radius:10px;background:#f0f4fa;scrollbar-width:thin;overscroll-behavior-inline:contain}
+ #sx-phonebook .pb-book-tabs button{flex:0 0 auto;min-height:38px;border:1px solid transparent;border-radius:7px;background:none;color:#718198;font-size:11px;font-weight:600;padding:7px 10px}
+ #sx-phonebook .pb-book-tabs button[aria-pressed=true]{background:white;color:#1768d4;border-color:#dce6f2;box-shadow:0 2px 5px #163b6210}
+ #sx-phonebook .pb-controls>label:first-child{display:none}
+ #sx-phonebook .pb-controls>label:nth-child(2){grid-column:1;grid-row:1}
+ #sx-phonebook .pb-controls>button{grid-column:2;grid-row:1}
+}
