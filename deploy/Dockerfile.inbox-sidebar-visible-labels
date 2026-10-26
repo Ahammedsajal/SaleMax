@@ -1,0 +1,7 @@
+# Overlay on the exact active Inbox Phonebook release. Preserve its production shell and overlays.
+FROM salemax-app:inbox-phonebook-locale-refresh-6815dae-20261026
+COPY --chown=node:node client/public/training-sidebar.js /app/client/public/training-sidebar.js
+COPY --chown=node:node deploy/apply-inbox-sidebar-visible-labels.cjs /tmp/apply-inbox-sidebar-visible-labels.cjs
+USER root
+RUN node /tmp/apply-inbox-sidebar-visible-labels.cjs /app/client/public/index.html && rm /tmp/apply-inbox-sidebar-visible-labels.cjs
+USER node

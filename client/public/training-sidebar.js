@@ -631,9 +631,11 @@
             // Some legacy menu rows contain only an icon. Keep their existing
             // React button/handler and restore the visible label from the same
             // localized text used for its accessible name and tooltip.
-            const nativeText=row.querySelector('.MuiListItemText-root');
+            const nativeText=row.querySelector('.sx-tenant-navigation-label, .MuiListItemText-primary');
+            const nativeStyle=nativeText?getComputedStyle(nativeText):null;
+            const hasVisibleText=!!nativeText?.textContent?.trim()&&nativeStyle?.display!=='none'&&nativeStyle?.visibility!=='hidden'&&nativeText.getClientRects().length>0;
             let fallback=navButton.querySelector(':scope > .sx-sidebar-fallback-label');
-            if(!nativeText&&tooltip){
+            if(!hasVisibleText&&tooltip){
               if(!fallback){fallback=document.createElement('span');fallback.className='sx-sidebar-fallback-label';fallback.setAttribute('aria-hidden','true');navButton.append(fallback);}
               if(fallback.textContent!==tooltip)fallback.textContent=tooltip;
             }else fallback?.remove();
