@@ -1,0 +1,3 @@
+services:
+  app:
+    image: salemax-app:chatbot-editor-metadata-3010d1c-20261026
