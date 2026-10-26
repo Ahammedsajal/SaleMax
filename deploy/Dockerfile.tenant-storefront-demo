@@ -1,0 +1,13 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=6fee060c0e084677119a9af804f6eec08995303a
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+
+COPY --chown=node:node client/public/tenant-storefront-settings.js /app/client/public/tenant-storefront-settings.js
+COPY --chown=node:node modules/platform/tenant-crm-router.js /app/modules/platform/tenant-crm-router.js
+COPY --chown=node:node modules/platform/tenant-storefront.js /app/modules/platform/tenant-storefront.js
+COPY --chown=node:node modules/web/public-website.js /app/modules/web/public-website.js
+COPY --chown=node:node database/migrations/20270105_tenant_white_label_storefront.sql /app/database/migrations/20270105_tenant_white_label_storefront.sql
+COPY --chown=node:node deploy/patch-tenant-storefront-index.cjs /tmp/patch-tenant-storefront-index.cjs
+RUN node /tmp/patch-tenant-storefront-index.cjs && rm /tmp/patch-tenant-storefront-index.cjs
