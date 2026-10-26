@@ -1,0 +1,24 @@
+/* Shared compact views for existing workspaces. Keep labels readable in a scrollable strip. */
+@media(max-width:700px){
+ .sx-mobile-views,#sx-phonebook .pb-book-tabs,.toolbar.report-mode .viewtabs,#sx-finance-screen .finance-tabs,#sx-finance-screen .finance-nav{
+  display:flex!important;flex-direction:row;flex-wrap:nowrap!important;align-items:stretch;gap:4px;padding:5px;border:1px solid #e6edf5;border-radius:11px;background:#f1f5fb;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin;min-width:0;max-width:100%;box-sizing:border-box
+ }
+ .toolbar.report-mode .viewtabs{grid-template-columns:none;width:100%;grid-column:1/-1;margin:2px 0 0}
+ .sx-mobile-views>a,.sx-mobile-views>button,.toolbar.report-mode .viewtabs>button,#sx-finance-screen .finance-tabs>button,#sx-finance-screen .finance-nav>a{
+  display:inline-flex;align-items:center;justify-content:center;flex:1 0 auto!important;min-width:max-content;min-height:40px;max-width:none;padding:7px 10px;border:1px solid transparent;border-radius:7px;background:transparent;color:#718198;font-size:11px;font-weight:600;line-height:1.35;white-space:nowrap;text-decoration:none;box-shadow:none;box-sizing:border-box
+ }
+ .sx-mobile-views>[aria-selected=true],.sx-mobile-views>[aria-pressed=true],.toolbar.report-mode .viewtabs>button[aria-pressed=true],#sx-finance-screen .finance-tabs>button[aria-selected=true],#sx-finance-screen .finance-nav>a[aria-current=page]{
+  background:#fff;color:#1768d4;border-color:#dce6f2;box-shadow:0 2px 5px #163b6210
+ }
+ #sx-finance-screen .finance-tabs{width:100%;margin:10px 0 14px}
+ #sx-finance-screen .finance-nav{margin:10px 0}
+ #sx-finance-screen .fd-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
+ #sx-finance-screen .fd-kpi{padding:12px;border-radius:11px;gap:6px;box-shadow:none}
+ #sx-finance-screen .fd-kpi strong{font-size:21px;line-height:1.2;overflow-wrap:anywhere}
+ #sx-finance-screen .fd-kpi small{font-size:11px;line-height:1.4}
+ #sx-finance-screen .fd-heading{margin:0 0 12px;gap:10px}
+ #sx-finance-screen .fd h1{font-size:22px;line-height:1.2}
+}
+@media(max-width:700px){
+ .sx-mobile-views>[hidden],.toolbar.report-mode .viewtabs>[hidden],#sx-finance-screen .finance-tabs>[hidden],#sx-finance-screen .finance-nav>[hidden]{display:none!important}
+}
