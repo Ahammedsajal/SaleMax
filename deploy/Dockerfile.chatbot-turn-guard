@@ -3,5 +3,10 @@ FROM ${BASE_IMAGE}
 ARG BASE_IMAGE
 ARG SOURCE_COMMIT=unrecorded
 LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
-COPY --chown=node:node automation/automation.js automation/functions.js /app/automation/
-COPY --chown=node:node modules/platform/chatbot-runtime.js modules/platform/chatbot-flow-understanding.js modules/platform/chatbot-turn-lock.js /app/modules/platform/
+COPY --chown=node:node automation/automation.js /app/automation/automation.js
+COPY --chown=node:node modules/platform/chatbot-flow-understanding.js modules/platform/chatbot-turn-lock.js /app/modules/platform/
+COPY --chown=node:node tests/chatbot-context-repairs.test.js tests/chatbot-turn-lock.test.js tests/chatbot-turn-guard-patch.test.js /app/tests/
+COPY deploy/patch-chatbot-turn-guard.js /tmp/patch-chatbot-turn-guard.js
+USER root
+RUN node /tmp/patch-chatbot-turn-guard.js /app && rm /tmp/patch-chatbot-turn-guard.js
+USER node

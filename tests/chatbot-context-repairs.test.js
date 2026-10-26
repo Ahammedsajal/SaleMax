@@ -21,10 +21,13 @@ const graph={nodes:[question,{id:'answer',type:'RESPONSE_SAVER',data:{variables:
 const turn=flow.expectedTurn(graph,{node:{id:'answer'}});
 test('only an answer to the waiting question advances its branch', () => {
   assert.equal(turn.question,'Are you using a system?');
-  assert.equal(flow.deterministicDecision('نعم',turn).text,'Yes');
-  assert.equal(flow.deterministicDecision('No thanks',turn).text,'No');
-  assert.equal(flow.deterministicDecision('What is your price?',turn).action,'interpret');
-  assert.equal(flow.deterministicDecision('Show me a demo',turn).action,'interpret');
+  assert.equal(flow.deterministicDecision('Yes',turn).text,'Yes');
+  assert.equal(flow.deterministicDecision('yes',turn).text,'Yes');
+  assert.equal(flow.deterministicDecision('no',turn).text,'No');
+  assert.equal(flow.deterministicDecision('نعم',turn).action,'handoff');
+  assert.equal(flow.deterministicDecision('No thanks',turn).action,'handoff');
+  assert.equal(flow.deterministicDecision('What is your price?',turn).action,'handoff');
+  assert.equal(flow.deterministicDecision('Show me a demo',turn).action,'handoff');
   assert.equal(flow.deterministicDecision('I need a human',turn).action,'handoff');
   assert.equal(flow.deterministicDecision('',turn).action,'handoff');
 });

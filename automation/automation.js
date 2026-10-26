@@ -558,6 +558,13 @@ async function processAutomation({
           awaitTransitions: true,
           loopDetection: { visitedNodes: new Map(), startTime: Date.now() },
         });
+      }, { onOverflow: async () => {
+        const runtime = require('../modules/platform/chatbot-runtime');
+        const ctx = await runtime.resolveTenant(uid);
+        if (ctx && !await shouldPause(uid, chatId, channelFor(origin), sessionId)) {
+          await runtime.handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'concurrent-message-burst', null, uid);
+        }
+      }
       });
       if (!lock.acquired) return;
     } catch (err) {

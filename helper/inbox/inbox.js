@@ -377,9 +377,6 @@ async function processMessage({
         console.warn('Phonebook opening routing unavailable', error.code || 'PHONEBOOK_ROUTING_ERROR');
       }
 
-      // Process the message through the flow builder
-      await processWebhook(latestConversation?.newMessage, user);
-
       let configuredBot = { handled: false };
       try {
         configuredBot = await runConfiguredBot({
@@ -394,6 +391,15 @@ async function processMessage({
         // A missing/unavailable additive chatbot schema must never interrupt
         // the legacy automation flow for existing accounts.
         console.warn('Configured chatbot runtime unavailable; preserving legacy flow dispatch.', error.code || 'CHATBOT_RUNTIME_ERROR');
+      }
+
+      // The legacy flow table and the configured chatbot profiles can point
+      // at the same saved WhatsApp flow. Dispatching both paths races the
+      // initial and button nodes, producing duplicate bot messages. Prefer
+      // the configured runtime when it owns this channel; otherwise retain
+      // the existing legacy webhook/automation behavior.
+      if (!configuredBot?.handled) {
+        await processWebhook(latestConversation?.newMessage, user);
       }
 
       if (!configuredBot?.handled) {

@@ -672,6 +672,11 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
           return guided?.handedOff ? guided : guided?.paused ? { paused: true } : guided ? { sent: true } : { handedOff: true, code: !textOf(message) ? 'UNSUPPORTED_MESSAGE_TYPE' : 'GUIDED_FLOW_UNAVAILABLE' };
         }
         return aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
+      }, { onOverflow: async () => {
+        if (!await shouldPause(uid, chatId, channelKind, sessionId)) {
+          await handoffConversation(ctx, chatId, channelKind, sessionId, 'concurrent-message-burst', profile, uid);
+        }
+      }
       });
       if (!turnLock.acquired) {
         await finishTurn(turn, 'sent', 'conversation-turn-already-running');
