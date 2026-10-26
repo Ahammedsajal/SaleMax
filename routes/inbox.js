@@ -619,7 +619,8 @@ router.get("/get_chats", validateUser, async (req, res) => {
     const inboxAccess = require('../modules/platform/team-inbox-scope');
     const inboxScope = await inboxAccess.resolveInboxScope(query, req.decode.userData, 'get_chat_list');
     const ownerUid = inboxScope.uid;
-    const origin = normalizeOriginFilter(req.query?.origin);
+    const requestedOrigin = normalizeOriginFilter(req.query?.origin);
+    const origin = req.query?.conversationKind === 'group' && requestedOrigin === 'qr' ? '' : requestedOrigin;
     const search = String(req.query?.search || "").trim();
 
     const betaChats = await query(
@@ -652,7 +653,7 @@ router.get("/get_chats", validateUser, async (req, res) => {
     data = filterChats(data, {
       origin,
       search,
-      conversationKind: req.query?.conversationKind === 'group' ? 'group' : 'direct',
+      conversationKind: 'all',
       instance: req.query?.instance || req.query?.whatsappNumber || '',
     });
     data = inboxAccess.filterAssignedChats(data, inboxScope);

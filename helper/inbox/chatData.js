@@ -178,10 +178,10 @@ function filterChats(chats, filters = {}) {
   const endTimestamp = dateRange?.end ? toUnixTimestamp(dateRange.end) : 0;
 
   return (chats || []).filter((chat) => {
-    // Group metadata is browsed through the dedicated Inbox group directory.
-    // Do not feed non-phone group JIDs into the legacy direct-chat list.
+    // Inbox routes explicitly request "all" while older helper callers keep
+    // their previous direct/group behavior during the compatibility window.
     const group = require('../../modules/platform/qr-inbox-groups').isGroup(chat);
-    if ((conversationKind === 'group') !== group) return false;
+    if ((conversationKind === 'group' && !group) || (conversationKind === 'direct' && group)) return false;
     const chatOrigin = inferOrigin(chat?.origin, chat?.chat_id);
     const unreadCount = Number(chat?.unread_count || 0);
     const labels = String(chat?.chat_label || "");

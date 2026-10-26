@@ -61,7 +61,7 @@ function processSocketEvent({
         case "get_chat_list":
           const {
             search = "",
-            origin = "",
+            origin: requestedOrigin = "",
             unreadOnly = false,
             assignedOnly = false,
             dateRange = {},
@@ -74,6 +74,8 @@ function processSocketEvent({
             instance = "",
             conversationKind = 'direct',
           } = payload;
+
+          const origin = conversationKind === 'group' && requestedOrigin === 'qr' ? '' : requestedOrigin;
 
           const chatListOwnerUid = isAgent ? socket?.userData?.owner_uid : uid;
           let chats = [];
@@ -176,14 +178,13 @@ function processSocketEvent({
                 hasNote,
                 instance,
                 assignedOnly: assignedOnly || origin === 'assigned',
-                conversationKind,
+                conversationKind: 'all',
               },
             );
           }
 
-          chats = chats.filter(chat => (conversationKind === 'group') === require('../../modules/platform/qr-inbox-groups').isGroup(chat));
           chats = inboxAccess.filterAssignedChats(chats, inboxScope);
-          if (conversationKind === 'group') chats = sortGroupChatsByActivity(chats);
+          chats = sortGroupChatsByActivity(chats);
           const total = chats.length;
           chats = chats.slice(offset, offset + limit);
 
