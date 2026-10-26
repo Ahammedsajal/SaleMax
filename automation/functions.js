@@ -576,6 +576,9 @@ const matchCondition = (conditions, incomingText) => {
 function extractBodyText(message) {
   const messageBody =
     message?.msgContext?.text?.body ||
+    message?.msgContext?.button?.text ||
+    message?.msgContext?.interactive?.button_reply?.title ||
+    message?.msgContext?.interactive?.list_reply?.title ||
     message?.msgContext?.interactive?.body?.text ||
     (message?.msgContext?.image &&
       `img:${message?.msgContext?.image?.link}|${message?.msgContext?.image?.caption}`) ||

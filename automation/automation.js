@@ -28,6 +28,7 @@ async function processFlow({
   element,
   beforeNode,
   webhookVariables = {},
+  awaitTransitions = false,
   loopDetection = { visitedNodes: new Map(), startTime: Date.now() }, // Add loop detection
 }) {
   if (chatId && await shouldPause(uid, chatId, channelFor(origin), sessionId)) return;
@@ -453,7 +454,14 @@ async function processFlow({
 
   // console.log({ s: result?.moveToNextNode, type: node.type });
 
-  if (result?.moveToNextNode) {
+  if (result?.moveToNextNode && awaitTransitions) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await processFlow({
+      nodes, edges, uid, flowId: element.flow_id, message, incomingText, user,
+      sessionId, origin, chatId, element, beforeNode, webhookVariables,
+      awaitTransitions, loopDetection,
+    });
+  } else if (result?.moveToNextNode) {
     setTimeout(async () => {
       await processFlow({
         nodes,
@@ -517,21 +525,41 @@ async function processAutomation({
         );
       }
 
-      await processFlow({
-        nodes,
-        edges,
-        uid,
-        flowId: element.flow_id,
-        message,
-        incomingText,
-        user,
-        sessionId,
-        origin,
-        chatId,
-        element,
-        beforeNode: legacyFlowNodeGuard({uid,flowId:element.flow_id,origin,sessionId}),
-        loopDetection: { visitedNodes: new Map(), startTime: Date.now() }, // ✅ Initialize
+      const lock = await require('../modules/platform/chatbot-turn-lock').runWithTurnLock({
+        pool: platformDbPool, uid, origin, channelRef: sessionId, chatId, scope: element.flow_id,
+      }, async () => {
+        let routedMessage = message, routedText = incomingText;
+        if (element.source === 'wa_chatbot' && message?.route === 'INCOMING') {
+          const [sessions] = await query('SELECT data FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1', [uid, element.flow_id, senderMobile]);
+          let state = null;
+          try { state = typeof sessions?.[0]?.data === 'string' ? JSON.parse(sessions[0].data) : sessions?.[0]?.data; } catch {}
+          if (sessions?.length) {
+            const understanding = require('../modules/platform/chatbot-flow-understanding');
+            const turn = understanding.expectedTurn({ nodes, edges }, state);
+            const decision = understanding.deterministicDecision(incomingText, turn);
+            if (decision.action === 'handoff') {
+              const runtime = require('../modules/platform/chatbot-runtime');
+              const ctx = await runtime.resolveTenant(uid);
+              if (ctx && !await shouldPause(uid, chatId, channelFor(origin), sessionId)) {
+                await runtime.handoffConversation(ctx, chatId, channelFor(origin), sessionId, decision.reason || 'OUTSIDE_BOT_FLOW', null, uid);
+              }
+              return;
+            }
+            if (decision.action === 'continue' && decision.text) {
+              routedText = decision.text;
+              routedMessage = { ...message, msgContext: { ...message.msgContext, text: { body: decision.text } } };
+            }
+          }
+        }
+        await processFlow({
+          nodes, edges, uid, flowId: element.flow_id, message: routedMessage,
+          incomingText: routedText, user, sessionId, origin, chatId, element,
+          beforeNode: legacyFlowNodeGuard({uid,flowId:element.flow_id,origin,sessionId}),
+          awaitTransitions: true,
+          loopDetection: { visitedNodes: new Map(), startTime: Date.now() },
+        });
       });
+      if (!lock.acquired) return;
     } catch (err) {
       console.log(err);
     }

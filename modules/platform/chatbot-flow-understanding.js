@@ -34,11 +34,9 @@ function deterministicDecision(message, turn) {
   const matched = turn.choices.find(choice => [choice.value, choice.buttonId].some(value => value && normalize(value) === text));
   if (matched) return { action: 'continue', text: matched.value, stageId: turn.stageId };
   if (turn.choices.length) {
-    const yes = /^(yes|yes please|yeah|yep|sure|ok|okay|نعم|اي|أجل|اجل)$/iu.test(text);
-    const no = /^(no|no thanks|no thank you|nope|لا|كلا)$/iu.test(text);
-    const choice = turn.choices.find(choice => yes ? /^(yes|نعم)$/i.test(choice.value) : no && /^(no|لا)$/i.test(choice.value));
-    if (choice) return { action: 'continue', text: choice.value, stageId: turn.stageId };
-    return { action: 'interpret', reason: 'OUTSIDE_BOT_FLOW', stageId: turn.stageId };
+    // Button stages are deliberately closed-choice: free text, even when it
+    // sounds affirmative, must not be interpreted or routed by AI.
+    return { action: 'handoff', reason: 'OUTSIDE_BOT_FLOW', stageId: turn.stageId };
   }
   return { action: 'continue' };
 }

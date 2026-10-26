@@ -150,7 +150,7 @@ async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin,
       const intro=await loadGuidedFlow(uid,introId);if(!intro)return false;
       if(!await canSendNow({ctx,profile,uid,origin,sessionId,chatId,message}))return await shouldPause(uid,chatId,channelKind,sessionId)?{paused:true}:false;
       const {processFlow}=require('../../automation/automation'),flowSessionId=executionFlowId(profile);
-      const result=await processFlow({nodes:intro.nodes,edges:intro.edges,uid,flowId:flowSessionId,message,incomingText:textOf(message),user,sessionId,origin,chatId,element:{...intro,flow_id:flowSessionId},beforeNode:guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}),loopDetection:{visitedNodes:new Map(),startTime:Date.now()}});
+      const result=await processFlow({nodes:intro.nodes,edges:intro.edges,uid,flowId:flowSessionId,message,incomingText:textOf(message),user,sessionId,origin,chatId,element:{...intro,flow_id:flowSessionId},beforeNode:guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}),awaitTransitions:true,loopDetection:{visitedNodes:new Map(),startTime:Date.now()}});
       return result==='paused'?{paused:true}:result!==false;
     }
     return trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo });
@@ -164,13 +164,13 @@ async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin,
   // phone contact from continuing another bot's guided conversation.
   const flowSessionId = executionFlowId(profile);
   const decision = await understandFlowTurn({ ctx, profile, uid, message, flow, flowSessionId, chatId, channelKind: channelFor(origin), channelRef: sessionId });
-  if (decision.action === 'handoff') return { handedOff: true, code: decision.reason || 'OUTSIDE_BOT_FLOW', stageId: decision.stageId };
+  if (decision.action === 'handoff') return { handedOff: true, silentHandoff: true, code: decision.reason || 'OUTSIDE_BOT_FLOW', stageId: decision.stageId };
   if (decision.text) message = { ...message, msgContext: { ...message.msgContext, text: { body: decision.text } } };
-  const result=await processFlow({ nodes: flow.nodes, edges: flow.edges, uid, flowId: flowSessionId, message, incomingText: textOf(message), user, sessionId, origin, chatId, element: { ...flow, flow_id: flowSessionId }, beforeNode: guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}), loopDetection: { visitedNodes: new Map(), startTime: Date.now() } });
+  const result=await processFlow({ nodes: flow.nodes, edges: flow.edges, uid, flowId: flowSessionId, message, incomingText: textOf(message), user, sessionId, origin, chatId, element: { ...flow, flow_id: flowSessionId }, beforeNode: guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}), awaitTransitions: true, loopDetection: { visitedNodes: new Map(), startTime: Date.now() } });
   return result==='paused'?{paused:true}:result!==false;
 }
 
-async function handoffWithNotice({ ctx, profile, uid, message, sessionId, origin, chatId, code }) {
+async function handoffSilently({ ctx, profile, uid, sessionId, origin, chatId, code }) {
   const channelKind = channelFor(origin), lockDb = await dbPool.getConnection();
   const lock = 'bot-handoff:' + crypto.createHash('sha256').update(JSON.stringify([ctx.tenant.id, channelKind, sessionId, chatId])).digest('hex').slice(0, 48);
   let held = false;
@@ -178,20 +178,7 @@ async function handoffWithNotice({ ctx, profile, uid, message, sessionId, origin
     const [[row]] = await lockDb.query('SELECT GET_LOCK(?,5) AS acquired', [lock]);
     held = Number(row.acquired) === 1;
     if (!held || await shouldPause(uid, chatId, channelKind, sessionId)) return;
-    try {
-      if (['OUTSIDE_BOT_FLOW','CUSTOMER_REQUESTED_STAFF','UNSUPPORTED_MESSAGE_TYPE','AI_PROVIDER_NOT_CONFIGURED'].includes(code) && await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) {
-        const reply = require('./chatbot-flow-understanding').handoffReply(textOf(message));
-        const content = { type: 'text', text: { preview_url: false, body: reply } };
-        const sentId = await require('../../automation/functions').sendWaMessage({ origin, sessionId, message, uid, chatId, content });
-        if (sentId) {
-          const data = { type:'text', metaChatId:sentId, msgContext:content, timestamp:Math.trunc(Date.now()/1000), senderName:message.senderName, senderMobile:message.senderMobile, reaction:'', star:0, context:null, origin, route:'OUTGOING', sentBy:'bot' };
-          await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...data, msgContext:JSON.stringify(content) } });
-          await query('UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?', [JSON.stringify(data),uid,chatId]);
-        }
-      }
-    } finally {
-      await handoffConversation(ctx, chatId, channelKind, sessionId, code, profile, uid, { onlyIfActive:true });
-    }
+    await handoffConversation(ctx, chatId, channelKind, sessionId, code, profile, uid, { onlyIfActive:true });
   } finally {
     if (held) await lockDb.query('SELECT RELEASE_LOCK(?)', [lock]).catch(() => {});
     lockDb.release();
@@ -678,8 +665,20 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     let result;
     if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
-    else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.handedOff?guided:guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:!textOf(message)?'UNSUPPORTED_MESSAGE_TYPE':'GUIDED_FLOW_UNAVAILABLE'}; }
-    else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
+    else {
+      const turnLock = await require('./chatbot-turn-lock').runWithTurnLock({ pool: dbPool, uid, origin, channelRef: sessionId, chatId }, async () => {
+        if (profile.engine === 'guided') {
+          const guided = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
+          return guided?.handedOff ? guided : guided?.paused ? { paused: true } : guided ? { sent: true } : { handedOff: true, code: !textOf(message) ? 'UNSUPPORTED_MESSAGE_TYPE' : 'GUIDED_FLOW_UNAVAILABLE' };
+        }
+        return aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
+      });
+      if (!turnLock.acquired) {
+        await finishTurn(turn, 'sent', 'conversation-turn-already-running');
+        return { handled: true, duplicate: true, code: 'CONVERSATION_TURN_ALREADY_RUNNING' };
+      }
+      result = turnLock.value;
+    }
     if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, reason: result.reason || null, ...result.metrics }), crypto.randomUUID()]);
     if (result?.sent || result?.flowDispatched) {
       await require('./chatbot-no-reply-timeout').arm(dbPool, { tenantId: ctx.tenant.id, channelKind, channelRef: sessionId, conversationId: chatId })
@@ -688,7 +687,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {
-      await handoffWithNotice({ ctx, profile, uid, message, sessionId, origin, chatId, code: result?.code || 'human-review' });
+      await handoffSilently({ ctx, profile, uid, sessionId, origin, chatId, code: result?.code || 'human-review' });
       await finishTurn(turn, 'handed_off', result?.code || 'human-review');
     }
     return { handled: true, ...result };
@@ -704,4 +703,4 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
 }
 
-module.exports = { canSendNow, runConfiguredBot, previewConfiguredBot, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId };
+module.exports = { canSendNow, runConfiguredBot, previewConfiguredBot, resolveTenant, handoffConversation, loadGuidedFlow, parseGuidedFlow, executionFlowId };
