@@ -65,7 +65,6 @@ if (!sidebar.includes(sidebarMarker)) {
     .sx-sidebar-search-wrap{box-sizing:border-box!important;display:block!important;padding:10px 12px!important;border-bottom:1px solid #e7eaf0!important;background:#fff!important}
     .sx-sidebar-search-wrap input{box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;height:40px!important;padding:0 12px!important;border:1px solid #e1e6ee!important;border-radius:10px!important;background:#f7f8fa!important;color:#182230!important;font:400 14px/1.4 Roboto,Arial,sans-serif!important;outline:none!important}
     .sx-sidebar-search-wrap input:focus{border-color:#1768d4!important;box-shadow:0 0 0 2px #1768d426!important}
-    [data-sx-sidebar-list] .sx-sidebar-fallback-label{display:none!important}
     [data-sx-sidebar-list] .MuiListItemButton-root::after{content:none!important}`;
   sidebar = replaceOnce(sidebar, styleAnchor, styleReplacement, 'sidebar search style');
 
