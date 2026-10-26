@@ -8,10 +8,13 @@ function normalizeFlowEditorData(value) {
   const nodes = graph.nodes.map((node, index) => {
     if (!node || typeof node.id !== 'string') throw new Error('INVALID_FLOW_NODE');
     const valid = Number.isFinite(node.position?.x) && Number.isFinite(node.position?.y);
-    if (valid) return node;
+    const interactiveType = node.data?.content?.type === 'interactive' ? node.data.content.interactive?.type : null;
+    const editableNode = node.type === 'SEND_MESSAGE' && ['button','list'].includes(interactiveType)
+      ? { ...node, data: { ...node.data, type: { ...node.data.type, type:interactiveType } } } : node;
+    if (valid) return editableNode;
     const priorEdge = graph.edges.find(edge => edge.target === node.id);
     const prior = graph.nodes.find(item => item.id === priorEdge?.source && Number.isFinite(item.position?.x) && Number.isFinite(item.position?.y));
-    return { ...node, position: { x: prior ? prior.position.x + 360 : (index % 6) * 380, y: prior ? prior.position.y + 240 : Math.floor(index / 6) * 300 } };
+    return { ...editableNode, position: { x: prior ? prior.position.x + 360 : (index % 6) * 380, y: prior ? prior.position.y + 240 : Math.floor(index / 6) * 300 } };
   });
   return { ...graph, nodes };
 }

@@ -35,3 +35,13 @@ test('AI cannot invent a stage, inject a reply, or continue with low confidence'
 test('handoff acknowledgement follows customer language', () => {
   assert.match(flow.handoffReply('أحتاج المساعدة'),/موظفينا/);assert.match(flow.handoffReply('help'),/team/);
 });
+
+test('saved interactive messages expose the editor button/list type while preserving provider content', () => {
+  for (const type of ['button','list']) {
+    const content={type:'interactive',interactive:{type,body:{text:'Approved question'},action:{buttons:[]}}};
+    const graph={nodes:[{id:'question',type:'SEND_MESSAGE',position:{x:1,y:2},data:{type:{type:'interactive'},content}}],edges:[]};
+    const result=normalizeFlowEditorData(graph);
+    assert.equal(result.nodes[0].data.type.type,type); assert.deepEqual(result.nodes[0].data.content,content);
+    assert.equal(graph.nodes[0].data.type.type,'interactive');
+  }
+});
