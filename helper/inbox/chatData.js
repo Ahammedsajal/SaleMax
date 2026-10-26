@@ -272,6 +272,12 @@ function getConversationDedupeKey(message) {
 
 function normalizeInboxDisplayMessage(message, msgContext) {
   const type = String(message?.type || msgContext?.type || "unknown").toLowerCase();
+  const retention = require('../maintenance/whatsappMediaRetention');
+  if (retention.expiredMedia({ ...message, type, msgContext })) {
+    const period = retention.isGroup({ ...message, msgContext }) ? '48 hours / ٤٨ ساعة' : '28 days / ٢٨ يومًا';
+    const caption = msgContext?.[type]?.caption || msgContext?.[type]?.filename || '';
+    return { ...message, type: 'text', msgContext: { type: 'text', text: { body: [caption, `Media expired / انتهت صلاحية الوسائط (${period})`].filter(Boolean).join('\n'), preview_url: false }, meta: { mediaExpired: true, originalType: type } } };
+  }
   const nativeTypes = new Set(["text", "image", "video", "audio", "document", "location", "button", "list"]);
   if (nativeTypes.has(type)) return { ...message, type, msgContext };
 

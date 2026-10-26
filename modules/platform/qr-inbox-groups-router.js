@@ -67,7 +67,8 @@ module.exports = function createRouter({ pool, authenticate, origin, groupServic
     const media = req.query.media === '1';
     const rows = await query(`SELECT * FROM beta_conversation WHERE uid=? AND chat_id=? ${before ? 'AND id < ?' : ''} ${media ? "AND type IN ('image','video','audio','document')" : ''} ORDER BY id DESC LIMIT 100`, [req.groupScope.uid, chat.chat_id, ...(before ? [before] : [])]);
     if (!before && !media) await query('UPDATE beta_chats SET unread_count=0 WHERE uid=? AND chat_id=?', [req.groupScope.uid, chat.chat_id]);
-    res.json({ success: true, messages: rows.reverse().map(row => ({ ...row, msgContext: (() => { try { return JSON.parse(row.msgContext); } catch { return {}; } })(), context: (() => { try { return JSON.parse(row.context); } catch { return null; } })() })), more: rows.length === 100 });
+    const visible = media ? rows.filter(row => !require('../../helper/maintenance/whatsappMediaRetention').expiredMedia(row)) : rows;
+    res.json({ success: true, messages: visible.reverse().map(row => ({ ...row, msgContext: (() => { try { return JSON.parse(row.msgContext); } catch { return {}; } })(), context: (() => { try { return JSON.parse(row.context); } catch { return null; } })() })), more: rows.length === 100 });
   }));
   router.post('/send', wrap(async (req, res) => {
     const { chat, group } = await conversation(req);

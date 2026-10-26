@@ -1,0 +1,15 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}" org.7network.source-commit="${SOURCE_COMMIT}"
+COPY --chown=node:node helper/maintenance/whatsappRetention.js /app/helper/maintenance/whatsappRetention.js
+COPY --chown=node:node helper/maintenance/whatsappMediaRetention.js /app/helper/maintenance/whatsappMediaRetention.js
+COPY --chown=node:node helper/inbox/chatData.js /app/helper/inbox/chatData.js
+COPY --chown=node:node modules/platform/qr-inbox-groups-router.js /app/modules/platform/qr-inbox-groups-router.js
+COPY --chown=node:node scripts/whatsapp-media-retention.cjs /app/scripts/whatsapp-media-retention.cjs
+RUN node --check /app/helper/maintenance/whatsappRetention.js && \
+    node --check /app/helper/maintenance/whatsappMediaRetention.js && \
+    node --check /app/helper/inbox/chatData.js && \
+    node --check /app/modules/platform/qr-inbox-groups-router.js && \
+    node --check /app/scripts/whatsapp-media-retention.cjs
