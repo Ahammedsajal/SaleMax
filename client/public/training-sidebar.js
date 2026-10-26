@@ -175,6 +175,10 @@
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .sx-sidebar-fallback-label{display:none!important}
     [data-sx-sidebar-list] svg[data-sx-training-icon]{fill:none!important;stroke:currentColor!important;stroke-width:1.8px!important;stroke-linecap:round!important;stroke-linejoin:round!important}
     [data-sx-search-hidden],[data-sx-nav-section][hidden]{display:none!important}
+    .sx-sidebar-search-wrap{box-sizing:border-box!important;display:block!important;padding:10px 12px!important;border-bottom:1px solid #e7eaf0!important;background:#fff!important}
+    .sx-sidebar-search-wrap input{box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;height:40px!important;padding:0 12px!important;border:1px solid #e1e6ee!important;border-radius:10px!important;background:#f7f8fa!important;color:#182230!important;font:400 14px/1.4 Roboto,Arial,sans-serif!important;outline:none!important}
+    .sx-sidebar-search-wrap input:focus{border-color:#1768d4!important;box-shadow:0 0 0 2px #1768d426!important}
+    [data-sx-sidebar-list] .MuiListItemButton-root::after{content:none!important}
     .MuiDrawer-paper input[data-sx-search-empty]:-webkit-autofill{-webkit-text-fill-color:transparent!important;caret-color:transparent!important}
     [data-sx-sidebar-brand]{box-sizing:border-box!important;display:flex!important;align-items:center;min-width:0!important;width:min(156px,calc(100vw - 100px))!important;max-width:calc(100vw - 100px)!important;flex:0 0 min(156px,calc(100vw - 100px))!important;overflow:visible!important;background:none!important}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
@@ -500,6 +504,23 @@
     const retained=rows.find(row=>row.dataset.sxCanonicalSalesNav==='recruitment')||rows[0];
     for(const row of rows)if(row!==retained)row.remove();
   }
+  /* 20261026 sidebar-mobile-unified */
+  function ensureMobileSidebarSearch(drawer,list) {
+    if (window.innerWidth > 700 || drawer.querySelector('input')) return;
+    const wrap=document.createElement('div');wrap.className='sx-sidebar-search-wrap';wrap.dataset.sxSidebarSearch='1';
+    const input=document.createElement('input');input.type='search';input.name='salemax-navigation-query';input.autocomplete='new-password';
+    input.placeholder=tr('Search menu…','ابحث في القائمة…');input.setAttribute('aria-label',tr('Search menu','ابحث في القائمة'));input.setAttribute('data-sx-search-empty','');
+    input.addEventListener('input',()=>input.toggleAttribute('data-sx-search-empty',!input.value));wrap.append(input);list.before(wrap);
+  }
+  function hasVisibleSidebarText(row) {
+    const walker=document.createTreeWalker(row,NodeFilter.SHOW_TEXT);let node;
+    while((node=walker.nextNode())){
+      if(!node.nodeValue.trim()||node.parentElement?.closest('[aria-hidden="true"],.MuiListItemIcon-root,svg,script,style,.sx-sidebar-fallback-label'))continue;
+      let hidden=false;for(let parent=node.parentElement;parent&&row.contains(parent);parent=parent.parentElement){const style=getComputedStyle(parent);if(style.display==='none'||style.visibility==='hidden'){hidden=true;break;}}
+      if(hidden)continue;const range=document.createRange();range.selectNodeContents(node);const rects=range.getClientRects();if([...rects].some(rect=>rect.width>0&&rect.height>0))return true;
+    }
+    return false;
+  }
   function applyTenantNavigationLabel(row,key) {
     const native=row.querySelector('.MuiListItemText-primary');
     if(!native)return null;
@@ -524,6 +545,7 @@
       if (!observed.has(drawer)) { observed.add(drawer); resizeObserver.observe(drawer); }
       const list = drawer.querySelector('ul');
       if (!list) return;
+      ensureMobileSidebarSearch(drawer,list);
       const searchInput = drawer.querySelector('input');
       if (searchInput) {
         if (searchInput.type !== 'search') searchInput.type = 'search';
@@ -634,9 +656,7 @@
             // Some legacy menu rows contain only an icon. Keep their existing
             // React button/handler and restore the visible label from the same
             // localized text used for its accessible name and tooltip.
-            const nativeText=row.querySelector('.sx-tenant-navigation-label, .MuiListItemText-primary');
-            const nativeStyle=nativeText?getComputedStyle(nativeText):null;
-            const hasVisibleText=!!nativeText?.textContent?.trim()&&nativeStyle?.display!=='none'&&nativeStyle?.visibility!=='hidden'&&nativeText.getClientRects().length>0;
+            const hasVisibleText=hasVisibleSidebarText(row);
             let fallback=navButton.querySelector(':scope > .sx-sidebar-fallback-label');
             if(!hasVisibleText&&tooltip){
               if(!fallback){fallback=document.createElement('span');fallback.className='sx-sidebar-fallback-label';fallback.setAttribute('aria-hidden','true');navButton.append(fallback);}
