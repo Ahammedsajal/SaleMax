@@ -55,6 +55,7 @@ if (fs.existsSync(oldDir)) {
 
 const mobileCss = path.join(root, 'client/public/7network-mobile.css');
 if (!fs.existsSync(mobileCss)) throw new Error('CANONICAL_MOBILE_STYLESHEET_MISSING');
+fs.chmodSync(mobileCss, 0o644);
 fs.rmSync(path.join(root, 'client/public/salemax-mobile.css'), { force: true });
 
 // Keep old URL contracts alive as in-process aliases after removing old files.
