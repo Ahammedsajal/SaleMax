@@ -153,7 +153,9 @@ and target explicitly selected for Arabic/English. The key stays server-side;
 `SALEMAX_AZURE_TRANSLATOR_REGION` is optional for global resources, and the
 endpoint can be set with `SALEMAX_AZURE_TRANSLATOR_ENDPOINT`. Any cloud error,
 quota/rate limit, timeout, invalid response, or missing cloud credential falls
-back to the private LibreTranslate service at `SALEMAX_TRANSLATION_URL`. Neither
+back to the private LibreTranslate service at `SALEMAX_TRANSLATION_URL`. Quota
+and rate-limit responses temporarily pause cloud requests to avoid repeatedly
+calling an exhausted F0 resource. Neither
 provider result is saved or logged. Cloud chat text is processed by Microsoft
 when Azure credentials are active. Incoming-message and composer controls toggle
 in place and do not send messages. Per-message translations remain in browser

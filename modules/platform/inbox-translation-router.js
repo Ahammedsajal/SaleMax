@@ -9,6 +9,7 @@ const MAX_REQUESTS_PER_MINUTE = 30;
 const DEFAULT_AZURE_ENDPOINT = 'https://api.cognitive.microsofttranslator.com';
 const requests = new Map();
 let lastSweep = 0;
+let azureUnavailableUntil = 0;
 
 function createInboxTranslationRouter({
   authenticate,
@@ -63,7 +64,7 @@ function createInboxTranslationRouter({
     const target = source === 'ar' ? 'en' : 'ar';
     const azureCredential = typeof azureKey === 'string' && azureKey.trim();
 
-    if (azureCredential) {
+    if (azureCredential && Date.now() >= azureUnavailableUntil) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
       try {
@@ -84,11 +85,15 @@ function createInboxTranslationRouter({
           const result = await response.json();
           const translated = result?.[0]?.translations?.[0]?.text;
           if (typeof translated === 'string' && translated.trim()) {
+            azureUnavailableUntil = 0;
             return res.json({ success: true, data: { text: translated, targetLanguage: target, provider: 'azure' } });
           }
         }
+        // Avoid repeatedly spending requests against an exhausted F0 quota or failing provider.
+        azureUnavailableUntil = Date.now() + (response.status === 403 || response.status === 429 ? 5 * 60_000 : 30_000);
         // F0 quota exhaustion, rate limits, credential/resource errors and provider outages all use the in-house fallback.
       } catch {
+        azureUnavailableUntil = Date.now() + 30_000;
         // Keep provider credentials, chat text and upstream errors out of logs and client responses.
       } finally {
         clearTimeout(timeout);

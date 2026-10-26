@@ -24,7 +24,8 @@ test('Azure Translator is primary, receives only text and uses explicit English/
 test('Azure quota or service failures fall back to private LibreTranslate',async t=>{
  const calls=[];
  const app=await start(base,{azureKey:'synthetic-azure-key',fetchImpl:async(url,options)=>{calls.push(String(url));if(String(url).includes('cognitive.microsofttranslator.com'))return{ok:false,status:403,json:async()=>({})};return{ok:true,json:async()=>({translatedText:'مرحبا'})};}});t.after(()=>close(app));
- const response=await translate(app,'Hello');assert.equal(response.status,200);assert.deepEqual((await response.json()).data,{text:'مرحبا',targetLanguage:'ar',provider:'libretranslate'});assert.equal(calls.length,2);assert.match(calls[0],/cognitive\.microsofttranslator\.com\/translate\?/);assert.equal(calls[1],'http://translate.internal/translate');
+ let response=await translate(app,'Hello');assert.equal(response.status,200);assert.deepEqual((await response.json()).data,{text:'مرحبا',targetLanguage:'ar',provider:'libretranslate'});assert.equal(calls.length,2);assert.match(calls[0],/cognitive\.microsofttranslator\.com\/translate\?/);assert.equal(calls[1],'http://translate.internal/translate');
+ response=await translate(app,'Hello again');assert.equal(response.status,200);assert.deepEqual((await response.json()).data,{text:'مرحبا',targetLanguage:'ar',provider:'libretranslate'});assert.equal(calls.length,3);assert.equal(calls[2],'http://translate.internal/translate');
 });
 
 test('without cloud credentials, Inbox translation uses the private fallback',async t=>{
