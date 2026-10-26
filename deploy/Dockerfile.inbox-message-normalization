@@ -1,0 +1,6 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node helper/inbox/meta/index.js /app/helper/inbox/meta/index.js
+COPY --chown=node:node helper/inbox/chatData.js /app/helper/inbox/chatData.js
