@@ -47,14 +47,14 @@
   }
   function filterPanel() {
     const titles = ['Filters', 'الفلاتر', 'تصفية', 'عوامل التصفية'];
-    const title = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,span,p,div')].find(node => titles.includes(node.textContent.trim()));
+    const title = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,span,p,div')].find(node => titles.includes(node.textContent.trim()) && node.getBoundingClientRect().width > 0);
     if (!title) return null;
     for (let panel = title.parentElement, depth = 0; panel && depth < 8; panel = panel.parentElement, depth++) {
       const text = panel.textContent;
       const hasSections = ar()
-        ? ['التعيين', 'الأصل', 'الوكيل'].filter(label => text.includes(label)).length >= 2
-        : ['Assignment', 'Origin', 'Agent'].filter(label => text.includes(label)).length >= 2;
-      if (hasSections && panel.querySelectorAll('select,input,[role="combobox"]').length >= 2) return { panel, anchor: title.parentElement };
+        ? ['التعيين', 'الأصل', 'الوكيل', 'رقم واتساب'].filter(label => text.includes(label)).length >= 2
+        : ['Assignment', 'Origin', 'Agent', 'WhatsApp Number'].filter(label => text.includes(label)).length >= 2;
+      if (hasSections && panel.querySelectorAll('select,input,[role="combobox"],[aria-haspopup="listbox"]').length >= 1) return { panel, anchor: title.parentElement };
     }
     return null;
   }
@@ -138,6 +138,9 @@
   }
   function mount() {
     if (!active()) { controls?.remove(); controls = null; clearInfo(); return; }
+    const target = filterPanel();
+    // Remove controls left in the old heading location by a cached earlier hook.
+    for (const stale of document.querySelectorAll('.sx-inbox-view-switch')) if (stale !== controls && (!target || !target.panel.contains(stale))) stale.remove();
     const heading = [...document.querySelectorAll('h6')].find(node => ['Inbox', 'صندوق الوارد', 'الوارد'].includes(node.textContent.trim()));
     if (heading && (!controls || !controls.isConnected)) {
       controls = element('div', null, 'sx-inbox-view-switch');
@@ -153,7 +156,6 @@
       controls.prepend(title);
     }
     if (controls) {
-      const target = filterPanel();
       if (target) {
         if (controls.parentElement !== target.panel) target.anchor.insertAdjacentElement('afterend', controls);
       } else if (controls.isConnected) controls.remove();

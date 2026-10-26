@@ -92,7 +92,12 @@ function createService({ pool, getSession, nameFor = () => '', now = () => Date.
         profile: JSON.stringify({ ...oldProfile, isGroup: true, whatsappGroup: group }),
       };
       if (message) {
-        values.last_message = JSON.stringify(message);
+        const previousMessage = parse(chat?.last_message);
+        const incomingTimestamp = Number(message.timestamp) || Date.parse(message.timestamp || '') / 1000 || 0;
+        const previousTimestamp = Number(previousMessage?.timestamp) || Date.parse(previousMessage?.timestamp || '') / 1000 || 0;
+        values.last_message = !previousTimestamp || incomingTimestamp >= previousTimestamp
+          ? JSON.stringify(message)
+          : chat.last_message;
         if (message.route === 'INCOMING') values.unread_count = Number(chat?.unread_count || 0) + 1;
       }
       if (oldProfile.profileImage) group.photo = oldProfile.profileImage;

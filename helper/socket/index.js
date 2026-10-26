@@ -27,6 +27,7 @@ const {
   filterChats,
   mergeChatLists,
   mergeConversationLists,
+  sortGroupChatsByActivity,
   sanitizeMergedRows,
 } = require("../inbox/chatData.js");
 const {
@@ -182,6 +183,7 @@ function processSocketEvent({
 
           chats = chats.filter(chat => (conversationKind === 'group') === require('../../modules/platform/qr-inbox-groups').isGroup(chat));
           chats = inboxAccess.filterAssignedChats(chats, inboxScope);
+          if (conversationKind === 'group') chats = sortGroupChatsByActivity(chats);
           const total = chats.length;
           chats = chats.slice(offset, offset + limit);
 

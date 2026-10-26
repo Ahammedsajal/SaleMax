@@ -71,6 +71,27 @@ function getChatSortTimestamp(chat) {
   );
 }
 
+function sortGroupChatsByActivity(chats = []) {
+  const groups = require('../../modules/platform/qr-inbox-groups');
+  const activity = (chat) => {
+    const lastMessage = safeJsonParse(chat?.last_message);
+    return groups.isGroup(chat)
+      ? toUnixTimestamp(lastMessage?.timestamp) || toUnixTimestamp(chat?.last_message_came)
+      : getChatSortTimestamp(chat);
+  };
+  return [...chats].sort((left, right) => {
+    const diff = activity(right) - activity(left);
+    if (diff) return diff;
+    const leftGroup = groups.isGroup(left), rightGroup = groups.isGroup(right);
+    if (leftGroup && rightGroup && !activity(left) && !activity(right)) {
+      return String(left.sender_name || '').localeCompare(String(right.sender_name || ''));
+    }
+    const updatedDiff = toUnixTimestamp(right?.updatedAt || right?.createdAt) - toUnixTimestamp(left?.updatedAt || left?.createdAt);
+    if (updatedDiff) return updatedDiff;
+    return Number(right?.id || 0) - Number(left?.id || 0);
+  });
+}
+
 function normalizeChat(chat, source = "beta") {
   const normalized = {
     ...chat,
@@ -365,6 +386,7 @@ function sanitizeMergedRows(rows = []) {
 module.exports = {
   filterChats,
   mergeChatLists,
+  sortGroupChatsByActivity,
   mergeConversationLists,
   normalizeOriginFilter,
   sanitizeMergedRows,
