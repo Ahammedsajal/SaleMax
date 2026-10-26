@@ -69,3 +69,13 @@ test('lead and Phonebook entry points reject group events before database access
   assert.ok(opening.indexOf("isGroup({...message,chatId})") < opening.indexOf('const db=await pool.getConnection();try{\n const ctx={uid,hash:hash(uid)'));
   assert.ok(common.indexOf("isGroup({ ...msg, chatId:") < common.indexOf('const crmPush = await sendIncomingToCrm'));
 });
+
+test('group media detects bytes and rejects executable, oversized and truncated uploads', () => {
+  const { inspect } = require('../modules/platform/qr-group-media');
+  assert.equal(inspect({ data: Buffer.from('%PDF-1.4\n'), name: '../../report.pdf' }).kind, 'document');
+  assert.equal(inspect({ data: Buffer.from('%PDF-1.4\n'), name: '../../report.pdf' }).filename, 'report.pdf');
+  assert.equal(inspect({ data: Buffer.from([137,80,78,71,13,10,26,10]), name: 'fake.exe' }).mime, 'image/png');
+  assert.throws(() => inspect({ data: Buffer.from('<script>alert(1)</script>'), name: 'file.html' }), { code: 'GROUP_MEDIA_UNSUPPORTED' });
+  assert.throws(() => inspect({ data: Buffer.alloc(17 * 1024 * 1024), name: 'file.txt' }), { code: 'GROUP_MEDIA_UNSUPPORTED' });
+  assert.throws(() => inspect({ data: Buffer.from('%PDF-1.4'), name: 'file.pdf', truncated: true }), { code: 'GROUP_MEDIA_UNSUPPORTED' });
+});

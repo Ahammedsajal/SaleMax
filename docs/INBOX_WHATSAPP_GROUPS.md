@@ -11,8 +11,11 @@ on every request. Directory sync is limited to accessible QR instances.
 
 The Inbox's WhatsApp groups control provides a directory per QR number,
 read-only member names/available numbers/admin roles, message sender attribution,
-media browsing, text replies, quoted replies and member mentions. Existing Inbox
-attachment controls also use the group-aware QR transport. WhatsApp enforces
+media browsing, text replies, quoted replies, member mentions and attachments
+(images, video, audio and supported documents, up to 16 MB). The dedicated
+group view uses its own authenticated attachment endpoint and the same QR
+instance transport. Synced group metadata is excluded from the legacy direct
+chat list so group JIDs do not appear as customer phone numbers. WhatsApp enforces
 membership; admin-only groups are checked again before sending.
 
 Group message ingestion skips lead capture, automatic Phonebook contacts and

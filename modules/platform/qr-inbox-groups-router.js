@@ -15,7 +15,7 @@ module.exports = function createRouter({ pool, authenticate, origin, groupServic
       if (!['GET', 'HEAD'].includes(req.method) && !require('./request-origin').matches(req, origin)) fail('ORIGIN_DENIED');
       const session = req.featureSession;
       if (!session?.actor || !session.ownerUid) fail('AUTH_REQUIRED', 401);
-      const scope = await access.resolveInboxScope(query, { ...session.actor, isAgent: session.agent }, req.path === '/send' ? 'send_chat_message' : 'get_chat_list');
+      const scope = await access.resolveInboxScope(query, { ...session.actor, isAgent: session.agent }, ['/send', '/media'].includes(req.path) ? 'send_chat_message' : 'get_chat_list');
       if (!scope.canonical && session.agent) { scope.uid = session.ownerUid; scope.assignedOnly = true; scope.actorUid = session.actor.uid; scope.actorLegacyId = session.actor.id; }
       req.groupScope = scope;
       next();
@@ -27,6 +27,13 @@ module.exports = function createRouter({ pool, authenticate, origin, groupServic
     const value = await groupService.stored(req.groupScope.uid, chatId);
     if (!access.filterAssignedChats([value.chat], req.groupScope).length) fail('GROUP_ACCESS_DENIED');
     return value;
+  }
+  async function refreshReply(req, chat) {
+    const session = await req.featureSession.refresh();
+    if (!session?.actor) fail('AUTH_REQUIRED', 401);
+    const scope = await access.resolveInboxScope(query, { ...session.actor, isAgent: session.agent }, 'send_chat_message');
+    if (!scope.canonical && session.agent) Object.assign(scope, { uid: session.ownerUid, assignedOnly: true, actorUid: session.actor.uid, actorLegacyId: session.actor.id });
+    if (scope.uid !== req.groupScope.uid || !access.filterAssignedChats([chat], scope).length) fail('GROUP_ACCESS_DENIED');
   }
   router.get('/', wrap(async (req, res) => {
     const rows = await query("SELECT * FROM beta_chats WHERE uid=? AND chat_id LIKE 'qrgroup_%' ORDER BY id DESC LIMIT 1000", [req.groupScope.uid]);
@@ -78,11 +85,7 @@ module.exports = function createRouter({ pool, authenticate, origin, groupServic
       options.quoted = { key: { remoteJid: group.jid, id: row.metaChatId, fromMe: row.route === 'OUTGOING', participant: payload?.group?.participantJid }, message: { conversation: payload?.text?.body || payload?.[row.type]?.caption || `[${row.type}]` } };
     }
     // Recheck account/session immediately before the external send.
-    const refreshed = await req.featureSession.refresh();
-    if (refreshed?.actor) {
-      const scope = await access.resolveInboxScope(query, { ...refreshed.actor, isAgent: refreshed.agent }, 'send_chat_message');
-      if (scope.uid !== req.groupScope.uid || !access.filterAssignedChats([chat], scope).length) fail('GROUP_ACCESS_DENIED');
-    }
+    await refreshReply(req, chat);
     const target = await groupService.sendTarget(req.groupScope.uid, chat.chat_id);
     const result = await target.session.sendMessage(target.jid, content, options);
     if (!result?.key?.id) fail('GROUP_SEND_FAILED', 502);
@@ -90,6 +93,29 @@ module.exports = function createRouter({ pool, authenticate, origin, groupServic
       reaction: '', timestamp: Math.floor(Date.now() / 1000), senderName: 'You', senderMobile: target.session.user?.id || '', route: 'OUTGOING', origin: 'qr', status: 'sent', sentBy: 'human', star: 0, context: null };
     await require('./chatbot-conversation-store').persistConversationMessage({ uid: req.groupScope.uid, chatId: chat.chat_id, data, pool });
     await groupService.record({ uid: req.groupScope.uid, instanceId: group.instanceId, jid: group.jid, message: { ...data, msgContext: JSON.parse(data.msgContext) } });
+    require('../../socket').sendToUid(req.groupScope.uid, { chatId: chat.chat_id }, 'request_update_chat_list');
+    res.json({ success: true, id: result.key.id });
+  }));
+  router.post('/media', require('express-fileupload')({ limits: { fileSize: 16 * 1024 * 1024, files: 1, fields: 3 }, abortOnLimit: true, createParentPath: false }), wrap(async (req, res) => {
+    const { chat, group } = await conversation(req);
+    const file = req.files?.file, spec = require('./qr-group-media').inspect(file);
+    const caption = String(req.body?.caption || '').slice(0, 1024);
+    await refreshReply(req, chat);
+    const target = await groupService.sendTarget(req.groupScope.uid, chat.chat_id);
+    const crypto = require('node:crypto'), fs = require('node:fs/promises'), path = require('node:path');
+    const filename = crypto.randomUUID() + '_qrgroup.' + spec.suffix;
+    const directory = path.resolve(__dirname, '../../client/public/meta-media'), disk = path.join(directory, filename);
+    await fs.mkdir(directory, { recursive: true });
+    await fs.writeFile(disk, file.data, { flag: 'wx', mode: 0o644 });
+    let result;
+    try {
+      result = await target.session.sendMessage(target.jid, { [spec.kind]: file.data, mimetype: spec.mime, ...(spec.kind === 'document' ? { fileName: spec.filename } : {}), ...(['image', 'video', 'document'].includes(spec.kind) ? { caption } : {}) });
+      if (!result?.key?.id) fail('GROUP_SEND_FAILED', 502);
+    } catch (error) { await fs.unlink(disk).catch(() => {}); throw error; }
+    const context = { type: spec.kind, [spec.kind]: { link: new URL('/meta-media/' + filename, origin || 'https://7network.live').href, caption, filename: spec.filename }, group: { jid: group.jid, participantName: 'You' } };
+    const data = { type: spec.kind, metaChatId: result.key.id, msgContext: JSON.stringify(context), reaction: '', timestamp: Math.floor(Date.now() / 1000), senderName: 'You', senderMobile: target.session.user?.id || '', route: 'OUTGOING', origin: 'qr', status: 'sent', sentBy: 'human', star: 0, context: null };
+    await require('./chatbot-conversation-store').persistConversationMessage({ uid: req.groupScope.uid, chatId: chat.chat_id, data, pool });
+    await groupService.record({ uid: req.groupScope.uid, instanceId: group.instanceId, jid: group.jid, message: { ...data, msgContext: context } });
     require('../../socket').sendToUid(req.groupScope.uid, { chatId: chat.chat_id }, 'request_update_chat_list');
     res.json({ success: true, id: result.key.id });
   }));

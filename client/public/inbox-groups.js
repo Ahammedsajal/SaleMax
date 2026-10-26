@@ -105,10 +105,12 @@
     }
     for (const message of result.messages || []) messageRow(message);
     if (result.more && result.messages?.length) {
+      let before = result.messages[0].id;
       const older = button(tr('Load older', 'تحميل الأقدم'), async () => {
-        const more = await api('/messages?chatId=' + encodeURIComponent(chatId) + '&before=' + result.messages[0].id + (view === 'media' ? '&media=1' : ''));
+        const more = await api('/messages?chatId=' + encodeURIComponent(chatId) + '&before=' + before + (view === 'media' ? '&media=1' : ''));
         for (const message of [...(more.messages || [])].reverse()) messageRow(message, true);
-        older.remove();
+        if (more.messages?.length) before = more.messages[0].id;
+        if (!more.more) older.remove();
       }); area.append(older);
     }
     area.append(list);
@@ -120,18 +122,23 @@
       for (const member of details.group.participants || []) { const option = element('option', member.name || member.phone || member.jid); option.value = member.jid; mention.append(option); }
       mention.onchange = () => { if (mention.selectedIndex > 0) { mentions.add(mention.value); text.value += ` @${mention.selectedOptions[0].textContent} `; mention.selectedIndex = 0; text.focus(); } };
       const send = element('button', tr('Send to group', 'إرسال للمجموعة')); send.type = 'submit';
-      form.onsubmit = async event => { event.preventDefault(); if (!text.value.trim()) return; send.disabled = true; try {
-        await api('/send', { method: 'POST', body: { chatId, text: text.value, mentions: [...mentions], replyTo: replyTo || undefined } });
+      const attachment = element('input'); attachment.type = 'file'; attachment.accept = '.jpg,.jpeg,.png,.webp,.mp4,.m4a,.mp3,.ogg,.pdf,.docx,.xlsx,.pptx,.zip,.txt,.csv'; attachment.setAttribute('aria-label', tr('Attach image, video, audio or document (16 MB maximum)', 'إرفاق صورة أو فيديو أو صوت أو مستند (16 ميغابايت كحد أقصى)'));
+      form.onsubmit = async event => { event.preventDefault(); if (!text.value.trim() && !attachment.files?.length) return; send.disabled = true; try {
+        if (attachment.files?.length) {
+          if (attachment.files[0].size > 16 * 1024 * 1024) throw Error(tr('Attachment exceeds 16 MB', 'المرفق يتجاوز 16 ميغابايت'));
+          const data = new FormData(); data.append('chatId', chatId); data.append('caption', text.value.slice(0, 1024)); data.append('file', attachment.files[0]);
+          await api('/media', { method: 'POST', body: data });
+        } else await api('/send', { method: 'POST', body: { chatId, text: text.value, mentions: [...mentions], replyTo: replyTo || undefined } });
         replyTo = ''; status.textContent = ''; await renderGroup();
       } catch (error) { showError(error); send.disabled = false; } };
-      form.append(text, mention, button(tr('Cancel reply', 'إلغاء الرد'), () => { replyTo = ''; status.textContent = ''; }), send); area.append(form);
+      form.append(text, mention, attachment, button(tr('Cancel reply', 'إلغاء الرد'), () => { replyTo = ''; status.textContent = ''; }), send); area.append(form);
     }
     list.scrollTop = list.scrollHeight;
   }
   function mount() {
     if (!/^\/(user|agent)\/?$/.test(location.pathname) || new URLSearchParams(location.search).get('page') !== 'inbox') { document.getElementById('sx-inbox-groups-entry')?.remove(); if (dialog?.open) dialog.close(); return; }
     if (!document.getElementById('sx-inbox-groups-entry')) {
-      const entry = button(tr('WhatsApp groups', 'مجموعات واتساب'), async () => { shell(); dialog.dir = ar() ? 'rtl' : 'ltr'; dialog.showModal(); await directory(); clearInterval(timer); timer = setInterval(() => { if (selected && page === 'messages' && !content.querySelector('textarea')?.value) renderGroup().catch(showError); }, 12000); });
+      const entry = button(tr('WhatsApp groups', 'مجموعات واتساب'), async () => { shell(); dialog.dir = ar() ? 'rtl' : 'ltr'; dialog.showModal(); await directory(); clearInterval(timer); timer = setInterval(() => { if (selected && page === 'messages' && !content.querySelector('textarea')?.value && !content.querySelector('input[type=file]')?.files?.length) renderGroup().catch(showError); }, 12000); });
       entry.id = 'sx-inbox-groups-entry'; entry.className = 'sx-groups-entry'; document.body.append(entry);
     }
     document.getElementById('sx-inbox-groups-entry').textContent = tr('WhatsApp groups', 'مجموعات واتساب');
