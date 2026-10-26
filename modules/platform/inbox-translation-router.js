@@ -50,14 +50,15 @@ function createInboxTranslationRouter({ authenticate, origin = process.env.SALEM
       }
     }
 
-    const target = ARABIC.test(text) ? 'en' : 'ar';
+    const source = ARABIC.test(text) ? 'ar' : 'en';
+    const target = source === 'ar' ? 'en' : 'ar';
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20_000);
     try {
       const response = await fetchImpl(`${endpoint.replace(/\/+$/, '')}/translate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ q: text, source: 'auto', target, format: 'text' }),
+        body: JSON.stringify({ q: text, source, target, format: 'text' }),
         signal: controller.signal,
       });
       if (!response.ok) return res.status(503).json({ success: false, code: 'TRANSLATION_UNAVAILABLE' });

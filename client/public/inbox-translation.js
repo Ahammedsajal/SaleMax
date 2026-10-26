@@ -2,8 +2,8 @@
   'use strict';
 
   const copy = () => document.documentElement.lang?.toLowerCase().startsWith('ar') || (localStorage.getItem('language') || '').toLowerCase().startsWith('ar')
-    ? { translate: 'ترجمة', working: 'جارٍ الترجمة…', toEnglish: 'تُرجم إلى الإنجليزية', toArabic: 'تُرجم إلى العربية', failed: 'تعذرت الترجمة. حاول مرة أخرى.', empty: 'اكتب رسالة أولاً.', review: 'راجع الترجمة قبل الإرسال.', viewTranslation: 'عرض الترجمة', hideTranslation: 'إخفاء الترجمة', translated: 'الترجمة إلى', english: 'الإنجليزية', arabic: 'العربية' }
-    : { translate: 'Translate', working: 'Translating…', toEnglish: 'Translated to English', toArabic: 'Translated to Arabic', failed: 'Translation failed. Try again.', empty: 'Write a message first.', review: 'Review the translation before sending.', viewTranslation: 'Translate message', hideTranslation: 'Hide translation', translated: 'Translated to', english: 'English', arabic: 'Arabic' };
+    ? { translate: 'ترجمة', working: 'جارٍ الترجمة…', toEnglish: 'تُرجم إلى الإنجليزية', toArabic: 'تُرجم إلى العربية', failed: 'تعذرت الترجمة. اضغط لإعادة المحاولة.', empty: 'اكتب رسالة أولاً.', review: 'راجع الترجمة قبل الإرسال.', translateMessage: 'ترجمة الرسالة', showOriginal: 'عرض الرسالة الأصلية', translating: 'جارٍ الترجمة…' }
+    : { translate: 'Translate', working: 'Translating…', toEnglish: 'Translated to English', toArabic: 'Translated to Arabic', failed: 'Translation failed. Click to retry.', empty: 'Write a message first.', review: 'Review the translation before sending.', translateMessage: 'Translate message', showOriginal: 'Show original message', translating: 'Translating…' };
 
   const visible = element => element && element.getClientRects().length > 0;
   const textOf = element => String(element?.getAttribute('placeholder') || element?.getAttribute('aria-label') || '').toLowerCase();
@@ -23,25 +23,45 @@
     editor.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  const draftTranslations = new WeakMap();
+
   async function translate(editor, button, status) {
     const strings = copy();
+    const saved = draftTranslations.get(editor);
+    if (saved && editor.value === saved.original) {
+      setReactValue(editor, saved.translated);
+      button.title = saved.targetLanguage === 'ar' ? strings.toArabic : strings.toEnglish;
+      status.textContent = strings.review;
+      return;
+    }
+    if (saved && editor.value === saved.translated) {
+      setReactValue(editor, saved.original);
+      button.title = strings.translateMessage;
+      status.textContent = '';
+      return;
+    }
     const original = editor.value;
     if (!original.trim()) { status.textContent = strings.empty; return; }
     button.disabled = true;
-    button.textContent = strings.working;
+    button.title = strings.working;
+    button.setAttribute('aria-label', strings.working);
     status.textContent = '';
     try {
       const result = await window.SaleMaxWorkspace.request('inboxTranslation', '', { method: 'POST', body: { text: original } });
       const translated = result.data?.text;
       if (typeof translated !== 'string' || !translated.trim()) throw new Error('TRANSLATION_FAILED');
       if (editor.value !== original) throw new Error('DRAFT_CHANGED');
-      setReactValue(editor, translated);
+      const cleanTranslation = translated.trim();
+      draftTranslations.set(editor, { original, translated: cleanTranslation, targetLanguage: result.data.targetLanguage });
+      setReactValue(editor, cleanTranslation);
       editor.focus();
-      editor.setSelectionRange(translated.length, translated.length);
-      button.textContent = result.data.targetLanguage === 'ar' ? strings.toArabic : strings.toEnglish;
+      editor.setSelectionRange(cleanTranslation.length, cleanTranslation.length);
+      button.title = strings.showOriginal;
+      button.setAttribute('aria-label', strings.showOriginal);
       status.textContent = strings.review;
     } catch {
-      button.textContent = strings.translate;
+      button.title = strings.failed;
+      button.setAttribute('aria-label', strings.failed);
       status.textContent = strings.failed;
     } finally {
       button.disabled = false;
@@ -52,7 +72,7 @@
     if (document.getElementById('sx-inbox-translation-style')) return;
     const style = document.createElement('style');
     style.id = 'sx-inbox-translation-style';
-    style.textContent = '.sx-inbox-translate-button{flex:0 0 auto;min-height:34px;margin:0 5px;padding:0 10px;border:1px solid #c9d8f5;border-radius:8px;background:#f5f8ff;color:#1768d4;font:500 12px Roboto,Arial,sans-serif;cursor:pointer;white-space:nowrap}.sx-inbox-translate-button:disabled{opacity:.65;cursor:wait}.sx-inbox-translate-status{position:absolute;inset-inline-start:12px;bottom:calc(100% + 4px);font:12px Roboto,Arial,sans-serif;color:#667085;pointer-events:none}.sx-inbox-message-translation{display:flex;align-items:center;gap:6px;margin:3px 0 1px 4px;min-height:26px}.sx-inbox-message-result{margin:3px 4px 4px;padding:8px 10px;border:1px solid rgba(23,104,212,.18);border-radius:8px;background:rgba(23,104,212,.06);color:inherit;font:13px/1.5 Roboto,Arial,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere}.sx-inbox-message-label{margin:2px 4px;color:#667085;font:11px Roboto,Arial,sans-serif}.sx-inbox-message-translation .sx-inbox-translate-button{min-height:26px;margin:0;padding:0 8px;font-size:11px}';
+    style.textContent = '.sx-inbox-translate-status{position:absolute;inset-inline-start:12px;bottom:calc(100% + 4px);font:12px Roboto,Arial,sans-serif;color:#667085;pointer-events:none}.sx-inbox-translation-icon{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:20px;height:20px;margin-inline-start:5px;padding:0;border:0;border-radius:50%;background:transparent;color:#65758b;font:600 9px/1 Arial,sans-serif;cursor:pointer;opacity:.8}.sx-inbox-translation-icon:hover{background:rgba(23,104,212,.1);color:#1768d4;opacity:1}.sx-inbox-translation-icon:disabled{opacity:.55;cursor:wait}';
     document.head.append(style);
   }
 
@@ -69,31 +89,6 @@
     return null;
   }
 
-  async function translateReceived(body, button, label, result) {
-    const strings = copy();
-    const original = body.textContent.trim();
-    button.disabled = true;
-    button.textContent = strings.working;
-    label.textContent = '';
-    try {
-      const response = await window.SaleMaxWorkspace.request('inboxTranslation', '', { method: 'POST', body: { text: original } });
-      const translated = response.data?.text;
-      if (typeof translated !== 'string' || !translated.trim()) throw new Error('TRANSLATION_FAILED');
-      result.textContent = translated;
-      result.dir = 'auto';
-      result.hidden = false;
-      label.textContent = `${strings.translated} ${response.data.targetLanguage === 'ar' ? strings.arabic : strings.english}`;
-      button.textContent = strings.hideTranslation;
-      button.dataset.hasTranslation = 'true';
-      button.dataset.showing = 'true';
-    } catch {
-      label.textContent = strings.failed;
-      button.textContent = strings.viewTranslation;
-    } finally {
-      button.disabled = false;
-    }
-  }
-
   let readAccess;
   async function mountReceivedMessageTranslations() {
     if (!/^\/user\/?$/.test(location.pathname) || !/[?&]page=inbox(?:&|$)/.test(location.search)) return;
@@ -101,45 +96,64 @@
     if (!readAccess || !await readAccess) return;
     const bodies = document.querySelectorAll('.MuiTypography-body2');
     for (const body of bodies) {
-      if (!visible(body) || body.closest('[data-sx-inbox-message-translation]')) continue;
+      if (!visible(body) || body.dataset.sxInboxTranslationBound === 'true') continue;
       const bubble = incomingTextBubble(body);
-      if (!bubble) continue;
-      const host = bubble.parentElement;
-      if (!host || host.querySelector(':scope > [data-sx-inbox-message-translation]')) continue;
-      const original = body.textContent.trim();
+      if (!bubble || bubble.querySelector('img,video,audio,svg,button')) continue;
+      if (bubble.querySelectorAll('.MuiTypography-body2').length !== 1) continue;
+      const original = body.innerText.trim();
       if (!original || original.length > 4000) continue;
 
-      const controls = document.createElement('div');
-      controls.className = 'sx-inbox-message-translation';
-      controls.dataset.sxInboxMessageTranslation = 'true';
+      const originalMarkup = body.innerHTML;
+      const originalDirection = body.getAttribute('dir');
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'sx-inbox-translate-button';
-      button.textContent = copy().viewTranslation;
-      const label = document.createElement('span');
-      label.className = 'sx-inbox-message-label';
-      label.setAttribute('role', 'status');
-      label.setAttribute('aria-live', 'polite');
-      const result = document.createElement('div');
-      result.className = 'sx-inbox-message-result';
-      result.hidden = true;
+      button.className = 'sx-inbox-translation-icon';
+      button.textContent = '文A';
+      button.title = copy().translateMessage;
+      button.setAttribute('aria-label', copy().translateMessage);
+      let translated = '';
+      let showingTranslation = false;
+      let translating = false;
+
+      const showOriginal = () => {
+        body.innerHTML = originalMarkup;
+        if (originalDirection === null) body.removeAttribute('dir'); else body.setAttribute('dir', originalDirection);
+        body.append(button);
+        showingTranslation = false;
+        button.title = copy().translateMessage;
+        button.setAttribute('aria-label', copy().translateMessage);
+      };
+      const showTranslation = () => {
+        body.replaceChildren(document.createTextNode(translated), button);
+        body.setAttribute('dir', 'auto');
+        showingTranslation = true;
+        button.title = copy().showOriginal;
+        button.setAttribute('aria-label', copy().showOriginal);
+      };
+
       button.addEventListener('click', () => {
-        if (button.dataset.showing === 'true') {
-          result.hidden = true;
-          button.dataset.showing = 'false';
-          button.textContent = copy().viewTranslation;
-          return;
-        }
-        if (button.dataset.hasTranslation === 'true') {
-          result.hidden = false;
-          button.dataset.showing = 'true';
-          button.textContent = copy().hideTranslation;
-          return;
-        }
-        translateReceived(body, button, label, result);
+        if (translating) return;
+        if (showingTranslation) { showOriginal(); return; }
+        if (translated) { showTranslation(); return; }
+        translating = true;
+        button.disabled = true;
+        button.title = copy().translating;
+        button.setAttribute('aria-label', copy().translating);
+        window.SaleMaxWorkspace.request('inboxTranslation', '', { method: 'POST', body: { text: original } })
+          .then(response => {
+            const value = response.data?.text;
+            if (typeof value !== 'string' || !value.trim()) throw new Error('TRANSLATION_FAILED');
+            translated = value.trim();
+            showTranslation();
+          })
+          .catch(() => {
+            button.title = copy().failed;
+            button.setAttribute('aria-label', copy().failed);
+          })
+          .finally(() => { translating = false; button.disabled = false; });
       });
-      controls.append(button, label);
-      host.append(controls, result);
+      body.dataset.sxInboxTranslationBound = 'true';
+      body.append(button);
     }
   }
 
@@ -164,9 +178,10 @@
 
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'sx-inbox-translate-button';
-    button.textContent = copy().translate;
-    button.title = copy().review;
+    button.className = 'sx-inbox-translation-icon';
+    button.textContent = '文A';
+    button.title = copy().translateMessage;
+    button.setAttribute('aria-label', copy().translateMessage);
     button.addEventListener('click', () => translate(editor, button, status));
 
     const status = document.createElement('span');

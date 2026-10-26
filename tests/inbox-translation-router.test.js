@@ -17,7 +17,7 @@ test('Inbox translation selects the opposite language and sends no saved-message
  const target=await start(base,{fetchImpl:async(url,options)=>{payloads.push({url,body:JSON.parse(options.body)});return{ok:true,json:async()=>({translatedText:payloads.at(-1).body.target==='ar'?'مرحبا':'Hello'})};}});t.after(()=>new Promise(resolve=>target.server.close(resolve)));
  let response=await translate(target,'Good morning');assert.equal(response.status,200);assert.deepEqual((await response.json()).data,{text:'مرحبا',targetLanguage:'ar'});
  response=await translate(target,'صباح الخير');assert.equal(response.status,200);assert.deepEqual((await response.json()).data,{text:'Hello',targetLanguage:'en'});
- assert.deepEqual(payloads.map(item=>[item.url,item.body.source,item.body.target,Object.keys(item.body)]),[['http://translate.internal/translate','auto','ar',['q','source','target','format']],['http://translate.internal/translate','auto','en',['q','source','target','format']]]);
+ assert.deepEqual(payloads.map(item=>[item.url,item.body.source,item.body.target,Object.keys(item.body)]),[['http://translate.internal/translate','en','ar',['q','source','target','format']],['http://translate.internal/translate','ar','en',['q','source','target','format']]]);
 });
 
 test('Inbox message translation requires read permission and same-origin POST',async t=>{
