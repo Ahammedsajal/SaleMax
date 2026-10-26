@@ -26,6 +26,7 @@ const { checkPlan } = require("../middlewares/plan.js");
 const { processMessage } = require("../helper/inbox/inbox.js");
 const con = require("../database/config.js");
 const { updateMessageStatus } = require("../loops/campaignBeta.js");
+const tenantDeliveryStatus = require("../modules/platform/tenant-delivery-status");
 const {
   updateMessageStatus: updateMessageStatusAPI,
 } = require("../functions/apiMessages");
@@ -80,68 +81,6 @@ router.post("/embed/webhook/:uid", async (req, res) => {
   try {
     const body = req.body;
     res.sendStatus(200);
-    const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses;
-
-    // Handle message status updates - SIMPLE VERSION
-    if (req.body && req.body.entry) {
-      for (const entry of req.body.entry) {
-        if (entry.changes) {
-          for (const change of entry.changes) {
-            if (change.value && change.value.statuses) {
-              for (const status of change.value.statuses) {
-                if (status.id) {
-                  // Call the updateMessageStatus function
-                  await updateMessageStatus(
-                    status.id,
-                    status.status, // delivered, read, sent, failed
-                  );
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    console.log("1");
-
-    // updating API logs
-    if (statuses?.length > 0) {
-      const { status, id } = statuses[0];
-      const errorData = JSON.stringify(body);
-
-      if (status === "failed") {
-        await query(
-          `UPDATE beta_api_logs SET status = ?, err = ? WHERE msg_id = ?`,
-          [status, errorData, id],
-        );
-      } else if (id) {
-        await query(`UPDATE beta_api_logs SET status = ? WHERE msg_id = ?`, [
-          status,
-          id,
-        ]);
-      }
-    }
-
-    if (statuses?.length > 0) {
-      const { status, id } = statuses[0];
-      const errorData = JSON.stringify(body);
-
-      if (status === "failed") {
-        await query(
-          `UPDATE beta_campaign_logs SET delivery_status = ?, error_message = ? WHERE meta_msg_id = ?`,
-          [status, errorData, id],
-        );
-      } else if (id) {
-        await query(
-          `UPDATE beta_campaign_logs SET delivery_status = ? WHERE meta_msg_id = ?`,
-          [status, id],
-        );
-      }
-    }
-
-    console.log("2");
-
     const changes = body?.entry[0]?.changes[0];
     const phoneNumId = changes?.value?.metadata?.phone_number_id;
     const wabaId = body?.entry[0]?.id;
@@ -174,6 +113,13 @@ router.post("/embed/webhook/:uid", async (req, res) => {
     console.log("4");
 
     if (!userUID) return;
+    await tenantDeliveryStatus.updateWebhookStatuses({
+      query,
+      uid: userUID,
+      statuses: changes?.value?.statuses,
+      body,
+      updateCampaignMessageStatus: updateMessageStatus,
+    });
 
     // ✅ Handle different webhook types
     const entry = body?.entry?.[0];
@@ -551,43 +497,6 @@ async function handleMessages(change, uid, body) {
   // Handle message status updates
   const statuses = value?.statuses;
 
-  if (statuses && statuses.length > 0) {
-    for (const status of statuses) {
-      if (status.id) {
-        await updateMessageStatus(status.id, status.status);
-      }
-    }
-
-    // Update API logs
-    const { status, id } = statuses[0];
-    const errorData = JSON.stringify(body);
-
-    if (status === "failed") {
-      await query(
-        `UPDATE beta_api_logs SET status = ?, err = ? WHERE msg_id = ?`,
-        [status, errorData, id],
-      );
-    } else if (id) {
-      await query(`UPDATE beta_api_logs SET status = ? WHERE msg_id = ?`, [
-        status,
-        id,
-      ]);
-    }
-
-    // Update campaign logs
-    if (status === "failed") {
-      await query(
-        `UPDATE beta_campaign_logs SET delivery_status = ?, error_message = ? WHERE meta_msg_id = ?`,
-        [status, errorData, id],
-      );
-    } else if (id) {
-      await query(
-        `UPDATE beta_campaign_logs SET delivery_status = ? WHERE meta_msg_id = ?`,
-        [status, id],
-      );
-    }
-  }
-
   // Verify phone number
   if (value?.metadata?.phone_number_id) {
     const getMyMetaApi = await query(`SELECT * FROM meta_api WHERE uid = ?`, [
@@ -603,6 +512,16 @@ async function handleMessages(change, uid, body) {
         return;
       }
     }
+  }
+
+  if (statuses && statuses.length > 0) {
+    await tenantDeliveryStatus.updateWebhookStatuses({
+      query,
+      uid,
+      statuses,
+      body,
+      updateCampaignMessageStatus: updateMessageStatus,
+    });
   }
 
   // Save message

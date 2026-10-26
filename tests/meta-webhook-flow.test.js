@@ -48,6 +48,28 @@ test('inbox processing still checks the callback phone number against the select
   assert.match(inbox, /if \(checkNumber !== myNumberId\)\s*\{\s*console\.log\("⚠️ Phone number mismatch"\);\s*return;/);
 });
 
+test('delivery status callbacks update logs only after resolving and passing the tenant UID',()=>{
+  const inbox=read('routes/inbox.js');
+  const embedStart=inbox.indexOf('router.post("/embed/webhook/:uid"');
+  const embedEnd=inbox.indexOf('// adding webhook',embedStart);
+  const embed=inbox.slice(embedStart,embedEnd);
+  assert.ok(embed.indexOf('if (!userUID) return;')<embed.indexOf('uid: userUID'));
+  assert.match(embed,/updateWebhookStatuses\(\{[\s\S]*?uid: userUID,[\s\S]*?updateCampaignMessageStatus: updateMessageStatus/);
+
+  const handlerStart=inbox.indexOf('async function handleMessages(change, uid, body)');
+  const handlerEnd=inbox.indexOf('// Save message',handlerStart);
+  const handler=inbox.slice(handlerStart,handlerEnd);
+  assert.match(handler,/updateWebhookStatuses\(\{[\s\S]*?\n\s*uid,[\s\S]*?updateCampaignMessageStatus: updateMessageStatus/);
+  assert.ok(handler.indexOf('if (checkNumber !== myNumberId)')<handler.indexOf('updateWebhookStatuses('));
+
+  const functions=read('functions/function.js');
+  assert.match(functions,/UPDATE beta_campaign_logs SET delivery_status = \?, error_message = \? WHERE uid = \? AND meta_msg_id = \?/);
+  assert.match(functions,/UPDATE beta_campaign_logs SET delivery_status = \? WHERE uid = \? AND meta_msg_id = \?/);
+  const campaignWorker=read('loops/campaignBeta.js');
+  assert.match(campaignWorker,/findCampaignLog\(\{ query, uid, messageId: metaMsgId \}\)/);
+  assert.match(campaignWorker,/WHERE campaign_id = \? AND uid = \?`/);
+});
+
 test('manual Meta connection subscribes its WABA to the 7Network app', () => {
   const user = read('routes/user.js');
   const start = user.indexOf('router.post("/update_meta"');

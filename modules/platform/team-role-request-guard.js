@@ -10,6 +10,7 @@ function routePermission(req){
   const path=String(req.path||'/').toLowerCase();
   const method=String(req.method||'GET').toUpperCase();
   const read=method==='GET'||method==='HEAD';
+  if(mount==='/api/v1'&&['/get_logs','/delete_logs'].includes(path))return 'tenant.manage';
   if(mount==='/api/crm')return path==='/tenant-context'&&read?'tenant.read':'tenant.manage';
   if(mount==='/api/user/business-auth'&&path==='/me'&&read)return 'tenant.read';
   if(mount==='/api/workspace/session')return 'tenant.read';

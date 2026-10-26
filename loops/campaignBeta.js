@@ -1,5 +1,6 @@
 const { query } = require("../database/dbpromise");
 const { sendTemplateMessage } = require("../functions/function");
+const { findCampaignLog, updateCampaignLogStatus } = require("../modules/platform/tenant-delivery-status");
 
 // Simple processing flags
 const processingCampaigns = new Set();
@@ -538,8 +539,20 @@ async function getContactForLog(log, campaign) {
 /**
  * Update campaign counts based on current log statuses
  */
-async function updateCampaignCounts(campaignId) {
+async function updateCampaignCounts(campaignId, uid = null) {
   try {
+    if (typeof uid === "string" && uid) {
+      await query(
+        `UPDATE beta_campaign SET
+          sent_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND uid = ? AND status = 'SENT'),
+          failed_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND uid = ? AND status = 'FAILED'),
+          delivered_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND uid = ? AND delivery_status = 'delivered'),
+          read_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND uid = ? AND delivery_status = 'read')
+         WHERE campaign_id = ? AND uid = ?`,
+        [campaignId, uid, campaignId, uid, campaignId, uid, campaignId, uid, campaignId, uid],
+      );
+      return;
+    }
     await query(
       `UPDATE beta_campaign SET
         sent_count = (SELECT COUNT(*) FROM beta_campaign_logs WHERE campaign_id = ? AND status = 'SENT'),
@@ -608,25 +621,21 @@ function replaceContactVariable(variable, contact) {
 /**
  * Handle webhook updates for message status
  */
-async function updateMessageStatus(metaMsgId, status, errorMessage = null) {
+async function updateMessageStatus(uid, metaMsgId, status, errorMessage = null) {
   try {
+    if (typeof uid !== "string" || !uid) return;
     // Add small delay to ensure message is in database
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // console.log(`Updating message ${metaMsgId} status to ${status}`);
 
     // Find the log entry
-    const logs = await query(
-      "SELECT * FROM beta_campaign_logs WHERE meta_msg_id = ? LIMIT 1",
-      [metaMsgId],
-    );
+    const log = await findCampaignLog({ query, uid, messageId: metaMsgId });
 
-    if (!logs || logs.length === 0) {
+    if (!log) {
       // console.log(`No log found for message ID: ${metaMsgId}`);
       return;
     }
-
-    const log = logs[0];
 
     // Don't downgrade status (read is higher than delivered)
     if (log.delivery_status === "read" && status === "delivered") {
@@ -637,15 +646,10 @@ async function updateMessageStatus(metaMsgId, status, errorMessage = null) {
     }
 
     // Update delivery status
-    await query(
-      `UPDATE beta_campaign_logs 
-       SET delivery_status = ?, delivery_time = NOW(), error_message = ?
-       WHERE meta_msg_id = ?`,
-      [status, errorMessage, metaMsgId],
-    );
+    await updateCampaignLogStatus({ query, uid, messageId: metaMsgId, status, errorData: errorMessage });
 
     // Update campaign counters
-    await updateCampaignCounts(log.campaign_id);
+    await updateCampaignCounts(log.campaign_id, uid);
 
     // console.log(`✅ Updated message ${metaMsgId} status to ${status}`);
   } catch (error) {
