@@ -171,6 +171,8 @@
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemIcon-root{flex:1 1 100%!important;width:100%!important;min-width:100%!important}
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemText-root{display:none!important}
     [data-sx-sidebar-list] .MuiListItemIcon-root svg{display:block!important;width:20px!important;height:20px!important;flex:0 0 20px!important}
+    [data-sx-sidebar-list] .sx-sidebar-fallback-label{display:block!important;flex:1 1 auto!important;min-width:0!important;color:inherit!important;font:500 14px/1.25 Roboto,Arial,sans-serif!important;white-space:normal!important;overflow-wrap:anywhere!important;text-align:start!important}
+    [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .sx-sidebar-fallback-label{display:none!important}
     [data-sx-sidebar-list] svg[data-sx-training-icon]{fill:none!important;stroke:currentColor!important;stroke-width:1.8px!important;stroke-linecap:round!important;stroke-linejoin:round!important}
     [data-sx-search-hidden],[data-sx-nav-section][hidden]{display:none!important}
     .MuiDrawer-paper input[data-sx-search-empty]:-webkit-autofill{-webkit-text-fill-color:transparent!important;caret-color:transparent!important}
@@ -622,8 +624,23 @@
         row.toggleAttribute('data-sx-search-hidden', hidden);
         const available = !hidden && !row.hidden && !row.hasAttribute('data-sx-optional-hidden') && getComputedStyle(row).display !== 'none';
         if (navButton) {
-          if (available) { if(navButton.getAttribute('aria-label')!==tooltip)navButton.setAttribute('aria-label',tooltip); trainingIcon(row, name); if (navButton.getAttribute('title') !== tooltip) navButton.setAttribute('title', tooltip); }
-          else navButton.removeAttribute('title');
+          if (available) {
+            if(navButton.getAttribute('aria-label')!==tooltip)navButton.setAttribute('aria-label',tooltip);
+            trainingIcon(row, name);
+            if (navButton.getAttribute('title') !== tooltip) navButton.setAttribute('title', tooltip);
+            // Some legacy menu rows contain only an icon. Keep their existing
+            // React button/handler and restore the visible label from the same
+            // localized text used for its accessible name and tooltip.
+            const nativeText=row.querySelector('.MuiListItemText-root');
+            let fallback=navButton.querySelector(':scope > .sx-sidebar-fallback-label');
+            if(!nativeText&&tooltip){
+              if(!fallback){fallback=document.createElement('span');fallback.className='sx-sidebar-fallback-label';fallback.setAttribute('aria-hidden','true');navButton.append(fallback);}
+              if(fallback.textContent!==tooltip)fallback.textContent=tooltip;
+            }else fallback?.remove();
+          } else {
+            navButton.removeAttribute('title');
+            navButton.querySelector(':scope > .sx-sidebar-fallback-label')?.remove();
+          }
         }
         if (available) present.add(group);
       });
