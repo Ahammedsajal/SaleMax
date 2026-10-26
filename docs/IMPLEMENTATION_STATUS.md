@@ -1866,3 +1866,9 @@ Focused Pipeline custom-field search, existing team-scope and Sales-only behavio
 ## Inbox bot pause in Chat Info and complete legacy guard scope — local source, 26 October 2026
 
 Moved the existing chat-scoped pause/resume control from the conversation header into the open Chat Info panel. Updated the existing legacy Automation Flow start, WhatsApp text/media sender, and Meta template sender to pass the conversation's WhatsApp channel and channel reference to the shared pause guard. This makes all bot reply paths honor the selected chat pause while leaving other conversations enabled. Added a guarded release patcher and image overlay pinned to the current production base so production-only code remains intact. Source and patcher syntax checks pass; authenticated Inbox UI, role, Arabic, database and provider acceptance remain separate verification gates.
+
+## Training Center single-tenant storefront — source implementation, 26 October 2026
+
+Added a bilingual content editor and text-only preview to the existing CRM Appearance screen, with draft, publish and prior-publication restore actions. The existing tenant business profile supplies the public name and logo. Public output is rendered on that tenant's already-verified primary hostname with host/language cache variation, escaped content and a no-script CSP. Publishing is rejected until a healthy verified primary domain exists.
+
+The new storefront table is default-disabled; only an explicit enabled tenant row grants editor/API/public-render access. The migration is additive and follows production's latest applied migration (`20270104`); it does not repeat the domain-alias columns already present. Source tests cover normalization, disabled-tenant denial and renderer security. Production migration, the one authorized Training Center grant, owner/browser acceptance, a customer-owned domain and public English/Arabic/mobile review remain release gates; no other tenant is enabled.
