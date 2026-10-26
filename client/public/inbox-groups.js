@@ -48,6 +48,73 @@
     setter?.call(input, `${input.value || ''} @${member.phone} `);
     input.dispatchEvent(new Event('input', { bubbles: true })); input.focus();
   }
+  function memberImport(chat) {
+    const panel = section(tr('Save members to Phonebook', 'حفظ الأعضاء في دليل الهاتف'));
+    const body = element('div'), status = element('p'); status.setAttribute('role', 'status');
+    const errorText = error => {
+      const text = String(error?.message || error);
+      const messages = {
+        PHONEBOOK_NAME_EXISTS: tr('This phonebook name exists. Choose it from the list or use another name.', 'اسم دليل الهاتف موجود. اختره من القائمة أو استخدم اسمًا آخر.'),
+        CONTACT_LIMIT_EXCEEDED: tr('This selection exceeds your contact limit. Select fewer members.', 'يتجاوز التحديد حد جهات الاتصال. اختر عددًا أقل.'),
+        GROUP_REFRESH_REQUIRED: tr('Connect the QR number and fetch the members again.', 'صل رقم QR واجلب الأعضاء مرة أخرى.'),
+        GROUP_MEMBERS_CHANGED: tr('Group membership changed. Fetch the members again.', 'تغير أعضاء المجموعة. اجلب الأعضاء مرة أخرى.'),
+        GROUP_CONTACT_IMPORT_DENIED: tr('Phonebook management permission is required.', 'يلزم إذن إدارة دليل الهاتف.'),
+      };
+      return Object.entries(messages).find(([code]) => text.includes(code))?.[1] || text;
+    };
+    const fetch = button(tr('Fetch members', 'جلب الأعضاء'), async () => {
+      fetch.disabled = true; status.textContent = tr('Fetching current members…', 'جارٍ جلب الأعضاء الحاليين…');
+      try {
+        const preview = await api('/member-import?chatId=' + encodeURIComponent(chat.chat_id));
+        if (selectedGroup()?.chat_id !== chat.chat_id || !panel.isConnected) return;
+        body.replaceChildren();
+        const selected = new Set(preview.members.map(member => member.mobile));
+        const targetLabel = element('label', tr('Target phonebook', 'دليل الهاتف المستهدف'));
+        const target = element('select'); target.setAttribute('aria-label', targetLabel.textContent);
+        const create = element('option', tr('Create a new phonebook', 'إنشاء دليل هاتف جديد')); create.value = ''; target.append(create);
+        for (const book of preview.books) { const option = element('option', book.name); option.value = book.id; target.append(option); }
+        targetLabel.append(target);
+        const nameLabel = element('label', tr('New phonebook name', 'اسم دليل الهاتف الجديد'));
+        const name = element('input'); name.maxLength = 200; name.value = preview.suggestedName; name.setAttribute('aria-label', nameLabel.textContent); nameLabel.append(name);
+        target.onchange = () => { nameLabel.hidden = !!target.value; };
+        const summary = element('p', `${preview.members.length} ${tr('available', 'متاح')} · ${preview.unavailable} ${tr('without a usable number', 'بدون رقم صالح')} · ${preview.remaining} ${tr('contact slots remaining', 'جهة اتصال متبقية')}`);
+        const allLabel = element('label'), all = element('input'); all.type = 'checkbox'; all.checked = selected.size > 0;
+        allLabel.append(all, document.createTextNode(tr(' Select all available members', ' تحديد جميع الأعضاء المتاحين')));
+        const search = element('input'); search.type = 'search'; search.placeholder = tr('Search members to import', 'البحث عن أعضاء للاستيراد'); search.setAttribute('aria-label', search.placeholder);
+        const list = element('div', null, 'sx-group-member-list'); let limit = 100;
+        const fieldset = element('fieldset', null, 'sx-group-import-fields');
+        const save = button('', async () => {
+          if (!selected.size) return;
+          fieldset.disabled = true; fetch.disabled = true; status.textContent = tr('Importing selected members…', 'جارٍ استيراد الأعضاء المحددين…');
+          try {
+            const result = await api('/member-import', { method: 'POST', body: { chatId: chat.chat_id, mobiles: [...selected], ...(target.value ? { bookId: Number(target.value) } : { newBookName: name.value.trim() }) } });
+            status.textContent = `${result.imported} ${tr('added', 'تمت إضافتهم')} · ${result.duplicates} ${tr('already in this phonebook', 'موجودون بالفعل في دليل الهاتف')} · ${result.book.name}`;
+            if (![...target.options].some(option => option.value === String(result.book.id))) { const option = element('option', result.book.name); option.value = result.book.id; target.append(option); }
+            target.value = result.book.id; target.onchange();
+            selected.clear(); draw();
+          } catch (error) { status.textContent = errorText(error); }
+          finally { fieldset.disabled = false; fetch.disabled = false; update(); }
+        });
+        const update = () => { save.textContent = `${tr('Import selected', 'استيراد المحدد')} (${selected.size})`; save.disabled = !selected.size; all.checked = selected.size === preview.members.length && selected.size > 0; all.indeterminate = selected.size > 0 && selected.size < preview.members.length; };
+        const draw = () => {
+          list.replaceChildren(); const term = search.value.toLowerCase();
+          const matches = preview.members.filter(member => `${member.name} ${member.mobile}`.toLowerCase().includes(term));
+          for (const member of matches.slice(0, limit)) {
+            const label = element('label', null, 'sx-group-member'), checkbox = element('input'); checkbox.type = 'checkbox'; checkbox.checked = selected.has(member.mobile);
+            checkbox.onchange = () => { if (checkbox.checked) selected.add(member.mobile); else selected.delete(member.mobile); update(); };
+            label.append(checkbox, element('span', `${member.name} · +${member.mobile}`)); list.append(label);
+          }
+          if (matches.length > limit) list.append(button(tr('Show more members', 'عرض المزيد من الأعضاء'), () => { limit += 100; draw(); }));
+          update();
+        };
+        all.onchange = () => { selected.clear(); if (all.checked) for (const member of preview.members) selected.add(member.mobile); draw(); };
+        search.oninput = () => { limit = 100; draw(); };
+        fieldset.append(targetLabel, nameLabel, summary, allLabel, search, list, save); body.append(fieldset); draw(); status.textContent = '';
+      } catch (error) { status.textContent = errorText(error); }
+      finally { fetch.disabled = false; }
+    });
+    panel.append(fetch, body, status); return panel;
+  }
   function render(data, chat) {
     if (!info?.isConnected) return;
     const group = data.group; info.replaceChildren();
@@ -102,7 +169,9 @@
       finally { loading = false; more.disabled = false; }
     }
     shared.ontoggle = () => { if (shared.open && !loaded) loadMedia(); };
-    info.append(overview, members, shared);
+    info.append(overview, members);
+    if (data.canImportMembers) info.append(memberImport(chat));
+    info.append(shared);
   }
   async function load(chat, force = false) {
     const id = ++sequence; lastLoad = Date.now();
@@ -175,6 +244,7 @@
     if (key !== currentKey || Date.now() - lastLoad > 300000) { currentKey = key; info.replaceChildren(element('p', tr('Loading group info…', 'جارٍ تحميل معلومات المجموعة…'))); load(chat); }
   }
   const style = element('style'); style.textContent = '.sx-group-sync-control{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;padding:8px 12px;border-top:1px solid #e6ebf2}.sx-group-sync-control button{border:1px solid #cbd5e1;border-radius:7px;background:transparent;color:inherit;min-height:32px;padding:5px 12px;font:600 12px Arial;cursor:pointer}.sx-group-sync-control button:disabled{opacity:.6;cursor:wait}.sx-group-notice{font-size:11px;color:#64748b}[data-sx-group-info-host]>:nth-child(n+3):not(#sx-inbox-group-info){display:none!important}#sx-inbox-group-info{font:12px/1.5 Arial;color:inherit;overflow-wrap:anywhere}#sx-inbox-group-info p{white-space:pre-wrap;margin:7px 0}#sx-inbox-group-info small{display:block;color:#718096}.sx-group-section{padding:10px 12px;border-bottom:1px solid #e4e9f1}.sx-group-section>summary{font-weight:700;cursor:pointer;padding:3px 0}.sx-group-section input{box-sizing:border-box;width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;margin:8px 0;background:transparent;color:inherit}.sx-group-section button{font:inherit;border:1px solid #cbd5e1;border-radius:6px;padding:4px 7px;margin:5px 0;background:transparent;color:inherit;cursor:pointer}.sx-group-member-list{max-height:360px;overflow:auto}.sx-group-member{border-bottom:1px solid #eef1f5;padding:7px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap}.sx-group-member strong{flex:1 1 110px}.sx-group-admin{font-size:10px;background:#eaf2ff;color:#1768d4;border-radius:8px;padding:2px 5px}.sx-group-shared-media article{padding:8px 0;border-bottom:1px solid #e4e9f1}.sx-group-shared-media img{width:100%;max-height:180px;object-fit:contain;border-radius:7px}.sx-group-shared-media a{color:#1768d4;display:block;overflow-wrap:anywhere}'; document.head.append(style);
+  style.textContent += '.sx-group-import-fields{border:0;padding:0;min-width:0}.sx-group-import-fields label{display:block;margin:8px 0}.sx-group-import-fields label[hidden]{display:none!important}.sx-group-import-fields select{box-sizing:border-box;width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;background:transparent;color:inherit}.sx-group-import-fields input[type=checkbox]{width:auto;flex:0 0 auto;margin:0 6px 0 0}.sx-group-import-fields .sx-group-member{display:flex;font-weight:400}.sx-group-import-fields .sx-group-member span{flex:1;min-width:0}';
   new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; mount(); }); }).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(mount, 1500); mount();
 })();

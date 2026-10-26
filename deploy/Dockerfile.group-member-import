@@ -1,0 +1,14 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}" org.7network.source-commit="${SOURCE_COMMIT}"
+COPY --chown=node:node client/public/inbox-groups.js /app/client/public/inbox-groups.js
+COPY --chown=node:node modules/platform/qr-inbox-groups-router.js /app/modules/platform/qr-inbox-groups-router.js
+COPY --chown=node:node modules/platform/qr-group-member-import.js /app/modules/platform/qr-group-member-import.js
+COPY --chown=node:node deploy/patch-group-member-import.cjs /tmp/patch-group-member-import.cjs
+RUN node /tmp/patch-group-member-import.cjs /app && \
+    node --check /app/client/public/inbox-groups.js && \
+    node --check /app/modules/platform/qr-inbox-groups-router.js && \
+    node --check /app/modules/platform/qr-group-member-import.js && \
+    rm /tmp/patch-group-member-import.cjs

@@ -7,7 +7,7 @@ module.exports = function createRouter({ pool, authenticate, origin, groupServic
   const fail = (code, status = 403) => { throw Object.assign(Error(code), { code, status }); };
   const wrap = handler => (req, res, next) => Promise.resolve(handler(req, res)).catch(next);
   const syncTimes = new Map();
-  router.use(express.json({ limit: '16kb', strict: true }));
+  router.use(express.json({ limit: '128kb', strict: true }));
   router.use(authenticate);
   router.use((req, res, next) => {
     Promise.resolve().then(async () => {
@@ -35,6 +35,39 @@ module.exports = function createRouter({ pool, authenticate, origin, groupServic
     if (!scope.canonical && session.agent) Object.assign(scope, { uid: session.ownerUid, assignedOnly: true, actorUid: session.actor.uid, actorLegacyId: session.actor.id });
     if (scope.uid !== req.groupScope.uid || !access.filterAssignedChats([chat], scope).length) fail('GROUP_ACCESS_DENIED');
   }
+  async function importContext(req, db) {
+    const session = await req.featureSession.refresh();
+    const scope = await access.resolveInboxScope(query, { ...session.actor, isAgent: session.agent }, 'get_chat_list');
+    if (!scope.canonical && session.agent) Object.assign(scope, { uid: session.ownerUid, assignedOnly: true, actorUid: session.actor.uid, actorLegacyId: session.actor.id });
+    const { chat } = await groupService.stored(scope.uid, String(req.body?.chatId || req.query.chatId || ''));
+    if (scope.uid !== req.groupScope.uid || !access.filterAssignedChats([chat], scope).length) fail('GROUP_ACCESS_DENIED');
+    const ctx = await require('./phonebook-workspace').sessionContext(db, session);
+    require('./qr-group-member-import').assertManage(ctx, scope.uid);
+    return ctx;
+  }
+  router.get('/member-import', wrap(async (req, res) => {
+    const { chat } = await conversation(req);
+    const db = await pool.getConnection();
+    try {
+      await importContext(req, db);
+      const data = await groupService.details(req.groupScope.uid, chat.chat_id, true);
+      if (data.stale) fail('GROUP_REFRESH_REQUIRED', 409);
+      const ctx = await importContext(req, db);
+      res.json({ success: true, ...await require('./qr-group-member-import').preview(db, ctx, req.groupScope.uid, data.group) });
+    } finally { db.release(); }
+  }));
+  router.post('/member-import', wrap(async (req, res) => {
+    const { chat } = await conversation(req);
+    const db = await pool.getConnection();
+    try {
+      await importContext(req, db);
+      const data = await groupService.details(req.groupScope.uid, chat.chat_id, true);
+      if (data.stale) fail('GROUP_REFRESH_REQUIRED', 409);
+      const ctx = await importContext(req, db);
+      const result = await require('./qr-group-member-import').importMembers(db, ctx, req.groupScope.uid, data.group, req.body);
+      res.json({ success: true, ...result });
+    } finally { db.release(); }
+  }));
   router.get('/', wrap(async (req, res) => {
     const rows = await query("SELECT * FROM beta_chats WHERE uid=? AND chat_id LIKE 'qrgroup_%' ORDER BY id DESC LIMIT 1000", [req.groupScope.uid]);
     const permitted = access.filterAssignedChats(rows, req.groupScope);
@@ -59,7 +92,10 @@ module.exports = function createRouter({ pool, authenticate, origin, groupServic
   router.get('/details', wrap(async (req, res) => {
     const { chat } = await conversation(req);
     const data = await groupService.details(req.groupScope.uid, chat.chat_id, req.query.refresh === '1');
-    res.json({ success: true, group: data.group, stale: data.stale, automation: false, noLeadCapture: true });
+    let canImportMembers = false;
+    const db = await pool.getConnection();
+    try { const ctx = await require('./phonebook-workspace').sessionContext(db, req.featureSession); canImportMembers = ctx.manage && ctx.uid === req.groupScope.uid; } catch (error) { if (error.status !== 403) throw error; } finally { db.release(); }
+    res.json({ success: true, group: data.group, stale: data.stale, canImportMembers, automation: false, noLeadCapture: true });
   }));
   router.get('/messages', wrap(async (req, res) => {
     const { chat } = await conversation(req);
