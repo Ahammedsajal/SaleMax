@@ -566,7 +566,10 @@
       const measuredDrawerWidth = drawer.getBoundingClientRect().width;
       // Never reveal labels while the paper still occupies the compact rail.
       // The shell can accept an expand click before React has widened the drawer.
-      const collapsed = expanded === false || measuredDrawerWidth < 110;
+      // A temporary phone drawer closes; it never becomes a desktop icon rail.
+      const mobileDrawer = window.innerWidth < 900;
+      if (mobileDrawer) sidebarExpandedOverride.delete(drawer);
+      const collapsed = !mobileDrawer && (expanded === false || measuredDrawerWidth < 110);
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const dockedRoot = drawer.closest('.MuiDrawer-root.MuiDrawer-docked');
       const drawerWidth = Math.round(measuredDrawerWidth);
@@ -740,6 +743,12 @@
     const action = [button.getAttribute('aria-label'), button.getAttribute('title'), button.textContent]
       .filter(Boolean).join(' ').trim();
     const drawer = button.closest('.MuiDrawer-paper');
+    if (window.innerWidth < 900) {
+      if (drawer) sidebarExpandedOverride.delete(drawer);
+      drawer?.removeAttribute('data-sx-sidebar-collapsed');
+      schedule();
+      return;
+    }
     if (/\bexpand\b/i.test(action)) {
       // The collapsed CSS pins the paper to 72px; keep explicit state so the
       // resize observer cannot infer the old width and collapse it again.
@@ -855,4 +864,5 @@
   window.addEventListener('popstate', scheduleInboxRecovery);
   window.addEventListener('hashchange', scheduleInboxRecovery);
 })();
+
 
