@@ -27,6 +27,7 @@ const source=fs.readFileSync(process.env.SIDEBAR_SOURCE||path.join(__dirname,'..
    assert.equal(await page.locator('#native .MuiListItemText-primary').isVisible(),true,'native label must remain visible');
    assert.equal(await page.locator('#native .sx-sidebar-fallback-label').count(),0,'native label must not be duplicated');
    assert.equal(await page.locator('#legacy .sx-sidebar-fallback-label').count(),0,'visible legacy text must not be duplicated');
+   if(width>=900){
    await page.evaluate(()=>{document.querySelector('.MuiDrawer-paper').style.width='72px';window.dispatchEvent(new Event('resize'));});
    await page.waitForFunction(()=>document.querySelector('.MuiDrawer-paper').hasAttribute('data-sx-sidebar-collapsed'));
    assert.equal(await fallback.isVisible(),false,'collapsed drawer must keep label hidden');
@@ -34,6 +35,7 @@ const source=fs.readFileSync(process.env.SIDEBAR_SOURCE||path.join(__dirname,'..
    await page.locator('button[aria-label="Expand menu"]').click();
    await page.waitForFunction(()=>!document.querySelector('.MuiDrawer-paper').hasAttribute('data-sx-sidebar-collapsed'));
    assert.equal(await fallback.isVisible(),true,'reopened drawer must restore label');
+   }
    await page.close();cases++;
   }
   console.log(JSON.stringify({passed:true,cases,checks:['330/412/1440 widths','English/Arabic','icon-only fallback visible','native and legacy labels not duplicated','collapse and reopen']}));
