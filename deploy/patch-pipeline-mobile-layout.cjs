@@ -1,0 +1,12 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const root = process.argv[2] || '/app';
+const file = path.join(root, 'client/public/pipeline/index.html');
+const href = '/pipeline/mobile-layout.css?v=20261026-mobile-layout1';
+let html = fs.readFileSync(file, 'utf8');
+html = html.replace(/<link\\b[^>]*href=["'][^"']*\\/pipeline\\/mobile-layout\\.css[^"']*["'][^>]*>/gi, '');
+const link = /<link\\b[^>]*href=["'][^"']*\\/pipeline\\/pipeline\\.css[^"']*["'][^>]*>/i;
+if (!link.test(html)) throw new Error('PIPELINE_BASE_STYLESHEET_LINK_MISSING');
+html = html.replace(link, match => match + '<link rel="stylesheet" href="' + href + '">');
+fs.writeFileSync(file, html);
