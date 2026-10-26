@@ -1,0 +1,9 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+USER root
+COPY --chown=node:node client/public/inbox-translation.js /app/client/public/inbox-translation.js
+COPY --chown=node:node deploy/patch-inbox-message-translation-toggle2.cjs /tmp/patch-inbox-message-translation-toggle2.cjs
+RUN node /tmp/patch-inbox-message-translation-toggle2.cjs /app && rm /tmp/patch-inbox-message-translation-toggle2.cjs
+
+USER node

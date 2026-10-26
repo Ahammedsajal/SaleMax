@@ -90,13 +90,29 @@
   }
 
   let readAccess;
+  const messageTranslations = new WeakMap();
   async function mountReceivedMessageTranslations() {
     if (!/^\/user\/?$/.test(location.pathname) || !/[?&]page=inbox(?:&|$)/.test(location.search)) return;
     if (!readAccess) readAccess = window.SaleMaxWorkspace?.session?.().then(session => session?.permissions?.['conversations.read'] === true).catch(() => false);
     if (!readAccess || !await readAccess) return;
     const bodies = document.querySelectorAll('.MuiTypography-body2');
     for (const body of bodies) {
-      if (!visible(body) || body.dataset.sxInboxTranslationBound === 'true') continue;
+      if (!visible(body)) continue;
+      const existing = messageTranslations.get(body);
+      if (existing) {
+        if (body.querySelector('.sx-inbox-translation-icon')) continue;
+        const liveText = body.innerText.trim();
+        if (liveText !== existing.originalText && liveText !== existing.translated) {
+          messageTranslations.delete(body);
+          delete body.dataset.sxInboxTranslationBound;
+        } else {
+          if (existing.showingTranslation && existing.translated) {
+            body.replaceChildren(document.createTextNode(existing.translated), existing.button);
+            body.setAttribute('dir', 'auto');
+          } else body.append(existing.button);
+          continue;
+        }
+      } else if (body.dataset.sxInboxTranslationBound === 'true') continue;
       const bubble = incomingTextBubble(body);
       if (!bubble || bubble.querySelector('img,video,audio,svg,button')) continue;
       if (bubble.querySelectorAll('.MuiTypography-body2').length !== 1) continue;
@@ -105,37 +121,35 @@
 
       const originalMarkup = body.innerHTML;
       const originalDirection = body.getAttribute('dir');
+      const state = { originalText: original, originalMarkup, originalDirection, translated: '', showingTranslation: false, translating: false, button: null };
       const button = document.createElement('button');
+      state.button = button;
       button.type = 'button';
       button.className = 'sx-inbox-translation-icon';
       button.textContent = '文A';
       button.title = copy().translateMessage;
       button.setAttribute('aria-label', copy().translateMessage);
-      let translated = '';
-      let showingTranslation = false;
-      let translating = false;
-
       const showOriginal = () => {
-        body.innerHTML = originalMarkup;
-        if (originalDirection === null) body.removeAttribute('dir'); else body.setAttribute('dir', originalDirection);
+        body.innerHTML = state.originalMarkup;
+        if (state.originalDirection === null) body.removeAttribute('dir'); else body.setAttribute('dir', state.originalDirection);
         body.append(button);
-        showingTranslation = false;
+        state.showingTranslation = false;
         button.title = copy().translateMessage;
         button.setAttribute('aria-label', copy().translateMessage);
       };
       const showTranslation = () => {
-        body.replaceChildren(document.createTextNode(translated), button);
+        body.replaceChildren(document.createTextNode(state.translated), button);
         body.setAttribute('dir', 'auto');
-        showingTranslation = true;
+        state.showingTranslation = true;
         button.title = copy().showOriginal;
         button.setAttribute('aria-label', copy().showOriginal);
       };
 
       button.addEventListener('click', () => {
-        if (translating) return;
-        if (showingTranslation) { showOriginal(); return; }
-        if (translated) { showTranslation(); return; }
-        translating = true;
+        if (state.translating) return;
+        if (state.showingTranslation) { showOriginal(); return; }
+        if (state.translated) { showTranslation(); return; }
+        state.translating = true;
         button.disabled = true;
         button.title = copy().translating;
         button.setAttribute('aria-label', copy().translating);
@@ -143,16 +157,17 @@
           .then(response => {
             const value = response.data?.text;
             if (typeof value !== 'string' || !value.trim()) throw new Error('TRANSLATION_FAILED');
-            translated = value.trim();
+            state.translated = value.trim();
             showTranslation();
           })
           .catch(() => {
             button.title = copy().failed;
             button.setAttribute('aria-label', copy().failed);
           })
-          .finally(() => { translating = false; button.disabled = false; });
+          .finally(() => { state.translating = false; button.disabled = false; });
       });
       body.dataset.sxInboxTranslationBound = 'true';
+      messageTranslations.set(body, state);
       body.append(button);
     }
   }
