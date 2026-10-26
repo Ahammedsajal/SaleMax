@@ -240,13 +240,82 @@ function getConversationDedupeKey(message) {
   ]);
 }
 
-function normalizeConversationMessage(message, source = "db") {
-  const msgContext = safeJsonParse(message?.msgContext) || message?.msgContext || null;
-  const context = safeJsonParse(message?.context) || message?.context || null;
+function normalizeInboxDisplayMessage(message, msgContext) {
+  const type = String(message?.type || msgContext?.type || "unknown").toLowerCase();
+  const nativeTypes = new Set(["text", "image", "video", "audio", "document", "location"]);
+  if (nativeTypes.has(type)) return { ...message, type, msgContext };
+
+  const interactive = msgContext?.interactive || {};
+  const buttonTitles = (interactive?.action?.buttons || [])
+    .map((button) => button?.reply?.title || button?.title)
+    .filter(Boolean);
+  const listTitles = (interactive?.action?.sections || [])
+    .flatMap((section) => section?.rows || [])
+    .map((row) => row?.title)
+    .filter(Boolean);
+  let body = "";
+
+  if (type === "interactive") {
+    body = interactive?.body?.text || interactive?.header?.text || "";
+    const options = [...buttonTitles, ...listTitles];
+    if (options.length) body = [body, ...options.map((title) => `• ${title}`)].filter(Boolean).join("\n");
+  } else if (type === "reaction") {
+    body = msgContext?.reaction?.emoji || message?.reaction || "Reaction";
+  } else if (type === "sticker") {
+    const link = msgContext?.sticker?.link;
+    if (link) {
+      return {
+        ...message,
+        type: "image",
+        msgContext: { type: "image", image: { link, sticker: true } },
+      };
+    }
+    body = "Sticker received";
+  } else if (type === "contact" || type === "contacts") {
+    body = (msgContext?.contact?.contacts || msgContext?.contacts || [])
+      .map((contact) => {
+        const name = contact?.name?.formatted_name || "Contact";
+        const phone = (contact?.phones || []).map((item) => item?.phone || item?.wa_id).filter(Boolean).join(", ");
+        return phone ? `${name}: ${phone}` : name;
+      }).join("\n") || "Contact shared";
+  } else if (type === "order") {
+    const order = msgContext?.order || {};
+    body = order.text || (order.product_items || [])
+      .map((item) => `${item?.product_retailer_id || "Item"} × ${item?.quantity || 1}`)
+      .join("\n") || "Catalog order received";
+  } else if (type === "button") {
+    body = msgContext?.button?.text || msgContext?.interactive?.body?.text || "Button message";
+  } else if (type === "list") {
+    body = msgContext?.interactive?.body?.text || msgContext?.interactive?.header?.text || "List message";
+  } else if (type === "template") {
+    const template = msgContext?.template || {};
+    body = [template.name, ...(template.components || []).flatMap((component) =>
+      (component?.parameters || []).map((parameter) => parameter?.text || parameter?.payload || ""),
+    )].filter(Boolean).join("\n") || "Template message";
+  } else if (type === "poll") {
+    body = msgContext?.poll?.question || "Poll";
+  } else {
+    body = msgContext?.text?.body || msgContext?.[type]?.text || `WhatsApp ${type} message received`;
+  }
 
   return {
     ...message,
-    msgContext,
+    type: "text",
+    msgContext: {
+      type: "text",
+      text: { body: String(body), preview_url: false },
+      meta: { originalType: type, originalPayload: msgContext?.[type] || msgContext },
+    },
+  };
+}
+
+function normalizeConversationMessage(message, source = "db") {
+  const msgContext = safeJsonParse(message?.msgContext) || message?.msgContext || null;
+  const context = safeJsonParse(message?.context) || message?.context || null;
+  const displayMessage = normalizeInboxDisplayMessage(message, msgContext);
+
+  return {
+    ...displayMessage,
     context,
     _source: source,
     _sortTimestamp: toUnixTimestamp(message?.timestamp),

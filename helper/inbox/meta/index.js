@@ -67,7 +67,10 @@ async function updateChatInMysql({
   body,
 }) {
   try {
-    const allowedMessageTypes = ["text", "image", "document", "video", "audio"];
+    const allowedMessageTypes = [
+      "text", "image", "document", "video", "audio", "sticker",
+      "reaction", "contact", "order", "location",
+    ];
     const isIncoming = actualMsg?.route === "INCOMING";
 
     // Check if chat exists
@@ -290,7 +293,7 @@ async function processMetaMsg({ body, uid }) {
       switch (msgType) {
         case "text":
           msgContext = formatMessage("text", {
-            body: message.text.body,
+            body: message.text?.body || "",
             preview_url: true,
           });
           break;
@@ -299,6 +302,70 @@ async function processMetaMsg({ body, uid }) {
         case "document":
         case "audio":
           msgContext = await processMediaMessage(msgType, message, uid);
+          // Do not silently lose the message if Meta media retrieval is temporarily
+          // unavailable. The payload ID and caption remain useful in the inbox.
+          if (!msgContext) {
+            msgContext = formatMessage(msgType, {
+              id: message[msgType]?.id || null,
+              caption: message[msgType]?.caption || "",
+              filename: message[msgType]?.filename || "",
+              unavailable: true,
+            });
+          }
+          break;
+        case "sticker":
+          {
+            const sticker = await processMediaMessage("sticker", message, uid);
+            msgContext = sticker?.sticker?.link
+              ? formatMessage("image", {
+                  link: sticker.sticker.link,
+                  sticker: true,
+                  animated: Boolean(message.sticker?.animated),
+                })
+              : formatMessage("text", {
+                  body: "Sticker received (media unavailable)",
+                  preview_url: false,
+                });
+          }
+          break;
+        case "reaction":
+          msgContext = formatMessage("text", {
+            body: message.reaction?.emoji || "Reaction",
+            preview_url: false,
+            meta: {
+              type: "reaction",
+              message_id: message.reaction?.message_id || "",
+            },
+          });
+          if (message.reaction?.message_id) {
+            await query(
+              `UPDATE beta_conversation SET reaction = ? WHERE metaChatId = ? AND uid = ?`,
+              [message.reaction?.emoji || "", message.reaction.message_id, uid],
+            );
+          }
+          break;
+        case "contacts":
+          msgContext = formatMessage("text", {
+            body: (message.contacts || []).map((contact) => {
+              const name = contact?.name?.formatted_name || "Contact";
+              const phones = (contact?.phones || [])
+                .map((phone) => phone?.phone || phone?.wa_id)
+                .filter(Boolean)
+                .join(", ");
+              return phones ? `${name}: ${phones}` : name;
+            }).join("\n") || "Contact shared",
+            preview_url: false,
+            meta: { type: "contacts", payload: message.contacts || [] },
+          });
+          break;
+        case "order":
+          msgContext = formatMessage("text", {
+            body: message.order?.text || (message.order?.product_items || [])
+              .map((item) => `${item?.product_retailer_id || "Item"} × ${item?.quantity || 1}`)
+              .join("\n") || "Catalog order received",
+            preview_url: false,
+            meta: { type: "order", payload: message.order || {} },
+          });
           break;
         case "interactive":
           if (interactive?.button_reply) {
@@ -309,6 +376,20 @@ async function processMetaMsg({ body, uid }) {
           } else if (interactive?.list_reply) {
             msgContext = formatMessage("text", {
               body: interactive.list_reply.title,
+              preview_url: false,
+            });
+          } else if (interactive?.nfm_reply) {
+            let response = interactive.nfm_reply.response_json || "";
+            try {
+              if (typeof response === "string") response = JSON.parse(response);
+            } catch {
+              // Preserve the provider response verbatim when it is not JSON.
+            }
+            const responseText = typeof response === "string"
+              ? response
+              : JSON.stringify(response);
+            msgContext = formatMessage("text", {
+              body: responseText || interactive.nfm_reply.name || "Form response",
               preview_url: false,
             });
           }
@@ -327,7 +408,29 @@ async function processMetaMsg({ body, uid }) {
               body: button,
               preview_url: false,
             });
+          } else {
+            // Keep future Meta message types visible and debuggable instead of
+            // discarding them. Preserve the payload for a later renderer upgrade.
+            msgContext = formatMessage("text", {
+              body: `WhatsApp ${msgType || "message"} received`,
+              preview_url: false,
+              meta: {
+                type: msgType || "unknown",
+                payload: message[msgType] || message,
+              },
+            });
           }
+      }
+
+      if (!msgContext) {
+        msgContext = formatMessage("text", {
+          body: `WhatsApp ${msgType || "interactive"} message received`,
+          preview_url: false,
+          meta: {
+            type: msgType || "interactive",
+            payload: message[msgType] || message,
+          },
+        });
       }
 
       if (msgContext) {
