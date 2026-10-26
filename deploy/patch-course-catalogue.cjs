@@ -1,0 +1,5 @@
+'use strict';const fs=require('node:fs');const root=process.argv[2]||'/app/client/public';const file=root+'/training-courses.js';let s=fs.readFileSync(file,'utf8');
+function once(a,b){if(s.split(a).length!==2)throw Error('Expected one catalogue anchor: '+a.slice(0,70));s=s.replace(a,b);}
+once('<div class="course-card-facts"><span class="course-fact">','<div class="course-card-facts course-details"><span class="course-fact">');
+once('<div class="course-card-facts">${c.sourceCategories.map','<div class="course-card-facts course-tags">${c.sourceCategories.map');
+fs.writeFileSync(file,s);const shell=root+'/index.html';let h=fs.readFileSync(shell,'utf8');const refs=h.match(/training-courses\.js\?v=[^"'\s<>]+/g);if(refs?.length!==1)throw Error('Expected one course loader');h=h.replace(refs[0],'training-courses.js?v=20261026-compact-catalogue1');if(h.includes('/course-catalogue.css'))throw Error('Stylesheet already exists');h=h.replace('</head>','<link rel="stylesheet" href="/course-catalogue.css?v=20261026-compact1"></head>');if(!h.includes('/course-catalogue.css'))throw Error('Missing stylesheet insertion');fs.writeFileSync(shell,h);
