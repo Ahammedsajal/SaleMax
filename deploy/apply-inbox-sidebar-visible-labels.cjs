@@ -5,7 +5,7 @@ const path = require('node:path');
 
 const file = path.resolve(process.argv[2] || 'client/public/index.html');
 const before = fs.readFileSync(file, 'utf8');
-const nextVersion = '20261026-sidebar-visible-labels2';
+const nextVersion = '20261026-sidebar-visible-labels3';
 const refs = [...before.matchAll(/(\/training-sidebar\.js\?v=)([A-Za-z0-9_-]+)/g)];
 
 if (refs.length !== 1) throw new Error(`Expected one training-sidebar asset reference; found ${refs.length}`);

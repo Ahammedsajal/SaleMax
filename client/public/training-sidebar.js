@@ -197,10 +197,10 @@
   const sidebarExpandedOverride = new WeakMap();
   const resizeObserver = new ResizeObserver(schedule);
   function label(row) {
+    const accessible = row.getAttribute('aria-label') || row.querySelector('.MuiListItemButton-root')?.getAttribute('aria-label');
     const spans = [...row.querySelectorAll('.MuiListItemText-primary span')];
     const visible = spans.at(-1)?.textContent || row.querySelector('.MuiListItemText-primary')?.textContent || row.textContent;
-    const accessible = row.getAttribute('aria-label') || row.querySelector('.MuiListItemButton-root')?.getAttribute('aria-label');
-    return (visible.trim() || accessible || '').trim().replace(/\s+[—-]\s+PRO Addon Required.*$/i, '');
+    return (accessible?.trim() || visible.trim()).replace(/\s+[—-]\s+PRO Addon Required.*$/i, '');
   }
   function trainingIcon(row, name) {
     const icons = {
