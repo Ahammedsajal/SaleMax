@@ -1,0 +1,3 @@
+services:
+  app:
+    image: salemax-app:chatbot-no-reply-pause-06a8606-20261026
