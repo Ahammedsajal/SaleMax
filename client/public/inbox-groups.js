@@ -29,16 +29,25 @@
   function switchMode(kind) {
     const filters = { ...(read('chatFilters') || {}), conversationKind: kind, origin: kind === 'group' ? 'qr' : '', offset: 0, search: '' };
     localStorage.setItem('chatFilters', JSON.stringify(filters));
-    localStorage.removeItem('currentChat'); localStorage.removeItem('chatInfo'); localStorage.removeItem('conversationArr');
-    localStorage.removeItem('chatList');
     const buttons = controls?.querySelectorAll('button') || [];
     if (buttons[0]) buttons[0].setAttribute('aria-pressed', String(kind === 'direct'));
     if (buttons[1]) buttons[1].setAttribute('aria-pressed', String(kind === 'group'));
-    if (notice) notice.textContent = tr('Switching inbox…', 'جارٍ تبديل صندوق الوارد…');
-    // The filter menu is rendered in a React portal. Reload through the
-    // provider's persisted chatFilters state instead of relying on a portal
-    // node to expose the native provider context.
-    window.location.reload();
+    const inboxHeading = [...document.querySelectorAll('h6')].find(node => ['Inbox', 'صندوق الوارد', 'الوارد'].includes(node.textContent.trim()));
+    const inbox = nativeInbox(controls) || nativeInbox(inboxHeading);
+    if (!inbox) {
+      if (notice) notice.textContent = tr('Inbox is still loading. Please try again.', 'صندوق الوارد ما زال قيد التحميل. حاول مرة أخرى.');
+      return;
+    }
+    // Keep the native app mounted: it clears chatFilters during its startup
+    // effect, so a reload would discard the selected mode. Update the existing
+    // provider state and fetch the requested conversation list in place.
+    inbox.clearConversation?.(); inbox.clearChatInfo?.();
+    inbox.setChatFilters(filters);
+    Promise.resolve(inbox.loadChatList(filters, false)).then(() => {
+      if (notice) notice.textContent = '';
+    }).catch(error => {
+      if (notice) notice.textContent = String(error?.message || error);
+    });
   }
 
   function clearInfo() {
