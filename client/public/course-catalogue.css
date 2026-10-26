@@ -1,0 +1,73 @@
+/* Catalogue presentation only: course editing and product/service layouts keep their contracts. */
+#sx-course-screen[data-catalog-kind=courses]{padding:22px 24px;background:#f5f7fb}
+#sx-course-screen[data-catalog-kind=courses] .page-heading{margin:0 0 16px}
+#sx-course-screen[data-catalog-kind=courses] .page-heading h1{font-size:26px!important;line-height:1.2;margin-bottom:5px}
+#sx-course-screen[data-catalog-kind=courses] .page-heading p{font-size:13px;line-height:1.5}
+#sx-course-screen[data-catalog-kind=courses] .course-overview{gap:10px;margin-bottom:14px;grid-template-columns:repeat(3,minmax(0,1fr))}
+#sx-course-screen[data-catalog-kind=courses] .course-stat{padding:13px 16px;gap:10px;border-radius:12px;box-shadow:none}
+#sx-course-screen[data-catalog-kind=courses] .course-stat-icon{width:32px;flex-basis:32px;height:32px;border-radius:9px;background:#eef4ff;color:#1768d4;font-size:11px}
+#sx-course-screen[data-catalog-kind=courses] .course-stat strong{font-size:22px}
+#sx-course-screen[data-catalog-kind=courses] .course-stat span:last-child{font-size:11px;line-height:1.35}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-card,#sx-course-screen[data-catalog-kind=courses] .journey-card{padding:18px!important;border-radius:14px!important;box-shadow:none}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-head{align-items:center;gap:12px;margin-bottom:12px}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-head h2,#sx-course-screen[data-catalog-kind=courses] .journey-head h2{font-size:18px;margin-bottom:3px!important}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-head p,#sx-course-screen[data-catalog-kind=courses] .journey-head p{font-size:12px;line-height:1.4}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-head>.toolbar{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-head button{min-height:40px;font-size:12px;padding:6px 10px}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-tools{grid-template-columns:minmax(0,1fr) auto auto;gap:8px;padding:10px;background:#f7f9fc;border:1px solid #e9edf4;border-radius:10px}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-search{grid-column:auto}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-search input{width:100%;min-width:0;height:40px;font-size:13px;background:white}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-tools button{min-height:40px;font-size:12px}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-tools>.muted{font-size:11px;white-space:nowrap}
+#sx-course-screen[data-catalog-kind=courses] .course-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:12px;margin-top:14px;align-items:stretch}
+#sx-course-screen[data-catalog-kind=courses] .course-card{position:relative;padding:14px;border:1px solid #dfe6ef;border-radius:12px;background:white;box-shadow:0 2px 6px #152c4104;gap:0;transition:border-color .15s,box-shadow .15s;transform:none;overflow:visible}
+#sx-course-screen[data-catalog-kind=courses] .course-card:hover{transform:none;border-color:#9dbce8;box-shadow:0 4px 14px #1768d40c}
+#sx-course-screen[data-catalog-kind=courses] .course-card-top{display:contents}
+#sx-course-screen[data-catalog-kind=courses] .course-card-mark{display:none}
+#sx-course-screen[data-catalog-kind=courses] .course-card-top>.status{position:absolute;top:12px;inset-inline-end:12px;margin:0;padding:3px 7px;font-size:10px;font-weight:600;line-height:1.35}
+#sx-course-screen[data-catalog-kind=courses] .course-card-code{padding-inline-end:75px;font-size:10px;line-height:1.5;letter-spacing:.035em;overflow-wrap:anywhere;margin-bottom:5px}
+#sx-course-screen[data-catalog-kind=courses] .course-card h3{font-size:16px;line-height:1.35;letter-spacing:-.015em;margin:0 0 3px;white-space:normal;overflow:visible;overflow-wrap:anywhere}
+#sx-course-screen[data-catalog-kind=courses] .course-card-facts{gap:4px 8px;margin:7px 0 5px;line-height:1.4}
+#sx-course-screen[data-catalog-kind=courses] .course-details .course-fact{padding:0;border-radius:0;background:none;font-size:11px;color:#64748b}
+#sx-course-screen[data-catalog-kind=courses] .course-details .course-fact+.course-fact::before{content:'·';margin-inline-end:7px;color:#94a3b8}
+#sx-course-screen[data-catalog-kind=courses] .course-tags{margin:4px 0 9px;gap:4px}
+#sx-course-screen[data-catalog-kind=courses] .course-tags .course-fact{font-size:10px;line-height:1.4;padding:3px 6px;border-radius:5px;background:#f1f5fa;color:#50647b}
+#sx-course-screen[data-catalog-kind=courses] .course-card-bottom{display:flex;align-items:center;gap:8px;padding-top:10px;margin-top:auto;border-top:1px solid #edf1f5;flex-wrap:wrap}
+#sx-course-screen[data-catalog-kind=courses] .course-card-bottom .price{font-size:15px;line-height:1.3;font-weight:700;letter-spacing:-.02em;color:#153f78;white-space:normal;overflow-wrap:anywhere;min-width:0;flex:1 1 70px}
+#sx-course-screen[data-catalog-kind=courses] .course-card-bottom .toolbar{display:flex;gap:6px;flex:0 1 auto;flex-wrap:nowrap;margin:0}
+#sx-course-screen[data-catalog-kind=courses] .course-card-bottom button{min-height:40px;padding:6px 9px;font-size:12px;line-height:1.3;white-space:normal;min-width:0;border-radius:8px}
+#sx-course-screen[data-catalog-kind=courses] .course-card-bottom [data-open]{background:#1768d4;color:#fff;border-color:#1768d4;font-weight:600}
+#sx-course-screen[data-catalog-kind=courses] .course-card-bottom [data-delete-course]{color:#a04450;border-color:#eedfe2;background:white}
+#sx-course-screen[data-catalog-kind=courses] .catalogue-pagination{margin-top:12px;padding-top:12px}
+#sx-course-screen[data-catalog-kind=courses] .journey-stats{gap:8px;margin:12px 0}
+#sx-course-screen[data-catalog-kind=courses] .journey-stat{padding:10px;border-radius:9px}
+@media(max-width:760px){
+ #sx-course-screen[data-catalog-kind=courses]{padding:12px 10px}
+ #sx-course-screen[data-catalog-kind=courses] .page-heading{margin-bottom:12px}
+ #sx-course-screen[data-catalog-kind=courses] .page-heading h1{font-size:22px!important}
+ #sx-course-screen[data-catalog-kind=courses] .page-heading p{font-size:12px}
+ #sx-course-screen[data-catalog-kind=courses] .course-overview{gap:6px;margin-bottom:10px}
+ #sx-course-screen[data-catalog-kind=courses] .course-stat{display:block;padding:10px 8px;border-radius:9px;min-width:0}
+ #sx-course-screen[data-catalog-kind=courses] .course-stat-icon{display:none}
+ #sx-course-screen[data-catalog-kind=courses] .course-stat strong{font-size:21px}
+ #sx-course-screen[data-catalog-kind=courses] .course-stat span:last-child{font-size:10px;line-height:1.35;margin-top:4px}
+ #sx-course-screen[data-catalog-kind=courses] .catalogue-card,#sx-course-screen[data-catalog-kind=courses] .journey-card{padding:12px!important;border-radius:12px!important}
+ #sx-course-screen[data-catalog-kind=courses] .catalogue-head{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+ #sx-course-screen[data-catalog-kind=courses] .catalogue-head>.toolbar{margin:0;justify-content:flex-start;gap:6px}
+ #sx-course-screen[data-catalog-kind=courses] .catalogue-head button{min-height:40px;flex:1 1 auto;white-space:normal;font-size:11px;padding:6px 8px}
+ #sx-course-screen[data-catalog-kind=courses] #sx-course-new{order:-1;flex:1 1 auto}
+ #sx-course-screen[data-catalog-kind=courses] .catalogue-tools{grid-template-columns:minmax(0,1fr) auto;padding:8px;gap:6px}
+ #sx-course-screen[data-catalog-kind=courses] .catalogue-search{grid-column:1/-1}
+ #sx-course-screen[data-catalog-kind=courses] .catalogue-tools>button{width:auto;min-width:70px}
+ #sx-course-screen[data-catalog-kind=courses] .catalogue-tools>.muted{text-align:end}
+ #sx-course-screen[data-catalog-kind=courses] .course-grid{grid-template-columns:minmax(0,1fr);gap:9px;margin-top:10px}
+ #sx-course-screen[data-catalog-kind=courses] .course-card{padding:12px;border-radius:10px}
+ #sx-course-screen[data-catalog-kind=courses] .course-card h3{font-size:15px}
+ #sx-course-screen[data-catalog-kind=courses] .course-card-bottom{padding-top:9px;gap:7px}
+ #sx-course-screen[data-catalog-kind=courses] .course-card-bottom .toolbar{flex:1 1 100%}
+ #sx-course-screen[data-catalog-kind=courses] .course-card-bottom button{min-height:40px;flex:1}
+ #sx-course-screen[data-catalog-kind=courses] .course-card-bottom .price{font-size:14px;flex-basis:100%}
+ #sx-course-screen[data-catalog-kind=courses] .journey-head h2{font-size:16px}
+ #sx-course-screen[data-catalog-kind=courses] .journey-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #sx-course-screen[data-catalog-kind=courses] .journey-stat:last-child{grid-column:auto}
+}
