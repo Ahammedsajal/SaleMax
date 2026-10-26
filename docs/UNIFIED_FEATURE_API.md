@@ -147,11 +147,12 @@ session is revalidated for each request, and the server requires the
 `messaging.inbox` capability and `conversations.read` permission. Requests are
 limited to 4,000 characters and 30 per member per minute.
 
-When `SALEMAX_AZURE_TRANSLATOR_KEY` is configured, the API sends only the
+When `SEVENNETWORK_TRANSLATOR_KEY` is configured, the API sends only the
 requested message text to Azure Translator as its primary provider, with source
-and target explicitly selected for Arabic/English. The key stays server-side;
-`SALEMAX_AZURE_TRANSLATOR_REGION` is optional for global resources, and the
-endpoint can be set with `SALEMAX_AZURE_TRANSLATOR_ENDPOINT`. Any cloud error,
+and target explicitly selected for Arabic/English. This 7Network-owned key stays
+server-side. Set `SEVENNETWORK_TRANSLATOR_REGION` for regional resources and
+`SEVENNETWORK_TRANSLATOR_ENDPOINT` when using a custom endpoint. Existing
+`SALEMAX_AZURE_TRANSLATOR_*` variables remain supported as compatibility fallbacks. Any cloud error,
 quota/rate limit, timeout, invalid response, or missing cloud credential falls
 back to the private LibreTranslate service at `SALEMAX_TRANSLATION_URL`. Quota
 and rate-limit responses temporarily pause cloud requests to avoid repeatedly

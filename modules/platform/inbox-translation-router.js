@@ -16,9 +16,9 @@ function createInboxTranslationRouter({
   origin = process.env.SALEMAX_PLATFORM_ORIGIN,
   fetchImpl = global.fetch,
   endpoint = process.env.SALEMAX_TRANSLATION_URL,
-  azureKey = process.env.SALEMAX_AZURE_TRANSLATOR_KEY,
-  azureRegion = process.env.SALEMAX_AZURE_TRANSLATOR_REGION,
-  azureEndpoint = process.env.SALEMAX_AZURE_TRANSLATOR_ENDPOINT || DEFAULT_AZURE_ENDPOINT,
+  azureKey = process.env.SEVENNETWORK_TRANSLATOR_KEY || process.env.SALEMAX_AZURE_TRANSLATOR_KEY,
+  azureRegion = process.env.SEVENNETWORK_TRANSLATOR_REGION || process.env.SALEMAX_AZURE_TRANSLATOR_REGION,
+  azureEndpoint = process.env.SEVENNETWORK_TRANSLATOR_ENDPOINT || process.env.SALEMAX_AZURE_TRANSLATOR_ENDPOINT || DEFAULT_AZURE_ENDPOINT,
 } = {}) {
   const router = express.Router();
   const wrap = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
