@@ -80,7 +80,7 @@ function normalizeChat(chat, source = "beta") {
   };
   if (require('../../modules/platform/qr-inbox-groups').isGroup(chat)) {
     normalized.isGroup = true;
-    normalized.sender_name = `👥 ${String(chat.sender_name || 'WhatsApp group').replace(/^👥\s*/, '')}`;
+    normalized.sender_name = String(chat.sender_name || 'WhatsApp group');
   }
 
   return normalized;
@@ -156,6 +156,9 @@ function filterChats(chats, filters = {}) {
   const endTimestamp = dateRange?.end ? toUnixTimestamp(dateRange.end) : 0;
 
   return (chats || []).filter((chat) => {
+    // Group metadata is browsed through the dedicated Inbox group directory.
+    // Do not feed non-phone group JIDs into the legacy direct-chat list.
+    if (require('../../modules/platform/qr-inbox-groups').isGroup(chat)) return false;
     const chatOrigin = inferOrigin(chat?.origin, chat?.chat_id);
     const unreadCount = Number(chat?.unread_count || 0);
     const labels = String(chat?.chat_label || "");

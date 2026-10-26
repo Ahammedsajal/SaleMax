@@ -3,6 +3,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const groups = require('../modules/platform/qr-inbox-groups');
 const { mergeConversationLists } = require('../helper/inbox/chatData');
+const { filterChats } = require('../helper/inbox/chatData');
+
+test('direct Inbox excludes synced group metadata while preserving direct chats', () => {
+  const rows = [{chat_id:'qrgroup_'+'a'.repeat(48),sender_mobile:'100@g.us',sender_name:'Group'}, {chat_id:'100_200_owner',sender_mobile:'200',sender_name:'Direct'}];
+  assert.deepEqual(filterChats(rows).map(row=>row.chat_id), ['100_200_owner']);
+});
 
 test('group identity retains hyphens and isolates both owners and QR instances', () => {
   assert.equal(groups.isGroupJid('123-456@g.us'), true);

@@ -178,6 +178,7 @@ function processSocketEvent({
             );
           }
 
+          chats = chats.filter(chat => !require('../../modules/platform/qr-inbox-groups').isGroup(chat));
           chats = inboxAccess.filterAssignedChats(chats, inboxScope);
           const total = chats.length;
           chats = chats.slice(offset, offset + limit);
