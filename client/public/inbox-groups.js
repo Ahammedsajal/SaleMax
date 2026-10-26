@@ -10,7 +10,7 @@
   const active = () => /^\/(user|agent)\/?$/.test(location.pathname) && new URLSearchParams(location.search).get('page') === 'inbox';
   const groupMode = () => read('chatFilters')?.conversationKind === 'group';
   const selectedGroup = () => { const chat = read('currentChat'); return String(chat?.chat_id || '').startsWith('qrgroup_') ? chat : null; };
-  const button = (text, action) => { const node = element('button', text); node.type = 'button'; node.onclick = () => Promise.resolve(action()).catch(error => { notice.textContent = String(error?.message || error); }); return node; };
+  const button = (text, action) => { const node = element('button', text); node.type = 'button'; node.onclick = event => { event.preventDefault(); event.stopPropagation(); try { Promise.resolve(action()).catch(error => { if (notice) notice.textContent = String(error?.message || error); }); } catch (error) { if (notice) notice.textContent = String(error?.message || error); } }; return node; };
   let controls, notice, info, host, currentKey = '', sequence = 0, lastLoad = 0, queued = false;
 
   // Reuse the native Inbox provider's existing actions. This maintained hook
@@ -30,9 +30,15 @@
     const filters = { ...(read('chatFilters') || {}), conversationKind: kind, origin: kind === 'group' ? 'qr' : '', offset: 0, search: '' };
     localStorage.setItem('chatFilters', JSON.stringify(filters));
     localStorage.removeItem('currentChat'); localStorage.removeItem('chatInfo'); localStorage.removeItem('conversationArr');
-    const inbox = nativeInbox(controls);
-    if (inbox) { inbox.clearConversation(); inbox.clearChatInfo(); inbox.loadChatList(filters, false); mount(); }
-    else { localStorage.removeItem('chatList'); location.reload(); }
+    localStorage.removeItem('chatList');
+    const buttons = controls?.querySelectorAll('button') || [];
+    if (buttons[0]) buttons[0].setAttribute('aria-pressed', String(kind === 'direct'));
+    if (buttons[1]) buttons[1].setAttribute('aria-pressed', String(kind === 'group'));
+    if (notice) notice.textContent = tr('Switching inbox…', 'جارٍ تبديل صندوق الوارد…');
+    // The filter menu is rendered in a React portal. Reload through the
+    // provider's persisted chatFilters state instead of relying on a portal
+    // node to expose the native provider context.
+    window.location.reload();
   }
 
   function clearInfo() {
