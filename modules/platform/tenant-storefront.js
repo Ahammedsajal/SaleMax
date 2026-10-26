@@ -21,7 +21,8 @@ async function get(db,ctx){
   const [[row]]=await db.query('SELECT enabled,draft_json AS draft,published_json AS published,revision,published_revision AS publishedRevision,published_at AS publishedAt FROM sx_tenant_storefronts WHERE tenant_id=?',[ctx.tenant.id]);
   if(!row||!Number(row.enabled))return {enabled:false,draft:null,published:null,revision:0,publishedRevision:null,publishedAt:null,history:[]};
   const [history]=await db.query('SELECT revision,published_at AS publishedAt,publication_type AS publicationType FROM sx_tenant_storefront_revisions WHERE tenant_id=? ORDER BY revision DESC LIMIT 20',[ctx.tenant.id]);
-  return {enabled:true,draft:parseJson(row.draft,normalize({})),published:parseJson(row.published),revision:Number(row.revision||0),publishedRevision:row.publishedRevision==null?null:Number(row.publishedRevision),publishedAt:row.publishedAt||null,history};
+  const [[domain]]=await db.query("SELECT id FROM sx_tenant_crm_domains WHERE tenant_id=? AND status='active' AND is_primary=1 AND tls_ready_at IS NOT NULL AND dns_health_status='healthy' LIMIT 1",[ctx.tenant.id]);
+  return {enabled:true,domainReady:Boolean(domain),draft:parseJson(row.draft,normalize({})),published:parseJson(row.published),revision:Number(row.revision||0),publishedRevision:row.publishedRevision==null?null:Number(row.publishedRevision),publishedAt:row.publishedAt||null,history};
 }
 async function lockEnabled(db,ctx){
   const [[row]]=await db.query('SELECT enabled,revision FROM sx_tenant_storefronts WHERE tenant_id=? FOR UPDATE',[ctx.tenant.id]);

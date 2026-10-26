@@ -156,9 +156,7 @@
       data.revision = saved.revision;
       setStatus(card, tr("Draft saved. It is still private.", "تم حفظ المسودة. وما زالت خاصة."));
     }, true);
-    const hasActivePrimaryDomain = (settings.domains || []).some(
-      (domain) => domain.status === "active" && domain.isPrimary,
-    );
+    const hasActivePrimaryDomain = data.domainReady === true;
     const publish = addButton(actions, tr("Publish website", "نشر الموقع"), async () => {
       await api("/api/crm/storefront/publish", "POST", {
         expectedRevision: data.revision,

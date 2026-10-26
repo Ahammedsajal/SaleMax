@@ -21,6 +21,12 @@ test('storefront reads fail closed unless the tenant has an enabled grant row',a
   assert.deepEqual(result,{enabled:false,draft:null,published:null,revision:0,publishedRevision:null,publishedAt:null,history:[]});
 });
 
+test('enabled storefront reports publish readiness only for a healthy primary domain',async()=>{
+  const db={query:async(sql)=>sql.includes('SELECT enabled,draft_json')?[[{enabled:1,draft:'{}',published:null,revision:0,publishedRevision:null,publishedAt:null}]]:sql.includes('SELECT revision,published_at')?[[]]:sql.includes('SELECT id FROM sx_tenant_crm_domains')?[[{id:'domain-demo'}]]:(()=>{throw new Error('UNEXPECTED_QUERY')})()};
+  const result=await storefront.get(db,ctx);
+  assert.equal(result.enabled,true);assert.equal(result.domainReady,true);
+});
+
 test('disabled tenant cannot create a draft, publish, or rollback',async()=>{
   const db={beginTransaction:async()=>{},rollback:async()=>{},commit:async()=>{},query:async(sql)=>{if(/SELECT enabled,revision/.test(sql))return [[{enabled:0,revision:0}]];if(/SELECT draft_json/.test(sql))return [[null]];throw new Error('UNEXPECTED_QUERY');}};
   await assert.rejects(()=>storefront.saveDraft(db,ctx,{content:{headline:'Demo'},expectedRevision:0}),{code:'STOREFRONT_DISABLED',status:403});
