@@ -14,7 +14,10 @@ client/public/media/*
 !client/public/media/salemax-logo.png
 client/public/recordings
 client/public/telegram
-tests
+tests/*
+!tests/chatbot-context-repairs.test.js
+!tests/chatbot-turn-lock.test.js
+!tests/chatbot-turn-guard-patch.test.js
 docs
 client/.preview-build
 client/public/upgrade-preview
