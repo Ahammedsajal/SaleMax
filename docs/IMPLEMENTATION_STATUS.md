@@ -1880,13 +1880,18 @@ both-login UI and handset/media/mention/quote acceptance remain open. Membership
 sync does not provide a guaranteed historical message archive. See DEPLOYMENT.md
 for final image, rollback, runtime parity and remaining full-program gates.
 
-## QR group mode selector inside Inbox Filters — production, 26 October 2026
+## QR group mode selector inside Inbox Filters — corrected in latest production release
 
-Moved the Chats / Groups selector out of the Inbox heading and into the existing
-Filters dropdown, above WhatsApp Number, Assignment, Origin and Agent. The
-selector uses compact wrapping controls and keeps Sync groups visible only in
-Groups mode. It continues to drive the native Inbox list and conversation
-renderer; it does not add a second inbox layout. Source commit `345bb6f` is
-deployed. The public `/user?page=inbox` shell references the updated hook. A
-signed-in browser screenshot and visual RTL/mobile confirmation remain open.
-See DEPLOYMENT.md for active image and rollback details.
+The first deployment attempt accidentally packaged the old hook; the user's
+screenshot confirmed that the controls remained above Inbox. The corrected
+release below ships the filter-panel UI and current cache-busted hook.
+
+## Group latest-message sorting and filter UI correction — production, 26 October 2026
+
+Chats / Groups now lives inside the visible Filters panel; stale controls in the
+Inbox heading are removed. The native Inbox list sorts groups by their latest
+saved message timestamp, with groups that have no saved message placed after
+active groups. Out-of-order provider events cannot replace a newer last-message
+pointer. Source commit `e1a8c25` is deployed. Messages from before group support
+are not imported, so only group activity already received by the Inbox can be
+sorted. See DEPLOYMENT.md for release, verification and rollback details.

@@ -1,0 +1,9 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node runtime/ /app/
+RUN node --check /app/client/public/inbox-groups.js \
+ && node --check /app/helper/inbox/chatData.js \
+ && node --check /app/helper/socket/index.js \
+ && node --check /app/modules/platform/qr-inbox-groups.js

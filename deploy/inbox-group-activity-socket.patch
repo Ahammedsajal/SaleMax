@@ -1,0 +1,20 @@
+diff --git a/helper/socket/index.js b/helper/socket/index.js
+index ccb49af..cacffa7 100644
+--- a/helper/socket/index.js
++++ b/helper/socket/index.js
+@@ -27,6 +27,7 @@ const {
+   filterChats,
+   mergeChatLists,
+   mergeConversationLists,
++  sortGroupChatsByActivity,
+   sanitizeMergedRows,
+ } = require("../inbox/chatData.js");
+ const {
+@@ -182,6 +183,7 @@ function processSocketEvent({
+ 
+           chats = chats.filter(chat => (conversationKind === 'group') === require('../../modules/platform/qr-inbox-groups').isGroup(chat));
+           chats = inboxAccess.filterAssignedChats(chats, inboxScope);
++          if (conversationKind === 'group') chats = sortGroupChatsByActivity(chats);
+           const total = chats.length;
+           chats = chats.slice(offset, offset + limit);
+ 
