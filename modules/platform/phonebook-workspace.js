@@ -2,7 +2,7 @@
 const crypto=require('node:crypto');
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
-const fields=['name','mobile','phonebook_name','var1','var2','var3','var4','var5','var6','createdAt'];
+const fields=['name','mobile','phonebook_name','var1','var2','var3','var4','var5','createdAt'];
 const normalize=value=>String(value||'').normalize('NFKC').toLocaleLowerCase().replace(/\s+/g,' ').trim();
 function ids(input){if(!Array.isArray(input)||!input.length||input.length>500||input.some(id=>!Number.isSafeInteger(Number(id))||Number(id)<1))fail('INVALID_SELECTION');return [...new Set(input.map(Number))];}
 function validateConfig(input){
