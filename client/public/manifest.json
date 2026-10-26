@@ -1,8 +1,8 @@
 {
   "name": "7Network — CRM, WhatsApp & Business Automation",
   "short_name": "7Network",
-  "id": "/",
-  "start_url": "/",
+  "id": "/user",
+  "start_url": "/user?page=dashboard",
   "scope": "/",
   "display": "standalone",
   "theme_color": "#081630",
