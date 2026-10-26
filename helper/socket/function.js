@@ -8,6 +8,7 @@ const moment = require("moment-timezone");
 function mergeArraysWithPhonebook(chatArray, phonebookArray) {
   // Iterate through the chat array and enrich with phonebook data
   return chatArray.map((chat) => {
+    if (require('../../modules/platform/qr-inbox-groups').isGroup(chat)) return { ...chat, phonebook: null, isGroup: true };
     // Find matching phonebook entry where sender_mobile matches mobile
     const phonebookEntry = phonebookArray.find(
       (phonebook) => phonebook.mobile === chat.sender_mobile,
@@ -452,6 +453,14 @@ function setQrMsgObj(obj) {
 
 async function sendQrMsg({ uid, to, msgObj, chatInfo }) {
   try {
+    const groups = require('../../modules/platform/qr-inbox-groups');
+    if (groups.isGroup(chatInfo)) {
+      const target = await groups.service().sendTarget(uid, chatInfo.chat_id);
+      const content = setQrMsgObj(msgObj);
+      if (!content) return { success: false, msg: 'Unsupported group message type' };
+      const result = await timeoutPromise(target.session.sendMessage(target.jid, content), 60000);
+      return result?.key?.id ? { success: true, id: result.key.id } : { success: false, msg: 'Group message was not accepted' };
+    }
     const sessionMobileNumber = extractFinalNumber(chatInfo);
     if (!sessionMobileNumber) {
       return {

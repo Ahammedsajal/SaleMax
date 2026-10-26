@@ -129,6 +129,7 @@
   }
 
   function mount() {
+    if (String(chat()?.chat_id || '').startsWith('qrgroup_')) { root?.remove(); root = null; currentKey = ''; return; }
     const block = active() ? contactBlock() : null;
     if (!block) {
       root?.remove(); root = null; currentKey = ''; sequence++;

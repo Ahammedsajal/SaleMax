@@ -3,6 +3,7 @@ const crypto=require('node:crypto');
 const sha=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
 
 async function recordAgentReply({uid,chatId,agentId,origin,providerMessageId,query}={}){
+  if(require('../../modules/platform/qr-inbox-groups').isGroup({chatId}))return false;
   const numericAgent=Number(agentId),messageId=String(providerMessageId||'').trim().slice(0,191);
   if(typeof query!=='function'||typeof uid!=='string'||!uid||typeof chatId!=='string'||!chatId||!Number.isSafeInteger(numericAgent)||numericAgent<1||!['qr','meta'].includes(origin)||!messageId)return false;
   const uidHash=sha(uid),[leads]=await query(`SELECT lead_id FROM pipeline_conversations WHERE uid_hash=? AND uid=? AND chat_id=? AND origin=? ORDER BY last_inbound_at DESC LIMIT 1`,[uidHash,uid,chatId,origin]);

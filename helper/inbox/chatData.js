@@ -78,6 +78,10 @@ function normalizeChat(chat, source = "beta") {
     _source: source,
     _sortTimestamp: getChatSortTimestamp(chat),
   };
+  if (require('../../modules/platform/qr-inbox-groups').isGroup(chat)) {
+    normalized.isGroup = true;
+    normalized.sender_name = `👥 ${String(chat.sender_name || 'WhatsApp group').replace(/^👥\s*/, '')}`;
+  }
 
   return normalized;
 }
@@ -309,6 +313,12 @@ function normalizeConversationMessage(message, source = "db") {
   const msgContext = safeJsonParse(message?.msgContext) || message?.msgContext || null;
   const context = safeJsonParse(message?.context) || message?.context || null;
   const displayMessage = normalizeInboxDisplayMessage(message, msgContext);
+  if (msgContext?.group?.participantName && message.route === 'INCOMING') {
+    const name = String(msgContext.group.participantName).slice(0, 256);
+    const body = displayMessage.msgContext;
+    if (displayMessage.type === 'text') displayMessage.msgContext = { ...body, text: { ...body.text, body: `${name}\n${body.text?.body || ''}` } };
+    else if (['image', 'video', 'document'].includes(displayMessage.type)) displayMessage.msgContext = { ...body, [displayMessage.type]: { ...body[displayMessage.type], caption: `${name}\n${body[displayMessage.type]?.caption || ''}` } };
+  }
 
   return {
     ...displayMessage,

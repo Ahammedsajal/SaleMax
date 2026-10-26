@@ -1,0 +1,12 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const root = process.argv[2] || '/app';
+const file = path.join(root, 'client/public/index.html');
+let html = fs.readFileSync(file, 'utf8');
+const source = '/inbox-groups.js?v=20261026-groups1';
+html = html.replace(/<script\b[^>]*src=["']\/inbox-groups\.js[^"']*["'][^>]*><\/script>/g, '');
+if (!html.includes('</body>')) throw Error('INBOX_SHELL_BODY_MISSING');
+html = html.replace('</body>', `<script defer src="${source}"></script></body>`);
+html = html.replace(/(inbox-phonebook-contact\.js)\?[^"']+/g, '$1?v=20261026-group-phonebook-guard1');
+fs.writeFileSync(file, html);

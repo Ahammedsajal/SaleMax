@@ -116,6 +116,7 @@ async function share(db,ctx,input){manage(ctx);const selected=ids(input.ids);if(
  await db.commit();return {count:selected.length};}catch(e){await db.rollback();throw e;}}
 async function shares(db,ctx){manage(ctx);const [rows]=await db.query('SELECT resource_type AS resourceType,resource_id AS resourceId,recipient_type AS recipientType,recipient_id AS recipientId FROM sx_phonebook_shares WHERE owner_hash=?',[ctx.hash]);return rows;}
 async function routeOpening({uid,message,chatId,origin,sessionId,pool}){
+ if(require('./qr-inbox-groups').isGroup({...message,chatId}))return {routed:false};
  if(!uid||!chatId||!message?.metaChatId||message?.route!=='INCOMING'||!['qr','meta'].includes(origin))return {routed:false};
  const mobile=String(message.senderMobile||'').replace(/\D/g,'');if(!/^\d{7,16}$/.test(mobile))return {routed:false};
  const db=await pool.getConnection();try{

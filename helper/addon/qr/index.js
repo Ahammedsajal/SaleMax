@@ -536,6 +536,18 @@ const createSession = async (
     });
 
     // Handle messages update (for poll updates)
+    const refreshGroup = async jid => {
+      if (!require('../../../modules/platform/qr-inbox-groups').isGroupJid(jid)) return;
+      const uid = await resolveUidFromSessionId(sessionId);
+      if (!uid) return;
+      const groups = require('../../../modules/platform/qr-inbox-groups').service();
+      const metadata = await groups.metadata(uid, sessionId, jid, true);
+      await groups.store({ uid, instanceId: sessionId, metadata, session: sock });
+    };
+    sock.ev.on('groups.upsert', updates => { for (const group of updates || []) refreshGroup(group.id).catch(() => newLogger.warn('QR_GROUP_REFRESH_UNAVAILABLE')); });
+    sock.ev.on('groups.update', updates => { for (const group of updates || []) refreshGroup(group.id).catch(() => newLogger.warn('QR_GROUP_REFRESH_UNAVAILABLE')); });
+    sock.ev.on('group-participants.update', update => { refreshGroup(update.id).catch(() => newLogger.warn('QR_GROUP_MEMBERS_REFRESH_UNAVAILABLE')); });
+
     sock.ev.on("messages.update", async (m) => {
       const message = m[0];
 
@@ -559,6 +571,7 @@ const createSession = async (
 
       const main = msg.key.remoteJid;
       const alt = msg.key.remoteJidAlt;
+      if (require('../../../modules/platform/qr-inbox-groups').isGroupJid(main)) return msg;
 
       if (main === "status@broadcast" || alt === "status@broadcast") {
         // Tag it so downstream code can detect it easily
@@ -580,14 +593,14 @@ const createSession = async (
     };
 
     sock.ev.on("messages.upsert", async (m) => {
-      let message = m.messages[0];
-      if (!message) return;
+      for (let message of m.messages || []) {
+      if (!message) continue;
 
       message = normalizeMessageJid(message);
 
       const remoteJid = message.key.remoteJid;
 
-      const savedContactName = getCachedQrContactName(sessionId, remoteJid);
+      const savedContactName = getCachedQrContactName(sessionId, String(remoteJid || '').endsWith('@g.us') ? message.key.participant : remoteJid);
       if (savedContactName) {
         message.pushName = savedContactName;
       }
@@ -603,16 +616,17 @@ const createSession = async (
         message.message?.senderKeyDistributionMessage?.groupId ===
           "status@broadcast"
       ) {
-        return; // Skip — this is a Story/Status update
+        continue; // Skip — this is a Story/Status update
       }
 
       const isDirectChatJid =
         remoteJid.endsWith("@s.whatsapp.net") || remoteJid.endsWith("@lid");
+      const isGroupChatJid = require('../../../modules/platform/qr-inbox-groups').isGroupJid(remoteJid);
 
-      if ((m.type === "notify" || m.type === "append") && isDirectChatJid) {
+      if ((m.type === "notify" || m.type === "append") && (isDirectChatJid || isGroupChatJid)) {
         const uid = await resolveUidFromSessionId(sessionId);
         if (uid) {
-          processMessage({
+          await processMessage({
             body: message,
             uid,
             origin: "qr",
@@ -621,6 +635,7 @@ const createSession = async (
             qrType: "upsert",
           });
         }
+      }
       }
     });
 
@@ -647,6 +662,8 @@ const createSession = async (
           } catch (error) {
             newLogger.error("Database update error (open):", error);
           }
+          resolveUidFromSessionId(sessionId).then(uid => uid && require('../../../modules/platform/qr-inbox-groups').service().sync(uid, sessionId))
+            .catch(() => newLogger.warn('QR_GROUP_DIRECTORY_SYNC_UNAVAILABLE'));
         } else if (connection === "close") {
           const watchdog = connectionWatchdogs.get(sessionId);
           if (watchdog) clearTimeout(watchdog);
@@ -1072,4 +1089,5 @@ module.exports = {
   generateProfilePicture: wrappedGenerateProfilePicture,
   getStorageConfig, // Export for debugging
   getSessionStats,
+  getCachedQrContactName,
 };

@@ -5,6 +5,7 @@ const mime = require("mime-types");
 const { fetchProfileUrl } = require("./control");
 const fs = require("fs");
 const { captureQrMessage } = require("../../pipeline/leadPipeline.js");
+const groups = require('../../../modules/platform/qr-inbox-groups');
 
 // Import downloadMediaMessage directly from baileys
 let downloadMediaMessage;
@@ -230,7 +231,7 @@ function getChatId({ instanceNumber, senderMobile, uid }) {
 
 async function saveMessageToConversation({ uid, chatId, messageData }) {
   try {
-    await require('../../../modules/platform/chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: {
+    const result = await require('../../../modules/platform/chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: {
       type: messageData.type,
       metaChatId: messageData.metaChatId,
       msgContext: JSON.stringify(messageData.msgContext),
@@ -245,7 +246,7 @@ async function saveMessageToConversation({ uid, chatId, messageData }) {
       uid,
       chat_id: chatId,
     } });
-    return true;
+    return result.inserted;
   } catch (err) {
     console.log("Error saving message to conversation:", err);
     return false;
@@ -255,6 +256,16 @@ async function saveMessageToConversation({ uid, chatId, messageData }) {
 async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
   try {
     if (!body) return null;
+    const groupMessage = groups.isGroupJid(body.key?.remoteJid);
+    if (groupMessage && body.message) {
+      let content = body.message;
+      for (let depth = 0; depth < 5; depth++) {
+        const wrapped = content.ephemeralMessage?.message;
+        if (!wrapped) break;
+        content = wrapped;
+      }
+      body = { ...body, message: content };
+    }
 
     // Status Update Handling
     if (body.update && typeof body.update.status === "number") {
@@ -267,8 +278,8 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
       const newStatus = statusMapping[newStatusNumber] || "";
 
       await query(
-        `UPDATE beta_conversation SET status = ? WHERE metaChatId = ? AND uid = ?`,
-        [newStatus, body.key.id, uid]
+        `UPDATE beta_conversation SET status = ? WHERE metaChatId = ? AND uid = ? AND chat_id = ?`,
+        [newStatus, body.key.id, uid, chatId]
       );
 
       return { newMessage: null, chatId };
@@ -276,6 +287,7 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
 
     let msgContext = null;
     let referencedMessageData = null;
+    if (!body.message) return { newMessage: null, chatId };
 
     // console.log({ body: JSON.stringify(body) });
 
@@ -293,15 +305,15 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
 
       // Find the original message that was reacted to
       const [originalMessage] = await query(
-        `SELECT * FROM beta_conversation WHERE metaChatId = ? AND uid = ?`,
-        [reaction.key.id, uid]
+        `SELECT * FROM beta_conversation WHERE metaChatId = ? AND uid = ? AND chat_id = ?`,
+        [reaction.key.id, uid, chatId]
       );
 
       if (originalMessage) {
         // Update the reaction field in the original message
         await query(
-          `UPDATE beta_conversation SET reaction = ? WHERE metaChatId = ? AND uid = ?`,
-          [reaction.text, reaction.key.id, uid]
+          `UPDATE beta_conversation SET reaction = ? WHERE metaChatId = ? AND uid = ? AND chat_id = ?`,
+          [reaction.text, reaction.key.id, uid, chatId]
         );
 
         // Return null as we don't need to create a new message for reactions
@@ -419,6 +431,15 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
       if (doc.contextInfo?.quotedMessage) {
         referencedMessageData = doc.contextInfo.quotedMessage;
       }
+    } else if (groupMessage && body.message.stickerMessage) {
+      const sticker = body.message.stickerMessage;
+      const downloaded = await downloadMediaPromise(body, sticker.mimetype || 'image/webp');
+      msgContext = downloaded.success
+        ? { type: 'image', image: { link: `${process.env.FRONTENDURI}/meta-media/${downloaded.fileName}`, sticker: true } }
+        : { type: 'text', text: { body: 'Sticker (media unavailable)', preview_url: false } };
+    } else if (groupMessage && !body.message.protocolMessage && !body.message.senderKeyDistributionMessage) {
+      const kind = Object.keys(body.message || {})[0] || 'message';
+      msgContext = { type: 'text', text: { body: `WhatsApp group ${kind} received`, preview_url: false } };
     } else {
       console.warn("Unsupported message type in Baileys webhook");
       return null;
@@ -436,17 +457,32 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
       contextData = referencedMessageData;
     }
 
+    if (groupMessage) {
+      const content = Object.values(body.message || {}).find(item => item?.contextInfo?.stanzaId);
+      const quote = content?.contextInfo;
+      if (quote?.stanzaId) {
+        const [found] = await query('SELECT * FROM beta_conversation WHERE uid=? AND chat_id=? AND metaChatId=? LIMIT 1', [uid, chatId, quote.stanzaId]);
+        let original;
+        try { original = found && JSON.parse(found.msgContext); } catch { original = null; }
+        contextData = { id: quote.stanzaId, senderName: found?.senderName || quote.participant || '',
+          msgContext: original || undefined,
+          conversation: original?.text?.body || original?.image?.caption || original?.document?.filename || quote.quotedMessage?.conversation || quote.quotedMessage?.extendedTextMessage?.text || 'Quoted message' };
+      }
+      const participantJid = groups.cleanJid(body.key?.participant || body.participant || '');
+      msgContext.group = { jid: body.key.remoteJid, participantJid, participantName: body.key.fromMe ? 'You' : body.pushName || participantJid || 'Member' };
+    }
+
     // Create the new message object
     const newMessage = {
       type: msgContext.type,
       metaChatId: body.key.id,
       msgContext,
       reaction: "",
-      timestamp: getCurrentTimestampInTimeZone(
+      timestamp: groupMessage ? Number(body.messageTimestamp) || Math.floor(Date.now() / 1000) : getCurrentTimestampInTimeZone(
         userFromMysql?.timezone || body.messageTimestamp
       ),
-      senderName: body.pushName || "NA",
-      senderMobile: body.key.remoteJid
+      senderName: groupMessage ? msgContext.group.participantName : body.pushName || "NA",
+      senderMobile: groupMessage ? msgContext.group.participantJid : body.key.remoteJid
         ? body.key.remoteJid.split("@")[0]
         : "NA",
       status: "",
@@ -457,13 +493,13 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
     };
 
     // Save message to MySQL
-    await saveMessageToConversation({
+    const inserted = await saveMessageToConversation({
       uid,
       chatId,
       messageData: newMessage,
     });
 
-    return { newMessage, chatId };
+    return { newMessage: inserted ? newMessage : null, chatId };
   } catch (err) {
     console.error("Error processing Baileys message:", err);
     return null;
@@ -534,7 +570,8 @@ async function processMessageQr({
       });
     }
 
-    const chatId = getChatId({
+    const groupMessage = groups.isGroupJid(message.key.remoteJid);
+    const chatId = groupMessage ? groups.groupChatId(uid, sessionId, message.key.remoteJid) : getChatId({
       instanceNumber,
       senderMobile: message.key.remoteJid,
       uid,
@@ -549,6 +586,10 @@ async function processMessageQr({
 
     // Update chat in MySQL with the latest message
     if (data?.newMessage) {
+      if (groupMessage) {
+        await groups.service().record({ uid, instanceId: sessionId, jid: message.key.remoteJid, message: data.newMessage });
+        return { ...data, isGroup: true };
+      }
       // Persist the CRM event independently so a contact-list write cannot skip it.
       await captureQrMessage({ uid, chatId, message, normalizedMessage: data.newMessage })
         .catch((error) => console.error("Lead pipeline QR capture failed:", error?.code || error?.name || "unknown"));

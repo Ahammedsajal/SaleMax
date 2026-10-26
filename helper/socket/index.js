@@ -773,6 +773,7 @@ function processSocketEvent({
             timestamp: userTimezone || "NA",
             senderName: senderName || "NA",
             senderMobile: senderMobile || "NA",
+            origin: chatInfo.origin,
           });
 
           let sendMsg;

@@ -542,6 +542,7 @@ async function finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,c
 }
 
 async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId }) {
+  if (require('./qr-inbox-groups').isGroup({ ...message, chatId })) return { handled: true, paused: true, code: 'GROUP_AUTOMATION_DISABLED' };
   if (!uid || !chatId || message?.route !== 'INCOMING') return { handled: false };
   const access=await currentOwnerAccess(uid),ctx=access.context;
   if(!ctx){

@@ -327,6 +327,9 @@ async function processMessage({
     if (latestConversation?.newMessage && uid) {
       const msg = latestConversation?.newMessage;
 
+      // Group traffic stays in Inbox and never enters lead/contact/bot paths.
+      if (require('../../modules/platform/qr-inbox-groups').isGroup({ ...msg, chatId: latestConversation?.chatId })) return;
+
       if (["qr", "meta"].includes(origin) && ["INCOMING", "OUTGOING"].includes(msg?.route)) {
         const crmPush = await sendIncomingToCrm({
           user: userData,

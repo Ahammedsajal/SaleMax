@@ -314,6 +314,7 @@ async function maybeApplyIntentRule(connection, { uidHash, lead, stage, settings
 }
 
 async function captureInbound({ uid, origin, chatId, senderMobile, senderName, message, normalizedMessage, providerMessageId, timestamp, referral, botCapture = false, pool:sourcePool }) {
+  if (require('../../modules/platform/qr-inbox-groups').isGroup({ ...message, chatId }) || require('../../modules/platform/qr-inbox-groups').isGroup(normalizedMessage)) return { skipped: true, reason: 'group_conversation' };
   if (!uid || !["qr", "meta"].includes(origin)) return { skipped: true };
   if (origin === "qr" && (normalizedMessage?.route || message?.route) !== "INCOMING") return { skipped: true };
   const phone = normalizePhone(senderMobile || message?.from || message?.key?.remoteJid);

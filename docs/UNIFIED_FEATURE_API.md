@@ -7,6 +7,7 @@ business feature. Add future changes to that implementation once.
 | --- | --- | --- |
 | Current role and permitted actions | `/api/workspace/session` | None |
 | Inbox course replies | `/api/workspace/inbox/course-replies` | `/api/inbox/course-replies`, `/api/agent/course-replies` |
+| QR Inbox groups | `/api/workspace/inbox/groups` | `/api/inbox/groups`, `/api/agent/inbox/groups` |
 | Phonebook | `/api/workspace/phonebook` | `/api/phonebook/workspace`, `/api/agent/phonebook` |
 | Finance, invoices, payments and receipts | `/api/workspace/finance` | `/api/user/training/finance-policies`; its `/accountant` and `/canonical` prefixes are stripped before routing |
 | Course catalogue | `/api/workspace/courses` | `/api/user/training/courses` |
