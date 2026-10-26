@@ -1,0 +1,9 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY deploy/patch-mobile-layout-unification.cjs /tmp/patch-mobile-layout-unification.cjs
+RUN node /tmp/patch-mobile-layout-unification.cjs \
+ && node --check /app/client/public/training-sidebar.js \
+ && node --check /tmp/patch-mobile-layout-unification.cjs

@@ -175,6 +175,9 @@
     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .sx-sidebar-fallback-label{display:none!important}
     [data-sx-sidebar-list] svg[data-sx-training-icon]{fill:none!important;stroke:currentColor!important;stroke-width:1.8px!important;stroke-linecap:round!important;stroke-linejoin:round!important}
     [data-sx-search-hidden],[data-sx-nav-section][hidden]{display:none!important}
+    .sx-sidebar-search-wrap{box-sizing:border-box!important;display:block!important;padding:10px 12px!important;border-bottom:1px solid #e7eaf0!important;background:#fff!important}
+    .sx-sidebar-search-wrap input{box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;height:40px!important;padding:0 12px!important;border:1px solid #e1e6ee!important;border-radius:10px!important;background:#f7f8fa!important;color:#182230!important;font:400 14px/1.4 Roboto,Arial,sans-serif!important;outline:none!important}
+    .sx-sidebar-search-wrap input:focus{border-color:#1768d4!important;box-shadow:0 0 0 2px #1768d426!important}
     .MuiDrawer-paper input[data-sx-search-empty]:-webkit-autofill{-webkit-text-fill-color:transparent!important;caret-color:transparent!important}
     [data-sx-sidebar-brand]{box-sizing:border-box!important;display:flex!important;align-items:center;min-width:0!important;width:min(156px,calc(100vw - 100px))!important;max-width:calc(100vw - 100px)!important;flex:0 0 min(156px,calc(100vw - 100px))!important;overflow:visible!important;background:none!important}
     [data-sx-sidebar-brand]>:not([data-sx-sidebar-logo]){display:none!important}
@@ -517,6 +520,22 @@
     native.setAttribute('data-sx-native-label-hidden','1');
     return text;
   }
+  function ensureMobileSidebarSearch(drawer,list) {
+    if (window.innerWidth > 700 || drawer.querySelector('input')) return;
+    const wrap=document.createElement('div');
+    wrap.className='sx-sidebar-search-wrap';
+    wrap.dataset.sxSidebarSearch='1';
+    const input=document.createElement('input');
+    input.type='search';
+    input.name='salemax-navigation-query';
+    input.autocomplete='new-password';
+    input.placeholder=tr('Search menu…','ابحث في القائمة…');
+    input.setAttribute('aria-label',tr('Search menu','ابحث في القائمة'));
+    input.setAttribute('data-sx-search-empty','');
+    input.addEventListener('input',()=>input.toggleAttribute('data-sx-search-empty',!input.value));
+    wrap.append(input);
+    list.before(wrap);
+  }
   function update() {
     if (location.pathname.replace(/\/$/, '') !== '/user') return;
     resetAgentLoginSearch();
@@ -524,6 +543,7 @@
       if (!observed.has(drawer)) { observed.add(drawer); resizeObserver.observe(drawer); }
       const list = drawer.querySelector('ul');
       if (!list) return;
+      ensureMobileSidebarSearch(drawer,list);
       const searchInput = drawer.querySelector('input');
       if (searchInput) {
         if (searchInput.type !== 'search') searchInput.type = 'search';
