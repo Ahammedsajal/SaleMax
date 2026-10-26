@@ -3,5 +3,5 @@ FROM ${BASE_IMAGE}
 ARG SOURCE_COMMIT
 LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
 COPY --chown=node:node runtime/ /app/
-COPY deploy/patch-inbox-groups-shell.cjs /tmp/patch-inbox-groups-shell.cjs
-RUN node /tmp/patch-inbox-groups-shell.cjs /app && node --check /app/client/public/inbox-groups.js
+COPY --chown=node:node deploy/patch-inbox-groups-shell.cjs /app/patch-inbox-groups-shell.cjs
+RUN node /app/patch-inbox-groups-shell.cjs /app && node --check /app/client/public/inbox-groups.js
