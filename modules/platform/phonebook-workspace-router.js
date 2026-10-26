@@ -9,6 +9,7 @@ module.exports=function createRouter({agent=false,pool:injectedPool,authenticate
  const handle=fn=>async(req,res)=>{let db;try{db=await pool.getConnection();res.set('Cache-Control','no-store');res.json({success:true,...await fn(db,req.phonebookContext,req)});}catch(e){res.status(e.status||500).json({success:false,code:e.status?e.code:'PHONEBOOK_UNAVAILABLE'});}finally{db?.release();}};
  router.get('/bootstrap',handle(async(db,ctx)=>({config:await service.settings(db,ctx),books:await service.books(db,ctx),manage:ctx.manage,category:ctx.category})));
  router.post('/contacts',handle(async(db,ctx,req)=>service.list(db,ctx,req.body)));
+ router.post('/contact-matches',handle(async(db,ctx,req)=>service.contactsByMobile(db,ctx,req.body)));
  router.post('/values',handle(async(db,ctx,req)=>service.unique(db,ctx,req.body)));
  router.put('/settings',handle(async(db,ctx,req)=>({config:await service.saveSettings(db,ctx,req.body)})));
  router.post('/move',handle((db,ctx,req)=>service.move(db,ctx,req.body)));

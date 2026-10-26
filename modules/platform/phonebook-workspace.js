@@ -2,7 +2,7 @@
 const crypto=require('node:crypto');
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
-const fields=['name','mobile','phonebook_name','var1','var2','var3','var4','var5','createdAt'];
+const fields=['name','mobile','phonebook_name','var1','var2','var3','var4','var5','var6','createdAt'];
 const normalize=value=>String(value||'').normalize('NFKC').toLocaleLowerCase().replace(/\s+/g,' ').trim();
 function ids(input){if(!Array.isArray(input)||!input.length||input.length>500||input.some(id=>!Number.isSafeInteger(Number(id))||Number(id)<1))fail('INVALID_SELECTION');return [...new Set(input.map(Number))];}
 function validateConfig(input){
@@ -73,6 +73,17 @@ function where(ctx,input={}){
  return {sql,params};
 }
 async function list(db,ctx,input={}){const w=where(ctx,input);const page=Math.max(0,Number(input.page)||0);if(!Number.isSafeInteger(page)||page>100000)fail('INVALID_PAGE');const [[count]]=await db.query(`SELECT COUNT(*) AS total FROM contact c WHERE ${w.sql}`,w.params);const [rows]=await db.query(`SELECT c.* FROM contact c WHERE ${w.sql} ORDER BY c.id DESC LIMIT 100 OFFSET ?`,[...w.params,page*100]);return {rows,total:Number(count.total),page};}
+function mobileCandidates(value){let digits=String(value||'').replace(/\D/g,'');if(digits.startsWith('00'))digits=digits.slice(2);if(digits.length<7||digits.length>15)fail('INVALID_MOBILE');const values=new Set([digits,'00'+digits]);if(digits.startsWith('974')&&digits.length===11){values.add(digits.slice(3));values.add('00'+digits.slice(3));}else if(digits.length===8){values.add('974'+digits);values.add('00974'+digits);}return [...values];}
+async function contactsByMobile(db,ctx,input={}){
+ const candidates=mobileCandidates(input.mobile),v=visibility(ctx);
+ const [rows]=await db.query(`SELECT c.id,c.phonebook_id AS phonebookId,COALESCE(NULLIF(c.phonebook_name,''),p.name,'') AS phonebookName,c.name,c.mobile,c.var1,c.var2,c.var3,c.var4,c.var5,c.var6,c.createdAt
+ FROM contact c LEFT JOIN phonebook p ON p.uid=c.uid AND p.id=c.phonebook_id
+ WHERE ${v.sql} AND REGEXP_REPLACE(COALESCE(c.mobile,''),'[^0-9]','') IN (?)
+ ORDER BY phonebookName,c.name,c.id LIMIT 101`,[...v.params,candidates]);
+ const config=await settings(db,ctx);
+ const contacts=rows.slice(0,100).map(row=>({id:row.id,phonebookName:row.phonebookName||'',name:row.name||'',mobile:row.mobile||'',createdAt:row.createdAt||null,fields:[1,2,3,4,5,6].map(index=>({label:index<=5?(config.labels?.[index-1]||`Variable ${index}`):'Variable 6',value:row[`var${index}`]??''})).filter(field=>String(field.value).trim())}));
+ return {contacts,truncated:rows.length>100};
+}
 async function unique(db,ctx,input){if(!fields.includes(input.field))fail('INVALID_COLUMN');const w=where(ctx,input);const [rows]=await db.query(`SELECT DISTINCT COALESCE(CAST(c.\`${input.field}\` AS CHAR),'') AS value FROM contact c WHERE ${w.sql} ORDER BY value LIMIT 1001`,w.params);return {values:rows.slice(0,1000).map(x=>x.value),truncated:rows.length>1000};}
 function manage(ctx){if(!ctx.manage)fail('READ_ONLY_SHARE',403);}
 async function saveSettings(db,ctx,input){manage(ctx);const config=validateConfig(input);await db.beginTransaction();try{
@@ -122,4 +133,4 @@ async function routeOpening({uid,message,chatId,origin,sessionId,pool}){
  await db.query('INSERT INTO contact(uid,phonebook_id,phonebook_name,name,mobile,var1,var2,var3,var4,var5) VALUES (?,?,?,?,?,?,?,?,?,?)',[uid,book.id,book.name,String(message.senderName||mobile).slice(0,200),mobile,'','','','','']);}
  await db.commit();return {routed:true,bookId:book.id};
  }catch(e){await db.rollback();throw e;}finally{db.release();}}
-module.exports={hash,ids,normalize,validateConfig,context,sessionContext,edit,remove,visibility,settings,books,list,unique,saveSettings,move,recipients,share,shares,routeOpening};
+module.exports={hash,ids,normalize,validateConfig,context,sessionContext,edit,remove,visibility,settings,books,list,contactsByMobile,unique,saveSettings,move,recipients,share,shares,routeOpening};
