@@ -48,7 +48,9 @@ const oldDir = path.join(root, 'salemax');
 const newDir = path.join(root, '7network');
 if (fs.existsSync(oldDir)) {
   if (fs.existsSync(newDir)) throw new Error('BRAND_DIRECTORY_COLLISION:salemax:7network');
-  fs.renameSync(oldDir, newDir);
+  // The legacy directory can be on a separate overlay mount in the base image.
+  fs.cpSync(oldDir, newDir, { recursive: true, preserveTimestamps: true, errorOnExist: true });
+  fs.rmSync(oldDir, { recursive: true, force: false });
 }
 
 const mobileCss = path.join(root, 'client/public/7network-mobile.css');
