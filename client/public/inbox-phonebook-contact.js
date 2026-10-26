@@ -16,7 +16,7 @@
   const mobileDigits = value => String(value || '').replace(/\D/g, '');
   const identityKey = value => { let hash = 2166136261; for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619); return `${value.length}:${hash >>> 0}`; };
   const el = (tag, cls, text) => { const node = document.createElement(tag); if (cls) node.className = cls; if (text != null) node.textContent = text; return node; };
-  let root = null, currentKey = '', sequence = 0, lastLookupAt = 0;
+  let root = null, currentKey = '', sequence = 0, lastLookupAt = 0, expanded = false;
 
   function contactBlock() {
     const heading = [...document.querySelectorAll('span,h2,h3,h4,div')].find(node => node.children.length === 0 && ['Contact Info', 'معلومات الاتصال', 'معلومات جهة الاتصال'].includes((node.textContent || '').trim()));
@@ -56,13 +56,21 @@
     if (!root?.isConnected) return;
     const text = copy();
     root.replaceChildren();
-    const heading = el('h4', 'sx-inbox-phonebook__title', text.title);
-    root.append(heading);
+    const toggle = el('button', 'sx-inbox-phonebook__toggle');
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.setAttribute('aria-controls', 'sx-inbox-phonebook-contact-details-body');
+    toggle.append(el('span', '', text.title), el('span', 'sx-inbox-phonebook__chevron', expanded ? '−' : '+'));
+    toggle.addEventListener('click', () => { expanded = !expanded; render(contacts, status, truncated, retry); });
+    const body = el('div', 'sx-inbox-phonebook__body');
+    body.id = 'sx-inbox-phonebook-contact-details-body';
+    body.hidden = !expanded;
+    root.append(toggle, body);
     if (status) {
-      root.append(el('p', 'sx-inbox-phonebook__status', status));
+      body.append(el('p', 'sx-inbox-phonebook__status', status));
       if (retry) {
         const button = el('button', 'sx-inbox-phonebook__retry', copy().retry);
-        button.type = 'button'; button.addEventListener('click', retry); root.append(button);
+        button.type = 'button'; button.addEventListener('click', retry); body.append(button);
       }
       return;
     }
@@ -79,10 +87,10 @@
         addLine(fields, text.added, Number.isNaN(date.getTime()) ? contact.createdAt : date.toLocaleString(isArabic() ? 'ar-QA' : 'en-QA'));
       }
       card.append(title, fields);
-      root.append(card);
+      body.append(card);
     }
-    if (truncated) root.append(el('p', 'sx-inbox-phonebook__status', text.more));
-    if (!contacts.length) root.append(el('p', 'sx-inbox-phonebook__status', text.empty));
+    if (truncated) body.append(el('p', 'sx-inbox-phonebook__status', text.more));
+    if (!contacts.length) body.append(el('p', 'sx-inbox-phonebook__status', text.empty));
   }
 
   function addStyles() {
@@ -91,7 +99,9 @@
     style.id = 'sx-inbox-phonebook-styles';
     style.textContent = `
       .sx-inbox-phonebook{border-top:1px solid #e6eaf0;padding:10px 12px 12px;color:#172033;font-size:12px;line-height:1.45}
-      .sx-inbox-phonebook__title{font-size:12px;font-weight:700;margin:0 0 8px}
+      .sx-inbox-phonebook__toggle{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;padding:0;background:transparent;color:inherit;font:inherit;font-size:12px;font-weight:700;text-align:start;cursor:pointer}
+      .sx-inbox-phonebook__chevron{font-size:16px;line-height:1;color:#667085}
+      .sx-inbox-phonebook__body{padding-top:8px}.sx-inbox-phonebook__body[hidden]{display:none}
       .sx-inbox-phonebook__status{margin:0;color:#718096;font-size:11px}
       .sx-inbox-phonebook__card{border:1px solid #e6eaf0;border-radius:8px;padding:8px;margin:0 0 7px;overflow-wrap:anywhere}
       .sx-inbox-phonebook__card-title{display:flex;flex-direction:column;gap:2px;margin-bottom:5px}
@@ -131,11 +141,12 @@
     const identity = identityKey(localStorage.getItem(actor === 'agent' ? 'wacrm_agent' : 'wacrm_user') || 'cookie');
     const key = `${actor}:${identity}:${current?.chat_id || current?.id || ''}:${digits}`;
     if (!digits || key.endsWith(':')) {
-      if (currentKey !== key) { currentKey = key; sequence++; }
+      if (currentKey !== key) { currentKey = key; sequence++; expanded = false; }
       render([], copy().empty);
       return;
     }
     if (key === currentKey && Date.now() - lastLookupAt < 60000) return;
+    if (key !== currentKey) expanded = false;
     currentKey = key;
     lastLookupAt = Date.now();
     load(key, mobile);
