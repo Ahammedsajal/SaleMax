@@ -5,7 +5,7 @@ const {createChatbotRouter}=require('../modules/platform/chatbot-router');
 const {getCategory}=require('../modules/platform/categories');
 test('chat controls resolve owned scope without assignment, reject wrong numbers and denied staff, and support both sessions',async()=>{
  let row=null, role='owner';
- const ctx=()=>({audience:'tenant',identity:{id:'synthetic-identity',status:'active'},tenant:{id:'synthetic-tenant',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'synthetic-membership',tenantId:'synthetic-tenant',role,status:'active',delegatedPermissions:[]},category:getCategory('training_center',1),subscription:{status:'active',capabilities:['automation.chatbot']},runtimeReady:{}});
+ const ctx=()=>({audience:'tenant',identity:{id:'synthetic-identity',status:'active'},tenant:{id:'synthetic-tenant',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'synthetic-membership',tenantId:'synthetic-tenant',role,status:'active',delegatedPermissions:role==='manager'?['automation.manage']:[]},category:getCategory('training_center',1),subscription:{status:'active',capabilities:['automation.chatbot']},runtimeReady:{}});
  const db={release(){},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},query:async(sql,args)=>{
   if(sql.includes('SELECT u.uid')) return [[{uid:'synthetic-owner',uidHash:require('node:crypto').createHash('sha256').update('synthetic-owner').digest('hex')}]];
   if(sql.includes('FROM beta_chats'))return [args[1]==='owned'?[{origin:'qr',origin_instance_unique_id:'number-1'}]:[]];
@@ -30,6 +30,7 @@ test('chat controls resolve owned scope without assignment, reject wrong numbers
   assert.equal((await get('/conversations/owned/bot-control?channelKind=whatsapp_qr&channelRef=number-1')).data.mode,'inherit');
   const res=await fetch(base+'/conversations/owned/bot-control',{method:'PUT',signal:AbortSignal.timeout(5000),headers:{Authorization:'Bearer synthetic',Origin:'https://synthetic.example.test','Content-Type':'application/json'},body:JSON.stringify({channelKind:'whatsapp_qr',channelRef:'number-1',mode:'paused',expectedRevision:0})});
   const saved=await res.json(); assert.equal(saved.success,true,JSON.stringify(saved)); assert.equal(saved.data.mode,'paused');
+  role='manager'; assert.equal((await get('/conversations/owned/bot-scope')).data.scope.channelRef,'number-1');
   role='accountant';assert.equal((await get('/conversations/owned/bot-scope')).success,false);
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
