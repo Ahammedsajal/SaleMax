@@ -1866,3 +1866,17 @@ Focused Pipeline custom-field search, existing team-scope and Sales-only behavio
 ## Inbox bot pause in Chat Info and complete legacy guard scope — local source, 26 October 2026
 
 Moved the existing chat-scoped pause/resume control from the conversation header into the open Chat Info panel. Updated the existing legacy Automation Flow start, WhatsApp text/media sender, and Meta template sender to pass the conversation's WhatsApp channel and channel reference to the shared pause guard. This makes all bot reply paths honor the selected chat pause while leaving other conversations enabled. Added a guarded release patcher and image overlay pinned to the current production base so production-only code remains intact. Source and patcher syntax checks pass; authenticated Inbox UI, role, Arabic, database and provider acceptance remain separate verification gates.
+## QR WhatsApp groups in the native Inbox — production, 26 October 2026
+
+The existing Inbox now has Chats / Groups modes using its native list, renderer,
+composer and QR filters. Group Info supplies description, member/admin lists,
+posting restrictions and shared media. Group traffic is isolated from automatic
+leads, Phonebook contacts, CRM forwarding and all bot/flow dispatch. Group
+identity is scoped by owner, QR instance and complete provider JID. The final
+source `9ae0593` is deployed on the exact active translation image with existing
+runtime fixes preserved; 32 focused checks and authenticated native socket/API
+acceptance passed. No outbound group test was sent. Browser visual/RTL/mobile,
+both-login UI and handset/media/mention/quote acceptance remain open. Membership
+sync does not provide a guaranteed historical message archive. See DEPLOYMENT.md
+for final image, rollback, runtime parity and remaining full-program gates.
+
