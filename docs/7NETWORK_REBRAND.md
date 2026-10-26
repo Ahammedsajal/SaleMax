@@ -29,3 +29,5 @@ Before every production update, follow [`skills/7network-production-change/SKILL
 ## Windows and other checkout handoff
 
 `DEPLOYMENT.md` is the current production ledger; it records each deployed source commit and any live-only state. Before editing on another machine, fetch `origin/main`, read the latest deployment entry and this brand guide, then fast-forward the intended source branch after preserving any local edits. Pushing source does not deploy it. Keep production environment files, database exports, customer data, sessions, and backups outside Git. `crm.salemax.qa` and `info@salemax.qa` remain operational addresses, not the platform's display name.
+
+- Mobile business headers omit the platform icon and name at widths up to 900px so navigation and account controls have room. The existing company/platform branding remains in the menu drawer; desktop branding is unchanged.
