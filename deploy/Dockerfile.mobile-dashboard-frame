@@ -1,0 +1,8 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node client/public/pipeline-entry.js /app/client/public/pipeline-entry.js
+COPY --chown=node:node deploy/patch-mobile-dashboard-frame.cjs /tmp/patch-mobile-dashboard-frame.cjs
+RUN node /tmp/patch-mobile-dashboard-frame.cjs /app && rm /tmp/patch-mobile-dashboard-frame.cjs
