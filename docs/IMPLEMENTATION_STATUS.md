@@ -1879,4 +1879,3 @@ acceptance passed. No outbound group test was sent. Browser visual/RTL/mobile,
 both-login UI and handset/media/mention/quote acceptance remain open. Membership
 sync does not provide a guaranteed historical message archive. See DEPLOYMENT.md
 for final image, rollback, runtime parity and remaining full-program gates.
-
