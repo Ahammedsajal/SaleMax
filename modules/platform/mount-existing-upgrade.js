@@ -46,6 +46,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use(['/api/workspace/phonebook','/api/phonebook/workspace','/api/agent/phonebook'],phonebook);
   const courseReplies=require('./course-quick-reply-router')({pool,origin,authenticate:featureSession.guard});
   app.use(['/api/workspace/inbox/course-replies','/api/inbox/course-replies','/api/agent/course-replies'],courseReplies);
+  app.use('/api/workspace/inbox/translate',require('./inbox-translation-router').createInboxTranslationRouter({authenticate:featureSession.guard,origin}));
   app.use('/api/crm',createTenantCrmRouter({pool,canonicalGuard:featureSession.guard}));
   app.use('/api/user/sales-organization',createSalesOrganizationRouter({pool,canonicalGuard:businessBoundary.guard}));
   app.use('/api/user/sales-commissions',createSalesCommissionRouter({pool,canonicalGuard:businessBoundary.guard}));

@@ -134,3 +134,19 @@ The browser client registers `icp` at `/api/workspace/icp`. The router uses the 
 The typed document captures industry, geography, company size, revenue or budget range, business model, growth stage, priority needs, desired outcomes, buying triggers, decision roles, technology signals, budget evidence, exclusions, evidence or assumptions, and confidence (`hypothesis`, `needs_review`, or `validated`). Values have bounded lengths and list sizes. Profiles start as hypotheses; the workflow asks users to record the evidence behind each criterion and does not infer ICPs from customer data or score leads.
 
 Migration `20261224_7network_sales_icp_profiles.sql` adds one tenant-scoped profile table with creator/updater identity attribution, a revision number, JSON document and newest-first index. It has no seed rows and does not alter plan entitlements or customer records. Stale writes return `STALE_ICP_PROFILE`; cross-tenant profile IDs resolve as not found. Follow-up work can add evidence-linked account samples and fit scoring after this internal pilot validates its criteria.
+
+## Inbox draft translation
+
+`POST /api/workspace/inbox/translate` translates a user-authored Inbox draft
+between English and Arabic. The authenticated composer calls this endpoint through
+`window.SaleMaxWorkspace.request('inboxTranslation', ...)`. The shared feature
+session is revalidated for each request, and the server requires both the
+`messaging.inbox` capability and `conversations.reply` permission. Requests are
+limited to 4,000 characters and 30 per member per minute.
+
+The API proxies only the requested text to the private LibreTranslate service at
+`SALEMAX_TRANSLATION_URL`; it does not save or log the text. Arabic-script input
+targets English; other input targets Arabic. The UI replaces the draft only after a
+successful response and never sends it. The service is a separately capped
+container with no published port, English/Arabic models only, one worker thread,
+and a persistent model volume. Machine translations require human review.

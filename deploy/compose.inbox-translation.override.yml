@@ -1,0 +1,45 @@
+services:
+  app:
+    image: salemax-app:inbox-translation-20261026
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.inbox-translation
+      args:
+        BASE_IMAGE: ${SALEMAX_TRANSLATION_BASE_IMAGE:?set the exact current app image}
+    environment:
+      SALEMAX_TRANSLATION_URL: http://libretranslate:5000
+
+  libretranslate:
+    image: libretranslate/libretranslate:1.9.6
+    restart: unless-stopped
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --load-only
+      - en,ar
+      - --threads
+      - "1"
+      - --req-limit
+      - "120"
+      - --char-limit
+      - "4000"
+      - --disable-web-ui
+    volumes:
+      - libretranslate_models:/home/libretranslate/.local:rw
+    mem_limit: 1536m
+    memswap_limit: 1536m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "./venv/bin/python", "scripts/healthcheck.py"]
+      interval: 20s
+      timeout: 8s
+      start_period: 120s
+      retries: 8
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+volumes:
+  libretranslate_models: {}

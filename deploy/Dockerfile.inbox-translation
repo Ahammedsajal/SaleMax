@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+USER root
+COPY --chown=node:node client/public/inbox-translation.js /app/client/public/inbox-translation.js
+COPY --chown=node:node modules/platform/inbox-translation-router.js /app/modules/platform/inbox-translation-router.js
+COPY --chown=node:node deploy/patch-inbox-translation.cjs /tmp/patch-inbox-translation.cjs
+RUN node /tmp/patch-inbox-translation.cjs /app && rm /tmp/patch-inbox-translation.cjs
+
+USER node
