@@ -64,7 +64,9 @@ function initializeSocket(server) {
       await require('./modules/platform/delegated-account-session').assertDelegatedSession(require('./database/dbpromise').query,decoded);
       const domainService=require('./modules/platform/tenant-crm-domains');
       let hostname=null;try{hostname=domainService.normalizeHostname(String(socket.handshake.headers.host||'').replace(/:\d+$/,''));}catch{}
-      if(hostname&&hostname!==domainService.ROOT_HOST){
+      // The platform domains share the platform session and must not be checked as tenant domains.
+      const platformHosts=new Set([domainService.ROOT_HOST,'7network.live','www.7network.live']);
+      if(hostname&&!platformHosts.has(hostname)){
         const origins=['https://'+hostname];if(!origins.includes(socket.handshake.headers.origin))return next(new Error('Origin denied'));
         const [domains]=await query("SELECT d.tenant_id AS tenantId,d.status,d.tls_ready_at AS tlsReadyAt,d.dns_health_status AS dnsHealthStatus,t.status AS tenantStatus FROM sx_tenant_crm_domains d JOIN sx_tenants t ON t.id=d.tenant_id WHERE d.hostname=? LIMIT 1",[hostname]);
         if(!domains?.length)return next(new Error('CRM domain unavailable'));
