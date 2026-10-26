@@ -1,0 +1,13 @@
+const fs = require('node:fs');
+const root = process.argv[2] || '/app/client/public';
+const cssPath = root + '/7network-mobile.css';
+const marker = '/* Company branding lives in the drawer; reserve the phone header for controls. */';
+let css = fs.readFileSync(cssPath, 'utf8');
+if (!css.includes(marker)) css += "\n/* Company branding lives in the drawer; reserve the phone header for controls. */\n@media(max-width:900px){\n  #root header .MuiToolbar-root:has([aria-label=\"Account menu\"])>.MuiBox-root:nth-child(2),\n  #root header .MuiToolbar-root:has([aria-label=\"Account menu\"])>p{\n    display:none!important\n  }\n  #root header .MuiToolbar-root:has([aria-label=\"Account menu\"]){\n    gap:clamp(2px,1.5vw,8px)!important;padding-inline:12px!important\n  }\n  #root header .MuiToolbar-root:has([aria-label=\"Account menu\"])>button:first-child{\n    margin-inline-end:auto!important\n  }\n}\n";
+fs.writeFileSync(cssPath, css);
+const htmlPath = root + '/index.html';
+let html = fs.readFileSync(htmlPath, 'utf8');
+const refs = html.match(/7network-mobile\.css\?v=[^"'\s<>]+/g);
+if (!refs || refs.length !== 1) throw new Error('Expected one mobile stylesheet reference');
+html = html.replace(refs[0], '7network-mobile.css?v=20261026-header-space1');
+fs.writeFileSync(htmlPath, html);
