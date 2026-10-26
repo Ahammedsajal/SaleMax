@@ -106,6 +106,7 @@ patchFile('deploy/7network-https.timer', (source) => source.replaceAll('salemax-
 patchFile('deploy/7network-https.service', (source) => source.replaceAll('Salemax HTTPS', '7Network HTTPS'));
 patchFile('deploy/activate-https.sh', (source) => source
   .replaceAll('/run/salemax-https.lock', '/run/7network-https.lock')
+  .replaceAll('/etc/nginx/sites-available/salemax', '/etc/nginx/sites-available/7network')
   .replace('systemctl disable --now salemax-https.timer', 'systemctl disable --now 7network-https.timer 2>/dev/null || true\nsystemctl disable --now salemax-https.timer 2>/dev/null || true'));
 
 // This one-time legacy migration must not recreate the former brand files.

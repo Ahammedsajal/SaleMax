@@ -17,12 +17,12 @@ fi
 if ! test -s /etc/letsencrypt/live/crm.salemax.qa/fullchain.pem; then
     certbot certonly --non-interactive --agree-tos --webroot -w /var/www/salemax-acme -d crm.salemax.qa --cert-name crm.salemax.qa
 fi
-cp /opt/salemax/current/deploy/nginx-https.conf /etc/nginx/sites-available/salemax.new
+cp /opt/salemax/current/deploy/nginx-https.conf /etc/nginx/sites-available/7network.new
 # Validate before changing the active virtual host.
-cp /etc/nginx/sites-available/salemax /etc/nginx/sites-available/salemax.before-https
-mv /etc/nginx/sites-available/salemax.new /etc/nginx/sites-available/salemax
+cp /etc/nginx/sites-available/7network /etc/nginx/sites-available/7network.before-https
+mv /etc/nginx/sites-available/7network.new /etc/nginx/sites-available/7network
 if ! nginx -t; then
-    cp /etc/nginx/sites-available/salemax.before-https /etc/nginx/sites-available/salemax
+    cp /etc/nginx/sites-available/7network.before-https /etc/nginx/sites-available/7network
     exit 1
 fi
 systemctl reload nginx
