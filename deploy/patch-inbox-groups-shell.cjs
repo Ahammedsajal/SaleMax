@@ -4,7 +4,7 @@ const path = require('node:path');
 const root = process.argv[2] || '/app';
 const file = path.join(root, 'client/public/index.html');
 let html = fs.readFileSync(file, 'utf8');
-const source = '/inbox-groups.js?v=20261026-native-groups4';
+const source = '/inbox-groups.js?v=20261026-native-groups5';
 html = html.replace(/<script\b[^>]*src=["']\/inbox-groups\.js[^"']*["'][^>]*><\/script>/g, '');
 if (!html.includes('</body>')) throw Error('INBOX_SHELL_BODY_MISSING');
 html = html.replace('</body>', `<script defer src="${source}"></script></body>`);
