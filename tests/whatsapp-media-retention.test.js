@@ -96,3 +96,10 @@ test('expired media displays a caption and expiry notice without rewriting store
   assert.equal(display.type, 'text'); assert.match(display.msgContext.text.body, /Preserve this caption/); assert.match(display.msgContext.text.body, /48 hours/);
   assert.equal(JSON.stringify(row), original);
 });
+
+test('a single file larger than the byte budget is removed instead of being deferred forever', async t => {
+  const f = await fixture(t, [message(1, 'large-a.jpg', GROUP_MS + 1000, true), message(2, 'large-b.jpg', GROUP_MS + 1000, true)]);
+  await f.write('large-a.jpg', GROUP_MS + 2000); await f.write('large-b.jpg', GROUP_MS + 2000);
+  const result = await f.service.run({ maxBytes: 1 });
+  assert.equal(result.deletedFiles, 1); assert.equal(result.deferredFiles, 1);
+});

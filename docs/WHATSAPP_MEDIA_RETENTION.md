@@ -1,6 +1,6 @@
 # WhatsApp Inbox media retention
 
-The existing app startup runs media cleanup 60 seconds after startup and every 15 minutes thereafter. Group media expires after **48 hours**, and individual WhatsApp chat media after **28 days**. Age uses the latest of the message timestamp, database arrival time and local file modification time. A file referenced by multiple conversations uses the longest remaining window. Backlogged work is bounded to 500 files / 512 MiB per sweep.
+The existing app startup runs media cleanup 60 seconds after startup and every 15 minutes thereafter. Group media expires after **48 hours**, and individual WhatsApp chat media after **28 days**. Age uses the latest of the message timestamp, database arrival time and local file modification time. A file referenced by multiple conversations uses the longest remaining window. Backlogged work is bounded to 500 files / 512 MiB per sweep, allowing one larger file so a large document cannot be deferred forever.
 
 Only local Inbox media bytes are removed. Message text, captions, conversations, group metadata, contacts and leads are preserved. The previous 30-day whole-conversation purge is replaced, not run alongside this job. Expired media displays an English/Arabic expiry notice in the existing conversation renderer; the group shared-media panel omits expired items.
 

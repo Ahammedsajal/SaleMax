@@ -184,7 +184,8 @@ function createMediaRetention({ query, publicRoot = PUBLIC_ROOT, conversationRoo
     candidates.sort((a, b) => (a.kind === 'group' ? 0 : 1) - (b.kind === 'group' ? 0 : 1) || a.stat.mtimeMs - b.stat.mtimeMs);
     if (dryRun) return result;
     for (const candidate of candidates) {
-      if (result.deletedFiles >= maxFiles || result.deletedBytes + candidate.stat.size > maxBytes) { result.deferredFiles++; continue; }
+      // An individual large WhatsApp document must not be deferred forever.
+      if (result.deletedFiles >= maxFiles || (result.deletedFiles > 0 && result.deletedBytes + candidate.stat.size > maxBytes)) { result.deferredFiles++; continue; }
       // A new send can reuse an old URL during a sweep. Preserve any file newly
       // referenced after the scan began, and recheck its inode/mtime before unlink.
       const fresh = await query('SELECT id FROM beta_conversation WHERE createdAt>=? AND (LOCATE(?,msgContext)>0 OR LOCATE(?,context)>0) LIMIT 1', [new Date(started - 1000), candidate.filename, candidate.filename]);
