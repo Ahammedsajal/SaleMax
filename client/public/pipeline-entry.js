@@ -28,8 +28,10 @@
   // drawers overlay the page; docked drawers consume the physical side they occupy.
   function workspaceBounds(){
     const viewportWidth=window.innerWidth,viewportHeight=window.innerHeight;
+    const mobileViewport=viewportWidth<=900;
     let left=0,right=0;
     for(const drawer of document.querySelectorAll('.MuiDrawer-paper')){
+      if(mobileViewport)continue;
       if(!visible(drawer)||getComputedStyle(drawer).display==='none')continue;
       const r=drawer.getBoundingClientRect();
       const docked=drawer.closest('.MuiDrawer-docked')||drawer.classList.contains('MuiDrawer-paperAnchorDockedLeft')||drawer.classList.contains('MuiDrawer-paperAnchorDockedRight');
