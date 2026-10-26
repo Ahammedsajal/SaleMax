@@ -871,3 +871,17 @@
     flex-wrap:wrap!important
   }
 }
+
+/* Company branding lives in the drawer; reserve the phone header for controls. */
+@media(max-width:900px){
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>.MuiBox-root:nth-child(2),
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>p{
+    display:none!important
+  }
+  #root header .MuiToolbar-root:has([aria-label="Account menu"]){
+    gap:clamp(2px,1.5vw,8px)!important;padding-inline:12px!important
+  }
+  #root header .MuiToolbar-root:has([aria-label="Account menu"])>button:first-child{
+    margin-inline-end:auto!important
+  }
+}
