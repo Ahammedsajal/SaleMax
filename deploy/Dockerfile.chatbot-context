@@ -9,5 +9,7 @@ COPY --chown=node:node client/public/workspace-api.js /app/client/public/workspa
 COPY --chown=node:node modules/platform/chatbot-router.js modules/platform/chatbot-runtime.js modules/platform/chatbot-conversation-scope.js modules/platform/chatbot-flow-understanding.js modules/platform/flow-editor-data.js /app/modules/platform/
 COPY --chown=node:node routes/chatFlow.js /app/routes/chatFlow.js
 COPY deploy/patch-chatbot-context.js /tmp/patch-chatbot-context.js
+USER root
 RUN node /tmp/patch-chatbot-context.js && rm /tmp/patch-chatbot-context.js
+USER node
 COPY --chown=node:node tests/chatbot-context-repairs.test.js tests/chatbot-conversation-api.test.js /app/tests/
