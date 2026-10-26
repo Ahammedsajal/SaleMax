@@ -76,10 +76,17 @@ async function finishTurn(turn, status, resultClass) {
   await query(`UPDATE sx_chatbot_turns SET status=?,result_class=?,lease_until=UTC_TIMESTAMP(3) WHERE id=? AND status='processing'`, [status, resultClass, turn.id]);
 }
 
-async function handoffConversation(ctx, chatId, channelKind, channelRef, reason, profile = null, uid = null) {
+async function handoffConversation(ctx, chatId, channelKind, channelRef, reason, profile = null, uid = null, options = {}) {
   const db = await dbPool.getConnection();
   try {
     await db.beginTransaction();
+    if (options.onlyIfActive) {
+      // Lock even the absent control row before claiming the handoff, so two
+      // separate inbound messages cannot both send a staff acknowledgement.
+      await db.query(`INSERT IGNORE INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,revision,updated_by_kind) VALUES (?,?,?,?,?,'inherit',1,'system')`, [crypto.randomUUID(),ctx.tenant.id,channelKind,channelRef,chatId]);
+      const [[control]] = await db.query(`SELECT mode,(pause_until IS NULL OR pause_until>UTC_TIMESTAMP(3)) AS active FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=? FOR UPDATE`, [ctx.tenant.id,channelKind,channelRef,chatId]);
+      if (control?.mode === 'paused' && control.active) { await db.commit(); return false; }
+    }
     await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,auto_pause_at,reason,revision,updated_by_kind,updated_by_identity_id)
       VALUES (?,?,?,?,?,'paused',NULL,NULL,?,1,'system',NULL)
       ON DUPLICATE KEY UPDATE mode='paused',pause_until=NULL,auto_pause_at=NULL,reason=VALUES(reason),revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL`,
@@ -91,7 +98,7 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
     if (profile?.config?.sharedInboxRouting === true && profile.config.handoffAssigneeIdentityId && uid) {
       await require('./team-conversation-assignment').assignConversation(db, { ctx, uid, chatId, identityId: profile.config.handoffAssigneeIdentityId, reason: 'bot-human-handover' });
     }
-    await db.commit();
+    await db.commit(); return true;
   } catch (error) { await db.rollback(); throw error; }
   finally { db.release(); }
 }
@@ -156,8 +163,67 @@ async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin,
   // each profile/channel pair its own opaque execution ID to prevent a shared
   // phone contact from continuing another bot's guided conversation.
   const flowSessionId = executionFlowId(profile);
+  const decision = await understandFlowTurn({ ctx, profile, uid, message, flow, flowSessionId, chatId, channelKind: channelFor(origin), channelRef: sessionId });
+  if (decision.action === 'handoff') return { handedOff: true, code: decision.reason || 'OUTSIDE_BOT_FLOW', stageId: decision.stageId };
+  if (decision.text) message = { ...message, msgContext: { ...message.msgContext, text: { body: decision.text } } };
   const result=await processFlow({ nodes: flow.nodes, edges: flow.edges, uid, flowId: flowSessionId, message, incomingText: textOf(message), user, sessionId, origin, chatId, element: { ...flow, flow_id: flowSessionId }, beforeNode: guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}), loopDetection: { visitedNodes: new Map(), startTime: Date.now() } });
   return result==='paused'?{paused:true}:result!==false;
+}
+
+async function handoffWithNotice({ ctx, profile, uid, message, sessionId, origin, chatId, code }) {
+  const channelKind = channelFor(origin), lockDb = await dbPool.getConnection();
+  const lock = 'bot-handoff:' + crypto.createHash('sha256').update(JSON.stringify([ctx.tenant.id, channelKind, sessionId, chatId])).digest('hex').slice(0, 48);
+  let held = false;
+  try {
+    const [[row]] = await lockDb.query('SELECT GET_LOCK(?,5) AS acquired', [lock]);
+    held = Number(row.acquired) === 1;
+    if (!held || await shouldPause(uid, chatId, channelKind, sessionId)) return;
+    try {
+      if (['OUTSIDE_BOT_FLOW','CUSTOMER_REQUESTED_STAFF','UNSUPPORTED_MESSAGE_TYPE','AI_PROVIDER_NOT_CONFIGURED'].includes(code) && await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) {
+        const reply = require('./chatbot-flow-understanding').handoffReply(textOf(message));
+        const content = { type: 'text', text: { preview_url: false, body: reply } };
+        const sentId = await require('../../automation/functions').sendWaMessage({ origin, sessionId, message, uid, chatId, content });
+        if (sentId) {
+          const data = { type:'text', metaChatId:sentId, msgContext:content, timestamp:Math.trunc(Date.now()/1000), senderName:message.senderName, senderMobile:message.senderMobile, reaction:'', star:0, context:null, origin, route:'OUTGOING', sentBy:'bot' };
+          await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...data, msgContext:JSON.stringify(content) } });
+          await query('UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?', [JSON.stringify(data),uid,chatId]);
+        }
+      }
+    } finally {
+      await handoffConversation(ctx, chatId, channelKind, sessionId, code, profile, uid, { onlyIfActive:true });
+    }
+  } finally {
+    if (held) await lockDb.query('SELECT RELEASE_LOCK(?)', [lock]).catch(() => {});
+    lockDb.release();
+  }
+}
+
+async function understandFlowTurn({ ctx, profile, uid, message, flow, flowSessionId, chatId, channelKind, channelRef }) {
+  const understanding = require('./chatbot-flow-understanding');
+  const [session] = await query('SELECT data FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1', [uid, flowSessionId, message.senderMobile]);
+  let state = null; try { state = typeof session?.data === 'string' ? JSON.parse(session.data) : session?.data; } catch {}
+  const turn = understanding.expectedTurn(flow, state);
+  const local = understanding.deterministicDecision(textOf(message), turn);
+  if (local.action !== 'interpret') return local;
+  if (profile.engine !== 'hybrid' || profile.config.aiFallback === false || profile.config.aiDataProcessingConfirmed !== true) return { ...local, action: 'handoff' };
+  const [settings] = await query('SELECT provider,model,key_ciphertext,key_iv,key_auth_tag,daily_token_limit FROM sx_chatbot_provider_configs WHERE tenant_id=?', [ctx.tenant.id]);
+  if (!settings) return { action: 'handoff', reason: 'AI_PROVIDER_NOT_CONFIGURED', stageId: turn.stageId };
+  const conversation = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef });
+  const history = (conversation?.recentConversation || []).slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) }));
+  const prompt = understanding.interpretationPrompt(businessContext.redactCustomerText(textOf(message)), turn, history);
+  const reservation = await reserveTokens(ctx, settings, tokenEstimate(prompt.system + prompt.user));
+  if (!reservation) return { action: 'handoff', reason: 'DAILY_TOKEN_LIMIT' };
+  let used = null;
+  try {
+    const result = await provider.generate({ provider: settings.provider, model: settings.model, apiKey: secrets.decrypt(settings), ...prompt, requireSources: true, maxOutputTokens: 180 });
+    used = (result.inputTokens || 0) + (result.outputTokens || 0) || null;
+    const decision = understanding.validateInterpretation(result, turn, Math.max(0.82, Number(profile.config.confidenceThreshold || 0.82)));
+    await saveConversationalState({ ctx, profile, chatId, channelKind, channelRef, state: { ...(conversation || {}), recentConversation: [...history, { role: 'user', text: businessContext.redactCustomerText(textOf(message)) }].slice(-4), flowUnderstanding: { ...decision, at: new Date().toISOString() } } });
+    return decision;
+  } catch (error) {
+    used = Number.isSafeInteger(error.tokensUsed) ? error.tokensUsed : Number.isInteger(error.status) ? 0 : null;
+    return { action: 'handoff', reason: error.code || 'AI_PROVIDER_REQUEST_FAILED', stageId: turn.stageId };
+  } finally { await settleTokens(ctx, reservation, used); }
 }
 
 function guidedConversationHash(chatId) {
@@ -452,14 +518,10 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   } else if (profile.engine === 'hybrid' && profile.config.flowId) {
-    const [session] = await query(`SELECT id FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1`, [uid, executionFlowId(profile), message.senderMobile]);
-    const incoming = textOf(message);
-    const plan = hybridTurnPlan({ hasSession: !!session, isChoice: isGuidedChoice(incoming), aiFallback: profile.config.aiFallback });
-    if (plan.runGuided) {
-      const dispatched = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
-      if (dispatched || !plan.allowAiFallback) return dispatched ? { flowDispatched: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
-    }
+    const dispatched = await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
+    return dispatched?.handedOff ? dispatched : dispatched?.paused ? { paused: true } : dispatched ? { flowDispatched: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
   }
+
   const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId, factsOverride: leadInfo?.facts });
   if (answer.handedOff || answer.paused) return answer;
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -616,7 +678,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     let result;
     if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
-    else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:!textOf(message)?'UNSUPPORTED_MESSAGE_TYPE':'GUIDED_FLOW_UNAVAILABLE'}; }
+    else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.handedOff?guided:guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:!textOf(message)?'UNSUPPORTED_MESSAGE_TYPE':'GUIDED_FLOW_UNAVAILABLE'}; }
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
     if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, reason: result.reason || null, ...result.metrics }), crypto.randomUUID()]);
     if (result?.sent || result?.flowDispatched) {
@@ -626,7 +688,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {
-      await handoffConversation(ctx, chatId, channelKind, sessionId, result?.code || 'human-review', profile, uid);
+      await handoffWithNotice({ ctx, profile, uid, message, sessionId, origin, chatId, code: result?.code || 'human-review' });
       await finishTurn(turn, 'handed_off', result?.code || 'human-review');
     }
     return { handled: true, ...result };

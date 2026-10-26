@@ -3,7 +3,7 @@
   if (window.__sxChatbotAdmin) return;
   window.__sxChatbotAdmin = true;
 
-  const root = '/api/user/chatbots';
+  const root = '/api/workspace/chatbots';
   const engines = ['guided', 'hybrid', 'ai'];
   // Curated chat-capable models supported by the current provider adapters.
   // Prices are USD per 1M text tokens and should be refreshed when providers change rates.
@@ -48,9 +48,10 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const token = () => localStorage.getItem('wacrm_user');
   async function api(path, method = 'GET', body) {
-    const headers = {};
+    if (window.SaleMaxWorkspace?.paths?.chatbots) return (await window.SaleMaxWorkspace.request('chatbots', path, { method, body })).data;
+    const headers = window.SaleMaxWorkspace ? await window.SaleMaxWorkspace.headers(Boolean(body)) : {};
     if (token()) headers.Authorization = `Bearer ${token()}`;
-    else {
+    else if (!window.SaleMaxWorkspace) {
       if (!state.csrf) {
         const auth = await fetch('/api/user/business-auth/me', { credentials: 'same-origin', cache: 'no-store' });
         const session = await auth.json();
@@ -508,7 +509,7 @@
   function channelLabel(channel) {
     return channel?.label || tr('Number label unavailable','اسم الرقم غير متاح');
   }
-  function previewReasonLabel(code) { return ({ LOW_CONFIDENCE:tr('AI confidence is below the handoff threshold','ثقة الذكاء الاصطناعي أقل من حد التحويل'), AI_PROVIDER_NOT_CONFIGURED:tr('AI provider is not configured','لم يتم إعداد مزود الذكاء الاصطناعي'), AI_PROVIDER_TIMEOUT:tr('AI provider timed out','انتهت مهلة مزود الذكاء الاصطناعي'), AI_PROVIDER_REQUEST_FAILED:tr('AI provider request failed','فشل طلب مزود الذكاء الاصطناعي'), DAILY_TOKEN_LIMIT:tr('Daily AI usage limit reached','تم بلوغ حد الاستخدام اليومي للذكاء الاصطناعي'), CONTEXT_LIMIT:tr('AI context is too large','سياق الذكاء الاصطناعي كبير جدًا'), GUIDED_FLOW_REQUIRED:tr('Choose a guided flow before testing Hybrid AI','اختر تدفقًا موجّهًا قبل اختبار الذكاء الهجين'), GUIDED_FLOW_UNAVAILABLE:tr('The selected guided flow is unavailable','التدفق الموجّه المحدد غير متاح'), AI_DATA_PROCESSING_ACK_REQUIRED:tr('Confirm the AI privacy notice first','أكد إشعار خصوصية الذكاء الاصطناعي أولاً'), AI_FALLBACK_DISABLED:tr('AI fallback is disabled for this bot','الرد الاحتياطي بالذكاء الاصطناعي متوقف لهذا الروبوت') })[code] || tr('Staff review is recommended','يوصى بمراجعة الموظف'); }
+  function previewReasonLabel(code) { return ({ OUTSIDE_BOT_FLOW:tr('Customer message needs staff','رسالة العميل تحتاج إلى موظف'), CUSTOMER_REQUESTED_STAFF:tr('Customer requested staff','طلب العميل موظفًا'), LOW_CONFIDENCE:tr('AI confidence is below the handoff threshold','ثقة الذكاء الاصطناعي أقل من حد التحويل'), AI_PROVIDER_NOT_CONFIGURED:tr('AI provider is not configured','لم يتم إعداد مزود الذكاء الاصطناعي'), AI_PROVIDER_TIMEOUT:tr('AI provider timed out','انتهت مهلة مزود الذكاء الاصطناعي'), AI_PROVIDER_REQUEST_FAILED:tr('AI provider request failed','فشل طلب مزود الذكاء الاصطناعي'), DAILY_TOKEN_LIMIT:tr('Daily AI usage limit reached','تم بلوغ حد الاستخدام اليومي للذكاء الاصطناعي'), CONTEXT_LIMIT:tr('AI context is too large','سياق الذكاء الاصطناعي كبير جدًا'), GUIDED_FLOW_REQUIRED:tr('Choose a guided flow before testing Hybrid AI','اختر تدفقًا موجّهًا قبل اختبار الذكاء الهجين'), GUIDED_FLOW_UNAVAILABLE:tr('The selected guided flow is unavailable','التدفق الموجّه المحدد غير متاح'), AI_DATA_PROCESSING_ACK_REQUIRED:tr('Confirm the AI privacy notice first','أكد إشعار خصوصية الذكاء الاصطناعي أولاً'), AI_FALLBACK_DISABLED:tr('AI fallback is disabled for this bot','الرد الاحتياطي بالذكاء الاصطناعي متوقف لهذا الروبوت') })[code] || tr('Staff review is recommended','يوصى بمراجعة الموظف'); }
   function errorLabel(code) { return ({ CAPTURE_FORM_UNAVAILABLE:tr('The selected form is no longer published. Reopen the bot and choose another form.','لم يعد النموذج المختار منشورًا. أعد فتح الروبوت واختر نموذجًا آخر.'), INVALID_CAPTURE_FORM:tr('Choose a published form from this workspace.','اختر نموذجًا منشورًا من مساحة العمل هذه.'), INVALID_TEST_PHONE:tr('Enter up to 10 valid test numbers including country codes.','أدخل حتى 10 أرقام اختبار صالحة مع رمز البلد.'), INVALID_BOT_AUDIENCE:tr('Use international phone numbers including country codes.','استخدم أرقام هاتف دولية مع رمز البلد.'), AUTH_REQUIRED:tr('Please sign in again.','يرجى تسجيل الدخول مجددًا.'), PERMISSION_DENIED:tr('Your account cannot manage chatbots.','لا يملك حسابك صلاحية إدارة الروبوتات.'), FEATURE_UNAVAILABLE:tr('Chatbots are not included in this account plan.','الروبوتات غير متاحة ضمن خطة هذا الحساب.'), CHATBOT_UNAVAILABLE:tr('The chatbot service is temporarily unavailable. Try again shortly.','خدمة الروبوت غير متاحة مؤقتًا. حاول مرة أخرى بعد قليل.'), INVALID_KEYWORD_REPLIES:tr('Each keyword reply needs 1–20 words or phrases and a reply in at least one language. Use up to 30 rules.','كل رد يحتاج من كلمة إلى 20 كلمة أو عبارة ورداً بلغة واحدة على الأقل. الحد الأقصى 30 قاعدة.'), INVALID_GUIDED_CONTENT:tr('One of the guided messages is too long or has an invalid value. Review the message fields.','إحدى رسائل التوجيه طويلة جداً أو تحتوي قيمة غير صالحة. راجع حقول الرسائل.'), CATEGORY_GUIDED_CONTENT_UNAVAILABLE:tr('Guided content editing is not available for this category version.','تحرير محتوى التوجيه غير متاح لإصدار فئة النشاط هذا.'), AI_PROVIDER_NOT_CONFIGURED:tr('Configure an AI provider and key before activating this bot.','أعد إعداد مزود الذكاء الاصطناعي ومفتاحه قبل تفعيل الروبوت.'), AI_DATA_PROCESSING_ACK_REQUIRED:tr('Confirm the AI privacy notice before activating this bot.','أكد إشعار خصوصية الذكاء الاصطناعي قبل تفعيل الروبوت.'), BOT_CHANNEL_REQUIRED:tr('Assign at least one connected number before activating.','اربط رقمًا متصلًا واحدًا على الأقل قبل التفعيل.'), CONNECTED_CHANNEL_NOT_FOUND:tr('That number is no longer connected. Refresh the channel list.','لم يعد هذا الرقم متصلًا. حدّث قائمة القنوات.'), GUIDED_FLOW_REQUIRED:tr('Choose an active supported Automation Flow.','اختر تدفق أتمتة نشطًا ومدعومًا.'), GUIDED_FLOW_UNAVAILABLE:tr('The selected flow is unavailable or uses unsupported actions.','التدفق المختار غير متاح أو يستخدم إجراءات غير مدعومة.'), LIVE_BOT_MUST_BE_PAUSED:tr('Pause active bots before changing their numbers, AI privacy confirmation, or provider settings.','أوقف الروبوتات النشطة قبل تغيير أرقامها أو تأكيد خصوصية الذكاء الاصطناعي أو إعدادات المزود.'), STALE_REVISION:tr('This bot changed in another session. Reload and try again.','تغير هذا الروبوت في جلسة أخرى. أعد التحميل وحاول مجددًا.'), PROVIDER_KEY_REQUIRED:tr('Enter a new provider key when switching providers.','أدخل مفتاح مزود جديدًا عند التبديل بين المزودين.'), AI_PROVIDER_REQUEST_FAILED:tr('The AI provider rejected the request. Check the model and provider settings.','رفض مزود الذكاء الاصطناعي الطلب. تحقق من النموذج والإعدادات.') })[code] || tr('The request could not be completed. Try again or contact an administrator.','تعذر إكمال الطلب. حاول مرة أخرى أو تواصل مع المسؤول.'); }
   function panelMarkup(engine) {
     const bots = state.bots.filter(bot => bot.engine === engine);
@@ -856,9 +857,11 @@
     if (kind === 'qr' || kind.includes('qr') || kind === 'instance') kind = 'whatsapp_qr';
     else if (kind === 'meta' || kind.includes('meta') || kind === 'cloud') kind = 'whatsapp_meta';
     else kind = '';
-    const ref = source.channelRef ?? source.channel_ref ?? source.channelExternalId ?? source.channel_external_id ?? source.sessionId ?? source.session_id ?? source.uniqueId ?? source.unique_id ?? source.instanceId ?? source.instance_id ?? source.businessPhoneNumberId ?? source.business_phone_number_id ?? params.get('channelRef') ?? params.get('channel_ref') ?? params.get('sessionId') ?? params.get('uniqueId') ?? params.get('business_phone_number_id') ?? '';
+    const ref = source.origin_instance_unique_id ?? source.channelRef ?? source.channel_ref ?? source.channelExternalId ?? source.channel_external_id ?? source.sessionId ?? source.session_id ?? source.uniqueId ?? source.unique_id ?? source.instanceId ?? source.instance_id ?? source.businessPhoneNumberId ?? source.business_phone_number_id ?? params.get('channelRef') ?? params.get('channel_ref') ?? params.get('sessionId') ?? params.get('uniqueId') ?? params.get('business_phone_number_id') ?? '';
     return kind && typeof ref === 'string' && ref.length > 0 && ref.length <= 160 ? { channelKind:kind, channelRef:ref } : null;
   }
+  const resolvedChatScopes = new Map();
+  const scopeRequests = new Set();
   let lastActiveConversation = null;
   function rememberActiveConversation(value) {
     if (value?.id) lastActiveConversation = { id:String(value.id), scope:value.scope || null };
@@ -891,19 +894,22 @@
     }
     return null;
   }
+  let cachedInfoPanel = null;
   function chatInfoPanel() {
-    const candidates = [...document.querySelectorAll('aside,[role="complementary"],section,div')]
-      .filter(visible)
-      .filter(el => {
-        const text = (el.innerText || '').replace(/\s+/g, ' ').trim().toLowerCase();
-        return text.length < 6000 && /\bchat info\b|معلومات المحادثة/.test(text) && /\bcontact info\b|معلومات الاتصال/.test(text);
-      });
-    return candidates.sort((a, b) => (a.innerText || '').length - (b.innerText || '').length)[0] || null;
+    if (cachedInfoPanel?.isConnected && visible(cachedInfoPanel)) return cachedInfoPanel;
+    const title = [...document.querySelectorAll('p,h1,h2,h3,h4,h5,h6,span')].find(el => /^(?:Chat Info|معلومات المحادثة)$/i.test((el.textContent || '').trim()) && visible(el));
+    if (!title) return null;
+    let candidate = title.parentElement;
+    for (let depth = 0; candidate && depth < 5; depth++, candidate = candidate.parentElement) {
+      if (/contact info|معلومات الاتصال/i.test(candidate.textContent || '')) { cachedInfoPanel = candidate; return candidate; }
+    }
+    return null;
   }
   function renderActiveChatControl(conversation) {
     let control = document.getElementById('sx-active-chatbot-control');
     if (!conversation?.id || inboxBotControlsDenied) { control?.remove(); return; }
-    const { id, scope } = conversation;
+    const id = conversation.id;
+    const scope = conversation.scope || resolvedChatScopes.get(id) || null;
     if (!control) {
       control = document.createElement('div'); control.id = 'sx-active-chatbot-control';
       control.setAttribute('role', 'group'); control.setAttribute('aria-label', tr('Bot control for this chat', 'التحكم بالروبوت لهذه المحادثة'));
@@ -930,48 +936,38 @@
     control.classList.add('sx-in-chat-info');
     control.classList.remove('sx-mobile-layout', 'sx-mobile-open');
     control.querySelector('[data-sx-chatbot-mobile-toggle]')?.setAttribute('aria-expanded', 'false');
-    if (control.parentElement !== infoPanel) infoPanel.append(control);
+    if (control.parentElement !== infoPanel) {
+      const contact = [...infoPanel.children].find(el => /contact info|معلومات الاتصال/i.test(el.innerText || ''));
+      if (contact) contact.insertAdjacentElement('afterend', control); else infoPanel.prepend(control);
+    }
     const body = control.querySelector('[data-sx-chatbot-control-body]');
     const scopeKey = scope ? `${scope.channelKind}|${scope.channelRef}` : '';
     if (control.dataset.conversationId === id && control.dataset.channelScope === scopeKey && control.dataset.loading !== 'true') return;
     control.dataset.conversationId = id; control.dataset.channelScope = scopeKey; control.dataset.loading = 'true';
     if (!scope) {
-      body.innerHTML = `<strong data-sx-chatbot-mobile-heading>${esc(tr('Chat info','معلومات المحادثة'))}</strong><label><span>${esc(tr('Bot number','رقم الروبوت'))}</span><select data-sx-chatbot-channel aria-label="${esc(tr('WhatsApp number for this chat','رقم واتساب لهذه المحادثة'))}"><option value="">${esc(tr('Loading connected bot numbers…','جارٍ تحميل أرقام الروبوتات المتصلة…'))}</option></select></label><span data-sx-chatbot-state aria-live="polite" hidden></span>`;
-      control.dataset.loading = 'false';
-      const select = control.querySelector('[data-sx-chatbot-channel]');
-      select.addEventListener('change', () => {
-        const [channelKind, ...parts] = String(select.value || '').split('|');
-        const channelRef = parts.join('|');
-        if (['whatsapp_meta','whatsapp_qr'].includes(channelKind) && channelRef) {
-          const selectedScope = { channelKind, channelRef };
-          manuallySelectedChatChannels.set(id, selectedScope);
-          renderActiveChatControl({ id, scope: selectedScope });
-        }
-      });
-      inboxBotChannelOptions().then(options => {
-        if (!control.isConnected || control.dataset.conversationId !== id || control.dataset.channelScope !== '') return;
-        select.innerHTML = `<option value="">${esc(options.length ? tr('Choose bot number','اختر رقم الروبوت') : tr('No active bot numbers found','لا توجد أرقام روبوت نشطة'))}</option>` + options.map(option => `<option value="${esc(`${option.kind}|${option.reference}`)}">${esc(option.label)}</option>`).join('');
-        select.disabled = options.length === 0;
-        const state = control.querySelector('[data-sx-chatbot-state]');
-        state.textContent = options.length ? '' : tr('Assign and activate a bot on a connected number first.','اربط روبوتًا وفعّله على رقم متصل أولاً.');
-        state.hidden = options.length > 0;
-      }).catch(error => {
+      body.innerHTML = `<strong>${esc(tr('Bot for this chat','الروبوت لهذه المحادثة'))}</strong><span role="status">${esc(tr('Finding this conversation’s WhatsApp number…','جارٍ تحديد رقم واتساب لهذه المحادثة…'))}</span>`;
+      if (scopeRequests.has(id)) return;
+      scopeRequests.add(id);
+      api(`/conversations/${encodeURIComponent(id)}/bot-scope`).then(value => {
         if (!control.isConnected || control.dataset.conversationId !== id) return;
-        if (['PERMISSION_DENIED', 'TEAM_ROLE_PERMISSION_DENIED'].includes(error.message)) {
-          inboxBotControlsDenied = true;
-          control.remove();
-          return;
+        if (value.scope) {
+          resolvedChatScopes.set(id, value.scope);
+          manuallySelectedChatChannels.set(id, value.scope);
+          control.dataset.channelScope = '__resolved__';
+          renderActiveChatControl({ id, scope:value.scope });
+        } else {
+          control.dataset.loading = 'false';
+          body.innerHTML = `<span role="status">${esc(tr('The WhatsApp number for this chat is ambiguous. Please ask an administrator to check its channel connection.','تعذر تحديد رقم واتساب لهذه المحادثة. يرجى مراجعة اتصال القناة مع المسؤول.'))}</span>`;
         }
-        select.innerHTML = `<option value="">${esc(errorLabel(error.message))}</option>`;
-        select.disabled = true;
-        const state = control.querySelector('[data-sx-chatbot-state]');
-        state.textContent = tr('Could not load bot numbers. Refresh and try again.','تعذر تحميل أرقام الروبوتات. حدّث الصفحة وحاول مجددًا.');
-        state.hidden = false;
-      });
+      }).catch(error => {
+        if (control.dataset.conversationId !== id) return;
+        control.dataset.loading = 'false';
+        body.innerHTML = `<span role="alert">${esc(errorLabel(error.message))}</span>`;
+      }).finally(() => scopeRequests.delete(id));
       return;
     }
     const endpoint = `/conversations/${encodeURIComponent(id)}/bot-control?channelKind=${encodeURIComponent(scope.channelKind)}&channelRef=${encodeURIComponent(scope.channelRef)}`;
-    body.innerHTML = `<strong data-sx-chatbot-mobile-heading>${esc(tr('Chat info','معلومات المحادثة'))}</strong><span data-sx-chatbot-state aria-live="polite">${esc(tr('Checking…','جارٍ التحقق…'))}</span><button type="button" data-sx-chatbot-toggle>${esc(tr('Checking…','جارٍ التحقق…'))}</button>`;
+    body.innerHTML = `<strong data-sx-chatbot-mobile-heading>${esc(tr('Chat info','معلومات المحادثة'))}</strong><span data-sx-chatbot-state aria-live="polite">${esc(tr('Checking…','جارٍ التحقق…'))}</span><button type="button" role="switch" aria-checked="false" aria-label="${esc(tr('Disable bot for this chat','تعطيل الروبوت لهذه المحادثة'))}" data-sx-chatbot-toggle>${esc(tr('Checking…','جارٍ التحقق…'))}</button>`;
     const button = control.querySelector('[data-sx-chatbot-toggle]');
     button.addEventListener('click', async () => {
       button.disabled = true;
@@ -998,9 +994,10 @@
       chatStates.set(requestKey, value); control.dataset.loading = 'false';
       const button = control.querySelector('[data-sx-chatbot-toggle]'); if (!button) return;
       const state = control.querySelector('[data-sx-chatbot-state]');
-      const handoffLabels = { LOW_CONFIDENCE:tr('AI could not answer confidently','تعذر على الذكاء الاصطناعي الإجابة بثقة'), AI_PROVIDER_NOT_CONFIGURED:tr('AI provider needs configuration','يحتاج مزود الذكاء الاصطناعي إلى إعداد'), AI_PROVIDER_TIMEOUT:tr('AI provider timed out','انتهت مهلة مزود الذكاء الاصطناعي'), AI_PROVIDER_REQUEST_FAILED:tr('AI provider error','خطأ في مزود الذكاء الاصطناعي'), AI_PROVIDER_INVALID_OUTPUT:tr('AI response needs staff review','تحتاج إجابة الذكاء الاصطناعي إلى مراجعة الموظف'), DAILY_TOKEN_LIMIT:tr('Daily AI limit reached','تم بلوغ حد الذكاء الاصطناعي اليومي'), CONTEXT_LIMIT:tr('Conversation needs staff review','تحتاج المحادثة إلى مراجعة الموظف'), CHANNEL_SEND_FAILED:tr('Reply could not be sent','تعذر إرسال الرد'), UNSUPPORTED_MESSAGE_TYPE:tr('Message type needs staff review','يحتاج نوع الرسالة إلى مراجعة الموظف'), GUIDED_FLOW_UNAVAILABLE:tr('Guided flow is unavailable','التدفق الموجّه غير متاح'), 'inbound-message-id-unavailable':tr('Message needs review','الرسالة تحتاج إلى مراجعة'), 'runtime-error':tr('Bot needs staff review','يحتاج الروبوت إلى مراجعة الموظف'), 'human-review':tr('Staff follow-up needed','تحتاج المحادثة إلى متابعة الموظف'), 'no-reply-timeout':tr('No customer reply for 1 hour','لم يرد العميل خلال ساعة') };
+      const handoffLabels = { OUTSIDE_BOT_FLOW:tr('Customer message needs staff','رسالة العميل تحتاج إلى موظف'), CUSTOMER_REQUESTED_STAFF:tr('Customer requested staff','طلب العميل موظفًا'), LOW_CONFIDENCE:tr('AI could not answer confidently','تعذر على الذكاء الاصطناعي الإجابة بثقة'), AI_PROVIDER_NOT_CONFIGURED:tr('AI provider needs configuration','يحتاج مزود الذكاء الاصطناعي إلى إعداد'), AI_PROVIDER_TIMEOUT:tr('AI provider timed out','انتهت مهلة مزود الذكاء الاصطناعي'), AI_PROVIDER_REQUEST_FAILED:tr('AI provider error','خطأ في مزود الذكاء الاصطناعي'), AI_PROVIDER_INVALID_OUTPUT:tr('AI response needs staff review','تحتاج إجابة الذكاء الاصطناعي إلى مراجعة الموظف'), DAILY_TOKEN_LIMIT:tr('Daily AI limit reached','تم بلوغ حد الذكاء الاصطناعي اليومي'), CONTEXT_LIMIT:tr('Conversation needs staff review','تحتاج المحادثة إلى مراجعة الموظف'), CHANNEL_SEND_FAILED:tr('Reply could not be sent','تعذر إرسال الرد'), UNSUPPORTED_MESSAGE_TYPE:tr('Message type needs staff review','يحتاج نوع الرسالة إلى مراجعة الموظف'), GUIDED_FLOW_UNAVAILABLE:tr('Guided flow is unavailable','التدفق الموجّه غير متاح'), 'inbound-message-id-unavailable':tr('Message needs review','الرسالة تحتاج إلى مراجعة'), 'runtime-error':tr('Bot needs staff review','يحتاج الروبوت إلى مراجعة الموظف'), 'human-review':tr('Staff follow-up needed','تحتاج المحادثة إلى متابعة الموظف'), 'no-reply-timeout':tr('No customer reply for 1 hour','لم يرد العميل خلال ساعة') };
       button.disabled = false; button.dataset.mode = value.mode;
-      button.textContent = value.mode === 'paused' ? tr('Resume bot','استئناف الروبوت') : tr('Pause bot','إيقاف الروبوت');
+      button.setAttribute('aria-checked', String(value.mode === 'paused'));
+      button.textContent = value.mode === 'paused' ? tr('Enable bot','تفعيل الروبوت') : tr('Disable bot','تعطيل الروبوت');
       button.title = value.mode === 'paused' ? tr('Bot replies are paused for this chat','تم إيقاف ردود الروبوت لهذه المحادثة') : tr('Bot replies are enabled for this chat','ردود الروبوت مفعلة لهذه المحادثة');
       if (state) {
         const remainingMinutes = value.autoPauseAt ? Math.max(0, Math.ceil((new Date(value.autoPauseAt).getTime() - Date.now()) / 60000)) : 0;
@@ -1026,8 +1023,11 @@
     renderActiveChatControl(activeConversation());
   }
   let scheduled=false;
-  function update() { if (scheduled) return; scheduled=true; requestAnimationFrame(()=>{scheduled=false;const active=mountTabs();const panel=document.getElementById('sx-chatbot-panel');if(active&&panel)positionPanel(panel);if(active&&state.tab!=='legacy'&&!panel)render();syncChatControls();}); }
-  new MutationObserver(update).observe(document.documentElement,{childList:true,subtree:true});
+  function update() { if (scheduled) return; scheduled=true; setTimeout(()=>{scheduled=false;const active=mountTabs();const panel=document.getElementById('sx-chatbot-panel');if(active&&panel)positionPanel(panel);if(active&&state.tab!=='legacy'&&!panel)render();syncChatControls();}, 250); }
+  new MutationObserver(records => {
+    if (records.every(record => record.target.nodeType === 1 && record.target.closest?.('#sx-active-chatbot-control,#sx-chatbot-panel,#sx-chatbot-dialog,#sx-chatbot-tabs'))) return;
+    update();
+  }).observe(document.documentElement,{childList:true,subtree:true});
   window.addEventListener('resize',update); window.addEventListener('popstate',update); window.addEventListener('storage',update); update();
   window.setInterval(() => { if (isInboxPage()) { const conversation = activeConversation(); if (conversation?.id && conversation.scope) loadActiveChatControl(conversation.id, conversation.scope); } }, 30000);
 })();

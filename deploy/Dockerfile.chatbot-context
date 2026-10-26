@@ -1,0 +1,12 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node client/public/chatbot-admin.js /app/client/public/chatbot-admin.js
+COPY --chown=node:node client/public/training-sidebar.js /app/client/public/training-sidebar.js
+COPY --chown=node:node client/public/workspace-api.js /app/client/public/workspace-api.js
+COPY --chown=node:node modules/platform/chatbot-router.js modules/platform/chatbot-runtime.js modules/platform/chatbot-conversation-scope.js modules/platform/chatbot-flow-understanding.js modules/platform/flow-editor-data.js /app/modules/platform/
+COPY --chown=node:node routes/chatFlow.js /app/routes/chatFlow.js
+COPY deploy/patch-chatbot-context.js /tmp/patch-chatbot-context.js
+RUN node /tmp/patch-chatbot-context.js && rm /tmp/patch-chatbot-context.js

@@ -194,7 +194,7 @@ router.get("/get_flows_beta", validateUser, checkPlan, async (req, res) => {
     data = data.map((x) => {
       return {
         ...x,
-        data: JSON.parse(x.data),
+        data: require("../modules/platform/flow-editor-data").normalizeFlowEditorData(x.data),
       };
     });
 

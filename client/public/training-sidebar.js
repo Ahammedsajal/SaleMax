@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261026-chatbot-no-reply-pause1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261026-chatbot-context-routing1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
@@ -541,10 +541,13 @@
       ensureLeadReportsRow(list);
       list.dataset.sxSidebarList = '1';
       const expanded = sidebarExpandedOverride.get(drawer);
-      const collapsed = expanded === undefined ? drawer.getBoundingClientRect().width < 110 : !expanded;
+      const measuredDrawerWidth = drawer.getBoundingClientRect().width;
+      // Never reveal labels while the paper still occupies the compact rail.
+      // The shell can accept an expand click before React has widened the drawer.
+      const collapsed = expanded === false || measuredDrawerWidth < 110;
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
       const dockedRoot = drawer.closest('.MuiDrawer-root.MuiDrawer-docked');
-      const drawerWidth = Math.round(drawer.getBoundingClientRect().width);
+      const drawerWidth = Math.round(measuredDrawerWidth);
       if (dockedRoot && drawerWidth > 0) {
         dockedRoot.style.setProperty('--sx-sidebar-docked-width', `${drawerWidth}px`);
         document.documentElement.style.setProperty('--sx-sidebar-inline-offset', `${drawerWidth}px`);
@@ -811,7 +814,13 @@
     }
   }, true);
   // Observe permission flags too: restoring a feature must restore its group heading.
-  new MutationObserver(schedule).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['data-sx-optional-hidden']});
+  new MutationObserver(records => {
+    if (document.documentElement.dataset.sxPage === 'inbox' && records.every(record => {
+      const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+      return target && !target.closest('.MuiDrawer-paper') && ![...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && (node.matches?.('.MuiDrawer-root,.MuiDrawer-paper') || node.querySelector?.('.MuiDrawer-paper')));
+    })) return;
+    schedule();
+  }).observe(document.documentElement, {childList:true, subtree:true, attributes:true, attributeFilter:['data-sx-optional-hidden']});
   document.addEventListener('input', schedule);
   window.addEventListener('salemax:business-brand-updated', schedule);
   window.addEventListener('resize', schedule);

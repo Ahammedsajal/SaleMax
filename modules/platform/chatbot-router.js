@@ -335,25 +335,34 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
       chatbotSecrets.decrypt(providerConfig);
     }
   }
+  async function scopeForConversation(db, uid, id) {
+    const [[chat]] = await db.query('SELECT origin,origin_instance_id,origin_instance_unique_id FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1', [uid, id]);
+    if (!chat) fail('CONVERSATION_NOT_FOUND');
+    const [meta] = await db.query('SELECT business_phone_number_id AS reference,embed_data FROM meta_api WHERE uid=?', [uid]);
+    const [qr] = await db.query('SELECT uniqueId AS reference,number AS label FROM instance WHERE uid=?', [uid]);
+    const channels = [...qr.map(item => ({ ...item, kind:'whatsapp_qr' })), ...meta.map(item => {
+      let embed = {}; try { embed = typeof item.embed_data === 'string' ? JSON.parse(item.embed_data) : item.embed_data || {}; } catch {}
+      return { kind:'whatsapp_meta', reference:item.reference, label:embed.phoneDetails?.display_phone_number };
+    })];
+    return require('./chatbot-conversation-scope').conversationScope(chat, channels);
+  }
   async function requireConversation(db, ctx, req, conversationId, channelKind, channelRef) {
     if (!/^[A-Za-z0-9_.:@+/-]{1,999}$/.test(conversationId)) fail('INVALID_CONVERSATION_ID');
-    if (!['whatsapp_meta', 'whatsapp_qr'].includes(channelKind) || typeof channelRef !== 'string' || !/^[A-Za-z0-9+_.:@/-]{1,160}$/.test(channelRef)) fail('INVALID_CONVERSATION_CHANNEL');
+    if (!['whatsapp_meta','whatsapp_qr'].includes(channelKind) || typeof channelRef !== 'string' || !/^[A-Za-z0-9+_.:@/-]{1,160}$/.test(channelRef)) fail('INVALID_CONVERSATION_CHANNEL');
     const uid = await legacyUidFor(db, req, ctx);
-    const [[beta]] = await db.query(`SELECT chat_id AS id FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1 FOR UPDATE`, [uid, conversationId]);
-    let legacy = null;
-    if (!beta) [[legacy]] = await db.query(`SELECT chat_id AS id FROM chats WHERE uid=? AND chat_id=? LIMIT 1 FOR UPDATE`, [uid, conversationId]);
-    if (!beta && !legacy) fail('CONVERSATION_NOT_FOUND');
-    const [channels] = channelKind === 'whatsapp_meta'
-      ? await db.query(`SELECT id FROM meta_api WHERE uid=? AND business_phone_number_id=? LIMIT 2`, [uid, channelRef])
-      : await db.query(`SELECT uniqueId AS id FROM instance WHERE uid=? AND uniqueId=? LIMIT 2`, [uid, channelRef]);
-    if (channels.length !== 1) fail('CONNECTED_CHANNEL_NOT_FOUND');
-    const [[assignment]] = await db.query(`SELECT b.id FROM sx_chatbot_profiles b
-      JOIN sx_chatbot_channel_assignments a ON a.tenant_id=b.tenant_id AND a.chatbot_id=b.id
-      WHERE b.tenant_id=? AND a.channel_kind=? AND a.channel_ref=? AND b.status IN ('live','paused') LIMIT 1`,
-    [ctx.tenant.id, channelKind, channelRef]);
-    if (!assignment) fail('BOT_CHANNEL_REQUIRED');
+    const scope = await scopeForConversation(db, uid, conversationId);
+    if (!scope || scope.channelKind !== channelKind || scope.channelRef !== channelRef) fail('INVALID_CONVERSATION_CHANNEL');
     return uid;
   }
+  router.get('/conversations/:conversationId/bot-scope', wrap(async (req, res) => {
+    const ctx = context(req), id = req.params.conversationId;
+    if (!/^[A-Za-z0-9_.:@+/-]{1,999}$/.test(id)) fail('INVALID_CONVERSATION_ID');
+    const data = await withDb(async db => {
+      const scope = await scopeForConversation(db, await legacyUidFor(db, req, ctx), id);
+      return { scope, ambiguous:!scope };
+    });
+    res.json({ success:true, data });
+  }));
   router.get('/conversations/:conversationId/bot-control', wrap(async (req, res) => {
     const ctx = context(req);
     const { channelKind, channelRef } = req.query;
