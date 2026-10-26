@@ -6,10 +6,19 @@ const { decision } = require('./policy');
 const ARABIC = /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]/u;
 const MAX_TEXT_LENGTH = 4000;
 const MAX_REQUESTS_PER_MINUTE = 30;
+const DEFAULT_AZURE_ENDPOINT = 'https://api.cognitive.microsofttranslator.com';
 const requests = new Map();
 let lastSweep = 0;
 
-function createInboxTranslationRouter({ authenticate, origin = process.env.SALEMAX_PLATFORM_ORIGIN, fetchImpl = global.fetch, endpoint = process.env.SALEMAX_TRANSLATION_URL } = {}) {
+function createInboxTranslationRouter({
+  authenticate,
+  origin = process.env.SALEMAX_PLATFORM_ORIGIN,
+  fetchImpl = global.fetch,
+  endpoint = process.env.SALEMAX_TRANSLATION_URL,
+  azureKey = process.env.SALEMAX_AZURE_TRANSLATOR_KEY,
+  azureRegion = process.env.SALEMAX_AZURE_TRANSLATOR_REGION,
+  azureEndpoint = process.env.SALEMAX_AZURE_TRANSLATOR_ENDPOINT || DEFAULT_AZURE_ENDPOINT,
+} = {}) {
   const router = express.Router();
   const wrap = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
@@ -34,7 +43,7 @@ function createInboxTranslationRouter({ authenticate, origin = process.env.SALEM
     if (typeof text !== 'string' || !text.trim() || text.length > MAX_TEXT_LENGTH) {
       return res.status(400).json({ success: false, code: text?.length > MAX_TEXT_LENGTH ? 'TEXT_TOO_LONG' : 'INVALID_TEXT' });
     }
-    if (!endpoint || typeof fetchImpl !== 'function') return res.status(503).json({ success: false, code: 'TRANSLATION_UNAVAILABLE' });
+    if (typeof fetchImpl !== 'function') return res.status(503).json({ success: false, code: 'TRANSLATION_UNAVAILABLE' });
 
     const identity = `${context.tenant.id}:${context.membership.id}`;
     const now = Date.now();
@@ -52,8 +61,43 @@ function createInboxTranslationRouter({ authenticate, origin = process.env.SALEM
 
     const source = ARABIC.test(text) ? 'ar' : 'en';
     const target = source === 'ar' ? 'en' : 'ar';
+    const azureCredential = typeof azureKey === 'string' && azureKey.trim();
+
+    if (azureCredential) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const base = new URL(azureEndpoint || DEFAULT_AZURE_ENDPOINT);
+        if (base.protocol !== 'https:' || base.username || base.password) throw new Error('INVALID_TRANSLATOR_ENDPOINT');
+        const basePath = base.pathname.replace(/\/+$/, '');
+        base.pathname = basePath.endsWith('/translate') ? basePath : `${basePath}/translate`;
+        base.search = '';
+        base.searchParams.set('api-version', '3.0');
+        base.searchParams.set('from', source);
+        base.searchParams.set('to', target);
+        const headers = { 'Content-Type': 'application/json; charset=UTF-8', Accept: 'application/json', 'Ocp-Apim-Subscription-Key': azureCredential.trim() };
+        if (typeof azureRegion === 'string' && azureRegion.trim()) headers['Ocp-Apim-Subscription-Region'] = azureRegion.trim();
+        const response = await fetchImpl(base, {
+          method: 'POST', headers, body: JSON.stringify([{ Text: text }]), signal: controller.signal,
+        });
+        if (response.ok) {
+          const result = await response.json();
+          const translated = result?.[0]?.translations?.[0]?.text;
+          if (typeof translated === 'string' && translated.trim()) {
+            return res.json({ success: true, data: { text: translated, targetLanguage: target, provider: 'azure' } });
+          }
+        }
+        // F0 quota exhaustion, rate limits, credential/resource errors and provider outages all use the in-house fallback.
+      } catch {
+        // Keep provider credentials, chat text and upstream errors out of logs and client responses.
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    if (!endpoint) return res.status(503).json({ success: false, code: 'TRANSLATION_UNAVAILABLE' });
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20_000);
+    const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
       const response = await fetchImpl(`${endpoint.replace(/\/+$/, '')}/translate`, {
         method: 'POST',
@@ -66,7 +110,7 @@ function createInboxTranslationRouter({ authenticate, origin = process.env.SALEM
       if (typeof result?.translatedText !== 'string' || !result.translatedText.trim()) {
         return res.status(503).json({ success: false, code: 'TRANSLATION_EMPTY' });
       }
-      return res.json({ success: true, data: { text: result.translatedText, targetLanguage: target } });
+      return res.json({ success: true, data: { text: result.translatedText, targetLanguage: target, provider: 'libretranslate' } });
     } catch {
       return res.status(503).json({ success: false, code: 'TRANSLATION_UNAVAILABLE' });
     } finally {
@@ -83,4 +127,4 @@ function createInboxTranslationRouter({ authenticate, origin = process.env.SALEM
   return router;
 }
 
-module.exports = { createInboxTranslationRouter, MAX_TEXT_LENGTH, MAX_REQUESTS_PER_MINUTE };
+module.exports = { createInboxTranslationRouter, MAX_TEXT_LENGTH, MAX_REQUESTS_PER_MINUTE, DEFAULT_AZURE_ENDPOINT };

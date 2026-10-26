@@ -1,0 +1,13 @@
+services:
+  app:
+    image: salemax-app:inbox-translation-cloud-20261026
+    build:
+      context: ${SALEMAX_TRANSLATION_BUILD_CONTEXT:-..}
+      dockerfile: deploy/Dockerfile.inbox-translation-cloud
+      args:
+        BASE_IMAGE: ${SALEMAX_TRANSLATION_BASE_IMAGE:?set the exact current app image}
+    environment:
+      SALEMAX_TRANSLATION_URL: http://libretranslate:5000
+      SALEMAX_AZURE_TRANSLATOR_KEY: ${SALEMAX_AZURE_TRANSLATOR_KEY:-}
+      SALEMAX_AZURE_TRANSLATOR_REGION: ${SALEMAX_AZURE_TRANSLATOR_REGION:-}
+      SALEMAX_AZURE_TRANSLATOR_ENDPOINT: ${SALEMAX_AZURE_TRANSLATOR_ENDPOINT:-https://api.cognitive.microsofttranslator.com}

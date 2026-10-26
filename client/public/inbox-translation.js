@@ -68,11 +68,30 @@
     }
   }
 
+  function setTranslateIcon(button) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '18');
+    svg.setAttribute('height', '18');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.8');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const d of ['m5 8 6 6', 'm4 14 6-6 2-3', 'M2 5h12', 'M7 2h1', 'M22 22l-5-10-5 10', 'M14 18h6']) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      svg.append(path);
+    }
+    button.replaceChildren(svg);
+  }
+
   function addStyles() {
     if (document.getElementById('sx-inbox-translation-style')) return;
     const style = document.createElement('style');
     style.id = 'sx-inbox-translation-style';
-    style.textContent = '.sx-inbox-translate-status{position:absolute;inset-inline-start:12px;bottom:calc(100% + 4px);font:12px Roboto,Arial,sans-serif;color:#667085;pointer-events:none}.sx-inbox-translation-icon{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:20px;height:20px;margin-inline-start:5px;padding:0;border:0;border-radius:50%;background:transparent;color:#65758b;font:600 9px/1 Arial,sans-serif;cursor:pointer;opacity:.8}.sx-inbox-translation-icon:hover{background:rgba(23,104,212,.1);color:#1768d4;opacity:1}.sx-inbox-translation-icon:disabled{opacity:.55;cursor:wait}';
+    style.textContent = '.sx-inbox-translate-status{position:absolute;inset-inline-start:12px;bottom:calc(100% + 4px);font:12px Roboto,Arial,sans-serif;color:#667085;pointer-events:none}.sx-inbox-translation-icon{box-sizing:border-box;display:inline-grid;place-items:center;flex:0 0 28px;white-space:nowrap;vertical-align:middle;width:28px;min-width:28px;height:28px;min-height:28px;margin-inline-start:6px;padding:0;border:1px solid transparent;border-radius:50%;background:transparent;color:#667085;cursor:pointer;opacity:.9;line-height:1}.sx-inbox-translation-icon svg{display:block;flex:none;width:18px;height:18px}.sx-inbox-translation-icon:hover{background:rgba(23,104,212,.08);border-color:rgba(23,104,212,.16);color:#1768d4;opacity:1}.sx-inbox-translation-icon:focus-visible{outline:2px solid #1768d4;outline-offset:1px}.sx-inbox-translation-icon:disabled{opacity:.55;cursor:wait}';
     document.head.append(style);
   }
 
@@ -126,7 +145,7 @@
       state.button = button;
       button.type = 'button';
       button.className = 'sx-inbox-translation-icon';
-      button.textContent = '文A';
+      setTranslateIcon(button);
       button.title = copy().translateMessage;
       button.setAttribute('aria-label', copy().translateMessage);
       const showOriginal = () => {
@@ -194,7 +213,7 @@
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'sx-inbox-translation-icon';
-    button.textContent = '文A';
+    setTranslateIcon(button);
     button.title = copy().translateMessage;
     button.setAttribute('aria-label', copy().translateMessage);
     button.addEventListener('click', () => translate(editor, button, status));

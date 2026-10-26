@@ -138,21 +138,26 @@ Migration `20261224_7network_sales_icp_profiles.sql` adds one tenant-scoped prof
 ## Inbox message and draft translation
 
 `POST /api/workspace/inbox/translate` translates Inbox text between English and
-Arabic. The composer uses it for drafts; the maintained Inbox hook also offers a
-per-message action for incoming text bubbles, showing the translation below the
-unchanged original. The authenticated UI calls the endpoint through
+Arabic. The composer uses it for drafts; the maintained Inbox hook adds an
+accessible, aligned language icon to eligible incoming text bubbles. Clicking
+it replaces the text in the same bubble; clicking again restores the original.
+The authenticated UI calls the endpoint through
 `window.SaleMaxWorkspace.request('inboxTranslation', ...)`. The shared feature
 session is revalidated for each request, and the server requires the
 `messaging.inbox` capability and `conversations.read` permission. Requests are
 limited to 4,000 characters and 30 per member per minute.
 
-The API proxies only the requested text to the private LibreTranslate service at
-`SALEMAX_TRANSLATION_URL`; it does not save or log the text. Arabic-script input
-is explicitly sent as Arabic and targets English; other input is explicitly sent
-as English and targets Arabic. Incoming-message and composer controls toggle
-between original and translated text in the same location; they do not send a
-message. Per-message translations remain in the browser DOM only and are not
-persisted. The bundled LibreTranslate Argos model is limited on colloquial Arabic,
-so translations should be reviewed. The service is a separately capped
-container with no published port, English/Arabic models only, one worker thread,
-and a persistent model volume. Machine translations require human review.
+When `SALEMAX_AZURE_TRANSLATOR_KEY` is configured, the API sends only the
+requested message text to Azure Translator as its primary provider, with source
+and target explicitly selected for Arabic/English. The key stays server-side;
+`SALEMAX_AZURE_TRANSLATOR_REGION` is optional for global resources, and the
+endpoint can be set with `SALEMAX_AZURE_TRANSLATOR_ENDPOINT`. Any cloud error,
+quota/rate limit, timeout, invalid response, or missing cloud credential falls
+back to the private LibreTranslate service at `SALEMAX_TRANSLATION_URL`. Neither
+provider result is saved or logged. Cloud chat text is processed by Microsoft
+when Azure credentials are active. Incoming-message and composer controls toggle
+in place and do not send messages. Per-message translations remain in browser
+memory only. LibreTranslate's bundled Argos model is limited on colloquial
+Arabic, so machine translations should be reviewed. The private service has no
+published port, English/Arabic models only, one worker thread, a 4,000 character
+limit and a persistent model volume.
