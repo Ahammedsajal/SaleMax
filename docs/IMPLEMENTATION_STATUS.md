@@ -1,3 +1,7 @@
+## WhatsApp media retention — production, 26 October 2026
+
+The existing retention worker now removes group media after 48 hours and individual WhatsApp chat media after 28 days, checking every 15 minutes. Text/history is preserved; the former whole-conversation purge is removed. Shared business assets and unexpired reused files are protected, and expired attachments show a bilingual notice. The production scheduler has completed a sweep without errors; no live file was old enough to expire. Nineteen focused checks pass. Source `fb9162fa34b39f825a2e6da72ccfff895626b2ce` is deployed at `/opt/salemax/releases/whatsapp-media-retention-fb9162f-20261026`; release, hashes, rollback and remaining expiry gates are recorded in `DEPLOYMENT.md`. The full 42-ticket upgrade remains in progress.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
