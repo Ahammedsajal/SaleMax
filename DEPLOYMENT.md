@@ -1,3 +1,25 @@
+## Unified Inbox list for chats and WhatsApp groups — production, 26 October 2026
+
+- Source commits `50efd0df0ec3f3910289bbe9e177438affdaf007` and `e7321fc90095c2e7652b3a84f797685261e2eeb7` are pushed to `Ahammedsajal/SaleMax` `main`. The existing Inbox list now includes direct chats and WhatsApp groups together; the server applies the same assignment, unread, search, QR-number, origin and pagination filters and orders both kinds by latest activity. The Chats / Groups mode buttons are removed. Group info, members, shared media and the manual **Sync groups** action remain available. Stale Groups-only state is cleared on the existing hook, and old cached clients that still request direct-only mode receive the unified list. Group messages remain excluded from automatic lead and Phonebook creation.
+- The app image `salemax-app:inbox-unified-list-20261026` (`sha256:c0931417bfb8a937432ec9184a312b792840071735c1fabc83f137901df199a7`) is based on the exact active image `sha256:131ea45c5af407f08299200106f5526eabfb2422a19fad893bfe73598b9edbff`. Active release: `/opt/salemax/releases/inbox-unified-list-e7321fc-20261026`. The production-only Socket.IO authorization and Qatar timezone changes were preserved by a guarded overlay patch. No database migration or customer/contact/conversation change occurred; only `salemax-app-1` was recreated.
+- Protected rollback snapshot `/opt/salemax/shared/rollback-inbox-unified-list-e7321fc-20261026T125602Z` (mode `0700`) records the exact previous release, app image/container identity, Compose file list and working directory, plus the five pre-change runtime files. To roll back under `/opt/salemax/shared/with-production-lock.sh`:
+
+  ```bash
+  snapshot=/opt/salemax/shared/rollback-inbox-unified-list-e7321fc-20261026T125602Z
+  previous=$(cat "$snapshot/previous-release.txt")
+  ln -s "$previous" /opt/salemax/current.rollback-inbox-unified-list
+  mv -Tf /opt/salemax/current.rollback-inbox-unified-list /opt/salemax/current
+  IFS=, read -r -a files < "$snapshot/compose-files-before.txt"
+  args=(-p salemax --project-directory "$(cat "$snapshot/compose-working-dir.txt")" --env-file /opt/salemax/shared/stack.env --env-file /opt/salemax/shared/runtime.env)
+  for file in "${files[@]}"; do args+=(-f "$file"); done
+  export SALEMAX_TRANSLATION_BASE_IMAGE=sha256:131ea45c5af407f08299200106f5526eabfb2422a19fad893bfe73598b9edbff
+  docker compose "${args[@]}" up -d --no-deps --no-build app
+  ```
+
+  No database restore applies.
+- Verification: build-time `node --check` passed for the updated Inbox hook, chat adapter, Socket.IO handler and Inbox route. Production `/healthz` and the cache-busted Inbox hook return HTTP 200; app image/release hashes match, health is `healthy`, and restart count is zero. Database, report worker, recruitment notification worker, bot test database and LibreTranslate identities stayed unchanged. Authenticated Edge was refreshed: Meta, individual WhatsApp and group rows are visible together and ordered newest-first; the Filters panel has no Chats / Groups toggle. Filtered group details were not opened, and no message was sent.
+- Remaining acceptance: Arabic/RTL and narrow-phone visual review, Agent login, and real group text/media handset round trips remain open. Older WhatsApp history is not backfilled; the list includes group messages already saved by Inbox.
+
 ## Load responsive Inbox navigation styles in the app shell — production, 26 October 2026
 
 - Source commit `ee837ae` is pushed to `Ahammedsajal/SaleMax` `main`. The phone screenshot's empty white drawer and letter-stacked labels came from a shell integration gap: `salemax-mobile.css` already contained the mobile drawer width and readable-label rules, and the identical asset was present on production, but the application shell never linked it. Those rules therefore never ran. The tracked shell and the production-preserving overlay now load `/salemax-mobile.css?v=20261026-sidebar-mobile1` after the existing styles so its mobile overrides apply.
