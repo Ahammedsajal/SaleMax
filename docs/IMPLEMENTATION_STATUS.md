@@ -1879,3 +1879,14 @@ acceptance passed. No outbound group test was sent. Browser visual/RTL/mobile,
 both-login UI and handset/media/mention/quote acceptance remain open. Membership
 sync does not provide a guaranteed historical message archive. See DEPLOYMENT.md
 for final image, rollback, runtime parity and remaining full-program gates.
+
+## QR group mode selector inside Inbox Filters — production, 26 October 2026
+
+Moved the Chats / Groups selector out of the Inbox heading and into the existing
+Filters dropdown, above WhatsApp Number, Assignment, Origin and Agent. The
+selector uses compact wrapping controls and keeps Sync groups visible only in
+Groups mode. It continues to drive the native Inbox list and conversation
+renderer; it does not add a second inbox layout. Source commit `345bb6f` is
+deployed. The public `/user?page=inbox` shell references the updated hook. A
+signed-in browser screenshot and visual RTL/mobile confirmation remain open.
+See DEPLOYMENT.md for active image and rollback details.
