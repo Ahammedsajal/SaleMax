@@ -27,7 +27,7 @@ function createInboxTranslationRouter({ authenticate, origin = process.env.SALEM
 
   router.post('/', wrap(async (req, res) => {
     const context = req.featureSession?.context;
-    const access = decision(context, { capability: 'messaging.inbox', permission: 'conversations.reply' });
+    const access = decision(context, { capability: 'messaging.inbox', permission: 'conversations.read' });
     if (!access.allowed) return res.status(403).json({ success: false, code: access.code || 'PERMISSION_DENIED' });
 
     const text = req.body?.text;

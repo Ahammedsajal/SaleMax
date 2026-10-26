@@ -20,9 +20,9 @@ test('Inbox translation selects the opposite language and sends no saved-message
  assert.deepEqual(payloads.map(item=>[item.url,item.body.source,item.body.target,Object.keys(item.body)]),[['http://translate.internal/translate','auto','ar',['q','source','target','format']],['http://translate.internal/translate','auto','en',['q','source','target','format']]]);
 });
 
-test('Inbox translation requires reply permission and same-origin POST',async t=>{
- const noReply=await start({...base,membership:{...base.membership,role:'accountant'}});t.after(()=>new Promise(resolve=>noReply.server.close(resolve)));
- let response=await translate(noReply,'Hello');assert.equal(response.status,403);assert.equal((await response.json()).code,'PERMISSION_DENIED');
+test('Inbox message translation requires read permission and same-origin POST',async t=>{
+ const noRead=await start({...base,membership:{...base.membership,role:'accountant'}});t.after(()=>new Promise(resolve=>noRead.server.close(resolve)));
+ let response=await translate(noRead,'Hello');assert.equal(response.status,403);assert.equal((await response.json()).code,'PERMISSION_DENIED');
  const owner=await start(base);t.after(()=>new Promise(resolve=>owner.server.close(resolve)));
  response=await fetch(owner.origin+'/api/workspace/inbox/translate',{method:'POST',headers:{Origin:'https://evil.example','Content-Type':'application/json'},body:JSON.stringify({text:'Hello'})});assert.equal(response.status,403);assert.equal((await response.json()).code,'ORIGIN_DENIED');
 });

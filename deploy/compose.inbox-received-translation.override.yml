@@ -1,0 +1,8 @@
+services:
+  app:
+    image: salemax-app:inbox-received-translation-20261026
+    build:
+      context: ${SALEMAX_TRANSLATION_BUILD_CONTEXT:-..}
+      dockerfile: deploy/Dockerfile.inbox-received-translation
+      args:
+        BASE_IMAGE: ${SALEMAX_TRANSLATION_BASE_IMAGE:?set the exact current app image}
