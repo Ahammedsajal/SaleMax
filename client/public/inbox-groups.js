@@ -45,16 +45,18 @@
     const label = [...document.querySelectorAll('span')].find(node => node.children.length === 0 && ['Contact Info', 'معلومات الاتصال', 'معلومات جهة الاتصال'].includes(node.textContent.trim()));
     return label?.parentElement?.parentElement?.parentElement || null;
   }
-  function filterRow() {
-    const labels = ar() ? ['الكل', 'غير مقروء', 'مقروء'] : ['All', 'Unread', 'Read'];
-    const all = [...document.querySelectorAll('button')].find(node => labels.includes(node.textContent.trim()));
-    if (!all) return null;
-    let row = all.parentElement;
-    for (let depth = 0; row && depth < 4; depth++, row = row.parentElement) {
-      const texts = [...row.querySelectorAll('button')].map(node => node.textContent.trim());
-      if (labels.every(label => texts.includes(label))) return row;
+  function filterPanel() {
+    const titles = ['Filters', 'الفلاتر', 'تصفية', 'عوامل التصفية'];
+    const title = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,span,p,div')].find(node => titles.includes(node.textContent.trim()));
+    if (!title) return null;
+    for (let panel = title.parentElement, depth = 0; panel && depth < 8; panel = panel.parentElement, depth++) {
+      const text = panel.textContent;
+      const hasSections = ar()
+        ? ['التعيين', 'الأصل', 'الوكيل'].filter(label => text.includes(label)).length >= 2
+        : ['Assignment', 'Origin', 'Agent'].filter(label => text.includes(label)).length >= 2;
+      if (hasSections && panel.querySelectorAll('select,input,[role="combobox"]').length >= 2) return { panel, anchor: title.parentElement };
     }
-    return all.parentElement;
+    return null;
   }
   function section(title, expanded = false) {
     const node = element('details', null, 'sx-group-section'); node.open = expanded;
@@ -146,13 +148,15 @@
         finally { sync.disabled = false; }
       }); sync.dataset.sxGroupSync = '1'; controls.append(sync);
       notice = element('small', '', 'sx-group-notice'); notice.setAttribute('role', 'status'); controls.append(notice);
-      // Keep the view selector with the native All / Unread / Read filters,
-      // rather than consuming a separate row beside the Inbox title.
-      (filterRow() || heading.parentElement).prepend(controls);
+      const title = element('strong', tr('Conversation type', 'نوع المحادثة'), 'sx-inbox-view-title');
+      controls.setAttribute('role', 'group'); controls.setAttribute('aria-label', tr('Conversation type', 'نوع المحادثة'));
+      controls.prepend(title);
     }
     if (controls) {
-      const row = filterRow();
-      if (row && controls.parentElement !== row) row.prepend(controls);
+      const target = filterPanel();
+      if (target) {
+        if (controls.parentElement !== target.panel) target.anchor.insertAdjacentElement('afterend', controls);
+      } else if (controls.isConnected) controls.remove();
       const buttons = controls.querySelectorAll('button'); buttons[0].setAttribute('aria-pressed', String(!groupMode())); buttons[1].setAttribute('aria-pressed', String(groupMode())); buttons[2].hidden = !groupMode();
     }
     const chat = selectedGroup();
@@ -174,7 +178,7 @@
     const key = `${chat.chat_id}:${ar()}:${localStorage.getItem('wacrm_user') || localStorage.getItem('wacrm_agent') || 'cookie'}`;
     if (key !== currentKey || Date.now() - lastLoad > 300000) { currentKey = key; info.replaceChildren(element('p', tr('Loading group info…', 'جارٍ تحميل معلومات المجموعة…'))); load(chat); }
   }
-  const style = element('style'); style.textContent = '.sx-inbox-view-switch{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:0 4px 0 0;max-width:100%}.sx-inbox-view-switch button{border:1px solid #cbd5e1;border-radius:999px;background:transparent;color:inherit;min-height:30px;padding:4px 10px;font:600 11px Arial;cursor:pointer;white-space:nowrap}.sx-inbox-view-switch button[aria-pressed=true]{background:#1768d4;color:white;border-color:#1768d4}.sx-inbox-view-switch button[hidden]{display:none}.sx-group-notice{font-size:10px;color:#64748b}.sx-inbox-view-switch:has(button[hidden]){gap:4px}[data-sx-group-info-host]>:nth-child(n+3):not(#sx-inbox-group-info){display:none!important}#sx-inbox-group-info{font:12px/1.5 Arial;color:inherit;overflow-wrap:anywhere}#sx-inbox-group-info p{white-space:pre-wrap;margin:7px 0}#sx-inbox-group-info small{display:block;color:#718096}.sx-group-section{padding:10px 12px;border-bottom:1px solid #e4e9f1}.sx-group-section>summary{font-weight:700;cursor:pointer;padding:3px 0}.sx-group-section input{box-sizing:border-box;width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;margin:8px 0;background:transparent;color:inherit}.sx-group-section button{font:inherit;border:1px solid #cbd5e1;border-radius:6px;padding:4px 7px;margin:5px 0;background:transparent;color:inherit;cursor:pointer}.sx-group-member-list{max-height:360px;overflow:auto}.sx-group-member{border-bottom:1px solid #eef1f5;padding:7px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap}.sx-group-member strong{flex:1 1 110px}.sx-group-admin{font-size:10px;background:#eaf2ff;color:#1768d4;border-radius:8px;padding:2px 5px}.sx-group-shared-media article{padding:8px 0;border-bottom:1px solid #e4e9f1}.sx-group-shared-media img{width:100%;max-height:180px;object-fit:contain;border-radius:7px}.sx-group-shared-media a{color:#1768d4;display:block;overflow-wrap:anywhere}@media(max-width:480px){.sx-inbox-view-switch{flex:0 0 100%;width:100%;box-sizing:border-box;margin:0 0 4px}.sx-inbox-view-switch button{min-height:34px;padding:5px 12px}}'; document.head.append(style);
+  const style = element('style'); style.textContent = '.sx-inbox-view-switch{display:flex;align-items:center;gap:6px;flex-wrap:wrap;box-sizing:border-box;width:100%;padding:10px 12px;margin:8px 0;border-block:1px solid #e6ebf2}.sx-inbox-view-title{flex:0 0 100%;font-size:11px;color:#64748b}.sx-inbox-view-switch button{border:1px solid #cbd5e1;border-radius:7px;background:transparent;color:inherit;min-height:32px;padding:5px 12px;font:600 12px Arial;cursor:pointer;white-space:nowrap}.sx-inbox-view-switch button[aria-pressed=true]{background:#1768d4;color:white;border-color:#1768d4}.sx-inbox-view-switch button[hidden]{display:none}.sx-group-notice{font-size:10px;color:#64748b}[data-sx-group-info-host]>:nth-child(n+3):not(#sx-inbox-group-info){display:none!important}#sx-inbox-group-info{font:12px/1.5 Arial;color:inherit;overflow-wrap:anywhere}#sx-inbox-group-info p{white-space:pre-wrap;margin:7px 0}#sx-inbox-group-info small{display:block;color:#718096}.sx-group-section{padding:10px 12px;border-bottom:1px solid #e4e9f1}.sx-group-section>summary{font-weight:700;cursor:pointer;padding:3px 0}.sx-group-section input{box-sizing:border-box;width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;margin:8px 0;background:transparent;color:inherit}.sx-group-section button{font:inherit;border:1px solid #cbd5e1;border-radius:6px;padding:4px 7px;margin:5px 0;background:transparent;color:inherit;cursor:pointer}.sx-group-member-list{max-height:360px;overflow:auto}.sx-group-member{border-bottom:1px solid #eef1f5;padding:7px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap}.sx-group-member strong{flex:1 1 110px}.sx-group-admin{font-size:10px;background:#eaf2ff;color:#1768d4;border-radius:8px;padding:2px 5px}.sx-group-shared-media article{padding:8px 0;border-bottom:1px solid #e4e9f1}.sx-group-shared-media img{width:100%;max-height:180px;object-fit:contain;border-radius:7px}.sx-group-shared-media a{color:#1768d4;display:block;overflow-wrap:anywhere}'; document.head.append(style);
   new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; mount(); }); }).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(mount, 1500); mount();
 })();
