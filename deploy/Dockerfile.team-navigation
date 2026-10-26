@@ -1,0 +1,8 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.overlay.commit="${SOURCE_COMMIT}"
+USER root
+COPY --chown=node:node deploy/patch-team-navigation.cjs /tmp/patch-team-navigation.cjs
+RUN node /tmp/patch-team-navigation.cjs && node --check /app/client/public/team-login.js
+USER node
