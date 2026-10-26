@@ -3,7 +3,7 @@
   if (window.__sxInboxPhonebookContact) return;
   window.__sxInboxPhonebookContact = true;
 
-  const isArabic = () => window.SaleMaxLocale?.isArabic?.() ?? ((document.documentElement.lang || localStorage.getItem('language') || '').toLowerCase().startsWith('ar') || document.documentElement.dir === 'rtl');
+  const isArabic = () => !!(window.SaleMaxLocale?.isArabic?.() || /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || '') || (document.documentElement.lang || '').toLowerCase().startsWith('ar') || document.documentElement.dir === 'rtl');
   const copy = () => isArabic()
     ? { title: 'تفاصيل دفتر الهاتف', loading: 'جارٍ تحميل تفاصيل دفتر الهاتف…', empty: 'لا توجد جهة اتصال محفوظة لهذا الرقم في دفتر الهاتف.', unavailable: 'تعذر تحميل تفاصيل دفتر الهاتف. تحقق من صلاحية الوصول وحاول مجددًا.', retry: 'إعادة المحاولة', phonebook: 'دفتر الهاتف', name: 'الاسم', mobile: 'رقم الهاتف', added: 'تاريخ الإضافة', more: 'توجد نتائج إضافية؛ عُرضت أول 100 جهة اتصال.' }
     : { title: 'Phonebook details', loading: 'Loading saved Phonebook details…', empty: 'No saved Phonebook contacts match this number.', unavailable: 'Phonebook details could not be loaded. Check access and retry.', retry: 'Retry', phonebook: 'Phonebook', name: 'Name', mobile: 'Mobile number', added: 'Added', more: 'More matches exist; showing the first 100 contacts.' };
