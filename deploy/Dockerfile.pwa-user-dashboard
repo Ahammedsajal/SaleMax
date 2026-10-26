@@ -5,4 +5,6 @@ USER root
 COPY --chown=node:node client/public/manifest.json /app/client/public/manifest.json
 COPY --chown=node:node client/public/branding/7network/manifest.webmanifest /app/client/public/branding/7network/manifest.webmanifest
 
+RUN node -e 'const fs=require("fs"); const p="/app/client/public/index.html"; const s=fs.readFileSync(p,"utf8"); const a="/branding/7network/manifest.webmanifest?v=20261022-sidebar-icon1"; const b="/branding/7network/manifest.webmanifest?v=20261026-user-dashboard1"; const i=s.indexOf(a); if(i<0 || s.indexOf(a,i+a.length)>=0) throw new Error("Expected one known manifest link"); fs.writeFileSync(p,s.replace(a,b));'
+
 USER node
