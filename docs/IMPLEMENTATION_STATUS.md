@@ -1895,3 +1895,11 @@ active groups. Out-of-order provider events cannot replace a newer last-message
 pointer. Source commit `e1a8c25` is deployed. Messages from before group support
 are not imported, so only group activity already received by the Inbox can be
 sorted. See DEPLOYMENT.md for release, verification and rollback details.
+
+## Chats / Groups filter click behavior — production, 26 October 2026
+
+Selecting Chats or Groups in the Filters panel now persists the mode and reloads
+the existing Inbox so its native provider initializes with that mode. This
+avoids relying on React context discovery through the filter panel portal.
+Source commit `dba23bc` is deployed. A signed-in click and visual review are
+still pending because browser control is unavailable in this Work session.
