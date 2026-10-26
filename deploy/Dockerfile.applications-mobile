@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.overlay.commit="${SOURCE_COMMIT}"
+USER root
+COPY --chown=node:node deploy/patch-applications-mobile.cjs /tmp/patch-applications-mobile.cjs
+COPY --chown=node:node client/public/applications-mobile.css /app/client/public/applications-mobile.css
+RUN node /tmp/patch-applications-mobile.cjs && node --check /app/client/public/recruitment.js && node --check /app/client/public/training-forms.js && node --check /app/client/public/training-sidebar.js
+USER node
+
