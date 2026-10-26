@@ -88,6 +88,8 @@ for (const [relative, replacements] of [
   ['client/public/7network-shell-brand.css', [['/media/salemax-logo.png', '/media/7network-logo.png']]],
   ['scripts/build-workspace.cjs', [['media/salemax-logo.png', 'media/7network-logo.png']]],
   ['scripts/export-7network-brand.cjs', [['salemax-logo.png', '7network-logo.png'], ['salemax-icon.png', '7network-icon.png']]],
+  ['scripts/rebrand-local-data.cjs', [['SaleMaX', '7Network'], ['salemax-logo.png', '7network-logo.png']]],
+  ['scripts/existing-panel-lab.cjs', [['SaleMaX · Synthetic test', '7Network · Synthetic test'], ['salemax-logo.png', '7network-logo.png']]],
   ['tests/baseline.test.js', [['media/salemax-logo.png', 'media/7network-logo.png']]],
   ['tests/training-center-logo-media.test.js', [['salemax-logo-test-', '7network-logo-test-']]],
   ['AGENTS.md', [['SALEMAX_TRAINING_CENTER_IMPLEMENTATION_PLAN.md', '7NETWORK_TRAINING_CENTER_IMPLEMENTATION_PLAN.md']]],
