@@ -1,0 +1,3 @@
+services:
+  app:
+    image: salemax-app:pwa-user-dashboard-e2d09ec-20261026

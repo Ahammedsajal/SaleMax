@@ -1,0 +1,8 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+USER root
+COPY --chown=node:node client/public/manifest.json /app/client/public/manifest.json
+COPY --chown=node:node client/public/branding/7network/manifest.webmanifest /app/client/public/branding/7network/manifest.webmanifest
+
+USER node
