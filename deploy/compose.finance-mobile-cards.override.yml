@@ -1,0 +1,3 @@
+services:
+  app:
+    image: salemax-app:finance-mobile-cards-20261026
