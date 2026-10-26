@@ -1,0 +1,38 @@
+/* Pipeline mobile layout. Desktop keeps its existing horizontal board and toolbar. */
+@media(max-width:700px){
+ main{padding:20px 16px 30px}
+ .hero{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin-bottom:20px}
+ .hero>div:first-child{min-width:0}
+ .hero .eyebrow{line-height:1.5}
+ .hero h1{font-size:27px;line-height:1.15;margin:8px 0 6px}
+ .hero p{max-width:36ch;line-height:1.45}
+ .hero-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%}
+ .hero-actions button{min-height:44px;white-space:normal;line-height:1.25;padding:10px 9px}
+ .hero-actions #addBtn{grid-column:1/-1}
+ .toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:12px;margin-bottom:14px}
+ .toolbar input{grid-column:1/-1;width:100%;min-width:0}
+ .toolbar select{width:100%;min-width:0;max-width:100%}
+ .toolbar #source{grid-column:1/-1}
+ .toolbar #refresh{min-height:40px}
+ .viewtabs{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));width:100%;margin:2px 0 0}
+ .viewtabs button{min-width:0;padding:10px 4px;font-size:12px;white-space:nowrap}
+ .summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 14px;overflow:visible}
+ .stat{min-width:0;padding:12px 13px}
+ .stat:last-child:nth-child(odd){grid-column:1/-1}
+ .board{gap:10px;min-height:0;padding:2px 0 16px;scroll-snap-type:x mandatory;overscroll-behavior-inline:contain;scrollbar-width:thin}
+ .column{flex:0 0 min(86vw,360px);width:min(86vw,360px);min-width:0;min-height:200px;scroll-snap-align:start}
+ .cards{min-height:0}
+ .card{padding:14px}
+ .list{max-width:100%}
+ .pipeline-embed main{padding:18px 16px 26px}
+}
+@media(max-width:420px){
+ .hero-actions{grid-template-columns:1fr}
+ .hero-actions #addBtn{grid-column:auto}
+ .toolbar{grid-template-columns:minmax(0,1fr)}
+ .toolbar input,.toolbar #source,.viewtabs{grid-column:1}
+ .viewtabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .viewtabs button{min-height:40px}
+ .column{flex-basis:88vw;width:88vw}
+}
+
