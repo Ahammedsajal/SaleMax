@@ -10,7 +10,7 @@
   const active = () => /^\/(user|agent)\/?$/.test(location.pathname) && new URLSearchParams(location.search).get('page') === 'inbox';
   const groupMode = () => read('chatFilters')?.conversationKind === 'group';
   const selectedGroup = () => { const chat = read('currentChat'); return String(chat?.chat_id || '').startsWith('qrgroup_') ? chat : null; };
-  const button = (text, action) => { const node = element('button', text); node.type = 'button'; node.onclick = event => { event.preventDefault(); event.stopPropagation(); try { Promise.resolve(action()).catch(error => { if (notice) notice.textContent = String(error?.message || error); }); } catch (error) { if (notice) notice.textContent = String(error?.message || error); } }; return node; };
+  const button = (text, action) => { const node = element('button', text); node.type = 'button'; if (typeof action === 'function') node.onclick = event => { event.preventDefault(); event.stopPropagation(); try { Promise.resolve(action()).catch(error => { if (notice) notice.textContent = String(error?.message || error); }); } catch (error) { if (notice) notice.textContent = String(error?.message || error); } }; return node; };
   let controls, notice, info, host, currentKey = '', sequence = 0, lastLoad = 0, queued = false;
 
   // Reuse the native Inbox provider's existing actions. This maintained hook
@@ -159,7 +159,11 @@
     const heading = [...document.querySelectorAll('h6')].find(node => ['Inbox', 'صندوق الوارد', 'الوارد'].includes(node.textContent.trim()));
     if (heading && (!controls || !controls.isConnected)) {
       controls = element('div', null, 'sx-inbox-view-switch');
-      controls.append(button(tr('Chats', 'المحادثات'), () => switchMode('direct')), button(tr('Groups', 'المجموعات'), () => switchMode('group')));
+      const chatsButton = button(tr('Chats', 'المحادثات'));
+      chatsButton.dataset.sxConversationKind = 'direct';
+      const groupsButton = button(tr('Groups', 'المجموعات'));
+      groupsButton.dataset.sxConversationKind = 'group';
+      controls.append(chatsButton, groupsButton);
       const sync = button(tr('Sync groups', 'مزامنة المجموعات'), async () => {
         sync.disabled = true; notice.textContent = tr('Syncing…', 'جارٍ المزامنة…');
         try { const data = await api('/'), selected = read('chatFilters')?.instance || ''; const instances = data.instances.filter(item => !selected || item.uniqueId === selected || item.number === selected); for (const item of instances) if (item.status === 'ACTIVE') await api('/sync', { method: 'POST', body: { instanceId: item.uniqueId } }); notice.textContent = ''; const inbox = nativeInbox(controls); if (inbox) inbox.loadChatList({ conversationKind: 'group', origin: 'qr', offset: 0 }); else location.reload(); }
@@ -195,6 +199,16 @@
     const key = `${chat.chat_id}:${ar()}:${localStorage.getItem('wacrm_user') || localStorage.getItem('wacrm_agent') || 'cookie'}`;
     if (key !== currentKey || Date.now() - lastLoad > 300000) { currentKey = key; info.replaceChildren(element('p', tr('Loading group info…', 'جارٍ تحميل معلومات المجموعة…'))); load(chat); }
   }
+  // The filter panel is a React portal. Its parent can intercept clicks after
+  // a state update and leave the external controls looking live but inert.
+  // Handle the two mode buttons at document capture so every remount and both
+  // directions use the same provider transition before the portal can swallow it.
+  document.addEventListener('click', event => {
+    const target = event.target?.closest?.('button[data-sx-conversation-kind]');
+    if (!target) return;
+    event.preventDefault(); event.stopPropagation();
+    switchMode(target.dataset.sxConversationKind);
+  }, true);
   const style = element('style'); style.textContent = '.sx-inbox-view-switch{display:flex;align-items:center;gap:6px;flex-wrap:wrap;box-sizing:border-box;width:100%;padding:10px 12px;margin:8px 0;border-block:1px solid #e6ebf2}.sx-inbox-view-title{flex:0 0 100%;font-size:11px;color:#64748b}.sx-inbox-view-switch button{border:1px solid #cbd5e1;border-radius:7px;background:transparent;color:inherit;min-height:32px;padding:5px 12px;font:600 12px Arial;cursor:pointer;white-space:nowrap}.sx-inbox-view-switch button[aria-pressed=true]{background:#1768d4;color:white;border-color:#1768d4}.sx-inbox-view-switch button[hidden]{display:none}.sx-group-notice{font-size:10px;color:#64748b}[data-sx-group-info-host]>:nth-child(n+3):not(#sx-inbox-group-info){display:none!important}#sx-inbox-group-info{font:12px/1.5 Arial;color:inherit;overflow-wrap:anywhere}#sx-inbox-group-info p{white-space:pre-wrap;margin:7px 0}#sx-inbox-group-info small{display:block;color:#718096}.sx-group-section{padding:10px 12px;border-bottom:1px solid #e4e9f1}.sx-group-section>summary{font-weight:700;cursor:pointer;padding:3px 0}.sx-group-section input{box-sizing:border-box;width:100%;padding:7px;border:1px solid #cbd5e1;border-radius:6px;margin:8px 0;background:transparent;color:inherit}.sx-group-section button{font:inherit;border:1px solid #cbd5e1;border-radius:6px;padding:4px 7px;margin:5px 0;background:transparent;color:inherit;cursor:pointer}.sx-group-member-list{max-height:360px;overflow:auto}.sx-group-member{border-bottom:1px solid #eef1f5;padding:7px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap}.sx-group-member strong{flex:1 1 110px}.sx-group-admin{font-size:10px;background:#eaf2ff;color:#1768d4;border-radius:8px;padding:2px 5px}.sx-group-shared-media article{padding:8px 0;border-bottom:1px solid #e4e9f1}.sx-group-shared-media img{width:100%;max-height:180px;object-fit:contain;border-radius:7px}.sx-group-shared-media a{color:#1768d4;display:block;overflow-wrap:anywhere}'; document.head.append(style);
   new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; mount(); }); }).observe(document.documentElement, { childList: true, subtree: true });
   setInterval(mount, 1500); mount();
