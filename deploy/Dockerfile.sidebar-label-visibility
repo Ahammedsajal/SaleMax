@@ -1,0 +1,8 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.overlay.commit="${SOURCE_COMMIT}"
+USER root
+COPY --chown=node:node deploy/patch-sidebar-label-visibility.cjs /tmp/patch-sidebar-label-visibility.cjs
+RUN node /tmp/patch-sidebar-label-visibility.cjs && node --check /app/client/public/training-sidebar.js
+USER node
