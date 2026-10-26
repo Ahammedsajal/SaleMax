@@ -8,7 +8,7 @@ function phone(value) {
 function members(group) {
   const unique = new Map(); let unavailable = 0, duplicates = 0;
   for (const member of (group.participants || []).slice(0, 5000)) {
-    const mobile = phone(member.phone || (String(member.jid).endsWith('@s.whatsapp.net') ? member.jid : ''));
+    const mobile = phone(member.phone) || phone(String(member.jid).endsWith('@s.whatsapp.net') ? member.jid : '');
     if (!mobile) { unavailable++; continue; }
     if (unique.has(mobile)) { duplicates++; continue; }
     unique.set(mobile, { mobile, name: String(member.name || mobile).replace(/[\u0000-\u001f]/g, '').trim().slice(0, 200) || mobile, role: member.role || 'member' });
