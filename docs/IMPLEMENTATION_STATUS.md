@@ -2039,3 +2039,8 @@ Estate tenant or business documents were provisioned. Signed-in office, file
 upload, Arabic/RTL, themes, mobile/PWA and private-media backup/restore
 acceptance remain open because no production workspace is assigned. See
 `DEPLOYMENT.md` for rollback and release evidence.
+
+
+### Approved-content sharing hardening — production, 27 October 2026
+
+Source commit `4fa962b8735f9d3d64ab1ef836efd28d73f47bc9` is deployed at `/opt/salemax/releases/real-estate-content-approval-4fa962b-20261027`. Media and listing descriptions approved by active authority agreements are now hash-bound per unit; any edit invalidates sharing until reconfirmed. Partner photos/videos are returned only through a tenant-authenticated endpoint that rechecks agreement dates, full parent authority and current content hashes. Staff need the explicit `properties.shared.read` permission; assigned/team property reads do not widen into partner-shared inventory. The additive hash migration is applied; all Real Estate tables remain empty. Candidate verification passed 44 focused tests and the disposable MariaDB authority/media-isolation/concurrency rehearsal. Production health, asset hashes, anonymous API denial, support-service identities and mounts were verified. Signed-in office acceptance, role-grant workflow, Arabic/RTL, themes, responsive/PWA, and private-media backup/restore remain open because no Real Estate tenant is assigned. See `DEPLOYMENT.md` for complete release and rollback evidence.
