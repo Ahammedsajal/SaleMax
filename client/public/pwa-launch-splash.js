@@ -3,7 +3,7 @@
   'use strict';
   const splash=document.getElementById('sx-pwa-launch-splash');
   if(!splash)return;
-  const standalone=matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: minimal-ui)').matches||navigator.standalone===true;
+  const standalone=matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: minimal-ui)').matches||navigator.standalone===true||matchMedia('(max-width: 700px)').matches;
   if(!standalone){splash.remove();return;}
   try{if(/^ar/i.test(document.documentElement.lang||localStorage.getItem('language')||''))splash.querySelector('.sx-pwa-splash-status').textContent='جارٍ تجهيز مساحة عملك…';}catch{}
   let done=false,queued=false;
