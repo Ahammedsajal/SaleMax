@@ -34,5 +34,21 @@ const assetPattern = /\/training-sidebar\.js\?v=[^"']+/g;
 const matches = [...index.matchAll(assetPattern)];
 if (matches.length !== 1) throw new Error(`Expected one sidebar asset URL, found ${matches.length}.`);
 index = index.replace(assetPattern, '/training-sidebar.js?v=20261027-profile-label-dedupe1');
+const composePath = path.join(releaseRoot, 'deploy/compose.sidebar-profile-label-dedupe.override.yml');
+const compose = [
+  'services:',
+  '  app:',
+  '    volumes:',
+  '      - type: bind',
+  `        source: ${indexPath}`,
+  '        target: /app/client/public/index.html',
+  '        read_only: true',
+  '      - type: bind',
+  `        source: ${sidebarPath}`,
+  '        target: /app/client/public/training-sidebar.js',
+  '        read_only: true',
+  ''
+].join('\n');
 fs.writeFileSync(sidebarPath, sidebar);
 fs.writeFileSync(indexPath, index);
+fs.writeFileSync(composePath, compose);
