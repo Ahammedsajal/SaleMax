@@ -1,0 +1,18 @@
+@media screen and (max-width:700px){
+ dialog.sx-mobile-select{position:fixed;inset:auto 0 0;margin:0;width:100%;max-width:none;max-height:min(78dvh,680px);border:0;border-radius:18px 18px 0 0;padding:0 0 env(safe-area-inset-bottom);background:#fff;color:#17263c;box-shadow:0 -12px 42px #10203938;font:14px/1.4 system-ui,-apple-system,sans-serif;overflow:hidden}
+ dialog.sx-mobile-select::backdrop{background:#10182880}
+ .sx-mobile-select header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid #e4ebf2}
+ .sx-mobile-select header strong{font-size:16px;overflow-wrap:anywhere}
+ .sx-mobile-select header button{flex:none;width:42px;height:42px;border:1px solid #dce4ef;background:#fff;color:#42546d;border-radius:10px;font-size:23px}
+ .sx-mobile-select-search{display:block;box-sizing:border-box;width:calc(100% - 32px);margin:10px 16px;padding:10px 12px;min-height:44px;border:1px solid #ccd9e8;border-radius:9px;font:inherit}
+ .sx-mobile-select-options{max-height:calc(min(78dvh,680px) - 130px);overflow:auto;overscroll-behavior:contain;padding:6px 12px}
+ .sx-mobile-select-options button{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:46px;text-align:start;white-space:normal;overflow-wrap:anywhere;border:0;border-radius:8px;background:#fff;color:#23364e;padding:10px 12px;font:inherit}
+ .sx-mobile-select-options button[aria-selected=true]{background:#eaf3ff;color:#1768d4;font-weight:700}
+ .sx-mobile-select-options button[aria-selected=true]::after{content:'✓';margin-inline-start:10px}
+ .sx-mobile-select-options button:disabled{opacity:.45}
+ .sx-mobile-select-options button:focus-visible,.sx-mobile-select header button:focus-visible{outline:2px solid #1768d4;outline-offset:-2px}
+ .sx-mobile-select-group{padding:10px 12px 4px;color:#6c7d92;font-size:11px;font-weight:700}
+ .sx-mobile-select-empty{margin:12px 20px;color:#6c7d92}
+ .MuiMenu-paper,.MuiAutocomplete-popper .MuiPaper-root{max-width:calc(100vw - 24px)!important;max-height:calc(100dvh - 32px)!important}
+ .MuiMenu-paper .MuiMenuItem-root,.MuiAutocomplete-option{min-height:44px!important;white-space:normal!important;overflow-wrap:anywhere}
+}
