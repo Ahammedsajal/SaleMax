@@ -23,6 +23,18 @@ apply('modules/platform/categories.js',
 apply('modules/platform/feature-contract.js',
   "products:['products.catalog','products.read'],courses:",
   "products:['products.catalog','products.read'],properties:['realestate.listings','properties.read'],courses:");
+apply('modules/platform/policy.js',
+  "  'properties.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },",
+  "  'properties.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },\n  // Shared partner inventory needs a separate office-level read grant.\n  'properties.shared.read': { owner: 'tenant', manager: 'tenant' },");
+apply('modules/platform/policy.js',
+  "  'realestate.listings': ['properties.read','properties.manage','properties.assign'],",
+  "  'realestate.listings': ['properties.read','properties.shared.read','properties.manage','properties.assign'],");
+apply('modules/platform/policy.js',
+  "if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && permission!=='properties.read') return null;",
+  "if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && !['properties.read','properties.shared.read'].includes(permission)) return null;");
+apply('client/public/team-invitations.js',
+  'const permissionModules={products:',
+  "const permissionModules={properties:['Properties','العقارات'],products:");
 apply('modules/platform/navigation.js',
   "  ['products-services', 'products.catalog', 'products.read', 'Products & services'",
   "  ['properties', 'realestate.listings', 'properties.read', 'Properties', 'العقارات', 'Real Estate', 'العقارات'],\n  ['products-services', 'products.catalog', 'products.read', 'Products & services'");
@@ -39,7 +51,7 @@ apply('client/public/pipeline-entry.js',
   "frame.src='/property-listings/?embed=1';",
   "const params=new URLSearchParams(location.search),section=params.get('section')==='units'?'units':'listings',unitId=params.get('unitId');frame.src='/property-listings/?embed=1&section='+section+(unitId?'&unitId='+encodeURIComponent(unitId):'');");
 
-for(const relative of ['modules/platform/categories.js','modules/platform/feature-contract.js','modules/platform/navigation.js','modules/platform/mount-existing-upgrade.js','client/public/training-sidebar.js','client/public/pipeline-entry.js']){
+for(const relative of ['modules/platform/categories.js','modules/platform/feature-contract.js','modules/platform/navigation.js','modules/platform/policy.js','modules/platform/mount-existing-upgrade.js','client/public/training-sidebar.js','client/public/team-invitations.js','client/public/pipeline-entry.js']){
   require('node:child_process').execFileSync(process.execPath,['--check',path.join(root,relative)]);
 }
 console.log('real-estate overlay patches applied');

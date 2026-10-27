@@ -61,6 +61,10 @@ const permissions = {
   'templates.manage': { owner: 'tenant' },
   'recruitment.manage': { owner: 'tenant' },
   'properties.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
+  // Partner-shared listings are a separate office-wide read. Staff seats must
+  // receive this permission explicitly; the partner tenant is still filtered
+  // by the source office's active agreement on every request.
+  'properties.shared.read': { owner: 'tenant', manager: 'tenant' },
   'properties.manage': { owner: 'tenant', manager: 'tenant' },
   'properties.assign': { owner: 'tenant', manager: 'tenant' },
 };
@@ -80,7 +84,7 @@ const capabilities = Object.freeze({
   'sales.icp': ['icp.read','icp.manage'],
   'products.catalog': ['products.read','products.manage'],
   'hr.recruitment': ['recruitment.manage'],
-  'realestate.listings': ['properties.read','properties.manage','properties.assign'],
+  'realestate.listings': ['properties.read','properties.shared.read','properties.manage','properties.assign'],
   'campaigns.dashboard': ['campaigns.manage'], 'crm.leads': ['leads.read', 'leads.manage', 'leads.assign'],
   'crm.contacts': ['contacts.read', 'contacts.manage'], 'team.members': ['team.read', 'team.invite'],
   'team.tasks': ['tasks.read', 'tasks.manage'], 'training.courses': ['courses.read', 'courses.manage'],
@@ -96,7 +100,7 @@ function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
   // Listing reads use the persisted assignee and current Sales Organization
   // hierarchy. Custom grants cannot widen these scopes.
-  if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && permission!=='properties.read') return null;
+  if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && !['properties.read','properties.shared.read'].includes(permission)) return null;
   // A custom role is an additional restriction on its fixed seat role. It can
   // never create a permission or scope that the seat role itself lacks.
   if (Array.isArray(membership.customPermissions) && permission !== 'channels.qr.create' && !membership.customPermissions.includes(permission)) return null;

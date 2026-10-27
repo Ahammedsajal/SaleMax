@@ -70,6 +70,8 @@ test('schema keeps contacts and agreements tenant-qualified, scoped to units, an
   assert.match(fs.readFileSync(path.join(__dirname,'../database/migrations/20270112_real_estate_agreement_parent.sql'),'utf8'),/FOREIGN KEY\(tenant_id,parent_agreement_id\) REFERENCES sx_real_estate_agreements\(tenant_id,id\)/);
   assert.match(migration,/partner_tenant_id CHAR\(36\) CHARACTER SET ascii COLLATE ascii_bin NULL/);
   assert.match(contactDocumentsMigration,/CREATE TABLE sx_real_estate_contact_documents/);
+  const approvalMigration=fs.readFileSync(path.join(__dirname,'../database/migrations/20270114_real_estate_content_approval.sql'),'utf8');
+  assert.match(approvalMigration,/approved_media_sha256 CHAR\(64\)/);assert.match(approvalMigration,/approved_description_sha256 CHAR\(64\)/);
   assert.match(contactDocumentsMigration,/FOREIGN KEY\(tenant_id,contact_id\) REFERENCES sx_real_estate_contacts\(tenant_id,id\)/);
   assert.match(contactDocumentsMigration,/FOREIGN KEY\(tenant_id,created_by_identity_id\) REFERENCES sx_memberships\(tenant_id,identity_id\)/);
 });
@@ -105,4 +107,12 @@ test('contact directory surfaces a bilingual licence expiry summary and card war
   assert.match(ui,/days<=30/);
   assert.match(css,/\.license-summary\.urgent/);
   assert.match(css,/\[data-sx-theme=dark\] \.license-summary/);
+});
+
+test('approved listing content can be safely shared and reconfirmed after edits',()=>{
+  const router=fs.readFileSync(path.join(__dirname,'../modules/platform/real-estate-properties-router.js'),'utf8');
+  const service=fs.readFileSync(path.join(__dirname,'../modules/platform/real-estate-authority.js'),'utf8');
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/authority.js'),'utf8');
+  assert.match(router,/agreements\/:id\/content-approval/);assert.match(router,/shared\/:agreementId\/units\/:unitId\/media\/:mediaId\/content/);assert.match(service,/properties\.shared\.read/);
+  assert.match(ui,/Approved content changed — reconfirm before sharing/);assert.match(ui,/Confirm photos & descriptions/);assert.match(ui,/p\.media\?\.length/);assert.match(ui,/p\.media\.map/);
 });

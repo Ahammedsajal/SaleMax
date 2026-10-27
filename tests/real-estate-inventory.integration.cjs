@@ -46,6 +46,7 @@ async function main() {
     await migrate(pool, 'database/migrations/20270111_real_estate_authority.sql');
     await migrate(pool, 'database/migrations/20270112_real_estate_agreement_parent.sql');
     await migrate(pool, 'database/migrations/20270113_real_estate_contact_documents.sql');
+    await migrate(pool, 'database/migrations/20270114_real_estate_content_approval.sql');
     const [[mapped]] = await pool.query('SELECT p.id,p.unit_id AS unitId,u.availability FROM sx_real_estate_properties p JOIN sx_real_estate_units u ON u.tenant_id=p.tenant_id AND u.id=p.unit_id WHERE p.id=?',[legacy]);
     assert.deepEqual(mapped,{id:legacy,unitId:legacy,availability:'available'});
     const db = await pool.getConnection();
@@ -66,7 +67,7 @@ async function main() {
     await media.remove(db,context,unit.id,uploaded.id);
     await assert.rejects(media.getFile(db,context,unit.id,uploaded.id),{code:'MEDIA_NOT_FOUND'});
     assert.deepEqual(fs.readFileSync(file.path),bytes);
-    const express=require('express');const app=express();app.use('/api/workspace/properties',require('../modules/platform/real-estate-properties-router').createRouter({pool,authenticate(req,res,next){if(req.headers['x-test-actor']==='owner'){req.businessContext=context;next();}else res.status(401).json({success:false,code:'AUTH_REQUIRED'});}}));
+    let partnerHttpContext=null;const express=require('express');const app=express();app.use('/api/workspace/properties',require('../modules/platform/real-estate-properties-router').createRouter({pool,authenticate(req,res,next){if(req.headers['x-test-actor']==='owner'){req.businessContext=context;next();}else if(req.headers['x-test-actor']==='partner'&&partnerHttpContext){req.businessContext=partnerHttpContext;next();}else res.status(401).json({success:false,code:'AUTH_REQUIRED'});}}));
     const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
     try{
       const url=`http://127.0.0.1:${server.address().port}/api/workspace/properties/units/${unit.id}/media`;
@@ -97,6 +98,7 @@ async function main() {
     const contact=await authority.createContact(db,context,{contactType:'owner',displayName:'Synthetic owner'});
     const expiredMandate=await authority.createAgreement(db,context,{contactId:contact.id,agreementType:'owner_mandate',startsOn:'2020-01-01',endsOn:'2020-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['website']});
     await assert.rejects(authority.setAgreementStatus(db,context,expiredMandate.id,{status:'active',expectedRevision:1}),{code:'AGREEMENT_NOT_IN_EFFECT'});await authority.setAgreementStatus(db,context,expiredMandate.id,{status:'expired',expectedRevision:1});
+    const photo=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]),photoPath=media.tempDirectory()+'/shared-photo.png';fs.writeFileSync(photoPath,photo);const sharedPhoto=await media.attach(db,context,unit.id,{name:'approved-photo.png',mimetype:'image/png',size:photo.length,tempFilePath:photoPath,mv:target=>fs.promises.rename(photoPath,target)});
     const mandate=await authority.createAgreement(db,context,{contactId:contact.id,agreementType:'owner_mandate',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mayConductViewings:true,mayReferAgents:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['website','property_portal'],commissionBasis:'first_month_rent'});
     await authority.setAgreementStatus(db,context,mandate.id,{status:'active',expectedRevision:1});
     const editedContact=await authority.updateContact(db,context,contact.id,{contactType:'owner',displayName:'Synthetic owner',companyName:'',email:'',phone:'+974 5555 0000',licenseNumber:'',licenseExpiresOn:null,partnerTenantId:null,notes:'',status:'active',expectedRevision:1});assert.equal(editedContact.revision,2);
@@ -123,15 +125,22 @@ async function main() {
     const competingAgreement=await authority.createAgreement(db,context,{contactId:secondBrokerage.id,parentAgreementId:managementAgreement.id,agreementType:'brokerage',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['property_portal']});
     await assert.rejects(authority.setAgreementStatus(db,context,competingAgreement.id,{status:'active',expectedRevision:1}),{code:'AGREEMENT_EXCLUSIVITY_CONFLICT'});
     const partnerContext={...context,tenant:{...context.tenant,id:partnerTenant},membership:{...context.membership,id:partnerMember,tenantId:partnerTenant},identity:{id:partnerIdentity}};
-    const shared=await authority.listShared(db,partnerContext);assert.equal(shared.items.length,2);assert.ok(shared.items.every(item=>!Object.hasOwn(item,'ownerName')&&!Object.hasOwn(item,'privateAddress')));
+    const shared=await authority.listShared(db,partnerContext);assert.equal(shared.items.length,2);assert.ok(shared.items.every(item=>!Object.hasOwn(item,'ownerName')&&!Object.hasOwn(item,'privateAddress')));assert.ok(shared.items.every(item=>Array.isArray(item.media)));
+    const withPhoto=await authority.listShared(db,partnerContext),approvedPhoto=withPhoto.items[0].media.find(file=>file.name==='approved-photo.png');assert.ok(approvedPhoto);const sharedApp=express();sharedApp.use('/api/workspace/properties',require('../modules/platform/real-estate-properties-router').createRouter({pool,authenticate(req,_res,next){req.businessContext=partnerContext;next();}}));const sharedServer=sharedApp.listen(0,'127.0.0.1');await new Promise(resolve=>sharedServer.once('listening',resolve));try{const photoResponse=await fetch(`http://127.0.0.1:${sharedServer.address().port}${approvedPhoto.url}`);assert.equal(photoResponse.status,200);assert.deepEqual(Buffer.from(await photoResponse.arrayBuffer()),photo);}finally{await new Promise(resolve=>sharedServer.close(resolve));}
+    await media.remove(db,context,unit.id,sharedPhoto.id);assert.equal((await authority.listShared(db,partnerContext)).items.length,0);
+    await assert.rejects(authority.refreshContentApproval(db,context,managementAgreement.id,{expectedRevision:2}),{code:'CONTENT_APPROVAL_REQUIRED'});
+    await authority.refreshContentApproval(db,context,mandate.id,{expectedRevision:2});await authority.refreshContentApproval(db,context,managementAgreement.id,{expectedRevision:2});await authority.refreshContentApproval(db,context,partnerAgreement.id,{expectedRevision:2});assert.equal((await authority.listShared(db,partnerContext)).items.length,2);
+    await db.query("UPDATE sx_real_estate_properties SET description_en='Changed after approval' WHERE tenant_id=? AND id=?",[tenant,listing.id]);assert.equal((await authority.listShared(db,partnerContext)).items.length,0);
+    await properties.update(db,context,listing.id,{status:'paused',expectedRevision:3});await assert.rejects(properties.update(db,context,listing.id,{status:'active',expectedRevision:4}),{code:'CONTENT_APPROVAL_REQUIRED'});
+    await authority.refreshContentApproval(db,context,mandate.id,{expectedRevision:3});await authority.refreshContentApproval(db,context,managementAgreement.id,{expectedRevision:3});await authority.refreshContentApproval(db,context,partnerAgreement.id,{expectedRevision:3});await properties.update(db,context,listing.id,{status:'active',expectedRevision:4});assert.equal((await authority.listShared(db,partnerContext)).items.length,2);
     const listed=await properties.list(db,context,{unitId:unit.id,status:'active',search:'Doha'});
     assert.equal(listed.total,2);assert.ok(listed.items.every(item=>item.unitId===unit.id&&Number(item.minimumTermMonths)===12));
-    await authority.setAgreementStatus(db,context,mandate.id,{status:'revoked',expectedRevision:2});
+    await authority.setAgreementStatus(db,context,mandate.id,{status:'revoked',expectedRevision:4});
     const history=await authority.listAgreementHistory(db,context,mandate.id);
     assert.ok(history.items.some(item=>item.action==='real-estate.agreement-revoked'));
     const [[stillAuthorized]]=await db.query("SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=? AND unit_id=? AND status='active'",[tenant,unit.id]);assert.equal(Number(stillAuthorized.total),0);
     assert.equal((await authority.listShared(db,partnerContext)).items.length,0);
-    await authority.setAgreementStatus(db,context,partnerAgreement.id,{status:'revoked',expectedRevision:2});
+    await authority.setAgreementStatus(db,context,partnerAgreement.id,{status:'revoked',expectedRevision:4});
     const [[revokedListings]]=await db.query("SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=? AND unit_id=? AND status='paused'",[tenant,unit.id]);assert.equal(Number(revokedListings.total),2);
     await inventory.setAvailability(db,context,unit.id,{availability:'rented',expectedRevision:2});
     const [closed] = await db.query('SELECT status FROM sx_real_estate_properties WHERE tenant_id=? AND unit_id=?',[tenant,unit.id]);
@@ -147,7 +156,7 @@ async function main() {
       const [[state]] = await pool.query('SELECT u.availability,p.status FROM sx_real_estate_units u JOIN sx_real_estate_properties p ON p.tenant_id=u.tenant_id AND p.unit_id=u.id WHERE u.id=?',[raceUnit.id]);
       assert.equal(state.availability,'rented');assert.notEqual(state.status,'active');
     } finally { c1.release();c2.release(); }
-    process.stdout.write('Synthetic migrations, owner-to-manager-to-broker authority, partner isolation, media isolation, legacy mapping, two-listing closure and activation race passed.\n');
+    process.stdout.write('Synthetic migrations, owner-to-manager-to-broker authority, exact content approvals/reconfirmation, approved photo sharing, partner isolation, media isolation, legacy mapping, two-listing closure and activation race passed.\n');
   } finally {
     if (pool) await pool.end();
     await admin.query(`DROP DATABASE IF EXISTS \`${schema}\``);

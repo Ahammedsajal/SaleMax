@@ -120,10 +120,6 @@ async function update(db,context,id,input){
     if(!link.unitId)fail('PROPERTY_UNIT_REQUIRED',409);
     const [[unit]]=await db.query('SELECT availability FROM sx_real_estate_units WHERE tenant_id=? AND id=? FOR UPDATE',[context.tenant.id,link.unitId]);
     if(!unit)fail('PROPERTY_UNIT_REQUIRED',409);
-    if(patch.status==='active'){
-      require('./real-estate-inventory-rules').assertListingCanActivate(unit.availability);
-      await require('./real-estate-authority').assertMayActivateListing(db,context,link.unitId);
-    }
     const [[row]]=await db.query('SELECT status,transaction_type AS transactionType,revision FROM sx_real_estate_properties WHERE tenant_id=? AND id=? FOR UPDATE',[context.tenant.id,id]);
     if(!row)fail('PROPERTY_NOT_FOUND',404);if(Number(row.revision)!==input.expectedRevision)fail('STALE_REVISION',409);
     if(['sold','rented'].includes(row.status)&&Object.keys(patch).some(key=>key!=='status'))fail('INVALID_PROPERTY_TRANSITION',409);
@@ -133,6 +129,10 @@ async function update(db,context,id,input){
     if(['sold','rented'].includes(row.status)&&patch.transactionType&&patch.transactionType!==row.transactionType)fail('INVALID_PROPERTY_TRANSITION',409);
     if(patch.status==='rented'&&unit.availability!=='available'&&unit.availability!=='reserved')fail('UNIT_NOT_AVAILABLE',409);
     if(patch.status==='sold'&&unit.availability!=='available'&&unit.availability!=='reserved')fail('UNIT_NOT_AVAILABLE',409);
+    if(patch.status==='active'){
+      require('./real-estate-inventory-rules').assertListingCanActivate(unit.availability);
+      await require('./real-estate-authority').assertMayActivateListing(db,context,link.unitId);
+    }
     if(Object.hasOwn(patch,'assignedMembershipId'))patch.assignedMembershipId=await validateAssignee(db,context,patch.assignedMembershipId);
     const columns={titleEn:'title_en',titleAr:'title_ar',propertyType:'property_type',transactionType:'transaction_type',status:'status',priceMinor:'price_minor',currency:'currency',areaSqm:'area_sqm',bedrooms:'bedrooms',bathrooms:'bathrooms',city:'city',descriptionEn:'description_en',descriptionAr:'description_ar',assignedMembershipId:'assigned_membership_id',minimumTermMonths:'minimum_term_months',depositMinor:'deposit_minor',paymentFrequency:'payment_frequency',chequeCount:'cheque_count',tenantFeeMinor:'tenant_fee_minor',feePayer:'fee_payer',includedServices:'included_services',freeMonths:'free_months',promotionTerms:'promotion_terms'};
     const keys=Object.keys(patch),sets=keys.map(key=>`${columns[key]}=?`);

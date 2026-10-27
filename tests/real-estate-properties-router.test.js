@@ -45,3 +45,12 @@ test('a different category cannot use the property API',async t=>{
   const app=await start(other);t.after(()=>new Promise(resolve=>app.server.close(resolve)));
   const response=await fetch(app.origin+'/api/workspace/properties');assert.equal(response.status,404);assert.equal((await response.json()).code,'CATEGORY_UNAVAILABLE');assert.equal(app.calls.length,0);
 });
+
+
+test('partner-shared inventory needs an explicit shared-read grant for staff seats',async t=>{
+  const membershipId='55555555-5555-4555-8555-555555555555';
+  const denied=await start({...base,membership:{...base.membership,id:membershipId,role:'agent',customPermissions:['properties.read']}});t.after(()=>new Promise(resolve=>denied.server.close(resolve)));
+  const blocked=await fetch(denied.origin+'/api/workspace/properties/shared');assert.equal(blocked.status,403);assert.equal(denied.calls.length,0);
+  const granted=await start({...base,membership:{...base.membership,id:membershipId,role:'agent',customPermissions:['properties.read','properties.shared.read']}});t.after(()=>new Promise(resolve=>granted.server.close(resolve)));
+  const allowed=await fetch(granted.origin+'/api/workspace/properties/shared');assert.equal(allowed.status,200);assert.deepEqual((await allowed.json()).data.items,[]);assert.equal(granted.calls.length,1);assert.ok(granted.calls[0].args.includes(tenantId));
+});

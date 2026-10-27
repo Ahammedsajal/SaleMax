@@ -9,7 +9,7 @@ for(const file of [
   'modules/platform/real-estate-properties.js','modules/platform/real-estate-properties-router.js',
   'modules/platform/real-estate-inventory.js','modules/platform/real-estate-inventory-rules.js',
   'modules/platform/real-estate-unit-media.js','client/public/property-listings',
-  'modules/platform/real-estate-authority.js','modules/platform/real-estate-contact-documents.js','database/migrations/20270111_real_estate_authority.sql','database/migrations/20270112_real_estate_agreement_parent.sql','database/migrations/20270113_real_estate_contact_documents.sql',
+  'modules/platform/real-estate-authority.js','modules/platform/real-estate-contact-documents.js','database/migrations/20270111_real_estate_authority.sql','database/migrations/20270112_real_estate_agreement_parent.sql','database/migrations/20270113_real_estate_contact_documents.sql','database/migrations/20270114_real_estate_content_approval.sql',
   'deploy/patch-real-estate-overlay.cjs','database/migrations/20261222_real_estate_properties.sql',
   'database/migrations/20270110_real_estate_units_and_listings.sql',
   'tests/real-estate-properties.test.js','tests/real-estate-properties-router.test.js',
@@ -19,7 +19,7 @@ for(const file of [
 execFileSync(process.execPath,[path.join(app,'deploy/patch-real-estate-overlay.cjs'),app],{stdio:'inherit'});
 for(const file of ['modules/platform/real-estate-properties.js','modules/platform/real-estate-properties-router.js','modules/platform/real-estate-inventory.js','modules/platform/real-estate-inventory-rules.js','modules/platform/real-estate-unit-media.js','modules/platform/real-estate-authority.js','modules/platform/real-estate-contact-documents.js'])execFileSync(process.execPath,['--check',path.join(app,file)]);
 const migrations=require(path.join(app,'database/migration-runner')).discover(path.join(app,'database/migrations')).filter(m=>m.file.includes('real_estate'));
-for(const expected of ['20261222_real_estate_properties.sql','20270110_real_estate_units_and_listings.sql','20270111_real_estate_authority.sql','20270112_real_estate_agreement_parent.sql','20270113_real_estate_contact_documents.sql'])if(!migrations.some(m=>m.file===expected))throw Error(`MIGRATION_NOT_DISCOVERED:${expected}`);
+for(const expected of ['20261222_real_estate_properties.sql','20270110_real_estate_units_and_listings.sql','20270111_real_estate_authority.sql','20270112_real_estate_agreement_parent.sql','20270113_real_estate_contact_documents.sql','20270114_real_estate_content_approval.sql'])if(!migrations.some(m=>m.file===expected))throw Error(`MIGRATION_NOT_DISCOVERED:${expected}`);
 for(const migration of migrations)console.log(`${migration.file} ${migration.statements.length} statements`);
 execFileSync(process.execPath,['--test',...['real-estate-properties.test.js','real-estate-properties-router.test.js','real-estate-inventory-rules.test.js','real-estate-inventory.test.js','real-estate-unit-media.test.js','real-estate-authority.test.js','real-estate-contact-documents.test.js'].map(file=>path.join(app,'tests',file))],{stdio:'inherit'});
 for(const file of ['real-estate-properties.test.js','real-estate-properties-router.test.js','real-estate-inventory-rules.test.js','real-estate-inventory.test.js','real-estate-unit-media.test.js','real-estate-authority.test.js','real-estate-contact-documents.test.js'])fs.rmSync(path.join(app,'tests',file),{force:true});
