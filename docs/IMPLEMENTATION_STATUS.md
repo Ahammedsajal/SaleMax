@@ -1956,33 +1956,36 @@ was left untouched. The full 42-ticket platform upgrade and its existing
 release gates remain open. See `DEPLOYMENT.md` for production verification and
 rollback details.
 
-## Real Estate owners, partners and mandates — source implemented, tested, deployment pending, 27 October 2026
+## Real Estate owners, partners and mandates — production, 27 October 2026
 
 The existing Properties workspace now includes Owners & Partners, Mandates and
 Shared with us views. The directory supports owners, property managers,
 brokerages and authorized partner workspaces, with company contacts, license
-expiry, optional responsible-agent assignment, private notes and revision
-history. Mandates and partner agreements scope authority to selected units and
-dates, record exclusivity, advertising,
-viewing/referral permissions, approved media and descriptions, permitted
-channels, commission terms, agreement documents, and active/revoked/expired
-status with audit events. Overlapping active agreements of the same type cannot
-violate a current exclusive agreement; unit locks serialize concurrent
-activation attempts.
+expiry reminders, optional responsible-agent assignment, private notes and
+revision history. Mandates and partner agreements scope authority to selected
+units and dates, record exclusivity, advertising, viewing/referral permissions,
+approved media and descriptions, permitted channels, commission terms,
+agreement documents, and active/revoked/expired status with audit events.
+Overlapping active agreements of the same type cannot violate a current
+exclusive agreement; unit locks serialize concurrent activation attempts.
 
-Listing activation is blocked unless an active, in-date agreement covers the
-unit and explicitly approves advertising, media, descriptions and at least one
-channel. Partner views query the authenticated receiving workspace and expose
-only approved active listings; private contacts, addresses and agreement
-documents are excluded. Agreement PDFs remain in tenant-scoped private storage
-and share the unit-media quota. Revoking or expiring the last valid authority
-pauses affected marketing listings; another valid agreement preserves them.
-The additive migration is `20270111_real_estate_authority.sql`.
+Brokerage and referral agreements link to an active owner mandate covering the
+same units and dates. The parent must authorize agent referrals, advertising,
+approved media and descriptions; child viewing rights and channels cannot
+exceed the parent. Listing activation and partner sharing revalidate that
+authority. Revoking the upstream mandate immediately pauses listings unless
+another complete authority chain remains valid. The additive migrations are
+`20270111_real_estate_authority.sql` and
+`20270112_real_estate_agreement_parent.sql`.
 
 The 32 focused authority/inventory/router/media checks and a disposable MariaDB
 11.4 migration, tenant-isolation, document-isolation, revocation and concurrency
-rehearsal pass. JavaScript syntax and `git diff --check` pass. This is source
-verification; production publication is pending. Authenticated office workflow
-acceptance, English/Arabic visual and RTL checks, light/dark, mobile/PWA and
-private-media backup/restore remain open. No real estate tenant or customer
-property/agreement data was created for verification.
+rehearsal pass. Production source commits
+`700a545e42547fc43cf0742b7634dcba0673dbb7` and
+`60a5e95305ab2b17553736e64cc0ca908fe91ce8` are on `main`. The active app-only
+release is `/opt/salemax/releases/real-estate-authority-parent-60a5e95-20261027`;
+the migration ledger and public API boundary were verified. No Real Estate
+tenant or owner/agreement data was created. Authenticated office workflow,
+English/Arabic visual and RTL, light/dark, mobile/PWA, and private-media
+backup/restore acceptance remain open because no production tenant is assigned.
+See `DEPLOYMENT.md` for rollback and verification evidence.
