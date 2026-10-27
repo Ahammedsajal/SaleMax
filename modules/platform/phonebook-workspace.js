@@ -46,6 +46,22 @@ async function sessionContext(db,session){
  if(!manage&&!session.actor)fail('ACCESS_DENIED',403);
  return {uid:session.ownerUid,hash:hash(session.ownerUid),type:session.agent?'agents':'user',id:session.actor?.id||null,manage,category:session.context.tenant.categoryKey};
 }
+async function createBook(db,ctx,input){
+ manage(ctx);const name=typeof input?.name==='string'?input.name.trim():'';
+ if(!name||name.length>255||/[\u0000-\u001f\u007f]/.test(name))fail('INVALID_BOOK_NAME');
+ await db.beginTransaction();try{
+  const [owners]=await db.query('SELECT id,plan,plan_expire FROM user WHERE uid=? FOR UPDATE',[ctx.uid]);
+  if(owners.length!==1)fail('ACCESS_DENIED',403);
+  const owner=owners[0];if(!owner.plan||!owner.plan_expire||Number(owner.plan_expire)<=Date.now())fail('PLAN_INACTIVE',403);
+  let plan;try{plan=typeof owner.plan==='string'?JSON.parse(owner.plan):owner.plan;}catch{fail('PLAN_INACTIVE',403);}
+  const [[count]]=await db.query('SELECT COUNT(*) AS count FROM contact WHERE uid=?',[ctx.uid]);
+  if(Number(count.count)>=plan?.contact_limit)fail('CONTACT_LIMIT',403);
+  const [existing]=await db.query('SELECT id FROM phonebook WHERE uid=? AND name=? LIMIT 1',[ctx.uid,name]);
+  if(existing.length)fail('DUPLICATE_PHONEBOOK',409);
+  const [result]=await db.query('INSERT INTO phonebook(name,uid) VALUES (?,?)',[name,ctx.uid]);
+  await db.commit();return {book:{id:result.insertId,name}};
+ }catch(error){await db.rollback();throw error;}
+}
 async function edit(db,ctx,input){
  manage(ctx);const id=ids([input?.contactId])[0],keys=['name','mobile','var1','var2','var3','var4','var5','var6'];
  if(keys.some(key=>input[key]!=null&&(typeof input[key]!=='string'||input[key].length>999))||!String(input.mobile||'').trim())fail('INVALID_CONTACT');
@@ -135,4 +151,4 @@ async function routeOpening({uid,message,chatId,origin,sessionId,pool}){
  await db.query('INSERT INTO contact(uid,phonebook_id,phonebook_name,name,mobile,var1,var2,var3,var4,var5) VALUES (?,?,?,?,?,?,?,?,?,?)',[uid,book.id,book.name,String(message.senderName||mobile).slice(0,200),mobile,'','','','','']);}
  await db.commit();return {routed:true,bookId:book.id};
  }catch(e){await db.rollback();throw e;}finally{db.release();}}
-module.exports={hash,ids,normalize,validateConfig,context,sessionContext,edit,remove,visibility,settings,books,list,contactsByMobile,unique,saveSettings,move,recipients,share,shares,routeOpening};
+module.exports={hash,ids,normalize,validateConfig,context,sessionContext,createBook,edit,remove,visibility,settings,books,list,contactsByMobile,unique,saveSettings,move,recipients,share,shares,routeOpening};
