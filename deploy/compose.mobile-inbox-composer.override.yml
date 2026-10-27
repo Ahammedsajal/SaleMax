@@ -1,3 +1,6 @@
 services:
   app:
-    image: salemax-app:mobile-inbox-composer-20261027
+    volumes:
+      - ${SALEMAX_MOBILE_INBOX_COMPOSER_RELEASE:?set the active app release}/client/public/index.html:/app/client/public/index.html:ro
+      - ${SALEMAX_MOBILE_INBOX_COMPOSER_RELEASE:?set the active app release}/client/public/mobile-inbox-composer.js:/app/client/public/mobile-inbox-composer.js:ro
+      - ${SALEMAX_MOBILE_INBOX_COMPOSER_RELEASE:?set the active app release}/client/public/mobile-inbox-composer.css:/app/client/public/mobile-inbox-composer.css:ro
