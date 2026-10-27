@@ -28,7 +28,7 @@ with open(output, "w", encoding="utf-8") as stream:
 os.chmod(output, 0o600)
 PY
 
-for migration in 20261222_real_estate_properties.sql 20270110_real_estate_units_and_listings.sql 20270111_real_estate_authority.sql; do
+for migration in 20261222_real_estate_properties.sql 20270110_real_estate_units_and_listings.sql 20270111_real_estate_authority.sql 20270112_real_estate_agreement_parent.sql; do
   docker run --rm --network "container:$DB_CONTAINER" --env-file "$ENV_FILE" \
     --entrypoint node "$IMAGE" /app/database/migrate-pipeline.js --apply --only "$migration"
 done
