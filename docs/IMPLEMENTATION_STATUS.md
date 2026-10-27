@@ -1940,9 +1940,18 @@ broader migration integration suite remains red on an unrelated Finance fixture
 expectation (275000 generated versus 260000 expected); no unrelated report or
 migration-runner changes are included in this increment.
 
-No production release or production migration has been made. The active app is
-assembled from a long ordered chain of production overlays, and its existing
-runtime must be the exact base for an incremental Real Estate overlay. The
-original checkout at `/Users/ahammed/Documents/ChatGPT/7network` has unreadable
-iCloud placeholders and local differences; it has been left untouched. The full
-42-ticket platform upgrade and its existing release gates remain open.
+Production source commit `8aef35af18d84ae54cb3d63f6d9dcc2bd5a43e1c` is pushed
+to `main`. The app-only release is active at
+`/opt/salemax/releases/real-estate-inventory-0e9d15a-20261027`, built as a
+single layer on the exact prior runtime image. Health and anonymous-route
+checks pass. Both migrations are recorded as applied, and the four inventory
+tables currently contain zero rows. The deployment preserves the previous
+production-derived shell and makes the Properties navigation visible.
+
+Authenticated tenant/staff UI acceptance, Arabic/RTL, themes, mobile/PWA,
+authorized office access and private-media backup/restore remain open. No
+customer property or tenant data was created and no category was assigned to a
+tenant. The original checkout at `/Users/ahammed/Documents/ChatGPT/7network`
+was left untouched. The full 42-ticket platform upgrade and its existing
+release gates remain open. See `DEPLOYMENT.md` for production verification and
+rollback details.
