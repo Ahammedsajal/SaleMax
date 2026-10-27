@@ -62,6 +62,49 @@ async function createBook(db,ctx,input){
   await db.commit();return {book:{id:result.insertId,name}};
  }catch(error){await db.rollback();throw error;}
 }
+async function phonebookWritable(db,ctx,bookId,amount=0){
+ manage(ctx);if(!Number.isSafeInteger(Number(bookId))||Number(bookId)<1)fail('INVALID_BOOK');
+ const [owners]=await db.query('SELECT id,plan,plan_expire FROM user WHERE uid=? FOR UPDATE',[ctx.uid]);if(owners.length!==1)fail('ACCESS_DENIED',403);
+ const owner=owners[0];if(!owner.plan||!owner.plan_expire||Number(owner.plan_expire)<=Date.now())fail('PLAN_INACTIVE',403);
+ let plan;try{plan=typeof owner.plan==='string'?JSON.parse(owner.plan):owner.plan;}catch{fail('PLAN_INACTIVE',403);}
+ const [books]=await db.query('SELECT id,name FROM phonebook WHERE uid=? AND id=? FOR UPDATE',[ctx.uid,Number(bookId)]);if(books.length!==1)fail('BOOK_NOT_FOUND',404);
+ const [[count]]=await db.query('SELECT COUNT(*) AS count FROM contact WHERE uid=?',[ctx.uid]);
+ if(plan?.contact_limit!=null&&Number(count.count)+amount>Number(plan.contact_limit))fail('CONTACT_LIMIT',403);
+ return books[0];
+}
+async function addContacts(db,ctx,input){
+ manage(ctx);const bookId=input?.bookId;let rows;
+ if(input?.manual){const r=input.manual;if(!r||typeof r!=='object'||!String(r.mobile||'').trim())fail('INVALID_CONTACT');
+  rows=[[r.name,r.mobile,r.var1,r.var2,r.var3,r.var4,r.var5].map(v=>String(v??'').trim())];
+  if(rows[0].some(v=>v.length>999))fail('CONTACT_FIELD_TOO_LONG');
+ }else {if(!Array.isArray(input?.rows)||input.rows.length>5000)fail('INVALID_CONTACT_IMPORT');try{rows=require('./phonebook-import').normalizeImportRows(input.rows);}catch(e){e.status=400;throw e;}}
+ await db.beginTransaction();try{const book=await phonebookWritable(db,ctx,bookId,rows.length);
+  const values=rows.map(row=>[ctx.uid,book.id,book.name,...row]);
+  await db.query('INSERT INTO contact (uid,phonebook_id,phonebook_name,name,mobile,var1,var2,var3,var4,var5) VALUES ?',[values]);
+  await db.commit();return {imported:rows.length,withoutMobile:rows.filter(r=>!r[1]).length};
+ }catch(e){await db.rollback();throw e;}
+}
+async function parseContactCsv(file){
+ if(!file||Array.isArray(file)||!file.data||!String(file.name||'').toLowerCase().endsWith('.csv')||file.data.length>2*1024*1024)fail('INVALID_CONTACT_IMPORT');
+ const csv=require('csv-parser'),{Readable}=require('node:stream'),normalizer=require('./phonebook-import');
+ return new Promise((resolve,reject)=>{const rows=[];const parser=csv({mapHeaders:({header})=>normalizer.normalizeHeader(header),maxRowBytes:65536,strict:true});
+ parser.on('headers',headers=>{if(!headers.includes('name')||!headers.some(h=>['mobile','var3','var4','var5'].includes(h)))parser.destroy(Object.assign(Error('INVALID_CONTACT_IMPORT'),{code:'INVALID_CONTACT_IMPORT',status:400}));});
+ parser.on('data',row=>{rows.push(row);if(rows.length>5000)parser.destroy(Object.assign(Error('INVALID_CONTACT_IMPORT'),{code:'INVALID_CONTACT_IMPORT',status:400}));});
+ parser.on('error',e=>reject(Object.assign(e,{code:e.code||'INVALID_CONTACT_IMPORT',status:400})));parser.on('end',()=>resolve(rows));Readable.from(file.data).pipe(parser);});
+}
+async function deleteBook(db,ctx,input){
+ manage(ctx);const id=Number(input?.bookId);if(!Number.isSafeInteger(id)||id<1)fail('INVALID_BOOK');
+ await db.beginTransaction();try{
+  const [owners]=await db.query('SELECT id FROM user WHERE uid=? FOR UPDATE',[ctx.uid]);if(owners.length!==1)fail('ACCESS_DENIED',403);
+  const [books]=await db.query('SELECT id,name FROM phonebook WHERE uid=? AND id=? FOR UPDATE',[ctx.uid,id]);if(books.length!==1)fail('BOOK_NOT_FOUND',404);
+  const [settings]=await db.query('SELECT config_json FROM sx_phonebook_settings WHERE owner_hash=? FOR UPDATE',[ctx.hash]);
+  for(const setting of settings){let config;try{config=JSON.parse(setting.config_json);}catch{fail('INVALID_CONFIGURATION',409);}if(config.rules?.some(rule=>Number(rule.bookId)===id))fail('BOOK_USED_IN_RULE',409);}
+  const [[count]]=await db.query('SELECT COUNT(*) AS count FROM contact WHERE uid=? AND phonebook_id=?',[ctx.uid,id]);
+  await db.query("DELETE FROM sx_phonebook_shares WHERE owner_hash=? AND ((resource_type='book' AND resource_id=?) OR (resource_type='contact' AND resource_id IN (SELECT id FROM contact WHERE uid=? AND phonebook_id=?)))",[ctx.hash,id,ctx.uid,id]);
+  await db.query('DELETE FROM contact WHERE uid=? AND phonebook_id=?',[ctx.uid,id]);
+  await db.query('DELETE FROM phonebook WHERE uid=? AND id=?',[ctx.uid,id]);await db.commit();return {deleted:true,contactsDeleted:Number(count.count)};
+ }catch(e){await db.rollback();throw e;}
+}
 async function edit(db,ctx,input){
  manage(ctx);const id=ids([input?.contactId])[0],keys=['name','mobile','var1','var2','var3','var4','var5','var6'];
  if(keys.some(key=>input[key]!=null&&(typeof input[key]!=='string'||input[key].length>999))||!String(input.mobile||'').trim())fail('INVALID_CONTACT');
@@ -151,4 +194,4 @@ async function routeOpening({uid,message,chatId,origin,sessionId,pool}){
  await db.query('INSERT INTO contact(uid,phonebook_id,phonebook_name,name,mobile,var1,var2,var3,var4,var5) VALUES (?,?,?,?,?,?,?,?,?,?)',[uid,book.id,book.name,String(message.senderName||mobile).slice(0,200),mobile,'','','','','']);}
  await db.commit();return {routed:true,bookId:book.id};
  }catch(e){await db.rollback();throw e;}finally{db.release();}}
-module.exports={hash,ids,normalize,validateConfig,context,sessionContext,createBook,edit,remove,visibility,settings,books,list,contactsByMobile,unique,saveSettings,move,recipients,share,shares,routeOpening};
+module.exports={hash,ids,normalize,validateConfig,context,sessionContext,createBook,addContacts,parseContactCsv,deleteBook,edit,remove,visibility,settings,books,list,contactsByMobile,unique,saveSettings,move,recipients,share,shares,routeOpening};
