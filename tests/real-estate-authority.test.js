@@ -39,6 +39,20 @@ test('partner reads filter on the authenticated recipient tenant and return only
   assert.doesNotMatch(calls[0].sql,/u\.private_address|u\.owner_name|u\.managing_company|c\.phone|c\.email/);
 });
 
+
+test('agreement directory evaluates owner-to-manager-to-broker authority chains',async()=>{
+  const calls=[],db={query:async(sql,args)=>{calls.push({sql,args});return [[],[]];}};
+  await authority.listAgreements(db,context);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].args[0],tenant);
+  assert.match(calls[0].sql,/a\.agreement_type='management' AND pa\.agreement_type='owner_mandate'/);
+  assert.match(calls[0].sql,/a\.agreement_type IN \('brokerage','referral'\) AND pa\.agreement_type IN \('owner_mandate','management'\)/);
+  assert.match(calls[0].sql,/opa\.agreement_type='owner_mandate'/);
+  assert.match(calls[0].sql,/opc\.contact_type='owner'/);
+  assert.match(calls[0].sql,/pc\.contact_type='property_manager'/);
+  assert.match(calls[0].sql,/parentAuthorityActive/);
+});
+
 test('agreement history is tenant-scoped and reads audit events for that agreement only',async()=>{
   const id='88888888-8888-4888-8888-888888888888',calls=[];
   const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT id FROM sx_real_estate_agreements'))return [[{id}],[]];if(sql.startsWith('SELECT e.id,e.action'))return [[{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',action:'real-estate.agreement-revoked',changes:'{"from":"active","to":"revoked"}',actorName:'Owner',occurredAt:'2026-10-27 12:00:00'}],[]];throw Error('unexpected query');}};

@@ -97,7 +97,7 @@ async function main() {
     const contact=await authority.createContact(db,context,{contactType:'owner',displayName:'Synthetic owner'});
     const expiredMandate=await authority.createAgreement(db,context,{contactId:contact.id,agreementType:'owner_mandate',startsOn:'2020-01-01',endsOn:'2020-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['website']});
     await assert.rejects(authority.setAgreementStatus(db,context,expiredMandate.id,{status:'active',expectedRevision:1}),{code:'AGREEMENT_NOT_IN_EFFECT'});await authority.setAgreementStatus(db,context,expiredMandate.id,{status:'expired',expectedRevision:1});
-    const mandate=await authority.createAgreement(db,context,{contactId:contact.id,agreementType:'owner_mandate',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mayReferAgents:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['website','property_portal'],commissionBasis:'first_month_rent'});
+    const mandate=await authority.createAgreement(db,context,{contactId:contact.id,agreementType:'owner_mandate',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mayConductViewings:true,mayReferAgents:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['website','property_portal'],commissionBasis:'first_month_rent'});
     await authority.setAgreementStatus(db,context,mandate.id,{status:'active',expectedRevision:1});
     const editedContact=await authority.updateContact(db,context,contact.id,{contactType:'owner',displayName:'Synthetic owner',companyName:'',email:'',phone:'+974 5555 0000',licenseNumber:'',licenseExpiresOn:null,partnerTenantId:null,notes:'',status:'active',expectedRevision:1});assert.equal(editedContact.revision,2);
     await assert.rejects(authority.updateContact(db,context,contact.id,{contactType:'owner',displayName:'Synthetic owner',companyName:'',email:'',phone:'+974 5555 0000',licenseNumber:'',licenseExpiresOn:null,partnerTenantId:null,notes:'',status:'inactive',expectedRevision:2}),{code:'CONTACT_HAS_ACTIVE_AGREEMENTS'});
@@ -110,11 +110,17 @@ async function main() {
     await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,'synthetic-partner','Synthetic partner','real_estate',1,'active')",[partnerTenant]);
     await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,'partner@example.invalid','Partner','active')",[partnerIdentity]);
     await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active')",[partnerMember,partnerTenant,partnerIdentity]);
+    const managerContact=await authority.createContact(db,context,{contactType:'property_manager',displayName:'Synthetic property manager'});
+    const managementAgreement=await authority.createAgreement(db,context,{contactId:managerContact.id,parentAgreementId:mandate.id,agreementType:'management',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mayConductViewings:true,mayReferAgents:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['website','property_portal']});
+    await authority.setAgreementStatus(db,context,managementAgreement.id,{status:'active',expectedRevision:1});
     const partnerContact=await authority.createContact(db,context,{contactType:'brokerage',displayName:'Synthetic brokerage',partnerTenantId:partnerTenant});
-    const partnerAgreement=await authority.createAgreement(db,context,{contactId:partnerContact.id,parentAgreementId:mandate.id,agreementType:'brokerage',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],exclusive:true,mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['property_portal']});
+    const partnerAgreement=await authority.createAgreement(db,context,{contactId:partnerContact.id,parentAgreementId:managementAgreement.id,agreementType:'brokerage',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],exclusive:true,mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['property_portal']});
     await authority.setAgreementStatus(db,context,partnerAgreement.id,{status:'active',expectedRevision:1});
+    const agreementDirectory=await authority.listAgreements(db,context);
+    assert.ok(agreementDirectory.items.find(item=>item.id===managementAgreement.id)?.parentAuthorityActive);
+    assert.ok(agreementDirectory.items.find(item=>item.id===partnerAgreement.id)?.parentAuthorityActive);
     const secondBrokerage=await authority.createContact(db,context,{contactType:'brokerage',displayName:'Synthetic second brokerage',partnerTenantId:partnerTenant});
-    const competingAgreement=await authority.createAgreement(db,context,{contactId:secondBrokerage.id,parentAgreementId:mandate.id,agreementType:'brokerage',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['property_portal']});
+    const competingAgreement=await authority.createAgreement(db,context,{contactId:secondBrokerage.id,parentAgreementId:managementAgreement.id,agreementType:'brokerage',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['property_portal']});
     await assert.rejects(authority.setAgreementStatus(db,context,competingAgreement.id,{status:'active',expectedRevision:1}),{code:'AGREEMENT_EXCLUSIVITY_CONFLICT'});
     const partnerContext={...context,tenant:{...context.tenant,id:partnerTenant},membership:{...context.membership,id:partnerMember,tenantId:partnerTenant},identity:{id:partnerIdentity}};
     const shared=await authority.listShared(db,partnerContext);assert.equal(shared.items.length,2);assert.ok(shared.items.every(item=>!Object.hasOwn(item,'ownerName')&&!Object.hasOwn(item,'privateAddress')));
@@ -141,7 +147,7 @@ async function main() {
       const [[state]] = await pool.query('SELECT u.availability,p.status FROM sx_real_estate_units u JOIN sx_real_estate_properties p ON p.tenant_id=u.tenant_id AND p.unit_id=u.id WHERE u.id=?',[raceUnit.id]);
       assert.equal(state.availability,'rented');assert.notEqual(state.status,'active');
     } finally { c1.release();c2.release(); }
-    process.stdout.write('Synthetic migrations, authority-gated activation, partner isolation, media isolation, legacy mapping, two-listing closure and activation race passed.\n');
+    process.stdout.write('Synthetic migrations, owner-to-manager-to-broker authority, partner isolation, media isolation, legacy mapping, two-listing closure and activation race passed.\n');
   } finally {
     if (pool) await pool.end();
     await admin.query(`DROP DATABASE IF EXISTS \`${schema}\``);
