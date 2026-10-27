@@ -1,8 +1,20 @@
 services:
   app:
-    image: salemax-app:tenant-storefront-platform-url-c145aa3-20261027
+    image: salemax-app:mobile-inbox-composer-20261027
     volumes:
       - type: bind
         source: /opt/salemax/releases/tenant-storefront-platform-url-a78ba88-20261027/client/public/index.html
         target: /app/client/public/index.html
+        read_only: true
+      - type: bind
+        source: /opt/salemax/releases/tenant-storefront-platform-url-a78ba88-20261027/client/public/tenant-storefront-settings.js
+        target: /app/client/public/tenant-storefront-settings.js
+        read_only: true
+      - type: bind
+        source: /opt/salemax/releases/tenant-storefront-platform-url-a78ba88-20261027/modules/platform/tenant-storefront.js
+        target: /app/modules/platform/tenant-storefront.js
+        read_only: true
+      - type: bind
+        source: /opt/salemax/releases/tenant-storefront-platform-url-a78ba88-20261027/modules/web/public-website.js
+        target: /app/modules/web/public-website.js
         read_only: true
