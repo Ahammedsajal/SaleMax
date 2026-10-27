@@ -1999,17 +1999,21 @@ drawer for company records such as trade licences. Contact documents use a
 separate tenant-qualified table and private media path, are limited to 20 per
 contact and the existing tenant quota, and are audited on upload/removal. The
 workspace offers download/removal to authorized owners and managers only.
-License expiry is still an in-directory warning when the contact list is
-opened; scheduled or outbound reminders are not configured.
+The directory shows both a due-soon/expired summary and warnings on the
+affected cards. These are in-app reminders when staff open Owners & Partners;
+scheduled or outbound reminders are not configured.
 
 Source `55dc0eb59cd33442503e340a38d9de58bb64c8ea` is pushed to `main`. The
 additive migration `20270113_real_estate_contact_documents.sql` is applied in
 production. The active app-only release is
-`/opt/salemax/releases/real-estate-contact-docs-55dc0eb-20261027`. Candidate
-verification passed 37 focused Real Estate tests. Production health, the
-cache-busted owner/partner UI asset hash and anonymous API denials were
-verified; the five supporting containers were unchanged. No Real Estate
-tenant or business documents were provisioned. Signed-in office, file upload,
-Arabic/RTL, themes, mobile/PWA and private-media backup/restore acceptance
-remain open because no production workspace is assigned. See `DEPLOYMENT.md`
-for rollback and release evidence.
+`/opt/salemax/releases/real-estate-contact-docs-55dc0eb-20261027`. The follow-up
+reminder UI source `a4409ca4e930a771a081adf09bdbefaa609db443` is also pushed to
+`main` and active at
+`/opt/salemax/releases/real-estate-license-reminders-a4409ca-20261027`.
+Candidate verification passed 38 focused Real Estate tests. Production health,
+the cache-busted bilingual owner/partner UI asset hashes and anonymous API
+denials were verified; the five supporting containers were unchanged. No Real
+Estate tenant or business documents were provisioned. Signed-in office, file
+upload, Arabic/RTL, themes, mobile/PWA and private-media backup/restore
+acceptance remain open because no production workspace is assigned. See
+`DEPLOYMENT.md` for rollback and release evidence.
