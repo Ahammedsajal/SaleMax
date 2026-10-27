@@ -18,11 +18,11 @@ function normalize(input){
 function parseJson(value,fallback=null){if(value==null)return fallback;try{return typeof value==='string'?JSON.parse(value):value;}catch{return fallback;}}
 async function get(db,ctx){
   owner(ctx);
-  const [[row]]=await db.query('SELECT enabled,draft_json AS draft,published_json AS published,revision,published_revision AS publishedRevision,published_at AS publishedAt FROM sx_tenant_storefronts WHERE tenant_id=?',[ctx.tenant.id]);
+  const [[row]]=await db.query('SELECT s.enabled,s.draft_json AS draft,s.published_json AS published,s.revision,s.published_revision AS publishedRevision,s.published_at AS publishedAt,t.slug FROM sx_tenant_storefronts s JOIN sx_tenants t ON t.id=s.tenant_id WHERE s.tenant_id=?',[ctx.tenant.id]);
   if(!row||!Number(row.enabled))return {enabled:false,draft:null,published:null,revision:0,publishedRevision:null,publishedAt:null,history:[]};
   const [history]=await db.query('SELECT revision,published_at AS publishedAt,publication_type AS publicationType FROM sx_tenant_storefront_revisions WHERE tenant_id=? ORDER BY revision DESC LIMIT 20',[ctx.tenant.id]);
   const [[domain]]=await db.query("SELECT id FROM sx_tenant_crm_domains WHERE tenant_id=? AND status='active' AND is_primary=1 AND tls_ready_at IS NOT NULL AND dns_health_status='healthy' LIMIT 1",[ctx.tenant.id]);
-  return {enabled:true,domainReady:Boolean(domain),draft:parseJson(row.draft,normalize({})),published:parseJson(row.published),revision:Number(row.revision||0),publishedRevision:row.publishedRevision==null?null:Number(row.publishedRevision),publishedAt:row.publishedAt||null,history};
+  return {enabled:true,domainReady:Boolean(domain),platformUrl:`https://7network.live/business/${encodeURIComponent(row.slug)}`,draft:parseJson(row.draft,normalize({})),published:parseJson(row.published),revision:Number(row.revision||0),publishedRevision:row.publishedRevision==null?null:Number(row.publishedRevision),publishedAt:row.publishedAt||null,history};
 }
 async function lockEnabled(db,ctx){
   const [[row]]=await db.query('SELECT enabled,revision FROM sx_tenant_storefronts WHERE tenant_id=? FOR UPDATE',[ctx.tenant.id]);
@@ -44,8 +44,6 @@ async function publish(db,ctx,input){
   owner(ctx);const expected=Number(input?.expectedRevision);if(!Number.isSafeInteger(expected)||expected<1)fail('INVALID_REVISION');
   await db.beginTransaction();try{
     const row=await lockEnabled(db,ctx);
-    const [[domain]]=await db.query("SELECT id FROM sx_tenant_crm_domains WHERE tenant_id=? AND status='active' AND is_primary=1 AND tls_ready_at IS NOT NULL AND dns_health_status='healthy' LIMIT 1 FOR UPDATE",[ctx.tenant.id]);
-    if(!domain)fail('STOREFRONT_DOMAIN_REQUIRED',409);
     const [[current]]=await db.query('SELECT draft_json AS draft,published_json AS published,published_revision AS publishedRevision FROM sx_tenant_storefronts WHERE tenant_id=? AND enabled=1 FOR UPDATE',[ctx.tenant.id]);
     if(Number(row.revision)!==expected)fail('STALE_REVISION',409);
     const draft=parseJson(current?.draft);if(!draft)fail('STOREFRONT_DRAFT_REQUIRED',409);
@@ -79,5 +77,14 @@ async function publicBrand(db,hostname){
   const brand=await businessProfile.publicBrand(db,hostname);if(!brand||brand.tenantId!==row.tenantId)return null;
   return {...brand,content,revision:Number(row.revision||0),primaryHostname:row.primaryHostname||row.hostname};
 }
+async function publicBrandBySlug(db,slug){
+  if(typeof slug!=='string'||! /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/.test(slug))return null;
+  const [[row]]=await db.query(`SELECT t.id AS tenantId,t.slug,s.published_json AS content,s.published_revision AS revision
+    FROM sx_tenants t JOIN sx_tenant_storefronts s ON s.tenant_id=t.id
+    WHERE t.slug=? AND t.status='active' AND s.enabled=1 AND s.published_json IS NOT NULL LIMIT 1`,[slug]);
+  if(!row)return null;const content=parseJson(row.content);if(!content)return null;
+  const brand=await businessProfile.getPublicForTenant(db,row.tenantId);if(!brand)return null;
+  return {...brand,tenantId:row.tenantId,slug:row.slug,content,revision:Number(row.revision||0)};
+}
 async function audit(db,ctx,action,revision){await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,?,'identity',?,'tenant-storefront',?,?,?)`,[uuid(),ctx.tenant.id,ctx.identity.id,action,ctx.tenant.id,JSON.stringify({revision}),uuid()]);}
-module.exports={normalize,get,saveDraft,publish,rollback,publicBrand};
+module.exports={normalize,get,saveDraft,publish,rollback,publicBrand,publicBrandBySlug};
