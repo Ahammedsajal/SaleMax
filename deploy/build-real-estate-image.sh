@@ -17,7 +17,8 @@ CONTAINER="salemax-real-estate-build-$(date +%s)-$$"
 cleanup() { docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
 trap cleanup EXIT HUP INT TERM
 
-docker create --name "$CONTAINER" --user 0 --entrypoint node "$BASE_IMAGE" -e 'setInterval(()=>{},2147483647)' >/dev/null	docker start "$CONTAINER" >/dev/null
+docker create --name "$CONTAINER" --user 0 --entrypoint node "$BASE_IMAGE" -e 'setInterval(()=>{},2147483647)' >/dev/null
+docker start "$CONTAINER" >/dev/null
 docker cp "$BUILD_CONTEXT/." "$CONTAINER:/tmp/real-estate-build-context"
 docker exec --user 0 "$CONTAINER" node /tmp/real-estate-build-context/deploy/build-real-estate-overlay.cjs /app /tmp/real-estate-build-context
 docker commit \
