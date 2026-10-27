@@ -5,6 +5,5 @@ LABEL org.7network.overlay.commit="${SOURCE_COMMIT}"
 USER root
 COPY --chown=node:node client/public/mobile-inbox-composer.js /app/client/public/mobile-inbox-composer.js
 COPY --chown=node:node client/public/mobile-inbox-composer.css /app/client/public/mobile-inbox-composer.css
-COPY deploy/patch-mobile-inbox-composer.cjs /tmp/patch-mobile-inbox-composer.cjs
-RUN node /tmp/patch-mobile-inbox-composer.cjs
+COPY --chown=node:node client/public/index.html /app/client/public/index.html
 USER node
