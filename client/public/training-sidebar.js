@@ -665,9 +665,13 @@
             // Some legacy menu rows contain only an icon. Keep their existing
             // React button/handler and restore the visible label from the same
             // localized text used for its accessible name and tooltip.
-            const hasVisibleText=hasVisibleSidebarText(row);
+            // Prefer an existing React/tenant label whenever it has content.
+            // Profile-menu reflows can temporarily make native text geometry
+            // disappear, causing the backup label to be appended beside it.
+            const nativeText=row.querySelector('.sx-tenant-navigation-label, .MuiListItemText-primary');
+            const hasNativeLabel=!!nativeText?.textContent?.trim();
             let fallback=navButton.querySelector(':scope > .sx-sidebar-fallback-label');
-            if(!hasVisibleText&&tooltip){
+            if(!hasNativeLabel&&tooltip){
               if(!fallback){fallback=document.createElement('span');fallback.className='sx-sidebar-fallback-label';fallback.setAttribute('aria-hidden','true');navButton.append(fallback);}
               if(fallback.textContent!==tooltip)fallback.textContent=tooltip;
             }else fallback?.remove();
