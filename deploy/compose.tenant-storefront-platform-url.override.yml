@@ -1,3 +1,8 @@
 services:
   app:
     image: salemax-app:tenant-storefront-platform-url-c145aa3-20261027
+    volumes:
+      - type: bind
+        source: /opt/salemax/releases/tenant-storefront-platform-url-a78ba88-20261027/client/public/index.html
+        target: /app/client/public/index.html
+        read_only: true
