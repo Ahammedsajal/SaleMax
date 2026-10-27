@@ -1,6 +1,7 @@
 @media screen and (max-width:600px){
- [data-sx-mobile-inbox-composer]{box-sizing:border-box!important;min-width:0!important;gap:5px!important;padding:6px 8px!important;align-items:center!important}
- [data-sx-mobile-inbox-composer] textarea{box-sizing:border-box!important;flex:1 1 0%!important;width:0!important;min-width:0!important;max-width:100%!important;min-height:40px!important;max-height:104px!important;padding:7px 9px!important;line-height:1.35!important;resize:none!important;overflow-y:auto!important}
- [data-sx-mobile-inbox-composer] button{box-sizing:border-box!important;flex:0 0 34px!important;width:34px!important;min-width:34px!important;height:36px!important;min-height:36px!important;padding:4px!important}
+ [data-sx-mobile-inbox-composer]{box-sizing:border-box!important;display:flex!important;flex-flow:row nowrap!important;justify-content:stretch!important;min-width:0!important;gap:5px!important;padding:6px 8px!important;align-items:center!important}
+ [data-sx-mobile-inbox-composer] [data-sx-mobile-inbox-input]{box-sizing:border-box!important;flex:1 1 0%!important;width:auto!important;min-width:0!important;max-width:none!important;margin:0!important}
+ [data-sx-mobile-inbox-composer] textarea[data-sx-mobile-inbox-text]{box-sizing:border-box!important;display:block!important;flex:1 1 0%!important;width:100%!important;min-width:0!important;max-width:100%!important;min-height:42px!important;max-height:88px!important;padding:7px 9px!important;line-height:1.35!important;resize:none!important;overflow-y:auto!important}
+ [data-sx-mobile-inbox-composer] button{box-sizing:border-box!important;flex:0 0 32px!important;width:32px!important;min-width:32px!important;height:34px!important;min-height:34px!important;padding:4px!important}
  [data-sx-mobile-inbox-composer] button svg{max-width:20px;max-height:20px}
 }
