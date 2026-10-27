@@ -25,3 +25,11 @@ The Linux deployment directory, Compose project, container names, and some envir
 7. Commit and push the verified DEPLOYMENT.md entry. The production update is not fully recorded in Git until both the implementation and its release evidence are present.
 
 For a production-only change with no tracked source change, commit the deployment record and a safe, reproducible patch or artifact reference when available. State explicitly when the deployed artifact cannot be reconstructed from the tracked source.
+
+## Product guidance and working across PCs
+
+The canonical roadmap is `docs/7NETWORK_VISION_ROADMAP.md`; the reusable project skill is `skills/7network-product-direction/SKILL.md`. AGENTS.md requires future work to use them. Pull the latest `Ahammedsajal/SaleMax` main branch before working on another PC, preserving local edits first. The repository instructions work without a Mac-specific global skill link. Register the tracked skill directory in that machine's supported skill location if automatic discovery is desired; use its separately authorised production SSH identity.
+
+Production stores a versioned, non-public guidance bundle at `/opt/salemax/shared/project-guidance/current`. MANIFEST.json identifies source commit and file hashes. This documentation pointer is separate from `/opt/salemax/current`, the application release pointer. Documentation publication does not rebuild the app or deliver planned features. Read DEPLOYMENT.md and inspect current runtime evidence before recovering source from production: overlay releases may contain only incremental files rather than a full checkout.
+
+Prefer Git for source and roadmap synchronization. If recovering reviewed production source, compare it with the deployment record and merge deliberately. Never sync runtime/stack environment files, private keys, sessions, database files/dumps, customer documents/media or rollback backups into a source checkout or Git. The production bundle is an allowlist of project guidance, not a server backup.

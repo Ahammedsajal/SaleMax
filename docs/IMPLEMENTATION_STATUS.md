@@ -1,3 +1,7 @@
+## Owner-approved connected-business roadmap — 27 October 2026
+
+`docs/7NETWORK_VISION_ROADMAP.md` records the customer requirement → proposals/permitted calls → fulfilment vision and category-specific business operations. `skills/7network-product-direction/SKILL.md` and AGENTS.md direct future upgrades toward it, requiring responsive phone/tablet/desktop layouts, EN/AR and RTL, light/dark themes and PWA readiness for new/materially changed screens. This is guidance, not implementation of marketplace or AI features. The full 42-ticket objective and existing acceptance/release gates remain active. Production publication evidence is recorded separately in DEPLOYMENT.md.
+
 ## WhatsApp media retention — production, 26 October 2026
 
 The existing retention worker now removes group media after 48 hours and individual WhatsApp chat media after 28 days, checking every 15 minutes. Text/history is preserved; the former whole-conversation purge is removed. Shared business assets and unexpired reused files are protected, and expired attachments show a bilingual notice. The production scheduler has completed a sweep without errors; no live file was old enough to expire. Nineteen focused checks pass. Source `fb9162fa34b39f825a2e6da72ccfff895626b2ce` is deployed at `/opt/salemax/releases/whatsapp-media-retention-fb9162f-20261026`; release, hashes, rollback and remaining expiry gates are recorded in `DEPLOYMENT.md`. The full 42-ticket upgrade remains in progress.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "7Network Product Direction"
+  short_description: "Guide 7Network roadmap and responsive product upgrades"
+  default_prompt: "Use $7network-product-direction to plan this upgrade against the approved roadmap and responsive, theme and PWA requirements."

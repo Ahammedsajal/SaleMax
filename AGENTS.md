@@ -2,6 +2,12 @@
 
 Read docs/7NETWORK_TRAINING_CENTER_IMPLEMENTATION_PLAN.md and docs/IMPLEMENTATION_STATUS.md before continuing implementation. The full 42-ticket upgrade and production/Git deliverables remain the objective.
 
+## Product direction and interface requirements
+
+- Follow `docs/7NETWORK_VISION_ROADMAP.md` and apply `skills/7network-product-direction/SKILL.md` when planning, implementing or reviewing future upgrades. The owner-approved destination is customer requirements, relevant business proposals and permitted calls, fulfilment and completion, connected to businesses managing their daily operations in this existing application.
+- Every new or materially changed screen must follow the roadmap's responsive, theme and PWA delivery contract: mobile/tablet/desktop, English/Arabic and RTL, light/dark themes, accessible interaction, complete UI states, safe standalone navigation/caching and actual screen verification. Preserve the existing shell and use maintained components/tokens.
+- The roadmap extends the full current upgrade; it does not mark future capabilities complete, authorise unrelated deployment or permit unrestricted customer-data sharing/contact.
+
 ## Required integration scope
 
 - Upgrade this existing project. Reuse its admin/user panels, backend and working features. Do not create a replacement project, recreate the shell, introduce another CRM/login, or build a duplicate plan catalogue.

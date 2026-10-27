@@ -1,5 +1,10 @@
 # SaleMaX SaaS Upgrade and Training Center Implementation Plan
 
+## Subsequent owner-approved direction — 27 October 2026
+
+The long-term direction is recorded in [7Network vision and roadmap](7NETWORK_VISION_ROADMAP.md). It connects customer requirements and proposals to businesses' operating workflows and defines responsive, theme and PWA standards. It preserves this plan's full 42-ticket scope and acceptance gates. This is not a claim of implementation or a revision to the historical Word edition.
+
+
 Version 1.3 | Existing-project scope confirmed 1 October 2026 | Product owner and implementation team
 
 ## 1 Executive decision and product promise
