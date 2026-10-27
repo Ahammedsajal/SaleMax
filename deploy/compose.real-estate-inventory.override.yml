@@ -6,3 +6,4 @@ services:
       SALEMAX_PROPERTY_MEDIA_DIR: /app/private/property-media
     volumes:
       - /opt/salemax/shared/private/property-media:/app/private/property-media
+      - /opt/salemax/releases/real-estate-inventory-0e9d15a-20261027/client/public/index.html:/app/client/public/index.html:ro
