@@ -1,0 +1,11 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.overlay.commit="${SOURCE_COMMIT}"
+USER root
+COPY --chown=node:node client/public/phonebook-workspace.js /app/client/public/phonebook-workspace.js
+COPY --chown=node:node client/public/phonebook-mobile.css /app/client/public/phonebook-mobile.css
+COPY --chown=node:node modules/platform/phonebook-workspace.js /app/modules/platform/phonebook-workspace.js
+COPY --chown=node:node modules/platform/phonebook-workspace-router.js /app/modules/platform/phonebook-workspace-router.js
+RUN node --check /app/client/public/phonebook-workspace.js && node --check /app/modules/platform/phonebook-workspace.js && node --check /app/modules/platform/phonebook-workspace-router.js && node -e "const fs=require('fs'),p='/app/client/public/index.html';let s=fs.readFileSync(p,'utf8');for(const [a,b] of [['phonebook-workspace.js?v=20261026-mobile-cards1','phonebook-workspace.js?v=20261027-add1'],['phonebook-mobile.css?v=20261027-scroll1','phonebook-mobile.css?v=20261027-add1']]){if(!s.includes(a))throw Error('Missing '+a);s=s.replaceAll(a,b)}fs.writeFileSync(p,s)"
+USER node
