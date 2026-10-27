@@ -21,7 +21,7 @@ if missing:
     raise SystemExit("DATABASE_CONFIG_REQUIRED:" + ",".join(missing))
 if any("\n" in env.get(key, "") or "\r" in env.get(key, "") for key in keys):
     raise SystemExit("DATABASE_CONFIG_INVALID")
-with open(output, "x", encoding="utf-8") as stream:
+with open(output, "w", encoding="utf-8") as stream:
     for key in keys:
         if env.get(key) is not None:
             stream.write(key + "=" + env[key] + "\n")
