@@ -59,12 +59,7 @@
         await handler();
       } catch (error) {
         const text =
-          error.message === "STOREFRONT_DOMAIN_REQUIRED"
-            ? tr(
-                "Connect and verify a primary business domain before publishing.",
-                "اربط نطاق المؤسسة الأساسي وتحقق منه قبل النشر.",
-              )
-            : error.message === "STALE_REVISION"
+        error.message === "STALE_REVISION"
             ? tr(
                 "This draft changed in another session. Reload before saving.",
                 "تم تعديل المسودة في جلسة أخرى. أعد تحميل الصفحة قبل الحفظ.",
@@ -96,6 +91,23 @@
     const status = document.createElement("div");
     status.dataset.storefrontStatus = "";
     card.append(title, intro, status);
+    let websiteLink;
+    if (data.platformUrl) {
+      const link = document.createElement("p");
+      link.className = "hint";
+      const label = document.createTextNode(data.publishedRevision
+        ? tr("Published 7Network website: ", "موقعك المنشور على 7Network: ")
+        : tr("Your 7Network website URL (available after publishing): ", "رابط موقعك على 7Network (سيصبح متاحاً بعد النشر): "));
+      websiteLink = document.createElement(data.publishedRevision ? "a" : "span");
+      websiteLink.textContent = data.platformUrl;
+      if (data.publishedRevision) {
+        websiteLink.href = data.platformUrl;
+        websiteLink.target = "_blank";
+        websiteLink.rel = "noopener noreferrer";
+      }
+      link.append(label, websiteLink);
+      card.append(link);
+    }
 
     const form = document.createElement("form");
     form.onsubmit = (event) => event.preventDefault();
@@ -156,24 +168,23 @@
       data.revision = saved.revision;
       setStatus(card, tr("Draft saved. It is still private.", "تم حفظ المسودة. وما زالت خاصة."));
     }, true);
-    const hasActivePrimaryDomain = data.domainReady === true;
     const publish = addButton(actions, tr("Publish website", "نشر الموقع"), async () => {
       await api("/api/crm/storefront/publish", "POST", {
         expectedRevision: data.revision,
       });
       data.publishedRevision = data.revision;
-      setStatus(card, tr("The storefront is published on the verified primary domain.", "تم نشر واجهة المتجر على النطاق الأساسي الموثق."));
+      if (websiteLink && websiteLink.tagName !== "A") {
+        const anchor = document.createElement("a");
+        anchor.href = data.platformUrl;
+        anchor.textContent = data.platformUrl;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        websiteLink.replaceWith(anchor);
+        websiteLink = anchor;
+      }
+      setStatus(card, tr("Your website is published. Open the 7Network website URL above to view it.", "تم نشر موقعك. افتح رابط 7Network أعلاه لعرضه."));
     }, true);
-    publish.disabled = !hasActivePrimaryDomain;
-    if (!hasActivePrimaryDomain) {
-      const domainNote = document.createElement("p");
-      domainNote.className = "hint";
-      domainNote.textContent = tr(
-        "Connect and verify a business domain in the existing CRM domain settings before publishing publicly. You can edit and preview this draft now.",
-        "اربط نطاق المؤسسة وتحقق منه في إعدادات النطاق الحالية في CRM قبل نشر الصفحة للعامة. يمكنك تعديل المسودة ومعاينتها الآن.",
-      );
-      card.append(domainNote);
-    }
+    publish.disabled = !data.platformUrl;
     if (data.publishedRevision) {
       addButton(actions, tr("Restore previous published version", "استعادة النسخة المنشورة السابقة"), async () => {
         const result = await api("/api/crm/storefront/rollback", "POST", {});
