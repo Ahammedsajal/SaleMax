@@ -33,3 +33,11 @@ The canonical roadmap is `docs/7NETWORK_VISION_ROADMAP.md`; the reusable project
 Production stores a versioned, non-public guidance bundle at `/opt/salemax/shared/project-guidance/current`. MANIFEST.json identifies source commit and file hashes. This documentation pointer is separate from `/opt/salemax/current`, the application release pointer. Documentation publication does not rebuild the app or deliver planned features. Read DEPLOYMENT.md and inspect current runtime evidence before recovering source from production: overlay releases may contain only incremental files rather than a full checkout.
 
 Prefer Git for source and roadmap synchronization. If recovering reviewed production source, compare it with the deployment record and merge deliberately. Never sync runtime/stack environment files, private keys, sessions, database files/dumps, customer documents/media or rollback backups into a source checkout or Git. The production bundle is an allowlist of project guidance, not a server backup.
+
+## Production release retention
+
+The live Compose configuration may reference multiple release directories. Preserve every path referenced by a running container, the current release symlink, and rollback snapshots inside the retention window. Do not use Docker system/image/volume pruning or remove shared/customer data as a release cleanup shortcut.
+
+The production server installs `deploy/retain-production-releases.py` at `/opt/salemax/shared/maintenance/retain-production-releases.py`. It runs daily at 03:17 UTC through `/etc/cron.d/7network-release-retention`. Run it manually after a large rollout when appropriate. The default policy keeps live Compose/mount inputs, release paths referenced by rollback snapshots from the last 24 hours, and directories changed in the last hour. It defaults to dry-run; `--apply` deletes eligible release folders and journals each deletion under `/opt/salemax/shared/maintenance-release-retention-*`.
+
+Older rollback snapshot folders remain stored, but their old release paths may be retired; use the recorded source commit/image identity to reconstruct an older release. Review the dry-run, eligible names and remaining rollback window on the verified `carsqatar-prod-01` host, and record the result in `DEPLOYMENT.md`.
