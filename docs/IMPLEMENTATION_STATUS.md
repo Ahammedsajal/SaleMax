@@ -1981,10 +1981,12 @@ another complete authority chain remains valid. The additive migrations are
 The 32 focused authority/inventory/router/media checks and a disposable MariaDB
 11.4 migration, tenant-isolation, document-isolation, revocation and concurrency
 rehearsal pass. Production source commits
-`700a545e42547fc43cf0742b7634dcba0673dbb7` and
-`60a5e95305ab2b17553736e64cc0ca908fe91ce8` are on `main`. The active app-only
-release is `/opt/salemax/releases/real-estate-authority-parent-60a5e95-20261027`;
-the migration ledger and public API boundary were verified. No Real Estate
+`700a545e42547fc43cf0742b7634dcba0673dbb7`,
+`60a5e95305ab2b17553736e64cc0ca908fe91ce8`, and
+`238e08c942736841f8b1ac2c2fffb5805ce9f644` are on `main`. The active app-only
+release is `/opt/salemax/releases/real-estate-authority-history-238e08c-20261027`.
+Agreement cards now expose a tenant-scoped audit history view. The migration
+ledger and public API boundary were verified. No Real Estate
 tenant or owner/agreement data was created. Authenticated office workflow,
 English/Arabic visual and RTL, light/dark, mobile/PWA, and private-media
 backup/restore acceptance remain open because no production tenant is assigned.
