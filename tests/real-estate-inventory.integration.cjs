@@ -11,6 +11,7 @@ const path = require('node:path');
 const inventory = require('../modules/platform/real-estate-inventory');
 const media = require('../modules/platform/real-estate-unit-media');
 const properties = require('../modules/platform/real-estate-properties');
+const authority = require('../modules/platform/real-estate-authority');
 const category = require('../modules/platform/categories');
 const socketPath = process.env.REAL_ESTATE_SYNTHETIC_SOCKET;
 if (process.env.REAL_ESTATE_SYNTHETIC_ONLY !== 'true' || !socketPath || !socketPath.startsWith('/tmp/7network-real-estate-mysql-')) throw Error('Disposable local socket and synthetic-only flag required');
@@ -42,6 +43,7 @@ async function main() {
     await pool.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active')",[member,tenant,identity]);
     await pool.query("INSERT INTO sx_real_estate_properties(id,tenant_id,reference_code,title_en,title_ar,property_type,transaction_type,status,price_minor,city,description_en,description_ar,created_by_identity_id,updated_by_identity_id) VALUES (?,?,'RE-OLD','Legacy','قديم','apartment','rent','active',600000,'Doha','','',?,?)",[legacy,tenant,identity,identity]);
     await migrate(pool, 'database/migrations/20270110_real_estate_units_and_listings.sql');
+    await migrate(pool, 'database/migrations/20270111_real_estate_authority.sql');
     const [[mapped]] = await pool.query('SELECT p.id,p.unit_id AS unitId,u.availability FROM sx_real_estate_properties p JOIN sx_real_estate_units u ON u.tenant_id=p.tenant_id AND u.id=p.unit_id WHERE p.id=?',[legacy]);
     assert.deepEqual(mapped,{id:legacy,unitId:legacy,availability:'available'});
     const db = await pool.getConnection();
@@ -86,27 +88,56 @@ async function main() {
     await properties.update(db,context,listing.id,{depositMinor:600000,tenantFeeMinor:300000,feePayer:'tenant',includedServices:['water','electricity'],freeMonths:1,promotionTerms:'On a 12 month contract',expectedRevision:1});
     const [[terms]]=await db.query('SELECT deposit_minor AS depositMinor,tenant_fee_minor AS tenantFeeMinor,included_services AS services FROM sx_real_estate_properties WHERE tenant_id=? AND id=?',[tenant,listing.id]);
     assert.equal(Number(terms.depositMinor),600000);assert.equal(Number(terms.tenantFeeMinor),300000);assert.deepEqual(typeof terms.services==='string'?JSON.parse(terms.services):terms.services,['water','electricity']);
+    await assert.rejects(properties.update(db,context,listing.id,{status:'active',expectedRevision:2}),{code:'PROPERTY_AUTHORITY_REQUIRED'});
+    const [todayRows]=await db.query("SELECT DATE_FORMAT(DATE(CONVERT_TZ(UTC_TIMESTAMP(),'+00:00','+03:00')),'%Y-%m-%d') AS today");
+    const contact=await authority.createContact(db,context,{contactType:'owner',displayName:'Synthetic owner'});
+    const expiredMandate=await authority.createAgreement(db,context,{contactId:contact.id,agreementType:'owner_mandate',startsOn:'2020-01-01',endsOn:'2020-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['website']});
+    await assert.rejects(authority.setAgreementStatus(db,context,expiredMandate.id,{status:'active',expectedRevision:1}),{code:'AGREEMENT_NOT_IN_EFFECT'});await authority.setAgreementStatus(db,context,expiredMandate.id,{status:'expired',expectedRevision:1});
+    const mandate=await authority.createAgreement(db,context,{contactId:contact.id,agreementType:'owner_mandate',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['website'],commissionBasis:'first_month_rent'});
+    await authority.setAgreementStatus(db,context,mandate.id,{status:'active',expectedRevision:1});
+    const editedContact=await authority.updateContact(db,context,contact.id,{contactType:'owner',displayName:'Synthetic owner',companyName:'',email:'',phone:'+974 5555 0000',licenseNumber:'',licenseExpiresOn:null,partnerTenantId:null,notes:'',status:'active',expectedRevision:1});assert.equal(editedContact.revision,2);
+    await assert.rejects(authority.updateContact(db,context,contact.id,{contactType:'owner',displayName:'Synthetic owner',companyName:'',email:'',phone:'+974 5555 0000',licenseNumber:'',licenseExpiresOn:null,partnerTenantId:null,notes:'',status:'inactive',expectedRevision:2}),{code:'CONTACT_HAS_ACTIVE_AGREEMENTS'});
+    const pdfPath=media.tempDirectory()+'/mandate.pdf',pdfBytes=Buffer.from('%PDF-1.4\nsynthetic mandate\n%%EOF');fs.writeFileSync(pdfPath,pdfBytes);
+    const document=await authority.attachDocument(db,context,mandate.id,{tempFilePath:pdfPath,size:pdfBytes.length,mimetype:'application/pdf',name:'signed-mandate.pdf',mv:target=>fs.promises.rename(pdfPath,target)});
+    assert.equal((await authority.listDocuments(db,context,mandate.id)).items.length,1);assert.deepEqual(fs.readFileSync((await authority.getDocument(db,context,mandate.id,document.id)).path),pdfBytes);
     await properties.update(db,context,listing.id,{status:'active',expectedRevision:2});
     await properties.update(db,context,second.id,{status:'active',expectedRevision:3});
+    const partnerTenant='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',partnerIdentity='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',partnerMember='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    await db.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,'synthetic-partner','Synthetic partner','real_estate',1,'active')",[partnerTenant]);
+    await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,'partner@example.invalid','Partner','active')",[partnerIdentity]);
+    await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active')",[partnerMember,partnerTenant,partnerIdentity]);
+    const partnerContact=await authority.createContact(db,context,{contactType:'brokerage',displayName:'Synthetic brokerage',partnerTenantId:partnerTenant});
+    const partnerAgreement=await authority.createAgreement(db,context,{contactId:partnerContact.id,agreementType:'brokerage',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['property_portal']});
+    await authority.setAgreementStatus(db,context,partnerAgreement.id,{status:'active',expectedRevision:1});
+    const partnerContext={...context,tenant:{...context.tenant,id:partnerTenant},membership:{...context.membership,id:partnerMember,tenantId:partnerTenant},identity:{id:partnerIdentity}};
+    const shared=await authority.listShared(db,partnerContext);assert.equal(shared.items.length,2);assert.ok(shared.items.every(item=>!Object.hasOwn(item,'ownerName')&&!Object.hasOwn(item,'privateAddress')));
     const listed=await properties.list(db,context,{unitId:unit.id,status:'active',search:'Doha'});
     assert.equal(listed.total,2);assert.ok(listed.items.every(item=>item.unitId===unit.id&&Number(item.minimumTermMonths)===12));
+    await authority.setAgreementStatus(db,context,partnerAgreement.id,{status:'revoked',expectedRevision:2});
+    const [[stillAuthorized]]=await db.query("SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=? AND unit_id=? AND status='active'",[tenant,unit.id]);assert.equal(Number(stillAuthorized.total),2);
+    assert.equal((await authority.listShared(db,partnerContext)).items.length,0);
+    await authority.setAgreementStatus(db,context,mandate.id,{status:'revoked',expectedRevision:2});
+    const [[revokedListings]]=await db.query("SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=? AND unit_id=? AND status='paused'",[tenant,unit.id]);assert.equal(Number(revokedListings.total),2);
     await inventory.setAvailability(db,context,unit.id,{availability:'rented',expectedRevision:2});
     const [closed] = await db.query('SELECT status FROM sx_real_estate_properties WHERE tenant_id=? AND unit_id=?',[tenant,unit.id]);
-    assert.deepEqual(closed.map(row=>row.status).sort(),['rented','rented']);
+    assert.deepEqual(closed.map(row=>row.status).sort(),['paused','paused']);
     db.release();
     const c1 = await pool.getConnection(), c2 = await pool.getConnection();
     try {
       const raceUnit = await inventory.createUnit(c1,context,{name:'Race unit',propertyType:'apartment'});
       const raceListing = await inventory.createListing(c1,context,{unitId:raceUnit.id,priceMinor:500000});
+      const raceMandate=await authority.createAgreement(c1,context,{contactId:contact.id,agreementType:'owner_mandate',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[raceUnit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['website']});
+      await authority.setAgreementStatus(c1,context,raceMandate.id,{status:'active',expectedRevision:1});
       await Promise.allSettled([properties.update(c1,context,raceListing.id,{status:'active',expectedRevision:1}),inventory.setAvailability(c2,context,raceUnit.id,{availability:'rented',expectedRevision:1})]);
       const [[state]] = await pool.query('SELECT u.availability,p.status FROM sx_real_estate_units u JOIN sx_real_estate_properties p ON p.tenant_id=u.tenant_id AND p.unit_id=u.id WHERE u.id=?',[raceUnit.id]);
       assert.equal(state.availability,'rented');assert.notEqual(state.status,'active');
     } finally { c1.release();c2.release(); }
-    process.stdout.write('Synthetic migration, media isolation, legacy mapping, two-listing closure and activation race passed.\n');
+    process.stdout.write('Synthetic migrations, authority-gated activation, partner isolation, media isolation, legacy mapping, two-listing closure and activation race passed.\n');
   } finally {
     if (pool) await pool.end();
     await admin.query(`DROP DATABASE IF EXISTS \`${schema}\``);
     await admin.end();
+    if(process.env.SALEMAX_PROPERTY_MEDIA_DIR?.startsWith('/tmp/7network-real-estate-media-'))fs.rmSync(process.env.SALEMAX_PROPERTY_MEDIA_DIR,{recursive:true,force:true});
   }
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

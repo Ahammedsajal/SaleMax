@@ -1955,3 +1955,31 @@ tenant. The original checkout at `/Users/ahammed/Documents/ChatGPT/7network`
 was left untouched. The full 42-ticket platform upgrade and its existing
 release gates remain open. See `DEPLOYMENT.md` for production verification and
 rollback details.
+
+## Real Estate owners, partners and mandates — source implemented, tested, deployment pending, 27 October 2026
+
+The existing Properties workspace now includes Owners & Partners, Mandates and
+Shared with us views. The directory supports owners, property managers,
+brokerages and authorized partner workspaces, with company contacts, license
+expiry, private notes and revision history. Mandates and partner agreements
+scope authority to selected units and dates, record exclusivity, advertising,
+viewing/referral permissions, approved media and descriptions, permitted
+channels, commission terms, agreement documents, and active/revoked/expired
+status with audit events.
+
+Listing activation is blocked unless an active, in-date agreement covers the
+unit and explicitly approves advertising, media, descriptions and at least one
+channel. Partner views query the authenticated receiving workspace and expose
+only approved active listings; private contacts, addresses and agreement
+documents are excluded. Agreement PDFs remain in tenant-scoped private storage
+and share the unit-media quota. Revoking or expiring the last valid authority
+pauses affected marketing listings; another valid agreement preserves them.
+The additive migration is `20270111_real_estate_authority.sql`.
+
+The 32 focused authority/inventory/router/media checks and a disposable MariaDB
+11.4 migration, tenant-isolation, document-isolation, revocation and concurrency
+rehearsal pass. JavaScript syntax and `git diff --check` pass. This is source
+verification; production publication is pending. Authenticated office workflow
+acceptance, English/Arabic visual and RTL checks, light/dark, mobile/PWA and
+private-media backup/restore remain open. No real estate tenant or customer
+property/agreement data was created for verification.
