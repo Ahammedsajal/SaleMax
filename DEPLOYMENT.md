@@ -1,3 +1,11 @@
+## 2026-10-27 — Compact mobile WhatsApp composer
+
+- Source commit: `f309e856c31bd6ecf8d35bfc2f79313c4a2421fa`; active release `/opt/salemax/releases/mobile-inbox-composer-f309e85-20261027`; image `salemax-app:mobile-inbox-composer-20261027` (`sha256:4abdecdca35c35781a9e13fe9add407d69cbbd2a3318382dc2656424f277ce3d`). The app image is layered on the previous mobile selector/document release.
+- Added a phone-only style for the existing Inbox message composer, preserving its current message input, attachment, translation, emoji, voice and send controls while reducing composer padding and allocating remaining row width to the message field. Scope is limited to `/user?page=inbox` and `/agent?page=inbox`; desktop layout is unchanged. No migrations or data changes.
+- Protected rollback snapshot: `/opt/salemax/shared/rollback-mobile-inbox-composer-f309e85-20261027`; it contains the prior release, image, compose file list, service identities and original app shell. Restore under the production lock by repointing `/opt/salemax/current` to `previous-release.txt` and recreating only the app with the previous compose files and shared environment.
+- Verification: candidate asset hashes matched the deployed JS/CSS; `https://7network.live/healthz` succeeded; the live app shell includes both versioned assets; the app is healthy with zero restarts; database, report/recruitment workers and translation service identities and restart counts stayed unchanged. No separate browser or physical-device visual acceptance was performed for this composer adjustment.
+- Existing program gates remain open, including authenticated multi-role/English/Arabic acceptance, physical iOS/Android review, provider, finance, load/restore, and remaining legacy adoption.
+
 ## 2026-10-27 — Mobile selectors and document previews
 
 - Source commit: `d612354814036d2abbaf1241118c58d35502480d`; release `/opt/salemax/releases/mobile-select-pdf-d612354-20261027`; image `salemax-app:mobile-select-pdf-20261027` (`sha256:d461853337cc5988fc3543d699a5b8b69276b35e46a93bc623ed9923e4f2642b`). This is a guarded app-only overlay of the previously running image, preserving production-specific inherited assets.
