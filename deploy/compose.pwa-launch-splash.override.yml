@@ -1,0 +1,5 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_PWA_LAUNCH_SPLASH_RELEASE:?set the active app release}/client/public/index.html:/app/client/public/index.html:ro
+      - ${SALEMAX_PWA_LAUNCH_SPLASH_RELEASE:?set the active app release}/client/public/pwa-launch-splash.js:/app/client/public/pwa-launch-splash.js:ro
