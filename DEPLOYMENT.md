@@ -1,3 +1,11 @@
+## 2026-10-27 — Show launch splash on all mobile app-shell starts
+
+- Source commit `d7112b6b3bb42683ddafbb3972b586635745f12b`; release `/opt/salemax/releases/pwa-launch-splash-mobile-d7112b6-20261027`; app image remains `sha256:4abdecdca35c35781a9e13fe9add407d69cbbd2a3318382dc2656424f277ce3d`.
+- Updated splash activation so the early inline shell shows the existing animated 7Network launch screen in standalone PWA mode and at mobile viewport widths. This covers home-screen shortcuts that open in browser mode as well as installed PWA mode. The splash hides once app content renders; reduced-motion and fail-safe timer remain. Normal desktop browsing is unchanged. No manifest, route, API, migration or data change.
+- Protected snapshot `/opt/salemax/shared/rollback-pwa-launch-splash-mobile-d7112b6-20261027` retains the pre-change shell, prior release/image, Compose files and support-service identities. Roll back by repointing `/opt/salemax/current` to `/opt/salemax/releases/pwa-launch-splash-691da86-20261027` and recreating only the app with `SALEMAX_MOBILE_INBOX_COMPOSER_RELEASE=/opt/salemax/releases/mobile-inbox-composer-fix-f46c118-20261027` and `SALEMAX_PWA_LAUNCH_SPLASH_RELEASE` set to the prior splash release.
+- Verification: public dashboard shell contains the mobile activation condition and versioned splash script; served script hash matches the release; PWA manifest remains standalone with dashboard start URL; `/healthz` succeeded; app is healthy with zero restarts; database, reporting/recruitment workers and translation service identities/restart counts are unchanged. Measured live dashboard HTML response from the operator environment was 0.35 seconds; the main JS bundle took 2.57 seconds and the font stylesheet 0.44 seconds. No Android handset visual test performed.
+- Remaining gate: confirm the start screen on the user's actual Android home-screen shortcut and installed PWA. For an OS-owned launch splash before web content, use a Trusted Web Activity Android wrapper; it can reuse the current website UI and backend.
+
 ## 2026-10-27 — Animated launch screen for installed PWA
 
 - Source commit `691da86692a1924103f721af6c19c61093f14007`; active release `/opt/salemax/releases/pwa-launch-splash-691da86-20261027`. The app continues to use image `sha256:4abdecdca35c35781a9e13fe9add407d69cbbd2a3318382dc2656424f277ce3d`.
