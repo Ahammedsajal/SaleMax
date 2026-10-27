@@ -1969,14 +1969,24 @@ agreement documents, and active/revoked/expired status with audit events.
 Overlapping active agreements of the same type cannot violate a current
 exclusive agreement; unit locks serialize concurrent activation attempts.
 
-Brokerage and referral agreements link to an active owner mandate covering the
-same units and dates. The parent must authorize agent referrals, advertising,
-approved media and descriptions; child viewing rights and channels cannot
-exceed the parent. Listing activation and partner sharing revalidate that
-authority. Revoking the upstream mandate immediately pauses listings unless
-another complete authority chain remains valid. The additive migrations are
-`20270111_real_estate_authority.sql` and
-`20270112_real_estate_agreement_parent.sql`.
+Management agreements link to an active owner mandate covering the same units
+and dates. Brokerage and referral agreements can be directly authorized by an
+owner or linked to an active property manager agreement; manager and broker
+rights, dates, unit coverage, channels, approved media and descriptions are
+bounded by every agreement in the chain. Listing activation, partner sharing
+and agreement history evaluate the full chain. Revoking upstream authority
+immediately removes the downstream marketing path and pauses listings unless
+another complete authority chain remains valid. The bilingual agreement form
+filters contacts and parent agreements by the selected agreement type. Source
+commit `8bfbce80dc5d54ff94fc854f85fc3a16c06ec208` is deployed in
+`/opt/salemax/releases/real-estate-authority-chain-8bfbce8-20261027`; the
+additive parent migration was already applied. Thirty-nine focused tests and a
+disposable MariaDB 11.4 chain, isolation, revocation and concurrency rehearsal
+pass. Production health, asset hashes and anonymous API denial pass; only the
+app container changed. No Real Estate tenant or agreement data was created.
+Signed-in owner/manager/partner acceptance and EN/AR, RTL, themes, responsive/PWA
+visual acceptance remain open because production has no assigned Real Estate
+tenant. See `DEPLOYMENT.md` for image, rollback and verification evidence.
 
 The 32 focused authority/inventory/router/media checks and a disposable MariaDB
 11.4 migration, tenant-isolation, document-isolation, revocation and concurrency
