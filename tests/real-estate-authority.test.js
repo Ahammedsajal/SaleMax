@@ -83,6 +83,19 @@ test('owner and partner cards expose the private company-document workflow',()=>
   assert.match(router,/contacts\/:id\/documents\/:documentId\/content/);
 });
 
+test('contact and agreement type labels select the active language value',()=>{
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/authority.js'),'utf8');
+  assert.match(ui,/t\(\.\.\.\(\(\{owner:\['Owner','مالك'\]/);
+  assert.match(ui,/t\(\.\.\.\(\(\{owner_mandate:\['Owner mandate','تفويض المالك'\]/);
+});
+
+test('contact directory excludes contacts without a licence expiry date from renewal reminders',()=>{
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/authority.js'),'utf8');
+  assert.match(ui,/const licenseStates=items\.map\(contact=>\(\{contact,days:daysLeft\(contact\)\}\)\)/);
+  assert.match(ui,/days!==null&&days>=0&&days<=30/);
+  assert.match(ui,/days!==null&&days<0/);
+});
+
 test('contact directory surfaces a bilingual licence expiry summary and card warnings',()=>{
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/authority.js'),'utf8');
   const css=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/properties.css'),'utf8');
