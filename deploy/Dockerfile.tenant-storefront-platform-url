@@ -1,0 +1,8 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT
+LABEL org.7network.source-commit="${SOURCE_COMMIT}" org.7network.change="tenant-storefront-platform-url"
+
+COPY --chown=node:node modules/platform/tenant-storefront.js /app/modules/platform/tenant-storefront.js
+COPY --chown=node:node modules/web/public-website.js /app/modules/web/public-website.js
+COPY --chown=node:node client/public/tenant-storefront-settings.js /app/client/public/tenant-storefront-settings.js
