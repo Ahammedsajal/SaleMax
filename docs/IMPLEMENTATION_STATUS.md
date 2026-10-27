@@ -1986,7 +1986,19 @@ pass. Production health, asset hashes and anonymous API denial pass; only the
 app container changed. No Real Estate tenant or agreement data was created.
 Signed-in owner/manager/partner acceptance and EN/AR, RTL, themes, responsive/PWA
 visual acceptance remain open because production has no assigned Real Estate
-tenant. See `DEPLOYMENT.md` for image, rollback and verification evidence.
+tenant. A follow-up production release fixes two issues found in a synthetic
+browser review: contacts without licence expiry dates no longer count as due,
+and Arabic owner/partner/agreement labels now select the translated value. The
+review exercised the agreement form and directory at 360, 390, 768, 1024 and
+1440 CSS pixels and Arabic RTL/dark mode at 360px; it verified modal scrolling,
+role-filtered contact/parent choices and no horizontal overflow. Candidate
+verification passed 41 focused tests and the disposable MariaDB rehearsal.
+Source `a29320c3b8303599bbf3a36779750984a0d84905` is deployed in
+`/opt/salemax/releases/real-estate-directory-polish-a29320c-20261027`; app
+health, public asset hashes and anonymous API denial pass, and support
+containers/mounts are unchanged. This is synthetic UI acceptance, not a signed-in
+production office review. See `DEPLOYMENT.md` for image, rollback and remaining
+gates.
 
 The 32 focused authority/inventory/router/media checks and a disposable MariaDB
 11.4 migration, tenant-isolation, document-isolation, revocation and concurrency
