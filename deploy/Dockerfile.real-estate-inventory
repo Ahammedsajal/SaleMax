@@ -4,3 +4,4 @@ ARG SOURCE_COMMIT=unrecorded
 LABEL org.7network.overlay.commit="${SOURCE_COMMIT}"
 USER root
 COPY --chown=node:node . /tmp/real-estate-build-context/
+RUN node /tmp/real-estate-build-context/deploy/build-real-estate-overlay.cjs /app /tmp/real-estate-build-context
