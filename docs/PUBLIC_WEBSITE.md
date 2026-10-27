@@ -4,6 +4,8 @@ The existing Node application serves an English-first public document at `/`, wi
 
 The visual direction adapts the service discovery, guided enquiry and animated depth of the owner-supplied Fudex reference, using original SaleMaX copy and category-supported capabilities. It does not import Fudex trademarks, statistics, Saudi pricing, ERP, hosting or venture-service claims. Product previews are explicitly illustrative. No remote fonts, new frontend framework or runtime library is needed. Animation uses CSS transforms/opacity, viewport entry and reduced-motion preferences. Tabs support arrow/Home/End navigation; forms retain labelled validation, busy, error, retry and success states.
 
+Published tenant storefronts use the platform-hosted route `https://7network.live/business/<tenant-slug>` when a tenant does not use a verified custom domain. The slug is the tenant's existing unique slug. Only active tenants with an enabled storefront grant and published content resolve publicly; saved drafts stay private. The existing custom-domain root route remains available.
+
 ## Existing systems reused
 
 - Pricing reads the existing `/api/admin/get_plans` and `/api/web/get_web_public` endpoints. Plan IDs, prices, currency, durations, limits and `/user/checkout?product=<id>` links remain authoritative; no second catalogue is created.
