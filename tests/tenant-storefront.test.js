@@ -21,10 +21,10 @@ test('storefront reads fail closed unless the tenant has an enabled grant row',a
   assert.deepEqual(result,{enabled:false,draft:null,published:null,revision:0,publishedRevision:null,publishedAt:null,history:[]});
 });
 
-test('enabled storefront reports publish readiness only for a healthy primary domain',async()=>{
-  const db={query:async(sql)=>sql.includes('SELECT enabled,draft_json')?[[{enabled:1,draft:'{}',published:null,revision:0,publishedRevision:null,publishedAt:null}]]:sql.includes('SELECT revision,published_at')?[[]]:sql.includes('SELECT id FROM sx_tenant_crm_domains')?[[{id:'domain-demo'}]]:(()=>{throw new Error('UNEXPECTED_QUERY')})()};
+test('enabled storefront returns its stable 7Network business URL',async()=>{
+  const db={query:async(sql)=>sql.includes('SELECT s.enabled')?[[{enabled:1,draft:'{}',published:null,revision:0,publishedRevision:null,publishedAt:null,slug:'training-center-demo'}]]:sql.includes('SELECT revision,published_at')?[[]]:sql.includes('SELECT id FROM sx_tenant_crm_domains')?[[{id:'domain-demo'}]]:(()=>{throw new Error('UNEXPECTED_QUERY')})()};
   const result=await storefront.get(db,ctx);
-  assert.equal(result.enabled,true);assert.equal(result.domainReady,true);
+  assert.equal(result.enabled,true);assert.equal(result.domainReady,true);assert.equal(result.platformUrl,'https://7network.live/business/training-center-demo');
 });
 
 test('disabled tenant cannot create a draft, publish, or rollback',async()=>{
@@ -38,4 +38,15 @@ test('public renderer escapes content, forbids scripts, and varies output by hos
   const source=fs.readFileSync(path.join(__dirname,'../modules/web/public-website.js'),'utf8');
   assert.match(source,/replace\(\/\[&<>"'\]\/g/);assert.match(source,/script-src 'none'/);assert.match(source,/Vary","Host, Accept-Language/);
   const storefront=fs.readFileSync(path.join(__dirname,'../modules/platform/tenant-storefront.js'),'utf8');assert.match(storefront,/s\.enabled=1 AND s\.published_json IS NOT NULL/);assert.match(storefront,/d\.tls_ready_at IS NOT NULL/);
+});
+
+test('platform storefront lookup is slug scoped and serves published content only',async()=>{
+  let storefrontSql,params;
+  let calls=0;
+  const db={query:async(statement,values)=>{calls++;if(calls===1){storefrontSql=statement;params=values;return [[{tenantId:'tenant-demo',slug:'training-center-demo',content:'{"headline":"Courses"}',revision:2}]];}return [[{tenantName:'Training Center',businessNameEn:'Training Center',revision:1}]];}};
+  const brand=await storefront.publicBrandBySlug(db,'training-center-demo');
+  assert.equal(brand.name,'Training Center');assert.equal(brand.content.headline,'Courses');
+  assert.match(storefrontSql,/t\.status='active' AND s\.enabled=1 AND s\.published_json IS NOT NULL/);
+  assert.deepEqual(params,['training-center-demo']);
+  assert.equal(await storefront.publicBrandBySlug(db,'../bad'),null);
 });
