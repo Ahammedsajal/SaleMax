@@ -38,6 +38,15 @@ test('partner reads filter on the authenticated recipient tenant and return only
   assert.doesNotMatch(calls[0].sql,/u\.private_address|u\.owner_name|u\.managing_company|c\.phone|c\.email/);
 });
 
+test('agreement history is tenant-scoped and reads audit events for that agreement only',async()=>{
+  const id='88888888-8888-4888-8888-888888888888',calls=[];
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT id FROM sx_real_estate_agreements'))return [[{id}],[]];if(sql.startsWith('SELECT e.id,e.action'))return [[{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',action:'real-estate.agreement-revoked',changes:'{"from":"active","to":"revoked"}',actorName:'Owner',occurredAt:'2026-10-27 12:00:00'}],[]];throw Error('unexpected query');}};
+  const result=await authority.listAgreementHistory(db,context,id);
+  assert.deepEqual(calls.map(call=>call.args),[[tenant,id],[tenant,id]]);
+  assert.match(calls[1].sql,/resource_type='real-estate-agreement'/);
+  assert.deepEqual(result.items[0].changes,{from:'active',to:'revoked'});
+});
+
 test('schema keeps contacts and agreements tenant-qualified, scoped to units, and auditable',()=>{
   for(const table of ['sx_real_estate_contacts','sx_real_estate_agreements','sx_real_estate_agreement_units'])assert.match(migration,new RegExp(`CREATE TABLE ${table}`));
   assert.match(migration,/FOREIGN KEY\(tenant_id,contact_id\) REFERENCES sx_real_estate_contacts\(tenant_id,id\)/);

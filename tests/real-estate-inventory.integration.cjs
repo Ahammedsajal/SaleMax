@@ -120,6 +120,8 @@ async function main() {
     const listed=await properties.list(db,context,{unitId:unit.id,status:'active',search:'Doha'});
     assert.equal(listed.total,2);assert.ok(listed.items.every(item=>item.unitId===unit.id&&Number(item.minimumTermMonths)===12));
     await authority.setAgreementStatus(db,context,mandate.id,{status:'revoked',expectedRevision:2});
+    const history=await authority.listAgreementHistory(db,context,mandate.id);
+    assert.ok(history.items.some(item=>item.action==='real-estate.agreement-revoked'));
     const [[stillAuthorized]]=await db.query("SELECT COUNT(*) AS total FROM sx_real_estate_properties WHERE tenant_id=? AND unit_id=? AND status='active'",[tenant,unit.id]);assert.equal(Number(stillAuthorized.total),0);
     assert.equal((await authority.listShared(db,partnerContext)).items.length,0);
     await authority.setAgreementStatus(db,context,partnerAgreement.id,{status:'revoked',expectedRevision:2});
