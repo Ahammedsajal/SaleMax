@@ -68,3 +68,14 @@ test('owner and partner cards expose the private company-document workflow',()=>
   assert.match(router,/contacts\/:id\/documents/);
   assert.match(router,/contacts\/:id\/documents\/:documentId\/content/);
 });
+
+test('contact directory surfaces a bilingual licence expiry summary and card warnings',()=>{
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/authority.js'),'utf8');
+  const css=fs.readFileSync(path.join(__dirname,'../client/public/property-listings/properties.css'),'utf8');
+  assert.match(ui,/license-summary/);
+  assert.match(ui,/expired or due for renewal within 30 days/);
+  assert.match(ui,/منتهية أو تستحق التجديد خلال ٣٠ يومًا/);
+  assert.match(ui,/days<=30/);
+  assert.match(css,/\.license-summary\.urgent/);
+  assert.match(css,/\[data-sx-theme=dark\] \.license-summary/);
+});
