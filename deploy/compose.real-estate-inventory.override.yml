@@ -1,6 +1,7 @@
 services:
   app:
     image: salemax-app:real-estate-inventory-20261027
+    user: node
     environment:
       SALEMAX_PROPERTY_MEDIA_DIR: /app/private/property-media
     volumes:
