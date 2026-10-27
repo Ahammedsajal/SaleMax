@@ -45,6 +45,7 @@ async function main() {
     await migrate(pool, 'database/migrations/20270110_real_estate_units_and_listings.sql');
     await migrate(pool, 'database/migrations/20270111_real_estate_authority.sql');
     await migrate(pool, 'database/migrations/20270112_real_estate_agreement_parent.sql');
+    await migrate(pool, 'database/migrations/20270113_real_estate_contact_documents.sql');
     const [[mapped]] = await pool.query('SELECT p.id,p.unit_id AS unitId,u.availability FROM sx_real_estate_properties p JOIN sx_real_estate_units u ON u.tenant_id=p.tenant_id AND u.id=p.unit_id WHERE p.id=?',[legacy]);
     assert.deepEqual(mapped,{id:legacy,unitId:legacy,availability:'available'});
     const db = await pool.getConnection();
