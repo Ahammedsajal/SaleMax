@@ -12,12 +12,14 @@ const identityId='22222222-2222-4222-8222-222222222222';
 const base={audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'real_estate',categoryVersion:1},membership:{id:'33333333-3333-4333-8333-333333333333',tenantId,role:'owner',status:'active'},category:category.realEstate,subscription:{status:'active',categoryKey:'real_estate',categoryVersion:1,capabilities:['realestate.listings']},identity:{id:identityId}};
 const listing={titleEn:'Two bedroom apartment',titleAr:'شقة بغرفتي نوم',propertyType:'apartment',transactionType:'sale',status:'draft',priceMinor:125000000,currency:'QAR',areaSqm:120.5,bedrooms:2,bathrooms:2,city:'Doha',descriptionEn:'Near transit',descriptionAr:'بالقرب من المواصلات'};
 
-test('real estate contract is isolated, immutable, private and excluded from plan assignment',()=>{
+test('real estate is private, internally assignable and excluded from public signup',()=>{
   assert.equal(category.realEstate.key,'real_estate');assert.equal(category.realEstate.version,1);
-  assert.equal(category.realEstate.public,false);assert.equal(category.realEstate.planable,false);
+  assert.equal(category.realEstate.public,false);assert.equal(category.realEstate.planable,true);
   assert.ok(category.realEstate.capabilities.includes('realestate.listings'));
   assert.equal(Object.isFrozen(category.realEstate),true);
-  assert.equal(category.listCategories().find(item=>item.key==='real_estate').planable,false);
+  assert.equal(category.listCategories().find(item=>item.key==='real_estate').planable,true);
+  assert.equal(category.supportsBusinessCapability(category.realEstate,'realestate.listings'),false);
+  assert.deepEqual(require('../modules/platform/plans').definition({categoryKey:'real_estate',categoryVersion:1,capabilities:['realestate.listings'],roleLimits:{owner:1,manager:2,team_leader:2,agent:10}}).category,category.realEstate);
 });
 
 test('listing validation rejects malformed domain values and normalizes accepted data',()=>{
@@ -53,15 +55,15 @@ test('property lifecycle disallows reopening sold or rented listings',()=>{
 
 test('listing reads, creates and revision updates stay tenant-scoped',async()=>{
   const calls=[];
-  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:1}]];if(sql.startsWith('SELECT p.id'))return [[{id:'property-1'}]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'draft',transactionType:'sale',revision:3}]];if(sql.startsWith('UPDATE'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT COUNT'))return [[{total:1}]];if(sql.startsWith('SELECT p.id'))return [[{id:'property-1'}]];if(sql.startsWith('INSERT INTO'))return [{affectedRows:1}];if(sql.startsWith('SELECT unit_id'))return [[{unitId:'44444444-4444-4444-8444-444444444444'}]];if(sql.startsWith('SELECT availability'))return [[{availability:'available'}]];if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'draft',transactionType:'sale',revision:3}]];if(sql.startsWith('UPDATE'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
   const listed=await properties.list(db,base,{status:'active',search:'Doha%_'});
   assert.equal(listed.total,1);assert.ok(calls[0].sql.includes('tenant_id=?'));assert.equal(calls[0].args[0],tenantId);
   assert.match(calls[0].sql,/LIKE \? ESCAPE '!'/);assert.ok(calls[0].args.slice(2,6).every(value=>value==='%Doha!%!_%'));
   const created=await properties.create(db,base,listing);assert.equal(created.revision,1);assert.ok(calls[2].sql.includes('tenant_id'));
   const updated=await properties.update(db,base,'44444444-4444-4444-8444-444444444444',{status:'active',expectedRevision:3});
-  assert.equal(updated.revision,4);assert.match(calls[4].sql,/tenant_id=\? AND id=\? FOR UPDATE/);assert.equal(calls[4].args[0],tenantId);
-  assert.match(calls[5].sql,/WHERE tenant_id=\? AND id=\?/);assert.equal(calls[5].args.at(-2),tenantId);
-  assert.match(calls[6].sql,/real-estate\.property-updated/);assert.equal(calls[6].args[1],tenantId);
+  assert.equal(updated.revision,4);const locked=calls.find(call=>call.sql.startsWith('SELECT availability'));assert.match(locked.sql,/tenant_id=\? AND id=\? FOR UPDATE/);assert.equal(locked.args[0],tenantId);
+  const updatedRow=calls.find(call=>call.sql.startsWith('UPDATE sx_real_estate_properties'));assert.match(updatedRow.sql,/WHERE tenant_id=\? AND id=\?/);assert.equal(updatedRow.args.at(-2),tenantId);
+  const auditUpdate=calls.find(call=>call.sql.includes('real-estate.property-updated'));assert.equal(auditUpdate.args[1],tenantId);
 });
 
 test('agent and team-leader listing reads are restricted to their persisted assignment scope',async()=>{
@@ -76,7 +78,7 @@ test('agent and team-leader listing reads are restricted to their persisted assi
 test('manager assignments are limited to active agents in that manager team and audited',async()=>{
   const managerId='66666666-6666-4666-8666-666666666666',agentId='77777777-7777-4777-8777-777777777777',calls=[];
   const context={...base,membership:{...base.membership,id:managerId,role:'manager'}};
-  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT m.id FROM sx_memberships'))return [[{id:agentId}]];if(sql.startsWith('INSERT INTO sx_real_estate_properties'))return [{affectedRows:1}];if(sql.includes('real-estate.property-created'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
+  const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.startsWith('SELECT m.id FROM sx_memberships'))return [[{id:agentId}]];if(sql.startsWith('INSERT INTO sx_real_estate_units')||sql.startsWith('INSERT INTO sx_real_estate_properties'))return [{affectedRows:1}];if(sql.includes('real-estate.property-created'))return [{affectedRows:1}];throw Error('unexpected query');},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{}};
   const created=await properties.create(db,context,{...listing,assignedMembershipId:agentId});
   assert.equal(created.assignedMembershipId,agentId);
   assert.deepEqual(calls[0].args,[tenantId,agentId,managerId]);assert.match(calls[0].sql,/m\.role='agent'.*m\.status='active'.*org\.manager_membership_id=\?/);
@@ -96,7 +98,7 @@ test('assignee lookup stays tenant and manager scoped',async()=>{
 
 test('stale and invalid transitions cannot mutate a listing',async()=>{
   let updates=0,rollbacks=0;
-  const db={query:async(sql)=>{if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'sold',transactionType:'sale',revision:2}]];if(sql.startsWith('UPDATE'))updates++;return [{affectedRows:1}];},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{rollbacks++;}};
+  const db={query:async(sql)=>{if(sql.startsWith('SELECT unit_id'))return [[{unitId:'44444444-4444-4444-8444-444444444444'}]];if(sql.startsWith('SELECT availability'))return [[{availability:'available'}]];if(sql.startsWith('SELECT status,transaction_type'))return [[{status:'sold',transactionType:'sale',revision:2}]];if(sql.startsWith('UPDATE'))updates++;return [{affectedRows:1}];},beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{rollbacks++;}};
   await assert.rejects(properties.update(db,base,'44444444-4444-4444-8444-444444444444',{status:'active',expectedRevision:1}),{code:'STALE_REVISION'});
   await assert.rejects(properties.update(db,base,'44444444-4444-4444-8444-444444444444',{status:'active',expectedRevision:2}),{code:'INVALID_PROPERTY_TRANSITION'});
   await assert.rejects(properties.update(db,base,'44444444-4444-4444-8444-444444444444',{priceMinor:100,expectedRevision:2}),{code:'INVALID_PROPERTY_TRANSITION'});

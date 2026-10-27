@@ -29,6 +29,7 @@ services:
       SALEMAX_LICENSE_FILE: /app/license-store/license.json
       SALEMAX_CRM_LOGO_ROOT: /app/private/crm-tenant-logos
       SALEMAX_RECRUITMENT_CV_ROOT: /app/private/recruitment-cvs
+      SALEMAX_PROPERTY_MEDIA_DIR: /app/private/property-media
     extra_hosts:
       - "crm.salemax.qa:host-gateway"
       - "7network.live:host-gateway"
@@ -45,6 +46,7 @@ services:
       - /opt/salemax/shared/media:/app/client/public/media
       - /opt/salemax/shared/crm-tenant-logos:/app/private/crm-tenant-logos
       - /opt/salemax/shared/private/recruitment-cvs:/app/private/recruitment-cvs
+      - /opt/salemax/shared/private/property-media:/app/private/property-media
       - /opt/salemax/shared/course-media:/app/database/local-runtime/course-media
       - /opt/salemax/shared/meta-media:/app/client/public/meta-media
       - /opt/salemax/shared/sessions:/app/sessions

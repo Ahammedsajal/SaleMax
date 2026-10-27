@@ -1,0 +1,17 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_COMMIT=unrecorded
+LABEL org.7network.overlay.commit="${SOURCE_COMMIT}"
+USER root
+COPY --chown=node:node modules/platform/real-estate-properties.js /app/modules/platform/real-estate-properties.js
+COPY --chown=node:node modules/platform/real-estate-properties-router.js /app/modules/platform/real-estate-properties-router.js
+COPY --chown=node:node modules/platform/real-estate-inventory.js /app/modules/platform/real-estate-inventory.js
+COPY --chown=node:node modules/platform/real-estate-inventory-rules.js /app/modules/platform/real-estate-inventory-rules.js
+COPY --chown=node:node modules/platform/real-estate-unit-media.js /app/modules/platform/real-estate-unit-media.js
+COPY --chown=node:node client/public/property-listings/ /app/client/public/property-listings/
+COPY --chown=node:node deploy/patch-real-estate-overlay.cjs /app/deploy/patch-real-estate-overlay.cjs
+COPY --chown=node:node database/migrations/20261222_real_estate_properties.sql /app/database/migrations/20261222_real_estate_properties.sql
+COPY --chown=node:node database/migrations/20270110_real_estate_units_and_listings.sql /app/database/migrations/20270110_real_estate_units_and_listings.sql
+RUN node /app/deploy/patch-real-estate-overlay.cjs /app && node --check /app/modules/platform/real-estate-properties.js && node --check /app/modules/platform/real-estate-properties-router.js && node --check /app/modules/platform/real-estate-inventory.js && node --check /app/modules/platform/real-estate-inventory-rules.js && node --check /app/modules/platform/real-estate-unit-media.js && node -e "require('/app/database/migration-runner').discover('/app/database/migrations').filter(m=>m.file.includes('real_estate')).forEach(m=>console.log(m.file,m.statements.length))"
+RUN mkdir -p /app/private/property-media/.tmp && chown -R node:node /app/private/property-media
+USER node

@@ -307,6 +307,12 @@
       const primary=copy.querySelector('.MuiListItemText-primary');if(primary)primary.textContent=tr('Properties','العقارات');
       copy.setAttribute('aria-label',tr('Properties','العقارات'));const button=copy.querySelector('.MuiListItemButton-root,[role=button],button,a')||copy;
       button.setAttribute('aria-label',tr('Properties','العقارات'));button.onclick=event=>{event.preventDefault();location.href='/user?page=properties';};list.append(copy);
+      for(const [section,en,arabic] of [['units','Buildings & Units','المباني والوحدات'],['listings','Listings','الإعلانات']]){
+        const child=cloneNavigationRow(pipelineSource);child.removeAttribute('data-salemax-pipeline-link');child.dataset.sxPropertiesChild=section;child.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+        const label=child.querySelector('.MuiListItemText-primary');if(label)label.textContent=tr(en,arabic);
+        const target=child.querySelector('.MuiListItemButton-root,[role=button],button,a')||child;target.style.paddingInlineStart='32px';target.setAttribute('aria-label',tr(en,arabic));
+        target.onclick=event=>{event.preventDefault();location.href='/user?page=properties&section='+section;};list.append(child);
+      }
     }
     const leadSource=document.querySelector('[data-salemax-pipeline-link]');
     if(leadSource&&!list.querySelector('[data-sx-lead-reports-nav]')&&!hasNavigationKey(list,'reports')){

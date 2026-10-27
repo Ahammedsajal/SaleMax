@@ -254,7 +254,7 @@
     if(!isPropertiesRoute()){existing?.remove();return;}
     const {left,top,width,height,topbar}=workspaceBounds();
     if(topbar){const crumb=[...topbar.querySelectorAll('*')].find(el=>el.childElementCount===0&&['Dashboard','لوحة التحكم'].includes((el.textContent||'').trim()));if(crumb)crumb.textContent=isArabic()?'العقارات':'Properties';}
-    let frame=existing;if(!frame){frame=document.createElement('iframe');frame.id='salemax-properties-workspace';frame.title=isArabic()?'العقارات':'Properties';frame.src='/property-listings/?embed=1';frame.style.cssText='position:fixed;z-index:1100;border:0;background:#f7f5f6;display:block;';document.body.append(frame);}
+    let frame=existing;if(!frame){frame=document.createElement('iframe');frame.id='salemax-properties-workspace';frame.title=isArabic()?'العقارات':'Properties';const params=new URLSearchParams(location.search),section=params.get('section')==='units'?'units':'listings',unitId=params.get('unitId');frame.src='/property-listings/?embed=1&section='+section+(unitId?'&unitId='+encodeURIComponent(unitId):'');frame.style.cssText='position:fixed;z-index:1100;border:0;background:transparent;display:block;';document.body.append(frame);}
     bindWorkspaceNavigation(frame);frame.style.left=`${left}px`;frame.style.top=`${top}px`;frame.style.width=`${width}px`;frame.style.height=`${height}px`;
   }
 

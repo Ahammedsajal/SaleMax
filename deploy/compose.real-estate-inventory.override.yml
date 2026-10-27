@@ -1,0 +1,7 @@
+services:
+  app:
+    image: salemax-app:real-estate-inventory-20261027
+    environment:
+      SALEMAX_PROPERTY_MEDIA_DIR: /app/private/property-media
+    volumes:
+      - /opt/salemax/shared/private/property-media:/app/private/property-media

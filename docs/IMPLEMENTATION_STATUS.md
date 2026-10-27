@@ -1911,3 +1911,38 @@ the existing Inbox so its native provider initializes with that mode. This
 avoids relying on React context discovery through the filter panel portal.
 Source commit `dba23bc` is deployed. A signed-in click and visual review are
 still pending because browser control is unavailable in this Work session.
+
+# Real Estate Properties — implementation status, 27 October 2026
+
+A first internal real-estate inventory increment is implemented in the isolated
+`codex/real-estate-inventory-20261027` worktree. The existing Properties workspace
+has two sidebar pages: Buildings & Units and Listings. Quick add asks for a name,
+type and optional area/bedrooms, then offers a short optional rental listing form.
+Less common unit and rental details are tucked behind “More details” sections.
+The physical unit and each rental listing are separate records; one unit can have
+multiple listings, while availability remains on the unit.
+
+The additive `20270110_real_estate_units_and_listings.sql` migration preserves
+legacy listing IDs and maps each old listing to its own unit without automatic
+deduplication. Workspace APIs use the existing shared session and feature route.
+They support building/unit management, listing terms, unit availability and
+private media. Private owner/address values are omitted from agent detail reads;
+media is tenant-scoped, signature/size checked, stored outside the public tree,
+and served with no-store headers. Existing public signup does not expose the
+Real Estate category; it is enabled only for reviewed internal provisioning.
+
+Focused Real Estate tests and a disposable MariaDB 11.4 migration/concurrency
+rehearsal passed. A synthetic HTTP/media check passed using a test auth adapter.
+This is not authenticated browser acceptance. English/Arabic screen behavior,
+RTL, themes, PWA navigation, real user/staff permissions, production storage
+backup/restore and the complete migration history still need acceptance. The
+broader migration integration suite remains red on an unrelated Finance fixture
+expectation (275000 generated versus 260000 expected); no unrelated report or
+migration-runner changes are included in this increment.
+
+No production release or production migration has been made. The active app is
+assembled from a long ordered chain of production overlays, and its existing
+runtime must be the exact base for an incremental Real Estate overlay. The
+original checkout at `/Users/ahammed/Documents/ChatGPT/7network` has unreadable
+iCloud placeholders and local differences; it has been left untouched. The full
+42-ticket platform upgrade and its existing release gates remain open.
