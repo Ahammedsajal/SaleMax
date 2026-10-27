@@ -10,8 +10,13 @@ COPY --chown=node:node modules/platform/real-estate-inventory-rules.js /app/modu
 COPY --chown=node:node modules/platform/real-estate-unit-media.js /app/modules/platform/real-estate-unit-media.js
 COPY --chown=node:node client/public/property-listings/ /app/client/public/property-listings/
 COPY --chown=node:node deploy/patch-real-estate-overlay.cjs /app/deploy/patch-real-estate-overlay.cjs
+COPY --chown=node:node tests/real-estate-properties.test.js /app/tests/real-estate-properties.test.js
+COPY --chown=node:node tests/real-estate-properties-router.test.js /app/tests/real-estate-properties-router.test.js
+COPY --chown=node:node tests/real-estate-inventory-rules.test.js /app/tests/real-estate-inventory-rules.test.js
+COPY --chown=node:node tests/real-estate-inventory.test.js /app/tests/real-estate-inventory.test.js
+COPY --chown=node:node tests/real-estate-unit-media.test.js /app/tests/real-estate-unit-media.test.js
 COPY --chown=node:node database/migrations/20261222_real_estate_properties.sql /app/database/migrations/20261222_real_estate_properties.sql
 COPY --chown=node:node database/migrations/20270110_real_estate_units_and_listings.sql /app/database/migrations/20270110_real_estate_units_and_listings.sql
-RUN node /app/deploy/patch-real-estate-overlay.cjs /app && node --check /app/modules/platform/real-estate-properties.js && node --check /app/modules/platform/real-estate-properties-router.js && node --check /app/modules/platform/real-estate-inventory.js && node --check /app/modules/platform/real-estate-inventory-rules.js && node --check /app/modules/platform/real-estate-unit-media.js && node -e "require('/app/database/migration-runner').discover('/app/database/migrations').filter(m=>m.file.includes('real_estate')).forEach(m=>console.log(m.file,m.statements.length))"
+RUN node /app/deploy/patch-real-estate-overlay.cjs /app && node --check /app/modules/platform/real-estate-properties.js && node --check /app/modules/platform/real-estate-properties-router.js && node --check /app/modules/platform/real-estate-inventory.js && node --check /app/modules/platform/real-estate-inventory-rules.js && node --check /app/modules/platform/real-estate-unit-media.js && node -e "require('/app/database/migration-runner').discover('/app/database/migrations').filter(m=>m.file.includes('real_estate')).forEach(m=>console.log(m.file,m.statements.length))" && node --test /app/tests/real-estate-properties.test.js /app/tests/real-estate-properties-router.test.js /app/tests/real-estate-inventory-rules.test.js /app/tests/real-estate-inventory.test.js /app/tests/real-estate-unit-media.test.js && rm /app/tests/real-estate-properties.test.js /app/tests/real-estate-properties-router.test.js /app/tests/real-estate-inventory-rules.test.js /app/tests/real-estate-inventory.test.js /app/tests/real-estate-unit-media.test.js
 RUN mkdir -p /app/private/property-media/.tmp && chown -R node:node /app/private/property-media
 USER node
