@@ -79,6 +79,8 @@ async function main() {
     const agentIdentity='66666666-6666-4666-8666-666666666666',agentMember='77777777-7777-4777-8777-777777777777';
     await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,'agent@example.invalid','Agent','active')",[agentIdentity]);
     await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'agent','active')",[agentMember,tenant,agentIdentity]);
+    const assignedContact=await authority.createContact(db,context,{contactType:'owner',displayName:'Owner with assigned agent',responsibleMembershipId:agentMember});
+    assert.equal((await authority.listContacts(db,context)).items.find(item=>item.id===assignedContact.id).responsibleName,'Agent');
     const agent={...context,identity:{id:agentIdentity},membership:{...context.membership,id:agentMember,role:'agent'}};
     assert.equal((await inventory.listUnits(db,agent)).items.some(item=>item.id===unit.id),false);
     await properties.update(db,context,second.id,{assignedMembershipId:agentMember,expectedRevision:1});
@@ -107,8 +109,11 @@ async function main() {
     await db.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,'partner@example.invalid','Partner','active')",[partnerIdentity]);
     await db.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status) VALUES (?,?,?,'owner','active')",[partnerMember,partnerTenant,partnerIdentity]);
     const partnerContact=await authority.createContact(db,context,{contactType:'brokerage',displayName:'Synthetic brokerage',partnerTenantId:partnerTenant});
-    const partnerAgreement=await authority.createAgreement(db,context,{contactId:partnerContact.id,agreementType:'brokerage',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['property_portal']});
+    const partnerAgreement=await authority.createAgreement(db,context,{contactId:partnerContact.id,agreementType:'brokerage',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],exclusive:true,mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['property_portal']});
     await authority.setAgreementStatus(db,context,partnerAgreement.id,{status:'active',expectedRevision:1});
+    const secondBrokerage=await authority.createContact(db,context,{contactType:'brokerage',displayName:'Synthetic second brokerage',partnerTenantId:partnerTenant});
+    const competingAgreement=await authority.createAgreement(db,context,{contactId:secondBrokerage.id,agreementType:'brokerage',startsOn:todayRows[0].today,endsOn:'2030-12-31',unitIds:[unit.id],mayAdvertise:true,mediaApproved:true,descriptionApproved:true,permittedChannels:['property_portal']});
+    await assert.rejects(authority.setAgreementStatus(db,context,competingAgreement.id,{status:'active',expectedRevision:1}),{code:'AGREEMENT_EXCLUSIVITY_CONFLICT'});
     const partnerContext={...context,tenant:{...context.tenant,id:partnerTenant},membership:{...context.membership,id:partnerMember,tenantId:partnerTenant},identity:{id:partnerIdentity}};
     const shared=await authority.listShared(db,partnerContext);assert.equal(shared.items.length,2);assert.ok(shared.items.every(item=>!Object.hasOwn(item,'ownerName')&&!Object.hasOwn(item,'privateAddress')));
     const listed=await properties.list(db,context,{unitId:unit.id,status:'active',search:'Doha'});

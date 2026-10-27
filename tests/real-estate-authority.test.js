@@ -19,6 +19,7 @@ test('agreement validation requires a bounded unit scope and explicitly valid ma
 
 test('contact validation rejects arbitrary partner tenant identifiers and malformed license dates',()=>{
   assert.throws(()=>authority.cleanContact({contactType:'partner',displayName:'Partner',partnerTenantId:'somebody'}),{code:'INVALID_PARTNER'});
+  assert.throws(()=>authority.cleanContact({contactType:'partner',displayName:'Partner',responsibleMembershipId:'someone'}),{code:'INVALID_CONTACT'});
   assert.throws(()=>authority.cleanContact({contactType:'owner',displayName:'Owner',licenseExpiresOn:'2026-02-31'}),{code:'INVALID_CONTACT'});
 });
 
@@ -40,5 +41,6 @@ test('schema keeps contacts and agreements tenant-qualified, scoped to units, an
   for(const table of ['sx_real_estate_contacts','sx_real_estate_agreements','sx_real_estate_agreement_units'])assert.match(migration,new RegExp(`CREATE TABLE ${table}`));
   assert.match(migration,/FOREIGN KEY\(tenant_id,contact_id\) REFERENCES sx_real_estate_contacts\(tenant_id,id\)/);
   assert.match(migration,/FOREIGN KEY\(tenant_id,unit_id\) REFERENCES sx_real_estate_units\(tenant_id,id\)/);
+  assert.match(migration,/FOREIGN KEY\(tenant_id,responsible_membership_id\) REFERENCES sx_memberships\(tenant_id,id\)/);
   assert.match(migration,/partner_tenant_id CHAR\(36\) CHARACTER SET ascii COLLATE ascii_bin NULL/);
 });

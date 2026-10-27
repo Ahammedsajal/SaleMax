@@ -10,6 +10,7 @@ CREATE TABLE sx_real_estate_contacts (
   license_number VARCHAR(100) NULL,
   license_expires_on DATE NULL,
   partner_tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  responsible_membership_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
   notes VARCHAR(1000) NULL,
   status ENUM('active','inactive') NOT NULL DEFAULT 'active',
   revision INT UNSIGNED NOT NULL DEFAULT 1,
@@ -23,7 +24,8 @@ CREATE TABLE sx_real_estate_contacts (
   CONSTRAINT fk_sx_re_contact_tenant FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),
   CONSTRAINT fk_sx_re_contact_creator FOREIGN KEY(created_by_identity_id) REFERENCES sx_identities(id),
   CONSTRAINT fk_sx_re_contact_creator_member FOREIGN KEY(tenant_id,created_by_identity_id) REFERENCES sx_memberships(tenant_id,identity_id),
-  CONSTRAINT fk_sx_re_contact_partner FOREIGN KEY(partner_tenant_id) REFERENCES sx_tenants(id)
+  CONSTRAINT fk_sx_re_contact_partner FOREIGN KEY(partner_tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_sx_re_contact_responsible FOREIGN KEY(tenant_id,responsible_membership_id) REFERENCES sx_memberships(tenant_id,id)
 );
 
 CREATE TABLE sx_real_estate_agreements (

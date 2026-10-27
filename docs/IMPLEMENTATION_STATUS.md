@@ -1961,11 +1961,14 @@ rollback details.
 The existing Properties workspace now includes Owners & Partners, Mandates and
 Shared with us views. The directory supports owners, property managers,
 brokerages and authorized partner workspaces, with company contacts, license
-expiry, private notes and revision history. Mandates and partner agreements
-scope authority to selected units and dates, record exclusivity, advertising,
+expiry, optional responsible-agent assignment, private notes and revision
+history. Mandates and partner agreements scope authority to selected units and
+dates, record exclusivity, advertising,
 viewing/referral permissions, approved media and descriptions, permitted
 channels, commission terms, agreement documents, and active/revoked/expired
-status with audit events.
+status with audit events. Overlapping active agreements of the same type cannot
+violate a current exclusive agreement; unit locks serialize concurrent
+activation attempts.
 
 Listing activation is blocked unless an active, in-date agreement covers the
 unit and explicitly approves advertising, media, descriptions and at least one
