@@ -66,3 +66,12 @@
  html[data-sx-modern] #sx-phonebook{max-height:calc(100dvh - 185px);overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
  #sx-phonebook .pb-foot{position:sticky;bottom:0;z-index:3;background:#fff;box-shadow:0 -2px 10px #1720330d}
 }
+
+@media(max-width:700px){
+ .sx-pb-dialog .pb-rule-books{display:grid;gap:6px;max-height:180px;overflow-y:auto;min-width:0}
+ .sx-pb-dialog .pb-rule-books[hidden],.sx-pb-dialog .pb-rule-book[hidden]{display:none!important}
+ .sx-pb-dialog .pb-rule-books label{display:flex;align-items:center;gap:9px;padding:8px 10px;min-height:42px;border:1px solid #dce4ee;border-radius:8px;background:white;overflow-wrap:anywhere}
+ .sx-pb-dialog .pb-rule-books input[type=radio]{width:20px;height:20px;min-width:20px;padding:0;accent-color:#1768d4}
+ .sx-pb-dialog .pb-rule-books label:has(input:checked){border-color:#1768d4;background:#eef5ff}
+ #sx-phonebook .pb-head>.pb-actions [data-action=create-book]{grid-column:1/-1}
+}
