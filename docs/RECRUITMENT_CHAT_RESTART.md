@@ -1,0 +1,9 @@
+# Explicit recruitment chat restart
+
+A saved WhatsApp application deliberately suppresses normal greetings after screening completes. A system pause such as `recruitment-awaiting-cv` does not mean the Meta webhook failed. Resume the saved application for CV upload, or explicitly restart the designated test chat after the owner chooses that behavior.
+
+The operator restart writes a tenant/conversation/channel-scoped `recruitment.chat-restarted` audit event and clears only that profile/channel's transient guided/flow session and conversation pause/timer. It does not delete, detach or edit saved applications, screening records, CVs, contacts or message history. There is no new public reset endpoint or menu button in this increment.
+
+The runtime uses the restart event as an attempt boundary: only applications created after it can stop the restarted chat. A new completed screening uses that attempt UUID as its submission token and an attempt-specific screening hash. Retries within the attempt remain idempotent; a newly completed attempt cannot overwrite an earlier application. CV submissions use the same attempt token; an explicit existing prefill link remains bound to its existing application. Conversations without a restart retain their normal completion/handover behavior and deterministic conversation token. The screening writer now retains that token before cleaning application fields, rather than hashing a field absent from the cleaned result.
+
+Preserve restart audit events while related applications exist; these events are operational attempt boundaries. Future UI self-service restart work should add a permission-checked transaction/service using this contract and coordinate with in-flight turns. Do not expose arbitrary audit insertion to clients. Test via `node --test tests/recruitment-chat-attempt.test.js tests/recruitment-applications.test.js tests/chatbot-recruitment-guide.test.js`.
