@@ -1,0 +1,8 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node client/public/workspace-api.js /app/client/public/workspace-api.js
+COPY --chown=node:node deploy/patch-sidebar-startup.cjs /tmp/patch-sidebar-startup.cjs
+RUN node --check /app/client/public/workspace-api.js && node /tmp/patch-sidebar-startup.cjs /app/client/public/index.html

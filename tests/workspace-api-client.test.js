@@ -35,3 +35,29 @@ test('late session responses cannot expose a previous business after a bearer id
  assert.equal((await first).tenantId,'business-b');
  assert.equal(pending.length,2);
 });
+
+function sessionHarness({cookie=false}={}){
+ let now=0,token=cookie?null:'owner-token';const pending=[],calls=[];
+ const sandbox={window:{},location:{pathname:'/user'},localStorage:{getItem:()=>token},Date:{now:()=>now},FormData:class {},fetch:async(url,options)=>{calls.push({url,options});return new Promise((resolve,reject)=>pending.push({resolve,reject}));}};
+ vm.runInNewContext(source,sandbox);
+ return {api:sandbox.window.SaleMaxWorkspace,calls,pending,clock:value=>now=value,token:value=>token=value,flush:()=>new Promise(resolve=>setImmediate(resolve)),reply:(index,data)=>pending[index].resolve({ok:true,json:async()=>({success:true,data})})};
+}
+test('slow session request remains shared beyond five seconds and cache starts on completion',async()=>{
+ const h=sessionHarness(),first=h.api.session();await h.flush();
+ h.clock(6000);const second=h.api.session();await h.flush();assert.equal(h.calls.length,1);
+ h.clock(14000);h.reply(0,{tenantId:'owner'});assert.equal((await first).tenantId,'owner');assert.equal((await second).tenantId,'owner');
+ h.clock(18000);assert.equal((await h.api.session()).tenantId,'owner');assert.equal(h.calls.length,1);
+ h.clock(19000);const refresh=h.api.session();await h.flush();assert.equal(h.calls.length,2);h.reply(1,{tenantId:'owner',revision:2});assert.equal((await refresh).revision,2);
+});
+test('invalidation during a pending request waits for current permissions and discards old result',async()=>{
+ const h=sessionHarness(),old=h.api.session();await h.flush();h.api.invalidateSession();const current=h.api.session();await h.flush();
+ h.reply(0,{tenantId:'owner',roleNavigation:['finance']});await h.flush();assert.equal(h.calls.length,2);
+ h.reply(1,{tenantId:'owner',roleNavigation:['inbox']});assert.deepEqual([...(await old).roleNavigation],['inbox']);assert.deepEqual([...(await current).roleNavigation],['inbox']);
+});
+test('failed session can retry without caching the error',async()=>{
+ const h=sessionHarness(),first=h.api.session();await h.flush();h.pending[0].reject(Error('offline'));await assert.rejects(first,/offline/);
+ const retry=h.api.session();await h.flush();assert.equal(h.calls.length,2);h.reply(1,{tenantId:'owner'});assert.equal((await retry).tenantId,'owner');
+});
+test('cookie session reads go directly to the authenticated endpoint without CSRF preflight',async()=>{
+ const h=sessionHarness({cookie:true}),pending=h.api.session();await h.flush();assert.equal(h.calls.length,1);assert.equal(h.calls[0].url,'/api/workspace/session');assert.equal(h.calls[0].options.credentials,'same-origin');assert.equal(h.calls[0].options.headers['X-CSRF-Token'],undefined);h.reply(0,{tenantId:'cookie-owner'});assert.equal((await pending).tenantId,'cookie-owner');
+});
