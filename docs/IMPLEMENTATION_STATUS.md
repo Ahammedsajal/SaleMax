@@ -1968,16 +1968,15 @@ consent, and a required reason when a lead is lost. No second CRM or login was
 introduced. Public profiles are opt-in; their only quality indicator is an
 explicitly described active-listing count, not a rating or certification.
 
-The source increment has 62 passing focused unit checks. A synthetic browser
-render of the public profile passed mobile dark-mode English/Arabic and RTL
-checks without horizontal overflow. The public-profile service/API test uses a
-mocked database. The expanded real-session migration test could not run on this
-Mac's MySQL 9.6 instance because MariaDB-specific baseline migrations fail
-before reaching the Real Estate migrations; rerun against the disposable
-MariaDB 11.4 test service before deployment. This source has not been deployed.
-Signed-in office acceptance remains open because production has no assigned
-Real Estate tenant. See `DEPLOYMENT.md` for the last verified production
-release and deployment gates.
+The source increment has 62 passing focused unit checks and a disposable
+MariaDB 11.4 integration run. The latter applies the migrations and exercises
+cookie/bearer sessions, team-scoped leads, listing co-agents, agent profiles,
+commission reads/writes, public opt-in fields and agreement denial. A synthetic
+browser render of the public profile passed mobile dark-mode English/Arabic and
+RTL checks without horizontal overflow. This source has not been deployed.
+Signed-in office acceptance remains open: production has no assigned Real
+Estate tenant or published Real Estate contract. See `DEPLOYMENT.md` for the
+most recently recorded Real Estate release and remaining deployment gates.
 
 ## Real Estate owners, partners and mandates — production, 27 October 2026
 

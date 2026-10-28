@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('node:fs');
+const file=process.argv[2];
+if(!file)throw Error('SHELL_PATH_REQUIRED');
+const before='team-invitations.js?v=20261027-real-estate-team1';
+const after='team-invitations.js?v=20261028-real-estate-profiles1';
+let html=fs.readFileSync(file,'utf8');
+if(html.includes(after))process.exit(0);
+if(html.indexOf(before)<0||html.indexOf(before)!==html.lastIndexOf(before))throw Error('REAL_ESTATE_TEAM_SHELL_ANCHOR');
+html=html.replace(before,after);
+fs.writeFileSync(file,html);

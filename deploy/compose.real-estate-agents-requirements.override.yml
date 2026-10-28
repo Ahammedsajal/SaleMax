@@ -1,0 +1,7 @@
+services:
+  app:
+    image: salemax-app:real-estate-agents-requirements-20261028
+    environment:
+      SALEMAX_PROPERTY_MEDIA_DIR: /app/private/property-media
+    volumes:
+      - /opt/salemax/current/client/public/index.html:/app/client/public/index.html:ro
