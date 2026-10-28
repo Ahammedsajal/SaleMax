@@ -1,7 +1,9 @@
 -- Tenant preferences extend an existing CRM lead; they do not create a second lead.
+-- The Pipeline lead ID uses legacy tenant-specific collations, so references are
+-- validated by the tenant-scoped service instead of a cross-module FK.
 CREATE TABLE sx_real_estate_tenant_requirements (
   tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  lead_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  lead_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   areas JSON NOT NULL,
   property_types JSON NOT NULL,
   bedrooms SMALLINT UNSIGNED NULL,
@@ -21,7 +23,6 @@ CREATE TABLE sx_real_estate_tenant_requirements (
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (tenant_id,lead_id),
   CONSTRAINT fk_re_requirement_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
-  CONSTRAINT fk_re_requirement_lead FOREIGN KEY (lead_id) REFERENCES pipeline_leads(id) ON DELETE CASCADE,
   CONSTRAINT fk_re_requirement_actor FOREIGN KEY (tenant_id,updated_by_identity_id) REFERENCES sx_memberships(tenant_id,identity_id),
   CONSTRAINT ck_re_requirement_budget CHECK (budget_min_minor IS NULL OR budget_max_minor IS NULL OR budget_min_minor <= budget_max_minor),
   CONSTRAINT ck_re_requirement_revision CHECK (revision > 0)
@@ -29,7 +30,7 @@ CREATE TABLE sx_real_estate_tenant_requirements (
 
 CREATE TABLE sx_real_estate_lead_units (
   tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  lead_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  lead_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   unit_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   added_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
