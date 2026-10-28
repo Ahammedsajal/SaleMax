@@ -1,0 +1,5 @@
+services:
+  app:
+    image: salemax-app:real-estate-pipeline-unassigned-ar-20261028
+    volumes:
+      - /opt/salemax/releases/real-estate-pipeline-unassigned-ar-a233077-20261028/client/public/index.html:/app/client/public/index.html:ro
