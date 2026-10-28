@@ -109,7 +109,7 @@ test('staff invitation UI is integrated into the existing single 7Network app sh
   assert.ok(html.indexOf('team-ui-preferences.js')<html.indexOf('team-invitations.js'));
   assert.match(js,/node\.dataset\.theme = uiPreferences\?\.isDark\(\)/);
   assert.match(js,/syncScreenPreferences/);assert.match(js,/uiPreferences\?\.isRtl\(\)/);
-  assert.match(preferences,/function create\(/);assert.match(css,/#sx-team-screen\[data-theme="dark"\]/);
+  assert.match(preferences,/function create\(/);assert.match(css,/html\[data-sx-modern\] #sx-team-screen\[data-theme="dark"\]/);
   assert.match(html,/training-sidebar\.js\?v=[^" ]+/);
   assert.match(js,/new MutationObserver\(\(\)=>\{addNav\(\);queuePreferenceSync\(\);\}\)/);
   assert.match(js,/data-member-password-panel/);assert.match(js,/memberRoleKey!=='agent'/);assert.match(js,/encodeURIComponent\(passwordForm\.dataset\.memberId\).*\/password/);

@@ -5,7 +5,7 @@ if(!file)throw Error('SHELL_PATH_REQUIRED');
 const reference=/team-invitations\.js\?v=[^"'\s>]+/g;
 const after='team-invitations.js?v=20261028-real-estate-ui-sync1';
 const cssReference=/team-access\.css\?v=[^"'\s>]+/g;
-const cssAfter='team-access.css?v=20261028-team-ui-sync1';
+const cssAfter='team-access.css?v=20261028-team-ui-sync2';
 const helper='<script defer src="/team-ui-preferences.js?v=20261028-team-ui-sync1"></script>';
 let html=fs.readFileSync(file,'utf8');
 const matches=html.match(reference)||[];

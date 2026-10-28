@@ -155,6 +155,9 @@
 
 /* Match the existing business workspace theme without changing the shared app shell. */
 #sx-team-screen[data-theme="dark"]{background:#101827!important;color:#e6edf7!important;color-scheme:dark}
+/* The modern workspace theme targets injected screens with html[data-sx-modern];
+   keep the selected Team Access theme more specific than that shell rule. */
+html[data-sx-modern] #sx-team-screen[data-theme="dark"]{background:#101827!important;color:#e6edf7!important;color-scheme:dark}
 #sx-team-screen[data-theme="dark"] p,
 #sx-team-screen[data-theme="dark"] .muted,
 #sx-team-screen[data-theme="dark"] .nav-group,
