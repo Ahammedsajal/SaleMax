@@ -324,7 +324,7 @@ registerDomainPack({
   systemGuidance:'You are the recruitment guide for 7Network. Always begin with the approved Qatar company identity, CR 251489, Talab marketplace links and 7Network description before discussing the role. The company supplies leads. Professional English is required; Hindi is preferred but optional. Explain the 2–3 month commission-only trial with no base salary and 15% of a paid QAR 2,500 annual subscription (QAR 375). A later full-time basic salary plus commission may be considered but is not guaranteed. Never promise selection, employment, income, or an interview. Route applications to the supplied secure application URL; do not request a CV, government ID, bank details, or other sensitive information in chat.',
   loadFacts:salemaxSalesRecruitmentFacts,guidedContentDefaults:RECRUITMENT_GUIDED_DEFAULTS,guidedContentSchema:RECRUITMENT_GUIDED_SCHEMA,
   guidedReply:input=>require('./chatbot-recruitment-guide').recruitmentReply(input),
-  isGuidedIntent:message=>/\b(?:job|role|apply|application|commission|sales associate|talab|salemax|7network)\b|وظيفة|تقديم|عمولة|طلب/iu.test(String(message||'')),
+  isGuidedIntent:message=>/\b(?:job|role|apply|application|commission|business development engineer|sales associate|talab|salemax|7network)\b|وظيفة|تقديم|عمولة|طلب/iu.test(String(message||'')),
 });
 
 

@@ -1,9 +1,9 @@
 'use strict';
 function normalize(value){return String(value||'').normalize('NFKC').toLowerCase().replace(/[\u064b-\u065f\u0670\u0640]/g,'').replace(/[أإآ]/g,'ا').replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ');}
 
-const APPLE='https://apps.apple.com/qa/app/%D8%B9%D8%B1%D8%B6-%D9%88-%D8%B7%D9%84%D8%A8-%D9%82%D8%B7%D8%B1-talab-qtr/id6744091784';
+const APPLE='https://apps.apple.com/qa/app/%D8%B9%D8%B1%D8%B6-%D9%88%D8%B7%D9%84%D8%A8-%D9%82%D8%B7%D8%B1-talab-qtr/id6744091784';
 const ANDROID='https://play.google.com/store/apps/details?id=com.talab.white';
-function text(config,key,language,fallback){return String(config?.messages?.[key]?.[language]||fallback).replace(/\bSaleMaX\b(?![.-])/gi,'7Network');}
+function text(config,key,language,fallback){return String(config?.messages?.[key]?.[language]||fallback).replace(/https?:\/\/crm\.salemax\.qa/gi,'https://7network.live').replace(/\bSaleMaX\b(?![.-])/gi,'7Network');}
 function buttons(items){return items.slice(0,3).map(([id,title])=>({id,title}));}
 const SCREENING={
  screen_consent:{
@@ -56,7 +56,7 @@ function recruitmentReply({message,state,facts,config={}}){
  else if(match('continue_application','yes continue','continue','نعم أكمل'))command='continue_application';
  else if(match('apply_now','apply now','apply and upload cv','apply upload cv','application','apply','cv','resume','ابدأ التقديم','قدم الآن','قدّم الآن',labels.apply))command='apply';
  else if(match('start_screening','quick questions','screening','ابدأ الأسئلة','أسئلة سريعة'))command=previous.screeningConsent?'screen_name':'screen_consent';
- else if(match('about_role','about the role','role','requirements','job','الوظيفة','الدور','العمل',labels.role))command='role';
+ else if(match('about_role','about the role','business development engineer','مهندس تطوير الأعمال','role','requirements','job','الوظيفة','الدور','العمل',labels.role))command='role';
  else if(match('wait_for_recruiter','no i will wait','no thanks','انتظر مسؤول التوظيف'))command='wait_recruiter';
  else if(match('skip_cv','skip cv','no cv','تخطي السيرة الذاتية'))command='skip_cv';
  else if(match('talk_to_recruiter','talk to recruiter','talk to founder','founder','talk to owner','موظف','المؤسس','المالك','تحدث مع المالك',labels.human))command='human';
@@ -107,19 +107,18 @@ function recruitmentReply({message,state,facts,config={}}){
  if(step==='screen_complete'||step==='awaiting_cv')return {reply:language==='ar'?'أرسل سيرتك الذاتية هنا كملف PDF أو DOCX (حتى 8 ميغابايت). سنكمل تقديم طلبك تلقائياً.':'Please send your CV here as a PDF or DOCX file (up to 8 MB). We’ll submit your application automatically.',state:{...previous,language,step:'awaiting_cv',greeted:true,answers:previous.answers||{}},buttons:[]};
  if(step==='welcome'){
   const base=text(config,'welcome',language,language==='ar'?'مرحباً بك!':'Hello and welcome!');
-  const company=`${language==='ar'?'نحن':'We are'} Sitta Arbaa Sitta for Software Solutions (${language==='ar'?'السجل التجاري':'CR'} 251489), ${language==='ar'?'شركة برمجيات وتسويق مقرها قطر. طلب هو سوقنا الإلكتروني في قطر':'a Qatar-based software and marketing company. Talab is our marketplace app for Qatar'}.`;
-  const apps=`Talab · Apple: ${APPLE}\nGoogle Play: ${ANDROID}`;
-  const sevenNetwork=language==='ar'?'أنا لوسي، مساعدة 7Network. 7Network هو CRM لإدارة الأعمال، قابل للتخصيص حسب كل شركة. يساعد على تنظيم العملاء المحتملين، متابعة العملاء، أتمتة المهام، حملات واتساب والتسويق، وإدارة أعمالك من مكان واحد. تعرّف عليه عبر 7network.live.':'I’m Lucy, 7Network’s chatbot. 7Network is a CRM and business-management system that can be customised for each business. It helps manage leads and customer follow-ups, automate tasks, run WhatsApp campaigns and marketing, and organise business operations. Learn more at 7network.live.';
-  reply=[base,company,apps,sevenNetwork,text(config,'menuPrompt',language,language==='ar'?'اختر موضوعاً للمتابعة:':'Choose what you would like to know next:')].join('\n\n');
+  const company=language==='ar'?'نحن 7 Network Automations (السجل التجاري 251489)، شركة برمجيات وتسويق مقرها قطر. أنا لوسي، روبوت المحادثة الخاص بـ 7Network.\n\nنطور طلب، تطبيق السوق الإلكتروني الخاص بنا في قطر، و7Network، نظام CRM وبرمجيات إدارة الأعمال القابلة للتخصيص.':"We’re 7 Network Automations (CR 251489), a Qatar-based software and marketing company. I’m Lucy, 7Network’s chatbot.\n\nWe build Talab, our marketplace app for Qatar, and 7Network, our customisable CRM and business software.";
+  const apps=`Talab on Apple: ${APPLE}\nTalab on Google Play: ${ANDROID}`;
+  reply=[base,company,apps,'7Network: https://7network.live',text(config,'menuPrompt',language,language==='ar'?'ما الذي تود معرفته؟':'What would you like to know?')].join('\n\n');
   choices=buttons([['about_talab',labels.talab],['about_7network',labels.sevenNetwork],['about_role',labels.role]]);
  }else if(step==='talab'){
   reply=language==='ar'?`طلب هو تطبيق سوق إلكتروني يساعد الناس والأعمال في قطر على عرض المنتجات والخدمات والعثور عليها.\nApple: ${APPLE}\nGoogle Play: ${ANDROID}`:`Talab is our marketplace app for people and businesses in Qatar to discover and list products and services.\nApple App Store: ${APPLE}\nGoogle Play: ${ANDROID}`;
   choices=buttons([['about_7network',labels.sevenNetwork],['about_role',labels.role],['main_menu',labels.menu]]);
  }else if(step==='7network'){
-  reply=language==='ar'?'7Network هو نظام CRM وإدارة أعمال نطوره ونخصصه لكل شركة. يشمل إدارة العملاء المحتملين ومتابعة العملاء، أتمتة المهام، حملات واتساب والتسويق، وأدوات لإدارة الأعمال من مكان واحد. للمزيد: 7network.live.':'7Network is our CRM and business-management software, customised for each business. It helps teams manage leads and customer follow-ups, automate tasks, run WhatsApp campaigns and marketing, and organise business operations in one place. Learn more at 7network.live.';
+  reply=language==='ar'?'7Network هو نظام CRM وإدارة أعمال نطوره ونخصصه لكل شركة. يشمل إدارة العملاء المحتملين ومتابعة العملاء، أتمتة المهام، حملات واتساب والتسويق، وأدوات لإدارة الأعمال من مكان واحد. للمزيد: https://7network.live.':'7Network is our CRM and business-management software, customised for each business. It helps teams manage leads and customer follow-ups, automate tasks, run WhatsApp campaigns and marketing, and organise business operations in one place. Learn more at https://7network.live.';
   choices=buttons([['about_role',labels.role],['about_talab',labels.talab],['main_menu',labels.menu]]);
  }else if(step==='role'){
-  reply=language==='ar'?'نبحث عن مساعد مبيعات تقنية وبرمجيات عن بُعد في الهند. نحن نوفر العملاء المحتملين. ستتحدث مع أصحاب الأعمال، وتشرح 7Network، وتقدم عروضاً عبر Google Meet، وتتابع معهم لإتمام الاشتراك السنوي. سيدعمك مدير المبيعات في عملك اليومي. إجادة الإنجليزية مطلوبة؛ والهندية مفيدة لكنها اختيارية.':'We’re hiring a remote IT/SaaS Sales Associate in India. We provide the leads. You’ll talk with business owners, explain 7Network, give demos on Google Meet, and follow up to close yearly subscriptions. Our Sales Manager will support you. Strong English is required; Hindi is helpful but optional.';
+  reply=language==='ar'?'نبحث عن مهندس تطوير أعمال عن بُعد في الهند. نحن نوفر العملاء المحتملين. ستتحدث مع أصحاب الأعمال، وتشرح 7Network، وتقدم عروضاً عبر Google Meet، وتتابع معهم لإتمام الاشتراك السنوي. سيدعمك مدير المبيعات في عملك اليومي. إجادة الإنجليزية مطلوبة؛ والهندية مفيدة لكنها اختيارية.':'We’re hiring a remote Business Development Engineer in India. We provide the leads. You’ll talk with business owners, explain 7Network, give demos on Google Meet, and follow up to close yearly subscriptions. Our Sales Manager will support you. Strong English is required; Hindi is helpful but optional.';
   choices=buttons([['start_screening',labels.screening],['commission_details',labels.commission],['talk_to_recruiter',labels.human]]);
  }else if(step==='commission'){
   reply=language==='ar'?'الأشهر الثلاثة الأولى فترة تجربة بالعمولة فقط، من دون راتب أساسي. نحن نوفر العملاء المحتملين. عن كل اشتراك سنوي مدفوع بقيمة 2500 ريال قطري، تحصل على 15% عمولة، أي 375 ريالاً قطرياً لكل عملية بيع. بعد التجربة، قد نعرض عليك وظيفة بدوام كامل براتب أساسي وعمولة، حسب الأداء والاتفاق بيننا.':'The first three months are a commission-only trial, with no base salary. We provide the leads. For each paid QAR 2,500 yearly subscription, you earn 15% commission — QAR 375 per sale. After the trial, we may offer a full-time role with a basic salary plus commission, depending on performance and mutual agreement.';

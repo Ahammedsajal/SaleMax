@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT
+LABEL org.7network.base.image="${BASE_IMAGE}" org.7network.overlay.commit="${SOURCE_COMMIT}"
+COPY --chown=node:node modules/platform/chatbot-recruitment-guide.js /app/modules/platform/chatbot-recruitment-guide.js
+COPY --chown=node:node modules/platform/chatbot-domain-packs.js /app/modules/platform/chatbot-domain-packs.js
+COPY --chown=node:node modules/platform/recruitment-applications.js /app/modules/platform/recruitment-applications.js
+COPY --chown=node:node deploy/recruitment-bot-copy.cjs /app/deploy/recruitment-bot-copy.cjs
+RUN node /app/deploy/recruitment-bot-copy.cjs /app && node --check /app/modules/platform/chatbot-recruitment-guide.js && node --check /app/modules/platform/chatbot-domain-packs.js && node --check /app/modules/platform/recruitment-applications.js && node --check /app/modules/platform/recruitment-router.js

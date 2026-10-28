@@ -11,7 +11,7 @@ const COPY={
   companyName:'Sitta Arbaa Sitta for Software Solutions',crNumber:'251489',
   talabApple:'https://apps.apple.com/qa/app/%D8%B9%D8%B1%D8%B6-%D9%88-%D8%B7%D9%84%D8%A8-%D9%82%D8%B7%D8%B1-talab-qtr/id6744091784',
   talabAndroid:'https://play.google.com/store/apps/details?id=com.talab.white',
-  role:'Remote IT/SaaS Sales Associate — India',
+  role:'Business Development Engineer — Remote, India',
   roleSummary:'We are a Qatar-based software and marketing company. We build Talab, a Qatar marketplace app, and 7Network, custom business-management CRM software. You will speak with business leads supplied by us, explain 7Network on Google Meet, and help close annual subscriptions. You will work with the 7Network Sales Manager, who will guide your day-to-day sales activities and targets. The first 2–3 months are a commission-only trial with no base salary. Commission is 15% of each paid QAR 2,500 annual subscription (approximately INR 9,000–9,800 per paid sale). After the trial, successful associates may be considered for a full-time role with basic salary plus commission; this is not guaranteed.',
 };
 function createPublicRecruitmentRouter({pool,origin,key}){

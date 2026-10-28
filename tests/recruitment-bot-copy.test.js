@@ -1,0 +1,10 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const {profileConfig,rewriteFlow}=require('../deploy/recruitment-bot-copy.cjs');
+test('persisted recruitment flow receives approved opening without changing graph or reply IDs',()=>{
+ const original={nodes:[{id:'welcome',data:{content:{interactive:{body:{text:'Thanks from SaleMaX (CR 251489)'},action:{buttons:[{reply:{id:'about_salemax',title:'About SaleMaX'}}]}}}}},{id:'role',data:{content:{text:{body:'Remote IT/SaaS Sales Associate. Explain SaleMaX: https://crm.salemax.qa'}}}}],edges:[{id:'edge-1',source:'welcome',target:'role'}]};
+ const updated=rewriteFlow(original);assert.deepEqual(updated.edges,original.edges);assert.deepEqual(updated.nodes.map(n=>n.id),original.nodes.map(n=>n.id));const i=updated.nodes[0].data.content.interactive;assert.match(i.body.text,/7 Network Automations \(CR 251489\)/);assert.match(i.body.text,/I’m Lucy, 7Network’s chatbot/);assert.match(i.body.text,/7Network: https:\/\/7network.live/);assert.doesNotMatch(i.body.text,/SaleMaX|Sitta/i);assert.equal(i.action.buttons[0].reply.id,'about_salemax');assert.equal(i.action.buttons[0].reply.title,'About 7Network');assert.match(updated.nodes[1].data.content.text.body,/Business Development Engineer/);assert.doesNotMatch(updated.nodes[1].data.content.text.body,/salemax/i);assert.equal(original.nodes[0].data.content.interactive.body.text,'Thanks from SaleMaX (CR 251489)');
+});
+test('profile wording update preserves flow, audience and engine configuration',()=>{
+ const config={introFlowId:'intro-1',testRecipientPhones:[],guidedMode:'domain_default',guidedContent:{version:1,messages:{buttonSalemax:{en:'About SaleMaX'}}}};const next=profileConfig(config);assert.equal(next.introFlowId,config.introFlowId);assert.deepEqual(next.testRecipientPhones,[]);assert.equal(next.guidedMode,'domain_default');assert.equal(next.guidedContent.messages.button7Network.en,'About 7Network');assert.ok(next.guidedContent.messages.welcome.en.length<400);assert.ok(next.guidedContent.messages.welcome.ar.length<400);
+});

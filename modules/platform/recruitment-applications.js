@@ -10,7 +10,7 @@ const SALES_CATEGORY_KEYS=categoryKeysFor('7network_sales');
 const SALES_CATEGORY_FILTER=`(${SALES_CATEGORY_KEYS.map(()=>'?').join(',')})`;
 
 const MAX_CV_BYTES=8*1024*1024;
-const CONSENT='I agree that 7Network may save my WhatsApp application answers and CV in its private Applications & CVs area, assess me for the 7Network sales associate role, and contact me about recruitment.';
+const CONSENT='I agree that 7Network may save my WhatsApp application answers and CV in its private Applications & CVs area, assess me for the 7Network Business Development Engineer role, and contact me about recruitment.';
 const SCREENING_CONSENT='Candidate agreed to save WhatsApp application answers in the private Applications & CVs area for recruitment review and follow-up; a CV is optional and is saved only if submitted.';
 const STATUSES=new Set(['new','reviewing','shortlisted','interview','rejected','hired','archived']);
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};

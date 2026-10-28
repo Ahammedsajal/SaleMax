@@ -5,13 +5,13 @@ const {recruitmentReply}=require('../modules/platform/chatbot-recruitment-guide'
 
 test('recruitment introduction builds trust before describing the role',()=>{
   const result=recruitmentReply({message:'hello',facts:{}});
-  assert.match(result.reply,/Sitta Arbaa Sitta for Software Solutions/);
+  assert.match(result.reply,/7 Network Automations/);
   assert.match(result.reply,/CR 251489/);
   assert.match(result.reply,/Qatar-based software and marketing company/);
-  assert.match(result.reply,/Apple:/);
-  assert.match(result.reply,/Google Play:/);
+  assert.match(result.reply,/Talab on Apple:/);
+  assert.match(result.reply,/Talab on Google Play:/);
   assert.match(result.reply,/I’m Lucy, 7Network’s chatbot/);
-  assert.match(result.reply,/7Network is a CRM and business-management system/);
+  assert.match(result.reply,/7Network, our customisable CRM and business software/);
   assert.equal(result.buttons.length,3);
   assert.deepEqual(result.buttons.map(button=>button.id),['about_talab','about_7network','about_role']);
 });
@@ -53,7 +53,7 @@ test('WhatsApp Apply now starts the questions in chat without sending a web form
 });
 test('7Network company replies use the current public website in English and Arabic',()=>{
   const english=recruitmentReply({message:'About 7Network',state:{step:'welcome'},facts:{}});
-  assert.match(english.reply,/Learn more at 7network\.live/);
+  assert.match(english.reply,/Learn more at https:\/\/7network\.live/);
   assert.doesNotMatch(english.reply,/salemax\.qa/i);
   const arabic=recruitmentReply({message:'عن 7Network',state:{step:'welcome'},facts:{}});
   assert.match(arabic.reply,/7network\.live/);
@@ -106,4 +106,14 @@ test('declining screening consent leaves answers empty and does not start an app
   assert.deepEqual(result.state.answers,{});
   assert.equal(result.state.step,'screening_declined');
   assert.ok(!result.buttons.some(button=>button.id==='apply_now'));
+});
+test('all recruitment topics use current product branding and the Business Development Engineer title',()=>{
+ for(const message of ['hello','about_talab','about_7network','about_role','commission_details','Business Development Engineer','مرحبا','عن الوظيفة']){
+  const result=recruitmentReply({message,state:{step:'welcome'},facts:{}});
+  assert.doesNotMatch(result.reply,/salemax|sitta arbaa|sales associate/i);
+  assert.ok(result.buttons.filter(b=>['about_7network','about_role'].includes(b.id)).every(b=>b.title.length<=20));
+ }
+ const role=recruitmentReply({message:'Business Development Engineer',state:{step:'welcome'},facts:{}});assert.equal(role.state.step,'role');assert.match(role.reply,/Business Development Engineer/);
+ const ar=recruitmentReply({message:'عن الوظيفة',state:{step:'welcome'},facts:{}});assert.match(ar.reply,/مهندس تطوير أعمال/);
+ const intro=recruitmentReply({message:'hi',facts:{}});assert.match(intro.reply,/7Network: https:\/\/7network\.live/);
 });
