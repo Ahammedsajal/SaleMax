@@ -9,10 +9,21 @@ const fail=code=>{throw Object.assign(new Error(code),{code});};
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function parse(value){try{return typeof value==='string'?JSON.parse(value):value;}catch(_){fail('INVALID_STORED_CONTRACT');}}
+function proposedLimits(value){
+  // Validate the generic shape here. The exact role set belongs to the selected
+  // category contract and is checked in load() once that contract is available.
+  // Inferring a role schema from a handful of historical categories rejects
+  // valid future roles such as Real Estate's team_leader without accountant.
+  if(!value||typeof value!=='object'||Array.isArray(value)||!Object.hasOwn(value,'owner')||value.owner!==1)fail('INVALID_ROLE_LIMITS');
+  for(const [role,count] of Object.entries(value)){
+    if(!/^[a-z][a-z0-9_]{0,63}$/.test(role)||!Number.isSafeInteger(count)||count<0||count>10000)fail('INVALID_ROLE_LIMITS');
+  }
+  return {...value};
+}
 function input(ctx,body,confirm=false){
   if(!platformDecision(ctx,confirm?'plans.assign':'plans.read')||!uuid(ctx.identity?.id))fail('PERMISSION_DENIED');
   if(!body||!Number.isSafeInteger(body.userId)||body.userId<1||body.userId>2147483647||!uuid(body.planVersionId))fail('INVALID_ASSIGNMENT');
-  const result={userId:body.userId,planVersionId:body.planVersionId.toLowerCase(),roleLimits:plans.limits(body.roleLimits)};
+  const result={userId:body.userId,planVersionId:body.planVersionId.toLowerCase(),roleLimits:proposedLimits(body.roleLimits)};
   if(confirm){
     if(!uuid(body.requestId))fail('INVALID_REQUEST_ID');
     if(typeof body.expectedState!=='string'||!/^[a-f0-9]{64}$/.test(body.expectedState))fail('INVALID_EXPECTED_STATE');

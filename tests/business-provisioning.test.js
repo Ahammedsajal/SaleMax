@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const provisioning=require('../modules/platform/business-provisioning');
+const contractAssignment=require('../modules/platform/business-contract-assignment');
 const actor={audience:'platform',identity:{id:'f2af2210-e20c-488d-aa35-2eac9025e045'},membership:{role:'super_admin',status:'active'},mfaVerified:true,recentlyAuthenticated:true};
 test('business provisioning denies missing platform authority before database access',async()=>{
   const db={query(){throw new Error('must not touch storage')}};
@@ -14,6 +15,11 @@ test('business provisioning validates category-plan limits before database acces
   const db={query(){throw new Error('must not touch storage')}};
   await assert.rejects(provisioning.preview(db,actor,{userId:1,planVersionId:'00000000-0000-4000-8000-000000000001',roleLimits:{owner:2,accountant:1,manager:1,agent:7},businessName:'Training centre',requestId:'00000000-0000-4000-8000-000000000002'}),{code:'ONE_OWNER_REQUIRED'});
   await assert.rejects(provisioning.preview(db,actor,{userId:1,planVersionId:'invalid',roleLimits:{owner:1,accountant:1,manager:1,agent:7},businessName:'Training centre',requestId:'00000000-0000-4000-8000-000000000002'}),{code:'INVALID_PROVISION'});
+});
+test('contract assignment accepts category-defined roles beyond legacy fixed role sets',()=>{
+  const selected=contractAssignment.input(actor,{userId:132,planVersionId:'d0d54c8f-7119-47ae-86b7-83eba5e85bc0',roleLimits:{owner:1,manager:1,team_leader:1,agent:7}});
+  assert.deepEqual(selected.roleLimits,{owner:1,manager:1,team_leader:1,agent:7});
+  assert.throws(()=>contractAssignment.input(actor,{userId:132,planVersionId:'d0d54c8f-7119-47ae-86b7-83eba5e85bc0',roleLimits:{owner:1,manager:-1,team_leader:1,agent:7}}),{code:'INVALID_ROLE_LIMITS'});
 });
 test('7Network Sales setup only accepts the designated Business Admin before contract lookup',async()=>{
   const queries=[];const db={async query(sql){queries.push(sql);if(sql.includes('SELECT id,uid,name,email,plan,plan_expire FROM user'))return [[{id:27,uid:'legacy-user-27',name:'Other account',email:'other@example.qa',plan:JSON.stringify({id:12,title:'Internal',price:0,plan_duration_in_days:365}),plan_expire:1}],[]];if(sql.includes('SELECT id FROM user WHERE uid='))return [[{id:27}],[]];if(sql.includes('FROM sx_legacy_ownership'))return [[],[]];throw new Error('provisioning must stop before identity or contract lookup');}};
@@ -31,6 +37,7 @@ test('onboarding controls extend the original Manage Users contract screen',()=>
   assert.match(ui,/existing Manage Users account/);assert.match(ui,/options\.category\.title/);assert.match(ui,/options\.category\.seatRoles/);assert.match(ui,/Preview only/);
   assert.match(ui,/PLATFORM_UPGRADE_NOT_ENABLED:t\('Training-center setup is not enabled in this environment/);
   assert.match(ui,/إعداد مركز التدريب غير مفعّل في هذه البيئة/);
+  assert.match(ui,/t\('Assign plan','تعيين الخطة'\)/);
   assert.match(ui,/ASSIGNMENT_UNAVAILABLE:t\('The setup service is temporarily unavailable/);
   assert.match(ui,/AUDIT_UNAVAILABLE:t\('The required audit record could not be saved/);
   assert.match(manual,/Set up training-center business/);
