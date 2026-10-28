@@ -1,0 +1,66 @@
+html[data-sx-theme=dark] {
+  color-scheme: dark;
+  color: #e7edf5;
+  background: #111720;
+  --surface: #1a222d;
+  --text: #e7edf5;
+  --border: #354252;
+}
+
+html[data-sx-theme=dark] body { background: #111720; color: #e7edf5; }
+html[data-sx-theme=dark] .top,
+html[data-sx-theme=dark] .toolbar,
+html[data-sx-theme=dark] .stat,
+html[data-sx-theme=dark] .list,
+html[data-sx-theme=dark] .card,
+html[data-sx-theme=dark] .drawer,
+html[data-sx-theme=dark] .modal,
+html[data-sx-theme=dark] .lead-import-dialog,
+html[data-sx-theme=dark] .re-create-requirement {
+  color: #e7edf5;
+  background: #1a222d;
+  border-color: #354252;
+}
+html[data-sx-theme=dark] .column { color: #e7edf5; background: #202a37; }
+html[data-sx-theme=dark] .hero p,
+html[data-sx-theme=dark] .card p,
+html[data-sx-theme=dark] .meta,
+html[data-sx-theme=dark] .count,
+html[data-sx-theme=dark] .value,
+html[data-sx-theme=dark] .empty,
+html[data-sx-theme=dark] .contact-help,
+html[data-sx-theme=dark] .ad-message-hint,
+html[data-sx-theme=dark] .field label,
+html[data-sx-theme=dark] .re-requirements label,
+html[data-sx-theme=dark] .re-requirements legend { color: #aebaca; }
+html[data-sx-theme=dark] .eyebrow { color: #76b9ff; }
+html[data-sx-theme=dark] .cardfoot,
+html[data-sx-theme=dark] .activity,
+html[data-sx-theme=dark] .list th,
+html[data-sx-theme=dark] .list td { color: #aebaca; border-color: #303c4b; }
+html[data-sx-theme=dark] .toolbar input,
+html[data-sx-theme=dark] .toolbar select,
+html[data-sx-theme=dark] .field input,
+html[data-sx-theme=dark] .field select,
+html[data-sx-theme=dark] .field textarea,
+html[data-sx-theme=dark] .field output,
+html[data-sx-theme=dark] .re-requirements input:not([type=checkbox]),
+html[data-sx-theme=dark] .re-requirements select {
+  color: #e7edf5;
+  background: #111720;
+  border-color: #465466;
+}
+html[data-sx-theme=dark] .soft,
+html[data-sx-theme=dark] .viewtabs,
+html[data-sx-theme=dark] .viewtabs button,
+html[data-sx-theme=dark] .modal .secondary,
+html[data-sx-theme=dark] .x {
+  color: #d5deea;
+  background: #263241;
+  border-color: #3d4b5d;
+}
+html[data-sx-theme=dark] .viewtabs button.active { color: #92e7d2; background: #173c38; }
+html[data-sx-theme=dark] .badge { color: #92e7d2; background: #173c38; }
+html[data-sx-theme=dark] .cardfoot { border-top-color: #303c4b; }
+html[data-sx-theme=dark] .re-links { border-color: #354252; }
+html[data-sx-theme=dark] .toast { color: #effff9; background: #145b4a; }

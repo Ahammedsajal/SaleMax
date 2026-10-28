@@ -5,3 +5,4 @@ COPY --chown=node:node client/public/pipeline/index.html /app/client/public/pipe
 COPY --chown=node:node client/public/pipeline/pipeline.js /app/client/public/pipeline/pipeline.js
 COPY --chown=node:node client/public/pipeline/real-estate-requirements.css /app/client/public/pipeline/real-estate-requirements.css
 COPY --chown=node:node client/public/pipeline/real-estate-requirements.js /app/client/public/pipeline/real-estate-requirements.js
+COPY --chown=node:node client/public/pipeline/pipeline-theme.css /app/client/public/pipeline/pipeline-theme.css
