@@ -370,7 +370,8 @@
     const realEstate=data.categoryKey==='real_estate';
     node.dataset.salesCategory=data.categoryKey;
     node.querySelector('h1').textContent=realEstate?label('Real Estate team','فريق العقارات'):label('7Network Organisation','الهيكل التنظيمي لـ 7Network');
-    node.querySelector('.wrap>p').textContent=realEstate?label('Manage your team and reporting lines. Agent profiles and commission rules are available to the owner.','أدر فريقك وخطوط الإشراف. يمكن للمالك إدارة ملفات الوكلاء وقواعد العمولة.'):label('Review reporting lines and move agents between their manager and Team Leader. Every move records who changed it and why.','راجع خطوط الإشراف وانقل الوكلاء بين المدير وقائد الفريق. يُحفظ منفذ كل تغيير وسببه.');
+    const subtitle=node.querySelector('.team-hero p');
+    if(subtitle)subtitle.textContent=realEstate?label('Manage your team and reporting lines. Agent profiles and commission rules are available to the owner.','أدر فريقك وخطوط الإشراف. يمكن للمالك إدارة ملفات الوكلاء وقواعد العمولة.'):label('Review reporting lines and move agents between their manager and Team Leader. Every move records who changed it and why.','راجع خطوط الإشراف وانقل الوكلاء بين المدير وقائد الفريق. يُحفظ منفذ كل تغيير وسببه.');
     const owner=data.role==='owner';
     if(!owner){for(const selector of ['#sx-role-form','#sx-team-seat-usage','#sx-team-members','#sx-team-form','#sx-team-list'])node.querySelector(selector)?.closest('.card')?.setAttribute('hidden','');}
     const members=data.members||[],managers=members.filter(member=>member.role==='manager'),leaders=members.filter(member=>member.role==='team_leader');
