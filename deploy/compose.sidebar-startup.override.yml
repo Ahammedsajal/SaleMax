@@ -1,3 +1,5 @@
 services:
   app:
     image: salemax-app:sidebar-startup-20261028
+    volumes:
+      - ${SALEMAX_SIDEBAR_STARTUP_RELEASE:-/opt/salemax/releases/sidebar-startup-c39f4bd-20261028}/client/public/index.html:/app/client/public/index.html:ro
