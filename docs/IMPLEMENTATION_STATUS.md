@@ -1956,7 +1956,7 @@ was left untouched. The full 42-ticket platform upgrade and its existing
 release gates remain open. See `DEPLOYMENT.md` for production verification and
 rollback details.
 
-## Real Estate agents and tenant requirements — source implementation, 28 October 2026
+## Real Estate agents and tenant requirements — production, 28 October 2026
 
 The existing Team Access and Lead Pipeline now include the Real Estate agent
 workflow: owner, manager, team leader and agent scopes; optional direct
@@ -1968,15 +1968,24 @@ consent, and a required reason when a lead is lost. No second CRM or login was
 introduced. Public profiles are opt-in; their only quality indicator is an
 explicitly described active-listing count, not a rating or certification.
 
-The source increment has 62 passing focused unit checks and a disposable
-MariaDB 11.4 integration run. The latter applies the migrations and exercises
-cookie/bearer sessions, team-scoped leads, listing co-agents, agent profiles,
-commission reads/writes, public opt-in fields and agreement denial. A synthetic
-browser render of the public profile passed mobile dark-mode English/Arabic and
-RTL checks without horizontal overflow. This source has not been deployed.
-Signed-in office acceptance remains open: production has no assigned Real
-Estate tenant or published Real Estate contract. See `DEPLOYMENT.md` for the
-most recently recorded Real Estate release and remaining deployment gates.
+The source increment has 64 passing focused checks and a disposable MariaDB
+11.4 integration run. The integration exercises cookie/bearer sessions,
+team-scoped leads, listing co-agents, agent profiles, commission visibility,
+public opt-in fields and agreement denial. Production release
+`/opt/salemax/releases/real-estate-agents-requirements-11be884-20261028`
+serves the updated Team Access and Lead Pipeline assets. Migrations
+`20270115`–`20270119` are applied; the added tenant-requirement, agent-profile,
+commission, co-agent and public-profile tables are empty. The failed first
+attempt at `20270115` created no tables or completed statements; the saved
+schema/ledger was reviewed, the lead-ID collation issue was corrected, and the
+migration was reconciled under the DB advisory lock before the remaining
+migrations ran. Production health, Pipeline and user routes return HTTP 200;
+anonymous property/agent APIs return 401. The app is healthy with zero restarts,
+its 65 existing Compose inputs and one Real Estate overlay are retained, and
+support services are unchanged. See `DEPLOYMENT.md` for the image, rollback and
+verification evidence. Signed-in production office acceptance, owner/manager/
+team-leader/agent UI review, EN/AR RTL, theme and responsive/PWA visual checks
+remain open.
 
 ## Real Estate owners, partners and mandates — production, 27 October 2026
 
