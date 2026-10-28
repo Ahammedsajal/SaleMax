@@ -152,3 +152,45 @@
 #sx-team-screen .screen-actions summary{font-size:12px;color:#526074;cursor:pointer;min-height:30px;display:list-item}
 #sx-team-screen .screen-actions .permission-option{font-size:13px;min-height:44px;padding:8px}
 #sx-team-screen .permission-category[hidden]{display:none!important}
+
+/* Match the existing business workspace theme without changing the shared app shell. */
+#sx-team-screen[data-theme="dark"]{background:#101827!important;color:#e6edf7!important;color-scheme:dark}
+#sx-team-screen[data-theme="dark"] p,
+#sx-team-screen[data-theme="dark"] .muted,
+#sx-team-screen[data-theme="dark"] .nav-group,
+#sx-team-screen[data-theme="dark"] .role-preview-row,
+#sx-team-screen[data-theme="dark"] .sidebar-screen-choice small,
+#sx-team-screen[data-theme="dark"] .whatsapp-summary-name span{color:#a9b7ca!important}
+#sx-team-screen[data-theme="dark"] .card,
+#sx-team-screen[data-theme="dark"] .member-card,
+#sx-team-screen[data-theme="dark"] .seat-card,
+#sx-team-screen[data-theme="dark"] .sidebar-screen-card,
+#sx-team-screen[data-theme="dark"] .permission-category,
+#sx-team-screen[data-theme="dark"] .member-detail-panel,
+#sx-team-screen[data-theme="dark"] .role-screen-preview,
+#sx-team-screen[data-theme="dark"] .whatsapp-summary-content,
+#sx-team-screen[data-theme="dark"] .qr-channel-form .nav-option{background:#182334!important;border-color:#34445b!important;color:#e6edf7!important}
+#sx-team-screen[data-theme="dark"] .team-dialog,
+#sx-team-screen[data-theme="dark"] .role-dialog>.dialog-heading,
+#sx-team-screen[data-theme="dark"] .member-access-dialog>.dialog-heading,
+#sx-team-screen[data-theme="dark"] .role-dialog .dialog-actions{background:#182334!important;color:#e6edf7!important;border-color:#34445b!important}
+#sx-team-screen[data-theme="dark"] .role-dialog .permission-option,
+#sx-team-screen[data-theme="dark"] .team-dialog .creation-mode,
+#sx-team-screen[data-theme="dark"] .permission-option,
+#sx-team-screen[data-theme="dark"] .accept-meta{background:#202d40!important;border-color:#34445b!important;color:#e6edf7!important}
+#sx-team-screen[data-theme="dark"] input,
+#sx-team-screen[data-theme="dark"] select,
+#sx-team-screen[data-theme="dark"] textarea,
+#sx-team-screen[data-theme="dark"] button:not(.primary){background:#202d40!important;border-color:#465770!important;color:#e6edf7!important}
+#sx-team-screen[data-theme="dark"] button.primary{background:#1768d4!important;border-color:#3b82f6!important;color:#fff!important}
+#sx-team-screen[data-theme="dark"] .sidebar-screen-choice strong,
+#sx-team-screen[data-theme="dark"] .permission-category>summary,
+#sx-team-screen[data-theme="dark"] .member-head,
+#sx-team-screen[data-theme="dark"] .seat-metrics{color:#e6edf7!important}
+#sx-team-screen[data-theme="dark"] .row,
+#sx-team-screen[data-theme="dark"] .permission-toolbar,
+#sx-team-screen[data-theme="dark"] .role-dialog .dialog-actions{border-color:#34445b!important}
+#sx-team-screen[data-theme="dark"] .notice{background:#123529!important;color:#c7f0dc!important}
+#sx-team-screen[data-theme="dark"] .error{background:#421f27!important;color:#ffd5d8!important}
+#sx-team-screen[data-theme="dark"] .sidebar-screen-card:has([name=sidebarScreen]:checked){background:#2b2230!important;border-color:#a94c72!important}
+#sx-team-screen[data-theme="dark"] .sidebar-screen-card:has([name=sidebarScreen]:disabled){background:#182334!important}

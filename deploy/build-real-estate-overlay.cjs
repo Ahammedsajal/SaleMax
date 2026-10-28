@@ -18,7 +18,7 @@ for(const file of [
   'modules/platform/real-estate-agents.js','modules/platform/real-estate-coagents.js','modules/platform/real-estate-tenant-requirements.js',
   'modules/platform/legacy-pipeline-actor.js','modules/platform/policy.js','modules/platform/sales-organization.js','modules/platform/team-invitations.js','modules/platform/team-invitation-router.js','modules/platform/team-role-request-guard.js','modules/platform/mount-existing-upgrade.js',
   'helper/pipeline/leadPipeline.js','routes/pipeline.js',
-  'client/public/pipeline/index.html','client/public/pipeline/pipeline.js','client/public/pipeline/real-estate-requirements.css','client/public/pipeline/real-estate-requirements.js','client/public/team-invitations.js','client/public/workspace-api.js','client/public/real-estate-agent',
+  'client/public/pipeline/index.html','client/public/pipeline/pipeline.js','client/public/pipeline/real-estate-requirements.css','client/public/pipeline/real-estate-requirements.js','client/public/team-invitations.js','client/public/team-ui-preferences.js','client/public/team-access.css','client/public/workspace-api.js','client/public/real-estate-agent',
   'database/migrations/20270115_real_estate_tenant_requirements.sql','database/migrations/20270116_real_estate_agent_profiles.sql','database/migrations/20270117_real_estate_listing_coagents.sql','database/migrations/20270118_real_estate_optional_reporting.sql','database/migrations/20270119_real_estate_public_profile_limits.sql',
   'deploy/patch-real-estate-overlay.cjs','deploy/patch-real-estate-agent-shell.cjs','database/migrations/20261222_real_estate_properties.sql',
   'database/migrations/20270110_real_estate_units_and_listings.sql',

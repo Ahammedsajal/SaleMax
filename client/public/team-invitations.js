@@ -3,7 +3,8 @@
   if (window.__sxTeamInvites) return;
   window.__sxTeamInvites = true;
 
-  const isArabic = () => (localStorage.getItem('language') || localStorage.getItem('salemax-language') || '').toLowerCase().startsWith('ar');
+  const uiPreferences = window.SxTeamUiPreferences?.create({storage:localStorage,document,getComputedStyle:window.getComputedStyle.bind(window)});
+  const isArabic = () => uiPreferences?.isArabic() ?? (localStorage.getItem('language') || localStorage.getItem('salemax-language') || '').toLowerCase().startsWith('ar');
   const label = (en, ar) => isArabic() ? ar : en;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const route = () => location.pathname.replace(/\/$/, '') === '/user' && new URLSearchParams(location.search).get('page') === 'team-invitations';
@@ -61,7 +62,9 @@
   function screen() {
     let node = document.getElementById('sx-team-screen');
     if (!node) { node = document.createElement('section'); node.id = 'sx-team-screen'; node.setAttribute('aria-live','polite'); document.body.append(node); }
-    node.dir = label('ltr','rtl');
+    node.dir = uiPreferences?.isRtl() ? 'rtl' : 'ltr';
+    node.lang = isArabic() ? 'ar' : 'en';
+    node.dataset.theme = uiPreferences?.isDark() ? 'dark' : 'light';
     return node;
   }
   const accountKey='sx_owner_account_return';
@@ -639,8 +642,25 @@
   // The legacy sidebar is inserted after this deferred script starts. Keep
   // looking for its Agent Login row on every route so owners see Team access
   // from the regular dashboard without first visiting that page.
-  const observer = new MutationObserver(addNav);
-  observer.observe(document.documentElement,{childList:true,subtree:true});
+  const syncScreenPreferences = () => {
+    const node=document.getElementById('sx-team-screen');
+    if(!node||!uiPreferences)return;
+    const dir=uiPreferences.isRtl()?'rtl':'ltr';
+    const lang=isArabic()?'ar':'en';
+    const theme=uiPreferences.isDark()?'dark':'light';
+    if(node.dir!==dir)node.dir=dir;
+    if(node.lang!==lang)node.lang=lang;
+    if(node.dataset.theme!==theme)node.dataset.theme=theme;
+  };
+  let preferenceSyncQueued=false;
+  const queuePreferenceSync=()=>{
+    if(preferenceSyncQueued)return;
+    preferenceSyncQueued=true;
+    requestAnimationFrame(()=>{preferenceSyncQueued=false;syncScreenPreferences();});
+  };
+  const observer = new MutationObserver(()=>{addNav();queuePreferenceSync();});
+  observer.observe(document.getElementById('root')||document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class','style','dir','lang','aria-label','title','aria-pressed']});
+  document.addEventListener('click',queuePreferenceSync,true);
   // Keep injected screens in sync with the application's SPA query routes. The
   // legacy React shell changes routes with history.pushState, which does not
   // emit popstate; without this, Team access can remain fixed over Inbox.

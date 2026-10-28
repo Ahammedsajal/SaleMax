@@ -4,6 +4,24 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const team=require('../modules/platform/team-invitations');
+const uiPreferences=require('../client/public/team-ui-preferences');
+
+test('team screen preferences follow the existing shell language, direction, and theme controls',()=>{
+  const buttons=[];
+  const storage={getItem:key=>key==='language'?'Arabic.json':null};
+  const document={documentElement:{lang:'en',dir:'ltr'},body:{dir:'ltr'},querySelectorAll:()=>buttons};
+  const prefs=uiPreferences.create({storage,document});
+  assert.equal(prefs.isArabic(),true);
+  assert.equal(prefs.isRtl(),true);
+  buttons.push({textContent:'Switch to RTL',getAttribute:()=>null});
+  assert.equal(prefs.isRtl(),false);
+  buttons.splice(0,1,{textContent:'Switch to LTR',getAttribute:()=>null});
+  assert.equal(prefs.isRtl(),true);
+  buttons.splice(0,1,{textContent:'Light Mode',getAttribute:()=>null});
+  assert.equal(prefs.isDark(),true);
+  buttons.splice(0,1,{textContent:'Dark Mode',getAttribute:()=>null});
+  assert.equal(prefs.isDark(),false);
+});
 
 test('team invitation inputs are bounded to tenant staff roles',()=>{
   assert.equal(team.email('  Agent@Example.QA '),'agent@example.qa');
@@ -65,6 +83,8 @@ test('direct account mobile validation accepts presentation formatting and rejec
 test('staff invitation UI is integrated into the existing single 7Network app shell',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   const js=fs.readFileSync(path.join(__dirname,'../client/public/team-invitations.js'),'utf8');
+  const preferences=fs.readFileSync(path.join(__dirname,'../client/public/team-ui-preferences.js'),'utf8');
+  const css=fs.readFileSync(path.join(__dirname,'../client/public/team-access.css'),'utf8');
   const router=fs.readFileSync(path.join(__dirname,'../modules/platform/team-invitation-router.js'),'utf8');
   const workspaceApi=fs.readFileSync(path.join(__dirname,'../client/public/workspace-api.js'),'utf8');
   const mount=fs.readFileSync(path.join(__dirname,'../modules/platform/mount-existing-upgrade.js'),'utf8');
@@ -86,8 +106,12 @@ test('staff invitation UI is integrated into the existing single 7Network app sh
   assert.match(js,/<button type="submit" class="primary" disabled>/);assert.match(js,/button\.disabled = false/);
   assert.match(html,/team-invitations\.js\?v=[^" ]+/);
   assert.match(html,/team-access\.css\?v=[^" ]+/);
+  assert.ok(html.indexOf('team-ui-preferences.js')<html.indexOf('team-invitations.js'));
+  assert.match(js,/node\.dataset\.theme = uiPreferences\?\.isDark\(\)/);
+  assert.match(js,/syncScreenPreferences/);assert.match(js,/uiPreferences\?\.isRtl\(\)/);
+  assert.match(preferences,/function create\(/);assert.match(css,/#sx-team-screen\[data-theme="dark"\]/);
   assert.match(html,/training-sidebar\.js\?v=[^" ]+/);
-  assert.match(js,/new MutationObserver\(addNav\)/);
+  assert.match(js,/new MutationObserver\(\(\)=>\{addNav\(\);queuePreferenceSync\(\);\}\)/);
   assert.match(js,/data-member-password-panel/);assert.match(js,/memberRoleKey!=='agent'/);assert.match(js,/encodeURIComponent\(passwordForm\.dataset\.memberId\).*\/password/);
   assert.match(js,/autocomplete="new-password"/);assert.match(js,/Passwords do not match\./);
   assert.match(js,/data-member-role/);assert.match(js,/members\/.*\/role/);assert.match(router,/owner\.put\('\/members\/:id\/role'/);
