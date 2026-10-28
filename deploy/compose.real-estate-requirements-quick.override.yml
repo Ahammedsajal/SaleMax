@@ -1,0 +1,3 @@
+services:
+  app:
+    image: salemax-app:real-estate-requirements-quick-20261028
