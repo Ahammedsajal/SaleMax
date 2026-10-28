@@ -92,17 +92,17 @@ test('application notification queue failures do not block a submitted applicati
 });
 
 test('pre-screen answers are saved only with explicit consent and stay tied to the WhatsApp conversation',async()=>{
-  const calls=[],db={query:async(sql,params)=>{calls.push({sql,params});return [{affectedRows:1}];}};
+  const calls=[],db={query:async(sql,params)=>{calls.push({sql,params});return sql.includes('FROM sx_audit_events')?[[]]:[{affectedRows:1}];}};
   const input={tenantId:owner.tenant.id,channelKind:'whatsapp_meta',channelRef:'meta-channel',conversationId:'candidate-chat',mobile:'+91 98765 43210',senderName:'Asha',answers:{location:'india',englishLevel:'proficient',privateNote:'discard'},complete:false,consent:false};
   assert.equal(await recruitment.saveScreening(db,input),false);
   assert.equal(calls.length,0);
   assert.deepEqual(await recruitment.saveScreening(db,{...input,consent:true}),{saved:true,applicationId:null,referenceCode:null});
-  assert.equal(calls.length,1);
-  assert.match(calls[0].sql,/ON DUPLICATE KEY UPDATE/);
-  assert.equal(calls[0].params[1],owner.tenant.id);
-  assert.deepEqual(JSON.parse(calls[0].params[9]),{location:'india',englishLevel:'proficient'});
-  assert.equal(calls[0].params[10],recruitment.SCREENING_CONSENT);
-  assert.equal(calls[0].params[11],0);
+  assert.equal(calls.length,2);
+  assert.match(calls[1].sql,/ON DUPLICATE KEY UPDATE/);
+  assert.equal(calls[1].params[1],owner.tenant.id);
+  assert.deepEqual(JSON.parse(calls[1].params[9]),{location:'india',englishLevel:'proficient'});
+  assert.equal(calls[1].params[10],recruitment.SCREENING_CONSENT);
+  assert.equal(calls[1].params[11],0);
 });
 
 test('pre-screen review is tenant-scoped and returns a direct conversation link',async()=>{

@@ -106,12 +106,15 @@ async function saveScreening(db,{tenantId,channelKind,channelRef,conversationId,
   const allowed=['location','fullName','email','whatsappNumber','contactNumber','currentlyWorking','contactNumberSame','totalExperienceRange','salesExperienceYears','hasComputerAndInternet','comfortableWithSalesCalls','englishLevel','hindiLevel','salesExperience','availability'];
   const safeAnswers=Object.fromEntries(allowed.filter(key=>typeof answers[key]==='string').map(key=>[key,answers[key]]));
   if(!Object.keys(safeAnswers).length)return false;
+  const attempt=await require('./recruitment-chat-attempt').current(db,{tenantId,channelKind,channelRef,conversationId});
   await db.query(`INSERT INTO sx_recruitment_screenings(id,tenant_id,channel_kind,channel_ref,conversation_id,conversation_hash,mobile,normalized_mobile,sender_name,answers,consent_text,consented_at,completed_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3),IF(?,UTC_TIMESTAMP(3),NULL))
     ON DUPLICATE KEY UPDATE mobile=VALUES(mobile),sender_name=COALESCE(VALUES(sender_name),sender_name),answers=VALUES(answers),completed_at=IF(VALUES(completed_at) IS NULL,completed_at,VALUES(completed_at))`,
-  [uuid(),tenantId,channelKind,channelRef,conversationId,hash(conversationId),String(mobile).slice(0,40),normalizedMobile,typeof senderName==='string'?senderName.trim().slice(0,160)||null:null,JSON.stringify(safeAnswers),SCREENING_CONSENT,complete?1:0]);
+  [uuid(),tenantId,channelKind,channelRef,conversationId,hash(attempt?`${conversationId}\0${attempt.id}`:conversationId),String(mobile).slice(0,40),normalizedMobile,typeof senderName==='string'?senderName.trim().slice(0,160)||null:null,JSON.stringify(safeAnswers),SCREENING_CONSENT,complete?1:0]);
   if(!complete)return {saved:true,applicationId:null,referenceCode:null};
-  const body=cleanApplication(whatsappApplicationBody({answers:safeAnswers,mobile,channelKind,channelRef,conversationId}));
+  const submission=whatsappApplicationBody({answers:safeAnswers,mobile,channelKind,channelRef,conversationId});
+  const body=cleanApplication(submission);
+  body.submissionToken=require('./recruitment-chat-attempt').submissionToken(submission.submissionToken,attempt);
   const match=await matchExistingLead(db,{tenant:{id:tenantId}},body.normalizedMobile);
   const id=uuid(),referenceCode=`SMX-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
   await db.query(`INSERT INTO sx_recruitment_applications(id,tenant_id,submission_hash,reference_code,full_name,mobile,normalized_mobile,email,current_work_status,contact_mobile,english_level,hindi_level,experience_years,total_experience_range,sales_experience_years,has_computer_and_internet,comfortable_with_sales_calls,crm_saas_experience,availability,cv_storage_key,cv_file_name,cv_mime_type,cv_bytes,cv_sha256,linked_contact_id,linked_lead_id,linked_chat_id,linked_chat_origin,source_channel,source_reference,consent_text,consented_at)
@@ -149,7 +152,7 @@ async function matchExistingLead(db,ctx,normalizedMobile){
 }
 async function createPublic(pool,{tenantSlug,body,file,visitorHash,conversation=null,env=process.env}){
   if(typeof tenantSlug!=='string'||!/^[-a-z0-9]{1,80}$/.test(tenantSlug))fail('TENANT_NOT_FOUND',404);
-  const data=cleanApplication(body),token=String(body.submissionToken||'');if(!/^[0-9a-f-]{36}$/i.test(token))fail('INVALID_SUBMISSION_TOKEN');
+  const data=cleanApplication(body);let token=String(body.submissionToken||'');if(!/^[0-9a-f-]{36}$/i.test(token))fail('INVALID_SUBMISSION_TOKEN');
   if(typeof body.website==='string'&&body.website.trim())return {repeated:true,referenceCode:'IGNORED'};
   if(typeof visitorHash!=='string'||!/^[0-9a-f]{64}$/.test(visitorHash))fail('INVALID_VISITOR');
   if(!file)fail('CV_FILE_REQUIRED');
@@ -174,6 +177,10 @@ async function createPublic(pool,{tenantSlug,body,file,visitorHash,conversation=
       await db.query(`UPDATE sx_recruitment_applications SET full_name=?,mobile=?,normalized_mobile=?,email=?,current_work_status=?,contact_mobile=?,english_level=?,hindi_level=?,experience_years=?,total_experience_range=?,sales_experience_years=?,has_computer_and_internet=?,comfortable_with_sales_calls=?,crm_saas_experience=?,availability=?,cv_storage_key=?,cv_file_name=?,cv_mime_type=?,cv_bytes=?,cv_sha256=?,linked_contact_id=COALESCE(?,linked_contact_id),linked_lead_id=COALESCE(?,linked_lead_id),revision=revision+1 WHERE tenant_id=? AND id=?`,[data.fullName,data.mobile,data.normalizedMobile,data.email,data.currentWorkStatus,data.contactMobile,data.englishLevel,data.hindiLevel,data.experienceYears,data.totalExperienceRange,data.salesExperienceYears,data.hasComputerAndInternet,data.comfortableWithSalesCalls,data.crmSaasExperience,data.availability,stored.storageKey,stored.fileName,stored.detected.mime,stored.bytes.length,hash(stored.bytes),match.contactId,match.leadId,tenant.id,application.id]);
       await db.query('UPDATE sx_recruitment_prefill_tokens SET consumed_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND token_hash=? AND consumed_at IS NULL',[tenant.id,hash(prefillToken)]);
       await db.commit();begun=false;storedPath=null;return {repeated:false,referenceCode:application.referenceCode,cvUploaded:true,updated:true};
+    }
+    if(data.sourceChannel==='whatsapp'&&conversation){
+      const attempt=await require('./recruitment-chat-attempt').current(db,{tenantId:tenant.id,...conversation});
+      token=require('./recruitment-chat-attempt').submissionToken(token,attempt);
     }
     const [[prior]]=await db.query('SELECT id,reference_code AS referenceCode,cv_storage_key AS cvStorageKey FROM sx_recruitment_applications WHERE tenant_id=? AND submission_hash=? FOR UPDATE',[tenant.id,hash(token)]);
     if(prior){
