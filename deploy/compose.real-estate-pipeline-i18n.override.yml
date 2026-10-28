@@ -1,0 +1,5 @@
+services:
+  app:
+    image: salemax-app:real-estate-pipeline-i18n-20261028
+    volumes:
+      - /opt/salemax/releases/real-estate-pipeline-i18n-ca4bae2-20261028/client/public/index.html:/app/client/public/index.html:ro

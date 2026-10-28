@@ -6,7 +6,7 @@
 
 The existing Team Access, Lead Pipeline and Inbox now support the Real Estate office workflow: owner/manager/team-leader/agent reporting scopes, agent seniority, working areas and languages, listing assignments and optional co-agents, documented agent/listing commissions, opt-in public profiles with an explicitly limited activity indicator, tenant requirements on existing CRM leads, QAR listing matches, next actions/outcomes, and many-to-many lead/unit links. CRM identity, leads, conversations and pipeline remain shared; no replacement CRM or login was added. Source commit `b1e547c5051a768fd26baad4b43838115d328ab6` is included in the active production lineage. Migrations `20270115`–`20270119` are applied.
 
-The agent/requirements and Pipeline theme releases above are prior lineage checkpoints. The latest production release is `/opt/salemax/releases/real-estate-team-ui-sync2-dccd6b1-20261028`, image `salemax-app:real-estate-team-ui-sync2-20261028` (`sha256:5d2438958ebdd60080bea0d7f736396cef4fbb0187ea66e87555955be0dc88bf`), healthy with zero restarts. Source `dccd6b11c346bea3c3de26b6890551bff0672e8b` connects Team Access to the existing workspace language/direction/theme controls and overrides the modern shell's light background in dark mode. No migration or customer-record change occurred. Production `/healthz`, `/pipeline/` and the cache-busted assets return HTTP 200; anonymous Properties API requests return 401. Signed-in owner verification confirmed Arabic/RTL dark Team Access and restored English/LTR/light afterward. Focused Real Estate/Pipeline tests pass 76/76; the candidate image suite passes 72/72. The Super Admin Manage Users tab currently returns to `/admin/login`, so Super Admin acceptance remains open. Staff-role workflows, safe synthetic lead-save acceptance, mobile/PWA review, private-media backup/restore, external listing portal publishing and broader platform release gates remain open. See `DEPLOYMENT.md` for hashes, rollback and runtime evidence.
+The agent/requirements and Pipeline theme releases above are prior lineage checkpoints. The latest production release is `/opt/salemax/releases/real-estate-team-ui-sync2-dccd6b1-20261028`, image `salemax-app:real-estate-team-ui-sync2-20261028` (`sha256:5d2438958ebdd60080bea0d7f736396cef4fbb0187ea66e87555955be0dc88bf`), healthy with zero restarts. Source `dccd6b11c346bea3c3de26b6890551bff0672e8b` connects Team Access to the existing workspace language/direction/theme controls and overrides the modern shell's light background in dark mode. Production `/healthz`, `/pipeline/`, the user route and served assets return HTTP 200; anonymous Properties API requests return 401. Authenticated owner review confirmed the Team Access screen and existing Pipeline quick lead form, including optional expanded property preferences; no invitation or lead was submitted. Arabic/RTL dark Team Access was previously verified and workspace preferences restored to English/LTR/light. Current focused tests pass 73/73. A cookie/bearer real-session integration was rerun against the isolated MariaDB 11.4 test container and covered owner, manager, team leader and agent access, requirement saves, co-agents, profiles, commissions and agreement denial. The temporary schema was dropped and only MariaDB system schemas remain. Category assignment and Yearly CRM terms were verified in the Super Admin flow recorded in `DEPLOYMENT.md`. Manager/Team Leader/Agent browser acceptance, responsive/PWA visual checks, private-media backup/restore, external listing portal publishing and broader platform release gates remain open. See `DEPLOYMENT.md` for hashes, rollback and runtime evidence.
 
 ## WhatsApp media retention — production, 26 October 2026
 
@@ -1989,9 +1989,16 @@ migrations ran. Production health, Pipeline and user routes return HTTP 200;
 anonymous property/agent APIs return 401. The app is healthy with zero restarts,
 its 65 existing Compose inputs and one Real Estate overlay are retained, and
 support services are unchanged. See `DEPLOYMENT.md` for the image, rollback and
-verification evidence. Signed-in production office acceptance, owner/manager/
-team-leader/agent UI review, EN/AR RTL, theme and responsive/PWA visual checks
-remain open.
+verification evidence. Authenticated owner review confirmed Team Access and the
+existing Pipeline lead form, including expandable property requirements,
+without creating production records. The cookie/bearer integration was rerun
+against the isolated MariaDB 11.4 test container and passed for owner, manager,
+team leader and agent scopes, including saved requirements, co-agents, profiles,
+commission visibility, public profile limits and agreement denial. Its unique
+synthetic schema was dropped after the run. Category assignment is separately
+verified in the Super Admin Manage Users flow (see `DEPLOYMENT.md`). Manager,
+team-leader and agent browser acceptance, responsive/PWA checks, private-media
+backup/restore and external listing portal publishing remain open.
 
 ## Real Estate owners, partners and mandates — production, 27 October 2026
 
