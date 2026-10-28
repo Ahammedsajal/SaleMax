@@ -562,6 +562,8 @@ router.post("/leads/:id/move", authorizeLead, async (req, res) => {
       role: req.pipelineActor.role,
       agentId: req.pipelineActor.agentId,
       scopeAgentIds:req.pipelineActor.scopeAgentIds,
+      categoryKey:req.pipelineActor.categoryKey,
+      closeReason:req.body?.closeReason,
     });
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }

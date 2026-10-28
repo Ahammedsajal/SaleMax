@@ -67,6 +67,10 @@ const permissions = {
   'properties.shared.read': { owner: 'tenant', manager: 'tenant' },
   'properties.manage': { owner: 'tenant', manager: 'tenant' },
   'properties.assign': { owner: 'tenant', manager: 'tenant' },
+  'realestate.agent_profiles.read': { owner: 'tenant', manager: 'team', team_leader: 'team', agent: 'own' },
+  'realestate.agent_profiles.manage': { owner: 'tenant' },
+  'realestate.commissions.read': { owner: 'tenant', manager: 'team', team_leader: 'team', agent: 'own' },
+  'realestate.commissions.manage': { owner: 'tenant' },
 };
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);
 const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read', 'telephony.configure']);
@@ -84,7 +88,7 @@ const capabilities = Object.freeze({
   'sales.icp': ['icp.read','icp.manage'],
   'products.catalog': ['products.read','products.manage'],
   'hr.recruitment': ['recruitment.manage'],
-  'realestate.listings': ['properties.read','properties.shared.read','properties.manage','properties.assign'],
+  'realestate.listings': ['properties.read','properties.shared.read','properties.manage','properties.assign','realestate.agent_profiles.read','realestate.agent_profiles.manage','realestate.commissions.read','realestate.commissions.manage'],
   'campaigns.dashboard': ['campaigns.manage'], 'crm.leads': ['leads.read', 'leads.manage', 'leads.assign'],
   'crm.contacts': ['contacts.read', 'contacts.manage'], 'team.members': ['team.read', 'team.invite'],
   'team.tasks': ['tasks.read', 'tasks.manage'], 'training.courses': ['courses.read', 'courses.manage'],
@@ -98,6 +102,9 @@ const capabilities = Object.freeze({
 });
 function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
+  // These actions change sensitive employment and payout terms. They remain
+  // owner-only even if a staff role is given an explicit custom permission.
+  if (['realestate.agent_profiles.manage','realestate.commissions.manage'].includes(permission) && membership.role !== 'owner') return null;
   // Listing reads use the persisted assignee and current Sales Organization
   // hierarchy. Custom grants cannot widen these scopes.
   if (permission.startsWith('properties.') && !['owner','manager'].includes(membership.role) && !['properties.read','properties.shared.read'].includes(permission)) return null;

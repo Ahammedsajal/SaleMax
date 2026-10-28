@@ -1090,7 +1090,7 @@ function assertLeadScope(role,agentId,scopeAgentIds,lead){
   }
 }
 
-async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, scopeAgentIds, pool:sourcePool }) {
+async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, scopeAgentIds, categoryKey, closeReason, pool:sourcePool }) {
   return inTransaction(async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const [leads] = await connection.query("SELECT * FROM pipeline_leads WHERE uid_hash = ? AND id = ? LIMIT 1 FOR UPDATE", [uidHash, id]);
@@ -1100,19 +1100,21 @@ async function moveLead({ uid, id, stageKey, actorType, actorId, role, agentId, 
     if (!target) { const error = new Error("Choose an existing stage."); error.status = 400; throw error; }
     const lead = leads[0];
     if (lead.stage_key === stageKey) return { id, stageKey: lead.stage_key, status: lead.status, unchanged: true };
-    if (lead.status === 'won') { const error = new Error("A converted sale cannot be reopened or changed from Won through the pipeline."); error.status = 409; error.code = 'CONVERTED_SALE_IMMUTABLE'; throw error; }
-    if (target.stage_type === 'won') { const error = new Error("Confirm an approved sale through the sale review workflow before moving this opportunity to Won."); error.status = 409; error.code = 'SALE_CONFIRMATION_REQUIRED'; throw error; }
+    if (lead.status === 'won' && categoryKey !== 'real_estate') { const error = new Error("A converted sale cannot be reopened or changed from Won through the pipeline."); error.status = 409; error.code = 'CONVERTED_SALE_IMMUTABLE'; throw error; }
+    if (target.stage_type === 'won' && categoryKey !== 'real_estate') { const error = new Error("Confirm an approved sale through the sale review workflow before moving this opportunity to Won."); error.status = 409; error.code = 'SALE_CONFIRMATION_REQUIRED'; throw error; }
     const now = dbDate(new Date());
     const status = target.stage_type === "won" ? "won" : target.stage_type === "lost" ? "lost" : "open";
+    const reason=categoryKey==='real_estate'&&status==='lost'&&typeof closeReason==='string'?closeReason.trim():'';
+    if(categoryKey==='real_estate'&&status==='lost'&&(!reason||reason.length>255)){const error=new Error('Enter a reason for losing this lead.');error.status=400;error.code='LOSS_REASON_REQUIRED';throw error;}
     await connection.query(
       `UPDATE pipeline_leads SET stage_key = ?, stage_entered_at = ?, status = ?,
-        closed_at = ?, last_activity_at = ? WHERE uid_hash = ? AND id = ?`,
-      [stageKey, now, status, status === "open" ? null : now, now, uidHash, id],
+        closed_at = ?, last_activity_at = ?, close_reason = ? WHERE uid_hash = ? AND id = ?`,
+      [stageKey, now, status, status === "open" ? null : now, now, categoryKey==='real_estate'?(reason||null):lead.close_reason, uidHash, id],
     );
     if (status === "open") {
       await connection.query("UPDATE pipeline_identity_locks SET current_lead_id = ? WHERE uid_hash = ? AND identity_key = ?", [id, uidHash, lead.identity_key]);
     }
-    await addActivity(connection, uidHash, id, "stage_changed", `Stage changed from ${lead.stage_key} to ${stageKey}`, { stageFrom: lead.stage_key, stageTo: stageKey }, actorType, actorId);
+    await addActivity(connection, uidHash, id, "stage_changed", `Stage changed from ${lead.stage_key} to ${stageKey}`, { stageFrom: lead.stage_key, stageTo: stageKey, ...(reason?{closeReason:reason}:{}) }, actorType, actorId);
     return { id, stageKey, status, stageEnteredAt: now };
   },sourcePool);
 }
@@ -1133,6 +1135,11 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
     const contactProfile = {};
     const add = (column, value) => { changes.push(`${column} = ?`); values.push(value); };
     const activityAt=dbDate(new Date());
+    if(categoryKey==='real_estate'&&input.closeReason!==undefined&&lead.status==='lost'){
+      const reason=typeof input.closeReason==='string'?input.closeReason.trim():'';
+      if(!reason||reason.length>255){const error=new Error('Enter a reason for losing this lead.');error.status=400;error.code='LOSS_REASON_REQUIRED';throw error;}
+      add('close_reason',reason);
+    }
     if (input.title !== undefined) { const value = text(input.title, 180); if (!value) { const error = new Error("Lead title is required."); error.status = 400; throw error; } add("title", value); }
     if (input.contactName !== undefined) {
       const value = text(input.contactName, 255);

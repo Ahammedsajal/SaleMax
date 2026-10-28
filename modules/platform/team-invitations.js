@@ -265,7 +265,7 @@ async function salesOrganization(pool,legacyUid){
     if(rows.length!==1||rows[0].uidHash!==digest(legacyUid)||rows[0].membershipStatus!=='active'||rows[0].tenantStatus!=='active')fail('PERMISSION_DENIED');
     const row=rows[0],category=getCategory(row.categoryKey,Number(row.categoryVersion));
     if(!category)fail('CATEGORY_UNAVAILABLE');
-    if(category.key!=='7network_sales')return {categoryKey:category.key,role:row.role,members:[],canReassign:false};
+    if(!['7network_sales','real_estate'].includes(category.key))return {categoryKey:category.key,role:row.role,members:[],canReassign:false};
     const subscription=await plans.loadEntitlements(db,row.tenantId);
     const context={audience:'tenant',identity:{id:row.identityId},tenant:{id:row.tenantId,status:row.tenantStatus,categoryKey:row.categoryKey,categoryVersion:Number(row.categoryVersion)},
       category,subscription,membership:{id:row.membershipId,tenantId:row.tenantId,role:row.role,status:row.membershipStatus,

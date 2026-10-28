@@ -43,6 +43,22 @@ test('7Network Sales managers and team leaders receive only currently assigned a
   }
 });
 
+test('Real Estate team leaders are restricted to their currently assigned agents',async()=>{
+  const f=fixture('team_leader',{categoryKey:'real_estate'});
+  const actor=await resolve(f.pool,f.staff,{loadEntitlements:async()=>({status:'active',capabilities:['crm.leads']})});
+  assert.equal(canUsePipeline(actor),true);
+  assert.deepEqual(actor.scopeAgentIds,[7]);
+  assert.match(f.calls[2],/team_leader_membership_id/);
+  assert.match(f.calls[2],/ended_at IS NULL/);
+});
+
+test('Real Estate managers retain tenant-wide lead access',async()=>{
+  const f=fixture('manager',{categoryKey:'real_estate'});
+  const actor=await resolve(f.pool,f.staff,{loadEntitlements:async()=>({status:'active',capabilities:['crm.leads']})});
+  assert.equal(canUsePipeline(actor),true);
+  assert.equal(actor.scopeAgentIds,undefined);
+});
+
 test('accountant mappings are denied access to sales notes and pipeline APIs',async()=>{
   const f=fixture('accountant');
   const actor=await resolve(f.pool,f.staff,{loadEntitlements:async()=>{throw new Error('must not load');}});

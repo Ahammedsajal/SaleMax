@@ -1,11 +1,12 @@
 'use strict';
 const crypto=require('node:crypto');
-const {salemaxSales}=require('./categories');
+const {salemaxSales,realEstate}=require('./categories');
 const {decision}=require('./policy');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 function assertContext(ctx){
-  if(ctx?.audience!=='tenant'||ctx.category?.key!==salemaxSales.key||ctx.category?.version!==salemaxSales.version||ctx.tenant?.categoryKey!==salemaxSales.key||Number(ctx.tenant?.categoryVersion)!==salemaxSales.version)fail('CATEGORY_UNAVAILABLE');
+  const category=[salemaxSales,realEstate].find(item=>item.key===ctx?.category?.key&&item.version===ctx.category.version);
+  if(ctx?.audience!=='tenant'||!category||ctx.tenant?.categoryKey!==category.key||Number(ctx.tenant?.categoryVersion)!==category.version)fail('CATEGORY_UNAVAILABLE');
   if(ctx.tenant.status!=='active'||!ctx.subscription||!['active','trial','grace'].includes(ctx.subscription.status)||!ctx.subscription.capabilities?.includes('team.members'))fail('FEATURE_UNAVAILABLE');
   if(!ctx.identity?.id||!ctx.membership?.id||ctx.membership.status!=='active'||ctx.membership.tenantId!==ctx.tenant.id)fail('PERMISSION_DENIED');
 }
@@ -34,7 +35,8 @@ async function list(db,ctx){
 }
 async function reassign(db,ctx,membershipId,input){
   assertContext(ctx);
-  if(!uuid(membershipId)||!uuid(input?.managerMembershipId))fail('INVALID_ASSIGNMENT');
+  const flexible=ctx.category.key===realEstate.key,managerId=input?.managerMembershipId||null,leaderId=input?.teamLeaderMembershipId||null;
+  if(!uuid(membershipId)||(!flexible&&!uuid(managerId))||(managerId&&!uuid(managerId))||(leaderId&&!uuid(leaderId)))fail('INVALID_ASSIGNMENT');
   if(!['owner','manager'].includes(ctx.membership.role))fail('PERMISSION_DENIED');
   if(ctx.membership.role==='owner'){
     if(!decision(ctx,{capability:'team.members',permission:'team.invite'}).allowed)fail('PERMISSION_DENIED');
@@ -48,22 +50,24 @@ async function reassign(db,ctx,membershipId,input){
     if(!lockedTenant)fail('CATEGORY_UNAVAILABLE');
     const [[target]]=await db.query(`SELECT id,role,status FROM sx_memberships WHERE tenant_id=? AND id=? FOR UPDATE`,[ctx.tenant.id,membershipId]);
     if(!target||target.status!=='active'||!['team_leader','agent'].includes(target.role))fail('MEMBER_NOT_FOUND');
-    const [[manager]]=await db.query(`SELECT id,role,status FROM sx_memberships WHERE tenant_id=? AND id=? FOR UPDATE`,[ctx.tenant.id,input.managerMembershipId]);
-    if(!manager||manager.role!=='manager'||manager.status!=='active')fail('INVALID_MANAGER');
-    if(ctx.membership.role==='manager'&&manager.id!==ctx.membership.id)fail('PERMISSION_DENIED');
+    let manager=null;
+    if(managerId){[[manager]]=await db.query(`SELECT id,role,status FROM sx_memberships WHERE tenant_id=? AND id=? FOR UPDATE`,[ctx.tenant.id,managerId]);if(!manager||manager.role!=='manager'||manager.status!=='active')fail('INVALID_MANAGER');}
+    if(ctx.membership.role==='manager'&&manager?.id!==ctx.membership.id)fail('PERMISSION_DENIED');
     let leader=null;
     if(target.role==='agent'){
-      if(!uuid(input?.teamLeaderMembershipId))fail('INVALID_ASSIGNMENT');
-      [[leader]]=await db.query(`SELECT id,role,status FROM sx_memberships WHERE tenant_id=? AND id=? FOR UPDATE`,[ctx.tenant.id,input.teamLeaderMembershipId]);
-      if(!leader||leader.role!=='team_leader'||leader.status!=='active')fail('INVALID_TEAM_LEADER');
-      const [[leaderAssignment]]=await db.query(`SELECT manager_membership_id AS managerMembershipId FROM sx_sales_org_history WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL FOR UPDATE`,[ctx.tenant.id,leader.id]);
-      if(!leaderAssignment||leaderAssignment.managerMembershipId!==manager.id)fail('TEAM_LEADER_OUTSIDE_MANAGER');
+      if(!flexible&&!leaderId)fail('INVALID_ASSIGNMENT');
+      if(leaderId){
+        [[leader]]=await db.query(`SELECT id,role,status FROM sx_memberships WHERE tenant_id=? AND id=? FOR UPDATE`,[ctx.tenant.id,leaderId]);
+        if(!leader||leader.role!=='team_leader'||leader.status!=='active')fail('INVALID_TEAM_LEADER');
+        const [[leaderAssignment]]=await db.query(`SELECT manager_membership_id AS managerMembershipId FROM sx_sales_org_history WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL FOR UPDATE`,[ctx.tenant.id,leader.id]);
+        if((leaderAssignment?.managerMembershipId||null)!==(manager?.id||null))fail('TEAM_LEADER_OUTSIDE_MANAGER');
+      }
     }
     const [[current]]=await db.query(`SELECT manager_membership_id AS managerMembershipId,team_leader_membership_id AS teamLeaderMembershipId,reason
       FROM sx_sales_org_history WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL FOR UPDATE`,[ctx.tenant.id,target.id]);
     if(ctx.membership.role==='manager'&&current?.managerMembershipId&&current.managerMembershipId!==ctx.membership.id)fail('PERMISSION_DENIED');
     const nextLeaderId=leader?.id||null;
-    if(current?.managerMembershipId===manager.id&&current?.teamLeaderMembershipId===nextLeaderId){await db.commit();return {membershipId:target.id,managerMembershipId:manager.id,teamLeaderMembershipId:nextLeaderId,unchanged:true};}
+    if(current&&(current.managerMembershipId||null)===(manager?.id||null)&&(current.teamLeaderMembershipId||null)===nextLeaderId){await db.commit();return {membershipId:target.id,managerMembershipId:manager?.id||null,teamLeaderMembershipId:nextLeaderId,unchanged:true};}
     let followers=[];
     if(target.role==='team_leader'&&current){
       const [rows]=await db.query(`SELECT membership_id AS membershipId FROM sx_sales_org_history WHERE tenant_id=? AND team_leader_membership_id=? AND ended_at IS NULL ORDER BY membership_id FOR UPDATE`,[ctx.tenant.id,target.id]);
@@ -73,19 +77,19 @@ async function reassign(db,ctx,membershipId,input){
     if(current)await db.query('UPDATE sx_sales_org_history SET ended_at=GREATEST(UTC_TIMESTAMP(3),started_at) WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL',[ctx.tenant.id,target.id]);
     const assignmentId=crypto.randomUUID();
     await db.query(`INSERT INTO sx_sales_org_history(id,tenant_id,membership_id,manager_membership_id,team_leader_membership_id,assigned_by_identity_id,reason)
-      VALUES (?,?,?,?,?,?,?)`,[assignmentId,ctx.tenant.id,target.id,manager.id,nextLeaderId,ctx.identity.id,why]);
+      VALUES (?,?,?,?,?,?,?)`,[assignmentId,ctx.tenant.id,target.id,manager?.id||null,nextLeaderId,ctx.identity.id,why]);
     for(const follower of followers){
       const [[followerCurrent]]=await db.query(`SELECT team_leader_membership_id AS teamLeaderMembershipId FROM sx_sales_org_history WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL FOR UPDATE`,[ctx.tenant.id,follower.membershipId]);
       if(!followerCurrent)continue;
       await db.query('UPDATE sx_sales_org_history SET ended_at=GREATEST(UTC_TIMESTAMP(3),started_at) WHERE tenant_id=? AND membership_id=? AND ended_at IS NULL',[ctx.tenant.id,follower.membershipId]);
       await db.query(`INSERT INTO sx_sales_org_history(id,tenant_id,membership_id,manager_membership_id,team_leader_membership_id,assigned_by_identity_id,reason)
-        VALUES (?,?,?,?,?,?,?)`,[crypto.randomUUID(),ctx.tenant.id,follower.membershipId,manager.id,followerCurrent.teamLeaderMembershipId,ctx.identity.id,why]);
+        VALUES (?,?,?,?,?,?,?)`,[crypto.randomUUID(),ctx.tenant.id,follower.membershipId,manager?.id||null,followerCurrent.teamLeaderMembershipId,ctx.identity.id,why]);
     }
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,reason,changes,correlation_id)
-      VALUES (?,?,?,'identity','sales.organisation.reassigned','membership',?,?,?,?)`,[crypto.randomUUID(),ctx.tenant.id,ctx.identity.id,target.id,why,JSON.stringify({oldManagerMembershipId:current?.managerMembershipId||null,oldTeamLeaderMembershipId:current?.teamLeaderMembershipId||null,managerMembershipId:manager.id,teamLeaderMembershipId:nextLeaderId,followersMoved:followers.length}),crypto.randomUUID()]);
+      VALUES (?,?,?,'identity','sales.organisation.reassigned','membership',?,?,?,?)`,[crypto.randomUUID(),ctx.tenant.id,ctx.identity.id,target.id,why,JSON.stringify({oldManagerMembershipId:current?.managerMembershipId||null,oldTeamLeaderMembershipId:current?.teamLeaderMembershipId||null,managerMembershipId:manager?.id||null,teamLeaderMembershipId:nextLeaderId,followersMoved:followers.length}),crypto.randomUUID()]);
     await db.query('UPDATE sx_tenants SET revision=revision+1 WHERE id=?',[ctx.tenant.id]);
     await db.commit();
-    return {membershipId:target.id,managerMembershipId:manager.id,teamLeaderMembershipId:nextLeaderId,followersMoved:followers.length,assignmentId,unchanged:false};
+    return {membershipId:target.id,managerMembershipId:manager?.id||null,teamLeaderMembershipId:nextLeaderId,followersMoved:followers.length,assignmentId,unchanged:false};
   }catch(error){await db.rollback();throw error;}
 }
 module.exports={assertContext,list,reassign};

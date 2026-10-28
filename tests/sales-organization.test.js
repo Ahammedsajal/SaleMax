@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const organization=require('../modules/platform/sales-organization');
-const {salemaxSales,trainingCenter}=require('../modules/platform/categories');
+const {salemaxSales,trainingCenter,realEstate}=require('../modules/platform/categories');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 function context(role='owner'){
   return {audience:'tenant',identity:{id:id(90)},tenant:{id:id(1),status:'active',categoryKey:salemaxSales.key,categoryVersion:salemaxSales.version},
@@ -28,11 +28,22 @@ function dbMock({targetRole='agent',current=null,followers=[]}={}){
     }};
 }
 
-test('organisation context is restricted to active 7Network Sales tenants with an enabled team entitlement',()=>{
+test('organisation context requires a supported category and an enabled team entitlement',()=>{
   assert.doesNotThrow(()=>organization.assertContext(context()));
+  const real={...context(),category:realEstate,tenant:{...context().tenant,categoryKey:realEstate.key,categoryVersion:realEstate.version}};
+  assert.doesNotThrow(()=>organization.assertContext(real));
   assert.throws(()=>organization.assertContext({...context(),category:trainingCenter}),{code:'CATEGORY_UNAVAILABLE'});
   assert.throws(()=>organization.assertContext({...context(),subscription:{status:'expired',capabilities:['team.members']}}),{code:'FEATURE_UNAVAILABLE'});
   assert.throws(()=>organization.assertContext({...context(),subscription:{status:'active',capabilities:[]}}),{code:'FEATURE_UNAVAILABLE'});
+});
+
+test('a real estate owner can assign a direct reporting line without a manager',async()=>{
+  const base=context(),ctx={...base,category:realEstate,tenant:{...base.tenant,categoryKey:realEstate.key,categoryVersion:realEstate.version}},db=dbMock();
+  const query=db.query.bind(db);
+  db.query=async(sql,args)=>sql.startsWith('SELECT manager_membership_id AS managerMembershipId FROM sx_sales_org_history')?[[{managerMembershipId:null}]]:query(sql,args);
+  const result=await organization.reassign(db,ctx,id(10),{managerMembershipId:null,teamLeaderMembershipId:id(3),reason:'Direct team reporting'});
+  assert.equal(result.managerMembershipId,null);assert.equal(result.teamLeaderMembershipId,id(3));assert.equal(db.committed,true);
+  await assert.rejects(organization.reassign(dbMock(),context(),id(10),{managerMembershipId:null,teamLeaderMembershipId:id(3),reason:'Invalid sales assignment'}),{code:'INVALID_ASSIGNMENT'});
 });
 
 test('manager reassignment remains within the manager and records the audit transaction',async()=>{

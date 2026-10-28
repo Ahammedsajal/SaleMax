@@ -1956,6 +1956,29 @@ was left untouched. The full 42-ticket platform upgrade and its existing
 release gates remain open. See `DEPLOYMENT.md` for production verification and
 rollback details.
 
+## Real Estate agents and tenant requirements — source implementation, 28 October 2026
+
+The existing Team Access and Lead Pipeline now include the Real Estate agent
+workflow: owner, manager, team leader and agent scopes; optional direct
+reporting; working areas and languages; senior-agent seniority; listing
+co-agents; owner-managed first-month commission rules and documented listing
+overrides. Tenant preferences extend existing Pipeline leads, with many-to-many
+lead/unit links, availability-aware listing matches, contact preferences and
+consent, and a required reason when a lead is lost. No second CRM or login was
+introduced. Public profiles are opt-in; their only quality indicator is an
+explicitly described active-listing count, not a rating or certification.
+
+The source increment has 62 passing focused unit checks. A synthetic browser
+render of the public profile passed mobile dark-mode English/Arabic and RTL
+checks without horizontal overflow. The public-profile service/API test uses a
+mocked database. The expanded real-session migration test could not run on this
+Mac's MySQL 9.6 instance because MariaDB-specific baseline migrations fail
+before reaching the Real Estate migrations; rerun against the disposable
+MariaDB 11.4 test service before deployment. This source has not been deployed.
+Signed-in office acceptance remains open because production has no assigned
+Real Estate tenant. See `DEPLOYMENT.md` for the last verified production
+release and deployment gates.
+
 ## Real Estate owners, partners and mandates — production, 27 October 2026
 
 The existing Properties workspace now includes Owners & Partners, Mandates and

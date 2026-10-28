@@ -1,7 +1,7 @@
 'use strict';
 const crypto=require('node:crypto');
 const plans=require('./plans');
-const {salemaxSales}=require('./categories');
+const {salemaxSales,realEstate}=require('./categories');
 const {getCategory}=require('./categories');
 const {decision}=require('./policy');
 const sha=value=>crypto.createHash('sha256').update(String(value),'utf8').digest('hex');
@@ -40,7 +40,7 @@ async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements,catego
     const legacyTraining=category.key==='training_center'&&category.version===1;
     if(linked.role==='owner'&&legacyTraining)return null;
     if(linked.role==='accountant')return deny('PERMISSION_DENIED');
-    if(linked.role!=='owner'&&linked.role!=='manager'&&!(linked.categoryKey===salemaxSales.key&&linked.role==='team_leader'))return deny('PERMISSION_DENIED');
+    if(linked.role!=='owner'&&linked.role!=='manager'&&!([salemaxSales.key,realEstate.key].includes(linked.categoryKey)&&linked.role==='team_leader'))return deny('PERMISSION_DENIED');
     const entitlement=await loadEntitlements(db,linked.tenantId);
     if(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities?.includes('crm.leads'))return deny('FEATURE_UNAVAILABLE');
     const canonicalContext=categoryContext(linked,entitlement,category);
@@ -56,7 +56,7 @@ async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements,catego
       WHERE o.tenant_id=? LIMIT 2`,[linked.tenantId]);
     if(owners.length!==1||owners[0].ownerUidHash!==sha(owners[0].uid))return deny('BUSINESS_LINK_INVALID');
     let scopeAgentIds,scopeIdentityIds;
-    if(linked.categoryKey===salemaxSales.key&&linked.role!=='owner'){
+    if((linked.categoryKey===salemaxSales.key&&linked.role!=='owner')||(linked.categoryKey===realEstate.key&&linked.role==='team_leader')){
       const scopeColumn=linked.role==='manager'?'h.manager_membership_id':'h.team_leader_membership_id';
       const [agents]=await db.query(`SELECT a.id,a.uid,o.legacy_uid_hash AS legacyUidHash
         FROM agents a JOIN sx_legacy_ownership o ON o.source_table='agents' AND o.source_id=CAST(a.id AS CHAR) AND o.tenant_id=?

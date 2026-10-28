@@ -5,6 +5,9 @@ const inventory=require('./real-estate-inventory');
 const media=require('./real-estate-unit-media');
 const authority=require('./real-estate-authority');
 const contactDocuments=require('./real-estate-contact-documents');
+const requirements=require('./real-estate-tenant-requirements');
+const agents=require('./real-estate-agents');
+const coagents=require('./real-estate-coagents');
 const fs=require('node:fs/promises');
 
 function createRouter({pool,authenticate}){
@@ -12,6 +15,19 @@ function createRouter({pool,authenticate}){
   let activeUploads=0;
   router.use(express.json({limit:'16kb',strict:true}));
   router.use(authenticate);
+  router.get('/listings/:listingId/coagents',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await coagents.list(db,req.businessContext,req.params.listingId)});}finally{db.release();}}));
+  router.put('/listings/:listingId/coagents/:memberId',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await coagents.set(db,req.businessContext,req.params.listingId,req.params.memberId,true)});}finally{db.release();}}));
+  router.delete('/listings/:listingId/coagents/:memberId',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await coagents.set(db,req.businessContext,req.params.listingId,req.params.memberId,false)});}finally{db.release();}}));
+  router.get('/agents/:memberId/profile',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await agents.profile(db,req.businessContext,req.params.memberId==='me'?req.businessContext.membership.id:req.params.memberId)});}finally{db.release();}}));
+  router.put('/agents/:memberId/profile',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await agents.saveProfile(db,req.businessContext,req.params.memberId,req.body)});}finally{db.release();}}));
+  router.get('/agents/:memberId/commission-rules',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await agents.rules(db,req.businessContext,req.params.memberId==='me'?req.businessContext.membership.id:req.params.memberId)});}finally{db.release();}}));
+  router.post('/agents/:memberId/commission-rules',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.status(201).json({success:true,data:await agents.addRule(db,req.businessContext,req.params.memberId,req.body)});}finally{db.release();}}));
+  router.get('/leads/:leadId/requirement',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await requirements.get(db,req.featureSession,req.params.leadId)});}finally{db.release();}}));
+  router.put('/leads/:leadId/requirement',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await requirements.save(db,req.featureSession,req.params.leadId,req.body)});}finally{db.release();}}));
+  router.post('/leads/:leadId/units/:unitId',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await requirements.addUnit(db,req.featureSession,req.params.leadId,req.params.unitId)});}finally{db.release();}}));
+  router.get('/leads/:leadId/units',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await requirements.listUnits(db,req.featureSession,req.params.leadId)});}finally{db.release();}}));
+  router.get('/leads/:leadId/matches',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await requirements.matches(db,req.featureSession,req.params.leadId,req.query.page)});}finally{db.release();}}));
+  router.delete('/leads/:leadId/units/:unitId',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await requirements.removeUnit(db,req.featureSession,req.params.leadId,req.params.unitId)});}finally{db.release();}}));
   router.get('/buildings',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await inventory.listBuildings(db,req.businessContext)});}finally{db.release();}}));
   router.get('/contacts',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.json({success:true,data:await authority.listContacts(db,req.businessContext)});}finally{db.release();}}));
   router.post('/contacts',wrap(async(req,res)=>{const db=await pool.getConnection();try{res.status(201).json({success:true,data:await authority.createContact(db,req.businessContext,req.body)});}finally{db.release();}}));

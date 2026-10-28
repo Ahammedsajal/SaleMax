@@ -65,10 +65,10 @@ async function list(db,context,query={}){
   const status=String(query.status||'').trim(),search=String(query.search||'').trim().slice(0,100);
   const where=['p.tenant_id=?'],params=[context.tenant.id];
   if(query.unitId){if(typeof query.unitId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(query.unitId))fail('INVALID_PROPERTY');where.push('p.unit_id=?');params.push(query.unitId);}
-  if(scope==='assigned'){where.push('p.assigned_membership_id=?');params.push(context.membership.id);}
+  if(scope==='assigned'){where.push('(p.assigned_membership_id=? OR EXISTS (SELECT 1 FROM sx_real_estate_listing_coagents ca WHERE ca.tenant_id=p.tenant_id AND ca.listing_id=p.id AND ca.membership_id=?))');params.push(context.membership.id,context.membership.id);}
   else if(scope==='team'){
-    where.push(`(p.assigned_membership_id=? OR EXISTS (SELECT 1 FROM sx_sales_org_history org WHERE org.tenant_id=p.tenant_id AND org.membership_id=p.assigned_membership_id AND org.team_leader_membership_id=? AND org.ended_at IS NULL))`);
-    params.push(context.membership.id,context.membership.id);
+    where.push(`(p.assigned_membership_id=? OR EXISTS (SELECT 1 FROM sx_sales_org_history org WHERE org.tenant_id=p.tenant_id AND org.membership_id=p.assigned_membership_id AND org.team_leader_membership_id=? AND org.ended_at IS NULL) OR EXISTS (SELECT 1 FROM sx_real_estate_listing_coagents ca LEFT JOIN sx_sales_org_history org ON org.tenant_id=ca.tenant_id AND org.membership_id=ca.membership_id AND org.ended_at IS NULL WHERE ca.tenant_id=p.tenant_id AND ca.listing_id=p.id AND (ca.membership_id=? OR org.team_leader_membership_id=?)))`);
+    params.push(context.membership.id,context.membership.id,context.membership.id,context.membership.id);
   }
   if(status&&status!=='all'){if(!STATUSES.has(status))fail('INVALID_PROPERTY_STATUS');where.push('p.status=?');params.push(status);}
   if(search){const like=`%${search.replace(/[!%_]/g,'!$&')}%`;where.push("(p.reference_code LIKE ? ESCAPE '!' OR p.title_en LIKE ? ESCAPE '!' OR p.title_ar LIKE ? ESCAPE '!' OR EXISTS (SELECT 1 FROM sx_real_estate_units search_unit WHERE search_unit.tenant_id=p.tenant_id AND search_unit.id=p.unit_id AND search_unit.area LIKE ? ESCAPE '!'))");params.push(like,like,like,like);}
