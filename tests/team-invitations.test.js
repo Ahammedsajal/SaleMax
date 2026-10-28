@@ -18,6 +18,7 @@ test('team invitation inputs are bounded to tenant staff roles',()=>{
   assert.throws(()=>team.rolePermissions(['tenant.manage'],'agent',allowed),{code:'INVALID_ROLE_PERMISSIONS'});
   const guard=require('../modules/platform/team-role-request-guard');
   assert.equal(guard.routePermission({baseUrl:'/api/user/team-invitations',path:'/members/member-id/password',method:'PUT'}),'team.invite');
+  assert.equal(guard.routePermission({baseUrl:'/api/workspace/team',path:'/members/member-id/password',method:'PUT'}),'team.invite');
 });
 
 test('Team Access route honors granted role and member navigation without category redirects',()=>{
@@ -65,11 +66,14 @@ test('staff invitation UI is integrated into the existing single 7Network app sh
   const html=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   const js=fs.readFileSync(path.join(__dirname,'../client/public/team-invitations.js'),'utf8');
   const router=fs.readFileSync(path.join(__dirname,'../modules/platform/team-invitation-router.js'),'utf8');
+  const workspaceApi=fs.readFileSync(path.join(__dirname,'../client/public/workspace-api.js'),'utf8');
+  const mount=fs.readFileSync(path.join(__dirname,'../modules/platform/mount-existing-upgrade.js'),'utf8');
   assert.match(html,/team-invitations\.js\?v=/);assert.ok(html.indexOf('team-invite-capture.js')<html.indexOf('main.73648acf.js'));
   assert.match(html,/team-invite-capture\.js\?v=/);assert.match(js,/\/user\?page=team-invitations/);
   assert.match(js,/\/user\?page=team-invitations#team-invite=/);assert.match(js,/dataset\.accept = '1'/);
   assert.match(js,/\/api\/user\/team-invitations\//);assert.match(js,/\/api\/agent\/invitations\/accept/);
   assert.match(js,/\/api\/agent\/invitations\/preview\//);assert.match(js,/Team access/);assert.match(js,/إدارة وصول الفريق/);
+  assert.match(workspaceApi,/team:'\/api\/workspace\/team'/);assert.match(js,/SaleMaxWorkspace\.request\('team'/);assert.match(router,/ownerGuard=userGuard/);assert.match(mount,/app\.use\('\/api\/workspace\/team',workspaceTeam\.owner\)/);
   assert.match(js,/accountant/);assert.match(js,/manager/);assert.match(js,/seat-grid/);assert.match(js,/business sign in/);
   assert.match(js,/Copy link/);assert.match(js,/Create new link/);assert.match(js,/Agent seats/);assert.match(js,/مقاعد الوكلاء/);
   assert.match(js,/Pending/);assert.match(js,/معلق/);

@@ -41,6 +41,11 @@
 
   const getToken = () => localStorage.getItem('wacrm_user');
   async function api(url, options = {}) {
+    const legacyTeamPath='/api/user/team-invitations';
+    if(!options.public&&!options.token&&url.startsWith(legacyTeamPath)&&window.SaleMaxWorkspace?.request){
+      const result=await window.SaleMaxWorkspace.request('team',url.slice(legacyTeamPath.length),{method:options.method||'GET',body:options.body});
+      return result.data;
+    }
     const headers = {'Content-Type':'application/json'};
     if (!options.public) {
       const token = options.token || getToken();
@@ -126,9 +131,11 @@
   function permissionTitle(key){const action=key.split('.').at(-1);return label(permissionActions[action]?.[0]||action.replaceAll('_',' '),permissionActions[action]?.[1]||action.replaceAll('_',' '));}
   function errorText(code) {
     return ({
-      AUTH_REQUIRED: label('Sign in as the business owner to manage invitations.','سجّل دخولك بصفتك مالك النشاط لإدارة الدعوات.'),
+      AUTH_REQUIRED: label('Your sign-in expired or your current role cannot manage Team Access. Sign in as the business owner, then try again.','انتهت صلاحية تسجيل الدخول أو لا يسمح دورك الحالي بإدارة الفريق. سجّل الدخول بصفتك مالك النشاط ثم حاول مرة أخرى.'),
       SEAT_LIMIT_EXCEEDED: label('No seats are available for this role on the assigned plan.','لا توجد مقاعد متاحة لهذا الدور في الباقة المعينة.'),
       TEAM_FEATURE_UNAVAILABLE: label('Team invitations are not enabled on the current plan.','دعوات الفريق غير مفعلة في الباقة الحالية.'),
+      PERMISSION_DENIED: label('Your current role cannot manage Team Access. Ask the business owner for help.','لا يسمح دورك الحالي بإدارة الفريق. اطلب المساعدة من مالك النشاط.'),
+      TEAM_ROLE_PERMISSION_DENIED: label('Your current role cannot manage Team Access. Ask the business owner for help.','لا يسمح دورك الحالي بإدارة الفريق. اطلب المساعدة من مالك النشاط.'),
       FEATURE_UNAVAILABLE: label('Team invitations are not enabled on the current plan.','دعوات الفريق غير مفعلة في الباقة الحالية.'),
       INVALID_ROLE: label('Choose an available team role.','اختر دوراً متاحاً للفريق.'),
       INVALID_ROLE_NAME: label('Enter a role name up to 80 characters.','أدخل اسماً للدور لا يتجاوز 80 حرفاً.'),
@@ -360,9 +367,10 @@
     const card=node.querySelector('#sx-sales-org-card'),target=node.querySelector('#sx-sales-org-content');
     if(!card||!target)return;
     card.hidden=false;
-    node.dataset.salesCategory='7network_sales';
-    node.querySelector('h1').textContent=label('7Network Organisation','الهيكل التنظيمي لـ 7Network');
-    node.querySelector('.wrap>p').textContent=label('Review reporting lines and move agents between their manager and Team Leader. Every move records who changed it and why.','راجع خطوط الإشراف وانقل الوكلاء بين المدير وقائد الفريق. يُحفظ منفذ كل تغيير وسببه.');
+    const realEstate=data.categoryKey==='real_estate';
+    node.dataset.salesCategory=data.categoryKey;
+    node.querySelector('h1').textContent=realEstate?label('Real Estate team','فريق العقارات'):label('7Network Organisation','الهيكل التنظيمي لـ 7Network');
+    node.querySelector('.wrap>p').textContent=realEstate?label('Manage your team and reporting lines. Agent profiles and commission rules are available to the owner.','أدر فريقك وخطوط الإشراف. يمكن للمالك إدارة ملفات الوكلاء وقواعد العمولة.'):label('Review reporting lines and move agents between their manager and Team Leader. Every move records who changed it and why.','راجع خطوط الإشراف وانقل الوكلاء بين المدير وقائد الفريق. يُحفظ منفذ كل تغيير وسببه.');
     const owner=data.role==='owner';
     if(!owner){for(const selector of ['#sx-role-form','#sx-team-seat-usage','#sx-team-members','#sx-team-form','#sx-team-list'])node.querySelector(selector)?.closest('.card')?.setAttribute('hidden','');}
     const members=data.members||[],managers=members.filter(member=>member.role==='manager'),leaders=members.filter(member=>member.role==='team_leader');
