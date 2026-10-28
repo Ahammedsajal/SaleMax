@@ -47,7 +47,7 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
    const organization=await request('owner',kind,'/api/workspace/team/sales-organization');assert.equal(organization.status,200,JSON.stringify({kind,organization}));assert.equal(organization.data.categoryKey,'real_estate');assert.equal(organization.data.role,'owner');
    const members=await request('owner',kind,'/api/workspace/team/');assert.equal(members.status,200,JSON.stringify({kind,members}));assert.equal(members.data.seatUsage.agent.limit,5);
    const channels=await request('owner',kind,'/api/workspace/team/whatsapp-channels');assert.equal(channels.status,200,JSON.stringify({kind,channels}));assert.deepEqual(channels.data.channels,[]);
-   const manager=await request('manager',kind,'/api/workspace/team/sales-organization');assert.equal(manager.status,403,JSON.stringify({kind,manager}));
+   const manager=await request('manager',kind,'/api/workspace/team/sales-organization');assert.equal(manager.status,200,JSON.stringify({kind,manager}));assert.equal(manager.data.role,'manager');assert.ok(manager.data.members.every(member=>member.role!=='owner'));
   }
   for(const kind of ['bearer','cookie']){
    for(const role of ['owner','manager','team_leader','agent']){const result=await request(role,kind,url);assert.equal(result.status,200,JSON.stringify({role,kind,result}));}
