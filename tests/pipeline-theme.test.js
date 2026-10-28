@@ -23,5 +23,6 @@ test('Real Estate Pipeline localizes stages and unassigned choices in Arabic',()
   assert.match(script,/stageName\(state\.data\.stages\.find\(s=>s\.stage_key===x\.stage_key\)/);
   assert.equal((script.match(/escape\(stageName\(s\)\)/g)||[]).length,2);
   assert.ok((script.match(/tr\('unassigned'\)/g)||[]).length>=3);
-  assert.match(html,/pipeline\.js\?v=20261028-real-estate-i18n1/);
+  assert.match(script,/unassigned:'غير مُسند'/);
+  assert.match(html,/pipeline\.js\?v=20261028-real-estate-i18n2/);
 });

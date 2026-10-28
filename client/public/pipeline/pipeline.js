@@ -29,7 +29,7 @@
   Object.assign(labels.en,{assignedTransferred:'Assigned / transferred',allAssignments:'All assignment states',unassigned:'Unassigned',allQrNumbers:'All QR numbers',qrNumber:'QR WhatsApp number'}); Object.assign(labels.ar,{assignedTransferred:'مُسند / مُحوّل',allAssignments:'كل حالات الإسناد',unassigned:'غير مُسند',allQrNumbers:'كل أرقام QR',qrNumber:'رقم واتساب QR'});
   const language = (localStorage.getItem('language') || '').toLowerCase(); const ar = language === 'ar' || language.includes('arabic'); const tr = (key) => labels[ar?'ar':'en'][key] || key;
   Object.assign(labels.en,{assignedInitial:'Initially assigned to',reassignedTo:'Reassigned to',unassigned:'Unassigned'});
-  Object.assign(labels.ar,{assignedInitial:'تم الإسناد أولاً إلى',reassignedTo:'أعيد الإسناد إلى',unassigned:'تم إلغاء الإسناد'});
+  Object.assign(labels.ar,{assignedInitial:'تم الإسناد أولاً إلى',reassignedTo:'أعيد الإسناد إلى',unassigned:'غير مُسند'});
   const activitySummary = activity => {
     if (activity.details?.source === 'salemax_website') return [ar ? 'استفسار من موقع 7Network' : '7Network website enquiry', activity.details.company, activity.details.solution, activity.details.content].filter(Boolean).join(' · ');
     if (activity.activity_type === 'lead_assigned') return `${tr('assignedInitial')} ${activity.details?.toAgentName || activity.summary.replace(/^Assigned to\s*/,'')}`;
