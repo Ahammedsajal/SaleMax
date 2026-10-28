@@ -7,7 +7,7 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  if(process.env.REAL_ESTATE_SYNTHETIC_ONLY!=='true'||(!socketPath?.startsWith('/tmp/7network-real-estate-mysql-')&&!(testDb==='salemax-bot-lead-test-db'&&process.env.REAL_ESTATE_SYNTHETIC_PASSWORD)))throw Error('SYNTHETIC_DATABASE_REQUIRED');
  const dbConnection=socketPath?{user:'root',socketPath}:{host:'127.0.0.1',port:3306,user:'root',password:process.env.REAL_ESTATE_SYNTHETIC_PASSWORD},admin=await mysql.createConnection(dbConnection),name='re_sessions_'+crypto.randomBytes(5).toString('hex');let pool,server,legacyPool;
  try{
-  await admin.query('CREATE DATABASE `'+name+'` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');pool=mysql.createPool({...dbConnection,database:name,connectionLimit:12});
+  await admin.query('CREATE DATABASE `'+name+'` CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci');pool=mysql.createPool({...dbConnection,database:name,connectionLimit:12});
   const inventory=require('../docs/LEGACY_SCHEMA_INVENTORY.json');
   for(const table of ['admin','plan','web_public','web_private','user','orders','contact_form','broadcast','beta_campaign','beta_chats','beta_conversation','agents','agent_task','instance','meta_api','beta_flows','contact','phonebook']){
    const columns=inventory.columns.filter(c=>c.tableName===table&&!(table==='instance'&&c.columnName==='inactiveSince'));if(!columns.length)continue;

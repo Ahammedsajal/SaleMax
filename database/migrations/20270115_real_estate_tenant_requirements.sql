@@ -1,7 +1,7 @@
 -- Tenant preferences extend an existing CRM lead; they do not create a second lead.
 CREATE TABLE sx_real_estate_tenant_requirements (
   tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  lead_id CHAR(36) NOT NULL,
+  lead_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   areas JSON NOT NULL,
   property_types JSON NOT NULL,
   bedrooms SMALLINT UNSIGNED NULL,
@@ -29,7 +29,7 @@ CREATE TABLE sx_real_estate_tenant_requirements (
 
 CREATE TABLE sx_real_estate_lead_units (
   tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  lead_id CHAR(36) NOT NULL,
+  lead_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   unit_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   added_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

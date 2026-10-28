@@ -37,7 +37,7 @@ async function main() {
   const admin = await mysql.createConnection({user:'root',socketPath});
   let pool;
   try {
-    await admin.query(`CREATE DATABASE \`${schema}\` CHARACTER SET utf8mb4`);
+    await admin.query(`CREATE DATABASE \`${schema}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci`);
     pool = mysql.createPool({user:'root',socketPath,database:schema,connectionLimit:4});
     await migrate(pool, 'database/migrations/20261001_platform_identity.sql');
     await migrate(pool, 'database/migrations/20260928_lead_pipeline.sql');
