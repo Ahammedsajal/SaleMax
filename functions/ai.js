@@ -322,6 +322,7 @@ function getOriginData(chatbotFromMysq) {
 
 async function singleReplyAi({
   uid,
+  tenantId,
   k,
   chatbotFromMysq,
   toName,
@@ -364,13 +365,34 @@ async function singleReplyAi({
       nodes,
     });
 
-    const resp = await openAiResponse({
-      openAiKey: k?.data?.msgContent?.keys,
-      allowTask: k?.data?.msgContent?.allowTask,
-      functionArr: funArr,
-      msgArr: msgArr,
-      openAiModel: k?.data?.msgContent?.aiMode,
-    });
+    let resp = null;
+    if (tenantId) {
+      const pool = require('../database/config').promise();
+      const runtime = await require('../modules/platform/tenant-ai-runtime').run({
+        pool,
+        tenantId,
+        input: { messages: msgArr, functions: funArr },
+        maxOutputTokens: Number(k?.data?.msgContent?.maxTokens) || 350,
+        execute: settings => require('../modules/platform/chatbot-provider').generateConversation({
+          ...settings,
+          messages: msgArr,
+          functions: funArr,
+          maxOutputTokens: Number(k?.data?.msgContent?.maxTokens) || 350,
+        }),
+      });
+      if (runtime.configured) resp = runtime.result;
+    }
+    if (!resp) {
+      resp = await openAiResponse({
+        openAiKey: k?.data?.msgContent?.keys,
+        allowTask: k?.data?.msgContent?.allowTask,
+        functionArr: funArr,
+        msgArr: msgArr,
+        openAiModel: k?.data?.msgContent?.aiMode,
+      });
+    }
+    // Provider failures must never be sent as customer-facing chatbot replies.
+    if (!resp?.success) return;
 
     // when found function hit
     if (resp?.function) {
@@ -437,7 +459,7 @@ async function singleReplyAi({
 
     // console.log({ resp: JSON.stringify(resp) });
   } catch (err) {
-    console.log(`error found in singleReplyAi ai.js`, err);
+    console.error('AI chatbot turn failed:', err?.code || 'AI_PROVIDER_REQUEST_FAILED');
   }
 }
 

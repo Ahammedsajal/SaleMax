@@ -71,13 +71,17 @@ compatibility aliases for cached clients.
 
 Shared AI provider settings are configured in the existing Business Profile.
 They are tenant-wide, owner-managed, encrypted at rest, revisioned and audited;
-the API never returns the provider key. AI-enabled features load the same
-tenant configuration through `modules/platform/tenant-ai-settings.js` rather
-than keeping per-feature provider credentials. The existing chatbot provider
-URL is a compatibility alias. The current provider consumer remains the
-chatbot runtime; adding AI behavior to another feature requires that feature's
-own evaluated workflow and permission checks, while reusing this provider and
-the tenant's shared token budget.
+the API never returns the provider key. AI-enabled features load the same tenant
+configuration through `modules/platform/tenant-ai-settings.js` and reserve
+against the same tenant daily token budget. Source integrations cover chatbot
+replies, Inbox reply suggestions and translation, legacy AI_BOT flow nodes, and
+text-based AI_TRANSFER flow nodes. Canonical Inbox requests ignore client-supplied
+provider credentials. Compatibility paths for unmapped legacy accounts retain
+their previous provider behavior until migrated. AI_TRANSFER media understanding
+remains a separate integration gate and is not globally wired. Each AI feature
+still requires its own workflow, role checks, source/permission validation and
+evaluation before activation. The chatbot provider URL remains a compatibility
+alias.
 
 Regression gates: `tests/unified-feature-api.test.js`,
 `tests/workspace-api-client.test.js`, and

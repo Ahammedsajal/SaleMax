@@ -893,12 +893,17 @@ async function completeAddon({
       console.log("Came to if");
       const { singleReplyAi } = require("./ai.js");
       console.log(`singleReplyAi ran`);
+      const tenantId = await require('../modules/platform/tenant-ai-context').tenantIdForOwnerUid(
+        require('../database/config').promise(),
+        uid,
+      );
 
       // adding delay
       // await new Promise((r) => setTimeout(r, 3000));
 
       await singleReplyAi({
         uid,
+        tenantId,
         k,
         chatbotFromMysq,
         toName,

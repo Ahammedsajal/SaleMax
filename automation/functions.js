@@ -1713,9 +1713,41 @@ async function processAiTransfer({
 
     conversationArr = [...conversationArr]?.reverse() || [];
 
-    const result = await aiTransferHandler(config, conversationArr);
+    const pool = require('../database/config').promise();
+    const tenantId = await require('../modules/platform/tenant-ai-context').tenantIdForOwnerUid(pool, uid);
+    let result;
+    if (tenantId) {
+      const runtime = await require('../modules/platform/tenant-ai-runtime').run({
+        pool,
+        tenantId,
+        input: { systemPrompt: config?.systemPrompt, conversation: conversationArr },
+        maxOutputTokens: Number(config?.maxTokens) || 350,
+        execute: async settings => {
+          const generated = await require('../modules/platform/chatbot-provider').generateConversation({
+            ...settings,
+            messages: [
+              ...(config?.systemPrompt ? [{ role: 'system', content: String(config.systemPrompt).slice(0, 12000) }] : []),
+              ...conversationArr.map(item => {
+                let context = item.msgContext;
+                if (typeof context === 'string') { try { context = JSON.parse(context); } catch { context = {}; } }
+                const content = context?.text?.body || context?.text || context?.caption || '';
+                return { role: 'user', content: typeof content === 'string' ? content.slice(0, 12000) : '' };
+              }).filter(item => item.content),
+            ],
+            functions: config?.aiTask?.functions || [],
+            maxOutputTokens: Number(config?.maxTokens) || 350,
+          });
+          return { success: true, data: { message: generated.msg, function: generated.function ? [{ id: generated.function, arguments: generated.functionArguments }] : null }, usage: generated.usage };
+        },
+      });
+      result = runtime.configured ? runtime.result : await aiTransferHandler(config, conversationArr);
+    } else {
+      result = await aiTransferHandler(config, conversationArr);
+    }
 
-    if (result?.data?.message || result?.message) {
+    // A failed model call is an internal error state; never send it as a reply.
+    const reply = result?.success === true ? (result?.data?.message || result?.message || '') : '';
+    if (reply) {
       const sendMsg = await sendWaMessage({
         message,
         node: {},
@@ -1728,7 +1760,7 @@ async function processAiTransfer({
           type: "text",
           text: {
             preview_url: true,
-            body: result?.data?.message || result?.message,
+            body: reply,
           },
         },
       });
@@ -1745,7 +1777,7 @@ async function processAiTransfer({
             type: "text",
             text: {
               preview_url: true,
-              body: result?.data?.message || result?.message,
+              body: reply,
             },
           },
           reaction: "",
@@ -1778,7 +1810,7 @@ async function processAiTransfer({
       } else {
         return {};
       }
-    } else if (result?.data?.function?.length > 0) {
+    } else if (result?.success === true && result?.data?.function?.length > 0) {
       const functionObj = result?.data?.function[0];
       const functionId = functionObj?.id;
 

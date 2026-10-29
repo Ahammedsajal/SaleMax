@@ -10,6 +10,19 @@ The existing Business Profile now has owner-only shared AI provider settings for
 
 Source commit `921319b153c1de548b168ec702e121b9ae2f608f` on `procatalyst-chatbot-global-ai` connects the existing Inbox reply-suggestion and translation endpoints to the Business Profile provider, model and shared daily token budget; per-request provider/key fields no longer supply credentials. The chatbot source routes eligible free-text replies, greetings and factual answers through the selected provider, validates sources, and pauses with handoff on provider/grounding failure. Employment, existing-student support, certificate/accreditation, payment, complaint and media-only requests now go to a person before provider use. Schedule questions without a published batch and selected-course duration/delivery questions without published details also hand off without spending provider tokens. Focused prompt, routing, profile/audience and shared-text tests pass 225/225. This is **source-only**: production still runs the earlier shared-settings release recorded in `DEPLOYMENT.md`. The owner preview confirmed published course facts and a staff response for an unpublished next-batch question, but a job-vacancy question still returned the generic greeting, showing the new staff-routing code is not yet live. Only one test number is staged in the production draft; no key, channel, live status, chat, transfer or outbound message is configured. The database-backed integration runner and authenticated route acceptance remain unverified because this checkout has no installed application dependencies or local synthetic DB. Full media-content review and real-device checks also remain open.
 
+### Shared AI consumers — additional source integration, 29 October 2026
+
+The current branch extends the owner setting and shared token budget to legacy
+AI_BOT and text-based AI_TRANSFER flow calls, alongside Inbox suggestion and
+translation. Canonical Inbox requests ignore client-provided provider keys.
+AI_TRANSFER tool calls retain their flow-node routing shape. Media understanding
+in AI_TRANSFER is not yet integrated with the shared provider. Local syntax
+checks pass and 30 focused tests pass using a temporary test-only `node-fetch`
+compatibility shim because application dependencies are absent from this checkout. No real chat, message or
+transfer was created. These edits are source-only and are not deployed; do not
+enter the owner key until the source release is published and accepted with the
+single test number.
+
 This is preparation, not chatbot automation acceptance. The target Hybrid bot remains draft, and the key/provider setup is intentionally last. Publish and verify the shared-provider and safety-routing source changes, finish the content audit, then enter the provider key and test real inbound behavior using only the single approved test number. Do not create chats or transfer conversations as part of these tests; do not open the bot to other numbers until acceptance passes. Authenticated Arabic/dark/mobile checks, media content review and later gradual cohort expansion remain open.
 
 ## Real Estate agents, teams and tenant requirements — deployed, 28 October 2026
