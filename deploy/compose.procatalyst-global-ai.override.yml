@@ -1,0 +1,6 @@
+services:
+  app:
+    image: salemax-app:procatalyst-global-ai-8e1f7024-20261029
+    volumes:
+      - /opt/salemax/releases/procatalyst-global-ai-8e1f7024-20261029/client/public/index.html:/app/client/public/index.html:ro
+      - /opt/salemax/releases/procatalyst-global-ai-8e1f7024-20261029/client/public/training-sidebar.js:/app/client/public/training-sidebar.js:ro
