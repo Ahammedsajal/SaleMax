@@ -3224,7 +3224,7 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   overflow: hidden;
   width: 100vw;
   max-width: 100vw;
-  margin-inline-start: calc(50% - 50vw);
+  margin-inline: calc(50% - 50vw);
   padding: clamp(64px, 8vw, 112px) clamp(20px, 5vw, 72px);
   background:
     radial-gradient(ellipse at 9% 13%, rgba(77, 207, 158, .16), transparent 36%),
