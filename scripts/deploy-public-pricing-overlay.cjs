@@ -19,6 +19,7 @@ const files = [
   "client/public/website/website.css",
   "client/public/website/website.js",
   "scripts/update-public-crm-plans.cjs",
+  "deploy/compose.public-pricing-runtime.override.yml",
 ];
 const html = fs.readFileSync(path.join(source, files[0]), "utf8");
 for (const asset of ["website.css", "plan-presentation.js", "website.js"])

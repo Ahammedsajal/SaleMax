@@ -1,0 +1,10 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_PUBLIC_PRICING_RELEASE:?set active public pricing release}/runtime/public-pricing-preserved/index.html:/app/client/public/index.html:ro
+      - ${SALEMAX_PUBLIC_PRICING_RELEASE:?set active public pricing release}/runtime/public-pricing-preserved/training-sidebar.js:/app/client/public/training-sidebar.js:ro
+      - ${SALEMAX_PUBLIC_PRICING_RELEASE:?set active public pricing release}/runtime/public-pricing-preserved/chatbot-admin.js:/app/client/public/chatbot-admin.js:ro
+      - ${SALEMAX_PUBLIC_PRICING_RELEASE:?set active public pricing release}/runtime/public-pricing-preserved/pwa-launch-splash.js:/app/client/public/pwa-launch-splash.js:ro
+      - ${SALEMAX_PUBLIC_PRICING_RELEASE:?set active public pricing release}/runtime/public-pricing-preserved/tenant-storefront-settings.js:/app/client/public/tenant-storefront-settings.js:ro
+      - ${SALEMAX_PUBLIC_PRICING_RELEASE:?set active public pricing release}/runtime/public-pricing-preserved/tenant-storefront.js:/app/modules/platform/tenant-storefront.js:ro
+      - ${SALEMAX_PUBLIC_PRICING_RELEASE:?set active public pricing release}/runtime/public-pricing-preserved/public-website.js:/app/modules/web/public-website.js:ro
