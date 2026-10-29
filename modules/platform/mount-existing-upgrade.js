@@ -42,6 +42,10 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/workspace/session',featureAccess);
   const customization=require('./tenant-customization-router').createTenantCustomizationRouter({pool,origin,authenticate:featureSession.guard});
   app.use(['/api/workspace/customization','/api/crm/customization'],customization);
+  const aiSettings=require('./tenant-ai-settings-router').createTenantAiSettingsRouter({pool,origin,authenticate:featureSession.guard});
+  app.use('/api/workspace/ai/settings',aiSettings);
+  // Keep cached chatbot clients working while sharing the tenant-wide settings store.
+  app.use('/api/user/chatbots/settings/provider',aiSettings);
   const phonebook=require('./phonebook-workspace-router')({pool,authenticate:featureSession.guard});
   app.use(['/api/workspace/phonebook','/api/phonebook/workspace','/api/agent/phonebook'],phonebook);
   const courseReplies=require('./course-quick-reply-router')({pool,origin,authenticate:featureSession.guard});

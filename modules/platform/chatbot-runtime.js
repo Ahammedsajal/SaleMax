@@ -2,7 +2,7 @@
 const crypto = require('node:crypto');
 const dbPool = require('../../database/config').promise();
 const { query } = require('../../database/dbpromise');
-const secrets = require('./chatbot-secrets');
+const tenantAiSettings = require('./tenant-ai-settings');
 const provider = require('./chatbot-provider');
 const { shouldPause } = require('./chatbot-conversation-control');
 const { parseGuidedFlow, executionFlowId, inboundMessageKey } = require('./chatbot-profile-utils');
@@ -292,22 +292,10 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
 
 function tokenEstimate(text) { return Math.min(12000, Math.max(256, Math.ceil(Buffer.byteLength(text, 'utf8') / 1.5) + 700)); }
 async function reserveTokens(ctx, providerConfig, amount) {
-  const qatarDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Qatar', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const db = await dbPool.getConnection();
-  try {
-    await db.beginTransaction();
-    await db.query(`INSERT IGNORE INTO sx_chatbot_usage_daily(tenant_id,usage_date) VALUES (?,?)`, [ctx.tenant.id, qatarDate]);
-    const [[row]] = await db.query(`SELECT consumed_tokens AS consumed,reserved_tokens AS reserved FROM sx_chatbot_usage_daily WHERE tenant_id=? AND usage_date=? FOR UPDATE`, [ctx.tenant.id, qatarDate]);
-    if (Number(row.consumed) + Number(row.reserved) + amount > Number(providerConfig.daily_token_limit)) { await db.rollback(); return null; }
-    await db.query(`UPDATE sx_chatbot_usage_daily SET reserved_tokens=reserved_tokens+? WHERE tenant_id=? AND usage_date=?`, [amount, ctx.tenant.id, qatarDate]);
-    await db.commit(); return { qatarDate, amount };
-  } catch (error) { await db.rollback(); throw error; }
-  finally { db.release(); }
+  return tenantAiSettings.reserveTokens(dbPool, ctx.tenant.id, providerConfig.daily_token_limit, amount);
 }
 async function settleTokens(ctx, reservation, used) {
-  if (!reservation) return;
-  const actual = Number.isSafeInteger(used) && used >= 0 ? Math.min(used, 12000) : reservation.amount;
-  await query(`UPDATE sx_chatbot_usage_daily SET reserved_tokens=GREATEST(0,reserved_tokens-?),consumed_tokens=consumed_tokens+? WHERE tenant_id=? AND usage_date=?`, [reservation.amount, actual, ctx.tenant.id, reservation.qatarDate]);
+  return tenantAiSettings.settleTokens(dbPool, ctx.tenant.id, reservation, used);
 }
 
 async function saveConversationalState({ ctx, profile, chatId, channelKind, channelRef, state }) {
@@ -344,7 +332,7 @@ function guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}){
 }
 
 async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null }) {
-  const [settings] = await query(`SELECT provider,model,key_ciphertext,key_iv,key_auth_tag,daily_token_limit FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]);
+  const settings = await tenantAiSettings.forRuntime(dbPool, ctx.tenant.id);
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -398,8 +386,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   let succeeded = false;
   let failedUsage = null;
   try {
-    const apiKey = secrets.decrypt(settings);
-    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey, system, user: input, requireSources: true, maxOutputTokens: courseOverview ? 90 : 250 });
+    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey: settings.apiKey, system, user: input, requireSources: true, maxOutputTokens: courseOverview ? 90 : 250 });
     if (Array.isArray(response.sourceIds)) response.sourceIds = response.sourceIds.map(id => sourceAliases.get(id) || 'invalid:' + id);
     if (courseOverview && typeof response.reply === 'string') response.reply = response.reply.replace(/\s*\[s\d+\]/gi, '').trim();
     succeeded = true;
