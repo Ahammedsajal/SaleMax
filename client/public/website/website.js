@@ -4,7 +4,6 @@
   let language =
     new URLSearchParams(location.search).get("lang") === "ar" ? "ar" : "en";
   const headlineMiddle = document.getElementById("hero-headline-middle");
-  const headlineToggle = document.getElementById("headline-toggle");
   const enquiryDialog = document.getElementById("enquiry-dialog");
   const enquiryForm = document.getElementById("enquiry-form");
   document.querySelectorAll("[data-open-enquiry]").forEach((button) =>
@@ -18,21 +17,6 @@
   );
   enquiryDialog?.addEventListener("click", (event) => {
     if (event.target === enquiryDialog) enquiryDialog.close();
-  });
-  const capabilityStrip = document.querySelector(".capability-strip");
-  const capabilityToggle = document.getElementById("capability-toggle");
-  let capabilityPaused = false;
-  function updateCapabilityToggle() {
-    if (!capabilityToggle) return;
-    capabilityToggle.setAttribute("aria-pressed", String(capabilityPaused));
-    capabilityToggle.textContent = capabilityPaused
-      ? language === "ar" ? "استئناف" : "Resume"
-      : language === "ar" ? "إيقاف" : "Pause";
-  }
-  capabilityToggle?.addEventListener("click", () => {
-    capabilityPaused = !capabilityPaused;
-    capabilityStrip?.classList.toggle("is-paused", capabilityPaused);
-    updateCapabilityToggle();
   });
   const headlineStates = [
     {
@@ -68,7 +52,6 @@
   ];
   const reducedHeadlineMotion = matchMedia("(prefers-reduced-motion: reduce)");
   let headlineIndex = 0;
-  let headlinePaused = false;
   let headlineTimer = null;
   function renderHeadline(index, animate = false) {
     if (!headlineMiddle) return;
@@ -83,26 +66,14 @@
       window.setTimeout(update, 220);
     } else update();
   }
-  function updateHeadlineToggle() {
-    if (!headlineToggle) return;
-    headlineToggle.setAttribute("aria-pressed", String(headlinePaused));
-    headlineToggle.textContent = headlinePaused
-      ? language === "ar" ? "استئناف" : "Resume"
-      : language === "ar" ? "إيقاف" : "Pause";
-  }
   function startHeadlineRotation() {
     window.clearInterval(headlineTimer);
-    if (!headlineToggle || headlinePaused || document.hidden) return;
+    if (reducedHeadlineMotion.matches || document.hidden) return;
     headlineTimer = window.setInterval(() => {
       headlineIndex = (headlineIndex + 1) % headlineStates.length;
       renderHeadline(headlineIndex, true);
     }, 3800);
   }
-  headlineToggle?.addEventListener("click", () => {
-    headlinePaused = !headlinePaused;
-    updateHeadlineToggle();
-    startHeadlineRotation();
-  });
   reducedHeadlineMotion.addEventListener("change", startHeadlineRotation);
   document.addEventListener("visibilitychange", startHeadlineRotation);
   renderHeadline(headlineIndex);
@@ -120,8 +91,6 @@
       node.textContent = language === "ar" ? ar : en;
     });
     renderHeadline(headlineIndex);
-    updateHeadlineToggle();
-    updateCapabilityToggle();
     document
       .querySelector("[data-close-enquiry]")
       ?.setAttribute("aria-label", language === "ar" ? "إغلاق النموذج" : "Close form");
