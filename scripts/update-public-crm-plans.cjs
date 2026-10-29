@@ -8,7 +8,7 @@ const definitions = [
     title: "Monthly CRM",
     short_description:
       "Customizable CRM for your industry. Shared core: contacts, sales pipeline, unified inbox, campaigns, templates, automation, team tasks, role-based access and reports. Industry-specific workflows are scoped during setup.",
-    price: 350,
+    price: 370,
     plan_duration_in_days: "30",
   },
   {
@@ -16,11 +16,14 @@ const definitions = [
     title: "Yearly CRM",
     short_description:
       "The same customizable CRM core, paid yearly. Contacts, sales pipeline, unified inbox, campaigns, templates, automation, team tasks, role-based access and reports. Industry-specific workflows are scoped during setup.",
-    price: 3700,
+    price: 3840,
     plan_duration_in_days: "365",
   },
 ];
-async function update(db, { apply = false, expectedHash, saveBackup } = {}) {
+async function update(
+  db,
+  { apply = false, backupOnly = false, expectedHash, saveBackup } = {},
+) {
   await db.beginTransaction();
   try {
     const [rows] = await db.query(
@@ -33,7 +36,7 @@ async function update(db, { apply = false, expectedHash, saveBackup } = {}) {
       "SELECT id,plan,plan_expire FROM user ORDER BY id FOR UPDATE",
     );
     const assignmentsHash = hash(customers);
-    if (!apply) {
+    if (!apply && !backupOnly) {
       await db.rollback();
       return {
         preview: true,
@@ -45,6 +48,14 @@ async function update(db, { apply = false, expectedHash, saveBackup } = {}) {
     if (expectedHash !== stateHash) throw Error("STALE_CATALOGUE");
     if (typeof saveBackup !== "function") throw Error("BACKUP_REQUIRED");
     await saveBackup({ plans: rows, assignmentsHash });
+    if (backupOnly) {
+      await db.rollback();
+      return {
+        backupCreated: true,
+        stateHash,
+        customerAssignmentsUnchanged: true,
+      };
+    }
     for (const plan of definitions)
       await db.query(
         "UPDATE plan SET title=?,short_description=?,price=?,price_strike=NULL,plan_duration_in_days=? WHERE id=? AND is_trial=0",
@@ -86,6 +97,7 @@ if (require.main === module) {
         JSON.stringify(
           await update(db, {
             apply: process.argv.includes("--apply"),
+            backupOnly: process.argv.includes("--backup-only"),
             expectedHash: process.argv
               .find((a) => a.startsWith("--expected="))
               ?.slice(11),

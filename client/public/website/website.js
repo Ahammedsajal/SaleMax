@@ -3,6 +3,110 @@
   const root = document.documentElement;
   let language =
     new URLSearchParams(location.search).get("lang") === "ar" ? "ar" : "en";
+  const headlineMiddle = document.getElementById("hero-headline-middle");
+  const headlineToggle = document.getElementById("headline-toggle");
+  const enquiryDialog = document.getElementById("enquiry-dialog");
+  const enquiryForm = document.getElementById("enquiry-form");
+  document.querySelectorAll("[data-open-enquiry]").forEach((button) =>
+    button.addEventListener("click", () => {
+      if (!enquiryDialog?.open) enquiryDialog?.showModal();
+      enquiryForm?.elements.name?.focus();
+    }),
+  );
+  document.querySelectorAll("[data-close-enquiry]").forEach((button) =>
+    button.addEventListener("click", () => enquiryDialog?.close()),
+  );
+  enquiryDialog?.addEventListener("click", (event) => {
+    if (event.target === enquiryDialog) enquiryDialog.close();
+  });
+  const capabilityStrip = document.querySelector(".capability-strip");
+  const capabilityToggle = document.getElementById("capability-toggle");
+  let capabilityPaused = false;
+  function updateCapabilityToggle() {
+    if (!capabilityToggle) return;
+    capabilityToggle.setAttribute("aria-pressed", String(capabilityPaused));
+    capabilityToggle.textContent = capabilityPaused
+      ? language === "ar" ? "استئناف" : "Resume"
+      : language === "ar" ? "إيقاف" : "Pause";
+  }
+  capabilityToggle?.addEventListener("click", () => {
+    capabilityPaused = !capabilityPaused;
+    capabilityStrip?.classList.toggle("is-paused", capabilityPaused);
+    updateCapabilityToggle();
+  });
+  const headlineStates = [
+    {
+      en: "Team Inbox",
+      ar: "صندوق محادثات الفريق",
+      gradient: "linear-gradient(100deg, #12629b, #3254a4)",
+    },
+    {
+      en: "WhatsApp Campaigns",
+      ar: "حملات واتساب",
+      gradient: "linear-gradient(100deg, #137146, #1d8055)",
+    },
+    {
+      en: "Business Management",
+      ar: "إدارة الأعمال",
+      gradient: "linear-gradient(100deg, #5d358f, #7950aa)",
+    },
+    {
+      en: "Sales CRM",
+      ar: "نظام CRM للمبيعات",
+      gradient: "linear-gradient(100deg, #bc1f3d, #cc4c43)",
+    },
+    {
+      en: "Lead Management",
+      ar: "إدارة العملاء المحتملين",
+      gradient: "linear-gradient(100deg, #8b5a00, #a36a00)",
+    },
+    {
+      en: "Workflow Automation",
+      ar: "أتمتة سير العمل",
+      gradient: "linear-gradient(100deg, #0c6e71, #117e6c)",
+    },
+  ];
+  const reducedHeadlineMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  let headlineIndex = 0;
+  let headlinePaused = false;
+  let headlineTimer = null;
+  function renderHeadline(index, animate = false) {
+    if (!headlineMiddle) return;
+    const next = headlineStates[index][language];
+    const update = () => {
+      headlineMiddle.textContent = next;
+      headlineMiddle.style.backgroundImage = headlineStates[index].gradient;
+      headlineMiddle.classList.remove("is-changing");
+    };
+    if (animate && !reducedHeadlineMotion.matches) {
+      headlineMiddle.classList.add("is-changing");
+      window.setTimeout(update, 220);
+    } else update();
+  }
+  function updateHeadlineToggle() {
+    if (!headlineToggle) return;
+    headlineToggle.setAttribute("aria-pressed", String(headlinePaused));
+    headlineToggle.textContent = headlinePaused
+      ? language === "ar" ? "استئناف" : "Resume"
+      : language === "ar" ? "إيقاف" : "Pause";
+  }
+  function startHeadlineRotation() {
+    window.clearInterval(headlineTimer);
+    if (!headlineToggle || headlinePaused || document.hidden) return;
+    headlineTimer = window.setInterval(() => {
+      headlineIndex = (headlineIndex + 1) % headlineStates.length;
+      renderHeadline(headlineIndex, true);
+    }, 3800);
+  }
+  headlineToggle?.addEventListener("click", () => {
+    headlinePaused = !headlinePaused;
+    updateHeadlineToggle();
+    startHeadlineRotation();
+  });
+  reducedHeadlineMotion.addEventListener("change", startHeadlineRotation);
+  document.addEventListener("visibilitychange", startHeadlineRotation);
+  renderHeadline(headlineIndex);
+  startHeadlineRotation();
   const translations = [...document.querySelectorAll("[data-ar]")].map(
     (node) => [node, node.textContent, node.dataset.ar],
   );
@@ -15,6 +119,12 @@
     translations.forEach(([node, en, ar]) => {
       node.textContent = language === "ar" ? ar : en;
     });
+    renderHeadline(headlineIndex);
+    updateHeadlineToggle();
+    updateCapabilityToggle();
+    document
+      .querySelector("[data-close-enquiry]")
+      ?.setAttribute("aria-label", language === "ar" ? "إغلاق النموذج" : "Close form");
     languageButton.textContent = language === "ar" ? "English" : "العربية";
     languageButton.lang = language === "ar" ? "en" : "ar";
     languageButton.setAttribute(
@@ -23,8 +133,8 @@
     );
     document.title =
       language === "ar"
-        ? "7Network — أعمالك. مترابطة."
-        : "7Network — Your business. Connected.";
+        ? "7Network — منصة نمو الأعمال رقم 1"
+        : "7Network — The #1 growth platform";
     renderPlans();
     if (statusMessage)
       status.textContent = statusMessage[language === "ar" ? 1 : 0];
@@ -35,6 +145,8 @@
   function renderPlans() {
     if (!catalogue) return;
     planGrid.replaceChildren();
+    planGrid.setAttribute("aria-busy", "false");
+    planGrid.classList.remove("plan-error");
     const ar = language === "ar";
     const selected = window.SaleMaXPlans.select(catalogue);
     const monthly = selected.find(
@@ -48,9 +160,10 @@
       new Intl.NumberFormat(ar ? "ar-QA" : "en-QA", {
         style: "currency",
         currency: planCurrency,
-        maximumFractionDigits: 2,
+        maximumFractionDigits: 0,
       }).format(Number(value));
     if (!selected.length) {
+      planGrid.classList.add("plan-error");
       planGrid.textContent = ar
         ? "تواصل معنا لمعرفة الخطط المتاحة."
         : "Contact us for available plans.";
@@ -68,6 +181,8 @@
         card.append(node);
         return node;
       };
+      const icon = element("span", "7", "plan-icon");
+      icon.setAttribute("aria-hidden", "true");
       element(
         "p",
         annual
@@ -126,30 +241,30 @@
         );
       element(
         "p",
-        ar ? "الميزات الأساسية في كلتا الخطتين" : "SHARED CORE IN BOTH PLANS",
+        ar ? "الميزات المشمولة" : "INCLUDED FEATURES",
         "plan-features-label",
       );
-      const list = element("ul", "");
+      const featureList = element("ul", "", "plan-feature-list");
       for (const feature of window.SaleMaXPlans.features) {
-        const li = document.createElement("li");
-        li.textContent = feature[ar ? "ar" : "en"];
-        list.append(li);
+        const item = document.createElement("li");
+        item.textContent = feature[ar ? "ar" : "en"];
+        featureList.append(item);
       }
       const checkout = element(
         "a",
         annual
           ? ar
-            ? "اختر السنوي ↗"
-            : "Choose yearly ↗"
+            ? "اختر السنوي "
+            : "Choose yearly "
           : ar
-            ? "اختر الشهري ↗"
-            : "Choose monthly ↗",
+            ? "اختر الشهري "
+            : "Choose monthly ",
         "button " + (annual ? "" : "button-dark"),
       );
       checkout.href = "/user/checkout?product=" + encodeURIComponent(plan.id);
       const link = element(
         "a",
-        ar ? "ناقش تخصيص CRM لأعمالك ↗" : "Discuss your CRM setup ↗",
+        ar ? "ناقش إعداد CRM لنشاطك" : "Talk through your CRM setup",
         "text-link",
       );
       link.href = "#contact";
@@ -165,9 +280,15 @@
     }
   }
 
+  const isLocalPreview = ["localhost", "127.0.0.1"].includes(location.hostname);
   Promise.all([
-    fetch("/api/admin/get_plans").then((r) => r.json()),
-    fetch("/api/web/get_web_public").then((r) => r.json()),
+    fetch("/api/admin/get_plans").then((r) => {
+      if (!r.ok) throw new Error("Plan request failed");
+      return r.json();
+    }),
+    fetch("/api/web/get_web_public")
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null),
   ])
     .then(([plans, settings]) => {
       if (!plans.success || !Array.isArray(plans.data)) throw new Error();
@@ -183,9 +304,21 @@
             Number(plan.plan_duration_in_days) > 0,
         )
         .slice(0, 30);
+      if (!window.SaleMaXPlans.select(catalogue).length && isLocalPreview) {
+        catalogue = window.SaleMaXPlans.localPreviewPlans();
+        planGrid.dataset.catalogueSource = "local-preview";
+      }
       renderPlans();
     })
     .catch(() => {
+      if (isLocalPreview) {
+        catalogue = window.SaleMaXPlans.localPreviewPlans();
+        planCurrency = "QAR";
+        planGrid.dataset.catalogueSource = "local-preview";
+        renderPlans();
+        return;
+      }
+      planGrid.setAttribute("aria-busy", "false");
       planGrid.textContent =
         language === "ar"
           ? "تعذر تحميل الخطط الآن. تواصل معنا لمعرفة الأسعار الحالية."
@@ -258,8 +391,17 @@
   setupTabs("[data-preview]", "preview-", "preview");
   setupTabs("[data-industry]", "industry-", "industry");
   document.querySelectorAll("[data-solution]").forEach((link) =>
-    link.addEventListener("click", () => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
       document.getElementById("solution").value = link.dataset.solution;
+      const industry = document.getElementById("industry");
+      industry.value = link.dataset.solution === "training"
+        ? "training"
+        : link.dataset.solution === "custom" || link.dataset.solution === "other"
+          ? "other"
+          : "business";
+      enquiryDialog?.showModal();
+      enquiryForm?.elements.name?.focus();
     }),
   );
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -285,6 +427,37 @@
         .forEach((node) => node.classList.add("is-visible")),
     );
   }
+  const funnelCards = [...document.querySelectorAll(".funnel-card")];
+  if (!reduceMotion.matches && funnelCards.length) {
+    root.classList.add("funnel-motion-ready");
+    if ("IntersectionObserver" in window) {
+      const funnelReveal = new IntersectionObserver(
+        (entries) =>
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-entered");
+              funnelReveal.unobserve(entry.target);
+            }
+          }),
+        { threshold: 0.14, rootMargin: "0px 0px -7% 0px" },
+      );
+      funnelCards.forEach((card) => funnelReveal.observe(card));
+    } else {
+      const revealVisibleFunnelCards = () => {
+        funnelCards.forEach((card) => {
+          const bounds = card.getBoundingClientRect();
+          if (bounds.top < innerHeight * 0.9 && bounds.bottom > innerHeight * 0.1)
+            card.classList.add("is-entered");
+        });
+      };
+      window.addEventListener("scroll", revealVisibleFunnelCards, { passive: true });
+      window.addEventListener("resize", revealVisibleFunnelCards, { passive: true });
+      revealVisibleFunnelCards();
+    }
+    window.addEventListener("beforeprint", () =>
+      funnelCards.forEach((card) => card.classList.add("is-entered")),
+    );
+  }
   const floating = document.querySelector(".floating-cta");
   if ("IntersectionObserver" in window) {
     let heroVisible = true,
@@ -305,7 +478,7 @@
   document.getElementById("year").textContent = String(
     new Date().getFullYear(),
   );
-  const form = document.getElementById("enquiry-form"),
+  const form = enquiryForm,
     submit = form.querySelector("[type=submit]");
   let pending = false,
     submissionToken = crypto.randomUUID();
